@@ -1,0 +1,130 @@
+/**
+ * View model of Bots (agents that live in the gateway). Presentational only: no proto types, so a
+ * future contract maps onto these shapes in one place. Times are `Date`s; ids are opaque strings.
+ */
+
+/** Someone in a conversation: you or a bot. */
+export interface ParticipantView {
+  id: string;
+  kind: "user" | "bot";
+  name: string;
+  /** Picture; without one a bot gets its generated mascot and you get your initials. */
+  imageUrl?: string | undefined;
+}
+
+export interface BotView extends ParticipantView {
+  kind: "bot";
+  /** One line about what the bot does. */
+  description?: string | undefined;
+}
+
+/**
+ * direct: you and one bot; group: you and several bots; watch: two bots talking to each other,
+ * which you can read but not write in.
+ */
+export type ConversationKind = "direct" | "group" | "watch";
+
+export interface ConversationPreview {
+  senderId: string;
+  /** Plain text (markdown stripped by the mapper), one line is shown. */
+  text: string;
+  at: Date;
+}
+
+export interface ConversationView {
+  id: string;
+  kind: ConversationKind;
+  /** Groups have a name; direct and watched chats are named after their bots. */
+  title?: string | undefined;
+  /** Bots of the conversation; you are implicit (except in `watch`, where you are only a reader). */
+  bots: BotView[];
+  lastMessage?: ConversationPreview | undefined;
+  unread: number;
+  /** Pinned conversations sit at the top of the Bots section as large avatars. */
+  pinned: boolean;
+  /** Position among the pinned ones (ascending); ignored when not pinned. */
+  pinOrder?: number | undefined;
+}
+
+/** A link a bot posted, rendered as a chip under the message. */
+export interface LinkView {
+  url: string;
+  title: string;
+  kind: "pull_request" | "issue" | "commit" | "web";
+  /** e.g. "open-agents#443" or the host. */
+  subtitle?: string | undefined;
+}
+
+export interface ChatMessageView {
+  id: string;
+  senderId: string;
+  at: Date;
+  /** Markdown from bots; your own messages are shown as plain text. */
+  text: string;
+  links?: LinkView[] | undefined;
+  /** Quoted message this one answers. */
+  replyTo?: { senderId: string; excerpt: string } | undefined;
+  /** Only your own messages: still sending, or failed to send. */
+  delivery?: "sending" | "failed" | undefined;
+}
+
+/**
+ * Something that happened in the conversation rather than something said: a routine created,
+ * deleted or disabled, a message relayed from another bot, a participant joining.
+ */
+export interface ChatEventView {
+  id: string;
+  at: Date;
+  kind: "routine_created" | "routine_deleted" | "routines_disabled" | "relayed_message" | "joined" | "info";
+  /** The line itself, e.g. "Deleted routine". */
+  text: string;
+  /** What it is about, after a middle dot, e.g. "Canopy: scalenie PR #443 po CI". */
+  detail?: string | undefined;
+  /** Who did it (a bot id), for the colour of the line. */
+  actorId?: string | undefined;
+}
+
+export interface QuestionOptionView {
+  id: string;
+  label: string;
+  description?: string | undefined;
+}
+
+/** A bot asks you to pick one of a few options. */
+export interface QuestionView {
+  id: string;
+  askedBy: string;
+  at: Date;
+  prompt: string;
+  options: QuestionOptionView[];
+  /** Set once answered (by you, here or elsewhere). */
+  answer?: { optionId: string; at: Date } | undefined;
+}
+
+export type ChatEntry =
+  | { kind: "message"; message: ChatMessageView }
+  | { kind: "event"; event: ChatEventView }
+  | { kind: "question"; question: QuestionView };
+
+export const entryId = (entry: ChatEntry): string =>
+  entry.kind === "message" ? entry.message.id : entry.kind === "event" ? entry.event.id : entry.question.id;
+
+export const entryAt = (entry: ChatEntry): Date =>
+  entry.kind === "message" ? entry.message.at : entry.kind === "event" ? entry.event.at : entry.question.at;
+
+/** Name shown for a conversation: the group's title or its bots' names. */
+export function conversationTitle(conversation: ConversationView): string {
+  if (conversation.title) return conversation.title;
+  const names = conversation.bots.map((b) => b.name);
+  return conversation.kind === "watch" ? names.join(" ⇄ ") : names.join(", ");
+}
+
+/** Latest message first. */
+export const byLatest = (conversations: readonly ConversationView[]): ConversationView[] =>
+  [...conversations].sort((a, b) => (b.lastMessage?.at.getTime() ?? 0) - (a.lastMessage?.at.getTime() ?? 0));
+
+/** Pinned ones in pin order, then the rest by latest message. */
+export function arrangeConversations(conversations: readonly ConversationView[]): { pinned: ConversationView[]; others: ConversationView[] } {
+  const pinned = conversations.filter((c) => c.pinned).sort((a, b) => (a.pinOrder ?? 0) - (b.pinOrder ?? 0));
+  return { pinned, others: byLatest(conversations.filter((c) => !c.pinned)) };
+}
