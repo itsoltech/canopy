@@ -19,7 +19,7 @@ import {
 import { AsyncChannel } from "@open-agents/transport";
 import { Context, Effect, Layer, Schema } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
-import { claudeModel, isClaudeEffort, type ModelInit } from "../models.ts";
+import { claudeAgentModels, claudeModel, isClaudeEffort, proxyCapabilities, type ModelInit, type ProxyCapabilities } from "../models.ts";
 import { claudeNativeToolOptions, type NativeToolPolicy } from "../native-tools.ts";
 import { SteerError, type TurnSettings } from "../turn-input.ts";
 import type { Env, ResolvedProfile } from "../profiles.ts";
@@ -56,6 +56,11 @@ export interface ClaudeThreadsOptions {
   readonly executable?: string;
   readonly nativeTools: NativeToolPolicy;
   readonly baseEnv: Env;
+  /**
+   * The device owner's default effort for a model known by these names (their Claude settings, default-effort.ts);
+   * read on every use. Platform threads do not load user settings, so a turn without an effort gets this one.
+   */
+  configuredEffort?(names: readonly string[]): string | undefined;
   profile(id: string): ResolvedProfile | undefined;
   publish(event: ThreadEvent): void;
   interact(request: InteractionRequest): Promise<InteractionResponse>;
@@ -107,6 +112,8 @@ const make = (options: ClaudeThreadsOptions) =>
     const active = new Map<string, ActiveTurn>();
     /** Turns started in this process, so a redelivered StartTurn does not run twice. */
     const started = new Set<string>();
+    /** Model id → the model it resolves to (aliases, "default"), from the last listing. */
+    const resolvedModels = new Map<string, string>();
     // Session helpers (forkSession, getSessionMessages) run in this process and read CLAUDE_CONFIG_DIR here.
     process.env["CLAUDE_CONFIG_DIR"] = options.home;
 
@@ -170,7 +177,8 @@ const make = (options: ClaudeThreadsOptions) =>
       const model = settings?.model || spec.model;
       const requested = settings?.effort ?? "";
       if (requested && !isClaudeEffort(requested)) throw new Error(`unknown reasoning effort "${requested}" (Claude: low, medium, high, xhigh, max)`);
-      const effort = isClaudeEffort(requested) ? requested : undefined;
+      const configured = requested ? undefined : options.configuredEffort?.([model || "default", resolvedModels.get(model || "default") ?? ""]);
+      const effort = isClaudeEffort(requested) ? requested : configured && isClaudeEffort(configured) ? configured : undefined;
       const sessionId = spec.providerThreadId || spec.threadId;
       const resume = await sessionExists(sessionId, spec.cwd);
       const permissions = claudePermissions(spec.permissionMode);
@@ -424,7 +432,12 @@ const make = (options: ClaudeThreadsOptions) =>
           },
           catch: fail("", "models"),
         });
-        return { models: models.map(claudeModel) };
+        // Through a proxy: its capabilities say which listed models cannot run an agent turn (optional).
+        const capabilities =
+          profile.kind === "cliproxyapi" ? yield* Effect.tryPromise(() => proxyCapabilities(profile)).pipe(Effect.orElseSucceed((): ProxyCapabilities[] => [])) : [];
+        const agentModels = claudeAgentModels(models, capabilities);
+        for (const m of agentModels) if (m.resolvedModel) resolvedModels.set(m.value, m.resolvedModel);
+        return { models: agentModels.map((m) => claudeModel(m, options.configuredEffort?.([m.value, m.resolvedModel ?? ""]))) };
       }),
     });
   });
