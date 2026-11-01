@@ -11,8 +11,8 @@ export type TimelineRow =
   | { readonly kind: "turn-start"; readonly key: string; readonly turn: ui.Turn }
   /** The turn's input before the provider echoes it as a user_message item. */
   | { readonly kind: "input"; readonly key: string; readonly turn: ui.Turn }
-  /** `fromAgent`: a user_message of a turn the agent bus started (another agent wrote it). */
-  | { readonly kind: "item"; readonly key: string; readonly node: ItemNode; readonly fromAgent: boolean }
+  /** `inputOf`: the item is the turn's input (user_message), shown with where it came from. */
+  | { readonly kind: "item"; readonly key: string; readonly node: ItemNode; readonly inputOf: ui.Turn | undefined }
   | { readonly kind: "notice"; readonly key: string; readonly notice: TimelineNotice }
   | { readonly kind: "turn-end"; readonly key: string; readonly turn: ui.Turn; readonly result: TurnResult | undefined };
 
@@ -72,8 +72,8 @@ export function buildTimeline(
     const turn = element.turnId ? turnById.get(element.turnId) : undefined;
     if (turn && !opened.has(turn.id)) open(turn);
     if ("node" in element) {
-      const fromAgent = turn?.trigger === "agent_bus" && element.node.entry.item.content.case === "userMessage";
-      rows.push({ kind: "item", key: `item:${element.node.entry.id}`, node: element.node, fromAgent });
+      const inputOf = element.node.entry.item.content.case === "userMessage" ? turn : undefined;
+      rows.push({ kind: "item", key: `item:${element.node.entry.id}`, node: element.node, inputOf });
     } else rows.push({ kind: "notice", key: `notice:${element.seq}`, notice: element.notice });
     if (turn && lastIndex.get(turn.id) === index) close(turn);
   });

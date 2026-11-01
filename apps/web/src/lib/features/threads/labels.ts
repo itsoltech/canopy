@@ -13,23 +13,3 @@ export const permissionModes = [
 export function permissionLabel(mode: PermissionMode): string {
   return permissionModes.find((m) => PermissionMode[m.value] === mode)?.label ?? "Ask first";
 }
-
-/** Who started a turn (`ui.Turn.trigger`), when it was not the user typing in this UI. */
-export function triggerLabel(trigger: string): string | undefined {
-  switch (trigger) {
-    case "agent_bus":
-      return "Sent by an agent";
-    case "schedule":
-      return "Scheduled";
-    case "interaction":
-      return "After an answer";
-    case "goal":
-      return "Goal";
-    case "provider":
-      return "Background work finished";
-    case "recovery":
-      return "Resumed after restart";
-    default:
-      return undefined;
-  }
-}

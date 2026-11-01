@@ -7,12 +7,13 @@
   import ElicitationForm from "./ElicitationForm.svelte";
   import PermissionRequest from "./PermissionRequest.svelte";
   import QuestionForm from "./QuestionForm.svelte";
+  import ThreadLink from "../items/ThreadLink.svelte";
 
   /**
    * The agent is blocked on a person: a permission (allow / deny), questions or an MCP form.
    * `related` is the timeline item the request is about (e.g. the file change to approve).
    */
-  let { interaction, related }: { interaction: ui.Interaction; related: Item | undefined } = $props();
+  let { interaction, related, parent }: { interaction: ui.Interaction; related: Item | undefined; parent?: ui.Thread | undefined } = $props();
 
   let busy = $state(false);
   let error = $state<string | undefined>(undefined);
@@ -40,13 +41,22 @@
   }
 </script>
 
-<section class="rounded-xl bg-white p-4 shadow-lg ring-1 ring-amber-500/40 dark:bg-zinc-950 dark:shadow-none dark:ring-amber-400/30" aria-labelledby="{id}-title">
+<section
+  class={[
+    "rounded-xl bg-white p-4 shadow-lg ring-1 dark:bg-zinc-950 dark:shadow-none",
+    interaction.routedTo === "parent" ? "ring-violet-500/40 dark:ring-violet-400/30" : "ring-amber-500/40 dark:ring-amber-400/30",
+  ]}
+  aria-labelledby="{id}-title"
+>
   <div class="flex items-start gap-2">
     <span class="flex h-lh items-center text-base/6"><Icon name={interaction.kind === InteractionKind.PERMISSION ? "hand-raised" : "question-mark-circle"} class="fill-amber-500 dark:fill-amber-400" /></span>
     <div class="min-w-0 flex-1">
       <h2 id="{id}-title" class="text-base/6 font-semibold text-zinc-950 dark:text-white">{title}</h2>
       {#if interaction.routedTo === "parent"}
-        <p class="text-sm/5 text-violet-700 dark:text-violet-400">Routed to the parent agent. You can answer instead.</p>
+        <p class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm/5 text-violet-700 dark:text-violet-400">
+          <Icon name="sparkles" class="size-3.5" />
+          {#if parent}<span>The agent of</span><ThreadLink threadId={parent.id} fallback={parent.title} /><span>answers this. You can step in.</span>{:else}The main agent answers this. You can step in.{/if}
+        </p>
       {/if}
     </div>
   </div>
