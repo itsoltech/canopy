@@ -4,14 +4,15 @@
 
   /**
    * Heroicons Micro (16px). Decorative by default; pass `label` when the icon is the only content.
-   * Colour comes from `fill-*` classes (default: current text colour).
+   * Colour comes from `fill-*` classes (default: current text colour, as the `fill` attribute so any class wins).
    */
   let { name, label, class: className }: { name: IconName; label?: string; class?: ClassValue } = $props();
 </script>
 
 <svg
   viewBox="0 0 16 16"
-  class={["size-4 shrink-0 fill-current", className]}
+  fill="currentColor"
+  class={["size-4 shrink-0", className]}
   aria-hidden={label ? undefined : "true"}
   role={label ? "img" : undefined}
   aria-label={label}
