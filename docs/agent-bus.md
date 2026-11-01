@@ -20,7 +20,6 @@ Zestaw narzędzi wątku Codexa jest ustalany przy `thread/start`. Wątki utworzo
 | `list_agents`, `spawn_thread.agent` | brak katalogu agentów: `list_agents` zwraca pustą listę, `agent` jest odrzucane (wątek boczny to kopia wywołującego) |
 | `send_message.delivery = steer` | działa: gdy cel ma turę w toku, wiadomość (z notatką o nadawcy) trafia do niej (`turn_steers`, `SteerTurn`; Codex `turn/steer`, Claude strumień wejścia). Wynik narzędzia: `delivery: "steer"` i `turn_id` tury w toku. Powiadomienie przychodzi, gdy skończy się tura, do której wiadomość weszła (wywołanie wskazuje ją dopiero po wejściu). Nie weszła (tura skończyła się wcześniej, odmowa dostawcy): następna tura `agent_bus` z tym samym wywołaniem i `hops`, powiadomienie po niej. Bez tury w toku: kolejka (`delivery: "queue"`) |
 | `schedule_wakeup`, `schedule_recurring`, `list_schedules`, `cancel_schedule` | działa (użytkownik ma to samo w UI API: `ListSchedules`, `CreateSchedule`, `SetScheduleStatus`): `Scheduler` w gateway (`apps/gateway/src/core/scheduler.ts`, co 5 s), cron Buna ze strefą czasową (`core/cron.ts`); minimalny odstęp sprawdzany na rzeczywistych terminach |
-| `get_goal`, `propose_goal`, `update_goal` | nieoferowane: celami steruje harness, platforma je śledzi ([goals.md](goals.md)) |
 
 Powiązane: [threads.md](threads.md), [execution.md](execution.md), [transcript.md](transcript.md).
 
@@ -79,7 +78,6 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `schedule_wakeup` | ✓ | ✓ | jednorazowo później (`delay_seconds` albo `at`, do 7 dni) |
 | `schedule_recurring` | ✓ | ✓ | cron (min. 5 min), wymagane `until` (do 30 dni) albo `max_runs` |
 | `list_schedules` / `cancel_schedule` | ✓ | ✓ | własne harmonogramy i harmonogramy potomków |
-| `get_goal` / `propose_goal` / `update_goal` | ✓* | ✓* | cel wątku ([goals.md](goals.md)); *nieoferowane (silnika celów platformy nie ma; model używa narzędzi harnessu) |
 
 ### Asynchroniczność
 
@@ -171,7 +169,7 @@ Ustalone (2026-11-01):
 3. Wiadomości do rodzeństwa są dozwolone.
 4. Dwa poziomy: wątki boczne nie tworzą kolejnych.
 
-5. Cele są funkcją platformy z natywnym silnikiem harnessu ([goals.md](goals.md)).
+5. Szyna nie ma narzędzi celów: cele należą do harnessu (model używa jego narzędzi), platforma je śledzi ([goals.md](goals.md)).
 
 Otwarte:
 

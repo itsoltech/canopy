@@ -92,8 +92,9 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(excess.isError).toBe(true);
     const foreign = await gw.worker.callTool({ threadId: mainId, tool: "get_thread", args: { thread_id: Bun.randomUUIDv7() } });
     expect(foreign.content).toContain("not found in your thread tree");
+    // Goals are the harness's own (docs/goals.md): the bus has no goal tools.
     const goal = await gw.worker.callTool({ threadId: mainId, tool: "propose_goal", args: { objective: "x", condition: "y" } });
-    expect(goal.content).toBe("propose_goal is not available in this thread");
+    expect(goal.content).toContain('unknown agent bus tool "propose_goal"');
   });
 
   test("reading the tree: list_threads, get_thread, read_thread, wait_threads", async () => {

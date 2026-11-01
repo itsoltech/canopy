@@ -364,10 +364,11 @@ enum GoalDirective {
 // Tylko Codex (thread/goal/*). Claude steruje celem komendą /goal w strumieniu wejścia, więc gateway
 // wysyła ją jako zwykłą turę (trigger = goal), nie jako SetGoal.
 message SetGoal {
+  reserved 4;
+  reserved "condition"; // warunek ewaluatora silnika platformy (porzucony)
   string thread_id = 1;
   string goal_id = 2;
   string objective = 3;
-  string condition = 4;
   GoalDirective directive = 5;
   // Budżet tokenów harnessu (Codex tokenBudget). 0 = bez limitu.
   uint64 native_token_budget = 6;
@@ -529,19 +530,12 @@ enum NoticeLevel {
   NOTICE_LEVEL_ERROR = 3;
 }
 
-enum GoalOrigin {
-  GOAL_ORIGIN_UNSPECIFIED = 0;
-  GOAL_ORIGIN_PLATFORM = 1;   // efekt SetGoal
-  // Model użył natywnego narzędzia (Codex create_goal/update_goal, Claude ProposeGoal).
-  // Gateway zapisuje cel jako proposed i wstrzymuje go do akceptacji użytkownika.
-  GOAL_ORIGIN_MODEL = 2;
-}
-
 // Stan celu harnessu: Codex thread/goal/updated|cleared; Claude: wynik komendy /goal (lokalna odpowiedź
 // „Goal set: …” / „Goal cleared: …”) i werdykty ewaluatora (goal_status w transkrypcie sesji), active_goal.
 message GoalState {
-  string goal_id = 1;           // pusty, gdy cel utworzył model natywnie
-  GoalOrigin origin = 2;
+  // Cel platformy rozpoznaje gateway (tura celu, treść), nie worker; pochodzenie celu też (created_by).
+  reserved 1, 2;
+  reserved "goal_id", "origin";
   // Codex: active | paused | blocked | usageLimited | budgetLimited | complete;
   // Claude: active (ustawiony albo niespełniony po ocenie) | met | failed (niemożliwy) | cleared.
   string native_status = 3;

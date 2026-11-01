@@ -268,8 +268,6 @@ export class AgentBus {
         await store((s) => s.cancelSchedule(call.args.schedule_id));
         await this.#host.scheduleChanged(call.args.schedule_id);
         return { schedule_id: call.args.schedule_id, cancelled: true };
-      default:
-        throw new Error(`${call.tool} is not available yet`);
     }
   }
 }

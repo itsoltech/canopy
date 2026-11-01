@@ -138,7 +138,7 @@ Pozostałe tabele:
 | `worker_connections` | która instancja gateway trzyma strumień workera; `epoch` do fencingu ([durability.md](durability.md#42-outbox-komend)) |
 | `worker_commands` | outbox komend (protobuf `Command` w `payload`), `status`, `expires_at`, `client_request_id` |
 | `interaction_requests` | zgody, pytania i formularze MCP; z tury, subagenta albo zadania w tle (`turn_id` może być pusty); `routed_to` i autor odpowiedzi: użytkownik albo agent rodzica |
-| `goals` | cele harnessu ([goals.md](goals.md)): objective, status, budżet i zużycie według harnessu, iteracje, ostatni werdykt, autor (`user` z UI albo `provider`), ostatni raport (`native_status`, `native_state`); kolumny silnika platformy (warunek, `engine`, budżety drzewa, akceptacja) nieużywane; najwyżej jeden otwarty cel na wątek |
+| `goals` | cele harnessu ([goals.md](goals.md)): objective, status, budżet i zużycie według harnessu, iteracje, ostatni werdykt, autor (`user` z UI albo `provider`), ostatni raport (`native_status`, `native_state`); najwyżej jeden otwarty cel na wątek |
 | `schedules` | harmonogram platformy (jednorazowy / cron): następne uruchomienie, limity, autor (użytkownik albo wywołanie szyny), `hops`, dzierżawa |
 | `agent_bus_calls` | szyna agentów: każde wywołanie narzędzia (`spawn_thread`, `send_message`, `wait_threads`, ...), argumenty, wynik, uruchomiony wątek/tura, `hops`, powiadomienie zwrotne (outbox) |
 | `blobs` | duże treści (output, diff, obraz), adresowane sha256, inline albo w magazynie obiektów |
@@ -156,7 +156,7 @@ W SQL (CHECK, FK, indeksy częściowe):
 - `main` ⇔ brak rodzica ⇔ `root_thread_id = id` ⇔ `depth = 0`; najwyżej jeden poziom wątków bocznych (`depth <= 1`); fork tylko dla wątków bocznych; `interaction_route = parent` tylko dla wątków bocznych,
 - punkt forka to tura **wątku źródłowego** (złożony FK `(fork_after_turn_id, fork_source_thread_id)`),
 - jedna tura `running` na wątek; `client_request_id` unikalny w wątku; wyzwalacz ma swoje powiązanie (`agent_call_id`, `schedule_id`, `interaction_request_id`, `resumes_turn_id`); `hops` = 0 dla człowieka i dostawcy, > 0 dla szyny,
-- cel ustawiony przez harness jest zapisywany tak, jak go zgłosił (bez akceptacji i budżetu, `0010`); najwyżej jeden otwarty cel na wątek,
+- cel ustawiony przez harness jest zapisywany tak, jak go zgłosił (bez akceptacji i budżetu, `0010`); autor to `user` (z `created_by_user_id`) albo `provider`; silnika celów platformy nie ma (`0011` usuwa jego kolumny i stan `proposed`); najwyżej jeden otwarty cel na wątek,
 - harmonogram agenta zawsze ma koniec i `hops > 0`; dokładnie jeden autor (użytkownik albo wywołanie szyny); decyzja w interakcji ma dokładnie jednego autora,
 - zdarzenie wskazuje turę tego samego wątku.
 

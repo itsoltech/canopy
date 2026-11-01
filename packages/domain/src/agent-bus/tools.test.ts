@@ -36,9 +36,7 @@ describe("agent bus tool specs", () => {
 
 describe("tool sets per level", () => {
   test("main thread gets everything; side threads cannot spawn, control or answer for others", () => {
-    expect([...agentBusToolsFor(0, { goalTools: true })].sort() as string[]).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
-    expect(agentBusToolsFor(0)).not.toContain("propose_goal"); // native goal engine: the harness's own tools
-    expect(agentBusToolsFor(1, { goalTools: true })).toContain("update_goal");
+    expect([...agentBusToolsFor(0)].sort() as string[]).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
     expect(agentBusToolsFor(1).sort()).toEqual([
       "cancel_schedule",
       "get_thread",
