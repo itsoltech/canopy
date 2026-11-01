@@ -19,7 +19,8 @@
     "@connectrpc/connect-node": "2.3.0",
     "@open-agents/contracts": "workspace:*",
     "@open-agents/domain": "workspace:*",
-    "effect": "4.1.1"
+    "effect": "4.1.1",
+    "marked": "18.1.2"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "6.0.1",
