@@ -68,20 +68,21 @@ Kod wg funkcji (`#lib/features/*`), kod tylko serwerowy w katalogach `server/` (
 | `lib/server/gateway.ts` | klient gRPC z tokenem; `call` (błędy gateway → HTTP: 400, 404, 409, 503, reszta 502), `attempt` dla akcji formularzy (4xx → `fail`, komunikat przy formularzu) |
 | `lib/server/sse.ts`, `body.ts` | strumień gRPC → SSE (heartbeat co 15 s, ramka `failure`); ścisłe dekodowanie JSON (nadmiarowe pola → 400) |
 | `lib/shared/wire.ts` | JSON protobuf (`toJson` / `fromJson`) między serwerem a przeglądarką: te same schematy po obu stronach |
-| `lib/shared/ui` | prymitywy UI: `Button`, `ButtonLink`, `IconButton`, `Field` + `Input` / `Select` / `Textarea` / `Checkbox`, `Badge`, `StatusBadge`, `StatusDot`, `Card`, `Alert`, `EmptyState`, `Dialog`, `Drawer`, `Disclosure`, `CodeBlock`, `Skeleton`, `Page`, `PageHeader`, `Section`, `MetaList`; ikony Heroicons Micro (`icons.ts`); `markdown/` renderuje markdown agentów z tokenów `marked` komponentami Svelte (bez `{@html}`, linki tylko http(s)/mailto, obrazy jako linki) |
-| `lib/shared/format.ts` | liczby, czasy, rozmiary, JSON |
-| `features/navigation` | powłoka: pasek boczny (projekty, workery online, stan połączenia), menu mobilne |
-| `features/overview` | stan workerów, projektów i statusów wątków (kontekst, SSE `api/overview/events`; po każdym ponownym połączeniu pełny `api/overview`, bo strumień niesie tylko zmiany), karta workera |
-| `features/projects` | karta projektu, nowy projekt, lista wątków projektu (wątki główne z bocznymi) |
-| `features/threads` | `ThreadState` (snapshot + zdarzenia, `reduceItem`; notice, wynik i zużycie tur, tury startowane przez workera), `timeline.ts` (granice tur, zagnieżdżenie po `parent_item_id`), drzewo wątków, widoki itemów (`components/items`), karty interakcji (zgoda, pytania, formularz MCP), pole wiadomości, nowy wątek i nowy wątek boczny (`server/create-thread.ts`, wspólna akcja) |
-| `features/workspaces` | wybór katalogu na workerze (`api/workers/[id]/directory`), lista i dodawanie workspace'ów |
+| `lib/shared/ui` | prymitywy UI: `Button`, `ButtonLink`, `IconButton`, `Field` + `Input` / `Select` / `Textarea` / `Checkbox`, `Badge`, `StatusBadge`, `StatusDot`, `ProjectAvatar`, `Alert`, `EmptyState`, `Dialog`, `Drawer`, `Disclosure`, `CodeBlock`, `Skeleton`, `SettingsGroup` + `SettingsRow`; ikony Heroicons Micro (`icons.ts`); `markdown/` renderuje markdown agentów z tokenów `marked` komponentami Svelte (bez `{@html}`, linki tylko http(s)/mailto, obrazy jako linki) |
+| `lib/shared/theme.svelte.ts`, `format.ts` | motyw (system / ciemny / jasny, klasa `dark` ustawiana przed pierwszym renderem w `app.html`); liczby, czasy, JSON |
+| `lib/server/threads.ts` | indeks wątków wszystkich projektów (BFF woła `ListThreads` dla każdego projektu równolegle) |
+| `features/navigation` | powłoka w stylu T3 Code: pasek boczny jako skrzynka wątków (projekt, status, tytuł, worker; najpierw wątki czekające na użytkownika; wątki boczne otwartego drzewa pod nim), wyszukiwarka, stopka (ustawienia, workery, połączenie), `TopBar` z breadcrumbem, menu mobilne |
+| `features/overview` | stan workerów, projektów i wszystkich wątków (kontekst, SSE `api/overview/events`; po każdym ponownym połączeniu pełne `api/overview` i `api/threads`, bo strumień niesie tylko zmiany), karta workera w ustawieniach |
+| `features/projects` | nowy projekt, lista wątków projektu (wątki główne z bocznymi) |
+| `features/threads` | `ThreadState` (snapshot + zdarzenia, `reduceItem`; notice, wynik i zużycie tur, tury startowane przez workera), `timeline.ts` (granice tur, zagnieżdżenie po `parent_item_id`), widoki itemów (`components/items`), karty interakcji (zgoda, pytania, formularz MCP), `ComposerBox` (pole wiadomości jak w T3: okrągły przycisk wysyłania / zatrzymania, „pigułki” ustawień), panel kontekstu wątku (worker, agent, zużycie, linia wątków), nowy wątek boczny (`server/create-thread.ts`, wspólna akcja) |
+| `features/settings`, `features/workspaces` | nawigacja ustawień; wybór katalogu na workerze (`api/workers/[id]/directory`), dodawanie workspace'ów |
 
 Trasy:
-- strony: `/` (projekty, workery, nowy projekt), `/projects/[id]` (drzewo wątków, nowy wątek, workspace'y), `/threads/[id]` (oś czasu na żywo, drzewo wątku: główny i boczne, nowy wątek boczny z opcjonalnym forkiem; akcja `?/createSideThread`),
-- API (JSON): `GET api/overview`, `GET api/projects/[id]/threads`, `POST api/threads/[id]/messages` (`{text, clientRequestId}`), `POST .../interrupt`, `POST api/interactions/[id]` (`{allow}` albo odpowiedzi), `GET api/workers/[id]/directory?path=`,
+- strony: `/` (nowy wątek: „What should we work on?”, workspace, profil i uprawnienia jako pigułki; `?project=` wybiera projekt), `/threads/[id]` (oś czasu na żywo, panel kontekstu z linią wątków i nowym wątkiem bocznym z opcjonalnym forkiem; akcja `?/createSideThread`), `/settings/projects` (lista, nowy projekt), `/settings/projects/[id]` (workspace'y, wątki), `/settings/workers`, `/settings/appearance`; stare `/projects/[id]` przekierowuje do ustawień,
+- API (JSON): `GET api/overview`, `GET api/threads`, `POST api/threads/[id]/messages` (`{text, clientRequestId}`), `POST .../interrupt`, `POST api/interactions/[id]` (`{allow}` albo odpowiedzi), `GET api/workers/[id]/directory?path=`,
 - SSE: `api/overview/events`, `api/threads/[id]/events`. Po zerwaniu `EventSource` łączy się ponownie, a serwer zaczyna od świeżego snapshotu, więc stan klienta nie wymaga uzgadniania.
 
-Stany: brak gateway (powłoka renderuje się dalej, baner i ponawianie), ponowne łączenie SSE, worker offline (wątek i wiadomości czekają), wątek w tworzeniu lub nieudany, ładowanie (szkielety), puste listy. Tryb ciemny według systemu. Układ od telefonu (menu w szufladzie, przełącznik wątków w poziomym pasku) do desktopu (pasek boczny, drzewo wątku z prawej).
+Stany: brak gateway (powłoka renderuje się dalej, baner i ponawianie), ponowne łączenie SSE, worker offline (wątek i wiadomości czekają), wątek w tworzeniu lub nieudany, ładowanie (szkielety), puste listy. Układ od telefonu (skrzynka wątków w szufladzie, panel kontekstu jako arkusz) do desktopu (pasek boczny, czat pośrodku, panel z prawej).
 
 Bezpieczeństwo:
 - przeglądarka nie zna adresu gateway ani tokenu,
