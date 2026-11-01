@@ -4,8 +4,10 @@
   import { page } from "$app/state";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { returnTo } from "#lib/features/settings/return-to.svelte.ts";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { settingsSections } from "#lib/features/settings/sections.ts";
   import SettingsNav from "#lib/features/settings/SettingsNav.svelte";
+  import Alert from "#lib/shared/ui/Alert.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
 
   /**
@@ -14,6 +16,7 @@
    */
   let { children }: { children: Snippet } = $props();
   const overview = useOverview();
+  const settings = useSettings();
 
   const section = $derived(settingsSections.find((s) => page.url.pathname.startsWith(s.href)));
   const project = $derived(page.params.projectId ? overview.project(page.params.projectId) : undefined);
@@ -77,6 +80,12 @@
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto">
         <div class="mx-auto grid max-w-3xl grid-cols-1 gap-10 px-4 py-6 sm:px-8 lg:py-8">
+          {#if settings.notice}
+            <Alert tone={settings.notice.tone}>
+              {settings.notice.text}
+              {#snippet actions()}<IconButton icon="x-mark" label="Dismiss" size="sm" onclick={() => settings.dismissNotice()} />{/snippet}
+            </Alert>
+          {/if}
           {@render children()}
         </div>
       </div>

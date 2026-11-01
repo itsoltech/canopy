@@ -17,8 +17,12 @@ export function profilesFor(worker: ui.Worker | undefined, key: ProviderKey): Pr
   return worker?.profiles.filter((p) => p.available && p.providers.includes(Provider[key])) ?? [];
 }
 
-/** Form value of a profile: the native profile is the empty id (the worker's default login). */
-export const profileValue = (profile: ProviderProfile): string => (profile.id === "native" ? "" : profile.id);
+/**
+ * Form value of a profile id as the worker reports it (settings store it so): the native profile is the
+ * empty id (the worker's default login).
+ */
+export const profileIdValue = (id: string): string => (id === "native" ? "" : id);
+export const profileValue = (profile: ProviderProfile): string => profileIdValue(profile.id);
 
 /** Why a provider/profile pair cannot start on the worker, or undefined when it can. */
 export function placementProblem(worker: ui.Worker | undefined, key: ProviderKey, profileId: string): string | undefined {

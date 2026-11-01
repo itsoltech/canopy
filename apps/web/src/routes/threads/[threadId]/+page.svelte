@@ -5,6 +5,7 @@
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
   import InheritedHistory from "#lib/features/threads/components/InheritedHistory.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
@@ -29,6 +30,7 @@
   let { data }: PageProps = $props();
   const threadId = $derived(page.params.threadId ?? "");
   const overview = useOverview();
+  const settings = useSettings();
 
   // A new ThreadState per thread id: navigating between threads of a tree starts clean, seeded with the
   // thread from GetThread so the header and composer render before the stream's snapshot.
@@ -95,14 +97,13 @@
     atEnd = true;
   });
 
-  // Context panel: beside the chat on wide screens (remembered), a sheet on narrow ones.
-  let panelOpen = $state(typeof localStorage === "undefined" || localStorage.getItem("oa-thread-panel") !== "closed");
+  // Context panel: beside the chat on wide screens (open or collapsed, saved in your settings), a sheet
+  // on narrow ones.
+  const panelOpen = $derived(!settings.appearance.threadPanelCollapsed);
   let panelSheet = $state(false);
   function togglePanel() {
-    if (matchMedia("(min-width: 80rem)").matches) {
-      panelOpen = !panelOpen;
-      localStorage.setItem("oa-thread-panel", panelOpen ? "open" : "closed");
-    } else panelSheet = true;
+    if (matchMedia("(min-width: 80rem)").matches) void settings.updateAppearance({ threadPanelCollapsed: panelOpen });
+    else panelSheet = true;
   }
 
   let sideOpen = $state(false);

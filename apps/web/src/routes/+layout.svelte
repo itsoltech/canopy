@@ -7,12 +7,12 @@
   import { untrack } from "svelte";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
   import { returnTo } from "#lib/features/settings/return-to.svelte.ts";
+  import { applyAppearance } from "#lib/features/settings/appearance.ts";
+  import { SettingsState, provideSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { provideShell } from "#lib/features/navigation/shell.ts";
   import { OverviewState, provideOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
-  // Keeps the color scheme in sync with the system while the choice is "system".
-  import "#lib/shared/preferences.svelte.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { LayoutProps } from "./$types";
 
@@ -26,6 +26,23 @@
   );
   provideOverview(overview);
   $effect(() => overview.connect());
+
+  // Settings live in the gateway: seeded by the server, changed from other devices through the stream.
+  const settings = new SettingsState(initial.settings ? decode(ui.GetSettingsResponseSchema, initial.settings) : undefined);
+  provideSettings(settings);
+  $effect(() => overview.subscribe((update) => settings.apply(update)));
+  $effect(() => {
+    // After a gap in the stream the settings may have changed meanwhile.
+    if (overview.resyncs > 0) void settings.reload().catch(() => undefined);
+  });
+  // The server rendered the appearance into <html>; keep it current (and follow the system for "system").
+  $effect(() => applyAppearance(settings.appearance));
+  $effect(() => {
+    const query = matchMedia("(prefers-color-scheme: dark)");
+    const follow = () => applyAppearance(settings.appearance);
+    query.addEventListener("change", follow);
+    return () => query.removeEventListener("change", follow);
+  });
 
   let menuOpen = $state(false);
   provideShell({ openMenu: () => (menuOpen = true) });
