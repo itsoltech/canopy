@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { posix, win32 } from "node:path";
 import { create, fromBinary, fromJson, toBinary, toJson, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
@@ -294,6 +295,13 @@ export class GatewayStore extends Context.Service<
           createWorkspace: ({ projectId, workerId, rootPath, label }) =>
             Effect.gen(function* () {
               if (!rootPath.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(rootPath)) return yield* Effect.fail(new Invalid("root path must be absolute"));
+              // Lexical check against the worker's configured roots, so a workspace never points outside them.
+              // The worker remains the authority: it checks real paths (symlinks) when a thread starts.
+              const config = yield* sql<{ config: { allowedRoots?: string[] } }>`
+                SELECT config FROM worker_configs WHERE worker_id = ${workerId}::uuid`;
+              if (!isWithinRoots(rootPath, config[0]?.config.allowedRoots ?? [])) {
+                return yield* Effect.fail(new Invalid(`${rootPath} is outside the worker's allowed directories`));
+              }
               const id = Bun.randomUUIDv7();
               yield* sql`
                 INSERT INTO project_workspaces (id, project_id, worker_id, root_path, label)
@@ -583,4 +591,14 @@ function slugify(name: string): string {
       .replace(/^-|-$/g, "")
       .slice(0, 40) || "project"
   );
+}
+
+/** Whether `path` is one of `roots` or below one, lexically. Windows-style roots (`C:\\…`, UNC) use win32 path rules. */
+export function isWithinRoots(path: string, roots: readonly string[]): boolean {
+  return roots.some((root) => {
+    const style = /^[A-Za-z]:[\\/]|^\\\\/.test(root) ? win32 : posix;
+    const relative = style.relative(style.resolve(root), style.resolve(path));
+    const outside = relative === ".." || relative.startsWith(`..${style.sep}`) || style.isAbsolute(relative);
+    return !outside;
+  });
 }

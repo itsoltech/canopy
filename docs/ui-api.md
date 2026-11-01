@@ -1,12 +1,13 @@
 # API dla UI i architektura frontendu
 
-Status: **backend zaimplementowany**:
+Status: **zaimplementowane**:
 - kontrakt: `proto/openagents/ui/v1/gateway.proto`,
 - rdzeń: `apps/gateway/src/core`,
 - dane: `apps/gateway/src/store`,
-- serwis: `apps/gateway/src/api`.
+- serwis: `apps/gateway/src/api`,
+- frontend: `apps/web` (SvelteKit 3, Svelte 5, Tailwind 4, `adapter-node`).
 
-Frontend (SvelteKit) jest w budowie.
+Potwierdzone na żywo (2026-11-01, Codex przez CLIProxyAPI): przez BFF utworzenie projektu, workspace'u (wybór katalogu na workerze) i wątku w trybie `ASK`, zgoda na komendę, plik powstaje, odpowiedź i statusy przychodzą przez SSE; kolejna wiadomość (idempotentna), przerwanie tury, restart gateway z ponownym połączeniem workera.
 
 ## 1. Architektura
 
@@ -56,7 +57,32 @@ UI składa itemy na żywo tym samym reducerem co gateway (`reduceItem` z `@open-
   - odrzucony start tury → tura `failed`.
 - **Zmiany na żywo:** przez `Hub` (proces gateway). Przy wielu instancjach będzie to `LISTEN/NOTIFY` (docs/durability.md, 4.3).
 
-## 4. Uruchomienie (development)
+## 4. Frontend (`apps/web`)
+
+Kod wg funkcji (`#lib/features/*`), kod tylko serwerowy w katalogach `server/` (SvelteKit nie pozwala go zaimportować w przeglądarce).
+
+| Ścieżka | Rola |
+|---|---|
+| `src/env.ts` | `GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN` (`defineEnvVars`, odczyt przy starcie, nie przy buildzie) |
+| `src/hooks.server.ts` | `init`: serwer nie wystartuje bez tokenu usługi |
+| `lib/server/gateway.ts` | klient gRPC z tokenem; `call` (błędy gateway → HTTP: 400, 404, 409, 503, reszta 502), `attempt` dla akcji formularzy (4xx → `fail`, komunikat przy formularzu) |
+| `lib/server/sse.ts`, `body.ts` | strumień gRPC → SSE (heartbeat co 15 s, ramka `failure`); ścisłe dekodowanie JSON (nadmiarowe pola → 400) |
+| `lib/shared/wire.ts` | JSON protobuf (`toJson` / `fromJson`) między serwerem a przeglądarką: te same schematy po obu stronach |
+| `features/overview` | stan workerów, projektów i statusów wątków (kontekst, SSE `api/overview/events`) |
+| `features/threads` | `ThreadState` (snapshot + zdarzenia, `reduceItem`), oś czasu, karty interakcji, pole wiadomości z przerwaniem |
+| `features/workspaces` | wybór katalogu na workerze (`api/workers/[id]/directory`) |
+
+Trasy:
+- strony: `/` (workery, nowy projekt), `/projects/[id]` (wątki, nowy wątek, workspace'y), `/threads/[id]` (oś czasu na żywo),
+- API (JSON): `POST api/threads/[id]/messages` (`{text, clientRequestId}`), `POST .../interrupt`, `POST api/interactions/[id]` (`{allow}` albo odpowiedzi), `GET api/workers/[id]/directory?path=`,
+- SSE: `api/overview/events`, `api/threads/[id]/events`. Po zerwaniu `EventSource` łączy się ponownie, a serwer zaczyna od świeżego snapshotu, więc stan klienta nie wymaga uzgadniania.
+
+Bezpieczeństwo:
+- przeglądarka nie zna adresu gateway ani tokenu,
+- formularze chroni kontrola `Origin` SvelteKit (CSRF), a endpointy JSON wymagają `content-type: application/json` (formularz z innej strony go nie ustawi),
+- workspace musi leżeć w dozwolonych katalogach workera: gateway sprawdza to leksykalnie przy tworzeniu, worker ścieżki rzeczywiste przy starcie wątku.
+
+## 5. Uruchomienie (development)
 
 ```bash
 docker run -d --name oa-pg -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=open_agents -p 127.0.0.1::5432 postgres:17
@@ -71,10 +97,19 @@ OA_CLIPROXYAPI_API_KEY=... bun apps/gateway/src/cli.ts worker add --name laptop 
 bun apps/gateway/src/main.ts          # migracje (OA_MIGRATE=1, domyślnie), serwer gRPC na :7443
 OA_WORKER_CONFIG=./worker.json bun apps/worker/src/main.ts
 OA_UI_SERVICE_TOKEN=... bun tests/integration/smoke/bff-client.ts "Reply OK"   # klient BFF do testów
+
+# frontend
+cd apps/web
+GATEWAY_SERVICE_TOKEN=$OA_UI_SERVICE_TOKEN bun run dev                     # http://localhost:5173
+bun run build && GATEWAY_SERVICE_TOKEN=... PORT=3000 node build/index.js    # produkcyjnie
 ```
 
-## 5. Ograniczenia na teraz
+`adapter-node` przyjmuje `https`, jeśli nie zna protokołu. Za reverse proxy ustawić `PROTOCOL_HEADER=x-forwarded-proto` (i `HOST_HEADER`, jeśli proxy zmienia host). Inaczej kontrola `Origin` odrzuci formularze. Build nie potrzebuje sekretów.
+
+## 6. Ograniczenia na teraz
 
 - **Jeden użytkownik deweloperski** (`OA_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
 - **Jedna instancja gateway** (`Hub` w procesie).
 - Brak ekranów administracji workerami: na razie CLI.
+- Wątki boczne i forki są w API, ale UI ich jeszcze nie tworzy.
+- Wybór dostawcy w UI: tylko Codex (adapter Claude w budowie).

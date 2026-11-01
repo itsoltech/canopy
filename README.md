@@ -7,7 +7,7 @@ Platforma do zarządzania agentami AI dla wielu użytkowników.
 - **PostgreSQL** — baza danych.
 - Komunikacja gateway ↔ worker: gRPC, strumień dwukierunkowy po HTTP/2, inicjowany przez workera.
 
-Status: backend działa end to end z Codexem: gateway (PostgreSQL, orkiestracja, API dla UI), worker (dziennik, zdalna konfiguracja, Codex app-server z izolowanym `CODEX_HOME`, zgody), model domenowy (wątki, transkrypt, szyna agentów, harmonogram, cele). W budowie: frontend (SvelteKit), adapter Claude, szyna agentów i cele w runtime.
+Status: system działa end to end z Codexem: frontend (SvelteKit jako BFF, SSE), gateway (PostgreSQL, orkiestracja, API dla UI), worker (dziennik, zdalna konfiguracja, Codex app-server z izolowanym `CODEX_HOME`, zgody), model domenowy (wątki, transkrypt, szyna agentów, harmonogram, cele). W budowie: adapter Claude, szyna agentów i cele w runtime, logowanie użytkowników.
 
 ## Struktura
 
@@ -15,8 +15,9 @@ Monorepo na Bun workspaces. Aplikacje wdraża się osobno, pakiety są współdz
 
 ```text
 apps/
-  gateway/        serwer centralny: WorkerLinkService (gRPC), docelowo API, chat runtime, agent bus
-  worker/         usługa na edge device: klient WorkerLinkService, pętla reconnect, profile dostawców, docelowo adaptery Claude/Codex
+  gateway/        serwer centralny: WorkerLinkService i GatewayService (gRPC), orkiestracja, PostgreSQL; docelowo chat runtime, agent bus
+  worker/         usługa na edge device: klient WorkerLinkService, dziennik, zdalna konfiguracja, adapter Codex (app-server)
+  web/            frontend SvelteKit (BFF): strony i API po HTTP/1.1, SSE do przeglądarki, gRPC do gateway
 packages/
   contracts/      kontrakt generowany z /proto (protoc-gen-es) — jedyne źródło typów protokołu
   transport/      serwer i klient HTTP/2 (Connect/gRPC), AsyncChannel
@@ -47,7 +48,7 @@ bun test             # testy jednostkowe i integracyjne
 bun run check        # gen:check + typecheck + test
 ```
 
-Ręczne uruchomienie (PostgreSQL, gateway, rejestracja i uruchomienie workera, klient BFF do testów): [ui-api.md](docs/ui-api.md#4-uruchomienie-development). Worker ma lokalnie tylko połączenie z gateway; całą resztę konfiguracji dostaje z gateway ([worker-config.md](docs/worker-config.md)).
+Ręczne uruchomienie (PostgreSQL, gateway, rejestracja i uruchomienie workera, frontend): [ui-api.md](docs/ui-api.md#5-uruchomienie-development). Worker ma lokalnie tylko połączenie z gateway; całą resztę konfiguracji dostaje z gateway ([worker-config.md](docs/worker-config.md)).
 
 - TLS: gateway `OA_TLS_CERT` / `OA_TLS_KEY`; worker `ca_file` w pliku lokalnym (certyfikat spoza systemowych CA).
 - CLIProxyAPI (opcjonalnie): `cli.ts worker add --cliproxy-url …` z kluczem w zmiennej środowiskowej; klucz trafia zaszyfrowany do bazy i do workera jako profil `cliproxyapi`.

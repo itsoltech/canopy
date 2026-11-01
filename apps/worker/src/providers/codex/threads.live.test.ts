@@ -39,9 +39,11 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl ?? "", apiKey: proxyKey ?? "" }]).find(
-    (s) => s.config.id === "live",
-  )?.resolved;
+  // bun runs the body of a skipped describe too: resolve only when the live env is present.
+  const profile =
+    proxyUrl && proxyKey
+      ? resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl, apiKey: proxyKey }]).find((s) => s.config.id === "live")?.resolved
+      : undefined;
   const published: ThreadEvent[] = [];
 
   /** One "worker process": app-server + journal; disposed at the end like a shutdown. */

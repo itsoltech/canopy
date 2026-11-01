@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* Shared control styles. `@utility` (not `@layer components`) so they compose with `@apply`. */
+@utility btn {
+  @apply inline-flex items-center justify-center rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-indigo-600 text-white ring-indigo-600 hover:bg-indigo-500;
+}
+@utility btn-danger {
+  @apply btn bg-rose-600 text-white ring-rose-600 hover:bg-rose-500;
+}
+@utility input {
+  @apply rounded-lg border-0 bg-white px-3 py-1.5 text-sm text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-600 focus:outline-none;
+}
+@utility label {
+  @apply block text-sm font-medium text-slate-700;
+}
+@utility card {
+  @apply rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200;
+}

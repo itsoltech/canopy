@@ -231,7 +231,8 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
 
   test("a worker refusing to create the thread makes it failed with the reason", async () => {
     const workerId = (await api.getOverview({})).workers[0]!.id;
-    const bad = (await api.createWorkspace({ projectId, workerId, rootPath: "/forbidden", label: "x" })).workspace!.id;
+    // Inside the configured root, but refused by the worker (as for a symlink leading outside).
+    const bad = (await api.createWorkspace({ projectId, workerId, rootPath: "/repo/forbidden", label: "x" })).workspace!.id;
     const thread = (await api.createThread({ projectId, workspaceId: bad, title: "Nope", provider: Provider.CODEX })).thread!;
     const updates = await watchUntil(thread.id, (u) => u.some((x) => x.change.case === "thread" && x.change.value.status === "failed"));
     const failed = updates.flatMap((u) => (u.change.case === "thread" ? [u.change.value] : [])).find((t) => t.status === "failed");
@@ -250,6 +251,14 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
       const error = await anonymous.getOverview({}).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(ConnectError);
       expect((error as ConnectError).code).toBe(Code.Unauthenticated);
+    }
+  });
+
+  test("a workspace must lie within the worker's allowed directories", async () => {
+    const workerId = (await api.getOverview({})).workers[0]!.id;
+    for (const rootPath of ["/etc", "/repo-other", "/repo/../etc"]) {
+      const error = await api.createWorkspace({ projectId, workerId, rootPath, label: "x" }).catch((e: unknown) => e);
+      expect((error as ConnectError).code).toBe(Code.InvalidArgument);
     }
   });
 

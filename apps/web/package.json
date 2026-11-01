@@ -1,0 +1,36 @@
+{
+  "name": "@open-agents/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "bun build/index.js",
+    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings"
+  },
+  "imports": {
+    "#lib": "./src/lib/index.ts",
+    "#lib/*": "./src/lib/*"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
+    "@connectrpc/connect": "2.3.0",
+    "@connectrpc/connect-node": "2.3.0",
+    "@open-agents/contracts": "workspace:*",
+    "@open-agents/domain": "workspace:*",
+    "effect": "4.1.1"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "6.0.1",
+    "@sveltejs/kit": "3.1.1",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "26.6.6",
+    "svelte": "5.57.3",
+    "svelte-check": "4.7.7",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.5"
+  }
+}
