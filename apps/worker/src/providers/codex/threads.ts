@@ -16,6 +16,7 @@ import {
 import { agentBusToolSpecs, agentBusToolsFor } from "@open-agents/domain";
 import { Context, Effect, Layer, Schema, Stream } from "effect";
 import { Journal } from "../../journal/index.ts";
+import { pickDefaultEffort } from "../default-effort.ts";
 import { codexModel, codexProxyModels, proxyModels, type ModelInit } from "../models.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import { SteerError, type TurnSettings } from "../turn-input.ts";
@@ -51,6 +52,8 @@ export interface CodexThreadsOptions {
   interact(request: InteractionRequest): Promise<InteractionResponse>;
   /** Runs an agent bus tool call on the gateway (docs/agent-bus.md) and waits for its result. */
   callTool(call: AgentToolCall): Promise<AgentToolResult>;
+  /** The device owner's default reasoning effort (their config.toml, default-effort.ts); read on every use. */
+  configuredEffort?(): string | undefined;
 }
 
 /**
@@ -307,13 +310,18 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
 
     /**
      * Every turn names its model and effort: Codex keeps a turn's override for the turns after it, so a turn
-     * without an override goes back to the catalog's default model and that model's default effort.
+     * without an override goes back to the catalog's default model and the default effort the catalog reports
+     * for it (the device owner's configured one when the model offers it, else the model's own).
      */
     const turnSettings = (spec: ThreadSpec, settings: TurnSettings | undefined) =>
       Effect.gen(function* () {
         const models = yield* loadCatalog.pipe(Effect.orElseSucceed((): v2.Model[] => []));
         const model = settings?.model || spec.model || models.find((m) => m.isDefault)?.model || "";
-        const effort = settings?.effort || models.find((m) => m.model === model)?.defaultReasoningEffort || "";
+        const listed = models.find((m) => m.model === model);
+        const effort =
+          settings?.effort ||
+          (listed && pickDefaultEffort(listed.supportedReasoningEfforts.map((e) => e.reasoningEffort), options.configuredEffort?.(), listed.defaultReasoningEffort)) ||
+          "";
         return { ...(model && { model }), ...(effort && { effort }) };
       });
 
@@ -420,7 +428,8 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         if (!profile) return yield* new CodexThreadError({ threadId: "", operation: "model/list", message: `provider profile "${profileId || "native"}" is not available` });
         // A fresh list: model/list again, not the process's cached catalog.
         catalog = undefined;
-        const models = (yield* loadCatalog.pipe(Effect.mapError(fail("", "model/list")))).map(codexModel);
+        const configured = options.configuredEffort?.();
+        const models = (yield* loadCatalog.pipe(Effect.mapError(fail("", "model/list")))).map((m) => codexModel(m, configured));
         if (profile.kind !== "cliproxyapi") return { models };
         return yield* Effect.tryPromise(() => proxyModels(profile)).pipe(
           Effect.map((served) => ({ models: codexProxyModels(models, served) })),

@@ -20,11 +20,12 @@ import { Cause, Context, Effect, Exit, Layer, Scope, type ManagedRuntime } from 
 import { applyWorkerConfig, isAllowedPath, type AppliedConfig, type DeviceProbe, systemProbe } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { Journal } from "../journal/index.ts";
-import { prepareClaudeHome } from "../providers/claude/home.ts";
+import { deviceClaudeHome, prepareClaudeHome } from "../providers/claude/home.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
-import { prepareCodexHome } from "../providers/codex/home.ts";
+import { deviceCodexHome, prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
+import { claudeConfiguredEffort, readClaudeUserSettings, readCodexConfiguredEffort } from "../providers/default-effort.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
 import type { SteerError } from "../providers/turn-input.ts";
 
@@ -56,6 +57,11 @@ export interface WorkerHostOptions {
   readonly dataDir: string;
   readonly clientVersion: string;
   readonly probe?: DeviceProbe;
+  /**
+   * The device owner's Claude and Codex homes (login, default effort). Default: $CLAUDE_CONFIG_DIR / $CODEX_HOME
+   * of the worker process at start, else ~/.claude and ~/.codex.
+   */
+  readonly deviceHomes?: { readonly claude: string; readonly codex: string };
   readonly log?: (message: string) => void;
 }
 
@@ -89,9 +95,12 @@ export class WorkerHost {
   /** Last model catalog (ModelCatalog), re-sent after a reconnect. */
   #catalog: { configVersion: bigint; profiles: ProfileModelsInit[] } | undefined;
   #catalogRun = 0;
+  /** Taken at start: the Claude runtime points this process's CLAUDE_CONFIG_DIR at the isolated home. */
+  readonly #deviceHomes: { readonly claude: string; readonly codex: string };
 
   constructor(options: WorkerHostOptions) {
     this.#options = options;
+    this.#deviceHomes = options.deviceHomes ?? { claude: deviceClaudeHome(process.env), codex: deviceCodexHome(process.env) };
   }
 
   get config(): AppliedConfig | undefined {
@@ -352,7 +361,7 @@ export class WorkerHost {
   async #reconcileClaude(config: AppliedConfig | undefined, key: string | undefined): Promise<void> {
     await this.#stopClaude();
     if (!config || !key) return;
-    const home = prepareClaudeHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.claude.linkDeviceLogin });
+    const home = prepareClaudeHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.claude.linkDeviceLogin, deviceClaudeHome: this.#deviceHomes.claude });
     if (home.problem) this.#log(`claude home: ${home.problem}`);
     const profiles = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "claude") ? [p.resolved] : []));
     const layer = ClaudeThreads.layer({
@@ -360,6 +369,7 @@ export class WorkerHost {
       ...(config.claude.executable && { executable: config.claude.executable }),
       nativeTools: config.nativeTools,
       baseEnv: process.env,
+      configuredEffort: (names) => claudeConfiguredEffort(readClaudeUserSettings(this.#deviceHomes.claude), process.env, names),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
       publish: (event) => this.#publish(event),
       interact: (request) => this.#interact(request),
@@ -382,12 +392,13 @@ export class WorkerHost {
   async #reconcileCodex(config: AppliedConfig | undefined, key: string | undefined): Promise<void> {
     await this.#stopCodex();
     if (!config || !key) return;
-    const home = prepareCodexHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.codex.linkDeviceLogin });
+    const home = prepareCodexHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.codex.linkDeviceLogin, deviceCodexHome: this.#deviceHomes.codex });
     if (home.problem) this.#log(`codex home: ${home.problem}`);
     const profiles = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "codex") ? [p.resolved] : []));
     const layer = CodexThreads.layer({
       launch: codexAppServerLaunch(profiles, process.env, config.codex.executable, config.nativeTools, home.path),
       clientVersion: this.#options.clientVersion,
+      configuredEffort: () => readCodexConfiguredEffort(this.#deviceHomes.codex),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
       publish: (event) => this.#publish(event),
       interact: (request) => this.#interact(request),
