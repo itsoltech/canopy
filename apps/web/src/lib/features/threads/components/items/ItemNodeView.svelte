@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { untrack } from "svelte";
+  import { provideMemoryScope } from "#lib/shared/ui/memory.ts";
   import { provideItemAwaiting, useThreadDirectory } from "../../thread-directory.ts";
   import type { ItemNode } from "../../timeline.ts";
   import ItemNodeView from "./ItemNodeView.svelte";
@@ -8,6 +10,8 @@
   let { node }: { node: ItemNode } = $props();
   const directory = useThreadDirectory();
   provideItemAwaiting(() => directory.awaiting(node.entry.id));
+  // Nested items remember their own state (open details) apart from their parent's.
+  provideMemoryScope(untrack(() => node.entry.id));
 </script>
 
 {#snippet nested()}

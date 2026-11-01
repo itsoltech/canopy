@@ -54,7 +54,7 @@
 
 <div class="text-base/6 sm:text-sm/6">
   {#if children}
-    <Disclosure bind:open summaryClass="-mx-1.5 px-1.5 py-1 hover:bg-zinc-950/2.5 dark:hover:bg-white/5">
+    <Disclosure bind:open remember="frame" summaryClass="-mx-1.5 px-1.5 py-1 hover:bg-zinc-950/2.5 dark:hover:bg-white/5">
       {#snippet summary()}{@render row()}{/snippet}
       <div class="mt-1 mb-2 grid gap-2 pl-6">{@render children()}</div>
     </Disclosure>

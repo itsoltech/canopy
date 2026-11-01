@@ -36,6 +36,13 @@ export async function measureMount(remount: () => void): Promise<number> {
   return round(performance.now() - start);
 }
 
+/** Scrolls to the end and lets the scroll land (a reader at the bottom when a turn starts). */
+export async function toEnd(scroller: HTMLElement): Promise<void> {
+  scroller.scrollTop = scroller.scrollHeight;
+  await frame();
+  await frame();
+}
+
 export async function measureStream(scroller: HTMLElement, apply: (index: number) => boolean): Promise<{ avg: number; p95: number; gap: number }> {
   const times: number[] = [];
   for (let i = 0; ; i++) {

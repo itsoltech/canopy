@@ -5,6 +5,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
+  import { useRemembered } from "#lib/shared/ui/memory.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import { turnOrigin } from "../turn-origin.ts";
   import ThreadLink from "./items/ThreadLink.svelte";
@@ -28,7 +29,10 @@
 
   // Long reports (a side thread's whole answer) start folded.
   const long = $derived(origin.kind === "report" && (parts.message.length > 900 || parts.message.split("\n").length > 14));
-  let expanded = $state(false);
+  // Remembered while the row is scrolled out of a virtual list.
+  const memory = useRemembered<boolean>("expanded");
+  let expanded = $state(memory?.get() ?? false);
+  $effect(() => memory?.set(expanded));
 </script>
 
 {#if origin.kind === "user"}
@@ -94,7 +98,7 @@
         <p class="whitespace-pre-wrap">{parts.message}</p>
       {/if}
       {#if parts.note}
-        <Disclosure class="mt-2" summaryClass="text-sm/6 opacity-80 sm:text-xs/6">
+        <Disclosure remember="full-text" class="mt-2" summaryClass="text-sm/6 opacity-80 sm:text-xs/6">
           {#snippet summary()}{origin.kind === "question" ? "Request sent to the agent" : "Full text the agent received"}{/snippet}
           <CodeBlock {text} label="Full text the agent received" class="mt-2" />
         </Disclosure>
