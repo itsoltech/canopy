@@ -75,10 +75,12 @@ sequenceDiagram
 
 ### 3.4 Start po awarii
 
-1. Otwarcie dziennika. Tury w toku dostają `turn_finished` (`interrupted`, powód: `worker_restart`).
-2. Prośby o zgodę i wywołania szyny przypięte do zabitych procesów dostają `expired`.
-3. Połączenie, `Hello` z kursorami wątków, dosłanie dziennika.
-4. Przerwane tury są wznawiane według polityki (decyzja 1 w sekcji 11).
+1. Otwarcie dziennika. Tury w toku dostają `turn_finished` (`interrupted`, powód: `worker restarted`). **Zaimplementowane:** dziennik śledzi otwarte tury w tej samej transakcji co ich zdarzenia (tabela `open_turns`, jak `background_tasks`), a `WorkerHost.recover` dopisuje ich koniec przy starcie.
+2. Prośby o zgodę i wywołania szyny przypięte do zabitych procesów dostają `expired`. **Zaimplementowane w gateway** dla zgód tur, które gateway kończy (punkt 5).
+3. Połączenie, `Hello` z kursorami wątków i turami, które proces prowadzi (`running_turns`, capability `running_turns`), dosłanie dziennika.
+4. Przerwane tury są wznawiane według polityki (decyzja 1 w sekcji 11). Na razie nie są: kończą się `interrupted`, a wątek przechodzi do następnej tury z kolejki.
+5. **Gateway** po `Hello` (najpierw odczyt outboxu, potem to): tury `running` wątków tego workera spoza `running_turns` kończą się `interrupted` z powodem `worker restarted` (`ui.Turn.interrupt_reason`). To łapie także tury, których dziennik nie zna (stary proces bez śledzenia tur, nowy dziennik). Ich oczekujące interakcje wygasają, steery `pending`/`accepted` są `dropped` (pump kolejkuje je z powodem), kolejka wątku rusza. `InterruptTurn` dla tury, której worker nie prowadzi (`TURN_NOT_RUNNING`), kończy ją tak samo.
+6. Wątek Codexa bez żadnej tury nie ma rolloutu, więc nowy proces nie może go wznowić (`thread/resume: no rollout found`): worker zaczyna nowy wątek Codexa z tym samym `thread_id` platformy i zgłasza go w `thread_ready.replaces_provider_thread_id` ([codex-adapter.md](codex-adapter.md#runtime-wątków)).
 
 ### 3.5 Opcja na później: host wątków niezależny od workera
 
@@ -194,7 +196,7 @@ Przy jednej instancji kroki są te same, tylko workery i UI łączą się z now�
 | SIGTERM gateway | drain (4.6); workery i UI łączą się ponownie | brak |
 | SIGKILL gateway | workery i UI łączą się ponownie; dzierżawy tur czatowych wygasają i tury są powtarzane | brak potwierdzonych danych; delty w locie |
 | SIGTERM worker | drain (3.3); tury dokończone albo czysto przerwane, dziennik opróżniony | brak; przerwana tura jest oznaczona |
-| SIGKILL lub zanik zasilania workera | tura przerwana w dowolnym miejscu; zdarzenia z dziennika dosłane po starcie; transkrypt dostawcy do ostatniego zapisu | **tura w toku**, efekty uboczne mogły zajść częściowo |
+| SIGKILL lub zanik zasilania workera | tura przerwana w dowolnym miejscu (kończy się `interrupted`, `worker restarted`, kolejka rusza dalej); zdarzenia z dziennika dosłane po starcie; transkrypt dostawcy do ostatniego zapisu | **tura w toku**, efekty uboczne mogły zajść częściowo |
 | Restart PostgreSQL | gateway ponawia z backoffem, `readyz = false`; workery buforują w dzienniku | brak |
 | Zerwanie sieci worker ↔ gateway | ponowne połączenie, dosłanie dziennika | brak |
 | Aktualizacja CLI dostawcy na urządzeniu | nowe tury na nowej wersji (wznowienie wątku); restart Codex app-server przechodzi przez drain wątków | brak |

@@ -1,6 +1,7 @@
 export {
   claudeGoalCommand,
   fromCodexStatus,
+  goalStatusAfterFailure,
   goalStatusFromHarness,
   isFinished,
   type ClaudeGoalStatus,

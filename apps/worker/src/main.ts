@@ -27,9 +27,9 @@ const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
 const { journalId } = await runtime.runPromise(journalHello());
 const host = new WorkerHost({ runtime, dataDir, clientVersion: WORKER_VERSION, log: (m) => console.info(m) });
 console.info(`worker ${local.worker_id}, gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`);
-// Background tasks of a previous process died with it; their items end as interrupted (sent after connecting).
+// Turns and background tasks of a previous process died with it: they end as interrupted (sent after connecting).
 const orphans = await host.recover();
-if (orphans > 0) console.info(`closed ${orphans} background task(s) of the previous process`);
+if (orphans.turns + orphans.tasks > 0) console.info(`closed ${orphans.turns} turn(s) and ${orphans.tasks} background task(s) of the previous process`);
 
 const shutdown = new AbortController();
 // Graceful stop (docs/durability.md, 3.3): announce DRAINING and half-close the stream so the
@@ -69,7 +69,9 @@ while (!stopping.signal.aborted) {
         workerId: local.worker_id,
         host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: WORKER_VERSION },
         state: WorkerState.ACTIVE,
-        capabilities: [],
+        // running_turns: the list below is complete, the gateway ends its other running turns of this worker.
+        capabilities: ["running_turns"],
+        runningTurns: host.runningTurns(),
         configVersion: host.config?.version ?? 0n,
         ...(await runtime.runPromise(journalHello())),
       },
@@ -79,7 +81,7 @@ while (!stopping.signal.aborted) {
     const resent = await runtime.runPromise(resendPending(link));
     console.info(`connected to ${local.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`);
     const heartbeat = setInterval(
-      () => link.send({ case: "heartbeat", value: { runningTurns: 0, state: WorkerState.ACTIVE } }),
+      () => link.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: WorkerState.ACTIVE } }),
       link.welcome.heartbeatIntervalSeconds * 1_000,
     );
     try {

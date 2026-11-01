@@ -6,12 +6,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PermissionMode, Provider } from "@open-agents/contracts";
+import { PermissionMode, Provider, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
 import type { WorkerConnection } from "@open-agents/gateway/worker-link";
 import { journalHello } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
-import { ManagedRuntime } from "effect";
+import { Effect, ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "oa-host-"));
@@ -90,5 +90,38 @@ describe("worker command handling", () => {
     // Same command id again (what the gateway outbox does after a reconnect).
     const replay = await runtime.runPromise(Journal.use((j) => j.commandResult(first.commandId)));
     expect(replay).toMatchObject({ commandId: first.commandId, ok: false, errorCode: "CWD_NOT_ALLOWED" });
+  });
+
+  test("an interrupt for a turn this process does not run fails with TURN_NOT_RUNNING", async () => {
+    const result = await connection.sendCommand({ case: "interruptTurn", value: { threadId: Bun.randomUUIDv7(), turnId: Bun.randomUUIDv7() } });
+    expect(result).toMatchObject({ ok: false, errorCode: "TURN_NOT_RUNNING" });
+    expect(host.runningTurns()).toEqual([]);
+  });
+});
+
+describe("worker restart", () => {
+  test("turns of the previous process end as interrupted (worker restarted), once", async () => {
+    const path = join(dir, "restart.db");
+    const previous = ManagedRuntime.make(Journal.layer(path));
+    // The previous process journaled a turn start and died before its end.
+    await previous.runPromise(
+      Journal.use((j) =>
+        Effect.gen(function* () {
+          yield* j.append("thread-a", { turnId: "turn-1", body: { case: "turnStarted", value: { origin: TurnOrigin.COMMAND } } });
+          yield* j.append("thread-a", { turnId: "turn-0", body: { case: "turnStarted", value: {} } });
+          yield* j.append("thread-a", { turnId: "turn-0", body: { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } } });
+        }),
+      ),
+    );
+    await previous.dispose();
+    const next = ManagedRuntime.make(Journal.layer(path));
+    const restarted = new WorkerHost({ runtime: next, dataDir: join(dir, "data-restart"), clientVersion: "test" });
+    expect(await restarted.recover()).toEqual({ turns: 1, tasks: 0 });
+    const pending = await next.runPromise(Journal.use((j) => j.pending(new Map())));
+    expect(pending.at(-1)).toMatchObject({ threadId: "thread-a", turnId: "turn-1", body: { case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED, reason: "worker restarted" } } });
+    expect(await restarted.recover()).toEqual({ turns: 0, tasks: 0 });
+    expect(restarted.runningTurns()).toEqual([]);
+    await restarted.close();
+    await next.dispose();
   });
 });

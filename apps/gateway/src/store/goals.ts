@@ -1,7 +1,7 @@
 import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { GoalStateSchema, ui, type GoalState } from "@open-agents/contracts";
-import { goalStatusFromHarness, isFinished, type GoalStatus } from "@open-agents/domain";
+import { goalStatusAfterFailure, goalStatusFromHarness, isFinished, type GoalStatus } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { NotFound, type TurnRow } from "./store.ts";
@@ -29,6 +29,9 @@ export interface GoalRow {
   created_at: Date;
   updated_at: Date;
   finished_at: Date | null;
+  /** The last goal command failed on the worker (cleared by the next one). */
+  error: string | null;
+  error_at: Date | null;
 }
 
 export function toUiGoal(row: GoalRow): ui.Goal {
@@ -47,6 +50,8 @@ export function toUiGoal(row: GoalRow): ui.Goal {
     createdAt: timestampFromDate(new Date(row.created_at)),
     updatedAt: timestampFromDate(new Date(row.updated_at)),
     ...(row.finished_at && { finishedAt: timestampFromDate(new Date(row.finished_at)) }),
+    error: row.error ?? "",
+    ...(row.error_at && { errorAt: timestampFromDate(new Date(row.error_at)) }),
   });
 }
 
@@ -125,8 +130,17 @@ export class GoalStore extends Context.Service<
     goal(goalId: string): Fx<GoalRow>;
     /** A goal the user set: replaces the open one (cancelled). */
     create(input: { threadId: string; objective: string; tokenBudget: bigint; userId: string }): Fx<GoalRow>;
-    /** The user's pause, resume or clear. */
+    /** The user's pause, resume or clear (a new command: the last one's error goes). */
     setStatus(goalId: string, status: GoalStatus): Fx<GoalRow>;
+    /**
+     * A goal command (SetGoal) failed on the worker: the error is kept and the status goes back to what the
+     * harness last reported (goalStatusAfterFailure), unless another goal of the thread is open by now.
+     */
+    commandFailed(goalId: string, error: string): Fx<GoalRow>;
+    /** A Claude goal turn (/goal …) could not start: the error is kept on the turn's goal (no status rollback). */
+    turnFailed(turnId: string, error: string): Fx<GoalRow | undefined>;
+    /** The harness took the command: a previous error goes. Undefined when there was none. */
+    commandSucceeded(goalId: string): Fx<GoalRow | undefined>;
     /** Claude: /goal as a queued turn of the goal. */
     enqueueGoalTurn(input: { threadId: string; goalId: string; text: string }): Fx<TurnRow>;
   }
@@ -157,9 +171,34 @@ export class GoalStore extends Context.Service<
           ),
         setStatus: (goalId, status) =>
           sql`
-            UPDATE goals SET status = ${status}, updated_at = now(),
+            UPDATE goals SET status = ${status}, updated_at = now(), error = NULL, error_at = NULL,
                              finished_at = CASE WHEN ${status} IN ('achieved', 'cancelled') THEN coalesce(finished_at, now()) ELSE NULL END
              WHERE id = ${goalId}::uuid`.pipe(Effect.flatMap(() => goal(goalId))),
+        commandFailed: (goalId, error) =>
+          sql.withTransaction(
+            Effect.gen(function* () {
+              const current = yield* goal(goalId);
+              const thread = (yield* sql<{ provider: string }>`SELECT provider FROM threads WHERE id = ${current.thread_id}::uuid`)[0];
+              const target = goalStatusAfterFailure(thread?.provider === "claude" ? "claude" : "codex", current.native_status ?? "");
+              const other = yield* sql`
+                SELECT 1 FROM goals WHERE thread_id = ${current.thread_id}::uuid AND id <> ${goalId}::uuid AND status NOT IN ('achieved', 'cancelled')`;
+              const status = isFinished(target) || other.length === 0 ? target : current.status;
+              yield* sql`
+                UPDATE goals SET status = ${status}, error = ${error}, error_at = now(), updated_at = now(),
+                                 finished_at = CASE WHEN ${status} IN ('achieved', 'cancelled') THEN coalesce(finished_at, now()) ELSE NULL END
+                 WHERE id = ${goalId}::uuid`;
+              return yield* goal(goalId);
+            }),
+          ),
+        turnFailed: (turnId, error) =>
+          sql<GoalRow>`
+            UPDATE goals SET error = ${error}, error_at = now(), updated_at = now()
+             WHERE id = (SELECT goal_id FROM turns WHERE id = ${turnId}::uuid)
+            RETURNING *`.pipe(Effect.map((rows) => rows[0])),
+        commandSucceeded: (goalId) =>
+          sql<GoalRow>`
+            UPDATE goals SET error = NULL, error_at = NULL, updated_at = now() WHERE id = ${goalId}::uuid AND error IS NOT NULL
+            RETURNING *`.pipe(Effect.map((rows) => rows[0])),
         enqueueGoalTurn: ({ threadId, goalId, text }) =>
           sql<TurnRow>`
             INSERT INTO turns (id, thread_id, ordinal, trigger, goal_id, input)

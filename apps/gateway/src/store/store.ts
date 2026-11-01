@@ -41,6 +41,8 @@ export class Invalid extends Error {
 type Sql = SqlError.SqlError;
 type Fx<A> = Effect.Effect<A, Sql | NotFound | Invalid>;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface ThreadRow {
   id: string;
   project_id: string;
@@ -87,6 +89,7 @@ export interface TurnRow {
   model?: string;
   effort?: string;
   error: string | null;
+  interrupt_reason?: string | null;
   provider_turn_ref: string | null;
   queued_at: Date;
   started_at?: Date | null;
@@ -161,6 +164,16 @@ export class GatewayStore extends Context.Service<
     runningTurn(threadId: string): Fx<TurnRow | undefined>;
     turnsOf(threadId: string): Fx<ReadonlyArray<TurnRow>>;
     failTurn(turnId: string, error: string): Fx<void>;
+    /**
+     * Ends running worker turns that no longer run on their worker (docs/durability.md, 3.4): the given turns,
+     * or every running turn of the worker's threads except `keep` (its Hello.running_turns). The turn ends as
+     * interrupted with the reason; its pending interactions expire and its steers that did not join it are
+     * dropped (pump queues them). A late turn_finished from the worker still sets the real outcome.
+     */
+    endLostTurns(input: { workerId: string; reason: string } & ({ turnIds: readonly string[] } | { keep: readonly { threadId: string; turnId: string }[] })): Fx<{
+      turns: { threadId: string; turnId: string }[];
+      interactions: ui.Interaction[];
+    }>;
     snapshot(threadId: string): Fx<{
       thread: ThreadRow;
       turns: (TurnRow & { inherited?: boolean })[];
@@ -517,6 +530,36 @@ export class GatewayStore extends Context.Service<
               Effect.asVoid,
             ),
 
+          endLostTurns: (input) =>
+            sql.withTransaction(
+              Effect.gen(function* () {
+                // Only ids that can be turns here (a malformed report must not fail the reconcile).
+                const keep = "keep" in input ? input.keep.map((t) => t.turnId).filter((id) => UUID.test(id)) : [];
+                const only = "turnIds" in input ? [...input.turnIds] : null;
+                const turns = yield* sql<{ id: string; thread_id: string }>`
+                  UPDATE turns u SET status = 'interrupted', interrupt_reason = ${input.reason}, completed_at = now()
+                    FROM threads t
+                   WHERE t.id = u.thread_id AND t.worker_id = ${input.workerId}::uuid AND t.runtime = 'worker' AND u.status = 'running'
+                     AND (${only}::uuid[] IS NULL OR u.id = ANY(${only}::uuid[])) AND NOT (u.id = ANY(${keep}::uuid[]))
+                  RETURNING u.id, u.thread_id`;
+                if (turns.length === 0) return { turns: [], interactions: [] };
+                const ids = turns.map((t) => t.id);
+                const threads = [...new Set(turns.map((t) => t.thread_id))];
+                yield* sql`
+                  UPDATE threads t SET status = 'interrupted'
+                   WHERE t.id = ANY(${threads}::uuid[]) AND t.status IN ('running', 'waiting_input')
+                     AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = t.id AND r.status = 'running')`;
+                const interactions = yield* sql<InteractionRow>`
+                  UPDATE interaction_requests SET status = 'expired', answered_at = now()
+                   WHERE turn_id = ANY(${ids}::uuid[]) AND status = 'pending'
+                  RETURNING *`;
+                yield* sql`
+                  UPDATE turn_steers SET status = 'dropped', reason = ${`the turn ended before the message could join it (${input.reason})`}, updated_at = now()
+                   WHERE turn_id = ANY(${ids}::uuid[]) AND status IN ('pending', 'accepted')`;
+                return { turns: turns.map((t) => ({ threadId: t.thread_id, turnId: t.id })), interactions: interactions.map(toInteraction) };
+              }),
+            ),
+
           snapshot: (threadId) =>
             Effect.gen(function* () {
               const thread = yield* store.thread(threadId);
@@ -706,6 +749,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     ...(row.last_activity_at && { lastActivityAt: timestampFromDate(new Date(row.last_activity_at)) }),
     goalStatus: row.goal_status ?? "",
     backgroundTasks: Number(row.background_tasks ?? 0),
+    runtime: row.runtime,
   });
 }
 
@@ -717,6 +761,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     trigger: row.trigger,
     inputText: row.input?.text ?? "",
     error: row.error ?? "",
+    interruptReason: row.status === "interrupted" ? (row.interrupt_reason ?? "") : "",
     queuedAt: timestampFromDate(new Date(row.queued_at)),
     ...(row.started_at && { startedAt: timestampFromDate(new Date(row.started_at)) }),
     ...(row.completed_at && { completedAt: timestampFromDate(new Date(row.completed_at)) }),

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { claudeGoalCommand, fromCodexStatus, goalStatusFromHarness, type CodexGoalStatus } from "./goals.ts";
+import { claudeGoalCommand, fromCodexStatus, goalStatusAfterFailure, goalStatusFromHarness, type CodexGoalStatus } from "./goals.ts";
 
 describe("harness goals", () => {
   test("Codex statuses map to platform statuses; a user pause is not undone by progress reports", () => {
@@ -20,5 +20,14 @@ describe("harness goals", () => {
     expect(goalStatusFromHarness("claude", "cleared", false, "active")).toBe("cancelled");
     expect(claudeGoalCommand("bun test exits 0")).toBe("/goal bun test exits 0");
     expect(claudeGoalCommand(undefined)).toBe("/goal clear");
+  });
+
+  test("a failed goal command falls back to the harness's last report; an unconfirmed goal is blocked", () => {
+    expect(goalStatusAfterFailure("codex", "")).toBe("blocked");
+    expect(goalStatusAfterFailure("codex", "active")).toBe("active");
+    expect(goalStatusAfterFailure("codex", "paused")).toBe("paused");
+    expect(goalStatusAfterFailure("codex", "budgetLimited")).toBe("budget_limited");
+    expect(goalStatusAfterFailure("codex", "cleared")).toBe("cancelled");
+    expect(goalStatusAfterFailure("claude", "active")).toBe("active");
   });
 });

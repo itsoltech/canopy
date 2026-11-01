@@ -45,7 +45,8 @@ import { Scheduler } from "./scheduler.ts";
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
  * - workers: connect, outbox redelivery, transcript ingest + ack after commit, config, interactions,
  * - scheduler: one running turn per thread; a turn starts only once the thread is ready,
- * - command results: failed thread creation / turn start become visible state, not silent drops,
+ * - command results: failed thread creation / turn start / goal command become visible state, not silent drops,
+ * - worker restarts: turns the worker no longer runs (Hello.running_turns, an interrupt it cannot carry out) end here,
  * - agent bus: tool calls from agents (side threads, messages, waits), notifications, questions to parents,
  * - models and steering: workers' model catalogs, per-turn model and effort, messages into a running turn,
  * - UI operations and live fan-out through the hub.
@@ -67,6 +68,9 @@ type ModelScope = { thread: ThreadRow } | { workspaceId: string; provider: Provi
 
 // A steer waits as long as a turn would: a worker that is back too late answers "not running" and it is queued.
 const TTL = { createThread: 24 * 3600, startTurn: 24 * 3600, interruptTurn: 60, steerTurn: 24 * 3600, setGoal: 3600, stopTask: 300 } as const;
+
+/** Why the gateway ended a turn its worker no longer runs (turns.interrupt_reason). */
+const WORKER_RESTARTED = "worker restarted";
 
 /** Claude's goal condition limit (Claude Code rejects longer ones). */
 const MAX_OBJECTIVE = 4000;
@@ -130,7 +134,14 @@ export class GatewayCore {
     await this.#run((s) => s.workerConnected(workerId, this.#options.instanceId, connection.hello));
     this.#log(`worker ${workerId} connected`);
     await this.#broadcastWorkers();
-    void this.#redeliver(workerId);
+    // The outbox is read first: the turns started below (queued behind a lost one) are delivered once.
+    await this.#redeliver(workerId).catch((error: unknown) => this.#log(`outbox of worker ${workerId} not redelivered: ${describeError(error)}`));
+    // Turns it does not run (e.g. its process restarted) end here; the list is complete only with this capability.
+    if (connection.hello.capabilities.includes("running_turns")) {
+      await this.#endLostTurns({ workerId, reason: WORKER_RESTARTED, keep: connection.hello.runningTurns }).catch((error: unknown) =>
+        this.#log(`lost turns of worker ${workerId} not ended: ${describeError(error)}`),
+      );
+    }
     try {
       for await (const message of connection.messages) {
         switch (message.payload.case) {
@@ -281,6 +292,7 @@ export class GatewayCore {
     }
     await this.#run((s) => s.commandDone(command.commandId, result.ok, toJson(CommandResultSchema, result) as JsonValue));
     if (command.kind.case === "steerTurn") return this.#steerAnswered(command.kind.value.threadId, command.kind.value.inputId, result);
+    if (command.kind.case === "setGoal") return this.#goalAnswered(command.kind.value.threadId, command.kind.value.goalId, result);
     if (result.ok) return;
     const reason = result.errorMessage || result.errorCode;
     switch (command.kind.case) {
@@ -301,12 +313,42 @@ export class GatewayCore {
         const { thread, turnId } = command.kind.value;
         await this.#run((s) => s.failTurn(turnId, `${result.errorCode}: ${reason}`));
         await this.#broadcastTurn(thread?.threadId ?? "", turnId);
+        // A Claude /goal turn: the goal shows why it did not start.
+        if (await this.#goals((s) => s.turnFailed(turnId, `${result.errorCode}: ${reason}`))) await this.#broadcastGoal(thread?.threadId ?? "");
         await this.bus.onTurnFinished(turnId);
+        break;
+      }
+      case "interruptTurn": {
+        // The turn is not running there (e.g. it died with the previous worker process): it ends here.
+        const { threadId, turnId } = command.kind.value;
+        if (result.errorCode !== "TURN_NOT_RUNNING" && !/turn is not running/i.test(result.errorMessage)) {
+          this.#log(`interrupt of ${threadId} failed on ${workerId}: ${reason}`);
+          break;
+        }
+        await this.#endLostTurns({ workerId, reason: "the turn was no longer running on the worker", turnIds: [turnId] });
         break;
       }
       default:
         this.#log(`command ${command.kind.case} failed on ${workerId}: ${reason}`);
     }
+  }
+
+  /** Turns that no longer run on their worker end as interrupted; the threads go on with what is queued. */
+  async #endLostTurns(input: Parameters<GatewayStore["Service"]["endLostTurns"]>[0]): Promise<void> {
+    const { turns, interactions } = await this.#run((s) => s.endLostTurns(input));
+    for (const interaction of interactions) {
+      this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
+    }
+    for (const { threadId, turnId } of turns) {
+      this.#log(`turn ${turnId} of thread ${threadId} ended: ${input.reason}`);
+      await this.#broadcastTurn(threadId, turnId);
+      for (const steer of await this.#steers((s) => s.ofThread(threadId))) if (steer.turn_id === turnId && steer.status === "dropped") await this.#publishSteer(steer.id);
+    }
+    for (const threadId of new Set(turns.map((t) => t.threadId))) {
+      await this.#broadcastThread(threadId);
+      await this.pump(threadId);
+    }
+    for (const { turnId } of turns) await this.bus.onTurnFinished(turnId);
   }
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */
@@ -894,7 +936,9 @@ export class GatewayCore {
       case "resume":
         if (!open || open.status === "active") throw new InvalidError("no paused goal to resume");
         goal = await this.#goals((s) => s.setStatus(open.id, "active"));
-        await this.#goalToHarness(thread, goal, GoalDirective.RUN);
+        // A goal the harness never confirmed (its set failed) is set again, with its objective and budget.
+        if (open.native_status) await this.#goalToHarness(thread, goal, GoalDirective.RUN);
+        else await this.#goalToHarness(thread, goal, GoalDirective.RUN, goal.objective, BigInt(goal.token_budget ?? 0));
         break;
       case "clear":
         if (!open) throw new InvalidError("no open goal to clear");
@@ -941,6 +985,20 @@ export class GatewayCore {
       { kind: { case: "stopTask", value: { threadId: thread.id, taskId: item.content.value.taskId } } },
       { threadId: thread.id, ttlSeconds: TTL.stopTask },
     );
+  }
+
+  /** SetGoal answered: a failure is shown on the goal (and its status goes back), a success clears it. */
+  async #goalAnswered(threadId: string, goalId: string, result: CommandResult): Promise<void> {
+    if (!goalId) return;
+    if (result.ok) {
+      if (await this.#goals((s) => s.commandSucceeded(goalId))) await this.#broadcastGoal(threadId);
+      return;
+    }
+    const error = result.errorMessage ? `${result.errorCode}: ${result.errorMessage}` : result.errorCode;
+    this.#log(`goal command for thread ${threadId} failed: ${error}`);
+    const goal = await this.#goals((s) => s.commandFailed(goalId, error));
+    this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "goal", value: toUiGoal(goal) } }));
+    await this.#broadcastThread(threadId);
   }
 
   async #broadcastGoal(threadId: string): Promise<void> {
