@@ -16,13 +16,14 @@ import {
   TurnOutcome,
   ui,
   type AgentToolResult,
+  type Command,
   type InteractionRequest,
 } from "@open-agents/contracts";
 import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
 import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, GatewayStore, Ingest, SettingsStore } from "@open-agents/gateway/store";
+import { AgentBusStore, GatewayStore, GoalStore, Ingest, SettingsStore } from "@open-agents/gateway/store";
 import { startGrpcServer } from "@open-agents/transport";
 import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
 import { Layer, ManagedRuntime } from "effect";
@@ -30,10 +31,23 @@ import type { SqlClient } from "effect/sql";
 
 export const SERVICE_TOKEN = "t".repeat(48);
 
-export type TestRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | SqlClient.SqlClient, unknown>;
+export type TestRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | GoalStore | SqlClient.SqlClient, unknown>;
+
+type CommandKind = Command["kind"];
+/** Takes over a command kind; reply() answers the command. */
+export type CommandHandler = (value: NonNullable<CommandKind["value"]>, reply: (ok: boolean, extra?: Record<string, unknown>) => void) => void;
+
+export interface ScriptedWorkerOptions {
+  /** Report Claude as available (default: only Codex). */
+  readonly claude?: boolean;
+}
 
 /** Plays a worker: answers commands and emits the events a real provider would. */
 export class ScriptedWorker {
+  /** Every command received, in order. */
+  readonly commands: CommandKind[] = [];
+  /** Custom behaviour per command kind (e.g. a turn that keeps running); the default answers otherwise. */
+  readonly handlers = new Map<string, CommandHandler>();
   readonly interactionAnswers: { requestId: string; allow: boolean }[] = [];
   /** Threads this worker was asked to create, with their cwd. */
   readonly created: { threadId: string; cwd: string; enableAgentBus: boolean; depth: number }[] = [];
@@ -41,7 +55,10 @@ export class ScriptedWorker {
   readonly inputs = new Map<string, string[]>();
   readonly #seq = new Map<string, bigint>();
   readonly #toolResults = new Map<string, (result: AgentToolResult) => void>();
-  constructor(readonly link: GatewayLink) {
+  constructor(
+    readonly link: GatewayLink,
+    readonly options: ScriptedWorkerOptions = {},
+  ) {
     void this.#loop();
   }
 
@@ -79,7 +96,9 @@ export class ScriptedWorker {
             applied: true,
             providers: [
               { provider: Provider.CODEX, available: true, version: "0.164.0" },
-              { provider: Provider.CLAUDE, available: false, detail: "claude CLI not found" },
+              this.options.claude
+                ? { provider: Provider.CLAUDE, available: true, version: "2.1.316" }
+                : { provider: Provider.CLAUDE, available: false, detail: "claude CLI not found" },
             ],
             profiles: [{ id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CLAUDE, Provider.CODEX], available: true }],
           },
@@ -93,6 +112,12 @@ export class ScriptedWorker {
       if (payload.case !== "command") continue;
       const { commandId, kind } = payload.value;
       const reply = (ok: boolean, extra: Record<string, unknown> = {}) => this.link.send({ case: "commandResult", value: { commandId, ok, ...extra } });
+      this.commands.push(kind);
+      const handler = kind.case ? this.handlers.get(kind.case) : undefined;
+      if (handler && kind.value) {
+        handler(kind.value, reply);
+        continue;
+      }
       switch (kind.case) {
         case "listDirectory":
           reply(true, { entries: [{ name: "repo-a", isDir: true, isGitRepo: true }] });
@@ -143,7 +168,7 @@ export interface TestGateway {
   /** Registers another worker (not connected) with its own allowed roots. */
   addWorker(name: string, allowedRoots: string[]): Promise<{ workerId: string; credential: string }>;
   /** Connects a scripted worker; closed with the gateway. */
-  connect(workerId: string, credential: string, os?: string): Promise<ScriptedWorker>;
+  connect(workerId: string, credential: string, os?: string, options?: ScriptedWorkerOptions): Promise<ScriptedWorker>;
   close(): Promise<void>;
 }
 
@@ -151,7 +176,7 @@ export interface TestGateway {
 export async function startTestGateway(): Promise<TestGateway> {
   const pg = await startPostgres();
   const runtime: TestRuntime = ManagedRuntime.make(
-    Layer.mergeAll(GatewayStore.layer(randomBytes(32)), Ingest.layer, AgentBusStore.layer, SettingsStore.layer).pipe(Layer.provideMerge(pg.layer)),
+    Layer.mergeAll(GatewayStore.layer(randomBytes(32)), Ingest.layer, AgentBusStore.layer, SettingsStore.layer, GoalStore.layer).pipe(Layer.provideMerge(pg.layer)),
   );
   await runtime.runPromise(migrate);
   const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
@@ -176,9 +201,10 @@ export async function startTestGateway(): Promise<TestGateway> {
     }),
   );
   const workers: ScriptedWorker[] = [];
-  const connect = async (workerId: string, credential: string, os?: string) => {
+  const connect = async (workerId: string, credential: string, os?: string, options?: ScriptedWorkerOptions) => {
     const worker = new ScriptedWorker(
       await openGatewayLink({ baseUrl: grpc.url, credential, hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, ...(os && { host: { os } }) } }),
+      options,
     );
     workers.push(worker);
     return worker;
