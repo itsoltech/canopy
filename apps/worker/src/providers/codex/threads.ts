@@ -2,6 +2,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import type { ServerNotification, v2 } from "@open-agents/codex-protocol";
 import {
   AgentToolCallSchema,
+  GoalDirective,
   InteractionKind,
   InteractionRequestSchema,
   type AgentToolCall,
@@ -73,6 +74,12 @@ export class CodexThreads extends Context.Service<
     /** Starts a turn; resumes the Codex thread first when this process has not loaded it. */
     startTurn(spec: ThreadSpec, turnId: string, input: UserInput): Effect.Effect<string, CodexThreadError>;
     interrupt(threadId: string, turnId: string): Effect.Effect<void, CodexThreadError>;
+    /** Sets, pauses, resumes, completes or clears the thread's Codex goal (docs/goals.md). */
+    setGoal(spec: ThreadSpec, directive: GoalDirective, objective: string, tokenBudget: bigint): Effect.Effect<void, CodexThreadError>;
+    /** Terminates a background process (task id = Codex process id). */
+    stopTask(threadId: string, taskId: string): Effect.Effect<void, CodexThreadError>;
+    /** Background processes still running, per platform thread. */
+    backgroundTasks(): ReadonlyMap<string, readonly string[]>;
   }
 >()("open-agents/worker/CodexThreads") {
   static readonly layer = (options: CodexThreadsOptions) => {
@@ -123,7 +130,8 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         platformToCodex.set(platformTurn, codexTurn);
       };
       const mapper = new CodexEventMapper({
-        turnId: (codexTurn) => {
+        turnId: (codexTurn) => codexToPlatform.get(codexTurn),
+        startTurn: (codexTurn) => {
           const known = codexToPlatform.get(codexTurn);
           if (known) return known;
           const pending = pendingTurns.shift();
@@ -300,5 +308,42 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         if (!entry || !codexTurn) return yield* new CodexThreadError({ threadId, operation: "interrupt", message: "turn is not running here" });
         yield* codex.request("turn/interrupt", { threadId: entry.codexId, turnId: codexTurn }).pipe(Effect.mapError(fail(threadId, "interrupt")));
       }),
+
+      setGoal: Effect.fn("CodexThreads.setGoal")(function* (spec: ThreadSpec, directive: GoalDirective, objective: string, tokenBudget: bigint) {
+        const entry = yield* ensureLoaded(spec);
+        // origin "user": the platform acts for the user who set the goal in the UI.
+        const set = (params: Omit<v2.ThreadGoalSetParams, "threadId" | "origin">) =>
+          codex.request("thread/goal/set", { threadId: entry.codexId, origin: "user", ...params }).pipe(Effect.asVoid);
+        const request = (() => {
+          switch (directive) {
+            case GoalDirective.RUN:
+              // With an objective: a new goal (replaces the current one); without: resume.
+              return objective
+                ? set({ objective, status: "active", tokenBudget: tokenBudget > 0n ? Number(tokenBudget) : null })
+                : set({ status: "active" });
+            case GoalDirective.PAUSE:
+              return set({ status: "paused" });
+            case GoalDirective.COMPLETE:
+              return set({ status: "complete" });
+            case GoalDirective.CLEAR:
+              return codex.request("thread/goal/clear", { threadId: entry.codexId, origin: "user" }).pipe(Effect.asVoid);
+            default:
+              return Effect.fail({ message: `unknown goal directive ${directive}` });
+          }
+        })();
+        yield* request.pipe(Effect.mapError(fail(spec.threadId, "goal")));
+      }),
+
+      stopTask: Effect.fn("CodexThreads.stopTask")(function* (threadId: string, taskId: string) {
+        const entry = byPlatform.get(threadId);
+        const processId = entry?.mapper.markStopping(taskId);
+        if (!entry || !processId) return yield* new CodexThreadError({ threadId, operation: "stop", message: "the task is not running here" });
+        yield* codex
+          .request("thread/backgroundTerminals/terminate", { threadId: entry.codexId, processId })
+          .pipe(Effect.mapError(fail(threadId, "stop")));
+      }),
+
+      backgroundTasks: () =>
+        new Map([...byPlatform.values()].flatMap((entry) => (entry.mapper.backgroundTasks.length > 0 ? [[entry.platformId, entry.mapper.backgroundTasks] as const] : []))),
     });
   });
