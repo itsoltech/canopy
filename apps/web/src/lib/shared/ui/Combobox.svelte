@@ -27,6 +27,7 @@
     value = $bindable(),
     filter,
     onselect,
+    onchange,
     inline = false,
     loading = false,
     label,
@@ -50,6 +51,8 @@
     /** Custom match, or `false` when `items` are already filtered (server-side search). */
     filter?: ((item: T, query: string) => boolean) | false;
     onselect?: ((item: T) => void) | undefined;
+    /** Autocomplete: the text was committed (an option chosen, or edited and left / Enter). */
+    onchange?: ((text: string) => void) | undefined;
     inline?: boolean;
     loading?: boolean;
     label: string;
@@ -77,8 +80,10 @@
     const haystack = text(item).toLowerCase();
     return q.toLowerCase().split(/\s+/).filter(Boolean).every((token) => haystack.includes(token));
   };
-  // Autocomplete shows everything until you type something different from the current value.
-  const visible = $derived(filter === false || !query.trim() ? items : items.filter((item) => (filter ?? defaultFilter)(item, query.trim())));
+  // Autocomplete lists everything when opened and filters once you type (inline pickers always filter).
+  let typed = $state(false);
+  const filtering = $derived(filter !== false && Boolean(query.trim()) && (inline || typed));
+  const visible = $derived(filtering ? items.filter((item) => (filter || defaultFilter)(item, query.trim())) : items);
   const active = $derived(visible.find((item) => key(item) === activeKey) ?? visible.find((item) => key(item) === value) ?? visible[0]);
   const activeIndex = $derived(active ? visible.indexOf(active) : -1);
   const listOpen = $derived(inline || open);
@@ -104,6 +109,7 @@
     if (!inline) {
       query = text(item);
       open = false;
+      onchange?.(query);
     }
     onselect?.(item);
   }
@@ -250,10 +256,15 @@
       bind:value={query}
       oninput={() => {
         activeKey = undefined;
+        typed = true;
         open = true;
       }}
       onclick={() => (open = !open)}
-      onblur={() => (open = false)}
+      onblur={() => {
+        open = false;
+        typed = false;
+      }}
+      onchange={() => onchange?.(query)}
       {onkeydown}
       class={[controlClasses, "pr-8"]}
       {@attach focusOnMount}

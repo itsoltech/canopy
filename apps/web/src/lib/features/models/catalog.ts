@@ -140,3 +140,8 @@ export function modelOptions(sources: ModelSources): ModelOption[] {
 
 /** Text the picker's search matches against. */
 export const searchText = (option: ModelOption): string => `${option.name} ${option.model} ${option.profileName} ${providerName(option.provider)}`;
+
+/** Model ids worth suggesting for a provider in free-text fields (aliases, then recent). PENDING backend: the catalog. */
+export function suggestedModels(provider: ProviderKey, threads: Iterable<ui.Thread>): string[] {
+  return [...new Set([...aliases[provider], ...knownModels(threads, provider)])];
+}

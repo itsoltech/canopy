@@ -19,6 +19,15 @@ export interface TooltipOptions {
 }
 
 let lastHidden = 0;
+// Focus shows a tooltip only when the keyboard moved it (not when a closing menu hands focus back after a click).
+let keyboardLast = false;
+let modalityTracked = false;
+function trackModality() {
+  if (modalityTracked) return;
+  modalityTracked = true;
+  document.addEventListener("keydown", () => (keyboardLast = true), true);
+  document.addEventListener("pointerdown", () => (keyboardLast = false), true);
+}
 const WARM_MS = 400;
 let counter = 0;
 
@@ -42,9 +51,11 @@ export function tooltip(text: string | undefined, { placement = "top", hotkey, d
     if (node.getAttribute("aria-label") !== text) node.setAttribute("aria-describedby", tip.id);
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    trackModality();
     const show = () => {
       clearTimeout(timer);
-      if (!node.isConnected) return;
+      // Not over its own open menu or popover.
+      if (!node.isConnected || node.getAttribute("aria-expanded") === "true") return;
       if (!tip.matches(":popover-open")) tip.showPopover();
       positionNow(node, tip, { placement, offset: 6 });
     };
@@ -68,7 +79,11 @@ export function tooltip(text: string | undefined, { placement = "top", hotkey, d
     };
     // Touch fallback: long press shows the tip briefly.
     const onpointerdown = (event: PointerEvent) => {
-      if (event.pointerType === "mouse") return hide();
+      if (event.pointerType === "mouse") {
+        hide();
+        clearTimeout(timer);
+        return;
+      }
       later(500, () => {
         show();
         later(1500, hide);
@@ -78,7 +93,7 @@ export function tooltip(text: string | undefined, { placement = "top", hotkey, d
       if (event.pointerType !== "mouse" && !tip.matches(":popover-open")) clearTimeout(timer);
     };
     const onfocus = () => {
-      if (node.matches(":focus-visible")) show();
+      if (keyboardLast && node.matches(":focus-visible")) show();
     };
     const onkeydown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && tip.matches(":popover-open")) hide();
