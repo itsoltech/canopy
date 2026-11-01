@@ -1,6 +1,6 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
-Status: **działa dla Codexa** (2026-11-01):
+Status: **działa dla Codexa i Claude** (2026-11-01; Claude przez serwer MCP w procesie workera, [claude-adapter.md](claude-adapter.md#szyna-agentów)):
 - wyłączanie natywnych narzędzi dostawców: `apps/worker/src/providers/native-tools.ts`, z testem na prawdziwym Codexie,
 - definicje narzędzi, zestawy per poziom i reguły dostępu: `packages/domain/src/agent-bus`,
 - schemat: `agent_bus_calls`, `schedules`, `threads.spawned_by_call_id`, `threads.interaction_route`, `interaction_requests.routed_to`, `turns.hops` i wyzwalacze tur (migracja `0004` dopuszcza odrzucone `spawn_thread`/`send_message` bez `hops`),

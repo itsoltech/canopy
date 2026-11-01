@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Provider, ProviderProfileKind } from "@open-agents/contracts";
-import { claudeProfileOptions } from "./claude.ts";
+import { claudeProfileOptions } from "./claude/profile.ts";
 import { codexAppServerLaunch, codexThreadProvider } from "./codex/launch.ts";
 import {
   ProfileError,

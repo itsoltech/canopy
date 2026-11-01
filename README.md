@@ -7,7 +7,7 @@ Platforma do zarządzania agentami AI dla wielu użytkowników.
 - **PostgreSQL** — baza danych.
 - Komunikacja gateway ↔ worker: gRPC, strumień dwukierunkowy po HTTP/2, inicjowany przez workera.
 
-Status: system działa end to end z Codexem: frontend (SvelteKit jako BFF, SSE), gateway (PostgreSQL, orkiestracja, API dla UI), worker (dziennik, zdalna konfiguracja, Codex app-server z izolowanym `CODEX_HOME`, zgody), szyna agentów dla Codexa (wątki boczne tworzone przez agentów, wiadomości, powiadomienia, pytania do rodzica), model domenowy (harmonogram, cele). W budowie: adapter Claude, harmonogram i cele w runtime, logowanie użytkowników.
+Status: system działa end to end z Codexem i Claude: frontend (SvelteKit jako BFF, SSE), gateway (PostgreSQL, orkiestracja, API dla UI), worker (dziennik, zdalna konfiguracja, Codex app-server z izolowanym `CODEX_HOME`, Claude Agent SDK z izolowanym `CLAUDE_CONFIG_DIR`, zgody), szyna agentów (wątki boczne tworzone przez agentów, wiadomości, powiadomienia, pytania do rodzica, harmonogram platformy), model domenowy celów. W budowie: cele w runtime, logowanie użytkowników.
 
 ## Struktura
 
@@ -16,7 +16,7 @@ Monorepo na Bun workspaces. Aplikacje wdraża się osobno, pakiety są współdz
 ```text
 apps/
   gateway/        serwer centralny: WorkerLinkService i GatewayService (gRPC), orkiestracja, PostgreSQL; docelowo chat runtime, agent bus
-  worker/         usługa na edge device: klient WorkerLinkService, dziennik, zdalna konfiguracja, adapter Codex (app-server)
+  worker/         usługa na edge device: klient WorkerLinkService, dziennik, zdalna konfiguracja, adaptery Codex (app-server) i Claude (Agent SDK)
   web/            frontend SvelteKit (BFF): strony i API po HTTP/1.1, SSE do przeglądarki, gRPC do gateway
 packages/
   contracts/      kontrakt generowany z /proto (protoc-gen-es) — jedyne źródło typów protokołu
@@ -67,6 +67,7 @@ Testy na żywo z prawdziwymi modelami są opt-in (zużywają limity kont): `OA_L
 - [Cele (goals)](docs/goals.md)
 - [Adapter Codex (app-server)](docs/codex-adapter.md)
 - [API dla UI i architektura frontendu (SvelteKit BFF)](docs/ui-api.md)
+- [Adapter Claude (Agent SDK)](docs/claude-adapter.md)
 - [Model danych](docs/data-model.md)
 - [Trwałość i aktualizacje w trakcie działania](docs/durability.md)
 - [Wyniki spike'a gRPC po HTTP/2 w Bun](docs/spikes/grpc-http2-bun.md)

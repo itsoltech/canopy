@@ -403,8 +403,8 @@ export class GatewayStore extends Context.Service<
               model: row.settings.model ?? "",
               instructions: row.settings.instructions ?? "",
               permissionMode: PermissionMode[(row.settings.permissionMode ?? "ASK") as keyof typeof PermissionMode] ?? PermissionMode.ASK,
-              // Agent bus tools for Codex threads (Claude gets them with its adapter, docs/agent-bus.md).
-              enableAgentBus: row.provider === "codex",
+              // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
+              enableAgentBus: row.runtime === "worker",
               providerThreadId: row.provider_thread_id ?? "",
               depth: row.depth,
             }),

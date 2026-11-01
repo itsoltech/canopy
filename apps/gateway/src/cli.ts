@@ -54,8 +54,9 @@ await runtime.runPromise(
       workerId,
       {
         allowedRoots: values.root!,
+        // Both CLIs; the worker reports the ones it cannot find. With a proxy profile no device login is linked.
         codex: { enabled: true, ...(profiles.length > 0 && { deviceLogin: DeviceLogin.NONE }) },
-        claude: { enabled: false }, // Claude adapter not available yet
+        claude: { enabled: true, ...(profiles.length > 0 && { deviceLogin: DeviceLogin.NONE }) },
         profiles,
       },
       userId,

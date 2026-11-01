@@ -1,5 +1,5 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import type { Env, ResolvedProfile } from "./profiles.ts";
+import type { Env, ResolvedProfile } from "../profiles.ts";
 
 /** Variables that would compete with the profile's auth or endpoint. */
 const AUTH_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN"] as const;

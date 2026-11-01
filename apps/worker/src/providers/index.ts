@@ -1,4 +1,4 @@
-export { claudeProfileOptions } from "./claude.ts";
+export { claudeProfileOptions } from "./claude/profile.ts";
 export { codexAppServerLaunch, codexModelProviderId, codexThreadProvider, type CodexAppServerLaunch } from "./codex/launch.ts";
 export {
   NATIVE_PROFILE,

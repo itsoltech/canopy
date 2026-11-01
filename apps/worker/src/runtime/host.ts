@@ -18,9 +18,12 @@ import { Cause, Context, Effect, Exit, Layer, Scope, type ManagedRuntime } from 
 import { applyWorkerConfig, isAllowedPath, type AppliedConfig, type DeviceProbe, systemProbe } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { Journal } from "../journal/index.ts";
+import { prepareClaudeHome } from "../providers/claude/home.ts";
+import { ClaudeThreads } from "../providers/claude/threads.ts";
 import { prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
+import type { ResolvedProfile } from "../providers/profiles.ts";
 
 /**
  * Everything the worker does between the gateway link and the provider runtimes
@@ -49,10 +52,10 @@ export interface WorkerHostOptions {
   readonly log?: (message: string) => void;
 }
 
-interface CodexRuntime {
+interface ProviderRuntimeHandle<S> {
   readonly key: string;
   readonly scope: Scope.Closeable;
-  readonly context: Context.Context<CodexThreads>;
+  readonly context: Context.Context<S>;
 }
 
 class CommandError extends Error {
@@ -70,7 +73,8 @@ export class WorkerHost {
   readonly #options: WorkerHostOptions;
   #config: AppliedConfig | undefined;
   #link: GatewayLink | undefined;
-  #codex: CodexRuntime | undefined;
+  #codex: ProviderRuntimeHandle<CodexThreads> | undefined;
+  #claude: ProviderRuntimeHandle<ClaudeThreads> | undefined;
   #rebuildWanted = false;
   readonly #running = new Set<string>();
   readonly #interactions = new Map<string, { request: InteractionRequest; resolve: (r: InteractionResponse) => void }>();
@@ -98,7 +102,7 @@ export class WorkerHost {
     const result = applyWorkerConfig(message, this.#options.probe ?? systemProbe);
     if (result.applied) {
       this.#config = result.config;
-      await this.#reconcileCodex();
+      await this.#reconcileRuntimes();
     }
     return result.report;
   }
@@ -136,6 +140,7 @@ export class WorkerHost {
 
   async close(): Promise<void> {
     await this.#stopCodex();
+    await this.#stopClaude();
   }
 
   // ------------------------------------------------------------------ commands
@@ -150,20 +155,31 @@ export class WorkerHost {
         const spec = kind.value.thread;
         if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
         this.#checkCwd(config, spec.cwd);
-        await this.#runCodex(spec.provider, (threads) => threads.create(spec, kind.value.fork));
+        const fork = kind.value.fork;
+        if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.create(spec, fork));
+        else await this.#runCodex(spec.provider, (threads) => threads.create(spec, fork));
         return {};
       }
       case "startTurn": {
         const { thread: spec, turnId, input } = kind.value;
         if (!spec || !input) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
-        await this.#runCodex(spec.provider, (threads) => threads.startTurn(spec, turnId, input));
+        if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.startTurn(spec, turnId, input));
+        else await this.#runCodex(spec.provider, (threads) => threads.startTurn(spec, turnId, input));
         return {};
       }
-      case "interruptTurn":
-        await this.#runCodex(Provider.CODEX, (threads) => threads.interrupt(kind.value.threadId, kind.value.turnId));
+      case "interruptTurn": {
+        const { threadId, turnId } = kind.value;
+        // The command does not name the provider: the runtime with the running turn takes it.
+        const claude = this.#claude;
+        if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
+          await this.#runClaude((threads) => threads.interrupt(threadId, turnId));
+        } else {
+          await this.#runCodex(Provider.CODEX, (threads) => threads.interrupt(threadId, turnId));
+        }
         return {};
+      }
       case "unloadThread":
-        return {}; // nothing to free yet: Codex threads share one app-server process
+        return {}; // nothing to free yet: Codex threads share one app-server process, Claude turns end with their query
       default:
         throw new CommandError("UNIMPLEMENTED", `${kind.case ?? "empty"} is not supported by this worker yet`, true);
     }
@@ -172,7 +188,16 @@ export class WorkerHost {
   async #runCodex<A, E>(provider: Provider, use: (threads: CodexThreads["Service"]) => Effect.Effect<A, E>): Promise<A> {
     if (provider !== Provider.CODEX) throw new CommandError("PROVIDER_UNAVAILABLE", `${Provider[provider]} is not supported by this worker yet`, true);
     if (!this.#codex) throw new CommandError("PROVIDER_UNAVAILABLE", this.#config?.codex.problem ?? "codex is disabled", false);
-    const exit = await this.#options.runtime.runPromiseExit(Effect.provide(CodexThreads.use(use), this.#codex.context));
+    return this.#runIn(Effect.provide(CodexThreads.use(use), this.#codex.context));
+  }
+
+  async #runClaude<A, E>(use: (threads: ClaudeThreads["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    if (!this.#claude) throw new CommandError("PROVIDER_UNAVAILABLE", this.#config?.claude.problem ?? "claude is disabled", false);
+    return this.#runIn(Effect.provide(ClaudeThreads.use(use), this.#claude.context));
+  }
+
+  async #runIn<A, E>(effect: Effect.Effect<A, E, Journal>): Promise<A> {
+    const exit = await this.#options.runtime.runPromiseExit(effect);
     if (Exit.isSuccess(exit)) return exit.value;
     const error = Cause.squash(exit.cause);
     throw new CommandError("THREAD_ERROR", error instanceof Error || (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : String(error), true);
@@ -225,21 +250,68 @@ export class WorkerHost {
     });
   }
 
-  async #reconcileCodex(): Promise<void> {
+  /** Provider runtimes follow the configuration, but are never rebuilt under a running turn. */
+  async #reconcileRuntimes(): Promise<void> {
     const config = this.#config;
-    const key = config ? this.#codexKey(config) : undefined;
-    if (key === this.#codex?.key) return;
+    const codexKey = config ? this.#codexKey(config) : undefined;
+    const claudeKey = config ? this.#claudeKey(config) : undefined;
+    if (codexKey === this.#codex?.key && claudeKey === this.#claude?.key) return;
     if (this.#running.size > 0) {
-      this.#rebuildWanted = true; // never under a running turn
-      this.#log(`codex settings changed; restart deferred until ${this.#running.size} running turn(s) finish`);
+      this.#rebuildWanted = true;
+      this.#log(`provider settings changed; restart deferred until ${this.#running.size} running turn(s) finish`);
       return;
     }
     this.#rebuildWanted = false;
+    if (codexKey !== this.#codex?.key) await this.#reconcileCodex(config, codexKey);
+    if (claudeKey !== this.#claude?.key) await this.#reconcileClaude(config, claudeKey);
+  }
+
+  #claudeKey(config: AppliedConfig): string | undefined {
+    if (!config.claude.enabled || !config.claude.executable) return undefined;
+    return JSON.stringify({
+      executable: config.claude.executable,
+      linkDeviceLogin: config.claude.linkDeviceLogin,
+      nativeTools: config.nativeTools,
+      profiles: config.profiles.map((p) => p.resolved ?? null),
+    });
+  }
+
+  async #reconcileClaude(config: AppliedConfig | undefined, key: string | undefined): Promise<void> {
+    await this.#stopClaude();
+    if (!config || !key) return;
+    const home = prepareClaudeHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.claude.linkDeviceLogin });
+    if (home.problem) this.#log(`claude home: ${home.problem}`);
+    const profiles = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "claude") ? [p.resolved] : []));
+    const layer = ClaudeThreads.layer({
+      home: home.path,
+      ...(config.claude.executable && { executable: config.claude.executable }),
+      nativeTools: config.nativeTools,
+      baseEnv: process.env,
+      profile: (id) => profiles.find((p) => p.id === (id || "native")),
+      publish: (event) => this.#publish(event),
+      interact: (request) => this.#interact(request),
+      callTool: (call) => this.#callTool(call),
+    });
+    const scope = await Effect.runPromise(Scope.make());
+    const context = await this.#options.runtime.runPromise(Layer.buildWithScope(layer, scope));
+    this.#claude = { key, scope, context };
+    this.#log("claude runtime started");
+  }
+
+  async #stopClaude(): Promise<void> {
+    const claude = this.#claude;
+    if (!claude) return;
+    this.#claude = undefined;
+    await Effect.runPromise(Scope.close(claude.scope, Exit.void));
+    this.#log("claude runtime stopped");
+  }
+
+  async #reconcileCodex(config: AppliedConfig | undefined, key: string | undefined): Promise<void> {
     await this.#stopCodex();
     if (!config || !key) return;
     const home = prepareCodexHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.codex.linkDeviceLogin });
     if (home.problem) this.#log(`codex home: ${home.problem}`);
-    const profiles = config.profiles.flatMap((p) => (p.resolved ? [p.resolved] : []));
+    const profiles = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "codex") ? [p.resolved] : []));
     const layer = CodexThreads.layer({
       launch: codexAppServerLaunch(profiles, process.env, config.codex.executable, config.nativeTools, home.path),
       clientVersion: this.#options.clientVersion,
@@ -269,7 +341,7 @@ export class WorkerHost {
     if (event.body.case === "turnStarted") this.#running.add(key);
     if (event.body.case === "turnFinished") {
       this.#running.delete(key);
-      if (this.#rebuildWanted && this.#running.size === 0) void this.#reconcileCodex();
+      if (this.#rebuildWanted && this.#running.size === 0) void this.#reconcileRuntimes();
     }
     this.#send({ case: "threadEvent", value: event });
   }
@@ -306,4 +378,9 @@ export class WorkerHost {
   #log(message: string): void {
     this.#options.log?.(message);
   }
+}
+
+/** A CLIProxyAPI profile serves the providers it lists (both by default); native profiles serve their own CLI. */
+function usableBy(profile: ResolvedProfile, provider: "claude" | "codex"): boolean {
+  return profile.kind !== "cliproxyapi" || profile.providers.includes(provider);
 }

@@ -60,6 +60,7 @@
         "@open-agents/domain": "workspace:*",
         "@open-agents/transport": "workspace:*",
         "effect": "4.1.1",
+        "zod": "4.6.7",
       },
     },
     "packages/codex-protocol": {
