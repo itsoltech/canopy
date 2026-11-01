@@ -8,13 +8,16 @@ export class HttpError extends Error {
   }
 }
 
-/** Browser-side JSON call to the BFF (same origin); the error message comes from SvelteKit's `{ message }`. */
-export async function requestJson(method: "GET" | "POST" | "PUT", path: string, body?: unknown): Promise<unknown> {
+/**
+ * Browser-side JSON call to the BFF (same origin); the error message comes from SvelteKit's `{ message }`.
+ * Gives up after `timeoutMs` (15 s; longer for calls that wait on a worker).
+ */
+export async function requestJson(method: "GET" | "POST" | "PUT", path: string, body?: unknown, timeoutMs = 15_000): Promise<unknown> {
   const response = await fetch(path, {
     method,
     headers: { accept: "application/json", ...(body !== undefined && { "content-type": "application/json" }) },
     ...(body !== undefined && { body: JSON.stringify(body) }),
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {

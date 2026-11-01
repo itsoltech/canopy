@@ -11,6 +11,7 @@
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
+  import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
@@ -125,6 +126,7 @@
     panelSheet = false;
     scheduling = true;
   };
+  let modelOpen = $state(false);
   let copied = $state("");
   async function copy(value: string) {
     try {
@@ -158,6 +160,7 @@
             {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="Thread actions" {...props} />{/snippet}
             <MenuItem icon="arrows-right-left" disabled={!canBranch} onselect={openSide}>New side thread</MenuItem>
             <MenuItem icon="clock" disabled={!canSchedule} onselect={openSchedule}>Schedule a task</MenuItem>
+            <MenuItem icon="cpu-chip" disabled={closed} onselect={() => (modelOpen = true)}>Model and effort…</MenuItem>
             <MenuSeparator />
             <MenuSub label="Copy" icon="document-duplicate">
               <MenuItem onselect={() => copy(page.url.href)}>Link</MenuItem>
@@ -259,6 +262,7 @@
     />
   </Dialog>
   <SideThreadDialog bind:open={sideOpen} main={tree.main} {worker} />
+  <ThreadModelDialog bind:open={modelOpen} {thread} {worker} />
   <ScheduleDialog bind:open={scheduling} threadId={thread.id} oncreated={(schedule) => view.upsertSchedule(schedule)} />
 {/if}
 

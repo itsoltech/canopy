@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { modelOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { threadModelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import WorkerHoverCard from "#lib/features/overview/WorkerHoverCard.svelte";
@@ -17,7 +18,8 @@
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
    * twice. While a turn runs, a typed message queues and the empty box offers Stop.
    * Pills: the model and reasoning effort for the next messages (same provider and profile as the
-   * thread). Under the box: where the thread runs (hover for the worker) and its permission mode
+   * thread), sent with each message as an override for its turn; unchanged = the thread's defaults.
+   * Under the box: where the thread runs (hover for the worker) and its permission mode
    * (fixed for the thread's life).
    */
   let {
@@ -30,19 +32,22 @@
   }: { thread: ui.Thread; worker: ui.Worker | undefined; running: boolean; disabled?: boolean; note?: string | undefined; class?: ClassValue } = $props();
 
   const overview = useOverview();
-  const provider = $derived(providerKeyOf(thread.provider));
-  // The thread's provider and profile stay; only models on them are offered, the thread's own first.
-  const current = $derived(provider ? modelOption(provider, thread.providerProfileId, thread.providerProfileId || "native", thread.model, "recent") : undefined);
-  const options = $derived.by(() => {
-    if (!provider || !current) return [];
-    const offered = modelOptions({ worker, threads: overview.threads.values(), only: { provider, profileId: thread.providerProfileId } });
-    return offered.some((o) => o.key === current.key) ? offered : [current, ...offered];
+  const models = useModelCatalog();
+  // The thread's provider and profile stay; only models on them are offered. `current` = the thread's default.
+  const offer = $derived(threadModelOptions(thread, { worker, catalog: models.of(thread.workerId), threads: overview.threads.values() }));
+  // Your choice for this thread's next messages (kept per thread; navigating to another starts fresh).
+  let choice = $state<{ threadId: string; option?: ModelOption | undefined; effort?: string | undefined }>({ threadId: "" });
+  const mine = $derived(choice.threadId === thread.id ? choice : undefined);
+  const option = $derived(mine?.option ?? offer.current);
+  const effort = $derived(mine?.effort);
+  // The turn's override: a model other than the thread's, a chosen effort; without one the thread's effort,
+  // unless the model does not take it (then the model's default).
+  const override = $derived.by(() => {
+    const model = option && offer.current && option.key !== offer.current.key ? option.model : undefined;
+    const fallback = option && thread.effort && option.efforts.length > 0 && !option.efforts.some((e) => e.id === thread.effort) ? option.defaultEffort : undefined;
+    const sent = effort ?? fallback;
+    return { ...(model !== undefined && { model }), ...(sent && { effort: sent }) };
   });
-  // PENDING backend: per-message model and effort (SendMessageRequest.model / reasoning_effort). Until
-  // the contract has them the choice stays in this composer and is not sent.
-  let picked = $state<ModelOption>();
-  let effort = $state<string>();
-  const option = $derived(picked ?? options.find((o) => o.key === current?.key));
 
   let text = $state("");
   let sending = $state(false);
@@ -58,7 +63,7 @@
     sending = true;
     error = undefined;
     try {
-      await sendMessage(thread.id, message, requestId);
+      await sendMessage(thread.id, message, requestId, override);
       text = "";
       requestId = crypto.randomUUID();
     } catch (e) {
@@ -94,10 +99,11 @@
     {#snippet controls()}
       {#if option}
         <ModelControls
-          {options}
-          bind:option={() => option, (next) => (picked = next)}
-          bind:effort
-          notice="Per-message model and effort are not sent yet: the gateway does not take them."
+          options={offer.options}
+          bind:option={() => option, (next) => (choice = { threadId: thread.id, option: next, effort: mine?.effort })}
+          bind:effort={() => effort, (next) => (choice = { threadId: thread.id, option: mine?.option, effort: next })}
+          inherited={thread.effort || undefined}
+          workerId={thread.workerId}
           class="flex-1 justify-end"
         />
       {:else}

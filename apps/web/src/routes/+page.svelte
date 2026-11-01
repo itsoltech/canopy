@@ -9,7 +9,8 @@
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { effectiveDefaults, modelFor } from "#lib/features/settings/thread-defaults.ts";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
-  import { modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { findOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { permissionModes } from "#lib/features/threads/labels.ts";
   import { profileIdValue, providerKeyOf } from "#lib/features/threads/providers.ts";
@@ -50,23 +51,28 @@
   const defaults = $derived(effectiveDefaults(settings.threadDefaults, chosen ? settings.projectDefaults(chosen.project.id) : undefined));
   const defaultProvider = $derived(providerKeyOf(defaults.provider));
 
-  // Model options (provider × profile × model) the worker can start. Until you pick one: the defaults'
-  // provider, profile and model, else the defaults' provider, else the first option (also when your pick
-  // is not offered on this workspace's worker).
-  const options = $derived(modelOptions({ worker, threads: overview.threads.values(), defaults }));
+  // Model options (provider × profile × model) from the worker's catalog. Until you pick one: the defaults'
+  // provider, profile and model (the profile's default model when the list lacks it), else the defaults'
+  // provider, else the first option (also when your pick is not offered on this workspace's worker).
+  const models = useModelCatalog();
+  const workerId = $derived(chosen?.workspace.workerId ?? "");
+  const options = $derived(modelOptions({ worker, catalog: models.of(workerId), threads: overview.threads.values(), defaults }));
   let picked = $state<ModelOption>();
   const fromDefaults = $derived.by(() => {
     if (!defaultProvider) return undefined;
     const ofProvider = options.filter((o) => o.provider === defaultProvider);
     const profile = defaults.providerProfileId ? profileIdValue(defaults.providerProfileId) : undefined;
-    const onProfile = ofProvider.filter((o) => profile === undefined || o.profileId === profile);
-    const model = modelFor(defaults, Provider[defaultProvider]);
-    return onProfile.find((o) => o.model === model) ?? onProfile[0] ?? ofProvider[0];
+    const profileId = profile !== undefined && ofProvider.some((o) => o.profileId === profile) ? profile : ofProvider[0]?.profileId;
+    if (profileId === undefined) return undefined;
+    return findOption(options, defaultProvider, profileId, modelFor(defaults, Provider[defaultProvider])) ?? findOption(options, defaultProvider, profileId, "");
   });
   const offered = (option: ModelOption | undefined) => option && options.some((o) => o.provider === option.provider && o.profileId === option.profileId);
   const selected = $derived(offered(picked) ? picked : (fromDefaults ?? options[0]));
-  // PENDING backend: CreateThreadRequest has no reasoning effort yet; the form already sends it.
+  // Not picked and the profile's default: "" (the thread follows the profile's default model).
+  const model = $derived(!selected || (selected !== picked && selected.isDefault) ? "" : selected.model);
   let effort = $state<string>();
+  // Only an effort the model takes (switching the workspace can change the model).
+  const sentEffort = $derived(effort && selected?.efforts.some((e) => e.id === effort) ? effort : "");
   let permission = $state<string>();
   const permissionMode = $derived(permission ?? (defaults.permissionMode !== PermissionMode.UNSPECIFIED ? PermissionMode[defaults.permissionMode] : "ASK"));
 
@@ -120,15 +126,15 @@
           <input type="hidden" name="clientRequestId" value={clientRequestId} />
           <input type="hidden" name="provider" value={selected?.provider ?? ""} />
           <input type="hidden" name="profileId" value={selected?.profileId ?? ""} />
-          <input type="hidden" name="model" value={selected?.model ?? ""} />
-          <input type="hidden" name="reasoningEffort" value={effort ?? ""} />
+          <input type="hidden" name="model" value={model} />
+          <input type="hidden" name="effort" value={sentEffort} />
           <input type="hidden" name="workspaceId" value={workspaceId} />
           <input type="hidden" name="permissionMode" value={permissionMode} />
           {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
           <ComposerBox bind:value={message} sending={busy} disabled={!selected} autofocus label="Task for the agent">
             {#snippet controls()}
               {#if selected}
-                <ModelControls {options} bind:option={() => selected, (option) => (picked = option)} bind:effort class="flex-1 justify-end" />
+                <ModelControls {options} bind:option={() => selected, (option) => (picked = option)} bind:effort {workerId} class="flex-1 justify-end" />
               {:else}
                 <PillText class="flex-1 text-right">No agent available</PillText>
               {/if}
