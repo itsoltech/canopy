@@ -3,6 +3,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
+  import { duration } from "#lib/shared/ui/motion.ts";
   import { providerName, type ModelOption } from "./catalog.ts";
   import ProviderIcon from "./ProviderIcon.svelte";
 
@@ -35,6 +36,16 @@
     onstar: () => void;
     class?: ClassValue;
   } = $props();
+
+  // Starring gives the star a small spring (motion.css `t-pop`).
+  let popping = $state(false);
+  let popped: ReturnType<typeof setTimeout> | undefined;
+  function pop() {
+    popping = true;
+    clearTimeout(popped);
+    popped = setTimeout(() => (popping = false), duration("medium"));
+  }
+  $effect(() => () => clearTimeout(popped));
 </script>
 
 <div class={["flex items-center gap-2", className]}>
@@ -58,9 +69,11 @@
       tabindex={-1}
       label={starred ? `Remove ${option.name} (${option.profileName}) from favorites` : `Add ${option.name} (${option.profileName}) to favorites`}
       aria-pressed={starred}
+      class={popping ? "t-pop" : undefined}
       iconClass={starred ? "fill-amber-500" : ["fill-zinc-300 dark:fill-zinc-600", !active && "pointer-fine:invisible"]}
       onclick={(event) => {
         event.stopPropagation();
+        if (!starred) pop();
         onstar();
       }}
     />

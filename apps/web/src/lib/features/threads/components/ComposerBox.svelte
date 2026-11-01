@@ -4,6 +4,7 @@
   import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
+  import { resizeToContent, rise } from "#lib/shared/ui/motion.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
@@ -16,6 +17,7 @@
    * With `onqueue` (a turn runs) a typed message has two ways: submitting steers it into the running
    * turn (Enter, the "Steer" button), `onqueue` keeps it for the next turn (Mod+Enter, the button's menu).
    * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
+   * The send slot eases to the width of what it holds (send, stop, steer), so the pills glide aside.
    */
   let {
     value = $bindable(""),
@@ -88,11 +90,12 @@
     ></textarea>
     <div class="flex items-center justify-end gap-2 p-2.5 pl-3">
       {#if steerMode}
-        <p class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden pointer-coarse:hidden dark:text-zinc-400" aria-hidden="true">
+        <p class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden pointer-coarse:hidden dark:text-zinc-400" aria-hidden="true" in:rise>
           <Kbd hotkey="Enter" />steer<Kbd hotkey="Mod+Enter" class="ml-1" />queue
         </p>
       {/if}
       {@render controls?.()}
+      <div class="t-resize flex shrink-0 justify-end overflow-clip [overflow-clip-margin:--spacing(1)]" {@attach resizeToContent}>
       {#if steerMode && onqueue}
         <SteerSendButton {sending} disabled={disabled || !canSend || !value.trim()} onsteer={submit} {onqueue} />
       {:else if stopMode}
@@ -119,6 +122,7 @@
           <TouchTarget />
         </button>
       {/if}
+      </div>
     </div>
   </div>
   {#if meta}

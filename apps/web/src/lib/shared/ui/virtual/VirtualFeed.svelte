@@ -3,6 +3,7 @@
   import { tick, untrack } from "svelte";
   import type { Attachment } from "svelte/attachments";
   import Button from "../Button.svelte";
+  import { rise } from "../motion.ts";
   import { UiMemory } from "../memory.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
@@ -17,6 +18,10 @@
    *   the keyboard opening); once they scroll up, the first visible row keeps its place on screen when
    *   rows above change height or are added (also prepended older history).
    * - The server renders the last rows and a tiny inline script scrolls to the end before the first paint.
+   * - `placeholder` stands where the rows will be while there are none (a skeleton, bottom-aligned
+   *   above the footer like the end of the feed); the first rows after it resolve in. Rows added at the
+   *   end later rise in once, when they first mount (`VirtualRow` `enter`); rows mounted by scrolling,
+   *   prepended history and server-rendered rows do not. "Jump to latest" rises in and out.
    * - Keyboard: the scroll area is focusable (Page Up/Down, Home/End scroll it); inside a row, Page
    *   Up/Down move to the previous/next row (WAI-ARIA feed), Ctrl+End to the composer, Ctrl+Home back
    *   to the scroll area. A focused row stays mounted.
@@ -29,6 +34,7 @@
     label,
     busy = false,
     top,
+    placeholder,
     row,
     footer,
   }: {
@@ -41,6 +47,8 @@
     label: string;
     busy?: boolean;
     top?: Snippet;
+    /** In place of the rows while there are none (loading). */
+    placeholder?: Snippet;
     row: Snippet<[T, number]>;
     footer?: Snippet;
   } = $props();
@@ -98,6 +106,35 @@
   const padBottom = $derived.by(() => (void layout, layout.total - index.offset(range[1])));
   const visible = $derived(rows.slice(range[0], range[1]));
 
+  // --- New rows ---------------------------------------------------------------------------------------
+  /** Keys shown so far (undefined until the first rows); rows that arrive later enter until they mount. */
+  let known: Set<string> | undefined;
+  /** The feed started empty (client navigation): its first rows replace the placeholder. */
+  const startedEmpty = untrack(() => rows.length === 0);
+  const entering = new Map<string, "rise" | "reveal">();
+  let enterFrame = 0;
+  $effect.pre(() => {
+    const keys = sized.map((r) => r.key);
+    if (keys.length === 0) return;
+    if (known) {
+      let last = -1;
+      keys.forEach((rowKey, at) => {
+        if (known?.has(rowKey)) last = at;
+      });
+      for (const rowKey of keys.slice(last + 1)) entering.set(rowKey, "rise");
+    } else if (startedEmpty) for (const rowKey of keys) entering.set(rowKey, "reveal");
+    // What did not mount with this update (scrolled away) is not new any more.
+    cancelAnimationFrame(enterFrame);
+    enterFrame = requestAnimationFrame(() => entering.clear());
+    known = new Set(keys);
+  });
+  /** How a row enters the first time it mounts (once), if it is new. */
+  function takeEnter(rowKey: string) {
+    const enter = entering.get(rowKey);
+    entering.delete(rowKey);
+    return enter;
+  }
+
   // --- Measuring ------------------------------------------------------------------------------------
   const elements = new Map<string, HTMLElement>();
   let commitFrame = 0;
@@ -153,6 +190,7 @@
   $effect(() => () => {
     observer?.disconnect();
     cancelAnimationFrame(commitFrame);
+    cancelAnimationFrame(enterFrame);
   });
   // After every DOM change of the window: keep the reader's place (or the end).
   $effect(() => {
@@ -321,7 +359,8 @@
 >
   <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">
     {@render top?.()}
-    <div class="grow pt-2 pb-8">
+    <div class="flex grow flex-col pt-2 pb-8">
+      {#if rows.length === 0 && placeholder}<div class="mt-auto">{@render placeholder()}</div>{/if}
       <!-- Keys and focus bubble up from the focusable articles (WAI-ARIA feed). -->
       <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
@@ -336,7 +375,7 @@
         {onfocusout}
       >
         {#each visible as item, offset (key(item))}
-          <VirtualRow key={key(item)} position={range[0] + offset + 1} count={sized.length} {memory} {measure}>
+          <VirtualRow key={key(item)} position={range[0] + offset + 1} count={sized.length} {memory} {measure} enter={takeEnter(key(item))}>
             {@render row(item, range[0] + offset)}
           </VirtualRow>
         {/each}
@@ -345,7 +384,7 @@
     <div bind:this={footerElement} class="sticky bottom-0 z-10 bg-white pb-[max(--spacing(3),env(safe-area-inset-bottom))] dark:bg-black">
       <div class="pointer-events-none absolute inset-x-0 bottom-full h-8 bg-linear-to-t from-white dark:from-black" aria-hidden="true"></div>
       {#if !stuck}
-        <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2">
+        <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2" transition:rise>
           <Button size="sm" icon="arrow-down" class="shadow-md dark:shadow-none" onclick={jump}>Jump to latest</Button>
         </div>
       {/if}
