@@ -124,6 +124,76 @@ describe("Codex event mapping on a recorded failing turn", () => {
   });
 });
 
+/** Summary of command and tool call items: what the transcript shows for each command. */
+function commandSummary(items: readonly Item[]) {
+  return items.flatMap((item) =>
+    item.content.case === "commandExecution"
+      ? [["command", item.itemId, item.content.value.command, item.content.value.exitCode, item.status]]
+      : item.content.case === "toolCall"
+        ? [["tool", item.itemId, item.content.value.name, item.status]]
+        : [],
+  );
+}
+
+// Live recording (threads.live.test.ts): ping without network, ls and git status in one code-mode cell.
+// rawResponseItem/completed come from the rollout (threads.ts); Codex reports no item for the failing ping.
+describe("Codex event mapping on a recorded code-mode turn", () => {
+  const notifications = fixture("code-mode-commands");
+  const { events, items } = replay(notifications);
+  const cell = items.find((item) => item.content.case === "toolCall");
+
+  test("the code-mode cell is a tool call with its script and full result, the failing command included", () => {
+    expect(cell?.content.case === "toolCall" && cell.content.value.name).toBe("exec");
+    expect(cell?.status).toBe(ItemStatus.COMPLETED);
+    const value = cell?.content.case === "toolCall" ? cell.content.value : undefined;
+    expect(JSON.parse(value?.inputJson ?? "{}").code).toContain("ping -c 4 8.8.8.8");
+    expect(value?.output).toContain('{"command":"ping -c 4 8.8.8.8"');
+    expect(value?.output).toContain('"exit_code":2');
+    expect(value?.output).toContain("ping: socket: Operation not permitted");
+  });
+
+  test("the cell starts before its nested commands, which Codex reports as command items", () => {
+    expect(commandSummary(items).map(([kind, , name]) => [kind, name])).toEqual([
+      ["tool", "exec"],
+      ["command", "/usr/bin/bash -lc 'git status'"],
+      ["command", "/usr/bin/bash -lc 'ls -lah'"],
+    ]);
+  });
+
+  test("other model output items from the rollout yield nothing: app-server items already cover them", () => {
+    const raw = notifications.filter((n) => n.method === "rawResponseItem/completed");
+    const fromRaw = events.filter((e) => JSON.parse(e.rawJson).method === "rawResponseItem/completed");
+    expect(fromRaw.map((e) => e.body.case)).toEqual(["itemStarted", "itemCompleted"]);
+    expect(events).toHaveLength(notifications.length - raw.length + fromRaw.length);
+  });
+});
+
+// Live recording with direct tools (exec_command per command; model catalog without code mode, raw events on).
+describe("Codex event mapping on a recorded turn with direct shell calls", () => {
+  const notifications = fixture("direct-shell-turn");
+  const { events, items } = replay(notifications);
+
+  test("a shell call without a Codex item becomes a command item at the turn end, with output and exit code", () => {
+    const commands = items.filter((item) => item.content.case === "commandExecution");
+    expect(commands.map((item) => (item.content.case === "commandExecution" ? [item.content.value.command, item.content.value.exitCode, item.status] : []))).toEqual([
+      ["/usr/bin/bash -lc ls", 0, ItemStatus.COMPLETED],
+      ["ping -c 1 8.8.8.8", 2, ItemStatus.FAILED],
+      ['echo "Operation not permitted" >&2; exit 1', 1, ItemStatus.FAILED],
+    ]);
+    const ping = commands[1]?.content;
+    expect(ping?.case === "commandExecution" && ping.value.output).toBe("ping: socktype: SOCK_DGRAM\nping: socket: Operation not permitted\n");
+    // Ids are the call ids, the same as Codex's own command items would have.
+    const calls = notifications.flatMap((n) => {
+      const item = n.method === "rawResponseItem/completed" ? n.params.item : undefined;
+      return item?.type === "function_call" ? [item.call_id] : [];
+    });
+    expect(commands.map((item) => item.itemId).sort()).toEqual([...calls].sort());
+    // Emitted right before turn_finished, in the same turn.
+    const cases = events.map((e) => e.body.case);
+    expect(cases.slice(-3)).toEqual(["itemCompleted", "itemCompleted", "turnFinished"]);
+  });
+});
+
 describe("mapItem", () => {
   test("file changes, MCP and agent bus calls, unknown types", () => {
     expect(
