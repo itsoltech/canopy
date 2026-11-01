@@ -16,7 +16,10 @@ export class OverviewState {
   /** Every thread by id (seeded from the server, status changes and new threads arrive live). */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
   connection = $state<OverviewConnection>("live");
+  /** Grows with every reload after a gap in the stream: state kept elsewhere (settings, schedules) reloads too. */
+  resyncs = $state(0);
   #synced = false;
+  #listeners = new Set<(update: ui.OverviewUpdate) => void>();
 
   constructor(initial: ui.GetOverviewResponse | undefined, threads: readonly ui.Thread[] = []) {
     if (initial) this.#replace(initial, threads);
@@ -38,7 +41,14 @@ export class OverviewState {
     return [...list.map((t) => this.threads.get(t.id) ?? t), ...added];
   }
 
+  /** Other changes of the stream (settings, schedules) for whoever keeps that state; returns the unsubscribe. */
+  subscribe(listener: (update: ui.OverviewUpdate) => void): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+
   apply(update: ui.OverviewUpdate): void {
+    for (const listener of this.#listeners) listener(update);
     const change = update.change;
     if (change.case === "worker") this.workers = upsert(this.workers, change.value, (w) => w.id);
     if (change.case === "project") this.projects = upsert(this.projects, change.value, (p) => p.id);
@@ -62,6 +72,7 @@ export class OverviewState {
       const [overview, threads] = await Promise.all([get("/api/overview"), get("/api/threads")]);
       this.#replace(decode(ui.GetOverviewResponseSchema, overview), decode(ui.ListThreadsResponseSchema, threads).threads);
       this.connection = "live";
+      this.resyncs += 1;
     } catch {
       this.connection = "unavailable";
     }

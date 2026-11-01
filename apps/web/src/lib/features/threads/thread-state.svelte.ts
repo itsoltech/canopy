@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { TurnOrigin, TurnOutcome, ui, type Item, type Notice, type TurnFinished, type TurnStarted, type Usage } from "@open-agents/contracts";
 import { eventItemId, reduceItem } from "@open-agents/domain/items";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
 import { decode } from "#lib/shared/wire.ts";
 
 export interface TimelineEntry {
@@ -11,6 +12,8 @@ export interface TimelineEntry {
   readonly firstSeq: bigint;
   /** From the history a fork inherited (its seq counts in the source thread). */
   readonly inherited: boolean;
+  /** Inherited: the thread it belongs to (along a chain of forks, not always the direct source). */
+  readonly fromThreadId: string;
 }
 
 /** A notice event (rate limit, retry, provider error, restart); the snapshot brings the latest ones. */
@@ -52,6 +55,8 @@ export class ThreadState {
   entries = $state.raw<TimelineEntry[]>([]);
   interactions = $state.raw<ui.Interaction[]>([]);
   notices = $state.raw<TimelineNotice[]>([]);
+  /** The thread's schedules (the snapshot has the active and paused ones; changes arrive live). */
+  schedules = $state.raw<ui.Schedule[]>([]);
   turnResults = $state.raw<ReadonlyMap<string, TurnResult>>(new Map());
   /** Latest token usage of the thread (usage_updated), live only; carries the context window. */
   usage = $state.raw<Usage | undefined>(undefined);
@@ -61,6 +66,7 @@ export class ThreadState {
   failure = $state<string | undefined>(undefined);
 
   readonly pending = $derived(this.interactions.filter((i) => i.status === "pending"));
+  readonly upcomingSchedules = $derived(this.schedules.filter((s) => !isFinished(s)));
   /** The thread's own turns and items; a fork's inherited history is kept apart. */
   readonly ownTurns = $derived(this.turns.filter((t) => !t.inherited));
   readonly ownEntries = $derived(this.entries.filter((e) => !e.inherited));
@@ -99,9 +105,10 @@ export class ThreadState {
         this.turns = snapshot.turns;
         this.interactions = snapshot.interactions;
         this.entries = snapshot.items.flatMap((i) =>
-          i.item ? [{ id: i.item.itemId, item: i.item, turnId: i.turnId, firstSeq: i.firstSeq, inherited: i.inherited }] : [],
+          i.item ? [{ id: i.item.itemId, item: i.item, turnId: i.turnId, firstSeq: i.firstSeq, inherited: i.inherited, fromThreadId: i.fromThreadId }] : [],
         );
         this.notices = snapshot.notices.flatMap((n) => (n.notice ? [{ seq: n.seq, turnId: n.turnId, notice: n.notice, at: n.occurredAt }] : []));
+        this.schedules = snapshot.schedules;
         // Live usage (context window) is not in the snapshot: keep what this tab saw before the reconnect.
         this.loaded = true;
         break;
@@ -122,9 +129,17 @@ export class ThreadState {
         this.interactions = index >= 0 ? this.interactions.with(index, change.value) : [...this.interactions, change.value];
         break;
       }
+      case "schedule":
+        this.upsertSchedule(change.value);
+        break;
       default:
         break;
     }
+  }
+
+  /** A schedule created or changed here (also before the stream reports it). */
+  upsertSchedule(schedule: ui.Schedule): void {
+    if (schedule.threadId === this.thread?.id) this.schedules = upsertSchedule(this.schedules, schedule);
   }
 
   #event({ seq, event }: ui.ThreadEventUpdate): void {
@@ -154,7 +169,7 @@ export class ThreadState {
     const index = this.entries.findIndex((e) => e.id === id && !e.inherited);
     const next = reduceItem(index >= 0 ? this.entries[index]?.item : undefined, body);
     if (!next) return;
-    const entry: TimelineEntry = { id, item: next, turnId: event.turnId, firstSeq: index >= 0 ? this.entries[index]!.firstSeq : seq, inherited: false };
+    const entry: TimelineEntry = { id, item: next, turnId: event.turnId, firstSeq: index >= 0 ? this.entries[index]!.firstSeq : seq, inherited: false, fromThreadId: "" };
     this.entries = index >= 0 ? this.entries.with(index, entry) : [...this.entries, entry];
   }
 

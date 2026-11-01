@@ -1,15 +1,15 @@
 import { fail, redirect } from "@sveltejs/kit";
 import { PermissionMode, Provider, type ui } from "@open-agents/contracts";
-import { attempt, call, failed } from "#lib/server/gateway.ts";
-import { isProviderKey, placementProblem, providerKeyOf } from "../providers.ts";
+import { attempt, failed } from "#lib/server/gateway.ts";
+import { isProviderKey, providerKeyOf } from "../providers.ts";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
 /**
  * Form action body shared by "New thread" (home composer) and "New side thread" (thread page):
  * validates the fields, calls CreateThread and redirects to the new thread.
- * - Main thread: `projectId`, `workspaceId` and `provider` come from the form; the provider and profile
- *   must be available on the workspace's worker.
+ * - Main thread: `projectId`, `workspaceId` and `provider` come from the form; the gateway checks that
+ *   the workspace's worker offers the provider and profile.
  * - Side thread: pass the parent; project, workspace and provider come from the parent (GetThread), so a
  *   fork keeps the provider its history is written in.
  */
@@ -26,16 +26,6 @@ export async function createThreadFromForm(form: FormData, action: string, targe
   const profileId = text(form, "profileId");
   const initialMessage = text(form, "message");
   if (parent && !initialMessage) return fail(400, { action, error: "Tell the side thread what to do" });
-
-  // The gateway does not check the worker's providers yet: refuse here what the worker cannot run.
-  const overview = await call((api) => api.getOverview({}));
-  const workerId = overview.projects.flatMap((p) => p.workspaces).find((w) => w.id === workspaceId)?.workerId;
-  const problem = placementProblem(
-    overview.workers.find((w) => w.id === workerId),
-    provider,
-    profileId,
-  );
-  if (problem) return fail(400, { action, error: problem });
 
   const result = await attempt(action, (api) =>
     api.createThread({

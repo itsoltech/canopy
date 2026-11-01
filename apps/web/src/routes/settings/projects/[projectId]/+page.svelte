@@ -4,6 +4,8 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { osLabel } from "#lib/features/overview/workers.ts";
   import ProjectThreadList from "#lib/features/projects/ProjectThreadList.svelte";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import ThreadDefaultsFields from "#lib/features/settings/ThreadDefaultsFields.svelte";
   import AddWorkspaceForm from "#lib/features/workspaces/AddWorkspaceForm.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
@@ -17,6 +19,7 @@
 
   let { data, form }: PageProps = $props();
   const overview = useOverview();
+  const settings = useSettings();
 
   const projectId = $derived(page.params.projectId ?? "");
   const project = $derived(overview.project(projectId));
@@ -58,6 +61,17 @@
     </Disclosure>
   </div>
 </SettingsGroup>
+
+{#if project}
+  <SettingsGroup title="Thread defaults" description="Starting values of new threads in this project, over your own defaults from Settings → Threads.">
+    <ThreadDefaultsFields
+      value={settings.projectDefaults(project.id)}
+      workspaces={[{ project, workspaces: project.workspaces }]}
+      inherited={settings.threadDefaults}
+      onchange={(next) => settings.updateProjectDefaults(project.id, next)}
+    />
+  </SettingsGroup>
+{/if}
 
 <SettingsGroup title="Threads" description="Main threads with their side threads.">
   <div class="p-2"><ProjectThreadList {threads} /></div>

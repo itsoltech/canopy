@@ -1,23 +1,13 @@
 <!doctype html>
-<html lang="en" class="bg-white antialiased dark:bg-black">
+<html lang="en" class="bg-white antialiased dark:bg-black%oa.dark%" data-color-scheme="%oa.scheme%" data-accent="%oa.accent%" data-chat-width="%oa.chatWidth%">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="text-scale" content="scale" />
-		<meta name="color-scheme" content="light dark" />
+		<meta name="color-scheme" content="%oa.colorSchemeMeta%" />
 		<script>
-			// Appearance before first paint (lib/shared/preferences.svelte.ts keeps it in sync afterwards).
-			(() => {
-				let prefs = {};
-				try {
-					prefs = JSON.parse(localStorage.getItem("oa-prefs") ?? "{}");
-				} catch {}
-				const scheme = prefs.scheme ?? "system";
-				const root = document.documentElement;
-				root.classList.toggle("dark", scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches));
-				root.dataset.accent = prefs.accent ?? "default";
-				root.dataset.chatWidth = prefs.chatWidth ?? "comfortable";
-			})();
+			// The server renders the saved appearance (hooks.server.ts); only "system" needs the browser's preference.
+			if (document.documentElement.dataset.colorScheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.classList.add("dark");
 		</script>
 		<link rel="preconnect" href="https://rsms.me/" />
 		<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
