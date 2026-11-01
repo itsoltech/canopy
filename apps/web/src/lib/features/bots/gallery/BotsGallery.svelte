@@ -1,6 +1,7 @@
 <script lang="ts">
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import type { ChatEntry, ChatMessageView, ConversationView } from "../model.ts";
@@ -20,11 +21,13 @@
   import { bots, conversations, directEntries, groupEntries, me, pictureBot, watchEntries } from "./fixtures.ts";
   import GallerySection from "./GallerySection.svelte";
   import Segmented from "./Segmented.svelte";
+  import type { ClassValue } from "svelte/elements";
 
   /**
    * Dev-only gallery of the Bots components with made-up data (`/dev/bots`, absent from production
    * builds). Pins, read state, sending and answering work in memory so the interactions can be tried.
    */
+  let { class: className }: { class?: ClassValue } = $props();
   let list = $state<ConversationView[]>(structuredClone(conversations));
   let query = $state("");
   let selectedId = $state("c-canopy");
@@ -84,7 +87,7 @@
 
 <svelte:head><title>Bots gallery · Open Agents</title></svelte:head>
 
-<div class="flex h-full flex-col">
+<div class={["flex h-full flex-col", className]}>
   <TopBar><Crumb>Dev</Crumb><Crumb>Bots gallery</Crumb></TopBar>
   <div class="min-h-0 flex-1 overflow-y-auto">
     <div class="mx-auto grid max-w-6xl gap-10 px-4 pt-4 pb-16 sm:px-6">
@@ -138,9 +141,9 @@
         </div>
         <div class="flex flex-wrap gap-2">
           {#each list as conversation (conversation.id)}
-            <button type="button" class="rounded-md px-2 py-1 text-sm/6 text-zinc-500 ring-1 ring-zinc-950/10 hover:text-zinc-950 focus-ring dark:ring-white/10 dark:hover:text-white" aria-pressed={selectedId === conversation.id} onclick={() => (selectedId = conversation.id)}>
+            <Button size="sm" variant={selectedId === conversation.id ? "primary" : "secondary"} aria-pressed={selectedId === conversation.id} onclick={() => (selectedId = conversation.id)}>
               Select {conversation.id}
-            </button>
+            </Button>
           {/each}
         </div>
       </GallerySection>

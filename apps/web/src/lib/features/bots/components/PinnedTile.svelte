@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { conversationMenu, type ConversationHandlers } from "../actions.ts";
+  import { avatarRing } from "../avatar-ring.ts";
   import { contextMenu } from "../context-menu.ts";
   import { conversationTitle, type ConversationView } from "../model.ts";
   import AvatarBadge from "./AvatarBadge.svelte";
@@ -45,7 +46,7 @@
           <AvatarBadge kind="pinned" size="lg" />
         {/if}
         {#if conversation.unread > 0}
-          <span class="absolute top-0 right-0 size-3 rounded-full bg-brand-500 ring-2 ring-[var(--avatar-ring,var(--color-white))] dark:ring-[var(--avatar-ring,var(--color-black))]"></span>
+          <span class={["absolute top-0 right-0 size-3 rounded-full bg-brand-500", avatarRing]}></span>
         {/if}
       </span>
       <span class="w-full truncate text-center text-sm/5 text-zinc-700 group-aria-[current=page]:text-zinc-950 sm:text-xs/5 dark:text-zinc-300 dark:group-aria-[current=page]:text-white">

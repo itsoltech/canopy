@@ -74,7 +74,7 @@
     <a
       href="/settings"
       aria-current={settingsActive ? "page" : undefined}
-      class="relative grid size-9 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring aria-[current=page]:text-zinc-950 sm:size-8 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:text-white"
+      class={[iconLink, "aria-[current=page]:text-zinc-950 dark:aria-[current=page]:text-white"]}
       aria-label="Settings"
       title="Settings"
     >

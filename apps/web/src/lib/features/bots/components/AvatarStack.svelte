@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import { avatarRing } from "../avatar-ring.ts";
   import type { ParticipantView } from "../model.ts";
   import BotAvatar from "./BotAvatar.svelte";
 
   /**
    * Avatars of a group. `square`: two avatars on a diagonal in the space of one (list rows, pinned
    * tiles); `row`: up to `max` overlapping in a line, then "+N" (headers). Each avatar has a ring in
-   * the colour of the surface behind it (`--avatar-ring`, default white / black).
+   * the colour of the surface behind it (`avatarRing`).
    */
   let {
     participants,
@@ -16,7 +17,7 @@
     class: className,
   }: { participants: readonly ParticipantView[]; layout?: "square" | "row"; size?: "md" | "lg"; max?: number; class?: ClassValue } = $props();
 
-  const ring = "rounded-full ring-2 ring-[var(--avatar-ring,var(--color-white))] dark:ring-[var(--avatar-ring,var(--color-black))]";
+  const ring = ["rounded-full", avatarRing];
   const shown = $derived(participants.slice(0, layout === "square" ? 2 : max));
   const extra = $derived(participants.length - shown.length);
 </script>
@@ -32,7 +33,7 @@
       <BotAvatar {participant} size="sm" class={ring} />
     {/each}
     {#if extra > 0}
-      <span class={["grid size-7 place-items-center bg-zinc-200 text-[0.6875rem] font-medium text-zinc-700 tabular-nums dark:bg-zinc-800 dark:text-zinc-200", ring]}>+{extra}</span>
+      <span class={["grid size-7 place-items-center bg-zinc-200 text-[0.6875rem] font-medium text-zinc-700 tabular-nums dark:bg-zinc-800 dark:text-zinc-200", ...ring]}>+{extra}</span>
     {/if}
   </span>
 {/if}

@@ -2,8 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { clock } from "#lib/shared/clock.svelte.ts";
-  import Icon from "#lib/shared/ui/Icon.svelte";
-  import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { conversationMenu, type ConversationHandlers } from "../actions.ts";
   import { listTimeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
@@ -75,17 +74,15 @@
   </div>
 
   {#if items.length > 0}
-    <Menu {items} label="Actions for {title}" bind:open={menuOpen} class="absolute top-2 right-2">
+    <Menu {items} label="Actions for {title}" bind:open={menuOpen} class="absolute top-1.5 right-1.5">
       {#snippet trigger(props)}
-        <button
-          type="button"
+        <IconButton
+          icon="ellipsis-horizontal"
+          label="Actions for {title}"
+          size="sm"
           {...props}
-          class="relative grid size-7 place-items-center rounded-md text-zinc-500 opacity-0 hover:bg-zinc-950/5 focus-visible:opacity-100 aria-expanded:opacity-100 pointer-coarse:pointer-events-none pointer-fine:group-hover:opacity-100 hover:text-zinc-950 focus-ring sm:size-6 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-white"
-          aria-label="Actions for {title}"
-        >
-          <Icon name="ellipsis-horizontal" />
-          <TouchTarget />
-        </button>
+          class="opacity-0 focus-visible:opacity-100 aria-expanded:opacity-100 pointer-coarse:pointer-events-none pointer-fine:group-hover:opacity-100"
+        />
       {/snippet}
     </Menu>
   {/if}
