@@ -39,8 +39,6 @@
       };
     }}
   >
-    <input type="hidden" name="projectId" value={main.projectId} />
-    <input type="hidden" name="workspaceId" value={main.workspaceId} />
     <input type="hidden" name="parentThreadId" value={main.id} />
     <input type="hidden" name="clientRequestId" value={clientRequestId} />
 
@@ -51,7 +49,7 @@
       <Input name="title" placeholder="Short label shown in the thread list" autocomplete="off" maxlength={200} />
     </Field>
     <Checkbox name="fork" label="Continue from the main thread's history" description="The side thread sees everything up to the main thread's last completed turn. Uncheck to start with only the task." bind:checked={fork} />
-    <ThreadSettingsFields {worker} defaults={main} />
+    <ThreadSettingsFields {worker} parent={main} />
 
     {#if worker && !worker.online}<Alert tone="warning">{worker.name} is offline. The side thread starts when it reconnects.</Alert>{/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}

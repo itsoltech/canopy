@@ -9,6 +9,6 @@ export const actions: Actions = {
     const projectId = String(form.get("projectId") ?? "");
     if (!projectId) return fail(400, { action: "thread", error: "Choose a workspace" });
     if (!String(form.get("message") ?? "").trim()) return fail(400, { action: "thread", error: "Tell the agent what to do" });
-    return createThreadFromForm(form, projectId, "thread");
+    return createThreadFromForm(form, "thread", { projectId });
   },
 };

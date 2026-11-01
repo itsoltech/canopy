@@ -1,34 +1,54 @@
 import { fail, redirect } from "@sveltejs/kit";
-import { PermissionMode, Provider } from "@open-agents/contracts";
-import { attempt, failed } from "#lib/server/gateway.ts";
+import { PermissionMode, Provider, type ui } from "@open-agents/contracts";
+import { attempt, call, failed } from "#lib/server/gateway.ts";
+import { isProviderKey, placementProblem, providerKeyOf } from "../providers.ts";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
 /**
- * Form action body shared by "New thread" (project page) and "New side thread" (thread page):
- * validates the fields, calls CreateThread and redirects to the new thread. Side threads pass
- * `parentThreadId` (and optionally `fork`); the gateway keeps them in the parent's workspace.
+ * Form action body shared by "New thread" (home composer) and "New side thread" (thread page):
+ * validates the fields, calls CreateThread and redirects to the new thread.
+ * - Main thread: `projectId`, `workspaceId` and `provider` come from the form; the provider and profile
+ *   must be available on the workspace's worker.
+ * - Side thread: pass the parent; project, workspace and provider come from the parent (GetThread), so a
+ *   fork keeps the provider its history is written in.
  */
-export async function createThreadFromForm(form: FormData, projectId: string, action: string) {
-  const workspaceId = text(form, "workspaceId");
+export async function createThreadFromForm(form: FormData, action: string, target: { projectId: string } | { parent: ui.Thread }) {
+  const parent = "parent" in target ? target.parent : undefined;
+  const projectId = parent?.projectId ?? ("projectId" in target ? target.projectId : "");
+  const workspaceId = parent?.workspaceId ?? text(form, "workspaceId");
   if (!workspaceId) return fail(400, { action, error: "Choose a workspace" });
   const mode = text(form, "permissionMode") || "ASK";
   if (!(mode in PermissionMode)) return fail(400, { action, error: "Unknown permission mode" });
-  const parentThreadId = text(form, "parentThreadId");
+  const requested = text(form, "provider");
+  const provider = parent ? providerKeyOf(parent.provider) : isProviderKey(requested) ? requested : undefined;
+  if (!provider) return fail(400, { action, error: "Choose Claude or Codex" });
+  const profileId = text(form, "profileId");
   const initialMessage = text(form, "message");
-  if (parentThreadId && !initialMessage) return fail(400, { action, error: "Tell the side thread what to do" });
+  if (parent && !initialMessage) return fail(400, { action, error: "Tell the side thread what to do" });
+
+  // The gateway does not check the worker's providers yet: refuse here what the worker cannot run.
+  const overview = await call((api) => api.getOverview({}));
+  const workerId = overview.projects.flatMap((p) => p.workspaces).find((w) => w.id === workspaceId)?.workerId;
+  const problem = placementProblem(
+    overview.workers.find((w) => w.id === workerId),
+    provider,
+    profileId,
+  );
+  if (problem) return fail(400, { action, error: problem });
+
   const result = await attempt(action, (api) =>
     api.createThread({
       projectId,
       workspaceId,
       title: text(form, "title"),
-      provider: Provider.CODEX,
-      providerProfileId: text(form, "profileId"),
+      provider: Provider[provider],
+      providerProfileId: profileId,
       model: text(form, "model"),
       permissionMode: PermissionMode[mode as keyof typeof PermissionMode],
       initialMessage,
-      parentThreadId,
-      fork: Boolean(parentThreadId) && form.get("fork") === "on",
+      parentThreadId: parent?.id ?? "",
+      fork: Boolean(parent) && form.get("fork") === "on",
       clientRequestId: text(form, "clientRequestId") || crypto.randomUUID(),
     }),
   );
