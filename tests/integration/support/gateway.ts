@@ -271,16 +271,17 @@ export async function startTestGateway(): Promise<TestGateway> {
   };
 }
 
-/** Collects WatchThread updates until the predicate holds (10 s at most). */
+/** Collects WatchThread updates until the predicate holds (10 s at most by default). */
 export async function watchUntil(
   api: Client<typeof ui.GatewayService>,
   threadId: string,
   done: (updates: ui.ThreadUpdate[]) => boolean,
   onUpdate?: (u: ui.ThreadUpdate) => void,
+  timeoutMs = 10_000,
 ): Promise<ui.ThreadUpdate[]> {
   const controller = new AbortController();
   const updates: ui.ThreadUpdate[] = [];
-  const timeout = setTimeout(() => controller.abort(), 10_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     for await (const update of api.watchThread({ threadId }, { signal: controller.signal })) {
       updates.push(update);
