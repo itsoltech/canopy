@@ -177,7 +177,11 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
         status: lifecycle,
         content: {
           case: "userMessage",
-          value: { text: item.content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n") },
+          value: {
+            text: item.content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n"),
+            // turn/start and turn/steer send the platform's id (turn id, steer input id) as clientUserMessageId.
+            ...(item.clientId && { clientId: item.clientId }),
+          },
         },
       };
     case "agentMessage":

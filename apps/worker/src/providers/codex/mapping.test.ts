@@ -183,4 +183,9 @@ describe("mapItem", () => {
     const unknown = mapItem({ type: "sleep", id: "s1", durationMs: 1000 }, true);
     expect(unknown.content).toMatchObject({ case: "providerItem", value: { type: "sleep" } });
   });
+
+  test("a steered message keeps the platform's id (turn/steer clientUserMessageId)", () => {
+    const steered = mapItem({ type: "userMessage", id: "u1", clientId: "steer-1", content: [{ type: "text", text: "also X", text_elements: [] }] }, true);
+    expect(steered.content).toEqual({ case: "userMessage", value: { text: "also X", clientId: "steer-1" } });
+  });
 });

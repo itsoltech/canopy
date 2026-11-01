@@ -16,7 +16,9 @@ import {
 import { agentBusToolSpecs, agentBusToolsFor } from "@open-agents/domain";
 import { Context, Effect, Layer, Schema, Stream } from "effect";
 import { Journal } from "../../journal/index.ts";
+import { codexModel, codexProxyModels, proxyModels, type ModelInit } from "../models.ts";
 import type { ResolvedProfile } from "../profiles.ts";
+import { SteerError, type TurnSettings } from "../turn-input.ts";
 import { toolCallId } from "../tool-call-id.ts";
 import { CodexAppServer, type ServerRequestHandler } from "./app-server.ts";
 import { codexThreadProvider, type CodexAppServerLaunch } from "./launch.ts";
@@ -71,8 +73,12 @@ export class CodexThreads extends Context.Service<
     /** Creates the Codex thread (new or fork) and records thread_ready. Returns the Codex thread id. */
     create(spec: ThreadSpec, fork?: ForkSpec): Effect.Effect<string, CodexThreadError>;
     /** Starts a turn; resumes the Codex thread first when this process has not loaded it. */
-    startTurn(spec: ThreadSpec, turnId: string, input: UserInput): Effect.Effect<string, CodexThreadError>;
+    startTurn(spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings): Effect.Effect<string, CodexThreadError>;
     interrupt(threadId: string, turnId: string): Effect.Effect<void, CodexThreadError>;
+    /** Adds input to the running turn (turn/steer); idempotent by inputId. */
+    steer(threadId: string, turnId: string, inputId: string, input: UserInput): Effect.Effect<void, SteerError>;
+    /** Models a profile offers (model/list, plus the proxy's models for a CLIProxyAPI profile). */
+    listModels(profileId: string): Effect.Effect<{ models: ModelInit[]; detail?: string }, CodexThreadError>;
   }
 >()("open-agents/worker/CodexThreads") {
   static readonly layer = (options: CodexThreadsOptions) => {
@@ -101,6 +107,10 @@ interface Entry {
   readonly codexToPlatform: Map<string, string>;
   readonly platformToCodex: Map<string, string>;
   readonly commandTurns: Set<string>;
+  /** Codex turns that completed: a steer for them falls back to the queue. */
+  readonly finishedTurns: Set<string>;
+  /** Steered inputs (SteerTurn.input_id) accepted by Codex. */
+  readonly steered: Set<string>;
 }
 
 const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHandler) => void) =>
@@ -138,16 +148,18 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         },
         isCommandTurn: (codexTurn) => commandTurns.has(codexTurn),
       });
-      const entry: Entry = { platformId, codexId, mapper, pendingTurns, codexToPlatform, platformToCodex, commandTurns };
+      const entry: Entry = { platformId, codexId, mapper, pendingTurns, codexToPlatform, platformToCodex, commandTurns, finishedTurns: new Set(), steered: new Set() };
       byPlatform.set(platformId, entry);
       byCodex.set(codexId, entry);
       return entry;
     };
 
-    const record = (entry: Entry, notification: ServerNotification) =>
-      Effect.forEach(entry.mapper.map(notification), (init) =>
+    const record = (entry: Entry, notification: ServerNotification) => {
+      if (notification.method === "turn/completed") entry.finishedTurns.add(notification.params.turn.id);
+      return Effect.forEach(entry.mapper.map(notification), (init) =>
         journal.append(entry.platformId, init).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))),
       );
+    };
 
     // One consumer, in order, for every notification of every loaded thread.
     yield* Effect.forkScoped(
@@ -230,6 +242,33 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       };
     };
 
+    // The bundled catalog (the same for every model provider), listed once per process.
+    let catalog: v2.Model[] | undefined;
+    const loadCatalog = Effect.gen(function* () {
+      if (catalog) return catalog;
+      const models: v2.Model[] = [];
+      let cursor: string | null = null;
+      do {
+        const page: v2.ModelListResponse = yield* codex.request("model/list", { includeHidden: true, ...(cursor && { cursor }) });
+        models.push(...page.data);
+        cursor = page.nextCursor;
+      } while (cursor);
+      catalog = models;
+      return models;
+    });
+
+    /**
+     * Every turn names its model and effort: Codex keeps a turn's override for the turns after it, so a turn
+     * without an override goes back to the catalog's default model and that model's default effort.
+     */
+    const turnSettings = (spec: ThreadSpec, settings: TurnSettings | undefined) =>
+      Effect.gen(function* () {
+        const models = yield* loadCatalog.pipe(Effect.orElseSucceed((): v2.Model[] => []));
+        const model = settings?.model || spec.model || models.find((m) => m.isDefault)?.model || "";
+        const effort = settings?.effort || models.find((m) => m.model === model)?.defaultReasoningEffort || "";
+        return { ...(model && { model }), ...(effort && { effort }) };
+      });
+
     const announce = (entry: Entry) =>
       journal
         .append(entry.platformId, { body: { case: "threadReady", value: { providerThreadId: entry.codexId } } })
@@ -268,16 +307,18 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         return entry.codexId;
       }),
 
-      startTurn: Effect.fn("CodexThreads.startTurn")(function* (spec: ThreadSpec, turnId: string, input: UserInput) {
+      startTurn: Effect.fn("CodexThreads.startTurn")(function* (spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings) {
         const entry = yield* ensureLoaded(spec);
         const known = entry.platformToCodex.get(turnId);
         if (known) return known; // redelivered StartTurn: the turn already exists
+        const chosen = yield* turnSettings(spec, settings);
         entry.pendingTurns.push(turnId);
         const response = yield* codex
           .request("turn/start", {
             threadId: entry.codexId,
             clientUserMessageId: turnId,
             input: [{ type: "text", text: input.text, text_elements: [] }],
+            ...chosen,
           })
           .pipe(
             Effect.mapError(fail(spec.threadId, "turn/start")),
@@ -299,6 +340,44 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         const codexTurn = entry?.platformToCodex.get(turnId);
         if (!entry || !codexTurn) return yield* new CodexThreadError({ threadId, operation: "interrupt", message: "turn is not running here" });
         yield* codex.request("turn/interrupt", { threadId: entry.codexId, turnId: codexTurn }).pipe(Effect.mapError(fail(threadId, "interrupt")));
+      }),
+
+      steer: Effect.fn("CodexThreads.steer")(function* (threadId: string, turnId: string, inputId: string, input: UserInput) {
+        const entry = byPlatform.get(threadId);
+        if (entry?.steered.has(inputId)) return; // redelivered SteerTurn
+        const codexTurn = entry?.platformToCodex.get(turnId);
+        if (!entry || !codexTurn || entry.finishedTurns.has(codexTurn)) {
+          return yield* new SteerError({ code: "STEER_NOT_RUNNING", message: "the turn is not running on this worker" });
+        }
+        // expectedTurnId: Codex refuses when another turn (or none) is active by now.
+        yield* codex
+          .request("turn/steer", {
+            threadId: entry.codexId,
+            expectedTurnId: codexTurn,
+            clientUserMessageId: inputId,
+            input: [{ type: "text", text: input.text, text_elements: [] }],
+          })
+          .pipe(
+            Effect.mapError((error) =>
+              entry.finishedTurns.has(codexTurn)
+                ? new SteerError({ code: "STEER_NOT_RUNNING", message: "the turn ended before the message could join it" })
+                : new SteerError({ code: "STEER_REJECTED", message: error.message }),
+            ),
+          );
+        entry.steered.add(inputId);
+      }),
+
+      listModels: Effect.fn("CodexThreads.listModels")(function* (profileId: string) {
+        const profile = options.profile(profileId);
+        if (!profile) return yield* new CodexThreadError({ threadId: "", operation: "model/list", message: `provider profile "${profileId || "native"}" is not available` });
+        // A fresh list: model/list again, not the process's cached catalog.
+        catalog = undefined;
+        const models = (yield* loadCatalog.pipe(Effect.mapError(fail("", "model/list")))).map(codexModel);
+        if (profile.kind !== "cliproxyapi") return { models };
+        return yield* Effect.tryPromise(() => proxyModels(profile)).pipe(
+          Effect.map((served) => ({ models: codexProxyModels(models, served) })),
+          Effect.catch((error) => Effect.succeed({ models, detail: `the proxy's models are unknown: ${error instanceof Error ? error.message : String(error)}` })),
+        );
       }),
     });
   });
