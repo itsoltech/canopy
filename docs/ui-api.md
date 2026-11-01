@@ -68,14 +68,20 @@ Kod wg funkcji (`#lib/features/*`), kod tylko serwerowy w katalogach `server/` (
 | `lib/server/gateway.ts` | klient gRPC z tokenem; `call` (błędy gateway → HTTP: 400, 404, 409, 503, reszta 502), `attempt` dla akcji formularzy (4xx → `fail`, komunikat przy formularzu) |
 | `lib/server/sse.ts`, `body.ts` | strumień gRPC → SSE (heartbeat co 15 s, ramka `failure`); ścisłe dekodowanie JSON (nadmiarowe pola → 400) |
 | `lib/shared/wire.ts` | JSON protobuf (`toJson` / `fromJson`) między serwerem a przeglądarką: te same schematy po obu stronach |
-| `features/overview` | stan workerów, projektów i statusów wątków (kontekst, SSE `api/overview/events`) |
-| `features/threads` | `ThreadState` (snapshot + zdarzenia, `reduceItem`), oś czasu, karty interakcji, pole wiadomości z przerwaniem |
-| `features/workspaces` | wybór katalogu na workerze (`api/workers/[id]/directory`) |
+| `lib/shared/ui` | prymitywy UI: `Button`, `ButtonLink`, `IconButton`, `Field` + `Input` / `Select` / `Textarea` / `Checkbox`, `Badge`, `StatusBadge`, `StatusDot`, `Card`, `Alert`, `EmptyState`, `Dialog`, `Drawer`, `Disclosure`, `CodeBlock`, `Skeleton`, `Page`, `PageHeader`, `Section`, `MetaList`; ikony Heroicons Micro (`icons.ts`); `markdown/` renderuje markdown agentów z tokenów `marked` komponentami Svelte (bez `{@html}`, linki tylko http(s)/mailto, obrazy jako linki) |
+| `lib/shared/format.ts` | liczby, czasy, rozmiary, JSON |
+| `features/navigation` | powłoka: pasek boczny (projekty, workery online, stan połączenia), menu mobilne |
+| `features/overview` | stan workerów, projektów i statusów wątków (kontekst, SSE `api/overview/events`; po każdym ponownym połączeniu pełny `api/overview`, bo strumień niesie tylko zmiany), karta workera |
+| `features/projects` | karta projektu, nowy projekt, lista wątków projektu (wątki główne z bocznymi) |
+| `features/threads` | `ThreadState` (snapshot + zdarzenia, `reduceItem`; notice, wynik i zużycie tur, tury startowane przez workera), `timeline.ts` (granice tur, zagnieżdżenie po `parent_item_id`), drzewo wątków, widoki itemów (`components/items`), karty interakcji (zgoda, pytania, formularz MCP), pole wiadomości, nowy wątek i nowy wątek boczny (`server/create-thread.ts`, wspólna akcja) |
+| `features/workspaces` | wybór katalogu na workerze (`api/workers/[id]/directory`), lista i dodawanie workspace'ów |
 
 Trasy:
-- strony: `/` (workery, nowy projekt), `/projects/[id]` (wątki, nowy wątek, workspace'y), `/threads/[id]` (oś czasu na żywo),
-- API (JSON): `POST api/threads/[id]/messages` (`{text, clientRequestId}`), `POST .../interrupt`, `POST api/interactions/[id]` (`{allow}` albo odpowiedzi), `GET api/workers/[id]/directory?path=`,
+- strony: `/` (projekty, workery, nowy projekt), `/projects/[id]` (drzewo wątków, nowy wątek, workspace'y), `/threads/[id]` (oś czasu na żywo, drzewo wątku: główny i boczne, nowy wątek boczny z opcjonalnym forkiem; akcja `?/createSideThread`),
+- API (JSON): `GET api/overview`, `GET api/projects/[id]/threads`, `POST api/threads/[id]/messages` (`{text, clientRequestId}`), `POST .../interrupt`, `POST api/interactions/[id]` (`{allow}` albo odpowiedzi), `GET api/workers/[id]/directory?path=`,
 - SSE: `api/overview/events`, `api/threads/[id]/events`. Po zerwaniu `EventSource` łączy się ponownie, a serwer zaczyna od świeżego snapshotu, więc stan klienta nie wymaga uzgadniania.
+
+Stany: brak gateway (powłoka renderuje się dalej, baner i ponawianie), ponowne łączenie SSE, worker offline (wątek i wiadomości czekają), wątek w tworzeniu lub nieudany, ładowanie (szkielety), puste listy. Tryb ciemny według systemu. Układ od telefonu (menu w szufladzie, przełącznik wątków w poziomym pasku) do desktopu (pasek boczny, drzewo wątku z prawej).
 
 Bezpieczeństwo:
 - przeglądarka nie zna adresu gateway ani tokenu,
