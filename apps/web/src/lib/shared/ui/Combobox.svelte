@@ -66,8 +66,8 @@
     onkeydown?: ((event: KeyboardEvent, active: T | undefined) => void) | undefined;
     class?: ClassValue;
     listClass?: ClassValue;
-    option?: Snippet<[T, { active: boolean; selected: boolean }]>;
-    empty?: Snippet<[string]>;
+    option?: Snippet<[T, { active: boolean; selected: boolean }]> | undefined;
+    empty?: Snippet<[string]> | undefined;
   } = $props();
 
   const id = $props.id();

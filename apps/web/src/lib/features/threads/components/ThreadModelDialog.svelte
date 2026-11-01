@@ -8,6 +8,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import { updateThread } from "../api.ts";
 
   /**
@@ -68,9 +69,9 @@
       {/if}
     </div>
     {#if error}<Alert tone="error">{error}</Alert>{/if}
-    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <DialogActions>
       <Button onclick={() => (open = false)}>Cancel</Button>
       <Button type="submit" variant="primary" loading={busy} disabled={!option}>Save</Button>
-    </div>
+    </DialogActions>
   </form>
 </Dialog>

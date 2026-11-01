@@ -178,6 +178,38 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     expect(await failure(api.createThread({ projectId, workspaceId, parentThreadId: thread.id, title: "x", provider: Provider.CODEX }))).toContain("parent's workspace");
   });
 
+  test("a project lives on the workers it has a workspace on: another directory, removed from a worker", async () => {
+    const workerId = (await api.getOverview({})).workers[0]!.id;
+    const moving = (await api.createProject({ name: "Moving" })).project!.id;
+    const ws = (await api.createWorkspace({ projectId: moving, workerId, rootPath: "/repo/repo-a", label: "laptop" })).workspace!;
+    const thread = (await api.createThread({ projectId: moving, workspaceId: ws.id, title: "Before", provider: Provider.CODEX, initialMessage: "one" })).thread!;
+    await watchUntil(api, thread.id, (u) => answers(u).includes("Echo: one") && u.some((x) => x.change.case === "thread" && x.change.value.status === "idle"));
+
+    // Another directory on the same worker: same rules as a new workspace; the thread keeps its own directory.
+    expect(await failure(api.updateWorkspace({ workspaceId: ws.id, rootPath: "/etc" }))).toContain("outside the worker's allowed");
+    const moved = (await api.updateWorkspace({ workspaceId: ws.id, rootPath: "/repo/" })).workspace!;
+    expect([moved.rootPath, moved.label, moved.workerId]).toEqual(["/repo", "laptop", workerId]);
+    expect((await api.updateWorkspace({ workspaceId: ws.id, label: "main checkout" })).workspace?.rootPath).toBe("/repo");
+    expect((await api.getThread({ threadId: thread.id })).thread?.cwd).toBe("/repo/repo-a");
+    const second = (await api.createWorkspace({ projectId: moving, workerId, rootPath: "/repo/repo-a", label: "" })).workspace!;
+    expect(await failure(api.updateWorkspace({ workspaceId: second.id, rootPath: "/repo" }))).toContain("already a workspace");
+
+    // Off the worker: gone from the overview and from new threads; the thread and its side threads go on.
+    await api.removeWorkspace({ workspaceId: ws.id });
+    const project = (await api.getOverview({})).projects.find((p) => p.id === moving)!;
+    expect(project.workspaces.map((w) => w.id)).toEqual([second.id]);
+    expect(await failure(api.createThread({ projectId: moving, workspaceId: ws.id, title: "x", provider: Provider.CODEX }))).toContain("workspace not found");
+    expect(await failure(api.updateWorkspace({ workspaceId: ws.id, label: "x" }))).toContain("workspace not found");
+    expect(await failure(api.removeWorkspace({ workspaceId: ws.id }))).toContain("workspace not found");
+    await api.sendMessage({ threadId: thread.id, text: "two", clientRequestId: "moving-2" });
+    await watchUntil(api, thread.id, (u) => answers(u).includes("Echo: two"));
+    const side = (
+      await api.createThread({ projectId: moving, workspaceId: ws.id, parentThreadId: thread.id, title: "Side", provider: Provider.CODEX, initialMessage: "side" })
+    ).thread!;
+    expect([side.workspaceId, side.cwd]).toEqual([ws.id, "/repo/repo-a"]);
+    await watchUntil(api, side.id, (u) => answers(u).includes("Echo: side"));
+  });
+
   test("a turn that lost its turn_finished is closed when the provider starts another one", async () => {
     const thread = (await api.createThread({ projectId, workspaceId, title: "Lost finish", provider: Provider.CODEX, initialMessage: "x" })).thread!;
     await watchUntil(api, thread.id, (u) => answers(u).includes("Echo: x"));

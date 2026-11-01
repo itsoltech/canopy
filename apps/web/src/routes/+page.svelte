@@ -1,14 +1,17 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { page } from "$app/state";
-  import { PermissionMode, Provider } from "@open-agents/contracts";
-  import { untrack } from "svelte";
+  import { PermissionMode, Provider, type ui } from "@open-agents/contracts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { effectiveDefaults, modelFor } from "#lib/features/settings/thread-defaults.ts";
+  import { defaultProject, defaultWorkspace } from "#lib/features/projects/placement.ts";
+  import ProjectPicker from "#lib/features/projects/ProjectPicker.svelte";
+  import WorkerPicker from "#lib/features/projects/WorkerPicker.svelte";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
+  import ComposerNotice from "#lib/features/threads/components/ComposerNotice.svelte";
   import { findOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
@@ -16,46 +19,50 @@
   import { profileIdValue, providerKeyOf } from "#lib/features/threads/providers.ts";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
-  import MenuGroup from "#lib/shared/ui/MenuGroup.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
   import PillText from "#lib/shared/ui/PillText.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import TextLink from "#lib/shared/ui/TextLink.svelte";
   import type { PageProps } from "./$types";
 
   /**
-   * New thread (T3's empty state): one message box; the model (Claude or Codex on a profile the
-   * workspace's worker offers, from the model picker), reasoning effort, workspace and permissions as
-   * pills. They start from the chosen project's defaults over yours (Settings); what you pick here wins.
+   * New thread (T3's empty state): one message box; under it the project and the worker it runs on (two
+   * pickers: the worker list has only the workers the project lives on) and permissions; in it the model
+   * (Claude or Codex on a profile the chosen worker offers) and reasoning effort. They start from the
+   * project's defaults over yours (Settings), then what you used last; what you pick here wins.
    */
   let { form }: PageProps = $props();
   const overview = useOverview();
   const settings = useSettings();
 
-  const workspaces = $derived(overview.projects.flatMap((project) => project.workspaces.map((workspace) => ({ project, workspace }))));
-  // ?project=<id>: that project's default workspace, else its first one. Otherwise your default workspace,
-  // else the first one overall.
-  const requested = page.url.searchParams.get("project");
-  let workspaceId = $state(
-    untrack(() => {
-      const inProject = workspaces.filter((w) => w.project.id === requested);
-      const preferred = requested ? settings.projectDefaults(requested).workspaceId : settings.threadDefaults.workspaceId;
-      const pool = inProject.length > 0 ? inProject : workspaces;
-      return (pool.find((w) => w.workspace.id === preferred) ?? pool[0])?.workspace.id ?? "";
-    }),
+  // ?project=<id> preselects the project; a new link (another project's "New thread") starts over.
+  const requested = $derived(page.url.searchParams.get("project") ?? "");
+  let picks = $state<{ requested: string; projectId?: string; workspaceId?: string }>({ requested: "" });
+  const placed = $derived(picks.requested === requested ? picks : undefined);
+  const project = $derived(
+    overview.project(placed?.projectId ?? "") ??
+      defaultProject({ projects: overview.projects, threads: overview.threads.values(), requested, defaultWorkspaceId: settings.threadDefaults.workspaceId }),
   );
-  const chosen = $derived(workspaces.find((w) => w.workspace.id === workspaceId));
-  const worker = $derived(overview.worker(chosen?.workspace.workerId ?? ""));
-  const defaults = $derived(effectiveDefaults(settings.threadDefaults, chosen ? settings.projectDefaults(chosen.project.id) : undefined));
+  const defaults = $derived(effectiveDefaults(settings.threadDefaults, project ? settings.projectDefaults(project.id) : undefined));
+  const workspace = $derived.by(() => {
+    if (!project) return undefined;
+    const pick = project.workspaces.find((w) => w.id === placed?.workspaceId);
+    const online = (id: string) => overview.worker(id)?.online ?? false;
+    return pick ?? defaultWorkspace({ project, threads: overview.threads.values(), defaultWorkspaceId: defaults.workspaceId, online });
+  });
+  const worker = $derived(overview.worker(workspace?.workerId ?? ""));
+  const pickProject = (next: ui.Project) => (picks = { requested, projectId: next.id });
+  const pickWorkspace = (next: ui.Workspace) => (picks = { requested, projectId: project?.id, workspaceId: next.id });
   const defaultProvider = $derived(providerKeyOf(defaults.provider));
 
   // Model options (provider × profile × model) from the worker's catalog. Until you pick one: the defaults'
   // provider, profile and model (the profile's default model when the list lacks it), else the defaults'
   // provider, else the first option (also when your pick is not offered on this workspace's worker).
   const models = useModelCatalog();
-  const workerId = $derived(chosen?.workspace.workerId ?? "");
+  const workerId = $derived(workspace?.workerId ?? "");
   const options = $derived(modelOptions({ worker, catalog: models.of(workerId), threads: overview.threads.values(), defaults }));
   let picked = $state<ModelOption>();
   const fromDefaults = $derived.by(() => {
@@ -83,13 +90,22 @@
   // Thread title: the first line of the task (the gateway falls back to "New thread").
   const title = $derived(message.trim().split("\n")[0]?.slice(0, 80) ?? "");
   const clientRequestId = crypto.randomUUID();
+
+  // Why the message cannot go yet (the send button is disabled and this says why).
+  const blocker = $derived.by(() => {
+    if (!project) return undefined;
+    if (!workspace) return "no-worker" as const;
+    if (!worker?.online) return "offline" as const;
+    if (!selected) return "no-agent" as const;
+    return undefined;
+  });
 </script>
 
 <svelte:head><title>New thread · Open Agents</title></svelte:head>
 
 <div class="flex h-full flex-col">
   <TopBar>
-    <Crumb><span class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400"><Icon name="folder" class="fill-zinc-400 dark:fill-zinc-600" />{chosen?.project.name ?? "No project"}</span></Crumb>
+    <Crumb><span class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400"><Icon name="folder" class="fill-zinc-400 dark:fill-zinc-600" />{project?.name ?? "No project"}</span></Crumb>
     <Crumb>New thread</Crumb>
   </TopBar>
 
@@ -97,15 +113,10 @@
     <div class="w-full max-w-(--chat-width)">
       <div class="mb-8 text-center">
         <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">What should we work on?</h1>
-        <p class="mt-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{chosen ? chosen.project.name : "No project"}</p>
       </div>
 
-      {#if workspaces.length === 0}
-        <EmptyState
-          icon="folder-open"
-          title={overview.projects.length === 0 ? "Create a project first" : "Add a workspace first"}
-          description="A thread runs in a directory on one of your workers. Set up a project and its workspace in Settings."
-        >
+      {#if !project}
+        <EmptyState icon="folder-open" title="Create a project first" description="A thread runs in a project's directory on one of your workers. Create a project in Settings and add it to a worker.">
           {#snippet action()}<ButtonLink href="/settings/projects" variant="primary" icon="cog-6-tooth">Open project settings</ButtonLink>{/snippet}
         </EmptyState>
       {:else}
@@ -121,48 +132,34 @@
             };
           }}
         >
-          <input type="hidden" name="projectId" value={chosen?.project.id ?? ""} />
+          <input type="hidden" name="projectId" value={project.id} />
           <input type="hidden" name="title" value={title} />
           <input type="hidden" name="clientRequestId" value={clientRequestId} />
           <input type="hidden" name="provider" value={selected?.provider ?? ""} />
           <input type="hidden" name="profileId" value={selected?.profileId ?? ""} />
           <input type="hidden" name="model" value={model} />
           <input type="hidden" name="effort" value={sentEffort} />
-          <input type="hidden" name="workspaceId" value={workspaceId} />
+          <input type="hidden" name="workspaceId" value={workspace?.id ?? ""} />
           <input type="hidden" name="permissionMode" value={permissionMode} />
           {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
-          <ComposerBox bind:value={message} sending={busy} disabled={!selected} autofocus label="Task for the agent">
+          <ComposerBox bind:value={message} sending={busy} canSend={!blocker} autofocus label="Task for the agent">
             {#snippet controls()}
-              {#if selected}
+              {#if workspace && selected}
                 <ModelControls {options} bind:option={() => selected, (option) => (picked = option)} bind:effort {workerId} class="flex-1 justify-end" />
-              {:else}
+              {:else if worker?.online}
                 <PillText class="flex-1 text-right">No agent available</PillText>
               {/if}
             {/snippet}
             {#snippet meta()}
-              <DropdownMenu label="Workspace" placement="bottom-start" class="max-w-[min(28rem,calc(100vw-1rem))]">
-                {#snippet trigger(props)}
-                  <PillButton {...props} class="-ml-2 pl-1.5" aria-label="Workspace: {chosen ? `${worker?.name ?? 'Unknown worker'} · ${chosen.workspace.rootPath}` : 'none'}">
-                    <Icon name="computer-desktop" class="size-3.5" />
-                    <span class="truncate">{chosen ? `${worker?.name ?? "Unknown worker"}${worker?.online ? "" : " (offline)"} · ${chosen.workspace.rootPath}` : "Choose a workspace"}</span>
-                  </PillButton>
-                {/snippet}
-                {#each overview.projects.filter((p) => p.workspaces.length > 0) as project (project.id)}
-                  <MenuGroup label={project.name}>
-                    {#each project.workspaces as ws (ws.id)}
-                      {@const owner = overview.worker(ws.workerId)}
-                      <MenuCheckItem checked={ws.id === workspaceId} description="{owner?.name ?? 'Unknown worker'}{owner?.online ? '' : ' (offline)'}" onselect={() => (workspaceId = ws.id)}>
-                        {ws.label || ws.rootPath}
-                      </MenuCheckItem>
-                    {/each}
-                  </MenuGroup>
-                {/each}
-              </DropdownMenu>
+              <span class="-ml-2 flex min-w-0 items-center gap-0.5">
+                <ProjectPicker projects={overview.projects} value={project.id} onselect={pickProject} class="max-w-48 sm:max-w-56" />
+                <WorkerPicker {project} value={workspace?.id} onselect={pickWorkspace} />
+              </span>
               <DropdownMenu label="Permissions" placement="bottom-end" class="w-72">
                 {#snippet trigger(props)}
                   <PillButton {...props} class="-mr-1.5 shrink-0 pl-1.5" aria-label="Permissions: {permissionLabelOf(permissionMode)}">
                     <Icon name="shield-check" class="size-3.5" />
-                    {permissionLabelOf(permissionMode)}
+                    <span class="max-sm:sr-only">{permissionLabelOf(permissionMode)}</span>
                   </PillButton>
                 {/snippet}
                 {#each permissionModes as option (option.value)}
@@ -171,10 +168,17 @@
               </DropdownMenu>
             {/snippet}
           </ComposerBox>
-          {#if worker && !selected}
-            <p class="px-3 text-sm/5 text-amber-700 sm:text-xs/5 dark:text-amber-400" role="status">{worker.name} reports neither Claude nor Codex as available. Check the worker in Settings.</p>
-          {:else if worker && !worker.online}
-            <p class="px-3 text-sm/5 text-amber-700 sm:text-xs/5 dark:text-amber-400" role="status">{worker.name} is offline. The thread starts when it reconnects.</p>
+          {#if blocker === "no-worker"}
+            <ComposerNotice>
+              {project.name} is not on any worker yet, so there is nowhere to run the thread.
+              <TextLink href="/settings/projects/{project.id}">Add it to a worker</TextLink>
+            </ComposerNotice>
+          {:else if blocker === "offline"}
+            <ComposerNotice tone="warning">
+              {worker?.name ?? "This worker"} is offline. Start it or choose another worker to send.
+            </ComposerNotice>
+          {:else if blocker === "no-agent"}
+            <ComposerNotice tone="warning">{worker?.name} reports neither Claude nor Codex as available. Check the worker in Settings.</ComposerNotice>
           {/if}
         </form>
       {/if}

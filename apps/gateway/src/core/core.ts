@@ -411,10 +411,28 @@ export class GatewayCore {
     const workspace = await this.#run((s) =>
       s.createWorkspace({ projectId: request.projectId, workerId: request.workerId, rootPath: request.rootPath, label: request.label }),
     );
-    const projects = await this.#run((s) => s.listProjects(this.#options.userId));
-    const project = projects.find((p) => p.id === request.projectId);
-    if (project) this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
+    await this.#publishProject(workspace.projectId);
     return workspace;
+  }
+
+  async updateWorkspace(request: ui.UpdateWorkspaceRequest): Promise<ui.Workspace> {
+    const workspace = await this.#run((s) =>
+      s.updateWorkspace(this.#options.userId, { workspaceId: request.workspaceId, rootPath: request.rootPath, label: request.label }),
+    );
+    await this.#publishProject(workspace.projectId);
+    return workspace;
+  }
+
+  async removeWorkspace(workspaceId: string): Promise<void> {
+    const workspace = await this.#run((s) => s.removeWorkspace(this.#options.userId, workspaceId));
+    await this.#publishProject(workspace.projectId);
+  }
+
+  /** The project with its current workspaces, to every overview stream. */
+  async #publishProject(projectId: string): Promise<void> {
+    const projects = await this.#run((s) => s.listProjects(this.#options.userId));
+    const project = projects.find((p) => p.id === projectId);
+    if (project) this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
   }
 
   async listThreads(projectId: string): Promise<ui.Thread[]> {

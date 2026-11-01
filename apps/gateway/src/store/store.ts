@@ -144,6 +144,10 @@ export class GatewayStore extends Context.Service<
     // projects
     createProject(ownerUserId: string, name: string): Fx<ui.Project>;
     createWorkspace(input: { projectId: string; workerId: string; rootPath: string; label: string }): Fx<ui.Workspace>;
+    /** Another directory (same worker) or label; unset = unchanged. Threads keep their own directory. */
+    updateWorkspace(ownerUserId: string, input: { workspaceId: string; rootPath?: string | undefined; label?: string | undefined }): Fx<ui.Workspace>;
+    /** Takes the project off the workspace's worker (archived): no new threads there, existing ones go on. */
+    removeWorkspace(ownerUserId: string, workspaceId: string): Fx<ui.Workspace>;
     listProjects(ownerUserId: string): Fx<ui.Project[]>;
     // threads and turns
     createThread(ownerUserId: string, request: ui.CreateThreadRequest): Fx<ThreadRow>;
@@ -203,6 +207,49 @@ export class GatewayStore extends Context.Service<
         const sql = yield* SqlClient.SqlClient;
         const one = <A>(rows: ReadonlyArray<A>, what: string): Effect.Effect<A, NotFound> =>
           rows[0] === undefined ? Effect.fail(new NotFound(`${what} not found`)) : Effect.succeed(rows[0]);
+
+        /**
+         * A workspace directory on a worker, normalized: absolute, inside the worker's allowed roots and not
+         * already a workspace of the project there (`except`: the workspace being moved).
+         */
+        const workspaceRoot = (input: { projectId: string; workerId: string; rootPath: string; except?: string }) =>
+          Effect.gen(function* () {
+            const { projectId, workerId, rootPath } = input;
+            // A project spans workers (Linux, macOS, Windows): the path follows the worker's rules.
+            const workers = yield* sql<{ os: string; config: { allowedRoots?: string[] } | null }>`
+              SELECT w.os, c.config FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
+               WHERE w.id = ${workerId}::uuid AND w.archived_at IS NULL AND w.revoked_at IS NULL`;
+            const worker = workers[0];
+            if (!worker) return yield* Effect.fail(new NotFound("worker not found"));
+            // Before the worker's first connection its OS is unknown: its configured roots tell the style.
+            const style = pathStyle(worker.os, worker.config?.allowedRoots?.[0] ?? rootPath);
+            if (!isAbsolutePath(rootPath, style)) return yield* Effect.fail(new Invalid("root path must be absolute"));
+            const root = normalizePath(rootPath, style);
+            // Lexical check against the worker's configured roots, so a workspace never points outside them.
+            // The worker remains the authority: it checks real paths (symlinks) when a thread starts.
+            if (!isWithinRoots(root, worker.config?.allowedRoots ?? [], style, worker.os)) {
+              return yield* Effect.fail(new Invalid(`${root} is outside the worker's allowed directories`));
+            }
+            const existing = yield* sql<{ id: string; root_path: string }>`
+              SELECT id, root_path FROM project_workspaces
+               WHERE project_id = ${projectId}::uuid AND worker_id = ${workerId}::uuid AND archived_at IS NULL`;
+            const key = pathKey(root, style, worker.os);
+            if (existing.some((w) => w.id !== input.except && pathKey(w.root_path, style, worker.os) === key)) {
+              return yield* Effect.fail(new Invalid(`${root} is already a workspace of this project on this worker`));
+            }
+            return root;
+          });
+
+        /** An active workspace of a project the user owns. */
+        const ownedWorkspace = (ownerUserId: string, workspaceId: string) =>
+          Effect.gen(function* () {
+            return yield* one(
+              yield* sql<{ project_id: string; worker_id: string; root_path: string; label: string }>`
+                SELECT w.project_id, w.worker_id, w.root_path, w.label FROM project_workspaces w JOIN projects p ON p.id = w.project_id
+                 WHERE w.id = ${workspaceId}::uuid AND p.owner_user_id = ${ownerUserId}::uuid AND w.archived_at IS NULL AND p.archived_at IS NULL`,
+              "workspace",
+            );
+          });
 
         const threadSelect = (where: string) => `
           SELECT t.*, (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending') AS pending_interactions,
@@ -354,33 +401,37 @@ export class GatewayStore extends Context.Service<
 
           createWorkspace: ({ projectId, workerId, rootPath, label }) =>
             Effect.gen(function* () {
-              // A project spans workers (Linux, macOS, Windows): the path follows the worker's rules.
-              const workers = yield* sql<{ os: string; config: { allowedRoots?: string[] } | null }>`
-                SELECT w.os, c.config FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
-                 WHERE w.id = ${workerId}::uuid AND w.archived_at IS NULL AND w.revoked_at IS NULL`;
-              const worker = workers[0];
-              if (!worker) return yield* Effect.fail(new NotFound("worker not found"));
-              // Before the worker's first connection its OS is unknown: its configured roots tell the style.
-              const style = pathStyle(worker.os, worker.config?.allowedRoots?.[0] ?? rootPath);
-              if (!isAbsolutePath(rootPath, style)) return yield* Effect.fail(new Invalid("root path must be absolute"));
-              const root = normalizePath(rootPath, style);
-              // Lexical check against the worker's configured roots, so a workspace never points outside them.
-              // The worker remains the authority: it checks real paths (symlinks) when a thread starts.
-              if (!isWithinRoots(root, worker.config?.allowedRoots ?? [], style, worker.os)) {
-                return yield* Effect.fail(new Invalid(`${root} is outside the worker's allowed directories`));
-              }
-              const existing = yield* sql<{ root_path: string }>`
-                SELECT root_path FROM project_workspaces
-                 WHERE project_id = ${projectId}::uuid AND worker_id = ${workerId}::uuid AND archived_at IS NULL`;
-              const key = pathKey(root, style, worker.os);
-              if (existing.some((w) => pathKey(w.root_path, style, worker.os) === key)) {
-                return yield* Effect.fail(new Invalid(`${root} is already a workspace of this project on this worker`));
-              }
+              const root = yield* workspaceRoot({ projectId, workerId, rootPath });
               const id = Bun.randomUUIDv7();
               yield* sql`
                 INSERT INTO project_workspaces (id, project_id, worker_id, root_path, label)
                 VALUES (${id}::uuid, ${projectId}::uuid, ${workerId}::uuid, ${root}, ${label})`;
               return create(ui.WorkspaceSchema, { id, projectId, workerId, rootPath: root, label });
+            }),
+
+          updateWorkspace: (ownerUserId, { workspaceId, rootPath, label }) =>
+            Effect.gen(function* () {
+              const current = yield* ownedWorkspace(ownerUserId, workspaceId);
+              const root =
+                rootPath === undefined
+                  ? current.root_path
+                  : yield* workspaceRoot({ projectId: current.project_id, workerId: current.worker_id, rootPath, except: workspaceId });
+              const nextLabel = label ?? current.label;
+              yield* sql`UPDATE project_workspaces SET root_path = ${root}, label = ${nextLabel} WHERE id = ${workspaceId}::uuid`;
+              return create(ui.WorkspaceSchema, { id: workspaceId, projectId: current.project_id, workerId: current.worker_id, rootPath: root, label: nextLabel });
+            }),
+
+          removeWorkspace: (ownerUserId, workspaceId) =>
+            Effect.gen(function* () {
+              const current = yield* ownedWorkspace(ownerUserId, workspaceId);
+              yield* sql`UPDATE project_workspaces SET archived_at = now() WHERE id = ${workspaceId}::uuid AND archived_at IS NULL`;
+              return create(ui.WorkspaceSchema, {
+                id: workspaceId,
+                projectId: current.project_id,
+                workerId: current.worker_id,
+                rootPath: current.root_path,
+                label: current.label,
+              });
             }),
 
           listProjects: (ownerUserId) =>
@@ -408,7 +459,8 @@ export class GatewayStore extends Context.Service<
                   yield* sql<{ id: string; project_id: string; worker_id: string; root_path: string; os: string }>`
                     SELECT pw.id, pw.project_id, pw.worker_id, pw.root_path, w.os
                       FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id
-                     WHERE pw.id = ${request.workspaceId}::uuid AND pw.project_id = ${request.projectId}::uuid AND pw.archived_at IS NULL`,
+                     WHERE pw.id = ${request.workspaceId}::uuid AND pw.project_id = ${request.projectId}::uuid
+                       AND (pw.archived_at IS NULL OR ${request.parentThreadId !== ""}::boolean)`,
                   "workspace",
                 );
                 const provider = request.provider === Provider.CLAUDE ? "claude" : "codex";

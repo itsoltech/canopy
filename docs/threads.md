@@ -60,6 +60,7 @@ Projekt nie jest przypięty do maszyny. Ma dowolnie wiele workspace'ów, każdy 
 - **Sprawdzenia w gateway** (leksykalne): workspace leży w dozwolonych katalogach workera; ten sam katalog nie jest dwa razy workspace'em projektu na tym workerze (bez rozróżniania wielkości liter na Windows i macOS); `cwd` wątku leży w jego workspace; wątek boczny jest w workspace rodzica. Worker i tak sprawdza ścieżki rzeczywiste (dowiązania) przy starcie wątku.
 - **Worker offline:** wątek i wiadomości są przyjmowane, a komendy czekają w outboxie do ponownego połączenia tego workera. Komendy nigdy nie trafiają do innego workera projektu.
 - Synchronizacja kodu między kopiami projektu (git push/pull) jest poza platformą: workspace'y to niezależne katalogi.
+- **Na których workerach żyje projekt:** na tych, na których ma workspace (wszystkich albo tylko niektórych, jak skonfiguruje użytkownik). Nowy wątek wybiera projekt, a potem worker spośród jego workspace'ów. `UpdateWorkspace` zmienia katalog (te same sprawdzenia co przy dodaniu); istniejące wątki zostają w swoim `cwd`. `RemoveWorkspace` zdejmuje projekt z workera (archiwizacja workspace'u): nowe wątki główne nie mogą go wybrać, istniejące działają dalej, a ich wątki boczne i forki powstają w tym samym workspace'ie.
 
 ## 3. Wątki boczne
 

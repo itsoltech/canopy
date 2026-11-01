@@ -3,6 +3,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
@@ -76,9 +77,9 @@
       </Field>
     {/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}
-    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <DialogActions>
       <Button onclick={() => (open = false)}>Cancel</Button>
       <Button type="submit" variant="primary" icon="flag" loading={busy} disabled={!objective.trim() || Boolean(budgetError)}>{replacing ? "Replace goal" : "Set goal"}</Button>
-    </div>
+    </DialogActions>
   </form>
 </Dialog>
