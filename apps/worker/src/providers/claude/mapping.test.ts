@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { ItemStatus, ThreadEventSchema, TurnOutcome, type Item, type ThreadEvent } from "@open-agents/contracts";
+import { BackgroundTaskKind, ItemStatus, ThreadEventSchema, TurnOutcome, type Item, type ThreadEvent } from "@open-agents/contracts";
 import { eventItemId, reduceItem } from "@open-agents/domain";
-import { ClaudeEventMapper, toolContent } from "./mapping.ts";
+import { ClaudeEventMapper, startsTurn, toolContent } from "./mapping.ts";
+import { goalVerdictOf } from "./threads.ts";
 
 /** Recorded live streams (Claude Agent SDK 0.3.316, Claude Code 2.1.316, claude-haiku-5-5 via CLIProxyAPI). */
 function fixture(name: string): SDKMessage[] {
@@ -96,5 +97,94 @@ describe("Claude event mapping on recorded turns", () => {
     mapper.markInterrupted();
     const [finished] = mapper.map({ type: "result", subtype: "error_during_execution", is_error: true, errors: ["aborted"], usage: {}, total_cost_usd: 0 } as never);
     expect(finished?.body).toMatchObject({ case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED } });
+  });
+});
+
+/** Like the runtime: the first turn is the platform's, a turn starting between turns is Claude's own. */
+function replaySession(messages: SDKMessage[], before?: (mapper: ClaudeEventMapper, m: SDKMessage) => void) {
+  const mapper = new ClaudeEventMapper("turn-1");
+  const events: ThreadEvent[] = [];
+  let turns = 1;
+  for (const m of messages) {
+    before?.(mapper, m);
+    if (!mapper.turnId && startsTurn(m)) mapper.beginTurn(`turn-${++turns}`);
+    for (const init of mapper.map(m)) events.push(create(ThreadEventSchema, { threadId: "t", ...init } as never));
+  }
+  const items = new Map<string, Item>();
+  for (const e of events) {
+    const id = eventItemId(e.body);
+    if (!id) continue;
+    const next = reduceItem(items.get(id), e.body);
+    if (next) items.set(id, next);
+  }
+  return { events, items: [...items.values()], mapper, turns };
+}
+
+const task = (item: Item | undefined) => (item?.content.case === "backgroundTask" ? item.content.value : undefined);
+
+describe("Claude background Bash (recorded, open input)", () => {
+  test("background item outside the turn; its end makes Claude start a turn of its own", () => {
+    const { events, items, mapper, turns } = replaySession(fixture("background-bash-turn"));
+    const bg = items.find((i) => i.content.case === "backgroundTask");
+    expect(bg?.itemId).toBe("bg:b9mgczlyo");
+    expect(task(bg)).toMatchObject({
+      taskId: "b9mgczlyo",
+      kind: BackgroundTaskKind.SHELL,
+      command: "for i in $(seq 1 12); do echo tick $i; sleep 1; done",
+      startedInTurnId: "turn-1",
+      sourceItemId: "toolu_01DXHGMmxC7dRkR9emmmhyMT",
+    });
+    expect(bg?.status).toBe(ItemStatus.COMPLETED);
+    expect(task(bg)?.progress?.summary).toContain("completed");
+    // Two turns: the platform's, then Claude's report of the finished task.
+    expect(turns).toBe(2);
+    expect(events.filter((e) => e.body.case === "turnFinished").map((e) => e.turnId)).toEqual(["turn-1", "turn-2"]);
+    const end = events.find((e) => e.body.case === "itemCompleted" && e.body.value.item?.itemId === "bg:b9mgczlyo");
+    expect(end?.turnId).toBe(""); // between turns
+    expect(mapper.backgroundTasks).toEqual([]);
+  });
+
+  test("output read from the task's file lands on its item; a requested stop ends it as stopped by the user", () => {
+    const messages = fixture("background-bash-stopped");
+    const { items } = replaySession(messages, (mapper, m) => {
+      if (m.type === "system" && m.subtype === "task_notification") {
+        expect(mapper.outputFile("bmzcmnrxf")).toMatch(/tasks\/bmzcmnrxf\.output$/);
+        mapper.markStopping("bmzcmnrxf");
+        expect(mapper.taskOutput("bmzcmnrxf", "tick 1\ntick 2\n")).toHaveLength(1);
+      }
+    });
+    // taskOutput events are emitted by the runtime; here only the item state is checked.
+    const bg = items.find((i) => i.content.case === "backgroundTask");
+    expect(bg?.status).toBe(ItemStatus.INTERRUPTED);
+    expect(task(bg)?.stopReason).toBe("stopped_by_user");
+  });
+
+  test("tasks still open when the process ends are interrupted", () => {
+    const messages = fixture("background-bash-stopped").filter((m) => !(m.type === "system" && m.subtype === "task_notification"));
+    const { mapper } = replaySession(messages);
+    const [ended] = mapper.endTasks("worker_restart");
+    expect(ended?.body).toMatchObject({ case: "itemCompleted", value: { item: { status: ItemStatus.INTERRUPTED, content: { value: { stopReason: "worker_restart" } } } } });
+  });
+});
+
+describe("Claude /goal (recorded)", () => {
+  test("the local answer of /goal sets the goal; the evaluator's verdict from the transcript completes it", () => {
+    const { events, mapper } = replaySession(fixture("goal-turn"));
+    const states = events.flatMap((e) => (e.body.case === "goalState" ? [e.body.value] : []));
+    expect(states).toHaveLength(1);
+    expect(states[0]).toMatchObject({ nativeStatus: "active", objective: "A file named goal.txt exists in the current directory and contains exactly the word done" });
+    const verdicts = readFileSync(join(import.meta.dir, "fixtures", "goal-transcript.jsonl"), "utf8").split("\n").map(goalVerdictOf).filter((v) => v !== undefined);
+    expect(verdicts.map((v) => [v.met, v.sentinel ?? false])).toEqual([[false, true], [true, false]]);
+    mapper.beginTurn("turn-x");
+    const goal = verdicts.flatMap((v) => mapper.goalVerdict(v)).map((e) => e.body?.value);
+    expect(goal).toMatchObject([{ nativeStatus: "met", iterations: 1, lastReason: expect.stringContaining("goal.txt") }]);
+  });
+
+  test("Goal cleared and not-met verdicts", () => {
+    const mapper = new ClaudeEventMapper("t");
+    const [, cleared] = mapper.map({ type: "assistant", message: { id: "s", model: "<synthetic>", content: [{ type: "text", text: "Goal cleared: tests pass" }] }, parent_tool_use_id: null, uuid: "u", session_id: "s" } as never);
+    expect(cleared?.body).toMatchObject({ case: "goalState", value: { nativeStatus: "cleared", cleared: true, objective: "tests pass" } });
+    expect(mapper.goalVerdict({ met: false, condition: "tests pass", reason: "2 fail" })[0]?.body).toMatchObject({ value: { nativeStatus: "active", iterations: 1, lastReason: "2 fail" } });
+    expect(mapper.goalVerdict({ met: false, failed: true, condition: "tests pass" })[0]?.body).toMatchObject({ value: { nativeStatus: "failed" } });
   });
 });

@@ -1,17 +1,23 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { ItemDeltaField, ItemStatus, NoticeLevel, TurnOutcome, type ItemSchema } from "@open-agents/contracts";
+import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnOutcome, type BackgroundTaskSchema, type ItemSchema } from "@open-agents/contracts";
 import { isAgentBusTool } from "@open-agents/domain";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**
- * Claude Agent SDK messages -> platform transcript events (docs/transcript.md), one mapper per turn.
+ * Claude Agent SDK messages -> platform transcript events (docs/transcript.md), one mapper per session
+ * (one Claude Code process, possibly several turns: the platform's and the ones Claude starts itself).
  *
  * - Text and thinking stream as deltas of an item opened at content_block_start
  *   (id `<message id>:<block index>`); the full assistant message completes it.
  * - Tool calls start with the assistant's tool_use block (id = tool_use id) and complete with the
  *   tool_result in the following user message.
  * - The result message carries usage and the outcome (turn_finished).
+ * - Background tasks (docs/execution.md): task_started of a backgrounded task opens a background_task item
+ *   `bg:<task_id>`, task_notification ends it. They run outside turns, so their events carry no turn id.
+ *   Output comes from the task's output file (the runtime reads it and calls taskOutput).
+ * - Goals (docs/goals.md): the local answer of /goal ("Goal set: …", "Goal cleared: …") and the evaluator's
+ *   verdicts (goalVerdict, read from the session transcript by the runtime) become goal_state events.
  * - Stream events that only rebuild what the full messages carry (partial tool input JSON,
  *   signatures, message boundaries) are not journaled; every other message is, with raw_json.
  */
@@ -35,8 +41,26 @@ interface Block {
   readonly [key: string]: unknown;
 }
 
+/** A background task with an open item. */
+interface LiveTask {
+  readonly itemId: string;
+  readonly content: Omit<MessageInitShape<typeof BackgroundTaskSchema>, "$typeName">;
+  outputFile?: string;
+  stopping: boolean;
+}
+
+/** Evaluator verdict of a /goal Stop hook (goal_status attachment in the session transcript). */
+export interface GoalVerdict {
+  readonly met: boolean;
+  readonly failed?: boolean;
+  readonly sentinel?: boolean;
+  readonly condition: string;
+  readonly reason?: string;
+  readonly iterations?: number;
+}
+
 export class ClaudeEventMapper {
-  readonly #turnId: string;
+  #turnId: string | undefined;
   /** Blocks of the message being streamed, by index. */
   #messageId = "";
   readonly #open = new Map<number, OpenBlock>();
@@ -46,9 +70,75 @@ export class ClaudeEventMapper {
   #interrupted = false;
   /** Fallback ids for text blocks that were not streamed. */
   #unstreamed = 0;
+  /** Bash calls with run_in_background, by tool_use id: command, then the output file from the tool result. */
+  readonly #backgroundCalls = new Map<string, { command: string; description: string; outputFile?: string }>();
+  /** Tasks that started in the foreground and may be moved to the background later. */
+  readonly #foreground = new Map<string, { toolUseId: string; description: string; taskType: string; parentTaskId: string; turnId: string }>();
+  readonly #tasks = new Map<string, LiveTask>();
+  /** Not-met evaluator verdicts of the current goal. */
+  #goalChecks = 0;
 
-  constructor(turnId: string) {
+  constructor(turnId?: string) {
     this.#turnId = turnId;
+  }
+
+  /** Turn the next messages belong to (platform or provider turn). */
+  beginTurn(turnId: string): void {
+    this.#turnId = turnId;
+    this.#lastUuid = undefined;
+    this.#interrupted = false;
+  }
+
+  get turnId(): string | undefined {
+    return this.#turnId;
+  }
+
+  /** Background tasks with an open item (task ids). */
+  get backgroundTasks(): string[] {
+    return [...this.#tasks.keys()];
+  }
+
+  /** Output file of a live background task, once known. */
+  outputFile(taskId: string): string | undefined {
+    return this.#tasks.get(taskId)?.outputFile;
+  }
+
+  /** The platform asked to stop this task: its end is reported as stopped by the user. */
+  markStopping(taskId: string): boolean {
+    const task = this.#tasks.get(taskId);
+    if (task) task.stopping = true;
+    return task !== undefined;
+  }
+
+  /** New output of a background task (read from its output file). */
+  taskOutput(taskId: string, chunk: string): ThreadEventInit[] {
+    const task = this.#tasks.get(taskId);
+    if (!task || !chunk) return [];
+    return [{ body: { case: "itemDelta", value: { itemId: task.itemId, field: ItemDeltaField.OUTPUT, chunk } } }];
+  }
+
+  /** Background tasks still open when the process ended: interrupted with the given reason. */
+  endTasks(stopReason: string): ThreadEventInit[] {
+    const events = [...this.#tasks.keys()].map((taskId) => this.#endTask(taskId, ItemStatus.INTERRUPTED, { stopReason }, "{}"));
+    return events.flatMap((e) => (e ? [e] : []));
+  }
+
+  /** Evaluator verdict of the goal (from the session transcript): goal_state. The sentinel marks a fresh goal. */
+  goalVerdict(verdict: GoalVerdict): ThreadEventInit[] {
+    if (verdict.sentinel) {
+      this.#goalChecks = 0;
+      return [];
+    }
+    const nativeStatus = verdict.met ? "met" : verdict.failed ? "failed" : "active";
+    if (nativeStatus === "active") this.#goalChecks++;
+    const iterations = verdict.iterations ?? this.#goalChecks + (nativeStatus === "active" ? 0 : 1);
+    return [
+      {
+        ...(this.#turnId && { turnId: this.#turnId }),
+        rawJson: JSON.stringify({ type: "goal_status", ...verdict }),
+        body: { case: "goalState", value: { nativeStatus, objective: verdict.condition, condition: verdict.condition, iterations, lastReason: verdict.reason ?? "" } },
+      },
+    ];
   }
 
   /** Last transcript entry of the turn: the fork point for a fork after this turn (resumeSessionAt / upToMessageId). */
@@ -64,7 +154,7 @@ export class ClaudeEventMapper {
   map(message: SDKMessage): ThreadEventInit[] {
     const rawJson = JSON.stringify(message);
     const event = (body: ThreadEventInit["body"] | undefined): ThreadEventInit =>
-      ({ turnId: this.#turnId, ...(body ? { body } : {}), rawJson }) as ThreadEventInit;
+      ({ ...(this.#turnId && { turnId: this.#turnId }), ...(body ? { body } : {}), rawJson }) as ThreadEventInit;
     if ("uuid" in message && typeof message.uuid === "string" && (message.type === "assistant" || message.type === "user")) {
       this.#lastUuid = message.uuid;
     }
@@ -72,27 +162,132 @@ export class ClaudeEventMapper {
     switch (message.type) {
       case "stream_event":
         return this.#stream(message.event as unknown as StreamEvent).map((body) => event(body));
-      case "assistant":
-        return atLeastOne(this.#assistant(message.message.id, message.message.content as unknown as Block[], message.parent_tool_use_id), event);
+      case "assistant": {
+        const blocks = message.message.content as unknown as Block[];
+        const goal = message.message.model === "<synthetic>" ? goalAnswer(blocks) : undefined;
+        return atLeastOne([...this.#assistant(message.message.id, blocks, message.parent_tool_use_id), ...(goal ? [goal] : [])], event);
+      }
       case "user": {
         const content = message.message.content;
         if (typeof content === "string") return [event(undefined)];
         return atLeastOne(this.#toolResults(content as unknown as Block[]), event);
       }
-      case "result":
-        return [event(this.#result(message))];
+      case "result": {
+        const finished = event(this.#result(message));
+        this.#turnId = undefined; // what follows (background tasks) is outside the turn until the next one begins
+        return [finished];
+      }
       case "system":
-        return message.subtype === "api_retry"
-          ? [
+        switch (message.subtype) {
+          case "api_retry":
+            return [
               event({
                 case: "notice",
                 value: { level: NoticeLevel.WARNING, code: "api_retry", message: "the provider API failed; retrying", dataJson: rawJson },
               }),
-            ]
-          : [event(undefined)];
-      default:
+            ];
+          case "task_started":
+            return [this.#taskStarted(message, rawJson) ?? { ...event(undefined), turnId: "" }];
+          case "task_updated":
+            return [(message.patch.is_backgrounded ? this.#backgrounded(message.task_id, rawJson) : undefined) ?? { rawJson }];
+          case "task_notification": {
+            const status = message.status === "completed" ? ItemStatus.COMPLETED : message.status === "failed" ? ItemStatus.FAILED : ItemStatus.INTERRUPTED;
+            this.#foreground.delete(message.task_id);
+            const ended = this.#endTask(message.task_id, status, { summary: message.summary, outputFile: message.output_file, usage: message.usage }, rawJson);
+            return [ended ?? { rawJson }];
+          }
+          case "task_progress":
+          case "background_tasks_changed":
+            return [{ rawJson }]; // kept raw; the edges above carry the state
+          default:
+            return [event(undefined)];
+        }
+      default: {
+        const active = message as { type: string; value?: { condition?: string; iterations?: number; last_reason?: string } | null };
+        // active_goal (when Claude Code forwards it): not-met verdicts with iterations; null is left to the transcript verdicts.
+        if (active.type === "active_goal" && active.value) {
+          return [
+            event({
+              case: "goalState",
+              value: { nativeStatus: "active", objective: active.value.condition ?? "", condition: active.value.condition ?? "", iterations: active.value.iterations ?? 0, lastReason: active.value.last_reason ?? "" },
+            }),
+          ];
+        }
         return [event(undefined)];
+      }
     }
+  }
+
+  #taskStarted(message: Extract<SDKMessage, { type: "system"; subtype: "task_started" }>, rawJson: string): ThreadEventInit | undefined {
+    if (message.skip_transcript || message.ambient) return undefined;
+    const pending = {
+      toolUseId: message.tool_use_id ?? "",
+      description: message.description,
+      taskType: message.task_type ?? "",
+      parentTaskId: message.parent_task_id ?? "",
+      turnId: this.#turnId ?? "",
+    };
+    this.#foreground.set(message.task_id, pending);
+    return message.is_backgrounded ? this.#backgrounded(message.task_id, rawJson) : undefined;
+  }
+
+  /** Opens the background item of a task (backgrounded from the start or moved there later). */
+  #backgrounded(taskId: string, rawJson: string): ThreadEventInit | undefined {
+    const pending = this.#foreground.get(taskId);
+    if (!pending || this.#tasks.has(taskId)) return undefined;
+    this.#foreground.delete(taskId);
+    const call = this.#backgroundCalls.get(pending.toolUseId);
+    const content = {
+      taskId,
+      kind: backgroundKind(pending.taskType),
+      description: pending.description,
+      command: call?.command ?? "",
+      startedInTurnId: pending.turnId,
+      parentTaskId: pending.parentTaskId,
+      sourceItemId: pending.toolUseId,
+    };
+    const task: LiveTask = { itemId: `bg:${taskId}`, content, stopping: false, ...(call?.outputFile && { outputFile: call.outputFile }) };
+    this.#tasks.set(taskId, task);
+    return {
+      rawJson,
+      ...(pending.turnId && { turnId: pending.turnId }),
+      body: { case: "itemStarted", value: { item: { itemId: task.itemId, status: ItemStatus.IN_PROGRESS, content: { case: "backgroundTask", value: content } } } },
+    };
+  }
+
+  #endTask(
+    taskId: string,
+    status: ItemStatus,
+    detail: { summary?: string; outputFile?: string; usage?: { total_tokens: number; tool_uses: number; duration_ms: number } | undefined; stopReason?: string },
+    rawJson: string,
+  ): ThreadEventInit | undefined {
+    const task = this.#tasks.get(taskId);
+    if (!task) return undefined;
+    this.#tasks.delete(taskId);
+    const stopReason = status === ItemStatus.INTERRUPTED ? (task.stopping ? "stopped_by_user" : (detail.stopReason ?? "stopped")) : status === ItemStatus.FAILED ? "error" : "";
+    return {
+      rawJson,
+      body: {
+        case: "itemCompleted",
+        value: {
+          item: {
+            itemId: task.itemId,
+            status,
+            content: {
+              case: "backgroundTask",
+              value: {
+                ...task.content,
+                ...(stopReason && { stopReason }),
+                progress: {
+                  summary: detail.summary ?? "",
+                  ...(detail.usage && { totalTokens: BigInt(detail.usage.total_tokens), toolUses: detail.usage.tool_uses, durationMs: BigInt(detail.usage.duration_ms) }),
+                },
+              },
+            },
+          },
+        },
+      },
+    };
   }
 
   #stream(e: StreamEvent): NonNullable<ThreadEventInit["body"]>[] {
@@ -139,6 +334,10 @@ export class ClaudeEventMapper {
         }
         case "tool_use": {
           const id = String(block["id"]);
+          const input = (block["input"] ?? {}) as Record<string, unknown>;
+          if (input["run_in_background"] === true) {
+            this.#backgroundCalls.set(id, { command: String(input["command"] ?? ""), description: String(input["description"] ?? "") });
+          }
           const content = toolContent(String(block["name"]), block["input"]);
           this.#tools.set(id, { parentItemId, content });
           return [{ case: "itemStarted", value: { item: { itemId: id, parentItemId, status: ItemStatus.IN_PROGRESS, content } } }];
@@ -158,6 +357,12 @@ export class ClaudeEventMapper {
       this.#tools.delete(id);
       const failed = block["is_error"] === true;
       const output = resultText(block["content"]);
+      const call = this.#backgroundCalls.get(id);
+      const file = /Output is being written to: (\S+?\.output)/.exec(output)?.[1];
+      if (call && file) {
+        call.outputFile = file;
+        for (const task of this.#tasks.values()) if (task.content.sourceItemId === id) task.outputFile = file;
+      }
       const item: ItemInit = {
         itemId: id,
         parentItemId: started.parentItemId,
@@ -195,6 +400,32 @@ export class ClaudeEventMapper {
     if (block) block.done = true;
     return block;
   }
+}
+
+/** Messages that only come within a turn: one arriving between turns means Claude started a turn. */
+export function startsTurn(message: { type: string; subtype?: string }): boolean {
+  return (message.type === "system" && message.subtype === "init") || message.type === "assistant" || message.type === "stream_event" || message.type === "result";
+}
+
+function backgroundKind(taskType: string): BackgroundTaskKind {
+  switch (taskType) {
+    case "local_agent":
+      return BackgroundTaskKind.AGENT;
+    case "local_workflow":
+      return BackgroundTaskKind.WORKFLOW;
+    default:
+      return BackgroundTaskKind.SHELL;
+  }
+}
+
+/** The local answer of /goal (a synthetic assistant message): goal set or cleared. */
+function goalAnswer(blocks: Block[]): NonNullable<ThreadEventInit["body"]> | undefined {
+  const text = blocks.map((b) => (b.type === "text" ? String(b["text"]) : "")).join("");
+  const set = /^Goal set: ([\s\S]+)$/.exec(text)?.[1];
+  if (set) return { case: "goalState", value: { nativeStatus: "active", objective: set, condition: set } };
+  const cleared = /^Goal cleared: ([\s\S]+)$/.exec(text)?.[1];
+  if (cleared) return { case: "goalState", value: { nativeStatus: "cleared", cleared: true, objective: cleared, condition: cleared } };
+  return undefined;
 }
 
 /** Full messages are never dropped: without mapped content they are kept as raw_json only. */
