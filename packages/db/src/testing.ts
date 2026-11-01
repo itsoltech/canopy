@@ -9,11 +9,27 @@ export interface TestPostgres {
   readonly stop: () => void;
 }
 
+const CREATED_LABEL = "open-agents-test.created";
+const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
+
+/** Containers of test runs that were killed before `stop` (an interrupted run never reaches afterAll). */
+function removeStaleContainers() {
+  const list = Bun.spawnSync(["docker", "ps", "-a", "--filter", `label=${CREATED_LABEL}`, "--format", `{{.Names}} {{.Label "${CREATED_LABEL}"}}`]);
+  const stale = list.stdout
+    .toString()
+    .split("\n")
+    .map((line) => line.trim().split(" "))
+    .filter(([name, created]) => name && Date.now() - Number(created) > STALE_AFTER_MS)
+    .map(([name]) => name as string);
+  if (stale.length > 0) Bun.spawnSync(["docker", "rm", "-f", "-v", ...stale], { stdout: "ignore", stderr: "ignore" });
+}
+
 /** Throwaway PostgreSQL 17 in Docker on a random local port (tests only). */
 export async function startPostgres(): Promise<TestPostgres> {
+  removeStaleContainers();
   const name = `open-agents-test-${Bun.randomUUIDv7().slice(-12)}`;
   const run = Bun.spawnSync([
-    "docker", "run", "-d", "--rm", "--name", name,
+    "docker", "run", "-d", "--rm", "--name", name, "--label", `${CREATED_LABEL}=${Date.now()}`,
     "-e", "POSTGRES_PASSWORD=test", "-p", "127.0.0.1::5432", "postgres:17",
   ]);
   if (run.exitCode !== 0) throw new Error(`docker run failed: ${run.stderr.toString()}`);
