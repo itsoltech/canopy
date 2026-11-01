@@ -1,13 +1,19 @@
 <script lang="ts">
   import { ui } from "@open-agents/contracts";
+  import type { ClassValue } from "svelte/elements";
   import { pathSeparator } from "#lib/features/overview/workers.ts";
+  import Alert from "#lib/shared/ui/Alert.svelte";
+  import Badge from "#lib/shared/ui/Badge.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { decode } from "#lib/shared/wire.ts";
 
   /**
    * Browses directories on a worker (inside its allowed roots, enforced by the worker) and
-   * returns the chosen path through `value`.
+   * returns the chosen path through `value`: the directory currently open.
    */
-  let { workerId, os, value = $bindable("") }: { workerId: string; os: string; value?: string } = $props();
+  let { workerId, os, value = $bindable(""), class: className }: { workerId: string; os: string; value?: string; class?: ClassValue } = $props();
 
   let path = $state("");
   let entries = $state.raw<ui.ListDirectoryResponse["entries"]>([]);
@@ -45,24 +51,30 @@
   const parent = $derived(roots.includes(path) ? "" : path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))));
 </script>
 
-<div class="rounded-lg ring-1 ring-slate-200">
-  <div class="flex items-center gap-2 border-b border-slate-200 px-3 py-2 text-sm">
-    <button type="button" class="btn" disabled={!path || loading} onclick={() => open(parent)}>Up</button>
-    <code class="truncate" title={path}>{path || "allowed roots"}</code>
+<div class={["overflow-hidden rounded-lg ring-1 ring-zinc-950/10 dark:ring-white/10", className]}>
+  <div class="flex items-center gap-2 border-b border-zinc-950/5 bg-zinc-950/2.5 py-1 pr-3 pl-1 dark:border-white/5 dark:bg-white/5">
+    <IconButton icon="arrow-left" label="Up one level" size="sm" disabled={!path || loading} onclick={() => open(parent)} />
+    <code class="min-w-0 flex-1 truncate font-mono text-sm/6 sm:text-[0.8125rem]/6" title={path} aria-live="polite">{path || "Allowed directories"}</code>
+    {#if loading}<Spinner class="text-zinc-400" />{/if}
   </div>
   {#if error}
-    <p class="px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>
+    <Alert tone="error" class="m-2">{error}</Alert>
   {:else}
-    <ul class="max-h-56 overflow-y-auto text-sm" aria-busy={loading}>
+    <ul role="list" class="max-h-56 overflow-y-auto py-1" aria-busy={loading} aria-label="Subdirectories">
       {#each entries as entry (entry.name)}
         <li>
-          <button type="button" class="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-slate-50" onclick={() => open(join(path, entry.name))}>
-            <span aria-hidden="true">📁</span>{entry.name}
-            {#if entry.isGitRepo}<span class="rounded bg-slate-100 px-1 text-xs text-slate-600">git</span>{/if}
+          <button
+            type="button"
+            class="flex w-full items-center gap-2 px-3 py-2 text-left text-base/6 hover:bg-zinc-950/5 focus-ring focus-visible:-outline-offset-2 sm:py-1 sm:text-sm/6 dark:hover:bg-white/5"
+            onclick={() => open(join(path, entry.name))}
+          >
+            <Icon name="folder" class="fill-zinc-400 dark:fill-zinc-500" />
+            <span class="min-w-0 flex-1 truncate">{entry.name}</span>
+            {#if entry.isGitRepo}<Badge>git</Badge>{/if}
           </button>
         </li>
       {:else}
-        <li class="px-3 py-2 text-slate-500">No subdirectories</li>
+        <li class="px-3 py-2 text-sm/6 text-zinc-500 dark:text-zinc-400">{loading ? "Loading…" : "No subdirectories."}</li>
       {/each}
     </ul>
   {/if}

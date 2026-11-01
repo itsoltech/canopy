@@ -1,0 +1,18 @@
+import { getContext, setContext } from "svelte";
+import type { ui } from "@open-agents/contracts";
+
+/** Lets timeline items name and link other threads of the project (agent bus targets, parents). */
+export interface ThreadDirectory {
+  thread(id: string): ui.Thread | undefined;
+  /** A pending interaction (approval, question) is about this item. */
+  awaiting(itemId: string): boolean;
+}
+
+const KEY = Symbol("thread-directory");
+export const provideThreadDirectory = (directory: ThreadDirectory) => setContext(KEY, directory);
+export const useThreadDirectory = (): ThreadDirectory => getContext<ThreadDirectory | undefined>(KEY) ?? { thread: () => undefined, awaiting: () => false };
+
+/** Each timeline item tells the frames inside it whether it waits for a person. */
+const ITEM_KEY = Symbol("item-awaiting");
+export const provideItemAwaiting = (awaiting: () => boolean) => setContext(ITEM_KEY, awaiting);
+export const useItemAwaiting = (): (() => boolean) => getContext<(() => boolean) | undefined>(ITEM_KEY) ?? (() => false);
