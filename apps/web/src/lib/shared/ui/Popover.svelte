@@ -25,13 +25,16 @@
   import { createAttachmentKey } from "svelte/attachments";
   import type { ClassValue } from "svelte/elements";
   import { autoPosition, focusables, type Placement } from "./floating.ts";
+  import { exitDuration } from "./motion.ts";
+  import { sheetDrag } from "./sheet-drag.ts";
 
   /**
    * Anchored, non-modal popover in the top layer (Popover API, `popover="manual"`), positioned by
    * `floating.ts` (flips and shifts to stay on screen). Escape, a click outside and focus leaving it
    * close it. On open, focus goes to the first `[data-autofocus]` inside, else the first focusable
    * element, else the panel; on close it returns to the trigger. With `sheet` it is a bottom sheet on
-   * phones. Content renders only while open.
+   * phones (with a drag handle). It grows from its trigger and fades out (motion.css `t-dropdown`); content
+   * renders while open and during that exit, inert, and `onclose` runs once it is gone.
    *
    *   <Popover bind:open label="Reasoning effort" placement="top-start">
    *     {#snippet trigger(props)}<button type="button" {...props}>Effort</button>{/snippet}
@@ -75,6 +78,7 @@
     triggerKeydown?: ((event: KeyboardEvent) => void) | undefined;
     /** Key handling inside the panel, before Escape closes it (menu navigation). */
     panelKeydown?: ((event: KeyboardEvent) => void) | undefined;
+    /** After the panel closed (its exit transition finished). */
     onclose?: (() => void) | undefined;
     class?: ClassValue;
     trigger?: Snippet<[PopoverTriggerProps]>;
@@ -86,6 +90,10 @@
   let anchor = $state<HTMLElement>();
   let narrow = $state(false);
   let focusInside = false;
+  /** The exit transition runs: content stays (inert) until it ends. */
+  let closing = $state(false);
+  let closed: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => () => clearTimeout(closed));
 
   const anchorKey = createAttachmentKey();
   const triggerProps = $derived<PopoverTriggerProps>({
@@ -123,9 +131,20 @@
         if (hadFocus && (document.activeElement === document.body || panel.contains(document.activeElement))) {
           untrack(() => anchorElement ?? anchor)?.focus({ preventScroll: true });
         }
-        untrack(() => onclose)?.();
+        const exit = exitDuration(panel);
+        closing = true;
+        clearTimeout(closed);
+        closed = setTimeout(() => {
+          closing = false;
+          untrack(() => onclose)?.();
+        }, exit);
       }
       return;
+    }
+    if (untrack(() => closing)) {
+      clearTimeout(closed);
+      closing = false;
+      untrack(() => onclose)?.();
     }
     if (!panel.matches(":popover-open")) panel.showPopover();
     const target = panel;
@@ -193,14 +212,20 @@
   tabindex="-1"
   data-sheet={narrow || undefined}
   data-menu-panel={role === "menu" || undefined}
+  inert={closing || undefined}
   {onkeydown}
   {onfocusout}
   onfocusin={() => (focusInside = true)}
   class={[
-    "fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] overflow-y-auto overscroll-contain rounded-xl border-0 bg-white p-0 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 outline-none dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10",
+    "t-dropdown fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] overflow-y-auto overscroll-contain rounded-xl border-0 bg-white p-0 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 outline-none dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10",
     "data-sheet:top-auto data-sheet:bottom-0 data-sheet:left-0 data-sheet:max-h-[85dvh] data-sheet:w-full data-sheet:max-w-none data-sheet:rounded-b-none data-sheet:pb-[env(safe-area-inset-bottom)] data-sheet:backdrop:bg-zinc-950/40 dark:data-sheet:backdrop:bg-black/60",
     className,
   ]}
 >
-  {#if open}{@render children()}{/if}
+  {#if narrow}
+    <div class="flex h-5 cursor-grab touch-none justify-center pt-2 active:cursor-grabbing" aria-hidden="true" {@attach sheetDrag(() => (open = false))}>
+      <span class="h-1 w-9 rounded-full bg-zinc-950/15 dark:bg-white/20"></span>
+    </div>
+  {/if}
+  {#if open || closing}{@render children()}{/if}
 </div>

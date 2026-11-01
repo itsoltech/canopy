@@ -2,10 +2,13 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import IconButton from "./IconButton.svelte";
+  import { exitDuration } from "./motion.ts";
+  import { sheetDrag } from "./sheet-drag.ts";
 
   /**
    * Modal dialog on the native `<dialog>` (focus trap, Escape, top layer for free).
-   * Opens and closes with the bindable `open`; a bottom sheet on phones, centred from `sm`.
+   * Opens and closes with the bindable `open`; a bottom sheet on phones (drag its handle down to close),
+   * centred from `sm`. Scales in and out (motion.css `t-modal`); content stays, inert, until the exit ends.
    * Focus starts on the first `[data-autofocus]` element inside, else on the close button.
    */
   let {
@@ -18,14 +21,29 @@
 
   let dialog = $state<HTMLDialogElement>();
   const id = $props.id();
+  let closing = $state(false);
+  let closed: ReturnType<typeof setTimeout> | undefined;
+  function exit() {
+    if (!dialog) return;
+    closing = true;
+    clearTimeout(closed);
+    // After `[open]` went away: the closing rule's duration.
+    closed = setTimeout(() => (closing = false), exitDuration(dialog));
+  }
+  $effect(() => () => clearTimeout(closed));
 
   $effect(() => {
     if (!dialog) return;
     if (open && !dialog.open) {
+      clearTimeout(closed);
+      closing = false;
       dialog.showModal();
       dialog.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     }
-    if (!open && dialog.open) dialog.close();
+    if (!open && dialog.open) {
+      dialog.close();
+      exit();
+    }
   });
 </script>
 
@@ -33,15 +51,24 @@
   bind:this={dialog}
   aria-labelledby="{id}-title"
   aria-describedby={description ? `${id}-description` : undefined}
-  onclose={() => (open = false)}
+  onclose={() => {
+    if (!open) return;
+    open = false;
+    exit();
+  }}
   onclick={(event) => {
     if (event.target === dialog) open = false; // click on the backdrop
   }}
+  data-sheet
+  inert={closing || undefined}
   class={[
-    "m-0 mt-auto max-h-[90dvh] w-full max-w-none overflow-y-auto rounded-t-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 backdrop:bg-zinc-950/40 sm:m-auto sm:max-w-lg sm:rounded-2xl dark:bg-zinc-950 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/60",
+    "t-modal m-0 mt-auto max-h-[90dvh] w-full max-w-none overflow-y-auto rounded-t-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 backdrop:bg-zinc-950/40 sm:m-auto sm:max-w-lg sm:rounded-2xl dark:bg-zinc-950 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/60",
     className,
   ]}
 >
+  <div class="absolute inset-x-0 top-0 flex h-5 cursor-grab touch-none justify-center pt-2 active:cursor-grabbing sm:hidden" aria-hidden="true" {@attach sheetDrag(() => (open = false))}>
+    <span class="h-1 w-9 rounded-full bg-zinc-950/15 dark:bg-white/20"></span>
+  </div>
   <div class="p-5 pb-[max(--spacing(5),env(safe-area-inset-bottom))] sm:p-6">
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">
@@ -51,7 +78,7 @@
       <IconButton icon="x-mark" label="Close" size="sm" class="-m-1" onclick={() => (open = false)} />
     </div>
     <div class="mt-5">
-      {#if open}{@render children()}{/if}
+      {#if open || closing}{@render children()}{/if}
     </div>
   </div>
 </dialog>

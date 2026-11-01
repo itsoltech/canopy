@@ -9,10 +9,12 @@
   import SettingsNav from "#lib/features/settings/SettingsNav.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import { exitDuration } from "#lib/shared/ui/motion.ts";
 
   /**
    * Settings as a large modal panel over the app (T3 layout): searchable section nav on the left, the
-   * section on the right. Escape, the close button or a click on the backdrop go back to where you were.
+   * section on the right. Escape, the close button or a click on the backdrop go back to where you were,
+   * after the panel scaled out (motion.css `t-modal`, `data-closing`).
    */
   let { children }: { children: Snippet } = $props();
   const overview = useOverview();
@@ -22,7 +24,7 @@
   const project = $derived(page.params.projectId ? overview.project(page.params.projectId) : undefined);
 
   let dialog = $state<HTMLDialogElement>();
-  let leaving = false;
+  let leaving = $state(false);
   $effect(() => {
     // Rendered open on the server (non-modal); reopen as modal for focus trapping and an inert background.
     if (!dialog) return;
@@ -36,13 +38,15 @@
   function close() {
     if (leaving) return;
     leaving = true;
-    void goto(returnTo.url);
+    // Let the exit play (its duration is the closing rule's, 0 without motion), then leave.
+    requestAnimationFrame(() => setTimeout(() => void goto(returnTo.url).finally(() => (leaving = false)), dialog ? exitDuration(dialog) : 0));
   }
 </script>
 
 <dialog
   bind:this={dialog}
   open
+  data-closing={leaving || undefined}
   aria-labelledby="settings-title"
   oncancel={(event) => {
     event.preventDefault();
@@ -51,7 +55,7 @@
   onclick={(event) => {
     if (event.target === dialog) close();
   }}
-  class="m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-white p-0 text-zinc-950 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-[2px] sm:m-auto sm:h-[min(100dvh-3rem,60rem)] sm:w-[min(100vw-3rem,76rem)] sm:rounded-2xl sm:shadow-2xl sm:ring-1 sm:ring-zinc-950/10 dark:bg-zinc-950 dark:text-white dark:backdrop:bg-black/70 dark:sm:shadow-none dark:sm:ring-white/10"
+  class="t-modal fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-white p-0 text-zinc-950 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-[2px] sm:m-auto sm:h-[min(100dvh-3rem,60rem)] sm:w-[min(100vw-3rem,76rem)] sm:rounded-2xl sm:shadow-2xl sm:ring-1 sm:ring-zinc-950/10 dark:bg-zinc-950 dark:text-white dark:backdrop:bg-black/70 dark:sm:shadow-none dark:sm:ring-white/10"
 >
   <div class="flex h-full flex-col lg:flex-row">
     <div class="shrink-0 border-zinc-950/5 bg-zinc-50 px-3 pt-3 pb-2 lg:w-64 lg:overflow-y-auto lg:border-r lg:pb-4 dark:border-white/8 dark:bg-white/2">
