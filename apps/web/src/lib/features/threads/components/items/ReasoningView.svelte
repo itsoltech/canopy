@@ -10,7 +10,7 @@
 </script>
 
 {#if hasBody || streaming}
-  <Disclosure summaryClass="-mx-1.5 px-1.5 py-1 text-base/6 hover:bg-zinc-950/2.5 sm:text-sm/6 dark:hover:bg-white/5">
+  <Disclosure remember="reasoning" summaryClass="-mx-1.5 px-1.5 py-1 text-base/6 hover:bg-zinc-950/2.5 sm:text-sm/6 dark:hover:bg-white/5">
     {#snippet summary()}
       <span class="flex min-w-0 gap-2">
         <span class={["shrink-0 font-medium", streaming ? "shimmer" : "text-zinc-500 dark:text-zinc-400"]}>{streaming ? "Thinking" : "Thought"}</span>

@@ -10,7 +10,7 @@
 <div class="flex items-center gap-3 py-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
   <span class="h-px flex-1 bg-zinc-950/10 dark:bg-white/10"></span>
   {#if compaction.summary}
-    <Disclosure summaryClass="px-1">
+    <Disclosure remember="compaction" summaryClass="px-1">
       {#snippet summary()}Context compacted{/snippet}
       <Markdown text={compaction.summary} class="mt-2 text-zinc-600 dark:text-zinc-400" />
     </Disclosure>

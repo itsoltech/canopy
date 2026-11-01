@@ -8,17 +8,15 @@
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
   import Composer from "#lib/features/threads/components/Composer.svelte";
-  import InheritedHistory from "#lib/features/threads/components/InheritedHistory.svelte";
+  import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
-  import Timeline from "#lib/features/threads/components/Timeline.svelte";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
   import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
-  import { buildTimeline } from "#lib/features/threads/timeline.ts";
+  import { FeedBuilder, feedEstimate, feedGroup, type FeedRow } from "#lib/features/threads/feed.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
@@ -28,6 +26,7 @@
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
+  import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
@@ -38,11 +37,13 @@
   const settings = useSettings();
 
   // A new ThreadState per thread id: navigating between threads of a tree starts clean, seeded with the
-  // thread from GetThread so the header and composer render before the stream's snapshot.
+  // thread from GetThread so the header and composer render before the stream's snapshot (and, on a full
+  // page load, with the end of the timeline, so the server renders the latest messages).
   // Only the thread id recreates it: a later `data` refresh (form actions invalidate) must not reconnect.
   const view = $derived.by(() => {
     const seed = untrack(() => (data.thread ? decode(ui.ThreadSchema, data.thread) : undefined));
-    return new ThreadState(seed?.id === threadId ? seed : undefined);
+    const tail = untrack(() => (data.tail ? decode(ui.ThreadSnapshotSchema, data.tail) : undefined));
+    return seed?.id === threadId ? new ThreadState(seed, tail?.thread?.id === threadId ? tail : undefined) : new ThreadState();
   });
   $effect(() => view.connect(threadId));
 
@@ -66,11 +67,33 @@
     awaiting: (itemId) => view.pending.some((i) => i.itemId === itemId),
   });
 
-  const rows = $derived(buildTimeline(view.ownEntries, view.ownTurns, view.notices, view.turnResults));
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
   const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
   const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived");
   const working = $derived(view.running && thread?.status !== "waiting_input");
+
+  // The feed: inherited history (folded), the thread's own timeline, the working indicator, queued
+  // inputs. One builder per thread keeps unchanged rows identical, so a delta re-renders one row.
+  let historyOpen = $state(false);
+  const builder = $derived((void threadId, new FeedBuilder()));
+  const rows = $derived(
+    builder.build({
+      entries: view.ownEntries,
+      turns: view.ownTurns,
+      notices: view.notices,
+      results: view.turnResults,
+      queued: view.queued,
+      working,
+      forkSourceId: thread?.forkSourceThreadId,
+      inheritedEntries: view.inheritedEntries,
+      inheritedTurns: view.inheritedTurns,
+      historyOpen,
+    }),
+  );
+  $effect(() => {
+    void threadId;
+    historyOpen = false;
+  });
 
   const composerNote = $derived.by(() => {
     if (!thread) return undefined;
@@ -79,27 +102,6 @@
     if (worker && !worker.online) return `${worker.name} is offline. Messages wait and are delivered when it reconnects.`;
     if (thread.status === "creating") return "The thread is starting on the worker. Messages run once it is ready.";
     return undefined;
-  });
-
-  // Follow new content while the reader is at the end; otherwise offer a jump back.
-  let scroller = $state<HTMLElement>();
-  let content = $state<HTMLElement>();
-  let atEnd = $state(true);
-  const onscroll = () => {
-    if (scroller) atEnd = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 96;
-  };
-  const toEnd = (behavior: ScrollBehavior = "instant") => scroller?.scrollTo({ top: scroller.scrollHeight, behavior });
-  $effect(() => {
-    if (!content) return;
-    const observer = new ResizeObserver(() => {
-      if (atEnd) toEnd();
-    });
-    observer.observe(content);
-    return () => observer.disconnect();
-  });
-  $effect(() => {
-    void threadId;
-    atEnd = true;
   });
 
   // Context panel: beside the chat on wide screens (open or collapsed, saved in your settings), a sheet
@@ -175,53 +177,48 @@
       <Alert tone="info" banner>{view.failure ?? "Reconnecting to live updates…"}</Alert>
     {/if}
 
-    <div class="relative min-h-0 flex-1">
-      <div bind:this={scroller} {onscroll} class="h-full overflow-y-auto overscroll-contain" role="region" aria-label="Timeline" aria-busy={working}>
-        <div bind:this={content} class="mx-auto max-w-(--chat-width) px-4 pt-2 pb-6 sm:px-6">
-          {#if !view.loaded}
-            <div class="grid gap-4" aria-label="Loading the timeline">
-              <Skeleton class="ml-auto h-10 w-2/3" />
-              <Skeleton class="h-4 w-full" />
-              <Skeleton class="h-4 w-5/6" />
-              <Skeleton class="h-8 w-1/2" />
-              {#if view.connection === "connecting"}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Connecting…</p>{/if}
-            </div>
-          {:else if rows.length === 0 && view.inheritedTurns.length === 0 && view.queued.length === 0}
-            <EmptyState
-              icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
-              title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
-              description={thread?.status === "creating" ? `Setting up the agent on ${worker?.name ?? "the worker"}.` : "Send the first message below to start a turn."}
-              class="mt-8"
-            />
-          {:else}
-            {#if view.inheritedTurns.length > 0 && thread?.forkSourceThreadId}
-              <!-- A fork's inherited history (turns up to the fork point), folded above its own turns. -->
-              <InheritedHistory sourceId={thread.forkSourceThreadId} entries={view.inheritedEntries} turns={view.inheritedTurns} results={view.turnResults} />
+    <div class="min-h-0 flex-1">
+      {#key threadId}
+        <VirtualFeed {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} label="Timeline" busy={working}>
+          {#snippet top()}
+            {#if !view.loaded}
+              <div class="grid gap-4 pt-2" aria-label="Loading the timeline">
+                <Skeleton class="ml-auto h-10 w-2/3" />
+                <Skeleton class="h-4 w-full" />
+                <Skeleton class="h-4 w-5/6" />
+                <Skeleton class="h-8 w-1/2" />
+                {#if view.connection === "connecting"}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Connecting…</p>{/if}
+              </div>
+            {:else if rows.length === 0}
+              <EmptyState
+                icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
+                title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
+                description={thread?.status === "creating" ? `Setting up the agent on ${worker?.name ?? "the worker"}.` : "Send the first message below to start a turn."}
+                class="mt-8"
+              />
             {/if}
-            <Timeline {rows} queued={view.queued} {working} />
-          {/if}
-        </div>
-      </div>
-      {#if !atEnd}
-        <div class="absolute bottom-3 left-1/2 -translate-x-1/2">
-          <Button size="sm" icon="arrow-down" class="shadow-md" onclick={() => toEnd("smooth")}>Jump to latest</Button>
-        </div>
-      {/if}
-    </div>
-
-    <div class="mx-auto grid w-full max-w-(--chat-width) gap-3 px-4 pt-2 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6">
-      {#if view.pending.length > 0}
-        <div class="grid max-h-[45dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
-          {#each view.pending as interaction (interaction.requestId)}
-            <InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} />
-          {/each}
-        </div>
-      {/if}
-      {#if thread}
-        <Composer {thread} {worker} running={view.running} disabled={closed || !view.loaded} note={composerNote} />
-      {:else}
-        <Skeleton class="h-28 rounded-2xl" />
-      {/if}
+          {/snippet}
+          {#snippet row(row: FeedRow)}
+            <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} />
+          {/snippet}
+          {#snippet footer()}
+            <div class="grid gap-3 pt-2">
+              {#if view.pending.length > 0}
+                <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
+                  {#each view.pending as interaction (interaction.requestId)}
+                    <InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} />
+                  {/each}
+                </div>
+              {/if}
+              {#if thread}
+                <Composer {thread} {worker} running={view.running} disabled={closed || !view.loaded} note={composerNote} />
+              {:else}
+                <Skeleton class="h-28 rounded-2xl" />
+              {/if}
+            </div>
+          {/snippet}
+        </VirtualFeed>
+      {/key}
     </div>
   </div>
 

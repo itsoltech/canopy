@@ -91,9 +91,14 @@ export class ThreadState {
     ),
   );
 
-  /** Seeds the thread before the stream connects (server load), so the page renders it at once. */
-  constructor(thread?: ui.Thread | undefined) {
+  /**
+   * Seeds the thread before the stream connects (server load), so the page renders it at once; with
+   * `tail` (the end of the snapshot) the server renders the latest messages too. The stream's snapshot
+   * replaces both.
+   */
+  constructor(thread?: ui.Thread | undefined, tail?: ui.ThreadSnapshot | undefined) {
     this.thread = thread;
+    if (tail) this.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: tail } }));
   }
 
   apply(update: ui.ThreadUpdate): void {

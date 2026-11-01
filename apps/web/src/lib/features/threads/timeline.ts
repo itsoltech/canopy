@@ -26,25 +26,32 @@ type Element = { seq: bigint; turnId: string } & ({ node: ItemNode } | { notice:
  * end row (status, usage) after its last one. Items of other turns or between turns (background
  * work) keep their place in the sequence. Turns without any element yet (just started, or failed
  * before the provider ran) follow at the end; queued turns are not rows (the page shows them apart).
+ * `nodes` keeps item nodes between builds: an unchanged item (and nested items) keeps its node object.
  */
 export function buildTimeline(
   entries: readonly TimelineEntry[],
   turns: readonly ui.Turn[],
   notices: readonly TimelineNotice[],
   results: ReadonlyMap<string, TurnResult>,
+  nodes?: WeakMap<TimelineEntry, ItemNode>,
 ): TimelineRow[] {
   const byId = new Map(entries.map((e) => [e.id, e]));
   const childrenOf = new Map<string, TimelineEntry[]>();
   const top: TimelineEntry[] = [];
   for (const entry of entries) {
     const parent = entry.item.parentItemId;
-    if (parent && parent !== entry.id && byId.has(parent)) childrenOf.set(parent, [...(childrenOf.get(parent) ?? []), entry]);
-    else top.push(entry);
+    if (!parent || parent === entry.id || !byId.has(parent)) top.push(entry);
+    else if (childrenOf.has(parent)) childrenOf.get(parent)!.push(entry);
+    else childrenOf.set(parent, [entry]);
   }
   const node = (entry: TimelineEntry, seen: Set<string>): ItemNode => {
     seen.add(entry.id);
     const children = (childrenOf.get(entry.id) ?? []).filter((c) => !seen.has(c.id)).map((c) => node(c, seen));
-    return { entry, children };
+    const previous = nodes?.get(entry);
+    if (previous && previous.children.length === children.length && previous.children.every((c, i) => c === children[i])) return previous;
+    const next = { entry, children };
+    nodes?.set(entry, next);
+    return next;
   };
 
   const elements: Element[] = [
