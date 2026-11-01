@@ -223,3 +223,67 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
     expect(serverRequests).toEqual([]);
   });
 });
+
+// dynamicTools exist only in thread/start (not thread/resume or thread/fork). The agent bus relies on
+// Codex keeping them with the thread: after a restart of app-server (resume) and in forks.
+describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex dynamic tools (live)", () => {
+  test("a tool given at thread/start is called in the thread, after resume in a new process, and in a fork", async () => {
+    const home = mkdtempSync(join(tmpdir(), "oa-codex-home-"));
+    const cwd = mkdtempSync(join(tmpdir(), "oa-codex-dyn-"));
+    const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]).find((s) => s.config.id === "live")!
+      .resolved!;
+    const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    const calls: { threadId: string; tool: string; arguments: unknown }[] = [];
+    const layer = () =>
+      CodexAppServer.layer({
+        launch: codexAppServerLaunch([profile], process.env, "codex", undefined, home),
+        clientVersion: "0.0.0-live",
+        onServerRequest: async (request) => {
+          if (request.method !== "item/tool/call") return {};
+          const params = request.params as { threadId: string; tool: string; arguments: unknown };
+          calls.push({ threadId: params.threadId, tool: params.tool, arguments: params.arguments });
+          return { contentItems: [{ type: "inputText", text: "recorded" }], success: true };
+        },
+      });
+    const settings = { cwd, approvalPolicy: "never", sandbox: "read-only", model, ...codexThreadProvider(profile) } as const;
+    const ask = (token: string) => `Call the tool record_token with token "${token}". Then reply with the single word DONE.`;
+    try {
+      const threadId = await Effect.runPromise(
+        Effect.gen(function* () {
+          const codex = yield* CodexAppServer;
+          const started = yield* codex.request("thread/start", {
+            ...settings,
+            dynamicTools: [
+              {
+                type: "function",
+                name: "record_token",
+                description: "Records a token for the test.",
+                inputSchema: { type: "object", properties: { token: { type: "string" } }, required: ["token"], additionalProperties: false },
+              },
+            ],
+          });
+          yield* runTurn(started.thread.id, ask("first"));
+          return started.thread.id;
+        }).pipe(Effect.provide(layer())),
+      );
+      // A new app-server process: the thread is resumed without dynamicTools, then forked.
+      const forkId = await Effect.runPromise(
+        Effect.gen(function* () {
+          const codex = yield* CodexAppServer;
+          yield* codex.request("thread/resume", { threadId, ...settings });
+          yield* runTurn(threadId, ask("resumed"));
+          const forked = yield* codex.request("thread/fork", { threadId, ...settings });
+          yield* runTurn(forked.thread.id, ask("forked"));
+          return forked.thread.id;
+        }).pipe(Effect.provide(layer())),
+      );
+      const tokens = (id: string) => calls.filter((c) => c.threadId === id).map((c) => (c.arguments as { token?: string }).token);
+      expect(calls.every((c) => c.tool === "record_token")).toBe(true);
+      expect(tokens(threadId)).toEqual(["first", "resumed"]);
+      expect(tokens(forkId)).toEqual(["forked"]);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 600_000);
+});

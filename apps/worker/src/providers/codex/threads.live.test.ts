@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
+  AgentToolResultSchema,
   ForkSpecSchema,
   InteractionResponseSchema,
   PermissionMode,
@@ -55,6 +56,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
       profile: (id) => (id === "live" ? profile : undefined),
       publish: (event) => published.push(event),
       interact: async (request) => create(InteractionResponseSchema, { requestId: request.requestId, allow: false }),
+      callTool: async (call) => create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "not used in this test" }),
     }).pipe(Layer.provideMerge(Journal.layer(join(dataDir, "journal.db"))));
   };
 

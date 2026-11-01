@@ -94,7 +94,7 @@ export class Ingest extends Context.Service<
                                  provider_turn_ref = ${body.value.providerTurnRef || null}, first_seq = coalesce(first_seq, ${seq})
                  WHERE id = ${event.turnId}::uuid AND thread_id = ${threadId}::uuid
               `;
-              yield* sql`UPDATE threads SET status = 'running' WHERE id = ${threadId}::uuid`;
+              yield* sql`UPDATE threads SET status = 'running' WHERE id = ${threadId}::uuid AND status <> 'archived'`;
               return;
             case "turnFinished": {
               const status = turnStatus(body.value.outcome);

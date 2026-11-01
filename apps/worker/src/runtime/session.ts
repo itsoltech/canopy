@@ -42,6 +42,9 @@ export async function serveLink(
         case "interactionResponse":
           host.handleInteractionResponse(message.payload.value);
           break;
+        case "agentToolResult":
+          host.handleAgentToolResult(message.payload.value);
+          break;
         case "eventAck":
           await runtime.runPromise(applyAck(message.payload.value));
           break;

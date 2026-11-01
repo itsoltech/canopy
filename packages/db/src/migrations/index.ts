@@ -4,6 +4,7 @@ import { Migrator, SqlClient } from "effect/sql";
 import init from "./0001_init.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
+import agentBusRuntime from "./0004_agent_bus_runtime.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -24,6 +25,7 @@ export const migrations = Migrator.fromRecord({
   "0001_init": sqlFile(init),
   "0002_worker_config": sqlFile(workerConfig),
   "0003_gateway_runtime": sqlFile(gatewayRuntime),
+  "0004_agent_bus_runtime": sqlFile(agentBusRuntime),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

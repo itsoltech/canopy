@@ -13,7 +13,9 @@ Gotowe:
 
 - podpięcie do workera: `WorkerHost` i `serveLink` (`apps/worker/src/runtime`): komendy z gateway (`CreateThread`, `StartTurn`, `InterruptTurn`, `ListDirectory`), kontrola `cwd` względem dozwolonych katalogów, interakcje przez link (ponawiane po ponownym połączeniu), przebudowa runtime'u Codexa przy zmianie konfiguracji, ale nigdy pod turą w toku.
 
-Następne: narzędzia szyny (`dynamicTools`), nakładka celów, `turn/steer`, praca w tle (procesy unified exec).
+- szyna agentów: narzędzia jako `dynamicTools` przy `thread/start`, wywołania `item/tool/call` przekazywane do gateway (`AgentToolCall`) i odpowiadane wynikiem ([agent-bus.md](agent-bus.md)).
+
+Następne: nakładka celów, `turn/steer`, praca w tle (procesy unified exec).
 
 Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway konfiguruje workera przez gRPC, tworzy wątek w trybie `ASK`, startuje turę; Codex prosi o zgodę na zapis, gateway jej udziela, plik powstaje, a transkrypt wraca jako zdarzenia z dziennika.
 
@@ -31,7 +33,7 @@ Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway k
   | `READ_ONLY` | `never` | `read-only` |
   | `FULL_AUTO` | `never` | `workspace-write`, nigdy `danger-full-access` domyślnie |
 
-- **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji. Narzędzia szyny dostają na razie jawną odpowiedź „niedostępne”. Inne żądania kończą się błędem JSON-RPC.
+- **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
 
 Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną historią, „restart workera” (nowy proces z tym samym `CODEX_HOME` i dziennikiem), wznowienie i tura w wznowionym wątku.
 

@@ -1,11 +1,22 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
-Status: **projekt**, częściowo zaimplementowany:
+Status: **działa dla Codexa** (2026-11-01):
 - wyłączanie natywnych narzędzi dostawców: `apps/worker/src/providers/native-tools.ts`, z testem na prawdziwym Codexie,
 - definicje narzędzi, zestawy per poziom i reguły dostępu: `packages/domain/src/agent-bus`,
-- schemat: `agent_bus_calls`, `schedules`, `threads.spawned_by_call_id`, `threads.interaction_route`, `interaction_requests.routed_to`, `turns.hops` i wyzwalacze tur.
+- schemat: `agent_bus_calls`, `schedules`, `threads.spawned_by_call_id`, `threads.interaction_route`, `interaction_requests.routed_to`, `turns.hops` i wyzwalacze tur (migracja `0004` dopuszcza odrzucone `spawn_thread`/`send_message` bez `hops`),
+- worker: narzędzia jako `dynamicTools` Codexa przy `thread/start` (`codexAgentBusTools`), wywołania jako `AgentToolCall` z deterministycznym `call_id` (`toolCallId`), ponawiane po ponownym połączeniu,
+- gateway: `AgentBus` (`apps/gateway/src/core/agent-bus.ts`) i `AgentBusStore` (`apps/gateway/src/store/agent-bus.ts`): dekodowanie, fakty z bazy, `authorizeBusCall`, wykonanie, powiadomienia, pytania do rodzica,
+- testy: `tests/integration/agent-bus.test.ts` (gateway + skryptowany worker), `codex dynamic tools (live)` w `app-server.live.test.ts`.
 
-Wykonanie po stronie gateway i workera powstanie w spike'u adapterów.
+Potwierdzone na żywo (Codex przez CLIProxyAPI, przez UI/BFF): wątek główny wywołuje `spawn_thread`, wątek boczny powstaje w tym samym katalogu i wykonuje zadanie, a wynik wraca do wątku głównego jako tura powiadomienia (`hops` 1 → 2), po której model odpowiada użytkownikowi.
+
+| Narzędzie | Stan |
+|---|---|
+| `spawn_thread` (z `fork`, `notify`, `interactions`), `send_message`, `wait_threads`, `get_thread`, `read_thread`, `list_threads`, `interrupt_thread`, `close_thread`, `list_interactions`, `answer_interaction` | działa |
+| `list_agents`, `spawn_thread.agent` | brak katalogu agentów: `list_agents` zwraca pustą listę, `agent` jest odrzucane (wątek boczny to kopia wywołującego) |
+| `send_message.delivery = steer` | kolejkowane jako następna tura (do zrobienia z `turn/steer`) |
+| `schedule_*`, `list_schedules`, `cancel_schedule` | nie są oferowane modelowi, dopóki gateway nie uruchamia harmonogramu |
+| `get_goal`, `propose_goal`, `update_goal` | tylko z silnikiem celów platformy (domyślny jest natywny) |
 
 Powiązane: [threads.md](threads.md), [execution.md](execution.md), [transcript.md](transcript.md).
 
@@ -142,6 +153,8 @@ sequenceDiagram
 
 - **Claude:** serwer MCP w procesie workera (`createSdkMcpServer`, nazwy `mcp__openagents__*`) z `timeout` większym niż maksymalne `wait_threads`.
 - **Codex:** `thread/start { dynamicTools }` ze specyfikacji `agentBusToolSpecs(agentBusToolsFor(depth))`. Pole jest eksperymentalne; plan B to lokalny serwer MCP.
+  - `thread/resume` i `thread/fork` nie przyjmują `dynamicTools`. Codex trzyma narzędzia z wątkiem: działają po wznowieniu w nowym procesie i w forkach (sprawdzone na żywo).
+  - Skutek: wątek boczny utworzony forkiem wątku głównego widzi też narzędzia orkiestratora (`spawn_thread` itd.). Gateway i tak odrzuca je według poziomu wywołującego (`authorizeBusCall`).
 - Zestaw zależy od poziomu wątku (`ThreadSpec.depth`). Model wątku bocznego nie widzi `spawn_thread` ani narzędzi sterowania.
 - Worker tylko przekazuje wywołania (`AgentToolCall`) do gateway i niczego nie wykonuje lokalnie.
 

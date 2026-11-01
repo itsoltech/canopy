@@ -3,160 +3,28 @@
  * outbox -> worker link (gRPC, same server) -> scripted worker -> events -> ingest -> live updates.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { randomBytes } from "node:crypto";
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
-import { InteractionKind, ItemStatus, PermissionMode, Provider, ThreadEventSchema, TurnOrigin, TurnOutcome, ui } from "@open-agents/contracts";
-import { migrate } from "@open-agents/db";
-import { dockerAvailable, startPostgres, type TestPostgres } from "@open-agents/db/testing";
-import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
-import { GatewayCore } from "@open-agents/gateway/core";
-import { GatewayStore, Ingest } from "@open-agents/gateway/store";
-import { startGrpcServer } from "@open-agents/transport";
-import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
-import { Layer, ManagedRuntime } from "effect";
-import type { SqlClient } from "effect/sql";
+import { InteractionKind, PermissionMode, Provider, ui } from "@open-agents/contracts";
+import { dockerAvailable } from "@open-agents/db/testing";
+import { answers, failure, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
-let pg: TestPostgres;
-let runtime: ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | SqlClient.SqlClient, unknown>;
-let core: GatewayCore;
-let closeAll: () => Promise<void>;
+let gw: TestGateway;
 let api: Client<typeof ui.GatewayService>;
 let worker: ScriptedWorker;
-const otherWorkers: ScriptedWorker[] = [];
-let userId = "";
 let grpcUrl = "";
-const SERVICE_TOKEN = "t".repeat(48);
-
-/** Plays a worker: answers commands and emits the events a real provider would. */
-class ScriptedWorker {
-  readonly interactionAnswers: { requestId: string; allow: boolean }[] = [];
-  /** Threads this worker was asked to create, with their cwd. */
-  readonly created: { threadId: string; cwd: string }[] = [];
-  readonly #seq = new Map<string, bigint>();
-  constructor(readonly link: GatewayLink) {
-    void this.#loop();
-  }
-
-  emit(threadId: string, turnId: string, body: NonNullable<MessageInitShape<typeof ThreadEventSchema>["body"]>): void {
-    const journalSeq = (this.#seq.get(threadId) ?? 0n) + 1n;
-    this.#seq.set(threadId, journalSeq);
-    this.link.send({ case: "threadEvent", value: create(ThreadEventSchema, { threadId, turnId, journalSeq, eventId: Bun.randomUUIDv7(), body, rawJson: "{}" }) });
-  }
-
-  async #loop(): Promise<void> {
-    for await (const message of this.link.messages) {
-      const payload = message.payload;
-      if (payload.case === "config") this.link.send({ case: "configApplied", value: { version: payload.value.version, applied: true } });
-      if (payload.case === "interactionResponse") this.interactionAnswers.push({ requestId: payload.value.requestId, allow: payload.value.allow });
-      if (payload.case !== "command") continue;
-      const { commandId, kind } = payload.value;
-      const reply = (ok: boolean, extra: Record<string, unknown> = {}) => this.link.send({ case: "commandResult", value: { commandId, ok, ...extra } });
-      switch (kind.case) {
-        case "listDirectory":
-          reply(true, { entries: [{ name: "repo-a", isDir: true, isGitRepo: true }] });
-          break;
-        case "createThread": {
-          const spec = kind.value.thread!;
-          if (spec.cwd.includes("forbidden")) {
-            reply(false, { errorCode: "CWD_NOT_ALLOWED", errorMessage: `${spec.cwd} is outside the allowed roots` });
-            break;
-          }
-          this.created.push({ threadId: spec.threadId, cwd: spec.cwd });
-          reply(true);
-          this.emit(spec.threadId, "", { case: "threadReady", value: { providerThreadId: `codex-${spec.threadId.slice(-4)}` } });
-          break;
-        }
-        case "startTurn": {
-          const { thread, turnId, input } = kind.value;
-          reply(true);
-          this.emit(thread!.threadId, turnId, { case: "turnStarted", value: { providerTurnRef: `ct-${turnId.slice(-4)}`, origin: TurnOrigin.COMMAND } });
-          this.emit(thread!.threadId, turnId, {
-            case: "itemCompleted",
-            value: { item: { itemId: `msg-${turnId}`, status: ItemStatus.COMPLETED, content: { case: "agentMessage", value: { text: `Echo: ${input!.text}`, phase: "final_answer" } } } },
-          });
-          this.emit(thread!.threadId, turnId, { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: `ct-${turnId.slice(-4)}` } });
-          break;
-        }
-        default:
-          reply(true);
-      }
-    }
-  }
-}
-
-/** Collects WatchThread updates until the predicate holds. */
-async function watchUntil(threadId: string, done: (updates: ui.ThreadUpdate[]) => boolean, onUpdate?: (u: ui.ThreadUpdate) => void) {
-  const controller = new AbortController();
-  const updates: ui.ThreadUpdate[] = [];
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  try {
-    for await (const update of api.watchThread({ threadId }, { signal: controller.signal })) {
-      updates.push(update);
-      onUpdate?.(update);
-      if (done(updates)) break;
-    }
-  } finally {
-    clearTimeout(timeout);
-    controller.abort();
-  }
-  return updates;
-}
-
-/** Message of the error a call fails with ("" if it succeeds). `await expect(p).rejects` hangs on these calls in Bun 1.4. */
-const failure = (call: Promise<unknown>): Promise<string> =>
-  call.then(
-    () => "",
-    (e: unknown) => (e instanceof Error ? e.message : String(e)),
-  );
-
-const answers = (updates: ui.ThreadUpdate[]) => [
-  ...updates.flatMap((u) => (u.change.case === "snapshot" ? u.change.value.items.map((i) => i.item) : [])),
-  ...updates.flatMap((u) => (u.change.case === "event" && u.change.value.event?.body.case === "itemCompleted" ? [u.change.value.event.body.value.item] : [])),
-].flatMap((item) => (item?.content.case === "agentMessage" ? [item.content.value.text] : []));
 
 describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)", () => {
   let projectId = "";
   let workspaceId = "";
 
   beforeAll(async () => {
-    pg = await startPostgres();
-    runtime = ManagedRuntime.make(Layer.mergeAll(GatewayStore.layer(randomBytes(32)), Ingest.layer).pipe(Layer.provideMerge(pg.layer)));
-    await runtime.runPromise(migrate);
-    userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
-    const { workerId, credential } = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "laptop", ownerUserId: userId })));
-    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(workerId, { allowedRoots: ["/repo"], codex: { enabled: true } }, userId)));
-
-    core = new GatewayCore({ runtime, instanceId: "test", userId });
-    const grpc = await startGrpcServer({
-      routes: (router) => {
-        core.link.routes(router);
-        uiRoutes(core)(router);
-      },
-      interceptors: [serviceTokenAuth(SERVICE_TOKEN)],
-    });
-    grpcUrl = grpc.url;
-    api = createClient(
-      ui.GatewayService,
-      createGrpcTransport({
-        baseUrl: grpc.url,
-        interceptors: [(next) => (request) => (request.header.set("authorization", `Bearer ${SERVICE_TOKEN}`), next(request))],
-      }),
-    );
-    worker = new ScriptedWorker(await openGatewayLink({ baseUrl: grpc.url, credential, hello: { workerId, journalId: "journal-1" } }));
-    closeAll = async () => {
-      worker.link.close();
-      for (const other of otherWorkers) other.link.close();
-      await core.link.shutdown();
-      await grpc.close();
-    };
+    gw = await startTestGateway();
+    ({ api, worker, grpcUrl } = gw);
   }, 60_000);
 
   afterAll(async () => {
-    await closeAll?.();
-    await runtime?.dispose();
-    pg?.stop();
+    await gw?.close();
   });
 
   test("overview: the worker is online and has applied its configuration", async () => {
@@ -191,13 +59,13 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
       })
     ).thread!;
     expect(thread.status).toBe("creating");
-    const updates = await watchUntil(thread.id, (u) => answers(u).includes("Echo: hello") && u.some((x) => x.change.case === "thread" && x.change.value.status === "idle"));
+    const updates = await watchUntil(api, thread.id, (u) => answers(u).includes("Echo: hello") && u.some((x) => x.change.case === "thread" && x.change.value.status === "idle"));
     expect(updates[0]?.change.case).toBe("snapshot");
     expect(answers(updates)).toContain("Echo: hello");
 
     // A second message queues and runs after the first one.
     await api.sendMessage({ threadId: thread.id, text: "second", clientRequestId: "req-2" });
-    const again = await watchUntil(
+    const again = await watchUntil(api, 
       thread.id,
       (u) => answers(u).includes("Echo: second") && u.some((x) => x.change.case === "turn" && x.change.value.inputText === "second" && x.change.value.status === "completed"),
     );
@@ -207,7 +75,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
 
     // Retried send (same client request id) does not create another turn.
     const retry = await api.sendMessage({ threadId: thread.id, text: "second", clientRequestId: "req-2" });
-    const final = await watchUntil(thread.id, (u) => u.length >= 1);
+    const final = await watchUntil(api, thread.id, (u) => u.length >= 1);
     const turns = final[0]?.change.case === "snapshot" ? final[0].change.value.turns : [];
     expect(turns.map((t) => [t.inputText, t.status])).toEqual([
       ["hello", "completed"],
@@ -219,7 +87,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
   test("interaction: worker asks, UI sees it live and answers, the worker gets the decision", async () => {
     const thread = (await api.createThread({ projectId, workspaceId, title: "Ask", provider: Provider.CODEX, clientRequestId: "req-3" })).thread!;
     const requestId = Bun.randomUUIDv7();
-    const updates = await watchUntil(
+    const updates = await watchUntil(api, 
       thread.id,
       (u) => u.some((x) => x.change.case === "interaction" && x.change.value.status === "allowed"),
       (update) => {
@@ -247,7 +115,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     // Inside the configured root, but refused by the worker (as for a symlink leading outside).
     const bad = (await api.createWorkspace({ projectId, workerId, rootPath: "/repo/forbidden", label: "x" })).workspace!.id;
     const thread = (await api.createThread({ projectId, workspaceId: bad, title: "Nope", provider: Provider.CODEX })).thread!;
-    const updates = await watchUntil(thread.id, (u) => u.some((x) => x.change.case === "thread" && x.change.value.status === "failed"));
+    const updates = await watchUntil(api, thread.id, (u) => u.some((x) => x.change.case === "thread" && x.change.value.status === "failed"));
     const failed = updates.flatMap((u) => (u.change.case === "thread" ? [u.change.value] : [])).find((t) => t.status === "failed");
     expect(failed?.statusDetail).toContain("CWD_NOT_ALLOWED");
   });
@@ -277,8 +145,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
 
   test("a project spans workers on different systems; a thread waits for its worker to connect", async () => {
     const laptopId = (await api.getOverview({})).workers[0]!.id;
-    const { workerId: winId, credential } = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "win-box", ownerUserId: userId })));
-    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(winId, { allowedRoots: ["C:\\code"], codex: { enabled: true } }, userId)));
+    const { workerId: winId, credential } = await gw.addWorker("win-box", ["C:\\code"]);
 
     // Windows path rules on a Linux gateway: normalized, case-insensitive duplicates refused.
     const winWorkspace = (await api.createWorkspace({ projectId, workerId: winId, rootPath: "C:/code/app/", label: "win" })).workspace!;
@@ -297,13 +164,10 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     expect([thread.workerId, thread.cwd, thread.status]).toEqual([winId, "c:\\code\\app\\src", "creating"]);
     expect(worker.created.some((c) => c.threadId === thread.id)).toBe(false);
 
-    const win = new ScriptedWorker(
-      await openGatewayLink({ baseUrl: grpcUrl, credential, hello: { workerId: winId, journalId: "journal-win", host: { os: "win32" } } }),
-    );
-    otherWorkers.push(win);
-    const updates = await watchUntil(thread.id, (u) => answers(u).includes("Echo: ping"));
+    const win = await gw.connect(winId, credential, "win32");
+    const updates = await watchUntil(api, thread.id, (u) => answers(u).includes("Echo: ping"));
     expect(answers(updates)).toContain("Echo: ping");
-    expect(win.created).toEqual([{ threadId: thread.id, cwd: "c:\\code\\app\\src" }]);
+    expect(win.created.map((c) => [c.threadId, c.cwd])).toEqual([[thread.id, "c:\\code\\app\\src"]]);
     expect(worker.created.some((c) => c.threadId === thread.id)).toBe(false);
     expect((await api.getOverview({})).workers.find((w) => w.id === winId)?.os).toBe("win32");
 

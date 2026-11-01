@@ -11,7 +11,8 @@ import {
 } from "@open-agents/contracts";
 import { Effect, type ManagedRuntime } from "effect";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
-import { GatewayStore, Ingest, toUiThread, toUiTurn } from "../store/index.ts";
+import { AgentBusStore, GatewayStore, Ingest, toUiThread, toUiTurn, type ThreadRow } from "../store/index.ts";
+import { AgentBus } from "./agent-bus.ts";
 import { Hub } from "./hub.ts";
 
 /**
@@ -19,10 +20,11 @@ import { Hub } from "./hub.ts";
  * - workers: connect, outbox redelivery, transcript ingest + ack after commit, config, interactions,
  * - scheduler: one running turn per thread; a turn starts only once the thread is ready,
  * - command results: failed thread creation / turn start become visible state, not silent drops,
+ * - agent bus: tool calls from agents (side threads, messages, waits), notifications, questions to parents,
  * - UI operations and live fan-out through the hub.
  */
 
-export type CoreRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest, unknown>;
+export type CoreRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore, unknown>;
 
 export interface GatewayCoreOptions {
   readonly runtime: CoreRuntime;
@@ -38,6 +40,7 @@ const TTL = { createThread: 24 * 3600, startTurn: 24 * 3600, interruptTurn: 60 }
 export class GatewayCore {
   readonly link: WorkerLink;
   readonly hub = new Hub();
+  readonly bus: AgentBus;
   readonly #options: GatewayCoreOptions;
   readonly #journalIds = new Map<string, string>();
 
@@ -52,6 +55,17 @@ export class GatewayCore {
       },
       config: async (workerId) => (await this.#run((s) => s.workerConfig(workerId))) ?? undefined,
       onConnected: (connection) => void this.#serve(connection),
+    });
+    this.bus = new AgentBus({
+      run: (effect) => this.#options.runtime.runPromise(effect),
+      startThread: (row) => this.#startThread(row),
+      queued: async (threadId, turn) => {
+        this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }));
+        await this.pump(threadId);
+      },
+      interrupt: (threadId) => this.interrupt(threadId),
+      answer: (by, request) => this.#answer(by, request),
+      broadcastThread: (threadId) => this.#broadcastThread(threadId),
     });
   }
 
@@ -87,6 +101,22 @@ export class GatewayCore {
             // Re-sent after a reconnect and already answered: answer again from the database.
             const answered = await this.#run((s) => s.interactionAnswer(interaction.requestId));
             if (answered) this.#sendAnswer(connection, answered.answer);
+            else await this.bus.onInteraction(interaction);
+            break;
+          }
+          case "agentToolCall": {
+            const call = message.payload.value;
+            // Concurrent: wait_threads may take minutes and must not hold up the stream.
+            void this.bus.handle(call).then(
+              (result) => {
+                try {
+                  connection.send({ case: "agentToolResult", value: result });
+                } catch {
+                  // link closed: the worker re-sends the call and gets the stored result
+                }
+              },
+              (error: unknown) => this.#log(`agent bus call ${call.toolName} failed: ${error instanceof Error ? error.message : String(error)}`),
+            );
             break;
           }
           case "heartbeat":
@@ -122,6 +152,9 @@ export class GatewayCore {
     for (const threadId of touched) {
       await this.#broadcastThread(threadId);
       await this.pump(threadId);
+    }
+    for (const stored of result.stored) {
+      if (stored.event.body.case === "turnFinished") await this.bus.onTurnFinished(stored.event.turnId);
     }
   }
 
@@ -161,12 +194,20 @@ export class GatewayCore {
         const threadId = command.kind.value.thread?.threadId ?? "";
         await this.#run((s) => s.setThreadStatus(threadId, "failed", `${result.errorCode}: ${reason}`));
         await this.#broadcastThread(threadId);
+        const failed = await this.#options.runtime.runPromise(
+          AgentBusStore.use((s) => s.failQueuedTurns(threadId, `the thread could not be created: ${result.errorCode}: ${reason}`)),
+        );
+        for (const turnId of failed) {
+          await this.#broadcastTurn(threadId, turnId);
+          await this.bus.onTurnFinished(turnId);
+        }
         break;
       }
       case "startTurn": {
         const { thread, turnId } = command.kind.value;
         await this.#run((s) => s.failTurn(turnId, `${result.errorCode}: ${reason}`));
         await this.#broadcastTurn(thread?.threadId ?? "", turnId);
+        await this.bus.onTurnFinished(turnId);
         break;
       }
       default:
@@ -228,6 +269,12 @@ export class GatewayCore {
 
   async createThread(request: ui.CreateThreadRequest): Promise<ui.Thread> {
     const row = await this.#run((s) => s.createThread(this.#options.userId, request));
+    await this.#startThread(row);
+    return toUiThread(row);
+  }
+
+  /** CreateThread to the worker (with the fork point of a forked thread), then announce the thread. */
+  async #startThread(row: ThreadRow): Promise<void> {
     const spec = await this.#run((s) => Effect.succeed(s.threadSpec(row)));
     let fork: MessageInitShape<typeof ForkSpecSchema> | undefined;
     if (row.fork_source_thread_id) {
@@ -246,9 +293,7 @@ export class GatewayCore {
       { kind: { case: "createThread", value: { thread: spec, ...(fork && { fork }) } } },
       { threadId: row.id, ttlSeconds: TTL.createThread },
     );
-    const thread = toUiThread(row);
-    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));
-    return thread;
+    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: toUiThread(row) } }));
   }
 
   async sendMessage(request: ui.SendMessageRequest): Promise<ui.Turn> {
@@ -273,7 +318,12 @@ export class GatewayCore {
   }
 
   async answerInteraction(request: ui.AnswerInteractionRequest): Promise<ui.Interaction> {
-    const interaction = await this.#run((s) => s.answerInteraction(request.requestId, this.#options.userId, request));
+    return this.#answer({ userId: this.#options.userId }, request);
+  }
+
+  /** Stores the answer (user or parent agent), announces it and passes it to the waiting worker. */
+  async #answer(by: { userId: string } | { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction> {
+    const interaction = await this.#run((s) => s.answerInteraction(request.requestId, by, request));
     this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
     await this.#broadcastThread(interaction.threadId);
     const thread = await this.#run((s) => s.thread(interaction.threadId));

@@ -287,15 +287,23 @@ const ORCHESTRATOR_ONLY: ReadonlySet<AgentBusToolName> = new Set([
  */
 const GOAL_TOOLS: ReadonlySet<AgentBusToolName> = new Set(["get_goal", "propose_goal", "update_goal"]);
 
+/** Platform schedule tools: offered once the gateway runs the scheduler (docs/agent-bus.md#5-harmonogram). */
+const SCHEDULE_TOOLS: ReadonlySet<AgentBusToolName> = new Set(["schedule_wakeup", "schedule_recurring", "list_schedules", "cancel_schedule"]);
+
 export interface ToolSetOptions {
   /** Offer the platform goal tools (goal engine = platform, or a harness without native goals). */
   readonly goalTools?: boolean;
+  /** Offer the platform schedule tools (default true). */
+  readonly scheduleTools?: boolean;
 }
 
 /** Tool names offered to a thread at the given depth (0 = main thread, 1 = side thread). */
 export function agentBusToolsFor(depth: number, options: ToolSetOptions = {}): AgentBusToolName[] {
   return (Object.keys(AGENT_BUS_TOOLS) as AgentBusToolName[]).filter(
-    (name) => (depth === 0 || !ORCHESTRATOR_ONLY.has(name)) && (options.goalTools === true || !GOAL_TOOLS.has(name)),
+    (name) =>
+      (depth === 0 || !ORCHESTRATOR_ONLY.has(name)) &&
+      (options.goalTools === true || !GOAL_TOOLS.has(name)) &&
+      (options.scheduleTools !== false || !SCHEDULE_TOOLS.has(name)),
   );
 }
 

@@ -47,6 +47,7 @@ export interface ThreadRow {
   root_thread_id: string;
   depth: number;
   origin: string;
+  interaction_route: "human" | "parent";
   agent_id: string | null;
   runtime: string;
   provider: string;
@@ -63,6 +64,7 @@ export interface ThreadRow {
   title: string;
   last_seq: bigint;
   created_at: Date;
+  archived_at?: Date | null;
   pending_interactions?: bigint | number;
 }
 
@@ -135,7 +137,8 @@ export class GatewayStore extends Context.Service<
     commandDone(commandId: string, ok: boolean, result: JsonValue): Fx<void>;
     // interactions
     recordInteraction(request: InteractionRequest): Fx<ui.Interaction>;
-    answerInteraction(requestId: string, userId: string, answer: ui.AnswerInteractionRequest): Fx<ui.Interaction>;
+    /** Answered by the user, or by the parent thread's agent (answer_interaction on the agent bus). */
+    answerInteraction(requestId: string, by: { userId: string } | { threadId: string }, answer: ui.AnswerInteractionRequest): Fx<ui.Interaction>;
     pendingInteractions(threadId: string): Fx<ui.Interaction[]>;
     interactionAnswer(requestId: string): Fx<{ threadId: string; answer: ui.AnswerInteractionRequest } | undefined>;
   }
@@ -400,7 +403,8 @@ export class GatewayStore extends Context.Service<
               model: row.settings.model ?? "",
               instructions: row.settings.instructions ?? "",
               permissionMode: PermissionMode[(row.settings.permissionMode ?? "ASK") as keyof typeof PermissionMode] ?? PermissionMode.ASK,
-              enableAgentBus: false,
+              // Agent bus tools for Codex threads (Claude gets them with its adapter, docs/agent-bus.md).
+              enableAgentBus: row.provider === "codex",
               providerThreadId: row.provider_thread_id ?? "",
               depth: row.depth,
             }),
@@ -489,14 +493,14 @@ export class GatewayStore extends Context.Service<
                 VALUES (${request.requestId}::uuid, ${request.threadId}::uuid,
                         (SELECT id FROM turns WHERE id = ${request.turnId || null}::uuid AND thread_id = ${request.threadId}::uuid),
                         ${request.itemId || null}, ${interactionKind(request.kind)}, ${request.toolName}, ${request.requestJson || "{}"}::jsonb,
-                        ${thread.kind === "side" ? "parent" : "human"})
+                        ${thread.interaction_route})
                 ON CONFLICT (id) DO UPDATE SET request = interaction_requests.request
                 RETURNING *`;
               return toInteraction(yield* one(rows, "interaction"));
             }),
 
-          answerInteraction: (requestId, userId, answer) =>
-            Effect.gen(function* () {
+          answerInteraction: (requestId, by, answer) =>
+            sql.withTransaction(Effect.gen(function* () {
               const current = yield* one(yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid`, "interaction");
               if (current.status !== "pending") return yield* Effect.fail(new Invalid(`interaction is already ${current.status}`));
               const status = answer.cancelled
@@ -506,12 +510,18 @@ export class GatewayStore extends Context.Service<
                     ? "allowed"
                     : "declined"
                   : "answered";
+              // Cancellation has no author (interaction_requests_answered_by).
+              const userId = "userId" in by && !answer.cancelled ? by.userId : null;
+              const threadId = "threadId" in by && !answer.cancelled ? by.threadId : null;
               const rows = yield* sql<InteractionRow>`
-                UPDATE interaction_requests SET status = ${status}, answered_by = ${userId}::uuid, answered_at = now(),
+                UPDATE interaction_requests SET status = ${status}, answered_by = ${userId}::uuid, answered_by_thread_id = ${threadId}::uuid,
+                       answered_at = now(),
                        response = ${JSON.stringify({ allow: answer.allow, allowForSession: answer.allowForSession, message: answer.message, answerJson: answer.answerJson, cancelled: answer.cancelled })}::jsonb
                  WHERE id = ${requestId}::uuid RETURNING *`;
+              // The parent agent no longer needs the turn that would have asked it.
+              yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE interaction_request_id = ${requestId}::uuid AND status = 'queued'`;
               return toInteraction(yield* one(rows, "interaction"));
-            }),
+            })),
 
           pendingInteractions: (threadId) =>
             sql<InteractionRow>`SELECT * FROM interaction_requests WHERE thread_id = ${threadId}::uuid AND status = 'pending' ORDER BY created_at`.pipe(

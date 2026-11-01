@@ -1,8 +1,11 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import type { ServerNotification, v2 } from "@open-agents/codex-protocol";
 import {
+  AgentToolCallSchema,
   InteractionKind,
   InteractionRequestSchema,
+  type AgentToolCall,
+  type AgentToolResult,
   type ForkSpec,
   type InteractionRequest,
   type InteractionResponse,
@@ -10,9 +13,11 @@ import {
   type ThreadSpec,
   type UserInput,
 } from "@open-agents/contracts";
+import { agentBusToolSpecs, agentBusToolsFor } from "@open-agents/domain";
 import { Context, Effect, Layer, Schema, Stream } from "effect";
 import { Journal } from "../../journal/index.ts";
 import type { ResolvedProfile } from "../profiles.ts";
+import { toolCallId } from "../tool-call-id.ts";
 import { CodexAppServer, type ServerRequestHandler } from "./app-server.ts";
 import { codexThreadProvider, type CodexAppServerLaunch } from "./launch.ts";
 import { CodexEventMapper } from "./mapping.ts";
@@ -41,6 +46,23 @@ export interface CodexThreadsOptions {
   publish(event: ThreadEvent): void;
   /** Asks the platform (gateway -> user or parent agent) and waits for the answer. */
   interact(request: InteractionRequest): Promise<InteractionResponse>;
+  /** Runs an agent bus tool call on the gateway (docs/agent-bus.md) and waits for its result. */
+  callTool(call: AgentToolCall): Promise<AgentToolResult>;
+}
+
+/**
+ * Agent bus tools for a thread, as Codex dynamic tools. Codex accepts them only in thread/start and keeps
+ * them with the thread (verified live: across resume in a new process and in forks). A fork therefore has
+ * its source's tools; the gateway authorizes every call by the caller's depth anyway.
+ * Schedule tools wait for the platform scheduler; goal tools for the platform goal engine.
+ */
+export function codexAgentBusTools(depth: number): v2.DynamicToolSpec[] {
+  return agentBusToolSpecs(agentBusToolsFor(depth, { scheduleTools: false })).map((tool) => ({
+    type: "function" as const,
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema as v2.DynamicToolFunctionSpec["inputSchema"],
+  }));
 }
 
 export class CodexThreads extends Context.Service<
@@ -174,9 +196,21 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           const answer = await interact(InteractionKind.ELICITATION, "mcp_elicitation");
           return answer.cancelled || !answer.answerJson ? { action: "decline" } : { action: "accept", content: JSON.parse(answer.answerJson) };
         }
-        case "item/tool/call":
-          // Agent bus tools are wired in the next stage; answer explicitly instead of hanging the turn.
-          return { contentItems: [{ type: "inputText", text: "agent bus is not available on this worker yet" }], success: false };
+        case "item/tool/call": {
+          if (!entry) throw new RpcError(request.method, -32602, "unknown thread");
+          const call = request.params as v2.DynamicToolCallParams;
+          const result = await options.callTool(
+            create(AgentToolCallSchema, {
+              callId: toolCallId(entry.platformId, call.callId),
+              threadId: entry.platformId,
+              turnId: entry.codexToPlatform.get(call.turnId) ?? "",
+              itemId: call.callId,
+              toolName: call.tool,
+              argumentsJson: JSON.stringify(call.arguments ?? {}),
+            }),
+          );
+          return { contentItems: [{ type: "inputText", text: result.content }], success: !result.isError } satisfies v2.DynamicToolCallResponse;
+        }
         case "currentTime/read":
           return { currentTime: new Date().toISOString() };
         default:
@@ -226,7 +260,9 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
                 ...params,
               })
               .pipe(Effect.mapError(fail(spec.threadId, "fork")))
-          : yield* codex.request("thread/start", params).pipe(Effect.mapError(fail(spec.threadId, "create")));
+          : yield* codex
+              .request("thread/start", { ...params, ...(spec.enableAgentBus && { dynamicTools: codexAgentBusTools(spec.depth) }) })
+              .pipe(Effect.mapError(fail(spec.threadId, "create")));
         const entry = register(spec.threadId, response.thread.id);
         yield* announce(entry).pipe(Effect.mapError(fail(spec.threadId, "journal")));
         return entry.codexId;

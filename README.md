@@ -7,7 +7,7 @@ Platforma do zarządzania agentami AI dla wielu użytkowników.
 - **PostgreSQL** — baza danych.
 - Komunikacja gateway ↔ worker: gRPC, strumień dwukierunkowy po HTTP/2, inicjowany przez workera.
 
-Status: system działa end to end z Codexem: frontend (SvelteKit jako BFF, SSE), gateway (PostgreSQL, orkiestracja, API dla UI), worker (dziennik, zdalna konfiguracja, Codex app-server z izolowanym `CODEX_HOME`, zgody), model domenowy (wątki, transkrypt, szyna agentów, harmonogram, cele). W budowie: adapter Claude, szyna agentów i cele w runtime, logowanie użytkowników.
+Status: system działa end to end z Codexem: frontend (SvelteKit jako BFF, SSE), gateway (PostgreSQL, orkiestracja, API dla UI), worker (dziennik, zdalna konfiguracja, Codex app-server z izolowanym `CODEX_HOME`, zgody), szyna agentów dla Codexa (wątki boczne tworzone przez agentów, wiadomości, powiadomienia, pytania do rodzica), model domenowy (harmonogram, cele). W budowie: adapter Claude, harmonogram i cele w runtime, logowanie użytkowników.
 
 ## Struktura
 

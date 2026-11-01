@@ -3,6 +3,8 @@ import { join } from "node:path";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import {
   Provider,
+  type AgentToolCall,
+  type AgentToolResult,
   type Command,
   type DirectoryEntrySchema,
   type CommandResultSchema,
@@ -28,7 +30,8 @@ import { CodexThreads } from "../providers/codex/threads.ts";
  *   but never under a running turn (deferred until the worker is idle).
  * - Commands: answered once; final results are remembered in the journal for redelivery.
  * - Events: journal first (inside the runtimes), then sent when the link is up.
- * - Interactions: forwarded to the gateway, re-sent after reconnect until answered.
+ * - Interactions and agent bus tool calls: forwarded to the gateway, re-sent after reconnect until
+ *   answered (the gateway answers a re-sent call from its stored result).
  */
 
 type CommandResultInit = MessageInitShape<typeof CommandResultSchema>;
@@ -71,6 +74,7 @@ export class WorkerHost {
   #rebuildWanted = false;
   readonly #running = new Set<string>();
   readonly #interactions = new Map<string, { request: InteractionRequest; resolve: (r: InteractionResponse) => void }>();
+  readonly #toolCalls = new Map<string, { call: AgentToolCall; resolve: (r: AgentToolResult) => void }>();
 
   constructor(options: WorkerHostOptions) {
     this.#options = options;
@@ -83,6 +87,7 @@ export class WorkerHost {
   attach(link: GatewayLink): void {
     this.#link = link;
     for (const { request } of this.#interactions.values()) this.#send({ case: "interactionRequest", value: request });
+    for (const { call } of this.#toolCalls.values()) this.#send({ case: "agentToolCall", value: call });
   }
 
   detach(link: GatewayLink): void {
@@ -103,6 +108,13 @@ export class WorkerHost {
     if (!pending) return;
     this.#interactions.delete(response.requestId);
     pending.resolve(response);
+  }
+
+  handleAgentToolResult(result: AgentToolResult): void {
+    const pending = this.#toolCalls.get(result.callId);
+    if (!pending) return;
+    this.#toolCalls.delete(result.callId);
+    pending.resolve(result);
   }
 
   async handleCommand(command: Command): Promise<CommandResultInit> {
@@ -234,6 +246,7 @@ export class WorkerHost {
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
       publish: (event) => this.#publish(event),
       interact: (request) => this.#interact(request),
+      callTool: (call) => this.#callTool(call),
     });
     const scope = await Effect.runPromise(Scope.make());
     const context = await this.#options.runtime.runPromise(Layer.buildWithScope(layer, scope));
@@ -265,6 +278,20 @@ export class WorkerHost {
     return new Promise((resolve) => {
       this.#interactions.set(request.requestId, { request, resolve });
       this.#send({ case: "interactionRequest", value: request });
+    });
+  }
+
+  #callTool(call: AgentToolCall): Promise<AgentToolResult> {
+    return new Promise((resolve) => {
+      // The same call asked twice (provider retry) shares one gateway round trip.
+      const pending = this.#toolCalls.get(call.callId);
+      if (pending) {
+        const first = pending.resolve;
+        pending.resolve = (result) => (first(result), resolve(result));
+        return;
+      }
+      this.#toolCalls.set(call.callId, { call, resolve });
+      this.#send({ case: "agentToolCall", value: call });
     });
   }
 
