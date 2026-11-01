@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ItemStatus, TurnOrigin, TurnOutcome, ui, type Item, type Notice, type TurnFinished, type TurnStarted, type Usage } from "@open-agents/contracts";
+import { ItemStatus, TurnEndSource, TurnOrigin, TurnOutcome, ui, type Item, type Notice, type TurnFinished, type TurnStarted, type Usage } from "@open-agents/contracts";
 import { eventItemId, reduceItem } from "@open-agents/domain/items";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
@@ -235,7 +235,15 @@ export class ThreadState {
     const index = this.turns.findIndex((t) => t.id === turnId && t.status === "running");
     const status = { [TurnOutcome.COMPLETED]: "completed", [TurnOutcome.INTERRUPTED]: "interrupted", [TurnOutcome.FAILED]: "failed" }[finished.outcome as number];
     const turn = this.turns[index];
-    if (turn && status) this.turns = this.turns.with(index, { ...turn, status, ...(at && { completedAt: at }) });
+    // Who interrupted it or where its error came from, until the gateway's turn update brings the stored values.
+    const source = { [TurnEndSource.USER]: "user", [TurnEndSource.SYSTEM]: "system", [TurnEndSource.PLATFORM]: "platform", [TurnEndSource.HARNESS]: "harness" }[finished.source as number] ?? "";
+    const end =
+      status === "failed"
+        ? { error: finished.reason, errorSource: source || "harness", errorCode: finished.errorCode }
+        : status === "interrupted"
+          ? { interruptReason: finished.reason, interruptSource: source || "user" }
+          : {};
+    if (turn && status) this.turns = this.turns.with(index, { ...turn, status, ...end, ...(at && { completedAt: at }) });
   }
 
   /** Subscribes to the BFF event stream; returns the cleanup for $effect. */
