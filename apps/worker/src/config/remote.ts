@@ -3,6 +3,7 @@ import { isAbsolute, relative } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import {
   ConfigAppliedSchema,
+  DeviceLogin,
   Provider,
   ProviderProfileKind,
   type ConfigIssue,
@@ -26,6 +27,8 @@ import {
 
 export interface ProviderRuntime {
   readonly enabled: boolean;
+  /** Codex: link the device owner's login into the worker's isolated CODEX_HOME (default yes). */
+  readonly linkDeviceLogin: boolean;
   /** Resolved executable, when enabled and found. */
   readonly executable?: string;
   readonly version?: string;
@@ -130,7 +133,11 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
       claude,
       codex,
       profiles,
-      nativeTools: { nativeSubagents: config.nativeTools?.subagents ?? false, nativeScheduling: config.nativeTools?.scheduling ?? false },
+      nativeTools: {
+        nativeSubagents: config.nativeTools?.subagents ?? false,
+        nativeScheduling: config.nativeTools?.scheduling ?? false,
+        nativeConnectors: config.nativeTools?.connectors ?? false,
+      },
       limits: {
         maxRunningTurns: limits?.maxRunningTurns || DEFAULT_LIMITS.maxRunningTurns,
         maxBackgroundTasks: limits?.maxBackgroundTasks || DEFAULT_LIMITS.maxBackgroundTasks,
@@ -155,20 +162,21 @@ function providerRuntime(
   probe: DeviceProbe,
   issue: (path: string, message: string) => void,
 ): ProviderRuntime {
-  if (!config?.enabled) return { enabled: false, problem: "disabled in configuration" };
+  const linkDeviceLogin = config?.deviceLogin !== DeviceLogin.NONE;
+  if (!config?.enabled) return { enabled: false, linkDeviceLogin, problem: "disabled in configuration" };
   const executable = config.executablePath || probe.which(name);
   if (!executable) {
     issue(`${name}.executable_path`, `${name} CLI not found on PATH`);
-    return { enabled: false, problem: `${name} CLI not found` };
+    return { enabled: false, linkDeviceLogin, problem: `${name} CLI not found` };
   }
   const versionLine = probe.version(executable);
   const version = versionLine?.match(/\d+\.\d+\.\d+(?:[-+][\w.]+)?/)?.[0];
   if (config.requiredVersion && version !== config.requiredVersion) {
     const problem = `${name} ${version ?? "(unknown version)"} found, ${config.requiredVersion} required`;
     issue(`${name}.required_version`, problem);
-    return { enabled: false, executable, ...(version !== undefined && { version }), problem };
+    return { enabled: false, linkDeviceLogin, executable, ...(version !== undefined && { version }), problem };
   }
-  return { enabled: true, executable, ...(version !== undefined && { version }) };
+  return { enabled: true, linkDeviceLogin, executable, ...(version !== undefined && { version }) };
 }
 
 function providerInfo(provider: Provider, runtime: ProviderRuntime) {

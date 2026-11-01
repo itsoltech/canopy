@@ -72,9 +72,10 @@ Bez `CODEX_HOME` app-server czyta `~/.codex` właściciela urządzenia: jego pro
 
 Profil natywny z `~/.codex` zależy też od środowiska właściciela. W teście tura padła na `Missing environment variable: CLIPROXY_API_KEY`, bo jego provider czyta klucz ze zmiennej, której worker nie ma.
 
-**Propozycja:** worker domyślnie uruchamia app-server z własnym `CODEX_HOME` w katalogu danych. Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy. Profil natywny potrzebuje jednak logowania Codexa (`auth.json`) z `~/.codex` — decyzja w sekcji niżej.
+### Ustalenia (2026-11-01)
 
-## Decyzje do podjęcia
+1. **Worker zawsze uruchamia app-server z własnym `CODEX_HOME`** (`<data_dir>/codex-home`, `0700`, `prepareCodexHome`). Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy.
+2. **Logowanie właściciela urządzenia jest dowiązywane** (`~/.codex/auth.json` → `codex-home/auth.json`; token odświeża się wspólnie z CLI). Wyjątek: workery korzystające z CLIProxyAPI, gdzie gateway ustawia `WorkerConfig.codex.device_login = NONE` i dowiązanie jest usuwane. Bez uprawnień do dowiązań (Windows) plik jest kopiowany, a raport to zgłasza.
+3. **Konektory konta są wyłączone** (`features.apps=false`). Po zalogowaniu kontem ChatGPT Codex uruchamia wbudowany serwer MCP `codex_apps` z aplikacjami połączonymi z kontem właściciela. W wątkach platformy byłby to dostęp do jego prywatnych kont. Można je świadomie włączyć (`NativeToolsConfig.connectors`).
 
-1. **Logowanie Codexa przy izolowanym `CODEX_HOME`:** dowiązać `~/.codex/auth.json` (wspólne odświeżanie tokenu z CLI właściciela), skopiować go, czy wymagać osobnego `codex login` dla workera?
-2. **Czy izolacja ma być zawsze**, czy profil natywny może świadomie używać pełnego `~/.codex` (opcja w konfiguracji workera)?
+Potwierdzone na żywo: profil natywny w izolowanym `CODEX_HOME` z dowiązanym logowaniem odpowiada poprawnie, bez hooków, serwerów MCP i aplikacji urządzenia.

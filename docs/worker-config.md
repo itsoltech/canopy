@@ -20,6 +20,7 @@ Gateway czyta konfigurację tymczasowo ze zmiennych środowiskowych, do czasu po
 | `data_dir` (dziennik, bloby w drodze) | profile dostawców (CLIProxyAPI) z kluczami |
 | `ping_interval_seconds` (utrzymanie mapowania NAT) | natywne narzędzia (subagenci, harmonogram) |
 | | limity (tury, zadania w tle, drain, zwalnianie) |
+| | Codex: dowiązanie logowania urządzenia do izolowanego `CODEX_HOME` (`device_login`) |
 
 ## 2. Plik lokalny
 

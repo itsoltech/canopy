@@ -161,6 +161,16 @@ message ProviderConfig {
   string executable_path = 2;
   // Wymagana wersja CLI (np. "0.164.0"); pusta = dowolna. Niezgodność wyłącza dostawcę z czytelnym powodem.
   string required_version = 3;
+  // Codex: logowanie właściciela urządzenia w izolowanym CODEX_HOME workera (docs/codex-adapter.md).
+  DeviceLogin device_login = 4;
+}
+
+enum DeviceLogin {
+  // Domyślnie: dowiąż logowanie CLI właściciela urządzenia (np. ~/.codex/auth.json), jeśli istnieje.
+  DEVICE_LOGIN_UNSPECIFIED = 0;
+  DEVICE_LOGIN_LINK = 1;
+  // Bez logowania urządzenia, np. gdy worker korzysta tylko z CLIProxyAPI.
+  DEVICE_LOGIN_NONE = 2;
 }
 
 message ProviderProfileConfig {
@@ -177,6 +187,8 @@ message NativeToolsConfig {
   // Domyślne dla wątków; ThreadSpec może nadpisać per wątek.
   bool subagents = 1;
   bool scheduling = 2;
+  // Konektory konta właściciela urządzenia (Codex apps: aplikacje połączone z kontem ChatGPT). Domyślnie wyłączone.
+  bool connectors = 3;
 }
 
 message WorkerLimits {

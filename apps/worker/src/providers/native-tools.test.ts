@@ -25,6 +25,7 @@ describe("native provider tools", () => {
       "-c", "features.multi_agent_v2=false",
       "-c", "features.in_app_local_automation=false",
       "-c", "features.sleep_tool=false",
+      "-c", "features.apps=false",
     ]);
   });
 
@@ -36,7 +37,7 @@ describe("native provider tools", () => {
     const overrides = launch.command.slice(2);
     const result = Bun.spawnSync([codexBin!, ...overrides, "features", "list"], { env: launch.env });
     expect(result.exitCode).toBe(0);
-    const wanted = new Set(["multi_agent", "multi_agent_v2", "in_app_local_automation", "sleep_tool"]);
+    const wanted = new Set(["multi_agent", "multi_agent_v2", "in_app_local_automation", "sleep_tool", "apps"]);
     const state = Object.fromEntries(
       result.stdout
         .toString()
@@ -45,6 +46,6 @@ describe("native provider tools", () => {
         .filter((cols) => wanted.has(cols[0] ?? ""))
         .map((cols) => [cols[0], cols.at(-1)]),
     );
-    expect(state).toEqual({ multi_agent: "false", multi_agent_v2: "false", in_app_local_automation: "false", sleep_tool: "false" });
+    expect(state).toEqual({ multi_agent: "false", multi_agent_v2: "false", in_app_local_automation: "false", sleep_tool: "false", apps: "false" });
   });
 });

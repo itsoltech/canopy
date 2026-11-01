@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { Provider, ProviderProfileKind, WorkerConfigSchema } from "@open-agents/contracts";
+import { DeviceLogin, Provider, ProviderProfileKind, WorkerConfigSchema } from "@open-agents/contracts";
 import { applyWorkerConfig, isAllowedPath, systemProbe, type DeviceProbe } from "./remote.ts";
 
 const base = mkdtempSync(join(tmpdir(), "oa-remote-config-"));
@@ -41,10 +41,10 @@ describe("applyWorkerConfig", () => {
     );
     if (!result.applied) throw new Error("expected applied");
     expect(result.config.allowedRoots).toEqual([repo]);
-    expect(result.config.claude).toEqual({ enabled: true, executable: "/usr/bin/claude", version: "2.3.1" });
+    expect(result.config.claude).toEqual({ enabled: true, linkDeviceLogin: true, executable: "/usr/bin/claude", version: "2.3.1" });
     expect(result.config.limits.maxRunningTurns).toBe(2);
     expect(result.config.limits.drainTimeoutSeconds).toBe(600); // default when unset
-    expect(result.config.nativeTools).toEqual({ nativeSubagents: true, nativeScheduling: false });
+    expect(result.config.nativeTools).toEqual({ nativeSubagents: true, nativeScheduling: false, nativeConnectors: false });
     expect(result.report.version).toBe(7n);
     expect(result.report.issues).toEqual([]);
     expect(result.report.providers?.map((p) => [p.provider, p.available, p.version])).toEqual([
@@ -67,9 +67,16 @@ describe("applyWorkerConfig", () => {
       { ...probe, which: (c) => (c === "codex" ? "/usr/bin/codex" : null) },
     );
     if (!result.applied) throw new Error("expected applied");
-    expect(result.config.claude).toEqual({ enabled: false, problem: "claude CLI not found" });
+    expect(result.config.claude).toEqual({ enabled: false, linkDeviceLogin: true, problem: "claude CLI not found" });
     expect(result.config.codex.enabled).toBe(false);
     expect(result.config.codex.problem).toBe("codex 0.164.0 found, 0.170.0 required");
+  });
+
+  test("Codex device login: linked by default, off for CLIProxyAPI-only workers", () => {
+    const linked = applyWorkerConfig(config(), probe);
+    const off = applyWorkerConfig(config({ codex: { enabled: true, deviceLogin: DeviceLogin.NONE } }), probe);
+    expect(linked.applied && linked.config.codex.linkDeviceLogin).toBe(true);
+    expect(off.applied && off.config.codex.linkDeviceLogin).toBe(false);
   });
 
   test("invalid profiles are fatal: the worker keeps its previous configuration", () => {

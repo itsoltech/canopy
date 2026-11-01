@@ -12,6 +12,7 @@ import { CODEX_PROTOCOL_VERSION, type ServerNotification } from "@open-agents/co
 import { Effect, Fiber, Stream } from "effect";
 import { resolveProfiles } from "../profiles.ts";
 import { CodexAppServer } from "./app-server.ts";
+import { prepareCodexHome } from "./home.ts";
 import { codexAppServerLaunch, codexThreadProvider } from "./launch.ts";
 
 const LIVE = process.env["OA_LIVE"] === "1";
@@ -193,6 +194,29 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
       rmSync(cwd, { recursive: true, force: true });
     }
   }, 300_000);
+
+  // Default after the 2026-11-01 decision: isolated CODEX_HOME with the device login linked in.
+  test.skipIf(process.env["OA_LIVE_NATIVE"] !== "1")("native profile in the isolated home with the linked device login", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "oa-codex-data-"));
+    try {
+      const home = prepareCodexHome({ dataDir, linkDeviceLogin: true });
+      expect(home.login).toBe("linked");
+      const notifications = await Effect.runPromise(
+        Effect.gen(function* () {
+          const codex = yield* CodexAppServer;
+          const started = yield* codex.request("thread/start", { cwd: workDir, approvalPolicy: "never", sandbox: "read-only" });
+          return yield* runTurn(started.thread.id, "Reply with exactly the word OK and nothing else. Do not run any tools.");
+        }).pipe(Effect.provide(layerFor([], home.path))),
+      );
+      record("native-isolated-ok-turn", notifications);
+      const error = (notifications.at(-1)?.params as { turn?: { error?: { message?: string } | null } }).turn?.error;
+      if (error) throw new Error(`native turn failed: ${error.message}`);
+      expect(agentText(notifications)).toContain("OK");
+      expect(notifications.map((n) => n.method).filter((m) => m.startsWith("hook/") || m.startsWith("mcpServer/"))).toEqual([]);
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  }, 200_000);
 
   test("server requests seen during the tests", () => {
     // approvalPolicy "never" + read-only + a no-tool prompt: nothing should have asked.
