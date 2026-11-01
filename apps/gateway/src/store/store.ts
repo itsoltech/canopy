@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { posix, win32 } from "node:path";
 import { create, fromBinary, fromJson, toBinary, toJson, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
@@ -21,6 +20,7 @@ import {
 } from "@open-agents/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
+import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle } from "./paths.ts";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 
 /**
@@ -294,19 +294,33 @@ export class GatewayStore extends Context.Service<
 
           createWorkspace: ({ projectId, workerId, rootPath, label }) =>
             Effect.gen(function* () {
-              if (!rootPath.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(rootPath)) return yield* Effect.fail(new Invalid("root path must be absolute"));
+              // A project spans workers (Linux, macOS, Windows): the path follows the worker's rules.
+              const workers = yield* sql<{ os: string; config: { allowedRoots?: string[] } | null }>`
+                SELECT w.os, c.config FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
+                 WHERE w.id = ${workerId}::uuid AND w.archived_at IS NULL AND w.revoked_at IS NULL`;
+              const worker = workers[0];
+              if (!worker) return yield* Effect.fail(new NotFound("worker not found"));
+              // Before the worker's first connection its OS is unknown: its configured roots tell the style.
+              const style = pathStyle(worker.os, worker.config?.allowedRoots?.[0] ?? rootPath);
+              if (!isAbsolutePath(rootPath, style)) return yield* Effect.fail(new Invalid("root path must be absolute"));
+              const root = normalizePath(rootPath, style);
               // Lexical check against the worker's configured roots, so a workspace never points outside them.
               // The worker remains the authority: it checks real paths (symlinks) when a thread starts.
-              const config = yield* sql<{ config: { allowedRoots?: string[] } }>`
-                SELECT config FROM worker_configs WHERE worker_id = ${workerId}::uuid`;
-              if (!isWithinRoots(rootPath, config[0]?.config.allowedRoots ?? [])) {
-                return yield* Effect.fail(new Invalid(`${rootPath} is outside the worker's allowed directories`));
+              if (!isWithinRoots(root, worker.config?.allowedRoots ?? [], style, worker.os)) {
+                return yield* Effect.fail(new Invalid(`${root} is outside the worker's allowed directories`));
+              }
+              const existing = yield* sql<{ root_path: string }>`
+                SELECT root_path FROM project_workspaces
+                 WHERE project_id = ${projectId}::uuid AND worker_id = ${workerId}::uuid AND archived_at IS NULL`;
+              const key = pathKey(root, style, worker.os);
+              if (existing.some((w) => pathKey(w.root_path, style, worker.os) === key)) {
+                return yield* Effect.fail(new Invalid(`${root} is already a workspace of this project on this worker`));
               }
               const id = Bun.randomUUIDv7();
               yield* sql`
                 INSERT INTO project_workspaces (id, project_id, worker_id, root_path, label)
-                VALUES (${id}::uuid, ${projectId}::uuid, ${workerId}::uuid, ${rootPath}, ${label})`;
-              return create(ui.WorkspaceSchema, { id, projectId, workerId, rootPath, label });
+                VALUES (${id}::uuid, ${projectId}::uuid, ${workerId}::uuid, ${root}, ${label})`;
+              return create(ui.WorkspaceSchema, { id, projectId, workerId, rootPath: root, label });
             }),
 
           listProjects: (ownerUserId) =>
@@ -331,15 +345,25 @@ export class GatewayStore extends Context.Service<
             sql.withTransaction(
               Effect.gen(function* () {
                 const workspace = yield* one(
-                  yield* sql<{ id: string; project_id: string; worker_id: string; root_path: string }>`
-                    SELECT id, project_id, worker_id, root_path FROM project_workspaces
-                     WHERE id = ${request.workspaceId}::uuid AND project_id = ${request.projectId}::uuid AND archived_at IS NULL`,
+                  yield* sql<{ id: string; project_id: string; worker_id: string; root_path: string; os: string }>`
+                    SELECT pw.id, pw.project_id, pw.worker_id, pw.root_path, w.os
+                      FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id
+                     WHERE pw.id = ${request.workspaceId}::uuid AND pw.project_id = ${request.projectId}::uuid AND pw.archived_at IS NULL`,
                   "workspace",
                 );
                 const provider = request.provider === Provider.CLAUDE ? "claude" : "codex";
                 const id = Bun.randomUUIDv7();
                 const parent = request.parentThreadId ? yield* store.thread(request.parentThreadId) : undefined;
-                const cwd = parent?.cwd ?? (request.cwd || workspace.root_path);
+                if (parent && parent.workspace_id !== workspace.id) {
+                  return yield* Effect.fail(new Invalid("a side thread runs in its parent's workspace"));
+                }
+                // A thread may start below the workspace root, never outside it (paths follow the worker's OS).
+                const style = pathStyle(workspace.os, workspace.root_path);
+                const requested = request.cwd ? normalizePath(request.cwd, style) : undefined;
+                if (requested && (!isAbsolutePath(request.cwd, style) || !isWithinRoots(requested, [workspace.root_path], style, workspace.os))) {
+                  return yield* Effect.fail(new Invalid(`${request.cwd} is outside the workspace ${workspace.root_path}`));
+                }
+                const cwd = parent?.cwd ?? requested ?? workspace.root_path;
                 const settings = JSON.stringify({
                   model: request.model,
                   permissionMode: PermissionMode[request.permissionMode] ?? "ASK",
@@ -593,12 +617,3 @@ function slugify(name: string): string {
   );
 }
 
-/** Whether `path` is one of `roots` or below one, lexically. Windows-style roots (`C:\\…`, UNC) use win32 path rules. */
-export function isWithinRoots(path: string, roots: readonly string[]): boolean {
-  return roots.some((root) => {
-    const style = /^[A-Za-z]:[\\/]|^\\\\/.test(root) ? win32 : posix;
-    const relative = style.relative(style.resolve(root), style.resolve(path));
-    const outside = relative === ".." || relative.startsWith(`..${style.sep}`) || style.isAbsolute(relative);
-    return !outside;
-  });
-}

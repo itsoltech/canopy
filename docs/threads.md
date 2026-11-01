@@ -52,6 +52,15 @@ Historia rozmowy u dostawcy leży w plikach na urządzeniu (`~/.claude/projects`
 
 Przeniesienie pracy na inną maszynę to nowy wątek w innym workspace tego samego projektu, nie migracja wątku.
 
+### Projekt na wielu workerach i systemach
+
+Projekt nie jest przypięty do maszyny. Ma dowolnie wiele workspace'ów, każdy to para (worker, katalog), np. to samo repozytorium na serwerze Linux, na Macu i na Windows. Wątek wybiera jeden workspace i zostaje na nim do końca.
+
+- **Ścieżki według systemu workera**, nie gateway (`apps/gateway/src/store/paths.ts`). Styl wynika z `os` zgłoszonego przez workera, a przed pierwszym połączeniem z jego dozwolonych katalogów. Gateway zapisuje ścieżkę w postaci kanonicznej (separatory systemu, bez końcowego separatora, rozwiązane `..`).
+- **Sprawdzenia w gateway** (leksykalne): workspace leży w dozwolonych katalogach workera; ten sam katalog nie jest dwa razy workspace'em projektu na tym workerze (bez rozróżniania wielkości liter na Windows i macOS); `cwd` wątku leży w jego workspace; wątek boczny jest w workspace rodzica. Worker i tak sprawdza ścieżki rzeczywiste (dowiązania) przy starcie wątku.
+- **Worker offline:** wątek i wiadomości są przyjmowane, a komendy czekają w outboxie do ponownego połączenia tego workera. Komendy nigdy nie trafiają do innego workera projektu.
+- Synchronizacja kodu między kopiami projektu (git push/pull) jest poza platformą: workspace'y to niezależne katalogi.
+
 ## 3. Wątki boczne
 
 - Tworzy je użytkownik (`origin = user`) albo agent przez szynę agentów (`origin = agent`, patrz 6).
@@ -135,4 +144,15 @@ Szczegóły: [agent-bus.md](agent-bus.md). Wywołanie agenta poza bieżącym drz
    - (c) wątki boczne domyślnie tylko do odczytu, zapis na żądanie.
 2. **Czy projekt może być współdzielony** (członkowie projektu), czy na razie tylko właściciel.
 3. **Agenci czatowi w projektach:** czy wątki czatowe zawsze należą do projektu (obecny schemat: tak), czy potrzebny jest kontekst „bez projektu”.
-4. **Przyszłość:** izolacja wątków bocznych przez `git worktree`. Wtedy to nowy katalog, czyli świadome odejście od reguły „ten sam katalog”.
+4. **Przyszłość: `git worktree`** (później, szkic w sekcji 9).
+
+## 9. Git worktrees (szkic, później)
+
+Cel: równoległa praca kilku wątków nad jednym repozytorium bez wspólnego katalogu, każdy na własnej gałęzi. Rozwiązuje też konflikt zapisu z decyzji 1 bez dzierżawy.
+
+- **Worktree to workspace pochodny:** `project_workspaces.kind = 'worktree'`, `base_workspace_id` (repozytorium na tym samym workerze), `branch`, `base_ref`. Wątek wskazuje go jak każdy workspace, więc reszta modelu (placement, wznowienie, fork u dostawcy) się nie zmienia.
+- **Tworzy go worker** (komenda `CreateWorktree`: `git worktree add` w katalogu danych workera albo w podanym miejscu w dozwolonych katalogach), bo tylko on ma repozytorium. Gateway zapisuje workspace po potwierdzeniu, idempotentnie po `command_id`.
+- **Wątki boczne:** opcja izolacji przy tworzeniu (`shared` = katalog rodzica, jak dziś; `worktree` = nowy worktree z gałęzi rodzica). Fork historii działa w obu, ale w trybie `worktree` to świadome odejście od reguły „ten sam katalog”, więc dostawca musi przyjąć fork w innym `cwd` (do sprawdzenia: Codex `thread/fork` z nowym `cwd`, Claude `forkSession` przypięty do katalogu projektu).
+- **Szyna agentów:** `spawn` z `isolation: worktree`; wynik pracy wraca jako gałąź (diff, commit), a scalenie jest osobną, jawną akcją (użytkownik albo orkiestrator).
+- **Sprzątanie:** archiwizacja workspace'u usuwa worktree (`git worktree remove`), gałąź zostaje. Worker zgłasza osierocone worktree (`git worktree prune`) w raporcie.
+- **Systemy:** na Windows długie ścieżki (`core.longpaths`), na wszystkich systemach wymagany `git` w raporcie możliwości workera.

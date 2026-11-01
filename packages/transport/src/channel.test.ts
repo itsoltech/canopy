@@ -25,7 +25,7 @@ describe("AsyncChannel", () => {
     channel.close(new Error("boom"));
     const iterator = channel[Symbol.asyncIterator]();
     expect(await iterator.next()).toEqual({ value: 1, done: false });
-    expect(iterator.next()).rejects.toThrow("boom");
+    await expect(iterator.next()).rejects.toThrow("boom");
   });
 
   test("refuses pushes after close", () => {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { osLabel } from "#lib/features/overview/workers.ts";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";
   import type { PageProps } from "./$types";
 
@@ -28,7 +29,7 @@
             <h3 class="font-medium">{worker.name}</h3>
             <StatusBadge status={worker.online ? "online" : "offline"} />
           </header>
-          <p class="text-sm text-slate-600">{worker.hostname} · {worker.os} · config v{worker.appliedVersion}/{worker.configVersion}</p>
+          <p class="text-sm text-slate-600">{worker.hostname} · {osLabel(worker.os)} · config v{worker.appliedVersion}/{worker.configVersion}</p>
           <p class="text-sm"><span class="text-slate-500">Roots:</span> {worker.allowedRoots.join(", ") || "none"}</p>
           <p class="text-sm">
             <span class="text-slate-500">Providers:</span>

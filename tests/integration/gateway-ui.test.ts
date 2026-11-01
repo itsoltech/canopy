@@ -24,12 +24,16 @@ let core: GatewayCore;
 let closeAll: () => Promise<void>;
 let api: Client<typeof ui.GatewayService>;
 let worker: ScriptedWorker;
+const otherWorkers: ScriptedWorker[] = [];
+let userId = "";
 let grpcUrl = "";
 const SERVICE_TOKEN = "t".repeat(48);
 
 /** Plays a worker: answers commands and emits the events a real provider would. */
 class ScriptedWorker {
   readonly interactionAnswers: { requestId: string; allow: boolean }[] = [];
+  /** Threads this worker was asked to create, with their cwd. */
+  readonly created: { threadId: string; cwd: string }[] = [];
   readonly #seq = new Map<string, bigint>();
   constructor(readonly link: GatewayLink) {
     void this.#loop();
@@ -59,6 +63,7 @@ class ScriptedWorker {
             reply(false, { errorCode: "CWD_NOT_ALLOWED", errorMessage: `${spec.cwd} is outside the allowed roots` });
             break;
           }
+          this.created.push({ threadId: spec.threadId, cwd: spec.cwd });
           reply(true);
           this.emit(spec.threadId, "", { case: "threadReady", value: { providerThreadId: `codex-${spec.threadId.slice(-4)}` } });
           break;
@@ -99,6 +104,13 @@ async function watchUntil(threadId: string, done: (updates: ui.ThreadUpdate[]) =
   return updates;
 }
 
+/** Message of the error a call fails with ("" if it succeeds). `await expect(p).rejects` hangs on these calls in Bun 1.4. */
+const failure = (call: Promise<unknown>): Promise<string> =>
+  call.then(
+    () => "",
+    (e: unknown) => (e instanceof Error ? e.message : String(e)),
+  );
+
 const answers = (updates: ui.ThreadUpdate[]) => [
   ...updates.flatMap((u) => (u.change.case === "snapshot" ? u.change.value.items.map((i) => i.item) : [])),
   ...updates.flatMap((u) => (u.change.case === "event" && u.change.value.event?.body.case === "itemCompleted" ? [u.change.value.event.body.value.item] : [])),
@@ -112,7 +124,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     pg = await startPostgres();
     runtime = ManagedRuntime.make(Layer.mergeAll(GatewayStore.layer(randomBytes(32)), Ingest.layer).pipe(Layer.provideMerge(pg.layer)));
     await runtime.runPromise(migrate);
-    const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
+    userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
     const { workerId, credential } = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "laptop", ownerUserId: userId })));
     await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(workerId, { allowedRoots: ["/repo"], codex: { enabled: true } }, userId)));
 
@@ -135,6 +147,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     worker = new ScriptedWorker(await openGatewayLink({ baseUrl: grpc.url, credential, hello: { workerId, journalId: "journal-1" } }));
     closeAll = async () => {
       worker.link.close();
+      for (const other of otherWorkers) other.link.close();
       await core.link.shutdown();
       await grpc.close();
     };
@@ -226,7 +239,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     for (let i = 0; i < 50 && worker.interactionAnswers.length === 0; i++) await Bun.sleep(20);
     expect(worker.interactionAnswers).toEqual([{ requestId, allow: true }]);
     // Answering twice is refused.
-    expect(api.answerInteraction({ requestId, allow: false })).rejects.toThrow("already allowed");
+    expect(await failure(api.answerInteraction({ requestId, allow: false }))).toContain("already allowed");
   });
 
   test("a worker refusing to create the thread makes it failed with the reason", async () => {
@@ -262,8 +275,45 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     }
   });
 
+  test("a project spans workers on different systems; a thread waits for its worker to connect", async () => {
+    const laptopId = (await api.getOverview({})).workers[0]!.id;
+    const { workerId: winId, credential } = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "win-box", ownerUserId: userId })));
+    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(winId, { allowedRoots: ["C:\\code"], codex: { enabled: true } }, userId)));
+
+    // Windows path rules on a Linux gateway: normalized, case-insensitive duplicates refused.
+    const winWorkspace = (await api.createWorkspace({ projectId, workerId: winId, rootPath: "C:/code/app/", label: "win" })).workspace!;
+    expect(winWorkspace.rootPath).toBe("C:\\code\\app");
+    expect(await failure(api.createWorkspace({ projectId, workerId: winId, rootPath: "c:\\CODE\\App", label: "x" }))).toContain("already a workspace");
+    expect(await failure(api.createWorkspace({ projectId, workerId: winId, rootPath: "C:\\other", label: "x" }))).toContain("outside the worker's allowed");
+    expect(await failure(api.createWorkspace({ projectId, workerId: winId, rootPath: "/repo/repo-a", label: "x" }))).toContain("must be absolute");
+    // The same project also lives on the laptop: one workspace per (worker, directory).
+    const project = (await api.getOverview({})).projects.find((p) => p.id === projectId)!;
+    expect(new Set(project.workspaces.map((w) => w.workerId))).toEqual(new Set([laptopId, winId]));
+
+    // The Windows worker is offline: the thread is accepted and its command waits in the outbox.
+    const thread = (
+      await api.createThread({ projectId, workspaceId: winWorkspace.id, cwd: "c:/code/app/src", title: "On Windows", provider: Provider.CODEX, initialMessage: "ping" })
+    ).thread!;
+    expect([thread.workerId, thread.cwd, thread.status]).toEqual([winId, "c:\\code\\app\\src", "creating"]);
+    expect(worker.created.some((c) => c.threadId === thread.id)).toBe(false);
+
+    const win = new ScriptedWorker(
+      await openGatewayLink({ baseUrl: grpcUrl, credential, hello: { workerId: winId, journalId: "journal-win", host: { os: "win32" } } }),
+    );
+    otherWorkers.push(win);
+    const updates = await watchUntil(thread.id, (u) => answers(u).includes("Echo: ping"));
+    expect(answers(updates)).toContain("Echo: ping");
+    expect(win.created).toEqual([{ threadId: thread.id, cwd: "c:\\code\\app\\src" }]);
+    expect(worker.created.some((c) => c.threadId === thread.id)).toBe(false);
+    expect((await api.getOverview({})).workers.find((w) => w.id === winId)?.os).toBe("win32");
+
+    // A thread never starts outside its workspace, and a side thread stays in its parent's workspace.
+    expect(await failure(api.createThread({ projectId, workspaceId: winWorkspace.id, cwd: "C:\\code", title: "x", provider: Provider.CODEX }))).toContain("outside the workspace");
+    expect(await failure(api.createThread({ projectId, workspaceId, parentThreadId: thread.id, title: "x", provider: Provider.CODEX }))).toContain("parent's workspace");
+  });
+
   test("errors keep their meaning across the API", async () => {
-    expect(api.createProject({ name: "  " })).rejects.toThrow("project name is required");
-    expect(api.sendMessage({ threadId: Bun.randomUUIDv7(), text: "x" })).rejects.toThrow();
+    expect(await failure(api.createProject({ name: "  " }))).toContain("project name is required");
+    expect(await failure(api.sendMessage({ threadId: Bun.randomUUIDv7(), text: "x" }))).not.toBe("");
   });
 });

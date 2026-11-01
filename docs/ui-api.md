@@ -80,7 +80,9 @@ Trasy:
 Bezpieczeństwo:
 - przeglądarka nie zna adresu gateway ani tokenu,
 - formularze chroni kontrola `Origin` SvelteKit (CSRF), a endpointy JSON wymagają `content-type: application/json` (formularz z innej strony go nie ustawi),
-- workspace musi leżeć w dozwolonych katalogach workera: gateway sprawdza to leksykalnie przy tworzeniu, worker ścieżki rzeczywiste przy starcie wątku.
+- workspace musi leżeć w dozwolonych katalogach workera: gateway sprawdza to leksykalnie przy tworzeniu (według systemu workera), worker ścieżki rzeczywiste przy starcie wątku ([threads.md](threads.md#projekt-na-wielu-workerach-i-systemach)).
+
+Projekt może mieć workspace'y na wielu workerach: strona projektu grupuje je według workera (system, online), lista wątków i nagłówek wątku pokazują workera, a wybór katalogu buduje ścieżki separatorem systemu workera. Dla workera offline UI informuje, że wątek i wiadomości poczekają na jego połączenie.
 
 ## 5. Uruchomienie (development)
 

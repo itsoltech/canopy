@@ -1,5 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { osLabel } from "#lib/features/overview/workers.ts";
   import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
   import InteractionCard from "#lib/features/threads/components/InteractionCard.svelte";
@@ -8,6 +10,8 @@
 
   const threadId = $derived(page.params.threadId ?? "");
   const view = new ThreadState();
+  const overview = useOverview();
+  const worker = $derived(overview.worker(view.thread?.workerId ?? ""));
   $effect(() => view.connect(threadId));
 
   let bottom = $state<HTMLElement>();
@@ -23,7 +27,7 @@
     <div class="min-w-0">
       <h1 class="truncate font-semibold">{view.thread?.title ?? "…"}</h1>
       <p class="truncate text-xs text-slate-500">
-        <code>{view.thread?.cwd}</code> · Codex{view.thread?.providerProfileId ? ` via ${view.thread.providerProfileId}` : ""}{view.thread?.model ? ` · ${view.thread.model}` : ""}
+        {worker?.name ?? "unknown worker"} ({osLabel(worker?.os ?? "")}) · <code>{view.thread?.cwd}</code> · Codex{view.thread?.providerProfileId ? ` via ${view.thread.providerProfileId}` : ""}{view.thread?.model ? ` · ${view.thread.model}` : ""}
       </p>
     </div>
     <div class="flex items-center gap-2">
@@ -34,6 +38,11 @@
 
   {#if view.thread?.statusDetail}
     <p class="bg-rose-50 px-6 py-2 text-sm text-rose-800" role="alert">{view.thread.statusDetail}</p>
+  {/if}
+  {#if worker && !worker.online}
+    <p class="bg-amber-50 px-6 py-2 text-sm text-amber-900" role="status">
+      {worker.name} is offline. Messages wait and are delivered when it reconnects.
+    </p>
   {/if}
   {#if view.failure}<p class="bg-amber-50 px-6 py-2 text-sm text-amber-900" role="status">{view.failure}</p>{/if}
 

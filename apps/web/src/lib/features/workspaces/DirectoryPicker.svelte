@@ -1,12 +1,13 @@
 <script lang="ts">
   import { ui } from "@open-agents/contracts";
+  import { pathSeparator } from "#lib/features/overview/workers.ts";
   import { decode } from "#lib/shared/wire.ts";
 
   /**
    * Browses directories on a worker (inside its allowed roots, enforced by the worker) and
    * returns the chosen path through `value`.
    */
-  let { workerId, value = $bindable("") }: { workerId: string; value?: string } = $props();
+  let { workerId, os, value = $bindable("") }: { workerId: string; os: string; value?: string } = $props();
 
   let path = $state("");
   let entries = $state.raw<ui.ListDirectoryResponse["entries"]>([]);
@@ -39,7 +40,8 @@
     if (workerId) void open("");
   });
 
-  const join = (base: string, name: string) => (base ? `${base.replace(/[/\\]$/, "")}/${name}` : name);
+  // Paths are built with the worker's separator (a Windows worker gets `C:\code\app`).
+  const join = (base: string, name: string) => (base ? `${base.replace(/[/\\]$/, "")}${pathSeparator(os)}${name}` : name);
   const parent = $derived(roots.includes(path) ? "" : path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))));
 </script>
 
