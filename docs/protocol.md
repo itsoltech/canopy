@@ -142,6 +142,17 @@ Gateway zapisuje ostatni katalog workera (`worker_model_catalogs`) i odświeża 
 
 **Model i wysiłek tury.** `StartTurn.model` / `effort` to wartości rozstrzygnięte przez gateway (nadpisanie z wiadomości, inaczej domyślne wątku). Codex dostaje je w `turn/start`, zawsze jawnie: bez wyboru domyślny model katalogu i jego `default_effort` (wyżej), bo nadpisanie w Codexie obowiązuje także kolejne tury. Claude dostaje `model` i `effort` w `query()` (`low | medium | high | xhigh | max`; inna wartość = błąd startu tury); bez wyboru skonfigurowany domyślny wysiłek dla tego modelu, jeśli jest.
 
+**Wysiłek a model.** Wysiłek przechodzi przez katalog profilu wątku (`worker_model_catalogs`, `turnEffort` w `apps/gateway/src/store/models.ts`), żeby tura nie niosła wysiłku do modelu, który go nie ma:
+
+| Model tury w katalogu | Wysiłek w `StartTurn` |
+|---|---|
+| znany, `efforts` pusta | brak (pusty), także gdy wątek ma domyślny wysiłek |
+| znany, wysiłek w `efforts` | ten wysiłek |
+| znany, wysiłku nie ma w `efforts` | `default_effort` modelu (jeśli jest w `efforts`), inaczej brak |
+| nieznany (brak katalogu, id spoza listy niepełnego katalogu) | bez zmian |
+
+Model pusty = model `is_default` katalogu. Tura zapisuje rozstrzygnięte wartości (`turns.model`, `turns.effort`). Ta sama reguła ustala domyślny wysiłek wątku w `CreateThread` i `UpdateThread`; wysiłek podany wprost w `CreateThread`, `SendMessage` albo `UpdateThread`, którego znany model nie oferuje (a ma niepustą listę), jest nadal odrzucany. Pusty wysiłek w `StartTurn` oddaje wybór workerowi (domyślny wysiłek, wyżej); Claude bierze wtedy skonfigurowany wysiłek urządzenia (`CLAUDE_CODE_EFFORT_LEVEL`, `effortLevel`) także dla modelu bez `efforts` — tego gateway nie rozstrzyga.
+
 **Steer.** `SteerTurn(thread_id, turn_id, input_id, input)`:
 
 - `ok` = dostawca przyjął wejście do tury. Miejsce, w którym weszło, to item `user_message` z `client_id = input_id` w tej turze (Codex `turn/steer` z `clientUserMessageId`, Claude `command_lifecycle started`).

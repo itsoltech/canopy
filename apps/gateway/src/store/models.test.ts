@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { ProfileModelsSchema, Provider } from "@open-agents/contracts";
-import { modelProblem } from "./models.ts";
+import { modelProblem, turnEffort } from "./models.ts";
 
 const catalog = create(ProfileModelsSchema, {
   provider: Provider.CLAUDE,
@@ -10,6 +10,7 @@ const catalog = create(ProfileModelsSchema, {
     { id: "default", isDefault: true, displayName: "Default", efforts: ["low", "medium", "high"] },
     { id: "haiku", resolvedModel: "claude-haiku-5-5", displayName: "Haiku", efforts: ["low", "max"] },
     { id: "claude-3-7-sonnet", displayName: "Claude 3.7 Sonnet", efforts: [] },
+    { id: "sonnet", displayName: "Sonnet", efforts: ["low", "medium", "high"], defaultEffort: "medium" },
   ],
 });
 
@@ -29,5 +30,25 @@ describe("model and effort against a catalog", () => {
     expect(modelProblem(create(ProfileModelsSchema, { ...catalog, detail: "the proxy did not answer" }), Provider.CLAUDE, "native", "opus-9", "")).toBeUndefined();
     expect(modelProblem(undefined, Provider.CODEX, "native", "", "Very High!")).toBe('invalid reasoning effort "Very High!"');
     expect(modelProblem(undefined, Provider.CODEX, "native", "x".repeat(201), "")).toBe("model or effort is too long");
+  });
+});
+
+describe("the effort a turn is started with", () => {
+  test("a model without efforts gets none, also when the thread has a default", () => {
+    expect(turnEffort(catalog, "claude-3-7-sonnet", "high")).toBe("");
+  });
+
+  test("an effort the model does not offer falls back to its default effort, else to none", () => {
+    expect(turnEffort(catalog, "sonnet", "max")).toBe("medium");
+    expect(turnEffort(catalog, "haiku", "high")).toBe(""); // no default effort
+    expect(turnEffort(catalog, "", "max")).toBe(""); // the profile's default model judges
+    expect(turnEffort(catalog, "claude-haiku-5-5", "max")).toBe("max"); // offered, found by the resolved model
+  });
+
+  test("unknown models and missing catalogs keep the effort as chosen", () => {
+    expect(turnEffort(catalog, "my-proxy-model", "high")).toBe("high");
+    expect(turnEffort(undefined, "claude-3-7-sonnet", "high")).toBe("high");
+    expect(turnEffort(create(ProfileModelsSchema, { ...catalog, detail: "the proxy did not answer" }), "claude-3-7-sonnet", "high")).toBe("");
+    expect(turnEffort(catalog, "claude-3-7-sonnet", "")).toBe("");
   });
 });

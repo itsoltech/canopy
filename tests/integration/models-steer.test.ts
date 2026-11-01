@@ -113,6 +113,61 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
     ]);
   });
 
+  test("a turn carries no effort to a model without efforts; an effort the model lacks falls back to its default", async () => {
+    const before = gw.worker.models;
+    const [codex] = before;
+    const withModels = async (models: typeof before) => {
+      gw.worker.models = models;
+      await gw.api.listModels({ workerId: gw.workerId, refresh: true });
+    };
+    await withModels([
+      {
+        provider: Provider.CODEX,
+        profileId: "native",
+        models: [
+          ...(codex?.models ?? []),
+          { id: "grok-5", displayName: "Grok 5", efforts: [] },
+          { id: "gpt-5-mini", displayName: "GPT-5 mini", efforts: ["low", "medium"], defaultEffort: "medium" },
+        ],
+      },
+    ]);
+    gw.worker.holdTurns = false;
+    const ran = async (threadId: string, n: number) => {
+      const t = (await eventually(() => turns(threadId), (all) => all.length === n && all[n - 1]?.status === "completed"))[n - 1]!;
+      return { sent: gw.worker.turnSettings.get(t.id), recorded: { model: t.model, effort: t.effort } };
+    };
+
+    // A new thread on a model without efforts keeps none as its default.
+    expect((await newThread("no-effort-model", { model: "grok-5", effort: "high" })).effort).toBe("");
+
+    const thread = await newThread("effort-fallback", { model: "gpt-6.1-sol", effort: "xhigh", initialMessage: "one" });
+    expect((await ran(thread.id, 1)).sent).toEqual({ model: "gpt-6.1-sol", effort: "xhigh" });
+    // Picking a model for one message: the thread's xhigh does not reach it.
+    await gw.api.sendMessage({ threadId: thread.id, text: "two", clientRequestId: "fb-2", model: "grok-5" });
+    expect(await ran(thread.id, 2)).toEqual({ sent: { model: "grok-5", effort: "" }, recorded: { model: "grok-5", effort: "" } });
+    await gw.api.sendMessage({ threadId: thread.id, text: "three", clientRequestId: "fb-3", model: "grok-5", effort: "high" });
+    expect((await ran(thread.id, 3)).sent).toEqual({ model: "grok-5", effort: "" });
+    await gw.api.sendMessage({ threadId: thread.id, text: "four", clientRequestId: "fb-4", model: "gpt-5-mini" });
+    expect((await ran(thread.id, 4)).sent).toEqual({ model: "gpt-5-mini", effort: "medium" });
+    await gw.api.sendMessage({ threadId: thread.id, text: "five", clientRequestId: "fb-5", model: "gpt-6-luna" });
+    expect((await ran(thread.id, 5)).sent).toEqual({ model: "gpt-6-luna", effort: "" }); // no default effort: none
+    // A message's own effort is still judged against the model.
+    expect(await failure(gw.api.sendMessage({ threadId: thread.id, text: "x", clientRequestId: "fb-x", model: "gpt-5-mini", effort: "xhigh" }))).toContain(
+      'not "xhigh"',
+    );
+
+    // The thread's default follows a new model.
+    expect((await gw.api.updateThread({ threadId: thread.id, model: "gpt-5-mini" })).thread!.effort).toBe("medium");
+    expect((await gw.api.updateThread({ threadId: thread.id, model: "grok-5" })).thread!.effort).toBe("");
+    expect(await failure(gw.api.updateThread({ threadId: thread.id, model: "gpt-5-mini", effort: "xhigh" }))).toContain('not "xhigh"');
+
+    // A model the catalog does not know (incomplete list, free-text id) keeps today's behaviour.
+    await withModels([{ provider: Provider.CODEX, profileId: "native", models: [...(codex?.models ?? [])], detail: "the proxy did not answer" }]);
+    await gw.api.sendMessage({ threadId: thread.id, text: "six", clientRequestId: "fb-6", model: "my-proxy-model", effort: "high" });
+    expect((await ran(thread.id, 6)).sent).toEqual({ model: "my-proxy-model", effort: "high" });
+    await withModels(before);
+  });
+
   test("steer: the message joins the running turn, shows where it entered, and is idempotent", async () => {
     gw.worker.steerMode = "accept";
     const { thread, turnId } = await runningThread("steer");
