@@ -9,6 +9,7 @@
   import { returnTo } from "#lib/features/settings/return-to.svelte.ts";
   import { applyAppearance } from "#lib/features/settings/appearance.ts";
   import { SettingsState, provideSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import { sectionMemory } from "#lib/features/navigation/sections.svelte.ts";
   import { provideShell } from "#lib/features/navigation/shell.ts";
   import { OverviewState, provideOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -48,6 +49,7 @@
   provideShell({ openMenu: () => (menuOpen = true) });
   afterNavigate(({ to }) => {
     menuOpen = false;
+    if (to) sectionMemory.visit(to.url);
     // Closing Settings returns to the last page outside it.
     if (to && !to.url.pathname.startsWith("/settings")) returnTo.url = `${to.url.pathname}${to.url.search}`;
   });
@@ -62,7 +64,7 @@
   <aside class="w-72 shrink-0 border-r border-zinc-950/5 bg-zinc-50 max-lg:hidden dark:border-white/8 dark:bg-zinc-950">
     <AppSidebar currentThreadId={page.params.threadId} />
   </aside>
-  <Drawer bind:open={menuOpen} label="Threads">
+  <Drawer bind:open={menuOpen} label="Navigation">
     <AppSidebar currentThreadId={page.params.threadId} />
   </Drawer>
 
