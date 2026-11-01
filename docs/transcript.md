@@ -64,7 +64,7 @@ Strumieniowanie: `item_started` → `item_delta` (`text`, `summary`, `output`) �
 | `web_search` | `tool_use` WebSearch/WebFetch | `webSearch` |
 | `plan` / `todo_list` | `tool_use` TodoWrite, tryb planu | `plan`, `turn/plan/updated` |
 | `subagent` | `tool_use` Task; wiadomości z `parent_tool_use_id` jako dzieci | `collabAgentToolCall`, `subAgentActivity` |
-| `background_task` | `SDKTaskStarted/Updated/Progress/Notification`, `BackgroundTasksChanged` | — |
+| `background_task` | `task_started` (w tle) / `task_updated` (przeniesione do tła) / `task_notification`; output z pliku zadania | `commandExecution` z `processId`, który trwa po `turn/completed`; dalsze `outputDelta`, `item/completed` ([execution.md](execution.md#4-zadania-w-tle)) |
 | `context_compaction` | `SDKCompactBoundaryMessage` | `contextCompaction`, `thread/compacted` |
 | `image` | blok `image` | `imageView`, `imageGeneration` |
 | `provider_item` | każdy inny typ wiadomości z treścią | `hookPrompt`, `enteredReviewMode`, `sleep`, ... |

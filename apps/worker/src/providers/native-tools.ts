@@ -5,7 +5,7 @@
  * - scheduling / automations -> platform schedules (schedule_wakeup, schedule_recurring, ...).
  * - account connectors of the device owner (Codex `apps`: ChatGPT-connected apps) -> off, they would give
  *   platform agents access to the device owner's personal accounts.
- * Goals stay enabled on purpose: platform goals use them as their engine (docs/goals.md).
+ * Goals stay enabled on purpose: they are the harness goals the platform tracks (docs/goals.md).
  * Platform tools are durable, visible in the thread tree and controllable; native ones live
  * only inside the provider process.
  *

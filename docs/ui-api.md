@@ -43,9 +43,17 @@ flowchart LR
 | `AnswerInteraction` | odpowiedź na zgodę albo pytanie |
 | `WatchThread` | najpierw snapshot (wątek, tury ze zużyciem tokenów, itemy, oczekujące interakcje, ostatnie komunikaty, `last_seq`), potem zmiany na żywo: zdarzenia (`seq` + `ThreadEvent`), wątek, tura, interakcja. Snapshot forka zawiera odziedziczoną historię: tury i itemy wątku źródłowego do punktu forka z `inherited = true` i `from_thread_id`. Tura ma `model` i `effort`: nadpisanie z wiadomości, a od startu wartości faktycznie wysłane do workera (puste = domyślne profilu). Tura ma swoje źródło (`source_kind`: task, message, report, question, schedule; `source_thread_id`, `schedule_id`, `interaction_request_id`; dla raportu `source_status`, dla pytania `question_kind` i `question_tool`), odczytane z relacji w bazie (widok `turn_sources`), nie z treści. `input_text` to dokładnie to, co dostał model; `platform_note` i `message_text` to ta sama treść rozdzielona na notatkę platformy i właściwą wiadomość |
 | `ListSchedules`, `CreateSchedule`, `PreviewSchedule`, `SetScheduleStatus` | harmonogram platformy (podgląd najbliższych terminów cronu przed utworzeniem; zakończonego ani anulowanego nie da się wznowić): lista (wątek, projekt albo wszystkie; z autorem: użytkownik albo agent i jego wątek), nowy harmonogram użytkownika (jednorazowy `run_at` albo `cron` ze strefą czasową; może być bez końca), wstrzymanie, wznowienie, anulowanie. Zmiany na żywo w `ThreadUpdate.schedule` i `OverviewUpdate.schedule`, a snapshot wątku zawiera jego aktywne i wstrzymane harmonogramy |
+| `SetGoal` | cel harnessu w wątku ([goals.md](goals.md)): `action` = `set` (nowy cel z `objective`, opcjonalnie `token_budget` tylko dla Codexa; zastępuje otwarty), `pause`, `resume`, `clear`. Zwraca `Goal`; decyzja jest zapisana od razu, harness potwierdza ją raportem (`Goal.native_status`). Codex: komenda `SetGoal` do workera; Claude: tura `/goal …` w kolejce (`trigger = goal`; pauza i usunięcie najpierw przerywają turę). Błędy: brak otwartego celu do pauzy/wznowienia/usunięcia, budżet dla Claude, `objective` > 4000 znaków |
+| `StopBackgroundTask` | zatrzymanie zadania w tle (`thread_id`, `item_id` itemu `background_task`, musi być `in_progress`) → komenda `StopTask`; item kończy się `interrupted` (`stop_reason = stopped_by_user`), gdy worker to zgłosi ([execution.md](execution.md#4-zadania-w-tle)) |
 | `GetSettings`, `UpdateUserSettings`, `UpdateProjectSettings` | ustawienia użytkownika (wygląd: schemat kolorów, akcent, szerokość czatu, panel wątku; domyślne wartości nowych wątków, w tym model osobno dla każdego dostawcy; ulubione modele `model_favorites`: dostawca, profil (pusty = dowolny), model) i projektu (domyślne wartości wątków, nadpisują użytkownika). Przechowuje je gateway (`user_settings`, `project_settings`); przeglądarka jest tylko klientem. Zapis zastępuje podane sekcje i podaje wersję, od której zaczął: konflikt z innym urządzeniem = `FailedPrecondition` (BFF: 409), klient pobiera ustawienia od nowa. Zmiany na żywo w `OverviewUpdate.user_settings` / `project_settings` |
 
 UI składa itemy na żywo tym samym reducerem co gateway (`reduceItem` z `@open-agents/domain`).
+
+Cele i praca w tle w modelu UI (pola od 60, osobno od innych zmian kontraktu):
+- `Thread.goal_status` (status otwartego celu albo pusty) i `Thread.background_tasks` (zadania w tle w toku) — także w `WatchOverview`, np. na plakietki w pasku bocznym,
+- `Goal`: `objective`, `status` (`active | paused | blocked | budget_limited | usage_limited | achieved | cancelled`), `created_by` (`user | provider`), `token_budget`, `tokens_used`, `time_used_seconds`, `iterations` (Codex: tury kontynuacji, Claude: oceny ewaluatora), `last_reason` (werdykt ewaluatora), `native_status`, czasy,
+- `ThreadSnapshot.goal` (otwarty cel albo ostatni zakończony), na żywo `ThreadUpdate.goal`; `Turn.goal_id` (tury celu),
+- zadania w tle to itemy `background_task` na osi czasu (`kind`, `command`, `output`, `started_in_turn_id`, `source_item_id`, `stop_reason`); po turze przychodzą jako zdarzenia bez `turn_id`.
 
 ## 3. Rdzeń gateway (`GatewayCore`)
 
@@ -53,7 +61,8 @@ UI składa itemy na żywo tym samym reducerem co gateway (`reduceItem` z `@open-
   - przy połączeniu zapisuje stan i ponownie dostarcza outbox,
   - zdarzenia przechodzą przez `Ingest` (jedna transakcja na wątek), a potwierdzenie (`EventAck`) idzie po commicie,
   - zapisuje raport konfiguracji,
-  - interakcje zapisuje i rozsyła, a ponownie wysłane i już rozstrzygnięte dostają zapisaną odpowiedź.
+  - interakcje zapisuje i rozsyła, a ponownie wysłane i już rozstrzygnięte dostają zapisaną odpowiedź,
+  - raporty celów (`goal_state`) aktualizuje w transakcji ingestu (`store/goals.ts`), a zmiany celu i itemów tła odświeżają `Thread` (status celu, liczba zadań w tle).
 - **Outbox komend:** każda komenda najpierw trafia do `worker_commands`, potem do workera, jeśli jest online. Po ponownym połączeniu jest dostarczana jeszcze raz, a worker deduplikuje ją po `command_id`.
 - **Planista tur:** startuje najstarszą tura `queued`, jeśli wątek jest gotowy (`provider_thread_id`), nic w nim nie biegnie i dla tej tury nie ma jeszcze komendy w outboxie. Uruchamia się po wiadomości, po `thread_ready` i po zakończeniu tury.
 - **Wyniki komend:**

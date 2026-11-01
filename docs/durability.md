@@ -24,8 +24,8 @@ Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [dat
 | Historia wątku agenta SDK | pliki dostawcy (`~/.claude/projects`, `~/.codex/sessions`) | Claude `resume`, Codex `thread/resume` |
 | Przetworzone `command_id` | SQLite workera `processed_commands` (TTL) | deduplikacja |
 | Interakcje (zgody, pytania, formularze) | PostgreSQL `interaction_requests` + SQLite workera | proces dostawcy zginął → `expired` |
-| Zadania w tle i subagenci w toku | itemy w `thread_items`; procesy tylko na workerze | `interrupted` (`worker_restart`), output zapisany jako blob ([execution.md](execution.md#8-trwałość)) |
-| Cele | PostgreSQL `goals` (natywny stan dostawcy to tylko odbicie) | gateway ponownie ustawia natywny cel (`SetGoal RUN`) dla aktywnych celów |
+| Zadania w tle i subagenci w toku | itemy w `thread_items`; otwarte zadania w dzienniku workera (`background_tasks`); procesy tylko na workerze | `interrupted` (`worker_restart`), output zostaje taki, jaki przyszedł deltami ([execution.md](execution.md#8-trwałość)) |
+| Cele | PostgreSQL `goals` (odbicie celu harnessu: ostatni raport w `native_state`) | gateway nie ustawia celu ponownie; Codex trzyma go w stanie wątku, cel Claude ginie z procesem ([goals.md](goals.md#6-trwałość)) |
 | Konfiguracja workera | PostgreSQL `worker_configs` (+ historia); w workerze tylko w pamięci (sekrety) | po starcie `Hello.config_version = 0`, gateway wysyła ją ponownie |
 | Harmonogramy | PostgreSQL `schedules`, odpalane przez gateway z dzierżawą | po przestoju jedna tura nadrabiająca albo pominięcie (`missed_policy`) |
 | Wywołania szyny agentów | PostgreSQL `agent_bus_calls` (wynik, powiadomienie jako outbox) + SQLite workera | ponowienie po `call_id` |

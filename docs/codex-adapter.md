@@ -17,7 +17,10 @@ Gotowe:
 
 - modele, wysiłek i steer: `model/list` (katalog dla każdego profilu; profil CLIProxyAPI także `GET /v1/models` pośrednika, `providers/models.ts`), `turn/start` z `model` i `effort`, `turn/steer` ([protocol.md](protocol.md#modele-effort-i-steer)).
 
-Następne: nakładka celów, praca w tle (procesy unified exec).
+- cele: komenda `SetGoal` → `thread/goal/set` (`origin: user`, z `objective` i `tokenBudget` przy nowym celu, sam `status` przy pauzie i wznowieniu) albo `thread/goal/clear`; wątek nieznany procesowi jest najpierw wznawiany ([goals.md](goals.md)),
+- procesy w tle: komenda unified exec, która trwa po `turn/completed`, dostaje item `background_task`; `StopTask` → `thread/backgroundTerminals/terminate` ([execution.md](execution.md#4-zadania-w-tle)).
+
+Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test.ts`, cały łańcuch od UI API): cel ustawiony z UI, Codex sam zaczyna tury celu (z `goal_id`) i raportuje zużycie; pauza (bieżąca tura kończy się normalnie, nowa nie startuje), wznowienie, usunięcie. Proces `for … sleep 1` uruchomiony bez czekania trwa po turze, output płynie do itemu tła, zatrzymanie z UI kończy go jako `interrupted` (`stopped_by_user`), bez dodatkowych tur.
 
 Potwierdzone na żywo (2026-11-01, `tests/integration/worker-models-steer.live.test.ts`, `gateway-models-steer.live.test.ts`, przez CLIProxyAPI): lista modeli (63 dla profilu pośrednika, 11 dla natywnego), tura `gpt-6.1-sol` z wysiłkiem `low` (Codex potwierdza w `thread/settings/updated`), steer w trakcie komendy i w trakcie odpowiedzi bez narzędzi, przez UI API i bez niego.
 
@@ -58,7 +61,8 @@ Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną hist
 | `turn/plan/updated` | item `plan:<turn>` z krokami (każda aktualizacja zastępuje stan) |
 | `thread/tokenUsage/updated` | `usage_updated` |
 | `error` | `notice` (`warning`, gdy Codex ponowi; inaczej `error`) |
-| `thread/goal/updated` / `cleared` | `goal_state` |
+| `thread/goal/updated` / `cleared` | `goal_state` (status, `objective`, `tokensUsed`, `timeUsedSeconds`, `tokenBudget`; `cleared`) |
+| `commandExecution` z `processId` w toku przy `turn/completed` | item `background_task` `bg:<id>` (`kind = PROCESS`, `task_id = processId`) tuż przed `turn_finished`; dalsze `outputDelta` i `item/completed` (kod wyjścia, zatrzymanie) trafiają do niego, bez `turn_id` |
 | rollout: `custom_tool_call` `exec` + `custom_tool_call_output`, `function_call` `wait` | item `tool_call` (komórka trybu kodu: skrypt i pełny wynik), patrz [Tryb kodu](#tryb-kodu-code-mode) |
 | rollout: `function_call` `exec_command` bez itemu Codexa | `command_execution` złożony z wywołania i wyniku (kod wyjścia, output), na końcu tury |
 | hooki, `readState`, metadane moderacji, diff tury, ... | zdarzenie bez ciała, tylko `raw_json` |
