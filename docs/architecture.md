@@ -8,6 +8,7 @@ Powiązane dokumenty:
 - [data-model.md](data-model.md) — model danych PostgreSQL i reguły dostępu
 - [worker-config.md](worker-config.md) — zdalna konfiguracja workerów (lokalnie tylko połączenie z gateway)
 - [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`
+- [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
 - [transcript.md](transcript.md) — zapis wszystkich zdarzeń, itemy, oś czasu dla frontendu
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity
@@ -79,8 +80,8 @@ flowchart LR
 
 | Od → do | Protokół | Kto inicjuje | Uwagi |
 |---|---|---|---|
-| UI → Gateway | HTTPS, ConnectRPC lub REST | UI | Komendy: nowy wątek / wątek boczny / fork, wiadomość (tura), przerwij, decyzja o uprawnieniu. |
-| UI ← Gateway | Server stream (Connect) lub WebSocket | UI | Subskrypcja zdarzeń wątku. Wznowienie po `seq`. |
+| Przeglądarka ⇄ SvelteKit (BFF) | HTTPS (HTTP/1.1): strony, akcje, JSON; SSE dla zmian na żywo | przeglądarka | Bez adresu gateway i tokenów w przeglądarce ([ui-api.md](ui-api.md)). |
+| SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. |
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Działa za NAT-em i firewallem. Szczegóły: [protocol.md](protocol.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |
 | Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Poświadczenia zostają na urządzeniu (login Claude Code / Codex lub klucz API). |

@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     "./worker-link": "./src/worker-link/index.ts",
-    "./store": "./src/store/index.ts"
+    "./store": "./src/store/index.ts",
+    "./core": "./src/core/core.ts",
+    "./api": "./src/api/index.ts"
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",
@@ -15,6 +17,7 @@
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",
     "@connectrpc/connect": "2.3.0",
+    "@connectrpc/connect-node": "2.3.0",
     "@effect/sql-pg": "4.1.1",
     "@open-agents/contracts": "workspace:*",
     "@open-agents/db": "workspace:*",

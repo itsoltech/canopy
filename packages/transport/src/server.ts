@@ -1,6 +1,6 @@
 import * as http2 from "node:http2";
 import type { AddressInfo } from "node:net";
-import type { ConnectRouter } from "@connectrpc/connect";
+import type { ConnectRouter, Interceptor } from "@connectrpc/connect";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 
 export interface TlsMaterial {
@@ -10,6 +10,7 @@ export interface TlsMaterial {
 
 export interface GrpcServerOptions {
   readonly routes: (router: ConnectRouter) => void;
+  readonly interceptors?: Interceptor[];
   readonly host?: string;
   /** 0 picks a free port. */
   readonly port?: number;
@@ -30,7 +31,7 @@ export interface RunningGrpcServer {
 
 /** HTTP/2 server serving Connect, gRPC and gRPC-Web on one port. */
 export async function startGrpcServer(options: GrpcServerOptions): Promise<RunningGrpcServer> {
-  const handler = connectNodeAdapter({ routes: options.routes });
+  const handler = connectNodeAdapter({ routes: options.routes, ...(options.interceptors && { interceptors: options.interceptors }) });
   const server = options.tls
     ? http2.createSecureServer({ cert: options.tls.cert, key: options.tls.key, allowHTTP1: true }, handler)
     : http2.createServer(handler);

@@ -9,8 +9,10 @@
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",
     "@connectrpc/connect": "2.3.0",
+    "@connectrpc/connect-node": "2.3.0",
     "@grpc/grpc-js": "1.14.7",
     "@open-agents/contracts": "workspace:*",
+    "@open-agents/db": "workspace:*",
     "@open-agents/gateway": "workspace:*",
     "@open-agents/transport": "workspace:*",
     "@open-agents/worker": "workspace:*",

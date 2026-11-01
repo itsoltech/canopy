@@ -1,0 +1,278 @@
+// API gateway dla UI (Svelte). Gateway jest jedynym stanem globalnym; UI tylko czyta i wysyła akcje.
+// Transkrypt (Item, ThreadEvent) to te same typy co w kanale gateway <-> worker.
+// Opis: docs/ui-api.md
+syntax = "proto3";
+
+package openagents.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+import "openagents/worker/v1/worker_link.proto";
+
+service GatewayService {
+  // Workery, projekty z workspace'ami i agenci: to, czego UI potrzebuje na start.
+  rpc GetOverview(GetOverviewRequest) returns (GetOverviewResponse);
+  // Na żywo: zmiany workerów (online, konfiguracja) i wątków (status, oczekujące interakcje).
+  rpc WatchOverview(WatchOverviewRequest) returns (stream OverviewUpdate);
+
+  // Przeglądanie katalogów na workerze (w dozwolonych katalogach) przy wyborze workspace'u.
+  rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
+
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
+
+  rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
+  rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc InterruptThread(InterruptThreadRequest) returns (InterruptThreadResponse);
+  rpc AnswerInteraction(AnswerInteractionRequest) returns (AnswerInteractionResponse);
+
+  // Najpierw snapshot (wątek, tury, itemy, interakcje), potem zmiany na żywo od snapshot.last_seq.
+  rpc WatchThread(WatchThreadRequest) returns (stream ThreadUpdate);
+}
+
+// ---------- Model ----------
+
+message Worker {
+  string id = 1;
+  string name = 2;
+  bool online = 3;
+  string hostname = 4;
+  string os = 5;
+  string version = 6;
+  repeated openagents.worker.v1.ProviderInfo providers = 7;
+  repeated openagents.worker.v1.ProviderProfile profiles = 8;
+  repeated string allowed_roots = 9;
+  uint64 config_version = 10;
+  uint64 applied_version = 11;
+  repeated openagents.worker.v1.ConfigIssue config_issues = 12;
+  google.protobuf.Timestamp last_seen_at = 13;
+}
+
+message Project {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+  repeated Workspace workspaces = 4;
+}
+
+message Workspace {
+  string id = 1;
+  string project_id = 2;
+  string worker_id = 3;
+  string root_path = 4;
+  string label = 5;
+}
+
+message Agent {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  openagents.worker.v1.Provider provider = 5;
+  string model = 6;
+  bool global = 7;
+}
+
+enum ThreadKind {
+  THREAD_KIND_UNSPECIFIED = 0;
+  THREAD_KIND_MAIN = 1;
+  THREAD_KIND_SIDE = 2;
+}
+
+message Thread {
+  string id = 1;
+  string project_id = 2;
+  ThreadKind kind = 3;
+  string parent_thread_id = 4;
+  string title = 5;
+  openagents.worker.v1.Provider provider = 6;
+  string provider_profile_id = 7;
+  string model = 8;
+  openagents.worker.v1.PermissionMode permission_mode = 9;
+  string worker_id = 10;
+  string workspace_id = 11;
+  string cwd = 12;
+  // creating | idle | running | waiting_input | interrupted | failed | archived
+  string status = 13;
+  string agent_id = 14;
+  bool spawned_by_agent = 15;
+  string status_detail = 16;   // np. błąd utworzenia u dostawcy
+  uint64 last_seq = 17;
+  google.protobuf.Timestamp created_at = 18;
+  uint32 pending_interactions = 19;
+}
+
+message Turn {
+  string id = 1;
+  uint32 ordinal = 2;
+  // queued | running | completed | interrupted | failed | cancelled
+  string status = 3;
+  // user | agent_bus | schedule | interaction | goal | provider | recovery
+  string trigger = 4;
+  string input_text = 5;
+  string error = 6;
+  google.protobuf.Timestamp queued_at = 7;
+}
+
+// Item na osi czasu z zakresem seq (first_seq..last_seq).
+message TimelineItem {
+  openagents.worker.v1.Item item = 1;
+  string turn_id = 2;
+  uint64 first_seq = 3;
+  uint64 last_seq = 4;
+}
+
+message Interaction {
+  string request_id = 1;
+  string thread_id = 2;
+  string turn_id = 3;
+  string item_id = 4;
+  openagents.worker.v1.InteractionKind kind = 5;
+  string tool_name = 6;
+  string request_json = 7;
+  // pending | allowed | declined | answered | expired | cancelled
+  string status = 8;
+  string routed_to = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+// ---------- Overview ----------
+
+message GetOverviewRequest {}
+
+message GetOverviewResponse {
+  repeated Worker workers = 1;
+  repeated Project projects = 2;
+  repeated Agent agents = 3;
+}
+
+message WatchOverviewRequest {}
+
+message OverviewUpdate {
+  oneof change {
+    Worker worker = 1;
+    Thread thread = 2;
+    Project project = 3;
+  }
+}
+
+// ---------- Katalogi, projekty, workspace'y ----------
+
+message ListDirectoryRequest {
+  string worker_id = 1;
+  string path = 2; // pusty = dozwolone katalogi workera
+}
+
+message ListDirectoryResponse {
+  repeated openagents.worker.v1.DirectoryEntry entries = 1;
+}
+
+message CreateProjectRequest {
+  string name = 1;
+}
+
+message CreateProjectResponse {
+  Project project = 1;
+}
+
+message CreateWorkspaceRequest {
+  string project_id = 1;
+  string worker_id = 2;
+  string root_path = 3;
+  string label = 4;
+}
+
+message CreateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+// ---------- Wątki ----------
+
+message ListThreadsRequest {
+  string project_id = 1;
+}
+
+message ListThreadsResponse {
+  repeated Thread threads = 1;
+}
+
+message CreateThreadRequest {
+  string project_id = 1;
+  string workspace_id = 2;
+  // Pusty = katalog główny workspace'u.
+  string cwd = 3;
+  string title = 4;
+  openagents.worker.v1.Provider provider = 5;
+  string provider_profile_id = 6;
+  string model = 7;
+  openagents.worker.v1.PermissionMode permission_mode = 8;
+  string instructions = 9;
+  // Wątek boczny: rodzic (ten sam workspace i katalog), opcjonalnie fork historii rodzica.
+  string parent_thread_id = 10;
+  bool fork = 11;
+  // Pierwsza wiadomość (opcjonalnie).
+  string initial_message = 12;
+  // Idempotencja ponowień z UI.
+  string client_request_id = 13;
+}
+
+message CreateThreadResponse {
+  Thread thread = 1;
+}
+
+message SendMessageRequest {
+  string thread_id = 1;
+  string text = 2;
+  string client_request_id = 3;
+}
+
+message SendMessageResponse {
+  Turn turn = 1;
+}
+
+message InterruptThreadRequest {
+  string thread_id = 1;
+}
+
+message InterruptThreadResponse {}
+
+message AnswerInteractionRequest {
+  string request_id = 1;
+  bool allow = 2;
+  bool allow_for_session = 3;
+  string message = 4;
+  string answer_json = 5;
+  bool cancelled = 6;
+}
+
+message AnswerInteractionResponse {
+  Interaction interaction = 1;
+}
+
+message WatchThreadRequest {
+  string thread_id = 1;
+}
+
+message ThreadSnapshot {
+  Thread thread = 1;
+  repeated Turn turns = 2;
+  repeated TimelineItem items = 3;
+  repeated Interaction interactions = 4;
+  // Zdarzenia na żywo zaczynają się od last_seq + 1.
+  uint64 last_seq = 5;
+}
+
+message ThreadEventUpdate {
+  uint64 seq = 1;
+  openagents.worker.v1.ThreadEvent event = 2;
+}
+
+message ThreadUpdate {
+  oneof change {
+    ThreadSnapshot snapshot = 1;
+    ThreadEventUpdate event = 2;
+    Thread thread = 3;
+    Turn turn = 4;
+    Interaction interaction = 5;
+  }
+}

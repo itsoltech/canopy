@@ -160,7 +160,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     pg = await startPostgres();
     runtime = ManagedRuntime.make(pg.layer);
     const applied = await runtime.runPromise(migrate);
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config"]);
+    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime"]);
   }, 60_000);
 
   afterAll(async () => {
