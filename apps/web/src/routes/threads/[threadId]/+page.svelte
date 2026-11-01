@@ -6,6 +6,7 @@
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
   import Composer from "#lib/features/threads/components/Composer.svelte";
   import InheritedHistory from "#lib/features/threads/components/InheritedHistory.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
@@ -112,6 +113,12 @@
     panelSheet = false;
     sideOpen = true;
   };
+  let scheduling = $state(false);
+  const canSchedule = $derived(Boolean(thread && thread.status !== "archived" && thread.status !== "failed"));
+  const openSchedule = () => {
+    panelSheet = false;
+    scheduling = true;
+  };
   const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${view.pending.length > 0 ? `, ${view.pending.length} waiting for you` : ""}` : "");
 </script>
 
@@ -193,7 +200,17 @@
   {#if panelOpen}
     <aside class="w-80 shrink-0 overflow-y-auto py-3 pr-3 max-xl:hidden" aria-label="Thread details">
       {#if thread && tree}
-        <ThreadPanel {thread} {tree} {worker} usage={view.usage} totals={view.totals} onnewside={canBranch ? openSide : undefined} />
+        <ThreadPanel
+          {thread}
+          {tree}
+          {worker}
+          usage={view.usage}
+          totals={view.totals}
+          schedules={view.upcomingSchedules}
+          onschedule={canSchedule ? openSchedule : undefined}
+          onschedulechange={(schedule) => view.upsertSchedule(schedule)}
+          onnewside={canBranch ? openSide : undefined}
+        />
       {:else}
         <Skeleton class="h-72 rounded-2xl" />
       {/if}
@@ -203,9 +220,21 @@
 
 {#if thread && tree}
   <Dialog bind:open={panelSheet} title={thread.title}>
-    <ThreadPanel {thread} {tree} {worker} usage={view.usage} totals={view.totals} onnewside={canBranch ? openSide : undefined} class="-mx-1.5 shadow-none ring-0 dark:ring-0" />
+    <ThreadPanel
+      {thread}
+      {tree}
+      {worker}
+      usage={view.usage}
+      totals={view.totals}
+      schedules={view.upcomingSchedules}
+      onschedule={canSchedule ? openSchedule : undefined}
+      onschedulechange={(schedule) => view.upsertSchedule(schedule)}
+      onnewside={canBranch ? openSide : undefined}
+      class="-mx-1.5 shadow-none ring-0 dark:ring-0"
+    />
   </Dialog>
   <SideThreadDialog bind:open={sideOpen} main={tree.main} {worker} />
+  <ScheduleDialog bind:open={scheduling} threadId={thread.id} oncreated={(schedule) => view.upsertSchedule(schedule)} />
 {/if}
 
 <p class="sr-only" role="status">{announcement}</p>

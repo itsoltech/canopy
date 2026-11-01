@@ -2,7 +2,10 @@
   import type { ui, Usage } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
   import { osLabel } from "#lib/features/overview/workers.ts";
-  import { formatCount } from "#lib/shared/format.ts";
+  import ScheduleActions from "#lib/features/schedules/ScheduleActions.svelte";
+  import { describeWhen } from "#lib/features/schedules/schedules.ts";
+  import { clock } from "#lib/shared/clock.svelte.ts";
+  import { formatCount, formatDateTime, formatRelative, isoDateTime } from "#lib/shared/format.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
@@ -14,8 +17,8 @@
 
   /**
    * Context of a thread (T3's right panel): where it runs, which agent, who answers its approvals,
-   * usage, and its lineage — the main thread with its side threads, agent-started and forked ones
-   * marked — plus "New side thread".
+   * usage, its scheduled tasks (pause, resume, cancel, schedule another), and its lineage — the main
+   * thread with its side threads, agent-started and forked ones marked — plus "New side thread".
    */
   let {
     thread,
@@ -23,6 +26,9 @@
     worker,
     usage,
     totals,
+    schedules,
+    onschedule,
+    onschedulechange,
     onnewside,
     class: className,
   }: {
@@ -33,6 +39,10 @@
     usage: Usage | undefined;
     /** Usage of the thread's own turns. */
     totals: UsageTotals;
+    /** Active and paused schedules of the thread. */
+    schedules: readonly ui.Schedule[];
+    onschedule?: (() => void) | undefined;
+    onschedulechange?: ((schedule: ui.Schedule) => void) | undefined;
     onnewside?: (() => void) | undefined;
     class?: ClassValue;
   } = $props();
@@ -87,6 +97,42 @@
       </PanelRow>
     {/if}
   </section>
+
+  {#if schedules.length > 0 || onschedule}
+    <section aria-labelledby="schedules-title" class="grid grid-cols-1 py-1.5">
+      <h2 id="schedules-title" class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Scheduled tasks</h2>
+      {#if schedules.length > 0}
+        <ul role="list" class="grid grid-cols-1 gap-0.5">
+          {#each schedules as schedule (schedule.id)}
+            <li class="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-lg py-1.5 pr-1.5 pl-3">
+              <div class="flex h-lh items-center text-base/6 sm:text-sm/6">
+                <Icon
+                  name={schedule.createdBy === "agent" ? "sparkles" : schedule.kind === "once" ? "clock" : "arrow-path"}
+                  class={schedule.createdBy === "agent" ? "fill-violet-500 dark:fill-violet-400" : "fill-zinc-400 dark:fill-zinc-500"}
+                />
+              </div>
+              <div class="min-w-36 flex-1">
+                <p class="truncate text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300" title={schedule.prompt}>{schedule.prompt}</p>
+                <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+                  {describeWhen(schedule)}
+                  {#if schedule.status === "paused"}
+                    · <span class="text-amber-700 dark:text-amber-400">Paused</span>
+                  {:else if schedule.nextRunAt}
+                    · <time datetime={isoDateTime(schedule.nextRunAt)} title={formatDateTime(schedule.nextRunAt)}>next {formatRelative(schedule.nextRunAt, clock.now)}</time>
+                  {/if}
+                  {#if schedule.createdBy === "agent"}<span class="sr-only"> (set by an agent)</span>{/if}
+                </p>
+              </div>
+              <ScheduleActions {schedule} compact onchange={onschedulechange} class="ml-auto" />
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      {#if onschedule}
+        <PanelRow icon="plus" onclick={onschedule} class="text-zinc-500 dark:text-zinc-400">Schedule a task</PanelRow>
+      {/if}
+    </section>
+  {/if}
 
   {#if thread.forkSourceThreadId}
     <section aria-label="Fork" class="grid grid-cols-1 py-1.5">
