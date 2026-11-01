@@ -5,7 +5,8 @@ import { buildTimeline, type ItemNode, type TimelineRow } from "./timeline.ts";
 /**
  * The rows of the thread page's virtual feed, in order: a fork's inherited history (a header that folds
  * it, then per source thread an optional label and its rows, then the "Forked from" line), the thread's
- * own timeline, the working indicator and queued inputs.
+ * own timeline, the working indicator, messages on their way into the running turn (steers) and queued
+ * inputs (`fallback`: a steer that could not join its turn and runs next instead).
  */
 export type FeedRow =
   | { readonly kind: "history-head"; readonly key: string; readonly sourceId: string; readonly threadIds: readonly string[]; readonly turns: number; readonly open: boolean }
@@ -14,7 +15,8 @@ export type FeedRow =
   | { readonly kind: "timeline"; readonly key: string; readonly row: TimelineRow; readonly history: boolean; readonly last: boolean }
   | { readonly kind: "forked"; readonly key: string; readonly sourceId: string }
   | { readonly kind: "working"; readonly key: string }
-  | { readonly kind: "queued"; readonly key: string; readonly turn: ui.Turn };
+  | { readonly kind: "steer"; readonly key: string; readonly steer: ui.Steer }
+  | { readonly kind: "queued"; readonly key: string; readonly turn: ui.Turn; readonly fallback: ui.Steer | undefined };
 
 export interface FeedInput {
   readonly entries: readonly TimelineEntry[];
@@ -22,6 +24,10 @@ export interface FeedInput {
   readonly notices: readonly TimelineNotice[];
   readonly results: ReadonlyMap<string, TurnResult>;
   readonly queued: readonly ui.Turn[];
+  /** Steers not yet in the transcript (pending or accepted). */
+  readonly steering: readonly ui.Steer[];
+  /** All of the thread's steers (a queued one names its turn). */
+  readonly steers: readonly ui.Steer[];
   readonly working: boolean;
   /** A fork: the thread it was forked from, and the history it inherited. */
   readonly forkSourceId?: string | undefined;
@@ -39,6 +45,7 @@ const ESTIMATES: Record<string, number> = {
   "history-part": 36,
   forked: 32,
   working: 36,
+  steer: 96,
   queued: 96,
   "turn-start": 36,
   input: 96,
@@ -77,7 +84,9 @@ export class FeedBuilder {
     }
     for (const row of buildTimeline(input.entries, input.turns, input.notices, input.results, this.#nodes)) next.push({ kind: "timeline", key: row.key, row, history: false, last: false });
     if (input.working) next.push({ kind: "working", key: "working" });
-    for (const turn of input.queued) next.push({ kind: "queued", key: `queued:${turn.id}`, turn });
+    for (const steer of input.steering) next.push({ kind: "steer", key: `steer:${steer.id}`, steer });
+    const fallbacks = new Map(input.steers.filter((s) => s.queuedTurnId).map((s) => [s.queuedTurnId, s]));
+    for (const turn of input.queued) next.push({ kind: "queued", key: `queued:${turn.id}`, turn, fallback: fallbacks.get(turn.id) });
 
     const previous = this.#rows;
     this.#rows = new Map();

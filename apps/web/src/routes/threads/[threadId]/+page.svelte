@@ -2,11 +2,15 @@
   import { ui } from "@open-agents/contracts";
   import { untrack } from "svelte";
   import { page } from "$app/state";
+  import GoalBar from "#lib/features/goals/GoalBar.svelte";
+  import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
+  import { isFinishedGoal, showsGoal } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
+  import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
   import Composer from "#lib/features/threads/components/Composer.svelte";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
@@ -14,21 +18,24 @@
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
-  import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
+  import { ThreadState, type TimelineEntry } from "#lib/features/threads/thread-state.svelte.ts";
   import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
   import { FeedBuilder, feedEstimate, feedGroup, type FeedRow } from "#lib/features/threads/feed.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
+  import PillButton from "#lib/shared/ui/PillButton.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
 
@@ -66,6 +73,7 @@
     },
     thread: (id) => threads.find((t) => t.id === id) ?? overview.threads.get(id),
     awaiting: (itemId) => view.pending.some((i) => i.itemId === itemId),
+    goal: (id) => (view.goal?.id === id ? view.goal : undefined),
   });
 
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
@@ -84,6 +92,8 @@
       notices: view.notices,
       results: view.turnResults,
       queued: view.queued,
+      steering: view.steering,
+      steers: view.steers,
       working,
       forkSourceId: thread?.forkSourceThreadId,
       inheritedEntries: view.inheritedEntries,
@@ -127,6 +137,31 @@
     scheduling = true;
   };
   let modelOpen = $state(false);
+
+  // Goal: the bar above the composer (an open goal, or an achieved one until dismissed in this tab), set
+  // or replaced from the thread's actions or the composer.
+  let goalDialog = $state(false);
+  let dismissedGoals = $state(new Set<string>());
+  const canGoal = $derived(Boolean(thread && !closed && thread.status !== "creating"));
+  const openGoal = $derived(view.goal && !isFinishedGoal(view.goal.status) ? view.goal : undefined);
+  const shownGoal = $derived(showsGoal(view.goal, dismissedGoals) ? view.goal : undefined);
+  const setGoalLater = () => {
+    panelSheet = false;
+    goalDialog = true;
+  };
+
+  // "N running in background" jumps to the task's row (a nested task: the row of the item it is under).
+  let feed = $state<{ reveal: (key: string) => Promise<boolean> }>();
+  function jumpTo(task: TimelineEntry) {
+    const byId = new Map(view.ownEntries.map((e) => [e.id, e]));
+    let entry = task;
+    for (let depth = 0; depth < 20; depth++) {
+      const parent = entry.item.parentItemId ? byId.get(entry.item.parentItemId) : undefined;
+      if (!parent || parent === entry) break;
+      entry = parent;
+    }
+    void feed?.reveal(`item:${entry.id}`);
+  }
   let copied = $state("");
   async function copy(value: string) {
     try {
@@ -161,6 +196,7 @@
             <MenuItem icon="arrows-right-left" disabled={!canBranch} onselect={openSide}>New side thread</MenuItem>
             <MenuItem icon="clock" disabled={!canSchedule} onselect={openSchedule}>Schedule a task</MenuItem>
             <MenuItem icon="cpu-chip" disabled={closed} onselect={() => (modelOpen = true)}>Model and effort…</MenuItem>
+            <MenuItem icon="flag" disabled={!canGoal} onselect={setGoalLater}>{openGoal ? "Replace the goal…" : "Set a goal…"}</MenuItem>
             <MenuSeparator />
             <MenuSub label="Copy" icon="document-duplicate">
               <MenuItem onselect={() => copy(page.url.href)}>Link</MenuItem>
@@ -182,7 +218,7 @@
 
     <div class="min-h-0 flex-1">
       {#key threadId}
-        <VirtualFeed {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} label="Timeline" busy={working}>
+        <VirtualFeed bind:this={feed} {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} label="Timeline" busy={working}>
           {#snippet top()}
             {#if !view.loaded}
               <div class="grid gap-4 pt-2" aria-label="Loading the timeline">
@@ -213,8 +249,38 @@
                   {/each}
                 </div>
               {/if}
+              {#if thread && shownGoal}
+                <GoalBar
+                  goal={shownGoal}
+                  provider={thread.provider}
+                  threadId={thread.id}
+                  disabled={closed}
+                  onchange={(goal) => view.upsertGoal(goal)}
+                  ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
+                />
+              {/if}
+              {#if view.backgroundTasks.length > 0}
+                <div class="flex"><BackgroundTasksChip tasks={view.backgroundTasks} onjump={jumpTo} /></div>
+              {/if}
               {#if thread}
-                <Composer {thread} {worker} running={view.running} disabled={closed || !view.loaded} note={composerNote} />
+                <Composer
+                  {thread}
+                  {worker}
+                  running={view.running}
+                  disabled={closed || !view.loaded}
+                  note={composerNote}
+                  onsent={(response) => {
+                    if (response.steer) view.upsertSteer(response.steer);
+                  }}
+                >
+                  {#snippet leading()}
+                    {#if canGoal && !openGoal}
+                      <PillButton chevron={false} aria-label="Set a goal" onclick={() => (goalDialog = true)} {@attach tooltip("Set a goal: the agent keeps working until it is met")}>
+                        <Icon name="flag" class="size-3.5" /><span class="max-sm:sr-only">Goal</span>
+                      </PillButton>
+                    {/if}
+                  {/snippet}
+                </Composer>
               {:else}
                 <Skeleton class="h-28 rounded-2xl" />
               {/if}
@@ -263,6 +329,7 @@
   </Dialog>
   <SideThreadDialog bind:open={sideOpen} main={tree.main} {worker} />
   <ThreadModelDialog bind:open={modelOpen} {thread} {worker} />
+  <GoalDialog bind:open={goalDialog} threadId={thread.id} provider={thread.provider} current={view.goal} onset={(goal) => view.upsertGoal(goal)} />
   <ScheduleDialog bind:open={scheduling} threadId={thread.id} oncreated={(schedule) => view.upsertSchedule(schedule)} />
 {/if}
 

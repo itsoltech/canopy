@@ -39,7 +39,8 @@ export function silentTriggerLabel(turn: ui.Turn): string | undefined {
   if (turn.inputText) return undefined;
   switch (turn.trigger) {
     case "provider":
-      return "Background work finished";
+      // Codex continues an active goal on its own; other wake-ups follow finished background work.
+      return turn.goalId ? "Continuing the goal" : "Background work finished";
     case "recovery":
       return "Resumed after a restart";
     case "goal":

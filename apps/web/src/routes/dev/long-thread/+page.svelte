@@ -21,7 +21,7 @@
     state.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } }));
     return state;
   });
-  provideThreadDirectory({ currentId: "", thread: () => undefined, awaiting: () => false });
+  provideThreadDirectory({ currentId: "", thread: () => undefined, awaiting: () => false, goal: () => undefined });
 
   const working = $derived(view.running);
   let historyOpen = $state(false);
@@ -33,6 +33,8 @@
       notices: view.notices,
       results: view.turnResults,
       queued: view.queued,
+      steering: view.steering,
+      steers: view.steers,
       working,
       forkSourceId: view.thread?.forkSourceThreadId,
       inheritedEntries: view.inheritedEntries,
