@@ -7,9 +7,29 @@ Gotowe:
 - klient JSON-RPC: `apps/worker/src/providers/codex/rpc.ts`,
 - serwis procesu: `CodexAppServer` w `app-server.ts`,
 - mapowanie powiadomień na zdarzenia transkryptu: `CodexEventMapper` w `mapping.ts`,
-- testy na żywo: `app-server.live.test.ts`.
+- runtime wątków: `CodexThreads` w `threads.ts` (create, fork, resume po restarcie procesu, tury, przerwanie; zdarzenia najpierw do dziennika, potem publikacja; zgody, pytania i elicitation do brokera interakcji),
+- tryby uprawnień platformy → polityka zgód i sandbox Codexa: `permissions.ts`,
+- testy na żywo: `app-server.live.test.ts`, `threads.live.test.ts`.
 
-Następne: komendy wątków (create, fork, resume, turn, interrupt, steer), zgody i pytania, narzędzia szyny (`dynamicTools`), nakładka celów, praca w tle (procesy unified exec).
+Następne: podpięcie do workera (komendy z gateway, interakcje przez link), narzędzia szyny (`dynamicTools`), nakładka celów, `turn/steer`, praca w tle (procesy unified exec).
+
+## Runtime wątków
+
+- **Tury platformy:** `turn/start` dostaje `clientUserMessageId = turn_id`. Kolejka oczekujących tur rozstrzyga wyścig: powiadomienie `turn/started` może przyjść przed odpowiedzią. Tura bez oczekującej komendy to tura dostawcy (np. kontynuacja celu) z nowym ID i `origin = PROVIDER`.
+- **Ponownie dostarczony `StartTurn`** z tym samym `turn_id` nie startuje drugiej tury.
+- **Wznowienie:** wątek nieznany bieżącemu procesowi jest wznawiany przez `thread/resume` z `ThreadSpec.provider_thread_id` (źródłem prawdy jest gateway).
+- **Uprawnienia:**
+
+  | Tryb | Polityka zgód | Sandbox |
+  |---|---|---|
+  | `ASK` (i nieustawiony) | `on-request` | `read-only`, każdy zapis pyta |
+  | `ACCEPT_EDITS` | `on-request` | `workspace-write` |
+  | `READ_ONLY` | `never` | `read-only` |
+  | `FULL_AUTO` | `never` | `workspace-write`, nigdy `danger-full-access` domyślnie |
+
+- **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji. Narzędzia szyny dostają na razie jawną odpowiedź „niedostępne”. Inne żądania kończą się błędem JSON-RPC.
+
+Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną historią, „restart workera” (nowy proces z tym samym `CODEX_HOME` i dziennikiem), wznowienie i tura w wznowionym wątku.
 
 ## Mapowanie zdarzeń
 
