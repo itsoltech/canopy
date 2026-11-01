@@ -5,6 +5,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
@@ -54,9 +55,9 @@
     {#if worker && !worker.online}<Alert tone="warning">{worker.name} is offline. The side thread starts when it reconnects.</Alert>{/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}
 
-    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <DialogActions>
       <Button onclick={() => (open = false)}>Cancel</Button>
       <Button type="submit" variant="primary" icon="arrows-right-left" loading={busy}>Start side thread</Button>
-    </div>
+    </DialogActions>
   </form>
 </Dialog>

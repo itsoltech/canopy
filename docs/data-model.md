@@ -153,6 +153,7 @@ W SQL (CHECK, FK, indeksy częściowe):
 - agent prywatny ma właściciela, globalny nie; `sdk` ⇒ `claude | codex`, `chat` ⇒ `anthropic | openai`,
 - wątek `worker` ma worker, workspace i `cwd`; wątek `gateway` nie ma żadnego z nich ani profilu,
 - workspace wątku należy do tego samego projektu i workera (złożony FK),
+- projekt żyje na workerach, na których ma aktywny workspace (`archived_at IS NULL`); zmiana katalogu (`UpdateWorkspace`) nie przenosi istniejących wątków (ich `cwd` jest własny), a zarchiwizowany workspace (`RemoveWorkspace`) przyjmuje już tylko wątki boczne istniejących wątków,
 - `main` ⇔ brak rodzica ⇔ `root_thread_id = id` ⇔ `depth = 0`; najwyżej jeden poziom wątków bocznych (`depth <= 1`); fork tylko dla wątków bocznych; `interaction_route = parent` tylko dla wątków bocznych,
 - punkt forka to tura **wątku źródłowego** (złożony FK `(fork_after_turn_id, fork_source_thread_id)`),
 - jedna tura `running` na wątek; `client_request_id` unikalny w wątku; wyzwalacz ma swoje powiązanie (`agent_call_id`, `schedule_id`, `interaction_request_id`, `resumes_turn_id`); `hops` = 0 dla człowieka i dostawcy, > 0 dla szyny,

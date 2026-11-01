@@ -15,6 +15,10 @@ export function osLabel(os: string): string {
   }
 }
 
+/** "Online · Linux" or "Offline". */
+export const workerStatus = (worker: ui.Worker | undefined): string =>
+  worker?.online ? `Online${worker.os ? ` · ${osLabel(worker.os)}` : ""}` : "Offline";
+
 /** Path separator on the worker: paths follow the worker's system, not the browser's. */
 export const pathSeparator = (os: string): string => (os === "win32" ? "\\" : "/");
 

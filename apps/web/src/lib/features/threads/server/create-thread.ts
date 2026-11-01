@@ -17,7 +17,7 @@ export async function createThreadFromForm(form: FormData, action: string, targe
   const parent = "parent" in target ? target.parent : undefined;
   const projectId = parent?.projectId ?? ("projectId" in target ? target.projectId : "");
   const workspaceId = parent?.workspaceId ?? text(form, "workspaceId");
-  if (!workspaceId) return fail(400, { action, error: "Choose a workspace" });
+  if (!workspaceId) return fail(400, { action, error: "Choose a worker" });
   const mode = text(form, "permissionMode") || "ASK";
   if (!(mode in PermissionMode)) return fail(400, { action, error: "Unknown permission mode" });
   const requested = text(form, "provider");

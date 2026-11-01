@@ -38,10 +38,13 @@
   const workerName = (ws: ui.Workspace) => overview.worker(ws.workerId)?.name ?? "Unknown worker";
 </script>
 
-<SettingsRow title="Workspace" description={inherited ? "Where new threads of this project start." : "Where new threads start. Projects and “New thread” in a project take precedence."}>
+<SettingsRow
+  title={inherited ? "Worker" : "Project and worker"}
+  description={inherited ? "Where new threads of this project start." : "Where new threads start. Projects and “New thread” in a project take precedence."}
+>
   {#snippet control()}
-    <Select name="workspaceId" aria-label="Default workspace" value={value.workspaceId} onchange={(e) => set({ workspaceId: selected(e) })} class="w-56 sm:w-64">
-      <option value="">{inherited ? "First workspace" : "First available"}</option>
+    <Select name="workspaceId" aria-label={inherited ? "Default worker" : "Default project and worker"} value={value.workspaceId} onchange={(e) => set({ workspaceId: selected(e) })} class="w-56 sm:w-64">
+      <option value="">Last used</option>
       {#each workspaces.filter((g) => g.workspaces.length > 0) as group (group.project.id)}
         <optgroup label={group.project.name}>
           {#each group.workspaces as ws (ws.id)}<option value={ws.id}>{workerName(ws)} · {ws.rootPath}</option>{/each}

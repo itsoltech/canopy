@@ -26,4 +26,21 @@ export const actions: Actions = {
     if (failed(result)) return result;
     return { action: "workspace", ok: true };
   },
+  updateWorkspace: async ({ request }) => {
+    const form = await request.formData();
+    const workspaceId = text(form, "workspaceId");
+    const rootPath = text(form, "rootPath");
+    if (!workspaceId || !rootPath) return fail(400, { action: "workspace", error: "Choose a directory" });
+    const result = await attempt("workspace", (api) => api.updateWorkspace({ workspaceId, rootPath }));
+    if (failed(result)) return result;
+    return { action: "workspace", ok: true };
+  },
+  removeWorkspace: async ({ request }) => {
+    const form = await request.formData();
+    const workspaceId = text(form, "workspaceId");
+    if (!workspaceId) return fail(400, { action: "workspace", error: "Choose a workspace" });
+    const result = await attempt("workspace", (api) => api.removeWorkspace({ workspaceId }));
+    if (failed(result)) return result;
+    return { action: "workspace", ok: true };
+  },
 };

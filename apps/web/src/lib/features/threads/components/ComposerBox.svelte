@@ -15,6 +15,7 @@
    * Enter submits the surrounding form, Shift+Enter adds a line. `meta` renders under the box.
    * With `onqueue` (a turn runs) a typed message has two ways: submitting steers it into the running
    * turn (Enter, the "Steer" button), `onqueue` keeps it for the next turn (Mod+Enter, the button's menu).
+   * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
    */
   let {
     value = $bindable(""),
@@ -22,6 +23,7 @@
     label = "Message",
     placeholder = "Ask anything…",
     disabled = false,
+    canSend = true,
     sending = false,
     stopping = false,
     autofocus = false,
@@ -36,6 +38,7 @@
     label?: string;
     placeholder?: string;
     disabled?: boolean;
+    canSend?: boolean;
     sending?: boolean;
     stopping?: boolean;
     autofocus?: boolean;
@@ -55,7 +58,7 @@
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
-      if (!value.trim()) return;
+      if (!value.trim() || !canSend) return;
       if (onqueue && matchesHotkey(event, "Mod+Enter")) onqueue();
       else submit();
     }
@@ -91,7 +94,7 @@
       {/if}
       {@render controls?.()}
       {#if steerMode && onqueue}
-        <SteerSendButton {sending} disabled={disabled || !value.trim()} onsteer={submit} {onqueue} />
+        <SteerSendButton {sending} disabled={disabled || !canSend || !value.trim()} onsteer={submit} {onqueue} />
       {:else if stopMode}
         <button
           type="button"
@@ -110,7 +113,7 @@
           class="relative grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-white focus-ring not-disabled:hover:bg-brand-500 disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
           aria-label="Send"
           {@attach tooltip("Send", { hotkey: "Enter" })}
-          disabled={disabled || sending || !value.trim()}
+          disabled={disabled || !canSend || sending || !value.trim()}
         >
           {#if sending}<Spinner class="size-3.5" />{:else}<Icon name="arrow-up" />{/if}
           <TouchTarget />

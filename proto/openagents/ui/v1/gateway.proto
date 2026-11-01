@@ -52,6 +52,10 @@ service GatewayService {
   rpc SetGoal(SetGoalRequest) returns (SetGoalResponse);
   // Zatrzymanie zadania w tle (proces Codexa, background Bash Claude; docs/execution.md).
   rpc StopBackgroundTask(StopBackgroundTaskRequest) returns (StopBackgroundTaskResponse);
+
+  // Projekt na workerach (sekcja na końcu pliku): zmiana katalogu workspace'u i usunięcie projektu z workera.
+  rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (UpdateWorkspaceResponse);
+  rpc RemoveWorkspace(RemoveWorkspaceRequest) returns (RemoveWorkspaceResponse);
 }
 
 // ---------- Model ----------
@@ -700,3 +704,27 @@ message StopBackgroundTaskRequest {
 }
 
 message StopBackgroundTaskResponse {}
+
+// ---------- Projekt na workerach ----------
+// Projekt żyje na workerach, na których ma workspace (katalog). Nowy wątek wybiera projekt, potem worker
+// spośród jego workspace'ów (docs/ui-api.md).
+
+// Nieustawione pole = bez zmian. Istniejące wątki zostają w swoim katalogu (cwd wątku jest jego własny).
+message UpdateWorkspaceRequest {
+  string workspace_id = 1;
+  // Nowy katalog na tym samym workerze (te same reguły co przy CreateWorkspace).
+  optional string root_path = 2;
+  optional string label = 3;
+}
+
+message UpdateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+// Usunięcie projektu z workera (archiwizacja workspace'u): nowe wątki nie mogą go już wybrać, istniejące
+// działają dalej (wiadomości, wątki boczne i forki w tym samym katalogu).
+message RemoveWorkspaceRequest {
+  string workspace_id = 1;
+}
+
+message RemoveWorkspaceResponse {}
