@@ -193,4 +193,46 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   }, 600_000);
+
+  // Codex writes a rollout with the first turn: a thread (or fork) without turns cannot be resumed by a new process.
+  test("threads without a turn survive a restart: a new Codex thread, a fork keeps its history", async () => {
+    const emptyId = Bun.randomUUIDv7();
+    const sourceId = Bun.randomUUIDv7();
+    const forkId = Bun.randomUUIDv7();
+    const first = await Effect.runPromise(
+      Effect.gen(function* () {
+        const threads = yield* CodexThreads;
+        const empty = yield* threads.create(spec(emptyId));
+        const source = yield* threads.create(spec(sourceId));
+        const t1 = yield* ask(threads, spec(sourceId), "nr-1", "Remember the codeword MANGO. Reply with just OK.");
+        const fork = create(ForkSpecSchema, { sourceThreadId: sourceId, sourceProviderThreadId: source, afterTurnId: "nr-1", afterProviderTurnRef: t1.providerTurnRef });
+        return { empty, fork: yield* threads.create(spec(forkId), fork) };
+      }).pipe(Effect.provide(worker())),
+    );
+    const second = await Effect.runPromise(
+      Effect.gen(function* () {
+        const threads = yield* CodexThreads;
+        const empty = yield* ask(threads, spec(emptyId, first.empty), "nr-2", "Reply with just OK.");
+        const fork = yield* ask(threads, spec(forkId, first.fork), "nr-3", "What was the codeword? Reply with just the word.");
+        return { empty, fork };
+      }).pipe(Effect.provide(worker())),
+    );
+    expect(second.empty.answer).toContain("OK");
+    expect(second.fork.answer.toUpperCase()).toContain("MANGO");
+    // The empty thread got a new Codex thread, announced as replacing the old one.
+    const replaced = published.filter((e) => e.threadId === emptyId && e.body.case === "threadReady").map((e) => e.body.case === "threadReady" && e.body.value);
+    expect(replaced).toHaveLength(2);
+    const fresh = replaced[1] && replaced[1].providerThreadId;
+    expect(replaced[1]).toMatchObject({ replacesProviderThreadId: first.empty });
+    expect(fresh).not.toBe(first.empty);
+    // A third process resumes the new thread (it has a rollout now).
+    const third = await Effect.runPromise(
+      Effect.gen(function* () {
+        const threads = yield* CodexThreads;
+        return yield* ask(threads, spec(emptyId, fresh || ""), "nr-4", "Reply with just OK.");
+      }).pipe(Effect.provide(worker())),
+    );
+    expect(third.answer).toContain("OK");
+    expect(published.filter((e) => e.threadId === emptyId && e.body.case === "threadReady")).toHaveLength(2);
+  }, 600_000);
 });

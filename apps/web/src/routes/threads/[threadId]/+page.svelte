@@ -5,7 +5,7 @@
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
   import SetGoalPill from "#lib/features/goals/SetGoalPill.svelte";
-  import { isFinishedGoal, showsGoal } from "#lib/features/goals/goals.ts";
+  import { isFinishedGoal, showsGoal, takesGoals } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -141,7 +141,9 @@
   // or replaced from the thread's actions or the composer.
   let goalDialog = $state(false);
   let dismissedGoals = $state(new Set<string>());
-  const canGoal = $derived(Boolean(thread && !closed && thread.status !== "creating"));
+  // A gateway thread has no harness goals: no goal controls at all.
+  const goalsHere = $derived(Boolean(thread && takesGoals(thread)));
+  const canGoal = $derived(Boolean(thread && goalsHere && !closed && thread.status !== "creating"));
   const openGoal = $derived(view.goal && !isFinishedGoal(view.goal.status) ? view.goal : undefined);
   const shownGoal = $derived(showsGoal(view.goal, dismissedGoals) ? view.goal : undefined);
   const setGoalLater = () => {
@@ -186,7 +188,9 @@
             <MenuItem icon="arrows-right-left" disabled={!canBranch} onselect={openSide}>New side thread</MenuItem>
             <MenuItem icon="clock" disabled={!canSchedule} onselect={openSchedule}>Schedule a task</MenuItem>
             <MenuItem icon="cpu-chip" disabled={closed} onselect={() => (modelOpen = true)}>Model and effort…</MenuItem>
-            <MenuItem icon="flag" disabled={!canGoal} onselect={setGoalLater}>{openGoal ? "Replace the goal…" : "Set a goal…"}</MenuItem>
+            {#if goalsHere}
+              <MenuItem icon="flag" disabled={!canGoal} onselect={setGoalLater}>{openGoal ? "Replace the goal…" : "Set a goal…"}</MenuItem>
+            {/if}
             <MenuSeparator />
             <MenuSub label="Copy" icon="document-duplicate">
               <MenuItem onselect={() => copy(page.url.href)}>Link</MenuItem>

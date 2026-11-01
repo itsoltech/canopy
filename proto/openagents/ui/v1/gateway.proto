@@ -140,6 +140,10 @@ message Thread {
   string goal_status = 60;
   // Zadania w tle w toku (itemy background_task ze statusem in_progress).
   uint32 background_tasks = 61;
+
+  // Numery od 70: restart workera i błędy komend celu.
+  // gateway (agent czatowy w gateway: bez celów i pracy w tle) | worker (wątek dostawcy na workerze)
+  string runtime = 70;
 }
 
 message Turn {
@@ -189,6 +193,10 @@ message Turn {
 
   // Cel, nad którym pracowała tura (tura celu albo kontynuacja dostawcy w trakcie celu).
   string goal_id = 60;
+
+  // Dlaczego tura została przerwana (status interrupted), np. „worker restarted”: worker już jej nie prowadzi
+  // (restart procesu), „superseded: …”, albo powód od dostawcy. Pusty dla innych statusów.
+  string interrupt_reason = 70;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -677,6 +685,11 @@ message Goal {
   google.protobuf.Timestamp created_at = 12;
   google.protobuf.Timestamp updated_at = 13;
   google.protobuf.Timestamp finished_at = 14;
+  // Ostatnia komenda celu nie powiodła się na workerze (np. SetGoal: wątek nie dał się wznowić).
+  // Status wraca wtedy do ostatniego stanu harnessu (cel, którego harness nigdy nie potwierdził: blocked).
+  // Czyszczone przy następnej udanej komendzie celu.
+  string error = 70;
+  google.protobuf.Timestamp error_at = 71;
 }
 
 message SetGoalRequest {

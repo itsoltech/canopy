@@ -19,6 +19,7 @@ import {
   type ProfileModelsSchema,
   type ThreadEvent,
   type WorkerConfig,
+  TurnOutcome,
 } from "@open-agents/contracts";
 import { Cause, Context, Effect, Exit, Layer, Scope, type ManagedRuntime } from "effect";
 import { applyWorkerConfig, isAllowedPath, type AppliedConfig, type DeviceProbe, systemProbe } from "../config/remote.ts";
@@ -46,7 +47,9 @@ import type { SteerError } from "../providers/turn-input.ts";
  * - Model catalog: listed after every applied config (no model turn), sent as ModelCatalog and
  *   re-sent after a reconnect; ListModels lists again on request.
  * - Background tasks die with their provider process: after a crash (recover) or a runtime restart, the
- *   ones the journal still has open are closed as interrupted.
+ *   ones the journal still has open are closed as interrupted. Turns of the previous process too (recover).
+ * - Running turns are reported in Hello (runningTurns): the gateway ends the ones it believes run here but
+ *   do not; an interrupt for a turn that does not run here fails with TURN_NOT_RUNNING.
  */
 
 type CommandResultInit = MessageInitShape<typeof CommandResultSchema>;
@@ -76,6 +79,11 @@ interface ProviderRuntimeHandle<S> {
   readonly scope: Scope.Closeable;
   readonly context: Context.Context<S>;
 }
+
+/** InterruptTurn for a turn this process does not run (the gateway ends the turn). */
+const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
+/** Why a turn of the previous worker process ended (gateway: turns.interrupt_reason). */
+const WORKER_RESTARTED = "worker restarted";
 
 class CommandError extends Error {
   constructor(
@@ -211,9 +219,29 @@ export class WorkerHost {
     await this.#stopClaude();
   }
 
-  /** At startup: background tasks of the previous process are gone (docs/execution.md, "Trwałość"). */
-  async recover(): Promise<number> {
-    return this.#closeOrphans(() => true, "worker_restart");
+  /**
+   * At startup: turns and background tasks of the previous process are gone (docs/durability.md, 3.4;
+   * docs/execution.md, "Trwałość"). Their ends go through the journal like any event.
+   */
+  async recover(): Promise<{ turns: number; tasks: number }> {
+    const open = await this.#options.runtime.runPromise(Journal.use((j) => j.openTurns()));
+    for (const { threadId, turnId } of open) {
+      const event = await this.#options.runtime.runPromise(
+        Journal.use((j) =>
+          j.append(threadId, { turnId, body: { case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED, reason: WORKER_RESTARTED } } }),
+        ),
+      );
+      this.#send({ case: "threadEvent", value: event });
+    }
+    return { turns: open.length, tasks: await this.#closeOrphans(() => true, "worker_restart") };
+  }
+
+  /** Turns this process runs now (Hello.running_turns). */
+  runningTurns(): { threadId: string; turnId: string }[] {
+    return [...this.#running].map((key) => {
+      const [threadId = "", turnId = ""] = key.split("/");
+      return { threadId, turnId };
+    });
   }
 
   // ------------------------------------------------------------------ commands
@@ -261,6 +289,8 @@ export class WorkerHost {
         return { models: await this.#listModels(kind.value.provider, kind.value.profileId) };
       case "interruptTurn": {
         const { threadId, turnId } = kind.value;
+        // E.g. the turn died with the previous process: the gateway ends it on its side.
+        if (!this.#running.has(`${threadId}/${turnId}`)) throw new CommandError(TURN_NOT_RUNNING, "the turn is not running on this worker", true);
         // The command does not name the provider: the runtime with the running turn takes it.
         const claude = this.#claude;
         if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {

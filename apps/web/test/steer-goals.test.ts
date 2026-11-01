@@ -4,7 +4,7 @@ import { ItemSchema, ItemStatus, Provider, UserMessageSchema, ui } from "@open-a
 import { FeedBuilder, type FeedInput } from "../src/lib/features/threads/feed.ts";
 import type { TimelineEntry } from "../src/lib/features/threads/thread-state.svelte.ts";
 import { buildTimeline, isSteerMessage, topLevelEntry } from "../src/lib/features/threads/timeline.ts";
-import { goalActions, goalPending, iterationsLabel, showsGoal, formatElapsed, takesTokenBudget, budgetShare } from "../src/lib/features/goals/goals.ts";
+import { goalActions, goalPending, iterationsLabel, showsGoal, formatElapsed, takesGoals, takesTokenBudget, budgetShare } from "../src/lib/features/goals/goals.ts";
 
 let seq = 0n;
 const message = (id: string, turnId: string, clientId: string, text = id): TimelineEntry => ({
@@ -112,6 +112,15 @@ describe("goals", () => {
     expect(goalPending(goal("paused", { nativeStatus: "active" }))).toBe("Pausing…");
     expect(goalPending(goal("paused", { nativeStatus: "cleared" }))).toBeUndefined();
     expect(goalPending(goal("active", { nativeStatus: "paused" }))).toBe("Resuming…");
+    // The command failed on the worker: nothing is on its way.
+    expect(goalPending(goal("blocked", { error: "THREAD_ERROR: thread/resume failed" }))).toBeUndefined();
+    expect(goalPending(goal("active", { error: "THREAD_ERROR: x" }))).toBeUndefined();
+  });
+
+  test("gateway threads have no goals", () => {
+    expect(takesGoals(create(ui.ThreadSchema, { runtime: "gateway" }))).toBe(false);
+    expect(takesGoals(create(ui.ThreadSchema, { runtime: "worker" }))).toBe(true);
+    expect(takesGoals(create(ui.ThreadSchema, {}))).toBe(true);
   });
 
   test("usage labels and the Codex-only budget", () => {

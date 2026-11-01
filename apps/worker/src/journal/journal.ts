@@ -23,7 +23,8 @@ import { Context, Effect, Layer, Schema } from "effect";
  *   old cursors do not apply and deduplicates the resend by event_id.
  * - Results of processed commands are remembered so a redelivered command is answered, not re-run.
  * - Background tasks that started but did not finish are tracked in the same transaction as their events,
- *   so after a crash the worker can close them as interrupted (their processes died with it).
+ *   so after a crash the worker can close them as interrupted (their processes died with it). Turns likewise:
+ *   a turn whose start is journaled and whose end is not died with the previous process.
  *
  * SQLite in WAL mode with synchronous=FULL: a committed append survives power loss.
  */
@@ -44,6 +45,11 @@ export interface OpenBackgroundTask {
   readonly threadId: string;
   /** Last started state of the background_task item. */
   readonly item: Item;
+}
+
+export interface OpenTurn {
+  readonly threadId: string;
+  readonly turnId: string;
 }
 
 export class Journal extends Context.Service<
@@ -67,6 +73,8 @@ export class Journal extends Context.Service<
     purgeCommands(maxAgeMs: number): Effect.Effect<number, JournalError>;
     /** Background tasks whose start is journaled and whose end is not (e.g. the worker crashed meanwhile). */
     openBackgroundTasks(): Effect.Effect<ReadonlyArray<OpenBackgroundTask>, JournalError>;
+    /** Turns whose turn_started is journaled and whose turn_finished is not. */
+    openTurns(): Effect.Effect<ReadonlyArray<OpenTurn>, JournalError>;
   }
 >()("open-agents/worker/Journal") {
   /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
@@ -102,6 +110,11 @@ const SCHEMA = `
     item_id   TEXT NOT NULL,
     item      BLOB NOT NULL,
     PRIMARY KEY (thread_id, item_id)
+  );
+  CREATE TABLE IF NOT EXISTS open_turns (
+    thread_id TEXT NOT NULL,
+    turn_id   TEXT NOT NULL,
+    PRIMARY KEY (thread_id, turn_id)
   );
 `;
 
@@ -145,6 +158,14 @@ function makeJournal(db: Database): Journal["Service"] {
       deleteBackground.run({ thread: threadId, item_id: item.itemId });
     }
   };
+  const insertTurn = db.query("INSERT OR IGNORE INTO open_turns (thread_id, turn_id) VALUES ($thread, $turn)");
+  const deleteTurn = db.query("DELETE FROM open_turns WHERE thread_id = $thread AND turn_id = $turn");
+  const selectTurns = db.query<{ thread_id: string; turn_id: string }, []>("SELECT thread_id, turn_id FROM open_turns ORDER BY rowid");
+  const trackTurn = (threadId: string, turnId: string, body: ThreadEvent["body"]) => {
+    if (!turnId) return;
+    if (body.case === "turnStarted") insertTurn.run({ thread: threadId, turn: turnId });
+    if (body.case === "turnFinished") deleteTurn.run({ thread: threadId, turn: turnId });
+  };
   const appendTx = db.transaction((threadId: string, event: ThreadEventInit) => {
     const seq = BigInt(nextSeq.get({ thread: threadId })!.last_seq);
     const init: MessageInitShape<typeof ThreadEventSchema> = {
@@ -157,6 +178,7 @@ function makeJournal(db: Database): Journal["Service"] {
     const full = create(ThreadEventSchema, init);
     insertEvent.run({ thread: threadId, seq: Number(seq), id: full.eventId, payload: toBinary(ThreadEventSchema, full), at: Date.now() });
     trackBackground(threadId, full.body);
+    trackTurn(threadId, full.turnId, full.body);
     return full;
   });
 
@@ -214,6 +236,9 @@ function makeJournal(db: Database): Journal["Service"] {
     ),
     openBackgroundTasks: Effect.fn("Journal.openBackgroundTasks")(() =>
       attempt("openBackgroundTasks", () => selectBackground.all().map((r) => ({ threadId: r.thread_id, item: fromBinary(ItemSchema, r.item) }))),
+    ),
+    openTurns: Effect.fn("Journal.openTurns")(() =>
+      attempt("openTurns", () => selectTurns.all().map((r) => ({ threadId: r.thread_id, turnId: r.turn_id }))),
     ),
   });
 }
