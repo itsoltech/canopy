@@ -37,7 +37,9 @@ Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [dat
 
 ### 3.1 Dziennik lokalny
 
-`bun:sqlite` w trybie WAL z `synchronous = FULL`, żeby przetrwać zanik zasilania, nie tylko awarię procesu. Tabele: `threads`, `journal`, `processed_commands`, `pending_interactions`, `pending_bus_calls`. Jeden plik w katalogu danych workera z uprawnieniami 0600.
+**Zaimplementowany:** `apps/worker/src/journal` (serwis Effect `Journal`) i `apps/worker/src/gateway-link/delivery.ts` (`journalHello`, `resendPending`, `applyAck`). Testy jednostkowe na pliku SQLite oraz test integracyjny przez gRPC: zdarzenia zapisane offline, częściowe potwierdzenie, ponowne połączenie z dosłaniem tylko niepotwierdzonych, deduplikacja po `event_id`, nowy dziennik po reinstalacji.
+
+`bun:sqlite` w trybie WAL z `synchronous = FULL`, żeby przetrwać zanik zasilania, nie tylko awarię procesu. `journal_seq` rośnie per wątek i nigdy się nie cofa (tabela `thread_seq`), także po potwierdzeniu wszystkich zdarzeń i restarcie. Tabele: `threads`, `journal`, `processed_commands`, `pending_interactions`, `pending_bus_calls`. Jeden plik w katalogu danych workera z uprawnieniami 0600.
 
 ### 3.2 Wątki dostawców
 

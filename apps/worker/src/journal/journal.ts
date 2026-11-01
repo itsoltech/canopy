@@ -1,0 +1,175 @@
+import { Database } from "bun:sqlite";
+import { create, fromBinary, toBinary, type MessageInitShape } from "@bufbuild/protobuf";
+import { timestampNow } from "@bufbuild/protobuf/wkt";
+import { CommandResultSchema, ThreadEventSchema, type CommandResult, type ThreadEvent } from "@open-agents/contracts";
+import { Context, Effect, Layer, Schema } from "effect";
+
+/**
+ * Local durable outbox of the worker (docs/durability.md, 3.1).
+ *
+ * - Every thread event is written here before it is sent; the gateway acks by journal_seq after
+ *   its own commit, and only then the event is deleted. Nothing is lost across crashes or reconnects.
+ * - journal_seq grows per thread and never goes back, also after all events were acked or the
+ *   process restarted (kept in thread_seq).
+ * - journal_id identifies this database; a reinstalled worker gets a new one, so the gateway knows
+ *   old cursors do not apply and deduplicates the resend by event_id.
+ * - Results of processed commands are remembered so a redelivered command is answered, not re-run.
+ *
+ * SQLite in WAL mode with synchronous=FULL: a committed append survives power loss.
+ */
+
+export class JournalError extends Schema.TaggedError<JournalError>()("JournalError", {
+  operation: Schema.String,
+  cause: Schema.Defect(),
+}) {}
+
+export type ThreadEventInit = Omit<MessageInitShape<typeof ThreadEventSchema>, "journalSeq" | "eventId" | "threadId">;
+
+export interface ThreadCursor {
+  readonly threadId: string;
+  readonly lastSeq: bigint;
+}
+
+export class Journal extends Context.Service<
+  Journal,
+  {
+    readonly journalId: string;
+    /** Assigns journal_seq and event_id (UUIDv7) and stores the event durably. */
+    append(threadId: string, event: ThreadEventInit): Effect.Effect<ThreadEvent, JournalError>;
+    /** Gateway persisted everything up to ackSeq: drop it. Returns the number of removed events. */
+    ack(threadId: string, ackSeq: bigint): Effect.Effect<number, JournalError>;
+    /** Threads with unacked events and their last journal_seq (Hello.threads). */
+    cursors(): Effect.Effect<ReadonlyArray<ThreadCursor>, JournalError>;
+    /**
+     * Events to (re)send after Welcome: everything above the persisted cursor per thread, oldest first.
+     * Events at or below a persisted cursor are dropped on the way.
+     */
+    pending(persisted: ReadonlyMap<string, bigint>): Effect.Effect<ReadonlyArray<ThreadEvent>, JournalError>;
+    rememberCommand(result: MessageInitShape<typeof CommandResultSchema>): Effect.Effect<void, JournalError>;
+    commandResult(commandId: string): Effect.Effect<CommandResult | undefined, JournalError>;
+    /** Forget command results older than maxAgeMs (redelivery happens within minutes, not days). */
+    purgeCommands(maxAgeMs: number): Effect.Effect<number, JournalError>;
+  }
+>()("open-agents/worker/Journal") {
+  /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
+  static readonly layer = (path: string) =>
+    Layer.effect(
+      Journal,
+      Effect.acquireRelease(
+        Effect.try({ try: () => open(path), catch: (cause) => new JournalError({ operation: "open", cause }) }),
+        (db) => Effect.sync(() => db.close()),
+      ).pipe(Effect.map(makeJournal)),
+    );
+}
+
+const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS thread_seq (thread_id TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS events (
+    thread_id   TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    event_id    TEXT NOT NULL UNIQUE,
+    payload     BLOB NOT NULL,
+    created_at  INTEGER NOT NULL,
+    PRIMARY KEY (thread_id, journal_seq)
+  );
+  CREATE TABLE IF NOT EXISTS processed_commands (
+    command_id   TEXT PRIMARY KEY,
+    result       BLOB NOT NULL,
+    processed_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS processed_commands_age ON processed_commands (processed_at);
+`;
+
+function open(path: string): Database {
+  const db = new Database(path, { create: true, strict: true });
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA synchronous = FULL");
+  db.exec("PRAGMA busy_timeout = 5000");
+  db.exec(SCHEMA);
+  db.query("INSERT OR IGNORE INTO meta (key, value) VALUES ('journal_id', $id)").run({ id: Bun.randomUUIDv7() });
+  return db;
+}
+
+function makeJournal(db: Database): Journal["Service"] {
+  const attempt = <A>(operation: string, run: () => A) =>
+    Effect.try({ try: run, catch: (cause) => new JournalError({ operation, cause }) });
+
+  const journalId = (db.query("SELECT value FROM meta WHERE key = 'journal_id'").get() as { value: string }).value;
+
+  const nextSeq = db.query<{ last_seq: number }, { thread: string }>(
+    `INSERT INTO thread_seq (thread_id, last_seq) VALUES ($thread, 1)
+     ON CONFLICT (thread_id) DO UPDATE SET last_seq = last_seq + 1
+     RETURNING last_seq`,
+  );
+  const insertEvent = db.query(
+    "INSERT INTO events (thread_id, journal_seq, event_id, payload, created_at) VALUES ($thread, $seq, $id, $payload, $at)",
+  );
+  const appendTx = db.transaction((threadId: string, event: ThreadEventInit) => {
+    const seq = BigInt(nextSeq.get({ thread: threadId })!.last_seq);
+    const init: MessageInitShape<typeof ThreadEventSchema> = {
+      ...event,
+      threadId,
+      journalSeq: seq,
+      eventId: Bun.randomUUIDv7(),
+      occurredAt: event.occurredAt ?? timestampNow(),
+    } as MessageInitShape<typeof ThreadEventSchema>;
+    const full = create(ThreadEventSchema, init);
+    insertEvent.run({ thread: threadId, seq: Number(seq), id: full.eventId, payload: toBinary(ThreadEventSchema, full), at: Date.now() });
+    return full;
+  });
+
+  const deleteUpTo = db.query("DELETE FROM events WHERE thread_id = $thread AND journal_seq <= $seq");
+  const cursorRows = db.query<{ thread_id: string; last_seq: number }, []>(
+    "SELECT thread_id, MAX(journal_seq) AS last_seq FROM events GROUP BY thread_id ORDER BY thread_id",
+  );
+  const threadsWithEvents = db.query<{ thread_id: string }, []>("SELECT DISTINCT thread_id FROM events");
+  const eventsAfter = db.query<{ payload: Uint8Array }, { thread: string; seq: number }>(
+    "SELECT payload FROM events WHERE thread_id = $thread AND journal_seq > $seq ORDER BY journal_seq",
+  );
+  const pendingTx = db.transaction((persisted: ReadonlyMap<string, bigint>) => {
+    const out: ThreadEvent[] = [];
+    for (const { thread_id: thread } of threadsWithEvents.all()) {
+      const cursor = Number(persisted.get(thread) ?? 0n);
+      if (cursor > 0) deleteUpTo.run({ thread, seq: cursor });
+      for (const row of eventsAfter.all({ thread, seq: cursor })) out.push(fromBinary(ThreadEventSchema, row.payload));
+    }
+    return out;
+  });
+
+  const upsertCommand = db.query(
+    `INSERT INTO processed_commands (command_id, result, processed_at) VALUES ($id, $result, $at)
+     ON CONFLICT (command_id) DO UPDATE SET result = excluded.result, processed_at = excluded.processed_at`,
+  );
+  const selectCommand = db.query<{ result: Uint8Array }, { id: string }>("SELECT result FROM processed_commands WHERE command_id = $id");
+  const purge = db.query("DELETE FROM processed_commands WHERE processed_at < $before");
+
+  return Journal.of({
+    journalId,
+    append: Effect.fn("Journal.append")((threadId: string, event: ThreadEventInit) =>
+      attempt("append", () => appendTx(threadId, event)),
+    ),
+    ack: Effect.fn("Journal.ack")((threadId: string, ackSeq: bigint) =>
+      attempt("ack", () => deleteUpTo.run({ thread: threadId, seq: Number(ackSeq) }).changes),
+    ),
+    cursors: Effect.fn("Journal.cursors")(() =>
+      attempt("cursors", () => cursorRows.all().map((r) => ({ threadId: r.thread_id, lastSeq: BigInt(r.last_seq) }))),
+    ),
+    pending: Effect.fn("Journal.pending")((persisted: ReadonlyMap<string, bigint>) => attempt("pending", () => pendingTx(persisted))),
+    rememberCommand: Effect.fn("Journal.rememberCommand")((result: MessageInitShape<typeof CommandResultSchema>) =>
+      attempt("rememberCommand", () => {
+        const message = create(CommandResultSchema, result);
+        upsertCommand.run({ id: message.commandId, result: toBinary(CommandResultSchema, message), at: Date.now() });
+      }),
+    ),
+    commandResult: Effect.fn("Journal.commandResult")((commandId: string) =>
+      attempt("commandResult", () => {
+        const row = selectCommand.get({ id: commandId });
+        return row ? fromBinary(CommandResultSchema, row.result) : undefined;
+      }),
+    ),
+    purgeCommands: Effect.fn("Journal.purgeCommands")((maxAgeMs: number) =>
+      attempt("purgeCommands", () => purge.run({ before: Date.now() - maxAgeMs }).changes),
+    ),
+  });
+}

@@ -1,11 +1,12 @@
+import { mkdirSync, readFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
-import { readFileSync } from "node:fs";
-import { Result } from "effect";
+import { ManagedRuntime, Result } from "effect";
 import { WorkerState } from "@open-agents/contracts";
 import { applyWorkerConfig, type AppliedConfig } from "./config/remote.ts";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
-import { openGatewayLink, type GatewayLink } from "./gateway-link/index.ts";
+import { applyAck, journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
+import { Journal } from "./journal/index.ts";
 
 // Local config is only how to reach the gateway; everything else arrives as WorkerConfig.
 const configPath = defaultConfigPath(Bun.env, process.platform);
@@ -17,7 +18,12 @@ if (Result.isFailure(loaded)) {
 const local = loaded.success;
 const dataDir = local.data_dir ?? defaultDataDir(Bun.env, process.platform);
 const ca = local.ca_file ? readFileSync(local.ca_file) : undefined;
-console.info(`worker ${local.worker_id}, gateway ${local.gateway_url}, data ${join(dataDir)}`);
+mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+
+// Durable outbox: every thread event goes through the journal before it is sent (docs/durability.md, 3.1).
+const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
+const { journalId } = await runtime.runPromise(journalHello());
+console.info(`worker ${local.worker_id}, gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`);
 
 /** Last applied remote configuration. In memory only: it carries secrets (profile API keys). */
 let config: AppliedConfig | undefined;
@@ -63,11 +69,13 @@ while (!stopping.signal.aborted) {
         state: WorkerState.ACTIVE,
         capabilities: [],
         configVersion: config?.version ?? 0n,
+        ...(await runtime.runPromise(journalHello())),
       },
     });
     currentLink = link;
     backoffMs = 1_000;
-    console.info(`connected to ${local.gateway_url}`);
+    const resent = await runtime.runPromise(resendPending(link));
+    console.info(`connected to ${local.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`);
 
     const heartbeat = setInterval(
       () => link.send({ case: "heartbeat", value: { runningTurns: 0, state: WorkerState.ACTIVE } }),
@@ -87,17 +95,29 @@ while (!stopping.signal.aborted) {
             );
             break;
           }
-          case "command":
-            // Session handling (SDK adapters) is the next milestone; for now commands are rejected explicitly.
+          case "eventAck":
+            await runtime.runPromise(applyAck(message.payload.value));
+            break;
+          case "command": {
+            const command = message.payload.value;
+            // A redelivered command is answered with the stored result, never executed twice.
+            const known = await runtime.runPromise(Journal.use((journal) => journal.commandResult(command.commandId)));
+            if (known) {
+              link.send({ case: "commandResult", value: known });
+              break;
+            }
+            // Session handling (SDK adapters) is the next milestone; for now commands are rejected explicitly
+            // (not remembered: the rejection is not a final result).
             link.send({
               case: "commandResult",
               value: {
-                commandId: message.payload.value.commandId,
+                commandId: command.commandId,
                 ok: false,
                 errorCode: config ? "UNIMPLEMENTED" : "WORKER_NOT_CONFIGURED",
               },
             });
             break;
+          }
           case "drain":
             drainDelayMs = message.payload.value.reconnectAfterMs;
             console.info(`gateway draining (${message.payload.value.reason}), reconnecting in ${drainDelayMs} ms`);
@@ -122,3 +142,6 @@ while (!stopping.signal.aborted) {
     backoffMs = Math.min(backoffMs * 2, 60_000);
   }
 }
+
+// Closes the journal (SQLite) cleanly.
+await runtime.dispose();

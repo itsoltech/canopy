@@ -13,6 +13,7 @@
     "@open-agents/contracts": "workspace:*",
     "@open-agents/gateway": "workspace:*",
     "@open-agents/transport": "workspace:*",
-    "@open-agents/worker": "workspace:*"
+    "@open-agents/worker": "workspace:*",
+    "effect": "4.1.1"
   }
 }

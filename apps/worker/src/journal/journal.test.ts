@@ -1,0 +1,110 @@
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ItemDeltaField } from "@open-agents/contracts";
+import { Effect } from "effect";
+import { Journal, type ThreadEventInit } from "./journal.ts";
+
+const dir = mkdtempSync(join(tmpdir(), "oa-journal-"));
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
+let n = 0;
+const freshPath = () => join(dir, `journal-${++n}.db`);
+
+/** Runs a program against the journal file, opening and closing it around the run (like a process lifetime). */
+const withJournal = <A, E>(path: string, program: (journal: Journal["Service"]) => Effect.Effect<A, E>) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const journal = yield* Journal;
+      return yield* program(journal);
+    }).pipe(Effect.provide(Journal.layer(path))),
+  );
+
+const delta = (chunk: string): ThreadEventInit => ({
+  turnId: "turn-1",
+  body: { case: "itemDelta", value: { itemId: "m1", field: ItemDeltaField.TEXT, chunk } },
+});
+
+describe("Journal", () => {
+  test("append assigns increasing journal_seq per thread and unique event ids", async () => {
+    const events = await withJournal(freshPath(), (j) =>
+      Effect.all([j.append("t1", delta("a")), j.append("t1", delta("b")), j.append("t2", delta("c"))]),
+    );
+    expect(events.map((e) => [e.threadId, e.journalSeq])).toEqual([
+      ["t1", 1n],
+      ["t1", 2n],
+      ["t2", 1n],
+    ]);
+    expect(new Set(events.map((e) => e.eventId)).size).toBe(3);
+    expect(events[0]?.occurredAt).toBeDefined();
+  });
+
+  test("survives reopening: same journal id, unacked events kept, seq continues after full ack", async () => {
+    const path = freshPath();
+    const first = await withJournal(path, (j) =>
+      Effect.gen(function* () {
+        yield* j.append("t1", delta("a"));
+        yield* j.append("t1", delta("b"));
+        yield* j.ack("t1", 2n); // everything acked
+        yield* j.append("t2", delta("x"));
+        return j.journalId;
+      }),
+    );
+    const [journalId, cursors, next] = await withJournal(path, (j) =>
+      Effect.all([Effect.succeed(j.journalId), j.cursors(), j.append("t1", delta("c"))]),
+    );
+    expect(journalId).toBe(first);
+    expect(cursors).toEqual([{ threadId: "t2", lastSeq: 1n }]);
+    expect(next.journalSeq).toBe(3n); // never reuses 1..2 although they were deleted
+  });
+
+  test("a new journal file gets a new journal id", async () => {
+    const a = await withJournal(freshPath(), (j) => Effect.succeed(j.journalId));
+    const b = await withJournal(freshPath(), (j) => Effect.succeed(j.journalId));
+    expect(a).not.toBe(b);
+  });
+
+  test("pending: drops what the gateway already persisted, returns the rest in order", async () => {
+    const pending = await withJournal(freshPath(), (j) =>
+      Effect.gen(function* () {
+        for (const chunk of ["a", "b", "c"]) yield* j.append("t1", delta(chunk));
+        for (const chunk of ["x", "y"]) yield* j.append("t2", delta(chunk));
+        // Welcome: t1 persisted up to 2, nothing known for t2 (e.g. a new journal id).
+        const resend = yield* j.pending(new Map([["t1", 2n]]));
+        return { resend, cursors: yield* j.cursors() };
+      }),
+    );
+    expect(pending.resend.map((e) => `${e.threadId}:${e.journalSeq}`)).toEqual(["t1:3", "t2:1", "t2:2"]);
+    expect(pending.cursors).toEqual([
+      { threadId: "t1", lastSeq: 3n },
+      { threadId: "t2", lastSeq: 2n },
+    ]);
+  });
+
+  test("ack removes up to the cursor only", async () => {
+    const result = await withJournal(freshPath(), (j) =>
+      Effect.gen(function* () {
+        for (const chunk of ["a", "b", "c"]) yield* j.append("t1", delta(chunk));
+        const removed = yield* j.ack("t1", 2n);
+        return { removed, left: yield* j.pending(new Map()) };
+      }),
+    );
+    expect(result.removed).toBe(2);
+    expect(result.left.map((e) => e.journalSeq)).toEqual([3n]);
+  });
+
+  test("remembers command results for redelivery and purges old ones", async () => {
+    const path = freshPath();
+    await withJournal(path, (j) => j.rememberCommand({ commandId: "c1", ok: false, errorCode: "THREAD_BUSY" }));
+    const [remembered, unknown] = await withJournal(path, (j) => Effect.all([j.commandResult("c1"), j.commandResult("c2")]));
+    expect(remembered).toMatchObject({ commandId: "c1", ok: false, errorCode: "THREAD_BUSY" });
+    expect(unknown).toBeUndefined();
+    const purged = await withJournal(path, (j) =>
+      Effect.gen(function* () {
+        yield* Effect.sleep("5 millis");
+        return yield* j.purgeCommands(1);
+      }),
+    );
+    expect(purged).toBe(1);
+  });
+});

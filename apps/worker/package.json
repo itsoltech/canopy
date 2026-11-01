@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./gateway-link": "./src/gateway-link/index.ts"
+    "./gateway-link": "./src/gateway-link/index.ts",
+    "./journal": "./src/journal/index.ts"
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",
