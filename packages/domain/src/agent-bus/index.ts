@@ -4,7 +4,6 @@ export {
   type BusDecision,
   type BusFacts,
   type BusLimits,
-  type GoalFacts,
   type InteractionFacts,
   type ScheduleFacts,
   type ThreadNode,
@@ -19,5 +18,4 @@ export {
   type AgentBusCall,
   type AgentBusToolName,
   type ToolJsonSpec,
-  type ToolSetOptions,
 } from "./tools.ts";

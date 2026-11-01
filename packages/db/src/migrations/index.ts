@@ -11,6 +11,7 @@ import turnSourceDetails from "./0007_turn_source_details.sql" with { type: "tex
 import oneStartPerTurn from "./0008_one_start_per_turn.sql" with { type: "text" };
 import modelsEffortSteer from "./0009_models_effort_steer.sql" with { type: "text" };
 import goalsBackgroundHarness from "./0010_goals_background_harness.sql" with { type: "text" };
+import goalsEngineCleanup from "./0011_goals_engine_cleanup.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -38,6 +39,7 @@ export const migrations = Migrator.fromRecord({
   "0008_one_start_per_turn": sqlFile(oneStartPerTurn),
   "0009_models_effort_steer": sqlFile(modelsEffortSteer),
   "0010_goals_background_harness": sqlFile(goalsBackgroundHarness),
+  "0011_goals_engine_cleanup": sqlFile(goalsEngineCleanup),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

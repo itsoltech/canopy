@@ -1,16 +1,9 @@
 export {
-  budgetExceeded,
-  canTransition,
   claudeGoalCommand,
   fromCodexStatus,
   goalStatusFromHarness,
   isFinished,
-  isRunning,
-  validateGoalBudget,
   type ClaudeGoalStatus,
   type CodexGoalStatus,
-  type GoalActor,
-  type GoalBudget,
   type GoalStatus,
-  type GoalUsage,
 } from "./goals.ts";

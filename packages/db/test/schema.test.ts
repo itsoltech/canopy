@@ -160,7 +160,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     pg = await startPostgres();
     runtime = ManagedRuntime.make(pg.layer);
     const applied = await runtime.runPromise(migrate);
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness"]);
+    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup"]);
   }, 60_000);
 
   afterAll(async () => {
@@ -523,6 +523,8 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(await failure(insertCall, [id(), main, turn, "send_message", 1, true, null])).toContain("agent_bus_calls_notify");
       expect(await failure(insertCall, [id(), main, turn, "send_message", 1, true, "delivered"])).toContain("agent_bus_calls_notify");
       expect(await failure(insertCall, [id(), main, turn, "send_message", 17, false, null])).toContain("agent_bus_calls_hops_check");
+      // Goals are the harness's own: the bus has no goal tools (0011).
+      expect(await failure(insertCall, [id(), main, turn, "propose_goal", null, false, null])).toContain("agent_bus_calls_tool_check");
 
       // A bus turn has hops > 0, a human turn has 0.
       const call = id();
@@ -590,40 +592,67 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
   });
 
   describe("goals", () => {
-    const insertGoal = `INSERT INTO goals (id, thread_id, objective, status, created_by, created_by_user_id, token_budget,
-                                           approved_by, approved_at, finished_at)
-                        VALUES ($1, $2, 'Migrate auth', $3, $4, $5, $6, $7, CASE WHEN $7::uuid IS NULL THEN NULL ELSE now() END, $8)`;
+    const insertGoal = `INSERT INTO goals (id, thread_id, objective, status, created_by, created_by_user_id, token_budget, finished_at)
+                        VALUES ($1, $2, 'Migrate auth', $3, $4, $5, $6, $7)`;
 
     test("one open goal per thread; finished goals do not block a new one", async () => {
       const w = await world();
       const thread = await mainThread(w);
-      await query(insertGoal, [id(), thread, "achieved", "user", w.user, null, null, new Date()]);
-      await query(insertGoal, [id(), thread, "active", "user", w.user, null, null, null]);
-      expect(await failure(insertGoal, [id(), thread, "paused", "user", w.user, null, null, null])).toContain("goals_one_open");
+      await query(insertGoal, [id(), thread, "achieved", "user", w.user, null, new Date()]);
+      await query(insertGoal, [id(), thread, "active", "user", w.user, null, null]);
+      expect(await failure(insertGoal, [id(), thread, "paused", "user", w.user, null, null])).toContain("goals_one_open");
     });
 
     test("goals the harness set by itself are tracked as they are (no approval or budget gate)", async () => {
       const w = await world();
       // Codex create_goal: the model set it, the platform records it (docs/goals.md).
-      await query(insertGoal, [id(), (await mainThread(w)), "active", "provider", null, null, null, null]);
-      await query(insertGoal, [id(), (await mainThread(w)), "active", "provider", null, 200_000, null, null]);
+      await query(insertGoal, [id(), (await mainThread(w)), "active", "provider", null, null, null]);
+      await query(insertGoal, [id(), (await mainThread(w)), "active", "provider", null, 200_000, null]);
       // Users may set open-ended goals directly.
-      await query(insertGoal, [id(), (await mainThread(w)), "active", "user", w.user, null, null, null]);
+      await query(insertGoal, [id(), (await mainThread(w)), "active", "user", w.user, null, null]);
     });
 
     test("creator columns and finish time are consistent", async () => {
       const w = await world();
-      expect(await failure(insertGoal, [id(), (await mainThread(w)), "active", "user", null, null, null, null])).toContain("goals_creator");
-      expect(await failure(insertGoal, [id(), (await mainThread(w)), "achieved", "user", w.user, null, null, null])).toContain(
+      expect(await failure(insertGoal, [id(), (await mainThread(w)), "active", "user", null, null, null])).toContain("goals_creator");
+      expect(await failure(insertGoal, [id(), (await mainThread(w)), "active", "provider", w.user, null, null])).toContain("goals_creator");
+      expect(await failure(insertGoal, [id(), (await mainThread(w)), "achieved", "user", w.user, null, null])).toContain(
         "goals_finished",
       );
+    });
+
+    test("no platform engine: no agent proposals, approvals or platform budgets (0011)", async () => {
+      const w = await world();
+      expect(await failure(insertGoal, [id(), (await mainThread(w)), "active", "agent", null, 100_000, null])).toContain("goals_creator");
+      expect(await failure(insertGoal, [id(), (await mainThread(w)), "proposed", "user", w.user, null, null])).toContain("goals_status_check");
+      const columns = await query<{ column_name: string }>(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'goals' ORDER BY ordinal_position`,
+      );
+      expect(columns.map((c) => c.column_name)).toEqual([
+        "id",
+        "thread_id",
+        "objective",
+        "status",
+        "token_budget",
+        "tokens_used",
+        "time_used_seconds",
+        "turns_used",
+        "last_reason",
+        "native_state",
+        "created_by",
+        "created_by_user_id",
+        "created_at",
+        "updated_at",
+        "finished_at",
+        "native_status",
+      ]);
     });
 
     test("goal turns (Claude /goal) point at their goal and do not count as hops", async () => {
       const w = await world();
       const thread = await mainThread(w);
       const goal = id();
-      await query(insertGoal, [goal, thread, "active", "user", w.user, null, null, null]);
+      await query(insertGoal, [goal, thread, "active", "user", w.user, null, null]);
       const insertTurn = `INSERT INTO turns (id, thread_id, ordinal, trigger, goal_id, hops, input) VALUES ($1, $2, $3, 'goal', $4, $5, '{}')`;
       await query(insertTurn, [id(), thread, 1, goal, 0]);
       expect(await failure(insertTurn, [id(), thread, 2, null, 0])).toContain("turns_goal");

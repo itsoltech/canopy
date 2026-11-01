@@ -1,4 +1,3 @@
-import { canTransition, validateGoalBudget, type GoalStatus } from "../goals/goals.ts";
 import { agentBusToolsFor, type AgentBusCall } from "./tools.ts";
 
 /**
@@ -39,12 +38,6 @@ export interface ScheduleFacts {
   readonly threadId: string;
 }
 
-export interface GoalFacts {
-  readonly id: string;
-  readonly threadId: string;
-  readonly status: GoalStatus;
-}
-
 export interface BusLimits {
   readonly maxDepth: number;
   readonly maxChildrenPerThread: number;
@@ -82,10 +75,6 @@ export interface BusFacts {
   readonly schedule?: ScheduleFacts;
   /** schedule_*: active schedules of the target thread. */
   readonly targetSchedules?: number;
-  /** Goal tools are offered to this thread (platform goal engine). */
-  readonly goalTools?: boolean;
-  /** The caller thread's open goal, if any. */
-  readonly openGoal?: GoalFacts;
   readonly now: Date;
 }
 
@@ -98,12 +87,8 @@ const allow: BusDecision = { allowed: true };
 
 export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: BusLimits = DEFAULT_BUS_LIMITS): BusDecision {
   const { caller } = facts;
-  if (!agentBusToolsFor(caller.depth, { goalTools: facts.goalTools ?? false }).includes(call.tool)) {
-    return deny(
-      call.tool === "get_goal" || call.tool === "propose_goal" || call.tool === "update_goal"
-        ? `${call.tool} is not available in this thread`
-        : `${call.tool} is not available in side threads; ask your parent thread with send_message`,
-    );
+  if (!agentBusToolsFor(caller.depth).includes(call.tool)) {
+    return deny(`${call.tool} is not available in side threads; ask your parent thread with send_message`);
   }
   const nextHops = facts.callerHops + 1;
   const withHops = (notify: boolean | undefined): BusDecision =>
@@ -207,31 +192,6 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
         }
       }
       return withHops(false);
-    }
-
-    case "get_goal":
-      return allow;
-
-    case "propose_goal": {
-      if (facts.openGoal) return deny(`this thread already has a ${facts.openGoal.status} goal; finish it first`);
-      const budget = validateGoalBudget(
-        {
-          ...(call.args.token_budget !== undefined && { tokens: call.args.token_budget }),
-          ...(call.args.time_budget_seconds !== undefined && { seconds: call.args.time_budget_seconds }),
-          ...(call.args.turn_budget !== undefined && { turns: call.args.turn_budget }),
-        },
-        "agent",
-      );
-      return budget ? deny(budget) : allow;
-    }
-
-    case "update_goal": {
-      const goal = facts.openGoal;
-      if (!goal || goal.threadId !== caller.id) return deny("this thread has no open goal");
-      if (!canTransition(goal.status, call.args.status, "agent")) {
-        return deny(`a ${goal.status} goal cannot be marked ${call.args.status} by an agent`);
-      }
-      return allow;
     }
 
     case "cancel_schedule": {

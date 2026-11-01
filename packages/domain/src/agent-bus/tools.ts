@@ -128,26 +128,6 @@ export const ScheduleRecurring = Schema.Struct({
 
 export const ListSchedules = Schema.Struct({});
 
-export const GetGoal = Schema.Struct({});
-
-export const ProposeGoal = Schema.Struct({
-  objective: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(4_000)).annotate({ description: "What to achieve." }),
-  condition: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(500)).annotate({
-    description: "How to verify it is done from evidence (e.g. 'bun test exits 0'). The user approves it before work starts.",
-  }),
-  token_budget: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1_000, maximum: 50_000_000 }))),
-  time_budget_seconds: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 60, maximum: 7 * 24 * 3600 }))),
-  turn_budget: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 500 }))),
-});
-
-export const UpdateGoal = Schema.Struct({
-  status: Schema.Literals(["achieved", "blocked"]).annotate({
-    description: "achieved only when evidence proves every requirement; blocked only after repeated attempts fail.",
-  }),
-  evidence: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(20_000)).annotate({
-    description: "What proves it (commands and their results) or what blocks you.",
-  }),
-});
 export const CancelSchedule = Schema.Struct({ schedule_id: Schema.String.check(Schema.isUUID()) });
 
 interface ToolDefinition<S extends Schema.Top> {
@@ -252,24 +232,6 @@ export const AGENT_BUS_TOOLS = {
     args: CancelSchedule,
     mutates: true,
   }),
-  get_goal: define({
-    name: "get_goal",
-    description: "The current goal of this thread: objective, completion condition, status, budgets and usage.",
-    args: GetGoal,
-    mutates: false,
-  }),
-  propose_goal: define({
-    name: "propose_goal",
-    description: "Propose a goal to keep working on across turns. It starts after the user approves it.",
-    args: ProposeGoal,
-    mutates: true,
-  }),
-  update_goal: define({
-    name: "update_goal",
-    description: "Report the outcome of the current goal. Pausing and resuming are up to the user.",
-    args: UpdateGoal,
-    mutates: true,
-  }),
 } as const;
 
 /** Tools that only make sense for a thread that can have side threads (level 0). */
@@ -281,22 +243,9 @@ const ORCHESTRATOR_ONLY: ReadonlySet<AgentBusToolName> = new Set([
   "answer_interaction",
 ]);
 
-/**
- * Goal tools of the platform engine. With the native engine the model uses the harness's own
- * goal tools (Codex get_goal/update_goal, Claude ProposeGoal); offering both would confuse it.
- */
-const GOAL_TOOLS: ReadonlySet<AgentBusToolName> = new Set(["get_goal", "propose_goal", "update_goal"]);
-
-export interface ToolSetOptions {
-  /** Offer the platform goal tools (goal engine = platform, or a harness without native goals). */
-  readonly goalTools?: boolean;
-}
-
 /** Tool names offered to a thread at the given depth (0 = main thread, 1 = side thread). */
-export function agentBusToolsFor(depth: number, options: ToolSetOptions = {}): AgentBusToolName[] {
-  return (Object.keys(AGENT_BUS_TOOLS) as AgentBusToolName[]).filter(
-    (name) => (depth === 0 || !ORCHESTRATOR_ONLY.has(name)) && (options.goalTools === true || !GOAL_TOOLS.has(name)),
-  );
+export function agentBusToolsFor(depth: number): AgentBusToolName[] {
+  return (Object.keys(AGENT_BUS_TOOLS) as AgentBusToolName[]).filter((name) => depth === 0 || !ORCHESTRATOR_ONLY.has(name));
 }
 
 export type AgentBusToolName = keyof typeof AGENT_BUS_TOOLS;
