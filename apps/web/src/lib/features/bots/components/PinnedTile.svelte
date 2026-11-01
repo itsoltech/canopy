@@ -33,10 +33,11 @@
       {href}
       aria-current={current ? "page" : undefined}
       aria-describedby={hint}
-      class="group flex w-full min-w-0 flex-col items-center gap-1.5 rounded-xl px-1 pt-2 pb-1.5 select-none [-webkit-touch-callout:none] hover:bg-zinc-950/4 focus-ring aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8"
+      title={title}
+      class="group flex w-full min-w-0 flex-col items-center gap-1.5 rounded-xl px-0.5 pt-2 pb-1.5 select-none [-webkit-touch-callout:none] hover:bg-zinc-950/4 focus-ring aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8"
       {@attach contextMenu(() => (menuOpen = items.length > 0))}
     >
-      <span class="relative">
+      <span class="relative flex">
         {#if conversation.kind === "direct" && conversation.bots[0]}
           <BotAvatar participant={conversation.bots[0]} size="lg" badge="pinned" />
         {:else}

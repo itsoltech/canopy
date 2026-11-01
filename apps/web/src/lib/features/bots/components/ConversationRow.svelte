@@ -46,7 +46,7 @@
   {@attach contextMenu(() => (menuOpen = items.length > 0))}
 >
   {@render avatar()}
-  <div class="grid min-w-0 flex-1 gap-0.5">
+  <div class="grid min-w-0 flex-1 grid-cols-1 gap-0.5">
     <p class="flex items-baseline gap-2">
       <a
         {href}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import type { ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
   import BotComposer from "./BotComposer.svelte";
@@ -49,6 +49,13 @@
   } = $props();
 
   let draft = $state("");
+  let log = $state<HTMLElement>();
+
+  // Your own message goes to the end of the conversation: follow it there.
+  function send(text: string) {
+    onsend(text);
+    void tick().then(() => log?.scrollTo({ top: log.scrollHeight }));
+  }
 
   function openAtUnread(node: HTMLElement) {
     const divider = node.querySelector<HTMLElement>("[role=separator][aria-label='New messages']");
@@ -60,7 +67,7 @@
 <div class={["flex h-full min-h-0 flex-col", className]}>
   <ConversationHeader {conversation} {actions} />
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="min-h-0 flex-1 overflow-y-auto focus:outline-none" role="log" aria-label="Conversation" tabindex="0" {@attach openAtUnread}>
+  <div class="min-h-0 flex-1 overflow-y-auto focus:outline-none" role="log" aria-label="Conversation" tabindex="0" bind:this={log} {@attach openAtUnread}>
     <ChatTimeline
       {conversation}
       {entries}
@@ -77,7 +84,7 @@
     {#if conversation.kind === "watch"}
       <WatchBar bots={conversation.bots} {onclose} />
     {:else}
-      <BotComposer bind:value={draft} {sending} disabled={Boolean(composerDisabledReason)} disabledReason={composerDisabledReason} {onsend} {onattach} {onrecord} />
+      <BotComposer bind:value={draft} {sending} disabled={Boolean(composerDisabledReason)} disabledReason={composerDisabledReason} onsend={send} {onattach} {onrecord} />
     {/if}
   </div>
 </div>

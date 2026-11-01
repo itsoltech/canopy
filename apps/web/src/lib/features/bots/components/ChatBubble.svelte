@@ -73,7 +73,7 @@
       {#snippet trigger()}
         <div
           class={[
-            "max-w-[min(100%,36rem)] min-w-0 px-3.5 py-2 break-words select-text",
+            "max-w-[min(100%,36rem)] min-w-0 px-3.5 py-2 wrap-anywhere select-text",
             corners,
             mine ? "bg-brand-600 text-base/6 whitespace-pre-wrap text-white sm:text-sm/6" : "bg-zinc-100 dark:bg-white/8",
             message.delivery === "sending" && "opacity-70",
@@ -83,8 +83,7 @@
             if (matchMedia("(pointer: coarse)").matches && touchItems.length > 0) touchMenuOpen = true;
           })}
         >
-          <span class="sr-only">{mine ? "You" : (sender?.name ?? "Unknown")}, {timeLabel(message.at)}: </span>
-          {#if mine}{message.text}{:else}<Markdown text={message.text} />{/if}
+          <span class="sr-only">{mine ? "You" : (sender?.name ?? "Unknown")}, {timeLabel(message.at)}: </span>{#if mine}{message.text}{:else}<Markdown text={message.text} />{/if}
         </div>
       {/snippet}
     </Menu>

@@ -32,7 +32,7 @@
   const arranged = $derived(q ? { pinned: [], others: byLatest(conversations.filter(matches)) } : arrangeConversations(conversations));
 </script>
 
-<div class={["grid gap-2 [--avatar-ring:var(--color-zinc-50)] dark:[--avatar-ring:var(--color-zinc-950)]", className]}>
+<div class={["grid grid-cols-1 gap-2 [--avatar-ring:var(--color-zinc-50)] dark:[--avatar-ring:var(--color-zinc-950)]", className]}>
   {#if arranged.pinned.length > 0}
     <PinnedConversations conversations={arranged.pinned} {hrefOf} {currentId} {...handlers} />
   {/if}
