@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import { effortLevel, type ModelOption } from "./catalog.ts";
   import EffortPicker from "./EffortPicker.svelte";
   import ModelPicker from "./ModelPicker.svelte";
@@ -15,6 +16,7 @@
     effort = $bindable(),
     allowCustom = true,
     notice,
+    class: className,
   }: {
     options: readonly ModelOption[];
     option?: ModelOption | undefined;
@@ -22,6 +24,7 @@
     effort?: string | undefined;
     allowCustom?: boolean;
     notice?: string | undefined;
+    class?: ClassValue;
   } = $props();
 
   let modelOpen = $state(false);
@@ -37,6 +40,7 @@
   }
 </script>
 
+<span class={["flex min-w-0 items-center gap-1", className]}>
 <ModelPicker
   bind:open={modelOpen}
   options={listed}
@@ -50,3 +54,4 @@
 {#if option && option.efforts.length > 0}
   <EffortPicker bind:open={effortOpen} bind:value={effort} {option} onmodel={() => (modelOpen = true)} class="shrink-0" />
 {/if}
+</span>

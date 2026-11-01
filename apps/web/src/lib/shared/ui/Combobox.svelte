@@ -1,8 +1,9 @@
 <script lang="ts" generics="T">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { controlClasses, useField } from "./field.ts";
+  import { useField } from "./field.ts";
   import Icon from "./Icon.svelte";
+  import Input from "./Input.svelte";
   import Popover from "./Popover.svelte";
   import Spinner from "./Spinner.svelte";
 
@@ -212,8 +213,8 @@
   <div class={["flex min-h-0 flex-col", className]}>
     <div class="flex shrink-0 items-center gap-2 border-b border-zinc-950/5 px-3 dark:border-white/8">
       <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
-      <input
-        bind:this={input}
+      <Input
+        bare
         id={inputId}
         {name}
         type="text"
@@ -230,7 +231,7 @@
         bind:value={query}
         oninput={() => (activeKey = undefined)}
         {onkeydown}
-        class="min-w-0 flex-1 bg-transparent py-2.5 text-base/6 text-zinc-950 placeholder:text-zinc-400 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-500"
+        class="min-w-0 flex-1"
         {@attach focusOnMount}
       />
     </div>
@@ -238,8 +239,7 @@
   </div>
 {:else}
   <div class={["relative", className]}>
-    <input
-      bind:this={input}
+    <Input
       id={inputId}
       {name}
       type="text"
@@ -266,8 +266,11 @@
       }}
       onchange={() => onchange?.(query)}
       {onkeydown}
-      class={[controlClasses, "pr-8"]}
+      class="pr-8"
       {@attach focusOnMount}
+      {@attach (node: HTMLInputElement) => {
+        input = node;
+      }}
     />
     <Icon name="chevron-up-down" class="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 fill-zinc-400 dark:fill-zinc-500" />
     <Popover bind:open label={label} role="none" anchor={input} placement="bottom-start" focusOnOpen={false} class="w-(--float-anchor-width) min-w-48">

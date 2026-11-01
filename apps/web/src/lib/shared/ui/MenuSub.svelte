@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import type { ClassValue } from "svelte/elements";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
-  import { focusItem, menuKeydown, provideMenu, useMenu } from "./menu.ts";
-  import { menuRowClasses } from "./MenuItem.svelte";
+  import { focusItem, hoverFocus, menuIconClasses, menuKeydown, menuRowClasses, provideMenu, useMenu } from "./menu.ts";
   import Popover from "./Popover.svelte";
 
   /**
@@ -12,7 +12,7 @@
    *
    *   <MenuSub label="Copy" icon="document-duplicate"><MenuItem onselect={copyId}>Thread ID</MenuItem></MenuSub>
    */
-  let { label, icon, children }: { label: string; icon?: IconName | undefined; children: Snippet } = $props();
+  let { label, icon, class: className, children }: { label: string; icon?: IconName | undefined; class?: ClassValue; children: Snippet } = $props();
 
   const id = $props.id();
   const parent = useMenu();
@@ -38,15 +38,11 @@
       parent.openSub = undefined;
     }
   }
-  function onpointermove(event: PointerEvent) {
-    if (event.pointerType !== "mouse") return;
-    const row = event.currentTarget as HTMLElement;
-    if (document.activeElement !== row) row.focus({ preventScroll: true });
-    if (!open) {
-      byKeyboard = false;
-      parent.openSub = id;
-    }
-  }
+  const onpointermove = hoverFocus(() => {
+    if (open) return;
+    byKeyboard = false;
+    parent.openSub = id;
+  });
   const navigate = menuKeydown();
 </script>
 
@@ -73,14 +69,14 @@
       role="menuitem"
       tabindex="-1"
       data-menu-item
-      class={menuRowClasses}
+      class={[menuRowClasses, className]}
       onclick={() => {
         byKeyboard = false;
         parent.openSub = open ? undefined : id;
       }}
       {onpointermove}
     >
-      {#if icon}<Icon name={icon} class="h-lh fill-zinc-500 group-focus/item:fill-zinc-700 dark:fill-zinc-400 dark:group-focus/item:fill-zinc-200" />{/if}
+      {#if icon}<Icon name={icon} class={menuIconClasses} />{/if}
       <span class="min-w-0 flex-1 truncate">{label}</span>
       <Icon name="chevron-right" class="h-lh fill-zinc-400 dark:fill-zinc-500" />
     </button>

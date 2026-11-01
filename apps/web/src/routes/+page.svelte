@@ -17,6 +17,7 @@
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
   import MenuGroup from "#lib/shared/ui/MenuGroup.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
+  import PillText from "#lib/shared/ui/PillText.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
@@ -126,13 +127,11 @@
           {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
           <ComposerBox bind:value={message} sending={busy} disabled={!selected} autofocus label="Task for the agent">
             {#snippet controls()}
-              <span class="flex min-w-0 flex-1 items-center justify-end gap-1">
-                {#if selected}
-                  <ModelControls {options} bind:option={() => selected, (option) => (picked = option)} bind:effort />
-                {:else}
-                  <span class="truncate px-2 text-sm/5 text-zinc-500 sm:text-[0.8125rem]/5 dark:text-zinc-400">No agent available</span>
-                {/if}
-              </span>
+              {#if selected}
+                <ModelControls {options} bind:option={() => selected, (option) => (picked = option)} bind:effort class="flex-1 justify-end" />
+              {:else}
+                <PillText class="flex-1 text-right">No agent available</PillText>
+              {/if}
             {/snippet}
             {#snippet meta()}
               <DropdownMenu label="Workspace" placement="bottom-start" class="max-w-[min(28rem,calc(100vw-1rem))]">

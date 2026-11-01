@@ -7,6 +7,7 @@
   import WorkerHoverCard from "#lib/features/overview/WorkerHoverCard.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import PillText from "#lib/shared/ui/PillText.svelte";
   import { interruptThread, sendMessage } from "../api.ts";
   import { permissionLabel, providerLabel } from "../labels.ts";
   import { providerKeyOf } from "../providers.ts";
@@ -91,13 +92,17 @@
     onstop={running ? interrupt : undefined}
   >
     {#snippet controls()}
-      <span class="flex min-w-0 flex-1 items-center justify-end gap-1">
-        {#if option}
-          <ModelControls {options} bind:option={() => option, (next) => (picked = next)} bind:effort notice="Per-message model and effort are not sent yet: the gateway does not take them." />
-        {:else}
-          <span class="min-w-0 truncate px-2 text-sm/5 text-zinc-500 sm:text-[0.8125rem]/5 dark:text-zinc-400">{providerLabel(thread.provider)}</span>
-        {/if}
-      </span>
+      {#if option}
+        <ModelControls
+          {options}
+          bind:option={() => option, (next) => (picked = next)}
+          bind:effort
+          notice="Per-message model and effort are not sent yet: the gateway does not take them."
+          class="flex-1 justify-end"
+        />
+      {:else}
+        <PillText class="flex-1 text-right">{providerLabel(thread.provider)}</PillText>
+      {/if}
     {/snippet}
     {#snippet meta()}
       <WorkerHoverCard {worker} />

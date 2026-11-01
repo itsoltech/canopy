@@ -12,13 +12,15 @@
     label: string;
     variant?: ButtonVariant;
     size?: ButtonSize;
+    /** Icon colour (`fill-*`), e.g. a filled star. */
+    iconClass?: ClassValue;
     class?: ClassValue;
   };
 
-  let { icon, label, variant = "ghost", size = "md", type = "button", class: className, ...rest }: Props = $props();
+  let { icon, label, variant = "ghost", size = "md", type = "button", iconClass, class: className, ...rest }: Props = $props();
 </script>
 
 <button {type} class={[iconButtonClasses(variant, size), className]} aria-label={label} {...rest} {@attach tooltip(label)}>
-  <Icon name={icon} />
+  <Icon name={icon} class={iconClass} />
   <TouchTarget />
 </button>

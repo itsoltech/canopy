@@ -20,6 +20,26 @@ export function useMenu(): MenuContext {
   return menu;
 }
 
+/** Look shared by every row of a menu (items, check items, submenu triggers). */
+export const menuRowClasses =
+  "group/item relative flex w-full cursor-default items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-base/6 text-zinc-800 outline-none select-none focus:bg-zinc-950/5 focus:text-zinc-950 aria-disabled:opacity-50 aria-expanded:bg-zinc-950/5 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:focus:bg-white/8 dark:focus:text-white dark:aria-expanded:bg-white/8";
+
+/** Leading icon of a menu row. */
+export const menuIconClasses = "h-lh fill-zinc-500 group-focus/item:fill-zinc-700 dark:fill-zinc-400 dark:group-focus/item:fill-zinc-200";
+
+/**
+ * Pointer handler of a row: hovering with a mouse moves the roving focus to it, like native menus.
+ * `onhover` runs too (rows close a sibling's submenu, submenu rows open theirs).
+ */
+export function hoverFocus(onhover: () => void): (event: PointerEvent) => void {
+  return (event) => {
+    if (event.pointerType !== "mouse") return;
+    const row = event.currentTarget as HTMLElement;
+    if (document.activeElement !== row) row.focus({ preventScroll: true });
+    onhover();
+  };
+}
+
 const ITEM = "[data-menu-item]:not([aria-disabled='true'])";
 
 /** Enabled items of `panel` itself, in order (items of nested submenus excluded). */

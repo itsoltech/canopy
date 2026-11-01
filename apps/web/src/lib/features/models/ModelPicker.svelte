@@ -4,6 +4,7 @@
   import Combobox from "#lib/shared/ui/Combobox.svelte";
   import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
   import Popover from "#lib/shared/ui/Popover.svelte";
@@ -93,8 +94,6 @@
     }
   }
 
-  const railButton =
-    "relative grid size-9 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 aria-pressed:bg-zinc-950/6 sm:size-8 dark:hover:bg-white/5 dark:aria-pressed:bg-white/10";
 </script>
 
 <Popover
@@ -118,34 +117,28 @@
 
   <div class="flex h-[min(24rem,var(--float-available-height,24rem))] in-data-sheet:h-[70dvh]">
     <div role="group" aria-label="Show models" class="flex shrink-0 flex-col items-center gap-1 border-r border-zinc-950/5 p-1.5 dark:border-white/8">
-      <button
-        type="button"
-        class={railButton}
-        aria-label="Favorites"
-        aria-pressed={!searching && current === "favorites"}
-        onclick={() => {
-          section = "favorites";
-          query = "";
-        }}
-        {@attach tooltip("Favorites", { placement: "right" })}
-      >
-        <Icon name="star" class={!searching && current === "favorites" ? "fill-amber-500" : "fill-zinc-400 dark:fill-zinc-500"} />
-      </button>
-      {#each providers as provider (provider)}
+      {#snippet railButton(target: "favorites" | ProviderKey, label: string)}
+        {@const pressed = !searching && current === target}
         <button
           type="button"
-          class={railButton}
-          aria-label={providerName(provider)}
-          aria-pressed={!searching && current === provider}
+          class="relative grid size-9 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 aria-pressed:bg-zinc-950/6 sm:size-8 dark:hover:bg-white/5 dark:aria-pressed:bg-white/10"
+          aria-label={label}
+          aria-pressed={pressed}
           onclick={() => {
-            section = provider;
+            section = target;
             query = "";
           }}
-          {@attach tooltip(providerName(provider), { placement: "right" })}
+          {@attach tooltip(label, { placement: "right" })}
         >
-          <ProviderIcon {provider} class={searching || current !== provider ? "opacity-60 grayscale" : undefined} />
+          {#if target === "favorites"}
+            <Icon name="star" class={pressed ? "fill-amber-500" : "fill-zinc-400 dark:fill-zinc-500"} />
+          {:else}
+            <ProviderIcon provider={target} class={pressed ? undefined : "opacity-60 grayscale"} />
+          {/if}
         </button>
-      {/each}
+      {/snippet}
+      {@render railButton("favorites", "Favorites")}
+      {#each providers as provider (provider)}{@render railButton(provider, providerName(provider))}{/each}
     </div>
 
     <div class="flex min-w-0 flex-1 flex-col">
@@ -178,24 +171,18 @@
                 </span>
               </span>
               {#if shortcut}<Kbd hotkey={shortcut} />{/if}
-              <button
-                type="button"
-                tabindex="-1"
-                class="relative grid size-7 shrink-0 place-items-center rounded-md hover:bg-zinc-950/5 dark:hover:bg-white/10"
-                aria-label={favorites.has(o.key) ? `Remove ${o.name} from favorites` : `Add ${o.name} to favorites`}
+              <IconButton
+                icon="star"
+                size="sm"
+                tabindex={-1}
+                label={favorites.has(o.key) ? `Remove ${o.name} from favorites` : `Add ${o.name} to favorites`}
                 aria-pressed={favorites.has(o.key)}
+                iconClass={favorites.has(o.key) ? "fill-amber-500" : ["fill-zinc-300 dark:fill-zinc-600", !state.active && "pointer-fine:invisible"]}
                 onclick={(event) => {
                   event.stopPropagation();
                   favorites.toggle(o.key);
                 }}
-              >
-                <Icon
-                  name="star"
-                  class={favorites.has(o.key)
-                    ? "fill-amber-500"
-                    : ["fill-zinc-300 dark:fill-zinc-600", !state.active && "pointer-fine:invisible"]}
-                />
-              </button>
+              />
               <Icon name="check" class={["fill-brand-600 dark:fill-brand-400", !state.selected && "invisible"]} />
             {/if}
           </div>

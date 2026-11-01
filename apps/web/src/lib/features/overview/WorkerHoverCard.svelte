@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
+  import type { ClassValue } from "svelte/elements";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { formatRelative } from "#lib/shared/format.ts";
   import HoverCard from "#lib/shared/ui/HoverCard.svelte";
@@ -11,13 +12,13 @@
    * A worker's name that previews it on hover, focus or tap: online state, host and system, agent CLIs
    * and profiles. The same facts are in Settings → Workers.
    */
-  let { worker }: { worker: ui.Worker | undefined } = $props();
+  let { worker, class: className }: { worker: ui.Worker | undefined; class?: ClassValue } = $props();
 </script>
 
 {#if worker}
   <HoverCard label="Worker {worker.name}">
     {#snippet trigger(props)}
-      <button type="button" {...props} class="flex min-w-0 items-center gap-1.5 rounded-md focus-ring hover:text-zinc-950 dark:hover:text-white">
+      <button type="button" {...props} class={["flex min-w-0 items-center gap-1.5 rounded-md focus-ring hover:text-zinc-950 dark:hover:text-white", className]}>
         <Icon name="computer-desktop" class="size-3.5" />
         <span class="truncate">{worker.name}{worker.online ? "" : " (offline)"}</span>
       </button>
@@ -38,5 +39,5 @@
     </div>
   </HoverCard>
 {:else}
-  <span class="flex min-w-0 items-center gap-1.5"><Icon name="computer-desktop" class="size-3.5" /><span class="truncate">Unknown worker</span></span>
+  <span class={["flex min-w-0 items-center gap-1.5", className]}><Icon name="computer-desktop" class="size-3.5" /><span class="truncate">Unknown worker</span></span>
 {/if}

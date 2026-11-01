@@ -2,8 +2,8 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "./Icon.svelte";
-  import { useMenu } from "./menu.ts";
-  import { menuRowClasses } from "./MenuItem.svelte";
+  import { hoverFocus, menuRowClasses, useMenu } from "./menu.ts";
+  import MenuItemText from "./MenuItemText.svelte";
 
   /**
    * A choice in a `DropdownMenu` with a check mark: `type="radio"` (one of a group, closes the menu)
@@ -37,12 +37,7 @@
     onselect();
     if (!keepOpen) menu.closeAll();
   }
-  function onpointermove(event: PointerEvent) {
-    if (event.pointerType !== "mouse") return;
-    menu.openSub = undefined;
-    const item = event.currentTarget as HTMLElement;
-    if (document.activeElement !== item) item.focus({ preventScroll: true });
-  }
+  const onpointermove = hoverFocus(() => (menu.openSub = undefined));
 </script>
 
 <button
@@ -56,9 +51,6 @@
   onclick={choose}
   {onpointermove}
 >
-  <span class="grid min-w-0 flex-1">
-    <span class="truncate">{@render children()}</span>
-    {#if description}<span class="text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{description}</span>{/if}
-  </span>
+  <MenuItemText {description}>{@render children()}</MenuItemText>
   <Icon name="check" class={["h-lh fill-brand-600 dark:fill-brand-400", !checked && "invisible"]} />
 </button>

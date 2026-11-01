@@ -1,16 +1,11 @@
-<script lang="ts" module>
-  /** Look shared by every row of a menu (items, check items, submenu triggers). */
-  export const menuRowClasses =
-    "group/item relative flex w-full cursor-default items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-base/6 text-zinc-800 outline-none select-none focus:bg-zinc-950/5 focus:text-zinc-950 aria-disabled:opacity-50 aria-expanded:bg-zinc-950/5 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:focus:bg-white/8 dark:focus:text-white dark:aria-expanded:bg-white/8";
-</script>
-
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
   import Kbd from "./Kbd.svelte";
-  import { useMenu } from "./menu.ts";
+  import { hoverFocus, menuIconClasses, menuRowClasses, useMenu } from "./menu.ts";
+  import MenuItemText from "./MenuItemText.svelte";
 
   /**
    * One action of a `DropdownMenu`. Choosing it runs `onselect` and closes the menu (unless
@@ -51,23 +46,14 @@
     onselect?.();
     if (!keepOpen) menu.closeAll();
   }
-  // Hovering moves the roving focus (and closes a sibling's submenu), like native menus.
-  function onpointermove(event: PointerEvent) {
-    if (event.pointerType !== "mouse") return;
-    menu.openSub = undefined;
-    const item = event.currentTarget as HTMLElement;
-    if (document.activeElement !== item) item.focus({ preventScroll: true });
-  }
+  const onpointermove = hoverFocus(() => (menu.openSub = undefined));
 </script>
 
 {#snippet body()}
   {#if icon}
-    <Icon name={icon} class={["h-lh", danger ? "fill-rose-600 dark:fill-rose-400" : "fill-zinc-500 group-focus/item:fill-zinc-700 dark:fill-zinc-400 dark:group-focus/item:fill-zinc-200"]} />
+    <Icon name={icon} class={danger ? "h-lh fill-rose-600 dark:fill-rose-400" : menuIconClasses} />
   {/if}
-  <span class="grid min-w-0 flex-1">
-    <span class="truncate">{@render children()}</span>
-    {#if description}<span class="text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{description}</span>{/if}
-  </span>
+  <MenuItemText {description}>{@render children()}</MenuItemText>
   {#if shortcut}<span class="flex h-lh items-center"><Kbd hotkey={shortcut} /></span>{/if}
 {/snippet}
 
