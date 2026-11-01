@@ -34,6 +34,8 @@ export interface IngestResult {
   readonly stored: readonly StoredEvent[];
   /** Threads the gateway does not know: not acked, the worker keeps them. */
   readonly unknownThreads: readonly string[];
+  /** Threads whose events could not be stored this time: not acked, resent by the worker after a reconnect. */
+  readonly failedThreads: readonly { threadId: string; error: SqlError.SqlError }[];
 }
 
 export class Ingest extends Context.Service<
@@ -47,13 +49,26 @@ export class Ingest extends Context.Service<
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      const ensureTurn = (threadId: string, turnId: string, trigger: "provider" | "recovery") =>
+      // The provider runs one turn at a time per thread: when it starts another, a turn still marked running
+      // here lost its turn_finished (e.g. a provider crash) and is over.
+      const supersede = (threadId: string, turnId: string) =>
         sql`
-          INSERT INTO turns (id, thread_id, ordinal, status, trigger, input, started_at)
-          SELECT ${turnId}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'running', ${trigger}, '{}'::jsonb, now()
-            FROM turns WHERE thread_id = ${threadId}::uuid
-          ON CONFLICT (id) DO NOTHING
+          UPDATE turns SET status = 'interrupted', interrupt_reason = 'superseded: the provider started another turn', completed_at = now()
+           WHERE thread_id = ${threadId}::uuid AND status = 'running' AND id <> ${turnId}::uuid
         `;
+
+      const ensureTurn = (threadId: string, turnId: string, trigger: "provider" | "recovery") =>
+        Effect.gen(function* () {
+          const exists = yield* sql`SELECT 1 FROM turns WHERE id = ${turnId}::uuid`;
+          if (exists.length > 0) return;
+          yield* supersede(threadId, turnId);
+          yield* sql`
+            INSERT INTO turns (id, thread_id, ordinal, status, trigger, input, started_at)
+            SELECT ${turnId}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'running', ${trigger}, '{}'::jsonb, now()
+              FROM turns WHERE thread_id = ${threadId}::uuid
+            ON CONFLICT (id) DO NOTHING
+          `;
+        });
 
       const applyItem = (threadId: string, seq: bigint, event: ThreadEvent) =>
         Effect.gen(function* () {
@@ -89,6 +104,7 @@ export class Ingest extends Context.Service<
               `;
               return;
             case "turnStarted":
+              yield* supersede(threadId, event.turnId);
               yield* sql`
                 UPDATE turns SET status = 'running', started_at = coalesce(started_at, now()),
                                  provider_turn_ref = ${body.value.providerTurnRef || null}, first_seq = coalesce(first_seq, ${seq})
@@ -173,8 +189,14 @@ export class Ingest extends Context.Service<
           const acks = new Map<string, bigint>();
           const stored: StoredEvent[] = [];
           const unknownThreads: string[] = [];
+          const failedThreads: { threadId: string; error: SqlError.SqlError }[] = [];
           for (const [threadId, threadEvents] of byThread) {
-            const result = yield* ingestThread(workerId, journalId, threadId, threadEvents);
+            // One thread's failure must not stop the others (or the worker link): it is not acked, so the
+            // worker keeps its events and resends them after reconnecting (the core asks it to).
+            const result = yield* ingestThread(workerId, journalId, threadId, threadEvents).pipe(
+              Effect.catchTag("SqlError", (error) => Effect.sync(() => void failedThreads.push({ threadId, error }))),
+            );
+            if (result === undefined && failedThreads.some((f) => f.threadId === threadId)) continue;
             if (!result) {
               unknownThreads.push(threadId);
               continue;
@@ -182,7 +204,7 @@ export class Ingest extends Context.Service<
             acks.set(threadId, result.ack);
             stored.push(...result.stored);
           }
-          return { acks, stored, unknownThreads };
+          return { acks, stored, unknownThreads, failedThreads };
         }),
       });
     }),

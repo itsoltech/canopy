@@ -8,14 +8,18 @@ Status: **działa dla Codexa** (2026-11-01):
 - gateway: `AgentBus` (`apps/gateway/src/core/agent-bus.ts`) i `AgentBusStore` (`apps/gateway/src/store/agent-bus.ts`): dekodowanie, fakty z bazy, `authorizeBusCall`, wykonanie, powiadomienia, pytania do rodzica,
 - testy: `tests/integration/agent-bus.test.ts` (gateway + skryptowany worker), `codex dynamic tools (live)` w `app-server.live.test.ts`.
 
-Potwierdzone na żywo (Codex przez CLIProxyAPI, przez UI/BFF): wątek główny wywołuje `spawn_thread`, wątek boczny powstaje w tym samym katalogu i wykonuje zadanie, a wynik wraca do wątku głównego jako tura powiadomienia (`hops` 1 → 2), po której model odpowiada użytkownikowi.
+Potwierdzone na żywo (Codex przez CLIProxyAPI, przez UI/BFF):
+- wątek główny wywołuje `spawn_thread`, wątek boczny powstaje w tym samym katalogu i wykonuje zadanie, a wynik wraca do wątku głównego jako tura powiadomienia (`hops` 1 → 2), po której model odpowiada użytkownikowi,
+- `schedule_wakeup` za 60 s: gateway odpala turę `trigger = schedule` i model wykonuje zaplanowane polecenie.
+
+Zestaw narzędzi wątku Codexa jest ustalany przy `thread/start`. Wątki utworzone przed zmianą zestawu (np. przed włączeniem harmonogramu) mają stary zestaw.
 
 | Narzędzie | Stan |
 |---|---|
 | `spawn_thread` (z `fork`, `notify`, `interactions`), `send_message`, `wait_threads`, `get_thread`, `read_thread`, `list_threads`, `interrupt_thread`, `close_thread`, `list_interactions`, `answer_interaction` | działa |
 | `list_agents`, `spawn_thread.agent` | brak katalogu agentów: `list_agents` zwraca pustą listę, `agent` jest odrzucane (wątek boczny to kopia wywołującego) |
 | `send_message.delivery = steer` | kolejkowane jako następna tura (do zrobienia z `turn/steer`) |
-| `schedule_*`, `list_schedules`, `cancel_schedule` | nie są oferowane modelowi, dopóki gateway nie uruchamia harmonogramu |
+| `schedule_wakeup`, `schedule_recurring`, `list_schedules`, `cancel_schedule` | działa: `Scheduler` w gateway (`apps/gateway/src/core/scheduler.ts`, co 5 s), cron Buna ze strefą czasową (`core/cron.ts`); minimalny odstęp sprawdzany na rzeczywistych terminach |
 | `get_goal`, `propose_goal`, `update_goal` | tylko z silnikiem celów platformy (domyślny jest natywny) |
 
 Powiązane: [threads.md](threads.md), [execution.md](execution.md), [transcript.md](transcript.md).

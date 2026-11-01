@@ -120,6 +120,8 @@ sequenceDiagram
 ### 4.3 Transkrypt i zdarzenia live
 
 - `INSERT ... ON CONFLICT (thread_id, seq) DO NOTHING`, `EventAck` po commicie (już w protokole).
+- **Jeden wątek nie blokuje pozostałych.** Zdarzenia są zapisywane w transakcji na wątek (`Ingest`). Gdy zapis wątku się nie uda, ten wątek nie dostaje `EventAck`, a jego kolejne zdarzenia na tym połączeniu są pomijane (żeby nie trafiły do bazy w złej kolejności). Pozostałe wątki są zapisywane i potwierdzane. Gateway prosi workera o ponowne połączenie (`Drain`, 10 s), a worker wysyła niepotwierdzone zdarzenia ponownie ze swojego dziennika.
+- **Utracone `turn_finished`.** Dostawca prowadzi jedną turę naraz w wątku. Gdy zaczyna kolejną, a tura w bazie nadal jest `running` (np. po awarii dostawcy), gateway zamyka ją jako `interrupted` (`superseded`). Wcześniej ten stan łamał `turns_one_running` i zatrzymywał cały strumień workera (zdarzenie, które po każdym połączeniu psuło zapis od nowa).
 - Zdarzenia live do UI idą przez `NOTIFY` z `(thread_id, seq)`. Instancja z subskrypcją UI czyta wiersze z bazy. Działa przy N instancjach, a UI po ponownym połączeniu wznawia od swojego `seq`.
 
 ### 4.4 Tury agentów czatowych
@@ -133,6 +135,7 @@ sequenceDiagram
 - `agent_bus_calls.id = call_id`. Worker po ponownym połączeniu ponawia `AgentToolCall`; gateway zwraca zapisany wynik zamiast wykonywać drugi raz (nie powstaje drugi wątek boczny).
 - Powiadomienia zwrotne to outbox (`notify_status = pending` → `delivered` z turą w wątku wywołującym). Przeżywają restart gateway.
 - `wait_threads` jest ograniczone w czasie i tylko czyta stan, więc przerwanie go niczego nie psuje.
+- Harmonogramy są w bazie, a odpalanie z dzierżawą (`FOR UPDATE SKIP LOCKED`, 60 s), więc przy kilku instancjach każdy termin odpala jedna. Po przestoju harmonogram cykliczny odpala jedną turę nadrabiającą (albo pomija zaległe przy `missed_policy = skip`), a następny termin liczy się od teraz.
 - Szczegóły: [agent-bus.md](agent-bus.md#6-trwałość).
 
 ### 4.6 Drain instancji gateway

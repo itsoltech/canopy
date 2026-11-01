@@ -54,10 +54,10 @@ export interface CodexThreadsOptions {
  * Agent bus tools for a thread, as Codex dynamic tools. Codex accepts them only in thread/start and keeps
  * them with the thread (verified live: across resume in a new process and in forks). A fork therefore has
  * its source's tools; the gateway authorizes every call by the caller's depth anyway.
- * Schedule tools wait for the platform scheduler; goal tools for the platform goal engine.
+ * Goal tools only come with the platform goal engine (the default is Codex's native goals).
  */
 export function codexAgentBusTools(depth: number): v2.DynamicToolSpec[] {
-  return agentBusToolSpecs(agentBusToolsFor(depth, { scheduleTools: false })).map((tool) => ({
+  return agentBusToolSpecs(agentBusToolsFor(depth)).map((tool) => ({
     type: "function" as const,
     name: tool.name,
     description: tool.description,

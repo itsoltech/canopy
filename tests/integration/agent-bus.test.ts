@@ -91,8 +91,8 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(excess.isError).toBe(true);
     const foreign = await gw.worker.callTool({ threadId: mainId, tool: "get_thread", args: { thread_id: Bun.randomUUIDv7() } });
     expect(foreign.content).toContain("not found in your thread tree");
-    const later = await gw.worker.callTool({ threadId: mainId, tool: "schedule_wakeup", args: { prompt: "x", delay_seconds: 600 } });
-    expect(later.content).toBe("schedule_wakeup is not available yet");
+    const goal = await gw.worker.callTool({ threadId: mainId, tool: "propose_goal", args: { objective: "x", condition: "y" } });
+    expect(goal.content).toBe("propose_goal is not available in this thread");
   });
 
   test("reading the tree: list_threads, get_thread, read_thread, wait_threads", async () => {
@@ -158,6 +158,58 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(rows[0]?.routed_to).toBe("human");
     const answer = await gw.worker.callTool({ threadId: mainId, tool: "answer_interaction", args: { request_id: requestId, response: "allow" } });
     expect(answer.content).toBe("this interaction is answered by the user");
+  });
+
+  test("schedules: a wake-up fires once as a schedule turn; a recurring one runs until max_runs; limits apply", async () => {
+    const sideId = (await query<{ id: string }>("SELECT id FROM threads WHERE title = 'Reviewer'"))[0]!.id;
+    const wakeup = json(await gw.worker.callTool({ threadId: mainId, tool: "schedule_wakeup", args: { prompt: "Check CI", delay_seconds: 600 } }));
+    expect(wakeup).toMatchObject({ thread_id: mainId });
+    // For a child too, but only orchestrators control others' schedules.
+    const recurring = json(
+      await gw.worker.callTool({ threadId: mainId, tool: "schedule_recurring", args: { prompt: "Status?", cron: "*/30 * * * *", max_runs: 2, thread_id: sideId } }),
+    );
+    expect(recurring).toMatchObject({ thread_id: sideId, cron: "*/30 * * * *", timezone: "UTC" });
+    expect((await gw.worker.callTool({ threadId: mainId, tool: "schedule_recurring", args: { prompt: "x", cron: "0,1,2 * * * *", max_runs: 3 } })).content).toBe(
+      "cron runs more often than every 5 minutes",
+    );
+    expect((await gw.worker.callTool({ threadId: mainId, tool: "schedule_recurring", args: { prompt: "x", cron: "0 * * * *" } })).content).toBe(
+      "set until or max_runs",
+    );
+    const listed = json(await gw.worker.callTool({ threadId: mainId, tool: "list_schedules", args: {} })) as { schedules: { schedule_id: string }[] };
+    expect(listed.schedules.map((s) => s.schedule_id).sort()).toEqual([String(wakeup["schedule_id"]), String(recurring["schedule_id"])].sort());
+
+    // Nothing is due now; in 11 minutes the wake-up is, and the recurring schedule too (every 30 min).
+    expect(await gw.core.scheduler.tick(new Date())).toBe(0);
+    const mainBefore = (await turns(mainId)).length;
+    expect(await gw.core.scheduler.tick(new Date(Date.now() + 31 * 60_000))).toBe(2);
+    const mainTurns = await eventually(() => turns(mainId), (t) => t.length === mainBefore + 1 && t[mainBefore]?.status === "completed");
+    expect(mainTurns[mainBefore]).toMatchObject({ trigger: "schedule", hops: 1 });
+    expect(mainTurns[mainBefore]?.text).toContain("Scheduled wake-up");
+    expect(mainTurns[mainBefore]?.text).toContain("Check CI");
+    const states = await query<{ id: string; status: string; runs: number }>("SELECT id, status, runs FROM schedules ORDER BY created_at");
+    expect(states.map((s) => [s.status, s.runs])).toEqual([
+      ["completed", 1],
+      ["active", 1],
+    ]);
+    // The second run completes the recurring schedule (max_runs = 2).
+    expect(await gw.core.scheduler.tick(new Date(Date.now() + 3 * 3600_000))).toBe(1);
+    const after = await query<{ status: string; runs: number }>("SELECT status, runs FROM schedules WHERE id = $1::uuid", recurring["schedule_id"]);
+    expect(after[0]).toEqual({ status: "completed", runs: 2 });
+    const sideTurns = await eventually(() => turns(sideId), (t) => t.filter((x) => x.trigger === "schedule" && x.status === "completed").length === 2);
+    expect(sideTurns.filter((x) => x.trigger === "schedule")[1]?.text).toContain("run 2 of 2");
+  });
+
+  test("cancel_schedule; a side thread cannot schedule its parent", async () => {
+    const sideId = (await query<{ id: string }>("SELECT id FROM threads WHERE title = 'Reviewer'"))[0]!.id;
+    const created = json(await gw.worker.callTool({ threadId: sideId, tool: "schedule_wakeup", args: { prompt: "later", delay_seconds: 3600 } }));
+    const notMine = await gw.worker.callTool({ threadId: sideId, tool: "schedule_wakeup", args: { prompt: "x", delay_seconds: 3600, thread_id: mainId } });
+    expect(notMine.content).toBe("you can only control threads you spawned");
+    // The parent may cancel its child's schedule.
+    expect(json(await gw.worker.callTool({ threadId: mainId, tool: "cancel_schedule", args: { schedule_id: created["schedule_id"] } }))).toEqual({
+      schedule_id: created["schedule_id"],
+      cancelled: true,
+    });
+    expect(await gw.core.scheduler.tick(new Date(Date.now() + 2 * 3600_000))).toBe(0);
   });
 
   test("close_thread archives the side thread; it no longer counts or receives messages", async () => {

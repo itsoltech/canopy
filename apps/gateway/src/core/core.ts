@@ -14,6 +14,7 @@ import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerL
 import { AgentBusStore, GatewayStore, Ingest, toUiThread, toUiTurn, type ThreadRow } from "../store/index.ts";
 import { AgentBus } from "./agent-bus.ts";
 import { Hub } from "./hub.ts";
+import { Scheduler } from "./scheduler.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -41,8 +42,11 @@ export class GatewayCore {
   readonly link: WorkerLink;
   readonly hub = new Hub();
   readonly bus: AgentBus;
+  readonly scheduler: Scheduler;
   readonly #options: GatewayCoreOptions;
   readonly #journalIds = new Map<string, string>();
+  /** Threads whose events failed to store on a connection: skipped until the worker reconnects and resends. */
+  readonly #blocked = new WeakMap<WorkerConnection, Set<string>>();
 
   constructor(options: GatewayCoreOptions) {
     this.#options = options;
@@ -66,6 +70,16 @@ export class GatewayCore {
       interrupt: (threadId) => this.interrupt(threadId),
       answer: (by, request) => this.#answer(by, request),
       broadcastThread: (threadId) => this.#broadcastThread(threadId),
+    });
+    // Ticks only after start() (main.ts); tests drive tick() directly.
+    this.scheduler = new Scheduler({
+      run: (effect) => this.#options.runtime.runPromise(effect),
+      queued: async (threadId, turn) => {
+        this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }));
+        await this.pump(threadId);
+      },
+      owner: options.instanceId,
+      log: (message) => this.#log(message),
     });
   }
 
@@ -115,7 +129,7 @@ export class GatewayCore {
                   // link closed: the worker re-sends the call and gets the stored result
                 }
               },
-              (error: unknown) => this.#log(`agent bus call ${call.toolName} failed: ${error instanceof Error ? error.message : String(error)}`),
+              (error: unknown) => this.#log(`agent bus call ${call.toolName} failed: ${describeError(error)}`),
             );
             break;
           }
@@ -127,18 +141,41 @@ export class GatewayCore {
         }
       }
     } catch (error) {
-      this.#log(`worker ${workerId} stream failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.#log(`worker ${workerId} stream failed: ${describeError(error)}`);
     } finally {
       this.#log(`worker ${workerId} disconnected`);
       await this.#broadcastWorkers().catch(() => {});
     }
   }
 
-  async #ingest(connection: WorkerConnection, events: ThreadEvent[]): Promise<void> {
+  async #ingest(connection: WorkerConnection, incoming: ThreadEvent[]): Promise<void> {
     const journalId = this.#journalIds.get(connection.workerId) ?? "";
+    const blocked = this.#blocked.get(connection);
+    // Later events of a thread that failed would land out of order: skip them (unacked) until the resend.
+    const events = blocked ? incoming.filter((e) => !blocked.has(e.threadId)) : incoming;
+    if (events.length === 0) return;
     const result = await this.#options.runtime.runPromise(Ingest.use((i) => i.ingest(connection.workerId, journalId, events)));
     for (const [threadId, ackSeq] of result.acks) connection.send({ case: "eventAck", value: { threadId, ackSeq } });
     for (const unknown of result.unknownThreads) this.#log(`events for unknown thread ${unknown} kept on worker ${connection.workerId}`);
+    if (result.failedThreads.length > 0) {
+      const set = blocked ?? new Set<string>();
+      this.#blocked.set(connection, set);
+      for (const { threadId, error } of result.failedThreads) {
+        this.#log(`events of thread ${threadId} not stored (kept on worker ${connection.workerId}): ${describeError(error)}`);
+        set.add(threadId);
+      }
+      // The worker resends unacked events after reconnecting: ask for that, a little later.
+      if (!blocked) {
+        setTimeout(() => {
+          if (!connection.isOpen) return;
+          try {
+            connection.send({ case: "drain", value: { reason: "redelivering events that failed to store", reconnectAfterMs: 10_000 } });
+          } finally {
+            connection.close();
+          }
+        }, 1_000);
+      }
+    }
     const touched = new Set<string>();
     for (const stored of result.stored) {
       this.hub.publishThread(
@@ -414,6 +451,18 @@ export class GatewayCore {
   #log(message: string): void {
     this.#options.log?.(message);
   }
+}
+
+/** Message with its causes (driver errors keep the useful part, e.g. the violated constraint, in the cause). */
+export function describeError(error: unknown): string {
+  const parts: string[] = [];
+  for (let current: unknown = error, i = 0; current && i < 5; i++, current = (current as { cause?: unknown }).cause) {
+    const message = current instanceof Error ? current.message : String(current);
+    const detail = (current as { detail?: unknown }).detail;
+    parts.push(typeof detail === "string" && detail ? `${message} (${detail})` : message);
+    if (typeof current !== "object") break;
+  }
+  return [...new Set(parts)].join(": ");
 }
 
 export class UnavailableError extends Error {

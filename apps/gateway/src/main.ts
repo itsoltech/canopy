@@ -31,9 +31,11 @@ const server = await startGrpcServer({
   ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
 });
 console.info(`gateway listening on ${server.url}`);
+core.scheduler.start();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {
+    await core.scheduler.stop();
     await core.link.shutdown();
     await server.close();
     await runtime.dispose();

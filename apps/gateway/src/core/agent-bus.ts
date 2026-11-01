@@ -3,6 +3,7 @@ import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } f
 import { authorizeBusCall, decodeAgentBusCall, DEFAULT_BUS_LIMITS, isAgentBusTool, type AgentBusCall } from "@open-agents/domain";
 import { Result, type Effect } from "effect";
 import { AgentBusStore, truncate, type CallSource, type ThreadRow, type TurnRow } from "../store/index.ts";
+import { cronProblem, nextCronRun } from "./cron.ts";
 import type { GatewayStore } from "../store/index.ts";
 
 /**
@@ -26,9 +27,9 @@ export interface BusHost {
   broadcastThread(threadId: string): Promise<void>;
 }
 
-/** Not offered to models yet (worker: codexAgentBusTools); refused if called anyway. */
-const NOT_YET = new Set(["schedule_wakeup", "schedule_recurring", "list_schedules", "cancel_schedule", "get_goal", "propose_goal", "update_goal"]);
 const WAIT_POLL_MS = 1_000;
+/** Tools whose execution stores the call together with what it created (one transaction). */
+const STORES_ITS_CALL = new Set(["spawn_thread", "send_message", "schedule_wakeup", "schedule_recurring"]);
 
 export class AgentBus {
   readonly #host: BusHost;
@@ -56,14 +57,19 @@ export class AgentBus {
     };
     if (Result.isFailure(decoded)) return refuse(decoded.failure, safeJson(request.argumentsJson));
     const call = decoded.success;
-    if (NOT_YET.has(call.tool)) return refuse(`${call.tool} is not available yet`, call.args);
     if (call.tool === "spawn_thread" && call.args.agent !== undefined) {
       return refuse("agents are not configured yet: omit agent to start a copy of yourself", call.args);
     }
 
     const { caller, facts } = await this.#host.run(
       AgentBusStore.use((s) =>
-        s.facts({ source, targetIds: targetsOf(call), ...(call.tool === "answer_interaction" && { interactionId: call.args.request_id }) }),
+        s.facts({
+          source,
+          targetIds: targetsOf(call),
+          ...(call.tool === "answer_interaction" && { interactionId: call.args.request_id }),
+          ...(call.tool === "cancel_schedule" && { scheduleId: call.args.schedule_id }),
+          ...((call.tool === "schedule_wakeup" || call.tool === "schedule_recurring") && { scheduleThreadId: call.args.thread_id ?? source.threadId }),
+        }),
       ),
     );
     const decision = authorizeBusCall(call, facts);
@@ -72,7 +78,7 @@ export class AgentBus {
 
     try {
       const result = await this.#execute(call, source, caller, hops);
-      if (call.tool !== "spawn_thread" && call.tool !== "send_message") {
+      if (!STORES_ITS_CALL.has(call.tool)) {
         await this.#host.run(AgentBusStore.use((s) => s.recordCall({ source, tool: call.tool, args: call.args, ok: true, result })));
       }
       return ok(request.callId, result);
@@ -186,10 +192,73 @@ export class AgentBus {
         );
         return { request_id: requestId, status: interaction.status };
       }
+      case "schedule_wakeup": {
+        const now = Date.now();
+        const runAt = call.args.at !== undefined ? new Date(call.args.at) : new Date(now + (call.args.delay_seconds ?? 60) * 1000);
+        return await store((s) =>
+          s.createSchedule({
+            source,
+            tool: call.tool,
+            args: call.args,
+            schedule: { threadId: call.args.thread_id ?? caller.id, kind: "once", prompt: call.args.prompt, runAt, timezone: "UTC", nextRunAt: runAt, hops },
+          }),
+        );
+      }
+      case "schedule_recurring": {
+        const now = new Date();
+        const timezone = call.args.timezone ?? "UTC";
+        const problem = cronProblem(call.args.cron, timezone, DEFAULT_BUS_LIMITS.minCronMinutes, now);
+        if (problem) throw new BusRefusal(problem);
+        const nextRunAt = nextCronRun(call.args.cron, timezone, now);
+        if (!nextRunAt) throw new BusRefusal("cron has no future runs");
+        return await store((s) =>
+          s.createSchedule({
+            source,
+            tool: call.tool,
+            args: call.args,
+            schedule: {
+              threadId: call.args.thread_id ?? caller.id,
+              kind: "recurring",
+              prompt: call.args.prompt,
+              cron: call.args.cron,
+              timezone,
+              ...(call.args.until !== undefined && { until: new Date(call.args.until) }),
+              ...(call.args.max_runs !== undefined && { maxRuns: call.args.max_runs }),
+              nextRunAt,
+              hops,
+            },
+          }),
+        );
+      }
+      case "list_schedules": {
+        const rows = await store((s) => s.listSchedules(caller.id));
+        return {
+          schedules: rows.map((r) => ({
+            schedule_id: r.id,
+            thread_id: r.thread_id,
+            kind: r.kind,
+            prompt: truncate(r.prompt, 500),
+            status: r.status,
+            next_run_at: r.next_run_at ? new Date(r.next_run_at).toISOString() : null,
+            runs: r.runs,
+            ...(r.cron && { cron: r.cron, timezone: r.timezone }),
+            ...(r.max_runs !== null && { max_runs: r.max_runs }),
+            ...(r.until && { until: new Date(r.until).toISOString() }),
+          })),
+        };
+      }
+      case "cancel_schedule":
+        await store((s) => s.cancelSchedule(call.args.schedule_id));
+        return { schedule_id: call.args.schedule_id, cancelled: true };
       default:
         throw new Error(`${call.tool} is not available yet`);
     }
   }
+}
+
+/** A reason for the model, found while executing (e.g. a cron the parser rejects). */
+class BusRefusal extends Error {
+  override readonly name = "Invalid";
 }
 
 function targetsOf(call: AgentBusCall): string[] {
@@ -202,6 +271,9 @@ function targetsOf(call: AgentBusCall): string[] {
       return [call.args.thread_id];
     case "wait_threads":
       return [...call.args.thread_ids];
+    case "schedule_wakeup":
+    case "schedule_recurring":
+      return call.args.thread_id ? [call.args.thread_id] : [];
     default:
       return [];
   }

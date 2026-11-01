@@ -1,5 +1,5 @@
 import type { JsonValue } from "@bufbuild/protobuf";
-import type { AgentBusArgs, BusFacts, InteractionFacts, ThreadNode } from "@open-agents/domain";
+import type { AgentBusArgs, BusFacts, InteractionFacts, ScheduleFacts, ThreadNode } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";
@@ -55,6 +55,36 @@ export interface Notification {
   readonly lastMessage: string;
 }
 
+export interface ScheduleRow {
+  id: string;
+  thread_id: string;
+  kind: "once" | "recurring";
+  prompt: string;
+  run_at: Date | null;
+  cron: string | null;
+  timezone: string;
+  until: Date | null;
+  max_runs: number | null;
+  runs: number;
+  next_run_at: Date | null;
+  missed_policy: "run_once" | "skip";
+  status: string;
+  hops: number;
+}
+
+export interface NewSchedule {
+  readonly threadId: string;
+  readonly kind: "once" | "recurring";
+  readonly prompt: string;
+  readonly runAt?: Date;
+  readonly cron?: string;
+  readonly timezone: string;
+  readonly until?: Date;
+  readonly maxRuns?: number;
+  readonly nextRunAt: Date;
+  readonly hops: number;
+}
+
 export interface ForwardedInteraction {
   readonly parentThreadId: string;
   readonly turn: TurnRow;
@@ -65,7 +95,14 @@ export class AgentBusStore extends Context.Service<
   {
     storedCall(callId: string): Fx<BusCallRow | undefined>;
     /** Loads the caller, the addressed threads and the counts `authorizeBusCall` needs. */
-    facts(input: { source: CallSource; targetIds: readonly string[]; interactionId?: string }): Fx<{ caller: ThreadRow; facts: BusFacts }>;
+    facts(input: {
+      source: CallSource;
+      targetIds: readonly string[];
+      interactionId?: string;
+      scheduleId?: string;
+      /** schedule_*: the thread whose active schedules count against the limit. */
+      scheduleThreadId?: string;
+    }): Fx<{ caller: ThreadRow; facts: BusFacts }>;
     /** A call that started nothing (reads, refusals, interrupts): stored with its result for idempotency. */
     recordCall(input: { source: CallSource; tool: string; args: unknown; ok: boolean; result?: JsonValue; error?: string }): Fx<void>;
     spawn(input: {
@@ -81,8 +118,20 @@ export class AgentBusStore extends Context.Service<
     readThread(input: { threadId: string; afterSeq: number; limit: number; view: "messages" | "items" }): Fx<{ entries: JsonValue[]; nextSeq: number }>;
     /** The thread could not be created: its queued turns fail (so callers waiting on them hear back). */
     failQueuedTurns(threadId: string, reason: string): Fx<ReadonlyArray<string>>;
-    /** Archives a thread, cancels its queued turns and pending notifications about it. */
+    /** Archives a thread, cancels its queued turns, its schedules and pending notifications about it. */
     close(threadId: string): Fx<void>;
+    /** An agent's schedule (schedule_wakeup / schedule_recurring), stored with its call. */
+    createSchedule(input: { source: CallSource; tool: string; args: unknown; schedule: NewSchedule }): Fx<JsonValue>;
+    /** Active and paused schedules of the caller and of the threads it spawned. */
+    listSchedules(callerId: string): Fx<ReadonlyArray<ScheduleRow>>;
+    cancelSchedule(scheduleId: string): Fx<void>;
+    /** Leases due schedules for this gateway instance (safe with several instances). */
+    claimDueSchedules(owner: string, now: Date, leaseSeconds: number): Fx<ReadonlyArray<ScheduleRow>>;
+    /**
+     * Records a run: queues the turn (unless skipped), counts it, sets the next run or completes the
+     * schedule, releases the lease. A schedule of an archived thread is cancelled instead.
+     */
+    fireSchedule(input: { schedule: ScheduleRow; text: string; run: boolean; nextRunAt: Date | undefined }): Fx<{ threadId: string; turn?: TurnRow }>;
     /** Pending interactions routed to the caller (from its side threads). */
     parentInteractions(callerId: string): Fx<ReadonlyArray<{ request_id: string; thread_id: string; kind: string; tool_name: string; request: JsonValue }>>;
     /** Notifications due because `turnId` finished. */
@@ -183,7 +232,7 @@ export class AgentBusStore extends Context.Service<
             ? sql<BusCallRow>`SELECT * FROM agent_bus_calls WHERE id = ${callId}::uuid`.pipe(Effect.map((rows) => rows[0]))
             : Effect.succeed(undefined),
 
-        facts: ({ source, targetIds, interactionId }) =>
+        facts: ({ source, targetIds, interactionId, scheduleId, scheduleThreadId }) =>
           Effect.gen(function* () {
             const caller = yield* thread(source.threadId);
             const hopsRows = yield* sql<{ hops: number }>`SELECT hops FROM turns WHERE id = ${turnRef(source)}`;
@@ -209,6 +258,21 @@ export class AgentBusStore extends Context.Service<
                 if (owner[0]) targets.set(row.thread_id, node(owner[0]));
               }
             }
+            let schedule: ScheduleFacts | undefined;
+            if (scheduleId && isUuid(scheduleId)) {
+              const rows = yield* sql<{ id: string; thread_id: string }>`
+                SELECT id, thread_id FROM schedules WHERE id = ${scheduleId}::uuid AND status IN ('active', 'paused')`;
+              if (rows[0]) {
+                schedule = { id: rows[0].id, threadId: rows[0].thread_id };
+                const owner = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${rows[0].thread_id}::uuid`;
+                if (owner[0]) targets.set(owner[0].id, node(owner[0]));
+              }
+            }
+            const scheduleCount =
+              scheduleThreadId && isUuid(scheduleThreadId)
+                ? (yield* sql<{ n: number }>`
+                    SELECT count(*)::int AS n FROM schedules WHERE thread_id = ${scheduleThreadId}::uuid AND status IN ('active', 'paused')`)[0]?.n
+                : undefined;
             const facts: BusFacts = {
               caller: node(caller),
               callerHops: hopsRows[0]?.hops ?? 0,
@@ -217,6 +281,8 @@ export class AgentBusStore extends Context.Service<
               activeInTree: counts[0]?.active ?? 0,
               spawnProvider: caller.provider,
               ...(interaction && { interaction }),
+              ...(schedule && { schedule }),
+              ...(scheduleCount !== undefined && { targetSchedules: scheduleCount }),
               now: new Date(),
             };
             return { caller, facts };
@@ -328,6 +394,80 @@ export class AgentBusStore extends Context.Service<
               yield* sql`UPDATE threads SET status = 'archived', archived_at = now() WHERE id = ${threadId}::uuid AND archived_at IS NULL`;
               yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE thread_id = ${threadId}::uuid AND status = 'queued'`;
               yield* sql`UPDATE agent_bus_calls SET notify_status = 'cancelled' WHERE target_thread_id = ${threadId}::uuid AND notify_status = 'pending'`;
+              yield* sql`
+                UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, updated_at = now()
+                 WHERE thread_id = ${threadId}::uuid AND status IN ('active', 'paused')`;
+            }),
+          ),
+
+        createSchedule: ({ source, tool, args, schedule }) =>
+          sql.withTransaction(
+            Effect.gen(function* () {
+              const id = Bun.randomUUIDv7();
+              const result = {
+                schedule_id: id,
+                thread_id: schedule.threadId,
+                next_run_at: schedule.nextRunAt.toISOString(),
+                ...(schedule.kind === "recurring" && { cron: schedule.cron, timezone: schedule.timezone }),
+              };
+              yield* insertCall({ source, tool, args, status: "completed", result });
+              yield* sql`
+                INSERT INTO schedules (id, thread_id, kind, prompt, run_at, cron, timezone, until, max_runs, next_run_at, created_by_call_id, hops)
+                VALUES (${id}::uuid, ${schedule.threadId}::uuid, ${schedule.kind}, ${schedule.prompt}, ${schedule.runAt ?? null},
+                        ${schedule.cron ?? null}, ${schedule.timezone}, ${schedule.until ?? null}, ${schedule.maxRuns ?? null},
+                        ${schedule.nextRunAt}, ${source.callId}::uuid, ${schedule.hops})`;
+              return result;
+            }),
+          ),
+
+        listSchedules: (callerId) =>
+          sql<ScheduleRow>`
+            SELECT s.* FROM schedules s JOIN threads t ON t.id = s.thread_id
+             WHERE (t.id = ${callerId}::uuid OR t.parent_thread_id = ${callerId}::uuid) AND s.status IN ('active', 'paused')
+             ORDER BY s.next_run_at NULLS LAST`,
+
+        cancelSchedule: (scheduleId) =>
+          sql`
+            UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, updated_at = now()
+             WHERE id = ${scheduleId}::uuid AND status IN ('active', 'paused')`.pipe(Effect.asVoid),
+
+        claimDueSchedules: (owner, now, leaseSeconds) =>
+          sql<ScheduleRow>`
+            UPDATE schedules SET lease_owner = ${owner}, lease_until = ${new Date(now.getTime() + leaseSeconds * 1000)}
+             WHERE id IN (SELECT id FROM schedules
+                           WHERE status = 'active' AND next_run_at <= ${now} AND (lease_until IS NULL OR lease_until < ${now})
+                           ORDER BY next_run_at LIMIT 50 FOR UPDATE SKIP LOCKED)
+            RETURNING *`,
+
+        fireSchedule: ({ schedule, text, run, nextRunAt }) =>
+          sql.withTransaction(
+            Effect.gen(function* () {
+              const owner = yield* thread(schedule.thread_id);
+              if (owner.archived_at != null) {
+                yield* sql`
+                  UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, updated_at = now()
+                   WHERE id = ${schedule.id}::uuid`;
+                return { threadId: owner.id };
+              }
+              const turn = run
+                ? yield* sql<TurnRow>`
+                    INSERT INTO turns (id, thread_id, ordinal, trigger, schedule_id, hops, input)
+                    SELECT ${Bun.randomUUIDv7()}::uuid, ${owner.id}::uuid, coalesce(max(ordinal), 0) + 1, 'schedule', ${schedule.id}::uuid,
+                           ${schedule.hops}, ${JSON.stringify({ text })}::jsonb
+                      FROM turns WHERE thread_id = ${owner.id}::uuid
+                    RETURNING *`.pipe(Effect.map((rows) => rows[0]))
+                : undefined;
+              const runs = schedule.runs + (run ? 1 : 0);
+              const finished =
+                nextRunAt === undefined ||
+                (schedule.max_runs !== null && runs >= schedule.max_runs) ||
+                (schedule.until !== null && nextRunAt.getTime() > new Date(schedule.until).getTime());
+              yield* sql`
+                UPDATE schedules SET runs = ${runs}, last_turn_id = coalesce(${turn?.id ?? null}::uuid, last_turn_id),
+                       next_run_at = ${finished ? null : nextRunAt}, status = ${finished ? "completed" : "active"},
+                       lease_owner = NULL, lease_until = NULL, updated_at = now()
+                 WHERE id = ${schedule.id}::uuid`;
+              return { threadId: owner.id, ...(turn && { turn }) };
             }),
           ),
 

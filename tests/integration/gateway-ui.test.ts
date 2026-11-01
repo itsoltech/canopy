@@ -5,9 +5,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
-import { InteractionKind, PermissionMode, Provider, ui } from "@open-agents/contracts";
+import { InteractionKind, PermissionMode, Provider, TurnOrigin, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
-import { answers, failure, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
+import { answers, eventually, failure, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;
 let api: Client<typeof ui.GatewayService>;
@@ -174,6 +174,26 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     // A thread never starts outside its workspace, and a side thread stays in its parent's workspace.
     expect(await failure(api.createThread({ projectId, workspaceId: winWorkspace.id, cwd: "C:\\code", title: "x", provider: Provider.CODEX }))).toContain("outside the workspace");
     expect(await failure(api.createThread({ projectId, workspaceId, parentThreadId: thread.id, title: "x", provider: Provider.CODEX }))).toContain("parent's workspace");
+  });
+
+  test("a turn that lost its turn_finished is closed when the provider starts another one", async () => {
+    const thread = (await api.createThread({ projectId, workspaceId, title: "Lost finish", provider: Provider.CODEX, initialMessage: "x" })).thread!;
+    await watchUntil(api, thread.id, (u) => answers(u).includes("Echo: x"));
+    const first = Bun.randomUUIDv7();
+    const second = Bun.randomUUIDv7();
+    // Two provider turns started, the first never finished (e.g. a provider crash between them).
+    worker.emit(thread.id, first, { case: "turnStarted", value: { providerTurnRef: "p-1", origin: TurnOrigin.PROVIDER } });
+    worker.emit(thread.id, second, { case: "turnStarted", value: { providerTurnRef: "p-2", origin: TurnOrigin.PROVIDER } });
+    const snapshotTurns = async () => {
+      const first = (await watchUntil(api, thread.id, (u) => u.length >= 1))[0];
+      return first?.change.case === "snapshot" ? first.change.value.turns : [];
+    };
+    const turns = await eventually(snapshotTurns, (t) => t.length === 3 && t[2]?.status === "running");
+    expect(turns.map((t) => [t.trigger, t.status])).toEqual([
+      ["user", "completed"],
+      ["provider", "interrupted"],
+      ["provider", "running"],
+    ]);
   });
 
   test("errors keep their meaning across the API", async () => {
