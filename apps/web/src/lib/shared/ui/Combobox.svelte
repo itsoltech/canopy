@@ -101,7 +101,10 @@
   const optionId = (index: number) => `${id}-option-${index}`;
 
   $effect(() => {
-    if (listOpen && activeIndex >= 0) document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: "nearest" });
+    if (!listOpen || activeIndex < 0) return;
+    // The first option scrolls to the very top, so a heading above it stays in view.
+    if (activeIndex === 0) document.getElementById(`${id}-list`)?.scrollTo({ top: 0 });
+    else document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: "nearest" });
   });
 
   function choose(item: T) {
@@ -174,7 +177,14 @@
   >
     {#each groups as group, g (g)}
       {#if group.label}
-        <li role="presentation" class="truncate px-2.5 pt-2 pb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{group.label}</li>
+        <!-- Sticky over the list's padding: a long group keeps its heading in view. The truncating box is
+             inside: a grid row of an overflow-hidden item may shrink to nothing in the scrolling list. -->
+        <li
+          role="presentation"
+          class={["sticky top-0 z-10 bg-white pt-2 pb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:bg-zinc-900 dark:text-zinc-400", inline ? "-mx-1.5 px-4" : "-mx-1 px-3.5"]}
+        >
+          <div class="truncate">{group.label}</div>
+        </li>
       {/if}
       {#each group.entries as { item, index } (key(item))}
         {@const isActive = index === activeIndex}
@@ -186,7 +196,7 @@
           role="option"
           aria-selected={selected}
           data-active={isActive || undefined}
-          class="group/option relative cursor-default rounded-lg px-2.5 py-2 text-base/6 text-zinc-800 select-none data-active:bg-zinc-950/5 data-active:text-zinc-950 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:data-active:bg-white/8 dark:data-active:text-white"
+          class="group/option relative cursor-default scroll-mt-9 rounded-lg px-2.5 py-2 text-base/6 text-zinc-800 select-none data-active:bg-zinc-950/5 data-active:text-zinc-950 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:data-active:bg-white/8 dark:data-active:text-white"
           onpointerdown={(event) => event.preventDefault()}
           onpointermove={() => (activeKey = key(item))}
           onclick={() => choose(item)}

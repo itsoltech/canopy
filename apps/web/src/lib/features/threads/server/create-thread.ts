@@ -35,8 +35,7 @@ export async function createThreadFromForm(form: FormData, action: string, targe
       provider: Provider[provider],
       providerProfileId: profileId,
       model: text(form, "model"),
-      // PENDING backend: `reasoningEffort` (sent by the new-thread composer) goes into
-      // CreateThreadRequest.reasoning_effort once the contract has it.
+      effort: text(form, "effort"),
       permissionMode: PermissionMode[mode as keyof typeof PermissionMode],
       initialMessage,
       parentThreadId: parent?.id ?? "",

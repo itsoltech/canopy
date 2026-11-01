@@ -10,9 +10,9 @@ export interface SettingsNotice {
   readonly text: string;
 }
 
-type UserSection = "appearance" | "threadDefaults";
+type UserSection = "appearance" | "threadDefaults" | "modelFavorites";
 
-const userSchemas = { appearance: ui.AppearanceSettingsSchema, threadDefaults: ui.ThreadDefaultsSchema } as const;
+const userSchemas = { appearance: ui.AppearanceSettingsSchema, threadDefaults: ui.ThreadDefaultsSchema, modelFavorites: ui.ModelFavoritesSchema } as const;
 
 /**
  * The user's and projects' settings. The gateway keeps them (docs/ui-api.md); this is a client of it:
@@ -45,6 +45,10 @@ export class SettingsState {
     return this.user.threadDefaults ?? create(ui.ThreadDefaultsSchema);
   }
 
+  get modelFavorites(): readonly ui.FavoriteModel[] {
+    return this.user.modelFavorites?.models ?? [];
+  }
+
   projectDefaults(projectId: string): ui.ThreadDefaults {
     return this.projects.get(projectId)?.threadDefaults ?? create(ui.ThreadDefaultsSchema);
   }
@@ -69,6 +73,11 @@ export class SettingsState {
 
   updateThreadDefaults(next: ui.ThreadDefaults): Promise<void> {
     return this.#writeUser("threadDefaults", () => next);
+  }
+
+  /** The favorite models of the model picker (the whole list, in order). */
+  updateModelFavorites(models: readonly ui.FavoriteModel[]): Promise<void> {
+    return this.#writeUser("modelFavorites", () => create(ui.ModelFavoritesSchema, { models: [...models] }));
   }
 
   updateProjectDefaults(projectId: string, next: ui.ThreadDefaults): Promise<void> {

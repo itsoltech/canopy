@@ -12,6 +12,7 @@
   import { sectionMemory } from "#lib/features/navigation/sections.svelte.ts";
   import { provideShell } from "#lib/features/navigation/shell.ts";
   import { OverviewState, provideOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { ModelCatalogState, provideModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
   import { decode } from "#lib/shared/wire.ts";
@@ -35,6 +36,13 @@
   $effect(() => {
     // After a gap in the stream the settings may have changed meanwhile.
     if (overview.resyncs > 0) void settings.reload().catch(() => undefined);
+  });
+  // Model catalogs: new ones arrive through the stream; after a gap they reload.
+  const models = new ModelCatalogState(initial.models ? decode(ui.ListModelsResponseSchema, initial.models) : undefined);
+  provideModelCatalog(models);
+  $effect(() => overview.subscribe((update) => models.apply(update)));
+  $effect(() => {
+    if (overview.resyncs > 0) void models.reload().catch(() => undefined);
   });
   // The server rendered the appearance into <html>; keep it current (and follow the system for "system").
   $effect(() => applyAppearance(settings.appearance));
