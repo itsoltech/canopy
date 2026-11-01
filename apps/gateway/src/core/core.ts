@@ -10,6 +10,7 @@ import {
   ui,
   type Command,
   type CommandResult,
+  type ProfileModels,
   type ThreadEvent,
 } from "@open-agents/contracts";
 import { Effect, type ManagedRuntime } from "effect";
@@ -30,6 +31,7 @@ import {
   toUiSteer,
   toUiThread,
   toUiTurn,
+  turnEffort,
   type GoalRow,
   type ScheduleRow,
   type ThreadRow,
@@ -59,6 +61,9 @@ export interface GatewayCoreOptions {
   readonly log?: (message: string) => void;
   readonly commandTimeoutMs?: number;
 }
+
+/** Where a model is chosen: an existing thread, or a new one (workspace, provider, profile). */
+type ModelScope = { thread: ThreadRow } | { workspaceId: string; provider: Provider; profileId: string };
 
 // A steer waits as long as a turn would: a worker that is back too late answers "not running" and it is queued.
 const TTL = { createThread: 24 * 3600, startTurn: 24 * 3600, interruptTurn: 60, steerTurn: 24 * 3600, setGoal: 3600, stopTask: 300 } as const;
@@ -313,9 +318,10 @@ export class GatewayCore {
     const thread = await this.#run((s) => s.thread(threadId));
     if (!thread.worker_id) return;
     const spec = await this.#run((s) => Effect.succeed(s.threadSpec(thread)));
-    // The message's override, else the thread's default; recorded on the turn as what it ran with.
+    // The message's override, else the thread's default; an effort the model does not take is left out
+    // (turnEffort). Recorded on the turn as what it ran with.
     const model = turn.model || thread.settings.model || "";
-    const effort = turn.effort || thread.settings.effort || "";
+    const effort = turnEffort((await this.#profileModels({ thread })).models, model, turn.effort || thread.settings.effort || "");
     if (model !== (turn.model ?? "") || effort !== (turn.effort ?? "")) await this.#run((s) => s.setTurnModel(turn.id, model, effort));
     try {
       await this.#dispatch(
@@ -379,8 +385,11 @@ export class GatewayCore {
 
   async createThread(request: ui.CreateThreadRequest): Promise<ui.Thread> {
     await this.#checkProvider(request);
-    await this.#checkModel({ workspaceId: request.workspaceId, provider: request.provider, profileId: request.providerProfileId }, request.model, request.effort);
-    const row = await this.#run((s) => s.createThread(this.#options.userId, request));
+    const where = { workspaceId: request.workspaceId, provider: request.provider, profileId: request.providerProfileId };
+    await this.#checkModel(where, request.model, request.effort);
+    // A model without efforts keeps none as the thread's default.
+    const effort = turnEffort((await this.#profileModels(where)).models, request.model, request.effort);
+    const row = await this.#run((s) => s.createThread(this.#options.userId, effort === request.effort ? request : { ...request, effort }));
     await this.#startThread(row);
     return toUiThread(row);
   }
@@ -441,7 +450,8 @@ export class GatewayCore {
     const existingTurn = await this.#run((s) => s.turnByClientRequest(threadId, clientRequestId));
     if (existingTurn) return { turn: toUiTurn(existingTurn) };
     if (!request.text.trim()) throw new InvalidError("message is empty");
-    await this.#checkModel({ thread }, request.model || thread.settings.model || "", request.effort || thread.settings.effort || "");
+    // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
+    await this.#checkModel({ thread }, request.model || thread.settings.model || "", request.effort);
     if (request.delivery === ui.MessageDelivery.STEER) {
       const running = await this.#run((s) => s.runningTurn(threadId));
       if (running && thread.worker_id) {
@@ -474,10 +484,16 @@ export class GatewayCore {
     const thread = await this.#run((s) => s.thread(request.threadId));
     if (thread.owner_user_id !== this.#options.userId || thread.archived_at) throw new InvalidError("thread not found");
     const model = request.model ?? thread.settings.model ?? "";
-    const effort = request.effort ?? thread.settings.effort ?? "";
-    await this.#checkModel({ thread }, model, effort);
+    // The requested effort is judged; the current default follows a new model (none without efforts, else the
+    // model's default when it does not offer it).
+    await this.#checkModel({ thread }, model, request.effort ?? "");
+    const current = thread.settings.effort ?? "";
+    const effort = turnEffort((await this.#profileModels({ thread })).models, model, request.effort ?? current);
     const row = await this.#run((s) =>
-      s.updateThreadSettings(request.threadId, { ...(request.model !== undefined && { model: request.model }), ...(request.effort !== undefined && { effort: request.effort }) }),
+      s.updateThreadSettings(request.threadId, {
+        ...(request.model !== undefined && { model: request.model }),
+        ...((request.effort !== undefined || effort !== current) && { effort }),
+      }),
     );
     await this.#broadcastThread(row.id);
     return toUiThread(row);
@@ -514,11 +530,14 @@ export class GatewayCore {
    * A model and effort must be offered by the profile's catalog when the worker has reported one (no catalog,
    * or an incomplete one, is not judged: the worker has the final word when the turn starts).
    */
-  async #checkModel(
-    where: { thread: ThreadRow } | { workspaceId: string; provider: Provider; profileId: string },
-    model: string,
-    effort: string,
-  ): Promise<void> {
+  async #checkModel(where: ModelScope, model: string, effort: string): Promise<void> {
+    const { models, provider, profile } = await this.#profileModels(where);
+    const problem = modelProblem(models, provider, profile, model, effort);
+    if (problem) throw new InvalidError(problem);
+  }
+
+  /** The worker's last catalog for the thread's (or the new thread's) provider and profile. */
+  async #profileModels(where: ModelScope): Promise<{ models: ProfileModels | undefined; provider: Provider; profile: string }> {
     let workerId: string | undefined;
     let provider: Provider;
     let profileId: string;
@@ -535,8 +554,7 @@ export class GatewayCore {
     const profile = profileId && profileId !== "native" ? profileId : "native";
     const catalog = workerId ? (await this.#models((s) => s.catalogs([workerId]))).at(0) : undefined;
     const models = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profile);
-    const problem = modelProblem(models, provider, profile, model, effort);
-    if (problem) throw new InvalidError(problem);
+    return { models, provider, profile };
   }
 
   /** SteerTurn to the worker (outbox); the result decides between accepted and the queue. */

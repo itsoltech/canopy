@@ -4,7 +4,7 @@ Status: **zaimplementowane** (2026-11-01):
 - worker: Codex `thread/goal/*` (`apps/worker/src/providers/codex`), Claude `/goal` (`apps/worker/src/providers/claude`),
 - gateway: stan celu z raportów harnessu (`apps/gateway/src/store/goals.ts`, w transakcji ingestu), `SetGoal` w UI API,
 - domena: mapowanie statusów (`packages/domain/src/goals`),
-- schemat: `goals` (+ `0010_goals_background_harness`), `turns.goal_id`,
+- schemat: `goals` (+ `0010_goals_background_harness`; `0011_goals_engine_cleanup` usuwa kolumny i stany porzuconego silnika platformy), `turns.goal_id`,
 - testy: nagrania strumieni (`fixtures/goal-*`), integracja ze skryptowanym workerem (`tests/integration/goals-background.test.ts`), na żywo przez cały łańcuch (`goals-background.live.test.ts`).
 
 Powiązane: [execution.md](execution.md), [codex-adapter.md](codex-adapter.md), [claude-adapter.md](claude-adapter.md), [ui-api.md](ui-api.md#2-gatewayservice).
@@ -18,7 +18,7 @@ Powiązane: [execution.md](execution.md), [codex-adapter.md](codex-adapter.md), 
 - **Użytkownik steruje** z UI: ustawia, wstrzymuje, wznawia i usuwa cel (`SetGoal`).
 - Najwyżej jeden otwarty cel na wątek (`goals_one_open`). Nowy cel zastępuje otwarty (stary: `cancelled`, „replaced by a new goal”).
 
-Narzędzia celów na szynie agentów (`get_goal`, `propose_goal`, `update_goal`) i reguły przejść w `packages/domain` zostały z wcześniejszego projektu silnika platformy. Nie są oferowane (`goalTools` wyłączone).
+Szyna agentów nie ma narzędzi celów: model używa narzędzi harnessu ([agent-bus.md](agent-bus.md#3-narzędzia)).
 
 ## 2. Harnessy
 
@@ -41,7 +41,7 @@ Narzędzia celów na szynie agentów (`get_goal`, `propose_goal`, `update_goal`)
 
 ## 3. Statusy
 
-`active | paused | blocked | budget_limited | usage_limited | achieved | cancelled` (`proposed` zostaje w schemacie, nieużywany).
+`active | paused | blocked | budget_limited | usage_limited | achieved | cancelled`.
 
 | Raport harnessu | Status platformy |
 |---|---|
@@ -98,4 +98,3 @@ sequenceDiagram
 
 1. Czy cel Codexa przetrwa restart app-servera i czy wznowiona sesja Claude odtwarza `/goal` z transkryptu.
 2. Odczyt transkryptu Claude to wewnętrzny format Claude Code; zmiana formatu wyłączy werdykty (status zostanie `active` do końca tury).
-3. Narzędzia celów na szynie agentów (silnik platformy) do usunięcia albo do przeróbki na odczyt celu harnessu.

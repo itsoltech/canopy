@@ -164,32 +164,3 @@ describe("schedules", () => {
     expect(reason(cancel, facts(a, { schedule: { id: "s1", threadId: "b" } }))).toContain("not found");
   });
 });
-
-describe("goal tools (platform engine)", () => {
-  const propose = (budget: { token_budget?: number } = { token_budget: 100_000 }): AgentBusCall => ({
-    tool: "propose_goal",
-    args: { objective: "Migrate auth", condition: "bun test exits 0", ...budget },
-  });
-  const update = (status: "achieved" | "blocked"): AgentBusCall => ({ tool: "update_goal", args: { status, evidence: "bun test: 0 fail" } });
-
-  test("not offered with the native engine", () => {
-    expect(reason(propose(), facts(root))).toContain("not available in this thread");
-  });
-
-  test("propose: bounded, one open goal per thread", () => {
-    expect(reason(propose(), facts(root, { goalTools: true }))).toBe("allowed");
-    expect(reason(propose({}), facts(root, { goalTools: true }))).toContain("at least one budget");
-    expect(reason(propose(), facts(root, { goalTools: true, openGoal: { id: "g", threadId: "root", status: "paused" } }))).toContain(
-      "finish it first",
-    );
-  });
-
-  test("update: the agent may only claim the outcome of an active goal", () => {
-    const active = { id: "g", threadId: "root", status: "active" } as const;
-    expect(reason(update("achieved"), facts(root, { goalTools: true, openGoal: active }))).toBe("allowed");
-    expect(reason(update("blocked"), facts(root, { goalTools: true, openGoal: { ...active, status: "paused" } }))).toContain(
-      "cannot be marked blocked",
-    );
-    expect(reason(update("achieved"), facts(root, { goalTools: true }))).toContain("no open goal");
-  });
-});

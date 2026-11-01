@@ -53,6 +53,23 @@ export class ModelStore extends Context.Service<
   );
 }
 
+/** The catalog entry a model id names (also by the model an alias resolves to); the default model for "". */
+function findModel(catalog: ProfileModels, model: string): ModelInfo | undefined {
+  return model ? catalog.models.find((m) => m.id === model || m.resolvedModel === model) : catalog.models.find((m) => m.isDefault);
+}
+
+/**
+ * The effort a turn is started with (docs/protocol.md#modele-effort-i-steer). A model the catalog knows decides:
+ * without efforts it gets none, an effort it does not offer falls back to its default effort (or none). An
+ * unknown model (no catalog, a free-text id) keeps the effort as chosen; the worker has the final word.
+ */
+export function turnEffort(catalog: ProfileModels | undefined, model: string, effort: string): string {
+  if (!effort || !catalog) return effort;
+  const info = findModel(catalog, model);
+  if (!info || info.efforts.includes(effort)) return effort;
+  return info.efforts.includes(info.defaultEffort) ? info.defaultEffort : "";
+}
+
 /**
  * Checks a model and effort against a profile's catalog. Lenient where the catalog cannot tell: no catalog,
  * an incomplete one (detail), or a model without effort data passes.
@@ -69,13 +86,8 @@ export function modelProblem(
   if (effort && !/^[a-z][a-z0-9_-]*$/.test(effort)) return `invalid reasoning effort "${effort}"`;
   if (!catalog || catalog.detail || catalog.models.length === 0) return undefined;
   const name = provider === Provider.CLAUDE ? "Claude" : "Codex";
-  let info: ModelInfo | undefined;
-  if (model) {
-    info = catalog.models.find((m) => m.id === model || m.resolvedModel === model);
-    if (!info) return `${name} on profile "${profileId || "native"}" does not offer the model "${model}"`;
-  } else {
-    info = catalog.models.find((m) => m.isDefault);
-  }
+  const info = findModel(catalog, model);
+  if (model && !info) return `${name} on profile "${profileId || "native"}" does not offer the model "${model}"`;
   if (effort && info && info.efforts.length > 0 && !info.efforts.includes(effort)) {
     return `${info.displayName || info.id} supports the reasoning efforts ${info.efforts.join(", ")}, not "${effort}"`;
   }
