@@ -263,15 +263,25 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     // Device B still has version 0: refused instead of overwriting A.
     const stale = await api.updateUserSettings({ appearance: { colorScheme: ui.ColorScheme.LIGHT }, expectedVersion: 0n }).catch((e: unknown) => e);
     expect((stale as ConnectError).code).toBe(Code.FailedPrecondition);
+    const models = [
+      { provider: Provider.CLAUDE, model: "claude-haiku-5-5" },
+      { provider: Provider.CODEX, model: "gpt-6.1-sol" },
+    ];
     const b = (
-      await api.updateUserSettings({ threadDefaults: { workspaceId, provider: Provider.CLAUDE, permissionMode: PermissionMode.ACCEPT_EDITS }, expectedVersion: 1n })
+      await api.updateUserSettings({ threadDefaults: { workspaceId, provider: Provider.CLAUDE, permissionMode: PermissionMode.ACCEPT_EDITS, models }, expectedVersion: 1n })
     ).settings!;
     expect([b.version, b.appearance?.colorScheme, b.threadDefaults?.provider]).toEqual([2n, ui.ColorScheme.DARK, Provider.CLAUDE]);
+    expect(b.threadDefaults?.models.map((m) => m.model)).toEqual(["claude-haiku-5-5", "gpt-6.1-sol"]);
+    expect(
+      await failure(api.updateUserSettings({ threadDefaults: { models: [models[0]!, { provider: Provider.CLAUDE, model: "x" }] }, expectedVersion: 2n })),
+    ).toContain("one model per provider");
     expect(await failure(api.updateUserSettings({ threadDefaults: { workspaceId: Bun.randomUUIDv7() }, expectedVersion: 2n }))).toContain("workspace not found");
 
     // Project settings override the user's defaults in that project.
-    const project = (await api.updateProjectSettings({ projectId, threadDefaults: { workspaceId, model: "claude-haiku-5-5" }, expectedVersion: 0n })).settings!;
-    expect([project.version, project.threadDefaults?.model]).toEqual([1n, "claude-haiku-5-5"]);
+    const project = (
+      await api.updateProjectSettings({ projectId, threadDefaults: { workspaceId, models: [{ provider: Provider.CODEX, model: "gpt-6.1-sol" }] }, expectedVersion: 0n })
+    ).settings!;
+    expect([project.version, project.threadDefaults?.models[0]?.model]).toEqual([1n, "gpt-6.1-sol"]);
     const all = await api.getSettings({});
     expect([all.user?.version, all.projects.map((p) => p.projectId)]).toEqual([2n, [projectId]]);
 
@@ -285,11 +295,36 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     expect(await failure(api.createThread({ projectId, workspaceId, title: "x", provider: Provider.CODEX, providerProfileId: "nope" }))).toContain(
       'profile "nope" is not configured on laptop',
     );
-    const parent = (await api.createThread({ projectId, workspaceId, title: "Codex parent", provider: Provider.CODEX })).thread!;
+    // "native" and "" both name the native profile.
+    const parent = (await api.createThread({ projectId, workspaceId, title: "Codex parent", provider: Provider.CODEX, providerProfileId: "native" })).thread!;
+    expect(parent.providerProfileId).toBe("");
     // A fork into another provider is refused by the store rule too (through the API Claude is already refused above).
     const fork = create(ui.CreateThreadRequestSchema, { projectId, workspaceId, parentThreadId: parent.id, fork: true, title: "f", provider: Provider.CLAUDE });
     const forkError = await gw.runtime.runPromise(GatewayStore.use((s) => s.createThread(gw.userId, fork))).catch((e: unknown) => e);
     expect(String(forkError)).toContain("a fork keeps its parent's provider");
+  });
+
+  test("two scheduler passes at once start a queued turn once", async () => {
+    const thread = (await api.createThread({ projectId, workspaceId, title: "Race", provider: Provider.CODEX })).thread!;
+    await eventually(async () => (await api.getThread({ threadId: thread.id })).thread?.status, (s) => s === "idle");
+    const turn = await gw.runtime.runPromise(GatewayStore.use((s) => s.enqueueTurn({ threadId: thread.id, text: "once", userId: gw.userId, clientRequestId: "race-1" })));
+    await Promise.all([gw.core.pump(thread.id), gw.core.pump(thread.id), gw.core.pump(thread.id)]);
+    const commands = await gw.runtime.runPromise(GatewayStore.use((s) => s.pendingCommands(gw.workerId)));
+    const delivered = await eventually(
+      async () => (await watchUntil(api, thread.id, (u) => answers(u).includes("Echo: once"))).length,
+      (n) => n > 0,
+    );
+    expect(delivered).toBeGreaterThan(0);
+    const starts = commands.filter((c) => c.kind.case === "startTurn" && c.kind.value.turnId === turn.id);
+    expect(starts.length).toBeLessThanOrEqual(1);
+    const echoes = await eventually(
+      async () => {
+        const first = (await watchUntil(api, thread.id, (u) => u.length >= 1))[0];
+        return first?.change.case === "snapshot" ? first.change.value.items.filter((i) => i.item?.content.case === "agentMessage").length : 0;
+      },
+      (n) => n >= 1,
+    );
+    expect(echoes).toBe(1); // the worker ran the turn once
   });
 
   test("errors keep their meaning across the API", async () => {

@@ -94,6 +94,19 @@ export interface NewSchedule {
   readonly missedPolicy?: "run_once" | "skip";
 }
 
+/**
+ * Input of a turn the platform queues: a note saying where it comes from, and the content (task, message,
+ * report, scheduled prompt). The model gets both (input.text); the UI shows them apart.
+ */
+export interface TurnInput {
+  readonly note: string;
+  readonly message: string;
+}
+
+export function inputJson(input: TurnInput): string {
+  return JSON.stringify({ text: input.message ? `${input.note}\n\n${input.message}` : input.note, note: input.note, message: input.message });
+}
+
 export interface ForwardedInteraction {
   readonly parentThreadId: string;
   readonly turn: TurnRow;
@@ -147,18 +160,18 @@ export class AgentBusStore extends Context.Service<
      * Records a run: queues the turn (unless skipped), counts it, sets the next run or completes the
      * schedule, releases the lease. A schedule of an archived thread is cancelled instead.
      */
-    fireSchedule(input: { schedule: ScheduleRow; text: string; run: boolean; nextRunAt: Date | undefined }): Fx<{ threadId: string; turn?: TurnRow }>;
+    fireSchedule(input: { schedule: ScheduleRow; input: TurnInput; run: boolean; nextRunAt: Date | undefined }): Fx<{ threadId: string; turn?: TurnRow }>;
     /** Pending interactions routed to the caller (from its side threads). */
     parentInteractions(callerId: string): Fx<ReadonlyArray<{ request_id: string; thread_id: string; kind: string; tool_name: string; request: JsonValue }>>;
     /** Notifications due because `turnId` finished. */
     dueNotifications(turnId: string): Fx<Notification[]>;
     /** Queues the notification turn in the calling thread (or cancels it when that thread is gone). */
-    deliverNotification(callId: string, text: string): Fx<TurnRow | undefined>;
+    deliverNotification(callId: string, input: TurnInput): Fx<TurnRow | undefined>;
     /**
      * A side thread with interaction_route = parent asks: queue a turn in the parent (trigger = interaction)
      * unless one exists already or the agent chain is too long (then the user answers in the UI).
      */
-    forwardInteraction(input: { requestId: string; text: (thread: ThreadRow) => string; maxHops: number }): Fx<ForwardedInteraction | undefined>;
+    forwardInteraction(input: { requestId: string; input: (thread: ThreadRow) => TurnInput; maxHops: number }): Fx<ForwardedInteraction | undefined>;
   }
 >()("open-agents/gateway/AgentBusStore") {
   static readonly layer = Layer.effect(
@@ -234,11 +247,11 @@ export class AgentBusStore extends Context.Service<
                 ${input.result === undefined ? null : JSON.stringify(input.result)}::jsonb, ${input.error ?? null},
                 ${input.hops ?? null}, ${input.notify ?? false}, ${input.notify ? "pending" : null}, now())`;
 
-      const queueTurn = (input: { threadId: string; text: string; trigger: "agent_bus" | "interaction"; callId?: string; interactionId?: string; hops: number }) =>
+      const queueTurn = (input: { threadId: string; input: TurnInput; trigger: "agent_bus" | "interaction"; callId?: string; interactionId?: string; hops: number }) =>
         sql<TurnRow>`
           INSERT INTO turns (id, thread_id, ordinal, trigger, agent_call_id, interaction_request_id, hops, input)
           SELECT ${Bun.randomUUIDv7()}::uuid, ${input.threadId}::uuid, coalesce(max(ordinal), 0) + 1, ${input.trigger},
-                 ${input.callId ?? null}::uuid, ${input.interactionId ?? null}::uuid, ${input.hops}, ${JSON.stringify({ text: input.text })}::jsonb
+                 ${input.callId ?? null}::uuid, ${input.interactionId ?? null}::uuid, ${input.hops}, ${inputJson(input.input)}::jsonb
             FROM turns WHERE thread_id = ${input.threadId}::uuid
           RETURNING *`.pipe(Effect.map((rows) => rows[0]!));
 
@@ -338,10 +351,13 @@ export class AgentBusStore extends Context.Service<
                         ${args.interactions ?? "parent"}, 'worker', ${caller.provider}, ${caller.provider_profile_id},
                         ${caller.worker_id}::uuid, ${caller.workspace_id}::uuid, ${caller.cwd},
                         ${args.fork ? caller.id : null}::uuid, ${JSON.stringify(caller.settings)}::jsonb, 'creating', ${args.title.trim()})`;
-              const prompt =
-                `[open-agents] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` +
-                `End your turn with a final message that reports your result; it is delivered to that thread.\n\n${args.prompt}`;
-              const turn = yield* queueTurn({ threadId: id, text: prompt, trigger: "agent_bus", callId: source.callId, hops });
+              const input: TurnInput = {
+                note:
+                  `[open-agents] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` +
+                  "End your turn with a final message that reports your result; it is delivered to that thread.",
+                message: args.prompt,
+              };
+              const turn = yield* queueTurn({ threadId: id, input, trigger: "agent_bus", callId: source.callId, hops });
               // Stored as returned: a re-sent call gets exactly this.
               const result = {
                 thread_id: id,
@@ -362,8 +378,8 @@ export class AgentBusStore extends Context.Service<
             Effect.gen(function* () {
               const notify = args.notify ?? true;
               yield* insertCall({ source, tool: "send_message", args, status: "completed", hops, notify });
-              const text = `[open-agents] Message from the thread "${caller.title}" (thread_id: ${caller.id}):\n\n${args.prompt}`;
-              const turn = yield* queueTurn({ threadId: args.thread_id, text, trigger: "agent_bus", callId: source.callId, hops });
+              const input: TurnInput = { note: `[open-agents] Message from the thread "${caller.title}" (thread_id: ${caller.id}):`, message: args.prompt };
+              const turn = yield* queueTurn({ threadId: args.thread_id, input, trigger: "agent_bus", callId: source.callId, hops });
               const result = {
                 thread_id: args.thread_id,
                 turn_id: turn.id,
@@ -499,7 +515,7 @@ export class AgentBusStore extends Context.Service<
                            ORDER BY next_run_at LIMIT 50 FOR UPDATE SKIP LOCKED)
             RETURNING *`,
 
-        fireSchedule: ({ schedule, text, run, nextRunAt }) =>
+        fireSchedule: ({ schedule, input, run, nextRunAt }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const owner = yield* thread(schedule.thread_id);
@@ -513,7 +529,7 @@ export class AgentBusStore extends Context.Service<
                 ? yield* sql<TurnRow>`
                     INSERT INTO turns (id, thread_id, ordinal, trigger, schedule_id, hops, input)
                     SELECT ${Bun.randomUUIDv7()}::uuid, ${owner.id}::uuid, coalesce(max(ordinal), 0) + 1, 'schedule', ${schedule.id}::uuid,
-                           ${schedule.hops}, ${JSON.stringify({ text })}::jsonb
+                           ${schedule.hops}, ${inputJson(input)}::jsonb
                       FROM turns WHERE thread_id = ${owner.id}::uuid
                     RETURNING *`.pipe(Effect.map((rows) => rows[0]))
                 : undefined;
@@ -552,7 +568,7 @@ export class AgentBusStore extends Context.Service<
             );
           }),
 
-        deliverNotification: (callId, text) =>
+        deliverNotification: (callId, input) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const rows = yield* sql<BusCallRow & { source_archived: boolean }>`
@@ -566,7 +582,7 @@ export class AgentBusStore extends Context.Service<
               }
               const turn = yield* queueTurn({
                 threadId: call.source_thread_id,
-                text,
+                input,
                 trigger: "agent_bus",
                 callId,
                 hops: Math.min((call.hops ?? 0) + 1, 16),
@@ -576,7 +592,7 @@ export class AgentBusStore extends Context.Service<
             }),
           ),
 
-        forwardInteraction: ({ requestId, text, maxHops }) =>
+        forwardInteraction: ({ requestId, input, maxHops }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const rows = yield* sql<{ thread_id: string; hops: number | null; status: string; routed_to: string; forwarded: boolean }>`
@@ -590,7 +606,7 @@ export class AgentBusStore extends Context.Service<
               if (!asking.parent_thread_id) return undefined;
               const hops = (row.hops ?? 0) + 1;
               if (hops > maxHops) return undefined; // agent chain too long: the user answers in the UI
-              const turn = yield* queueTurn({ threadId: asking.parent_thread_id, text: text(asking), trigger: "interaction", interactionId: requestId, hops });
+              const turn = yield* queueTurn({ threadId: asking.parent_thread_id, input: input(asking), trigger: "interaction", interactionId: requestId, hops });
               return { parentThreadId: asking.parent_thread_id, turn };
             }),
           ),

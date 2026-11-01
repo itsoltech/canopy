@@ -8,7 +8,8 @@ import { NotFound } from "./store.ts";
 
 /**
  * User and project settings (docs/ui-api.md): stored by the gateway, the browser only reads and writes
- * them. Sections (appearance, thread defaults) are replaced as a whole; every write bumps the version and
+ * them. Stored sections are read leniently (fields dropped from the contract are ignored).
+ * Sections (appearance, thread defaults) are replaced as a whole; every write bumps the version and
  * names the version it started from, so two devices never overwrite each other unnoticed.
  */
 
@@ -54,9 +55,9 @@ export class SettingsStore extends Context.Service<
       const sql = yield* SqlClient.SqlClient;
 
       const appearance = (stored: Stored) =>
-        stored.appearance ? fromJson(ui.AppearanceSettingsSchema, stored.appearance) : create(ui.AppearanceSettingsSchema, {});
+        stored.appearance ? fromJson(ui.AppearanceSettingsSchema, stored.appearance, { ignoreUnknownFields: true }) : create(ui.AppearanceSettingsSchema, {});
       const threadDefaults = (stored: Stored) =>
-        stored.threadDefaults ? fromJson(ui.ThreadDefaultsSchema, stored.threadDefaults) : create(ui.ThreadDefaultsSchema, {});
+        stored.threadDefaults ? fromJson(ui.ThreadDefaultsSchema, stored.threadDefaults, { ignoreUnknownFields: true }) : create(ui.ThreadDefaultsSchema, {});
 
       const toUser = (row: Row | undefined) => {
         const stored = (row?.settings ?? {}) as Stored;

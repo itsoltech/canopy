@@ -99,10 +99,11 @@ export class AgentBus {
     const due = await this.#host.run(AgentBusStore.use((s) => s.dueNotifications(turnId)));
     for (const { call, target, turnStatus, lastMessage } of due) {
       const label = target.kind === "side" ? "side thread" : "thread";
-      const text =
-        `[open-agents] The ${label} "${target.title}" (thread_id: ${target.id}) finished a turn: ${turnStatus}.\n` +
-        `Its last message:\n\n${truncate(lastMessage, 20_000) || "(no message)"}`;
-      const turn = await this.#host.run(AgentBusStore.use((s) => s.deliverNotification(call.id, text)));
+      const input = {
+        note: `[open-agents] The ${label} "${target.title}" (thread_id: ${target.id}) finished a turn: ${turnStatus}. Its last message:`,
+        message: truncate(lastMessage, 20_000) || "(no message)",
+      };
+      const turn = await this.#host.run(AgentBusStore.use((s) => s.deliverNotification(call.id, input)));
       if (turn) await this.#host.queued(call.source_thread_id, turn);
     }
   }
@@ -115,18 +116,21 @@ export class AgentBus {
         s.forwardInteraction({
           requestId: interaction.requestId,
           maxHops: DEFAULT_BUS_LIMITS.maxHops,
-          text: (thread) => {
+          input: (thread) => {
             const kind = interaction.kind === 1 ? "permission" : interaction.kind === 2 ? "question" : "form";
             const how =
               kind === "permission"
                 ? `answer_interaction with response "allow" or "deny"`
                 : `answer_interaction with response "answer" and answer_json, or "cancel"`;
-            return (
-              `[open-agents] Your side thread "${thread.title}" (thread_id: ${thread.id}) is waiting for your answer.\n` +
-              `request_id: ${interaction.requestId}\nkind: ${kind}\ntool: ${interaction.toolName}\n` +
-              `request: ${truncate(interaction.requestJson, 4_000)}\n\n` +
-              `Answer with ${how}. The user can answer in the UI instead.`
-            );
+            // All of it is the platform's; the UI shows the question from the turn's structured source.
+            return {
+              note:
+                `[open-agents] Your side thread "${thread.title}" (thread_id: ${thread.id}) is waiting for your answer.\n` +
+                `request_id: ${interaction.requestId}\nkind: ${kind}\ntool: ${interaction.toolName}\n` +
+                `request: ${truncate(interaction.requestJson, 4_000)}\n\n` +
+                `Answer with ${how}. The user can answer in the UI instead.`,
+              message: "",
+            };
           },
         }),
       ),

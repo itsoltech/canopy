@@ -1,13 +1,13 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { page } from "$app/state";
-  import { PermissionMode } from "@open-agents/contracts";
+  import { PermissionMode, Provider } from "@open-agents/contracts";
   import { untrack } from "svelte";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
-  import { effectiveDefaults } from "#lib/features/settings/thread-defaults.ts";
+  import { effectiveDefaults, modelFor } from "#lib/features/settings/thread-defaults.ts";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
   import ComposerPill from "#lib/features/threads/components/ComposerPill.svelte";
   import ModelPill from "#lib/features/threads/components/ModelPill.svelte";
@@ -59,7 +59,7 @@
   const selected = $derived(choices.find((c) => c.value === agent) ?? fromDefaults ?? choices[0]);
   // A model per provider: switching Claude ↔ Codex keeps what was typed for each.
   let models = $state<Partial<Record<ProviderKey, string>>>({});
-  const modelOf = (key: ProviderKey) => models[key] ?? (key === defaultProvider ? defaults.model : "");
+  const modelOf = (key: ProviderKey) => models[key] ?? modelFor(defaults, Provider[key]);
   const suggestions = $derived(selected ? knownModels(overview.threads.values(), selected.provider) : []);
   let permission = $state<string>();
   const permissionMode = $derived(permission ?? (defaults.permissionMode !== PermissionMode.UNSPECIFIED ? PermissionMode[defaults.permissionMode] : "ASK"));

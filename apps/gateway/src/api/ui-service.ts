@@ -33,6 +33,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
         guard(async () => create(ui.UpdateUserSettingsResponseSchema, { settings: await core.updateUserSettings(request) })),
       updateProjectSettings: (request) =>
         guard(async () => create(ui.UpdateProjectSettingsResponseSchema, { settings: await core.updateProjectSettings(request) })),
+      previewSchedule: (request) => guard(async () => core.previewSchedule(request)),
       setScheduleStatus: (request) =>
         guard(async () => create(ui.SetScheduleStatusResponseSchema, { schedule: await core.setScheduleStatus(request) })),
     });

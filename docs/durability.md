@@ -117,6 +117,8 @@ sequenceDiagram
 - Po `Welcome` instancja dosyła wszystkie `pending` i `delivered` bez wyniku. Worker deduplikuje po `command_id` i odsyła zapamiętany wynik.
 - **Własność połączenia:** `worker_connections(worker_id, instance_id, epoch)`. Nowe połączenie podbija `epoch`, a stara instancja zamyka swoje (fencing). Wynik komendy z nieaktualnego `epoch` jest ignorowany.
 
+- **Jedna tura startuje raz.** Planista tur działa z wielu miejsc naraz (koniec tury, nowa wiadomość, kilka instancji). Unikalny indeks `worker_commands_one_start` dopuszcza jeden żywy `StartTurn` na turę; przegrany przebieg uznaje, że turę wystartował ktoś inny (wcześniej dwa przebiegi mogły wystartować tę samą turę dwa razy).
+
 ### 4.3 Transkrypt i zdarzenia live
 
 - `INSERT ... ON CONFLICT (thread_id, seq) DO NOTHING`, `EventAck` po commicie (już w protokole).

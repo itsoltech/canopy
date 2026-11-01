@@ -7,6 +7,7 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import { modelFor, withModel } from "./thread-defaults.ts";
 
   /**
    * Rows of thread defaults (workspace, agent, profile, model, permissions) for Settings → Threads and a
@@ -57,8 +58,8 @@
       value={provider ?? ""}
       onchange={(e) => {
         const key = selected(e);
-        // Profile and model belong to the agent: a different agent starts from its own defaults.
-        set({ provider: isProviderKey(key) ? Provider[key] : Provider.UNSPECIFIED, providerProfileId: "", model: "" });
+        // The profile belongs to the agent; models are kept per agent.
+        set({ provider: isProviderKey(key) ? Provider[key] : Provider.UNSPECIFIED, providerProfileId: "" });
       }}
       class="w-56 sm:w-48"
     >
@@ -83,8 +84,8 @@
         aria-label="Default {providerLabel(value.provider)} model"
         placeholder="Profile default"
         autocomplete="off"
-        value={value.model}
-        onchange={(e) => set({ model: selected(e).trim() })}
+        value={modelFor(value, value.provider)}
+        onchange={(e) => set({ models: withModel(value.models, value.provider, selected(e).trim()) })}
         class="w-56 sm:w-48"
       />
     {/snippet}

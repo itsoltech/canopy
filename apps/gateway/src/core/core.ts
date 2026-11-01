@@ -12,7 +12,7 @@ import {
 } from "@open-agents/contracts";
 import { Effect, type ManagedRuntime } from "effect";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
-import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { DEFAULT_BUS_LIMITS } from "@open-agents/domain";
 import { AgentBusStore, GatewayStore, Ingest, SettingsStore, toUiSchedule, toUiThread, toUiTurn, type ScheduleRow, type ThreadRow } from "../store/index.ts";
 import { cronProblem, nextCronRun } from "./cron.ts";
@@ -265,11 +265,17 @@ export class GatewayCore {
     const thread = await this.#run((s) => s.thread(threadId));
     if (!thread.worker_id) return;
     const spec = await this.#run((s) => Effect.succeed(s.threadSpec(thread)));
-    await this.#dispatch(
-      thread.worker_id,
-      { kind: { case: "startTurn", value: { thread: spec, turnId: turn.id, input: { text: turn.input.text ?? "", authorUserId: this.#options.userId } } } },
-      { threadId, turnId: turn.id, ttlSeconds: TTL.startTurn },
-    );
+    try {
+      await this.#dispatch(
+        thread.worker_id,
+        { kind: { case: "startTurn", value: { thread: spec, turnId: turn.id, input: { text: turn.input.text ?? "", authorUserId: this.#options.userId } } } },
+        { threadId, turnId: turn.id, ttlSeconds: TTL.startTurn },
+      );
+    } catch (error) {
+      // Another pass (a finished turn and a new message at once, or another instance) started it first.
+      if (violates(error, "worker_commands_one_start")) return;
+      throw error;
+    }
   }
 
   // ------------------------------------------------------------------ UI operations
@@ -480,7 +486,8 @@ export class GatewayCore {
 
   /** Defaults must point at the user's own workspace (in the project, for project settings). */
   async #checkThreadDefaults(defaults: ui.ThreadDefaults, projectId?: string): Promise<void> {
-    if (defaults.model.length > 200 || defaults.providerProfileId.length > 100) throw new InvalidError("model or profile id is too long");
+    if (defaults.providerProfileId.length > 100 || defaults.models.some((m) => m.model.length > 200)) throw new InvalidError("model or profile id is too long");
+    if (new Set(defaults.models.map((m) => m.provider)).size !== defaults.models.length) throw new InvalidError("one model per provider");
     if (!defaults.workspaceId) return;
     const projects = await this.#run((s) => s.listProjects(this.#options.userId));
     const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === defaults.workspaceId);
@@ -553,6 +560,24 @@ export class GatewayCore {
     const schedule = toUiSchedule(row);
     this.#announceSchedule(schedule);
     return schedule;
+  }
+
+  /** Next runs of a cron in a time zone, validated like CreateSchedule. */
+  previewSchedule(request: ui.PreviewScheduleRequest): ui.PreviewScheduleResponse {
+    const timezone = request.timezone || "UTC";
+    if (!isTimeZone(timezone)) throw new InvalidError(`unknown time zone ${timezone}`);
+    const now = new Date();
+    const problem = cronProblem(request.cron, timezone, DEFAULT_BUS_LIMITS.minCronMinutes, now);
+    if (problem) throw new InvalidError(problem);
+    const count = Math.min(Math.max(request.count || 5, 1), 20);
+    const nextRuns = [];
+    for (let at = now; nextRuns.length < count; ) {
+      const next = nextCronRun(request.cron, timezone, at);
+      if (!next) break;
+      nextRuns.push(timestampFromDate(next));
+      at = next;
+    }
+    return create(ui.PreviewScheduleResponseSchema, { nextRuns });
   }
 
   async setScheduleStatus(request: ui.SetScheduleStatusRequest): Promise<ui.Schedule> {
@@ -637,6 +662,14 @@ export class GatewayCore {
   #log(message: string): void {
     this.#options.log?.(message);
   }
+}
+
+/** Whether a database constraint caused the error (driver errors carry it somewhere in the cause chain). */
+function violates(error: unknown, constraint: string): boolean {
+  for (let current = error, i = 0; i < 8 && current && typeof current === "object"; i++, current = (current as { cause?: unknown }).cause) {
+    if ((current as { constraint?: unknown }).constraint === constraint) return true;
+  }
+  return false;
 }
 
 function isTimeZone(zone: string): boolean {

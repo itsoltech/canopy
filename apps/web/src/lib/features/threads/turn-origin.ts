@@ -34,17 +34,6 @@ export function turnOrigin(turn: ui.Turn): TurnOrigin {
   }
 }
 
-/**
- * The platform writes a note for the agent before what it delivers ("[open-agents] Task from …",
- * ending at the first blank line). The timeline shows the delivered message and keeps the whole text
- * one click away; text without such a note is all message.
- */
-export function splitPlatformNote(text: string): { readonly note: string; readonly message: string } {
-  if (!text.startsWith("[open-agents]")) return { note: "", message: text };
-  const end = text.indexOf("\n\n");
-  return end < 0 ? { note: text, message: "" } : { note: text.slice(0, end), message: text.slice(end + 2) };
-}
-
 /** Label of a turn started without input (provider wake-up, recovery, goal); undefined otherwise. */
 export function silentTriggerLabel(turn: ui.Turn): string | undefined {
   if (turn.inputText) return undefined;

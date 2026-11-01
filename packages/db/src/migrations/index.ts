@@ -7,6 +7,8 @@ import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
 import agentBusRuntime from "./0004_agent_bus_runtime.sql" with { type: "text" };
 import settings from "./0005_settings.sql" with { type: "text" };
 import turnSources from "./0006_turn_sources.sql" with { type: "text" };
+import turnSourceDetails from "./0007_turn_source_details.sql" with { type: "text" };
+import oneStartPerTurn from "./0008_one_start_per_turn.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -30,6 +32,8 @@ export const migrations = Migrator.fromRecord({
   "0004_agent_bus_runtime": sqlFile(agentBusRuntime),
   "0005_settings": sqlFile(settings),
   "0006_turn_sources": sqlFile(turnSources),
+  "0007_turn_source_details": sqlFile(turnSourceDetails),
+  "0008_one_start_per_turn": sqlFile(oneStartPerTurn),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

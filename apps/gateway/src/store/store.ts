@@ -77,7 +77,8 @@ export interface TurnRow {
   ordinal: number;
   status: string;
   trigger: string;
-  input: { text?: string };
+  /** text = what the model got; note + message = the same split for the UI (platform-queued turns). */
+  input: { text?: string; note?: string; message?: string };
   error: string | null;
   provider_turn_ref: string | null;
   queued_at: Date;
@@ -90,6 +91,9 @@ export interface TurnRow {
   /** Joined from turn_sources. */
   source_kind?: string | null;
   source_thread_id?: string | null;
+  source_status?: string | null;
+  question_kind?: string | null;
+  question_tool?: string | null;
 }
 
 export interface OutboxRow {
@@ -402,7 +406,7 @@ export class GatewayStore extends Context.Service<
                                        provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, settings, status, title)
                   VALUES (${id}::uuid, ${workspace.project_id}::uuid, ${ownerUserId}::uuid, ${parent ? "side" : "main"},
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
-                          ${request.providerProfileId || null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${cwd},
+                          ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${cwd},
                           ${parent && request.fork ? parent.id : null}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || "New thread"})`;
                 if (request.initialMessage.trim()) {
                   yield* sql`
@@ -472,7 +476,7 @@ export class GatewayStore extends Context.Service<
             sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
 
           turnsOf: (threadId) => sql<TurnRow>`
-            SELECT u.*, s.source_kind, s.source_thread_id FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
+            SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
              WHERE u.thread_id = ${threadId}::uuid ORDER BY u.ordinal`,
 
           failTurn: (turnId, error) =>
@@ -485,7 +489,7 @@ export class GatewayStore extends Context.Service<
               const thread = yield* store.thread(threadId);
               // A fork shows the history it inherits (thread_items_view / thread_fork_chain), marked as inherited.
               const inheritedTurns = yield* sql<TurnRow>`
-                SELECT u.*, s.source_kind, s.source_thread_id FROM thread_fork_chain(${threadId}::uuid) c
+                SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
                  WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
                  ORDER BY c.level DESC, u.ordinal`;
@@ -679,6 +683,11 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     hops: row.hops ?? 0,
     inherited: row.inherited ?? false,
     fromThreadId: row.inherited ? row.thread_id : "",
+    messageText: row.input?.message ?? row.input?.text ?? "",
+    platformNote: row.input?.note ?? "",
+    sourceStatus: row.source_status ?? "",
+    questionKind: row.question_kind ?? "",
+    questionTool: row.question_tool ?? "",
     sourceKind: row.source_kind ?? "",
     sourceThreadId: row.source_thread_id ?? "",
     scheduleId: row.schedule_id ?? "",

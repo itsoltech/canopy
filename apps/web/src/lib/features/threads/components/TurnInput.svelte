@@ -6,7 +6,7 @@
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { useThreadDirectory } from "../thread-directory.ts";
-  import { splitPlatformNote, turnOrigin } from "../turn-origin.ts";
+  import { turnOrigin } from "../turn-origin.ts";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
 
@@ -20,7 +20,8 @@
 
   const directory = useThreadDirectory();
   const origin = $derived(turnOrigin(turn));
-  const parts = $derived(splitPlatformNote(text));
+  // The platform's note (where the input comes from) and the delivered content, kept apart by the gateway.
+  const parts = $derived({ note: turn.platformNote, message: turn.messageText });
   const tone = $derived(origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet");
   const icons: Record<string, IconName> = { task: "sparkles", message: "chat-bubble-left-right", report: "document-text", question: "hand-raised", schedule: "clock" };
   const fallback: Record<string, string> = { agent_bus: "From an agent", interaction: "A side thread is waiting", schedule: "Scheduled", goal: "Goal" };

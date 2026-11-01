@@ -67,8 +67,8 @@ export class Scheduler {
       }
     }
     const runLabel = schedule.kind === "once" ? "wake-up" : `run ${schedule.runs + 1}${schedule.max_runs ? ` of ${schedule.max_runs}` : ""}`;
-    const text = `[open-agents] Scheduled ${runLabel} (schedule_id: ${schedule.id}${late ? ", delayed" : ""}):\n\n${schedule.prompt}`;
-    const fired = await this.#host.run(AgentBusStore.use((s) => s.fireSchedule({ schedule, text, run, nextRunAt })));
+    const input = { note: `[open-agents] Scheduled ${runLabel} (schedule_id: ${schedule.id}${late ? ", delayed" : ""}):`, message: schedule.prompt };
+    const fired = await this.#host.run(AgentBusStore.use((s) => s.fireSchedule({ schedule, input, run, nextRunAt })));
     if (fired.turn) await this.#host.queued(fired.threadId, fired.turn);
     await this.#host.changed(schedule.id);
   }

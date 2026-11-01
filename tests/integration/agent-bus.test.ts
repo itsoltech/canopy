@@ -8,7 +8,7 @@ import { InteractionKind, PermissionMode, Provider, type AgentToolResult } from 
 import { dockerAvailable } from "@open-agents/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;
@@ -238,6 +238,9 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     await Bun.sleep(50);
     const daily = (await gw.api.createSchedule({ threadId: mainId, prompt: "Daily summary", when: { case: "cron", value: "0 9 * * *" }, timezone: "Europe/Warsaw" })).schedule!;
     expect(daily).toMatchObject({ kind: "recurring", status: "active", createdBy: "user", timezone: "Europe/Warsaw", maxRuns: 0 });
+    const preview = await gw.api.previewSchedule({ cron: "0 9 * * *", timezone: "Europe/Warsaw", count: 3 });
+    expect(preview.nextRuns.map((t) => timestampDate(t).getUTCHours())).toEqual([8, 8, 8]); // 09:00 Warsaw in winter
+    expect(await failure(gw.api.previewSchedule({ cron: "* * * * *" }))).toContain("more often");
 
     const agentMade = json(await gw.worker.callTool({ threadId: mainId, tool: "schedule_wakeup", args: { prompt: "agent reminder", delay_seconds: 600 } }));
     const listed = (await gw.api.listSchedules({ threadId: mainId })).schedules;
@@ -276,13 +279,22 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
         ["message", true],
       ]),
     );
+    const task = side.find((t) => t.sourceKind === "task")!;
+    expect(task.messageText).toBe("Review the diff");
+    expect(task.platformNote).toStartWith('[open-agents] Task from the thread "Orchestrator"');
+    expect(task.inputText).toBe(`${task.platformNote}\n\n${task.messageText}`); // what the model got
     const main = await snapshotTurns(mainId);
     const kinds = main.map((t) => t.sourceKind);
     expect(kinds[0]).toBe(""); // the user's first message
-    expect(main.find((t) => t.sourceKind === "report")?.sourceThreadId).toBe(sideId);
-    expect(main.find((t) => t.sourceKind === "question")?.interactionRequestId).not.toBe("");
+    const report = main.find((t) => t.sourceKind === "report")!;
+    expect([report.sourceThreadId, report.sourceStatus]).toEqual([sideId, "completed"]);
+    expect(report.messageText).toStartWith("Echo: [open-agents] Task from"); // the side thread's last message
+    const question = main.find((t) => t.sourceKind === "question")!;
+    expect([question.questionKind, question.questionTool, question.messageText]).toEqual(["permission", "shell", ""]);
+    expect(question.interactionRequestId).not.toBe("");
     const scheduled = main.find((t) => t.sourceKind === "schedule");
     expect(scheduled?.scheduleId).not.toBe("");
     expect(scheduled?.sourceThreadId).toBe(mainId); // an agent schedule: created by this thread's agent
+    expect(scheduled?.messageText).toBe("Check CI");
   });
 });

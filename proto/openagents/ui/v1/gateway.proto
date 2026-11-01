@@ -33,6 +33,8 @@ service GatewayService {
   // Harmonogram platformy (docs/agent-bus.md#5-harmonogram): tworzony przez użytkownika albo agenta.
   rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse);
   rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse);
+  // Podgląd: najbliższe terminy cronu w strefie (albo błąd walidacji), bez tworzenia harmonogramu.
+  rpc PreviewSchedule(PreviewScheduleRequest) returns (PreviewScheduleResponse);
   // Wstrzymanie, wznowienie albo anulowanie.
   rpc SetScheduleStatus(SetScheduleStatusRequest) returns (SetScheduleStatusResponse);
 
@@ -151,6 +153,17 @@ message Turn {
   string source_thread_id = 15;
   string schedule_id = 16;
   string interaction_request_id = 17;
+  // Treść wejścia bez notatki platformy: wiadomość użytkownika, zadanie, wiadomość agenta, raport
+  // (ostatnia wiadomość wątku docelowego) albo polecenie harmonogramu. input_text = notatka + treść,
+  // dokładnie to, co dostał model.
+  string message_text = 18;
+  // Notatka platformy przed treścią (np. "[open-agents] Task from the thread …"); pusta dla użytkownika.
+  string platform_note = 19;
+  // report: jak skończyła się tura wątku docelowego (completed | interrupted | failed | cancelled).
+  string source_status = 20;
+  // question: rodzaj pytania (permission | question | elicitation) i narzędzie, którego dotyczy.
+  string question_kind = 21;
+  string question_tool = 22;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -405,9 +418,19 @@ message CreateScheduleResponse {
   Schedule schedule = 1;
 }
 
+message PreviewScheduleRequest {
+  string cron = 1;
+  string timezone = 2;   // pusty = UTC
+  uint32 count = 3;      // ile terminów, 1..20 (0 = 5)
+}
+
+message PreviewScheduleResponse {
+  repeated google.protobuf.Timestamp next_runs = 1;
+}
+
 message SetScheduleStatusRequest {
   string schedule_id = 1;
-  // active (wznowienie) | paused | cancelled
+  // active (wznowienie wstrzymanego) | paused | cancelled. Zakończonego ani anulowanego nie da się wznowić.
   string status = 2;
 }
 
@@ -453,9 +476,18 @@ message AppearanceSettings {
 message ThreadDefaults {
   string workspace_id = 1;
   openagents.worker.v1.Provider provider = 2;
+  // Pusty albo "native" = profil natywny.
   string provider_profile_id = 3;
-  string model = 4;
+  reserved 4;
+  reserved "model";
   openagents.worker.v1.PermissionMode permission_mode = 5;
+  // Model per dostawca (zmiana dostawcy w nowym wątku zachowuje model każdego z nich). Brak = model profilu.
+  repeated ProviderModel models = 6;
+}
+
+message ProviderModel {
+  openagents.worker.v1.Provider provider = 1;
+  string model = 2;
 }
 
 message UserSettings {
