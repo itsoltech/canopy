@@ -140,6 +140,17 @@ message Turn {
   uint32 hops = 11;
   // Tura z historii odziedziczonej przez fork (należy do wątku źródłowego).
   bool inherited = 12;
+  // Odziedziczona tura: wątek, do którego należy (w łańcuchu forków nie zawsze bezpośrednie źródło).
+  string from_thread_id = 13;
+  // Skąd przyszło wejście tury (puste dla użytkownika i tur dostawcy):
+  // task (spawn_thread) | message (send_message) | report (powiadomienie: wątek docelowy skończył turę)
+  // | question (wątek boczny pyta rodzica) | schedule (harmonogram)
+  string source_kind = 14;
+  // Wątek, od którego tura pochodzi: zlecający (task, message), raportujący (report), pytający (question),
+  // a dla harmonogramu agenta wątek, który go utworzył.
+  string source_thread_id = 15;
+  string schedule_id = 16;
+  string interaction_request_id = 17;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -150,6 +161,8 @@ message TimelineItem {
   uint64 last_seq = 4;
   // Item z historii odziedziczonej przez fork (first_seq/last_seq liczone w wątku źródłowym).
   bool inherited = 5;
+  // Odziedziczony item: wątek, do którego należy.
+  string from_thread_id = 6;
 }
 
 // Komunikat dostawcy albo platformy na osi czasu (np. ponowienie po błędzie API).

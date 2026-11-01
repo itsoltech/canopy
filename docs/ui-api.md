@@ -35,11 +35,11 @@ flowchart LR
 | `WatchOverview` | strumień zmian workerów, projektów i wątków |
 | `ListDirectory` | przeglądanie katalogów na workerze, w dozwolonych katalogach (wybór workspace'u) |
 | `CreateProject`, `CreateWorkspace` | projekt; workspace = katalog na workerze |
-| `ListThreads`, `GetThread`, `CreateThread` | wątki projektu (pusty projekt = wszystkie wątki użytkownika); jeden wątek; nowy wątek (główny albo boczny, opcjonalnie fork) z opcjonalną pierwszą wiadomością |
+| `ListThreads`, `GetThread`, `CreateThread` | wątki projektu (pusty projekt = wszystkie wątki użytkownika); jeden wątek; nowy wątek (główny albo boczny, opcjonalnie fork) z opcjonalną pierwszą wiadomością. Gateway sprawdza według ostatniego raportu workera, że dostawca jest dostępny, a profil istnieje, jest dostępny i obsługuje tego dostawcę; fork zachowuje dostawcę rodzica |
 | `SendMessage` | nowa tura; idempotentne po `client_request_id` |
 | `InterruptThread` | przerwanie tury w toku |
 | `AnswerInteraction` | odpowiedź na zgodę albo pytanie |
-| `WatchThread` | najpierw snapshot (wątek, tury ze zużyciem tokenów, itemy, oczekujące interakcje, ostatnie komunikaty, `last_seq`), potem zmiany na żywo: zdarzenia (`seq` + `ThreadEvent`), wątek, tura, interakcja. Snapshot forka zawiera odziedziczoną historię: tury i itemy wątku źródłowego do punktu forka z `inherited = true` |
+| `WatchThread` | najpierw snapshot (wątek, tury ze zużyciem tokenów, itemy, oczekujące interakcje, ostatnie komunikaty, `last_seq`), potem zmiany na żywo: zdarzenia (`seq` + `ThreadEvent`), wątek, tura, interakcja. Snapshot forka zawiera odziedziczoną historię: tury i itemy wątku źródłowego do punktu forka z `inherited = true` i `from_thread_id`. Tura ma swoje źródło (`source_kind`: task, message, report, question, schedule; `source_thread_id`, `schedule_id`, `interaction_request_id`), odczytane z relacji w bazie (widok `turn_sources`), nie z treści |
 | `ListSchedules`, `CreateSchedule`, `SetScheduleStatus` | harmonogram platformy: lista (wątek, projekt albo wszystkie; z autorem: użytkownik albo agent i jego wątek), nowy harmonogram użytkownika (jednorazowy `run_at` albo `cron` ze strefą czasową; może być bez końca), wstrzymanie, wznowienie, anulowanie. Zmiany na żywo w `ThreadUpdate.schedule` i `OverviewUpdate.schedule`, a snapshot wątku zawiera jego aktywne i wstrzymane harmonogramy |
 | `GetSettings`, `UpdateUserSettings`, `UpdateProjectSettings` | ustawienia użytkownika (wygląd: schemat kolorów, akcent, szerokość czatu, panel wątku; domyślne wartości nowych wątków) i projektu (domyślne wartości wątków, nadpisują użytkownika). Przechowuje je gateway (`user_settings`, `project_settings`); przeglądarka jest tylko klientem. Zapis zastępuje podane sekcje i podaje wersję, od której zaczął: konflikt z innym urządzeniem = `FailedPrecondition` (BFF: 409), klient pobiera ustawienia od nowa. Zmiany na żywo w `OverviewUpdate.user_settings` / `project_settings` |
 
@@ -122,4 +122,3 @@ bun run build && GATEWAY_SERVICE_TOKEN=... PORT=3000 node build/index.js    # pr
 - **Jeden użytkownik deweloperski** (`OA_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
 - **Jedna instancja gateway** (`Hub` w procesie).
 - Brak ekranów administracji workerami: na razie CLI.
-- Wybór dostawcy w UI: tylko Codex (adapter Claude w budowie).

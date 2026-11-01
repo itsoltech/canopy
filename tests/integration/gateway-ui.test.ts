@@ -5,7 +5,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
+import { create } from "@bufbuild/protobuf";
 import { InteractionKind, NoticeLevel, PermissionMode, Provider, TurnOrigin, ui } from "@open-agents/contracts";
+import { GatewayStore } from "@open-agents/gateway/store";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { answers, eventually, failure, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
@@ -276,6 +278,18 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     await eventually(async () => seen, (u) => u.filter((x) => x.change.case === "userSettings").length === 2 && u.some((x) => x.change.case === "projectSettings"));
     controller.abort();
     await watching;
+  });
+
+  test("CreateThread checks the provider and profile against the worker's report, and forks keep the provider", async () => {
+    expect(await failure(api.createThread({ projectId, workspaceId, title: "x", provider: Provider.CLAUDE }))).toContain("Claude is not available on laptop: claude CLI not found");
+    expect(await failure(api.createThread({ projectId, workspaceId, title: "x", provider: Provider.CODEX, providerProfileId: "nope" }))).toContain(
+      'profile "nope" is not configured on laptop',
+    );
+    const parent = (await api.createThread({ projectId, workspaceId, title: "Codex parent", provider: Provider.CODEX })).thread!;
+    // A fork into another provider is refused by the store rule too (through the API Claude is already refused above).
+    const fork = create(ui.CreateThreadRequestSchema, { projectId, workspaceId, parentThreadId: parent.id, fork: true, title: "f", provider: Provider.CLAUDE });
+    const forkError = await gw.runtime.runPromise(GatewayStore.use((s) => s.createThread(gw.userId, fork))).catch((e: unknown) => e);
+    expect(String(forkError)).toContain("a fork keeps its parent's provider");
   });
 
   test("errors keep their meaning across the API", async () => {

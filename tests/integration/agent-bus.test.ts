@@ -262,4 +262,27 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     // created, the agent's, paused, resumed, the agent's fired (completed), cancelled
     expect(updates).toEqual(expect.arrayContaining(["active", "paused", "completed", "cancelled"]));
   });
+
+  test("turns carry their source: task, message, report, question, schedule", async () => {
+    const snapshotTurns = async (threadId: string) => {
+      const first = (await watchUntil(gw.api, threadId, (u) => u.length >= 1))[0];
+      return first?.change.case === "snapshot" ? first.change.value.turns : [];
+    };
+    const sideId = (await query<{ id: string }>("SELECT id FROM threads WHERE title = 'Reviewer'"))[0]!.id;
+    const side = await snapshotTurns(sideId);
+    expect(side.map((t) => [t.sourceKind, t.sourceThreadId === mainId])).toEqual(
+      expect.arrayContaining([
+        ["task", true],
+        ["message", true],
+      ]),
+    );
+    const main = await snapshotTurns(mainId);
+    const kinds = main.map((t) => t.sourceKind);
+    expect(kinds[0]).toBe(""); // the user's first message
+    expect(main.find((t) => t.sourceKind === "report")?.sourceThreadId).toBe(sideId);
+    expect(main.find((t) => t.sourceKind === "question")?.interactionRequestId).not.toBe("");
+    const scheduled = main.find((t) => t.sourceKind === "schedule");
+    expect(scheduled?.scheduleId).not.toBe("");
+    expect(scheduled?.sourceThreadId).toBe(mainId); // an agent schedule: created by this thread's agent
+  });
 });

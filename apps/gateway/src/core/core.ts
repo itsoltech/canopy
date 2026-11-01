@@ -4,6 +4,7 @@ import {
   CommandSchema,
   ForkSpecSchema,
   InteractionResponseSchema,
+  Provider,
   ui,
   type Command,
   type CommandResult,
@@ -67,7 +68,7 @@ export class GatewayCore {
       run: (effect) => this.#options.runtime.runPromise(effect),
       startThread: (row) => this.#startThread(row),
       queued: async (threadId, turn) => {
-        this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }));
+        await this.#broadcastTurn(threadId, turn.id); // re-read: the UI gets the turn with its source
         await this.pump(threadId);
       },
       interrupt: (threadId) => this.interrupt(threadId),
@@ -79,7 +80,7 @@ export class GatewayCore {
     this.scheduler = new Scheduler({
       run: (effect) => this.#options.runtime.runPromise(effect),
       queued: async (threadId, turn) => {
-        this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }));
+        await this.#broadcastTurn(threadId, turn.id); // re-read: the UI gets the turn with its source
         await this.pump(threadId);
       },
       owner: options.instanceId,
@@ -314,9 +315,30 @@ export class GatewayCore {
   }
 
   async createThread(request: ui.CreateThreadRequest): Promise<ui.Thread> {
+    await this.#checkProvider(request);
     const row = await this.#run((s) => s.createThread(this.#options.userId, request));
     await this.#startThread(row);
     return toUiThread(row);
+  }
+
+  /**
+   * The worker's last report (ConfigApplied) must offer the provider and the profile for it. A worker that
+   * has not reported yet is not judged: the thread waits for it like for an offline worker.
+   */
+  async #checkProvider(request: ui.CreateThreadRequest): Promise<void> {
+    const projects = await this.#run((s) => s.listProjects(this.#options.userId));
+    const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId);
+    if (!workspace) return; // the store reports the missing workspace
+    const worker = (await this.#run((s) => s.listWorkers(this.online))).find((w) => w.id === workspace.workerId);
+    if (!worker || worker.appliedVersion === 0n) return;
+    const name = request.provider === Provider.CLAUDE ? "Claude" : "Codex";
+    const provider = worker.providers.find((p) => p.provider === request.provider);
+    if (!provider?.available) throw new InvalidError(`${name} is not available on ${worker.name}${provider?.detail ? `: ${provider.detail}` : ""}`);
+    const profileId = request.providerProfileId || "native";
+    const profile = worker.profiles.find((p) => p.id === profileId);
+    if (!profile) throw new InvalidError(`profile "${profileId}" is not configured on ${worker.name}`);
+    if (!profile.providers.includes(request.provider)) throw new InvalidError(`profile "${profileId}" does not serve ${name}`);
+    if (!profile.available) throw new InvalidError(`profile "${profileId}" is not available on ${worker.name}${profile.detail ? `: ${profile.detail}` : ""}`);
   }
 
   /** CreateThread to the worker (with the fork point of a forked thread), then announce the thread. */

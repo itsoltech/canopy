@@ -7,7 +7,17 @@ import { randomBytes } from "node:crypto";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
-import { ItemStatus, ThreadEventSchema, TurnOrigin, TurnOutcome, ui, type AgentToolResult, type InteractionRequest } from "@open-agents/contracts";
+import {
+  ItemStatus,
+  Provider,
+  ProviderProfileKind,
+  ThreadEventSchema,
+  TurnOrigin,
+  TurnOutcome,
+  ui,
+  type AgentToolResult,
+  type InteractionRequest,
+} from "@open-agents/contracts";
 import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
@@ -60,7 +70,21 @@ export class ScriptedWorker {
   async #loop(): Promise<void> {
     for await (const message of this.link.messages) {
       const payload = message.payload;
-      if (payload.case === "config") this.link.send({ case: "configApplied", value: { version: payload.value.version, applied: true } });
+      if (payload.case === "config") {
+        // Like a real worker: what this device offers (here Codex and a native profile; Claude missing).
+        this.link.send({
+          case: "configApplied",
+          value: {
+            version: payload.value.version,
+            applied: true,
+            providers: [
+              { provider: Provider.CODEX, available: true, version: "0.164.0" },
+              { provider: Provider.CLAUDE, available: false, detail: "claude CLI not found" },
+            ],
+            profiles: [{ id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CLAUDE, Provider.CODEX], available: true }],
+          },
+        });
+      }
       if (payload.case === "interactionResponse") this.interactionAnswers.push({ requestId: payload.value.requestId, allow: payload.value.allow });
       if (payload.case === "agentToolResult") {
         this.#toolResults.get(payload.value.callId)?.(payload.value);

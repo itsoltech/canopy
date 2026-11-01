@@ -85,6 +85,11 @@ export interface TurnRow {
   completed_at?: Date | null;
   usage?: JsonValue | null;
   hops?: number;
+  schedule_id?: string | null;
+  interaction_request_id?: string | null;
+  /** Joined from turn_sources. */
+  source_kind?: string | null;
+  source_thread_id?: string | null;
 }
 
 export interface OutboxRow {
@@ -377,6 +382,9 @@ export class GatewayStore extends Context.Service<
                 if (parent && parent.workspace_id !== workspace.id) {
                   return yield* Effect.fail(new Invalid("a side thread runs in its parent's workspace"));
                 }
+                if (parent && request.fork && parent.provider !== provider) {
+                  return yield* Effect.fail(new Invalid(`a fork keeps its parent's provider (${parent.provider})`));
+                }
                 // A thread may start below the workspace root, never outside it (paths follow the worker's OS).
                 const style = pathStyle(workspace.os, workspace.root_path);
                 const requested = request.cwd ? normalizePath(request.cwd, style) : undefined;
@@ -463,7 +471,9 @@ export class GatewayStore extends Context.Service<
           runningTurn: (threadId) =>
             sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
 
-          turnsOf: (threadId) => sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid ORDER BY ordinal`,
+          turnsOf: (threadId) => sql<TurnRow>`
+            SELECT u.*, s.source_kind, s.source_thread_id FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
+             WHERE u.thread_id = ${threadId}::uuid ORDER BY u.ordinal`,
 
           failTurn: (turnId, error) =>
             sql`UPDATE turns SET status = 'failed', error = ${error}, completed_at = now() WHERE id = ${turnId}::uuid AND status IN ('queued', 'running')`.pipe(
@@ -475,12 +485,13 @@ export class GatewayStore extends Context.Service<
               const thread = yield* store.thread(threadId);
               // A fork shows the history it inherits (thread_items_view / thread_fork_chain), marked as inherited.
               const inheritedTurns = yield* sql<TurnRow>`
-                SELECT u.* FROM thread_fork_chain(${threadId}::uuid) c JOIN turns u ON u.thread_id = c.thread_id
+                SELECT u.*, s.source_kind, s.source_thread_id FROM thread_fork_chain(${threadId}::uuid) c
+                  JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
                  WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
                  ORDER BY c.level DESC, u.ordinal`;
               const turns = yield* store.turnsOf(threadId);
-              const itemRows = yield* sql<{ content: JsonValue; turn_id: string | null; first_seq: bigint; last_seq: bigint; inherited: boolean }>`
-                SELECT content, turn_id, first_seq, last_seq, inherited FROM thread_items_view(${threadId}::uuid)`;
+              const itemRows = yield* sql<{ thread_id: string; content: JsonValue; turn_id: string | null; first_seq: bigint; last_seq: bigint; inherited: boolean }>`
+                SELECT thread_id, content, turn_id, first_seq, last_seq, inherited FROM thread_items_view(${threadId}::uuid)`;
               const items = itemRows.map((r) =>
                 create(ui.TimelineItemSchema, {
                   item: fromJson(ItemSchema, r.content),
@@ -488,6 +499,7 @@ export class GatewayStore extends Context.Service<
                   firstSeq: BigInt(r.first_seq),
                   lastSeq: BigInt(r.last_seq),
                   inherited: r.inherited,
+                  fromThreadId: r.inherited ? r.thread_id : "",
                 }),
               );
               const noticeRows = yield* sql<{ seq: bigint; turn_id: string | null; payload: JsonValue; occurred_at: Date }>`
@@ -666,6 +678,11 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     ...(row.usage && { usage: fromJson(UsageSchema, row.usage) }),
     hops: row.hops ?? 0,
     inherited: row.inherited ?? false,
+    fromThreadId: row.inherited ? row.thread_id : "",
+    sourceKind: row.source_kind ?? "",
+    sourceThreadId: row.source_thread_id ?? "",
+    scheduleId: row.schedule_id ?? "",
+    interactionRequestId: row.interaction_request_id ?? "",
   });
 }
 
