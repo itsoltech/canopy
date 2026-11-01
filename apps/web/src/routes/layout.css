@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../lib/shared/ui/motion.css" layer(components);
 
 /* Dark mode by class (set before first paint in app.html from the Appearance setting; default: system). */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -23,6 +24,62 @@
   --color-brand-400: var(--brand-400);
   --color-brand-500: var(--brand-500);
   --color-brand-600: var(--brand-600);
+}
+
+/*
+ * Motion tokens (transitions.dev scale), the only durations, easings, distances, scales and blurs motion
+ * may use: `var(--duration-fast)`, Tailwind `ease-smooth-out`, … The recipes using them live in
+ * `lib/shared/ui/motion.css`, the Svelte transitions in `lib/shared/ui/motion.ts`.
+ * Rules: open slower than close (open --duration-fast, close --duration-quick), hover/intent delays live
+ * in JS (tooltip 500 ms, hover card 500 ms in / 200 ms out), per-item stagger --duration-stagger.
+ */
+@theme static {
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1); /* open + close of surfaces, position and size changes */
+  --ease-in-out: ease-in-out; /* text and icon swaps, skeleton reveal */
+  --ease-out: ease-out; /* tooltips */
+  --ease-linear: linear; /* shimmer, pulse, spinner */
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1); /* badge and star pop */
+  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);
+}
+
+:root {
+  --duration-stagger: 40ms; /* per-item stagger */
+  --duration-micro: 80ms; /* shake segment, path delay */
+  --duration-quick: 150ms; /* close of menus and modals, text swap, tooltip appear */
+  --duration-fast: 250ms; /* open of menus and modals, icon swap, sliding tabs, accordion */
+  --duration-medium: 350ms; /* close of panels, sheets and toasts */
+  --duration-slow: 400ms; /* open of panels and sheets, skeleton reveal */
+  --duration-very-slow: 500ms; /* emphasis: success check, badge appear */
+  --distance-micro: 4px;
+  --distance-small: 6px;
+  --distance-base: 8px;
+  --distance-medium: 12px;
+  --distance-large: 30px;
+  --scale-large: 0.96; /* modal */
+  --scale-medium: 0.97; /* menu open */
+  --scale-small: 0.98; /* tooltip */
+  --scale-tiny: 0.99; /* menu close */
+  --blur-small: 2px;
+  --blur-medium: 3px;
+  --blur-large: 8px;
+}
+/* Reduced motion: nothing moves, scales or blurs; what remains is opacity (recipes that move by other
+   means switch themselves off in motion.css). */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --distance-micro: 0px;
+    --distance-small: 0px;
+    --distance-base: 0px;
+    --distance-medium: 0px;
+    --distance-large: 0px;
+    --scale-large: 1;
+    --scale-medium: 1;
+    --scale-small: 1;
+    --scale-tiny: 1;
+    --blur-small: 0px;
+    --blur-medium: 0px;
+    --blur-large: 0px;
+  }
 }
 
 :root {

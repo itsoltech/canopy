@@ -1,0 +1,462 @@
+/*
+ * Motion recipes (transitions.dev) on the motion tokens in routes/layout.css. Hooks are `t-*` classes and
+ * the state the element already has (`:popover-open`, `[open]`, `data-*`); enter and exit of top-layer
+ * surfaces are pure CSS (`@starting-style`, `display` / `overlay` with `allow-discrete`), so a browser
+ * without them simply shows and hides at once. Every recipe ends with its reduced-motion guard.
+ */
+
+/* --- Menu dropdown (05): popovers, menus, submenus, pickers, hover cards ------------------------------
+ * Grows from its trigger (`--float-origin` from floating.ts), opens on --duration-fast and closes faster
+ * on --duration-quick to a slightly different scale, so a reopen never jumps. */
+.t-dropdown {
+  transform-origin: var(--float-origin, top left);
+  opacity: 0;
+  scale: var(--scale-tiny);
+  transition-property: opacity, scale, translate, display, overlay;
+  transition-duration: var(--duration-quick);
+  transition-timing-function: var(--ease-smooth-out);
+  transition-behavior: allow-discrete;
+}
+.t-dropdown:popover-open {
+  opacity: 1;
+  scale: 1;
+  transition-duration: var(--duration-fast);
+}
+@starting-style {
+  .t-dropdown:popover-open {
+    opacity: 0;
+    scale: var(--scale-medium);
+  }
+}
+
+/* --- Bottom sheet (panel reveal 07): a popover or dialog as a sheet on phones ---------------------------
+ * Slides up from the bottom edge on --duration-slow, back down on --duration-medium. While a finger drags
+ * it (`data-dragging`, sheet-drag.ts) it follows without a transition. */
+.t-dropdown[data-sheet] {
+  opacity: 1;
+  scale: 1;
+  translate: 0 100%;
+  transition-duration: var(--duration-medium);
+}
+.t-dropdown[data-sheet]:popover-open {
+  translate: 0 var(--sheet-drag, 0px);
+  transition-duration: var(--duration-slow);
+}
+@starting-style {
+  .t-dropdown[data-sheet]:popover-open {
+    opacity: 1;
+    scale: 1;
+    translate: 0 100%;
+  }
+}
+
+/* A finger on the drag handle moves the sheet directly. */
+.t-dropdown[data-sheet][data-dragging] {
+  transition-duration: 0s;
+}
+
+/* --- Modal (06): dialogs, centred from sm; a bottom sheet below it ----------------------------------- */
+.t-modal {
+  opacity: 0;
+  scale: var(--scale-large);
+  transition-property: opacity, scale, translate, display, overlay;
+  transition-duration: var(--duration-quick);
+  transition-timing-function: var(--ease-smooth-out);
+  transition-behavior: allow-discrete;
+}
+.t-modal[open] {
+  opacity: 1;
+  scale: 1;
+  transition-duration: var(--duration-fast);
+}
+@starting-style {
+  .t-modal[open] {
+    opacity: 0;
+    scale: var(--scale-large);
+  }
+}
+/* Closing before navigating away (settings): the same exit while the dialog is still open. */
+.t-modal[open][data-closing] {
+  opacity: 0;
+  scale: var(--scale-large);
+  transition-duration: var(--duration-quick);
+}
+@media (width < 40rem) {
+  .t-modal[data-sheet] {
+    opacity: 1;
+    scale: 1;
+    translate: 0 100%;
+    transition-duration: var(--duration-medium);
+  }
+  .t-modal[data-sheet][open] {
+    translate: 0 var(--sheet-drag, 0px);
+    transition-duration: var(--duration-slow);
+  }
+  @starting-style {
+    .t-modal[data-sheet][open] {
+      opacity: 1;
+      scale: 1;
+      translate: 0 100%;
+    }
+  }
+  .t-modal[data-sheet][data-dragging] {
+    transition-duration: 0s;
+  }
+}
+
+/* --- Drawer (panel reveal 07): the mobile navigation from the left edge -------------------------------- */
+.t-drawer {
+  translate: -100% 0;
+  transition-property: translate, display, overlay;
+  transition-duration: var(--duration-medium);
+  transition-timing-function: var(--ease-smooth-out);
+  transition-behavior: allow-discrete;
+}
+.t-drawer[open] {
+  translate: 0 0;
+  transition-duration: var(--duration-slow);
+}
+@starting-style {
+  .t-drawer[open] {
+    translate: -100% 0;
+  }
+}
+
+/* Backdrops fade with their surface (same open / close durations). */
+.t-dropdown::backdrop,
+.t-modal::backdrop,
+.t-drawer::backdrop {
+  opacity: 0;
+  transition-property: opacity, display, overlay;
+  transition-duration: var(--duration-quick);
+  transition-timing-function: var(--ease-smooth-out);
+  transition-behavior: allow-discrete;
+}
+.t-dropdown:popover-open::backdrop,
+.t-modal[open]::backdrop,
+.t-drawer[open]::backdrop {
+  opacity: 1;
+  transition-duration: var(--duration-fast);
+}
+.t-modal[open][data-closing]::backdrop {
+  opacity: 0;
+  transition-duration: var(--duration-quick);
+}
+@starting-style {
+  .t-dropdown:popover-open::backdrop,
+  .t-modal[open]::backdrop,
+  .t-drawer[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: sheets and drawers fade instead of sliding (the token scale already keeps the other
+   surfaces to opacity). */
+@media (prefers-reduced-motion: reduce) {
+  .t-dropdown[data-sheet],
+  .t-modal[data-sheet],
+  .t-drawer {
+    translate: none !important;
+    opacity: 0;
+    transition-property: opacity, display, overlay;
+  }
+  .t-dropdown[data-sheet]:popover-open,
+  .t-modal[data-sheet][open],
+  .t-drawer[open] {
+    opacity: 1;
+  }
+  @starting-style {
+    .t-dropdown[data-sheet]:popover-open,
+    .t-modal[data-sheet][open],
+    .t-drawer[open] {
+      opacity: 0;
+    }
+  }
+}
+
+/* --- Tooltip (17): the hover delay is the intent delay (tooltip.ts); fade + scale in on --duration-quick,
+ * out at once. Moving to a neighbour while warm (`data-warm`) shows it without a second appear. */
+.t-tt {
+  transform-origin: var(--float-origin, center bottom);
+}
+.t-tt:popover-open {
+  transition:
+    opacity var(--duration-quick) var(--ease-out),
+    scale var(--duration-quick) var(--ease-out);
+}
+@starting-style {
+  .t-tt:popover-open {
+    opacity: 0;
+    scale: var(--scale-small);
+  }
+}
+.t-tt[data-warm]:popover-open {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-tt:popover-open {
+    transition: none !important;
+  }
+}
+
+/* --- Sliding tabs (16): the raised pill of a segmented control travels between segments ----------------- */
+.t-tabs-pill {
+  transition: translate var(--duration-fast) var(--ease-smooth-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-tabs-pill {
+    transition: none !important;
+  }
+}
+
+/* A slider's thumb and fill glide to the chosen stop the same way. */
+.t-slide {
+  transition:
+    left var(--duration-fast) var(--ease-smooth-out),
+    width var(--duration-fast) var(--ease-smooth-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-slide {
+    transition: none !important;
+  }
+}
+
+/* --- Card resize (01): a box easing to its content's new width (motion.ts `resizeToContent`). -------- */
+.t-resize {
+  transition: width var(--duration-fast) var(--ease-smooth-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-resize {
+    transition: none !important;
+  }
+}
+
+/* --- Accordion (21): the disclosure arrow turns with its panel (the panel itself: motion.ts `expand`);
+ * a closing <details> keeps painting its content while that shrinks out. */
+.t-acc::details-content {
+  content-visibility: visible;
+}
+.t-acc-chevron {
+  transition: rotate var(--duration-fast) var(--ease-smooth-out);
+}
+/* A panel that stays mounted: its row grows from 0fr to 1fr (no measuring), the content fades and
+   un-blurs; padding belongs inside the clipping child. */
+.t-acc-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-quick) var(--ease-smooth-out);
+}
+.t-acc-panel[data-open] {
+  grid-template-rows: 1fr;
+  transition-duration: var(--duration-fast);
+}
+.t-acc-panel > * {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  filter: blur(var(--blur-small));
+  transition:
+    opacity var(--duration-quick) var(--ease-smooth-out),
+    filter var(--duration-quick) var(--ease-smooth-out);
+}
+.t-acc-panel[data-open] > * {
+  opacity: 1;
+  filter: none;
+  transition-duration: var(--duration-fast);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-acc-chevron,
+  .t-acc-panel,
+  .t-acc-panel > * {
+    transition: none !important;
+  }
+}
+
+/* --- Toast (22): rises with fade + cross-blur, leaves a bit faster (`data-closing`). ------------------ */
+.t-toast {
+  opacity: 1;
+  translate: 0 0;
+  scale: 1;
+  filter: blur(0);
+  transition:
+    opacity var(--duration-medium) var(--ease-smooth-out),
+    translate var(--duration-medium) var(--ease-smooth-out),
+    scale var(--duration-medium) var(--ease-smooth-out),
+    filter var(--duration-medium) var(--ease-smooth-out);
+}
+@starting-style {
+  .t-toast {
+    opacity: 0;
+    translate: 0 var(--distance-medium);
+    scale: var(--scale-medium);
+    filter: blur(var(--blur-small));
+  }
+}
+.t-toast[data-closing] {
+  opacity: 0;
+  translate: 0 var(--distance-medium);
+  scale: var(--scale-medium);
+  filter: blur(var(--blur-small));
+  transition-duration: var(--duration-fast);
+}
+
+/* --- Success check (10): fade, turn, bob and blur in while the tick draws itself. -------------------- */
+.t-success-check {
+  display: inline-block;
+  transform-origin: center;
+  animation:
+    t-check-fade var(--duration-very-slow) var(--ease-smooth-out) both,
+    t-check-rotate var(--duration-very-slow) var(--ease-smooth-out) both,
+    t-check-blur var(--duration-very-slow) var(--ease-smooth-out) both,
+    t-check-bob var(--duration-very-slow) var(--ease-bounce) both;
+}
+.t-success-check svg {
+  display: block;
+  overflow: visible;
+}
+.t-success-check svg path {
+  stroke-dasharray: 13;
+  stroke-dashoffset: 13;
+  animation: t-check-draw var(--duration-very-slow) var(--ease-smooth-out) var(--duration-micro) forwards;
+}
+@keyframes t-check-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes t-check-rotate {
+  from {
+    rotate: 80deg;
+  }
+}
+@keyframes t-check-blur {
+  from {
+    filter: blur(var(--blur-large));
+  }
+}
+@keyframes t-check-bob {
+  from {
+    translate: 0 var(--distance-base);
+  }
+}
+@keyframes t-check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-success-check {
+    animation: none !important;
+  }
+  .t-success-check svg path {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
+
+/* --- Error state shake (12): a field that refused its value (replay: remove the class, reflow, add). --- */
+.t-shake {
+  animation: t-shake calc(var(--duration-micro) * 3.5) linear;
+}
+@keyframes t-shake {
+  0% {
+    translate: 0;
+    animation-timing-function: var(--ease-smooth-out);
+  }
+  28.57% {
+    translate: var(--distance-small);
+    animation-timing-function: var(--ease-smooth-out);
+  }
+  57.14% {
+    translate: calc(var(--distance-small) * -1);
+    animation-timing-function: var(--ease-smooth-out);
+  }
+  78.57% {
+    translate: var(--distance-micro);
+    animation-timing-function: var(--ease-smooth-out);
+  }
+  100% {
+    translate: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-shake {
+    animation: none !important;
+  }
+}
+
+/* --- Like pop (23): a star or pin that was just set gives a small spring. ---------------------------- */
+.t-pop {
+  animation: t-pop var(--duration-medium) var(--ease-bounce);
+}
+@keyframes t-pop {
+  30% {
+    scale: 0.82;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-pop {
+    animation: none !important;
+  }
+}
+
+/* --- Entrances on mount ---------------------------------------------------------------------------------
+ * t-swap: text states swap (04), a status label that changed rises in (put it in a {#key}).
+ * t-rise: a new row in a list or the timeline (transform only: layout and measuring are untouched).
+ * t-reveal: skeleton reveal (14), loaded content resolves in where its skeleton was.
+ * t-stream: streaming text (30), each new block of a streaming message resolves in. */
+.t-swap {
+  animation: t-swap var(--duration-quick) var(--ease-in-out);
+}
+@keyframes t-swap {
+  from {
+    opacity: 0;
+    translate: 0 var(--distance-micro);
+    filter: blur(var(--blur-small));
+  }
+}
+.t-rise {
+  animation: t-rise var(--duration-fast) var(--ease-smooth-out);
+}
+@keyframes t-rise {
+  from {
+    opacity: 0;
+    translate: 0 var(--distance-base);
+    filter: blur(var(--blur-small));
+  }
+}
+.t-reveal {
+  animation: t-reveal var(--duration-slow) var(--ease-in-out);
+}
+@keyframes t-reveal {
+  from {
+    opacity: 0;
+    filter: blur(var(--blur-small));
+  }
+}
+.t-stream > * {
+  animation: t-reveal var(--duration-medium) var(--ease-smooth-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-swap,
+  .t-rise,
+  .t-reveal,
+  .t-stream > * {
+    animation: none !important;
+  }
+}
+
+/* --- Skeleton pulse (14): placeholders (and the streaming caret) breathe until their content arrives. -- */
+.t-pulse {
+  animation: t-pulse calc(var(--duration-very-slow) * 2) var(--ease-in-out) infinite;
+}
+@keyframes t-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-pulse {
+    animation: none !important;
+  }
+}
