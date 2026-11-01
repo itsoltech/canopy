@@ -1,108 +1,72 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
   import { page } from "$app/state";
+  import BotsSectionEmpty from "#lib/features/bots/components/BotsSectionEmpty.svelte";
+  import Tooltip from "#lib/features/bots/components/Tooltip.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { needsYou, treeActivity } from "#lib/features/threads/activity.ts";
-  import { isSide } from "#lib/features/threads/thread-tree.ts";
+  import { needsYou } from "#lib/features/threads/activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import ConnectionStatus from "./ConnectionStatus.svelte";
   import Logo from "./Logo.svelte";
-  import SidebarSideThread from "./SidebarSideThread.svelte";
-  import SidebarThread from "./SidebarThread.svelte";
+  import SectionSwitch from "./SectionSwitch.svelte";
+  import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
+  import SidebarThreads from "./SidebarThreads.svelte";
 
   /**
-   * Thread inbox (T3 style): every main thread of every project, those that need you first (a side
-   * thread asking its parent agent does not), then by latest activity in the tree. The open thread's
-   * side threads unfold under it; others show a count.
+   * App sidebar: logo and the section's "new" action, the Threads | Bots switch (follows the route;
+   * Settings keeps the last section), search over the current section, its list, and the footer.
    */
   let { currentThreadId }: { currentThreadId?: string | undefined } = $props();
   const overview = useOverview();
 
-  let query = $state("");
-  const all = $derived([...overview.threads.values()]);
-  const byId = $derived(new Map(all.map((t) => [t.id, t])));
-  const sidesOf = $derived.by(() => {
-    const map = new Map<string, ui.Thread[]>();
-    for (const t of all) if (isSide(t) && byId.has(t.parentThreadId)) map.set(t.parentThreadId, [...(map.get(t.parentThreadId) ?? []), t]);
-    return map;
-  });
-  const current = $derived(currentThreadId ? byId.get(currentThreadId) : undefined);
-  const openTree = $derived(current ? (isSide(current) ? current.parentThreadId : current.id) : undefined);
-
-  const byCreation = (a: ui.Thread, b: ui.Thread) => Number((a.createdAt?.seconds ?? 0n) - (b.createdAt?.seconds ?? 0n));
-  const mains = $derived.by(() => {
-    const q = query.trim().toLowerCase();
-    const projectName = (t: ui.Thread) => overview.project(t.projectId)?.name ?? "";
-    return all
-      .filter((t) => !(isSide(t) && byId.has(t.parentThreadId)))
-      .filter((t) => !q || [t, ...(sidesOf.get(t.id) ?? [])].some((x) => x.title.toLowerCase().includes(q)) || projectName(t).toLowerCase().includes(q))
-      .map((t) => {
-        const tree = [t, ...(sidesOf.get(t.id) ?? [])];
-        return { thread: t, attention: tree.some(needsYou), activity: treeActivity(tree) };
-      })
-      .sort((a, b) => Number(b.attention) - Number(a.attention) || Number(b.activity - a.activity))
-      .map((entry) => entry.thread);
-  });
+  const section = $derived<Section>(sectionOf(page.url.pathname) ?? sectionMemory.current);
+  const queries = $state<Record<Section, string>>({ threads: "", bots: "" });
+  const threadsNeedYou = $derived([...overview.threads.values()].some(needsYou));
   const online = $derived(overview.workers.filter((w) => w.online).length);
   const settingsActive = $derived(page.url.pathname.startsWith("/settings"));
+  const iconLink =
+    "relative grid size-9 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring sm:size-8 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white";
 </script>
 
 <div class="flex h-full flex-col">
   <div class="flex h-12 shrink-0 items-center justify-between gap-2 pr-2 pl-4">
     <Logo />
-    <a
-      href="/"
-      class="relative grid size-9 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring sm:size-8 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
-      aria-label="New thread"
-      title="New thread"
-    >
-      <Icon name="pencil-square" />
-    </a>
+    {#if section === "threads"}
+      <a href="/" class={iconLink} aria-label="New thread" title="New thread">
+        <Icon name="pencil-square" />
+      </a>
+    {:else}
+      <Tooltip text="Coming soon" align="end">
+        {#snippet children(tip)}
+          <button type="button" class={[iconLink, "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-zinc-500 dark:hover:bg-transparent dark:hover:text-zinc-400"]} aria-label="New bot chat" aria-describedby={tip} aria-disabled="true">
+            <Icon name="pencil-square" />
+          </button>
+        {/snippet}
+      </Tooltip>
+    {/if}
   </div>
+
+  <SectionSwitch active={section} attention={{ threads: threadsNeedYou }} class="px-3 pb-2" />
 
   <div class="px-3 pb-2">
     <label class="flex items-center gap-2 rounded-lg px-2.5 py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400">
       <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
-      <span class="sr-only">Search threads</span>
+      <span class="sr-only">Search {section === "threads" ? "threads" : "bots"}</span>
       <input
         type="search"
         name="q"
-        bind:value={query}
-        placeholder="Search"
+        bind:value={queries[section]}
+        placeholder={section === "threads" ? "Search threads" : "Search bots"}
         autocomplete="off"
         class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400"
       />
     </label>
   </div>
 
-  <nav class="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Threads">
-    {#if mains.length === 0}
-      <p class="px-3 py-2 text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400">
-        {#if query}No thread matches “{query}”.{:else if overview.connection === "unavailable"}Threads load once the gateway answers.{:else}No threads yet. Start one with the pencil above.{/if}
-      </p>
+  <nav class="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label={section === "threads" ? "Threads" : "Bots"}>
+    {#if section === "threads"}
+      <SidebarThreads {currentThreadId} query={queries.threads} />
     {:else}
-      <ul role="list" class="grid gap-0.5">
-        {#each mains as thread (thread.id)}
-          {@const sides = sidesOf.get(thread.id) ?? []}
-          <li>
-            <SidebarThread
-              {thread}
-              project={overview.project(thread.projectId)}
-              worker={overview.worker(thread.workerId)}
-              sides={openTree === thread.id ? 0 : sides.length}
-              current={thread.id === currentThreadId}
-            />
-            {#if openTree === thread.id && sides.length > 0}
-              <ul role="list" aria-label="Side threads of {thread.title}" class="mt-0.5 mb-1 ml-5 grid gap-0.5 border-l border-zinc-950/10 pl-1.5 dark:border-white/10">
-                {#each [...sides].sort(byCreation) as side (side.id)}
-                  <li><SidebarSideThread thread={side} current={side.id === currentThreadId} /></li>
-                {/each}
-              </ul>
-            {/if}
-          </li>
-        {/each}
-      </ul>
+      <BotsSectionEmpty query={queries.bots} />
     {/if}
   </nav>
 
@@ -110,7 +74,7 @@
     <a
       href="/settings"
       aria-current={settingsActive ? "page" : undefined}
-      class="relative grid size-9 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring aria-[current=page]:text-zinc-950 sm:size-8 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:text-white"
+      class={[iconLink, "aria-[current=page]:text-zinc-950 dark:aria-[current=page]:text-white"]}
       aria-label="Settings"
       title="Settings"
     >
