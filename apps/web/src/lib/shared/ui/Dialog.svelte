@@ -38,7 +38,7 @@
     if (event.target === dialog) open = false; // click on the backdrop
   }}
   class={[
-    "m-0 mt-auto max-h-[90dvh] w-full max-w-none overflow-y-auto rounded-t-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 backdrop:bg-zinc-950/40 sm:m-auto sm:max-w-lg sm:rounded-2xl dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/60",
+    "m-0 mt-auto max-h-[90dvh] w-full max-w-none overflow-y-auto rounded-t-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 backdrop:bg-zinc-950/40 sm:m-auto sm:max-w-lg sm:rounded-2xl dark:bg-zinc-950 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/60",
     className,
   ]}
 >

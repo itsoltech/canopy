@@ -1,10 +1,18 @@
 <!doctype html>
-<html lang="en" class="bg-white antialiased dark:bg-zinc-950">
+<html lang="en" class="bg-white antialiased dark:bg-black">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="text-scale" content="scale" />
 		<meta name="color-scheme" content="light dark" />
+		<script>
+			// Appearance before first paint (lib/shared/theme.svelte.ts keeps it in sync afterwards).
+			(() => {
+				const choice = localStorage.getItem("oa-theme") ?? "system";
+				const dark = choice === "dark" || (choice === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+				document.documentElement.classList.toggle("dark", dark);
+			})();
+		</script>
 		<link rel="preconnect" href="https://rsms.me/" />
 		<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 		%sveltekit.head%

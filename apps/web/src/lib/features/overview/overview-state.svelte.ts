@@ -6,20 +6,20 @@ import { decode } from "#lib/shared/wire.ts";
 export type OverviewConnection = "live" | "reconnecting" | "unavailable";
 
 /**
- * Workers, projects and thread statuses for the whole app, kept live by the overview SSE stream.
+ * Workers, projects and every thread for the whole app, kept live by the overview SSE stream.
  * Shared with pages through context (one subscription per tab). The stream carries changes only,
- * so every reconnect reloads the full overview to pick up what happened in between.
+ * so every reconnect reloads the full overview and thread index to pick up what happened in between.
  */
 export class OverviewState {
   workers = $state.raw<ui.Worker[]>([]);
   projects = $state.raw<ui.Project[]>([]);
-  /** Latest known state of threads seen in this tab (status changes arrive live). */
+  /** Every thread by id (seeded from the server, status changes and new threads arrive live). */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
   connection = $state<OverviewConnection>("live");
   #synced = false;
 
-  constructor(initial: ui.GetOverviewResponse | undefined) {
-    if (initial) this.#replace(initial);
+  constructor(initial: ui.GetOverviewResponse | undefined, threads: readonly ui.Thread[] = []) {
+    if (initial) this.#replace(initial, threads);
     else this.connection = "unavailable";
   }
 
@@ -45,17 +45,22 @@ export class OverviewState {
     if (change.case === "thread") this.threads = new Map(this.threads).set(change.value.id, change.value);
   }
 
-  #replace(overview: ui.GetOverviewResponse): void {
+  #replace(overview: ui.GetOverviewResponse, threads: readonly ui.Thread[]): void {
     this.workers = overview.workers;
     this.projects = overview.projects;
+    this.threads = new Map(threads.map((t) => [t.id, t]));
     this.#synced = true;
   }
 
   async #resync(): Promise<void> {
-    try {
-      const response = await fetch("/api/overview", { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+    const get = async (path: string) => {
+      const response = await fetch(path, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      this.#replace(decode(ui.GetOverviewResponseSchema, await response.json()));
+      return response.json();
+    };
+    try {
+      const [overview, threads] = await Promise.all([get("/api/overview"), get("/api/threads")]);
+      this.#replace(decode(ui.GetOverviewResponseSchema, overview), decode(ui.ListThreadsResponseSchema, threads).threads);
       this.connection = "live";
     } catch {
       this.connection = "unavailable";

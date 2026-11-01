@@ -31,10 +31,3 @@ export async function answerInteraction(
 ): Promise<void> {
   await post(`/api/interactions/${encodeURIComponent(requestId)}`, answer);
 }
-
-/** All threads of a project (main and side), for the thread tree. */
-export async function listProjectThreads(projectId: string): Promise<ui.Thread[]> {
-  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/threads`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
-  if (!response.ok) throw new Error(`Could not load the project's threads (${response.status})`);
-  return decode(ui.ListThreadsResponseSchema, await response.json()).threads;
-}

@@ -27,7 +27,7 @@
       {#if question.options.length > 0}
         <div class="grid gap-1.5">
           {#each question.options as option, optionIndex (optionIndex)}
-            <label class="flex cursor-pointer gap-3 rounded-lg p-2.5 ring-1 ring-zinc-950/10 has-checked:bg-zinc-950/2.5 has-checked:ring-zinc-950/40 has-focus-visible:outline-2 has-focus-visible:outline-sky-500 dark:ring-white/10 dark:has-checked:bg-white/5 dark:has-checked:ring-white/40">
+            <label class="flex cursor-pointer gap-3 rounded-lg p-2.5 ring-1 ring-zinc-950/10 has-checked:bg-zinc-950/2.5 has-checked:ring-zinc-950/40 has-focus-visible:outline-2 has-focus-visible:outline-blue-500 dark:ring-white/10 dark:has-checked:bg-white/5 dark:has-checked:ring-white/40">
               <span class="flex h-lh items-center text-base/6 sm:text-sm/6">
                 <span class="group inline-grid size-5 grid-cols-1 sm:size-4">
                   <input

@@ -40,7 +40,7 @@
   }
 </script>
 
-<section class="rounded-xl bg-white p-4 shadow-lg ring-1 ring-amber-500/40 dark:bg-zinc-900 dark:shadow-none dark:ring-amber-400/30" aria-labelledby="{id}-title">
+<section class="rounded-xl bg-white p-4 shadow-lg ring-1 ring-amber-500/40 dark:bg-zinc-950 dark:shadow-none dark:ring-amber-400/30" aria-labelledby="{id}-title">
   <div class="flex items-start gap-2">
     <span class="flex h-lh items-center text-base/6"><Icon name={interaction.kind === InteractionKind.PERMISSION ? "hand-raised" : "question-mark-circle"} class="fill-amber-500 dark:fill-amber-400" /></span>
     <div class="min-w-0 flex-1">
