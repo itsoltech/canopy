@@ -1,7 +1,7 @@
 <script lang="ts">
   import { PermissionMode, type ui } from "@open-agents/contracts";
   import Field from "#lib/shared/ui/Field.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
+  import ModelIdField from "#lib/features/models/ModelIdField.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import { permissionModes, providerLabel } from "../labels.ts";
   import { profilesFor, profileValue, providerKeyOf } from "../providers.ts";
@@ -36,7 +36,7 @@
     </Select>
   </Field>
   <Field label="Model" optional>
-    <Input name="model" placeholder="Profile default" autocomplete="off" value={parent.model} />
+    {#if key}<ModelIdField provider={key} label="Model" value={parent.model} />{/if}
   </Field>
 </div>
 <Field label="Permissions" description={modeDescription}>

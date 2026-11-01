@@ -1,16 +1,24 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
+  import { modelOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import ModelControls from "#lib/features/models/ModelControls.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import WorkerHoverCard from "#lib/features/overview/WorkerHoverCard.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import PillText from "#lib/shared/ui/PillText.svelte";
   import { interruptThread, sendMessage } from "../api.ts";
   import { permissionLabel, providerLabel } from "../labels.ts";
+  import { providerKeyOf } from "../providers.ts";
   import ComposerBox from "./ComposerBox.svelte";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
    * twice. While a turn runs, a typed message queues and the empty box offers Stop.
-   * Under the box: where the thread runs and its permission mode (fixed for the thread's life).
+   * Pills: the model and reasoning effort for the next messages (same provider and profile as the
+   * thread). Under the box: where the thread runs (hover for the worker) and its permission mode
+   * (fixed for the thread's life).
    */
   let {
     thread,
@@ -20,6 +28,21 @@
     note,
     class: className,
   }: { thread: ui.Thread; worker: ui.Worker | undefined; running: boolean; disabled?: boolean; note?: string | undefined; class?: ClassValue } = $props();
+
+  const overview = useOverview();
+  const provider = $derived(providerKeyOf(thread.provider));
+  // The thread's provider and profile stay; only models on them are offered, the thread's own first.
+  const current = $derived(provider ? modelOption(provider, thread.providerProfileId, thread.providerProfileId || "native", thread.model, "recent") : undefined);
+  const options = $derived.by(() => {
+    if (!provider || !current) return [];
+    const offered = modelOptions({ worker, threads: overview.threads.values(), only: { provider, profileId: thread.providerProfileId } });
+    return offered.some((o) => o.key === current.key) ? offered : [current, ...offered];
+  });
+  // PENDING backend: per-message model and effort (SendMessageRequest.model / reasoning_effort). Until
+  // the contract has them the choice stays in this composer and is not sent.
+  let picked = $state<ModelOption>();
+  let effort = $state<string>();
+  const option = $derived(picked ?? options.find((o) => o.key === current?.key));
 
   let text = $state("");
   let sending = $state(false);
@@ -69,15 +92,20 @@
     onstop={running ? interrupt : undefined}
   >
     {#snippet controls()}
-      <span class="min-w-0 truncate px-2 text-sm/5 text-zinc-500 sm:text-[0.8125rem]/5 dark:text-zinc-400" title="Agent of this thread">
-        {providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}{thread.providerProfileId ? ` · ${thread.providerProfileId}` : ""}
-      </span>
+      {#if option}
+        <ModelControls
+          {options}
+          bind:option={() => option, (next) => (picked = next)}
+          bind:effort
+          notice="Per-message model and effort are not sent yet: the gateway does not take them."
+          class="flex-1 justify-end"
+        />
+      {:else}
+        <PillText class="flex-1 text-right">{providerLabel(thread.provider)}</PillText>
+      {/if}
     {/snippet}
     {#snippet meta()}
-      <span class="flex min-w-0 items-center gap-1.5">
-        <Icon name="computer-desktop" class="size-3.5" />
-        <span class="truncate">{worker?.name ?? "Unknown worker"}{worker && !worker.online ? " (offline)" : ""}</span>
-      </span>
+      <WorkerHoverCard {worker} />
       <span class="flex shrink-0 items-center gap-1.5"><Icon name="shield-check" class="size-3.5" />{permissionLabel(thread.permissionMode)}</span>
     {/snippet}
   </ComposerBox>

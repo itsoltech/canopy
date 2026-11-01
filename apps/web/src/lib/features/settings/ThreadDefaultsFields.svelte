@@ -4,7 +4,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { permissionLabel, permissionModes, providerLabel } from "#lib/features/threads/labels.ts";
   import { isProviderKey, profilesFor, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
-  import Input from "#lib/shared/ui/Input.svelte";
+  import ModelIdField from "#lib/features/models/ModelIdField.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import { modelFor, withModel } from "./thread-defaults.ts";
@@ -79,13 +79,11 @@
   </SettingsRow>
   <SettingsRow title="Model" description="Leave empty for the profile's default model.">
     {#snippet control()}
-      <Input
-        name="model"
-        aria-label="Default {providerLabel(value.provider)} model"
-        placeholder="Profile default"
-        autocomplete="off"
+      <ModelIdField
+        provider={provider}
+        label="Default {providerLabel(value.provider)} model"
         value={modelFor(value, value.provider)}
-        onchange={(e) => set({ models: withModel(value.models, value.provider, selected(e).trim()) })}
+        onchange={(model) => set({ models: withModel(value.models, value.provider, model) })}
         class="w-56 sm:w-48"
       />
     {/snippet}

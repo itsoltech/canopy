@@ -21,7 +21,11 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
+  import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
+  import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
@@ -119,6 +123,16 @@
     panelSheet = false;
     scheduling = true;
   };
+  let copied = $state("");
+  async function copy(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      copied = "Copied";
+    } catch {
+      copied = "Copying is not allowed here";
+    }
+    setTimeout(() => (copied = ""), 2000);
+  }
   const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${view.pending.length > 0 ? `, ${view.pending.length} waiting for you` : ""}` : "");
 </script>
 
@@ -137,6 +151,19 @@
         <Crumb><Skeleton class="h-4 w-48" /></Crumb>
       {/if}
       {#snippet actions()}
+        {#if thread}
+          <DropdownMenu label="Thread actions" placement="bottom-end">
+            {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="Thread actions" {...props} />{/snippet}
+            <MenuItem icon="arrows-right-left" disabled={!canBranch} onselect={openSide}>New side thread</MenuItem>
+            <MenuItem icon="clock" disabled={!canSchedule} onselect={openSchedule}>Schedule a task</MenuItem>
+            <MenuSeparator />
+            <MenuSub label="Copy" icon="document-duplicate">
+              <MenuItem onselect={() => copy(page.url.href)}>Link</MenuItem>
+              <MenuItem onselect={() => copy(thread.cwd)}>Working directory</MenuItem>
+              <MenuItem onselect={() => copy(thread.id)}>Thread ID</MenuItem>
+            </MenuSub>
+          </DropdownMenu>
+        {/if}
         <IconButton icon="view-columns" label="Thread details" aria-pressed={panelOpen} onclick={togglePanel} />
       {/snippet}
     </TopBar>
@@ -239,3 +266,4 @@
 {/if}
 
 <p class="sr-only" role="status">{announcement}</p>
+<p class="sr-only" role="status">{copied}</p>
