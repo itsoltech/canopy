@@ -26,7 +26,7 @@
   import type { ClassValue } from "svelte/elements";
   import { autoPosition, focusables, type Placement } from "./floating.ts";
   import { exitDuration } from "./motion.ts";
-  import { sheetDrag } from "./sheet-drag.ts";
+  import SheetHandle from "./SheetHandle.svelte";
 
   /**
    * Anchored, non-modal popover in the top layer (Popover API, `popover="manual"`), positioned by
@@ -223,9 +223,7 @@
   ]}
 >
   {#if narrow}
-    <div class="flex h-5 cursor-grab touch-none justify-center pt-2 active:cursor-grabbing" aria-hidden="true" {@attach sheetDrag(() => (open = false))}>
-      <span class="h-1 w-9 rounded-full bg-zinc-950/15 dark:bg-white/20"></span>
-    </div>
+    <SheetHandle onclose={() => (open = false)} />
   {/if}
   {#if open || closing}{@render children()}{/if}
 </div>

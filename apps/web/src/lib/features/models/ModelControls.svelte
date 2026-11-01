@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { resizeToContent } from "#lib/shared/ui/motion.ts";
+  import ResizeSlot from "#lib/shared/ui/ResizeSlot.svelte";
   import { effortLevel, type ModelOption } from "./catalog.ts";
   import EffortPicker from "./EffortPicker.svelte";
   import { useModelCatalog } from "./model-catalog.svelte.ts";
@@ -63,9 +63,9 @@
     class="shrink"
   />
   <!-- A model without efforts has no effort pill: its slot eases shut instead of the model pill jumping. -->
-  <span class="t-resize flex shrink-0 justify-end overflow-clip [overflow-clip-margin:--spacing(1)]" {@attach resizeToContent}>
+  <ResizeSlot>
     {#if option && option.efforts.length > 0}
       <EffortPicker bind:open={effortOpen} bind:value={effort} {option} {inherited} onmodel={() => (modelOpen = true)} class="shrink-0" />
     {/if}
-  </span>
+  </ResizeSlot>
 </span>

@@ -3,7 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import IconButton from "./IconButton.svelte";
   import { exitDuration } from "./motion.ts";
-  import { sheetDrag } from "./sheet-drag.ts";
+  import SheetHandle from "./SheetHandle.svelte";
 
   /**
    * Modal dialog on the native `<dialog>` (focus trap, Escape, top layer for free).
@@ -66,9 +66,7 @@
     className,
   ]}
 >
-  <div class="absolute inset-x-0 top-0 flex h-5 cursor-grab touch-none justify-center pt-2 active:cursor-grabbing sm:hidden" aria-hidden="true" {@attach sheetDrag(() => (open = false))}>
-    <span class="h-1 w-9 rounded-full bg-zinc-950/15 dark:bg-white/20"></span>
-  </div>
+  <SheetHandle onclose={() => (open = false)} class="absolute inset-x-0 top-0 sm:hidden" />
   <div class="p-5 pb-[max(--spacing(5),env(safe-area-inset-bottom))] sm:p-6">
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">

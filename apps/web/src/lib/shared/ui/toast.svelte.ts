@@ -26,7 +26,7 @@ export function toast(text: string, { tone = "success" }: { tone?: ToastTone } =
   setTimeout(() => dismiss(entry.id), HOLD_MS);
 }
 
-/** Starts the exit (motion.css `.t-toast[data-closing]`, --duration-fast), then removes it. */
+/** Starts the exit (motion.css `.t-toast[data-closing]`, --duration-medium), then removes it. */
 export function dismiss(id: number): void {
   const entry = toasts.find((t) => t.id === id);
   if (!entry || entry.closing) return;
@@ -34,5 +34,5 @@ export function dismiss(id: number): void {
   setTimeout(() => {
     const at = toasts.findIndex((t) => t.id === id);
     if (at >= 0) toasts.splice(at, 1);
-  }, duration("fast"));
+  }, duration("medium"));
 }

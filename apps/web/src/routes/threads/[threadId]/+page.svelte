@@ -33,7 +33,8 @@
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
-  import { expand, rise } from "#lib/shared/ui/motion.ts";
+  import GrowIn from "#lib/shared/ui/GrowIn.svelte";
+  import { rise } from "#lib/shared/ui/motion.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
@@ -234,16 +235,16 @@
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
             <div class="grid grid-cols-1 pt-2">
               {#if view.pending.length > 0}
-                <div class="pb-3" transition:expand>
+                <GrowIn class="pb-3">
                   <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
                     {#each view.pending as interaction (interaction.requestId)}
                       <div in:rise><InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} /></div>
                     {/each}
                   </div>
-                </div>
+                </GrowIn>
               {/if}
               {#if thread && shownGoal}
-                <div class="pb-3" transition:expand>
+                <GrowIn class="pb-3">
                   <GoalBar
                     goal={shownGoal}
                     provider={thread.provider}
@@ -252,12 +253,12 @@
                     onchange={(goal) => view.upsertGoal(goal)}
                     ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
                   />
-                </div>
+                </GrowIn>
               {/if}
               {#if view.backgroundTasks.length > 0}
-                <div class="justify-self-start pb-3" transition:expand>
+                <GrowIn class="justify-self-start pb-3">
                   <BackgroundTasksChip tasks={view.backgroundTasks} onjump={jumpTo} />
-                </div>
+                </GrowIn>
               {/if}
               {#if thread}
                 <Composer

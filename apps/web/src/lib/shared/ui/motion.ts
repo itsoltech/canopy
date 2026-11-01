@@ -42,11 +42,10 @@ function length(name: string, fallbackPx: number): number {
 
 /**
  * Accordion expand / collapse (21) for content mounted with its disclosure: height from and to 0 with a
- * fade and cross-blur. In on --duration-fast, out on --duration-quick (closing is faster).
+ * fade and cross-blur, on --duration-fast both ways (one reversible motion).
  */
-export function expand(node: HTMLElement, { delay = 0 }: { delay?: number } = {}, options?: { direction: "in" | "out" | "both" }): TransitionConfig {
-  const out = options?.direction === "out";
-  const ms = duration(out ? "quick" : "fast");
+export function expand(node: HTMLElement, { delay = 0 }: { delay?: number } = {}): TransitionConfig {
+  const ms = duration("fast");
   if (prefersReducedMotion.current) return { delay, duration: ms, css: (t) => `opacity: ${t}` };
   const style = getComputedStyle(node);
   const height = node.offsetHeight;
@@ -120,8 +119,8 @@ export function reorder(node: Element, positions: { from: DOMRect; to: DOMRect }
   return flip(node, positions, { duration: prefersReducedMotion.current ? 0 : duration("fast"), easing: smoothOut });
 }
 
-/** Delay of the `index`-th item of a group that appears together (--duration-stagger, capped). */
-export function stagger(index: number, cap = 8): number {
+/** Delay of the `index`-th item of a group that appears together (--duration-stagger, capped so the last waits under 300 ms). */
+export function stagger(index: number, cap = 7): number {
   return Math.min(index, cap) * duration("stagger");
 }
 

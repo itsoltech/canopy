@@ -149,6 +149,23 @@
     opacity: 0;
   }
 }
+/* Panels (drawer, sheets) take their backdrop along on their own, slower clock. */
+.t-drawer::backdrop,
+.t-dropdown[data-sheet]::backdrop {
+  transition-duration: var(--duration-medium);
+}
+.t-drawer[open]::backdrop,
+.t-dropdown[data-sheet]:popover-open::backdrop {
+  transition-duration: var(--duration-slow);
+}
+@media (width < 40rem) {
+  .t-modal[data-sheet]::backdrop {
+    transition-duration: var(--duration-medium);
+  }
+  .t-modal[data-sheet][open]::backdrop {
+    transition-duration: var(--duration-slow);
+  }
+}
 
 /* Reduced motion: sheets and drawers fade instead of sliding (the token scale already keeps the other
    surfaces to opacity). */
@@ -240,15 +257,14 @@
   transition: rotate var(--duration-fast) var(--ease-smooth-out);
 }
 /* A panel that stays mounted: its row grows from 0fr to 1fr (no measuring), the content fades and
-   un-blurs; padding belongs inside the clipping child. */
+   un-blurs; padding belongs inside the clipping child. One reversible motion: the same both ways. */
 .t-acc-panel {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--duration-quick) var(--ease-smooth-out);
+  transition: grid-template-rows var(--duration-fast) var(--ease-smooth-out);
 }
 .t-acc-panel[data-open] {
   grid-template-rows: 1fr;
-  transition-duration: var(--duration-fast);
 }
 .t-acc-panel > * {
   min-height: 0;
@@ -256,13 +272,12 @@
   opacity: 0;
   filter: blur(var(--blur-small));
   transition:
-    opacity var(--duration-quick) var(--ease-smooth-out),
-    filter var(--duration-quick) var(--ease-smooth-out);
+    opacity var(--duration-fast) var(--ease-smooth-out),
+    filter var(--duration-fast) var(--ease-smooth-out);
 }
 .t-acc-panel[data-open] > * {
   opacity: 1;
   filter: none;
-  transition-duration: var(--duration-fast);
 }
 @media (prefers-reduced-motion: reduce) {
   .t-acc-chevron,
@@ -272,17 +287,17 @@
   }
 }
 
-/* --- Toast (22): rises with fade + cross-blur, leaves a bit faster (`data-closing`). ------------------ */
+/* --- Toast (22): rises with fade + cross-blur on --duration-slow, leaves on --duration-medium. -------- */
 .t-toast {
   opacity: 1;
   translate: 0 0;
   scale: 1;
   filter: blur(0);
   transition:
-    opacity var(--duration-medium) var(--ease-smooth-out),
-    translate var(--duration-medium) var(--ease-smooth-out),
-    scale var(--duration-medium) var(--ease-smooth-out),
-    filter var(--duration-medium) var(--ease-smooth-out);
+    opacity var(--duration-slow) var(--ease-smooth-out),
+    translate var(--duration-slow) var(--ease-smooth-out),
+    scale var(--duration-slow) var(--ease-smooth-out),
+    filter var(--duration-slow) var(--ease-smooth-out);
 }
 @starting-style {
   .t-toast {
@@ -297,7 +312,7 @@
   translate: 0 var(--distance-medium);
   scale: var(--scale-medium);
   filter: blur(var(--blur-small));
-  transition-duration: var(--duration-fast);
+  transition-duration: var(--duration-medium);
 }
 
 /* --- Success check (10): fade, turn, bob and blur in while the tick draws itself. -------------------- */
@@ -448,7 +463,7 @@
 
 /* --- Skeleton pulse (14): placeholders (and the streaming caret) breathe until their content arrives. -- */
 .t-pulse {
-  animation: t-pulse calc(var(--duration-very-slow) * 2) var(--ease-in-out) infinite;
+  animation: t-pulse calc(var(--duration-very-slow) * 2) var(--ease-linear) infinite;
 }
 @keyframes t-pulse {
   50% {
