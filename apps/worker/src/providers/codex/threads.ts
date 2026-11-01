@@ -22,6 +22,7 @@ import { CodexAppServer, type ServerRequestHandler } from "./app-server.ts";
 import { codexThreadProvider, type CodexAppServerLaunch } from "./launch.ts";
 import { CodexEventMapper } from "./mapping.ts";
 import { codexPermissions } from "./permissions.ts";
+import { RolloutTail } from "./rollout.ts";
 import { RpcError } from "./rpc.ts";
 
 /**
@@ -101,6 +102,8 @@ interface Entry {
   readonly codexToPlatform: Map<string, string>;
   readonly platformToCodex: Map<string, string>;
   readonly commandTurns: Set<string>;
+  /** Codex's rollout of the thread: items app-server does not notify about (docs/codex-adapter.md, "Code mode"). */
+  readonly rollout: { readonly tail: RolloutTail; turn?: string | undefined; readonly ended: Set<string> } | undefined;
 }
 
 const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHandler) => void) =>
@@ -113,7 +116,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     const fail = (threadId: string, operation: string) => (error: { message: string }) =>
       new CodexThreadError({ threadId, operation, message: error.message });
 
-    const register = (platformId: string, codexId: string): Entry => {
+    const register = (platformId: string, codexId: string, rolloutPath: string | null): Entry => {
       const pendingTurns: string[] = [];
       const codexToPlatform = new Map<string, string>();
       const platformToCodex = new Map<string, string>();
@@ -138,16 +141,51 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         },
         isCommandTurn: (codexTurn) => commandTurns.has(codexTurn),
       });
-      const entry: Entry = { platformId, codexId, mapper, pendingTurns, codexToPlatform, platformToCodex, commandTurns };
+      const rollout = rolloutPath ? { tail: new RolloutTail(rolloutPath), ended: new Set<string>() } : undefined;
+      const entry: Entry = { platformId, codexId, mapper, pendingTurns, codexToPlatform, platformToCodex, commandTurns, rollout };
       byPlatform.set(platformId, entry);
       byCodex.set(codexId, entry);
       return entry;
     };
 
+    /** New rollout items of turns started in this process, as the notification the mapper reads. */
+    const rolloutItems = (entry: Entry): ServerNotification[] => {
+      const rollout = entry.rollout;
+      if (!rollout) return [];
+      const items: ServerNotification[] = [];
+      for (const line of rollout.tail.read()) {
+        if (line.kind === "turn") {
+          // Turns of other processes (forked or resumed history) are skipped.
+          rollout.turn = !line.ended && entry.codexToPlatform.has(line.turnId) ? line.turnId : undefined;
+          if (line.ended) rollout.ended.add(line.turnId);
+        } else if (rollout.turn) {
+          items.push({ method: "rawResponseItem/completed", params: { threadId: entry.codexId, turnId: rollout.turn, item: line.item } });
+        }
+      }
+      return items;
+    };
+
+    /** Read on item notifications; before turn/completed, until the turn's end is in the file (written asynchronously). */
+    const fromRollout = (entry: Entry, notification: ServerNotification) =>
+      Effect.gen(function* () {
+        if (notification.method === "item/started" || notification.method === "item/completed") return rolloutItems(entry);
+        if (notification.method !== "turn/completed" || !entry.rollout) return [];
+        const turnId = notification.params.turn.id;
+        const items = rolloutItems(entry);
+        for (let attempt = 0; !entry.rollout.ended.delete(turnId) && attempt < 40; attempt++) {
+          yield* Effect.sleep("25 millis");
+          items.push(...rolloutItems(entry));
+        }
+        return items;
+      });
+
     const record = (entry: Entry, notification: ServerNotification) =>
-      Effect.forEach(entry.mapper.map(notification), (init) =>
-        journal.append(entry.platformId, init).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))),
-      );
+      Effect.gen(function* () {
+        const notifications = [...(yield* fromRollout(entry, notification)), notification];
+        return yield* Effect.forEach(notifications.flatMap((n) => entry.mapper.map(n)), (init) =>
+          journal.append(entry.platformId, init).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))),
+        );
+      });
 
     // One consumer, in order, for every notification of every loaded thread.
     yield* Effect.forkScoped(
@@ -246,7 +284,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         const resumed = yield* codex
           .request("thread/resume", { threadId: spec.providerThreadId, ...params })
           .pipe(Effect.mapError(fail(spec.threadId, "resume")));
-        return register(spec.threadId, resumed.thread.id);
+        return register(spec.threadId, resumed.thread.id, resumed.thread.path);
       });
 
     return CodexThreads.of({
@@ -263,7 +301,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           : yield* codex
               .request("thread/start", { ...params, ...(spec.enableAgentBus && { dynamicTools: codexAgentBusTools(spec.depth) }) })
               .pipe(Effect.mapError(fail(spec.threadId, "create")));
-        const entry = register(spec.threadId, response.thread.id);
+        const entry = register(spec.threadId, response.thread.id, response.thread.path);
         yield* announce(entry).pipe(Effect.mapError(fail(spec.threadId, "journal")));
         return entry.codexId;
       }),
