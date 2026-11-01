@@ -292,6 +292,8 @@ export class WorkerHost {
         const { threadId, turnId } = kind.value;
         // E.g. the turn died with the previous process: the gateway ends it on its side.
         if (!this.#running.has(`${threadId}/${turnId}`)) throw new CommandError(TURN_NOT_RUNNING, "the turn is not running on this worker", true);
+        // Remembered with the turn: if it ends without the worker seeing it, its interruption was asked for.
+        await this.#options.runtime.runPromise(Journal.use((j) => j.noteInterrupt(threadId, turnId)));
         // The command does not name the provider: the runtime with the running turn takes it.
         const claude = this.#claude;
         if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {

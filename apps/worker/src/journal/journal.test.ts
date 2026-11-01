@@ -143,8 +143,8 @@ describe("Journal", () => {
     // Acked events are gone; the turn is still open (its end never came).
     await withJournal(path, (j) => j.ack("t1", 10n));
     expect(await withJournal(path, (j) => j.openTurns())).toEqual([
-      { threadId: "t1", turnId: "u2", items: [] },
-      { threadId: "t2", turnId: "u3", items: [] },
+      { threadId: "t1", turnId: "u2", items: [], interruptRequested: false },
+      { threadId: "t2", turnId: "u3", items: [], interruptRequested: false },
     ]);
   });
 
@@ -156,6 +156,7 @@ describe("Journal", () => {
         yield* j.noteHarness("t1", "u1", harness);
         yield* j.append("t1", { turnId: "u1", body: { case: "turnStarted", value: {} } });
         yield* j.noteHarness("t1", "u1", { ...harness, providerTurn: "codex-turn" });
+        yield* j.noteInterrupt("t1", "u1");
         const item = (id: string, status: ItemStatus) => ({ itemId: id, status, content: { case: "agentMessage" as const, value: { text: id } } });
         yield* j.append("t1", { turnId: "u1", body: { case: "itemStarted", value: { item: item("a", ItemStatus.IN_PROGRESS) } } });
         yield* j.append("t1", { turnId: "u1", body: { case: "itemCompleted", value: { item: item("a", ItemStatus.COMPLETED) } } });
@@ -167,6 +168,7 @@ describe("Journal", () => {
     );
     const [open] = await withJournal(path, (j) => j.openTurns());
     expect(open?.harness).toEqual({ ...harness, providerTurn: "codex-turn" });
+    expect(open?.interruptRequested).toBe(true);
     expect(open?.items.map((i) => [i.item.itemId, i.done])).toEqual([
       ["a", true],
       ["b", false],

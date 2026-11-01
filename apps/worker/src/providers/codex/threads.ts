@@ -262,7 +262,13 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
      */
     const settleAfterExit = (code: number | null) =>
       Effect.gen(function* () {
-        const stderr = codex.stderrTail().split("\n").filter(Boolean).at(-1);
+        // The last line that says what went wrong (warnings are noise here).
+        const stderr = codex
+          .stderrTail()
+          .split("\n")
+          .filter((line) => /error|panic|fatal/i.test(line))
+          .at(-1)
+          ?.slice(0, 500);
         failure = `codex app-server exited (code ${code ?? "?"})${stderr ? `: ${stderr}` : ""}`;
         const running = new Set<string>();
         for (const entry of byPlatform.values()) {

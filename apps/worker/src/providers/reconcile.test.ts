@@ -129,11 +129,12 @@ describe("Claude session transcript", () => {
 
 describe("reconcileEvents", () => {
   const item = (itemId: string, status: ItemStatus, text = itemId) => create(ItemSchema, { itemId, status, content: { case: "agentMessage", value: { text } } });
-  const open = (items: OpenTurn["items"]): OpenTurn => ({
+  const open = (items: OpenTurn["items"], interruptRequested = false): OpenTurn => ({
     threadId: "thread",
     turnId: "turn",
     harness: { harness: "codex", transcript: "/rollout.jsonl", sessionId: "c", offset: 0, providerTurn: "turn-done" },
     items,
+    interruptRequested,
   });
 
   test("journals only what is missing, in the harness's order, then the harness's end", async () => {
@@ -165,6 +166,19 @@ describe("reconcileEvents", () => {
     const ended = events.filter((e) => e.body?.case === "itemCompleted").map((e) => (e.body?.case === "itemCompleted" ? [e.body.value.item?.itemId, e.body.value.item?.status] : []));
     expect(ended).toContainEqual(["exec-live", ItemStatus.INTERRUPTED]);
     expect(events.at(-1)?.body).toMatchObject({ case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM, reason: "worker restarted mid-turn" } });
+  });
+
+  test("an interruption the harness recorded is the user's only when the platform asked for it", async () => {
+    // Codex aborts the turn ("interrupted") also when its worker dies and its input closes.
+    const record = await readCodexTurn(fixture("codex-rollout.jsonl"), 0, "turn-stop", "turn");
+    expect(reconcileEvents(open([], true), record, WORKER_RESTARTED).at(-1)?.body).toMatchObject({
+      case: "turnFinished",
+      value: { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.USER, reason: "interrupted" },
+    });
+    expect(reconcileEvents(open([], false), record, WORKER_RESTARTED).at(-1)?.body).toMatchObject({
+      case: "turnFinished",
+      value: { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM, reason: "worker restarted mid-turn (the harness stopped the turn: interrupted)" },
+    });
   });
 
   test("no transcript at all: everything open ends, the turn ends with the cause", () => {

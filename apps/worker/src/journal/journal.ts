@@ -70,6 +70,11 @@ export interface OpenTurn {
   readonly harness?: TurnHarness;
   /** The turn's items as journaled: last state, and whether they finished. Background tasks are not here. */
   readonly items: ReadonlyArray<{ readonly item: Item; readonly done: boolean }>;
+  /**
+   * The platform asked to interrupt the turn (InterruptTurn). Without that, an interruption the harness recorded was
+   * not the user's (e.g. Codex aborts the turn when its worker dies and its input closes).
+   */
+  readonly interruptRequested: boolean;
 }
 
 export class Journal extends Context.Service<
@@ -97,6 +102,8 @@ export class Journal extends Context.Service<
     openTurns(): Effect.Effect<ReadonlyArray<OpenTurn>, JournalError>;
     /** Records (or updates) where the turn's harness keeps its record; dropped with the turn's end. */
     noteHarness(threadId: string, turnId: string, harness: TurnHarness): Effect.Effect<void, JournalError>;
+    /** The platform asked to interrupt the turn (kept until its end). */
+    noteInterrupt(threadId: string, turnId: string): Effect.Effect<void, JournalError>;
   }
 >()("open-agents/worker/Journal") {
   /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
@@ -146,6 +153,11 @@ const SCHEMA = `
     session_id    TEXT NOT NULL,
     start_offset  INTEGER NOT NULL,
     provider_turn TEXT NOT NULL,
+    PRIMARY KEY (thread_id, turn_id)
+  );
+  CREATE TABLE IF NOT EXISTS turn_interrupts (
+    thread_id TEXT NOT NULL,
+    turn_id   TEXT NOT NULL,
     PRIMARY KEY (thread_id, turn_id)
   );
   CREATE TABLE IF NOT EXISTS turn_items (
@@ -208,6 +220,9 @@ function makeJournal(db: Database): Journal["Service"] {
   );
   const deleteItems = db.query("DELETE FROM turn_items WHERE thread_id = $thread AND turn_id = $turn");
   const deleteHarness = db.query("DELETE FROM turn_harness WHERE thread_id = $thread AND turn_id = $turn");
+  const insertInterrupt = db.query("INSERT OR IGNORE INTO turn_interrupts (thread_id, turn_id) VALUES ($thread, $turn)");
+  const deleteInterrupt = db.query("DELETE FROM turn_interrupts WHERE thread_id = $thread AND turn_id = $turn");
+  const selectInterrupt = db.query<{ n: number }, { thread: string; turn: string }>("SELECT count(*) AS n FROM turn_interrupts WHERE thread_id = $thread AND turn_id = $turn");
   const trackTurn = (threadId: string, turnId: string, body: ThreadEvent["body"]) => {
     if (!turnId) return;
     if (body.case === "turnStarted") insertTurn.run({ thread: threadId, turn: turnId });
@@ -215,6 +230,7 @@ function makeJournal(db: Database): Journal["Service"] {
       deleteTurn.run({ thread: threadId, turn: turnId });
       deleteItems.run({ thread: threadId, turn: turnId });
       deleteHarness.run({ thread: threadId, turn: turnId });
+      deleteInterrupt.run({ thread: threadId, turn: turnId });
     }
     if (body.case === "itemStarted" || body.case === "itemCompleted") {
       const item = body.value.item;
@@ -321,9 +337,15 @@ function makeJournal(db: Database): Journal["Service"] {
               harness: { harness: h.harness, transcript: h.transcript, sessionId: h.session_id, offset: h.start_offset, providerTurn: h.provider_turn },
             }),
             items: selectItems.all(key).map((i) => ({ item: fromBinary(ItemSchema, i.item), done: i.done === 1 })),
+            interruptRequested: (selectInterrupt.get(key)?.n ?? 0) > 0,
           };
         }),
       ),
+    ),
+    noteInterrupt: Effect.fn("Journal.noteInterrupt")((threadId: string, turnId: string) =>
+      attempt("noteInterrupt", () => {
+        insertInterrupt.run({ thread: threadId, turn: turnId });
+      }),
     ),
     noteHarness: Effect.fn("Journal.noteHarness")((threadId: string, turnId: string, harness: TurnHarness) =>
       attempt("noteHarness", () => {

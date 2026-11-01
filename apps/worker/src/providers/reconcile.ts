@@ -14,9 +14,10 @@ import type { HarnessRecord, TurnEnd } from "./harness-record.ts";
  *    harness's order, under the ids the live events used (no duplicates: finished items are skipped, the gateway's
  *    reducer replaces the open ones). What the harness left unfinished ends as interrupted.
  * 2. Items the journal has open and the harness never recorded end as interrupted.
- * 3. The turn ends the way the harness ended it (completed with its result, failed with its error, interrupted on
- *    request); a turn the harness never ended ends with the caller's cause (e.g. interrupted by the system: "worker
- *    restarted mid-turn", or failed in the harness: its process exited).
+ * 3. The turn ends the way the harness ended it (completed with its result, failed with its error, interrupted); a
+ *    turn the harness never ended ends with the caller's cause (e.g. interrupted by the system: "worker restarted
+ *    mid-turn", or failed in the harness: its process exited). An interruption is the user's only when the platform
+ *    asked for it (journal): Codex also aborts a turn ("interrupted") when the worker dies and its input closes.
  *
  * Where no record exists (no transcript, unreadable), steps 2 and 3 still close everything.
  */
@@ -47,21 +48,25 @@ export function reconcileEvents(open: OpenTurn, record: HarnessRecord | undefine
   const finished = (item: ThreadEventInit["body"] & { case: "itemCompleted" }): ThreadEventInit => ({ turnId, rawJson, body: item });
   const journaled = new Map(open.items.map((i) => [i.item.itemId, i]));
   const events: ThreadEventInit[] = [];
-  const recorded = new Set<string>();
+  const seen = new Set<string>();
   for (const item of record?.items ?? []) {
     const id = item.itemId ?? "";
-    recorded.add(id);
+    seen.add(id);
     if (journaled.get(id)?.done) continue;
     const status = item.status === ItemStatus.IN_PROGRESS ? ItemStatus.INTERRUPTED : (item.status ?? ItemStatus.COMPLETED);
     events.push(finished({ case: "itemCompleted", value: { item: { ...item, status } } }));
   }
   for (const { item, done } of open.items) {
-    if (done || recorded.has(item.itemId)) continue;
+    if (done || seen.has(item.itemId)) continue;
     const ended = clone(ItemSchema, item);
     ended.status = ItemStatus.INTERRUPTED;
     events.push(finished({ case: "itemCompleted", value: { item: ended } }));
   }
-  const end: TurnEnd = record?.end ?? cause;
+  const recorded = record?.end;
+  const end: TurnEnd =
+    recorded?.outcome === TurnOutcome.INTERRUPTED && recorded.source !== TurnEndSource.SYSTEM && !open.interruptRequested
+      ? { ...recorded, source: TurnEndSource.SYSTEM, reason: `${cause.reason} (the harness stopped the turn: ${recorded.reason || "interrupted"})` }
+      : (recorded ?? cause);
   events.push({
     turnId,
     rawJson,

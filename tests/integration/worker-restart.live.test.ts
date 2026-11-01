@@ -1,7 +1,8 @@
 /**
  * Live, the whole chain across a worker restart (docs/durability.md, 3.4): UI API -> gateway core (PostgreSQL) ->
  * real worker host -> Codex app-server; the worker process is replaced (same data dir and journal) like the dev
- * stack after a merge. A turn running at the restart ends as interrupted ("worker restarted") and the queue goes
+ * stack after a merge. A turn running at the restart ends as interrupted by the system ("worker restarted", then
+ * "worker restarted mid-turn" from the worker's reconciliation with the rollout), nothing of it stays open, and the queue goes
  * on; a Codex thread created without any turn (no rollout) still works after the restart.
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
@@ -127,10 +128,13 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker res
     const recovered = await restart();
     expect(recovered.turns).toBe(1);
     const s = await until("queued turn done", () => snapshot(threadId), (x) => x.turns[1]?.status === "completed", 3 * MINUTE);
-    expect(s.turns.map((t) => [t.status, t.interruptReason])).toEqual([
-      ["interrupted", "worker restarted"],
+    // The gateway ends it ("worker restarted"), then the new process settles it from the rollout: the system's interruption.
+    expect(s.turns.map((t) => [t.status, t.interruptSource])).toEqual([
+      ["interrupted", "system"],
       ["completed", ""],
     ]);
+    expect(s.turns[0]?.interruptReason).toContain("worker restarted");
+    expect(s.items.filter((i) => i.turnId === s.turns[0]?.id).every((i) => i.item?.status !== 1)).toBe(true);
     expect(lastAnswer(s)).toContain("DONE");
     expect(s.thread?.status).toBe("idle");
   }, 8 * MINUTE);
