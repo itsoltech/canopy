@@ -8,7 +8,8 @@ import { InteractionKind, PermissionMode, Provider, type AgentToolResult } from 
 import { dockerAvailable } from "@open-agents/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;
 let mainId = "";
@@ -220,5 +221,45 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(send.content).toBe("target thread is archived");
     const listed = json(await gw.worker.callTool({ threadId: mainId, tool: "list_threads", args: {} })) as { threads: { title: string }[] };
     expect(listed.threads.map((t) => t.title).sort()).toEqual(["Mine", "Reviewer"]);
+  });
+
+  test("schedules in the UI API: create (validated), list with their creator, pause, resume, cancel, live updates", async () => {
+    const at = (date: Date) => timestampFromDate(date);
+    expect(await failure(gw.api.createSchedule({ threadId: mainId, prompt: "x", when: { case: "cron", value: "*/2 * * * *" } }))).toContain("more often");
+    expect(await failure(gw.api.createSchedule({ threadId: mainId, prompt: "x", when: { case: "cron", value: "0 9 * * *" }, timezone: "Mars/Base" }))).toContain("time zone");
+    expect(await failure(gw.api.createSchedule({ threadId: mainId, prompt: "x", when: { case: "runAt", value: at(new Date(Date.now() - 3600_000)) } }))).toContain("past");
+
+    // A user's recurring schedule may be open-ended (agents' may not).
+    const updates: string[] = [];
+    const controller = new AbortController();
+    const watching = (async () => {
+      for await (const u of gw.api.watchOverview({}, { signal: controller.signal })) if (u.change.case === "schedule") updates.push(u.change.value.status);
+    })().catch(() => {});
+    await Bun.sleep(50);
+    const daily = (await gw.api.createSchedule({ threadId: mainId, prompt: "Daily summary", when: { case: "cron", value: "0 9 * * *" }, timezone: "Europe/Warsaw" })).schedule!;
+    expect(daily).toMatchObject({ kind: "recurring", status: "active", createdBy: "user", timezone: "Europe/Warsaw", maxRuns: 0 });
+
+    const agentMade = json(await gw.worker.callTool({ threadId: mainId, tool: "schedule_wakeup", args: { prompt: "agent reminder", delay_seconds: 600 } }));
+    const listed = (await gw.api.listSchedules({ threadId: mainId })).schedules;
+    expect(listed.find((x) => x.id === agentMade["schedule_id"])).toMatchObject({ createdBy: "agent", createdByThreadId: mainId });
+    expect(listed.map((x) => x.id)).toContain(daily.id);
+
+    const paused = (await gw.api.setScheduleStatus({ scheduleId: daily.id, status: "paused" })).schedule!;
+    expect([paused.status, paused.nextRunAt]).toEqual(["paused", undefined]);
+    expect(await gw.core.scheduler.tick(new Date(Date.now() + 2 * 86_400_000))).toBe(1); // only the agent's wake-up
+    const resumed = (await gw.api.setScheduleStatus({ scheduleId: daily.id, status: "active" })).schedule!;
+    expect(resumed.status).toBe("active");
+    expect(resumed.nextRunAt).toBeDefined();
+
+    const snapshot = (await watchUntil(gw.api, mainId, (u) => u.length >= 1))[0];
+    expect(snapshot?.change.case === "snapshot" ? snapshot.change.value.schedules.map((x) => x.id) : []).toContain(daily.id);
+
+    await gw.api.setScheduleStatus({ scheduleId: daily.id, status: "cancelled" });
+    expect(await failure(gw.api.setScheduleStatus({ scheduleId: daily.id, status: "active" }))).toContain("already cancelled");
+    await eventually(async () => updates, (u) => u.includes("cancelled"));
+    controller.abort();
+    await watching;
+    // created, the agent's, paused, resumed, the agent's fired (completed), cancelled
+    expect(updates).toEqual(expect.arrayContaining(["active", "paused", "completed", "cancelled"]));
   });
 });

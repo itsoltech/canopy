@@ -25,6 +25,8 @@ export interface BusHost {
   interrupt(threadId: string): Promise<void>;
   answer(by: { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction>;
   broadcastThread(threadId: string): Promise<void>;
+  /** An agent created or cancelled a schedule: announce it. */
+  scheduleChanged(scheduleId: string): Promise<void>;
 }
 
 const WAIT_POLL_MS = 1_000;
@@ -132,6 +134,14 @@ export class AgentBus {
     if (forwarded) await this.#host.queued(forwarded.parentThreadId, forwarded.turn);
   }
 
+  /** A created schedule is announced to the UI before the agent hears back. */
+  async #announced(created: Promise<JsonValue>): Promise<JsonValue> {
+    const result = await created;
+    const id = scheduleIdOf(result);
+    if (id) await this.#host.scheduleChanged(id);
+    return result;
+  }
+
   async #execute(call: AgentBusCall, source: CallSource, caller: ThreadRow, hops: number): Promise<JsonValue> {
     const store = <A, E>(use: (s: AgentBusStore["Service"]) => Effect.Effect<A, E>) => this.#host.run(AgentBusStore.use(use));
     switch (call.tool) {
@@ -195,14 +205,14 @@ export class AgentBus {
       case "schedule_wakeup": {
         const now = Date.now();
         const runAt = call.args.at !== undefined ? new Date(call.args.at) : new Date(now + (call.args.delay_seconds ?? 60) * 1000);
-        return await store((s) =>
+        return await this.#announced(store((s) =>
           s.createSchedule({
             source,
             tool: call.tool,
             args: call.args,
             schedule: { threadId: call.args.thread_id ?? caller.id, kind: "once", prompt: call.args.prompt, runAt, timezone: "UTC", nextRunAt: runAt, hops },
           }),
-        );
+        ));
       }
       case "schedule_recurring": {
         const now = new Date();
@@ -211,7 +221,7 @@ export class AgentBus {
         if (problem) throw new BusRefusal(problem);
         const nextRunAt = nextCronRun(call.args.cron, timezone, now);
         if (!nextRunAt) throw new BusRefusal("cron has no future runs");
-        return await store((s) =>
+        return await this.#announced(store((s) =>
           s.createSchedule({
             source,
             tool: call.tool,
@@ -228,7 +238,7 @@ export class AgentBus {
               hops,
             },
           }),
-        );
+        ));
       }
       case "list_schedules": {
         const rows = await store((s) => s.listSchedules(caller.id));
@@ -249,6 +259,7 @@ export class AgentBus {
       }
       case "cancel_schedule":
         await store((s) => s.cancelSchedule(call.args.schedule_id));
+        await this.#host.scheduleChanged(call.args.schedule_id);
         return { schedule_id: call.args.schedule_id, cancelled: true };
       default:
         throw new Error(`${call.tool} is not available yet`);
@@ -259,6 +270,10 @@ export class AgentBus {
 /** A reason for the model, found while executing (e.g. a cron the parser rejects). */
 class BusRefusal extends Error {
   override readonly name = "Invalid";
+}
+
+function scheduleIdOf(result: JsonValue): string | undefined {
+  return result && typeof result === "object" && !Array.isArray(result) && typeof result["schedule_id"] === "string" ? result["schedule_id"] : undefined;
 }
 
 function targetsOf(call: AgentBusCall): string[] {

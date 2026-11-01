@@ -26,6 +26,10 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       answerInteraction: (request) =>
         guard(async () => create(ui.AnswerInteractionResponseSchema, { interaction: await core.answerInteraction(request) })),
       watchThread: (request, context) => core.watchThread(request.threadId, context.signal),
+      listSchedules: (request) => guard(async () => create(ui.ListSchedulesResponseSchema, { schedules: await core.listSchedules(request) })),
+      createSchedule: (request) => guard(async () => create(ui.CreateScheduleResponseSchema, { schedule: await core.createSchedule(request) })),
+      setScheduleStatus: (request) =>
+        guard(async () => create(ui.SetScheduleStatusResponseSchema, { schedule: await core.setScheduleStatus(request) })),
     });
 }
 

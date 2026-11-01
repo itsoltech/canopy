@@ -16,6 +16,8 @@ export interface SchedulerHost {
   queued(threadId: string, turn: TurnRow): Promise<void>;
   readonly owner: string;
   log(message: string): void;
+  /** A schedule ran (or completed, or was cancelled with its thread): announce it. */
+  changed(scheduleId: string): Promise<void>;
 }
 
 const LEASE_SECONDS = 60;
@@ -68,5 +70,6 @@ export class Scheduler {
     const text = `[open-agents] Scheduled ${runLabel} (schedule_id: ${schedule.id}${late ? ", delayed" : ""}):\n\n${schedule.prompt}`;
     const fired = await this.#host.run(AgentBusStore.use((s) => s.fireSchedule({ schedule, text, run, nextRunAt })));
     if (fired.turn) await this.#host.queued(fired.threadId, fired.turn);
+    await this.#host.changed(schedule.id);
   }
 }

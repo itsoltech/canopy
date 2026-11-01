@@ -29,6 +29,12 @@ service GatewayService {
 
   // Najpierw snapshot (wątek, tury, itemy, interakcje), potem zmiany na żywo od snapshot.last_seq.
   rpc WatchThread(WatchThreadRequest) returns (stream ThreadUpdate);
+
+  // Harmonogram platformy (docs/agent-bus.md#5-harmonogram): tworzony przez użytkownika albo agenta.
+  rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse);
+  rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse);
+  // Wstrzymanie, wznowienie albo anulowanie.
+  rpc SetScheduleStatus(SetScheduleStatusRequest) returns (SetScheduleStatusResponse);
 }
 
 // ---------- Model ----------
@@ -180,6 +186,7 @@ message OverviewUpdate {
     Worker worker = 1;
     Thread thread = 2;
     Project project = 3;
+    Schedule schedule = 4;
   }
 }
 
@@ -298,6 +305,8 @@ message ThreadSnapshot {
   uint64 last_seq = 5;
   // Ostatnie komunikaty (do 200); nowe przychodzą jako zdarzenia.
   repeated ThreadNotice notices = 6;
+  // Aktywne i wstrzymane harmonogramy wątku.
+  repeated Schedule schedules = 7;
 }
 
 message ThreadEventUpdate {
@@ -312,5 +321,75 @@ message ThreadUpdate {
     Thread thread = 3;
     Turn turn = 4;
     Interaction interaction = 5;
+    Schedule schedule = 6;
   }
+}
+
+// ---------- Harmonogram ----------
+
+message Schedule {
+  string id = 1;
+  string thread_id = 2;
+  string project_id = 3;
+  // once | recurring
+  string kind = 4;
+  string prompt = 5;
+  // once: termin.
+  google.protobuf.Timestamp run_at = 6;
+  // recurring: cron (pięć pól) w strefie timezone.
+  string cron = 7;
+  string timezone = 8;
+  google.protobuf.Timestamp until = 9;
+  uint32 max_runs = 10;     // 0 = bez limitu
+  uint32 runs = 11;
+  google.protobuf.Timestamp next_run_at = 12;
+  // active | paused | completed | cancelled
+  string status = 13;
+  // run_once | skip: co po przestoju
+  string missed_policy = 14;
+  // user | agent
+  string created_by = 15;
+  // Agent: wątek, który utworzył harmonogram.
+  string created_by_thread_id = 16;
+  string last_turn_id = 17;
+  google.protobuf.Timestamp created_at = 18;
+}
+
+message ListSchedulesRequest {
+  // Filtry (oba puste = wszystkie harmonogramy użytkownika).
+  string project_id = 1;
+  string thread_id = 2;
+  // Także zakończone i anulowane.
+  bool include_finished = 3;
+}
+
+message ListSchedulesResponse {
+  repeated Schedule schedules = 1;
+}
+
+message CreateScheduleRequest {
+  string thread_id = 1;
+  string prompt = 2;
+  oneof when {
+    google.protobuf.Timestamp run_at = 3;
+    string cron = 4;
+  }
+  string timezone = 5;      // pusty = UTC
+  google.protobuf.Timestamp until = 6;
+  uint32 max_runs = 7;
+  string missed_policy = 8; // pusty = run_once
+}
+
+message CreateScheduleResponse {
+  Schedule schedule = 1;
+}
+
+message SetScheduleStatusRequest {
+  string schedule_id = 1;
+  // active (wznowienie) | paused | cancelled
+  string status = 2;
+}
+
+message SetScheduleStatusResponse {
+  Schedule schedule = 1;
 }

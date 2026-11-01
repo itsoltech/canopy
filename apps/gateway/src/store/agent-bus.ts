@@ -1,4 +1,6 @@
-import type { JsonValue } from "@bufbuild/protobuf";
+import { create, type JsonValue } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { ui } from "@open-agents/contracts";
 import type { AgentBusArgs, BusFacts, InteractionFacts, ScheduleFacts, ThreadNode } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
@@ -70,6 +72,12 @@ export interface ScheduleRow {
   missed_policy: "run_once" | "skip";
   status: string;
   hops: number;
+  last_turn_id?: string | null;
+  created_at?: Date;
+  created_by_user_id?: string | null;
+  /** Joined: the thread's project and, for agent schedules, the calling thread. */
+  project_id?: string;
+  created_by_thread_id?: string | null;
 }
 
 export interface NewSchedule {
@@ -83,6 +91,7 @@ export interface NewSchedule {
   readonly maxRuns?: number;
   readonly nextRunAt: Date;
   readonly hops: number;
+  readonly missedPolicy?: "run_once" | "skip";
 }
 
 export interface ForwardedInteraction {
@@ -125,6 +134,13 @@ export class AgentBusStore extends Context.Service<
     /** Active and paused schedules of the caller and of the threads it spawned. */
     listSchedules(callerId: string): Fx<ReadonlyArray<ScheduleRow>>;
     cancelSchedule(scheduleId: string): Fx<void>;
+    /** Schedules for the UI: of a thread, a project or all of the user's, with project and creator. */
+    schedulesFor(input: { ownerUserId: string; projectId?: string; threadId?: string; includeFinished: boolean }): Fx<ReadonlyArray<ScheduleRow>>;
+    schedule(scheduleId: string): Fx<ScheduleRow>;
+    /** A schedule the user creates in the UI: hops 0, may be open-ended. */
+    createUserSchedule(input: { userId: string; schedule: NewSchedule }): Fx<ScheduleRow>;
+    /** Pause (no next run), resume (with the next run) or cancel. */
+    setScheduleStatus(input: { scheduleId: string; status: "active" | "paused" | "cancelled"; nextRunAt?: Date }): Fx<ScheduleRow>;
     /** Leases due schedules for this gateway instance (safe with several instances). */
     claimDueSchedules(owner: string, now: Date, leaseSeconds: number): Fx<ReadonlyArray<ScheduleRow>>;
     /**
@@ -225,6 +241,10 @@ export class AgentBusStore extends Context.Service<
                  ${input.callId ?? null}::uuid, ${input.interactionId ?? null}::uuid, ${input.hops}, ${JSON.stringify({ text: input.text })}::jsonb
             FROM turns WHERE thread_id = ${input.threadId}::uuid
           RETURNING *`.pipe(Effect.map((rows) => rows[0]!));
+
+      const scheduleSelect = `
+        SELECT s.*, t.project_id, c.source_thread_id AS created_by_thread_id
+          FROM schedules s JOIN threads t ON t.id = s.thread_id LEFT JOIN agent_bus_calls c ON c.id = s.created_by_call_id`;
 
       const store: AgentBusStore["Service"] = {
         storedCall: (callId) =>
@@ -431,6 +451,46 @@ export class AgentBusStore extends Context.Service<
             UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, updated_at = now()
              WHERE id = ${scheduleId}::uuid AND status IN ('active', 'paused')`.pipe(Effect.asVoid),
 
+        schedulesFor: ({ ownerUserId, projectId, threadId, includeFinished }) =>
+          sql.unsafe<ScheduleRow>(
+            `${scheduleSelect}
+              WHERE t.owner_user_id = $1::uuid
+                AND ($2::uuid IS NULL OR t.project_id = $2::uuid)
+                AND ($3::uuid IS NULL OR s.thread_id = $3::uuid)
+                AND ($4::boolean OR s.status IN ('active', 'paused'))
+              ORDER BY s.next_run_at NULLS LAST, s.created_at`,
+            [ownerUserId, projectId || null, threadId || null, includeFinished],
+          ),
+
+        schedule: (scheduleId) =>
+          sql.unsafe<ScheduleRow>(`${scheduleSelect} WHERE s.id = $1::uuid`, [scheduleId]).pipe(
+            Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("schedule not found")))),
+          ),
+
+        createUserSchedule: ({ userId, schedule }) =>
+          Effect.gen(function* () {
+            const id = Bun.randomUUIDv7();
+            yield* sql`
+              INSERT INTO schedules (id, thread_id, kind, prompt, run_at, cron, timezone, until, max_runs, next_run_at, missed_policy, created_by_user_id, hops)
+              VALUES (${id}::uuid, ${schedule.threadId}::uuid, ${schedule.kind}, ${schedule.prompt}, ${schedule.runAt ?? null},
+                      ${schedule.cron ?? null}, ${schedule.timezone}, ${schedule.until ?? null}, ${schedule.maxRuns ?? null},
+                      ${schedule.nextRunAt}, ${schedule.missedPolicy ?? "run_once"}, ${userId}::uuid, 0)`;
+            return yield* store.schedule(id);
+          }),
+
+        setScheduleStatus: ({ scheduleId, status, nextRunAt }) =>
+          Effect.gen(function* () {
+            const current = yield* store.schedule(scheduleId);
+            if (current.status === "completed" || current.status === "cancelled") {
+              return yield* Effect.fail(new Invalid(`the schedule is already ${current.status}`));
+            }
+            yield* sql`
+              UPDATE schedules SET status = ${status}, next_run_at = ${status === "active" ? (nextRunAt ?? null) : null},
+                     lease_owner = NULL, lease_until = NULL, updated_at = now()
+               WHERE id = ${scheduleId}::uuid`;
+            return yield* store.schedule(scheduleId);
+          }),
+
         claimDueSchedules: (owner, now, leaseSeconds) =>
           sql<ScheduleRow>`
             UPDATE schedules SET lease_owner = ${owner}, lease_until = ${new Date(now.getTime() + leaseSeconds * 1000)}
@@ -538,6 +598,34 @@ export class AgentBusStore extends Context.Service<
       return AgentBusStore.of(store);
     }),
   );
+}
+
+export function toUiSchedule(row: ScheduleRow): ui.Schedule {
+  const ts = (date: Date | null | undefined) => (date ? timestampFromDate(new Date(date)) : undefined);
+  const runAt = ts(row.run_at);
+  const until = ts(row.until);
+  const next = ts(row.next_run_at);
+  const created = ts(row.created_at);
+  return create(ui.ScheduleSchema, {
+    id: row.id,
+    threadId: row.thread_id,
+    projectId: row.project_id ?? "",
+    kind: row.kind,
+    prompt: row.prompt,
+    ...(runAt && { runAt }),
+    cron: row.cron ?? "",
+    timezone: row.timezone,
+    ...(until && { until }),
+    maxRuns: row.max_runs ?? 0,
+    runs: row.runs,
+    ...(next && { nextRunAt: next }),
+    status: row.status,
+    missedPolicy: row.missed_policy,
+    createdBy: row.created_by_user_id ? "user" : "agent",
+    createdByThreadId: row.created_by_thread_id ?? "",
+    lastTurnId: row.last_turn_id ?? "",
+    ...(created && { createdAt: created }),
+  });
 }
 
 export function truncate(text: string, max: number): string {

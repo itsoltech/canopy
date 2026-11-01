@@ -11,7 +11,10 @@ import {
 } from "@open-agents/contracts";
 import { Effect, type ManagedRuntime } from "effect";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
-import { AgentBusStore, GatewayStore, Ingest, toUiThread, toUiTurn, type ThreadRow } from "../store/index.ts";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { DEFAULT_BUS_LIMITS } from "@open-agents/domain";
+import { AgentBusStore, GatewayStore, Ingest, toUiSchedule, toUiThread, toUiTurn, type ScheduleRow, type ThreadRow } from "../store/index.ts";
+import { cronProblem, nextCronRun } from "./cron.ts";
 import { AgentBus } from "./agent-bus.ts";
 import { Hub } from "./hub.ts";
 import { Scheduler } from "./scheduler.ts";
@@ -70,6 +73,7 @@ export class GatewayCore {
       interrupt: (threadId) => this.interrupt(threadId),
       answer: (by, request) => this.#answer(by, request),
       broadcastThread: (threadId) => this.#broadcastThread(threadId),
+      scheduleChanged: (scheduleId) => this.#publishSchedule(scheduleId),
     });
     // Ticks only after start() (main.ts); tests drive tick() directly.
     this.scheduler = new Scheduler({
@@ -80,6 +84,7 @@ export class GatewayCore {
       },
       owner: options.instanceId,
       log: (message) => this.#log(message),
+      changed: (scheduleId) => this.#publishSchedule(scheduleId),
     });
   }
 
@@ -389,6 +394,7 @@ export class GatewayCore {
             items: snapshot.items,
             interactions: snapshot.interactions,
             notices: snapshot.notices,
+            schedules: (await this.#bus((s) => s.schedulesFor({ ownerUserId: this.#options.userId, threadId, includeFinished: false }))).map(toUiSchedule),
             lastSeq: snapshot.lastSeq,
           },
         },
@@ -410,6 +416,108 @@ export class GatewayCore {
     } finally {
       subscription.close();
     }
+  }
+
+  // ------------------------------------------------------------------ schedules (UI)
+
+  async listSchedules(request: ui.ListSchedulesRequest): Promise<ui.Schedule[]> {
+    const rows = await this.#bus((s) =>
+      s.schedulesFor({ ownerUserId: this.#options.userId, projectId: request.projectId, threadId: request.threadId, includeFinished: request.includeFinished }),
+    );
+    return rows.map(toUiSchedule);
+  }
+
+  /** A user's schedule: like an agent's, but it may be open-ended and starts no agent chain (hops 0). */
+  async createSchedule(request: ui.CreateScheduleRequest): Promise<ui.Schedule> {
+    const thread = await this.#run((s) => s.thread(request.threadId));
+    if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
+    if (thread.archived_at) throw new InvalidError("the thread is archived");
+    const prompt = request.prompt.trim();
+    if (!prompt) throw new InvalidError("prompt is required");
+    const missedPolicy = request.missedPolicy || "run_once";
+    if (missedPolicy !== "run_once" && missedPolicy !== "skip") throw new InvalidError("missed_policy is run_once or skip");
+    const now = new Date();
+    const until = request.until ? timestampDate(request.until) : undefined;
+    if (until && until <= now) throw new InvalidError("until is in the past");
+    let row: ScheduleRow;
+    if (request.when.case === "runAt") {
+      const runAt = timestampDate(request.when.value);
+      if (runAt.getTime() < now.getTime() - 60_000) throw new InvalidError("run_at is in the past");
+      row = await this.#bus((s) =>
+        s.createUserSchedule({
+          userId: this.#options.userId,
+          schedule: { threadId: thread.id, kind: "once", prompt, runAt, timezone: "UTC", nextRunAt: runAt, hops: 0, missedPolicy },
+        }),
+      );
+    } else if (request.when.case === "cron") {
+      const cron = request.when.value;
+      const timezone = request.timezone || "UTC";
+      if (!isTimeZone(timezone)) throw new InvalidError(`unknown time zone ${timezone}`);
+      const problem = cronProblem(cron, timezone, DEFAULT_BUS_LIMITS.minCronMinutes, now);
+      if (problem) throw new InvalidError(problem);
+      const nextRunAt = nextCronRun(cron, timezone, now);
+      if (!nextRunAt) throw new InvalidError("cron has no future runs");
+      row = await this.#bus((s) =>
+        s.createUserSchedule({
+          userId: this.#options.userId,
+          schedule: {
+            threadId: thread.id,
+            kind: "recurring",
+            prompt,
+            cron,
+            timezone,
+            ...(until && { until }),
+            ...(request.maxRuns > 0 && { maxRuns: request.maxRuns }),
+            nextRunAt,
+            hops: 0,
+            missedPolicy,
+          },
+        }),
+      );
+    } else {
+      throw new InvalidError("set run_at or cron");
+    }
+    const schedule = toUiSchedule(row);
+    this.#announceSchedule(schedule);
+    return schedule;
+  }
+
+  async setScheduleStatus(request: ui.SetScheduleStatusRequest): Promise<ui.Schedule> {
+    const status = request.status;
+    if (status !== "active" && status !== "paused" && status !== "cancelled") throw new InvalidError("status is active, paused or cancelled");
+    const current = await this.#bus((s) => s.schedule(request.scheduleId));
+    const owner = await this.#run((s) => s.thread(current.thread_id));
+    if (owner.owner_user_id !== this.#options.userId) throw new InvalidError("schedule not found");
+    let nextRunAt: Date | undefined;
+    if (status === "active") {
+      // Resumed: a missed one-off runs now; a recurring one continues from now.
+      const now = new Date();
+      nextRunAt =
+        current.kind === "once"
+          ? new Date(Math.max(new Date(current.run_at ?? now).getTime(), now.getTime()))
+          : current.cron
+            ? nextCronRun(current.cron, current.timezone, now)
+            : undefined;
+      if (!nextRunAt) throw new InvalidError("the schedule has no future runs");
+    }
+    const row = await this.#bus((s) => s.setScheduleStatus({ scheduleId: request.scheduleId, status, ...(nextRunAt && { nextRunAt }) }));
+    const schedule = toUiSchedule(row);
+    this.#announceSchedule(schedule);
+    return schedule;
+  }
+
+  async #publishSchedule(scheduleId: string): Promise<void> {
+    const row = await this.#bus((s) => s.schedule(scheduleId)).catch(() => undefined);
+    if (row) this.#announceSchedule(toUiSchedule(row));
+  }
+
+  #announceSchedule(schedule: ui.Schedule): void {
+    this.hub.publishThread(schedule.threadId, create(ui.ThreadUpdateSchema, { change: { case: "schedule", value: schedule } }));
+    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "schedule", value: schedule } }));
+  }
+
+  #bus<A, E>(use: (store: AgentBusStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(AgentBusStore.use(use));
   }
 
   // ------------------------------------------------------------------ helpers
@@ -455,6 +563,15 @@ export class GatewayCore {
 
   #log(message: string): void {
     this.#options.log?.(message);
+  }
+}
+
+function isTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
   }
 }
 
