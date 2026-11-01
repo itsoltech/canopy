@@ -10,6 +10,8 @@
 			if (document.documentElement.dataset.colorScheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.classList.add("dark");
 		</script>
 		<link rel="preconnect" href="https://rsms.me/" />
+		<!-- The font file starts loading with the page, not after the stylesheet: fewer frames in the fallback. -->
+		<link rel="preload" href="https://rsms.me/inter/font-files/InterVariable.woff2?v=4.1" as="font" type="font/woff2" crossorigin />
 		<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 		%sveltekit.head%
 	</head>

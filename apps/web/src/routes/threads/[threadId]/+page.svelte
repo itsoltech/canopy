@@ -18,6 +18,7 @@
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
+  import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState, type TimelineEntry } from "#lib/features/threads/thread-state.svelte.ts";
   import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
@@ -32,7 +33,9 @@
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
+  import { expand, rise } from "#lib/shared/ui/motion.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
+  import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import { decode } from "#lib/shared/wire.ts";
@@ -154,15 +157,13 @@
   // "N running in background" jumps to the task's row (a nested task: the row of the item it is under).
   let feed = $state<{ reveal: (key: string) => Promise<boolean> }>();
   const jumpTo = (task: TimelineEntry) => void feed?.reveal(`item:${topLevelEntry(view.ownEntries, task).id}`);
-  let copied = $state("");
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
-      copied = "Copied";
+      toast("Copied");
     } catch {
-      copied = "Copying is not allowed here";
+      toast("Copying is not allowed here", { tone: "error" });
     }
-    setTimeout(() => (copied = ""), 2000);
   }
   const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${view.pending.length > 0 ? `, ${view.pending.length} waiting for you` : ""}` : "");
 </script>
@@ -213,16 +214,11 @@
     <div class="min-h-0 flex-1">
       {#key threadId}
         <VirtualFeed bind:this={feed} {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} label="Timeline" busy={working}>
+          {#snippet placeholder()}
+            {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
+          {/snippet}
           {#snippet top()}
-            {#if !view.loaded}
-              <div class="grid gap-4 pt-2" aria-label="Loading the timeline">
-                <Skeleton class="ml-auto h-10 w-2/3" />
-                <Skeleton class="h-4 w-full" />
-                <Skeleton class="h-4 w-5/6" />
-                <Skeleton class="h-8 w-1/2" />
-                {#if view.connection === "connecting"}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Connecting…</p>{/if}
-              </div>
-            {:else if rows.length === 0}
+            {#if view.loaded && rows.length === 0}
               <EmptyState
                 icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
                 title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
@@ -235,26 +231,33 @@
             <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} />
           {/snippet}
           {#snippet footer()}
-            <div class="grid grid-cols-1 gap-3 pt-2">
+            <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
+            <div class="grid grid-cols-1 pt-2">
               {#if view.pending.length > 0}
-                <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
-                  {#each view.pending as interaction (interaction.requestId)}
-                    <InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} />
-                  {/each}
+                <div class="pb-3" transition:expand>
+                  <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
+                    {#each view.pending as interaction (interaction.requestId)}
+                      <div in:rise><InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} /></div>
+                    {/each}
+                  </div>
                 </div>
               {/if}
               {#if thread && shownGoal}
-                <GoalBar
-                  goal={shownGoal}
-                  provider={thread.provider}
-                  threadId={thread.id}
-                  disabled={closed}
-                  onchange={(goal) => view.upsertGoal(goal)}
-                  ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
-                />
+                <div class="pb-3" transition:expand>
+                  <GoalBar
+                    goal={shownGoal}
+                    provider={thread.provider}
+                    threadId={thread.id}
+                    disabled={closed}
+                    onchange={(goal) => view.upsertGoal(goal)}
+                    ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
+                  />
+                </div>
               {/if}
               {#if view.backgroundTasks.length > 0}
-                <BackgroundTasksChip tasks={view.backgroundTasks} onjump={jumpTo} class="justify-self-start" />
+                <div class="justify-self-start pb-3" transition:expand>
+                  <BackgroundTasksChip tasks={view.backgroundTasks} onjump={jumpTo} />
+                </div>
               {/if}
               {#if thread}
                 <Composer
@@ -326,4 +329,3 @@
 {/if}
 
 <p class="sr-only" role="status">{announcement}</p>
-<p class="sr-only" role="status">{copied}</p>

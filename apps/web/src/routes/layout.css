@@ -10,8 +10,19 @@
  * rose = failed, orange = interrupted, violet = started by an agent (agent bus, side threads).
  * Dark-first, like T3 Code: black canvas, zinc surfaces, white/10 rings. Light mode mirrors it.
  */
+/* Until Inter arrives (font-display: swap) text is set in a local sans with Inter's metrics, so the swap
+   moves nothing (overrides as next/font computes them for Arial; Liberation Sans shares Arial's metrics). */
+@font-face {
+  font-family: "Inter Fallback";
+  src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Helvetica");
+  size-adjust: 107.12%;
+  ascent-override: 90.44%;
+  descent-override: 22.52%;
+  line-gap-override: 0%;
+}
+
 @theme {
-  --font-sans: InterVariable, Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: InterVariable, Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-sans--font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
 }
