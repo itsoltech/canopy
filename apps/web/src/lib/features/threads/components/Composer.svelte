@@ -1,59 +1,85 @@
 <script lang="ts">
+  import type { ui } from "@open-agents/contracts";
+  import type { ClassValue } from "svelte/elements";
+  import Alert from "#lib/shared/ui/Alert.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import { interruptThread, sendMessage } from "../api.ts";
+  import { permissionLabel, providerLabel } from "../labels.ts";
+  import ComposerBox from "./ComposerBox.svelte";
 
-  /** Message input. Enter sends, Shift+Enter adds a line; each send carries an idempotency key. */
-  let { threadId, running, disabled = false }: { threadId: string; running: boolean; disabled?: boolean } = $props();
+  /**
+   * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
+   * twice. While a turn runs, a typed message queues and the empty box offers Stop.
+   * Under the box: where the thread runs and its permission mode (fixed for the thread's life).
+   */
+  let {
+    thread,
+    worker,
+    running,
+    disabled = false,
+    note,
+    class: className,
+  }: { thread: ui.Thread; worker: ui.Worker | undefined; running: boolean; disabled?: boolean; note?: string | undefined; class?: ClassValue } = $props();
 
   let text = $state("");
-  let busy = $state(false);
+  let sending = $state(false);
+  let stopping = $state(false);
   let error = $state<string | undefined>(undefined);
+  // One key per message: a retry after a network error reuses it, a new message gets a new one.
+  let requestId = crypto.randomUUID();
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     const message = text.trim();
-    if (!message || busy) return;
-    busy = true;
+    if (!message || sending || disabled) return;
+    sending = true;
     error = undefined;
     try {
-      await sendMessage(threadId, message, crypto.randomUUID());
+      await sendMessage(thread.id, message, requestId);
       text = "";
+      requestId = crypto.randomUUID();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
-      busy = false;
+      sending = false;
     }
   }
 
   async function interrupt() {
+    stopping = true;
+    error = undefined;
     try {
-      await interruptThread(threadId);
+      await interruptThread(thread.id);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-      event.preventDefault();
-      (event.currentTarget as HTMLTextAreaElement).form?.requestSubmit();
+    } finally {
+      stopping = false;
     }
   }
 </script>
 
-<form class="flex items-end gap-2 border-t border-slate-200 bg-white p-3" onsubmit={submit}>
-  <label class="sr-only" for="composer">Message</label>
-  <textarea
-    id="composer"
-    class="input min-h-12 flex-1 resize-y"
-    rows="2"
-    placeholder={running ? "The agent is working; your message will run next…" : "Message the agent…"}
+<form class={["grid gap-2", className]} onsubmit={submit}>
+  {#if error}<Alert tone="error">{error}</Alert>{/if}
+  <ComposerBox
     bind:value={text}
-    {onkeydown}
+    placeholder={running ? "Queue a message for when this turn ends…" : "Ask anything…"}
     {disabled}
-  ></textarea>
-  {#if running}
-    <button type="button" class="btn-danger" onclick={interrupt}>Stop</button>
-  {/if}
-  <button class="btn-primary" disabled={disabled || busy || !text.trim()}>Send</button>
+    {sending}
+    {stopping}
+    onstop={running ? interrupt : undefined}
+  >
+    {#snippet controls()}
+      <span class="min-w-0 truncate px-2 text-sm/5 text-zinc-500 sm:text-[0.8125rem]/5 dark:text-zinc-400" title="Agent of this thread">
+        {providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}{thread.providerProfileId ? ` · ${thread.providerProfileId}` : ""}
+      </span>
+    {/snippet}
+    {#snippet meta()}
+      <span class="flex min-w-0 items-center gap-1.5">
+        <Icon name="computer-desktop" class="size-3.5" />
+        <span class="truncate">{worker?.name ?? "Unknown worker"}{worker && !worker.online ? " (offline)" : ""}</span>
+      </span>
+      <span class="flex shrink-0 items-center gap-1.5"><Icon name="shield-check" class="size-3.5" />{permissionLabel(thread.permissionMode)}</span>
+    {/snippet}
+  </ComposerBox>
+  {#if note}<p class="px-3 text-sm/5 text-amber-700 sm:text-xs/5 dark:text-amber-400" role="status">{note}</p>{/if}
 </form>
-{#if error}<p class="px-3 pb-2 text-sm text-rose-700" role="alert">{error}</p>{/if}

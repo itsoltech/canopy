@@ -1,13 +1,14 @@
-import { fail, redirect } from "@sveltejs/kit";
-import { attempt, failed } from "#lib/server/gateway.ts";
+import { fail } from "@sveltejs/kit";
+import { createThreadFromForm } from "#lib/features/threads/server/create-thread.ts";
 import type { Actions } from "./$types";
 
 export const actions: Actions = {
-  createProject: async ({ request }) => {
-    const name = String((await request.formData()).get("name") ?? "").trim();
-    if (!name) return fail(400, { action: "project", error: "Name is required" });
-    const result = await attempt("project", (api) => api.createProject({ name }));
-    if (failed(result)) return result;
-    redirect(303, `/projects/${result.project?.id}`);
+  /** New main thread from the home composer; the project comes with the chosen workspace. */
+  createThread: async ({ request }) => {
+    const form = await request.formData();
+    const projectId = String(form.get("projectId") ?? "");
+    if (!projectId) return fail(400, { action: "thread", error: "Choose a workspace" });
+    if (!String(form.get("message") ?? "").trim()) return fail(400, { action: "thread", error: "Tell the agent what to do" });
+    return createThreadFromForm(form, projectId, "thread");
   },
 };

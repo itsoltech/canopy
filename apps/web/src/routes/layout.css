@@ -1,21 +1,102 @@
 @import "tailwindcss";
 
-/* Shared control styles. `@utility` (not `@layer components`) so they compose with `@apply`. */
-@utility btn {
-  @apply inline-flex items-center justify-center rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-50;
+/* Dark mode by class (set before first paint in app.html from the Appearance setting; default: system). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. Neutrals are zinc; colour carries meaning only:
+ * sky = running / links, brand (default blue, see Appearance) = actions and focus, amber = waiting for a person, emerald = done / online,
+ * rose = failed, orange = interrupted, violet = started by an agent (agent bus, side threads).
+ * Dark-first, like T3 Code: black canvas, zinc surfaces, white/10 rings. Light mode mirrors it.
+ */
+@theme {
+  --font-sans: InterVariable, Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans--font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
 }
-@utility btn-primary {
-  @apply btn bg-indigo-600 text-white ring-indigo-600 hover:bg-indigo-500;
+
+/*
+ * Brand accent (buttons, send, focus, selection) switches with the Appearance theme:
+ * html[data-accent] sets --brand-*, the brand-* utilities read them.
+ */
+@theme inline {
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
 }
-@utility btn-danger {
-  @apply btn bg-rose-600 text-white ring-rose-600 hover:bg-rose-500;
+
+:root {
+  --brand-400: var(--color-blue-400);
+  --brand-500: var(--color-blue-500);
+  --brand-600: var(--color-blue-600);
+  /* Width of the chat column (Appearance → Chat width). */
+  --chat-width: 48rem;
 }
-@utility input {
-  @apply rounded-lg border-0 bg-white px-3 py-1.5 text-sm text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-600 focus:outline-none;
+:root[data-accent="grove"] {
+  --brand-400: var(--color-emerald-400);
+  --brand-500: var(--color-emerald-500);
+  --brand-600: var(--color-emerald-600);
 }
-@utility label {
-  @apply block text-sm font-medium text-slate-700;
+:root[data-accent="ocean"] {
+  --brand-400: var(--color-sky-400);
+  --brand-500: var(--color-sky-500);
+  --brand-600: var(--color-sky-600);
 }
-@utility card {
-  @apply rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200;
+:root[data-accent="ember"] {
+  --brand-400: var(--color-orange-400);
+  --brand-500: var(--color-orange-500);
+  --brand-600: var(--color-orange-600);
+}
+:root[data-accent="iris"] {
+  --brand-400: var(--color-violet-400);
+  --brand-500: var(--color-violet-500);
+  --brand-600: var(--color-violet-600);
+}
+:root[data-accent="rose"] {
+  --brand-400: var(--color-pink-400);
+  --brand-500: var(--color-pink-500);
+  --brand-600: var(--color-pink-600);
+}
+:root[data-chat-width="wide"] {
+  --chat-width: 60rem;
+}
+:root[data-chat-width="full"] {
+  --chat-width: 100%;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  /* Native disclosure triangles are replaced by our own chevrons. */
+  summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+/* Focus ring shared by every custom control. */
+@utility focus-ring {
+  @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500;
+}
+
+/* Scrollable code / output surfaces: monospace, keeps whitespace, scrolls instead of wrapping. */
+@utility code-surface {
+  @apply overflow-auto font-mono text-[0.8125rem]/5 whitespace-pre [tab-size:4];
+}
+
+/* Live "working" text: a soft shimmer, static when the user prefers reduced motion. */
+@utility shimmer {
+  @apply bg-[linear-gradient(90deg,var(--color-zinc-500)_0%,var(--color-zinc-500)_40%,var(--color-zinc-300)_50%,var(--color-zinc-500)_60%,var(--color-zinc-500)_100%)] bg-size-[200%_100%] bg-clip-text text-transparent motion-safe:animate-[shimmer_2s_linear_infinite] motion-reduce:text-zinc-500 dark:bg-[linear-gradient(90deg,var(--color-zinc-400)_0%,var(--color-zinc-400)_40%,var(--color-zinc-100)_50%,var(--color-zinc-400)_60%,var(--color-zinc-400)_100%)];
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
 }
