@@ -53,6 +53,8 @@ message WorkerMessage {
     AgentToolCall agent_tool_call = 15;
     BlobChunk blob_chunk = 16;
     ConfigApplied config_applied = 17;
+    // Modele, effort i steer (sekcja na końcu pliku).
+    ModelCatalog model_catalog = 40;
   }
 }
 
@@ -243,6 +245,8 @@ message Command {
     StopTask stop_task = 16;
     BackgroundItem background_item = 17;
     SetGoal set_goal = 18;
+    // Modele, effort i steer (sekcja na końcu pliku).
+    ListModels list_models = 40;
   }
 }
 
@@ -310,6 +314,10 @@ message StartTurn {
   ThreadSpec thread = 1;
   string turn_id = 2;
   UserInput input = 3;
+  // Model i wysiłek rozumowania tej tury: nadpisanie z wiadomości albo domyślne wątku (gateway rozstrzyga).
+  // Puste = domyślne profilu (Codex: domyślny model katalogu, Claude: domyślny Claude Code).
+  string model = 40;
+  string effort = 41;
 }
 
 message UserInput {
@@ -326,7 +334,10 @@ message InterruptTurn {
 }
 
 // Dołącza wejście do tury w toku (Claude: wiadomość w strumieniu wejścia, Codex: turn/steer)
-// zamiast kolejkować je jako następną turę.
+// zamiast kolejkować je jako następną turę. ok = dostawca przyjął wejście do tury; miejsce, w którym weszło,
+// to item user_message z client_id = input_id. Tura już się skończyła albo dostawca odmówił: ok = false,
+// error_code STEER_NOT_RUNNING / STEER_REJECTED (gateway kolejkuje wiadomość jako następną turę).
+// Przyjęte, ale tura skończyła się bez niego (Claude): Notice code = steer_dropped, data_json {"input_id"}.
 message SteerTurn {
   string thread_id = 1;
   string turn_id = 2;
@@ -384,6 +395,8 @@ message CommandResult {
   string error_message = 4;
   // Wynik ListDirectory i podobnych komend zapytań.
   repeated DirectoryEntry entries = 5;
+  // Wynik ListModels.
+  repeated ProfileModels models = 40;
 }
 
 message DirectoryEntry {
@@ -620,6 +633,9 @@ message UserMessage {
   repeated BlobRef attachments = 2;
   string author_user_id = 3;
   string author_agent_id = 4;
+  // Identyfikator wejścia po stronie platformy: turn_id dla wejścia tury, SteerTurn.input_id dla wiadomości
+  // dołączonej do tury w toku (UI łączy ją z jej SendMessage). Pusty, gdy dostawca go nie zna.
+  string client_id = 40;
 }
 
 message AgentMessage {
@@ -852,4 +868,50 @@ message AgentToolResult {
   string content = 3;
   // Ten sam wynik w formie strukturalnej, dla osi czasu i UI.
   string result_json = 4;
+}
+
+// ---------- Modele (docs/protocol.md#modele-effort-i-steer) ----------
+
+// Model, który profil oferuje dla dostawcy.
+message ModelInfo {
+  // Wartość dla StartTurn.model / ThreadSpec.model.
+  string id = 1;
+  // Model, na który id się rozwiązuje (Claude: alias "opus" -> claude-opus-5-5); pusty, gdy ten sam.
+  string resolved_model = 2;
+  string display_name = 3;
+  string description = 4;
+  // Ukryty w domyślnym wyborze (Codex hidden).
+  bool hidden = 5;
+  // Model, którego profil używa, gdy model nie jest wybrany.
+  bool is_default = 6;
+  // Obsługiwane poziomy wysiłku rozumowania (Codex: none..xhigh/max/ultra, Claude: low|medium|high|xhigh|max).
+  // Pusta lista = model bez wyboru wysiłku albo nieznana (np. model spoza katalogu dostawcy).
+  repeated string efforts = 7;
+  // Domyślny wysiłek modelu; pusty = domyślny dostawcy (Claude go nie podaje).
+  string default_effort = 8;
+}
+
+// Modele jednej pary dostawca + profil na workerze.
+message ProfileModels {
+  Provider provider = 1;
+  string profile_id = 2;
+  repeated ModelInfo models = 3;
+  // Lista niepełna albo pusta przez błąd (np. pośrednik nie odpowiedział). Pusty = lista kompletna.
+  string detail = 4;
+  google.protobuf.Timestamp listed_at = 5;
+}
+
+// Katalog modeli workera: wszystkie pary dostawca + profil z bieżącej konfiguracji.
+// Worker wysyła go po zastosowaniu konfiguracji (i ponownie po połączeniu); zastępuje poprzedni.
+message ModelCatalog {
+  // Wersja konfiguracji, dla której powstał.
+  uint64 config_version = 1;
+  repeated ProfileModels profiles = 2;
+}
+
+// Lista modeli od nowa (bez pamięci podręcznej workera). Wynik: CommandResult.models.
+message ListModels {
+  // Puste = wszyscy dostawcy i profile.
+  Provider provider = 1;
+  string profile_id = 2;
 }

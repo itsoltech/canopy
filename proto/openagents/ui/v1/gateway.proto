@@ -42,6 +42,12 @@ service GatewayService {
   rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
   rpc UpdateUserSettings(UpdateUserSettingsRequest) returns (UpdateUserSettingsResponse);
   rpc UpdateProjectSettings(UpdateProjectSettingsRequest) returns (UpdateProjectSettingsResponse);
+
+  // Modele, effort i steer (sekcja na końcu pliku).
+  // Katalog modeli workerów (dostawca -> profil -> modele z wysiłkami rozumowania); refresh = lista od nowa z workera.
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  // Domyślny model i wysiłek wątku (kolejne tury bez nadpisania w wiadomości).
+  rpc UpdateThread(UpdateThreadRequest) returns (UpdateThreadResponse);
 }
 
 // ---------- Model ----------
@@ -122,6 +128,8 @@ message Thread {
   string interaction_route = 22;
   // Ostatnia zmiana: utworzenie, kolejkowanie, start albo koniec tury.
   google.protobuf.Timestamp last_activity_at = 23;
+  // Domyślny wysiłek rozumowania wątku (pusty = domyślny modelu); model domyślny to pole model.
+  string effort = 40;
 }
 
 message Turn {
@@ -164,6 +172,10 @@ message Turn {
   // question: rodzaj pytania (permission | question | elicitation) i narzędzie, którego dotyczy.
   string question_kind = 21;
   string question_tool = 22;
+  // Model i wysiłek tury: nadpisanie z wiadomości; od startu tury wartości faktycznie wysłane do workera
+  // (z domyślnymi wątku). Puste = domyślne profilu.
+  string model = 40;
+  string effort = 41;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -221,6 +233,8 @@ message OverviewUpdate {
     // Zmiana z innego urządzenia albo karty.
     UserSettings user_settings = 5;
     ProjectSettings project_settings = 6;
+    // Nowy katalog modeli workera.
+    WorkerModels models = 40;
   }
 }
 
@@ -291,6 +305,8 @@ message CreateThreadRequest {
   string initial_message = 12;
   // Idempotencja ponowień z UI.
   string client_request_id = 13;
+  // Domyślny wysiłek rozumowania wątku (pusty = domyślny modelu).
+  string effort = 40;
 }
 
 message CreateThreadResponse {
@@ -301,10 +317,18 @@ message SendMessageRequest {
   string thread_id = 1;
   string text = 2;
   string client_request_id = 3;
+  // Nadpisanie modelu i wysiłku tylko dla tej tury (puste = domyślne wątku). Steer ich nie używa
+  // (tura już trwa); obowiązują, gdy wiadomość trafi do kolejki.
+  string model = 40;
+  string effort = 41;
+  MessageDelivery delivery = 42;
 }
 
 message SendMessageResponse {
+  // Wiadomość jako tura (kolejka, także steer bez tury w toku).
   Turn turn = 1;
+  // Wiadomość dołączona do tury w toku (delivery = STEER).
+  Steer steer = 40;
 }
 
 message InterruptThreadRequest {
@@ -341,6 +365,8 @@ message ThreadSnapshot {
   repeated ThreadNotice notices = 6;
   // Aktywne i wstrzymane harmonogramy wątku.
   repeated Schedule schedules = 7;
+  // Wiadomości dołączone do tur w toku (steer), od najstarszej.
+  repeated Steer steers = 40;
 }
 
 message ThreadEventUpdate {
@@ -356,6 +382,7 @@ message ThreadUpdate {
     Turn turn = 4;
     Interaction interaction = 5;
     Schedule schedule = 6;
+    Steer steer = 40;
   }
 }
 
@@ -496,6 +523,7 @@ message UserSettings {
   // Rośnie przy każdej zmianie; 0 = jeszcze nie zapisane.
   uint64 version = 3;
   google.protobuf.Timestamp updated_at = 4;
+  ModelFavorites model_favorites = 40;
 }
 
 // Ustawienia projektu; nadpisują domyślne wartości użytkownika w tym projekcie.
@@ -519,6 +547,7 @@ message UpdateUserSettingsRequest {
   ThreadDefaults thread_defaults = 2;
   // Wersja, od której klient zaczął zmianę (konflikt = FailedPrecondition, klient pobiera ustawienia od nowa).
   uint64 expected_version = 3;
+  ModelFavorites model_favorites = 40;
 }
 
 message UpdateUserSettingsResponse {
@@ -533,4 +562,77 @@ message UpdateProjectSettingsRequest {
 
 message UpdateProjectSettingsResponse {
   ProjectSettings settings = 1;
+}
+
+// ---------- Modele, effort i steer ----------
+
+// Jak dostarczyć wiadomość, gdy w wątku trwa tura.
+enum MessageDelivery {
+  MESSAGE_DELIVERY_UNSPECIFIED = 0; // = QUEUE
+  // Następna tura (po bieżącej).
+  MESSAGE_DELIVERY_QUEUE = 1;
+  // Do tury w toku (Codex turn/steer, Claude strumień wejścia). Bez tury w toku działa jak QUEUE;
+  // gdy tura skończy się wcześniej albo dostawca odmówi, wiadomość trafia do kolejki z powodem (Steer.reason).
+  MESSAGE_DELIVERY_STEER = 2;
+}
+
+// Wiadomość dołączona do tury w toku. W transkrypcie to item user_message z client_id = id w tej turze,
+// w miejscu, w którym weszła.
+message Steer {
+  string id = 1;
+  string thread_id = 2;
+  // Tura, do której ma trafić.
+  string turn_id = 3;
+  string text = 4;
+  // pending (czeka na workera) | accepted (dostawca przyjął) | delivered (weszła do tury: item user_message)
+  // | queued (nie weszła; jest następną turą queued_turn_id, powód w reason) | failed
+  string status = 5;
+  string reason = 6;
+  string queued_turn_id = 7;
+  google.protobuf.Timestamp created_at = 8;
+  // Autor: użytkownik albo wątek agenta (send_message z delivery = steer).
+  string source_thread_id = 9;
+}
+
+// Katalog modeli jednego workera (z ostatniego raportu workera).
+message WorkerModels {
+  string worker_id = 1;
+  repeated openagents.worker.v1.ProfileModels profiles = 2;
+  // Wersja konfiguracji workera, dla której powstał.
+  uint64 config_version = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message ListModelsRequest {
+  // Pusty = wszystkie workery użytkownika.
+  string worker_id = 1;
+  // Lista od nowa z workera (musi być online); bez tego ostatni zapisany raport.
+  bool refresh = 2;
+}
+
+message ListModelsResponse {
+  repeated WorkerModels workers = 1;
+}
+
+message UpdateThreadRequest {
+  string thread_id = 1;
+  // Nieustawione = bez zmian; pusty = domyślny profilu / modelu.
+  optional string model = 2;
+  optional string effort = 3;
+}
+
+message UpdateThreadResponse {
+  Thread thread = 1;
+}
+
+// Ulubione modele w wyborze modelu (sekcja ustawień użytkownika, zastępowana w całości).
+message ModelFavorites {
+  repeated FavoriteModel models = 1;
+}
+
+message FavoriteModel {
+  openagents.worker.v1.Provider provider = 1;
+  // Pusty = dowolny profil z tym modelem.
+  string profile_id = 2;
+  string model = 3;
 }
