@@ -185,7 +185,7 @@ export async function startTestGateway(): Promise<TestGateway> {
     await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { allowedRoots, codex: { enabled: true } }, userId)));
     return added;
   };
-  const core = new GatewayCore({ runtime, instanceId: "test", userId, log: (m) => m.startsWith("agent bus") && console.error(m) });
+  const core = new GatewayCore({ runtime, instanceId: "test", userId, log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
   const grpc = await startGrpcServer({
     routes: (router) => {
       core.link.routes(router);
