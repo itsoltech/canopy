@@ -42,6 +42,11 @@ service GatewayService {
   rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
   rpc UpdateUserSettings(UpdateUserSettingsRequest) returns (UpdateUserSettingsResponse);
   rpc UpdateProjectSettings(UpdateProjectSettingsRequest) returns (UpdateProjectSettingsResponse);
+
+  // Cel harnessu w wątku (docs/goals.md): ustawienie, pauza, wznowienie, usunięcie.
+  rpc SetGoal(SetGoalRequest) returns (SetGoalResponse);
+  // Zatrzymanie zadania w tle (proces Codexa, background Bash Claude; docs/execution.md).
+  rpc StopBackgroundTask(StopBackgroundTaskRequest) returns (StopBackgroundTaskResponse);
 }
 
 // ---------- Model ----------
@@ -122,6 +127,12 @@ message Thread {
   string interaction_route = 22;
   // Ostatnia zmiana: utworzenie, kolejkowanie, start albo koniec tury.
   google.protobuf.Timestamp last_activity_at = 23;
+
+  // Cele i praca w tle (numery od 40, osobno od innych zmian kontraktu).
+  // Status bieżącego celu (Goal.status) albo pusty, gdy wątek nie ma otwartego celu.
+  string goal_status = 40;
+  // Zadania w tle w toku (itemy background_task ze statusem in_progress).
+  uint32 background_tasks = 41;
 }
 
 message Turn {
@@ -164,6 +175,9 @@ message Turn {
   // question: rodzaj pytania (permission | question | elicitation) i narzędzie, którego dotyczy.
   string question_kind = 21;
   string question_tool = 22;
+
+  // Cel, nad którym pracowała tura (tura celu albo kontynuacja dostawcy w trakcie celu).
+  string goal_id = 40;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -341,6 +355,8 @@ message ThreadSnapshot {
   repeated ThreadNotice notices = 6;
   // Aktywne i wstrzymane harmonogramy wątku.
   repeated Schedule schedules = 7;
+  // Bieżący cel albo ostatni zakończony (brak = wątek nigdy nie miał celu).
+  Goal goal = 20;
 }
 
 message ThreadEventUpdate {
@@ -356,6 +372,7 @@ message ThreadUpdate {
     Turn turn = 4;
     Interaction interaction = 5;
     Schedule schedule = 6;
+    Goal goal = 20;
   }
 }
 
@@ -534,3 +551,52 @@ message UpdateProjectSettingsRequest {
 message UpdateProjectSettingsResponse {
   ProjectSettings settings = 1;
 }
+
+// ---------- Cele i praca w tle ----------
+
+// Cel harnessu (docs/goals.md): silnikiem jest harness (Codex thread/goal, Claude /goal), platforma śledzi
+// stan, zużycie i tury celu. Najwyżej jeden otwarty cel na wątek.
+message Goal {
+  string id = 1;
+  string thread_id = 2;
+  // Co ma być osiągnięte (Claude: warunek /goal).
+  string objective = 3;
+  // active | paused | blocked | budget_limited | usage_limited | achieved | cancelled
+  string status = 4;
+  // user (z UI) | provider (model albo harness sam ustawił cel)
+  string created_by = 5;
+  uint64 token_budget = 6;        // 0 = bez limitu (Codex tokenBudget)
+  uint64 tokens_used = 7;         // według harnessu (Codex tokensUsed)
+  uint64 time_used_seconds = 8;
+  // Codex: tury kontynuacji celu; Claude: oceny ewaluatora.
+  uint32 iterations = 9;
+  // Werdykt ewaluatora (Claude), powód blokady albo zatrzymania.
+  string last_reason = 10;
+  // Ostatni status zgłoszony przez harness (Codex: active, paused, complete, ...; Claude: active, met, failed, cleared).
+  string native_status = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+  google.protobuf.Timestamp finished_at = 14;
+}
+
+message SetGoalRequest {
+  string thread_id = 1;
+  // set (nowy cel; zastępuje otwarty) | pause | resume | clear
+  string action = 2;
+  // set: wymagany.
+  string objective = 3;
+  // set: budżet tokenów harnessu (Codex); 0 = bez limitu. Claude go nie obsługuje.
+  uint64 token_budget = 4;
+}
+
+message SetGoalResponse {
+  Goal goal = 1;
+}
+
+message StopBackgroundTaskRequest {
+  string thread_id = 1;
+  // item_id itemu background_task z osi czasu.
+  string item_id = 2;
+}
+
+message StopBackgroundTaskResponse {}

@@ -160,7 +160,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     pg = await startPostgres();
     runtime = ManagedRuntime.make(pg.layer);
     const applied = await runtime.runPromise(migrate);
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn"]);
+    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_goals_background_harness"]);
   }, 60_000);
 
   afterAll(async () => {
@@ -602,18 +602,11 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(await failure(insertGoal, [id(), thread, "paused", "user", w.user, null, null, null])).toContain("goals_one_open");
     });
 
-    test("goals from the model start as proposed, need a budget and run only after user approval", async () => {
+    test("goals the harness set by itself are tracked as they are (no approval or budget gate)", async () => {
       const w = await world();
-      const thread = await mainThread(w);
-      // Codex create_goal / Claude ProposeGoal: proposed, bounded.
-      await query(insertGoal, [id(), thread, "proposed", "provider", null, 200_000, null, null]);
-      expect(await failure(insertGoal, [id(), (await mainThread(w)), "active", "provider", null, 200_000, null, null])).toContain(
-        "goals_approval",
-      );
-      expect(await failure(insertGoal, [id(), (await mainThread(w)), "proposed", "provider", null, null, null, null])).toContain(
-        "goals_agent_budget",
-      );
-      await query(insertGoal, [id(), (await mainThread(w)), "active", "provider", null, 200_000, w.user, null]);
+      // Codex create_goal: the model set it, the platform records it (docs/goals.md).
+      await query(insertGoal, [id(), (await mainThread(w)), "active", "provider", null, null, null, null]);
+      await query(insertGoal, [id(), (await mainThread(w)), "active", "provider", null, 200_000, null, null]);
       // Users may set open-ended goals directly.
       await query(insertGoal, [id(), (await mainThread(w)), "active", "user", w.user, null, null, null]);
     });
@@ -626,7 +619,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       );
     });
 
-    test("platform-engine continuation turns point at their goal and do not count as hops", async () => {
+    test("goal turns (Claude /goal) point at their goal and do not count as hops", async () => {
       const w = await world();
       const thread = await mainThread(w);
       const goal = id();

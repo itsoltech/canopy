@@ -2,14 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
   budgetExceeded,
   canTransition,
-  claudeGoalInput,
-  codexObjective,
-  fromClaudeActiveGoal,
+  claudeGoalCommand,
   fromCodexStatus,
-  toCodexGoal,
+  goalStatusFromHarness,
   validateGoalBudget,
   type CodexGoalStatus,
-  type GoalStatus,
 } from "./goals.ts";
 
 describe("goal transitions", () => {
@@ -60,34 +57,24 @@ describe("budgets", () => {
   });
 });
 
-describe("native engines", () => {
-  const goal = { objective: "Migrate auth to Effect", condition: "bun test exits 0 and no Promise-based auth code remains" };
-
-  test("Codex: objective carries the completion condition; statuses map both ways", () => {
-    expect(codexObjective(goal)).toBe("Migrate auth to Effect\n\nDone when: bun test exits 0 and no Promise-based auth code remains");
+describe("harness goals", () => {
+  test("Codex statuses map to platform statuses; a user pause is not undone by progress reports", () => {
     const native: CodexGoalStatus[] = ["active", "paused", "blocked", "usageLimited", "budgetLimited", "complete"];
     expect(native.map(fromCodexStatus)).toEqual(["active", "paused", "blocked", "usage_limited", "budget_limited", "achieved"]);
-    const platform: GoalStatus[] = ["active", "paused", "blocked", "budget_limited", "achieved", "cancelled", "proposed"];
-    expect(platform.map(toCodexGoal)).toEqual([
-      { set: "active" },
-      { set: "paused" },
-      { set: "paused" },
-      { set: "paused" },
-      { set: "complete" },
-      { clear: true },
-      { set: "paused" },
-    ]);
+    expect(goalStatusFromHarness("codex", "complete", false, "active")).toBe("achieved");
+    expect(goalStatusFromHarness("codex", "active", false, "paused")).toBe("paused");
+    expect(goalStatusFromHarness("codex", "active", false, undefined)).toBe("active");
+    expect(goalStatusFromHarness("codex", "", true, "active")).toBe("cancelled");
   });
 
-  test("Claude: slash commands in, active_goal out; null means met unless we asked to clear", () => {
-    expect(claudeGoalInput(goal, "active")).toBe(`/goal ${goal.condition}`);
-    expect(claudeGoalInput(goal, "paused")).toBe("/goal clear");
-    expect(fromClaudeActiveGoal(null, false)).toEqual({ status: "achieved" });
-    expect(fromClaudeActiveGoal(null, true)).toEqual({ status: "unchanged" });
-    expect(fromClaudeActiveGoal({ condition: "x", iterations: 4, last_reason: "2 tests still fail" }, false)).toEqual({
-      status: "active",
-      iterations: 4,
-      reason: "2 tests still fail",
-    });
+  test("Claude: met and failed verdicts finish the goal; a clear keeps a user pause", () => {
+    expect(goalStatusFromHarness("claude", "active", false, "active")).toBe("active");
+    expect(goalStatusFromHarness("claude", "met", false, "active")).toBe("achieved");
+    expect(goalStatusFromHarness("claude", "failed", false, "active")).toBe("blocked");
+    expect(goalStatusFromHarness("claude", "cleared", false, "paused")).toBe("paused");
+    expect(goalStatusFromHarness("claude", "cleared", false, "achieved")).toBe("achieved");
+    expect(goalStatusFromHarness("claude", "cleared", false, "active")).toBe("cancelled");
+    expect(claudeGoalCommand("bun test exits 0")).toBe("/goal bun test exits 0");
+    expect(claudeGoalCommand(undefined)).toBe("/goal clear");
   });
 });
