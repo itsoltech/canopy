@@ -9,6 +9,7 @@ import { createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import {
   ItemStatus,
+  NoticeLevel,
   Provider,
   ProviderProfileKind,
   ThreadEventSchema,
@@ -17,12 +18,13 @@ import {
   ui,
   type AgentToolResult,
   type InteractionRequest,
+  type ProfileModelsSchema,
 } from "@open-agents/contracts";
 import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
 import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, GatewayStore, Ingest, SettingsStore } from "@open-agents/gateway/store";
+import { AgentBusStore, GatewayStore, Ingest, ModelStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
 import { startGrpcServer } from "@open-agents/transport";
 import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
 import { Layer, ManagedRuntime } from "effect";
@@ -30,7 +32,19 @@ import type { SqlClient } from "effect/sql";
 
 export const SERVICE_TOKEN = "t".repeat(48);
 
-export type TestRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | SqlClient.SqlClient, unknown>;
+export type TestRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | SqlClient.SqlClient, unknown>;
+
+/** The scripted worker's Codex models (native profile): what a real worker would list. */
+export const SCRIPTED_MODELS: MessageInitShape<typeof ProfileModelsSchema>[] = [
+  {
+    provider: Provider.CODEX,
+    profileId: "native",
+    models: [
+      { id: "gpt-6.1-sol", displayName: "GPT-6.1-Sol", isDefault: true, efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "low" },
+      { id: "gpt-5.5", displayName: "GPT-5.5", efforts: ["low", "medium", "high"], defaultEffort: "medium" },
+    ],
+  },
+];
 
 /** Plays a worker: answers commands and emits the events a real provider would. */
 export class ScriptedWorker {
@@ -39,6 +53,17 @@ export class ScriptedWorker {
   readonly created: { threadId: string; cwd: string; enableAgentBus: boolean; depth: number }[] = [];
   /** Inputs of the turns this worker ran, per thread. */
   readonly inputs = new Map<string, string[]>();
+  /** Model and effort each turn was started with, by turn id. */
+  readonly turnSettings = new Map<string, { model: string; effort: string }>();
+  /** Steers this worker got: input id -> text. */
+  readonly steered = new Map<string, string>();
+  /** Turns stay running until finish() (to steer into them). */
+  holdTurns = false;
+  /** What a SteerTurn does: join the turn, find it over, or be taken and then dropped (Claude, turn ended first). */
+  steerMode: "accept" | "not_running" | "drop" = "accept";
+  /** Models listed by ListModels (and in the catalog after a config). */
+  models = SCRIPTED_MODELS;
+  readonly #running = new Map<string, string>();
   readonly #seq = new Map<string, bigint>();
   readonly #toolResults = new Map<string, (result: AgentToolResult) => void>();
   constructor(readonly link: GatewayLink) {
@@ -63,6 +88,16 @@ export class ScriptedWorker {
     });
   }
 
+  /** Ends a held turn like the provider would. */
+  finish(threadId: string, turnId: string, text = "done"): void {
+    this.#running.delete(threadId);
+    this.emit(threadId, turnId, {
+      case: "itemCompleted",
+      value: { item: { itemId: `msg-${turnId}`, status: ItemStatus.COMPLETED, content: { case: "agentMessage", value: { text, phase: "final_answer" } } } },
+    });
+    this.emit(threadId, turnId, { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: `ct-${turnId.slice(-4)}` } });
+  }
+
   ask(request: MessageInitShape<typeof ui.InteractionSchema> & Partial<InteractionRequest>): void {
     this.link.send({ case: "interactionRequest", value: request as InteractionRequest });
   }
@@ -84,6 +119,7 @@ export class ScriptedWorker {
             profiles: [{ id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CLAUDE, Provider.CODEX], available: true }],
           },
         });
+        this.link.send({ case: "modelCatalog", value: { configVersion: payload.value.version, profiles: this.models } });
       }
       if (payload.case === "interactionResponse") this.interactionAnswers.push({ requestId: payload.value.requestId, allow: payload.value.allow });
       if (payload.case === "agentToolResult") {
@@ -108,12 +144,41 @@ export class ScriptedWorker {
           this.emit(spec.threadId, "", { case: "threadReady", value: { providerThreadId: `codex-${spec.threadId.slice(-4)}` } });
           break;
         }
+        case "listModels":
+          reply(true, { models: this.models });
+          break;
+        case "steerTurn": {
+          const { threadId, turnId, inputId, input } = kind.value;
+          if (this.steerMode === "not_running" || this.#running.get(threadId) !== turnId) {
+            reply(false, { errorCode: "STEER_NOT_RUNNING", errorMessage: "the turn is not running on this worker" });
+            break;
+          }
+          this.steered.set(inputId, input!.text);
+          reply(true);
+          if (this.steerMode === "drop") {
+            this.emit(threadId, turnId, {
+              case: "notice",
+              value: { level: NoticeLevel.WARNING, code: "steer_dropped", message: "the message did not join the turn before it ended", dataJson: JSON.stringify({ input_id: inputId }) },
+            });
+          } else {
+            this.emit(threadId, turnId, {
+              case: "itemCompleted",
+              value: { item: { itemId: `user-${inputId}`, status: ItemStatus.COMPLETED, content: { case: "userMessage", value: { text: input!.text, clientId: inputId } } } },
+            });
+          }
+          break;
+        }
         case "startTurn": {
-          const { thread, turnId, input } = kind.value;
+          const { thread, turnId, input, model, effort } = kind.value;
           const threadId = thread!.threadId;
           this.inputs.set(threadId, [...(this.inputs.get(threadId) ?? []), input!.text]);
+          this.turnSettings.set(turnId, { model, effort });
           reply(true);
           this.emit(threadId, turnId, { case: "turnStarted", value: { providerTurnRef: `ct-${turnId.slice(-4)}`, origin: TurnOrigin.COMMAND } });
+          if (this.holdTurns) {
+            this.#running.set(threadId, turnId);
+            break;
+          }
           this.emit(threadId, turnId, {
             case: "itemCompleted",
             value: { item: { itemId: `msg-${turnId}`, status: ItemStatus.COMPLETED, content: { case: "agentMessage", value: { text: `Echo: ${input!.text}`, phase: "final_answer" } } } },
@@ -151,7 +216,7 @@ export interface TestGateway {
 export async function startTestGateway(): Promise<TestGateway> {
   const pg = await startPostgres();
   const runtime: TestRuntime = ManagedRuntime.make(
-    Layer.mergeAll(GatewayStore.layer(randomBytes(32)), Ingest.layer, AgentBusStore.layer, SettingsStore.layer).pipe(Layer.provideMerge(pg.layer)),
+    Layer.mergeAll(GatewayStore.layer(randomBytes(32)), Ingest.layer, AgentBusStore.layer, SettingsStore.layer, ModelStore.layer, SteerStore.layer).pipe(Layer.provideMerge(pg.layer)),
   );
   await runtime.runPromise(migrate);
   const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));

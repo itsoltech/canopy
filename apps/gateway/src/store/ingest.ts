@@ -154,6 +154,34 @@ export class Ingest extends Context.Service<
           }
         });
 
+      /**
+       * Steered messages (turn_steers): the user_message item that carries a steer's id is where it entered its
+       * turn (delivered; an agent's call now reports that turn); a steer_dropped notice means it never did.
+       */
+      const applySteer = (threadId: string, seq: bigint, event: ThreadEvent) =>
+        Effect.gen(function* () {
+          const body = event.body;
+          let steerId: string | undefined;
+          if (body.case === "itemCompleted" && body.value.item?.content.case === "userMessage") {
+            steerId = body.value.item.content.value.clientId;
+            if (!steerId || !isUuid(steerId) || steerId === event.turnId) return;
+            yield* sql`
+              WITH s AS (
+                UPDATE turn_steers SET status = 'delivered', delivered_seq = ${seq}, updated_at = now()
+                 WHERE id = ${steerId}::uuid AND thread_id = ${threadId}::uuid AND status IN ('pending', 'accepted')
+                RETURNING agent_call_id, turn_id)
+              UPDATE agent_bus_calls c SET target_turn_id = s.turn_id FROM s WHERE c.id = s.agent_call_id AND c.target_turn_id IS NULL
+            `;
+          } else if (body.case === "notice" && body.value.code === "steer_dropped") {
+            steerId = (JSON.parse(body.value.dataJson || "{}") as { input_id?: unknown }).input_id as string | undefined;
+            if (typeof steerId !== "string" || !isUuid(steerId)) return;
+            yield* sql`
+              UPDATE turn_steers SET status = 'dropped', reason = 'the turn ended before the message could join it', updated_at = now()
+               WHERE id = ${steerId}::uuid AND thread_id = ${threadId}::uuid AND status IN ('pending', 'accepted')
+            `;
+          }
+        });
+
       const ingestThread = (workerId: string, journalId: string, threadId: string, events: readonly ThreadEvent[]) =>
         sql.withTransaction(
           Effect.gen(function* () {
@@ -181,6 +209,7 @@ export class Ingest extends Context.Service<
                         ${event.occurredAt ? new Date(Number(event.occurredAt.seconds) * 1000 + event.occurredAt.nanos / 1e6) : new Date()})
               `;
               yield* applySideEffects(threadId, seq, event);
+              yield* applySteer(threadId, seq, event);
               stored.push({ threadId, seq, event });
             }
             yield* sql`UPDATE threads SET last_seq = ${last} WHERE id = ${threadId}::uuid`;
@@ -251,4 +280,8 @@ function threadStatus(status: ThreadStatus): string | undefined {
     default:
       return undefined;
   }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

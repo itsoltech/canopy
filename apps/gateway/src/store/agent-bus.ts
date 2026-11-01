@@ -133,7 +133,16 @@ export class AgentBusStore extends Context.Service<
       args: AgentBusArgs["spawn_thread"];
       hops: number;
     }): Fx<{ thread: ThreadRow; turn: TurnRow; result: JsonValue }>;
-    send(input: { source: CallSource; caller: ThreadRow; args: AgentBusArgs["send_message"]; hops: number }): Fx<{ turn: TurnRow; result: JsonValue }>;
+    /**
+     * Queues the message as the next turn, or, with delivery = steer while the target runs a turn, stores it as a
+     * steer of that turn (turn_steers; the caller hears back when the turn it joined finishes).
+     */
+    send(input: {
+      source: CallSource;
+      caller: ThreadRow;
+      args: AgentBusArgs["send_message"];
+      hops: number;
+    }): Fx<{ turn: TurnRow; result: JsonValue; steerId?: undefined } | { turn?: undefined; steerId: string; result: JsonValue }>;
     summary(threadId: string): Fx<ThreadSummary>;
     /** Threads of the caller's tree: its children, or the whole tree (without the caller). */
     listThreads(caller: ThreadRow, scope: "children" | "tree"): Fx<ThreadSummary[]>;
@@ -379,11 +388,33 @@ export class AgentBusStore extends Context.Service<
               const notify = args.notify ?? true;
               yield* insertCall({ source, tool: "send_message", args, status: "completed", hops, notify });
               const input: TurnInput = { note: `[open-agents] Message from the thread "${caller.title}" (thread_id: ${caller.id}):`, message: args.prompt };
+              const running =
+                args.delivery === "steer"
+                  ? (yield* sql<{ id: string }>`SELECT id FROM turns WHERE thread_id = ${args.thread_id}::uuid AND status = 'running' LIMIT 1`)[0]
+                  : undefined;
+              if (running) {
+                // The call reports the turn once the message is in it (Ingest binds target_turn_id), or the turn it
+                // falls back to.
+                const steerId = Bun.randomUUIDv7();
+                yield* sql`
+                  INSERT INTO turn_steers (id, thread_id, turn_id, input, agent_call_id, hops)
+                  VALUES (${steerId}::uuid, ${args.thread_id}::uuid, ${running.id}::uuid, ${inputJson(input)}::jsonb, ${source.callId}::uuid, ${hops})`;
+                const result = {
+                  thread_id: args.thread_id,
+                  turn_id: running.id,
+                  delivery: "steer",
+                  note: "The message joins the turn that is running now. If that turn ends first, it runs as the next turn instead.",
+                };
+                yield* sql`
+                  UPDATE agent_bus_calls SET target_thread_id = ${args.thread_id}::uuid, result = ${JSON.stringify(result)}::jsonb
+                   WHERE id = ${source.callId}::uuid`;
+                return { steerId, result };
+              }
               const turn = yield* queueTurn({ threadId: args.thread_id, input, trigger: "agent_bus", callId: source.callId, hops });
               const result = {
                 thread_id: args.thread_id,
                 turn_id: turn.id,
-                ...(args.delivery === "steer" && { note: "steer is not available yet: the message was queued as the next turn" }),
+                ...(args.delivery === "steer" && { delivery: "queue", note: "No turn is running there: the message runs as the next turn." }),
               };
               yield* sql`
                 UPDATE agent_bus_calls SET target_thread_id = ${args.thread_id}::uuid, target_turn_id = ${turn.id}::uuid, result = ${JSON.stringify(result)}::jsonb

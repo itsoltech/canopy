@@ -60,7 +60,7 @@ export interface ThreadRow {
   provider_thread_id: string | null;
   fork_source_thread_id: string | null;
   fork_after_turn_id: string | null;
-  settings: { model?: string; permissionMode?: string; instructions?: string };
+  settings: { model?: string; effort?: string; permissionMode?: string; instructions?: string };
   status: string;
   status_detail: string | null;
   title: string;
@@ -79,6 +79,9 @@ export interface TurnRow {
   trigger: string;
   /** text = what the model got; note + message = the same split for the UI (platform-queued turns). */
   input: { text?: string; note?: string; message?: string };
+  /** The message's override while queued; the values sent to the worker once started ('' = default). */
+  model?: string;
+  effort?: string;
   error: string | null;
   provider_turn_ref: string | null;
   queued_at: Date;
@@ -141,7 +144,13 @@ export class GatewayStore extends Context.Service<
     listThreads(ownerUserId: string, projectId: string): Fx<ReadonlyArray<ThreadRow>>;
     threadSpec(row: ThreadRow): ThreadSpec;
     setThreadStatus(threadId: string, status: string, detail: string | null): Fx<void>;
-    enqueueTurn(input: { threadId: string; text: string; userId: string; clientRequestId: string }): Fx<TurnRow>;
+    enqueueTurn(input: { threadId: string; text: string; userId: string; clientRequestId: string; model?: string; effort?: string }): Fx<TurnRow>;
+    /** A user turn with this client request id, if any (SendMessage idempotency across queue and steer). */
+    turnByClientRequest(threadId: string, clientRequestId: string): Fx<TurnRow | undefined>;
+    /** The thread's default model and effort (unset = unchanged). */
+    updateThreadSettings(threadId: string, settings: { model?: string; effort?: string }): Fx<ThreadRow>;
+    /** Records the model and effort a turn is started with. */
+    setTurnModel(turnId: string, model: string, effort: string): Fx<void>;
     /** Oldest queued user turn of an idle, ready thread with no StartTurn in the outbox yet. */
     nextTurn(threadId: string): Fx<TurnRow | undefined>;
     runningTurn(threadId: string): Fx<TurnRow | undefined>;
@@ -398,6 +407,7 @@ export class GatewayStore extends Context.Service<
                 const cwd = parent?.cwd ?? requested ?? workspace.root_path;
                 const settings = JSON.stringify({
                   model: request.model,
+                  effort: request.effort,
                   permissionMode: PermissionMode[request.permissionMode] ?? "ASK",
                   instructions: request.instructions,
                 });
@@ -449,19 +459,33 @@ export class GatewayStore extends Context.Service<
           setThreadStatus: (threadId, status, detail) =>
             sql`UPDATE threads SET status = ${status}, status_detail = ${detail} WHERE id = ${threadId}::uuid`.pipe(Effect.asVoid),
 
-          enqueueTurn: ({ threadId, text, userId, clientRequestId }) =>
+          enqueueTurn: ({ threadId, text, userId, clientRequestId, model = "", effort = "" }) =>
             Effect.gen(function* () {
               if (!text.trim()) return yield* Effect.fail(new Invalid("message is empty"));
               const rows = yield* sql<TurnRow>`
-                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input)
+                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort)
                 SELECT ${Bun.randomUUIDv7()}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'user', ${userId}::uuid,
-                       ${clientRequestId || null}, ${JSON.stringify({ text })}::jsonb
+                       ${clientRequestId || null}, ${JSON.stringify({ text })}::jsonb, ${model}, ${effort}
                   FROM turns WHERE thread_id = ${threadId}::uuid
                 ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
                 RETURNING *`;
               if (rows[0]) return rows[0];
               return yield* one(yield* sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND client_request_id = ${clientRequestId}`, "turn");
             }),
+
+          turnByClientRequest: (threadId, clientRequestId) =>
+            clientRequestId
+              ? sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND client_request_id = ${clientRequestId}`.pipe(Effect.map((rows) => rows[0]))
+              : Effect.succeed(undefined),
+
+          updateThreadSettings: (threadId, settings) =>
+            sql`
+              UPDATE threads SET settings = settings || ${JSON.stringify(settings)}::jsonb WHERE id = ${threadId}::uuid AND archived_at IS NULL`.pipe(
+              Effect.andThen(store.thread(threadId)),
+            ),
+
+          setTurnModel: (turnId, model, effort) =>
+            sql`UPDATE turns SET model = ${model}, effort = ${effort} WHERE id = ${turnId}::uuid`.pipe(Effect.asVoid),
 
           nextTurn: (threadId) =>
             sql<TurnRow>`
@@ -650,6 +674,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     provider: row.provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
     providerProfileId: row.provider_profile_id ?? "",
     model: row.settings.model ?? "",
+    effort: row.settings.effort ?? "",
     permissionMode: PermissionMode[(row.settings.permissionMode ?? "ASK") as keyof typeof PermissionMode] ?? PermissionMode.ASK,
     workerId: row.worker_id ?? "",
     workspaceId: row.workspace_id ?? "",
@@ -692,6 +717,8 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     sourceThreadId: row.source_thread_id ?? "",
     scheduleId: row.schedule_id ?? "",
     interactionRequestId: row.interaction_request_id ?? "",
+    model: row.model ?? "",
+    effort: row.effort ?? "",
   });
 }
 
