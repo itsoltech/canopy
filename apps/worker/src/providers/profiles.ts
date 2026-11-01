@@ -2,9 +2,9 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, type ProviderProfileSchema } from "@open-agents/contracts";
 
 /**
- * Provider profiles are defined by the device owner in the worker's local config.
- * The gateway only sees ids (Hello.profiles) and picks one per thread (ThreadSpec.provider_profile_id).
- * Secrets are referenced by env var name and never leave the device.
+ * Provider profiles come from the remote worker configuration (WorkerConfig.profiles, docs/worker-config.md).
+ * Threads pick one by id (ThreadSpec.provider_profile_id). The API key arrives from the gateway and is
+ * kept in memory only: never written to disk, never put in argv or logs.
  */
 export type ProviderProfileConfig = NativeProfileConfig | CliProxyApiProfileConfig;
 
@@ -18,8 +18,8 @@ export interface CliProxyApiProfileConfig {
   readonly id: string;
   /** CLIProxyAPI root, e.g. http://127.0.0.1:8317 (Claude uses the root, Codex `<root>/v1`). */
   readonly baseUrl: string;
-  /** Env var holding a key from CLIProxyAPI `api-keys`. */
-  readonly apiKeyEnv: string;
+  /** A key from CLIProxyAPI `api-keys`. Empty = profile unavailable. */
+  readonly apiKey: string;
   /** Defaults to both providers. */
   readonly providers?: readonly ("claude" | "codex")[];
 }
@@ -52,8 +52,8 @@ export interface ProfileStatus {
   readonly problem?: string;
 }
 
-/** Validates configs and resolves secrets. Invalid configs throw; missing secrets mark the profile unavailable. */
-export function resolveProfiles(configs: readonly ProviderProfileConfig[], env: Env): ProfileStatus[] {
+/** Validates configs. Invalid configs throw; a missing key marks the profile unavailable. */
+export function resolveProfiles(configs: readonly ProviderProfileConfig[]): ProfileStatus[] {
   const all = configs.some((c) => c.id === NATIVE_PROFILE.id) ? configs : [NATIVE_PROFILE, ...configs];
   const seen = new Set<string>();
   return all.map((config) => {
@@ -72,10 +72,10 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[], env: 
       throw new ProfileError(`profile "${config.id}": baseUrl must be http(s)`);
     }
     if (baseUrl.username || baseUrl.password) {
-      throw new ProfileError(`profile "${config.id}": put credentials in apiKeyEnv, not in baseUrl`);
+      throw new ProfileError(`profile "${config.id}": put credentials in api_key, not in base_url`);
     }
-    const apiKey = env[config.apiKeyEnv];
-    if (!apiKey) return { config, problem: `env ${config.apiKeyEnv} is not set` };
+    const apiKey = config.apiKey;
+    if (!apiKey) return { config, problem: "api_key is not set" };
     return {
       config,
       resolved: {
@@ -89,8 +89,8 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[], env: 
   });
 }
 
-/** Hello.profiles entry. Contains no secrets. */
-export function toHelloProfile(status: ProfileStatus): MessageInitShape<typeof ProviderProfileSchema> {
+/** ConfigApplied.profiles entry. Contains no secrets. */
+export function toProfileReport(status: ProfileStatus): MessageInitShape<typeof ProviderProfileSchema> {
   const { config } = status;
   if (config.kind === "native") {
     return {

@@ -5,7 +5,7 @@ export {
   ProfileError,
   resolveProfiles,
   selectProfile,
-  toHelloProfile,
+  toProfileReport,
   type CliProxyApiProfileConfig,
   type Env,
   type NativeProfileConfig,

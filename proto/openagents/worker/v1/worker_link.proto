@@ -52,6 +52,7 @@ message WorkerMessage {
     InteractionRequest interaction_request = 14;
     AgentToolCall agent_tool_call = 15;
     BlobChunk blob_chunk = 16;
+    ConfigApplied config_applied = 17;
   }
 }
 
@@ -66,27 +67,31 @@ message GatewayMessage {
     InteractionResponse interaction_response = 13;
     AgentToolResult agent_tool_result = 14;
     Drain drain = 15;
+    WorkerConfig config = 16;
   }
 }
 
 // ---------- Handshake ----------
 
 message Hello {
+  // Pola 4 (allowed_roots) i 6 (profiles) były lokalną konfiguracją; konfiguracja jest teraz zdalna (WorkerConfig).
+  reserved 4, 6;
+  reserved "allowed_roots", "profiles";
+
   string worker_id = 1;
   HostInfo host = 2;
+  // Wykryte na urządzeniu CLI dostawców (zainstalowane, wersja), niezależnie od konfiguracji.
   repeated ProviderInfo providers = 3;
-  // Katalogi dozwolone w lokalnym configu workera. Gateway ich nie zmienia.
-  repeated string allowed_roots = 4;
   // Wątki ze zdarzeniami w lokalnym dzienniku, z ostatnim journal_seq.
   repeated ThreadCursor threads = 5;
-  // Profile dostawców skonfigurowane lokalnie na urządzeniu (bez sekretów).
-  repeated ProviderProfile profiles = 6;
   WorkerState state = 7;
   // Funkcje obsługiwane przez tę wersję workera. Gateway nie wysyła komend spoza listy.
   repeated string capabilities = 8;
   // Identyfikator lokalnego dziennika, nowy przy każdym utworzeniu bazy dziennika.
   // Kursory journal_seq mają sens tylko w obrębie tego samego dziennika.
   string journal_id = 9;
+  // Wersja konfiguracji z pamięci podręcznej workera. Gateway wysyła WorkerConfig, gdy jest inna.
+  uint64 config_version = 10; // 0 = brak konfiguracji w pamięci
 }
 
 enum WorkerState {
@@ -104,8 +109,7 @@ enum ProviderProfileKind {
   PROVIDER_PROFILE_KIND_CLIPROXYAPI = 2;
 }
 
-// Sposób połączenia dostawcy z modelem. Definiuje go właściciel urządzenia w configu workera.
-// Gateway zna tylko id i wybiera profil per agent. Klucze nie opuszczają urządzenia.
+// Stan profilu dostawcy po zastosowaniu konfiguracji (raport workera, bez sekretów).
 message ProviderProfile {
   string id = 1;
   ProviderProfileKind kind = 2;
@@ -134,6 +138,67 @@ message Welcome {
   // Brak kursora = dosłanie całego dziennika (duplikaty odrzuca event_id).
   repeated ThreadCursor persisted = 1;
   uint32 heartbeat_interval_seconds = 2;
+}
+
+// ---------- Konfiguracja zdalna (docs/worker-config.md) ----------
+// Cała konfiguracja workera pochodzi z gateway. Lokalnie worker zna tylko sposób połączenia z gateway.
+
+message WorkerConfig {
+  // Rośnie przy każdej zmianie. Worker potwierdza zastosowaną wersję w ConfigApplied.
+  uint64 version = 1;
+  // Katalogi, w których wolno uruchamiać wątki (ścieżki absolutne na urządzeniu).
+  repeated string allowed_roots = 2;
+  ProviderConfig claude = 3;
+  ProviderConfig codex = 4;
+  repeated ProviderProfileConfig profiles = 5;
+  NativeToolsConfig native_tools = 6;
+  WorkerLimits limits = 7;
+}
+
+message ProviderConfig {
+  bool enabled = 1;
+  // Pusty = z PATH.
+  string executable_path = 2;
+  // Wymagana wersja CLI (np. "0.164.0"); pusta = dowolna. Niezgodność wyłącza dostawcę z czytelnym powodem.
+  string required_version = 3;
+}
+
+message ProviderProfileConfig {
+  string id = 1;
+  ProviderProfileKind kind = 2;
+  repeated Provider providers = 3;
+  // CLIPROXYAPI: adres pośrednika, np. http://127.0.0.1:8317.
+  string base_url = 4;
+  // Sekret. Worker trzyma go tylko w pamięci (nigdy w pamięci podręcznej na dysku ani w logach).
+  string api_key = 5;
+}
+
+message NativeToolsConfig {
+  // Domyślne dla wątków; ThreadSpec może nadpisać per wątek.
+  bool subagents = 1;
+  bool scheduling = 2;
+}
+
+message WorkerLimits {
+  uint32 max_running_turns = 1;
+  uint32 max_background_tasks = 2;
+  uint32 drain_timeout_seconds = 3;
+  uint32 idle_unload_seconds = 4;
+}
+
+message ConfigIssue {
+  string path = 1;       // np. allowed_roots[1], profiles[cliproxy].base_url
+  string message = 2;
+  // fatal: konfiguracja odrzucona, worker zostaje przy poprzedniej.
+  bool fatal = 3;
+}
+
+message ConfigApplied {
+  uint64 version = 1;
+  bool applied = 2;
+  repeated ConfigIssue issues = 3;
+  repeated ProviderProfile profiles = 4;
+  repeated ProviderInfo providers = 5;
 }
 
 message Heartbeat {

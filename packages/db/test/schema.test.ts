@@ -155,12 +155,12 @@ async function itemsView(thread: string): Promise<string[]> {
 
 // ------------------------------------------------------------------ tests
 
-describe.skipIf(!dockerAvailable)("schema 0001 on PostgreSQL 17", () => {
+describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
   beforeAll(async () => {
     pg = await startPostgres();
     runtime = ManagedRuntime.make(pg.layer);
     const applied = await runtime.runPromise(migrate);
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init"]);
+    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config"]);
   }, 60_000);
 
   afterAll(async () => {
@@ -635,6 +635,48 @@ describe.skipIf(!dockerAvailable)("schema 0001 on PostgreSQL 17", () => {
       await query(insertTurn, [id(), thread, 1, goal, 0]);
       expect(await failure(insertTurn, [id(), thread, 2, null, 0])).toContain("turns_goal");
       expect(await failure(insertTurn, [id(), thread, 2, goal, 1])).toContain("turns_hops_by_trigger");
+    });
+  });
+
+  describe("worker configuration (0002)", () => {
+    const upsert = `INSERT INTO worker_configs (worker_id, version, config, updated_by) VALUES ($1, $2, $3::jsonb, $4)
+                    ON CONFLICT (worker_id) DO UPDATE SET version = EXCLUDED.version, config = EXCLUDED.config, updated_at = now()`;
+
+    test("every new version lands in history; a change without a higher version is refused", async () => {
+      const w = await world();
+      await query(upsert, [w.worker, 1, '{"allowedRoots":["/a"]}', w.user]);
+      await query(upsert, [w.worker, 2, '{"allowedRoots":["/a","/b"]}', w.user]);
+      expect(await failure(upsert, [w.worker, 2, '{"allowedRoots":[]}', w.user])).toContain("higher version");
+      expect(await failure(upsert, [w.worker, 1, '{"allowedRoots":["/a","/b"]}', w.user])).toContain("cannot go back");
+      const history = await query<{ version: string }>(
+        `SELECT version FROM worker_config_history WHERE worker_id = $1 ORDER BY version`,
+        [w.worker],
+      );
+      expect(history.map((h) => Number(h.version))).toEqual([1, 2]);
+    });
+
+    test("the applied report cannot be ahead of the sent version and is recorded as a whole", async () => {
+      const w = await world();
+      await query(upsert, [w.worker, 3, "{}", w.user]);
+      const apply = `UPDATE worker_configs SET applied_version = $2, applied_ok = $3, applied_at = $4 WHERE worker_id = $1`;
+      expect(await failure(apply, [w.worker, 4, true, new Date()])).toContain("worker_configs_applied_not_ahead");
+      expect(await failure(apply, [w.worker, 3, true, null])).toContain("worker_configs_applied_together");
+      await query(apply, [w.worker, 3, false, new Date()]);
+    });
+
+    test("secrets: unique name per owner (platform-wide too); a secret in use cannot be deleted", async () => {
+      const w = await world();
+      const insertSecret = `INSERT INTO secrets (id, owner_user_id, name, ciphertext, key_id, created_by) VALUES ($1, $2, $3, '\\x00', 'k1', $4)`;
+      const secret = id();
+      await query(insertSecret, [secret, w.user, "cliproxy-key", w.user]);
+      expect(await failure(insertSecret, [id(), w.user, "cliproxy-key", w.user])).toContain("secrets_owner_name");
+      await query(insertSecret, [id(), null, `platform-${secret.slice(-6)}`, w.user]);
+      expect(await failure(insertSecret, [id(), null, `platform-${secret.slice(-6)}`, w.user])).toContain("secrets_owner_name");
+      expect(await failure(insertSecret, [id(), w.user, "Bad Name!", w.user])).toContain("secrets_name_check");
+
+      await query(upsert, [w.worker, 1, `{"profiles":[{"id":"proxy","apiKey":{"secretRef":"${secret}"}}]}`, w.user]);
+      await query(`INSERT INTO worker_config_secrets (worker_id, secret_id) VALUES ($1, $2)`, [w.worker, secret]);
+      expect(await failure(`DELETE FROM secrets WHERE id = $1`, [secret])).toContain("foreign key");
     });
   });
 

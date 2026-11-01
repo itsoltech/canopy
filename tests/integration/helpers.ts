@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkerLink, type WorkerConnection, type WorkerLinkOptions } from "@open-agents/gateway/worker-link";
 import { openGatewayLink, type GatewayLinkOptions } from "@open-agents/worker/gateway-link";
-import { Provider, ProviderProfileKind } from "@open-agents/contracts";
+import { Provider } from "@open-agents/contracts";
 import { startGrpcServer, type TlsMaterial } from "@open-agents/transport";
 
 export const CREDENTIALS: Readonly<Record<string, string>> = {
@@ -66,11 +66,6 @@ export function connectWorker(baseUrl: string, overrides: Partial<GatewayLinkOpt
       workerId: "worker-1",
       host: { hostname: "test-host", os: process.platform, arch: process.arch, workerVersion: "0.0.0-test" },
       providers: [{ provider: Provider.CLAUDE, available: true }],
-      allowedRoots: ["/tmp"],
-      profiles: [
-        { id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CLAUDE, Provider.CODEX], available: true },
-        { id: "cliproxy", kind: ProviderProfileKind.CLIPROXYAPI, endpoint: "http://127.0.0.1:8317", available: false, detail: "env CLIPROXY_KEY is not set" },
-      ],
     },
     ...overrides,
   });

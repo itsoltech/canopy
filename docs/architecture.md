@@ -6,6 +6,7 @@ Powiązane dokumenty:
 
 - [protocol.md](protocol.md) — kanał gRPC gateway ↔ worker
 - [data-model.md](data-model.md) — model danych PostgreSQL i reguły dostępu
+- [worker-config.md](worker-config.md) — zdalna konfiguracja workerów (lokalnie tylko połączenie z gateway)
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
 - [transcript.md](transcript.md) — zapis wszystkich zdarzeń, itemy, oś czasu dla frontendu
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity
@@ -139,9 +140,11 @@ sequenceDiagram
     GW-->>W: worker_id + poświadczenie workera
     Note over W: zapis w lokalnym configu (uprawnienia 0600)
     W->>GW: WorkerLinkService.Connect (bidi stream)
-    W->>GW: Hello(worker_id, wersja, dostawcy, profile, dozwolone katalogi, kursory wątków)
+    W->>GW: Hello(worker_id, wersja, wykryte CLI, kursory wątków, config_version)
     GW->>DB: update workers (status = online, capabilities)
     GW-->>W: Welcome(ostatnie zapisane seq per wątek)
+    GW-->>W: WorkerConfig(katalogi, dostawcy, profile, limity)
+    W->>GW: ConfigApplied(issues, dostępność)
     loop co 15 s
         W->>GW: Heartbeat
     end
@@ -262,18 +265,18 @@ Typy protokołu app-server generuje sam Codex (`codex app-server generate-ts`); 
 
 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) to opcjonalny pośrednik zgodny z API Anthropic/OpenAI. Integracja to wyłącznie konfiguracja Claude Code i Codexa, bez zmian w protokole poza wyborem profilu.
 
-**Profil dostawcy** opisuje, jak agent SDK łączy się z modelem. Profile definiuje właściciel urządzenia w lokalnym configu workera (tak jak `allowed_roots`):
+**Profil dostawcy** opisuje, jak agent SDK łączy się z modelem. Profile są częścią zdalnej konfiguracji workera (`WorkerConfig.profiles`, [worker-config.md](worker-config.md)); kształt po stronie workera:
 
 ```ts
 type ProviderProfileConfig =
   | { kind: "native"; id: "native" }                       // logowanie CLI na urządzeniu, zawsze dostępny
   | { kind: "cliproxyapi"; id: string; baseUrl: string;     // np. http://127.0.0.1:8317
-      apiKeyEnv: string;                                    // nazwa zmiennej z kluczem z `api-keys` CLIProxyAPI
+      apiKey: string;                                       // z gateway (secrets), tylko w pamięci workera
       providers?: ("claude" | "codex")[] };
 ```
 
-- Worker ogłasza profile w `Hello.profiles` (bez kluczy). Gateway przypisuje profil wątkowi (`threads.provider_profile_id`) i wysyła go w `ThreadSpec.provider_profile_id`.
-- Klucz zostaje na urządzeniu, zgodnie z zasadą „poświadczenia LLM nie trafiają do gateway”.
+- Gateway wysyła profile w `WorkerConfig`, a worker raportuje ich dostępność w `ConfigApplied` (bez kluczy). Gateway przypisuje profil wątkowi (`threads.provider_profile_id`) i wysyła go w `ThreadSpec.provider_profile_id`.
+- Klucz jest sekretem platformy (`secrets`, szyfrowany), trafia do workera tylko w `WorkerConfig` i jest trzymany wyłącznie w pamięci.
 - Konfiguracji użytkownika urządzenia (`~/.claude/settings.json`, `~/.codex/config.toml`) worker **nie modyfikuje**. Wszystko jest ustawiane per wątek albo per proces.
 
 | | Claude Agent SDK | Codex app-server |
@@ -297,10 +300,10 @@ Do sprawdzenia na żywej instancji CLIProxyAPI: autoryzacja Codexa przez `env_ke
 
 Worker uruchamia kod na prawdziwych maszynach. To główne ryzyko projektu.
 
-- **Dozwolone katalogi definiuje właściciel urządzenia** w lokalnym configu workera. Gateway nie może ich rozszerzyć. Worker odrzuca `cwd` spoza listy (po `realpath`, odporne na symlinki i `..`).
+- **Cała konfiguracja workera jest zdalna** ([worker-config.md](worker-config.md)), lokalnie tylko połączenie z gateway. Dozwolone katalogi przychodzą z gateway; worker odrzuca `cwd` spoza listy (po `realpath`, odporne na symlinki i `..`). Granicą bezpieczeństwa na urządzeniu jest dedykowany użytkownik systemowy workera.
 - **Tryb uprawnień per agent.** Domyślnie każde narzędzie zapisujące lub wykonujące wymaga akceptacji w UI. Tryby bez pytania tylko świadomie i per agent.
 - **Poświadczenie workera** jest unieważnialne z UI. Docelowo mTLS lub krótkotrwały token odświeżany przez worker.
-- **Poświadczenia LLM na urządzeniu** nie trafiają do gateway. Dotyczy też kluczy CLIProxyAPI (gateway zna tylko id profilu).
+- **Logowania CLI na urządzeniu** (`claude login`, `codex login`) nie trafiają do gateway. Klucze pośredników (CLIProxyAPI) są zarządzane centralnie jako zaszyfrowane sekrety.
 - **Praca w tle i subagenci** mają limity (liczba, czas życia, głębokość, budżet) i są zawsze widoczni i zatrzymywalni ([execution.md](execution.md#7-limity-i-zasoby)).
 - **Prompt injection przez szynę agentów.** Odpowiedź innego agenta to niezaufane dane. Nie rozszerza uprawnień.
 - **Audyt.** Komendy, decyzje o uprawnieniach i zmiany agentów trafiają do `audit_log`.

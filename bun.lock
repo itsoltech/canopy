@@ -28,6 +28,7 @@
         "@connectrpc/connect": "2.3.0",
         "@open-agents/contracts": "workspace:*",
         "@open-agents/transport": "workspace:*",
+        "effect": "4.1.1",
       },
     },
     "packages/contracts": {

@@ -6,7 +6,7 @@ import {
   ProfileError,
   resolveProfiles,
   selectProfile,
-  toHelloProfile,
+  toProfileReport,
   type ProviderProfileConfig,
   type ResolvedProfile,
 } from "./profiles.ts";
@@ -15,39 +15,39 @@ const PROXY: ProviderProfileConfig = {
   kind: "cliproxyapi",
   id: "cliproxy",
   baseUrl: "http://127.0.0.1:8317",
-  apiKeyEnv: "CLIPROXY_KEY",
+  apiKey: "sk-proxy",
 };
-const ENV = { PATH: "/usr/bin", HOME: "/home/u", CLIPROXY_KEY: "sk-proxy" };
+const ENV = { PATH: "/usr/bin", HOME: "/home/u" };
 
-function resolved(configs: ProviderProfileConfig[], env = ENV): ResolvedProfile[] {
-  return resolveProfiles(configs, env).flatMap((s) => (s.resolved ? [s.resolved] : []));
+function resolved(configs: ProviderProfileConfig[]): ResolvedProfile[] {
+  return resolveProfiles(configs).flatMap((s) => (s.resolved ? [s.resolved] : []));
 }
 
 describe("resolveProfiles", () => {
   test("always includes the native profile", () => {
-    expect(resolveProfiles([PROXY], ENV).map((s) => s.config.id)).toEqual(["native", "cliproxy"]);
+    expect(resolveProfiles([PROXY]).map((s) => s.config.id)).toEqual(["native", "cliproxy"]);
   });
 
   test("missing key makes the profile unavailable, not fatal", () => {
-    const [, proxy] = resolveProfiles([PROXY], { PATH: "/usr/bin" });
+    const [, proxy] = resolveProfiles([{ ...PROXY, apiKey: "" }]);
     expect(proxy?.resolved).toBeUndefined();
-    expect(proxy?.problem).toBe("env CLIPROXY_KEY is not set");
+    expect(proxy?.problem).toBe("api_key is not set");
   });
 
   test("rejects invalid ids, duplicates, bad URLs and credentials in the URL", () => {
-    expect(() => resolveProfiles([{ ...PROXY, id: "Bad Id" }], ENV)).toThrow(ProfileError);
-    expect(() => resolveProfiles([PROXY, PROXY], ENV)).toThrow("duplicate");
-    expect(() => resolveProfiles([{ ...PROXY, baseUrl: "not a url" }], ENV)).toThrow("invalid baseUrl");
-    expect(() => resolveProfiles([{ ...PROXY, baseUrl: "file:///tmp" }], ENV)).toThrow("http(s)");
-    expect(() => resolveProfiles([{ ...PROXY, baseUrl: "http://u:p@host" }], ENV)).toThrow("apiKeyEnv");
+    expect(() => resolveProfiles([{ ...PROXY, id: "Bad Id" }])).toThrow(ProfileError);
+    expect(() => resolveProfiles([PROXY, PROXY])).toThrow("duplicate");
+    expect(() => resolveProfiles([{ ...PROXY, baseUrl: "not a url" }])).toThrow("invalid baseUrl");
+    expect(() => resolveProfiles([{ ...PROXY, baseUrl: "file:///tmp" }])).toThrow("http(s)");
+    expect(() => resolveProfiles([{ ...PROXY, baseUrl: "http://u:p@host" }])).toThrow("api_key");
   });
 });
 
-describe("toHelloProfile", () => {
+describe("toProfileReport", () => {
   test("advertises id, kind, endpoint origin and availability without the key", () => {
-    const [native, proxy] = resolveProfiles([{ ...PROXY, baseUrl: "http://127.0.0.1:8317/some/path" }], ENV);
-    expect(toHelloProfile(native!)).toMatchObject({ id: "native", kind: ProviderProfileKind.NATIVE, available: true });
-    const hello = toHelloProfile(proxy!);
+    const [native, proxy] = resolveProfiles([{ ...PROXY, baseUrl: "http://127.0.0.1:8317/some/path" }]);
+    expect(toProfileReport(native!)).toMatchObject({ id: "native", kind: ProviderProfileKind.NATIVE, available: true });
+    const hello = toProfileReport(proxy!);
     expect(hello).toMatchObject({
       id: "cliproxy",
       kind: ProviderProfileKind.CLIPROXYAPI,
@@ -60,7 +60,7 @@ describe("toHelloProfile", () => {
 });
 
 describe("selectProfile", () => {
-  const statuses = resolveProfiles([{ ...PROXY, providers: ["claude"] }], ENV);
+  const statuses = resolveProfiles([{ ...PROXY, providers: ["claude"] }]);
 
   test("empty id selects native", () => {
     expect(selectProfile(statuses, "", "codex").kind).toBe("native");
@@ -69,7 +69,7 @@ describe("selectProfile", () => {
   test("refuses unknown, unavailable and provider-mismatched profiles", () => {
     expect(() => selectProfile(statuses, "nope", "claude")).toThrow("unknown");
     expect(() => selectProfile(statuses, "cliproxy", "codex")).toThrow("not enabled for codex");
-    const noKey = resolveProfiles([PROXY], {});
+    const noKey = resolveProfiles([{ ...PROXY, apiKey: "" }]);
     expect(() => selectProfile(noKey, "cliproxy", "claude")).toThrow("unavailable");
   });
 });

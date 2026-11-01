@@ -108,9 +108,15 @@ Zgoda bez decyzji w ustalonym czasie oznacza odmowę. Po zerwaniu połączenia o
 - `ThreadActivity` opisuje turę w toku, zadania w tle i oczekujące interakcje.
 - Szczegóły: [execution.md](execution.md).
 
+## Konfiguracja zdalna
+
+- Po `Welcome` gateway wysyła `WorkerConfig`, jeśli `Hello.config_version` jest inna (po starcie procesu zawsze 0). Zmiany wysyła na żywo (`pushConfig`).
+- Worker waliduje na urządzeniu i odpowiada `ConfigApplied` (`applied`, `issues`, wykryci dostawcy, dostępność profili). Błąd krytyczny = worker zostaje przy poprzedniej konfiguracji.
+- Lokalnie worker ma tylko połączenie z gateway. Szczegóły: [worker-config.md](worker-config.md).
+
 ## Profile dostawców
 
-- Worker ogłasza w `Hello.profiles` profile skonfigurowane lokalnie: id, rodzaj (`NATIVE`, `CLIPROXYAPI`), dostawców, adres pośrednika i dostępność. Bez kluczy.
+- Profile są w zdalnej konfiguracji (`WorkerConfig.profiles`); worker raportuje ich dostępność w `ConfigApplied` (bez kluczy).
 - Gateway zapisuje profil per wątek i przekazuje go w `ThreadSpec.provider_profile_id`. Pusty oznacza `native`.
 - Worker odrzuca nieznany, niedostępny albo niepasujący do dostawcy profil (`CommandResult.ok = false`).
 - Szczegóły: [architecture.md](architecture.md#8-profile-dostawców-i-cliproxyapi).

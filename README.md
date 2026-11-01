@@ -7,7 +7,7 @@ Platforma do zarządzania agentami AI dla wielu użytkowników.
 - **PostgreSQL** — baza danych.
 - Komunikacja gateway ↔ worker: gRPC, strumień dwukierunkowy po HTTP/2, inicjowany przez workera.
 
-Status: szkielet monorepo, kanał gateway ↔ worker (gRPC po HTTP/2) z drain, profile dostawców (CLIProxyAPI) i schemat bazy (projekty, wątki, wątki boczne, forki) z testami. Brak UI i adapterów SDK.
+Status: szkielet monorepo, kanał gateway ↔ worker (gRPC po HTTP/2) z drain i zdalną konfiguracją workerów, profile dostawców (CLIProxyAPI), schemat bazy i model domenowy (wątki, transkrypt, szyna agentów, harmonogram, cele) z testami. Brak UI i adapterów SDK.
 
 ## Struktura
 
@@ -46,21 +46,26 @@ bun test             # testy jednostkowe i integracyjne
 bun run check        # gen:check + typecheck + test
 ```
 
-Ręczne uruchomienie (tymczasowe tokeny workerów do czasu enrollmentu i bazy):
+Ręczne uruchomienie. Worker ma lokalnie tylko połączenie z gateway; całą resztę konfiguracji dostaje z gateway ([worker-config.md](docs/worker-config.md)). Do czasu enrollmentu i podpięcia bazy gateway bierze tokeny i konfigurację ze zmiennych środowiskowych:
 
 ```bash
-OA_PORT=7443 OA_WORKER_TOKENS="t1=worker-1" bun apps/gateway/src/main.ts
-OA_GATEWAY_URL=http://127.0.0.1:7443 OA_WORKER_ID=worker-1 OA_WORKER_CREDENTIAL=t1 bun apps/worker/src/main.ts
+# gateway
+OA_PORT=7443 OA_WORKER_TOKENS="<credential>=<worker_id>" OA_ALLOWED_ROOTS="$HOME/code" \
+  bun apps/gateway/src/main.ts
+
+# worker: plik ~/.config/open-agents/worker.json (chmod 600)
+# {"gateway_url":"http://127.0.0.1:7443","worker_id":"<uuid>","credential":"<credential>"}
+bun apps/worker/src/main.ts
 ```
 
-TLS: gateway `OA_TLS_CERT` / `OA_TLS_KEY`, worker `OA_GATEWAY_CA` (dla certyfikatu spoza systemowych CA).
-
-CLIProxyAPI (opcjonalnie, worker): `OA_CLIPROXYAPI_URL=http://127.0.0.1:8317` i `OA_CLIPROXYAPI_API_KEY` (klucz z `api-keys` w configu CLIProxyAPI). Worker ogłasza wtedy profil `cliproxyapi`.
+- TLS: gateway `OA_TLS_CERT` / `OA_TLS_KEY`; worker `ca_file` w pliku lokalnym (certyfikat spoza systemowych CA).
+- CLIProxyAPI (opcjonalnie): gateway `OA_CLIPROXYAPI_URL` i `OA_CLIPROXYAPI_API_KEY` — trafia do workerów jako profil `cliproxyapi` w konfiguracji zdalnej.
 
 ## Dokumentacja
 
 - [Architektura i przepływy danych](docs/architecture.md)
 - [Protokół gateway ↔ worker](docs/protocol.md)
+- [Konfiguracja workerów (zdalna)](docs/worker-config.md)
 - [Projekty, wątki i wątki boczne](docs/threads.md)
 - [Transkrypt: zapis wszystkiego dla frontendu](docs/transcript.md)
 - [Wykonanie: tury, praca w tle, subagenci, interakcje](docs/execution.md)

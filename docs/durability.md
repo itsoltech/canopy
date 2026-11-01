@@ -26,6 +26,7 @@ Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [dat
 | Interakcje (zgody, pytania, formularze) | PostgreSQL `interaction_requests` + SQLite workera | proces dostawcy zginął → `expired` |
 | Zadania w tle i subagenci w toku | itemy w `thread_items`; procesy tylko na workerze | `interrupted` (`worker_restart`), output zapisany jako blob ([execution.md](execution.md#8-trwałość)) |
 | Cele | PostgreSQL `goals` (natywny stan dostawcy to tylko odbicie) | gateway ponownie ustawia natywny cel (`SetGoal RUN`) dla aktywnych celów |
+| Konfiguracja workera | PostgreSQL `worker_configs` (+ historia); w workerze tylko w pamięci (sekrety) | po starcie `Hello.config_version = 0`, gateway wysyła ją ponownie |
 | Harmonogramy | PostgreSQL `schedules`, odpalane przez gateway z dzierżawą | po przestoju jedna tura nadrabiająca albo pominięcie (`missed_policy`) |
 | Wywołania szyny agentów | PostgreSQL `agent_bus_calls` (wynik, powiadomienie jako outbox) + SQLite workera | ponowienie po `call_id` |
 | Tury agentów czatowych | PostgreSQL `turns` (kolejka z dzierżawą) | inna instancja przejmuje po wygaśnięciu dzierżawy |

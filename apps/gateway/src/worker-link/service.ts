@@ -2,6 +2,7 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter, type HandlerContext } from "@connectrpc/connect";
 import {
   WelcomeSchema,
+  WorkerConfigSchema,
   WorkerLinkService,
   type GatewayMessage,
   type Hello,
@@ -16,7 +17,12 @@ export interface WorkerLinkOptions {
   authenticate(credential: string): Promise<string | undefined>;
   /** Builds the Welcome for an authenticated Hello (e.g. persisted seq per thread from the DB). */
   welcome(workerId: string, hello: Hello): Promise<MessageInitShape<typeof WelcomeSchema>>;
-  /** Called after Welcome is queued. The connection is already registered. */
+  /**
+   * Remote configuration for the worker (docs/worker-config.md). Sent right after Welcome when the
+   * worker does not already hold this version. Undefined = the worker is not configured yet.
+   */
+  config?(workerId: string): Promise<MessageInitShape<typeof WorkerConfigSchema> | undefined>;
+  /** Called after Welcome (and config) are queued. The connection is already registered. */
   onConnected?(connection: WorkerConnection): void;
   helloTimeoutMs?: number;
 }
@@ -25,6 +31,8 @@ export interface WorkerLink {
   readonly routes: (router: ConnectRouter) => void;
   /** Live connections by worker id. A reconnect replaces (and closes) the previous connection. */
   readonly connections: ReadonlyMap<string, WorkerConnection>;
+  /** Pushes a changed configuration to a connected worker. False when the worker is offline (it gets it on connect). */
+  pushConfig(workerId: string, config: MessageInitShape<typeof WorkerConfigSchema>): boolean;
   /**
    * Sends Drain to every worker, then ends their streams cleanly.
    * Workers reconnect after `reconnectAfterMs` plus a per-worker random jitter,
@@ -61,6 +69,10 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
 
     const outbound = new AsyncChannel<GatewayMessage>();
     outbound.push(gatewayMessage({ case: "welcome", value: await options.welcome(workerId, hello) }));
+    const config = await options.config?.(workerId);
+    if (config && BigInt(config.version ?? 0) !== hello.configVersion) {
+      outbound.push(gatewayMessage({ case: "config", value: config }));
+    }
 
     const connection = new WorkerConnection(workerId, hello, outbound);
     connections.get(workerId)?.close();
@@ -89,6 +101,12 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
   return {
     routes: (router) => router.service(WorkerLinkService, { connect }),
     connections,
+    pushConfig: (workerId, config) => {
+      const connection = connections.get(workerId);
+      if (!connection?.isOpen) return false;
+      connection.send({ case: "config", value: config });
+      return true;
+    },
     shutdown: async ({ reason = "gateway shutting down", reconnectAfterMs = 1_000, jitterMs = 4_000 } = {}) => {
       const open = [...connections.values()];
       for (const connection of open) {

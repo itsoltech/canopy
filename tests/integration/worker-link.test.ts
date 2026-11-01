@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { InteractionKind, ItemDeltaField, ItemStatus, Provider } from "@open-agents/contracts";
+import { InteractionKind, ItemDeltaField, ItemStatus, Provider, ProviderProfileKind } from "@open-agents/contracts";
 import type { GatewayLink } from "@open-agents/worker/gateway-link";
 import { connectWorker, makeSelfSignedCert, startGateway, take, type TestCert } from "./helpers.ts";
 
@@ -44,10 +44,7 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
     expect(connection.workerId).toBe("worker-1");
     expect(connection.hello.host?.hostname).toBe("test-host");
     expect(connection.hello.providers[0]?.provider).toBe(Provider.CLAUDE);
-    expect(connection.hello.profiles.map((p) => [p.id, p.available])).toEqual([
-      ["native", true],
-      ["cliproxy", false],
-    ]);
+    expect(connection.hello.configVersion).toBe(0n);
     expect(gateway.link.connections.get("worker-1")).toBe(connection);
 
     link.close();
@@ -317,6 +314,74 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
     await connection.closed;
     const { error } = await link.closed;
     expect(error).toBeInstanceOf(ConnectError);
+  });
+});
+
+describe("remote worker configuration", () => {
+  const configV = (version: bigint) => ({
+    version,
+    allowedRoots: ["/srv/repos"],
+    claude: { enabled: true },
+    codex: { enabled: false },
+    profiles: [{ id: "proxy", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "sk-test" }],
+  });
+
+  test("sent right after Welcome; the worker reports how it was applied", async () => {
+    const gateway = await startGateway({ link: { config: async () => configV(3n) } });
+    const link = await connectWorker(gateway.server.url);
+    const connection = await gateway.nextConnection();
+
+    const [first] = await take(link.messages, 1);
+    if (first?.payload.case !== "config") throw new Error(`expected config, got ${first?.payload.case}`);
+    expect(first.payload.value.version).toBe(3n);
+    expect(first.payload.value.profiles[0]?.apiKey).toBe("sk-test");
+
+    link.send({ case: "configApplied", value: { version: 3n, applied: true, issues: [{ path: "allowed_roots[0]", message: "missing" }] } });
+    const [applied] = await take(connection.messages, 1);
+    expect(applied?.payload.case === "configApplied" && applied.payload.value).toMatchObject({ version: 3n, applied: true });
+
+    link.close();
+    await connection.closed;
+    await gateway.link.shutdown();
+    await gateway.server.close();
+  });
+
+  test("not resent when the worker already holds that version (reconnect within the same process)", async () => {
+    const gateway = await startGateway({ link: { config: async () => configV(3n) } });
+    const link = await connectWorker(gateway.server.url, {
+      hello: { workerId: "worker-1", configVersion: 3n },
+    });
+    const connection = await gateway.nextConnection();
+    // Push a heartbeat-sized marker from the gateway: if a config had been queued it would arrive first.
+    connection.send({ case: "eventAck", value: { threadId: "marker", ackSeq: 1n } });
+    const [next] = await take(link.messages, 1);
+    expect(next?.payload.case).toBe("eventAck");
+
+    link.close();
+    await connection.closed;
+    await gateway.link.shutdown();
+    await gateway.server.close();
+  });
+
+  test("pushConfig delivers changes live; offline workers get them on connect", async () => {
+    let current = configV(1n);
+    const gateway = await startGateway({ link: { config: async () => current } });
+    expect(gateway.link.pushConfig("worker-1", configV(2n))).toBe(false);
+
+    const link = await connectWorker(gateway.server.url);
+    const connection = await gateway.nextConnection();
+    const [initial] = await take(link.messages, 1);
+    expect(initial?.payload.case === "config" && initial.payload.value.version).toBe(1n);
+
+    current = configV(2n);
+    expect(gateway.link.pushConfig("worker-1", current)).toBe(true);
+    const [update] = await take(link.messages, 1);
+    expect(update?.payload.case === "config" && update.payload.value.version).toBe(2n);
+
+    link.close();
+    await connection.closed;
+    await gateway.link.shutdown();
+    await gateway.server.close();
   });
 });
 

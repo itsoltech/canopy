@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { Migrator, SqlClient } from "effect/sql";
 import init from "./0001_init.sql" with { type: "text" };
+import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -19,6 +20,7 @@ const sqlFile = (content: string) =>
 /** Ordered by the numeric prefix. Never edit an applied migration; add a new one (expand/contract). */
 export const migrations = Migrator.fromRecord({
   "0001_init": sqlFile(init),
+  "0002_worker_config": sqlFile(workerConfig),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
