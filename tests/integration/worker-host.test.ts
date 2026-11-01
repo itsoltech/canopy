@@ -1,0 +1,94 @@
+/**
+ * The worker's command handling over the real gRPC link (WorkerHost + serveLink, the code main.ts runs).
+ * No provider processes: Codex and Claude are disabled in the configuration.
+ */
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { PermissionMode, Provider } from "@open-agents/contracts";
+import type { WorkerConnection } from "@open-agents/gateway/worker-link";
+import { journalHello } from "@open-agents/worker/gateway-link";
+import { Journal } from "@open-agents/worker/journal";
+import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { ManagedRuntime } from "effect";
+import { connectWorker, startGateway } from "./helpers.ts";
+
+const dir = mkdtempSync(join(tmpdir(), "oa-host-"));
+const root = join(dir, "repos");
+mkdirSync(join(root, "project-a", ".git"), { recursive: true });
+mkdirSync(join(root, "notes"), { recursive: true });
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+let gateway: Awaited<ReturnType<typeof startGateway>>;
+let connection: WorkerConnection;
+let runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
+let host: WorkerHost;
+
+beforeAll(async () => {
+  gateway = await startGateway();
+  runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
+  host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "test" });
+  const link = await connectWorker(gateway.server.url, { hello: { workerId: "worker-1", ...(await runtime.runPromise(journalHello())) } });
+  void serveLink(link, host, runtime);
+  connection = await gateway.nextConnection();
+});
+
+afterAll(async () => {
+  await gateway.link.shutdown();
+  await gateway.server.close();
+  await host.close();
+  await runtime.dispose();
+});
+
+const thread = (cwd: string, provider = Provider.CODEX) => ({
+  threadId: Bun.randomUUIDv7(),
+  provider,
+  cwd,
+  permissionMode: PermissionMode.ASK,
+});
+
+describe("worker command handling", () => {
+  test("before any configuration: commands fail as not configured (and are not remembered)", async () => {
+    const result = await connection.sendCommand({ case: "createThread", value: { thread: thread(root) } });
+    expect(result).toMatchObject({ ok: false, errorCode: "WORKER_NOT_CONFIGURED" });
+  });
+
+  test("configuration arrives, then directories can be browsed inside the allowed roots", async () => {
+    connection.send({ case: "config", value: { version: 1n, allowedRoots: [root], claude: { enabled: false }, codex: { enabled: false } } });
+    for await (const message of connection.messages) {
+      if (message.payload.case === "configApplied") {
+        expect(message.payload.value.applied).toBe(true);
+        break;
+      }
+    }
+    const roots = await connection.sendCommand({ case: "listDirectory", value: { path: "" } });
+    expect(roots.entries.map((e) => [e.name, e.isDir])).toEqual([[root, true]]);
+    const listing = await connection.sendCommand({ case: "listDirectory", value: { path: root } });
+    expect(listing.entries.map((e) => [e.name, e.isDir, e.isGitRepo])).toEqual([
+      ["notes", true, false],
+      ["project-a", true, true],
+    ]);
+    const outside = await connection.sendCommand({ case: "listDirectory", value: { path: "/" } });
+    expect(outside).toMatchObject({ ok: false, errorCode: "CWD_NOT_ALLOWED" });
+  });
+
+  test("threads: directory outside the roots, missing directory, unsupported and disabled providers", async () => {
+    expect(await connection.sendCommand({ case: "createThread", value: { thread: thread(dir) } })).toMatchObject({ errorCode: "CWD_NOT_ALLOWED" });
+    expect(await connection.sendCommand({ case: "createThread", value: { thread: thread(join(root, "nope")) } })).toMatchObject({
+      errorCode: "CWD_NOT_FOUND",
+    });
+    expect(await connection.sendCommand({ case: "createThread", value: { thread: thread(root, Provider.CLAUDE) } })).toMatchObject({
+      errorCode: "PROVIDER_UNAVAILABLE",
+    });
+    const disabled = await connection.sendCommand({ case: "createThread", value: { thread: thread(join(root, "project-a")) } });
+    expect(disabled).toMatchObject({ ok: false, errorCode: "PROVIDER_UNAVAILABLE", errorMessage: "disabled in configuration" });
+  });
+
+  test("a redelivered command is answered from the journal, not executed again", async () => {
+    const first = await connection.sendCommand({ case: "createThread", value: { thread: thread(dir) } });
+    // Same command id again (what the gateway outbox does after a reconnect).
+    const replay = await runtime.runPromise(Journal.use((j) => j.commandResult(first.commandId)));
+    expect(replay).toMatchObject({ commandId: first.commandId, ok: false, errorCode: "CWD_NOT_ALLOWED" });
+  });
+});

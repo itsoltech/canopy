@@ -11,7 +11,11 @@ Gotowe:
 - tryby uprawnień platformy → polityka zgód i sandbox Codexa: `permissions.ts`,
 - testy na żywo: `app-server.live.test.ts`, `threads.live.test.ts`.
 
-Następne: podpięcie do workera (komendy z gateway, interakcje przez link), narzędzia szyny (`dynamicTools`), nakładka celów, `turn/steer`, praca w tle (procesy unified exec).
+- podpięcie do workera: `WorkerHost` i `serveLink` (`apps/worker/src/runtime`): komendy z gateway (`CreateThread`, `StartTurn`, `InterruptTurn`, `ListDirectory`), kontrola `cwd` względem dozwolonych katalogów, interakcje przez link (ponawiane po ponownym połączeniu), przebudowa runtime'u Codexa przy zmianie konfiguracji, ale nigdy pod turą w toku.
+
+Następne: narzędzia szyny (`dynamicTools`), nakładka celów, `turn/steer`, praca w tle (procesy unified exec).
+
+Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway konfiguruje workera przez gRPC, tworzy wątek w trybie `ASK`, startuje turę; Codex prosi o zgodę na zapis, gateway jej udziela, plik powstaje, a transkrypt wraca jako zdarzenia z dziennika.
 
 ## Runtime wątków
 

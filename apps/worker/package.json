@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     "./gateway-link": "./src/gateway-link/index.ts",
-    "./journal": "./src/journal/index.ts"
+    "./journal": "./src/journal/index.ts",
+    "./runtime": "./src/runtime/index.ts",
+    "./config": "./src/config/remote.ts"
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",

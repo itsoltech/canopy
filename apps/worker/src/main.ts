@@ -3,10 +3,12 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import { ManagedRuntime, Result } from "effect";
 import { WorkerState } from "@open-agents/contracts";
-import { applyWorkerConfig, type AppliedConfig } from "./config/remote.ts";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
-import { applyAck, journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
+import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
 import { Journal } from "./journal/index.ts";
+import { serveLink, WorkerHost } from "./runtime/index.ts";
+
+const WORKER_VERSION = "0.0.0";
 
 // Local config is only how to reach the gateway; everything else arrives as WorkerConfig.
 const configPath = defaultConfigPath(Bun.env, process.platform);
@@ -23,15 +25,12 @@ mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 // Durable outbox: every thread event goes through the journal before it is sent (docs/durability.md, 3.1).
 const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
 const { journalId } = await runtime.runPromise(journalHello());
+const host = new WorkerHost({ runtime, dataDir, clientVersion: WORKER_VERSION, log: (m) => console.info(m) });
 console.info(`worker ${local.worker_id}, gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`);
-
-/** Last applied remote configuration. In memory only: it carries secrets (profile API keys). */
-let config: AppliedConfig | undefined;
 
 const shutdown = new AbortController();
 // Graceful stop (docs/durability.md, 3.3): announce DRAINING and half-close the stream so the
-// gateway sees a clean end. Running turns will finish or be interrupted here once SDK adapters land.
-// A second signal, or the supervisor's hard deadline, aborts the stream immediately.
+// gateway sees a clean end. A second signal, or the supervisor's hard deadline, aborts immediately.
 const stopping = new AbortController();
 let currentLink: GatewayLink | undefined;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
@@ -65,10 +64,10 @@ while (!stopping.signal.aborted) {
       ...(ca && { ca }),
       hello: {
         workerId: local.worker_id,
-        host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: "0.0.0" },
+        host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: WORKER_VERSION },
         state: WorkerState.ACTIVE,
         capabilities: [],
-        configVersion: config?.version ?? 0n,
+        configVersion: host.config?.version ?? 0n,
         ...(await runtime.runPromise(journalHello())),
       },
     });
@@ -76,56 +75,12 @@ while (!stopping.signal.aborted) {
     backoffMs = 1_000;
     const resent = await runtime.runPromise(resendPending(link));
     console.info(`connected to ${local.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`);
-
     const heartbeat = setInterval(
       () => link.send({ case: "heartbeat", value: { runningTurns: 0, state: WorkerState.ACTIVE } }),
       link.welcome.heartbeatIntervalSeconds * 1_000,
     );
     try {
-      for await (const message of link.messages) {
-        switch (message.payload.case) {
-          case "config": {
-            const result = applyWorkerConfig(message.payload.value);
-            if (result.applied) config = result.config;
-            link.send({ case: "configApplied", value: result.report });
-            const problems = result.report.issues ?? [];
-            console.info(
-              `config v${message.payload.value.version} ${result.applied ? "applied" : "rejected"}` +
-                (problems.length > 0 ? ` (${problems.length} issue(s))` : ""),
-            );
-            break;
-          }
-          case "eventAck":
-            await runtime.runPromise(applyAck(message.payload.value));
-            break;
-          case "command": {
-            const command = message.payload.value;
-            // A redelivered command is answered with the stored result, never executed twice.
-            const known = await runtime.runPromise(Journal.use((journal) => journal.commandResult(command.commandId)));
-            if (known) {
-              link.send({ case: "commandResult", value: known });
-              break;
-            }
-            // Session handling (SDK adapters) is the next milestone; for now commands are rejected explicitly
-            // (not remembered: the rejection is not a final result).
-            link.send({
-              case: "commandResult",
-              value: {
-                commandId: command.commandId,
-                ok: false,
-                errorCode: config ? "UNIMPLEMENTED" : "WORKER_NOT_CONFIGURED",
-              },
-            });
-            break;
-          }
-          case "drain":
-            drainDelayMs = message.payload.value.reconnectAfterMs;
-            console.info(`gateway draining (${message.payload.value.reason}), reconnecting in ${drainDelayMs} ms`);
-            break;
-          default:
-            break;
-        }
-      }
+      ({ drainDelayMs } = await serveLink(link, host, runtime, (m) => console.info(m)));
     } finally {
       clearInterval(heartbeat);
       currentLink = undefined;
@@ -143,5 +98,6 @@ while (!stopping.signal.aborted) {
   }
 }
 
-// Closes the journal (SQLite) cleanly.
+// Stops provider runtimes, then closes the journal (SQLite) cleanly.
+await host.close();
 await runtime.dispose();
