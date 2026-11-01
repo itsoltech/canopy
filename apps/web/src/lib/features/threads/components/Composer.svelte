@@ -1,17 +1,15 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { threadModelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
-  import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
+  import { turnOverride, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
-  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import WorkerHoverCard from "#lib/features/overview/WorkerHoverCard.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import PillText from "#lib/shared/ui/PillText.svelte";
   import { interruptThread, sendMessage } from "../api.ts";
   import { permissionLabel, providerLabel } from "../labels.ts";
-  import { providerKeyOf } from "../providers.ts";
   import ComposerBox from "./ComposerBox.svelte";
 
   /**
@@ -31,23 +29,14 @@
     class: className,
   }: { thread: ui.Thread; worker: ui.Worker | undefined; running: boolean; disabled?: boolean; note?: string | undefined; class?: ClassValue } = $props();
 
-  const overview = useOverview();
-  const models = useModelCatalog();
   // The thread's provider and profile stay; only models on them are offered. `current` = the thread's default.
-  const offer = $derived(threadModelOptions(thread, { worker, catalog: models.of(thread.workerId), threads: overview.threads.values() }));
+  const offer = useThreadModels(() => ({ thread, worker }));
   // Your choice for this thread's next messages (kept per thread; navigating to another starts fresh).
   let choice = $state<{ threadId: string; option?: ModelOption | undefined; effort?: string | undefined }>({ threadId: "" });
   const mine = $derived(choice.threadId === thread.id ? choice : undefined);
   const option = $derived(mine?.option ?? offer.current);
   const effort = $derived(mine?.effort);
-  // The turn's override: a model other than the thread's, a chosen effort; without one the thread's effort,
-  // unless the model does not take it (then the model's default).
-  const override = $derived.by(() => {
-    const model = option && offer.current && option.key !== offer.current.key ? option.model : undefined;
-    const fallback = option && thread.effort && option.efforts.length > 0 && !option.efforts.some((e) => e.id === thread.effort) ? option.defaultEffort : undefined;
-    const sent = effort ?? fallback;
-    return { ...(model !== undefined && { model }), ...(sent && { effort: sent }) };
-  });
+  const override = $derived(turnOverride(option, offer.current, effort, thread.effort));
 
   let text = $state("");
   let sending = $state(false);

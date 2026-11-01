@@ -1,7 +1,9 @@
 import { getContext, setContext } from "svelte";
 import { ui } from "@open-agents/contracts";
+import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
+import { threadModelOptions, type ModelOption } from "./catalog.ts";
 
 /**
  * The model catalog of every worker (`ListModels`): per provider and profile the models it offers, as the
@@ -69,3 +71,24 @@ function without<V>(map: ReadonlyMap<string, V>, key: string): ReadonlyMap<strin
 const KEY = Symbol("model-catalog");
 export const provideModelCatalog = (state: ModelCatalogState) => setContext(KEY, state);
 export const useModelCatalog = () => getContext<ModelCatalogState>(KEY);
+
+/**
+ * A thread's model options (its provider and profile) and its default model as an option, kept current
+ * with the catalog and the thread. Call during component setup.
+ */
+export function useThreadModels(source: () => { thread: ui.Thread; worker: ui.Worker | undefined }): { readonly options: ModelOption[]; readonly current: ModelOption | undefined } {
+  const overview = useOverview();
+  const catalog = useModelCatalog();
+  const offer = $derived.by(() => {
+    const { thread, worker } = source();
+    return threadModelOptions(thread, { worker, catalog: catalog.of(thread.workerId), threads: overview.threads.values() });
+  });
+  return {
+    get options() {
+      return offer.options;
+    },
+    get current() {
+      return offer.current;
+    },
+  };
+}

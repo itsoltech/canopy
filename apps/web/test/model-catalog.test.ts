@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { ModelInfoSchema, ProfileModelsSchema, Provider, ProviderProfileSchema, ProviderInfoSchema, ui } from "@open-agents/contracts";
-import { effectiveEffort, findOption, modelOptions, threadModelOptions } from "../src/lib/features/models/catalog.ts";
+import { effectiveEffort, findOption, modelOptions, threadModelOptions, turnOverride } from "../src/lib/features/models/catalog.ts";
 
 const worker = create(ui.WorkerSchema, {
   id: "w1",
@@ -88,5 +88,22 @@ describe("effectiveEffort", () => {
     expect(effectiveEffort(option!, "high")).toBe("high");
     expect(effectiveEffort(option!, "max")).toBe("low");
     expect(effectiveEffort(option!, undefined)).toBe("low");
+  });
+});
+
+describe("turnOverride", () => {
+  const options = modelOptions({ worker, catalog, threads: [], only: { provider: "CODEX", profileId: "" } });
+  const thread = create(ui.ThreadSchema, { provider: Provider.CODEX, providerProfileId: "", model: "" });
+  const { current } = threadModelOptions(thread, { worker, catalog, threads: [] });
+  test("nothing for the thread's own model without a chosen effort", () => {
+    expect(turnOverride(current, current, undefined, "")).toEqual({});
+  });
+  test("a chosen effort; the model's default when it does not take the thread's effort", () => {
+    expect(turnOverride(current, current, "high", "")).toEqual({ effort: "high" });
+    expect(turnOverride(options[0], current, undefined, "max")).toEqual({ effort: "low" });
+  });
+  test("another model goes as the override", () => {
+    const custom = threadModelOptions(create(ui.ThreadSchema, { workerId: "w1", provider: Provider.CODEX, model: "secret" }), { worker, catalog, threads: [] }).current;
+    expect(turnOverride(custom, current, undefined, "")).toEqual({ model: "secret" });
   });
 });

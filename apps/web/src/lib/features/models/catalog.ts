@@ -235,6 +235,18 @@ export function effectiveEffort(option: ModelOption, inherited: string | undefin
   return inherited && option.efforts.some((e) => e.id === inherited) ? inherited : option.defaultEffort;
 }
 
+/**
+ * What a message sends for its turn (SendMessage): a model other than the thread's default (`current`),
+ * the chosen effort; without one the thread's effort, unless the model does not take it (then the model's
+ * default). Empty object = the thread's defaults.
+ */
+export function turnOverride(option: ModelOption | undefined, current: ModelOption | undefined, effort: string | undefined, threadEffort: string): { model?: string; effort?: string } {
+  const model = option && current && option.key !== current.key ? option.model : undefined;
+  const fallback = option && threadEffort && option.efforts.length > 0 && !option.efforts.some((e) => e.id === threadEffort) ? option.defaultEffort : undefined;
+  const sent = effort ?? fallback;
+  return { ...(model !== undefined && { model }), ...(sent && { effort: sent }) };
+}
+
 /** Text the picker's search matches against. */
 export const searchText = (option: ModelOption): string =>
   `${option.name} ${option.model} ${option.resolvedModel} ${option.description} ${option.profileName} ${providerName(option.provider)}`;

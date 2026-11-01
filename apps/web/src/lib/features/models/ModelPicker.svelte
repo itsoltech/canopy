@@ -12,6 +12,7 @@
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { modelOption, providerName, searchText, type ModelOption } from "./catalog.ts";
   import { useFavoriteModels } from "./favorites.ts";
+  import ModelRow from "./ModelRow.svelte";
   import ProviderIcon from "./ProviderIcon.svelte";
 
   /**
@@ -177,39 +178,16 @@
         class="min-h-0 flex-1"
       >
         {#snippet option(o, state)}
-          {@const shortcut = shortcutOf(o.key)}
-          {@const starred = favorites.has(o)}
-          {@const line = secondary(o)}
-          <div class="flex items-center gap-2">
-            {#if o.origin === "custom"}
-              <Icon name="plus" class="fill-zinc-500 dark:fill-zinc-400" />
-              <span class="min-w-0 flex-1 truncate">Use “{o.model}” <span class="text-zinc-500 dark:text-zinc-400">with {providerName(o.provider)} · {o.profileName}</span></span>
-            {:else}
-              <span class="grid min-w-0 flex-1">
-                <span class="truncate font-medium" title={o.model || undefined}>{o.name}</span>
-                {#if line}
-                  <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
-                    {#if !grouped}<ProviderIcon provider={o.provider} class="size-3" />{/if}
-                    <span class="truncate" title={o.description || undefined}>{line}</span>
-                  </span>
-                {/if}
-              </span>
-              {#if shortcut}<Kbd hotkey={shortcut} />{/if}
-              <IconButton
-                icon="star"
-                size="sm"
-                tabindex={-1}
-                label={starred ? `Remove ${o.name} (${o.profileName}) from favorites` : `Add ${o.name} (${o.profileName}) to favorites`}
-                aria-pressed={starred}
-                iconClass={starred ? "fill-amber-500" : ["fill-zinc-300 dark:fill-zinc-600", !state.active && "pointer-fine:invisible"]}
-                onclick={(event) => {
-                  event.stopPropagation();
-                  favorites.toggle(o);
-                }}
-              />
-              <Icon name="check" class={["fill-brand-600 dark:fill-brand-400", !state.selected && "invisible"]} />
-            {/if}
-          </div>
+          <ModelRow
+            option={o}
+            detail={secondary(o)}
+            providerMark={!grouped}
+            active={state.active}
+            selected={state.selected}
+            starred={favorites.has(o)}
+            shortcut={shortcutOf(o.key)}
+            onstar={() => favorites.toggle(o)}
+          />
         {/snippet}
         {#snippet empty(q)}
           {#if q}

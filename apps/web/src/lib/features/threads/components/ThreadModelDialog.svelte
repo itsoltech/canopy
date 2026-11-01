@@ -1,11 +1,10 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import { untrack } from "svelte";
-  import { providerName, threadModelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
-  import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
+  import { providerName, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
-  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
@@ -18,9 +17,7 @@
    */
   let { open = $bindable(false), thread, worker }: { open?: boolean; thread: ui.Thread; worker: ui.Worker | undefined } = $props();
 
-  const overview = useOverview();
-  const models = useModelCatalog();
-  const offer = $derived(threadModelOptions(thread, { worker, catalog: models.of(thread.workerId), threads: overview.threads.values() }));
+  const offer = useThreadModels(() => ({ thread, worker }));
 
   // Edits start from the thread's defaults each time the dialog opens.
   let edit = $state<{ option?: ModelOption | undefined; effort?: string | undefined }>({});
