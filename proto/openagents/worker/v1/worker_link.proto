@@ -612,6 +612,8 @@ message UserMessage {
 
 message AgentMessage {
   string text = 1;
+  // commentary (komentarz w trakcie pracy) | partial_answer | final_answer; pusty, gdy dostawca nie rozróżnia.
+  string phase = 2;
 }
 
 message Reasoning {

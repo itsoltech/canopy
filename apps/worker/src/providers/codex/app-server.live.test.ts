@@ -158,6 +158,42 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
     }
   }, 200_000);
 
+  test.skipIf(!proxyUrl || !proxyKey)("a turn with tools (file change + command), recorded for the event mapping", async () => {
+    const home = mkdtempSync(join(tmpdir(), "oa-codex-home-"));
+    const cwd = mkdtempSync(join(tmpdir(), "oa-codex-tools-"));
+    const statuses = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]);
+    const profile = statuses.find((s) => s.config.id === "live")!.resolved!;
+    const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    try {
+      const notifications = await Effect.runPromise(
+        Effect.gen(function* () {
+          const codex = yield* CodexAppServer;
+          const started = yield* codex.request("thread/start", {
+            cwd,
+            approvalPolicy: "never",
+            sandbox: "workspace-write",
+            model,
+            ...codexThreadProvider(profile),
+          });
+          return yield* runTurn(
+            started.thread.id,
+            "Create a file named hello.txt in the current directory containing exactly the text: hi\n" +
+              "Then run the shell command `cat hello.txt`. Finally reply with the single word DONE.",
+          );
+        }).pipe(Effect.provide(layerFor([profile], home))),
+      );
+      record("tools-turn", notifications);
+      const types = notifications
+        .filter((n) => n.method === "item/completed")
+        .map((n) => (n.params as { item: { type: string } }).item.type);
+      expect(types).toContain("commandExecution");
+      expect(await Bun.file(join(cwd, "hello.txt")).text()).toContain("hi");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 300_000);
+
   test("server requests seen during the tests", () => {
     // approvalPolicy "never" + read-only + a no-tool prompt: nothing should have asked.
     expect(serverRequests).toEqual([]);

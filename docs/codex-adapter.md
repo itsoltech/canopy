@@ -6,9 +6,27 @@ Gotowe:
 - typy protokołu z przypiętej wersji: `packages/codex-protocol` (Codex 0.164.0),
 - klient JSON-RPC: `apps/worker/src/providers/codex/rpc.ts`,
 - serwis procesu: `CodexAppServer` w `app-server.ts`,
+- mapowanie powiadomień na zdarzenia transkryptu: `CodexEventMapper` w `mapping.ts`,
 - testy na żywo: `app-server.live.test.ts`.
 
-Następne: mapowanie powiadomień na itemy `ThreadEvent`, komendy wątków, zgody, narzędzia szyny, nakładka celów.
+Następne: komendy wątków (create, fork, resume, turn, interrupt, steer), zgody i pytania, narzędzia szyny (`dynamicTools`), nakładka celów, praca w tle (procesy unified exec).
+
+## Mapowanie zdarzeń
+
+`CodexEventMapper` (jeden na wątek) zamienia każde powiadomienie wątku na co najmniej jedno zdarzenie `ThreadEvent` z `raw_json`. Bez mapowania zdarzenie nie ma ciała, ale nie ginie. Testy odtwarzają nagrane strumienie z fixture'ów (`fixtures/*.jsonl`, bez ścieżek lokalnych i metadanych moderacji) i przepuszczają wynik przez tę samą projekcję co gateway i UI (`reduceItem`).
+
+| Codex | Zdarzenie platformy |
+|---|---|
+| `turn/started` | `turn_started` (`provider_turn_ref`, `origin`: komenda platformy albo tura dostawcy, np. kontynuacja celu) |
+| `turn/completed` | `turn_finished` (wynik, powód błędu, ostatnie zużycie tokenów) |
+| `thread/status/changed` | `activity` (`active` → running, z flagami → waiting_input, `systemError` → failed) |
+| `item/started` / `item/completed` | `item_started` / `item_completed` z itemem: wiadomość (z `phase`: komentarz / odpowiedź końcowa), rozumowanie, komenda, zmiana plików, MCP, narzędzie dynamiczne (narzędzia szyny → `agent_bus_call`), wyszukiwanie, plan, obraz, kompaktowanie, subagent; reszta → `provider_item` |
+| `item/agentMessage/delta`, `item/reasoning/*Delta`, `item/commandExecution/outputDelta` | `item_delta` (`text`, `summary`, `output`) |
+| `turn/plan/updated` | item `plan:<turn>` z krokami (każda aktualizacja zastępuje stan) |
+| `thread/tokenUsage/updated` | `usage_updated` |
+| `error` | `notice` (`warning`, gdy Codex ponowi; inaczej `error`) |
+| `thread/goal/updated` / `cleared` | `goal_state` |
+| hooki, `readState`, metadane moderacji, diff tury, ... | zdarzenie bez ciała, tylko `raw_json` |
 
 ## Protokół (zaobserwowany na 0.164.0)
 

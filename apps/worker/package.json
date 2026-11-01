@@ -18,6 +18,7 @@
     "@connectrpc/connect": "2.3.0",
     "@open-agents/codex-protocol": "workspace:*",
     "@open-agents/contracts": "workspace:*",
+    "@open-agents/domain": "workspace:*",
     "@open-agents/transport": "workspace:*",
     "effect": "4.1.1"
   }

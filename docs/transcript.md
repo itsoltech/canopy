@@ -35,7 +35,7 @@ Worker nie wyłącza słuchania dostawcy po zakończeniu tury. Wątek z pracą w
 | Typ itemu | Zawartość |
 |---|---|
 | `user_message` | tekst, załączniki (bloby), autor: użytkownik albo agent |
-| `agent_message` | tekst |
+| `agent_message` | tekst, faza (`commentary` w trakcie pracy, `final_answer`) |
 | `reasoning` | tekst, podsumowanie |
 | `command_execution` | komenda, `cwd`, kod wyjścia, pełny output (inline albo blob), czas |
 | `file_change` | lista zmian: ścieżka, rodzaj, diff (inline albo blob) |
