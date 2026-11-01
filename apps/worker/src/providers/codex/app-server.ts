@@ -27,6 +27,7 @@ export interface CodexMethods {
   "thread/goal/set": { params: v2.ThreadGoalSetParams; result: v2.ThreadGoalSetResponse };
   "thread/goal/get": { params: v2.ThreadGoalGetParams; result: v2.ThreadGoalGetResponse };
   "thread/goal/clear": { params: v2.ThreadGoalClearParams; result: v2.ThreadGoalClearResponse };
+  "model/list": { params: v2.ModelListParams; result: v2.ModelListResponse };
 }
 
 /** Answers a server request (approval, user input, dynamic tool call). Throw RpcError to answer with an error. */

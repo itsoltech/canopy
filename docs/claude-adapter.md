@@ -17,13 +17,23 @@ Potwierdzone na żywo (`tests/integration/worker-claude.live.test.ts`, Claude pr
 |---|---|
 | wątek | sesja Claude Code |
 | `provider_thread_id` | id sesji: przy nowym wątku = id wątku platformy (`sessionId`), przy forku nowe id z `forkSession` |
-| tura | jedno `query()`: pierwsza tura z `sessionId`, kolejne z `resume` |
+| tura | jedno `query()` ze strumieniem wejścia (async iterable): pierwsza tura z `sessionId`, kolejne z `resume`; `model` i `effort` ze `StartTurn` |
+| steer | wiadomość w strumieniu wejścia tury z `priority: "next"` i `uuid = input_id` |
 | `provider_turn_ref` | uuid ostatniego wpisu tury w transkrypcie Claude (punkt forka, `upToMessageId`) |
 | przerwanie | `query.interrupt()`, po 10 s bez odpowiedzi `abort` |
 
 - **`thread_ready` bez wywołania modelu:** id sesji wybiera platforma, a fork kopiuje transkrypt (`forkSession`) bez modelu. Tak jak w Codexie wątek jest gotowy od razu.
 - **Koniec tury:** wiadomość `result`. Adapter zwalnia wątek przed zapisaniem `turn_finished`, żeby gateway mógł od razu zacząć kolejną turę, i kończy iterację (proces Claude Code się zamyka, sesja jest już zapisana).
 - **Ponownie dostarczony `StartTurn`** z tym samym `turn_id` nie zaczyna drugiej tury.
+
+## Modele, wysiłek, steer
+
+- **Lista modeli bez tury:** `query()` ze strumieniem wejścia, który nic nie daje, `supportedModels()`, potem zamknięcie (ok. 0,5 s, model nie jest wołany). `ModelInfo.value` → `id`, `resolvedModel`, `supportedEffortLevels` (bez `supportsEffort` = brak wysiłków); wiersz `default` to model domyślny. Claude nie podaje domyślnego wysiłku. Z profilem CLIProxyAPI lista obejmuje modele pośrednika (`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY`, 62 na żywo).
+- **Wysiłek:** `Options.effort` (`low | medium | high | xhigh | max`); inna wartość kończy start tury błędem. Na żywo potwierdzone przez `CLAUDE_EFFORT` w Bash.
+- **Steer:** Claude Code bierze wiadomość z `priority: "next"` między wywołaniami narzędzi. `command_lifecycle` z `command_uuid = input_id` mówi, kiedy weszła (`queued` → `started` → `completed`); przy `started` adapter zapisuje item `user_message` z `client_id = input_id`, więc oś czasu pokazuje ją tam, gdzie weszła.
+  - Wiadomość, która przy `result` nadal czeka w kolejce, Claude Code wykonuje zaraz po nim w tym samym `query()`. Adapter traktuje to jako ciąg dalszy tury: ten `result` zapisuje bez ciała i kończy turę dopiero na następnym (jeden `turn_finished`; zużycie z ostatniego wyniku). Bez dalszych zdarzeń przez 60 s pierwszy wynik kończy turę.
+  - Przerwanie, błąd albo koniec bez wejścia wiadomości: `Notice steer_dropped` (`data_json {"input_id"}`), gateway kolejkuje ją jako następną turę. Steer do tury zakończonej, przerywanej albo spoza tego procesu: `STEER_NOT_RUNNING`.
+  - Potwierdzone na żywo: steer w trakcie komendy (wchodzi po wyniku narzędzia) i w trakcie odpowiedzi bez narzędzi (dwa wyniki, jedna tura).
 
 ## Mapowanie
 
@@ -72,4 +82,4 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 
 1. **macOS:** Claude Code trzyma logowanie w pęku kluczy, nie w pliku, więc dowiązanie nie działa. Na macOS: profil CLIProxyAPI albo `claude setup-token`.
 2. **Sandbox w `FULL_AUTO`** wymaga bubblewrap (Linux) albo Seatbelt (macOS); na Windows do sprawdzenia.
-3. Wiadomości w trakcie tury (`steer`) i praca w tle (zadania Claude Code) jeszcze nie są obsługiwane.
+3. Praca w tle (zadania Claude Code) jeszcze nie jest obsługiwana.

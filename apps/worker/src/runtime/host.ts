@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { timestampNow } from "@bufbuild/protobuf/wkt";
 import {
   Provider,
   type AgentToolCall,
@@ -11,6 +12,7 @@ import {
   type ConfigAppliedSchema,
   type InteractionRequest,
   type InteractionResponse,
+  type ProfileModelsSchema,
   type ThreadEvent,
   type WorkerConfig,
 } from "@open-agents/contracts";
@@ -24,6 +26,7 @@ import { prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
+import type { SteerError } from "../providers/turn-input.ts";
 
 /**
  * Everything the worker does between the gateway link and the provider runtimes
@@ -35,13 +38,17 @@ import type { ResolvedProfile } from "../providers/profiles.ts";
  * - Events: journal first (inside the runtimes), then sent when the link is up.
  * - Interactions and agent bus tool calls: forwarded to the gateway, re-sent after reconnect until
  *   answered (the gateway answers a re-sent call from its stored result).
+ * - Model catalog: listed after every applied config (no model turn), sent as ModelCatalog and
+ *   re-sent after a reconnect; ListModels lists again on request.
  */
 
 type CommandResultInit = MessageInitShape<typeof CommandResultSchema>;
 type ConfigAppliedInit = MessageInitShape<typeof ConfigAppliedSchema>;
 type DirectoryEntryInit = MessageInitShape<typeof DirectoryEntrySchema>;
+type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 interface CommandOutput {
   readonly entries?: DirectoryEntryInit[];
+  readonly models?: ProfileModelsInit[];
 }
 
 export interface WorkerHostOptions {
@@ -79,6 +86,9 @@ export class WorkerHost {
   readonly #running = new Set<string>();
   readonly #interactions = new Map<string, { request: InteractionRequest; resolve: (r: InteractionResponse) => void }>();
   readonly #toolCalls = new Map<string, { call: AgentToolCall; resolve: (r: AgentToolResult) => void }>();
+  /** Last model catalog (ModelCatalog), re-sent after a reconnect. */
+  #catalog: { configVersion: bigint; profiles: ProfileModelsInit[] } | undefined;
+  #catalogRun = 0;
 
   constructor(options: WorkerHostOptions) {
     this.#options = options;
@@ -92,6 +102,7 @@ export class WorkerHost {
     this.#link = link;
     for (const { request } of this.#interactions.values()) this.#send({ case: "interactionRequest", value: request });
     for (const { call } of this.#toolCalls.values()) this.#send({ case: "agentToolCall", value: call });
+    if (this.#catalog) this.#send({ case: "modelCatalog", value: this.#catalog });
   }
 
   detach(link: GatewayLink): void {
@@ -103,8 +114,45 @@ export class WorkerHost {
     if (result.applied) {
       this.#config = result.config;
       await this.#reconcileRuntimes();
+      void this.#publishCatalog(message.version);
     }
     return result.report;
+  }
+
+  /** Lists every provider + profile of the current config and sends the catalog (the newest run wins). */
+  async #publishCatalog(configVersion: bigint): Promise<void> {
+    const run = ++this.#catalogRun;
+    const profiles = await this.#listModels(Provider.UNSPECIFIED, "");
+    if (run !== this.#catalogRun) return;
+    this.#catalog = { configVersion, profiles };
+    this.#send({ case: "modelCatalog", value: this.#catalog });
+    this.#log(`model catalog: ${profiles.map((p) => `${Provider[p.provider ?? 0]?.toLowerCase()}/${p.profileId} ${p.models?.length ?? 0}${p.detail ? " (incomplete)" : ""}`).join(", ")}`);
+  }
+
+  /** Models of the enabled providers' usable profiles; a failing pair reports its problem instead. */
+  async #listModels(provider: Provider, profileId: string): Promise<ProfileModelsInit[]> {
+    const config = this.#config;
+    if (!config) return [];
+    const pairs: { provider: Provider; profile: string }[] = [];
+    for (const status of config.profiles) {
+      const resolved = status.resolved;
+      if (!resolved || (profileId && resolved.id !== profileId)) continue;
+      if (this.#claude && usableBy(resolved, "claude") && (!provider || provider === Provider.CLAUDE)) pairs.push({ provider: Provider.CLAUDE, profile: resolved.id });
+      if (this.#codex && usableBy(resolved, "codex") && (!provider || provider === Provider.CODEX)) pairs.push({ provider: Provider.CODEX, profile: resolved.id });
+    }
+    return Promise.all(
+      pairs.map(async ({ provider: p, profile }): Promise<ProfileModelsInit> => {
+        try {
+          const listed: { models: ProfileModelsInit["models"]; detail?: string } =
+            p === Provider.CLAUDE
+              ? await this.#runClaude((threads) => threads.listModels(profile))
+              : await this.#runCodex(Provider.CODEX, (threads) => threads.listModels(profile));
+          return { provider: p, profileId: profile, models: listed.models ?? [], ...(listed.detail && { detail: listed.detail }), listedAt: timestampNow() };
+        } catch (error) {
+          return { provider: p, profileId: profile, models: [], detail: error instanceof Error ? error.message : String(error), listedAt: timestampNow() };
+        }
+      }),
+    );
   }
 
   handleInteractionResponse(response: InteractionResponse): void {
@@ -126,7 +174,12 @@ export class WorkerHost {
     if (known) return known;
     try {
       const output = await this.#execute(command);
-      const result: CommandResultInit = { commandId: command.commandId, ok: true, ...(output.entries && { entries: output.entries }) };
+      const result: CommandResultInit = {
+        commandId: command.commandId,
+        ok: true,
+        ...(output.entries && { entries: output.entries }),
+        ...(output.models && { models: output.models }),
+      };
       await this.#remember(result);
       return result;
     } catch (error) {
@@ -161,12 +214,31 @@ export class WorkerHost {
         return {};
       }
       case "startTurn": {
-        const { thread: spec, turnId, input } = kind.value;
+        const { thread: spec, turnId, input, model, effort } = kind.value;
         if (!spec || !input) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
-        if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.startTurn(spec, turnId, input));
-        else await this.#runCodex(spec.provider, (threads) => threads.startTurn(spec, turnId, input));
+        const settings = { model, effort };
+        if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.startTurn(spec, turnId, input, settings));
+        else await this.#runCodex(spec.provider, (threads) => threads.startTurn(spec, turnId, input, settings));
         return {};
       }
+      case "steerTurn": {
+        const { threadId, turnId, inputId, input } = kind.value;
+        if (!input || !inputId) throw new CommandError("INVALID_COMMAND", "input or input_id missing", true);
+        // Like InterruptTurn: the runtime with the running turn takes it.
+        const claude = this.#claude;
+        const steer = (effect: Effect.Effect<void, SteerError>) =>
+          effect.pipe(Effect.catchTag("SteerError", (error) => Effect.die(new CommandError(error.code, error.message, true))));
+        if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
+          await this.#runClaude((threads) => steer(threads.steer(threadId, turnId, inputId, input)));
+        } else if (this.#codex) {
+          await this.#runCodex(Provider.CODEX, (threads) => steer(threads.steer(threadId, turnId, inputId, input)));
+        } else {
+          throw new CommandError("STEER_NOT_RUNNING", "the turn is not running on this worker", true);
+        }
+        return {};
+      }
+      case "listModels":
+        return { models: await this.#listModels(kind.value.provider, kind.value.profileId) };
       case "interruptTurn": {
         const { threadId, turnId } = kind.value;
         // The command does not name the provider: the runtime with the running turn takes it.
@@ -200,6 +272,7 @@ export class WorkerHost {
     const exit = await this.#options.runtime.runPromiseExit(effect);
     if (Exit.isSuccess(exit)) return exit.value;
     const error = Cause.squash(exit.cause);
+    if (error instanceof CommandError) throw error;
     throw new CommandError("THREAD_ERROR", error instanceof Error || (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : String(error), true);
   }
 

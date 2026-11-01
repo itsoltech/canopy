@@ -17,7 +17,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       listThreads: (request) => guard(async () => create(ui.ListThreadsResponseSchema, { threads: await core.listThreads(request.projectId) })),
       getThread: (request) => guard(async () => create(ui.GetThreadResponseSchema, { thread: await core.getThread(request.threadId) })),
       createThread: (request) => guard(async () => create(ui.CreateThreadResponseSchema, { thread: await core.createThread(request) })),
-      sendMessage: (request) => guard(async () => create(ui.SendMessageResponseSchema, { turn: await core.sendMessage(request) })),
+      sendMessage: (request) => guard(async () => create(ui.SendMessageResponseSchema, await core.sendMessage(request))),
       interruptThread: (request) =>
         guard(async () => {
           await core.interrupt(request.threadId);
@@ -36,6 +36,8 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       previewSchedule: (request) => guard(async () => core.previewSchedule(request)),
       setScheduleStatus: (request) =>
         guard(async () => create(ui.SetScheduleStatusResponseSchema, { schedule: await core.setScheduleStatus(request) })),
+      listModels: (request) => guard(async () => create(ui.ListModelsResponseSchema, { workers: await core.listModels(request) })),
+      updateThread: (request) => guard(async () => create(ui.UpdateThreadResponseSchema, { thread: await core.updateThread(request) })),
     });
 }
 

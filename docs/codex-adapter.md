@@ -15,7 +15,11 @@ Gotowe:
 
 - szyna agentów: narzędzia jako `dynamicTools` przy `thread/start`, wywołania `item/tool/call` przekazywane do gateway (`AgentToolCall`) i odpowiadane wynikiem ([agent-bus.md](agent-bus.md)).
 
-Następne: nakładka celów, `turn/steer`, praca w tle (procesy unified exec).
+- modele, wysiłek i steer: `model/list` (katalog dla każdego profilu; profil CLIProxyAPI także `GET /v1/models` pośrednika, `providers/models.ts`), `turn/start` z `model` i `effort`, `turn/steer` ([protocol.md](protocol.md#modele-effort-i-steer)).
+
+Następne: nakładka celów, praca w tle (procesy unified exec).
+
+Potwierdzone na żywo (2026-11-01, `tests/integration/worker-models-steer.live.test.ts`, `gateway-models-steer.live.test.ts`, przez CLIProxyAPI): lista modeli (63 dla profilu pośrednika, 11 dla natywnego), tura `gpt-6.1-sol` z wysiłkiem `low` (Codex potwierdza w `thread/settings/updated`), steer w trakcie komendy i w trakcie odpowiedzi bez narzędzi, przez UI API i bez niego.
 
 Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway konfiguruje workera przez gRPC, tworzy wątek w trybie `ASK`, startuje turę; Codex prosi o zgodę na zapis, gateway jej udziela, plik powstaje, a transkrypt wraca jako zdarzenia z dziennika.
 
@@ -23,6 +27,9 @@ Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway k
 
 - **Tury platformy:** `turn/start` dostaje `clientUserMessageId = turn_id`. Kolejka oczekujących tur rozstrzyga wyścig: powiadomienie `turn/started` może przyjść przed odpowiedzią. Tura bez oczekującej komendy to tura dostawcy (np. kontynuacja celu) z nowym ID i `origin = PROVIDER`.
 - **Ponownie dostarczony `StartTurn`** z tym samym `turn_id` nie startuje drugiej tury.
+- **Model i wysiłek:** `turn/start` zawsze dostaje `model` i `effort`: wartości ze `StartTurn`, a bez nich domyślny model katalogu (`model/list`, `isDefault`) i jego `defaultReasoningEffort`. Nadpisanie w Codexie obowiązuje „tę i kolejne tury”, więc bez jawnych wartości tura po nadpisaniu zostałaby na poprzednim modelu.
+- **Katalog:** `model/list` zwraca wbudowany katalog, ten sam dla każdego dostawcy modeli (`model_provider` go nie zmienia). Dla profilu CLIProxyAPI worker pyta pośrednika (`GET /v1/models`): modele katalogu, których pośrednik nie obsługuje, odpadają; jego pozostałe modele dochodzą bez danych o wysiłku.
+- **Steer:** `turn/steer` z `expectedTurnId` (Codex odmawia, gdy aktywna jest inna tura albo żadna) i `clientUserMessageId = input_id`. Codex emituje item `userMessage` z `clientId`, mapowany na `UserMessage.client_id`, i kontynuuje turę z tym wejściem (wejście przyjęte w trakcie odpowiedzi też trafia do tej tury). Tura już zakończona: `STEER_NOT_RUNNING`.
 - **Wznowienie:** wątek nieznany bieżącemu procesowi jest wznawiany przez `thread/resume` z `ThreadSpec.provider_thread_id` (źródłem prawdy jest gateway).
 - **Uprawnienia:**
 

@@ -22,6 +22,8 @@ export interface BusHost {
   startThread(row: ThreadRow): Promise<void>;
   /** A turn was queued in a thread: announce it and start it when the thread is free. */
   queued(threadId: string, turn: TurnRow): Promise<void>;
+  /** A message was stored as a steer of a running turn: send it to the worker. */
+  steered(steerId: string): Promise<void>;
   interrupt(threadId: string): Promise<void>;
   answer(by: { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction>;
   broadcastThread(threadId: string): Promise<void>;
@@ -158,9 +160,10 @@ export class AgentBus {
         return result;
       }
       case "send_message": {
-        const { turn, result } = await store((s) => s.send({ source, caller, args: call.args, hops }));
-        await this.#host.queued(call.args.thread_id, turn);
-        return result;
+        const sent = await store((s) => s.send({ source, caller, args: call.args, hops }));
+        if (sent.turn) await this.#host.queued(call.args.thread_id, sent.turn);
+        else await this.#host.steered(sent.steerId);
+        return sent.result;
       }
       case "wait_threads": {
         const ids = call.args.thread_ids;
