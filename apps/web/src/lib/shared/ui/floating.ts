@@ -1,0 +1,121 @@
+/**
+ * Anchored positioning for popovers, menus, tooltips and hover cards (no dependency): place a floating
+ * element next to its anchor, flip to the other side when it does not fit, shift it along the edge to
+ * stay in the viewport. Results go into CSS variables, so the element's classes decide what to use:
+ * `--float-x`, `--float-y` (viewport px), `--float-available-height` (room on the chosen side) and
+ * `--float-anchor-width`.
+ *
+ *   const stop = autoPosition(anchor, panel, { placement: "top-start" });
+ *   // panel: class="fixed left-(--float-x) top-(--float-y) max-h-(--float-available-height)"
+ */
+
+export type Side = "top" | "bottom" | "left" | "right";
+export type Placement = Side | `${Side}-start` | `${Side}-end`;
+
+export interface PositionOptions {
+  readonly placement?: Placement;
+  /** Gap between anchor and element, px. */
+  readonly offset?: number;
+  /** Minimum distance from the viewport edge, px. */
+  readonly padding?: number;
+}
+
+export interface Position {
+  readonly x: number;
+  readonly y: number;
+  /** Side actually used (after flipping). */
+  readonly side: Side;
+  readonly availableHeight: number;
+}
+
+const opposite: Record<Side, Side> = { top: "bottom", bottom: "top", left: "right", right: "left" };
+
+function split(placement: Placement): [Side, "start" | "center" | "end"] {
+  const [side, align] = placement.split("-") as [Side, "start" | "end" | undefined];
+  return [side, align ?? "center"];
+}
+
+/** Pure placement maths: anchor rectangle, floating size and viewport size in, coordinates out. */
+export function computePosition(
+  anchor: Pick<DOMRect, "top" | "bottom" | "left" | "right" | "width" | "height">,
+  size: { readonly width: number; readonly height: number },
+  viewport: { readonly width: number; readonly height: number },
+  { placement = "bottom-start", offset = 6, padding = 8 }: PositionOptions = {},
+): Position {
+  const [preferred, align] = split(placement);
+  const room: Record<Side, number> = {
+    top: anchor.top - offset - padding,
+    bottom: viewport.height - anchor.bottom - offset - padding,
+    left: anchor.left - offset - padding,
+    right: viewport.width - anchor.right - offset - padding,
+  };
+  const vertical = preferred === "top" || preferred === "bottom";
+  const needed = vertical ? size.height : size.width;
+  // Flip when the preferred side is too small and the other side has more room.
+  const side = room[preferred] < needed && room[opposite[preferred]] > room[preferred] ? opposite[preferred] : preferred;
+
+  let x: number;
+  let y: number;
+  if (vertical) {
+    y = side === "bottom" ? anchor.bottom + offset : anchor.top - offset - Math.min(size.height, room.top);
+    x = align === "start" ? anchor.left : align === "end" ? anchor.right - size.width : anchor.left + (anchor.width - size.width) / 2;
+    x = clamp(x, padding, viewport.width - size.width - padding);
+  } else {
+    x = side === "right" ? anchor.right + offset : anchor.left - offset - size.width;
+    y = align === "start" ? anchor.top : align === "end" ? anchor.bottom - size.height : anchor.top + (anchor.height - size.height) / 2;
+    y = clamp(y, padding, viewport.height - size.height - padding);
+  }
+  const availableHeight = vertical ? Math.max(room[side], 0) : viewport.height - 2 * padding;
+  return { x: Math.round(x), y: Math.round(y), side, availableHeight: Math.floor(availableHeight) };
+}
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, Math.max(min, max)));
+
+/** Position `floating` once (it must be rendered, e.g. an open popover). */
+export function positionNow(anchor: Element, floating: HTMLElement, options?: PositionOptions): Position {
+  const position = computePosition(
+    anchor.getBoundingClientRect(),
+    { width: floating.offsetWidth, height: floating.offsetHeight },
+    { width: document.documentElement.clientWidth, height: window.innerHeight },
+    options,
+  );
+  floating.style.setProperty("--float-x", `${position.x}px`);
+  floating.style.setProperty("--float-y", `${position.y}px`);
+  floating.style.setProperty("--float-available-height", `${position.availableHeight}px`);
+  floating.style.setProperty("--float-anchor-width", `${anchor.getBoundingClientRect().width}px`);
+  floating.dataset.side = position.side;
+  return position;
+}
+
+/**
+ * Keep `floating` attached to `anchor` while either moves or resizes (scroll in any container, window
+ * resize, content changes). Returns the cleanup.
+ */
+export function autoPosition(anchor: Element, floating: HTMLElement, options?: PositionOptions): () => void {
+  let frame = 0;
+  const update = () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => positionNow(anchor, floating, options));
+  };
+  positionNow(anchor, floating, options);
+  const observer = new ResizeObserver(update);
+  observer.observe(anchor);
+  observer.observe(floating);
+  window.addEventListener("scroll", update, { capture: true, passive: true });
+  window.addEventListener("resize", update, { passive: true });
+  return () => {
+    cancelAnimationFrame(frame);
+    observer.disconnect();
+    window.removeEventListener("scroll", update, { capture: true });
+    window.removeEventListener("resize", update);
+  };
+}
+
+/** Elements that can take focus inside `root`, in DOM order. */
+export function focusables(root: HTMLElement): HTMLElement[] {
+  return [
+    ...root.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((el) => !el.closest("[inert]") && el.getClientRects().length > 0);
+}

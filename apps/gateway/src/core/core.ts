@@ -21,9 +21,13 @@ import {
   GatewayStore,
   GoalStore,
   Ingest,
+  ModelStore,
+  modelProblem,
   SettingsStore,
+  SteerStore,
   toUiGoal,
   toUiSchedule,
+  toUiSteer,
   toUiThread,
   toUiTurn,
   type GoalRow,
@@ -41,10 +45,11 @@ import { Scheduler } from "./scheduler.ts";
  * - scheduler: one running turn per thread; a turn starts only once the thread is ready,
  * - command results: failed thread creation / turn start become visible state, not silent drops,
  * - agent bus: tool calls from agents (side threads, messages, waits), notifications, questions to parents,
+ * - models and steering: workers' model catalogs, per-turn model and effort, messages into a running turn,
  * - UI operations and live fan-out through the hub.
  */
 
-export type CoreRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | GoalStore, unknown>;
+export type CoreRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore, unknown>;
 
 export interface GatewayCoreOptions {
   readonly runtime: CoreRuntime;
@@ -55,7 +60,8 @@ export interface GatewayCoreOptions {
   readonly commandTimeoutMs?: number;
 }
 
-const TTL = { createThread: 24 * 3600, startTurn: 24 * 3600, interruptTurn: 60, setGoal: 3600, stopTask: 300 } as const;
+// A steer waits as long as a turn would: a worker that is back too late answers "not running" and it is queued.
+const TTL = { createThread: 24 * 3600, startTurn: 24 * 3600, interruptTurn: 60, steerTurn: 24 * 3600, setGoal: 3600, stopTask: 300 } as const;
 
 /** Claude's goal condition limit (Claude Code rejects longer ones). */
 const MAX_OBJECTIVE = 4000;
@@ -89,6 +95,7 @@ export class GatewayCore {
         await this.#broadcastTurn(threadId, turn.id); // re-read: the UI gets the turn with its source
         await this.pump(threadId);
       },
+      steered: (steerId) => this.#sendSteer(steerId),
       interrupt: (threadId) => this.interrupt(threadId),
       answer: (by, request) => this.#answer(by, request),
       broadcastThread: (threadId) => this.#broadcastThread(threadId),
@@ -129,6 +136,11 @@ export class GatewayCore {
             const report = message.payload.value;
             await this.#run((s) => s.configApplied(workerId, report));
             await this.#broadcastWorkers();
+            break;
+          }
+          case "modelCatalog": {
+            const catalog = message.payload.value;
+            await this.#saveModels(workerId, catalog.configVersion, catalog.profiles);
             break;
           }
           case "interactionRequest": {
@@ -217,6 +229,12 @@ export class GatewayCore {
         if (stored.event.turnId) await this.#broadcastTurn(stored.threadId, stored.event.turnId);
       }
       if ((body.case === "itemStarted" || body.case === "itemCompleted") && body.value.item?.content.case === "backgroundTask") touched.add(stored.threadId);
+      // A steer entered its turn (user_message with its id) or never did (steer_dropped: queued by pump).
+      const steerId = steerOf(stored.event);
+      if (steerId) {
+        await this.#publishSteer(steerId);
+        touched.add(stored.threadId);
+      }
     }
     for (const threadId of goals) await this.#broadcastGoal(threadId);
     for (const threadId of touched) {
@@ -257,6 +275,7 @@ export class GatewayCore {
       return; // disconnected or timed out: stays in the outbox, redelivered on reconnect (the worker deduplicates)
     }
     await this.#run((s) => s.commandDone(command.commandId, result.ok, toJson(CommandResultSchema, result) as JsonValue));
+    if (command.kind.case === "steerTurn") return this.#steerAnswered(command.kind.value.threadId, command.kind.value.inputId, result);
     if (result.ok) return;
     const reason = result.errorMessage || result.errorCode;
     switch (command.kind.case) {
@@ -287,15 +306,26 @@ export class GatewayCore {
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */
   async pump(threadId: string): Promise<void> {
+    // Steers that never joined their turn run next (in order, before anything queued after them).
+    for (const steerId of await this.#steers((s) => s.dropped(threadId))) await this.#queueSteer(steerId, "");
     const turn = await this.#run((s) => s.nextTurn(threadId));
     if (!turn) return;
     const thread = await this.#run((s) => s.thread(threadId));
     if (!thread.worker_id) return;
     const spec = await this.#run((s) => Effect.succeed(s.threadSpec(thread)));
+    // The message's override, else the thread's default; recorded on the turn as what it ran with.
+    const model = turn.model || thread.settings.model || "";
+    const effort = turn.effort || thread.settings.effort || "";
+    if (model !== (turn.model ?? "") || effort !== (turn.effort ?? "")) await this.#run((s) => s.setTurnModel(turn.id, model, effort));
     try {
       await this.#dispatch(
         thread.worker_id,
-        { kind: { case: "startTurn", value: { thread: spec, turnId: turn.id, input: { text: turn.input.text ?? "", authorUserId: this.#options.userId } } } },
+        {
+          kind: {
+            case: "startTurn",
+            value: { thread: spec, turnId: turn.id, input: { text: turn.input.text ?? "", authorUserId: this.#options.userId }, model, effort },
+          },
+        },
         { threadId, turnId: turn.id, ttlSeconds: TTL.startTurn },
       );
     } catch (error) {
@@ -349,6 +379,7 @@ export class GatewayCore {
 
   async createThread(request: ui.CreateThreadRequest): Promise<ui.Thread> {
     await this.#checkProvider(request);
+    await this.#checkModel({ workspaceId: request.workspaceId, provider: request.provider, profileId: request.providerProfileId }, request.model, request.effort);
     const row = await this.#run((s) => s.createThread(this.#options.userId, request));
     await this.#startThread(row);
     return toUiThread(row);
@@ -397,14 +428,173 @@ export class GatewayCore {
     this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: toUiThread(row) } }));
   }
 
-  async sendMessage(request: ui.SendMessageRequest): Promise<ui.Turn> {
+  /**
+   * A message: the next turn (queue), or into the running turn (steer; without one it is queued too).
+   * Idempotent by client_request_id across both.
+   */
+  async sendMessage(request: ui.SendMessageRequest): Promise<{ turn?: ui.Turn; steer?: ui.Steer }> {
+    const { threadId, clientRequestId } = request;
+    const thread = await this.#run((s) => s.thread(threadId));
+    if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
+    const existingSteer = await this.#steers((s) => s.byClientRequest(threadId, clientRequestId));
+    if (existingSteer) return { steer: toUiSteer(existingSteer) };
+    const existingTurn = await this.#run((s) => s.turnByClientRequest(threadId, clientRequestId));
+    if (existingTurn) return { turn: toUiTurn(existingTurn) };
+    if (!request.text.trim()) throw new InvalidError("message is empty");
+    await this.#checkModel({ thread }, request.model || thread.settings.model || "", request.effort || thread.settings.effort || "");
+    if (request.delivery === ui.MessageDelivery.STEER) {
+      const running = await this.#run((s) => s.runningTurn(threadId));
+      if (running && thread.worker_id) {
+        const steer = await this.#steers((s) =>
+          s.create({
+            threadId,
+            turnId: running.id,
+            text: request.text,
+            userId: this.#options.userId,
+            clientRequestId,
+            model: request.model,
+            effort: request.effort,
+          }),
+        );
+        await this.#sendSteer(steer.id);
+        return { steer: toUiSteer(await this.#steers((s) => s.steer(steer.id))) };
+      }
+    }
     const turn = await this.#run((s) =>
-      s.enqueueTurn({ threadId: request.threadId, text: request.text, userId: this.#options.userId, clientRequestId: request.clientRequestId }),
+      s.enqueueTurn({ threadId, text: request.text, userId: this.#options.userId, clientRequestId, model: request.model, effort: request.effort }),
     );
     const update = toUiTurn(turn);
-    this.hub.publishThread(request.threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: update } }));
-    await this.pump(request.threadId);
-    return update;
+    this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: update } }));
+    await this.pump(threadId);
+    return { turn: update };
+  }
+
+  /** The thread's default model and effort for turns without an override. */
+  async updateThread(request: ui.UpdateThreadRequest): Promise<ui.Thread> {
+    const thread = await this.#run((s) => s.thread(request.threadId));
+    if (thread.owner_user_id !== this.#options.userId || thread.archived_at) throw new InvalidError("thread not found");
+    const model = request.model ?? thread.settings.model ?? "";
+    const effort = request.effort ?? thread.settings.effort ?? "";
+    await this.#checkModel({ thread }, model, effort);
+    const row = await this.#run((s) =>
+      s.updateThreadSettings(request.threadId, { ...(request.model !== undefined && { model: request.model }), ...(request.effort !== undefined && { effort: request.effort }) }),
+    );
+    await this.#broadcastThread(row.id);
+    return toUiThread(row);
+  }
+
+  // ------------------------------------------------------------------ models and steers
+
+  /** Catalogs of the user's workers; refresh asks the worker(s) again (online ones). */
+  async listModels(request: ui.ListModelsRequest): Promise<ui.WorkerModels[]> {
+    const workers = (await this.#run((s) => s.listWorkers(this.online))).filter((w) => !request.workerId || w.id === request.workerId);
+    if (request.workerId && workers.length === 0) throw new InvalidError("worker not found");
+    if (request.refresh) {
+      const online = workers.filter((w) => w.online);
+      if (request.workerId && online.length === 0) throw new UnavailableError(`worker ${request.workerId} is offline`);
+      await Promise.all(
+        online.map(async (worker) => {
+          const connection = this.link.connections.get(worker.id);
+          if (!connection?.isOpen) return;
+          const result = await connection.sendCommand({ case: "listModels", value: {} }, 90_000);
+          if (!result.ok) throw new InvalidError(result.errorMessage || result.errorCode);
+          await this.#saveModels(worker.id, worker.appliedVersion, result.models);
+        }),
+      );
+    }
+    return this.#models((s) => s.catalogs(workers.map((w) => w.id)));
+  }
+
+  async #saveModels(workerId: string, configVersion: bigint, profiles: ui.WorkerModels["profiles"]): Promise<void> {
+    const models = await this.#models((s) => s.save({ workerId, configVersion, profiles }));
+    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "models", value: models } }));
+  }
+
+  /**
+   * A model and effort must be offered by the profile's catalog when the worker has reported one (no catalog,
+   * or an incomplete one, is not judged: the worker has the final word when the turn starts).
+   */
+  async #checkModel(
+    where: { thread: ThreadRow } | { workspaceId: string; provider: Provider; profileId: string },
+    model: string,
+    effort: string,
+  ): Promise<void> {
+    let workerId: string | undefined;
+    let provider: Provider;
+    let profileId: string;
+    if ("thread" in where) {
+      workerId = where.thread.worker_id ?? undefined;
+      provider = where.thread.provider === "claude" ? Provider.CLAUDE : Provider.CODEX;
+      profileId = where.thread.provider_profile_id ?? "";
+    } else {
+      const projects = await this.#run((s) => s.listProjects(this.#options.userId));
+      workerId = projects.flatMap((p) => p.workspaces).find((w) => w.id === where.workspaceId)?.workerId;
+      provider = where.provider;
+      profileId = where.profileId;
+    }
+    const profile = profileId && profileId !== "native" ? profileId : "native";
+    const catalog = workerId ? (await this.#models((s) => s.catalogs([workerId]))).at(0) : undefined;
+    const models = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profile);
+    const problem = modelProblem(models, provider, profile, model, effort);
+    if (problem) throw new InvalidError(problem);
+  }
+
+  /** SteerTurn to the worker (outbox); the result decides between accepted and the queue. */
+  async #sendSteer(steerId: string): Promise<void> {
+    const steer = await this.#steers((s) => s.steer(steerId));
+    const thread = await this.#run((s) => s.thread(steer.thread_id));
+    await this.#publishSteer(steerId);
+    if (!thread.worker_id) return void (await this.#queueSteer(steerId, "the thread has no worker"));
+    await this.#dispatch(
+      thread.worker_id,
+      {
+        kind: {
+          case: "steerTurn",
+          value: {
+            threadId: steer.thread_id,
+            turnId: steer.turn_id,
+            inputId: steer.id,
+            input: { text: steer.input.text, authorUserId: steer.author_user_id ?? "", authorAgentId: steer.source_thread_id ?? "" },
+          },
+        },
+      },
+      { threadId: steer.thread_id, ttlSeconds: TTL.steerTurn },
+    );
+  }
+
+  async #steerAnswered(threadId: string, steerId: string, result: CommandResult): Promise<void> {
+    if (result.ok) {
+      await this.#steers((s) => s.accepted(steerId));
+      await this.#publishSteer(steerId);
+      return;
+    }
+    const reason =
+      result.errorCode === "STEER_NOT_RUNNING"
+        ? "the turn ended before the message could join it"
+        : `the provider did not take the message into the running turn: ${result.errorMessage || result.errorCode}`;
+    await this.#queueSteer(steerId, reason);
+    await this.pump(threadId);
+  }
+
+  /** The steer runs as the next turn instead (reason "" keeps the stored one, e.g. from a steer_dropped notice). */
+  async #queueSteer(steerId: string, reason: string): Promise<void> {
+    const current = await this.#steers((s) => s.steer(steerId));
+    const { steer, turn } = await this.#steers((s) => s.queue(steerId, reason || current.reason || "the turn ended before the message could join it"));
+    this.hub.publishThread(steer.thread_id, create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }));
+    if (turn) await this.#broadcastTurn(steer.thread_id, turn.id);
+  }
+
+  async #publishSteer(steerId: string): Promise<void> {
+    const steer = await this.#steers((s) => s.steer(steerId)).catch(() => undefined);
+    if (steer) this.hub.publishThread(steer.thread_id, create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }));
+  }
+
+  #models<A, E>(use: (store: ModelStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(ModelStore.use(use));
+  }
+
+  #steers<A, E>(use: (store: SteerStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(SteerStore.use(use));
   }
 
   async interrupt(threadId: string): Promise<void> {
@@ -450,6 +640,7 @@ export class GatewayCore {
             interactions: snapshot.interactions,
             notices: snapshot.notices,
             schedules: (await this.#bus((s) => s.schedulesFor({ ownerUserId: this.#options.userId, threadId, includeFinished: false }))).map(toUiSchedule),
+            steers: (await this.#steers((s) => s.ofThread(threadId))).map(toUiSteer),
             ...(await this.#goals((s) => s.latest(threadId)).then((goal) => goal && { goal: toUiGoal(goal) })),
             lastSeq: snapshot.lastSeq,
           },
@@ -486,11 +677,13 @@ export class GatewayCore {
 
   async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
     if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults);
+    if (request.modelFavorites) checkFavorites(request.modelFavorites);
     const settings = await this.#settings((s) =>
       s.updateUser({
         userId: this.#options.userId,
         ...(request.appearance && { appearance: request.appearance }),
         ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
+        ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),
         expectedVersion: request.expectedVersion,
       }),
     );
@@ -787,12 +980,41 @@ export class GatewayCore {
   }
 }
 
+/** The steer an event concerns: its user_message item (client_id) or a steer_dropped notice. */
+function steerOf(event: ThreadEvent): string | undefined {
+  const body = event.body;
+  if (body.case === "itemCompleted" && body.value.item?.content.case === "userMessage") {
+    const clientId = body.value.item.content.value.clientId;
+    return clientId && clientId !== event.turnId ? clientId : undefined;
+  }
+  if (body.case === "notice" && body.value.code === "steer_dropped") {
+    try {
+      const id = (JSON.parse(body.value.dataJson || "{}") as { input_id?: unknown }).input_id;
+      return typeof id === "string" ? id : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 /** Whether a database constraint caused the error (driver errors carry it somewhere in the cause chain). */
 function violates(error: unknown, constraint: string): boolean {
   for (let current = error, i = 0; i < 8 && current && typeof current === "object"; i++, current = (current as { cause?: unknown }).cause) {
     if ((current as { constraint?: unknown }).constraint === constraint) return true;
   }
   return false;
+}
+
+/** Favorites are a short list of known shapes: a provider, an optional profile, a model id. */
+function checkFavorites(favorites: ui.ModelFavorites): void {
+  if (favorites.models.length > 200) throw new InvalidError("at most 200 favorite models");
+  for (const f of favorites.models) {
+    if (f.provider !== Provider.CLAUDE && f.provider !== Provider.CODEX) throw new InvalidError("a favorite model needs a provider");
+    if (!f.model || f.model.length > 200 || f.profileId.length > 100) throw new InvalidError("a favorite model needs a model id (at most 200 characters)");
+  }
+  const keys = favorites.models.map((f) => `${f.provider}/${f.profileId}/${f.model}`);
+  if (new Set(keys).size !== keys.length) throw new InvalidError("duplicate favorite model");
 }
 
 function isTimeZone(zone: string): boolean {

@@ -4,7 +4,7 @@
  * journal) -> resume -> turn. Events go through the mapper into the journal.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
@@ -17,9 +17,11 @@ import {
   ThreadSpecSchema,
   TurnOutcome,
   UserInputSchema,
+  type Item,
   type ThreadEvent,
   type ThreadSpec,
 } from "@open-agents/contracts";
+import { eventItemId, reduceItem } from "@open-agents/domain";
 import { Effect, Layer } from "effect";
 import { Journal } from "../../journal/index.ts";
 import { resolveProfiles } from "../profiles.ts";
@@ -31,6 +33,7 @@ const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
 const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
 const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const recordDir = process.env["OA_LIVE_RECORD_DIR"] ?? "/tmp/oa-codex-recordings";
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
   const dataDir = mkdtempSync(join(tmpdir(), "oa-codex-threads-"));
@@ -134,5 +137,60 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
     }
     // Turn ids are the platform's, bound through clientUserMessageId / pending turns.
     expect(published.filter((e) => e.body.case === "turnStarted").map((e) => e.turnId)).toEqual(["turn-1", "turn-2", "turn-3"]);
+  }, 600_000);
+
+  // The reported gap: in code mode a command failing like a sandbox denial (ping without network) had no item.
+  test("every command is in the transcript, also one that fails at once, before and after a restart", async () => {
+    const threadId = Bun.randomUUIDv7();
+    const repo = mkdtempSync(join(tmpdir(), "oa-codex-commands-"));
+    Bun.spawnSync(["git", "init", "-q"], { cwd: repo });
+    writeFileSync(join(repo, "a.txt"), "a\n");
+    const s = (providerThreadId = "") => create(ThreadSpecSchema, { ...spec(threadId, providerThreadId), cwd: repo, permissionMode: PermissionMode.FULL_AUTO });
+    const prompt = "Run these shell commands: `ping -c 4 8.8.8.8`, `ls -lah` and `git status`. Then summarize the results briefly.";
+    try {
+      const codexThread = await Effect.runPromise(
+        Effect.gen(function* () {
+          const threads = yield* CodexThreads;
+          const id = yield* threads.create(s());
+          yield* ask(threads, s(), "cmd-1", prompt);
+          return id;
+        }).pipe(Effect.provide(worker())),
+      );
+      // A new process resumes the thread: only the rollout still has what app-server does not notify about.
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const threads = yield* CodexThreads;
+          yield* ask(threads, s(codexThread), "cmd-2", prompt);
+        }).pipe(Effect.provide(worker())),
+      );
+      const events = published.filter((e) => e.threadId === threadId);
+      // What the mapper read, for the fixture (consecutive events of one notification share raw_json).
+      const raw = events.map((e) => e.rawJson).filter((json, i, all) => json && json !== all[i - 1]);
+      mkdirSync(recordDir, { recursive: true });
+      writeFileSync(join(recordDir, "commands-turn.jsonl"), raw.join("\n") + "\n");
+
+      for (const turnId of ["cmd-1", "cmd-2"]) {
+        const items = new Map<string, Item>();
+        for (const e of events.filter((e) => e.turnId === turnId)) {
+          const id = eventItemId(e.body);
+          const next = id ? reduceItem(items.get(id), e.body) : undefined;
+          if (id && next) items.set(id, next);
+        }
+        // Each command is a command item, or part of a code-mode cell with its result (exit code included).
+        const shown = [...items.values()].map((item) =>
+          item.content.case === "commandExecution"
+            ? `${item.content.value.command} => exit ${item.content.value.exitCode} ${item.content.value.output}`
+            : item.content.case === "toolCall"
+              ? `${item.content.value.inputJson} => ${item.content.value.output}`
+              : "",
+        );
+        for (const command of ["ping -c 4 8.8.8.8", "ls -lah", "git status"]) {
+          expect(shown.some((text) => text.includes(command))).toBe(true);
+        }
+        expect(shown.some((text) => text.includes("ping") && /exit_code\\?"?:\s*2|exit 2/.test(text) && text.includes("Operation not permitted"))).toBe(true);
+      }
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   }, 600_000);
 });

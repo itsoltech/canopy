@@ -9,10 +9,15 @@
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { effectiveDefaults, modelFor } from "#lib/features/settings/thread-defaults.ts";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
-  import ComposerPill from "#lib/features/threads/components/ComposerPill.svelte";
-  import ModelPill from "#lib/features/threads/components/ModelPill.svelte";
+  import { modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { permissionModes } from "#lib/features/threads/labels.ts";
-  import { agentChoices, knownModels, profileIdValue, providerKeyOf, type ProviderKey } from "#lib/features/threads/providers.ts";
+  import { profileIdValue, providerKeyOf } from "#lib/features/threads/providers.ts";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
+  import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
+  import MenuGroup from "#lib/shared/ui/MenuGroup.svelte";
+  import PillButton from "#lib/shared/ui/PillButton.svelte";
+  import PillText from "#lib/shared/ui/PillText.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
@@ -20,9 +25,9 @@
   import type { PageProps } from "./$types";
 
   /**
-   * New thread (T3's empty state): one message box; the agent (Claude or Codex with a profile the
-   * workspace's worker offers), model, workspace and permissions as pills. They start from the chosen
-   * project's defaults over yours (Settings); what you pick here wins.
+   * New thread (T3's empty state): one message box; the model (Claude or Codex on a profile the
+   * workspace's worker offers, from the model picker), reasoning effort, workspace and permissions as
+   * pills. They start from the chosen project's defaults over yours (Settings); what you pick here wins.
    */
   let { form }: PageProps = $props();
   const overview = useOverview();
@@ -45,24 +50,27 @@
   const defaults = $derived(effectiveDefaults(settings.threadDefaults, chosen ? settings.projectDefaults(chosen.project.id) : undefined));
   const defaultProvider = $derived(providerKeyOf(defaults.provider));
 
-  // Provider + profile pairs the worker can start. Until you pick one: the defaults' pair, else the
-  // defaults' provider, else the first offered pair (also when your pick is not offered here).
-  const groups = $derived(agentChoices(worker));
-  const choices = $derived(groups.flatMap((g) => g.choices));
-  let agent = $state<string>();
-  const fromDefaults = $derived(
-    defaultProvider
-      ? ((defaults.providerProfileId && choices.find((c) => c.provider === defaultProvider && c.profileId === profileIdValue(defaults.providerProfileId))) ||
-          choices.find((c) => c.provider === defaultProvider))
-      : undefined,
-  );
-  const selected = $derived(choices.find((c) => c.value === agent) ?? fromDefaults ?? choices[0]);
-  // A model per provider: switching Claude ↔ Codex keeps what was typed for each.
-  let models = $state<Partial<Record<ProviderKey, string>>>({});
-  const modelOf = (key: ProviderKey) => models[key] ?? modelFor(defaults, Provider[key]);
-  const suggestions = $derived(selected ? knownModels(overview.threads.values(), selected.provider) : []);
+  // Model options (provider × profile × model) the worker can start. Until you pick one: the defaults'
+  // provider, profile and model, else the defaults' provider, else the first option (also when your pick
+  // is not offered on this workspace's worker).
+  const options = $derived(modelOptions({ worker, threads: overview.threads.values(), defaults }));
+  let picked = $state<ModelOption>();
+  const fromDefaults = $derived.by(() => {
+    if (!defaultProvider) return undefined;
+    const ofProvider = options.filter((o) => o.provider === defaultProvider);
+    const profile = defaults.providerProfileId ? profileIdValue(defaults.providerProfileId) : undefined;
+    const onProfile = ofProvider.filter((o) => profile === undefined || o.profileId === profile);
+    const model = modelFor(defaults, Provider[defaultProvider]);
+    return onProfile.find((o) => o.model === model) ?? onProfile[0] ?? ofProvider[0];
+  });
+  const offered = (option: ModelOption | undefined) => option && options.some((o) => o.provider === option.provider && o.profileId === option.profileId);
+  const selected = $derived(offered(picked) ? picked : (fromDefaults ?? options[0]));
+  // PENDING backend: CreateThreadRequest has no reasoning effort yet; the form already sends it.
+  let effort = $state<string>();
   let permission = $state<string>();
   const permissionMode = $derived(permission ?? (defaults.permissionMode !== PermissionMode.UNSPECIFIED ? PermissionMode[defaults.permissionMode] : "ASK"));
+
+  const permissionLabelOf = (value: string) => permissionModes.find((m) => m.value === value)?.label ?? value;
 
   let message = $state("");
   let busy = $state(false);
@@ -112,44 +120,49 @@
           <input type="hidden" name="clientRequestId" value={clientRequestId} />
           <input type="hidden" name="provider" value={selected?.provider ?? ""} />
           <input type="hidden" name="profileId" value={selected?.profileId ?? ""} />
+          <input type="hidden" name="model" value={selected?.model ?? ""} />
+          <input type="hidden" name="reasoningEffort" value={effort ?? ""} />
+          <input type="hidden" name="workspaceId" value={workspaceId} />
+          <input type="hidden" name="permissionMode" value={permissionMode} />
           {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
           <ComposerBox bind:value={message} sending={busy} disabled={!selected} autofocus label="Task for the agent">
             {#snippet controls()}
-              <span class="flex min-w-0 flex-1 items-center justify-end gap-1">
-                {#if selected}
-                  <ComposerPill name="agent" label="Agent and profile" bind:value={() => selected.value, (value) => (agent = value)} class="shrink">
-                    {#each groups as group (group.provider)}
-                      <optgroup label={group.provider === "CLAUDE" ? "Claude" : "Codex"}>
-                        {#each group.choices as choice (choice.value)}<option value={choice.value}>{choice.label}</option>{/each}
-                      </optgroup>
-                    {/each}
-                  </ComposerPill>
-                  <ModelPill bind:value={() => modelOf(selected.provider), (value) => (models[selected.provider] = value)} {suggestions} label="{selected.provider === 'CLAUDE' ? 'Claude' : 'Codex'} model" class="shrink" />
-                {:else}
-                  <span class="truncate px-2 text-sm/5 text-zinc-500 sm:text-[0.8125rem]/5 dark:text-zinc-400">No agent available</span>
-                {/if}
-              </span>
+              {#if selected}
+                <ModelControls {options} bind:option={() => selected, (option) => (picked = option)} bind:effort class="flex-1 justify-end" />
+              {:else}
+                <PillText class="flex-1 text-right">No agent available</PillText>
+              {/if}
             {/snippet}
             {#snippet meta()}
-              <span class="flex min-w-0 items-center gap-1">
-                <Icon name="computer-desktop" class="size-3.5 shrink-0" />
-                <ComposerPill name="workspaceId" label="Workspace" bind:value={workspaceId} class="-ml-1">
-                  {#each overview.projects.filter((p) => p.workspaces.length > 0) as project (project.id)}
-                    <optgroup label={project.name}>
-                      {#each project.workspaces as ws (ws.id)}
-                        {@const owner = overview.worker(ws.workerId)}
-                        <option value={ws.id}>{owner?.name ?? "Unknown worker"}{owner?.online ? "" : " (offline)"} · {ws.rootPath}</option>
-                      {/each}
-                    </optgroup>
-                  {/each}
-                </ComposerPill>
-              </span>
-              <span class="flex shrink-0 items-center gap-1">
-                <Icon name="shield-check" class="size-3.5" />
-                <ComposerPill name="permissionMode" label="Permissions" class="-ml-1" bind:value={() => permissionMode, (value) => (permission = String(value))}>
-                  {#each permissionModes as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
-                </ComposerPill>
-              </span>
+              <DropdownMenu label="Workspace" placement="bottom-start" class="max-w-[min(28rem,calc(100vw-1rem))]">
+                {#snippet trigger(props)}
+                  <PillButton {...props} class="-ml-2 pl-1.5" aria-label="Workspace: {chosen ? `${worker?.name ?? 'Unknown worker'} · ${chosen.workspace.rootPath}` : 'none'}">
+                    <Icon name="computer-desktop" class="size-3.5" />
+                    <span class="truncate">{chosen ? `${worker?.name ?? "Unknown worker"}${worker?.online ? "" : " (offline)"} · ${chosen.workspace.rootPath}` : "Choose a workspace"}</span>
+                  </PillButton>
+                {/snippet}
+                {#each overview.projects.filter((p) => p.workspaces.length > 0) as project (project.id)}
+                  <MenuGroup label={project.name}>
+                    {#each project.workspaces as ws (ws.id)}
+                      {@const owner = overview.worker(ws.workerId)}
+                      <MenuCheckItem checked={ws.id === workspaceId} description="{owner?.name ?? 'Unknown worker'}{owner?.online ? '' : ' (offline)'}" onselect={() => (workspaceId = ws.id)}>
+                        {ws.label || ws.rootPath}
+                      </MenuCheckItem>
+                    {/each}
+                  </MenuGroup>
+                {/each}
+              </DropdownMenu>
+              <DropdownMenu label="Permissions" placement="bottom-end" class="w-72">
+                {#snippet trigger(props)}
+                  <PillButton {...props} class="-mr-1.5 shrink-0 pl-1.5" aria-label="Permissions: {permissionLabelOf(permissionMode)}">
+                    <Icon name="shield-check" class="size-3.5" />
+                    {permissionLabelOf(permissionMode)}
+                  </PillButton>
+                {/snippet}
+                {#each permissionModes as option (option.value)}
+                  <MenuCheckItem checked={option.value === permissionMode} description={option.description} onselect={() => (permission = option.value)}>{option.label}</MenuCheckItem>
+                {/each}
+              </DropdownMenu>
             {/snippet}
           </ComposerBox>
           {#if worker && !selected}

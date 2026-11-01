@@ -1,5 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { ServerNotification, v2 } from "@open-agents/codex-protocol";
+import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@open-agents/codex-protocol";
 import {
   BackgroundTaskKind,
   ItemDeltaField,
@@ -17,7 +17,9 @@ import type { ThreadEventInit } from "../../journal/index.ts";
  * Codex app-server notifications -> platform transcript events (docs/transcript.md, docs/codex-adapter.md).
  *
  * One mapper per thread. Every notification of the thread yields at least one event: when there is
- * no mapping the event has no body but carries raw_json, so nothing is lost.
+ * no mapping the event has no body but carries raw_json, so nothing is lost. The exception are model output
+ * items read from the rollout (`rawResponseItem/completed`, see threads.ts): they yield events only for what
+ * no app-server item covers (code-mode cells, shell calls Codex did not report).
  *
  * Background processes (docs/execution.md): a unified exec command still running when its turn completes
  * keeps streaming output and ends later (verified live on 0.164.0). At turn end it gets a background_task item
@@ -27,6 +29,13 @@ import type { ThreadEventInit } from "../../journal/index.ts";
 
 type ItemInit = MessageInitShape<typeof ItemSchema>;
 type CodexItem = v2.ThreadItem;
+type EventOf = (codexTurnId: string | null | undefined, body: ThreadEventInit["body"]) => ThreadEventInit;
+
+/** Code-mode cell (custom tool) and its continuation (function): no app-server item exists for either. */
+const CODE_MODE_CELL = "exec";
+const CODE_MODE_WAIT = "wait";
+/** Shell tools whose calls Codex normally reports as `commandExecution` items, with the call id as item id. */
+const SHELL_TOOLS: ReadonlySet<string> = new Set(["exec_command", "shell_command", "shell"]);
 
 export interface MapperContext {
   /** Platform turn id for a starting Codex turn: the StartTurn mapping, or a fresh id for provider-started turns. */
@@ -57,6 +66,12 @@ export class CodexEventMapper {
   readonly #usage = new Map<string, v2.TokenUsageBreakdown>();
   /** In-progress command items with a process, by item id. */
   readonly #commands = new Map<string, RunningCommand>();
+  /** Code-mode cells and waits by call id: they become tool_call items (docs/codex-adapter.md, "Code mode"). */
+  readonly #calls = new Map<string, { codexTurnId: string; name: string; inputJson: string; outputs: string[] }>();
+  /** Shell calls by call id, kept until the turn ends: then those Codex reported no item for get one. */
+  readonly #shellCalls = new Map<string, { codexTurnId: string; name: string; arguments: string; output?: FunctionCallOutputBody }>();
+  /** Item ids Codex reported in the current turn. */
+  readonly #reported = new Set<string>();
 
   constructor(ctx: MapperContext) {
     this.#ctx = ctx;
@@ -108,6 +123,7 @@ export class CodexEventMapper {
         const usage = this.#usage.get(turn.id);
         this.#usage.delete(turn.id);
         return [
+          ...this.#unreportedShellCalls(event, turn.id),
           ...this.#toBackground(turn.id, rawJson),
           event(turn.id, {
             case: "turnFinished",
@@ -128,6 +144,7 @@ export class CodexEventMapper {
       case "item/completed": {
         const { item, turnId } = notification.params;
         const completed = notification.method === "item/completed";
+        this.#reported.add(item.id);
         if (item.type === "commandExecution") {
           const running = this.#commands.get(item.id);
           if (completed && running?.background) return this.#backgroundEnded(item, running, rawJson);
@@ -214,6 +231,8 @@ export class CodexEventMapper {
       }
       case "thread/goal/cleared":
         return [event(undefined, { case: "goalState", value: { cleared: true } })];
+      case "rawResponseItem/completed":
+        return this.#responseItem(event, notification.params.turnId, notification.params.item);
       default: {
         // Hooks, read state, moderation metadata, diffs, ...: kept raw for the timeline and later projections.
         const turnId = (notification.params as { turnId?: unknown } | undefined)?.turnId;
@@ -298,8 +317,62 @@ export class CodexEventMapper {
     ];
   }
 
+  /**
+   * Model output items (from the rollout, see threads.ts). Only what no app-server item covers yields events;
+   * everything else (messages, reasoning, tools with items) is already in the transcript.
+   */
+  #responseItem(event: EventOf, codexTurnId: string, item: ResponseItem): ThreadEventInit[] {
+    const call = (callId: string, name: string, inputJson: string) => {
+      const state = { codexTurnId, name, inputJson, outputs: [] };
+      this.#calls.set(callId, state);
+      return [event(codexTurnId, { case: "itemStarted", value: { item: providerToolCall(callId, state, false) } })];
+    };
+    const output = (callId: string, body: FunctionCallOutputBody) => {
+      const state = this.#calls.get(callId);
+      if (!state) return undefined;
+      // A cell can report more than once (notify(), then its result); the item carries all of it.
+      state.outputs.push(outputText(body));
+      return [event(codexTurnId, { case: "itemCompleted", value: { item: providerToolCall(callId, state, true) } })];
+    };
+    switch (item.type) {
+      case "custom_tool_call":
+        return item.name === CODE_MODE_CELL ? call(item.call_id, item.name, JSON.stringify({ code: item.input })) : [];
+      case "custom_tool_call_output":
+        return output(item.call_id, item.output) ?? [];
+      case "function_call":
+        if (item.name === CODE_MODE_WAIT) return call(item.call_id, item.name, item.arguments);
+        if (SHELL_TOOLS.has(item.name)) this.#shellCalls.set(item.call_id, { codexTurnId, name: item.name, arguments: item.arguments });
+        return [];
+      case "function_call_output": {
+        if (!item.call_id) return [];
+        const shell = this.#shellCalls.get(item.call_id);
+        if (shell) shell.output = item.output;
+        return output(item.call_id, item.output) ?? [];
+      }
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Shell calls of the turn without a Codex item. Codex 0.164.0 emits none for a command that fails with output
+   * that looks like a sandbox denial (e.g. "Operation not permitted"), even with approvals off. Decided at the
+   * turn end, because the rollout can be read before the item notification of the same call arrives.
+   */
+  #unreportedShellCalls(event: EventOf, codexTurnId: string): ThreadEventInit[] {
+    const events: ThreadEventInit[] = [];
+    for (const [callId, call] of this.#shellCalls) {
+      if (call.codexTurnId !== codexTurnId) continue;
+      this.#shellCalls.delete(callId);
+      if (!this.#reported.has(callId)) events.push(event(codexTurnId, { case: "itemCompleted", value: { item: shellCommandItem(callId, call) } }));
+    }
+    for (const [callId, call] of this.#calls) if (call.codexTurnId === codexTurnId) this.#calls.delete(callId);
+    this.#reported.clear();
+    return events;
+  }
+
   #delta(
-    event: (codexTurnId: string | null | undefined, body: ThreadEventInit["body"]) => ThreadEventInit,
+    event: EventOf,
     params: { turnId: string; itemId: string; delta: string },
     field: ItemDeltaField,
   ): ThreadEventInit {
@@ -317,7 +390,11 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
         status: lifecycle,
         content: {
           case: "userMessage",
-          value: { text: item.content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n") },
+          value: {
+            text: item.content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n"),
+            // turn/start and turn/steer send the platform's id (turn id, steer input id) as clientUserMessageId.
+            ...(item.clientId && { clientId: item.clientId }),
+          },
         },
       };
     case "agentMessage":
@@ -439,6 +516,46 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
       // hookPrompt, review mode, sleep, functionCallOutput, subAgentActivity, and future types: kept whole.
       return { ...base, status: lifecycle, content: { case: "providerItem", value: { type: item.type, json: JSON.stringify(item) } } };
   }
+}
+
+function providerToolCall(callId: string, call: { name: string; inputJson: string; outputs: string[] }, completed: boolean): ItemInit {
+  return {
+    itemId: callId,
+    status: completed ? ItemStatus.COMPLETED : ItemStatus.IN_PROGRESS,
+    content: { case: "toolCall", value: { name: call.name, inputJson: call.inputJson, output: call.outputs.join("\n") } },
+  };
+}
+
+/** A `commandExecution`-like item from the call and its output ("Process exited with code N ... Output:\n..."). */
+function shellCommandItem(callId: string, call: { name: string; arguments: string; output?: FunctionCallOutputBody }): ItemInit {
+  let args: { cmd?: unknown; command?: unknown; workdir?: unknown } = {};
+  try {
+    args = JSON.parse(call.arguments);
+  } catch {
+    // Not JSON: shown as the command below.
+  }
+  const command = typeof args.cmd === "string" ? args.cmd : Array.isArray(args.command) ? args.command.join(" ") : typeof args.command === "string" ? args.command : call.arguments;
+  const text = call.output === undefined ? "" : outputText(call.output);
+  const exit = /Process exited with code (-?\d+)/.exec(text);
+  const marker = text.indexOf("Output:\n");
+  const exitCode = exit ? Number(exit[1]) : undefined;
+  return {
+    itemId: callId,
+    status: exitCode !== undefined && exitCode !== 0 ? ItemStatus.FAILED : ItemStatus.COMPLETED,
+    content: {
+      case: "commandExecution",
+      value: {
+        command,
+        cwd: typeof args.workdir === "string" ? args.workdir : "",
+        output: marker >= 0 ? text.slice(marker + "Output:\n".length) : text,
+        ...(exitCode !== undefined && { exitCode }),
+      },
+    },
+  };
+}
+
+function outputText(body: FunctionCallOutputBody): string {
+  return typeof body === "string" ? body : body.map((part) => (part.type === "input_text" ? part.text : `[${part.type}]`)).join("\n");
 }
 
 function toolStatus(status: "inProgress" | "completed" | "failed" | "declined"): ItemStatus {

@@ -89,6 +89,11 @@ export class ClaudeEventMapper {
     this.#interrupted = false;
   }
 
+  /** The turn goes on after its result (a steered message runs next): what follows still belongs to it. */
+  continueTurn(turnId: string): void {
+    this.#turnId = turnId;
+  }
+
   get turnId(): string | undefined {
     return this.#turnId;
   }

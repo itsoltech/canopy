@@ -6,6 +6,7 @@ import {
   InteractionKind,
   InteractionRequestSchema,
   ItemStatus,
+  NoticeLevel,
   TurnOrigin,
   TurnOutcome,
   type AgentToolCall,
@@ -17,9 +18,12 @@ import {
   type ThreadSpec,
   type UserInput,
 } from "@open-agents/contracts";
+import { AsyncChannel } from "@open-agents/transport";
 import { Context, Effect, Layer, Schema } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
+import { claudeModel, isClaudeEffort, type ModelInit } from "../models.ts";
 import { claudeNativeToolOptions, type NativeToolPolicy } from "../native-tools.ts";
+import { SteerError, type TurnSettings } from "../turn-input.ts";
 import type { Env, ResolvedProfile } from "../profiles.ts";
 import { claudeBusServer, claudeBusToolNames } from "./bus.ts";
 import { BUS_SERVER, ClaudeEventMapper, startsTurn, type GoalVerdict } from "./mapping.ts";
@@ -37,6 +41,9 @@ import { claudeProfileOptions } from "./profile.ts";
  *   run (docs/execution.md): then it stays, their output is read from their output files, and when one ends
  *   Claude may start a turn by itself (a provider turn). A StartTurn meanwhile goes into the same process.
  *   Events go to the journal first, then to the gateway (publish), in order.
+ * - Steered messages go into the same input stream (priority "next": Claude Code takes them in between tool
+ *   calls). A steered message that is still queued at the result runs right after it, so the turn goes on
+ *   until it has run.
  * - Goals (docs/goals.md): `/goal …` arrives as a turn's input; the evaluator's verdicts are read from the
  *   session transcript after each turn (Claude Code does not stream them to SDK clients).
  * - Permission prompts and questions go to the platform (interact); agent bus tools to the gateway (callTool).
@@ -72,14 +79,18 @@ export class ClaudeThreads extends Context.Service<
     /** Records thread_ready with the session id (forked session for a fork). Returns the session id. */
     create(spec: ThreadSpec, fork?: ForkSpec): Effect.Effect<string, ClaudeThreadError>;
     /** Starts a turn and returns once it runs; the turn streams into the journal in the background. */
-    startTurn(spec: ThreadSpec, turnId: string, input: UserInput): Effect.Effect<void, ClaudeThreadError>;
+    startTurn(spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings): Effect.Effect<void, ClaudeThreadError>;
     interrupt(threadId: string, turnId: string): Effect.Effect<void, ClaudeThreadError>;
+    /** Adds input to the running turn (the input stream); idempotent by inputId. */
+    steer(threadId: string, turnId: string, inputId: string, input: UserInput): Effect.Effect<void, SteerError>;
     /** Whether a turn of this thread runs in this process. */
     running(threadId: string): boolean;
     /** Stops a background task (Claude stopTask). */
     stopTask(threadId: string, taskId: string): Effect.Effect<void, ClaudeThreadError>;
     /** Background tasks still running, per platform thread. */
     backgroundTasks(): ReadonlyMap<string, readonly string[]>;
+    /** Models a profile offers (Query.supportedModels() without a prompt; no model turn). */
+    listModels(profileId: string): Effect.Effect<{ models: ModelInit[] }, ClaudeThreadError>;
   }
 >()("open-agents/worker/ClaudeThreads") {
   static readonly layer = (options: ClaudeThreadsOptions) => Layer.effect(ClaudeThreads, make(options));
@@ -90,13 +101,16 @@ interface Session {
   readonly sessionId: string;
   readonly cwd: string;
   readonly query: Query;
-  readonly input: InputQueue;
+  /** The input stream: turn inputs and steered messages. */
+  readonly input: AsyncChannel<SDKUserMessage>;
   readonly mapper: ClaudeEventMapper;
   readonly abort: AbortController;
   /** Bus tool_use ids by "name args" from streamed assistant messages, for the MCP handler. */
   readonly busCalls: Map<string, string[]>;
   /** Turn in progress (the platform's or one Claude started itself). */
-  turn: { readonly turnId: string } | undefined;
+  turn: SessionTurn | undefined;
+  /** Model and effort the process runs with (a later turn may switch the model). */
+  model: string;
   /** Read position in each background task's output file. */
   readonly outputs: Map<string, { offset: number; readonly decoder: TextDecoder }>;
   /** Read position in the session transcript (goal verdicts). */
@@ -109,35 +123,20 @@ interface Session {
   done: Promise<void>;
 }
 
-/** Input stream of a Claude Code process: user messages until end(). */
-class InputQueue implements AsyncIterable<SDKUserMessage> {
-  readonly #queued: SDKUserMessage[] = [];
-  #wake: (() => void) | undefined;
-  #ended = false;
-
-  push(text: string): void {
-    this.#queued.push({ type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, session_id: "" } as SDKUserMessage);
-    this.#wake?.();
-  }
-
-  end(): void {
-    this.#ended = true;
-    this.#wake?.();
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
-    for (;;) {
-      const next = this.#queued.shift();
-      if (next) {
-        yield next;
-        continue;
-      }
-      if (this.#ended) return;
-      await new Promise<void>((resolve) => (this.#wake = resolve));
-      this.#wake = undefined;
-    }
-  }
+interface SessionTurn {
+  readonly turnId: string;
+  /** Steered inputs by input id; started once Claude Code took them into the turn (command_lifecycle). */
+  readonly steers: Map<string, { readonly text: string; readonly authorUserId: string; started: boolean }>;
+  /** The turn is finishing (result seen, or interrupted): no more steers. */
+  ended: boolean;
+  interrupting: boolean;
 }
+
+/** How long a turn waits after a result for a steered message Claude Code has not taken yet. */
+const STEER_GRACE_MS = 60_000;
+
+const userMessage = (text: string, extra: Partial<SDKUserMessage> = {}): SDKUserMessage =>
+  ({ type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, ...extra }) as SDKUserMessage;
 
 const make = (options: ClaudeThreadsOptions) =>
   Effect.gen(function* () {
@@ -160,7 +159,7 @@ const make = (options: ClaudeThreadsOptions) =>
       Effect.promise(async () => {
         shuttingDown = true;
         for (const session of sessions.values()) {
-          session.input.end();
+          session.input.close();
           session.abort.abort();
         }
         await Promise.allSettled([...sessions.values()].map((s) => s.done));
@@ -251,7 +250,7 @@ const make = (options: ClaudeThreadsOptions) =>
     const beginTurn = async (session: Session, turnId: string, origin: TurnOrigin, model: string) => {
       if (session.closeTimer) clearTimeout(session.closeTimer);
       session.closeTimer = undefined;
-      session.turn = { turnId };
+      session.turn = { turnId, steers: new Map(), ended: false, interrupting: false };
       session.mapper.beginTurn(turnId);
       await record(session.threadId, { turnId, body: { case: "turnStarted", value: { origin, ...(model && { model }) } } });
     };
@@ -263,19 +262,19 @@ const make = (options: ClaudeThreadsOptions) =>
         session.closeTimer = undefined;
         if (session.turn || session.mapper.backgroundTasks.length > 0) return;
         session.closing = true;
-        session.input.end();
+        session.input.close();
       };
       if (session.hadTasks) session.closeTimer = setTimeout(close, idleGraceMs);
       else close();
     };
 
-    const open = async (spec: ThreadSpec): Promise<Session> => {
+    const open = async (spec: ThreadSpec, model: string, effort: Options["effort"]): Promise<Session> => {
       const profile = options.profile(spec.providerProfileId);
       if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);
       const sessionId = spec.providerThreadId || spec.threadId;
       const resume = await sessionExists(sessionId, spec.cwd);
       const permissions = claudePermissions(spec.permissionMode);
-      const input = new InputQueue();
+      const input = new AsyncChannel<SDKUserMessage>();
       const abort = new AbortController();
       const busCalls = new Map<string, string[]>();
       let session: Session | undefined;
@@ -283,7 +282,8 @@ const make = (options: ClaudeThreadsOptions) =>
       const busTools = spec.enableAgentBus ? claudeBusToolNames(spec.depth) : [];
       const queryOptions: Options = {
         cwd: spec.cwd,
-        ...(spec.model && { model: spec.model }),
+        ...(model && { model }),
+        ...(effort && { effort }),
         ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: options.home }),
         ...(options.executable && { pathToClaudeCodeExecutable: options.executable }),
         ...(resume ? { resume: sessionId } : { sessionId }),
@@ -323,6 +323,7 @@ const make = (options: ClaudeThreadsOptions) =>
         abort,
         busCalls,
         turn: undefined,
+        model,
         outputs: new Map(),
         // Verdicts of earlier turns are already recorded: read only what this process adds.
         transcript: { path: transcript, offset: transcript ? fileSize(transcript) : 0, tail: "" },
@@ -332,22 +333,68 @@ const make = (options: ClaudeThreadsOptions) =>
         closeTimer: undefined,
         done: Promise.resolve(),
       };
-      session.done = consume(session, spec.model);
+      session.done = consume(session);
       sessions.set(spec.threadId, session);
       return session;
     };
 
-    /** Reads the process's messages until it ends: turns (also the ones Claude starts), background tasks, goals. */
-    const consume = async (session: Session, model: string) => {
+    /** Steered messages that never joined their turn: the gateway queues them as the next turn. */
+    const dropSteers = async (session: Session, turn: SessionTurn) => {
+      for (const [inputId, steer] of turn.steers) {
+        if (steer.started) continue;
+        turn.steers.delete(inputId);
+        await record(session.threadId, {
+          turnId: turn.turnId,
+          body: {
+            case: "notice",
+            value: { level: NoticeLevel.WARNING, code: "steer_dropped", message: "the message did not join the turn before it ended", dataJson: JSON.stringify({ input_id: inputId }) },
+          },
+        }).catch(() => {});
+      }
+    };
+
+    /** Reads the process's messages until it ends: turns (also the ones Claude starts), steers, background tasks, goals. */
+    const consume = async (session: Session) => {
       const { mapper, threadId } = session;
+      /** Ends the current turn: free the thread before the gateway hears it is over (it may start the next one). */
+      const endTurn = async () => {
+        const turn = session.turn;
+        session.turn = undefined;
+        if (!turn) return;
+        turn.ended = true;
+        await dropSteers(session, turn);
+      };
       const finishTurn = async (outcome: TurnOutcome, reason: string) => {
         const turn = session.turn;
         if (!turn) return;
-        session.turn = undefined;
+        await endTurn();
         await record(threadId, { turnId: turn.turnId, body: { case: "turnFinished", value: { outcome, providerTurnRef: mapper.lastEntry ?? "", reason } } }).catch(() => {});
       };
+      /** A result that did not end the turn (a steered message was still queued): ends it if nothing follows. */
+      let deferredResult: ThreadEventInit | undefined;
+      const messages = session.query[Symbol.asyncIterator]();
       try {
-        for await (const message of session.query) {
+        for (;;) {
+          // After a deferred result the steered message must start soon; otherwise that result ends the turn.
+          const next = deferredResult ? await Promise.race([messages.next(), Bun.sleep(STEER_GRACE_MS).then(() => undefined)]) : await messages.next();
+          if (!next && deferredResult) {
+            const result = deferredResult;
+            deferredResult = undefined;
+            await endTurn();
+            await record(threadId, result);
+            closeWhenIdle(session);
+            continue;
+          }
+          if (!next || next.done) break;
+          const message = next.value;
+          if (deferredResult && session.turn) mapper.continueTurn(session.turn.turnId);
+          deferredResult = undefined;
+          const lifecycle = message as unknown as { type: string; command_uuid?: string; state?: string };
+          const steer = lifecycle.type === "command_lifecycle" && lifecycle.state === "started" && lifecycle.command_uuid ? session.turn?.steers.get(lifecycle.command_uuid) : undefined;
+          if (steer && !steer.started && session.turn) {
+            steer.started = true;
+            await record(threadId, userItem(session.turn.turnId, `user:${lifecycle.command_uuid}`, lifecycle.command_uuid ?? "", steer.text, steer.authorUserId));
+          }
           if (message.type === "assistant") {
             for (const block of message.message.content) {
               if (block.type !== "tool_use" || !block.name.startsWith(`mcp__${BUS_SERVER}__`)) continue;
@@ -356,24 +403,38 @@ const make = (options: ClaudeThreadsOptions) =>
             }
           }
           // Claude starts a turn by itself (e.g. to report a finished background task): a provider turn.
-          if (!session.turn && startsTurn(message)) await beginTurn(session, Bun.randomUUIDv7(), TurnOrigin.PROVIDER, model);
+          if (!session.turn && startsTurn(message)) await beginTurn(session, Bun.randomUUIDv7(), TurnOrigin.PROVIDER, session.model);
           // The task's last output lands before its end.
           if (message.type === "system" && message.subtype === "task_notification") await readOutput(session, message.task_id, message.output_file);
           // The evaluator's verdict of this turn belongs to it.
           if (message.type === "result") await readGoalVerdicts(session);
           for (const init of mapper.map(message)) {
-            // Free the thread before the gateway hears the turn is over: it may start the next one at once.
-            if (init.body?.case === "turnFinished") session.turn = undefined;
+            if (init.body?.case === "turnFinished") {
+              const turn = session.turn;
+              // A steered message still queued in Claude Code runs right after this result: the turn goes on
+              // (the result is kept, without its body). An interrupt drops such messages instead.
+              if (turn && !turn.interrupting && [...turn.steers.values()].some((s) => !s.started)) {
+                deferredResult = init;
+                await record(threadId, { turnId: turn.turnId, rawJson: init.rawJson ?? "" });
+                continue;
+              }
+              await endTurn();
+            }
             if (init.body?.case === "itemStarted" && init.body.value.item?.content?.case === "backgroundTask") session.hadTasks = true;
             await record(threadId, init);
           }
-          closeWhenIdle(session);
+          if (!deferredResult) closeWhenIdle(session);
+        }
+        if (deferredResult) {
+          await endTurn();
+          await record(threadId, deferredResult);
         }
         await finishTurn(TurnOutcome.FAILED, "the session ended without a result");
       } catch (error) {
         const interrupted = session.abort.signal.aborted;
         await finishTurn(interrupted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED, interrupted ? "interrupted" : error instanceof Error ? error.message : String(error));
       } finally {
+        session.input.close();
         if (session.closeTimer) clearTimeout(session.closeTimer);
         await session.io;
         // Tasks die with the process.
@@ -404,8 +465,13 @@ const make = (options: ClaudeThreadsOptions) =>
         return sessionId;
       }),
 
-      startTurn: Effect.fn("ClaudeThreads.startTurn")(function* (spec: ThreadSpec, turnId: string, input: UserInput) {
+      startTurn: Effect.fn("ClaudeThreads.startTurn")(function* (spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings) {
         if (started.has(turnId)) return; // redelivered StartTurn
+        const model = settings?.model || spec.model;
+        const requested = settings?.effort ?? "";
+        if (requested && !isClaudeEffort(requested)) {
+          return yield* new ClaudeThreadError({ threadId: spec.threadId, operation: "turn", message: `unknown reasoning effort "${requested}" (Claude: low, medium, high, xhigh, max)` });
+        }
         started.add(turnId);
         yield* Effect.tryPromise({
           try: async () => {
@@ -416,16 +482,15 @@ const make = (options: ClaudeThreadsOptions) =>
               session = undefined;
             }
             if (session?.turn) throw new Error("a turn of this thread is already running");
-            session ??= await open(spec);
-            await beginTurn(session, turnId, TurnOrigin.COMMAND, spec.model);
-            await record(spec.threadId, {
-              turnId,
-              body: {
-                case: "itemCompleted",
-                value: { item: { itemId: `user:${turnId}`, status: ItemStatus.COMPLETED, content: { case: "userMessage", value: { text: input.text, authorUserId: input.authorUserId } } } },
-              },
-            });
-            session.input.push(input.text);
+            if (!session) session = await open(spec, model, isClaudeEffort(requested) ? requested : undefined);
+            else if (model && model !== session.model) {
+              // A process kept alive by background tasks: the turn's model applies from now on.
+              await session.query.setModel(model);
+              session.model = model;
+            }
+            await beginTurn(session, turnId, TurnOrigin.COMMAND, model);
+            await record(spec.threadId, userItem(turnId, `user:${turnId}`, turnId, input.text, input.authorUserId));
+            session.input.push(userMessage(input.text));
           },
           catch: fail(spec.threadId, "turn"),
         }).pipe(Effect.tapError(() => Effect.sync(() => started.delete(turnId))));
@@ -434,12 +499,27 @@ const make = (options: ClaudeThreadsOptions) =>
       interrupt: Effect.fn("ClaudeThreads.interrupt")(function* (threadId: string, turnId: string) {
         const session = sessions.get(threadId);
         if (!session?.turn || (turnId && session.turn.turnId !== turnId)) return;
+        session.turn.interrupting = true;
         session.mapper.markInterrupted();
         yield* Effect.tryPromise({ try: () => session.query.interrupt(), catch: fail(threadId, "interrupt") }).pipe(
           // A query that does not answer the interrupt is aborted.
           Effect.timeout("10 seconds"),
           Effect.catch(() => Effect.sync(() => session.abort.abort())),
         );
+      }),
+
+      steer: Effect.fn("ClaudeThreads.steer")(function* (threadId: string, turnId: string, inputId: string, input: UserInput) {
+        const session = sessions.get(threadId);
+        const turn = session?.turn;
+        if (turn?.turnId === turnId && turn.steers.has(inputId)) return; // redelivered SteerTurn
+        if (!session || !turn || turn.turnId !== turnId || turn.ended || turn.interrupting) {
+          return yield* new SteerError({ code: "STEER_NOT_RUNNING", message: "the turn is not running on this worker" });
+        }
+        // The uuid names the message in command_lifecycle (queued -> started -> completed).
+        if (!session.input.push(userMessage(input.text, { uuid: inputId as SDKUserMessage["uuid"] & string, priority: "next" }))) {
+          return yield* new SteerError({ code: "STEER_NOT_RUNNING", message: "the turn's input is closed" });
+        }
+        turn.steers.set(inputId, { text: input.text, authorUserId: input.authorUserId, started: false });
       }),
 
       running: (threadId) => sessions.get(threadId)?.turn !== undefined,
@@ -452,6 +532,42 @@ const make = (options: ClaudeThreadsOptions) =>
 
       backgroundTasks: () =>
         new Map([...sessions.values()].flatMap((s) => (s.mapper.backgroundTasks.length > 0 ? [[s.threadId, s.mapper.backgroundTasks] as const] : []))),
+
+      listModels: Effect.fn("ClaudeThreads.listModels")(function* (profileId: string) {
+        const profile = options.profile(profileId);
+        if (!profile) return yield* new ClaudeThreadError({ threadId: "", operation: "models", message: `provider profile "${profileId || "native"}" is not available` });
+        // A query without a prompt starts Claude Code and answers control requests; the model is never called.
+        const prompt = new AsyncChannel<SDKUserMessage>();
+        const abort = new AbortController();
+        const models = yield* Effect.tryPromise({
+          try: async () => {
+            const q = query({
+              prompt,
+              options: {
+                cwd: options.home,
+                ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: options.home }),
+                settingSources: [],
+                ...(options.executable && { pathToClaudeCodeExecutable: options.executable }),
+                persistSession: false,
+                strictMcpConfig: true,
+                mcpServers: {},
+                abortController: abort,
+              },
+            });
+            try {
+              return await Promise.race([
+                q.supportedModels(),
+                Bun.sleep(30_000).then(() => Promise.reject(new Error("Claude Code did not list its models within 30 s"))),
+              ]);
+            } finally {
+              prompt.close();
+              abort.abort();
+            }
+          },
+          catch: fail("", "models"),
+        });
+        return { models: models.map(claudeModel) };
+      }),
     });
   });
 
@@ -517,4 +633,11 @@ function callKey(tool: string, args: unknown): string {
         ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, sorted(v)]))
         : value;
   return `${tool} ${JSON.stringify(sorted(args))}`;
+}
+
+function userItem(turnId: string, itemId: string, clientId: string, text: string, authorUserId: string): ThreadEventInit {
+  return {
+    turnId,
+    body: { case: "itemCompleted", value: { item: { itemId, status: ItemStatus.COMPLETED, content: { case: "userMessage", value: { text, authorUserId, clientId } } } } },
+  };
 }

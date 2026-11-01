@@ -4,3 +4,5 @@ export { Ingest, type IngestResult, type StoredEvent } from "./ingest.ts";
 export { applyGoalState, GoalStore, toUiGoal, type GoalRow } from "./goals.ts";
 export { GatewayStore, Invalid, NotFound, toUiThread, toUiTurn, type ThreadRow, type TurnRow } from "./store.ts";
 export { decryptSecret, encryptSecret, loadSecretsKey } from "./secrets.ts";
+export { ModelStore, modelProblem } from "./models.ts";
+export { SteerStore, toUiSteer, type SteerRow } from "./steers.ts";
