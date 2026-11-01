@@ -12,7 +12,7 @@ import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
 import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, GatewayStore, Ingest } from "@open-agents/gateway/store";
+import { AgentBusStore, GatewayStore, Ingest, SettingsStore } from "@open-agents/gateway/store";
 import { startGrpcServer } from "@open-agents/transport";
 import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
 import { Layer, ManagedRuntime } from "effect";
@@ -20,7 +20,7 @@ import type { SqlClient } from "effect/sql";
 
 export const SERVICE_TOKEN = "t".repeat(48);
 
-export type TestRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SqlClient.SqlClient, unknown>;
+export type TestRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | SqlClient.SqlClient, unknown>;
 
 /** Plays a worker: answers commands and emits the events a real provider would. */
 export class ScriptedWorker {
@@ -127,7 +127,7 @@ export interface TestGateway {
 export async function startTestGateway(): Promise<TestGateway> {
   const pg = await startPostgres();
   const runtime: TestRuntime = ManagedRuntime.make(
-    Layer.mergeAll(GatewayStore.layer(randomBytes(32)), Ingest.layer, AgentBusStore.layer).pipe(Layer.provideMerge(pg.layer)),
+    Layer.mergeAll(GatewayStore.layer(randomBytes(32)), Ingest.layer, AgentBusStore.layer, SettingsStore.layer).pipe(Layer.provideMerge(pg.layer)),
   );
   await runtime.runPromise(migrate);
   const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));

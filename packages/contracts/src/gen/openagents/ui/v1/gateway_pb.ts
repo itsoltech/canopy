@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file openagents/ui/v1/gateway.proto.
  */
 export const file_openagents_ui_v1_gateway: GenFile = /*@__PURE__*/
-  fileDesc("Ch5vcGVuYWdlbnRzL3VpL3YxL2dhdGV3YXkucHJvdG8SEG9wZW5hZ2VudHMudWkudjEihQMKBldvcmtlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBm9ubGluZRgDIAEoCBIQCghob3N0bmFtZRgEIAEoCRIKCgJvcxgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEjUKCXByb3ZpZGVycxgHIAMoCzIiLm9wZW5hZ2VudHMud29ya2VyLnYxLlByb3ZpZGVySW5mbxI3Cghwcm9maWxlcxgIIAMoCzIlLm9wZW5hZ2VudHMud29ya2VyLnYxLlByb3ZpZGVyUHJvZmlsZRIVCg1hbGxvd2VkX3Jvb3RzGAkgAygJEhYKDmNvbmZpZ192ZXJzaW9uGAogASgEEhcKD2FwcGxpZWRfdmVyc2lvbhgLIAEoBBI4Cg1jb25maWdfaXNzdWVzGAwgAygLMiEub3BlbmFnZW50cy53b3JrZXIudjEuQ29uZmlnSXNzdWUSMAoMbGFzdF9zZWVuX2F0GA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJiCgdQcm9qZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEc2x1ZxgDIAEoCRIvCgp3b3Jrc3BhY2VzGAQgAygLMhsub3BlbmFnZW50cy51aS52MS5Xb3Jrc3BhY2UiYAoJV29ya3NwYWNlEgoKAmlkGAEgASgJEhIKCnByb2plY3RfaWQYAiABKAkSEQoJd29ya2VyX2lkGAMgASgJEhEKCXJvb3RfcGF0aBgEIAEoCRINCgVsYWJlbBgFIAEoCSKVAQoFQWdlbnQSCgoCaWQYASABKAkSDAoEc2x1ZxgCIAEoCRIMCgRuYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEjAKCHByb3ZpZGVyGAUgASgOMh4ub3BlbmFnZW50cy53b3JrZXIudjEuUHJvdmlkZXISDQoFbW9kZWwYBiABKAkSDgoGZ2xvYmFsGAcgASgIIosFCgZUaHJlYWQSCgoCaWQYASABKAkSEgoKcHJvamVjdF9pZBgCIAEoCRIqCgRraW5kGAMgASgOMhwub3BlbmFnZW50cy51aS52MS5UaHJlYWRLaW5kEhgKEHBhcmVudF90aHJlYWRfaWQYBCABKAkSDQoFdGl0bGUYBSABKAkSMAoIcHJvdmlkZXIYBiABKA4yHi5vcGVuYWdlbnRzLndvcmtlci52MS5Qcm92aWRlchIbChNwcm92aWRlcl9wcm9maWxlX2lkGAcgASgJEg0KBW1vZGVsGAggASgJEj0KD3Blcm1pc3Npb25fbW9kZRgJIAEoDjIkLm9wZW5hZ2VudHMud29ya2VyLnYxLlBlcm1pc3Npb25Nb2RlEhEKCXdvcmtlcl9pZBgKIAEoCRIUCgx3b3Jrc3BhY2VfaWQYCyABKAkSCwoDY3dkGAwgASgJEg4KBnN0YXR1cxgNIAEoCRIQCghhZ2VudF9pZBgOIAEoCRIYChBzcGF3bmVkX2J5X2FnZW50GA8gASgIEhUKDXN0YXR1c19kZXRhaWwYECABKAkSEAoIbGFzdF9zZXEYESABKAQSLgoKY3JlYXRlZF9hdBgSIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASHAoUcGVuZGluZ19pbnRlcmFjdGlvbnMYEyABKA0SHQoVZm9ya19zb3VyY2VfdGhyZWFkX2lkGBQgASgJEhYKDnJvb3RfdGhyZWFkX2lkGBUgASgJEhkKEWludGVyYWN0aW9uX3JvdXRlGBYgASgJEjQKEGxhc3RfYWN0aXZpdHlfYXQYFyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIsUCCgRUdXJuEgoKAmlkGAEgASgJEg8KB29yZGluYWwYAiABKA0SDgoGc3RhdHVzGAMgASgJEg8KB3RyaWdnZXIYBCABKAkSEgoKaW5wdXRfdGV4dBgFIAEoCRINCgVlcnJvchgGIAEoCRItCglxdWV1ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnN0YXJ0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGNvbXBsZXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKgoFdXNhZ2UYCiABKAsyGy5vcGVuYWdlbnRzLndvcmtlci52MS5Vc2FnZRIMCgRob3BzGAsgASgNEhEKCWluaGVyaXRlZBgMIAEoCCKBAQoMVGltZWxpbmVJdGVtEigKBGl0ZW0YASABKAsyGi5vcGVuYWdlbnRzLndvcmtlci52MS5JdGVtEg8KB3R1cm5faWQYAiABKAkSEQoJZmlyc3Rfc2VxGAMgASgEEhAKCGxhc3Rfc2VxGAQgASgEEhEKCWluaGVyaXRlZBgFIAEoCCKLAQoMVGhyZWFkTm90aWNlEgsKA3NlcRgBIAEoBBIPCgd0dXJuX2lkGAIgASgJEiwKBm5vdGljZRgDIAEoCzIcLm9wZW5hZ2VudHMud29ya2VyLnYxLk5vdGljZRIvCgtvY2N1cnJlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAihwIKC0ludGVyYWN0aW9uEhIKCnJlcXVlc3RfaWQYASABKAkSEQoJdGhyZWFkX2lkGAIgASgJEg8KB3R1cm5faWQYAyABKAkSDwoHaXRlbV9pZBgEIAEoCRIzCgRraW5kGAUgASgOMiUub3BlbmFnZW50cy53b3JrZXIudjEuSW50ZXJhY3Rpb25LaW5kEhEKCXRvb2xfbmFtZRgGIAEoCRIUCgxyZXF1ZXN0X2pzb24YByABKAkSDgoGc3RhdHVzGAggASgJEhEKCXJvdXRlZF90bxgJIAEoCRIuCgpjcmVhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIUChJHZXRPdmVydmlld1JlcXVlc3QilgEKE0dldE92ZXJ2aWV3UmVzcG9uc2USKQoHd29ya2VycxgBIAMoCzIYLm9wZW5hZ2VudHMudWkudjEuV29ya2VyEisKCHByb2plY3RzGAIgAygLMhkub3BlbmFnZW50cy51aS52MS5Qcm9qZWN0EicKBmFnZW50cxgDIAMoCzIXLm9wZW5hZ2VudHMudWkudjEuQWdlbnQiFgoUV2F0Y2hPdmVydmlld1JlcXVlc3Qi0AEKDk92ZXJ2aWV3VXBkYXRlEioKBndvcmtlchgBIAEoCzIYLm9wZW5hZ2VudHMudWkudjEuV29ya2VySAASKgoGdGhyZWFkGAIgASgLMhgub3BlbmFnZW50cy51aS52MS5UaHJlYWRIABIsCgdwcm9qZWN0GAMgASgLMhkub3BlbmFnZW50cy51aS52MS5Qcm9qZWN0SAASLgoIc2NoZWR1bGUYBCABKAsyGi5vcGVuYWdlbnRzLnVpLnYxLlNjaGVkdWxlSABCCAoGY2hhbmdlIjcKFExpc3REaXJlY3RvcnlSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIk4KFUxpc3REaXJlY3RvcnlSZXNwb25zZRI1CgdlbnRyaWVzGAEgAygLMiQub3BlbmFnZW50cy53b3JrZXIudjEuRGlyZWN0b3J5RW50cnkiJAoUQ3JlYXRlUHJvamVjdFJlcXVlc3QSDAoEbmFtZRgBIAEoCSJDChVDcmVhdGVQcm9qZWN0UmVzcG9uc2USKgoHcHJvamVjdBgBIAEoCzIZLm9wZW5hZ2VudHMudWkudjEuUHJvamVjdCJhChZDcmVhdGVXb3Jrc3BhY2VSZXF1ZXN0EhIKCnByb2plY3RfaWQYASABKAkSEQoJd29ya2VyX2lkGAIgASgJEhEKCXJvb3RfcGF0aBgDIAEoCRINCgVsYWJlbBgEIAEoCSJJChdDcmVhdGVXb3Jrc3BhY2VSZXNwb25zZRIuCgl3b3Jrc3BhY2UYASABKAsyGy5vcGVuYWdlbnRzLnVpLnYxLldvcmtzcGFjZSIoChJMaXN0VGhyZWFkc1JlcXVlc3QSEgoKcHJvamVjdF9pZBgBIAEoCSIlChBHZXRUaHJlYWRSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCSI9ChFHZXRUaHJlYWRSZXNwb25zZRIoCgZ0aHJlYWQYASABKAsyGC5vcGVuYWdlbnRzLnVpLnYxLlRocmVhZCJAChNMaXN0VGhyZWFkc1Jlc3BvbnNlEikKB3RocmVhZHMYASADKAsyGC5vcGVuYWdlbnRzLnVpLnYxLlRocmVhZCLqAgoTQ3JlYXRlVGhyZWFkUmVxdWVzdBISCgpwcm9qZWN0X2lkGAEgASgJEhQKDHdvcmtzcGFjZV9pZBgCIAEoCRILCgNjd2QYAyABKAkSDQoFdGl0bGUYBCABKAkSMAoIcHJvdmlkZXIYBSABKA4yHi5vcGVuYWdlbnRzLndvcmtlci52MS5Qcm92aWRlchIbChNwcm92aWRlcl9wcm9maWxlX2lkGAYgASgJEg0KBW1vZGVsGAcgASgJEj0KD3Blcm1pc3Npb25fbW9kZRgIIAEoDjIkLm9wZW5hZ2VudHMud29ya2VyLnYxLlBlcm1pc3Npb25Nb2RlEhQKDGluc3RydWN0aW9ucxgJIAEoCRIYChBwYXJlbnRfdGhyZWFkX2lkGAogASgJEgwKBGZvcmsYCyABKAgSFwoPaW5pdGlhbF9tZXNzYWdlGAwgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGA0gASgJIkAKFENyZWF0ZVRocmVhZFJlc3BvbnNlEigKBnRocmVhZBgBIAEoCzIYLm9wZW5hZ2VudHMudWkudjEuVGhyZWFkIlAKElNlbmRNZXNzYWdlUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSDAoEdGV4dBgCIAEoCRIZChFjbGllbnRfcmVxdWVzdF9pZBgDIAEoCSI7ChNTZW5kTWVzc2FnZVJlc3BvbnNlEiQKBHR1cm4YASABKAsyFi5vcGVuYWdlbnRzLnVpLnYxLlR1cm4iKwoWSW50ZXJydXB0VGhyZWFkUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkiGQoXSW50ZXJydXB0VGhyZWFkUmVzcG9uc2UikQEKGEFuc3dlckludGVyYWN0aW9uUmVxdWVzdBISCgpyZXF1ZXN0X2lkGAEgASgJEg0KBWFsbG93GAIgASgIEhkKEWFsbG93X2Zvcl9zZXNzaW9uGAMgASgIEg8KB21lc3NhZ2UYBCABKAkSEwoLYW5zd2VyX2pzb24YBSABKAkSEQoJY2FuY2VsbGVkGAYgASgIIk8KGUFuc3dlckludGVyYWN0aW9uUmVzcG9uc2USMgoLaW50ZXJhY3Rpb24YASABKAsyHS5vcGVuYWdlbnRzLnVpLnYxLkludGVyYWN0aW9uIicKEldhdGNoVGhyZWFkUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkitwIKDlRocmVhZFNuYXBzaG90EigKBnRocmVhZBgBIAEoCzIYLm9wZW5hZ2VudHMudWkudjEuVGhyZWFkEiUKBXR1cm5zGAIgAygLMhYub3BlbmFnZW50cy51aS52MS5UdXJuEi0KBWl0ZW1zGAMgAygLMh4ub3BlbmFnZW50cy51aS52MS5UaW1lbGluZUl0ZW0SMwoMaW50ZXJhY3Rpb25zGAQgAygLMh0ub3BlbmFnZW50cy51aS52MS5JbnRlcmFjdGlvbhIQCghsYXN0X3NlcRgFIAEoBBIvCgdub3RpY2VzGAYgAygLMh4ub3BlbmFnZW50cy51aS52MS5UaHJlYWROb3RpY2USLQoJc2NoZWR1bGVzGAcgAygLMhoub3BlbmFnZW50cy51aS52MS5TY2hlZHVsZSJSChFUaHJlYWRFdmVudFVwZGF0ZRILCgNzZXEYASABKAQSMAoFZXZlbnQYAiABKAsyIS5vcGVuYWdlbnRzLndvcmtlci52MS5UaHJlYWRFdmVudCK+AgoMVGhyZWFkVXBkYXRlEjQKCHNuYXBzaG90GAEgASgLMiAub3BlbmFnZW50cy51aS52MS5UaHJlYWRTbmFwc2hvdEgAEjQKBWV2ZW50GAIgASgLMiMub3BlbmFnZW50cy51aS52MS5UaHJlYWRFdmVudFVwZGF0ZUgAEioKBnRocmVhZBgDIAEoCzIYLm9wZW5hZ2VudHMudWkudjEuVGhyZWFkSAASJgoEdHVybhgEIAEoCzIWLm9wZW5hZ2VudHMudWkudjEuVHVybkgAEjQKC2ludGVyYWN0aW9uGAUgASgLMh0ub3BlbmFnZW50cy51aS52MS5JbnRlcmFjdGlvbkgAEi4KCHNjaGVkdWxlGAYgASgLMhoub3BlbmFnZW50cy51aS52MS5TY2hlZHVsZUgAQggKBmNoYW5nZSLCAwoIU2NoZWR1bGUSCgoCaWQYASABKAkSEQoJdGhyZWFkX2lkGAIgASgJEhIKCnByb2plY3RfaWQYAyABKAkSDAoEa2luZBgEIAEoCRIOCgZwcm9tcHQYBSABKAkSKgoGcnVuX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIMCgRjcm9uGAcgASgJEhAKCHRpbWV6b25lGAggASgJEikKBXVudGlsGAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghtYXhfcnVucxgKIAEoDRIMCgRydW5zGAsgASgNEi8KC25leHRfcnVuX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZzdGF0dXMYDSABKAkSFQoNbWlzc2VkX3BvbGljeRgOIAEoCRISCgpjcmVhdGVkX2J5GA8gASgJEhwKFGNyZWF0ZWRfYnlfdGhyZWFkX2lkGBAgASgJEhQKDGxhc3RfdHVybl9pZBgRIAEoCRIuCgpjcmVhdGVkX2F0GBIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJXChRMaXN0U2NoZWR1bGVzUmVxdWVzdBISCgpwcm9qZWN0X2lkGAEgASgJEhEKCXRocmVhZF9pZBgCIAEoCRIYChBpbmNsdWRlX2ZpbmlzaGVkGAMgASgIIkYKFUxpc3RTY2hlZHVsZXNSZXNwb25zZRItCglzY2hlZHVsZXMYASADKAsyGi5vcGVuYWdlbnRzLnVpLnYxLlNjaGVkdWxlIuYBChVDcmVhdGVTY2hlZHVsZVJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJEg4KBnByb21wdBgCIAEoCRIsCgZydW5fYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wSAASDgoEY3JvbhgEIAEoCUgAEhAKCHRpbWV6b25lGAUgASgJEikKBXVudGlsGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghtYXhfcnVucxgHIAEoDRIVCg1taXNzZWRfcG9saWN5GAggASgJQgYKBHdoZW4iRgoWQ3JlYXRlU2NoZWR1bGVSZXNwb25zZRIsCghzY2hlZHVsZRgBIAEoCzIaLm9wZW5hZ2VudHMudWkudjEuU2NoZWR1bGUiPwoYU2V0U2NoZWR1bGVTdGF0dXNSZXF1ZXN0EhMKC3NjaGVkdWxlX2lkGAEgASgJEg4KBnN0YXR1cxgCIAEoCSJJChlTZXRTY2hlZHVsZVN0YXR1c1Jlc3BvbnNlEiwKCHNjaGVkdWxlGAEgASgLMhoub3BlbmFnZW50cy51aS52MS5TY2hlZHVsZSpVCgpUaHJlYWRLaW5kEhsKF1RIUkVBRF9LSU5EX1VOU1BFQ0lGSUVEEAASFAoQVEhSRUFEX0tJTkRfTUFJThABEhQKEFRIUkVBRF9LSU5EX1NJREUQAjLECwoOR2F0ZXdheVNlcnZpY2USWgoLR2V0T3ZlcnZpZXcSJC5vcGVuYWdlbnRzLnVpLnYxLkdldE92ZXJ2aWV3UmVxdWVzdBolLm9wZW5hZ2VudHMudWkudjEuR2V0T3ZlcnZpZXdSZXNwb25zZRJbCg1XYXRjaE92ZXJ2aWV3EiYub3BlbmFnZW50cy51aS52MS5XYXRjaE92ZXJ2aWV3UmVxdWVzdBogLm9wZW5hZ2VudHMudWkudjEuT3ZlcnZpZXdVcGRhdGUwARJgCg1MaXN0RGlyZWN0b3J5EiYub3BlbmFnZW50cy51aS52MS5MaXN0RGlyZWN0b3J5UmVxdWVzdBonLm9wZW5hZ2VudHMudWkudjEuTGlzdERpcmVjdG9yeVJlc3BvbnNlEmAKDUNyZWF0ZVByb2plY3QSJi5vcGVuYWdlbnRzLnVpLnYxLkNyZWF0ZVByb2plY3RSZXF1ZXN0Gicub3BlbmFnZW50cy51aS52MS5DcmVhdGVQcm9qZWN0UmVzcG9uc2USZgoPQ3JlYXRlV29ya3NwYWNlEigub3BlbmFnZW50cy51aS52MS5DcmVhdGVXb3Jrc3BhY2VSZXF1ZXN0Gikub3BlbmFnZW50cy51aS52MS5DcmVhdGVXb3Jrc3BhY2VSZXNwb25zZRJaCgtMaXN0VGhyZWFkcxIkLm9wZW5hZ2VudHMudWkudjEuTGlzdFRocmVhZHNSZXF1ZXN0GiUub3BlbmFnZW50cy51aS52MS5MaXN0VGhyZWFkc1Jlc3BvbnNlElQKCUdldFRocmVhZBIiLm9wZW5hZ2VudHMudWkudjEuR2V0VGhyZWFkUmVxdWVzdBojLm9wZW5hZ2VudHMudWkudjEuR2V0VGhyZWFkUmVzcG9uc2USXQoMQ3JlYXRlVGhyZWFkEiUub3BlbmFnZW50cy51aS52MS5DcmVhdGVUaHJlYWRSZXF1ZXN0GiYub3BlbmFnZW50cy51aS52MS5DcmVhdGVUaHJlYWRSZXNwb25zZRJaCgtTZW5kTWVzc2FnZRIkLm9wZW5hZ2VudHMudWkudjEuU2VuZE1lc3NhZ2VSZXF1ZXN0GiUub3BlbmFnZW50cy51aS52MS5TZW5kTWVzc2FnZVJlc3BvbnNlEmYKD0ludGVycnVwdFRocmVhZBIoLm9wZW5hZ2VudHMudWkudjEuSW50ZXJydXB0VGhyZWFkUmVxdWVzdBopLm9wZW5hZ2VudHMudWkudjEuSW50ZXJydXB0VGhyZWFkUmVzcG9uc2USbAoRQW5zd2VySW50ZXJhY3Rpb24SKi5vcGVuYWdlbnRzLnVpLnYxLkFuc3dlckludGVyYWN0aW9uUmVxdWVzdBorLm9wZW5hZ2VudHMudWkudjEuQW5zd2VySW50ZXJhY3Rpb25SZXNwb25zZRJVCgtXYXRjaFRocmVhZBIkLm9wZW5hZ2VudHMudWkudjEuV2F0Y2hUaHJlYWRSZXF1ZXN0Gh4ub3BlbmFnZW50cy51aS52MS5UaHJlYWRVcGRhdGUwARJgCg1MaXN0U2NoZWR1bGVzEiYub3BlbmFnZW50cy51aS52MS5MaXN0U2NoZWR1bGVzUmVxdWVzdBonLm9wZW5hZ2VudHMudWkudjEuTGlzdFNjaGVkdWxlc1Jlc3BvbnNlEmMKDkNyZWF0ZVNjaGVkdWxlEicub3BlbmFnZW50cy51aS52MS5DcmVhdGVTY2hlZHVsZVJlcXVlc3QaKC5vcGVuYWdlbnRzLnVpLnYxLkNyZWF0ZVNjaGVkdWxlUmVzcG9uc2USbAoRU2V0U2NoZWR1bGVTdGF0dXMSKi5vcGVuYWdlbnRzLnVpLnYxLlNldFNjaGVkdWxlU3RhdHVzUmVxdWVzdBorLm9wZW5hZ2VudHMudWkudjEuU2V0U2NoZWR1bGVTdGF0dXNSZXNwb25zZWIGcHJvdG8z", [file_google_protobuf_timestamp, file_openagents_worker_v1_worker_link]);
+  fileDesc("Ch5vcGVuYWdlbnRzL3VpL3YxL2dhdGV3YXkucHJvdG8SEG9wZW5hZ2VudHMudWkudjEihQMKBldvcmtlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBm9ubGluZRgDIAEoCBIQCghob3N0bmFtZRgEIAEoCRIKCgJvcxgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEjUKCXByb3ZpZGVycxgHIAMoCzIiLm9wZW5hZ2VudHMud29ya2VyLnYxLlByb3ZpZGVySW5mbxI3Cghwcm9maWxlcxgIIAMoCzIlLm9wZW5hZ2VudHMud29ya2VyLnYxLlByb3ZpZGVyUHJvZmlsZRIVCg1hbGxvd2VkX3Jvb3RzGAkgAygJEhYKDmNvbmZpZ192ZXJzaW9uGAogASgEEhcKD2FwcGxpZWRfdmVyc2lvbhgLIAEoBBI4Cg1jb25maWdfaXNzdWVzGAwgAygLMiEub3BlbmFnZW50cy53b3JrZXIudjEuQ29uZmlnSXNzdWUSMAoMbGFzdF9zZWVuX2F0GA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJiCgdQcm9qZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEc2x1ZxgDIAEoCRIvCgp3b3Jrc3BhY2VzGAQgAygLMhsub3BlbmFnZW50cy51aS52MS5Xb3Jrc3BhY2UiYAoJV29ya3NwYWNlEgoKAmlkGAEgASgJEhIKCnByb2plY3RfaWQYAiABKAkSEQoJd29ya2VyX2lkGAMgASgJEhEKCXJvb3RfcGF0aBgEIAEoCRINCgVsYWJlbBgFIAEoCSKVAQoFQWdlbnQSCgoCaWQYASABKAkSDAoEc2x1ZxgCIAEoCRIMCgRuYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEjAKCHByb3ZpZGVyGAUgASgOMh4ub3BlbmFnZW50cy53b3JrZXIudjEuUHJvdmlkZXISDQoFbW9kZWwYBiABKAkSDgoGZ2xvYmFsGAcgASgIIosFCgZUaHJlYWQSCgoCaWQYASABKAkSEgoKcHJvamVjdF9pZBgCIAEoCRIqCgRraW5kGAMgASgOMhwub3BlbmFnZW50cy51aS52MS5UaHJlYWRLaW5kEhgKEHBhcmVudF90aHJlYWRfaWQYBCABKAkSDQoFdGl0bGUYBSABKAkSMAoIcHJvdmlkZXIYBiABKA4yHi5vcGVuYWdlbnRzLndvcmtlci52MS5Qcm92aWRlchIbChNwcm92aWRlcl9wcm9maWxlX2lkGAcgASgJEg0KBW1vZGVsGAggASgJEj0KD3Blcm1pc3Npb25fbW9kZRgJIAEoDjIkLm9wZW5hZ2VudHMud29ya2VyLnYxLlBlcm1pc3Npb25Nb2RlEhEKCXdvcmtlcl9pZBgKIAEoCRIUCgx3b3Jrc3BhY2VfaWQYCyABKAkSCwoDY3dkGAwgASgJEg4KBnN0YXR1cxgNIAEoCRIQCghhZ2VudF9pZBgOIAEoCRIYChBzcGF3bmVkX2J5X2FnZW50GA8gASgIEhUKDXN0YXR1c19kZXRhaWwYECABKAkSEAoIbGFzdF9zZXEYESABKAQSLgoKY3JlYXRlZF9hdBgSIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASHAoUcGVuZGluZ19pbnRlcmFjdGlvbnMYEyABKA0SHQoVZm9ya19zb3VyY2VfdGhyZWFkX2lkGBQgASgJEhYKDnJvb3RfdGhyZWFkX2lkGBUgASgJEhkKEWludGVyYWN0aW9uX3JvdXRlGBYgASgJEjQKEGxhc3RfYWN0aXZpdHlfYXQYFyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIsUCCgRUdXJuEgoKAmlkGAEgASgJEg8KB29yZGluYWwYAiABKA0SDgoGc3RhdHVzGAMgASgJEg8KB3RyaWdnZXIYBCABKAkSEgoKaW5wdXRfdGV4dBgFIAEoCRINCgVlcnJvchgGIAEoCRItCglxdWV1ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnN0YXJ0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGNvbXBsZXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKgoFdXNhZ2UYCiABKAsyGy5vcGVuYWdlbnRzLndvcmtlci52MS5Vc2FnZRIMCgRob3BzGAsgASgNEhEKCWluaGVyaXRlZBgMIAEoCCKBAQoMVGltZWxpbmVJdGVtEigKBGl0ZW0YASABKAsyGi5vcGVuYWdlbnRzLndvcmtlci52MS5JdGVtEg8KB3R1cm5faWQYAiABKAkSEQoJZmlyc3Rfc2VxGAMgASgEEhAKCGxhc3Rfc2VxGAQgASgEEhEKCWluaGVyaXRlZBgFIAEoCCKLAQoMVGhyZWFkTm90aWNlEgsKA3NlcRgBIAEoBBIPCgd0dXJuX2lkGAIgASgJEiwKBm5vdGljZRgDIAEoCzIcLm9wZW5hZ2VudHMud29ya2VyLnYxLk5vdGljZRIvCgtvY2N1cnJlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAihwIKC0ludGVyYWN0aW9uEhIKCnJlcXVlc3RfaWQYASABKAkSEQoJdGhyZWFkX2lkGAIgASgJEg8KB3R1cm5faWQYAyABKAkSDwoHaXRlbV9pZBgEIAEoCRIzCgRraW5kGAUgASgOMiUub3BlbmFnZW50cy53b3JrZXIudjEuSW50ZXJhY3Rpb25LaW5kEhEKCXRvb2xfbmFtZRgGIAEoCRIUCgxyZXF1ZXN0X2pzb24YByABKAkSDgoGc3RhdHVzGAggASgJEhEKCXJvdXRlZF90bxgJIAEoCRIuCgpjcmVhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIUChJHZXRPdmVydmlld1JlcXVlc3QilgEKE0dldE92ZXJ2aWV3UmVzcG9uc2USKQoHd29ya2VycxgBIAMoCzIYLm9wZW5hZ2VudHMudWkudjEuV29ya2VyEisKCHByb2plY3RzGAIgAygLMhkub3BlbmFnZW50cy51aS52MS5Qcm9qZWN0EicKBmFnZW50cxgDIAMoCzIXLm9wZW5hZ2VudHMudWkudjEuQWdlbnQiFgoUV2F0Y2hPdmVydmlld1JlcXVlc3QiyAIKDk92ZXJ2aWV3VXBkYXRlEioKBndvcmtlchgBIAEoCzIYLm9wZW5hZ2VudHMudWkudjEuV29ya2VySAASKgoGdGhyZWFkGAIgASgLMhgub3BlbmFnZW50cy51aS52MS5UaHJlYWRIABIsCgdwcm9qZWN0GAMgASgLMhkub3BlbmFnZW50cy51aS52MS5Qcm9qZWN0SAASLgoIc2NoZWR1bGUYBCABKAsyGi5vcGVuYWdlbnRzLnVpLnYxLlNjaGVkdWxlSAASNwoNdXNlcl9zZXR0aW5ncxgFIAEoCzIeLm9wZW5hZ2VudHMudWkudjEuVXNlclNldHRpbmdzSAASPQoQcHJvamVjdF9zZXR0aW5ncxgGIAEoCzIhLm9wZW5hZ2VudHMudWkudjEuUHJvamVjdFNldHRpbmdzSABCCAoGY2hhbmdlIjcKFExpc3REaXJlY3RvcnlSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIk4KFUxpc3REaXJlY3RvcnlSZXNwb25zZRI1CgdlbnRyaWVzGAEgAygLMiQub3BlbmFnZW50cy53b3JrZXIudjEuRGlyZWN0b3J5RW50cnkiJAoUQ3JlYXRlUHJvamVjdFJlcXVlc3QSDAoEbmFtZRgBIAEoCSJDChVDcmVhdGVQcm9qZWN0UmVzcG9uc2USKgoHcHJvamVjdBgBIAEoCzIZLm9wZW5hZ2VudHMudWkudjEuUHJvamVjdCJhChZDcmVhdGVXb3Jrc3BhY2VSZXF1ZXN0EhIKCnByb2plY3RfaWQYASABKAkSEQoJd29ya2VyX2lkGAIgASgJEhEKCXJvb3RfcGF0aBgDIAEoCRINCgVsYWJlbBgEIAEoCSJJChdDcmVhdGVXb3Jrc3BhY2VSZXNwb25zZRIuCgl3b3Jrc3BhY2UYASABKAsyGy5vcGVuYWdlbnRzLnVpLnYxLldvcmtzcGFjZSIoChJMaXN0VGhyZWFkc1JlcXVlc3QSEgoKcHJvamVjdF9pZBgBIAEoCSIlChBHZXRUaHJlYWRSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCSI9ChFHZXRUaHJlYWRSZXNwb25zZRIoCgZ0aHJlYWQYASABKAsyGC5vcGVuYWdlbnRzLnVpLnYxLlRocmVhZCJAChNMaXN0VGhyZWFkc1Jlc3BvbnNlEikKB3RocmVhZHMYASADKAsyGC5vcGVuYWdlbnRzLnVpLnYxLlRocmVhZCLqAgoTQ3JlYXRlVGhyZWFkUmVxdWVzdBISCgpwcm9qZWN0X2lkGAEgASgJEhQKDHdvcmtzcGFjZV9pZBgCIAEoCRILCgNjd2QYAyABKAkSDQoFdGl0bGUYBCABKAkSMAoIcHJvdmlkZXIYBSABKA4yHi5vcGVuYWdlbnRzLndvcmtlci52MS5Qcm92aWRlchIbChNwcm92aWRlcl9wcm9maWxlX2lkGAYgASgJEg0KBW1vZGVsGAcgASgJEj0KD3Blcm1pc3Npb25fbW9kZRgIIAEoDjIkLm9wZW5hZ2VudHMud29ya2VyLnYxLlBlcm1pc3Npb25Nb2RlEhQKDGluc3RydWN0aW9ucxgJIAEoCRIYChBwYXJlbnRfdGhyZWFkX2lkGAogASgJEgwKBGZvcmsYCyABKAgSFwoPaW5pdGlhbF9tZXNzYWdlGAwgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGA0gASgJIkAKFENyZWF0ZVRocmVhZFJlc3BvbnNlEigKBnRocmVhZBgBIAEoCzIYLm9wZW5hZ2VudHMudWkudjEuVGhyZWFkIlAKElNlbmRNZXNzYWdlUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSDAoEdGV4dBgCIAEoCRIZChFjbGllbnRfcmVxdWVzdF9pZBgDIAEoCSI7ChNTZW5kTWVzc2FnZVJlc3BvbnNlEiQKBHR1cm4YASABKAsyFi5vcGVuYWdlbnRzLnVpLnYxLlR1cm4iKwoWSW50ZXJydXB0VGhyZWFkUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkiGQoXSW50ZXJydXB0VGhyZWFkUmVzcG9uc2UikQEKGEFuc3dlckludGVyYWN0aW9uUmVxdWVzdBISCgpyZXF1ZXN0X2lkGAEgASgJEg0KBWFsbG93GAIgASgIEhkKEWFsbG93X2Zvcl9zZXNzaW9uGAMgASgIEg8KB21lc3NhZ2UYBCABKAkSEwoLYW5zd2VyX2pzb24YBSABKAkSEQoJY2FuY2VsbGVkGAYgASgIIk8KGUFuc3dlckludGVyYWN0aW9uUmVzcG9uc2USMgoLaW50ZXJhY3Rpb24YASABKAsyHS5vcGVuYWdlbnRzLnVpLnYxLkludGVyYWN0aW9uIicKEldhdGNoVGhyZWFkUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkitwIKDlRocmVhZFNuYXBzaG90EigKBnRocmVhZBgBIAEoCzIYLm9wZW5hZ2VudHMudWkudjEuVGhyZWFkEiUKBXR1cm5zGAIgAygLMhYub3BlbmFnZW50cy51aS52MS5UdXJuEi0KBWl0ZW1zGAMgAygLMh4ub3BlbmFnZW50cy51aS52MS5UaW1lbGluZUl0ZW0SMwoMaW50ZXJhY3Rpb25zGAQgAygLMh0ub3BlbmFnZW50cy51aS52MS5JbnRlcmFjdGlvbhIQCghsYXN0X3NlcRgFIAEoBBIvCgdub3RpY2VzGAYgAygLMh4ub3BlbmFnZW50cy51aS52MS5UaHJlYWROb3RpY2USLQoJc2NoZWR1bGVzGAcgAygLMhoub3BlbmFnZW50cy51aS52MS5TY2hlZHVsZSJSChFUaHJlYWRFdmVudFVwZGF0ZRILCgNzZXEYASABKAQSMAoFZXZlbnQYAiABKAsyIS5vcGVuYWdlbnRzLndvcmtlci52MS5UaHJlYWRFdmVudCK+AgoMVGhyZWFkVXBkYXRlEjQKCHNuYXBzaG90GAEgASgLMiAub3BlbmFnZW50cy51aS52MS5UaHJlYWRTbmFwc2hvdEgAEjQKBWV2ZW50GAIgASgLMiMub3BlbmFnZW50cy51aS52MS5UaHJlYWRFdmVudFVwZGF0ZUgAEioKBnRocmVhZBgDIAEoCzIYLm9wZW5hZ2VudHMudWkudjEuVGhyZWFkSAASJgoEdHVybhgEIAEoCzIWLm9wZW5hZ2VudHMudWkudjEuVHVybkgAEjQKC2ludGVyYWN0aW9uGAUgASgLMh0ub3BlbmFnZW50cy51aS52MS5JbnRlcmFjdGlvbkgAEi4KCHNjaGVkdWxlGAYgASgLMhoub3BlbmFnZW50cy51aS52MS5TY2hlZHVsZUgAQggKBmNoYW5nZSLCAwoIU2NoZWR1bGUSCgoCaWQYASABKAkSEQoJdGhyZWFkX2lkGAIgASgJEhIKCnByb2plY3RfaWQYAyABKAkSDAoEa2luZBgEIAEoCRIOCgZwcm9tcHQYBSABKAkSKgoGcnVuX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIMCgRjcm9uGAcgASgJEhAKCHRpbWV6b25lGAggASgJEikKBXVudGlsGAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghtYXhfcnVucxgKIAEoDRIMCgRydW5zGAsgASgNEi8KC25leHRfcnVuX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZzdGF0dXMYDSABKAkSFQoNbWlzc2VkX3BvbGljeRgOIAEoCRISCgpjcmVhdGVkX2J5GA8gASgJEhwKFGNyZWF0ZWRfYnlfdGhyZWFkX2lkGBAgASgJEhQKDGxhc3RfdHVybl9pZBgRIAEoCRIuCgpjcmVhdGVkX2F0GBIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJXChRMaXN0U2NoZWR1bGVzUmVxdWVzdBISCgpwcm9qZWN0X2lkGAEgASgJEhEKCXRocmVhZF9pZBgCIAEoCRIYChBpbmNsdWRlX2ZpbmlzaGVkGAMgASgIIkYKFUxpc3RTY2hlZHVsZXNSZXNwb25zZRItCglzY2hlZHVsZXMYASADKAsyGi5vcGVuYWdlbnRzLnVpLnYxLlNjaGVkdWxlIuYBChVDcmVhdGVTY2hlZHVsZVJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJEg4KBnByb21wdBgCIAEoCRIsCgZydW5fYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wSAASDgoEY3JvbhgEIAEoCUgAEhAKCHRpbWV6b25lGAUgASgJEikKBXVudGlsGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghtYXhfcnVucxgHIAEoDRIVCg1taXNzZWRfcG9saWN5GAggASgJQgYKBHdoZW4iRgoWQ3JlYXRlU2NoZWR1bGVSZXNwb25zZRIsCghzY2hlZHVsZRgBIAEoCzIaLm9wZW5hZ2VudHMudWkudjEuU2NoZWR1bGUiPwoYU2V0U2NoZWR1bGVTdGF0dXNSZXF1ZXN0EhMKC3NjaGVkdWxlX2lkGAEgASgJEg4KBnN0YXR1cxgCIAEoCSJJChlTZXRTY2hlZHVsZVN0YXR1c1Jlc3BvbnNlEiwKCHNjaGVkdWxlGAEgASgLMhoub3BlbmFnZW50cy51aS52MS5TY2hlZHVsZSLJAQoSQXBwZWFyYW5jZVNldHRpbmdzEjMKDGNvbG9yX3NjaGVtZRgBIAEoDjIdLm9wZW5hZ2VudHMudWkudjEuQ29sb3JTY2hlbWUSLQoGYWNjZW50GAIgASgOMh0ub3BlbmFnZW50cy51aS52MS5BY2NlbnRUaGVtZRIvCgpjaGF0X3dpZHRoGAMgASgOMhsub3BlbmFnZW50cy51aS52MS5DaGF0V2lkdGgSHgoWdGhyZWFkX3BhbmVsX2NvbGxhcHNlZBgEIAEoCCLDAQoOVGhyZWFkRGVmYXVsdHMSFAoMd29ya3NwYWNlX2lkGAEgASgJEjAKCHByb3ZpZGVyGAIgASgOMh4ub3BlbmFnZW50cy53b3JrZXIudjEuUHJvdmlkZXISGwoTcHJvdmlkZXJfcHJvZmlsZV9pZBgDIAEoCRINCgVtb2RlbBgEIAEoCRI9Cg9wZXJtaXNzaW9uX21vZGUYBSABKA4yJC5vcGVuYWdlbnRzLndvcmtlci52MS5QZXJtaXNzaW9uTW9kZSLEAQoMVXNlclNldHRpbmdzEjgKCmFwcGVhcmFuY2UYASABKAsyJC5vcGVuYWdlbnRzLnVpLnYxLkFwcGVhcmFuY2VTZXR0aW5ncxI5Cg90aHJlYWRfZGVmYXVsdHMYAiABKAsyIC5vcGVuYWdlbnRzLnVpLnYxLlRocmVhZERlZmF1bHRzEg8KB3ZlcnNpb24YAyABKAQSLgoKdXBkYXRlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAioQEKD1Byb2plY3RTZXR0aW5ncxISCgpwcm9qZWN0X2lkGAEgASgJEjkKD3RocmVhZF9kZWZhdWx0cxgCIAEoCzIgLm9wZW5hZ2VudHMudWkudjEuVGhyZWFkRGVmYXVsdHMSDwoHdmVyc2lvbhgDIAEoBBIuCgp1cGRhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIUChJHZXRTZXR0aW5nc1JlcXVlc3QieAoTR2V0U2V0dGluZ3NSZXNwb25zZRIsCgR1c2VyGAEgASgLMh4ub3BlbmFnZW50cy51aS52MS5Vc2VyU2V0dGluZ3MSMwoIcHJvamVjdHMYAiADKAsyIS5vcGVuYWdlbnRzLnVpLnYxLlByb2plY3RTZXR0aW5ncyKqAQoZVXBkYXRlVXNlclNldHRpbmdzUmVxdWVzdBI4CgphcHBlYXJhbmNlGAEgASgLMiQub3BlbmFnZW50cy51aS52MS5BcHBlYXJhbmNlU2V0dGluZ3MSOQoPdGhyZWFkX2RlZmF1bHRzGAIgASgLMiAub3BlbmFnZW50cy51aS52MS5UaHJlYWREZWZhdWx0cxIYChBleHBlY3RlZF92ZXJzaW9uGAMgASgEIk4KGlVwZGF0ZVVzZXJTZXR0aW5nc1Jlc3BvbnNlEjAKCHNldHRpbmdzGAEgASgLMh4ub3BlbmFnZW50cy51aS52MS5Vc2VyU2V0dGluZ3MihwEKHFVwZGF0ZVByb2plY3RTZXR0aW5nc1JlcXVlc3QSEgoKcHJvamVjdF9pZBgBIAEoCRI5Cg90aHJlYWRfZGVmYXVsdHMYAiABKAsyIC5vcGVuYWdlbnRzLnVpLnYxLlRocmVhZERlZmF1bHRzEhgKEGV4cGVjdGVkX3ZlcnNpb24YAyABKAQiVAodVXBkYXRlUHJvamVjdFNldHRpbmdzUmVzcG9uc2USMwoIc2V0dGluZ3MYASABKAsyIS5vcGVuYWdlbnRzLnVpLnYxLlByb2plY3RTZXR0aW5ncypVCgpUaHJlYWRLaW5kEhsKF1RIUkVBRF9LSU5EX1VOU1BFQ0lGSUVEEAASFAoQVEhSRUFEX0tJTkRfTUFJThABEhQKEFRIUkVBRF9LSU5EX1NJREUQAipzCgtDb2xvclNjaGVtZRIcChhDT0xPUl9TQ0hFTUVfVU5TUEVDSUZJRUQQABIXChNDT0xPUl9TQ0hFTUVfU1lTVEVNEAESFgoSQ09MT1JfU0NIRU1FX0xJR0hUEAISFQoRQ09MT1JfU0NIRU1FX0RBUksQAyq7AQoLQWNjZW50VGhlbWUSHAoYQUNDRU5UX1RIRU1FX1VOU1BFQ0lGSUVEEAASGAoUQUNDRU5UX1RIRU1FX0RFRkFVTFQQARIWChJBQ0NFTlRfVEhFTUVfR1JPVkUQAhIWChJBQ0NFTlRfVEhFTUVfT0NFQU4QAxIWChJBQ0NFTlRfVEhFTUVfRU1CRVIQBBIVChFBQ0NFTlRfVEhFTUVfSVJJUxAFEhUKEUFDQ0VOVF9USEVNRV9ST1NFEAYqbQoJQ2hhdFdpZHRoEhoKFkNIQVRfV0lEVEhfVU5TUEVDSUZJRUQQABIaChZDSEFUX1dJRFRIX0NPTUZPUlRBQkxFEAESEwoPQ0hBVF9XSURUSF9XSURFEAISEwoPQ0hBVF9XSURUSF9GVUxMEAMyiw4KDkdhdGV3YXlTZXJ2aWNlEloKC0dldE92ZXJ2aWV3EiQub3BlbmFnZW50cy51aS52MS5HZXRPdmVydmlld1JlcXVlc3QaJS5vcGVuYWdlbnRzLnVpLnYxLkdldE92ZXJ2aWV3UmVzcG9uc2USWwoNV2F0Y2hPdmVydmlldxImLm9wZW5hZ2VudHMudWkudjEuV2F0Y2hPdmVydmlld1JlcXVlc3QaIC5vcGVuYWdlbnRzLnVpLnYxLk92ZXJ2aWV3VXBkYXRlMAESYAoNTGlzdERpcmVjdG9yeRImLm9wZW5hZ2VudHMudWkudjEuTGlzdERpcmVjdG9yeVJlcXVlc3QaJy5vcGVuYWdlbnRzLnVpLnYxLkxpc3REaXJlY3RvcnlSZXNwb25zZRJgCg1DcmVhdGVQcm9qZWN0EiYub3BlbmFnZW50cy51aS52MS5DcmVhdGVQcm9qZWN0UmVxdWVzdBonLm9wZW5hZ2VudHMudWkudjEuQ3JlYXRlUHJvamVjdFJlc3BvbnNlEmYKD0NyZWF0ZVdvcmtzcGFjZRIoLm9wZW5hZ2VudHMudWkudjEuQ3JlYXRlV29ya3NwYWNlUmVxdWVzdBopLm9wZW5hZ2VudHMudWkudjEuQ3JlYXRlV29ya3NwYWNlUmVzcG9uc2USWgoLTGlzdFRocmVhZHMSJC5vcGVuYWdlbnRzLnVpLnYxLkxpc3RUaHJlYWRzUmVxdWVzdBolLm9wZW5hZ2VudHMudWkudjEuTGlzdFRocmVhZHNSZXNwb25zZRJUCglHZXRUaHJlYWQSIi5vcGVuYWdlbnRzLnVpLnYxLkdldFRocmVhZFJlcXVlc3QaIy5vcGVuYWdlbnRzLnVpLnYxLkdldFRocmVhZFJlc3BvbnNlEl0KDENyZWF0ZVRocmVhZBIlLm9wZW5hZ2VudHMudWkudjEuQ3JlYXRlVGhyZWFkUmVxdWVzdBomLm9wZW5hZ2VudHMudWkudjEuQ3JlYXRlVGhyZWFkUmVzcG9uc2USWgoLU2VuZE1lc3NhZ2USJC5vcGVuYWdlbnRzLnVpLnYxLlNlbmRNZXNzYWdlUmVxdWVzdBolLm9wZW5hZ2VudHMudWkudjEuU2VuZE1lc3NhZ2VSZXNwb25zZRJmCg9JbnRlcnJ1cHRUaHJlYWQSKC5vcGVuYWdlbnRzLnVpLnYxLkludGVycnVwdFRocmVhZFJlcXVlc3QaKS5vcGVuYWdlbnRzLnVpLnYxLkludGVycnVwdFRocmVhZFJlc3BvbnNlEmwKEUFuc3dlckludGVyYWN0aW9uEioub3BlbmFnZW50cy51aS52MS5BbnN3ZXJJbnRlcmFjdGlvblJlcXVlc3QaKy5vcGVuYWdlbnRzLnVpLnYxLkFuc3dlckludGVyYWN0aW9uUmVzcG9uc2USVQoLV2F0Y2hUaHJlYWQSJC5vcGVuYWdlbnRzLnVpLnYxLldhdGNoVGhyZWFkUmVxdWVzdBoeLm9wZW5hZ2VudHMudWkudjEuVGhyZWFkVXBkYXRlMAESYAoNTGlzdFNjaGVkdWxlcxImLm9wZW5hZ2VudHMudWkudjEuTGlzdFNjaGVkdWxlc1JlcXVlc3QaJy5vcGVuYWdlbnRzLnVpLnYxLkxpc3RTY2hlZHVsZXNSZXNwb25zZRJjCg5DcmVhdGVTY2hlZHVsZRInLm9wZW5hZ2VudHMudWkudjEuQ3JlYXRlU2NoZWR1bGVSZXF1ZXN0Gigub3BlbmFnZW50cy51aS52MS5DcmVhdGVTY2hlZHVsZVJlc3BvbnNlEmwKEVNldFNjaGVkdWxlU3RhdHVzEioub3BlbmFnZW50cy51aS52MS5TZXRTY2hlZHVsZVN0YXR1c1JlcXVlc3QaKy5vcGVuYWdlbnRzLnVpLnYxLlNldFNjaGVkdWxlU3RhdHVzUmVzcG9uc2USWgoLR2V0U2V0dGluZ3MSJC5vcGVuYWdlbnRzLnVpLnYxLkdldFNldHRpbmdzUmVxdWVzdBolLm9wZW5hZ2VudHMudWkudjEuR2V0U2V0dGluZ3NSZXNwb25zZRJvChJVcGRhdGVVc2VyU2V0dGluZ3MSKy5vcGVuYWdlbnRzLnVpLnYxLlVwZGF0ZVVzZXJTZXR0aW5nc1JlcXVlc3QaLC5vcGVuYWdlbnRzLnVpLnYxLlVwZGF0ZVVzZXJTZXR0aW5nc1Jlc3BvbnNlEngKFVVwZGF0ZVByb2plY3RTZXR0aW5ncxIuLm9wZW5hZ2VudHMudWkudjEuVXBkYXRlUHJvamVjdFNldHRpbmdzUmVxdWVzdBovLm9wZW5hZ2VudHMudWkudjEuVXBkYXRlUHJvamVjdFNldHRpbmdzUmVzcG9uc2ViBnByb3RvMw", [file_google_protobuf_timestamp, file_openagents_worker_v1_worker_link]);
 
 /**
  * @generated from message openagents.ui.v1.Worker
@@ -657,6 +657,20 @@ export type OverviewUpdate = Message<"openagents.ui.v1.OverviewUpdate"> & {
      */
     value: Schedule;
     case: "schedule";
+  } | {
+    /**
+     * Zmiana z innego urządzenia albo karty.
+     *
+     * @generated from field: openagents.ui.v1.UserSettings user_settings = 5;
+     */
+    value: UserSettings;
+    case: "userSettings";
+  } | {
+    /**
+     * @generated from field: openagents.ui.v1.ProjectSettings project_settings = 6;
+     */
+    value: ProjectSettings;
+    case: "projectSettings";
   } | { case: undefined; value?: undefined };
 };
 
@@ -1529,6 +1543,274 @@ export const SetScheduleStatusResponseSchema: GenMessage<SetScheduleStatusRespon
   messageDesc(file_openagents_ui_v1_gateway, 41);
 
 /**
+ * @generated from message openagents.ui.v1.AppearanceSettings
+ */
+export type AppearanceSettings = Message<"openagents.ui.v1.AppearanceSettings"> & {
+  /**
+   * @generated from field: openagents.ui.v1.ColorScheme color_scheme = 1;
+   */
+  colorScheme: ColorScheme;
+
+  /**
+   * @generated from field: openagents.ui.v1.AccentTheme accent = 2;
+   */
+  accent: AccentTheme;
+
+  /**
+   * @generated from field: openagents.ui.v1.ChatWidth chat_width = 3;
+   */
+  chatWidth: ChatWidth;
+
+  /**
+   * Panel kontekstu wątku zwinięty.
+   *
+   * @generated from field: bool thread_panel_collapsed = 4;
+   */
+  threadPanelCollapsed: boolean;
+};
+
+/**
+ * Describes the message openagents.ui.v1.AppearanceSettings.
+ * Use `create(AppearanceSettingsSchema)` to create a new message.
+ */
+export const AppearanceSettingsSchema: GenMessage<AppearanceSettings> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 42);
+
+/**
+ * Wartości startowe nowego wątku. Puste pole = bez preferencji.
+ *
+ * @generated from message openagents.ui.v1.ThreadDefaults
+ */
+export type ThreadDefaults = Message<"openagents.ui.v1.ThreadDefaults"> & {
+  /**
+   * @generated from field: string workspace_id = 1;
+   */
+  workspaceId: string;
+
+  /**
+   * @generated from field: openagents.worker.v1.Provider provider = 2;
+   */
+  provider: Provider;
+
+  /**
+   * @generated from field: string provider_profile_id = 3;
+   */
+  providerProfileId: string;
+
+  /**
+   * @generated from field: string model = 4;
+   */
+  model: string;
+
+  /**
+   * @generated from field: openagents.worker.v1.PermissionMode permission_mode = 5;
+   */
+  permissionMode: PermissionMode;
+};
+
+/**
+ * Describes the message openagents.ui.v1.ThreadDefaults.
+ * Use `create(ThreadDefaultsSchema)` to create a new message.
+ */
+export const ThreadDefaultsSchema: GenMessage<ThreadDefaults> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 43);
+
+/**
+ * @generated from message openagents.ui.v1.UserSettings
+ */
+export type UserSettings = Message<"openagents.ui.v1.UserSettings"> & {
+  /**
+   * @generated from field: openagents.ui.v1.AppearanceSettings appearance = 1;
+   */
+  appearance?: AppearanceSettings | undefined;
+
+  /**
+   * @generated from field: openagents.ui.v1.ThreadDefaults thread_defaults = 2;
+   */
+  threadDefaults?: ThreadDefaults | undefined;
+
+  /**
+   * Rośnie przy każdej zmianie; 0 = jeszcze nie zapisane.
+   *
+   * @generated from field: uint64 version = 3;
+   */
+  version: bigint;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 4;
+   */
+  updatedAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message openagents.ui.v1.UserSettings.
+ * Use `create(UserSettingsSchema)` to create a new message.
+ */
+export const UserSettingsSchema: GenMessage<UserSettings> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 44);
+
+/**
+ * Ustawienia projektu; nadpisują domyślne wartości użytkownika w tym projekcie.
+ *
+ * @generated from message openagents.ui.v1.ProjectSettings
+ */
+export type ProjectSettings = Message<"openagents.ui.v1.ProjectSettings"> & {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId: string;
+
+  /**
+   * @generated from field: openagents.ui.v1.ThreadDefaults thread_defaults = 2;
+   */
+  threadDefaults?: ThreadDefaults | undefined;
+
+  /**
+   * @generated from field: uint64 version = 3;
+   */
+  version: bigint;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 4;
+   */
+  updatedAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message openagents.ui.v1.ProjectSettings.
+ * Use `create(ProjectSettingsSchema)` to create a new message.
+ */
+export const ProjectSettingsSchema: GenMessage<ProjectSettings> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 45);
+
+/**
+ * @generated from message openagents.ui.v1.GetSettingsRequest
+ */
+export type GetSettingsRequest = Message<"openagents.ui.v1.GetSettingsRequest"> & {
+};
+
+/**
+ * Describes the message openagents.ui.v1.GetSettingsRequest.
+ * Use `create(GetSettingsRequestSchema)` to create a new message.
+ */
+export const GetSettingsRequestSchema: GenMessage<GetSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 46);
+
+/**
+ * @generated from message openagents.ui.v1.GetSettingsResponse
+ */
+export type GetSettingsResponse = Message<"openagents.ui.v1.GetSettingsResponse"> & {
+  /**
+   * @generated from field: openagents.ui.v1.UserSettings user = 1;
+   */
+  user?: UserSettings | undefined;
+
+  /**
+   * @generated from field: repeated openagents.ui.v1.ProjectSettings projects = 2;
+   */
+  projects: ProjectSettings[];
+};
+
+/**
+ * Describes the message openagents.ui.v1.GetSettingsResponse.
+ * Use `create(GetSettingsResponseSchema)` to create a new message.
+ */
+export const GetSettingsResponseSchema: GenMessage<GetSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 47);
+
+/**
+ * Ustawione sekcje zastępują zapisane; nieustawione zostają.
+ *
+ * @generated from message openagents.ui.v1.UpdateUserSettingsRequest
+ */
+export type UpdateUserSettingsRequest = Message<"openagents.ui.v1.UpdateUserSettingsRequest"> & {
+  /**
+   * @generated from field: openagents.ui.v1.AppearanceSettings appearance = 1;
+   */
+  appearance?: AppearanceSettings | undefined;
+
+  /**
+   * @generated from field: openagents.ui.v1.ThreadDefaults thread_defaults = 2;
+   */
+  threadDefaults?: ThreadDefaults | undefined;
+
+  /**
+   * Wersja, od której klient zaczął zmianę (konflikt = FailedPrecondition, klient pobiera ustawienia od nowa).
+   *
+   * @generated from field: uint64 expected_version = 3;
+   */
+  expectedVersion: bigint;
+};
+
+/**
+ * Describes the message openagents.ui.v1.UpdateUserSettingsRequest.
+ * Use `create(UpdateUserSettingsRequestSchema)` to create a new message.
+ */
+export const UpdateUserSettingsRequestSchema: GenMessage<UpdateUserSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 48);
+
+/**
+ * @generated from message openagents.ui.v1.UpdateUserSettingsResponse
+ */
+export type UpdateUserSettingsResponse = Message<"openagents.ui.v1.UpdateUserSettingsResponse"> & {
+  /**
+   * @generated from field: openagents.ui.v1.UserSettings settings = 1;
+   */
+  settings?: UserSettings | undefined;
+};
+
+/**
+ * Describes the message openagents.ui.v1.UpdateUserSettingsResponse.
+ * Use `create(UpdateUserSettingsResponseSchema)` to create a new message.
+ */
+export const UpdateUserSettingsResponseSchema: GenMessage<UpdateUserSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 49);
+
+/**
+ * @generated from message openagents.ui.v1.UpdateProjectSettingsRequest
+ */
+export type UpdateProjectSettingsRequest = Message<"openagents.ui.v1.UpdateProjectSettingsRequest"> & {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId: string;
+
+  /**
+   * @generated from field: openagents.ui.v1.ThreadDefaults thread_defaults = 2;
+   */
+  threadDefaults?: ThreadDefaults | undefined;
+
+  /**
+   * @generated from field: uint64 expected_version = 3;
+   */
+  expectedVersion: bigint;
+};
+
+/**
+ * Describes the message openagents.ui.v1.UpdateProjectSettingsRequest.
+ * Use `create(UpdateProjectSettingsRequestSchema)` to create a new message.
+ */
+export const UpdateProjectSettingsRequestSchema: GenMessage<UpdateProjectSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 50);
+
+/**
+ * @generated from message openagents.ui.v1.UpdateProjectSettingsResponse
+ */
+export type UpdateProjectSettingsResponse = Message<"openagents.ui.v1.UpdateProjectSettingsResponse"> & {
+  /**
+   * @generated from field: openagents.ui.v1.ProjectSettings settings = 1;
+   */
+  settings?: ProjectSettings | undefined;
+};
+
+/**
+ * Describes the message openagents.ui.v1.UpdateProjectSettingsResponse.
+ * Use `create(UpdateProjectSettingsResponseSchema)` to create a new message.
+ */
+export const UpdateProjectSettingsResponseSchema: GenMessage<UpdateProjectSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_gateway, 51);
+
+/**
  * @generated from enum openagents.ui.v1.ThreadKind
  */
 export enum ThreadKind {
@@ -1553,6 +1835,120 @@ export enum ThreadKind {
  */
 export const ThreadKindSchema: GenEnum<ThreadKind> = /*@__PURE__*/
   enumDesc(file_openagents_ui_v1_gateway, 0);
+
+/**
+ * @generated from enum openagents.ui.v1.ColorScheme
+ */
+export enum ColorScheme {
+  /**
+   * = system
+   *
+   * @generated from enum value: COLOR_SCHEME_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: COLOR_SCHEME_SYSTEM = 1;
+   */
+  SYSTEM = 1,
+
+  /**
+   * @generated from enum value: COLOR_SCHEME_LIGHT = 2;
+   */
+  LIGHT = 2,
+
+  /**
+   * @generated from enum value: COLOR_SCHEME_DARK = 3;
+   */
+  DARK = 3,
+}
+
+/**
+ * Describes the enum openagents.ui.v1.ColorScheme.
+ */
+export const ColorSchemeSchema: GenEnum<ColorScheme> = /*@__PURE__*/
+  enumDesc(file_openagents_ui_v1_gateway, 1);
+
+/**
+ * @generated from enum openagents.ui.v1.AccentTheme
+ */
+export enum AccentTheme {
+  /**
+   * = default
+   *
+   * @generated from enum value: ACCENT_THEME_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACCENT_THEME_DEFAULT = 1;
+   */
+  DEFAULT = 1,
+
+  /**
+   * @generated from enum value: ACCENT_THEME_GROVE = 2;
+   */
+  GROVE = 2,
+
+  /**
+   * @generated from enum value: ACCENT_THEME_OCEAN = 3;
+   */
+  OCEAN = 3,
+
+  /**
+   * @generated from enum value: ACCENT_THEME_EMBER = 4;
+   */
+  EMBER = 4,
+
+  /**
+   * @generated from enum value: ACCENT_THEME_IRIS = 5;
+   */
+  IRIS = 5,
+
+  /**
+   * @generated from enum value: ACCENT_THEME_ROSE = 6;
+   */
+  ROSE = 6,
+}
+
+/**
+ * Describes the enum openagents.ui.v1.AccentTheme.
+ */
+export const AccentThemeSchema: GenEnum<AccentTheme> = /*@__PURE__*/
+  enumDesc(file_openagents_ui_v1_gateway, 2);
+
+/**
+ * @generated from enum openagents.ui.v1.ChatWidth
+ */
+export enum ChatWidth {
+  /**
+   * = comfortable
+   *
+   * @generated from enum value: CHAT_WIDTH_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CHAT_WIDTH_COMFORTABLE = 1;
+   */
+  COMFORTABLE = 1,
+
+  /**
+   * @generated from enum value: CHAT_WIDTH_WIDE = 2;
+   */
+  WIDE = 2,
+
+  /**
+   * @generated from enum value: CHAT_WIDTH_FULL = 3;
+   */
+  FULL = 3,
+}
+
+/**
+ * Describes the enum openagents.ui.v1.ChatWidth.
+ */
+export const ChatWidthSchema: GenEnum<ChatWidth> = /*@__PURE__*/
+  enumDesc(file_openagents_ui_v1_gateway, 3);
 
 /**
  * @generated from service openagents.ui.v1.GatewayService
@@ -1689,6 +2085,32 @@ export const GatewayService: GenService<{
     methodKind: "unary";
     input: typeof SetScheduleStatusRequestSchema;
     output: typeof SetScheduleStatusResponseSchema;
+  },
+  /**
+   * Ustawienia użytkownika i projektów. Przechowuje je gateway; przeglądarka jest tylko klientem.
+   *
+   * @generated from rpc openagents.ui.v1.GatewayService.GetSettings
+   */
+  getSettings: {
+    methodKind: "unary";
+    input: typeof GetSettingsRequestSchema;
+    output: typeof GetSettingsResponseSchema;
+  },
+  /**
+   * @generated from rpc openagents.ui.v1.GatewayService.UpdateUserSettings
+   */
+  updateUserSettings: {
+    methodKind: "unary";
+    input: typeof UpdateUserSettingsRequestSchema;
+    output: typeof UpdateUserSettingsResponseSchema;
+  },
+  /**
+   * @generated from rpc openagents.ui.v1.GatewayService.UpdateProjectSettings
+   */
+  updateProjectSettings: {
+    methodKind: "unary";
+    input: typeof UpdateProjectSettingsRequestSchema;
+    output: typeof UpdateProjectSettingsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_openagents_ui_v1_gateway, 0);

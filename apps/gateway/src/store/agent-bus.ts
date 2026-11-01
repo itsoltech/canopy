@@ -639,7 +639,7 @@ function truncateJson(value: Record<string, JsonValue>): Record<string, JsonValu
   return cut(value) as Record<string, JsonValue>;
 }
 
-function isUniqueViolation(error: SqlError.SqlError): boolean {
+export function isUniqueViolation(error: SqlError.SqlError): boolean {
   for (let current: unknown = error, i = 0; i < 5 && current && typeof current === "object"; i++, current = (current as { cause?: unknown }).cause) {
     if ((current as { code?: unknown }).code === "23505") return true;
   }

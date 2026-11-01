@@ -13,7 +13,7 @@ import { Effect, type ManagedRuntime } from "effect";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { DEFAULT_BUS_LIMITS } from "@open-agents/domain";
-import { AgentBusStore, GatewayStore, Ingest, toUiSchedule, toUiThread, toUiTurn, type ScheduleRow, type ThreadRow } from "../store/index.ts";
+import { AgentBusStore, GatewayStore, Ingest, SettingsStore, toUiSchedule, toUiThread, toUiTurn, type ScheduleRow, type ThreadRow } from "../store/index.ts";
 import { cronProblem, nextCronRun } from "./cron.ts";
 import { AgentBus } from "./agent-bus.ts";
 import { Hub } from "./hub.ts";
@@ -28,7 +28,7 @@ import { Scheduler } from "./scheduler.ts";
  * - UI operations and live fan-out through the hub.
  */
 
-export type CoreRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore, unknown>;
+export type CoreRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore, unknown>;
 
 export interface GatewayCoreOptions {
   readonly runtime: CoreRuntime;
@@ -416,6 +416,57 @@ export class GatewayCore {
     } finally {
       subscription.close();
     }
+  }
+
+  // ------------------------------------------------------------------ settings (UI)
+
+  async settings(): Promise<ui.GetSettingsResponse> {
+    const [user, projects] = await Promise.all([
+      this.#settings((s) => s.user(this.#options.userId)),
+      this.#settings((s) => s.projects(this.#options.userId)),
+    ]);
+    return create(ui.GetSettingsResponseSchema, { user, projects });
+  }
+
+  async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
+    if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults);
+    const settings = await this.#settings((s) =>
+      s.updateUser({
+        userId: this.#options.userId,
+        ...(request.appearance && { appearance: request.appearance }),
+        ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
+        expectedVersion: request.expectedVersion,
+      }),
+    );
+    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "userSettings", value: settings } }));
+    return settings;
+  }
+
+  async updateProjectSettings(request: ui.UpdateProjectSettingsRequest): Promise<ui.ProjectSettings> {
+    if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults, request.projectId);
+    const settings = await this.#settings((s) =>
+      s.updateProject({
+        userId: this.#options.userId,
+        projectId: request.projectId,
+        ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
+        expectedVersion: request.expectedVersion,
+      }),
+    );
+    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "projectSettings", value: settings } }));
+    return settings;
+  }
+
+  /** Defaults must point at the user's own workspace (in the project, for project settings). */
+  async #checkThreadDefaults(defaults: ui.ThreadDefaults, projectId?: string): Promise<void> {
+    if (defaults.model.length > 200 || defaults.providerProfileId.length > 100) throw new InvalidError("model or profile id is too long");
+    if (!defaults.workspaceId) return;
+    const projects = await this.#run((s) => s.listProjects(this.#options.userId));
+    const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === defaults.workspaceId);
+    if (!workspace || (projectId && workspace.projectId !== projectId)) throw new InvalidError("workspace not found");
+  }
+
+  #settings<A, E>(use: (store: SettingsStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(SettingsStore.use(use));
   }
 
   // ------------------------------------------------------------------ schedules (UI)

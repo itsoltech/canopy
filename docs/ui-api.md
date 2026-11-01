@@ -41,6 +41,7 @@ flowchart LR
 | `AnswerInteraction` | odpowiedź na zgodę albo pytanie |
 | `WatchThread` | najpierw snapshot (wątek, tury ze zużyciem tokenów, itemy, oczekujące interakcje, ostatnie komunikaty, `last_seq`), potem zmiany na żywo: zdarzenia (`seq` + `ThreadEvent`), wątek, tura, interakcja. Snapshot forka zawiera odziedziczoną historię: tury i itemy wątku źródłowego do punktu forka z `inherited = true` |
 | `ListSchedules`, `CreateSchedule`, `SetScheduleStatus` | harmonogram platformy: lista (wątek, projekt albo wszystkie; z autorem: użytkownik albo agent i jego wątek), nowy harmonogram użytkownika (jednorazowy `run_at` albo `cron` ze strefą czasową; może być bez końca), wstrzymanie, wznowienie, anulowanie. Zmiany na żywo w `ThreadUpdate.schedule` i `OverviewUpdate.schedule`, a snapshot wątku zawiera jego aktywne i wstrzymane harmonogramy |
+| `GetSettings`, `UpdateUserSettings`, `UpdateProjectSettings` | ustawienia użytkownika (wygląd: schemat kolorów, akcent, szerokość czatu, panel wątku; domyślne wartości nowych wątków) i projektu (domyślne wartości wątków, nadpisują użytkownika). Przechowuje je gateway (`user_settings`, `project_settings`); przeglądarka jest tylko klientem. Zapis zastępuje podane sekcje i podaje wersję, od której zaczął: konflikt z innym urządzeniem = `FailedPrecondition` (BFF: 409), klient pobiera ustawienia od nowa. Zmiany na żywo w `OverviewUpdate.user_settings` / `project_settings` |
 
 UI składa itemy na żywo tym samym reducerem co gateway (`reduceItem` z `@open-agents/domain`).
 

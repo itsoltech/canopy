@@ -242,6 +242,42 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     );
   });
 
+  test("settings live in the gateway: sections, versions across devices, project overrides, live updates", async () => {
+    const initial = (await api.getSettings({})).user!;
+    expect([initial.version, initial.appearance?.colorScheme, initial.threadDefaults?.workspaceId]).toEqual([0n, ui.ColorScheme.UNSPECIFIED, ""]);
+
+    const seen: ui.OverviewUpdate[] = [];
+    const controller = new AbortController();
+    const watching = (async () => {
+      for await (const u of api.watchOverview({}, { signal: controller.signal })) seen.push(u);
+    })().catch(() => {});
+    await Bun.sleep(50);
+
+    // Device A saves the appearance; the thread defaults section stays untouched.
+    const a = (
+      await api.updateUserSettings({ appearance: { colorScheme: ui.ColorScheme.DARK, accent: ui.AccentTheme.GROVE, chatWidth: ui.ChatWidth.WIDE }, expectedVersion: 0n })
+    ).settings!;
+    expect([a.version, a.appearance?.accent]).toEqual([1n, ui.AccentTheme.GROVE]);
+    // Device B still has version 0: refused instead of overwriting A.
+    const stale = await api.updateUserSettings({ appearance: { colorScheme: ui.ColorScheme.LIGHT }, expectedVersion: 0n }).catch((e: unknown) => e);
+    expect((stale as ConnectError).code).toBe(Code.FailedPrecondition);
+    const b = (
+      await api.updateUserSettings({ threadDefaults: { workspaceId, provider: Provider.CLAUDE, permissionMode: PermissionMode.ACCEPT_EDITS }, expectedVersion: 1n })
+    ).settings!;
+    expect([b.version, b.appearance?.colorScheme, b.threadDefaults?.provider]).toEqual([2n, ui.ColorScheme.DARK, Provider.CLAUDE]);
+    expect(await failure(api.updateUserSettings({ threadDefaults: { workspaceId: Bun.randomUUIDv7() }, expectedVersion: 2n }))).toContain("workspace not found");
+
+    // Project settings override the user's defaults in that project.
+    const project = (await api.updateProjectSettings({ projectId, threadDefaults: { workspaceId, model: "claude-haiku-5-5" }, expectedVersion: 0n })).settings!;
+    expect([project.version, project.threadDefaults?.model]).toEqual([1n, "claude-haiku-5-5"]);
+    const all = await api.getSettings({});
+    expect([all.user?.version, all.projects.map((p) => p.projectId)]).toEqual([2n, [projectId]]);
+
+    await eventually(async () => seen, (u) => u.filter((x) => x.change.case === "userSettings").length === 2 && u.some((x) => x.change.case === "projectSettings"));
+    controller.abort();
+    await watching;
+  });
+
   test("errors keep their meaning across the API", async () => {
     expect(await failure(api.createProject({ name: "  " }))).toContain("project name is required");
     expect(await failure(api.sendMessage({ threadId: Bun.randomUUIDv7(), text: "x" }))).not.toBe("");

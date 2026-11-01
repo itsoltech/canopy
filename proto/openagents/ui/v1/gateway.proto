@@ -35,6 +35,11 @@ service GatewayService {
   rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse);
   // Wstrzymanie, wznowienie albo anulowanie.
   rpc SetScheduleStatus(SetScheduleStatusRequest) returns (SetScheduleStatusResponse);
+
+  // Ustawienia użytkownika i projektów. Przechowuje je gateway; przeglądarka jest tylko klientem.
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+  rpc UpdateUserSettings(UpdateUserSettingsRequest) returns (UpdateUserSettingsResponse);
+  rpc UpdateProjectSettings(UpdateProjectSettingsRequest) returns (UpdateProjectSettingsResponse);
 }
 
 // ---------- Model ----------
@@ -187,6 +192,9 @@ message OverviewUpdate {
     Thread thread = 2;
     Project project = 3;
     Schedule schedule = 4;
+    // Zmiana z innego urządzenia albo karty.
+    UserSettings user_settings = 5;
+    ProjectSettings project_settings = 6;
   }
 }
 
@@ -392,4 +400,92 @@ message SetScheduleStatusRequest {
 
 message SetScheduleStatusResponse {
   Schedule schedule = 1;
+}
+
+// ---------- Ustawienia ----------
+
+enum ColorScheme {
+  COLOR_SCHEME_UNSPECIFIED = 0; // = system
+  COLOR_SCHEME_SYSTEM = 1;
+  COLOR_SCHEME_LIGHT = 2;
+  COLOR_SCHEME_DARK = 3;
+}
+
+enum AccentTheme {
+  ACCENT_THEME_UNSPECIFIED = 0; // = default
+  ACCENT_THEME_DEFAULT = 1;
+  ACCENT_THEME_GROVE = 2;
+  ACCENT_THEME_OCEAN = 3;
+  ACCENT_THEME_EMBER = 4;
+  ACCENT_THEME_IRIS = 5;
+  ACCENT_THEME_ROSE = 6;
+}
+
+enum ChatWidth {
+  CHAT_WIDTH_UNSPECIFIED = 0; // = comfortable
+  CHAT_WIDTH_COMFORTABLE = 1;
+  CHAT_WIDTH_WIDE = 2;
+  CHAT_WIDTH_FULL = 3;
+}
+
+message AppearanceSettings {
+  ColorScheme color_scheme = 1;
+  AccentTheme accent = 2;
+  ChatWidth chat_width = 3;
+  // Panel kontekstu wątku zwinięty.
+  bool thread_panel_collapsed = 4;
+}
+
+// Wartości startowe nowego wątku. Puste pole = bez preferencji.
+message ThreadDefaults {
+  string workspace_id = 1;
+  openagents.worker.v1.Provider provider = 2;
+  string provider_profile_id = 3;
+  string model = 4;
+  openagents.worker.v1.PermissionMode permission_mode = 5;
+}
+
+message UserSettings {
+  AppearanceSettings appearance = 1;
+  ThreadDefaults thread_defaults = 2;
+  // Rośnie przy każdej zmianie; 0 = jeszcze nie zapisane.
+  uint64 version = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+// Ustawienia projektu; nadpisują domyślne wartości użytkownika w tym projekcie.
+message ProjectSettings {
+  string project_id = 1;
+  ThreadDefaults thread_defaults = 2;
+  uint64 version = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message GetSettingsRequest {}
+
+message GetSettingsResponse {
+  UserSettings user = 1;
+  repeated ProjectSettings projects = 2;
+}
+
+// Ustawione sekcje zastępują zapisane; nieustawione zostają.
+message UpdateUserSettingsRequest {
+  AppearanceSettings appearance = 1;
+  ThreadDefaults thread_defaults = 2;
+  // Wersja, od której klient zaczął zmianę (konflikt = FailedPrecondition, klient pobiera ustawienia od nowa).
+  uint64 expected_version = 3;
+}
+
+message UpdateUserSettingsResponse {
+  UserSettings settings = 1;
+}
+
+message UpdateProjectSettingsRequest {
+  string project_id = 1;
+  ThreadDefaults thread_defaults = 2;
+  uint64 expected_version = 3;
+}
+
+message UpdateProjectSettingsResponse {
+  ProjectSettings settings = 1;
 }
