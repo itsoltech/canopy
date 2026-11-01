@@ -301,7 +301,11 @@ export class GatewayCore {
   }
 
   async listThreads(projectId: string): Promise<ui.Thread[]> {
-    return (await this.#run((s) => s.listThreads(projectId))).map(toUiThread);
+    return (await this.#run((s) => s.listThreads(this.#options.userId, projectId))).map(toUiThread);
+  }
+
+  async getThread(threadId: string): Promise<ui.Thread> {
+    return toUiThread(await this.#run((s) => s.thread(threadId)));
   }
 
   async createThread(request: ui.CreateThreadRequest): Promise<ui.Thread> {
@@ -384,6 +388,7 @@ export class GatewayCore {
             turns: snapshot.turns.map(toUiTurn),
             items: snapshot.items,
             interactions: snapshot.interactions,
+            notices: snapshot.notices,
             lastSeq: snapshot.lastSeq,
           },
         },

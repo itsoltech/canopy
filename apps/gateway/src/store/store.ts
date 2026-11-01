@@ -8,7 +8,9 @@ import {
   ItemSchema,
   PermissionMode,
   Provider,
+  ThreadEventSchema,
   ThreadSpecSchema,
+  UsageSchema,
   WorkerConfigSchema,
   ui,
   type Command,
@@ -66,6 +68,7 @@ export interface ThreadRow {
   created_at: Date;
   archived_at?: Date | null;
   pending_interactions?: bigint | number;
+  last_activity_at?: Date | null;
 }
 
 export interface TurnRow {
@@ -78,6 +81,10 @@ export interface TurnRow {
   error: string | null;
   provider_turn_ref: string | null;
   queued_at: Date;
+  started_at?: Date | null;
+  completed_at?: Date | null;
+  usage?: JsonValue | null;
+  hops?: number;
 }
 
 export interface OutboxRow {
@@ -121,7 +128,8 @@ export class GatewayStore extends Context.Service<
     // threads and turns
     createThread(ownerUserId: string, request: ui.CreateThreadRequest): Fx<ThreadRow>;
     thread(threadId: string): Fx<ThreadRow>;
-    listThreads(projectId: string): Fx<ReadonlyArray<ThreadRow>>;
+    /** Threads of a project, or of every project the user owns when projectId is empty. */
+    listThreads(ownerUserId: string, projectId: string): Fx<ReadonlyArray<ThreadRow>>;
     threadSpec(row: ThreadRow): ThreadSpec;
     setThreadStatus(threadId: string, status: string, detail: string | null): Fx<void>;
     enqueueTurn(input: { threadId: string; text: string; userId: string; clientRequestId: string }): Fx<TurnRow>;
@@ -130,7 +138,14 @@ export class GatewayStore extends Context.Service<
     runningTurn(threadId: string): Fx<TurnRow | undefined>;
     turnsOf(threadId: string): Fx<ReadonlyArray<TurnRow>>;
     failTurn(turnId: string, error: string): Fx<void>;
-    snapshot(threadId: string): Fx<{ thread: ThreadRow; turns: TurnRow[]; items: ui.TimelineItem[]; interactions: ui.Interaction[]; lastSeq: bigint }>;
+    snapshot(threadId: string): Fx<{
+      thread: ThreadRow;
+      turns: (TurnRow & { inherited?: boolean })[];
+      items: ui.TimelineItem[];
+      interactions: ui.Interaction[];
+      notices: ui.ThreadNotice[];
+      lastSeq: bigint;
+    }>;
     // outbox
     enqueueCommand(input: { workerId: string; threadId?: string; turnId?: string; command: MessageInitShape<typeof CommandSchema>; ttlSeconds: number }): Fx<Command>;
     pendingCommands(workerId: string): Fx<Command[]>;
@@ -152,7 +167,9 @@ export class GatewayStore extends Context.Service<
           rows[0] === undefined ? Effect.fail(new NotFound(`${what} not found`)) : Effect.succeed(rows[0]);
 
         const threadSelect = (where: string) => `
-          SELECT t.*, (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending') AS pending_interactions
+          SELECT t.*, (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending') AS pending_interactions,
+                 greatest(t.created_at, (SELECT max(greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at)))
+                                           FROM turns u WHERE u.thread_id = t.id)) AS last_activity_at
             FROM threads t ${where}`;
 
         const store: GatewayStore["Service"] = {
@@ -392,7 +409,15 @@ export class GatewayStore extends Context.Service<
           thread: (threadId) =>
             sql.unsafe<ThreadRow>(threadSelect("WHERE t.id = $1::uuid"), [threadId]).pipe(Effect.flatMap((rows) => one(rows, "thread"))),
 
-          listThreads: (projectId) => sql.unsafe<ThreadRow>(threadSelect("WHERE t.project_id = $1::uuid AND t.archived_at IS NULL ORDER BY t.created_at"), [projectId]),
+          listThreads: (ownerUserId, projectId) =>
+            projectId
+              ? sql.unsafe<ThreadRow>(threadSelect("WHERE t.project_id = $1::uuid AND t.archived_at IS NULL ORDER BY t.created_at"), [projectId])
+              : sql.unsafe<ThreadRow>(
+                  threadSelect(
+                    "WHERE t.owner_user_id = $1::uuid AND t.archived_at IS NULL AND EXISTS (SELECT 1 FROM projects p WHERE p.id = t.project_id AND p.archived_at IS NULL) ORDER BY t.created_at",
+                  ),
+                  [ownerUserId],
+                ),
 
           threadSpec: (row) =>
             create(ThreadSpecSchema, {
@@ -448,19 +473,43 @@ export class GatewayStore extends Context.Service<
           snapshot: (threadId) =>
             Effect.gen(function* () {
               const thread = yield* store.thread(threadId);
+              // A fork shows the history it inherits (thread_items_view / thread_fork_chain), marked as inherited.
+              const inheritedTurns = yield* sql<TurnRow>`
+                SELECT u.* FROM thread_fork_chain(${threadId}::uuid) c JOIN turns u ON u.thread_id = c.thread_id
+                 WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
+                 ORDER BY c.level DESC, u.ordinal`;
               const turns = yield* store.turnsOf(threadId);
-              const itemRows = yield* sql<{ content: JsonValue; turn_id: string | null; first_seq: bigint; last_seq: bigint }>`
-                SELECT content, turn_id, first_seq, last_seq FROM thread_items WHERE thread_id = ${threadId}::uuid ORDER BY first_seq`;
+              const itemRows = yield* sql<{ content: JsonValue; turn_id: string | null; first_seq: bigint; last_seq: bigint; inherited: boolean }>`
+                SELECT content, turn_id, first_seq, last_seq, inherited FROM thread_items_view(${threadId}::uuid)`;
               const items = itemRows.map((r) =>
                 create(ui.TimelineItemSchema, {
                   item: fromJson(ItemSchema, r.content),
                   turnId: r.turn_id ?? "",
                   firstSeq: BigInt(r.first_seq),
                   lastSeq: BigInt(r.last_seq),
+                  inherited: r.inherited,
                 }),
               );
+              const noticeRows = yield* sql<{ seq: bigint; turn_id: string | null; payload: JsonValue; occurred_at: Date }>`
+                SELECT seq, turn_id, payload, occurred_at FROM (
+                  SELECT seq, turn_id, payload, occurred_at FROM thread_events
+                   WHERE thread_id = ${threadId}::uuid AND kind = 'notice' ORDER BY seq DESC LIMIT 200) n
+                 ORDER BY seq`;
+              const notices = noticeRows.flatMap((r) => {
+                const event = fromJson(ThreadEventSchema, r.payload);
+                return event.body.case === "notice"
+                  ? [create(ui.ThreadNoticeSchema, { seq: BigInt(r.seq), turnId: r.turn_id ?? "", notice: event.body.value, occurredAt: timestampFromDate(new Date(r.occurred_at)) })]
+                  : [];
+              });
               const interactions = yield* store.pendingInteractions(threadId);
-              return { thread, turns: [...turns], items, interactions, lastSeq: BigInt(thread.last_seq) };
+              return {
+                thread,
+                turns: [...inheritedTurns.map((t) => ({ ...t, inherited: true })), ...turns],
+                items,
+                interactions,
+                notices,
+                lastSeq: BigInt(thread.last_seq),
+              };
             }),
 
           enqueueCommand: ({ workerId, threadId, turnId, command, ttlSeconds }) =>
@@ -596,10 +645,14 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     lastSeq: BigInt(row.last_seq),
     createdAt: timestampFromDate(new Date(row.created_at)),
     pendingInteractions: Number(row.pending_interactions ?? 0),
+    forkSourceThreadId: row.fork_source_thread_id ?? "",
+    rootThreadId: row.root_thread_id,
+    interactionRoute: row.interaction_route,
+    ...(row.last_activity_at && { lastActivityAt: timestampFromDate(new Date(row.last_activity_at)) }),
   });
 }
 
-export function toUiTurn(row: TurnRow): ui.Turn {
+export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
   return create(ui.TurnSchema, {
     id: row.id,
     ordinal: row.ordinal,
@@ -608,6 +661,11 @@ export function toUiTurn(row: TurnRow): ui.Turn {
     inputText: row.input?.text ?? "",
     error: row.error ?? "",
     queuedAt: timestampFromDate(new Date(row.queued_at)),
+    ...(row.started_at && { startedAt: timestampFromDate(new Date(row.started_at)) }),
+    ...(row.completed_at && { completedAt: timestampFromDate(new Date(row.completed_at)) }),
+    ...(row.usage && { usage: fromJson(UsageSchema, row.usage) }),
+    hops: row.hops ?? 0,
+    inherited: row.inherited ?? false,
   });
 }
 

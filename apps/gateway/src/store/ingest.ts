@@ -70,6 +70,23 @@ export class Ingest extends Context.Service<
           `;
         });
 
+      /**
+       * Turns the provider started itself (e.g. goal continuation) exist from their turn_started on.
+       * Any other event naming a turn this thread does not have keeps no turn link: e.g. Codex reports the
+       * token usage of the source's last turn right after a fork. Creating a turn from it would leave a
+       * turn "running" forever and block the thread's queue.
+       */
+      const resolveTurn = (threadId: string, event: ThreadEvent) =>
+        Effect.gen(function* () {
+          if (!event.turnId) return event;
+          if (event.body.case === "turnStarted") {
+            yield* ensureTurn(threadId, event.turnId, "provider");
+            return event;
+          }
+          const exists = yield* sql`SELECT 1 FROM turns WHERE id = ${event.turnId}::uuid AND thread_id = ${threadId}::uuid`;
+          return exists.length > 0 ? event : create(ThreadEventSchema, { ...event, turnId: "" });
+        });
+
       const applyItem = (threadId: string, seq: bigint, event: ThreadEvent) =>
         Effect.gen(function* () {
           const itemId = eventItemId(event.body);
@@ -150,14 +167,11 @@ export class Ingest extends Context.Service<
               ),
             );
             const stored: StoredEvent[] = [];
-            for (const event of events) {
-              if (known.has(event.eventId)) continue;
-              known.add(event.eventId);
+            for (const incoming of events) {
+              if (known.has(incoming.eventId)) continue;
+              known.add(incoming.eventId);
               const seq = ++last;
-              if (event.turnId) {
-                // Turns the provider started itself (e.g. goal continuation) exist only from turn_started on.
-                yield* ensureTurn(threadId, event.turnId, "provider");
-              }
+              const event = yield* resolveTurn(threadId, incoming);
               const payload = toJson(ThreadEventSchema, create(ThreadEventSchema, { ...event, rawJson: "" }));
               yield* sql`
                 INSERT INTO thread_events (thread_id, seq, event_id, origin, turn_id, kind, item_id, payload, raw, occurred_at)

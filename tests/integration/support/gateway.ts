@@ -94,7 +94,10 @@ export class ScriptedWorker {
             case: "itemCompleted",
             value: { item: { itemId: `msg-${turnId}`, status: ItemStatus.COMPLETED, content: { case: "agentMessage", value: { text: `Echo: ${input!.text}`, phase: "final_answer" } } } },
           });
-          this.emit(threadId, turnId, { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: `ct-${turnId.slice(-4)}` } });
+          this.emit(threadId, turnId, {
+            case: "turnFinished",
+            value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: `ct-${turnId.slice(-4)}`, usage: { inputTokens: 10n, outputTokens: 2n } },
+          });
           break;
         }
         default:

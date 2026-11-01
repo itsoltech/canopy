@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
-import { InteractionKind, PermissionMode, Provider, TurnOrigin, ui } from "@open-agents/contracts";
+import { InteractionKind, NoticeLevel, PermissionMode, Provider, TurnOrigin, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { answers, eventually, failure, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
@@ -194,6 +194,52 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
       ["provider", "interrupted"],
       ["provider", "running"],
     ]);
+  });
+
+  test("an event naming a turn the thread does not have creates no turn (Codex usage right after a fork)", async () => {
+    const thread = (await api.createThread({ projectId, workspaceId, title: "Fork usage", provider: Provider.CODEX })).thread!;
+    await eventually(async () => (await api.listThreads({ projectId })).threads.find((t) => t.id === thread.id)?.status, (s) => s === "idle");
+    worker.emit(thread.id, Bun.randomUUIDv7(), { case: "usageUpdated", value: { usage: { inputTokens: 10n } } });
+    await api.sendMessage({ threadId: thread.id, text: "after fork", clientRequestId: "fork-usage-1" });
+    const updates = await watchUntil(api, thread.id, (u) => answers(u).includes("Echo: after fork"));
+    expect(answers(updates)).toContain("Echo: after fork");
+    const snapshotTurns = async () => {
+      const first = (await watchUntil(api, thread.id, (u) => u.length >= 1))[0];
+      return first?.change.case === "snapshot" ? first.change.value.turns : [];
+    };
+    const turns = await eventually(snapshotTurns, (t) => t.every((x) => x.status === "completed"));
+    expect(turns.map((t) => [t.trigger, t.status])).toEqual([["user", "completed"]]);
+  });
+
+  test("thread details for the UI: GetThread, all threads, fork history, usage and notices survive a reload", async () => {
+    const source = (await api.createThread({ projectId, workspaceId, title: "Source", provider: Provider.CODEX, initialMessage: "remember me" })).thread!;
+    await watchUntil(api, source.id, (u) => answers(u).includes("Echo: remember me"));
+    worker.emit(source.id, "", { case: "notice", value: { level: NoticeLevel.WARNING, code: "api_retry", message: "retrying" } });
+
+    const details = (await api.getThread({ threadId: source.id })).thread!;
+    expect([details.rootThreadId, details.interactionRoute, details.forkSourceThreadId]).toEqual([source.id, "human", ""]);
+    expect(details.lastActivityAt).toBeDefined();
+    expect((await api.listThreads({ projectId: "" })).threads.map((t) => t.id)).toContain(source.id);
+
+    // Usage and notices are part of the snapshot, not only of the live stream.
+    const reloaded = await eventually(
+      async () => (await watchUntil(api, source.id, (u) => u.length >= 1))[0],
+      (u) => u?.change.case === "snapshot" && u.change.value.notices.length === 1 && u.change.value.turns[0]?.status === "completed",
+    );
+    const snapshot = reloaded?.change.case === "snapshot" ? reloaded.change.value : undefined;
+    expect(snapshot?.turns[0]?.usage?.outputTokens).toBe(2n);
+    expect(snapshot?.notices[0]?.notice?.message).toBe("retrying");
+
+    // A fork shows the history it inherits, marked as inherited.
+    const fork = (await api.createThread({ projectId, workspaceId, parentThreadId: source.id, fork: true, title: "Fork", provider: Provider.CODEX })).thread!;
+    const forkDetails = (await api.getThread({ threadId: fork.id })).thread!;
+    expect([forkDetails.forkSourceThreadId, forkDetails.rootThreadId]).toEqual([source.id, source.id]);
+    const forkSnapshot = (await watchUntil(api, fork.id, (u) => u.length >= 1))[0];
+    const inherited = forkSnapshot?.change.case === "snapshot" ? forkSnapshot.change.value : undefined;
+    expect(inherited?.turns.map((t) => [t.inputText, t.inherited])).toEqual([["remember me", true]]);
+    expect(inherited?.items.filter((i) => i.inherited).map((i) => (i.item?.content.case === "agentMessage" ? i.item.content.value.text : ""))).toContain(
+      "Echo: remember me",
+    );
   });
 
   test("errors keep their meaning across the API", async () => {

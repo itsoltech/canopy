@@ -35,11 +35,11 @@ flowchart LR
 | `WatchOverview` | strumień zmian workerów, projektów i wątków |
 | `ListDirectory` | przeglądanie katalogów na workerze, w dozwolonych katalogach (wybór workspace'u) |
 | `CreateProject`, `CreateWorkspace` | projekt; workspace = katalog na workerze |
-| `ListThreads`, `CreateThread` | wątki projektu; nowy wątek (główny albo boczny, opcjonalnie fork) z opcjonalną pierwszą wiadomością |
+| `ListThreads`, `GetThread`, `CreateThread` | wątki projektu (pusty projekt = wszystkie wątki użytkownika); jeden wątek; nowy wątek (główny albo boczny, opcjonalnie fork) z opcjonalną pierwszą wiadomością |
 | `SendMessage` | nowa tura; idempotentne po `client_request_id` |
 | `InterruptThread` | przerwanie tury w toku |
 | `AnswerInteraction` | odpowiedź na zgodę albo pytanie |
-| `WatchThread` | najpierw snapshot (wątek, tury, itemy, oczekujące interakcje, `last_seq`), potem zmiany na żywo: zdarzenia (`seq` + `ThreadEvent`), wątek, tura, interakcja |
+| `WatchThread` | najpierw snapshot (wątek, tury ze zużyciem tokenów, itemy, oczekujące interakcje, ostatnie komunikaty, `last_seq`), potem zmiany na żywo: zdarzenia (`seq` + `ThreadEvent`), wątek, tura, interakcja. Snapshot forka zawiera odziedziczoną historię: tury i itemy wątku źródłowego do punktu forka z `inherited = true` |
 
 UI składa itemy na żywo tym samym reducerem co gateway (`reduceItem` z `@open-agents/domain`).
 
@@ -70,7 +70,7 @@ Kod wg funkcji (`#lib/features/*`), kod tylko serwerowy w katalogach `server/` (
 | `lib/shared/wire.ts` | JSON protobuf (`toJson` / `fromJson`) między serwerem a przeglądarką: te same schematy po obu stronach |
 | `lib/shared/ui` | prymitywy UI: `Button`, `ButtonLink`, `IconButton`, `Field` + `Input` / `Select` / `Textarea` / `Checkbox`, `Badge`, `StatusBadge`, `StatusDot`, `ProjectAvatar`, `Alert`, `EmptyState`, `Dialog`, `Drawer`, `Disclosure`, `CodeBlock`, `Skeleton`, `SettingsGroup` + `SettingsRow`; ikony Heroicons Micro (`icons.ts`); `markdown/` renderuje markdown agentów z tokenów `marked` komponentami Svelte (bez `{@html}`, linki tylko http(s)/mailto, obrazy jako linki) |
 | `lib/shared/preferences.svelte.ts`, `format.ts` | wygląd zapisany w przeglądarce: schemat (system / jasny / ciemny), motyw akcentu (`--brand-*`, klasy `brand-*`), szerokość czatu (`--chat-width`); `app.html` stosuje je przed pierwszym renderem; liczby, czasy, JSON |
-| `lib/server/threads.ts` | indeks wątków wszystkich projektów (BFF woła `ListThreads` dla każdego projektu równolegle) |
+| `lib/server/threads.ts` | indeks wątków wszystkich projektów (BFF woła `ListThreads` dla każdego projektu równolegle; gateway umie już zwrócić wszystkie naraz: pusty `project_id`) |
 | `features/navigation` | powłoka w stylu T3 Code: pasek boczny jako skrzynka wątków (projekt, status, tytuł, worker; najpierw wątki czekające na użytkownika; wątki boczne otwartego drzewa pod nim), wyszukiwarka, stopka (ustawienia, workery, połączenie), `TopBar` z breadcrumbem, menu mobilne |
 | `features/overview` | stan workerów, projektów i wszystkich wątków (kontekst, SSE `api/overview/events`; po każdym ponownym połączeniu pełne `api/overview` i `api/threads`, bo strumień niesie tylko zmiany), karta workera w ustawieniach |
 | `features/projects` | nowy projekt, lista wątków projektu (wątki główne z bocznymi) |
@@ -121,5 +121,4 @@ bun run build && GATEWAY_SERVICE_TOKEN=... PORT=3000 node build/index.js    # pr
 - **Jeden użytkownik deweloperski** (`OA_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
 - **Jedna instancja gateway** (`Hub` w procesie).
 - Brak ekranów administracji workerami: na razie CLI.
-- Wątki boczne i forki są w API, ale UI ich jeszcze nie tworzy.
 - Wybór dostawcy w UI: tylko Codex (adapter Claude w budowie).

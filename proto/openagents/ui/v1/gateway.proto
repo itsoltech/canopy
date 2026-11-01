@@ -21,6 +21,7 @@ service GatewayService {
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
 
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
+  rpc GetThread(GetThreadRequest) returns (GetThreadResponse);
   rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
   rpc InterruptThread(InterruptThreadRequest) returns (InterruptThreadResponse);
@@ -100,6 +101,14 @@ message Thread {
   uint64 last_seq = 17;
   google.protobuf.Timestamp created_at = 18;
   uint32 pending_interactions = 19;
+  // Fork: wątek, którego historię dziedziczy (pusty, gdy to nie fork).
+  string fork_source_thread_id = 20;
+  // Wątek główny drzewa (dla wątku głównego: on sam).
+  string root_thread_id = 21;
+  // human | parent: kto odpowiada na zgody i pytania wątku (wątki agentów: parent).
+  string interaction_route = 22;
+  // Ostatnia zmiana: utworzenie, kolejkowanie, start albo koniec tury.
+  google.protobuf.Timestamp last_activity_at = 23;
 }
 
 message Turn {
@@ -112,6 +121,14 @@ message Turn {
   string input_text = 5;
   string error = 6;
   google.protobuf.Timestamp queued_at = 7;
+  google.protobuf.Timestamp started_at = 8;
+  google.protobuf.Timestamp completed_at = 9;
+  // Zużycie tokenów i koszt (z turn_finished).
+  openagents.worker.v1.Usage usage = 10;
+  // Długość łańcucha agent → agent bez udziału człowieka (docs/agent-bus.md).
+  uint32 hops = 11;
+  // Tura z historii odziedziczonej przez fork (należy do wątku źródłowego).
+  bool inherited = 12;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -120,6 +137,16 @@ message TimelineItem {
   string turn_id = 2;
   uint64 first_seq = 3;
   uint64 last_seq = 4;
+  // Item z historii odziedziczonej przez fork (first_seq/last_seq liczone w wątku źródłowym).
+  bool inherited = 5;
+}
+
+// Komunikat dostawcy albo platformy na osi czasu (np. ponowienie po błędzie API).
+message ThreadNotice {
+  uint64 seq = 1;
+  string turn_id = 2;
+  openagents.worker.v1.Notice notice = 3;
+  google.protobuf.Timestamp occurred_at = 4;
 }
 
 message Interaction {
@@ -189,7 +216,16 @@ message CreateWorkspaceResponse {
 // ---------- Wątki ----------
 
 message ListThreadsRequest {
+  // Pusty = wątki wszystkich projektów użytkownika.
   string project_id = 1;
+}
+
+message GetThreadRequest {
+  string thread_id = 1;
+}
+
+message GetThreadResponse {
+  Thread thread = 1;
 }
 
 message ListThreadsResponse {
@@ -260,6 +296,8 @@ message ThreadSnapshot {
   repeated Interaction interactions = 4;
   // Zdarzenia na żywo zaczynają się od last_seq + 1.
   uint64 last_seq = 5;
+  // Ostatnie komunikaty (do 200); nowe przychodzą jako zdarzenia.
+  repeated ThreadNotice notices = 6;
 }
 
 message ThreadEventUpdate {
