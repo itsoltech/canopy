@@ -201,6 +201,15 @@ message Turn {
   // Dlaczego tura została przerwana (status interrupted), np. „worker restarted”: worker już jej nie prowadzi
   // (restart procesu), „superseded: …”, albo powód od dostawcy. Pusty dla innych statusów.
   string interrupt_reason = 70;
+
+  // Status failed: skąd błąd — platform (nasza strona: gateway, worker, adapter, połączenie) albo harness
+  // (Codex/Claude zgłosił błąd). Treść w error. Pusty dla innych statusów.
+  string error_source = 72;
+  // Status interrupted: kto przerwał — user (użytkownik albo agent rodzica) albo system (np. restart workera
+  // w trakcie tury). Powód w interrupt_reason. Tura przerwana przez system może być kontynuowana („Continue”).
+  string interrupt_source = 73;
+  // Krótki kod błędu (np. „http_connection_failed:401”, „error_max_turns”, „process_exit”), jeśli jest.
+  string error_code = 74;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).

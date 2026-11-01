@@ -4,6 +4,8 @@ import {
   AgentToolCallSchema,
   GoalDirective,
   InteractionKind,
+  TurnEndSource,
+  TurnOutcome,
   InteractionRequestSchema,
   type AgentToolCall,
   type AgentToolResult,
@@ -28,16 +30,24 @@ import { CodexEventMapper } from "./mapping.ts";
 import { codexPermissions } from "./permissions.ts";
 import { RolloutTail } from "./rollout.ts";
 import { RpcError } from "./rpc.ts";
+import { reconcileTurn } from "../reconcile.ts";
 
 /**
  * Platform threads on Codex (docs/codex-adapter.md): commands -> app-server requests,
  * notifications -> mapper -> journal (first) -> publish. One registry entry per loaded thread.
+ *
+ * Every turn notes its rollout in the journal (turn_harness). When the app-server process exits on its own, the
+ * turns it ran are settled from their rollouts (providers/reconcile.ts; the end Codex recorded, else failed in the
+ * harness: "harness process exited") and the runtime reports failure() so the host starts a new app-server for the
+ * next command (docs/durability.md, "Rekoncyliacja z transkryptu harnessu").
  */
 
 export class CodexThreadError extends Schema.TaggedError<CodexThreadError>()("CodexThreadError", {
   threadId: Schema.String,
   operation: Schema.String,
   message: Schema.String,
+  /** Codex itself refused or failed the request (an app-server error), not the worker. */
+  harness: Schema.optional(Schema.Boolean),
 }) {}
 
 export type InteractionInit = Omit<MessageInitShape<typeof InteractionRequestSchema>, "threadId" | "requestId">;
@@ -90,6 +100,8 @@ export class CodexThreads extends Context.Service<
     stopTask(threadId: string, taskId: string): Effect.Effect<void, CodexThreadError>;
     /** Background processes still running, per platform thread. */
     backgroundTasks(): ReadonlyMap<string, readonly string[]>;
+    /** Why this runtime cannot serve any more (its app-server process exited), else undefined. */
+    failure(): string | undefined;
   }
 >()("open-agents/worker/CodexThreads") {
   static readonly layer = (options: CodexThreadsOptions) => {
@@ -124,6 +136,9 @@ interface Entry {
   readonly finishedTurns: Set<string>;
   /** Steered inputs (SteerTurn.input_id) accepted by Codex. */
   readonly steered: Set<string>;
+  /** Codex turns the platform asked to interrupt (their interruption is the user's). */
+  readonly interrupting: Set<string>;
+  readonly rolloutPath: string | null;
 }
 
 /** thread/resume of a thread without a rollout file (it never had a turn): "no rollout found for thread id …". */
@@ -137,13 +152,16 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     const byCodex = new Map<string, Entry>();
 
     const fail = (threadId: string, operation: string) => (error: { message: string }) =>
-      new CodexThreadError({ threadId, operation, message: error.message });
+      new CodexThreadError({ threadId, operation, message: error.message, ...(isAppServerError(error) && { harness: true }) });
+    /** Set when the app-server process exited: nothing more runs here. */
+    let failure: string | undefined;
 
     const register = (platformId: string, codexId: string, rolloutPath: string | null): Entry => {
       const pendingTurns: string[] = [];
       const codexToPlatform = new Map<string, string>();
       const platformToCodex = new Map<string, string>();
       const commandTurns = new Set<string>();
+      const interrupting = new Set<string>();
       const bind = (codexTurn: string, platformTurn: string) => {
         codexToPlatform.set(codexTurn, platformTurn);
         platformToCodex.set(platformTurn, codexTurn);
@@ -164,6 +182,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           return providerTurn;
         },
         isCommandTurn: (codexTurn) => commandTurns.has(codexTurn),
+        interruptRequested: (codexTurn) => interrupting.has(codexTurn),
       });
       const rollout = rolloutPath ? { tail: new RolloutTail(rolloutPath), ended: new Set<string>() } : undefined;
       const entry: Entry = {
@@ -177,6 +196,8 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         rollout,
         finishedTurns: new Set(),
         steered: new Set(),
+        interrupting,
+        rolloutPath,
       };
       byPlatform.set(platformId, entry);
       byCodex.set(codexId, entry);
@@ -218,10 +239,55 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       Effect.gen(function* () {
         const notifications = [...(yield* fromRollout(entry, notification)), notification];
         if (notification.method === "turn/completed") entry.finishedTurns.add(notification.params.turn.id);
-        return yield* Effect.forEach(notifications.flatMap((n) => entry.mapper.map(n)), (init) =>
+        const inits = notifications.flatMap((n) => entry.mapper.map(n));
+        // Where Codex records this turn: read to settle it if its end never arrives (worker restart, crash).
+        if (notification.method === "turn/started" && entry.rolloutPath) {
+          const codexTurn = notification.params.turn.id;
+          const turnId = entry.codexToPlatform.get(codexTurn);
+          if (turnId) {
+            yield* journal
+              .noteHarness(entry.platformId, turnId, { harness: "codex", transcript: entry.rolloutPath, sessionId: entry.codexId, offset: 0, providerTurn: codexTurn })
+              .pipe(Effect.ignore);
+          }
+        }
+        return yield* Effect.forEach(inits, (init) =>
           journal.append(entry.platformId, init).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))),
         );
       });
+
+    /**
+     * The app-server exited on its own: every turn it ran ends the way its rollout says, else as failed in the
+     * harness (its process is gone). Background processes died with it (the host closes them when it restarts
+     * the runtime).
+     */
+    const settleAfterExit = (code: number | null) =>
+      Effect.gen(function* () {
+        // The last line that says what went wrong (warnings are noise here).
+        const stderr = codex
+          .stderrTail()
+          .split("\n")
+          .filter((line) => /error|panic|fatal/i.test(line))
+          .at(-1)
+          ?.slice(0, 500);
+        failure = `codex app-server exited (code ${code ?? "?"})${stderr ? `: ${stderr}` : ""}`;
+        const running = new Set<string>();
+        for (const entry of byPlatform.values()) {
+          for (const [codexTurn, turnId] of entry.codexToPlatform) if (!entry.finishedTurns.has(codexTurn)) running.add(`${entry.platformId}/${turnId}`);
+        }
+        const open = (yield* journal.openTurns()).filter((t) => running.has(`${t.threadId}/${t.turnId}`));
+        for (const turn of open) {
+          const { events } = yield* reconcileTurn(turn, {
+            outcome: TurnOutcome.FAILED,
+            source: TurnEndSource.HARNESS,
+            reason: `harness process exited (code ${code ?? "?"})${stderr ? `: ${stderr}` : ""}`,
+            errorCode: "process_exit",
+          }).pipe(Effect.provideService(Journal, journal));
+          for (const event of events) options.publish(event);
+        }
+        for (const entry of byPlatform.values()) for (const codexTurn of entry.codexToPlatform.keys()) entry.finishedTurns.add(codexTurn);
+      });
+    // Interrupted (before the process is killed) when the runtime closes on purpose.
+    yield* Effect.forkScoped(codex.exited.pipe(Effect.flatMap(settleAfterExit), Effect.ignore));
 
     // One consumer, in order, for every notification of every loaded thread.
     yield* Effect.forkScoped(
@@ -419,6 +485,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         const entry = byPlatform.get(threadId);
         const codexTurn = entry?.platformToCodex.get(turnId);
         if (!entry || !codexTurn) return yield* new CodexThreadError({ threadId, operation: "interrupt", message: "turn is not running here" });
+        entry.interrupting.add(codexTurn);
         yield* codex.request("turn/interrupt", { threadId: entry.codexId, turnId: codexTurn }).pipe(Effect.mapError(fail(threadId, "interrupt")));
       }),
 
@@ -496,5 +563,11 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
 
       backgroundTasks: () =>
         new Map([...byPlatform.values()].flatMap((entry) => (entry.mapper.backgroundTasks.length > 0 ? [[entry.platformId, entry.mapper.backgroundTasks] as const] : []))),
+
+      failure: () => failure,
     });
   });
+
+function isAppServerError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { _tag?: unknown })._tag === "CodexAppServerError";
+}

@@ -1,5 +1,4 @@
-import { closeSync, existsSync, openSync, readdirSync, readSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { create } from "@bufbuild/protobuf";
 import { forkSession, getSessionMessages, query, type CanUseTool, type Options, type Query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
@@ -7,6 +6,7 @@ import {
   InteractionRequestSchema,
   ItemStatus,
   NoticeLevel,
+  TurnEndSource,
   TurnOrigin,
   TurnOutcome,
   type AgentToolCall,
@@ -29,6 +29,8 @@ import { claudeBusServer, claudeBusToolNames } from "./bus.ts";
 import { BUS_SERVER, ClaudeEventMapper, startsTurn, type GoalVerdict } from "./mapping.ts";
 import { claudePermissions } from "./permissions.ts";
 import { claudeProfileOptions } from "./profile.ts";
+import { transcriptPath } from "./transcript.ts";
+import { reconcileTurn, type EndCause } from "../reconcile.ts";
 
 /**
  * Platform threads on Claude Code through the Agent SDK (docs/claude-adapter.md).
@@ -46,6 +48,10 @@ import { claudeProfileOptions } from "./profile.ts";
  *   until it has run.
  * - Goals (docs/goals.md): `/goal …` arrives as a turn's input; the evaluator's verdicts are read from the
  *   session transcript after each turn (Claude Code does not stream them to SDK clients).
+ * - Every turn notes the session transcript and the offset it starts at (journal turn_harness). A process that ends
+ *   mid-turn without a result (it crashed or was killed) settles the turn from the transcript (providers/reconcile.ts):
+ *   the end Claude Code recorded, else failed in the harness ("harness process exited"). A turn the worker stops
+ *   (shutdown) is interrupted by the system, one the platform interrupts by the user.
  * - Permission prompts and questions go to the platform (interact); agent bus tools to the gateway (callTool).
  * - Native subagents and schedulers are disallowed (native-tools.ts); the bus replaces them.
  */
@@ -261,6 +267,13 @@ const make = (options: ClaudeThreadsOptions) =>
       session.closeTimer = undefined;
       session.turn = { turnId, steers: new Map(), ended: false, interrupting: false };
       session.mapper.beginTurn(turnId);
+      // Where Claude Code records this turn: everything after the transcript's current end.
+      const transcript = transcriptPath(options.home, session.sessionId);
+      await Effect.runPromise(
+        journal
+          .noteHarness(session.threadId, turnId, { harness: "claude", transcript: options.home, sessionId: session.sessionId, offset: transcript ? fileSize(transcript) : 0, providerTurn: "" })
+          .pipe(Effect.ignore),
+      );
       await record(session.threadId, { turnId, body: { case: "turnStarted", value: { origin, ...(model && { model }) } } });
     };
 
@@ -373,11 +386,41 @@ const make = (options: ClaudeThreadsOptions) =>
         turn.ended = true;
         await dropSteers(session, turn);
       };
-      const finishTurn = async (outcome: TurnOutcome, reason: string) => {
+      const finishTurn = async (cause: EndCause) => {
         const turn = session.turn;
         if (!turn) return;
         await endTurn();
-        await record(threadId, { turnId: turn.turnId, body: { case: "turnFinished", value: { outcome, providerTurnRef: mapper.lastEntry ?? "", reason } } }).catch(() => {});
+        await record(threadId, {
+          turnId: turn.turnId,
+          body: {
+            case: "turnFinished",
+            value: { outcome: cause.outcome, source: cause.source, reason: cause.reason, ...(cause.errorCode && { errorCode: cause.errorCode }), providerTurnRef: mapper.lastEntry ?? "" },
+          },
+        }).catch(() => {});
+      };
+      /**
+       * The process ended mid-turn on its own: the transcript says how far it got (items it never streamed, its end);
+       * without an end there the turn failed in the harness.
+       */
+      const settleFromTranscript = async (cause: EndCause) => {
+        const turn = session.turn;
+        if (!turn) return;
+        await endTurn();
+        await session.io;
+        try {
+          const open = (await Effect.runPromise(journal.openTurns())).find((t) => t.threadId === threadId && t.turnId === turn.turnId);
+          if (!open) return;
+          const { events } = await Effect.runPromise(reconcileTurn(open, cause).pipe(Effect.provideService(Journal, journal)));
+          for (const event of events) options.publish(event);
+        } catch {
+          await record(threadId, { turnId: turn.turnId, body: { case: "turnFinished", value: { outcome: cause.outcome, source: cause.source, reason: cause.reason, errorCode: cause.errorCode ?? "" } } }).catch(() => {});
+        }
+      };
+      /** Why the process ended mid-turn: the worker stopping it, the platform interrupting, or the process itself. */
+      const knownEnd = (): EndCause | undefined => {
+        if (shuttingDown) return { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM, reason: "worker stopped mid-turn" };
+        if (session.turn?.interrupting || session.abort.signal.aborted) return { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.USER, reason: "interrupted" };
+        return undefined;
       };
       /** A result that did not end the turn (a steered message was still queued): ends it if nothing follows. */
       let deferredResult: ThreadEventInit | undefined;
@@ -438,10 +481,15 @@ const make = (options: ClaudeThreadsOptions) =>
           await endTurn();
           await record(threadId, deferredResult);
         }
-        await finishTurn(TurnOutcome.FAILED, "the session ended without a result");
+        if (session.turn) {
+          const known = knownEnd();
+          if (known) await finishTurn(known);
+          else await settleFromTranscript({ outcome: TurnOutcome.FAILED, source: TurnEndSource.HARNESS, reason: "harness process exited: the session ended without a result", errorCode: "process_exit" });
+        }
       } catch (error) {
-        const interrupted = session.abort.signal.aborted;
-        await finishTurn(interrupted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED, interrupted ? "interrupted" : error instanceof Error ? error.message : String(error));
+        const known = knownEnd();
+        if (known) await finishTurn(known);
+        else await settleFromTranscript({ outcome: TurnOutcome.FAILED, source: TurnEndSource.HARNESS, reason: `harness process exited: ${error instanceof Error ? error.message : String(error)}`, errorCode: "process_exit" });
       } finally {
         session.input.close();
         if (session.closeTimer) clearTimeout(session.closeTimer);
@@ -596,16 +644,6 @@ const make = (options: ClaudeThreadsOptions) =>
     });
   });
 
-/** Session transcript of Claude Code: <config dir>/projects/<project dir>/<session id>.jsonl. */
-function transcriptPath(home: string, sessionId: string): string | undefined {
-  const projects = join(home, "projects");
-  if (!existsSync(projects)) return undefined;
-  for (const dir of readdirSync(projects)) {
-    const path = join(projects, dir, `${sessionId}.jsonl`);
-    if (existsSync(path)) return path;
-  }
-  return undefined;
-}
 
 /** A goal_status attachment line of the transcript (the /goal evaluator's verdict). */
 export function goalVerdictOf(line: string): GoalVerdict | undefined {

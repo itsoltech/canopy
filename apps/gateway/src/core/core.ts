@@ -47,6 +47,8 @@ import { Scheduler } from "./scheduler.ts";
  * - scheduler: one running turn per thread; a turn starts only once the thread is ready,
  * - command results: failed thread creation / turn start / goal command become visible state, not silent drops,
  * - worker restarts: turns the worker no longer runs (Hello.running_turns, an interrupt it cannot carry out) end here,
+ * - turn ends: whatever the worker reported, nothing of a finished turn stays open (settle), and a sweep finds and
+ *   fixes what still is (at start and periodically; docs/durability.md, "Stany tury i wątku"),
  * - agent bus: tool calls from agents (side threads, messages, waits), notifications, questions to parents,
  * - models and steering: workers' model catalogs, per-turn model and effort, messages into a running turn,
  * - UI operations and live fan-out through the hub.
@@ -72,6 +74,16 @@ const TTL = { createThread: 24 * 3600, startTurn: 24 * 3600, interruptTurn: 60, 
 /** Why the gateway ended a turn its worker no longer runs (turns.interrupt_reason). */
 const WORKER_RESTARTED = "worker restarted";
 
+/** Audit reasons of items the gateway closes (thread_events.raw of its item_completed). */
+const SETTLE_TURN_ENDED = "the turn ended while the item was still open";
+const SETTLE_SWEEP = "sweep: the item's turn is over";
+/** The sweep treats a thread as running without a turn only after this long (a turn_started may be on its way). */
+const SWEEP_STALE_SECONDS = 60;
+const SWEEP_INTERVAL_MS = 5 * 60_000;
+
+/** Worker error codes that mean the harness refused or failed (worker runtime/host.ts); the rest are ours. */
+const HARNESS_ERROR_CODES: ReadonlySet<string> = new Set(["HARNESS_ERROR"]);
+
 /** Claude's goal condition limit (Claude Code rejects longer ones). */
 const MAX_OBJECTIVE = 4000;
 
@@ -84,6 +96,7 @@ export class GatewayCore {
   readonly #journalIds = new Map<string, string>();
   /** Threads whose events failed to store on a connection: skipped until the worker reconnects and resends. */
   readonly #blocked = new WeakMap<WorkerConnection, Set<string>>();
+  #sweepTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(options: GatewayCoreOptions) {
     this.#options = options;
@@ -253,6 +266,10 @@ export class GatewayCore {
       }
     }
     for (const threadId of goals) await this.#broadcastGoal(threadId);
+    // A turn ended: what it left open is closed (the worker's own reconciliation came before its turn_finished).
+    for (const threadId of new Set(result.stored.filter((s) => s.event.body.case === "turnFinished").map((s) => s.threadId))) {
+      await this.#settle(threadId, SETTLE_TURN_ENDED, { publishThread: false });
+    }
     for (const threadId of touched) {
       await this.#broadcastThread(threadId);
       await this.pump(threadId);
@@ -311,8 +328,10 @@ export class GatewayCore {
       }
       case "startTurn": {
         const { thread, turnId } = command.kind.value;
-        await this.#run((s) => s.failTurn(turnId, `${result.errorCode}: ${reason}`));
+        const source = HARNESS_ERROR_CODES.has(result.errorCode) ? "harness" : "platform";
+        await this.#run((s) => s.failTurn(turnId, reason, source, result.errorCode));
         await this.#broadcastTurn(thread?.threadId ?? "", turnId);
+        await this.#settle(thread?.threadId ?? "", SETTLE_TURN_ENDED);
         // A Claude /goal turn: the goal shows why it did not start.
         if (await this.#goals((s) => s.turnFailed(turnId, `${result.errorCode}: ${reason}`))) await this.#broadcastGoal(thread?.threadId ?? "");
         await this.bus.onTurnFinished(turnId);
@@ -345,10 +364,65 @@ export class GatewayCore {
       for (const steer of await this.#steers((s) => s.ofThread(threadId))) if (steer.turn_id === turnId && steer.status === "dropped") await this.#publishSteer(steer.id);
     }
     for (const threadId of new Set(turns.map((t) => t.threadId))) {
+      await this.#settle(threadId, `${SETTLE_TURN_ENDED} (${input.reason})`, { publishThread: false });
       await this.#broadcastThread(threadId);
       await this.pump(threadId);
     }
     for (const { turnId } of turns) await this.bus.onTurnFinished(turnId);
+  }
+
+  /**
+   * The safety net behind every turn end (Ingest.settle): items a finished turn left open end as interrupted
+   * (published like worker events), its pending interactions expire, a thread that only looks busy or broken is
+   * idle again and its queue moves on.
+   */
+  async #settle(threadId: string, reason: string, options: { publishThread?: boolean; staleSeconds?: number } = {}): Promise<boolean> {
+    if (!threadId) return false;
+    const settled = await this.#options.runtime.runPromise(Ingest.use((i) => i.settle(threadId, reason, options)));
+    const expired = await this.#run((s) => s.expireEndedInteractions(threadId));
+    for (const stored of settled.stored) {
+      this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: stored.seq, event: stored.event } } }));
+    }
+    for (const interaction of expired) {
+      this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
+    }
+    const changed = settled.stored.length > 0 || expired.length > 0 || settled.threadChanged;
+    if (changed) this.#log(`thread ${threadId} settled: ${settled.stored.length} item(s), ${expired.length} interaction(s)${settled.threadChanged ? ", idle again" : ""} (${reason})`);
+    if (changed && options.publishThread !== false) {
+      await this.#broadcastThread(threadId);
+      await this.pump(threadId);
+    }
+    return changed;
+  }
+
+  /**
+   * Finds and fixes what no turn end settled (docs/durability.md, "Stany tury i wątku"): open items of finished
+   * turns, threads running without a running turn, interrupted or failed threads that can take turns, interactions
+   * of finished turns. Idempotent; at gateway start and every few minutes. Returns the threads it changed.
+   */
+  async sweep(): Promise<string[]> {
+    const threads = await this.#options.runtime.runPromise(Ingest.use((i) => i.unsettledThreads(SWEEP_STALE_SECONDS)));
+    const changed: string[] = [];
+    for (const threadId of threads) {
+      try {
+        if (await this.#settle(threadId, SETTLE_SWEEP, { staleSeconds: SWEEP_STALE_SECONDS })) changed.push(threadId);
+      } catch (error) {
+        this.#log(`sweep of thread ${threadId} failed: ${describeError(error)}`);
+      }
+    }
+    return changed;
+  }
+
+  /** Sweeps now and then periodically (main.ts); tests call sweep() directly. */
+  startSweep(intervalMs = SWEEP_INTERVAL_MS): void {
+    const run = () => void this.sweep().catch((error: unknown) => this.#log(`sweep failed: ${describeError(error)}`));
+    run();
+    this.#sweepTimer ??= setInterval(run, intervalMs);
+  }
+
+  stopSweep(): void {
+    if (this.#sweepTimer) clearInterval(this.#sweepTimer);
+    this.#sweepTimer = undefined;
   }
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */

@@ -1,0 +1,6 @@
+{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"Hello"},"uuid":"e-1"}
+{"parentUuid":"e-1","isSidechain":false,"type":"assistant","message":{"id":"msg_err","role":"assistant","model":"<synthetic>","stop_reason":"stop_sequence","content":[{"type":"text","text":"You've hit your session limit · resets 11:50am"}]},"uuid":"e-2","isApiErrorMessage":true,"error":"rate_limit","apiError":"usage_limit_reached"}
+{"parentUuid":"e-2","isSidechain":false,"type":"user","message":{"role":"user","content":"Try a tool"},"uuid":"e-3"}
+{"parentUuid":"e-3","isSidechain":false,"type":"assistant","message":{"id":"msg_t","role":"assistant","model":"claude-x","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_9","name":"Bash","input":{"command":"sleep 100"}}]},"uuid":"e-4"}
+{"parentUuid":"e-4","isSidechain":false,"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_9","type":"tool_result","content":"Interrupted by user","is_error":true}]},"uuid":"e-5"}
+{"parentUuid":"e-5","isSidechain":false,"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]},"uuid":"e-6"}

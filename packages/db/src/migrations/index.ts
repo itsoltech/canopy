@@ -13,6 +13,7 @@ import modelsEffortSteer from "./0009_models_effort_steer.sql" with { type: "tex
 import goalsBackgroundHarness from "./0010_goals_background_harness.sql" with { type: "text" };
 import goalsEngineCleanup from "./0011_goals_engine_cleanup.sql" with { type: "text" };
 import workerRestart from "./0012_worker_restart.sql" with { type: "text" };
+import turnEndSources from "./0013_turn_end_sources.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -42,6 +43,7 @@ export const migrations = Migrator.fromRecord({
   "0010_goals_background_harness": sqlFile(goalsBackgroundHarness),
   "0011_goals_engine_cleanup": sqlFile(goalsEngineCleanup),
   "0012_worker_restart": sqlFile(workerRestart),
+  "0013_turn_end_sources": sqlFile(turnEndSources),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

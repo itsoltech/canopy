@@ -25,6 +25,9 @@ import { Context, Effect, Layer, Schema } from "effect";
  * - Background tasks that started but did not finish are tracked in the same transaction as their events,
  *   so after a crash the worker can close them as interrupted (their processes died with it). Turns likewise:
  *   a turn whose start is journaled and whose end is not died with the previous process.
+ * - For every open turn the journal also keeps where its harness writes its own record (turn_harness: the Codex
+ *   rollout, the Claude session transcript, the offset the turn starts at) and which of its items are open or done
+ *   (turn_items). Reconciliation (runtime/reconcile.ts) reads the harness record and journals only what is missing.
  *
  * SQLite in WAL mode with synchronous=FULL: a committed append survives power loss.
  */
@@ -47,9 +50,31 @@ export interface OpenBackgroundTask {
   readonly item: Item;
 }
 
+/** Where the harness of a turn keeps its own record of it (docs/durability.md, "Rekoncyliacja z transkryptu harnessu"). */
+export interface TurnHarness {
+  readonly harness: "codex" | "claude";
+  /** Codex: the rollout file (Thread.path); Claude: the config dir (CLAUDE_CONFIG_DIR) holding projects/<cwd>/<session>.jsonl. */
+  readonly transcript: string;
+  /** Codex thread id or Claude session id. */
+  readonly sessionId: string;
+  /** Size of the transcript when the turn started: its record comes after this. */
+  readonly offset: number;
+  /** Codex turn id, once known (empty for Claude). */
+  readonly providerTurn: string;
+}
+
 export interface OpenTurn {
   readonly threadId: string;
   readonly turnId: string;
+  /** Absent when the turn was started by a process that did not record it. */
+  readonly harness?: TurnHarness;
+  /** The turn's items as journaled: last state, and whether they finished. Background tasks are not here. */
+  readonly items: ReadonlyArray<{ readonly item: Item; readonly done: boolean }>;
+  /**
+   * The platform asked to interrupt the turn (InterruptTurn). Without that, an interruption the harness recorded was
+   * not the user's (e.g. Codex aborts the turn when its worker dies and its input closes).
+   */
+  readonly interruptRequested: boolean;
 }
 
 export class Journal extends Context.Service<
@@ -73,8 +98,12 @@ export class Journal extends Context.Service<
     purgeCommands(maxAgeMs: number): Effect.Effect<number, JournalError>;
     /** Background tasks whose start is journaled and whose end is not (e.g. the worker crashed meanwhile). */
     openBackgroundTasks(): Effect.Effect<ReadonlyArray<OpenBackgroundTask>, JournalError>;
-    /** Turns whose turn_started is journaled and whose turn_finished is not. */
+    /** Turns whose turn_started is journaled and whose turn_finished is not, with their harness record and items. */
     openTurns(): Effect.Effect<ReadonlyArray<OpenTurn>, JournalError>;
+    /** Records (or updates) where the turn's harness keeps its record; dropped with the turn's end. */
+    noteHarness(threadId: string, turnId: string, harness: TurnHarness): Effect.Effect<void, JournalError>;
+    /** The platform asked to interrupt the turn (kept until its end). */
+    noteInterrupt(threadId: string, turnId: string): Effect.Effect<void, JournalError>;
   }
 >()("open-agents/worker/Journal") {
   /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
@@ -115,6 +144,29 @@ const SCHEMA = `
     thread_id TEXT NOT NULL,
     turn_id   TEXT NOT NULL,
     PRIMARY KEY (thread_id, turn_id)
+  );
+  CREATE TABLE IF NOT EXISTS turn_harness (
+    thread_id     TEXT NOT NULL,
+    turn_id       TEXT NOT NULL,
+    harness       TEXT NOT NULL,
+    transcript    TEXT NOT NULL,
+    session_id    TEXT NOT NULL,
+    start_offset  INTEGER NOT NULL,
+    provider_turn TEXT NOT NULL,
+    PRIMARY KEY (thread_id, turn_id)
+  );
+  CREATE TABLE IF NOT EXISTS turn_interrupts (
+    thread_id TEXT NOT NULL,
+    turn_id   TEXT NOT NULL,
+    PRIMARY KEY (thread_id, turn_id)
+  );
+  CREATE TABLE IF NOT EXISTS turn_items (
+    thread_id TEXT NOT NULL,
+    turn_id   TEXT NOT NULL,
+    item_id   TEXT NOT NULL,
+    item      BLOB NOT NULL,
+    done      INTEGER NOT NULL,
+    PRIMARY KEY (thread_id, item_id)
   );
 `;
 
@@ -161,11 +213,47 @@ function makeJournal(db: Database): Journal["Service"] {
   const insertTurn = db.query("INSERT OR IGNORE INTO open_turns (thread_id, turn_id) VALUES ($thread, $turn)");
   const deleteTurn = db.query("DELETE FROM open_turns WHERE thread_id = $thread AND turn_id = $turn");
   const selectTurns = db.query<{ thread_id: string; turn_id: string }, []>("SELECT thread_id, turn_id FROM open_turns ORDER BY rowid");
+  const upsertItem = db.query(
+    `INSERT INTO turn_items (thread_id, turn_id, item_id, item, done)
+     SELECT $thread, $turn, $item_id, $item, $done WHERE EXISTS (SELECT 1 FROM open_turns WHERE thread_id = $thread AND turn_id = $turn)
+     ON CONFLICT (thread_id, item_id) DO UPDATE SET item = excluded.item, done = max(turn_items.done, excluded.done)`,
+  );
+  const deleteItems = db.query("DELETE FROM turn_items WHERE thread_id = $thread AND turn_id = $turn");
+  const deleteHarness = db.query("DELETE FROM turn_harness WHERE thread_id = $thread AND turn_id = $turn");
+  const insertInterrupt = db.query("INSERT OR IGNORE INTO turn_interrupts (thread_id, turn_id) VALUES ($thread, $turn)");
+  const deleteInterrupt = db.query("DELETE FROM turn_interrupts WHERE thread_id = $thread AND turn_id = $turn");
+  const selectInterrupt = db.query<{ n: number }, { thread: string; turn: string }>("SELECT count(*) AS n FROM turn_interrupts WHERE thread_id = $thread AND turn_id = $turn");
   const trackTurn = (threadId: string, turnId: string, body: ThreadEvent["body"]) => {
     if (!turnId) return;
     if (body.case === "turnStarted") insertTurn.run({ thread: threadId, turn: turnId });
-    if (body.case === "turnFinished") deleteTurn.run({ thread: threadId, turn: turnId });
+    if (body.case === "turnFinished") {
+      deleteTurn.run({ thread: threadId, turn: turnId });
+      deleteItems.run({ thread: threadId, turn: turnId });
+      deleteHarness.run({ thread: threadId, turn: turnId });
+      deleteInterrupt.run({ thread: threadId, turn: turnId });
+    }
+    if (body.case === "itemStarted" || body.case === "itemCompleted") {
+      const item = body.value.item;
+      if (!item?.itemId || item.content.case === "backgroundTask") return;
+      // A started event never reopens a finished item (like the gateway's reducer).
+      const done = body.case === "itemCompleted" && item.status !== ItemStatus.IN_PROGRESS ? 1 : 0;
+      upsertItem.run({ thread: threadId, turn: turnId, item_id: item.itemId, item: toBinary(ItemSchema, item), done });
+    }
   };
+  const selectHarness = db.query<
+    { harness: "codex" | "claude"; transcript: string; session_id: string; start_offset: number; provider_turn: string },
+    { thread: string; turn: string }
+  >("SELECT harness, transcript, session_id, start_offset, provider_turn FROM turn_harness WHERE thread_id = $thread AND turn_id = $turn");
+  const selectItems = db.query<{ item: Uint8Array; done: number }, { thread: string; turn: string }>(
+    "SELECT item, done FROM turn_items WHERE thread_id = $thread AND turn_id = $turn ORDER BY rowid",
+  );
+  const upsertHarness = db.query(
+    `INSERT INTO turn_harness (thread_id, turn_id, harness, transcript, session_id, start_offset, provider_turn)
+     VALUES ($thread, $turn, $harness, $transcript, $session, $offset, $provider_turn)
+     ON CONFLICT (thread_id, turn_id) DO UPDATE SET harness = excluded.harness, transcript = excluded.transcript,
+       session_id = excluded.session_id, start_offset = min(turn_harness.start_offset, excluded.start_offset),
+       provider_turn = CASE WHEN excluded.provider_turn <> '' THEN excluded.provider_turn ELSE turn_harness.provider_turn END`,
+  );
   const appendTx = db.transaction((threadId: string, event: ThreadEventInit) => {
     const seq = BigInt(nextSeq.get({ thread: threadId })!.last_seq);
     const init: MessageInitShape<typeof ThreadEventSchema> = {
@@ -238,7 +326,39 @@ function makeJournal(db: Database): Journal["Service"] {
       attempt("openBackgroundTasks", () => selectBackground.all().map((r) => ({ threadId: r.thread_id, item: fromBinary(ItemSchema, r.item) }))),
     ),
     openTurns: Effect.fn("Journal.openTurns")(() =>
-      attempt("openTurns", () => selectTurns.all().map((r) => ({ threadId: r.thread_id, turnId: r.turn_id }))),
+      attempt("openTurns", () =>
+        selectTurns.all().map((r): OpenTurn => {
+          const key = { thread: r.thread_id, turn: r.turn_id };
+          const h = selectHarness.get(key);
+          return {
+            threadId: r.thread_id,
+            turnId: r.turn_id,
+            ...(h && {
+              harness: { harness: h.harness, transcript: h.transcript, sessionId: h.session_id, offset: h.start_offset, providerTurn: h.provider_turn },
+            }),
+            items: selectItems.all(key).map((i) => ({ item: fromBinary(ItemSchema, i.item), done: i.done === 1 })),
+            interruptRequested: (selectInterrupt.get(key)?.n ?? 0) > 0,
+          };
+        }),
+      ),
+    ),
+    noteInterrupt: Effect.fn("Journal.noteInterrupt")((threadId: string, turnId: string) =>
+      attempt("noteInterrupt", () => {
+        insertInterrupt.run({ thread: threadId, turn: turnId });
+      }),
+    ),
+    noteHarness: Effect.fn("Journal.noteHarness")((threadId: string, turnId: string, harness: TurnHarness) =>
+      attempt("noteHarness", () => {
+        upsertHarness.run({
+          thread: threadId,
+          turn: turnId,
+          harness: harness.harness,
+          transcript: harness.transcript,
+          session: harness.sessionId,
+          offset: harness.offset,
+          provider_turn: harness.providerTurn,
+        });
+      }),
     ),
   });
 }

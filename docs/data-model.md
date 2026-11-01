@@ -177,6 +177,7 @@ Funkcje: `thread_timeline(thread_id)` (pełny log z odziedziczonymi prefiksami f
 - `threads (project_id, created_at DESC) WHERE kind = 'main'` — lista wątków projektu.
 - `threads (root_thread_id)` — drzewo wątków bocznych.
 - `threads (worker_id, provider, provider_thread_id)` unikalny — mapowanie z identyfikatora dostawcy.
+- `turns.error_source` (`platform` | `harness`, tylko przy `failed`), `turns.error_code`, `turns.interrupt_source` (`user` | `system`, tylko przy `interrupted`); migracja 0013, stany: [durability.md](durability.md#47-stany-tury-i-wątku). Zdarzenie z `thread_events.origin = 'gateway'` to zamknięcie itemu przez siatkę bezpieczeństwa gateway (powód w `raw`).
 - `turns (thread_id) WHERE status = 'running'` unikalny, `turns (thread_id, ordinal) WHERE status = 'queued'` — kolejka tur.
 - `worker_commands (worker_id, created_at) WHERE status IN ('pending', 'delivered')` — outbox.
 - `agent_bus_calls (target_turn_id) WHERE notify_status = 'pending'` — powiadomienia czekające na koniec tury.

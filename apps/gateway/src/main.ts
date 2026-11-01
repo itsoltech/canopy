@@ -32,10 +32,13 @@ const server = await startGrpcServer({
 });
 console.info(`gateway listening on ${server.url}`);
 core.scheduler.start();
+// Open items of finished turns, threads stuck in a busy or failed look: fixed now and every few minutes.
+core.startSweep();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {
     await core.scheduler.stop();
+    core.stopSweep();
     await core.link.shutdown();
     await server.close();
     await runtime.dispose();

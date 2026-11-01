@@ -59,6 +59,8 @@ Cele i praca w tle w modelu UI (pola od 60, osobno od innych zmian kontraktu):
 Restart workera i błędy komend (pola od 70):
 - `Thread.runtime`: `gateway` (agent czatowy w gateway: bez celów i pracy w tle) albo `worker`; UI ukrywa przy wątkach gateway pigułkę „Goal” i „Set a goal…”,
 - `Turn.interrupt_reason`: dlaczego tura jest `interrupted`, np. `worker restarted` (worker już jej nie prowadzi), `the turn was no longer running on the worker` (przerwanie tury, której worker nie zna), `superseded: …`,
+- `Turn.error_source` (72): przy `failed` skąd błąd — `platform` (nasza strona) albo `harness` (Codex/Claude zgłosił błąd); treść w `error`, krótki kod w `Turn.error_code` (74), np. `http_connection_failed:401`, `process_exit`,
+- `Turn.interrupt_source` (73): przy `interrupted` kto przerwał — `user` albo `system` (np. `worker restarted mid-turn`). Stopka tury w UI pokazuje „Harness error: …” / „Platform error: …”, „by you”, „by the system: …” i dla przerwania przez system akcję „Continue” (wiadomość wznawiająca sesję). Stany i macierz: [durability.md](durability.md#47-stany-tury-i-wątku). Wątek po każdym końcu tury jest `idle`; `failed` tylko dla wątku, który nie powstał,
 - `Goal.error`, `Goal.error_at`: ostatnia komenda celu nie powiodła się na workerze; status wraca wtedy do ostatniego stanu harnessu ([goals.md](goals.md#3-statusy)). `goalPending` w UI nie pokazuje wtedy „Starting… / Pausing…”, a `GoalBar` pokazuje błąd.
 
 ## 3. Rdzeń gateway (`GatewayCore`)

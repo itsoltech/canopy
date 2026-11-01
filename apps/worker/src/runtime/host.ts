@@ -32,6 +32,7 @@ import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { claudeConfiguredEffort, readClaudeUserSettings, readCodexConfiguredEffort } from "../providers/default-effort.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
+import { reconcileTurn, WORKER_RESTARTED } from "../providers/reconcile.ts";
 import type { SteerError } from "../providers/turn-input.ts";
 
 /**
@@ -82,8 +83,6 @@ interface ProviderRuntimeHandle<S> {
 
 /** InterruptTurn for a turn this process does not run (the gateway ends the turn). */
 const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
-/** Why a turn of the previous worker process ended (gateway: turns.interrupt_reason). */
-const WORKER_RESTARTED = "worker restarted";
 
 class CommandError extends Error {
   constructor(
@@ -103,6 +102,7 @@ export class WorkerHost {
   #codex: ProviderRuntimeHandle<CodexThreads> | undefined;
   #claude: ProviderRuntimeHandle<ClaudeThreads> | undefined;
   #rebuildWanted = false;
+  #codexRestart: Promise<void> | undefined;
   readonly #running = new Set<string>();
   readonly #interactions = new Map<string, { request: InteractionRequest; resolve: (r: InteractionResponse) => void }>();
   readonly #toolCalls = new Map<string, { call: AgentToolCall; resolve: (r: AgentToolResult) => void }>();
@@ -221,19 +221,20 @@ export class WorkerHost {
 
   /**
    * At startup: turns and background tasks of the previous process are gone (docs/durability.md, 3.4;
-   * docs/execution.md, "Trwałość"). Their ends go through the journal like any event.
+   * docs/execution.md, "Trwałość"). Each open turn is settled from its harness's transcript (providers/reconcile.ts):
+   * what the harness recorded but the previous process never forwarded is journaled, open items get their real end,
+   * and the turn ends the way the harness ended it, else as interrupted by the system ("worker restarted mid-turn").
+   * Their ends go through the journal like any event.
    */
-  async recover(): Promise<{ turns: number; tasks: number }> {
+  async recover(): Promise<{ turns: number; tasks: number; fromTranscript: number }> {
     const open = await this.#options.runtime.runPromise(Journal.use((j) => j.openTurns()));
-    for (const { threadId, turnId } of open) {
-      const event = await this.#options.runtime.runPromise(
-        Journal.use((j) =>
-          j.append(threadId, { turnId, body: { case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED, reason: WORKER_RESTARTED } } }),
-        ),
-      );
-      this.#send({ case: "threadEvent", value: event });
+    let fromTranscript = 0;
+    for (const turn of open) {
+      const { events, record } = await this.#options.runtime.runPromise(reconcileTurn(turn, WORKER_RESTARTED));
+      if (record) fromTranscript++;
+      for (const event of events) this.#send({ case: "threadEvent", value: event });
     }
-    return { turns: open.length, tasks: await this.#closeOrphans(() => true, "worker_restart") };
+    return { turns: open.length, tasks: await this.#closeOrphans(() => true, "worker_restart"), fromTranscript };
   }
 
   /** Turns this process runs now (Hello.running_turns). */
@@ -291,6 +292,8 @@ export class WorkerHost {
         const { threadId, turnId } = kind.value;
         // E.g. the turn died with the previous process: the gateway ends it on its side.
         if (!this.#running.has(`${threadId}/${turnId}`)) throw new CommandError(TURN_NOT_RUNNING, "the turn is not running on this worker", true);
+        // Remembered with the turn: if it ends without the worker seeing it, its interruption was asked for.
+        await this.#options.runtime.runPromise(Journal.use((j) => j.noteInterrupt(threadId, turnId)));
         // The command does not name the provider: the runtime with the running turn takes it.
         const claude = this.#claude;
         if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
@@ -327,8 +330,25 @@ export class WorkerHost {
 
   async #runCodex<A, E>(provider: Provider, use: (threads: CodexThreads["Service"]) => Effect.Effect<A, E>): Promise<A> {
     if (provider !== Provider.CODEX) throw new CommandError("PROVIDER_UNAVAILABLE", `${Provider[provider]} is not supported by this worker yet`, true);
+    await this.#restartFailedCodex();
     if (!this.#codex) throw new CommandError("PROVIDER_UNAVAILABLE", this.#config?.codex.problem ?? "codex is disabled", false);
     return this.#runIn(Effect.provide(CodexThreads.use(use), this.#codex.context));
+  }
+
+  /**
+   * The app-server exited on its own (its turns are already settled from their rollouts): the next command gets a
+   * new one. Threads resume in it (thread/resume), so they stay usable.
+   */
+  async #restartFailedCodex(): Promise<void> {
+    const codex = this.#codex;
+    const failure = codex && Context.get(codex.context, CodexThreads).failure();
+    if (!failure) return;
+    this.#codexRestart ??= (async () => {
+      this.#log(`${failure}; starting a new one`);
+      const config = this.#config;
+      await this.#reconcileCodex(config, config ? this.#codexKey(config) : undefined);
+    })().finally(() => (this.#codexRestart = undefined));
+    await this.#codexRestart;
   }
 
   async #runClaude<A, E>(use: (threads: ClaudeThreads["Service"]) => Effect.Effect<A, E>): Promise<A> {
@@ -341,7 +361,9 @@ export class WorkerHost {
     if (Exit.isSuccess(exit)) return exit.value;
     const error = Cause.squash(exit.cause);
     if (error instanceof CommandError) throw error;
-    throw new CommandError("THREAD_ERROR", error instanceof Error || (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : String(error), true);
+    // The harness itself refused or failed (e.g. Codex answered the request with an error): the gateway says so.
+    const code = error && typeof error === "object" && (error as { harness?: unknown }).harness === true ? "HARNESS_ERROR" : "THREAD_ERROR";
+    throw new CommandError(code, error instanceof Error || (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : String(error), true);
   }
 
   #checkCwd(config: AppliedConfig, cwd: string): void {

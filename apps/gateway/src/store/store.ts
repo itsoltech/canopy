@@ -89,7 +89,11 @@ export interface TurnRow {
   model?: string;
   effort?: string;
   error: string | null;
+  /** failed: platform | harness; interrupted: user | system (docs/durability.md, "Stany tury i wątku"). */
+  error_source?: string | null;
+  error_code?: string | null;
   interrupt_reason?: string | null;
+  interrupt_source?: string | null;
   provider_turn_ref: string | null;
   queued_at: Date;
   started_at?: Date | null;
@@ -167,12 +171,16 @@ export class GatewayStore extends Context.Service<
     nextTurn(threadId: string): Fx<TurnRow | undefined>;
     runningTurn(threadId: string): Fx<TurnRow | undefined>;
     turnsOf(threadId: string): Fx<ReadonlyArray<TurnRow>>;
-    failTurn(turnId: string, error: string): Fx<void>;
+    /** A queued or running turn fails here (e.g. it could not start): the error, where it came from, its code. */
+    failTurn(turnId: string, error: string, source: "platform" | "harness", code?: string): Fx<void>;
+    /** Pending interactions of the thread's finished turns expire (nothing can answer them any more). */
+    expireEndedInteractions(threadId: string): Fx<ui.Interaction[]>;
     /**
      * Ends running worker turns that no longer run on their worker (docs/durability.md, 3.4): the given turns,
      * or every running turn of the worker's threads except `keep` (its Hello.running_turns). The turn ends as
-     * interrupted with the reason; its pending interactions expire and its steers that did not join it are
-     * dropped (pump queues them). A late turn_finished from the worker still sets the real outcome.
+     * interrupted by the system with the reason and the thread is idle again; its pending interactions expire and
+     * its steers that did not join it are dropped (pump queues them). A late turn_finished from the worker (e.g. the
+     * outcome its harness transcript records) still sets the real outcome.
      */
     endLostTurns(input: { workerId: string; reason: string } & ({ turnIds: readonly string[] } | { keep: readonly { threadId: string; turnId: string }[] })): Fx<{
       turns: { threadId: string; turnId: string }[];
@@ -577,10 +585,18 @@ export class GatewayStore extends Context.Service<
             SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
              WHERE u.thread_id = ${threadId}::uuid ORDER BY u.ordinal`,
 
-          failTurn: (turnId, error) =>
-            sql`UPDATE turns SET status = 'failed', error = ${error}, completed_at = now() WHERE id = ${turnId}::uuid AND status IN ('queued', 'running')`.pipe(
-              Effect.asVoid,
-            ),
+          failTurn: (turnId, error, source, code) =>
+            sql`
+              UPDATE turns SET status = 'failed', error = ${error}, error_source = ${source}, error_code = ${code || null}, completed_at = now()
+               WHERE id = ${turnId}::uuid AND status IN ('queued', 'running')`.pipe(Effect.asVoid),
+
+          expireEndedInteractions: (threadId) =>
+            sql<InteractionRow>`
+              UPDATE interaction_requests q SET status = 'expired', answered_at = now()
+                FROM turns u
+               WHERE u.id = q.turn_id AND q.thread_id = ${threadId}::uuid AND q.status = 'pending'
+                 AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
+              RETURNING q.*`.pipe(Effect.map((rows) => rows.map(toInteraction))),
 
           endLostTurns: (input) =>
             sql.withTransaction(
@@ -589,7 +605,7 @@ export class GatewayStore extends Context.Service<
                 const keep = "keep" in input ? input.keep.map((t) => t.turnId).filter((id) => UUID.test(id)) : [];
                 const only = "turnIds" in input ? [...input.turnIds] : null;
                 const turns = yield* sql<{ id: string; thread_id: string }>`
-                  UPDATE turns u SET status = 'interrupted', interrupt_reason = ${input.reason}, completed_at = now()
+                  UPDATE turns u SET status = 'interrupted', interrupt_source = 'system', interrupt_reason = ${input.reason}, completed_at = now()
                     FROM threads t
                    WHERE t.id = u.thread_id AND t.worker_id = ${input.workerId}::uuid AND t.runtime = 'worker' AND u.status = 'running'
                      AND (${only}::uuid[] IS NULL OR u.id = ANY(${only}::uuid[])) AND NOT (u.id = ANY(${keep}::uuid[]))
@@ -598,7 +614,7 @@ export class GatewayStore extends Context.Service<
                 const ids = turns.map((t) => t.id);
                 const threads = [...new Set(turns.map((t) => t.thread_id))];
                 yield* sql`
-                  UPDATE threads t SET status = 'interrupted'
+                  UPDATE threads t SET status = 'idle'
                    WHERE t.id = ANY(${threads}::uuid[]) AND t.status IN ('running', 'waiting_input')
                      AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = t.id AND r.status = 'running')`;
                 const interactions = yield* sql<InteractionRow>`
@@ -814,6 +830,9 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     inputText: row.input?.text ?? "",
     error: row.error ?? "",
     interruptReason: row.status === "interrupted" ? (row.interrupt_reason ?? "") : "",
+    errorSource: row.status === "failed" ? (row.error_source ?? "") : "",
+    errorCode: row.status === "failed" ? (row.error_code ?? "") : "",
+    interruptSource: row.status === "interrupted" ? (row.interrupt_source ?? "") : "",
     queuedAt: timestampFromDate(new Date(row.queued_at)),
     ...(row.started_at && { startedAt: timestampFromDate(new Date(row.started_at)) }),
     ...(row.completed_at && { completedAt: timestampFromDate(new Date(row.completed_at)) }),

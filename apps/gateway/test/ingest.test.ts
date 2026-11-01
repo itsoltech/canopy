@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { ItemDeltaField, ItemStatus, ThreadEventSchema, TurnOrigin, TurnOutcome, type ThreadEvent } from "@open-agents/contracts";
+import { ItemDeltaField, ItemStatus, ThreadEventSchema, TurnEndSource, TurnOrigin, TurnOutcome, type ThreadEvent } from "@open-agents/contracts";
 import { migrate } from "@open-agents/db";
 import { dockerAvailable, startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { Effect, Layer, ManagedRuntime } from "effect";
@@ -102,11 +102,101 @@ describe.skipIf(!dockerAvailable)("Ingest on PostgreSQL", () => {
         ]),
       ),
     );
-    const [turn] = await query<{ trigger: string; status: string; ordinal: number; error: string }>(
-      `SELECT trigger, status, ordinal, error FROM turns WHERE id = $1`, [providerTurn]);
-    expect(turn).toEqual({ trigger: "provider", status: "failed", ordinal: 2, error: "boom" });
+    const [turn] = await query<{ trigger: string; status: string; ordinal: number; error: string; error_source: string }>(
+      `SELECT trigger, status, ordinal, error, error_source FROM turns WHERE id = $1`, [providerTurn]);
+    // A worker without sources: its errors are its harness's.
+    expect(turn).toEqual({ trigger: "provider", status: "failed", ordinal: 2, error: "boom", error_source: "harness" });
+    // A failed turn does not make the thread unusable.
     const [thread] = await query<{ status: string }>(`SELECT status FROM threads WHERE id = $1`, [ids.thread]);
-    expect(thread?.status).toBe("failed");
+    expect(thread?.status).toBe("idle");
+  });
+
+  test("turn ends carry their source, error code and reason; a late end with another outcome rewrites them", async () => {
+    const ids = await seed();
+    await runtime.runPromise(
+      Ingest.use((i) =>
+        i.ingest(ids.worker, "j", [
+          event(ids.thread, 1, ids.turn, { case: "turnStarted", value: { origin: TurnOrigin.COMMAND } }),
+          event(ids.thread, 2, ids.turn, {
+            case: "turnFinished",
+            value: { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM, reason: "worker restarted mid-turn" },
+          }),
+        ]),
+      ),
+    );
+    const read = () =>
+      query<{ status: string; interrupt_source: string | null; interrupt_reason: string | null; error_source: string | null; error_code: string | null; error: string | null }>(
+        `SELECT status, interrupt_source, interrupt_reason, error_source, error_code, error FROM turns WHERE id = $1`, [ids.turn]);
+    expect((await read())[0]).toEqual({ status: "interrupted", interrupt_source: "system", interrupt_reason: "worker restarted mid-turn", error_source: null, error_code: null, error: null });
+    await runtime.runPromise(
+      Ingest.use((i) =>
+        i.ingest(ids.worker, "j", [
+          event(ids.thread, 3, ids.turn, {
+            case: "turnFinished",
+            value: { outcome: TurnOutcome.FAILED, source: TurnEndSource.HARNESS, reason: "unexpected status 401", errorCode: "http_connection_failed:401" },
+          }),
+        ]),
+      ),
+    );
+    expect((await read())[0]).toEqual({ status: "failed", interrupt_source: null, interrupt_reason: null, error_source: "harness", error_code: "http_connection_failed:401", error: "unexpected status 401" });
+  });
+
+  test("settle: open items of a finished turn end as interrupted (gateway events with the reason), background work stays", async () => {
+    const ids = await seed();
+    const item = <C extends object>(itemId: string, content: C) => ({ itemId, status: ItemStatus.IN_PROGRESS, ...content });
+    await runtime.runPromise(
+      Ingest.use((i) =>
+        i.ingest(ids.worker, "j", [
+          event(ids.thread, 1, "", { case: "threadReady", value: { providerThreadId: "codex-s" } }),
+          event(ids.thread, 2, ids.turn, { case: "turnStarted", value: { origin: TurnOrigin.COMMAND } }),
+          event(ids.thread, 3, ids.turn, { case: "itemStarted", value: { item: item("cmd", { content: { case: "commandExecution", value: { command: "sleep 40" } } }) } }),
+          event(ids.thread, 4, ids.turn, { case: "itemDelta", value: { itemId: "cmd", field: ItemDeltaField.OUTPUT, chunk: "partial" } }),
+          event(ids.thread, 5, ids.turn, { case: "itemStarted", value: { item: item("bgcmd", { content: { case: "commandExecution", value: { command: "server" } } }) } }),
+          event(ids.thread, 6, ids.turn, {
+            case: "itemStarted",
+            value: { item: item("bg:bgcmd", { content: { case: "backgroundTask", value: { taskId: "77", sourceItemId: "bgcmd" } } }) },
+          }),
+          event(ids.thread, 7, ids.turn, { case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM, reason: "worker restarted" } }),
+        ]),
+      ),
+    );
+    expect(await runtime.runPromise(Ingest.use((i) => i.unsettledThreads(0)))).toContain(ids.thread);
+    const settled = await runtime.runPromise(Ingest.use((i) => i.settle(ids.thread, "the turn ended while the item was still open")));
+    expect(settled.stored.map((s) => [s.event.body.case, s.event.body.case === "itemCompleted" ? s.event.body.value.item?.itemId : ""])).toEqual([["itemCompleted", "cmd"]]);
+    const items = await query<{ item_id: string; status: string; output: string | null }>(
+      `SELECT item_id, status, content->'commandExecution'->>'output' AS output FROM thread_items WHERE thread_id = $1 ORDER BY first_seq`, [ids.thread]);
+    // The output shown so far stays; the backgrounded command and its task keep running.
+    expect(items).toEqual([
+      { item_id: "cmd", status: "interrupted", output: "partial" },
+      { item_id: "bgcmd", status: "in_progress", output: null },
+      { item_id: "bg:bgcmd", status: "in_progress", output: null },
+    ]);
+    const [audit] = await query<{ origin: string; raw: { reason?: string } }>(
+      `SELECT origin, raw FROM thread_events WHERE thread_id = $1 AND origin = 'gateway'`, [ids.thread]);
+    expect(audit).toEqual({ origin: "gateway", raw: { settled_by: "gateway", reason: "the turn ended while the item was still open" } as never });
+    // Idempotent: nothing more to do.
+    expect((await runtime.runPromise(Ingest.use((i) => i.settle(ids.thread, "again")))).stored).toEqual([]);
+    expect(await runtime.runPromise(Ingest.use((i) => i.unsettledThreads(0)))).not.toContain(ids.thread);
+  });
+
+  test("settle: a thread that looks busy or broken without a running turn is idle again", async () => {
+    const stuck = async (status: string, providerThread: string | null) => {
+      const ids = await seed();
+      await query(`UPDATE threads SET status = $2, provider_thread_id = $3 WHERE id = $1`, [ids.thread, status, providerThread]);
+      return ids.thread;
+    };
+    const running = await stuck("running", "p1");
+    const interrupted = await stuck("interrupted", "p2");
+    const failedTurn = await stuck("failed", "p3");
+    const neverCreated = await stuck("failed", null);
+    const unsettled = await runtime.runPromise(Ingest.use((i) => i.unsettledThreads(0)));
+    expect(unsettled).toEqual(expect.arrayContaining([running, interrupted, failedTurn]));
+    expect(unsettled).not.toContain(neverCreated);
+    // A thread that changed just now may be waiting for its turn_started.
+    expect((await runtime.runPromise(Ingest.use((i) => i.settle(running, "sweep", { staleSeconds: 60 })))).threadChanged).toBe(false);
+    for (const thread of [running, interrupted, failedTurn, neverCreated]) await runtime.runPromise(Ingest.use((i) => i.settle(thread, "sweep")));
+    const statuses = await query<{ id: string; status: string }>(`SELECT id, status FROM threads WHERE id = ANY($1::uuid[])`, [[running, interrupted, failedTurn, neverCreated]]);
+    expect(Object.fromEntries(statuses.map((r) => [r.id, r.status]))).toEqual({ [running]: "idle", [interrupted]: "idle", [failedTurn]: "idle", [neverCreated]: "failed" });
   });
 
   test("events of an unknown thread are not acked (they stay in the worker journal)", async () => {

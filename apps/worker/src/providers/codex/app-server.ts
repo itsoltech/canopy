@@ -52,6 +52,8 @@ export class CodexAppServer extends Context.Service<
     readonly notifications: Stream.Stream<ServerNotification>;
     /** Last stderr lines of the process, for diagnostics. */
     stderrTail(): string;
+    /** Completes with the exit code when the process ends (crash, kill); never while it runs. */
+    readonly exited: Effect.Effect<number | null>;
   }
 >()("open-agents/worker/CodexAppServer") {
   static readonly layer = (options: CodexAppServerOptions) =>
@@ -127,6 +129,7 @@ export class CodexAppServer extends Context.Service<
           request: (method, params) => call(method, params) as never,
           notifications: Stream.fromPubSub(notifications),
           stderrTail: () => stderr.slice(-50).join("\n"),
+          exited: Effect.promise(() => proc.exited),
         });
       }),
     );

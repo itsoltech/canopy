@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PermissionMode, Provider, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
+import { ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
 import type { WorkerConnection } from "@open-agents/gateway/worker-link";
 import { journalHello } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
@@ -100,7 +100,7 @@ describe("worker command handling", () => {
 });
 
 describe("worker restart", () => {
-  test("turns of the previous process end as interrupted (worker restarted), once", async () => {
+  test("turns of the previous process end as interrupted by the system (worker restarted mid-turn), once", async () => {
     const path = join(dir, "restart.db");
     const previous = ManagedRuntime.make(Journal.layer(path));
     // The previous process journaled a turn start and died before its end.
@@ -116,11 +116,52 @@ describe("worker restart", () => {
     await previous.dispose();
     const next = ManagedRuntime.make(Journal.layer(path));
     const restarted = new WorkerHost({ runtime: next, dataDir: join(dir, "data-restart"), clientVersion: "test" });
-    expect(await restarted.recover()).toEqual({ turns: 1, tasks: 0 });
+    expect(await restarted.recover()).toEqual({ turns: 1, tasks: 0, fromTranscript: 0 });
     const pending = await next.runPromise(Journal.use((j) => j.pending(new Map())));
-    expect(pending.at(-1)).toMatchObject({ threadId: "thread-a", turnId: "turn-1", body: { case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED, reason: "worker restarted" } } });
-    expect(await restarted.recover()).toEqual({ turns: 0, tasks: 0 });
+    expect(pending.at(-1)).toMatchObject({
+      threadId: "thread-a",
+      turnId: "turn-1",
+      body: { case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM, reason: "worker restarted mid-turn" } },
+    });
+    expect(await restarted.recover()).toEqual({ turns: 0, tasks: 0, fromTranscript: 0 });
     expect(restarted.runningTurns()).toEqual([]);
+    await restarted.close();
+    await next.dispose();
+  });
+
+  test("a turn the harness finished while the worker was down ends the way its rollout says, with what was never forwarded", async () => {
+    const path = join(dir, "restart-rollout.db");
+    const rollout = join(import.meta.dir, "../../apps/worker/src/providers/fixtures/codex-rollout.jsonl");
+    const previous = ManagedRuntime.make(Journal.layer(path));
+    // The previous process forwarded the start, the user message and a running command, then died; Codex finished the
+    // turn (the fixture's turn "turn-done": command output, final message, task_complete).
+    await previous.runPromise(
+      Journal.use((j) =>
+        Effect.gen(function* () {
+          yield* j.noteHarness("thread-b", "turn-b", { harness: "codex", transcript: rollout, sessionId: "c0dex-thread", offset: 0, providerTurn: "turn-done" });
+          yield* j.append("thread-b", { turnId: "turn-b", body: { case: "turnStarted", value: { origin: TurnOrigin.COMMAND } } });
+          const user = { itemId: "user-item-1", status: ItemStatus.COMPLETED, content: { case: "userMessage" as const, value: { text: "Run sleep 2" } } };
+          yield* j.append("thread-b", { turnId: "turn-b", body: { case: "itemCompleted", value: { item: user } } });
+          const command = { itemId: "exec-cmd-1", status: ItemStatus.IN_PROGRESS, content: { case: "commandExecution" as const, value: { command: "sleep 2" } } };
+          yield* j.append("thread-b", { turnId: "turn-b", body: { case: "itemStarted", value: { item: command } } });
+        }),
+      ),
+    );
+    await previous.dispose();
+    const next = ManagedRuntime.make(Journal.layer(path));
+    const restarted = new WorkerHost({ runtime: next, dataDir: join(dir, "data-restart-rollout"), clientVersion: "test" });
+    expect(await restarted.recover()).toEqual({ turns: 1, tasks: 0, fromTranscript: 1 });
+    const pending = (await next.runPromise(Journal.use((j) => j.pending(new Map())))).filter((e) => e.threadId === "thread-b");
+    const recovered = pending.slice(3).map((e) => [e.body.case, e.body.case === "itemCompleted" ? `${e.body.value.item?.itemId}:${ItemStatus[e.body.value.item?.status ?? 0]}` : ""]);
+    // Only what the gateway does not have: the user message is not repeated.
+    expect(recovered).toEqual([
+      ["itemCompleted", "msg_commentary:COMPLETED"],
+      ["itemCompleted", "call_cell_1:COMPLETED"],
+      ["itemCompleted", "exec-cmd-1:COMPLETED"],
+      ["itemCompleted", "msg_final:COMPLETED"],
+      ["turnFinished", ""],
+    ]);
+    expect(pending.at(-1)?.body).toMatchObject({ case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: "turn-done" } });
     await restarted.close();
     await next.dispose();
   });
