@@ -5,7 +5,7 @@
 
 /*
  * Design tokens. Neutrals are zinc; colour carries meaning only:
- * sky = running / links, blue = actions and focus, amber = waiting for a person, emerald = done / online,
+ * sky = running / links, brand (default blue, see Appearance) = actions and focus, amber = waiting for a person, emerald = done / online,
  * rose = failed, orange = interrupted, violet = started by an agent (agent bus, side threads).
  * Dark-first, like T3 Code: black canvas, zinc surfaces, white/10 rings. Light mode mirrors it.
  */
@@ -13,6 +13,55 @@
   --font-sans: InterVariable, Inter, ui-sans-serif, system-ui, sans-serif;
   --font-sans--font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+/*
+ * Brand accent (buttons, send, focus, selection) switches with the Appearance theme:
+ * html[data-accent] sets --brand-*, the brand-* utilities read them.
+ */
+@theme inline {
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+}
+
+:root {
+  --brand-400: var(--color-blue-400);
+  --brand-500: var(--color-blue-500);
+  --brand-600: var(--color-blue-600);
+  /* Width of the chat column (Appearance → Chat width). */
+  --chat-width: 48rem;
+}
+:root[data-accent="grove"] {
+  --brand-400: var(--color-emerald-400);
+  --brand-500: var(--color-emerald-500);
+  --brand-600: var(--color-emerald-600);
+}
+:root[data-accent="ocean"] {
+  --brand-400: var(--color-sky-400);
+  --brand-500: var(--color-sky-500);
+  --brand-600: var(--color-sky-600);
+}
+:root[data-accent="ember"] {
+  --brand-400: var(--color-orange-400);
+  --brand-500: var(--color-orange-500);
+  --brand-600: var(--color-orange-600);
+}
+:root[data-accent="iris"] {
+  --brand-400: var(--color-violet-400);
+  --brand-500: var(--color-violet-500);
+  --brand-600: var(--color-violet-600);
+}
+:root[data-accent="rose"] {
+  --brand-400: var(--color-pink-400);
+  --brand-500: var(--color-pink-500);
+  --brand-600: var(--color-pink-600);
+}
+:root[data-chat-width="wide"] {
+  --chat-width: 60rem;
+}
+:root[data-chat-width="full"] {
+  --chat-width: 100%;
 }
 
 @layer base {
@@ -30,7 +79,7 @@
 
 /* Focus ring shared by every custom control. */
 @utility focus-ring {
-  @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500;
+  @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500;
 }
 
 /* Scrollable code / output surfaces: monospace, keeps whitespace, scrolls instead of wrapping. */

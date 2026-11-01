@@ -130,7 +130,7 @@
 
     <div class="relative min-h-0 flex-1">
       <div bind:this={scroller} {onscroll} class="h-full overflow-y-auto overscroll-contain" role="region" aria-label="Timeline" aria-busy={working}>
-        <div bind:this={content} class="mx-auto max-w-3xl px-4 pt-2 pb-6 sm:px-6">
+        <div bind:this={content} class="mx-auto max-w-(--chat-width) px-4 pt-2 pb-6 sm:px-6">
           {#if !view.loaded}
             <div class="grid gap-4" aria-label="Loading the timeline">
               <Skeleton class="ml-auto h-10 w-2/3" />
@@ -158,7 +158,7 @@
       {/if}
     </div>
 
-    <div class="mx-auto grid w-full max-w-3xl gap-3 px-4 pt-2 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6">
+    <div class="mx-auto grid w-full max-w-(--chat-width) gap-3 px-4 pt-2 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6">
       {#if view.pending.length > 0}
         <div class="grid max-h-[45dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
           {#each view.pending as interaction (interaction.requestId)}

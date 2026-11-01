@@ -6,12 +6,13 @@
   import { page } from "$app/state";
   import { untrack } from "svelte";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
+  import { returnTo } from "#lib/features/settings/return-to.svelte.ts";
   import { provideShell } from "#lib/features/navigation/shell.ts";
   import { OverviewState, provideOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
-  // Keeps the theme in sync with the system while the choice is "system".
-  import "#lib/shared/theme.svelte.ts";
+  // Keeps the color scheme in sync with the system while the choice is "system".
+  import "#lib/shared/preferences.svelte.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { LayoutProps } from "./$types";
 
@@ -28,7 +29,11 @@
 
   let menuOpen = $state(false);
   provideShell({ openMenu: () => (menuOpen = true) });
-  afterNavigate(() => (menuOpen = false));
+  afterNavigate(({ to }) => {
+    menuOpen = false;
+    // Closing Settings returns to the last page outside it.
+    if (to && !to.url.pathname.startsWith("/settings")) returnTo.url = `${to.url.pathname}${to.url.search}`;
+  });
 </script>
 
 <svelte:head>

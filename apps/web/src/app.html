@@ -6,11 +6,17 @@
 		<meta name="text-scale" content="scale" />
 		<meta name="color-scheme" content="light dark" />
 		<script>
-			// Appearance before first paint (lib/shared/theme.svelte.ts keeps it in sync afterwards).
+			// Appearance before first paint (lib/shared/preferences.svelte.ts keeps it in sync afterwards).
 			(() => {
-				const choice = localStorage.getItem("oa-theme") ?? "system";
-				const dark = choice === "dark" || (choice === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-				document.documentElement.classList.toggle("dark", dark);
+				let prefs = {};
+				try {
+					prefs = JSON.parse(localStorage.getItem("oa-prefs") ?? "{}");
+				} catch {}
+				const scheme = prefs.scheme ?? "system";
+				const root = document.documentElement;
+				root.classList.toggle("dark", scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches));
+				root.dataset.accent = prefs.accent ?? "default";
+				root.dataset.chatWidth = prefs.chatWidth ?? "comfortable";
 			})();
 		</script>
 		<link rel="preconnect" href="https://rsms.me/" />

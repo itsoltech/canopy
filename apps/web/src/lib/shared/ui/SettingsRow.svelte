@@ -30,7 +30,7 @@
   {#if leading}<div class="flex h-lh shrink-0 items-center text-base/6 sm:text-sm/6">{@render leading()}</div>{/if}
   <div class="min-w-0 flex-1">
     <p class="truncate text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">{title}</p>
-    {#if description}<p class="truncate text-sm/5 text-zinc-500 dark:text-zinc-400">{description}</p>{/if}
+    {#if description}<p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">{description}</p>{/if}
     {@render children?.()}
   </div>
   {#if control}<div class="flex shrink-0 items-center gap-2">{@render control()}</div>{/if}

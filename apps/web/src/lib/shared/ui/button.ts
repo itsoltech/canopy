@@ -6,7 +6,7 @@ const base =
   "relative inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap focus-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-blue-600 text-white not-disabled:hover:bg-blue-500",
+  primary: "bg-brand-600 text-white not-disabled:hover:bg-brand-500",
   secondary:
     "bg-white text-zinc-950 shadow-xs ring-1 ring-zinc-950/10 not-disabled:hover:bg-zinc-50 dark:bg-white/5 dark:text-white dark:shadow-none dark:ring-white/10 dark:not-disabled:hover:bg-white/10",
   ghost: "text-zinc-700 not-disabled:hover:bg-zinc-950/5 not-disabled:hover:text-zinc-950 dark:text-zinc-300 dark:not-disabled:hover:bg-white/10 dark:not-disabled:hover:text-white",

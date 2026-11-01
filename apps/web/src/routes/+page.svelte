@@ -7,6 +7,7 @@
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
   import ComposerPill from "#lib/features/threads/components/ComposerPill.svelte";
   import { permissionModes } from "#lib/features/threads/labels.ts";
+  import { threadDefaults } from "#lib/features/threads/thread-defaults.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
@@ -18,11 +19,20 @@
   const overview = useOverview();
 
   const workspaces = $derived(overview.projects.flatMap((project) => project.workspaces.map((workspace) => ({ project, workspace }))));
-  // ?project=<id> preselects that project's first workspace; otherwise the first workspace overall.
+  // ?project=<id> preselects that project's first workspace; otherwise the default from Settings → Threads,
+  // otherwise the first workspace overall.
+  const defaults = threadDefaults.values;
+  const requested = page.url.searchParams.get("project");
   // svelte-ignore state_referenced_locally
   let workspaceId = $state(
-    (workspaces.find((w) => w.project.id === page.url.searchParams.get("project")) ?? workspaces[0])?.workspace.id ?? "",
+    (
+      (requested && workspaces.find((w) => w.project.id === requested)) ||
+      workspaces.find((w) => w.workspace.id === defaults.workspaceId) ||
+      workspaces[0]
+    )?.workspace.id ?? "",
   );
+  let profileId = $state(defaults.profileId);
+  let permissionMode = $state(defaults.permissionMode);
   const chosen = $derived(workspaces.find((w) => w.workspace.id === workspaceId));
   const worker = $derived(overview.worker(chosen?.workspace.workerId ?? ""));
   const profiles = $derived(worker?.profiles.filter((p) => p.available) ?? []);
@@ -43,7 +53,7 @@
   </TopBar>
 
   <div class="grid min-h-0 flex-1 place-items-center overflow-y-auto px-4 pb-16 sm:px-6">
-    <div class="w-full max-w-3xl">
+    <div class="w-full max-w-(--chat-width)">
       <div class="mb-8 text-center">
         <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">What should we work on?</h1>
         <p class="mt-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{chosen ? chosen.project.name : "No project"}</p>
@@ -73,12 +83,13 @@
           <input type="hidden" name="projectId" value={chosen?.project.id ?? ""} />
           <input type="hidden" name="title" value={title} />
           <input type="hidden" name="clientRequestId" value={clientRequestId} />
+          <input type="hidden" name="model" value={defaults.model} />
           {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
           <ComposerBox bind:value={message} sending={busy} autofocus label="Task for the agent">
             {#snippet controls()}
-              <ComposerPill name="profileId" label="Codex profile">
+              <ComposerPill name="profileId" label="Codex profile" bind:value={profileId}>
                 {#each profiles as option (option.id)}
-                  <option value={option.id === "native" ? "" : option.id}>Codex · {option.id}</option>
+                  <option value={option.id === "native" ? "" : option.id}>Codex{defaults.model ? ` ${defaults.model}` : ""} · {option.id}</option>
                 {:else}
                   <option value="">Codex</option>
                 {/each}
@@ -100,7 +111,7 @@
               </span>
               <span class="flex shrink-0 items-center gap-1">
                 <Icon name="shield-check" class="size-3.5" />
-                <ComposerPill name="permissionMode" label="Permissions" class="-ml-1">
+                <ComposerPill name="permissionMode" label="Permissions" class="-ml-1" bind:value={permissionMode}>
                   {#each permissionModes as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
                 </ComposerPill>
               </span>

@@ -85,7 +85,7 @@
       {:else}
         <button
           type="submit"
-          class="relative grid size-9 shrink-0 place-items-center rounded-full bg-blue-600 text-white focus-ring not-disabled:hover:bg-blue-500 disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
+          class="relative grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-white focus-ring not-disabled:hover:bg-brand-500 disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
           aria-label={onstop ? "Queue message" : "Send"}
           title={onstop ? "Queue for after this turn" : "Send"}
           disabled={disabled || sending || !value.trim()}

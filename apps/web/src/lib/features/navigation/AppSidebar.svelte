@@ -59,7 +59,7 @@
   </div>
 
   <div class="px-3 pb-2">
-    <label class="flex items-center gap-2 rounded-lg px-2.5 py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-blue-500 sm:py-1.5 dark:text-zinc-400">
+    <label class="flex items-center gap-2 rounded-lg px-2.5 py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400">
       <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
       <span class="sr-only">Search threads</span>
       <input
