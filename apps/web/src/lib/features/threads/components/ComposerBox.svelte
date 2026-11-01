@@ -65,7 +65,7 @@
   }
 </script>
 
-<div class={["grid gap-2", className]}>
+<div class={["grid grid-cols-1 gap-2", className]}>
   <div
     class="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-950/10 has-focus-visible:ring-zinc-950/25 has-disabled:opacity-70 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10 dark:has-focus-visible:ring-white/20"
   >

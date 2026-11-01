@@ -4,6 +4,7 @@
   import { page } from "$app/state";
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
+  import SetGoalPill from "#lib/features/goals/SetGoalPill.svelte";
   import { isFinishedGoal, showsGoal } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
@@ -20,22 +21,20 @@
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState, type TimelineEntry } from "#lib/features/threads/thread-state.svelte.ts";
   import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
+  import { topLevelEntry } from "#lib/features/threads/timeline.ts";
   import { FeedBuilder, feedEstimate, feedGroup, type FeedRow } from "#lib/features/threads/feed.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
-  import PillButton from "#lib/shared/ui/PillButton.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
-  import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
 
@@ -152,16 +151,7 @@
 
   // "N running in background" jumps to the task's row (a nested task: the row of the item it is under).
   let feed = $state<{ reveal: (key: string) => Promise<boolean> }>();
-  function jumpTo(task: TimelineEntry) {
-    const byId = new Map(view.ownEntries.map((e) => [e.id, e]));
-    let entry = task;
-    for (let depth = 0; depth < 20; depth++) {
-      const parent = entry.item.parentItemId ? byId.get(entry.item.parentItemId) : undefined;
-      if (!parent || parent === entry) break;
-      entry = parent;
-    }
-    void feed?.reveal(`item:${entry.id}`);
-  }
+  const jumpTo = (task: TimelineEntry) => void feed?.reveal(`item:${topLevelEntry(view.ownEntries, task).id}`);
   let copied = $state("");
   async function copy(value: string) {
     try {
@@ -241,7 +231,7 @@
             <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} />
           {/snippet}
           {#snippet footer()}
-            <div class="grid gap-3 pt-2">
+            <div class="grid grid-cols-1 gap-3 pt-2">
               {#if view.pending.length > 0}
                 <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
                   {#each view.pending as interaction (interaction.requestId)}
@@ -260,7 +250,7 @@
                 />
               {/if}
               {#if view.backgroundTasks.length > 0}
-                <div class="flex"><BackgroundTasksChip tasks={view.backgroundTasks} onjump={jumpTo} /></div>
+                <BackgroundTasksChip tasks={view.backgroundTasks} onjump={jumpTo} class="justify-self-start" />
               {/if}
               {#if thread}
                 <Composer
@@ -275,9 +265,7 @@
                 >
                   {#snippet leading()}
                     {#if canGoal && !openGoal}
-                      <PillButton chevron={false} aria-label="Set a goal" onclick={() => (goalDialog = true)} {@attach tooltip("Set a goal: the agent keeps working until it is met")}>
-                        <Icon name="flag" class="size-3.5" /><span class="max-sm:sr-only">Goal</span>
-                      </PillButton>
+                      <SetGoalPill onclick={() => (goalDialog = true)} />
                     {/if}
                   {/snippet}
                 </Composer>

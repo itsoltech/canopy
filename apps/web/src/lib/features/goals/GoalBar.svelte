@@ -69,7 +69,7 @@
   }
 </script>
 
-<section aria-labelledby="{id}-label" class={["rounded-xl bg-zinc-950/2.5 ring-1 ring-zinc-950/5 dark:bg-white/4 dark:ring-white/10", className]}>
+<section aria-labelledby="{id}-label" class={["min-w-0 rounded-xl bg-zinc-950/2.5 ring-1 ring-zinc-950/5 dark:bg-white/4 dark:ring-white/10", className]}>
   <div class="flex items-center gap-1 py-1 pr-1 pl-1.5">
     <button
       type="button"

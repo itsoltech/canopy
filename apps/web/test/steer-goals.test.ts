@@ -3,7 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { ItemSchema, ItemStatus, Provider, UserMessageSchema, ui } from "@open-agents/contracts";
 import { FeedBuilder, type FeedInput } from "../src/lib/features/threads/feed.ts";
 import type { TimelineEntry } from "../src/lib/features/threads/thread-state.svelte.ts";
-import { buildTimeline, isSteerMessage } from "../src/lib/features/threads/timeline.ts";
+import { buildTimeline, isSteerMessage, topLevelEntry } from "../src/lib/features/threads/timeline.ts";
 import { goalActions, goalPending, iterationsLabel, showsGoal, formatElapsed, takesTokenBudget, budgetShare } from "../src/lib/features/goals/goals.ts";
 
 let seq = 0n;
@@ -36,6 +36,15 @@ describe("steered messages in the timeline", () => {
     const rows = buildTimeline([message("in", "turn-1", "turn-1"), message("s1", "turn-1", "steer-1")], [turn("turn-1", 1, "completed", "do it")], [], new Map());
     const items = rows.filter((r) => r.kind === "item");
     expect(items.map((r) => r.kind === "item" && [r.inputOf?.id, r.steer])).toEqual([["turn-1", false], [undefined, true]]);
+  });
+});
+
+describe("topLevelEntry", () => {
+  test("a nested item resolves to the item with its own row", () => {
+    const parent = message("agent", "turn-1", "");
+    const child: TimelineEntry = { ...message("bg", "turn-1", ""), item: create(ItemSchema, { itemId: "bg", parentItemId: "agent" }) };
+    expect(topLevelEntry([parent, child], child).id).toBe("agent");
+    expect(topLevelEntry([parent, child], parent).id).toBe("agent");
   });
 });
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
@@ -11,11 +12,17 @@
    * steers the message into the running turn (Enter); the chevron offers both ways, steer and queue for
    * the next turn (Mod+Enter), with what each does.
    */
-  let { sending = false, disabled = false, onsteer, onqueue }: { sending?: boolean; disabled?: boolean; onsteer: () => void; onqueue: () => void } = $props();
+  let {
+    sending = false,
+    disabled = false,
+    onsteer,
+    onqueue,
+    class: className,
+  }: { sending?: boolean; disabled?: boolean; onsteer: () => void; onqueue: () => void; class?: ClassValue } = $props();
   const half = "relative flex h-9 items-center focus-ring not-disabled:hover:bg-brand-500 disabled:opacity-60 sm:h-8";
 </script>
 
-<div class="flex shrink-0 items-center rounded-full bg-brand-600 text-white">
+<div class={["flex shrink-0 items-center rounded-full bg-brand-600 text-white", className]}>
   <button
     type="submit"
     class={[half, "gap-1.5 rounded-l-full pr-2.5 pl-3 text-sm/5 font-medium sm:text-[0.8125rem]/5"]}

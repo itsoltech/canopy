@@ -28,6 +28,18 @@ export function isSteerMessage(entry: TimelineEntry): boolean {
   return content.case === "userMessage" && content.value.clientId !== "" && content.value.clientId !== entry.turnId;
 }
 
+/** The item a nested one sits under at the top level (its own row in the timeline); itself when not nested. */
+export function topLevelEntry(entries: readonly TimelineEntry[], entry: TimelineEntry): TimelineEntry {
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  let top = entry;
+  for (let depth = 0; depth < 50; depth++) {
+    const parent = top.item.parentItemId ? byId.get(top.item.parentItemId) : undefined;
+    if (!parent || parent === top) break;
+    top = parent;
+  }
+  return top;
+}
+
 const TERMINAL = new Set(["completed", "interrupted", "failed", "cancelled"]);
 export const isTerminal = (status: string) => TERMINAL.has(status);
 

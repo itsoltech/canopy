@@ -100,7 +100,7 @@
   }
 </script>
 
-<form class={["grid gap-2", className]} onsubmit={submit}>
+<form class={["grid grid-cols-1 gap-2", className]} onsubmit={submit}>
   {#if error}<Alert tone="error">{error}</Alert>{/if}
   <ComposerBox
     bind:value={text}
