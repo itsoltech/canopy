@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
+  import { clock } from "#lib/shared/clock.svelte.ts";
   import { formatRelative, isoDateTime } from "#lib/shared/format.ts";
+  import { activityOf, needsYou } from "../activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
@@ -37,11 +39,11 @@
     </span>
     {#if meta}
       <span class="block truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        {meta}{#if thread.createdAt}{" · "}<time datetime={isoDateTime(thread.createdAt)}>{formatRelative(thread.createdAt)}</time>{/if}
+        {meta}{#if activityOf(thread)}{" · "}<time datetime={isoDateTime(activityOf(thread))}>{formatRelative(activityOf(thread), clock.now)}</time>{/if}
       </span>
     {/if}
   </span>
-  {#if thread.pendingInteractions > 0 || thread.status === "waiting_input"}
+  {#if needsYou(thread)}
     <span class="flex h-lh shrink-0 items-center gap-1 text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">
       <Icon name="hand-raised" class="size-3.5" />{thread.pendingInteractions || ""}<span class="sr-only">waiting for you</span>
     </span>
