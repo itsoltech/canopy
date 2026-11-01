@@ -6,7 +6,9 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
   import ComposerPill from "#lib/features/threads/components/ComposerPill.svelte";
+  import ModelPill from "#lib/features/threads/components/ModelPill.svelte";
   import { permissionModes } from "#lib/features/threads/labels.ts";
+  import { agentChoices, knownModels } from "#lib/features/threads/providers.ts";
   import { threadDefaults } from "#lib/features/threads/thread-defaults.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
@@ -14,7 +16,10 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { PageProps } from "./$types";
 
-  /** New thread (T3's empty state): one message box; workspace, profile and permissions as pills. */
+  /**
+   * New thread (T3's empty state): one message box; the agent (Claude or Codex with a profile the
+   * workspace's worker offers), model, workspace and permissions as pills.
+   */
   let { form }: PageProps = $props();
   const overview = useOverview();
 
@@ -31,11 +36,19 @@
       workspaces[0]
     )?.workspace.id ?? "",
   );
-  let profileId = $state(defaults.profileId);
   let permissionMode = $state(defaults.permissionMode);
   const chosen = $derived(workspaces.find((w) => w.workspace.id === workspaceId));
   const worker = $derived(overview.worker(chosen?.workspace.workerId ?? ""));
-  const profiles = $derived(worker?.profiles.filter((p) => p.available) ?? []);
+
+  // Provider + profile pairs the worker can start. A choice the worker cannot run (another workspace,
+  // provider went away) falls back to the default provider, then to the first offered pair.
+  const groups = $derived(agentChoices(worker));
+  const choices = $derived(groups.flatMap((g) => g.choices));
+  let agent = $state(`${defaults.provider}:${defaults.profileId}`);
+  const selected = $derived(choices.find((c) => c.value === agent) ?? choices.find((c) => c.provider === defaults.provider) ?? choices[0]);
+  // A model per provider: switching Claude ↔ Codex keeps what was typed for each.
+  let models = $state({ ...defaults.models });
+  const suggestions = $derived(selected ? knownModels(overview.threads.values(), selected.provider) : []);
 
   let message = $state("");
   let busy = $state(false);
@@ -83,17 +96,25 @@
           <input type="hidden" name="projectId" value={chosen?.project.id ?? ""} />
           <input type="hidden" name="title" value={title} />
           <input type="hidden" name="clientRequestId" value={clientRequestId} />
-          <input type="hidden" name="model" value={defaults.model} />
+          <input type="hidden" name="provider" value={selected?.provider ?? ""} />
+          <input type="hidden" name="profileId" value={selected?.profileId ?? ""} />
           {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
-          <ComposerBox bind:value={message} sending={busy} autofocus label="Task for the agent">
+          <ComposerBox bind:value={message} sending={busy} disabled={!selected} autofocus label="Task for the agent">
             {#snippet controls()}
-              <ComposerPill name="profileId" label="Codex profile" bind:value={profileId}>
-                {#each profiles as option (option.id)}
-                  <option value={option.id === "native" ? "" : option.id}>Codex{defaults.model ? ` ${defaults.model}` : ""} · {option.id}</option>
+              <span class="flex min-w-0 flex-1 items-center justify-end gap-1">
+                {#if selected}
+                  <ComposerPill name="agent" label="Agent and profile" bind:value={() => selected.value, (value) => (agent = value)} class="shrink">
+                    {#each groups as group (group.provider)}
+                      <optgroup label={group.provider === "CLAUDE" ? "Claude" : "Codex"}>
+                        {#each group.choices as choice (choice.value)}<option value={choice.value}>{choice.label}</option>{/each}
+                      </optgroup>
+                    {/each}
+                  </ComposerPill>
+                  <ModelPill bind:value={() => models[selected.provider], (value) => (models[selected.provider] = value)} {suggestions} label="{selected.provider === 'CLAUDE' ? 'Claude' : 'Codex'} model" class="shrink" />
                 {:else}
-                  <option value="">Codex</option>
-                {/each}
-              </ComposerPill>
+                  <span class="truncate px-2 text-sm/5 text-zinc-500 sm:text-[0.8125rem]/5 dark:text-zinc-400">No agent available</span>
+                {/if}
+              </span>
             {/snippet}
             {#snippet meta()}
               <span class="flex min-w-0 items-center gap-1">
@@ -117,7 +138,9 @@
               </span>
             {/snippet}
           </ComposerBox>
-          {#if worker && !worker.online}
+          {#if worker && !selected}
+            <p class="px-3 text-sm/5 text-amber-700 sm:text-xs/5 dark:text-amber-400" role="status">{worker.name} reports neither Claude nor Codex as available. Check the worker in Settings.</p>
+          {:else if worker && !worker.online}
             <p class="px-3 text-sm/5 text-amber-700 sm:text-xs/5 dark:text-amber-400" role="status">{worker.name} is offline. The thread starts when it reconnects.</p>
           {/if}
         </form>

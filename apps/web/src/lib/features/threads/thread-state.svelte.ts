@@ -9,9 +9,11 @@ export interface TimelineEntry {
   readonly item: Item;
   readonly turnId: string;
   readonly firstSeq: bigint;
+  /** From the history a fork inherited (its seq counts in the source thread). */
+  readonly inherited: boolean;
 }
 
-/** A notice event (rate limit, retry, provider error, restart). Not an item, so only seen live. */
+/** A notice event (rate limit, retry, provider error, restart); the snapshot brings the latest ones. */
 export interface TimelineNotice {
   readonly seq: bigint;
   readonly turnId: string;
@@ -19,11 +21,21 @@ export interface TimelineNotice {
   readonly at: Timestamp | undefined;
 }
 
-/** How a turn ended, from its turn_finished event (usage is not part of `ui.Turn`). */
+/**
+ * How a turn ended, from its turn_finished event: the interruption reason (not part of `ui.Turn`) and
+ * usage until the turn update with `usage` arrives. Live only.
+ */
 export interface TurnResult {
   readonly usage: Usage | undefined;
   readonly reason: string;
-  readonly at: Timestamp | undefined;
+}
+
+/** Token usage added up over turns. */
+export interface UsageTotals {
+  readonly inputTokens: bigint;
+  readonly cachedInputTokens: bigint;
+  readonly outputTokens: bigint;
+  readonly costUsd: number;
 }
 
 /** connecting: first snapshot pending; live: stream open; reconnecting: dropped, EventSource retries. */
@@ -41,7 +53,7 @@ export class ThreadState {
   interactions = $state.raw<ui.Interaction[]>([]);
   notices = $state.raw<TimelineNotice[]>([]);
   turnResults = $state.raw<ReadonlyMap<string, TurnResult>>(new Map());
-  /** Latest token usage of the thread (usage_updated), live only. */
+  /** Latest token usage of the thread (usage_updated), live only; carries the context window. */
   usage = $state.raw<Usage | undefined>(undefined);
   connection = $state<Connection>("connecting");
   /** The snapshot arrived at least once. */
@@ -49,8 +61,34 @@ export class ThreadState {
   failure = $state<string | undefined>(undefined);
 
   readonly pending = $derived(this.interactions.filter((i) => i.status === "pending"));
-  readonly running = $derived(this.turns.some((t) => t.status === "running"));
-  readonly queued = $derived(this.turns.filter((t) => t.status === "queued"));
+  /** The thread's own turns and items; a fork's inherited history is kept apart. */
+  readonly ownTurns = $derived(this.turns.filter((t) => !t.inherited));
+  readonly ownEntries = $derived(this.entries.filter((e) => !e.inherited));
+  readonly inheritedTurns = $derived(this.turns.filter((t) => t.inherited));
+  readonly inheritedEntries = $derived(this.entries.filter((e) => e.inherited));
+  readonly running = $derived(this.ownTurns.some((t) => t.status === "running"));
+  readonly queued = $derived(this.ownTurns.filter((t) => t.status === "queued"));
+  /** Usage of the thread's own turns (from the snapshot, so it survives a reload). */
+  readonly totals = $derived(
+    this.ownTurns.reduce<UsageTotals>(
+      (sum, turn) => {
+        const usage = turn.usage ?? this.turnResults.get(turn.id)?.usage;
+        if (!usage) return sum;
+        return {
+          inputTokens: sum.inputTokens + usage.inputTokens,
+          cachedInputTokens: sum.cachedInputTokens + usage.cachedInputTokens,
+          outputTokens: sum.outputTokens + usage.outputTokens,
+          costUsd: sum.costUsd + usage.costUsd,
+        };
+      },
+      { inputTokens: 0n, cachedInputTokens: 0n, outputTokens: 0n, costUsd: 0 },
+    ),
+  );
+
+  /** Seeds the thread before the stream connects (server load), so the page renders it at once. */
+  constructor(thread?: ui.Thread | undefined) {
+    this.thread = thread;
+  }
 
   apply(update: ui.ThreadUpdate): void {
     const change = update.change;
@@ -60,8 +98,11 @@ export class ThreadState {
         this.thread = snapshot.thread;
         this.turns = snapshot.turns;
         this.interactions = snapshot.interactions;
-        this.entries = snapshot.items.flatMap((i) => (i.item ? [{ id: i.item.itemId, item: i.item, turnId: i.turnId, firstSeq: i.firstSeq }] : []));
-        // Notices and usage are not in the snapshot: keep what this tab saw before the reconnect.
+        this.entries = snapshot.items.flatMap((i) =>
+          i.item ? [{ id: i.item.itemId, item: i.item, turnId: i.turnId, firstSeq: i.firstSeq, inherited: i.inherited }] : [],
+        );
+        this.notices = snapshot.notices.flatMap((n) => (n.notice ? [{ seq: n.seq, turnId: n.turnId, notice: n.notice, at: n.occurredAt }] : []));
+        // Live usage (context window) is not in the snapshot: keep what this tab saw before the reconnect.
         this.loaded = true;
         break;
       }
@@ -109,10 +150,11 @@ export class ThreadState {
     }
     const id = eventItemId(body);
     if (!id) return;
-    const index = this.entries.findIndex((e) => e.id === id);
+    // Live events are the thread's own; an inherited item may share its id with the source's copy.
+    const index = this.entries.findIndex((e) => e.id === id && !e.inherited);
     const next = reduceItem(index >= 0 ? this.entries[index]?.item : undefined, body);
     if (!next) return;
-    const entry: TimelineEntry = { id, item: next, turnId: event.turnId, firstSeq: index >= 0 ? this.entries[index]!.firstSeq : seq };
+    const entry: TimelineEntry = { id, item: next, turnId: event.turnId, firstSeq: index >= 0 ? this.entries[index]!.firstSeq : seq, inherited: false };
     this.entries = index >= 0 ? this.entries.with(index, entry) : [...this.entries, entry];
   }
 
@@ -123,17 +165,17 @@ export class ThreadState {
   #started(turnId: string, started: TurnStarted, at: Timestamp | undefined): void {
     if (!turnId || this.turns.some((t) => t.id === turnId)) return;
     const trigger = started.origin === TurnOrigin.PROVIDER ? "provider" : started.origin === TurnOrigin.RECOVERY ? "recovery" : "user";
-    const ordinal = Math.max(0, ...this.turns.map((t) => t.ordinal)) + 1;
-    this.turns = [...this.turns, create(ui.TurnSchema, { id: turnId, ordinal, status: "running", trigger, ...(at && { queuedAt: at }) })];
+    const ordinal = Math.max(0, ...this.ownTurns.map((t) => t.ordinal)) + 1;
+    this.turns = [...this.turns, create(ui.TurnSchema, { id: turnId, ordinal, status: "running", trigger, ...(at && { queuedAt: at, startedAt: at }) })];
   }
 
   #finished(turnId: string, finished: TurnFinished, at: Timestamp | undefined): void {
     if (!turnId) return;
-    this.turnResults = new Map(this.turnResults).set(turnId, { usage: finished.usage, reason: finished.reason, at });
+    this.turnResults = new Map(this.turnResults).set(turnId, { usage: finished.usage, reason: finished.reason });
     const index = this.turns.findIndex((t) => t.id === turnId && t.status === "running");
     const status = { [TurnOutcome.COMPLETED]: "completed", [TurnOutcome.INTERRUPTED]: "interrupted", [TurnOutcome.FAILED]: "failed" }[finished.outcome as number];
     const turn = this.turns[index];
-    if (turn && status) this.turns = this.turns.with(index, { ...turn, status });
+    if (turn && status) this.turns = this.turns.with(index, { ...turn, status, ...(at && { completedAt: at }) });
   }
 
   /** Subscribes to the BFF event stream; returns the cleanup for $effect. */

@@ -1,9 +1,12 @@
 <script lang="ts">
+  import { ui } from "@open-agents/contracts";
+  import { untrack } from "svelte";
   import { page } from "$app/state";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
+  import InheritedHistory from "#lib/features/threads/components/InheritedHistory.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
@@ -20,14 +23,19 @@
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
+  import { decode } from "#lib/shared/wire.ts";
+  import type { PageProps } from "./$types";
 
+  let { data }: PageProps = $props();
   const threadId = $derived(page.params.threadId ?? "");
   const overview = useOverview();
 
-  // A new ThreadState per thread id: navigating between threads of a tree starts clean.
+  // A new ThreadState per thread id: navigating between threads of a tree starts clean, seeded with the
+  // thread from GetThread so the header and composer render before the stream's snapshot.
+  // Only the thread id recreates it: a later `data` refresh (form actions invalidate) must not reconnect.
   const view = $derived.by(() => {
-    void threadId;
-    return new ThreadState();
+    const seed = untrack(() => (data.thread ? decode(ui.ThreadSchema, data.thread) : undefined));
+    return new ThreadState(seed?.id === threadId ? seed : undefined);
   });
   $effect(() => view.connect(threadId));
 
@@ -48,8 +56,12 @@
     awaiting: (itemId) => view.pending.some((i) => i.itemId === itemId),
   });
 
-  const rows = $derived(buildTimeline(view.entries, view.turns, view.notices, view.turnResults));
-  const itemsById = $derived(new Map(view.entries.map((e) => [e.id, e.item])));
+  const rows = $derived(buildTimeline(view.ownEntries, view.ownTurns, view.notices, view.turnResults));
+  // A fork's inherited history (source turns up to the fork point), shown folded above its own turns.
+  const inheritedRows = $derived(buildTimeline(view.inheritedEntries, view.inheritedTurns, [], view.turnResults));
+  const forkSource = $derived(thread?.forkSourceThreadId ? threads.find((t) => t.id === thread.forkSourceThreadId) : undefined);
+  const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
+  const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
   const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived");
   const working = $derived(view.running && thread?.status !== "waiting_input");
 
@@ -139,7 +151,7 @@
               <Skeleton class="h-8 w-1/2" />
               {#if view.connection === "connecting"}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Connecting…</p>{/if}
             </div>
-          {:else if rows.length === 0 && view.queued.length === 0}
+          {:else if rows.length === 0 && inheritedRows.length === 0 && view.queued.length === 0}
             <EmptyState
               icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
               title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
@@ -147,6 +159,9 @@
               class="mt-8"
             />
           {:else}
+            {#if inheritedRows.length > 0 && thread?.forkSourceThreadId}
+              <InheritedHistory sourceId={thread.forkSourceThreadId} source={forkSource} rows={inheritedRows} turns={view.inheritedTurns.length} />
+            {/if}
             <Timeline {rows} queued={view.queued} {working} />
           {/if}
         </div>
@@ -162,7 +177,7 @@
       {#if view.pending.length > 0}
         <div class="grid max-h-[45dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
           {#each view.pending as interaction (interaction.requestId)}
-            <InteractionCard {interaction} related={itemsById.get(interaction.itemId)} />
+            <InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} />
           {/each}
         </div>
       {/if}
@@ -177,7 +192,7 @@
   {#if panelOpen}
     <aside class="w-80 shrink-0 overflow-y-auto py-3 pr-3 max-xl:hidden" aria-label="Thread details">
       {#if thread && tree}
-        <ThreadPanel {thread} {tree} {worker} usage={view.usage} onnewside={canBranch ? openSide : undefined} />
+        <ThreadPanel {thread} {tree} {worker} usage={view.usage} totals={view.totals} onnewside={canBranch ? openSide : undefined} />
       {:else}
         <Skeleton class="h-72 rounded-2xl" />
       {/if}
@@ -187,7 +202,7 @@
 
 {#if thread && tree}
   <Dialog bind:open={panelSheet} title={thread.title}>
-    <ThreadPanel {thread} {tree} {worker} usage={view.usage} onnewside={canBranch ? openSide : undefined} class="-mx-1.5 shadow-none ring-0 dark:ring-0" />
+    <ThreadPanel {thread} {tree} {worker} usage={view.usage} totals={view.totals} onnewside={canBranch ? openSide : undefined} class="-mx-1.5 shadow-none ring-0 dark:ring-0" />
   </Dialog>
   <SideThreadDialog bind:open={sideOpen} main={tree.main} {worker} />
 {/if}

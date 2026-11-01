@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { permissionModes } from "#lib/features/threads/labels.ts";
+  import { isProviderKey, profilesFor, providerKeys, type ProviderKey } from "#lib/features/threads/providers.ts";
   import { threadDefaults } from "#lib/features/threads/thread-defaults.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
@@ -10,8 +11,9 @@
 
   const overview = useOverview();
   const values = $derived(threadDefaults.values);
-  // Profiles any worker offers (the thread's worker decides at creation time).
-  const profiles = $derived([...new Set(overview.workers.flatMap((w) => w.profiles.filter((p) => p.available).map((p) => p.id)))]);
+  const name = (key: ProviderKey) => (key === "CLAUDE" ? "Claude" : "Codex");
+  // Profiles any worker offers for the default provider (the thread's worker decides at creation time).
+  const profiles = $derived([...new Set(overview.workers.flatMap((w) => profilesFor(w, values.provider).map((p) => p.id)))]);
   const changed = (event: Event) => (event.currentTarget as HTMLSelectElement | HTMLInputElement).value;
 </script>
 
@@ -35,18 +37,44 @@
       </Select>
     {/snippet}
   </SettingsRow>
-  <SettingsRow title="Codex profile" description="How the agent reaches its model.">
+  <SettingsRow title="Agent" description="Claude or Codex. New threads offer only what the workspace's worker has.">
     {#snippet control()}
-      <Select name="profileId" aria-label="Default Codex profile" value={values.profileId} onchange={(e) => threadDefaults.update({ profileId: changed(e) })} class="w-48">
+      <Select
+        name="provider"
+        aria-label="Default agent"
+        value={values.provider}
+        onchange={(e) => {
+          const value = changed(e);
+          if (isProviderKey(value)) threadDefaults.update({ provider: value });
+        }}
+        class="w-48"
+      >
+        {#each providerKeys as key (key)}<option value={key}>{name(key)}</option>{/each}
+      </Select>
+    {/snippet}
+  </SettingsRow>
+  <SettingsRow title="Profile" description="How the agent reaches its model.">
+    {#snippet control()}
+      <Select name="profileId" aria-label="Default profile" value={values.profileId} onchange={(e) => threadDefaults.update({ profileId: changed(e) })} class="w-48">
         {#each profiles as id (id)}<option value={id === "native" ? "" : id}>{id}</option>{:else}<option value="">Default</option>{/each}
       </Select>
     {/snippet}
   </SettingsRow>
-  <SettingsRow title="Model" description="Leave empty for the profile's default model.">
-    {#snippet control()}
-      <Input name="model" aria-label="Default model" placeholder="Profile default" autocomplete="off" value={values.model} onchange={(e) => threadDefaults.update({ model: changed(e).trim() })} class="w-48" />
-    {/snippet}
-  </SettingsRow>
+  {#each providerKeys as key (key)}
+    <SettingsRow title="{name(key)} model" description="Leave empty for the profile's default model.">
+      {#snippet control()}
+        <Input
+          name="model-{key.toLowerCase()}"
+          aria-label="Default {name(key)} model"
+          placeholder="Profile default"
+          autocomplete="off"
+          value={values.models[key]}
+          onchange={(e) => threadDefaults.update({ models: { ...values.models, [key]: changed(e).trim() } })}
+          class="w-48"
+        />
+      {/snippet}
+    </SettingsRow>
+  {/each}
   <SettingsRow title="Permissions" description={permissionModes.find((m) => m.value === values.permissionMode)?.description}>
     {#snippet control()}
       <Select name="permissionMode" aria-label="Default permissions" value={values.permissionMode} onchange={(e) => threadDefaults.update({ permissionMode: changed(e) })} class="w-48">

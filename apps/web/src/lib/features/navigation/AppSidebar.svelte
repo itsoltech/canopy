@@ -2,6 +2,7 @@
   import type { ui } from "@open-agents/contracts";
   import { page } from "$app/state";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { needsYou, treeActivity } from "#lib/features/threads/activity.ts";
   import { isSide } from "#lib/features/threads/thread-tree.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -11,8 +12,9 @@
   import SidebarThread from "./SidebarThread.svelte";
 
   /**
-   * Thread inbox (T3 style): every main thread of every project, those that need you first, then the
-   * newest. The open thread's side threads unfold under it; others show a count.
+   * Thread inbox (T3 style): every main thread of every project, those that need you first (a side
+   * thread asking its parent agent does not), then by latest activity in the tree. The open thread's
+   * side threads unfold under it; others show a count.
    */
   let { currentThreadId }: { currentThreadId?: string | undefined } = $props();
   const overview = useOverview();
@@ -28,18 +30,19 @@
   const current = $derived(currentThreadId ? byId.get(currentThreadId) : undefined);
   const openTree = $derived(current ? (isSide(current) ? current.parentThreadId : current.id) : undefined);
 
-  const needsYou = (t: ui.Thread) => t.status === "waiting_input" || t.pendingInteractions > 0;
-  const newest = (a: ui.Thread, b: ui.Thread) => Number((b.createdAt?.seconds ?? 0n) - (a.createdAt?.seconds ?? 0n));
+  const byCreation = (a: ui.Thread, b: ui.Thread) => Number((a.createdAt?.seconds ?? 0n) - (b.createdAt?.seconds ?? 0n));
   const mains = $derived.by(() => {
     const q = query.trim().toLowerCase();
     const projectName = (t: ui.Thread) => overview.project(t.projectId)?.name ?? "";
     return all
       .filter((t) => !(isSide(t) && byId.has(t.parentThreadId)))
       .filter((t) => !q || [t, ...(sidesOf.get(t.id) ?? [])].some((x) => x.title.toLowerCase().includes(q)) || projectName(t).toLowerCase().includes(q))
-      .sort((a, b) => {
-        const attention = Number(needsYou(b) || (sidesOf.get(b.id) ?? []).some(needsYou)) - Number(needsYou(a) || (sidesOf.get(a.id) ?? []).some(needsYou));
-        return attention || newest(a, b);
-      });
+      .map((t) => {
+        const tree = [t, ...(sidesOf.get(t.id) ?? [])];
+        return { thread: t, attention: tree.some(needsYou), activity: treeActivity(tree) };
+      })
+      .sort((a, b) => Number(b.attention) - Number(a.attention) || Number(b.activity - a.activity))
+      .map((entry) => entry.thread);
   });
   const online = $derived(overview.workers.filter((w) => w.online).length);
   const settingsActive = $derived(page.url.pathname.startsWith("/settings"));
@@ -92,7 +95,7 @@
             />
             {#if openTree === thread.id && sides.length > 0}
               <ul role="list" aria-label="Side threads of {thread.title}" class="mt-0.5 mb-1 ml-5 grid gap-0.5 border-l border-zinc-950/10 pl-1.5 dark:border-white/10">
-                {#each [...sides].sort(newest).reverse() as side (side.id)}
+                {#each [...sides].sort(byCreation) as side (side.id)}
                   <li><SidebarSideThread thread={side} current={side.id === currentThreadId} /></li>
                 {/each}
               </ul>
