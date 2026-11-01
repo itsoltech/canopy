@@ -151,6 +151,8 @@ const make = (options: ClaudeThreadsOptions) =>
     const started = new Set<string>();
     /** Model id → the model it resolves to (aliases, "default"), from the last listing. */
     const resolvedModels = new Map<string, string>();
+    /** Model id → its effort levels, from the last listing (empty = the model has no effort setting). */
+    const modelEfforts = new Map<string, readonly string[]>();
     let shuttingDown = false;
     const idleGraceMs = options.idleGraceMs ?? 3_000;
     // Session helpers (forkSession, getSessionMessages) run in this process and read CLAUDE_CONFIG_DIR here.
@@ -492,7 +494,10 @@ const make = (options: ClaudeThreadsOptions) =>
             if (!session) {
               // No effort chosen: the device owner's configured default (docs/claude-adapter.md).
               const configured = requested ? undefined : options.configuredEffort?.([model || "default", resolvedModels.get(model || "default") ?? ""]);
-              const effort = isClaudeEffort(requested) ? requested : configured && isClaudeEffort(configured) ? configured : undefined;
+              // Only a level the model offers: a model without efforts gets none (docs/protocol.md, "Wysiłek a model").
+              const offered = modelEfforts.get(model || "default");
+              const fits = configured && isClaudeEffort(configured) && (!offered || offered.includes(configured));
+              const effort = isClaudeEffort(requested) ? requested : fits ? configured : undefined;
               session = await open(spec, model, effort);
             }
             else if (model && model !== session.model) {
@@ -582,7 +587,10 @@ const make = (options: ClaudeThreadsOptions) =>
         const capabilities =
           profile.kind === "cliproxyapi" ? yield* Effect.tryPromise(() => proxyCapabilities(profile)).pipe(Effect.orElseSucceed((): ProxyCapabilities[] => [])) : [];
         const agentModels = claudeAgentModels(models, capabilities);
-        for (const m of agentModels) if (m.resolvedModel) resolvedModels.set(m.value, m.resolvedModel);
+        for (const m of agentModels) {
+          if (m.resolvedModel) resolvedModels.set(m.value, m.resolvedModel);
+          modelEfforts.set(m.value, m.supportsEffort === false ? [] : (m.supportedEffortLevels ?? []));
+        }
         return { models: agentModels.map((m) => claudeModel(m, options.configuredEffort?.([m.value, m.resolvedModel ?? ""]))) };
       }),
     });
