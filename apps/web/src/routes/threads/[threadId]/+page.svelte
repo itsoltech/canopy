@@ -55,14 +55,14 @@
   });
   const tree = $derived(thread ? treeOf(threads, thread) : undefined);
   provideThreadDirectory({
+    get currentId() {
+      return threadId;
+    },
     thread: (id) => threads.find((t) => t.id === id) ?? overview.threads.get(id),
     awaiting: (itemId) => view.pending.some((i) => i.itemId === itemId),
   });
 
   const rows = $derived(buildTimeline(view.ownEntries, view.ownTurns, view.notices, view.turnResults));
-  // A fork's inherited history (source turns up to the fork point), shown folded above its own turns.
-  const inheritedRows = $derived(buildTimeline(view.inheritedEntries, view.inheritedTurns, [], view.turnResults));
-  const forkSource = $derived(thread?.forkSourceThreadId ? threads.find((t) => t.id === thread.forkSourceThreadId) : undefined);
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
   const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
   const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived");
@@ -159,7 +159,7 @@
               <Skeleton class="h-8 w-1/2" />
               {#if view.connection === "connecting"}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Connecting…</p>{/if}
             </div>
-          {:else if rows.length === 0 && inheritedRows.length === 0 && view.queued.length === 0}
+          {:else if rows.length === 0 && view.inheritedTurns.length === 0 && view.queued.length === 0}
             <EmptyState
               icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
               title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
@@ -167,8 +167,9 @@
               class="mt-8"
             />
           {:else}
-            {#if inheritedRows.length > 0 && thread?.forkSourceThreadId}
-              <InheritedHistory sourceId={thread.forkSourceThreadId} source={forkSource} rows={inheritedRows} turns={view.inheritedTurns.length} />
+            {#if view.inheritedTurns.length > 0 && thread?.forkSourceThreadId}
+              <!-- A fork's inherited history (turns up to the fork point), folded above its own turns. -->
+              <InheritedHistory sourceId={thread.forkSourceThreadId} entries={view.inheritedEntries} turns={view.inheritedTurns} results={view.turnResults} />
             {/if}
             <Timeline {rows} queued={view.queued} {working} />
           {/if}

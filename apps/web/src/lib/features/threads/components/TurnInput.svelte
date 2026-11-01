@@ -5,31 +5,28 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
-  import { turnOrigin } from "../turn-origin.ts";
+  import { useThreadDirectory } from "../thread-directory.ts";
+  import { splitPlatformNote, turnOrigin } from "../turn-origin.ts";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
 
   /**
-   * The input of a turn with where it came from: you (a plain message), another agent (a task or a
-   * message), a report from a side thread, a side thread's question, or a scheduled wake-up.
-   * `hops` (agent-to-agent steps since a person wrote) shows when an agent chain started the turn.
+   * The input of a turn with where it came from (the turn's source): you (a plain message), another
+   * agent (a task or a message), a report from a thread it follows, a side thread's question, or a
+   * schedule (yours or one an agent set). `hops` (agent-to-agent steps since a person wrote) shows when
+   * an agent chain started the turn.
    */
   let { turn, text, attachments = [], queued = false }: { turn: ui.Turn; text: string; attachments?: readonly BlobRef[]; queued?: boolean } = $props();
 
-  const origin = $derived(turnOrigin(turn.trigger, text));
+  const directory = useThreadDirectory();
+  const origin = $derived(turnOrigin(turn));
+  const parts = $derived(splitPlatformNote(text));
   const tone = $derived(origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet");
-  const icon = $derived.by<IconName>(() => {
-    if (origin.kind === "question") return "hand-raised";
-    if (origin.kind === "schedule") return "clock";
-    if (origin.kind === "report") return origin.status === "completed" ? "check-circle" : origin.status === "failed" ? "x-circle" : "stop";
-    return "sparkles";
-  });
-  const finished: Record<string, string> = { completed: "finished", failed: "failed", interrupted: "was interrupted", cancelled: "was cancelled" };
-  const asks: Record<string, string> = { permission: "asks for approval", question: "has a question", form: "needs details" };
+  const icons: Record<string, IconName> = { task: "sparkles", message: "chat-bubble-left-right", report: "document-text", question: "hand-raised", schedule: "clock" };
   const fallback: Record<string, string> = { agent_bus: "From an agent", interaction: "A side thread is waiting", schedule: "Scheduled", goal: "Goal" };
 
   // Long reports (a side thread's whole answer) start folded.
-  const long = $derived(origin.kind === "report" && (origin.body.length > 900 || origin.body.split("\n").length > 14));
+  const long = $derived(origin.kind === "report" && (parts.message.length > 900 || parts.message.split("\n").length > 14));
   let expanded = $state(false);
 </script>
 
@@ -43,17 +40,23 @@
         tone === "amber" ? "text-amber-700 dark:text-amber-400" : tone === "sky" ? "text-sky-700 dark:text-sky-400" : "text-violet-700 dark:text-violet-400",
       ]}
     >
-      <Icon name={icon} class="size-3.5" />
+      <Icon name={icons[origin.kind] ?? "sparkles"} class="size-3.5" />
       {#if origin.kind === "task"}
-        Task from <ThreadLink threadId={origin.threadId} fallback={origin.title} />
+        Task from <ThreadLink threadId={origin.threadId} fallback="another thread" />
       {:else if origin.kind === "message"}
-        Message from <ThreadLink threadId={origin.threadId} fallback={origin.title} />
+        Message from <ThreadLink threadId={origin.threadId} fallback="another thread" />
       {:else if origin.kind === "report"}
-        <ThreadLink threadId={origin.threadId} fallback={origin.title} /> {finished[origin.status] ?? origin.status}
+        Report from <ThreadLink threadId={origin.threadId} fallback="a thread it follows" />
       {:else if origin.kind === "question"}
-        <ThreadLink threadId={origin.threadId} fallback={origin.title} /> {asks[origin.request] ?? "is waiting for an answer"}
+        <ThreadLink threadId={origin.threadId} fallback="A side thread" /> is waiting for an answer
       {:else if origin.kind === "schedule"}
-        {origin.label}{origin.delayed ? " (ran late)" : ""}
+        {#if !origin.setBy}
+          Scheduled task you set
+        {:else if origin.setBy === directory.currentId}
+          Scheduled task its agent set
+        {:else}
+          Scheduled task set in <ThreadLink threadId={origin.setBy} fallback="another thread" />
+        {/if}
       {:else}
         {fallback[origin.trigger] ?? origin.trigger}
       {/if}
@@ -75,23 +78,25 @@
         queued && "opacity-70",
       ]}
     >
-      {#if origin.kind === "report"}
+      {#if origin.kind === "question"}
+        <p>The agent here answers it; you can answer in the side thread instead.</p>
+      {:else if origin.kind === "report"}
         <div class={["grid", long && !expanded && "max-h-64 overflow-hidden mask-b-from-50%"]}>
-          <Markdown text={origin.body || "(no message)"} />
+          <Markdown text={parts.message || "(no message)"} />
         </div>
         {#if long}
           <button type="button" class="mt-1 rounded-md text-sm/6 font-medium text-violet-700 hover:text-violet-900 focus-ring sm:text-xs/6 dark:text-violet-300 dark:hover:text-violet-100" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
             {expanded ? "Show less" : "Show the whole report"}
           </button>
         {/if}
-      {:else if origin.kind === "question"}
-        <p>{origin.tool ? `Wants to use ${origin.tool}.` : "Waits for an answer."} The agent here answers it; you can answer in the side thread instead.</p>
-        <Disclosure class="mt-2" summaryClass="text-sm/6 sm:text-xs/6">
-          {#snippet summary()}Request sent to the agent{/snippet}
-          <CodeBlock text={origin.body} label="Request sent to the agent" class="mt-2" />
-        </Disclosure>
       {:else}
-        <p class="whitespace-pre-wrap">{origin.body}</p>
+        <p class="whitespace-pre-wrap">{parts.message}</p>
+      {/if}
+      {#if parts.note}
+        <Disclosure class="mt-2" summaryClass="text-sm/6 opacity-80 sm:text-xs/6">
+          {#snippet summary()}{origin.kind === "question" ? "Request sent to the agent" : "Full text the agent received"}{/snippet}
+          <CodeBlock {text} label="Full text the agent received" class="mt-2" />
+        </Disclosure>
       {/if}
     </div>
   </div>

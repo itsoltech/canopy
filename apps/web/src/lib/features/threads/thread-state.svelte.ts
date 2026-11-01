@@ -12,6 +12,8 @@ export interface TimelineEntry {
   readonly firstSeq: bigint;
   /** From the history a fork inherited (its seq counts in the source thread). */
   readonly inherited: boolean;
+  /** Inherited: the thread it belongs to (along a chain of forks, not always the direct source). */
+  readonly fromThreadId: string;
 }
 
 /** A notice event (rate limit, retry, provider error, restart); the snapshot brings the latest ones. */
@@ -103,7 +105,7 @@ export class ThreadState {
         this.turns = snapshot.turns;
         this.interactions = snapshot.interactions;
         this.entries = snapshot.items.flatMap((i) =>
-          i.item ? [{ id: i.item.itemId, item: i.item, turnId: i.turnId, firstSeq: i.firstSeq, inherited: i.inherited }] : [],
+          i.item ? [{ id: i.item.itemId, item: i.item, turnId: i.turnId, firstSeq: i.firstSeq, inherited: i.inherited, fromThreadId: i.fromThreadId }] : [],
         );
         this.notices = snapshot.notices.flatMap((n) => (n.notice ? [{ seq: n.seq, turnId: n.turnId, notice: n.notice, at: n.occurredAt }] : []));
         this.schedules = snapshot.schedules;
@@ -167,7 +169,7 @@ export class ThreadState {
     const index = this.entries.findIndex((e) => e.id === id && !e.inherited);
     const next = reduceItem(index >= 0 ? this.entries[index]?.item : undefined, body);
     if (!next) return;
-    const entry: TimelineEntry = { id, item: next, turnId: event.turnId, firstSeq: index >= 0 ? this.entries[index]!.firstSeq : seq, inherited: false };
+    const entry: TimelineEntry = { id, item: next, turnId: event.turnId, firstSeq: index >= 0 ? this.entries[index]!.firstSeq : seq, inherited: false, fromThreadId: "" };
     this.entries = index >= 0 ? this.entries.with(index, entry) : [...this.entries, entry];
   }
 
