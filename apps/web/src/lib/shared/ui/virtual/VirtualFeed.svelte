@@ -1,0 +1,340 @@
+<script lang="ts" generics="T">
+  import type { Snippet } from "svelte";
+  import { tick, untrack } from "svelte";
+  import type { Attachment } from "svelte/attachments";
+  import Button from "../Button.svelte";
+  import { UiMemory } from "../memory.ts";
+  import { SizeIndex } from "./size-index.ts";
+  import VirtualRow from "./VirtualRow.svelte";
+
+  /**
+   * A chat's scroll area: one scroll container with the rows (`role="feed"`, virtualized) and a sticky
+   * `footer` (the composer) at the bottom of the chat column, with a fade above it and "Jump to latest".
+   *
+   * - Only the rows near the viewport are mounted; the others are padding sized from measurements
+   *   (ResizeObserver, kept by key) or the average of their group.
+   * - While the reader is at the bottom it stays there (new rows, streaming growth, a taller composer,
+   *   the keyboard opening); once they scroll up, the first visible row keeps its place on screen when
+   *   rows above change height or are added (also prepended older history).
+   * - The server renders the last rows and a tiny inline script scrolls to the end before the first paint.
+   * - Keyboard: the scroll area is focusable (Page Up/Down, Home/End scroll it); inside a row, Page
+   *   Up/Down move to the previous/next row (WAI-ARIA feed), Ctrl+End to the composer, Ctrl+Home back
+   *   to the scroll area. A focused row stays mounted.
+   */
+  let {
+    rows,
+    key,
+    group,
+    estimate,
+    label,
+    busy = false,
+    top,
+    row,
+    footer,
+  }: {
+    rows: readonly T[];
+    key: (row: T) => string;
+    /** Rows of a group have similar heights (e.g. the row's kind): unmeasured rows take the group's average. */
+    group: (row: T) => string;
+    /** Height of a group before any of its rows was measured, in px. */
+    estimate: (group: string) => number;
+    label: string;
+    busy?: boolean;
+    top?: Snippet;
+    row: Snippet<[T, number]>;
+    footer?: Snippet;
+  } = $props();
+
+  const uid = $props.id();
+  const id = `feed-${uid}`;
+  // Before the first paint (server-rendered HTML): start at the end, before hydration does.
+  const pinScript = `<scr${"ipt"}>{const e=document.getElementById(${JSON.stringify(id)});if(e)e.scrollTop=e.scrollHeight}</scr${"ipt"}>`;
+  /** Height the server renders from the end (unknown viewport). */
+  const SERVER_HEIGHT = 2400;
+  const memory = new UiMemory();
+  const index = new SizeIndex((name) => untrack(() => estimate(name)));
+
+  let scroller = $state<HTMLElement>();
+  let list = $state<HTMLElement>();
+  let footerElement = $state<HTMLElement>();
+  /** Viewport height; 0 until measured (server, hydration): then the last rows render. */
+  let viewport = $state(0);
+  let scrollTop = $state(0);
+  let listTop = $state(0);
+  let footerHeight = $state(0);
+  let measured = $state(0);
+  /** Following the end (the reader is at the bottom). */
+  let stuck = $state(true);
+  let focusedKey = $state<string>();
+  /** The first row at the top of the viewport and its distance from the top edge. */
+  let anchor: { key: string; element: HTMLElement; top: number } | undefined;
+
+  const sized = $derived(rows.map((r) => ({ key: key(r), group: group(r) })));
+  const positions = $derived(new Map(sized.map((r, i) => [r.key, i])));
+  const layout = $derived.by(() => {
+    void measured;
+    index.setRows(sized);
+    return { total: index.total, count: sized.length };
+  });
+  const range = $derived.by((): [number, number] => {
+    void layout;
+    void scrollTop;
+    if (viewport === 0) return index.tail(SERVER_HEIGHT);
+    const overscan = Math.max(viewport, 480);
+    // Reading above: the window follows the anchor row, also when rows were added or resized above it
+    // (its scroll position is corrected only once it is mounted).
+    const at = anchor && positions.get(anchor.key);
+    const top = at === undefined || !anchor ? scrollTop : listTop + index.offset(at) - anchor.top;
+    let [start, end] = stuck ? index.tail(viewport + 2 * overscan) : index.range(top - listTop - overscan, top - listTop + viewport + overscan);
+    const focused = focusedKey === undefined ? undefined : positions.get(focusedKey);
+    // Keep a focused row mounted (not across a long jump away).
+    if (focused !== undefined && focused >= start - 100 && focused < end + 100) {
+      start = Math.min(start, focused);
+      end = Math.max(end, focused + 1);
+    }
+    return [start, end];
+  });
+  const padTop = $derived.by(() => (void layout, index.offset(range[0])));
+  const padBottom = $derived.by(() => (void layout, layout.total - index.offset(range[1])));
+  const visible = $derived(rows.slice(range[0], range[1]));
+
+  // --- Measuring ------------------------------------------------------------------------------------
+  const elements = new Map<string, HTMLElement>();
+  let commitFrame = 0;
+  let measuredViewport = 0;
+  let measuredFooter = 0;
+  // Reactive updates from measurements wait for the next frame: changing the DOM inside the observer
+  // callback would postpone the new rows' notifications (a ResizeObserver loop).
+  const commit = () => {
+    commitFrame ||= requestAnimationFrame(() => {
+      commitFrame = 0;
+      measured++;
+      viewport = measuredViewport;
+      footerHeight = measuredFooter;
+      if (scroller && list) listTop = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    });
+  };
+  const observer =
+    typeof ResizeObserver === "undefined"
+      ? undefined
+      : new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const target = entry.target as HTMLElement;
+            const height = entry.borderBoxSize[0]?.blockSize ?? target.offsetHeight;
+            if (target === scroller) measuredViewport = target.clientHeight;
+            else if (target === footerElement) measuredFooter = height;
+            else if (target.dataset.key) {
+              const at = positions.get(target.dataset.key);
+              const meta = at === undefined ? undefined : sized[at];
+              if (meta) index.measure(meta.key, meta.group, height);
+            }
+          }
+          settle();
+          commit();
+        });
+
+  const measure: Attachment<HTMLElement> = (element) => {
+    const rowKey = element.dataset.key ?? "";
+    elements.set(rowKey, element);
+    observer?.observe(element);
+    return () => {
+      observer?.unobserve(element);
+      if (elements.get(rowKey) === element) elements.delete(rowKey);
+    };
+  };
+
+  $effect(() => {
+    if (!observer || !scroller || !list || !footerElement) return;
+    for (const element of [scroller, list, footerElement]) observer.observe(element);
+    return () => {
+      for (const element of [scroller, list, footerElement]) if (element) observer.unobserve(element);
+    };
+  });
+  $effect(() => () => {
+    observer?.disconnect();
+    cancelAnimationFrame(commitFrame);
+  });
+  // After every DOM change of the window: keep the reader's place (or the end).
+  $effect(() => {
+    void padTop;
+    void padBottom;
+    void visible;
+    untrack(settle);
+  });
+
+  // --- Keeping the place ----------------------------------------------------------------------------
+  /** scrollTop we set ourselves (its scroll event is not the reader's). */
+  let expected = Number.NaN;
+  let lastTop = 0;
+  let smoothUntil = 0;
+
+  function setTop(value: number) {
+    if (!scroller) return;
+    scroller.scrollTop = value;
+    expected = scroller.scrollTop;
+    lastTop = expected;
+  }
+
+  function settle() {
+    if (!scroller || !list) return;
+    // The reader scrolled and its scroll event is still to come: take it in first, or the old anchor
+    // would undo the scroll.
+    if (Math.abs(scroller.scrollTop - lastTop) >= 1) onscroll();
+    if (stuck) {
+      if (performance.now() < smoothUntil) return;
+      const end = scroller.scrollHeight - scroller.clientHeight;
+      if (Math.abs(scroller.scrollTop - end) >= 1) setTop(end);
+      return;
+    }
+    const element = anchor && (anchor.element.isConnected ? anchor.element : elements.get(anchor.key));
+    if (anchor && element) {
+      anchor.element = element;
+      const delta = element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - anchor.top;
+      if (Math.abs(delta) >= 0.5) setTop(scroller.scrollTop + delta);
+    } else capture();
+  }
+
+  function capture() {
+    if (!scroller || !list) return;
+    const edge = scroller.getBoundingClientRect().top;
+    const children = list.children;
+    let low = 0;
+    let high = children.length - 1;
+    // The first mounted row whose bottom is below the top edge (rows are in order).
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if ((children[middle] as HTMLElement).getBoundingClientRect().bottom > edge + 1) high = middle;
+      else low = middle + 1;
+    }
+    const element = children[low] as HTMLElement | undefined;
+    anchor = element?.dataset.key ? { key: element.dataset.key, element, top: element.getBoundingClientRect().top - edge } : undefined;
+  }
+
+  function onscroll() {
+    if (!scroller) return;
+    const top = scroller.scrollTop;
+    const ours = Math.abs(top - expected) < 1;
+    expected = Number.NaN;
+    if (!ours) {
+      const distance = scroller.scrollHeight - top - scroller.clientHeight;
+      if (distance <= 8) stuck = true;
+      else if (top < lastTop - 0.5) stuck = false;
+    }
+    lastTop = top;
+    scrollTop = top;
+    if (!stuck) capture();
+  }
+
+  function onwheel(event: WheelEvent) {
+    // Scrolling up during a stream: let go at once, before the next growth pins the end again.
+    if (event.deltaY < 0 && scroller && scroller.scrollHeight > scroller.clientHeight + 8) stuck = false;
+  }
+
+  function onscrollend() {
+    smoothUntil = 0;
+    settle();
+  }
+
+  function jump() {
+    if (!scroller) return;
+    stuck = true;
+    const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    const smooth = distance < viewport * 2 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (smooth) {
+      smoothUntil = performance.now() + 1000;
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+    } else setTop(scroller.scrollHeight);
+  }
+
+  // --- Keyboard ---------------------------------------------------------------------------------------
+  async function focusRow(at: number) {
+    const rowKey = index.keyAt(at);
+    if (rowKey === undefined || !scroller) return;
+    focusedKey = rowKey;
+    await tick();
+    const element = elements.get(rowKey);
+    if (!element) return;
+    element.focus({ preventScroll: true });
+    element.scrollIntoView({ block: element.offsetHeight > scroller.clientHeight - footerHeight ? "start" : "nearest" });
+  }
+
+  function onkeydown(event: KeyboardEvent) {
+    const target = event.target as HTMLElement;
+    if (event.ctrlKey && event.key === "End") {
+      event.preventDefault();
+      // The message box first, else the first control of the footer.
+      const field = footerElement?.querySelector<HTMLElement>("textarea:not([disabled])") ?? footerElement?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])");
+      field?.focus();
+      return;
+    }
+    if (event.ctrlKey && event.key === "Home") {
+      event.preventDefault();
+      scroller?.focus({ preventScroll: true });
+      return;
+    }
+    if (event.key !== "PageDown" && event.key !== "PageUp") return;
+    // Text fields and scrollable code keep their own Page keys.
+    if (target.closest("pre, textarea, input, select, [contenteditable]")) return;
+    const current = target.closest<HTMLElement>("article[data-key]")?.dataset.key;
+    const at = current === undefined ? undefined : positions.get(current);
+    if (at === undefined) return;
+    event.preventDefault();
+    void focusRow(at + (event.key === "PageDown" ? 1 : -1));
+  }
+
+  function onfocusin(event: FocusEvent) {
+    focusedKey = (event.target as HTMLElement).closest<HTMLElement>("article[data-key]")?.dataset.key;
+  }
+  function onfocusout(event: FocusEvent) {
+    if (!list?.contains(event.relatedTarget as Node | null)) focusedKey = undefined;
+  }
+</script>
+
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+  bind:this={scroller}
+  {id}
+  class="relative h-full scroll-pt-2 scroll-pb-(--feed-footer) overflow-y-auto overscroll-contain [overflow-anchor:none] focus-visible:outline-none"
+  style:--feed-footer="{footerHeight}px"
+  role="region"
+  aria-label={label}
+  tabindex="0"
+  {onscroll}
+  {onscrollend}
+  {onwheel}
+>
+  <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">
+    {@render top?.()}
+    <div class="grow pt-2 pb-8">
+      <!-- Keys and focus bubble up from the focusable articles (WAI-ARIA feed). -->
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <div
+        bind:this={list}
+        role="feed"
+        aria-label={label}
+        aria-busy={busy}
+        style:padding-top="{padTop}px"
+        style:padding-bottom="{padBottom}px"
+        {onkeydown}
+        {onfocusin}
+        {onfocusout}
+      >
+        {#each visible as item, offset (key(item))}
+          <VirtualRow key={key(item)} position={range[0] + offset + 1} count={sized.length} {memory} {measure}>
+            {@render row(item, range[0] + offset)}
+          </VirtualRow>
+        {/each}
+      </div>
+    </div>
+    <div bind:this={footerElement} class="sticky bottom-0 z-10 bg-white pb-[max(--spacing(3),env(safe-area-inset-bottom))] dark:bg-black">
+      <div class="pointer-events-none absolute inset-x-0 bottom-full h-8 bg-linear-to-t from-white dark:from-black" aria-hidden="true"></div>
+      {#if !stuck}
+        <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2">
+          <Button size="sm" icon="arrow-down" class="shadow-md dark:shadow-none" onclick={jump}>Jump to latest</Button>
+        </div>
+      {/if}
+      {@render footer?.()}
+    </div>
+  </div>
+</div>
+{@html pinScript}
