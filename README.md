@@ -7,7 +7,7 @@ Platforma do zarządzania agentami AI dla wielu użytkowników.
 - **PostgreSQL** — baza danych.
 - Komunikacja gateway ↔ worker: gRPC, strumień dwukierunkowy po HTTP/2, inicjowany przez workera.
 
-Status: system działa end to end z Codexem i Claude: frontend (SvelteKit jako BFF, SSE), gateway (PostgreSQL, orkiestracja, API dla UI), worker (dziennik, zdalna konfiguracja, Codex app-server z izolowanym `CODEX_HOME`, Claude Agent SDK z izolowanym `CLAUDE_CONFIG_DIR`, zgody), szyna agentów (wątki boczne tworzone przez agentów, wiadomości, powiadomienia, pytania do rodzica, harmonogram platformy), model domenowy celów. W budowie: cele w runtime, logowanie użytkowników.
+Status: system działa end to end z Codexem i Claude: frontend (SvelteKit jako BFF, SSE), gateway (PostgreSQL, orkiestracja, API dla UI), worker (dziennik, zdalna konfiguracja, Codex app-server z izolowanym `CODEX_HOME`, Claude Agent SDK z izolowanym `CLAUDE_CONFIG_DIR`, zgody), szyna agentów (wątki boczne tworzone przez agentów, wiadomości, powiadomienia, pytania do rodzica, harmonogram platformy), cele harnessów (Codex goals, Claude `/goal`) śledzone i sterowane z UI, praca w tle (procesy Codexa, background Bash Claude) widoczna i zatrzymywana z UI. W budowie: logowanie użytkowników.
 
 ## Struktura
 
@@ -64,7 +64,7 @@ Testy na żywo z prawdziwymi modelami są opt-in (zużywają limity kont): `OA_L
 - [Transkrypt: zapis wszystkiego dla frontendu](docs/transcript.md)
 - [Wykonanie: tury, praca w tle, subagenci, interakcje](docs/execution.md)
 - [Szyna agentów: delegowanie, interakcje, harmonogram](docs/agent-bus.md)
-- [Cele (goals)](docs/goals.md)
+- [Cele (goals): cele harnessów śledzone przez platformę](docs/goals.md)
 - [Adapter Codex (app-server)](docs/codex-adapter.md)
 - [API dla UI i architektura frontendu (SvelteKit BFF)](docs/ui-api.md)
 - [Adapter Claude (Agent SDK)](docs/claude-adapter.md)

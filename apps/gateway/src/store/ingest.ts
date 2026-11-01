@@ -11,6 +11,7 @@ import {
 import { eventItemId, eventKind, itemStatus, itemType, reduceItem } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
+import { applyGoalState } from "./goals.ts";
 
 /**
  * Writes worker events into the thread timeline (docs/transcript.md, "Zapis po stronie gateway").
@@ -62,9 +63,11 @@ export class Ingest extends Context.Service<
           const exists = yield* sql`SELECT 1 FROM turns WHERE id = ${turnId}::uuid`;
           if (exists.length > 0) return;
           yield* supersede(threadId, turnId);
+          // A turn the harness starts while a goal is active works for it (e.g. Codex goal continuation).
           yield* sql`
-            INSERT INTO turns (id, thread_id, ordinal, status, trigger, input, started_at)
-            SELECT ${turnId}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'running', ${trigger}, '{}'::jsonb, now()
+            INSERT INTO turns (id, thread_id, ordinal, status, trigger, input, started_at, goal_id)
+            SELECT ${turnId}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'running', ${trigger}, '{}'::jsonb, now(),
+                   (SELECT g.id FROM goals g WHERE g.thread_id = ${threadId}::uuid AND g.status = 'active')
               FROM turns WHERE thread_id = ${threadId}::uuid
             ON CONFLICT (id) DO NOTHING
           `;
@@ -149,6 +152,9 @@ export class Ingest extends Context.Service<
               if (status) yield* sql`UPDATE threads SET status = ${status} WHERE id = ${threadId}::uuid AND status <> 'archived'`;
               return;
             }
+            case "goalState":
+              yield* applyGoalState(sql, threadId, event.turnId, body.value);
+              return;
             default:
               yield* applyItem(threadId, seq, event);
           }

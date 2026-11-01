@@ -1,12 +1,14 @@
 /**
- * Platform goals (docs/goals.md): the platform owns the goal (durable, visible, budgeted across
- * the thread tree); the harness's native goal feature is the default engine underneath.
+ * Goals (docs/goals.md, decided 2026-11-01): the harness's own goal feature is the engine, the platform
+ * tracks and shows it and lets the user set, pause, resume and clear it.
  *
- * - Codex: thread/goal/* (objective + token budget; Codex continues idle threads with an active goal,
- *   the model reports complete/blocked through update_goal).
- * - Claude: /goal <condition> (a Stop-hook evaluator keeps the turn going until the condition is met;
- *   progress arrives as active_goal messages).
- * - Platform engine (fallback): the gateway starts continuation turns itself (trigger = goal).
+ * - Codex: thread/goal/set|clear (objective + token budget). Codex continues an idle thread with an active
+ *   goal by itself (provider turns) and reports thread/goal/updated|cleared.
+ * - Claude: `/goal <condition>` in the input stream starts a turn; a Stop-hook evaluator keeps it going until
+ *   the condition is met. `/goal clear` removes it. There is no native pause.
+ *
+ * The platform goal engine (gateway continuation turns, goal tools on the agent bus) is not built; the
+ * transition and budget rules below remain for the agent bus goal tools (policy.ts), which are off.
  */
 
 export type GoalStatus =
@@ -19,14 +21,6 @@ export type GoalStatus =
   | "achieved"
   | "cancelled";
 
-export type GoalEngine = "native" | "platform";
-
-/**
- * Decided 2026-11-01: the harness's native goal feature drives goals for both providers
- * (Codex audit-driven completion, Claude Stop-hook evaluator). The platform engine stays as a
- * fallback per goal. Matches goals.engine DEFAULT 'native' in the schema.
- */
-export const DEFAULT_GOAL_ENGINE: GoalEngine = "native";
 export type GoalActor = "user" | "agent" | "system";
 
 export interface GoalBudget {
@@ -104,19 +98,7 @@ export function validateGoalBudget(budget: GoalBudget, actor: GoalActor): string
   return undefined;
 }
 
-// ------------------------------------------------------------------ native engines
-
-export interface GoalText {
-  /** What to achieve. */
-  readonly objective: string;
-  /** How to tell it is done, verifiable from the conversation (tests pass, file exists, ...). */
-  readonly condition: string;
-}
-
-/** Codex has a single objective; the completion condition is appended so its audit checks against it. */
-export function codexObjective(goal: GoalText): string {
-  return goal.condition ? `${goal.objective}\n\nDone when: ${goal.condition}` : goal.objective;
-}
+// ------------------------------------------------------------------ harness goals
 
 export type CodexGoalStatus = "active" | "paused" | "blocked" | "usageLimited" | "budgetLimited" | "complete";
 
@@ -137,44 +119,43 @@ export function fromCodexStatus(status: CodexGoalStatus): GoalStatus {
   }
 }
 
-/** What to tell Codex for a platform status: set a status, or clear the native goal. */
-export function toCodexGoal(status: GoalStatus): { readonly set: CodexGoalStatus } | { readonly clear: true } {
-  switch (status) {
-    case "active":
-      return { set: "active" };
-    case "achieved":
-      return { set: "complete" };
-    case "cancelled":
-      return { clear: true };
+/** What the Claude adapter reports (GoalState.native_status). */
+export type ClaudeGoalStatus = "active" | "met" | "failed" | "cleared";
+
+/**
+ * Platform status for a harness report. `current` is the status the platform holds: a pause or clear the
+ * user asked for is not undone by the harness confirming it (Claude has no pause: the platform clears the
+ * goal and keeps it as paused).
+ */
+export function goalStatusFromHarness(provider: "codex" | "claude", nativeStatus: string, cleared: boolean, current: GoalStatus | undefined): GoalStatus {
+  if (cleared || nativeStatus === "cleared") {
+    return current === "paused" || current === "achieved" || current === "cancelled" ? current : "cancelled";
+  }
+  if (provider === "codex") {
+    const status = isCodexGoalStatus(nativeStatus) ? fromCodexStatus(nativeStatus) : "active";
+    // The pause was the user's; Codex may still report the running turn's progress as active.
+    return current === "paused" && status === "active" ? "paused" : status;
+  }
+  switch (nativeStatus as ClaudeGoalStatus) {
+    case "met":
+      return "achieved";
+    case "failed":
+      return "blocked";
     default:
-      // proposed, paused, blocked and limits: stop native continuation, keep the native goal.
-      return { set: "paused" };
+      return current === "paused" ? "paused" : "active";
   }
 }
 
+/** Finished goals free the thread for a new one (goals_one_open). */
+export function isFinished(status: GoalStatus): boolean {
+  return status === "achieved" || status === "cancelled";
+}
+
 /** Claude's goal is driven by slash commands in the input stream. */
-export function claudeGoalInput(goal: GoalText, status: GoalStatus): string {
-  return isRunning(status) ? `/goal ${goal.condition || goal.objective}` : "/goal clear";
+export function claudeGoalCommand(objective: string | undefined): string {
+  return objective ? `/goal ${objective}` : "/goal clear";
 }
 
-export interface ClaudeActiveGoal {
-  readonly condition: string;
-  readonly iterations: number;
-  readonly last_reason?: string;
-}
-
-/**
- * Interprets Claude's active_goal message. The value becomes null both when the evaluator reports
- * the condition met and when the goal is cleared; only the platform knows whether it asked to clear.
- */
-export function fromClaudeActiveGoal(
-  value: ClaudeActiveGoal | null,
-  clearRequested: boolean,
-): { readonly status: GoalStatus | "unchanged"; readonly iterations?: number; readonly reason?: string } {
-  if (value === null) return { status: clearRequested ? "unchanged" : "achieved" };
-  return {
-    status: "active",
-    iterations: value.iterations,
-    ...(value.last_reason !== undefined && { reason: value.last_reason }),
-  };
+function isCodexGoalStatus(status: string): status is CodexGoalStatus {
+  return ["active", "paused", "blocked", "usageLimited", "budgetLimited", "complete"].includes(status);
 }

@@ -7,7 +7,8 @@ Status: **działa** (2026-11-01):
 - narzędzia szyny agentów: serwer MCP w procesie workera (`bus.ts`),
 - izolowany katalog konfiguracji: `home.ts` (`CLAUDE_CONFIG_DIR`),
 - profil CLIProxyAPI przez zmienne środowiskowe: `profile.ts`,
-- podpięcie do workera: `WorkerHost` (obok Codexa, wybór po `ThreadSpec.provider`).
+- podpięcie do workera: `WorkerHost` (obok Codexa, wybór po `ThreadSpec.provider`),
+- zadania w tle (background Bash) i cele (`/goal`): sekcja „Praca w tle i cele”.
 
 Potwierdzone na żywo (`tests/integration/worker-claude.live.test.ts`, Claude przez CLIProxyAPI): gateway konfiguruje workera, wątek w trybie `ASK`, zgody na zapis i komendę idą przez gateway, plik powstaje; druga tura wznawia sesję; wywołanie narzędzia szyny (`list_threads`) wraca z gateway i jest powiązane z `tool_use`; fork po pierwszej turze dostaje własną sesję i zna historię; natywni subagenci i harmonogramy są wyłączone.
 
@@ -17,13 +18,15 @@ Potwierdzone na żywo (`tests/integration/worker-claude.live.test.ts`, Claude pr
 |---|---|
 | wątek | sesja Claude Code |
 | `provider_thread_id` | id sesji: przy nowym wątku = id wątku platformy (`sessionId`), przy forku nowe id z `forkSession` |
-| tura | jedno `query()` ze strumieniem wejścia (async iterable): pierwsza tura z `sessionId`, kolejne z `resume`; `model` i `effort` ze `StartTurn` |
+| tura | wejście w strumieniu procesu Claude Code (`query()` z async iterable): nowy proces z `sessionId` przy pierwszej turze, z `resume` przy kolejnych; `model` i `effort` ze `StartTurn` (żywy proces: `setModel`) |
+| proces | jeden na wątek; kończy się z turą, chyba że działają zadania w tle (wtedy zostaje i przyjmuje kolejne tury) |
 | steer | wiadomość w strumieniu wejścia tury z `priority: "next"` i `uuid = input_id` |
 | `provider_turn_ref` | uuid ostatniego wpisu tury w transkrypcie Claude (punkt forka, `upToMessageId`) |
 | przerwanie | `query.interrupt()`, po 10 s bez odpowiedzi `abort` |
 
 - **`thread_ready` bez wywołania modelu:** id sesji wybiera platforma, a fork kopiuje transkrypt (`forkSession`) bez modelu. Tak jak w Codexie wątek jest gotowy od razu.
-- **Koniec tury:** wiadomość `result`. Adapter zwalnia wątek przed zapisaniem `turn_finished`, żeby gateway mógł od razu zacząć kolejną turę, i kończy iterację (proces Claude Code się zamyka, sesja jest już zapisana).
+- **Koniec tury:** wiadomość `result`. Adapter zwalnia wątek przed zapisaniem `turn_finished`, żeby gateway mógł od razu zacząć kolejną turę. Bez zadań w tle zamyka wejście (proces się kończy, sesja jest już zapisana); z zadaniami proces zostaje.
+- **Tury Claude:** wiadomość tury (`system init`, `assistant`, `stream_event`, `result`) między turami oznacza, że Claude sam zaczął turę (np. po `task_notification`): tura `PROVIDER` z nowym ID.
 - **Ponownie dostarczony `StartTurn`** z tym samym `turn_id` nie zaczyna drugiej tury.
 
 ## Modele, wysiłek, steer
@@ -47,8 +50,21 @@ Potwierdzone na żywo (`tests/integration/worker-claude.live.test.ts`, Claude pr
 | `user` `tool_result` | `item_completed` tego narzędzia z wynikiem (`is_error` → `failed`) |
 | `result` | `turn_finished` (wynik, przyczyna, zużycie tokenów i koszt) |
 | `system` `api_retry` | `notice` (warning) |
+| `system` `task_started` (w tle) / `task_updated` (`is_backgrounded`) | `item_started` `background_task` `bg:<task_id>` (bez tury po jej końcu) |
+| `system` `task_notification` | `item_completed` tego itemu (`completed` / `failed` / `stopped` → `interrupted`), podsumowanie i zużycie w `progress` |
+| syntetyczna odpowiedź `/goal` (`Goal set: …`, `Goal cleared: …`) | `goal_state` (`active` / `cleared`) |
+| `goal_status` z transkryptu sesji (czytany po `result`) | `goal_state` (`met`, `failed`, `active` z werdyktem) |
 
 Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `raw_json` bez ciała. Zdarzenia strumienia, które tylko odtwarzają pełne wiadomości (częściowy JSON wejścia narzędzi, podpisy, granice wiadomości), nie są zapisywane.
+
+## Praca w tle i cele
+
+- **Otwarte wejście** i `perTaskStopAffordance: true`: przerwanie tury nie zabija zadań w tle, zatrzymuje je `StopTask` → `stopTask(task_id)` ([execution.md](execution.md#4-zadania-w-tle)).
+- **Output** zadania pisze Claude Code do pliku (ścieżka w `tool_result`: „Output is being written to: …”). Worker czyta go przyrostowo co sekundę i przed `task_notification` doczytuje resztę.
+- **Bezczynny proces** po zadaniach czeka 3 s na turę Claude (`task_notification` → `system init` przychodzi po ~50 ms), potem się kończy. Zadania, które zostały przy końcu procesu, dostają `interrupted`.
+- **`/goal`** przychodzi z gateway jako wejście tury (`trigger = goal`). Claude Code nie przekazuje `active_goal` klientom SDK; werdykty ewaluatora (`goal_status`) adapter czyta z transkryptu sesji po każdym `result` ([goals.md](goals.md#claude-co-zaobserwowano-claude-code-21316-sdk-03316)).
+
+Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test.ts`, cały łańcuch od UI API): background Bash z outputem z pliku, zatrzymany z UI (`stopped_by_user`, bez tury Claude), krótkie zadanie po zakończeniu uruchamia turę Claude, która o nim informuje; `/goal` ustawiony z UI kończy się `achieved` z werdyktem ewaluatora. Nagrania: `fixtures/background-bash-*.jsonl`, `goal-turn.jsonl`, `goal-transcript.jsonl`.
 
 ## Uprawnienia
 
@@ -83,4 +99,5 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 
 1. **macOS:** Claude Code trzyma logowanie w pęku kluczy, nie w pliku, więc dowiązanie nie działa. Na macOS: profil CLIProxyAPI albo `claude setup-token`.
 2. **Sandbox w `FULL_AUTO`** wymaga bubblewrap (Linux) albo Seatbelt (macOS); na Windows do sprawdzenia.
-3. Praca w tle (zadania Claude Code) jeszcze nie jest obsługiwana.
+3. Cel `/goal` żyje w procesie: nie sprawdzono, czy wznowiona sesja go odtwarza. Werdykty są czytane z wewnętrznego formatu transkryptu.
+4. Zadania w tle typu agent i workflow są mapowane, ale nie testowane (natywni subagenci są domyślnie wyłączeni).

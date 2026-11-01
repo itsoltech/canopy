@@ -1,6 +1,6 @@
 # Wykonanie wątku: tury, praca w tle, subagenci, interakcje
 
-Status: **projekt**. Kontrakt (`TurnOrigin`, `ThreadActivity`, `BackgroundTask`, `Subagent`, `InteractionRequest`, komendy `SteerTurn` / `StopTask` / `BackgroundItem`) i schemat (`turns.trigger`, `interaction_requests`) są zaimplementowane. Zachowanie workera powstanie w spike'u adapterów.
+Status: **częściowo zaimplementowane**. Tury, interakcje, steer i **praca w tle** (sekcja 4: procesy Codexa, background Bash Claude, zatrzymanie z UI) działają. Subagenci pierwszoplanowi, `BackgroundItem` (Ctrl+B) i limity zasobów (sekcja 7) jeszcze nie.
 
 Powiązane: [threads.md](threads.md), [transcript.md](transcript.md), [durability.md](durability.md).
 
@@ -46,8 +46,8 @@ Jeden status nie wystarczy, bo wątek może nie mieć tury, a mieć zadania w tl
 | `agent_bus` | gateway | `send_message`, `spawn_thread` albo powiadomienie zwrotne (`agent_call_id`, `hops > 0`) |
 | `schedule` | gateway | harmonogram platformy (`schedule_id`) — [agent-bus.md](agent-bus.md#5-harmonogram) |
 | `interaction` | gateway | wątek boczny pyta rodzica-agenta (`interaction_request_id`) — [agent-bus.md](agent-bus.md#4-interakcje-w-wątkach-bocznych) |
-| `goal` | gateway | kontynuacja celu przez silnik platformy (`goal_id`); przy silniku natywnym kontynuacje są turami `provider` z `goal_id` — [goals.md](goals.md) |
-| `provider` | worker | dostawca sam zaczyna turę, np. Claude po `task_notification` zadania w tle; nigdy nie jest `queued` |
+| `goal` | gateway | Claude: komenda `/goal …` jako tura celu (`goal_id`); kontynuacje Codexa są turami `provider` z `goal_id` — [goals.md](goals.md) |
+| `provider` | worker | dostawca sam zaczyna turę: Claude po `task_notification` zadania w tle, Codex przy aktywnym celu; nigdy nie jest `queued` |
 | `recovery` | worker | automatyczne wznowienie przerwanej tury (`resumes_turn_id`, `resume_reason`) |
 
 Worker zna tylko pochodzenie tury (`TurnStarted.origin`: `COMMAND`, `PROVIDER`, `RECOVERY`). Wyzwalacz platformy zapisuje gateway. Dla `provider` / `recovery` gateway tworzy wiersz `turns` przy `turn_started` od workera.
@@ -63,22 +63,28 @@ Worker zna tylko pochodzenie tury (`TurnStarted.origin`: `COMMAND`, `PROVIDER`, 
 - Zadania w tle działają dalej. Claude: worker deklaruje `perTaskStopAffordance: true`; bez tego przerwanie zabija zadania w tle.
 - Zatrzymanie zadania w tle to osobna komenda `StopTask` (Claude `stopTask`, Codex zakończenie procesu / `closeAgent`).
 - „Zatrzymaj wszystko” w UI = `InterruptTurn` + `StopTask` dla każdego zadania.
+- Claude: zaimplementowane (`perTaskStopAffordance: true`, sprawdzone na żywo: zatrzymanie jednego zadania). Codex: przerwanie tury nie zatrzymuje procesów unified exec, które trwają po turze.
 
 ## 4. Zadania w tle
 
-Cykl życia itemu `background_task`: `in_progress` → `completed | failed | interrupted` (`stop_reason`: `stopped_by_user`, `drain`, `worker_restart`, `limit`, `error`).
+Zaimplementowane (2026-11-01). Decyzja użytkownika: długo żyjące procesy i zadania w tle harnessów są widoczne i da się je zatrzymać.
 
-| | Claude | Codex |
+Cykl życia itemu `background_task` (`item_id = bg:<id>`): `in_progress` → `completed | failed | interrupted` (`stop_reason`: `stopped_by_user`, `stopped`, `error`, `worker_restart`). Pola: `task_id` (uchwyt do zatrzymania), `kind`, `command`, `description`, `output`, `started_in_turn_id`, `source_item_id` (item, który je uruchomił), `progress` (Claude: podsumowanie, zużycie).
+
+| | Codex (unified exec) | Claude (background Bash) |
 |---|---|---|
-| Start | `task_started` (`task_id`, `tool_use_id`, `task_type`, `is_backgrounded`, `parent_task_id`, `spawn_depth`) | `commandExecution` z `processId` (unified exec) |
-| Postęp | `task_progress` (tokeny, użycia narzędzi, ostatnie narzędzie, podsumowanie), `task_updated` | `item/commandExecution/outputDelta`, `terminalInteraction` |
-| Output | **plik** `output_file` | strumień delt |
-| Koniec | `task_notification` (`completed | failed | stopped`, podsumowanie, usage) | `item/completed` |
-| Zatrzymanie | `stopTask(task_id)` | zakończenie procesu |
-| Lista | `background_tasks_changed` | stan procesów w workerze |
+| Start | komenda (`commandExecution` z `processId`) jeszcze trwa, gdy kończy się jej tura: tuż przed `turn_finished` powstaje item tła (`kind = PROCESS`, `task_id = processId`) z dotychczasowym outputem | `task_started` z `is_backgrounded` (albo później `task_updated.is_backgrounded`): `Bash` z `run_in_background`; `kind = SHELL` (`AGENT`, `WORKFLOW` dla innych typów) |
+| Output | `item/commandExecution/outputDelta` z ID tury startowej trafiają już do itemu tła | worker czyta przyrostowo plik wyjścia (ścieżka z `tool_result`: „Output is being written to: …”, albo z `task_notification.output_file`), co sekundę |
+| Koniec | `item/completed` komendy (kod wyjścia; niezerowy = `failed`) | `task_notification` (`completed`, `failed`, `stopped`); przed nim worker doczytuje plik |
+| Zatrzymanie | `thread/backgroundTerminals/terminate { processId }` → `item/completed` ze statusem `failed` → item tła `interrupted`, `stopped_by_user` | `stopTask(task_id)` → `task_notification stopped` → `interrupted`, `stopped_by_user` |
+| Pobudka | nie zaobserwowano | po zakończeniu zadania Claude sam zaczyna turę (`system init` po `result`): tura `PROVIDER`; po zatrzymaniu nie |
 
-- **Output z pliku (Claude):** worker czyta `output_file` przyrostowo i wysyła delty `OUTPUT`, a po zakończeniu cały plik jako blob. Item jest kompletny dopiero, gdy blob jest zapisany w gateway.
-- **Pobudka:** zakończenie zadania może sprawić, że dostawca sam zacznie turę (`trigger = provider`). To normalny przypadek, nie błąd.
+Zasady:
+
+- **Poza turą.** Zdarzenia zadania po zakończeniu jego tury nie mają `turn_id`. Item zachowuje `turn_id` tury startowej (z `item_started`). Ingest nie tworzy tury z niczego poza `turn_started` (`resolveTurn`), więc późny output nie robi „widmowych” tur. Codex: ID tury wiąże się z oczekującym `StartTurn` tylko przy `turn/started`, więc output starego procesu nie przejmie nowej tury.
+- **Item komendy Codexa** zostaje `in_progress` do wyjścia procesu i pokazuje output z czasu tury; pełny output ma item tła.
+- **Proces Claude Code żyje dłużej niż tura.** Adapter używa otwartego wejścia (streaming input) i `perTaskStopAffordance: true`: po `result` proces zostaje, dopóki działają zadania w tle; przerwanie tury ich nie zabija. Gdy nic już nie działa, proces czeka 3 s na turę, którą Claude może zacząć sam, i się kończy. `StartTurn` w tym czasie idzie do tego samego procesu.
+- **UI:** `ui.Thread.background_tasks` (liczba w toku), itemy `background_task` w snapshotcie i na żywo, `StopBackgroundTask(thread_id, item_id)` → komenda `StopTask(thread_id, task_id)`. Zadanie, którego żaden proces już nie ma, a dziennik workera ma otwarte, jest zamykane jako przerwane.
 - **Zgody z tła:** zadanie w tle może poprosić o zgodę po zakończeniu tury (`InteractionRequest` bez `turn_id`, z `item_id` zadania).
 
 ## 5. Subagenci
@@ -123,7 +129,7 @@ Uzupełnienie [durability.md](durability.md#33-zatrzymanie-łagodne-drain-sigter
 
 - **Drain workera:** czeka na koniec tur do `drain_timeout`. Zadania w tle, które skończą się w tym czasie, kończą się normalnie. Pozostałe są zatrzymywane (`stop_reason = drain`), a ich output jest zapisywany jako blob przed wyjściem.
 - **„Update when idle”** liczy także zadania w tle i oczekujące interakcje.
-- **Restart po awarii:** zadania w tle i subagenci zabitego procesu dostają `interrupted` (`worker_restart`). Claude ma natywne automatyczne wznowienie przerwanej tury (`CLAUDE_CODE_RESUME_INTERRUPTED_TURN`, `resume_reason`); jeśli działa z lokalnym SDK, worker raportuje ją jako turę `recovery`. Do sprawdzenia w spike'u.
+- **Restart po awarii:** zadania w tle i subagenci zabitego procesu dostają `interrupted` (`worker_restart`). Zaimplementowane dla zadań w tle: dziennik workera śledzi otwarte zadania w tej samej transakcji co ich zdarzenia (tabela `background_tasks`); przy starcie (`WorkerHost.recover`) i po zatrzymaniu runtime'u dostawcy (zmiana konfiguracji) worker zamyka te, których już nikt nie prowadzi. Claude ma natywne automatyczne wznowienie przerwanej tury (`CLAUDE_CODE_RESUME_INTERRUPTED_TURN`, `resume_reason`); jeśli działa z lokalnym SDK, worker raportuje ją jako turę `recovery`. Do sprawdzenia w spike'u.
 - Procesów w tle nie da się przenieść przez restart. Wznowiona tura dostaje informację, które zadania zostały przerwane.
 
 ## 9. Decyzje do podjęcia

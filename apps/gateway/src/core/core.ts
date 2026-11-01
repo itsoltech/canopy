@@ -3,7 +3,9 @@ import {
   CommandResultSchema,
   CommandSchema,
   ForkSpecSchema,
+  GoalDirective,
   InteractionResponseSchema,
+  ItemStatus,
   Provider,
   ui,
   type Command,
@@ -13,19 +15,22 @@ import {
 import { Effect, type ManagedRuntime } from "effect";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { DEFAULT_BUS_LIMITS } from "@open-agents/domain";
+import { claudeGoalCommand, DEFAULT_BUS_LIMITS, isFinished } from "@open-agents/domain";
 import {
   AgentBusStore,
   GatewayStore,
+  GoalStore,
   Ingest,
   ModelStore,
   modelProblem,
   SettingsStore,
   SteerStore,
+  toUiGoal,
   toUiSchedule,
   toUiSteer,
   toUiThread,
   toUiTurn,
+  type GoalRow,
   type ScheduleRow,
   type ThreadRow,
 } from "../store/index.ts";
@@ -44,7 +49,7 @@ import { Scheduler } from "./scheduler.ts";
  * - UI operations and live fan-out through the hub.
  */
 
-export type CoreRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore, unknown>;
+export type CoreRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore, unknown>;
 
 export interface GatewayCoreOptions {
   readonly runtime: CoreRuntime;
@@ -56,7 +61,10 @@ export interface GatewayCoreOptions {
 }
 
 // A steer waits as long as a turn would: a worker that is back too late answers "not running" and it is queued.
-const TTL = { createThread: 24 * 3600, startTurn: 24 * 3600, interruptTurn: 60, steerTurn: 24 * 3600 } as const;
+const TTL = { createThread: 24 * 3600, startTurn: 24 * 3600, interruptTurn: 60, steerTurn: 24 * 3600, setGoal: 3600, stopTask: 300 } as const;
+
+/** Claude's goal condition limit (Claude Code rejects longer ones). */
+const MAX_OBJECTIVE = 4000;
 
 export class GatewayCore {
   readonly link: WorkerLink;
@@ -205,14 +213,22 @@ export class GatewayCore {
       }
     }
     const touched = new Set<string>();
+    const goals = new Set<string>();
     for (const stored of result.stored) {
       this.hub.publishThread(
         stored.threadId,
         create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: stored.seq, event: stored.event } } }),
       );
-      const body = stored.event.body.case;
-      if (body === "turnStarted" || body === "turnFinished") await this.#broadcastTurn(stored.threadId, stored.event.turnId);
-      if (body === "threadReady" || body === "turnStarted" || body === "turnFinished" || body === "activity") touched.add(stored.threadId);
+      const body = stored.event.body;
+      if (body.case === "turnStarted" || body.case === "turnFinished") await this.#broadcastTurn(stored.threadId, stored.event.turnId);
+      if (body.case === "threadReady" || body.case === "turnStarted" || body.case === "turnFinished" || body.case === "activity") touched.add(stored.threadId);
+      // Thread.goal_status and Thread.background_tasks follow goals and background items.
+      if (body.case === "goalState") {
+        goals.add(stored.threadId);
+        touched.add(stored.threadId);
+        if (stored.event.turnId) await this.#broadcastTurn(stored.threadId, stored.event.turnId);
+      }
+      if ((body.case === "itemStarted" || body.case === "itemCompleted") && body.value.item?.content.case === "backgroundTask") touched.add(stored.threadId);
       // A steer entered its turn (user_message with its id) or never did (steer_dropped: queued by pump).
       const steerId = steerOf(stored.event);
       if (steerId) {
@@ -220,6 +236,7 @@ export class GatewayCore {
         touched.add(stored.threadId);
       }
     }
+    for (const threadId of goals) await this.#broadcastGoal(threadId);
     for (const threadId of touched) {
       await this.#broadcastThread(threadId);
       await this.pump(threadId);
@@ -624,6 +641,7 @@ export class GatewayCore {
             notices: snapshot.notices,
             schedules: (await this.#bus((s) => s.schedulesFor({ ownerUserId: this.#options.userId, threadId, includeFinished: false }))).map(toUiSchedule),
             steers: (await this.#steers((s) => s.ofThread(threadId))).map(toUiSteer),
+            ...(await this.#goals((s) => s.latest(threadId)).then((goal) => goal && { goal: toUiGoal(goal) })),
             lastSeq: snapshot.lastSeq,
           },
         },
@@ -819,6 +837,101 @@ export class GatewayCore {
 
   #bus<A, E>(use: (store: AgentBusStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
     return this.#options.runtime.runPromise(AgentBusStore.use(use));
+  }
+
+  // ------------------------------------------------------------------ goals and background work (UI)
+
+  /**
+   * The user's goal actions (docs/goals.md). The goal row records the decision at once; the harness confirms
+   * through goal_state events.
+   * - Codex: SetGoal to the worker (thread/goal/set|clear). Codex continues the thread by itself.
+   * - Claude: `/goal …` as a queued turn of the goal. Claude has no pause: pause and clear interrupt the
+   *   running turn (the evaluator keeps a goal turn going) and queue `/goal clear`; resume sets it again.
+   */
+  async setGoal(request: ui.SetGoalRequest): Promise<ui.Goal> {
+    const thread = await this.#run((s) => s.thread(request.threadId));
+    if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
+    if (thread.archived_at) throw new InvalidError("the thread is archived");
+    if (thread.runtime !== "worker" || !thread.worker_id) throw new InvalidError("goals need a worker thread");
+    const claude = thread.provider === "claude";
+    const current = await this.#goals((s) => s.latest(thread.id));
+    const open = current && !isFinished(current.status) ? current : undefined;
+    let goal: GoalRow;
+    switch (request.action) {
+      case "set": {
+        const objective = request.objective.trim();
+        if (!objective) throw new InvalidError("objective is required");
+        if (objective.length > MAX_OBJECTIVE) throw new InvalidError(`objective is limited to ${MAX_OBJECTIVE} characters`);
+        if (claude && request.tokenBudget > 0n) throw new InvalidError("Claude goals have no token budget");
+        if (claude && open?.status === "active") await this.interrupt(thread.id);
+        goal = await this.#goals((s) => s.create({ threadId: thread.id, objective, tokenBudget: request.tokenBudget, userId: this.#options.userId }));
+        await this.#goalToHarness(thread, goal, GoalDirective.RUN, objective, request.tokenBudget);
+        break;
+      }
+      case "pause":
+        if (open?.status !== "active") throw new InvalidError("no active goal to pause");
+        goal = await this.#goals((s) => s.setStatus(open.id, "paused"));
+        await this.#goalToHarness(thread, goal, GoalDirective.PAUSE);
+        break;
+      case "resume":
+        if (!open || open.status === "active") throw new InvalidError("no paused goal to resume");
+        goal = await this.#goals((s) => s.setStatus(open.id, "active"));
+        await this.#goalToHarness(thread, goal, GoalDirective.RUN);
+        break;
+      case "clear":
+        if (!open) throw new InvalidError("no open goal to clear");
+        goal = await this.#goals((s) => s.setStatus(open.id, "cancelled"));
+        await this.#goalToHarness(thread, goal, GoalDirective.CLEAR);
+        break;
+      default:
+        throw new InvalidError("action is set, pause, resume or clear");
+    }
+    const update = toUiGoal(goal);
+    this.hub.publishThread(thread.id, create(ui.ThreadUpdateSchema, { change: { case: "goal", value: update } }));
+    await this.#broadcastThread(thread.id);
+    return update;
+  }
+
+  async #goalToHarness(thread: ThreadRow, goal: GoalRow, directive: GoalDirective, objective = "", tokenBudget = 0n): Promise<void> {
+    if (thread.provider === "claude") {
+      // The evaluator keeps a goal turn running: stopping the goal stops the turn.
+      if (directive !== GoalDirective.RUN) await this.interrupt(thread.id);
+      const text = claudeGoalCommand(directive === GoalDirective.RUN ? goal.objective : undefined);
+      const turn = await this.#goals((s) => s.enqueueGoalTurn({ threadId: thread.id, goalId: goal.id, text }));
+      this.hub.publishThread(thread.id, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }));
+      await this.pump(thread.id);
+      return;
+    }
+    const spec = await this.#run((s) => Effect.succeed(s.threadSpec(thread)));
+    await this.#dispatch(
+      thread.worker_id ?? "",
+      { kind: { case: "setGoal", value: { threadId: thread.id, goalId: goal.id, objective, directive, nativeTokenBudget: tokenBudget, thread: spec } } },
+      { threadId: thread.id, ttlSeconds: TTL.setGoal },
+    );
+  }
+
+  /** Stops a running background task (StopTask to the worker; the item ends when the worker reports it). */
+  async stopBackgroundTask(request: ui.StopBackgroundTaskRequest): Promise<void> {
+    const thread = await this.#run((s) => s.thread(request.threadId));
+    if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
+    const item = await this.#run((s) => s.threadItem(thread.id, request.itemId));
+    if (item?.content.case !== "backgroundTask") throw new InvalidError("background task not found");
+    if (item.status !== ItemStatus.IN_PROGRESS) throw new InvalidError("the background task is not running");
+    if (!thread.worker_id) throw new InvalidError("the thread has no worker");
+    await this.#dispatch(
+      thread.worker_id,
+      { kind: { case: "stopTask", value: { threadId: thread.id, taskId: item.content.value.taskId } } },
+      { threadId: thread.id, ttlSeconds: TTL.stopTask },
+    );
+  }
+
+  async #broadcastGoal(threadId: string): Promise<void> {
+    const goal = await this.#goals((s) => s.latest(threadId));
+    if (goal) this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "goal", value: toUiGoal(goal) } }));
+  }
+
+  #goals<A, E>(use: (store: GoalStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(GoalStore.use(use));
   }
 
   // ------------------------------------------------------------------ helpers

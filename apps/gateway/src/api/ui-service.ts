@@ -38,6 +38,12 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
         guard(async () => create(ui.SetScheduleStatusResponseSchema, { schedule: await core.setScheduleStatus(request) })),
       listModels: (request) => guard(async () => create(ui.ListModelsResponseSchema, { workers: await core.listModels(request) })),
       updateThread: (request) => guard(async () => create(ui.UpdateThreadResponseSchema, { thread: await core.updateThread(request) })),
+      setGoal: (request) => guard(async () => create(ui.SetGoalResponseSchema, { goal: await core.setGoal(request) })),
+      stopBackgroundTask: (request) =>
+        guard(async () => {
+          await core.stopBackgroundTask(request);
+          return create(ui.StopBackgroundTaskResponseSchema, {});
+        }),
     });
 }
 

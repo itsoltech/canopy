@@ -1,6 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@open-agents/codex-protocol";
 import {
+  BackgroundTaskKind,
   ItemDeltaField,
   ItemStatus,
   NoticeLevel,
@@ -19,6 +20,11 @@ import type { ThreadEventInit } from "../../journal/index.ts";
  * no mapping the event has no body but carries raw_json, so nothing is lost. The exception are model output
  * items read from the rollout (`rawResponseItem/completed`, see threads.ts): they yield events only for what
  * no app-server item covers (code-mode cells, shell calls Codex did not report).
+ *
+ * Background processes (docs/execution.md): a unified exec command still running when its turn completes
+ * keeps streaming output and ends later (verified live on 0.164.0). At turn end it gets a background_task item
+ * `bg:<command item id>` (output so far, then every later delta, outside the turn); the command item keeps
+ * what the turn showed and completes, like the background item, when the process exits.
  */
 
 type ItemInit = MessageInitShape<typeof ItemSchema>;
@@ -32,16 +38,34 @@ const CODE_MODE_WAIT = "wait";
 const SHELL_TOOLS: ReadonlySet<string> = new Set(["exec_command", "shell_command", "shell"]);
 
 export interface MapperContext {
-  /** Platform turn id for a Codex turn id: the StartTurn mapping, or a fresh id for provider-started turns. */
-  turnId(codexTurnId: string): string;
+  /** Platform turn id for a starting Codex turn: the StartTurn mapping, or a fresh id for provider-started turns. */
+  startTurn(codexTurnId: string): string;
+  /**
+   * Platform turn id of a Codex turn this thread started; undefined for others (e.g. a process of a turn from
+   * before a worker restart, or the source's last turn right after a fork). Such events keep no turn link.
+   */
+  turnId(codexTurnId: string): string | undefined;
   /** Codex turn ids started by the platform (StartTurn); others are provider-started (e.g. goal continuation). */
   isCommandTurn(codexTurnId: string): boolean;
+}
+
+/** A command item that may outlive its turn (unified exec process). */
+interface RunningCommand {
+  readonly codexTurnId: string;
+  readonly command: string;
+  readonly processId: string;
+  /** Output shown so far; carried over to the background item when the turn ends first. */
+  output: string;
+  /** Set once the turn ended while the process kept running. */
+  background?: { readonly itemId: string; stopping: boolean };
 }
 
 export class CodexEventMapper {
   readonly #ctx: MapperContext;
   /** Last usage per Codex turn, attached to turn_finished. */
   readonly #usage = new Map<string, v2.TokenUsageBreakdown>();
+  /** In-progress command items with a process, by item id. */
+  readonly #commands = new Map<string, RunningCommand>();
   /** Code-mode cells and waits by call id: they become tool_call items (docs/codex-adapter.md, "Code mode"). */
   readonly #calls = new Map<string, { codexTurnId: string; name: string; inputJson: string; outputs: string[] }>();
   /** Shell calls by call id, kept until the turn ends: then those Codex reported no item for get one. */
@@ -53,22 +77,45 @@ export class CodexEventMapper {
     this.#ctx = ctx;
   }
 
+  /** Background processes still running (task id = Codex process id). */
+  get backgroundTasks(): string[] {
+    return [...this.#commands.values()].flatMap((c) => (c.background ? [c.processId] : []));
+  }
+
+  /** The platform asked to stop this process: its end is reported as stopped by the user. Undefined if not running. */
+  markStopping(taskId: string): string | undefined {
+    for (const command of this.#commands.values()) {
+      if (command.background && command.processId === taskId) {
+        command.background.stopping = true;
+        return command.processId;
+      }
+    }
+    return undefined;
+  }
+
   map(notification: ServerNotification): ThreadEventInit[] {
     const rawJson = JSON.stringify(notification);
-    const event = (codexTurnId: string | null | undefined, body: ThreadEventInit["body"]): ThreadEventInit =>
-      ({ ...(codexTurnId ? { turnId: this.#ctx.turnId(codexTurnId) } : {}), ...(body ? { body } : {}), rawJson }) as ThreadEventInit;
+    const event = (codexTurnId: string | null | undefined, body: ThreadEventInit["body"]): ThreadEventInit => {
+      const turnId = codexTurnId ? this.#ctx.turnId(codexTurnId) : undefined;
+      return { ...(turnId ? { turnId } : {}), ...(body ? { body } : {}), rawJson } as ThreadEventInit;
+    };
 
     switch (notification.method) {
       case "turn/started": {
         const { turn } = notification.params;
+        const turnId = this.#ctx.startTurn(turn.id);
         return [
-          event(turn.id, {
-            case: "turnStarted",
-            value: {
-              providerTurnRef: turn.id,
-              origin: this.#ctx.isCommandTurn(turn.id) ? TurnOrigin.COMMAND : TurnOrigin.PROVIDER,
+          {
+            turnId,
+            rawJson,
+            body: {
+              case: "turnStarted",
+              value: {
+                providerTurnRef: turn.id,
+                origin: this.#ctx.isCommandTurn(turn.id) ? TurnOrigin.COMMAND : TurnOrigin.PROVIDER,
+              },
             },
-          }),
+          },
         ];
       }
       case "turn/completed": {
@@ -77,6 +124,7 @@ export class CodexEventMapper {
         this.#usage.delete(turn.id);
         return [
           ...this.#unreportedShellCalls(event, turn.id),
+          ...this.#toBackground(turn.id, rawJson),
           event(turn.id, {
             case: "turnFinished",
             value: {
@@ -97,6 +145,14 @@ export class CodexEventMapper {
         const { item, turnId } = notification.params;
         const completed = notification.method === "item/completed";
         this.#reported.add(item.id);
+        if (item.type === "commandExecution") {
+          const running = this.#commands.get(item.id);
+          if (completed && running?.background) return this.#backgroundEnded(item, running, rawJson);
+          if (completed) this.#commands.delete(item.id);
+          else if (item.processId) {
+            this.#commands.set(item.id, { codexTurnId: turnId, command: item.command, processId: item.processId, output: item.aggregatedOutput ?? "" });
+          }
+        }
         const mapped = mapItem(item, completed);
         return [event(turnId, { case: completed ? "itemCompleted" : "itemStarted", value: { item: mapped } })];
       }
@@ -106,8 +162,15 @@ export class CodexEventMapper {
         return [this.#delta(event, notification.params, ItemDeltaField.TEXT)];
       case "item/reasoning/summaryTextDelta":
         return [this.#delta(event, notification.params, ItemDeltaField.SUMMARY)];
-      case "item/commandExecution/outputDelta":
+      case "item/commandExecution/outputDelta": {
+        const running = this.#commands.get(notification.params.itemId);
+        if (running?.background) {
+          // After the turn: the process's output belongs to its background item, outside any turn.
+          return [{ rawJson, body: { case: "itemDelta", value: { itemId: running.background.itemId, field: ItemDeltaField.OUTPUT, chunk: notification.params.delta } } }];
+        }
+        if (running) running.output += notification.params.delta;
         return [this.#delta(event, notification.params, ItemDeltaField.OUTPUT)];
+      }
       case "turn/plan/updated": {
         const { turnId, explanation, plan } = notification.params;
         // One plan item per turn; each update replaces it (item_completed carries the full state).
@@ -161,6 +224,7 @@ export class CodexEventMapper {
               objective: goal.objective,
               tokensUsed: BigInt(goal.tokensUsed),
               timeUsedSeconds: BigInt(Math.round(goal.timeUsedSeconds)),
+              tokenBudget: BigInt(goal.tokenBudget ?? 0),
             },
           }),
         ];
@@ -175,6 +239,82 @@ export class CodexEventMapper {
         return [event(typeof turnId === "string" ? turnId : undefined, undefined)];
       }
     }
+  }
+
+  /** Processes of a turn that keep running after it: each gets its background item before turn_finished. */
+  #toBackground(codexTurnId: string, rawJson: string): ThreadEventInit[] {
+    const turnId = this.#ctx.turnId(codexTurnId) ?? "";
+    const started: ThreadEventInit[] = [];
+    for (const [itemId, command] of this.#commands) {
+      if (command.codexTurnId !== codexTurnId || command.background) continue;
+      command.background = { itemId: `bg:${itemId}`, stopping: false };
+      started.push({
+        rawJson,
+        ...(turnId && { turnId }),
+        body: {
+          case: "itemStarted",
+          value: {
+            item: {
+              itemId: command.background.itemId,
+              status: ItemStatus.IN_PROGRESS,
+              content: {
+                case: "backgroundTask",
+                value: {
+                  taskId: command.processId,
+                  processId: command.processId,
+                  kind: BackgroundTaskKind.PROCESS,
+                  command: command.command,
+                  description: command.command,
+                  output: command.output,
+                  startedInTurnId: turnId,
+                  sourceItemId: itemId,
+                },
+              },
+            },
+          },
+        },
+      });
+      command.output = ""; // later output goes to the background item only
+    }
+    return started;
+  }
+
+  /** The process of a backgrounded command exited (or was terminated): both items end, outside any turn. */
+  #backgroundEnded(item: Extract<CodexItem, { type: "commandExecution" }>, running: RunningCommand, rawJson: string): ThreadEventInit[] {
+    this.#commands.delete(item.id);
+    const background = running.background!;
+    const stopped = background.stopping;
+    const failed = item.status === "failed" || (item.exitCode !== null && item.exitCode !== 0);
+    // The command item keeps the output its turn showed (the full output is on the background item).
+    const command = mapItem({ ...item, aggregatedOutput: null }, true);
+    return [
+      { rawJson, body: { case: "itemCompleted", value: { item: command } } },
+      {
+        rawJson,
+        body: {
+          case: "itemCompleted",
+          value: {
+            item: {
+              itemId: background.itemId,
+              status: stopped ? ItemStatus.INTERRUPTED : failed ? ItemStatus.FAILED : ItemStatus.COMPLETED,
+              content: {
+                case: "backgroundTask",
+                value: {
+                  taskId: running.processId,
+                  processId: running.processId,
+                  kind: BackgroundTaskKind.PROCESS,
+                  command: running.command,
+                  description: running.command,
+                  startedInTurnId: this.#ctx.turnId(running.codexTurnId) ?? "",
+                  sourceItemId: item.id,
+                  ...(stopped ? { stopReason: "stopped_by_user" } : failed ? { stopReason: "error" } : {}),
+                },
+              },
+            },
+          },
+        },
+      },
+    ];
   }
 
   /**

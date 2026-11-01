@@ -28,6 +28,8 @@ export interface CodexMethods {
   "thread/goal/get": { params: v2.ThreadGoalGetParams; result: v2.ThreadGoalGetResponse };
   "thread/goal/clear": { params: v2.ThreadGoalClearParams; result: v2.ThreadGoalClearResponse };
   "model/list": { params: v2.ModelListParams; result: v2.ModelListResponse };
+  "thread/backgroundTerminals/list": { params: v2.ThreadBackgroundTerminalsListParams; result: v2.ThreadBackgroundTerminalsListResponse };
+  "thread/backgroundTerminals/terminate": { params: v2.ThreadBackgroundTerminalsTerminateParams; result: v2.ThreadBackgroundTerminalsTerminateResponse };
 }
 
 /** Answers a server request (approval, user input, dynamic tool call). Throw RpcError to answer with an error. */

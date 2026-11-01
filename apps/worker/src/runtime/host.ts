@@ -1,8 +1,11 @@
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
-import type { MessageInitShape } from "@bufbuild/protobuf";
+import { clone, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import {
+  BackgroundTaskKind,
+  ItemSchema,
+  ItemStatus,
   Provider,
   type AgentToolCall,
   type AgentToolResult,
@@ -12,6 +15,7 @@ import {
   type ConfigAppliedSchema,
   type InteractionRequest,
   type InteractionResponse,
+  type Item,
   type ProfileModelsSchema,
   type ThreadEvent,
   type WorkerConfig,
@@ -41,6 +45,8 @@ import type { SteerError } from "../providers/turn-input.ts";
  *   answered (the gateway answers a re-sent call from its stored result).
  * - Model catalog: listed after every applied config (no model turn), sent as ModelCatalog and
  *   re-sent after a reconnect; ListModels lists again on request.
+ * - Background tasks die with their provider process: after a crash (recover) or a runtime restart, the
+ *   ones the journal still has open are closed as interrupted.
  */
 
 type CommandResultInit = MessageInitShape<typeof CommandResultSchema>;
@@ -205,6 +211,11 @@ export class WorkerHost {
     await this.#stopClaude();
   }
 
+  /** At startup: background tasks of the previous process are gone (docs/execution.md, "Trwałość"). */
+  async recover(): Promise<number> {
+    return this.#closeOrphans(() => true, "worker_restart");
+  }
+
   // ------------------------------------------------------------------ commands
 
   async #execute(command: Command): Promise<CommandOutput> {
@@ -257,6 +268,24 @@ export class WorkerHost {
         } else {
           await this.#runCodex(Provider.CODEX, (threads) => threads.interrupt(threadId, turnId));
         }
+        return {};
+      }
+      case "setGoal": {
+        const { thread: spec, directive, objective, nativeTokenBudget } = kind.value;
+        if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
+        // Claude goals are /goal turns in the input stream (docs/goals.md); the gateway queues them as turns.
+        if (spec.provider === Provider.CLAUDE) throw new CommandError("UNSUPPORTED", "Claude goals are set with /goal turns", true);
+        await this.#runCodex(spec.provider, (threads) => threads.setGoal(spec, directive, objective, nativeTokenBudget));
+        return {};
+      }
+      case "stopTask": {
+        const { threadId, taskId } = kind.value;
+        const claude = this.#claude && Context.get(this.#claude.context, ClaudeThreads);
+        const codex = this.#codex && Context.get(this.#codex.context, CodexThreads);
+        if (claude?.backgroundTasks().get(threadId)?.includes(taskId)) await this.#runClaude((threads) => threads.stopTask(threadId, taskId));
+        else if (codex?.backgroundTasks().get(threadId)?.includes(taskId)) await this.#runCodex(Provider.CODEX, (threads) => threads.stopTask(threadId, taskId));
+        // No process runs it: if the journal still has it open, its process is gone, so it ends here.
+        else await this.#closeOrphans((threadOf, item) => threadOf === threadId && taskOf(item) === taskId, "stopped_by_user");
         return {};
       }
       case "unloadThread":
@@ -386,6 +415,7 @@ export class WorkerHost {
     if (!claude) return;
     this.#claude = undefined;
     await Effect.runPromise(Scope.close(claude.scope, Exit.void));
+    await this.#closeOrphans((_, item) => kindOf(item) !== BackgroundTaskKind.PROCESS, "worker_restart");
     this.#log("claude runtime stopped");
   }
 
@@ -415,7 +445,26 @@ export class WorkerHost {
     if (!codex) return;
     this.#codex = undefined;
     await Effect.runPromise(Scope.close(codex.scope, Exit.void));
+    await this.#closeOrphans((_, item) => kindOf(item) === BackgroundTaskKind.PROCESS, "worker_restart");
     this.#log("codex runtime stopped");
+  }
+
+  /** Ends background tasks the journal has open but no provider process runs any more. */
+  async #closeOrphans(match: (threadId: string, item: Item) => boolean, stopReason: string): Promise<number> {
+    const open = await this.#options.runtime.runPromise(Journal.use((j) => j.openBackgroundTasks()));
+    let closed = 0;
+    for (const { threadId, item } of open) {
+      if (!match(threadId, item) || item.content.case !== "backgroundTask") continue;
+      const ended = clone(ItemSchema, item);
+      ended.status = ItemStatus.INTERRUPTED;
+      if (ended.content.case === "backgroundTask") ended.content.value.stopReason = stopReason;
+      const event = await this.#options.runtime.runPromise(
+        Journal.use((j) => j.append(threadId, { body: { case: "itemCompleted", value: { item: ended } } })),
+      );
+      this.#send({ case: "threadEvent", value: event });
+      closed++;
+    }
+    return closed;
   }
 
   // ------------------------------------------------------------------ events and interactions
@@ -462,6 +511,14 @@ export class WorkerHost {
   #log(message: string): void {
     this.#options.log?.(message);
   }
+}
+
+function kindOf(item: Item): BackgroundTaskKind | undefined {
+  return item.content.case === "backgroundTask" ? item.content.value.kind : undefined;
+}
+
+function taskOf(item: Item): string | undefined {
+  return item.content.case === "backgroundTask" ? item.content.value.taskId : undefined;
 }
 
 /** A CLIProxyAPI profile serves the providers it lists (both by default); native profiles serve their own CLI. */

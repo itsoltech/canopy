@@ -12,7 +12,7 @@ Powiązane dokumenty:
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
 - [transcript.md](transcript.md) — zapis wszystkich zdarzeń, itemy, oś czasu dla frontendu
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity
-- [goals.md](goals.md) — cele: platforma jest właścicielem, natywne cele harnessów są silnikiem
+- [goals.md](goals.md) — cele: silnikiem jest harness (Codex goals, Claude `/goal`), platforma je śledzi i steruje nimi z UI
 - [agent-bus.md](agent-bus.md) — szyna agentów: delegowanie przez wątki boczne, interakcje, harmonogram; natywna orkiestracja dostawców wyłączona
 - [durability.md](durability.md) — trwałość, graceful shutdown, aktualizacje w trakcie działania
 - [`proto/openagents/worker/v1/worker_link.proto`](../proto/openagents/worker/v1/worker_link.proto) — szkic kontraktu

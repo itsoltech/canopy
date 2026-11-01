@@ -17,6 +17,7 @@ import {
   type ConfigApplied,
   type Hello,
   type InteractionRequest,
+  type Item,
   type ThreadSpec,
   type WorkerConfig,
 } from "@open-agents/contracts";
@@ -69,6 +70,9 @@ export interface ThreadRow {
   archived_at?: Date | null;
   pending_interactions?: bigint | number;
   last_activity_at?: Date | null;
+  /** Joined: status of the open goal, running background tasks. */
+  goal_status?: string | null;
+  background_tasks?: bigint | number;
 }
 
 export interface TurnRow {
@@ -91,6 +95,7 @@ export interface TurnRow {
   hops?: number;
   schedule_id?: string | null;
   interaction_request_id?: string | null;
+  goal_id?: string | null;
   /** Joined from turn_sources. */
   source_kind?: string | null;
   source_thread_id?: string | null;
@@ -164,6 +169,8 @@ export class GatewayStore extends Context.Service<
       notices: ui.ThreadNotice[];
       lastSeq: bigint;
     }>;
+    /** Current state of one of the thread's own items. */
+    threadItem(threadId: string, itemId: string): Fx<Item | undefined>;
     // outbox
     enqueueCommand(input: { workerId: string; threadId?: string; turnId?: string; command: MessageInitShape<typeof CommandSchema>; ttlSeconds: number }): Fx<Command>;
     pendingCommands(workerId: string): Fx<Command[]>;
@@ -187,7 +194,9 @@ export class GatewayStore extends Context.Service<
         const threadSelect = (where: string) => `
           SELECT t.*, (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending') AS pending_interactions,
                  greatest(t.created_at, (SELECT max(greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at)))
-                                           FROM turns u WHERE u.thread_id = t.id)) AS last_activity_at
+                                           FROM turns u WHERE u.thread_id = t.id)) AS last_activity_at,
+                 (SELECT g.status FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled') LIMIT 1) AS goal_status,
+                 (SELECT count(*) FROM thread_items b WHERE b.thread_id = t.id AND b.type = 'background_task' AND b.status = 'in_progress') AS background_tasks
             FROM threads t ${where}`;
 
         const store: GatewayStore["Service"] = {
@@ -552,6 +561,11 @@ export class GatewayStore extends Context.Service<
               };
             }),
 
+          threadItem: (threadId, itemId) =>
+            sql<{ content: JsonValue }>`SELECT content FROM thread_items WHERE thread_id = ${threadId}::uuid AND item_id = ${itemId}`.pipe(
+              Effect.map((rows) => (rows[0] ? fromJson(ItemSchema, rows[0].content) : undefined)),
+            ),
+
           enqueueCommand: ({ workerId, threadId, turnId, command, ttlSeconds }) =>
             Effect.gen(function* () {
               const message = create(CommandSchema, { ...command, commandId: command.commandId || Bun.randomUUIDv7() } as MessageInitShape<typeof CommandSchema>);
@@ -690,6 +704,8 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     rootThreadId: row.root_thread_id,
     interactionRoute: row.interaction_route,
     ...(row.last_activity_at && { lastActivityAt: timestampFromDate(new Date(row.last_activity_at)) }),
+    goalStatus: row.goal_status ?? "",
+    backgroundTasks: Number(row.background_tasks ?? 0),
   });
 }
 
@@ -719,6 +735,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     interactionRequestId: row.interaction_request_id ?? "",
     model: row.model ?? "",
     effort: row.effort ?? "",
+    goalId: row.goal_id ?? "",
   });
 }
 

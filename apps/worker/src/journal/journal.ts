@@ -1,7 +1,15 @@
 import { Database } from "bun:sqlite";
 import { create, fromBinary, toBinary, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
-import { CommandResultSchema, ThreadEventSchema, type CommandResult, type ThreadEvent } from "@open-agents/contracts";
+import {
+  CommandResultSchema,
+  ItemSchema,
+  ItemStatus,
+  ThreadEventSchema,
+  type CommandResult,
+  type Item,
+  type ThreadEvent,
+} from "@open-agents/contracts";
 import { Context, Effect, Layer, Schema } from "effect";
 
 /**
@@ -14,6 +22,8 @@ import { Context, Effect, Layer, Schema } from "effect";
  * - journal_id identifies this database; a reinstalled worker gets a new one, so the gateway knows
  *   old cursors do not apply and deduplicates the resend by event_id.
  * - Results of processed commands are remembered so a redelivered command is answered, not re-run.
+ * - Background tasks that started but did not finish are tracked in the same transaction as their events,
+ *   so after a crash the worker can close them as interrupted (their processes died with it).
  *
  * SQLite in WAL mode with synchronous=FULL: a committed append survives power loss.
  */
@@ -28,6 +38,12 @@ export type ThreadEventInit = Omit<MessageInitShape<typeof ThreadEventSchema>, "
 export interface ThreadCursor {
   readonly threadId: string;
   readonly lastSeq: bigint;
+}
+
+export interface OpenBackgroundTask {
+  readonly threadId: string;
+  /** Last started state of the background_task item. */
+  readonly item: Item;
 }
 
 export class Journal extends Context.Service<
@@ -49,6 +65,8 @@ export class Journal extends Context.Service<
     commandResult(commandId: string): Effect.Effect<CommandResult | undefined, JournalError>;
     /** Forget command results older than maxAgeMs (redelivery happens within minutes, not days). */
     purgeCommands(maxAgeMs: number): Effect.Effect<number, JournalError>;
+    /** Background tasks whose start is journaled and whose end is not (e.g. the worker crashed meanwhile). */
+    openBackgroundTasks(): Effect.Effect<ReadonlyArray<OpenBackgroundTask>, JournalError>;
   }
 >()("open-agents/worker/Journal") {
   /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
@@ -79,6 +97,12 @@ const SCHEMA = `
     processed_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS processed_commands_age ON processed_commands (processed_at);
+  CREATE TABLE IF NOT EXISTS background_tasks (
+    thread_id TEXT NOT NULL,
+    item_id   TEXT NOT NULL,
+    item      BLOB NOT NULL,
+    PRIMARY KEY (thread_id, item_id)
+  );
 `;
 
 function open(path: string): Database {
@@ -105,6 +129,22 @@ function makeJournal(db: Database): Journal["Service"] {
   const insertEvent = db.query(
     "INSERT INTO events (thread_id, journal_seq, event_id, payload, created_at) VALUES ($thread, $seq, $id, $payload, $at)",
   );
+  const upsertBackground = db.query(
+    `INSERT INTO background_tasks (thread_id, item_id, item) VALUES ($thread, $item_id, $item)
+     ON CONFLICT (thread_id, item_id) DO UPDATE SET item = excluded.item`,
+  );
+  const deleteBackground = db.query("DELETE FROM background_tasks WHERE thread_id = $thread AND item_id = $item_id");
+  const selectBackground = db.query<{ thread_id: string; item: Uint8Array }, []>("SELECT thread_id, item FROM background_tasks ORDER BY rowid");
+  const trackBackground = (threadId: string, body: ThreadEvent["body"]) => {
+    if (body.case !== "itemStarted" && body.case !== "itemCompleted") return;
+    const item = body.value.item;
+    if (item?.content.case !== "backgroundTask") return;
+    if (item.status === ItemStatus.IN_PROGRESS) {
+      upsertBackground.run({ thread: threadId, item_id: item.itemId, item: toBinary(ItemSchema, item) });
+    } else {
+      deleteBackground.run({ thread: threadId, item_id: item.itemId });
+    }
+  };
   const appendTx = db.transaction((threadId: string, event: ThreadEventInit) => {
     const seq = BigInt(nextSeq.get({ thread: threadId })!.last_seq);
     const init: MessageInitShape<typeof ThreadEventSchema> = {
@@ -116,6 +156,7 @@ function makeJournal(db: Database): Journal["Service"] {
     } as MessageInitShape<typeof ThreadEventSchema>;
     const full = create(ThreadEventSchema, init);
     insertEvent.run({ thread: threadId, seq: Number(seq), id: full.eventId, payload: toBinary(ThreadEventSchema, full), at: Date.now() });
+    trackBackground(threadId, full.body);
     return full;
   });
 
@@ -170,6 +211,9 @@ function makeJournal(db: Database): Journal["Service"] {
     ),
     purgeCommands: Effect.fn("Journal.purgeCommands")((maxAgeMs: number) =>
       attempt("purgeCommands", () => purge.run({ before: Date.now() - maxAgeMs }).changes),
+    ),
+    openBackgroundTasks: Effect.fn("Journal.openBackgroundTasks")(() =>
+      attempt("openBackgroundTasks", () => selectBackground.all().map((r) => ({ threadId: r.thread_id, item: fromBinary(ItemSchema, r.item) }))),
     ),
   });
 }

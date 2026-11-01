@@ -345,7 +345,8 @@ message SteerTurn {
   UserInput input = 4;
 }
 
-// Zatrzymuje jedno zadanie w tle albo subagenta w tle (Claude stopTask, Codex: zakończenie procesu / closeAgent).
+// Zatrzymuje jedno zadanie w tle albo subagenta w tle (Claude stopTask, Codex thread/backgroundTerminals/terminate).
+// task_id = BackgroundTask.task_id. Zadanie kończy się itemem INTERRUPTED (stop_reason = stopped_by_user).
 message StopTask {
   string thread_id = 1;
   string task_id = 2;
@@ -353,23 +354,25 @@ message StopTask {
 
 enum GoalDirective {
   GOAL_DIRECTIVE_UNSPECIFIED = 0;
-  GOAL_DIRECTIVE_RUN = 1;       // ustaw / wznów natywny cel (Codex status active, Claude /goal <warunek>)
-  GOAL_DIRECTIVE_PAUSE = 2;     // zatrzymaj natywną kontynuację, zachowaj cel (Codex paused, Claude /goal clear)
-  GOAL_DIRECTIVE_COMPLETE = 3;  // użytkownik uznał cel za osiągnięty
-  GOAL_DIRECTIVE_CLEAR = 4;     // usuń natywny cel (anulowanie)
+  GOAL_DIRECTIVE_RUN = 1;       // ustaw (z objective) albo wznów (bez objective) cel: Codex status active
+  GOAL_DIRECTIVE_PAUSE = 2;     // zatrzymaj kontynuację, zachowaj cel: Codex paused (tura w toku kończy się normalnie)
+  GOAL_DIRECTIVE_COMPLETE = 3;  // użytkownik uznał cel za osiągnięty: Codex complete
+  GOAL_DIRECTIVE_CLEAR = 4;     // usuń cel: Codex thread/goal/clear
 }
 
-// Nakładka celu platformy na natywny mechanizm harnessu (docs/goals.md).
-// Cel platformy jest źródłem prawdy; worker tylko odwzorowuje go u dostawcy.
+// Cel harnessu ustawiany z UI (docs/goals.md). Silnikiem jest harness; platforma go śledzi.
+// Tylko Codex (thread/goal/*). Claude steruje celem komendą /goal w strumieniu wejścia, więc gateway
+// wysyła ją jako zwykłą turę (trigger = goal), nie jako SetGoal.
 message SetGoal {
   string thread_id = 1;
   string goal_id = 2;
   string objective = 3;
   string condition = 4;
   GoalDirective directive = 5;
-  // Pozostały budżet tokenów dla natywnego licznika (Codex tokenBudget). 0 = bez limitu natywnego;
-  // pozostałe budżety (koszt, czas, tury, całe drzewo) egzekwuje gateway.
+  // Budżet tokenów harnessu (Codex tokenBudget). 0 = bez limitu.
   uint64 native_token_budget = 6;
+  // Do wznowienia wątku, którego proces dostawcy jeszcze nie załadował (np. po restarcie workera).
+  ThreadSpec thread = 7;
 }
 
 // Przenosi pracę pierwszoplanową do tła (Claude backgroundTasks(toolUseId), odpowiednik Ctrl+B).
@@ -534,19 +537,22 @@ enum GoalOrigin {
   GOAL_ORIGIN_MODEL = 2;
 }
 
-// Stan natywnego celu: Codex thread/goal/updated|cleared, Claude active_goal.
+// Stan celu harnessu: Codex thread/goal/updated|cleared; Claude: wynik komendy /goal (lokalna odpowiedź
+// „Goal set: …” / „Goal cleared: …”) i werdykty ewaluatora (goal_status w transkrypcie sesji), active_goal.
 message GoalState {
   string goal_id = 1;           // pusty, gdy cel utworzył model natywnie
   GoalOrigin origin = 2;
-  // Codex: active | paused | blocked | usageLimited | budgetLimited | complete; Claude: active | cleared.
+  // Codex: active | paused | blocked | usageLimited | budgetLimited | complete;
+  // Claude: active (ustawiony albo niespełniony po ocenie) | met | failed (niemożliwy) | cleared.
   string native_status = 3;
   string objective = 4;
   string condition = 5;
   uint64 tokens_used = 6;
   uint64 time_used_seconds = 7;
   uint32 iterations = 8;        // Claude: iteracje ewaluatora
-  string last_reason = 9;       // Claude: dlaczego warunek jeszcze niespełniony
+  string last_reason = 9;       // Claude: werdykt ewaluatora (dlaczego spełniony albo jeszcze nie)
   bool cleared = 10;
+  uint64 token_budget = 11;     // Codex tokenBudget; 0 = bez limitu
 }
 
 // Zdarzenie informacyjne bez własnego itemu: limit zapytań, ponowienie API, hook,
@@ -752,8 +758,10 @@ message BackgroundTask {
   string command = 8;
   string process_id = 9;
   TaskProgress progress = 10;
-  // Powód zakończenia innego niż sukces: stopped_by_user, drain, worker_restart, limit, error.
+  // Powód zakończenia innego niż sukces: stopped_by_user, stopped, drain, worker_restart, limit, error.
   string stop_reason = 11;
+  // Item, który uruchomił zadanie (Codex commandExecution, Claude tool_use Bash).
+  string source_item_id = 12;
 }
 
 // Wywołanie narzędzia szyny agentów (spawn_thread, send_message, wait_threads, ...).

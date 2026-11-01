@@ -27,6 +27,9 @@ const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
 const { journalId } = await runtime.runPromise(journalHello());
 const host = new WorkerHost({ runtime, dataDir, clientVersion: WORKER_VERSION, log: (m) => console.info(m) });
 console.info(`worker ${local.worker_id}, gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`);
+// Background tasks of a previous process died with it; their items end as interrupted (sent after connecting).
+const orphans = await host.recover();
+if (orphans > 0) console.info(`closed ${orphans} background task(s) of the previous process`);
 
 const shutdown = new AbortController();
 // Graceful stop (docs/durability.md, 3.3): announce DRAINING and half-close the stream so the

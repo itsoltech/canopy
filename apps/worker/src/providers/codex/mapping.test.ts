@@ -24,14 +24,16 @@ function fixture(name: string): ServerNotification[] {
     .map((line) => JSON.parse(line) as ServerNotification);
 }
 
-function replay(notifications: ServerNotification[], commandTurns: ReadonlySet<string> = new Set()) {
+function replay(notifications: ServerNotification[], commandTurns: ReadonlySet<string> = new Set(), before?: (mapper: CodexEventMapper, n: ServerNotification) => void) {
   const turnIds = new Map<string, string>();
-  const mapper = new CodexEventMapper({
-    turnId: (codexTurnId) => turnIds.get(codexTurnId) ?? turnIds.set(codexTurnId, `turn-${turnIds.size + 1}`).get(codexTurnId)!,
+  const mapper: CodexEventMapper = new CodexEventMapper({
+    startTurn: (codexTurnId) => turnIds.get(codexTurnId) ?? turnIds.set(codexTurnId, `turn-${turnIds.size + 1}`).get(codexTurnId)!,
+    turnId: (codexTurnId) => turnIds.get(codexTurnId),
     isCommandTurn: (codexTurnId) => commandTurns.has(codexTurnId),
   });
   const events: ThreadEvent[] = [];
   for (const n of notifications) {
+    before?.(mapper, n);
     for (const init of mapper.map(n)) events.push(create(ThreadEventSchema, { threadId: "t", ...init } as never));
   }
   // Same projection the gateway and the UI run.
@@ -42,8 +44,10 @@ function replay(notifications: ServerNotification[], commandTurns: ReadonlySet<s
     const next = reduceItem(items.get(id), e.body);
     if (next) items.set(id, next);
   }
-  return { events, items: [...items.values()] };
+  return { events, items: [...items.values()], mapper };
 }
+
+const background = (item: Item | undefined) => (item?.content.case === "backgroundTask" ? item.content.value : undefined);
 
 describe("Codex event mapping on a recorded turn with tools", () => {
   const notifications = fixture("tools-turn");
@@ -121,6 +125,71 @@ describe("Codex event mapping on a recorded failing turn", () => {
     ]);
     // Hooks from the device's ~/.codex appear raw (this recording ran without CODEX_HOME isolation).
     expect(events.some((e) => e.body.case === undefined && JSON.parse(e.rawJson).method === "hook/started")).toBe(true);
+  });
+});
+
+describe("Codex background processes (recorded: unified exec outliving its turn)", () => {
+  test("the process gets a background item at turn end; later output and the exit land on it, outside the turn", () => {
+    const { events, items, mapper } = replay(fixture("background-process-turn"));
+    const finishedAt = events.findIndex((e) => e.body.case === "turnFinished");
+    const startedBg = events.findIndex((e) => e.body.case === "itemStarted" && e.body.value.item?.content.case === "backgroundTask");
+    expect(startedBg).toBe(finishedAt - 1);
+    const command = items.find((i) => i.content.case === "commandExecution")!;
+    const task = items.find((i) => i.itemId === `bg:${command.itemId}`);
+    expect(background(task)).toMatchObject({ kind: 4, startedInTurnId: "turn-1", sourceItemId: command.itemId, processId: "3504", taskId: "3504" });
+    expect(task?.status).toBe(ItemStatus.COMPLETED);
+    // Everything Codex streamed, once: before the turn ended (carried over) and after it. The first line came
+    // with the exec call's own result (for the model), not as a delta.
+    expect(background(task)?.output).toBe(Array.from({ length: 39 }, (_, i) => `tick ${i + 2}\n`).join(""));
+    // The command item keeps what its turn showed and ends with the process.
+    expect(command.status).toBe(ItemStatus.COMPLETED);
+    expect(command.content.case === "commandExecution" && command.content.value.output).toBe("tick 2\ntick 3\ntick 4\n");
+    // After the turn nothing is linked to it: no event can recreate a finished turn.
+    expect(events.slice(finishedAt + 1).every((e) => e.turnId === "")).toBe(true);
+    expect(mapper.backgroundTasks).toEqual([]);
+  });
+
+  test("a stop requested by the platform ends the item as interrupted (stopped by the user)", () => {
+    const { items, mapper } = replay(fixture("background-process-stopped"), new Set(), (m, n) => {
+      if (n.method === "item/completed" && (n.params as { item: { type: string } }).item.type === "commandExecution") m.markStopping("40172");
+    });
+    const task = items.find((i) => i.content.case === "backgroundTask");
+    expect(task?.status).toBe(ItemStatus.INTERRUPTED);
+    expect(background(task)?.stopReason).toBe("stopped_by_user");
+    expect(background(task)?.output).toContain("tick 20");
+    expect(mapper.backgroundTasks).toEqual([]);
+  });
+
+  test("events of unknown Codex turns do not claim a pending StartTurn", () => {
+    const pending = ["platform-turn"];
+    const mapper = new CodexEventMapper({
+      startTurn: () => pending.shift() ?? "provider-turn",
+      turnId: () => undefined,
+      isCommandTurn: () => true,
+    });
+    const [delta] = mapper.map({ method: "item/commandExecution/outputDelta", params: { threadId: "x", turnId: "old", itemId: "e1", delta: "late\n" } } as ServerNotification);
+    expect(delta?.turnId).toBeUndefined();
+    expect(pending).toEqual(["platform-turn"]);
+  });
+});
+
+describe("Codex goals (recorded)", () => {
+  const states = (name: string) =>
+    replay(fixture(name)).events.flatMap((e) => (e.body.case === "goalState" ? [{ turnId: e.turnId, ...e.body.value }] : []));
+
+  test("set active -> Codex starts a provider turn and completes the goal", () => {
+    const { events } = replay(fixture("goal-complete"));
+    const started = events.find((e) => e.body.case === "turnStarted");
+    expect(started?.body.case === "turnStarted" && started.body.value.origin).toBe(TurnOrigin.PROVIDER);
+    const goal = states("goal-complete");
+    expect(goal.map((g) => g.nativeStatus)).toEqual(["active", "active", "active", "complete"]);
+    expect(goal[0]).toMatchObject({ turnId: "", tokenBudget: 60000n, objective: expect.stringContaining("goal.txt") });
+    expect(goal.at(-1)).toMatchObject({ turnId: "turn-1", tokensUsed: 13267n });
+  });
+
+  test("pause, resume and clear", () => {
+    const goal = states("goal-pause-resume-clear");
+    expect(goal.map((g) => (g.cleared ? "cleared" : g.nativeStatus))).toEqual(["active", "active", "paused", "active", "active", "complete", "cleared"]);
   });
 });
 

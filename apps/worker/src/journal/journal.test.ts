@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ItemDeltaField } from "@open-agents/contracts";
+import { ItemDeltaField, ItemStatus } from "@open-agents/contracts";
 import { Effect } from "effect";
 import { Journal, type ThreadEventInit } from "./journal.ts";
 
@@ -106,5 +106,26 @@ describe("Journal", () => {
       }),
     );
     expect(purged).toBe(1);
+  });
+
+  test("tracks background tasks until their end is journaled, across reopening", async () => {
+    const path = freshPath();
+    const task = (status: ItemStatus) => ({
+      body: {
+        case: "itemStarted" as const,
+        value: { item: { itemId: "bg:1", status, content: { case: "backgroundTask" as const, value: { taskId: "1", command: "npm run dev" } } } },
+      },
+    });
+    await withJournal(path, (j) =>
+      Effect.gen(function* () {
+        yield* j.append("t1", task(ItemStatus.IN_PROGRESS));
+        yield* j.append("t2", task(ItemStatus.IN_PROGRESS));
+        yield* j.append("t2", { body: { case: "itemCompleted", value: { item: { itemId: "bg:1", status: ItemStatus.INTERRUPTED, content: { case: "backgroundTask", value: { taskId: "1" } } } } } });
+      }),
+    );
+    const open = await withJournal(path, (j) => j.openBackgroundTasks());
+    expect(open.map((o) => [o.threadId, o.item.itemId, o.item.content.case === "backgroundTask" && o.item.content.value.command])).toEqual([
+      ["t1", "bg:1", "npm run dev"],
+    ]);
   });
 });

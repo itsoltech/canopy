@@ -1,120 +1,101 @@
 # Cele (goals)
 
-Status: **projekt**, częściowo zaimplementowany:
-- model, przejścia i mapowanie na harnessy: `packages/domain/src/goals`,
-- narzędzia silnika platformy: `get_goal`, `propose_goal`, `update_goal`,
-- schemat: `goals`, `turns.goal_id`, wyzwalacz `goal`,
-- kontrakt: `SetGoal`, `GoalState`.
+Status: **zaimplementowane** (2026-11-01):
+- worker: Codex `thread/goal/*` (`apps/worker/src/providers/codex`), Claude `/goal` (`apps/worker/src/providers/claude`),
+- gateway: stan celu z raportów harnessu (`apps/gateway/src/store/goals.ts`, w transakcji ingestu), `SetGoal` w UI API,
+- domena: mapowanie statusów (`packages/domain/src/goals`),
+- schemat: `goals` (+ `0010_goals_background_harness`), `turns.goal_id`,
+- testy: nagrania strumieni (`fixtures/goal-*`), integracja ze skryptowanym workerem (`tests/integration/goals-background.test.ts`), na żywo przez cały łańcuch (`goals-background.live.test.ts`).
 
-Wykonanie po stronie gateway i workera powstanie w spike'u adapterów.
+Powiązane: [execution.md](execution.md), [codex-adapter.md](codex-adapter.md), [claude-adapter.md](claude-adapter.md), [ui-api.md](ui-api.md#2-gatewayservice).
 
-Powiązane: [agent-bus.md](agent-bus.md), [execution.md](execution.md), [threads.md](threads.md).
+## 1. Decyzja: cel należy do harnessu
 
-## 1. Idea: cel platformy, silnik harnessu
+**Cel** to zadanie, nad którym wątek pracuje przez wiele kroków, aż warunek zostanie spełniony.
 
-**Cel** to zadanie, nad którym wątek pracuje przez wiele tur, aż do spełnienia warunku albo wyczerpania budżetu.
+- **Silnikiem jest harness** (Codex goals, Claude Code `/goal`). Platforma nie ma własnego silnika celów: nie zaczyna tur kontynuacji i nie ocenia warunku (decyzja użytkownika, 2026-11-01).
+- **Platforma śledzi i pokazuje** cel: treść, status, zużycie, budżet, tury celu, ostatni werdykt. Stan pochodzi z raportów harnessu (`GoalState`) i z decyzji użytkownika w UI.
+- **Użytkownik steruje** z UI: ustawia, wstrzymuje, wznawia i usuwa cel (`SetGoal`).
+- Najwyżej jeden otwarty cel na wątek (`goals_one_open`). Nowy cel zastępuje otwarty (stary: `cancelled`, „replaced by a new goal”).
 
-- **Platforma jest właścicielem celu.** Cel jest trwały, widoczny w UI, ma budżety liczone także dla wątków bocznych, a decyzje (akceptacja, pauza, wznowienie, anulowanie) należą do użytkownika.
-- **Silnikiem jest natywny mechanizm harnessu** (nakładka), domyślnie dla obu dostawców. Korzystamy z dopracowanego zachowania dostawców, ale sterujemy nim z platformy.
-- **Silnik platformy** (gateway sam zaczyna tury kontynuacji) jest zapasem dla dostawców bez natywnych celów albo gdy natywny mechanizm nie wystarcza.
+Narzędzia celów na szynie agentów (`get_goal`, `propose_goal`, `update_goal`) i reguły przejść w `packages/domain` zostały z wcześniejszego projektu silnika platformy. Nie są oferowane (`goalTools` wyłączone).
 
-| | Codex app-server (`goals`) | Claude Agent SDK (`/goal`) | Silnik platformy |
-|---|---|---|---|
-| Cel u dostawcy | `objective` + `tokenBudget` | warunek zakończenia | — |
-| Kontynuacja | Codex sam zaczyna tury, gdy wątek jest bezczynny | ewaluator (hook `Stop`) nie pozwala zakończyć tury, aż warunek jest spełniony | gateway zaczyna turę `trigger = goal` |
-| Kto stwierdza sukces | model (`update_goal: complete`, z audytem) | osobny ewaluator na podstawie rozmowy | model (`update_goal`) |
-| Status od dostawcy | `thread/goal/updated`, `cleared` | wiadomość `active_goal` (iteracje, powód) | — |
-| Sterowanie | `thread/goal/set` (status), `thread/goal/clear` | `/goal <warunek>`, `/goal clear` | — |
+## 2. Harnessy
 
-Cel platformy ma oba pola: `objective` (co) i `condition` (jak sprawdzić). Codex dostaje `objective` z dopisanym „Done when: <warunek>”, a Claude sam warunek.
+| | Codex app-server | Claude Code (Agent SDK) |
+|---|---|---|
+| Ustawienie | `thread/goal/set { objective, status: active, tokenBudget, origin: user }` | tura z wejściem `/goal <warunek>` (lokalna komenda, sama zaczyna zapytanie) |
+| Kontynuacja | Codex sam zaczyna tury, gdy wątek z aktywnym celem jest bezczynny (tury `PROVIDER`) | ewaluator (hook `Stop`) nie pozwala zakończyć tury, dopóki warunek nie jest spełniony |
+| Pauza | `status: paused`; tura w toku kończy się normalnie, nowa nie startuje | brak natywnej: platforma przerywa turę i wysyła `/goal clear`, cel w platformie zostaje `paused` |
+| Wznowienie | `status: active` (Codex od razu zaczyna turę) | `/goal <warunek>` od nowa (licznik ocen Claude startuje od zera) |
+| Usunięcie | `thread/goal/clear` | przerwanie tury + `/goal clear` |
+| Budżet | `tokenBudget` (Codex sam przechodzi w `budgetLimited`) | brak (UI API odrzuca budżet dla Claude) |
+| Raport | `thread/goal/updated` (status, `tokensUsed`, `timeUsedSeconds`, `tokenBudget`), `thread/goal/cleared` | lokalna odpowiedź `Goal set: …` / `Goal cleared: …`; werdykty ewaluatora `goal_status` z transkryptu sesji |
+| Cel od modelu | narzędzie Codexa tworzy cel sam: platforma zapisuje go jako `created_by = provider` | `ProposeGoal` działa tylko w sesjach interaktywnych; w SDK niedostępny |
 
-## 2. Statusy i kto je zmienia
+### Claude: co zaobserwowano (Claude Code 2.1.316, SDK 0.3.316)
 
-```mermaid
-stateDiagram-v2
-    [*] --> proposed: agent / model proponuje
-    [*] --> active: użytkownik ustawia
-    proposed --> active: użytkownik akceptuje
-    proposed --> cancelled
-    active --> achieved: model (dowód) / ewaluator / użytkownik
-    active --> blocked: model (po powtarzanych próbach)
-    active --> paused: użytkownik
-    active --> budget_limited: system (budżet)
-    active --> usage_limited: system (limity dostawcy)
-    paused --> active: użytkownik
-    blocked --> active: użytkownik
-    budget_limited --> active: użytkownik (po zwiększeniu budżetu)
-    usage_limited --> active: system / użytkownik
-    achieved --> active: użytkownik (ponowne otwarcie)
-    active --> cancelled
-    paused --> cancelled
-```
+- `/goal` ma wariant nieinteraktywny (`supportsNonInteractive`) i działa przez strumień wejścia SDK. Odpowiedź komendy przychodzi jako syntetyczna wiadomość asystenta (`model: "<synthetic>"`), potem zapytanie z poleceniem pracy nad warunkiem.
+- Wiadomość `active_goal` (typ SDK `SDKActiveGoalMessage`) **nie trafia** do klientów SDK: Claude Code przekazuje ją tylko w sesjach zdalnych. Werdykty ewaluatora są w transkrypcie sesji (`<CLAUDE_CONFIG_DIR>/projects/<katalog>/<session>.jsonl`) jako załączniki `goal_status` (`met`, `failed`, `reason`, `iterations`). Worker czyta je przyrostowo po każdym `result` i mapuje na `GoalState`. Gdyby `active_goal` zaczęło przychodzić, adapter też je mapuje.
+- Cel `/goal` żyje w procesie Claude Code (hook sesji). Po zakończeniu procesu nie wiadomo, czy wznowiona sesja go odtworzy (nie sprawdzone).
 
-- **Model** może tylko ogłosić wynik: `achieved` albo `blocked`.
-- **Użytkownik** akceptuje, wstrzymuje, wznawia, anuluje i otwiera ponownie.
-- **System** egzekwuje limity, ale nigdy nie wznawia celu wstrzymanego przez użytkownika.
+## 3. Statusy
 
-Reguły są w `canTransition` (`packages/domain`) i w constraintach bazy.
+`active | paused | blocked | budget_limited | usage_limited | achieved | cancelled` (`proposed` zostaje w schemacie, nieużywany).
 
-## 3. Cele tworzone przez model
+| Raport harnessu | Status platformy |
+|---|---|
+| Codex `active`, `paused`, `blocked`, `usageLimited`, `budgetLimited`, `complete` | `active`, `paused`, `blocked`, `usage_limited`, `budget_limited`, `achieved` |
+| Claude `active` (ustawiony, albo ocena „jeszcze nie”) | `active`, `last_reason` = werdykt, `iterations` + 1 |
+| Claude `met` / `failed` | `achieved` / `blocked` |
+| `cleared` (Codex `thread/goal/cleared`, Claude `Goal cleared`) | `cancelled`, chyba że użytkownik wstrzymał cel (zostaje `paused`) |
 
-Model może sam zaproponować cel: natywnie (Codex `create_goal`, Claude `ProposeGoal`) albo narzędziem platformy `propose_goal`. Wtedy:
+- Decyzja użytkownika jest zapisywana od razu (`SetGoal` zmienia wiersz celu), raport harnessu ją potwierdza (`native_status`). Spóźniony raport `active` nie cofa pauzy (`goalStatusFromHarness`).
+- Zakończony cel (`achieved`, `cancelled`) zostaje zakończony; późne raporty aktualizują tylko zużycie i `native_status`.
+- Raport z inną treścią niż otwarty cel (i nie z tury tego celu) to nowy cel harnessu: `created_by = provider`, poprzedni `cancelled`.
 
-1. Worker raportuje `GoalState` z `origin = MODEL`. Gateway zapisuje cel jako `proposed` (`created_by = provider | agent`) i **wstrzymuje natywną kontynuację** (`SetGoal PAUSE`).
-2. Użytkownik akceptuje albo odrzuca w UI. Dopiero akceptacja (`approved_by`) uruchamia cel (`SetGoal RUN`).
-3. Cel spoza UI musi mieć budżet (`goals_agent_budget`). Użytkownik może ustawić cel bez limitu.
+## 4. Tury celu
 
-Pilnuje tego baza: cel spoza UI nie może być `active` bez `approved_by`.
+- **Codex:** tura `PROVIDER` zaczęta, gdy wątek ma aktywny cel, dostaje `turns.goal_id` (ingest, `ensureTurn`); także tura wskazana w `GoalState` (`turn_id` zdarzenia). `iterations` = liczba takich tur.
+- **Claude:** `/goal …` to tura `trigger = goal` z `goal_id` w kolejce wątku (jak wiadomość użytkownika, więc nie miesza się z innymi turami). `iterations` = liczba ocen ewaluatora.
+- UI: `ui.Turn.goal_id`.
 
-## 4. Budżety
-
-Budżet tokenów, kosztu, czasu i liczby kontynuacji. Liczy go platforma:
-
-- `scope = tree` (domyślnie): do zużycia wliczają się wątki boczne. Orkiestrator z celem rozdziela pracę, a koszt liczy się w całości.
-- Natywny budżet Codexa (`tokenBudget`) dostaje **pozostałą** część budżetu tokenów jako dodatkowe zabezpieczenie. Pozostałe budżety egzekwuje gateway: po przekroczeniu `SetGoal PAUSE` i status `budget_limited`.
-- Tury kontynuacji nie zwiększają licznika przeskoków agentów (`hops`). Ograniczają je budżety celu.
-
-## 5. Przepływ (silnik natywny, Codex)
+## 5. Przepływ (Codex)
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant UI
     participant GW as Gateway
-    participant DB as PostgreSQL
     participant W as Worker
     participant C as Codex app-server
 
-    UI->>GW: ustaw cel (objective, condition, budżety)
-    GW->>DB: goals (active, created_by = user)
-    GW->>W: SetGoal(RUN, objective, native_token_budget)
-    W->>C: thread/goal/set { objective, status: active, tokenBudget }
+    UI->>GW: SetGoal(set, objective, token_budget)
+    GW->>GW: goals (active, created_by = user)
+    GW->>W: SetGoal(RUN, objective, native_token_budget, ThreadSpec)
+    W->>C: thread/goal/set { objective, status: active, tokenBudget, origin: user }
+    C-->>W: thread/goal/updated (active)
     loop Codex kontynuuje bezczynny wątek
-        C-->>W: turn/started ... turn/completed, thread/goal/updated
-        W->>GW: ThreadEvent (tura origin = PROVIDER), GoalState(tokens, czas)
-        GW->>DB: turns (goal_id), goals.tokens_used, budżet drzewa
-        alt budżet platformy przekroczony
-            GW->>W: SetGoal(PAUSE)
-            GW->>DB: goals.status = budget_limited
-        end
+        C-->>W: turn/started, ..., thread/goal/updated { tokensUsed }, turn/completed
+        W->>GW: tura PROVIDER, GoalState
+        GW->>GW: turns.goal_id, goals (zużycie, iteracje)
+        GW-->>UI: ThreadUpdate.goal, Thread.goal_status
     end
-    C-->>W: thread/goal/updated { status: complete }
-    W->>GW: GoalState(complete)
-    GW->>DB: goals.status = achieved, finished_at
+    UI->>GW: SetGoal(pause)
+    GW->>W: SetGoal(PAUSE)
+    W->>C: thread/goal/set { status: paused }
+    C-->>W: thread/goal/updated (paused)
 ```
-
-Claude działa analogicznie, z tą różnicą, że kontynuacja dzieje się wewnątrz jednej długiej tury (ewaluator blokuje jej zakończenie). Postęp przychodzi jako `active_goal` z liczbą iteracji i powodem, dla którego warunek nie jest jeszcze spełniony.
 
 ## 6. Trwałość
 
-- Cel żyje w PostgreSQL. Stan natywny (`native_state`) to tylko odbicie.
-- Po restarcie workera gateway ponownie wysyła `SetGoal RUN` dla aktywnych celów jego wątków. Natywny cel jest ustawiany od nowa (Claude: licznik iteracji startuje od zera, zużycie liczy platforma).
-- Silnik platformy: tura kontynuacji to zwykła tura w kolejce (`trigger = goal`), więc przeżywa restart jak każda inna.
+- Cel w platformie żyje w PostgreSQL (`goals`, `native_state` = ostatni raport harnessu).
+- Komenda `SetGoal` idzie przez outbox jak każda inna i niesie `ThreadSpec`, więc worker po restarcie najpierw wznawia wątek Codexa (`thread/resume`), a potem ustawia cel.
+- Gateway nie wysyła celu ponownie po restarcie workera. Codex trzyma cel w stanie wątku; czy przetrwa restart app-servera, nie sprawdzono. Cel Claude ginie z procesem (patrz wyżej).
+- Tury `/goal` Claude są zwykłymi turami w kolejce, więc przeżywają restart gateway i workera jak każda tura.
 
-## 7. Otwarte punkty (do sprawdzenia w spike'u)
+## 7. Otwarte
 
-1. **Claude:** czy `/goal` działa przez strumień wejścia SDK i czy ustawienie z `ask_user=false` przez `ProposeGoal` da się przechwycić przed startem kontynuacji.
-2. **Codex:** czy `thread/goal/set` z `origin` od klienta (app-server) jest traktowane jak decyzja użytkownika (`Missing provenance does not supply user authorization`).
-## 8. Ustalenia
-
-- **Domyślny silnik: natywny dla obu dostawców** (2026-11-01). Silnik platformy zostaje jako zapas, wybierany per cel (`goals.engine`). Stała: `DEFAULT_GOAL_ENGINE` w `packages/domain`.
+1. Czy cel Codexa przetrwa restart app-servera i czy wznowiona sesja Claude odtwarza `/goal` z transkryptu.
+2. Odczyt transkryptu Claude to wewnętrzny format Claude Code; zmiana formatu wyłączy werdykty (status zostanie `active` do końca tury).
+3. Narzędzia celów na szynie agentów (silnik platformy) do usunięcia albo do przeróbki na odczyt celu harnessu.
