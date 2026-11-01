@@ -1,0 +1,160 @@
+# Szyna agentów: delegowanie, interakcje, harmonogram
+
+Status: **projekt**, częściowo zaimplementowany:
+- wyłączanie natywnych narzędzi dostawców: `apps/worker/src/providers/native-tools.ts`, z testem na prawdziwym Codexie,
+- definicje narzędzi, zestawy per poziom i reguły dostępu: `packages/domain/src/agent-bus`,
+- schemat: `agent_bus_calls`, `schedules`, `threads.spawned_by_call_id`, `threads.interaction_route`, `interaction_requests.routed_to`, `turns.hops` i wyzwalacze tur.
+
+Wykonanie po stronie gateway i workera powstanie w spike'u adapterów.
+
+Powiązane: [threads.md](threads.md), [execution.md](execution.md), [transcript.md](transcript.md).
+
+## 1. Natywna orkiestracja dostawców wyłączona
+
+Subagenci i harmonogramy dostawców działają poza kontrolą platformy: są ulotni, żyją tylko w procesie dostawcy, nie da się ich wznowić ani zaadresować. Dlatego **domyślnie są wyłączeni w obu harnessach**. Zastępują je narzędzia platformy, z których korzystają tak samo Claude i Codex.
+
+| Kategoria | Claude Agent SDK (`disallowedTools`) | Codex app-server (`-c features.*=false`) | Zastępstwo |
+|---|---|---|---|
+| Subagenci i komunikacja agentów | `Agent`, `Task`, `Workflow`, `ListAgents`, `SendMessage`, `SubagentHandback` | `multi_agent`, `multi_agent_v2` | wątki boczne: `spawn_thread`, `send_message`, ... |
+| Harmonogram | `ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList`, `RemoteTrigger` | `in_app_local_automation`, `sleep_tool` | `schedule_wakeup`, `schedule_recurring`, ... |
+
+- `disallowedTools` usuwa narzędzia z kontekstu modelu i blokuje także wywołania wewnętrzne. Test sprawdza każdą nazwę z listą `BUILTIN_TOOL_NAMES` przypiętego SDK.
+- Codex: `--print-startup-config` nie waliduje kluczy `features.*`, więc test na prawdziwym CLI sprawdza stan efektywny przez `codex features list` z tymi samymi nadpisaniami.
+- Agent może włączyć każdą kategorię z powrotem (`ThreadSpec.native_subagents`, `native_scheduling`). Dla Codexa przełącznik działa per proces app-server; per wątek do sprawdzenia w spike'u.
+- **Cele zostają włączone celowo:** cel platformy używa natywnych celów harnessów jako silnika (Codex `goals`, Claude `/goal`) — [goals.md](goals.md).
+- Bez zmian zostają zadania w tle, które nie są agentami (background Bash, procesy Codexa) — [execution.md](execution.md#4-zadania-w-tle).
+
+## 2. Model: dwa poziomy
+
+```mermaid
+flowchart TB
+    U(["Użytkownik"])
+    M["Wątek główny, poziom 0<br/>(orkiestrator)"]
+    R["Wątek boczny, poziom 1<br/>reviewer (Codex)"]
+    T["Wątek boczny, poziom 1<br/>testy (Claude, fork)"]
+    T2["Wątek boczny, poziom 1<br/>fork wątku testów"]
+    U -- "pisze w dowolnym wątku" --> M
+    U -.-> R
+    M -- "spawn_thread / send_message" --> R
+    M -- "spawn_thread fork" --> T
+    M -- "spawn_thread fork z T" --> T2
+    R -. "send_message (rodzeństwo)" .-> T
+    T -. "powiadomienie, pytanie o zgodę" .-> M
+```
+
+- **Poziom 0** (wątek główny) orkiestruje: tworzy wątki boczne, steruje nimi, odpowiada na ich pytania.
+- **Poziom 1** (wątek boczny) wykonuje pracę. Nie tworzy kolejnych wątków bocznych i nie dostaje narzędzi do sterowania innymi. Pilnuje tego baza (`threads_max_depth`) i zestaw narzędzi (`agentBusToolsFor`).
+- Fork forka to wątek na tym samym poziomie (rodzeństwo z historią innego wątku bocznego).
+- **Użytkownik** może pisać w każdym wątku, także w bocznym sterowanym przez agenta. Jego wiadomość jest zwykłą turą (`trigger = user`) i zeruje licznik przeskoków.
+
+## 3. Narzędzia
+
+Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema dla dostawców, a gateway dekoduje wywołania ściśle: nieznane narzędzie, nadmiarowe pole albo wartość spoza zakresu wracają do modelu jako błąd narzędzia.
+
+| Narzędzie | Poziom 0 | Poziom 1 | Co robi |
+|---|:-:|:-:|---|
+| `list_agents` | ✓ | ✓ | agenci do uruchomienia |
+| `spawn_thread` | ✓ | | nowy wątek boczny: `title`, `prompt`, `agent?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`); zwraca od razu `thread_id`, `turn_id` |
+| `send_message` | ✓ | ✓ | follow-up do wątku z drzewa: `delivery` `queue`/`steer`, `notify?` |
+| `wait_threads` | ✓ | ✓ | czekanie na wątki (`any`/`all`, ≤ 300 s, ponawialne) |
+| `get_thread` / `read_thread` / `list_threads` | ✓ | ✓ | status, transkrypt, lista |
+| `interrupt_thread` / `close_thread` | ✓ | | sterowanie potomkami |
+| `list_interactions` / `answer_interaction` | ✓ | | pytania i prośby o zgodę od wątków bocznych |
+| `schedule_wakeup` | ✓ | ✓ | jednorazowo później (`delay_seconds` albo `at`, do 7 dni) |
+| `schedule_recurring` | ✓ | ✓ | cron (min. 5 min), wymagane `until` (do 30 dni) albo `max_runs` |
+| `list_schedules` / `cancel_schedule` | ✓ | ✓ | własne harmonogramy i harmonogramy potomków |
+| `get_goal` / `propose_goal` / `update_goal` | ✓* | ✓* | cel wątku ([goals.md](goals.md)); *tylko przy silniku celów platformy — przy natywnym model używa narzędzi harnessu |
+
+### Asynchroniczność
+
+- `spawn_thread` i `send_message` nie blokują. Wynik przychodzi jako **powiadomienie** (`notify`, domyślnie włączone): gdy tura docelowa się kończy, gateway zaczyna w wątku wywołującym nową turę z wynikiem. Jeśli wywołujący ma turę w toku, powiadomienie czeka w kolejce.
+- `wait_threads` jest dla orkiestracji synchronicznej i jest **ograniczone w czasie oraz ponawialne**. Claude SDK ma twardy limit czasu wywołania narzędzia MCP, a limit narzędzi dynamicznych Codexa nie jest udokumentowany. `wait_threads` zwraca też wcześniej, gdy wątek boczny czeka na odpowiedź rodzica.
+
+## 4. Interakcje w wątkach bocznych
+
+Gdy dostawca w wątku bocznym prosi o zgodę albo zadaje pytanie ([execution.md](execution.md#6-interakcje-z-użytkownikiem)), o adresacie decyduje `threads.interaction_route`, ustawiane przy tworzeniu wątku:
+
+| `interaction_route` | Domyślnie dla | Kto odpowiada |
+|---|---|---|
+| `parent` | wątków tworzonych przez agenta (`spawn_thread`) | agent wątku głównego przez `answer_interaction`; użytkownik może odpowiedzieć zamiast niego |
+| `human` | wątków tworzonych przez użytkownika | użytkownik w UI |
+
+- Przy `parent` gateway powiadamia rodzica: kończy jego `wait_threads` albo zaczyna w nim turę `trigger = interaction` (z `hops` tury, która zapytała, + 1).
+- Kto faktycznie odpowiedział, jest zapisane: `answered_by` (użytkownik) albo `answered_by_thread_id` (agent). Dokładnie jedno z nich (`interaction_requests_answered_by`).
+- Zgoda bez odpowiedzi w terminie wygasa jako odmowa. Pytanie czeka.
+- Automatyczna zgoda na konkretne narzędzia to nadal `permission_mode` agenta. Routing dotyczy tylko tego, co dostawca i tak zgłasza.
+
+## 5. Harmonogram
+
+Harmonogram jest funkcją platformy, nie dostawcy: trwały (`schedules`), widoczny w UI, przeżywa restart i wyłączenie workera.
+
+- Gateway odpala zaległe harmonogramy z dzierżawą (`FOR UPDATE SKIP LOCKED`) jako tury `trigger = schedule`. Jeśli worker jest offline, tura czeka w kolejce jak każda inna.
+- Po przestoju `missed_policy` decyduje: jedna tura nadrabiająca (`run_once`, domyślnie) albo pominięcie (`skip`).
+- Agent może ustawić harmonogram dla siebie albo dla swoich potomków. Harmonogram agenta zawsze ma koniec (jednorazowy, `until` albo `max_runs`) i wydłuża łańcuch przeskoków. Agent, który w kółko planuje sam siebie, zatrzyma się na limicie. Użytkownik może tworzyć harmonogramy bez końca.
+
+## 6. Reguły dostępu i limity
+
+Czysta funkcja `authorizeBusCall` (`packages/domain`), wywoływana przez gateway w tej samej transakcji co zapis.
+
+- **Domena komunikacji to jedno drzewo wątków.** Czytać, czekać i pisać można do każdego innego wątku drzewa: dzieci, rodzica, rodzeństwa. Wątki spoza drzewa są nieodróżnialne od nieistniejących.
+- **Sterowanie** (przerwanie, zamknięcie, odpowiadanie na interakcje, harmonogramy innych) tylko nad potomkami.
+- **Limity** (domyślne, konfigurowalne): 8 wątków bocznych na wątek główny, 16 aktywnych wątków w drzewie, 10 harmonogramów na wątek, 8 przeskoków.
+- **Licznik przeskoków (`hops`):** tura z wejścia człowieka albo pobudki dostawcy ma 0. Tura uruchomiona przez szynę, powiadomienie, pytanie do rodzica albo harmonogram agenta ma `hops` przyczyny + 1. Limit zatrzymuje pętle agentów bez udziału człowieka.
+- **Fork** wymaga tego samego dostawcy. Dziedziczy historię do ostatniej zakończonej tury.
+- Zawsze w imieniu właściciela projektu.
+
+## 7. Przepływ: spawn z powiadomieniem
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Wątek główny (model)
+    participant WA as Worker
+    participant GW as Gateway
+    participant DB as PostgreSQL
+    participant B as Wątek boczny B
+
+    A->>WA: tool spawn_thread(title, prompt, agent)
+    WA->>GW: AgentToolCall(call_id, thread, turn, item, args)
+    GW->>GW: decode (Schema) + authorizeBusCall
+    GW->>DB: agent_bus_calls + threads B (origin = agent, interaction_route = parent) + turns B (hops n+1) + outbox
+    GW-->>WA: AgentToolResult(thread_id, turn_id)
+    WA-->>A: wynik narzędzia (A pracuje dalej)
+    GW->>B: CreateThread + StartTurn
+    B-->>GW: prośba o zgodę (Bash)
+    GW->>DB: interaction_requests (routed_to = parent)
+    GW->>WA: tura w A (trigger = interaction): "B prosi o zgodę na ..."
+    A->>WA: tool answer_interaction(allow)
+    WA->>GW: AgentToolCall
+    GW->>B: InteractionResponse
+    B-->>GW: turn_finished
+    GW->>WA: tura w A (trigger = agent_bus): "B zakończył: <wynik>"
+```
+
+## 8. Trwałość
+
+- **Idempotencja:** `agent_bus_calls.id = call_id`. Ponowione `AgentToolCall` zwraca zapisany wynik, nie tworzy drugiego wątku ani harmonogramu.
+- **Powiadomienia** to outbox (`notify_status`). Harmonogramy żyją w bazie. Jedno i drugie przeżywa restart gateway.
+- **Restart w trakcie `wait_threads`:** czekanie to tylko odczyt. Przerwana tura wywołującego po wznowieniu zawoła ponownie albo dostanie powiadomienie.
+
+## 9. Udostępnienie narzędzi dostawcom
+
+- **Claude:** serwer MCP w procesie workera (`createSdkMcpServer`, nazwy `mcp__openagents__*`) z `timeout` większym niż maksymalne `wait_threads`.
+- **Codex:** `thread/start { dynamicTools }` ze specyfikacji `agentBusToolSpecs(agentBusToolsFor(depth))`. Pole jest eksperymentalne; plan B to lokalny serwer MCP.
+- Zestaw zależy od poziomu wątku (`ThreadSpec.depth`). Model wątku bocznego nie widzi `spawn_thread` ani narzędzi sterowania.
+- Worker tylko przekazuje wywołania (`AgentToolCall`) do gateway i niczego nie wykonuje lokalnie.
+
+## 10. Ustalenia i otwarte punkty
+
+Ustalone (2026-11-01):
+
+1. Odpowiadanie na interakcje jest konfigurowalne per wątek. Wątki agentów domyślnie trafiają do rodzica-agenta, a użytkownik zawsze może odpowiedzieć i pisać w każdym wątku.
+2. Harmonogram dostawców jest wyłączony; zastępuje go harmonogram platformy dla obu dostawców.
+3. Wiadomości do rodzeństwa są dozwolone.
+4. Dwa poziomy: wątki boczne nie tworzą kolejnych.
+
+5. Cele są funkcją platformy z natywnym silnikiem harnessu ([goals.md](goals.md)).
+
+Otwarte:
+
+1. Domyślne wartości limitów (patrz sekcja 6).

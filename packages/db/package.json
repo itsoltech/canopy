@@ -1,0 +1,16 @@
+{
+  "name": "@open-agents/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@effect/sql-pg": "4.1.1",
+    "effect": "4.1.1"
+  }
+}

@@ -1,0 +1,60 @@
+import type { Env, ResolvedProfile } from "./profiles.ts";
+import { codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_POLICY, type NativeToolPolicy } from "./native-tools.ts";
+
+/**
+ * Codex runs as one long-lived `codex app-server` per worker (JSON-RPC over stdio).
+ * CLIProxyAPI profiles become extra model providers via `-c` overrides at spawn time;
+ * each thread then picks one with `thread/start { modelProvider }`.
+ * The device owner's ~/.codex/config.toml is never modified.
+ */
+export interface CodexAppServerLaunch {
+  readonly command: readonly string[];
+  readonly env: Record<string, string | undefined>;
+}
+
+export function codexAppServerLaunch(
+  profiles: readonly ResolvedProfile[],
+  baseEnv: Env,
+  codexBin = "codex",
+  nativeTools: NativeToolPolicy = DEFAULT_NATIVE_TOOL_POLICY,
+): CodexAppServerLaunch {
+  const command = [codexBin, "app-server", ...codexNativeToolOverrides(nativeTools)];
+  const env: Record<string, string | undefined> = { ...baseEnv };
+  for (const profile of profiles) {
+    if (profile.kind !== "cliproxyapi" || !profile.providers.includes("codex")) continue;
+    const provider = codexModelProviderId(profile);
+    const keyEnv = `${provider.toUpperCase()}_API_KEY`;
+    const settings: Record<string, string | boolean> = {
+      name: `CLIProxyAPI (${profile.id})`,
+      base_url: new URL("v1", withTrailingSlash(profile.baseUrl)).href,
+      wire_api: "responses",
+      // Sent as `Authorization: Bearer $KEY`. The key goes through env, never argv.
+      env_key: keyEnv,
+      requires_openai_auth: false,
+    };
+    for (const [key, value] of Object.entries(settings)) {
+      command.push("-c", `model_providers.${provider}.${key}=${tomlValue(value)}`);
+    }
+    env[keyEnv] = profile.apiKey;
+  }
+  return { command, env };
+}
+
+/** `thread/start` fields for a profile. Native keeps the device's own Codex config. */
+export function codexThreadProvider(profile: ResolvedProfile): { modelProvider?: string } {
+  return profile.kind === "cliproxyapi" ? { modelProvider: codexModelProviderId(profile) } : {};
+}
+
+/** Prefixed so it cannot collide with providers from the device owner's config.toml. */
+export function codexModelProviderId(profile: ResolvedProfile): string {
+  return `openagents_${profile.id.replace(/-/g, "_")}`;
+}
+
+function withTrailingSlash(url: URL): URL {
+  return url.pathname.endsWith("/") ? url : new URL(`${url.href}/`);
+}
+
+/** TOML literal for `-c key=value`. JSON string escapes are valid TOML basic strings. */
+function tomlValue(value: string | boolean): string {
+  return typeof value === "boolean" ? String(value) : JSON.stringify(value);
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@open-agents/gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./worker-link": "./src/worker-link/index.ts"
+  },
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
+    "@connectrpc/connect": "2.3.0",
+    "@open-agents/contracts": "workspace:*",
+    "@open-agents/transport": "workspace:*"
+  }
+}

@@ -1,0 +1,776 @@
+// Kontrakt gateway <-> worker (v1, przed pierwszym wydaniem).
+// Opis semantyki: docs/protocol.md
+syntax = "proto3";
+
+package openagents.worker.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Jednorazowa rejestracja nowego workera tokenem z UI.
+service WorkerEnrollmentService {
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+}
+
+// Worker otwiera jeden długożyjący strumień i utrzymuje go.
+// Komendy z gateway płyną w dół tym samym strumieniem.
+service WorkerLinkService {
+  rpc Connect(stream WorkerMessage) returns (stream GatewayMessage);
+}
+
+// ---------- Enrollment ----------
+
+message EnrollRequest {
+  string enrollment_token = 1;
+  HostInfo host = 2;
+}
+
+message EnrollResponse {
+  string worker_id = 1;
+  // Poświadczenie używane w metadanych Connect (authorization: Bearer ...).
+  string worker_credential = 2;
+}
+
+message HostInfo {
+  string hostname = 1;
+  string os = 2;   // linux | darwin | windows
+  string arch = 3; // x64 | arm64
+  string worker_version = 4;
+}
+
+// ---------- Koperty ----------
+
+message WorkerMessage {
+  // Unikalne ID wiadomości (UUIDv7). Do logów i deduplikacji.
+  string message_id = 1;
+  google.protobuf.Timestamp sent_at = 2;
+
+  oneof payload {
+    Hello hello = 10;
+    Heartbeat heartbeat = 11;
+    ThreadEvent thread_event = 12;
+    CommandResult command_result = 13;
+    InteractionRequest interaction_request = 14;
+    AgentToolCall agent_tool_call = 15;
+    BlobChunk blob_chunk = 16;
+  }
+}
+
+message GatewayMessage {
+  string message_id = 1;
+  google.protobuf.Timestamp sent_at = 2;
+
+  oneof payload {
+    Welcome welcome = 10;
+    Command command = 11;
+    EventAck event_ack = 12;
+    InteractionResponse interaction_response = 13;
+    AgentToolResult agent_tool_result = 14;
+    Drain drain = 15;
+  }
+}
+
+// ---------- Handshake ----------
+
+message Hello {
+  string worker_id = 1;
+  HostInfo host = 2;
+  repeated ProviderInfo providers = 3;
+  // Katalogi dozwolone w lokalnym configu workera. Gateway ich nie zmienia.
+  repeated string allowed_roots = 4;
+  // Wątki ze zdarzeniami w lokalnym dzienniku, z ostatnim journal_seq.
+  repeated ThreadCursor threads = 5;
+  // Profile dostawców skonfigurowane lokalnie na urządzeniu (bez sekretów).
+  repeated ProviderProfile profiles = 6;
+  WorkerState state = 7;
+  // Funkcje obsługiwane przez tę wersję workera. Gateway nie wysyła komend spoza listy.
+  repeated string capabilities = 8;
+  // Identyfikator lokalnego dziennika, nowy przy każdym utworzeniu bazy dziennika.
+  // Kursory journal_seq mają sens tylko w obrębie tego samego dziennika.
+  string journal_id = 9;
+}
+
+enum WorkerState {
+  WORKER_STATE_UNSPECIFIED = 0;
+  WORKER_STATE_ACTIVE = 1;
+  // Zatrzymanie łagodne: nowe tury są odrzucane (WORKER_DRAINING), bieżące się kończą.
+  WORKER_STATE_DRAINING = 2;
+}
+
+enum ProviderProfileKind {
+  PROVIDER_PROFILE_KIND_UNSPECIFIED = 0;
+  // Logowanie CLI na urządzeniu (Claude Code / Codex), bez pośrednika.
+  PROVIDER_PROFILE_KIND_NATIVE = 1;
+  // Ruch przez CLIProxyAPI (https://github.com/router-for-me/CLIProxyAPI).
+  PROVIDER_PROFILE_KIND_CLIPROXYAPI = 2;
+}
+
+// Sposób połączenia dostawcy z modelem. Definiuje go właściciel urządzenia w configu workera.
+// Gateway zna tylko id i wybiera profil per agent. Klucze nie opuszczają urządzenia.
+message ProviderProfile {
+  string id = 1;
+  ProviderProfileKind kind = 2;
+  // Dostawcy, którzy mogą użyć profilu.
+  repeated Provider providers = 3;
+  // Adres pośrednika, informacyjnie (bez poświadczeń). Pusty dla NATIVE.
+  string endpoint = 4;
+  bool available = 5;
+  string detail = 6; // powód niedostępności, np. brak klucza
+}
+
+message ProviderInfo {
+  Provider provider = 1;
+  bool available = 2;     // np. czy CLI jest zainstalowane i zalogowane
+  string version = 3;
+  string detail = 4;      // powód niedostępności
+}
+
+message ThreadCursor {
+  string thread_id = 1;
+  uint64 last_seq = 2;
+}
+
+message Welcome {
+  // Ostatni journal_seq zapisany w bazie, tylko dla Hello.journal_id. Worker dosyła wszystko powyżej.
+  // Brak kursora = dosłanie całego dziennika (duplikaty odrzuca event_id).
+  repeated ThreadCursor persisted = 1;
+  uint32 heartbeat_interval_seconds = 2;
+}
+
+message Heartbeat {
+  uint32 running_turns = 1;
+  WorkerState state = 2;
+  uint32 background_tasks = 3;
+  uint32 pending_interactions = 4;
+}
+
+// Instancja gateway kończy pracę (aktualizacja, skalowanie). Worker zamyka strumień
+// i łączy się ponownie po reconnect_after_ms (zawiera już jitter), zwykle z inną instancją.
+message Drain {
+  uint32 reconnect_after_ms = 1;
+  string reason = 2;
+}
+
+// ---------- Komendy gateway -> worker ----------
+
+message Command {
+  // Idempotencja: worker pamięta przetworzone command_id i ich wyniki.
+  string command_id = 1;
+
+  oneof kind {
+    CreateThread create_thread = 10;
+    StartTurn start_turn = 11;
+    InterruptTurn interrupt_turn = 12;
+    UnloadThread unload_thread = 13;
+    ListDirectory list_directory = 14;
+    SteerTurn steer_turn = 15;
+    StopTask stop_task = 16;
+    BackgroundItem background_item = 17;
+    SetGoal set_goal = 18;
+  }
+}
+
+enum Provider {
+  PROVIDER_UNSPECIFIED = 0;
+  PROVIDER_CLAUDE = 1;
+  PROVIDER_CODEX = 2;
+}
+
+enum PermissionMode {
+  PERMISSION_MODE_UNSPECIFIED = 0;
+  PERMISSION_MODE_ASK = 1;          // każde ryzykowne narzędzie wymaga decyzji z UI
+  PERMISSION_MODE_ACCEPT_EDITS = 2; // edycje plików bez pytania, reszta pyta
+  PERMISSION_MODE_READ_ONLY = 3;
+  PERMISSION_MODE_FULL_AUTO = 4;    // tylko świadomie, per agent
+}
+
+// Pełny opis wątku. Gateway (baza) jest źródłem prawdy i wysyła go w każdej komendzie,
+// więc worker może odtworzyć wątek nawet po utracie lokalnego stanu (docs/threads.md).
+message ThreadSpec {
+  string thread_id = 1;
+  Provider provider = 2;
+  // ProviderProfile.id z Hello. Pusty oznacza profil natywny.
+  string provider_profile_id = 3;
+  string cwd = 4;
+  string model = 5;
+  string instructions = 6;
+  PermissionMode permission_mode = 7;
+  // Czy udostępnić narzędzia szyny agentów (spawn_thread, send_message, wait_threads, ...; docs/agent-bus.md).
+  bool enable_agent_bus = 8;
+  // Ustawienia specyficzne dla dostawcy, JSON.
+  string provider_options_json = 9;
+  // Claude session id / Codex thread id. Pusty, dopóki dostawca nie utworzył wątku (THREAD_READY).
+  string provider_thread_id = 10;
+  // Natywni subagenci dostawcy (Claude Agent/Workflow, Codex multi_agent). Domyślnie wyłączeni:
+  // delegowanie idzie przez szynę agentów jako wątki boczne.
+  bool native_subagents = 11;
+  // Natywny harmonogram dostawcy (Claude ScheduleWakeup/Cron*/RemoteTrigger, Codex automations/sleep).
+  // Domyślnie wyłączony: zastępują go narzędzia schedule_* platformy.
+  bool native_scheduling = 12;
+  // Poziom wątku: 0 = główny (orkiestrator), 1 = boczny. Wyznacza zestaw narzędzi szyny (agentBusToolsFor).
+  uint32 depth = 13;
+}
+
+// Dziedziczenie historii (fork) z wątku w tym samym drzewie, na tym samym workerze.
+message ForkSpec {
+  string source_thread_id = 1;
+  string source_provider_thread_id = 2;
+  // Zakończona tura źródła, do której (włącznie) dziedziczymy historię.
+  string after_turn_id = 3;
+  // Punkt forka u dostawcy: Codex id tury, Claude uuid wiadomości kończącej turę.
+  string after_provider_turn_ref = 4;
+}
+
+// Tworzy wątek u dostawcy (Codex thread/start lub thread/fork, Claude forkSession lub nowa sesja).
+// Wynik: zdarzenie THREAD_READY z provider_thread_id.
+message CreateThread {
+  ThreadSpec thread = 1;
+  ForkSpec fork = 2; // nieustawione = wątek bez historii
+}
+
+// Nowa tura. Worker w razie potrzeby wznawia wątek (resume) na podstawie ThreadSpec.
+// Idempotentne po turn_id: ponowione dostarczenie nie uruchamia tury drugi raz.
+message StartTurn {
+  ThreadSpec thread = 1;
+  string turn_id = 2;
+  UserInput input = 3;
+}
+
+message UserInput {
+  string text = 1;
+  // Autor wiadomości: użytkownik albo inny agent (szyna agentów).
+  string author_user_id = 2;
+  string author_agent_id = 3;
+}
+
+// Przerywa tylko turę. Zadania w tle działają dalej (zatrzymuje je StopTask).
+message InterruptTurn {
+  string thread_id = 1;
+  string turn_id = 2;
+}
+
+// Dołącza wejście do tury w toku (Claude: wiadomość w strumieniu wejścia, Codex: turn/steer)
+// zamiast kolejkować je jako następną turę.
+message SteerTurn {
+  string thread_id = 1;
+  string turn_id = 2;
+  string input_id = 3;   // idempotencja
+  UserInput input = 4;
+}
+
+// Zatrzymuje jedno zadanie w tle albo subagenta w tle (Claude stopTask, Codex: zakończenie procesu / closeAgent).
+message StopTask {
+  string thread_id = 1;
+  string task_id = 2;
+}
+
+enum GoalDirective {
+  GOAL_DIRECTIVE_UNSPECIFIED = 0;
+  GOAL_DIRECTIVE_RUN = 1;       // ustaw / wznów natywny cel (Codex status active, Claude /goal <warunek>)
+  GOAL_DIRECTIVE_PAUSE = 2;     // zatrzymaj natywną kontynuację, zachowaj cel (Codex paused, Claude /goal clear)
+  GOAL_DIRECTIVE_COMPLETE = 3;  // użytkownik uznał cel za osiągnięty
+  GOAL_DIRECTIVE_CLEAR = 4;     // usuń natywny cel (anulowanie)
+}
+
+// Nakładka celu platformy na natywny mechanizm harnessu (docs/goals.md).
+// Cel platformy jest źródłem prawdy; worker tylko odwzorowuje go u dostawcy.
+message SetGoal {
+  string thread_id = 1;
+  string goal_id = 2;
+  string objective = 3;
+  string condition = 4;
+  GoalDirective directive = 5;
+  // Pozostały budżet tokenów dla natywnego licznika (Codex tokenBudget). 0 = bez limitu natywnego;
+  // pozostałe budżety (koszt, czas, tury, całe drzewo) egzekwuje gateway.
+  uint64 native_token_budget = 6;
+}
+
+// Przenosi pracę pierwszoplanową do tła (Claude backgroundTasks(toolUseId), odpowiednik Ctrl+B).
+// Pusty item_id = cała praca pierwszoplanowa bieżącej tury.
+message BackgroundItem {
+  string thread_id = 1;
+  string item_id = 2;
+}
+
+// Zwalnia zasoby wątku na workerze (proces dostawcy). Historia zostaje; StartTurn go wznowi.
+message UnloadThread {
+  string thread_id = 1;
+}
+
+message ListDirectory {
+  string path = 1; // musi leżeć w allowed_roots
+}
+
+message CommandResult {
+  string command_id = 1;
+  bool ok = 2;
+  string error_code = 3;
+  string error_message = 4;
+  // Wynik ListDirectory i podobnych komend zapytań.
+  repeated DirectoryEntry entries = 5;
+}
+
+message DirectoryEntry {
+  string name = 1;
+  bool is_dir = 2;
+  bool is_git_repo = 3;
+}
+
+// ---------- Transkrypt worker -> gateway ----------
+// Model zdarzeń i itemów: docs/transcript.md. Zasada: nic nie ginie. Każde zdarzenie dostawcy,
+// także między turami i bez mapowania, trafia do gateway (co najmniej jako raw_json).
+
+message ThreadEvent {
+  string thread_id = 1;
+  // Kolejność w dzienniku workera, rośnie w obrębie wątku. Służy tylko do EventAck.
+  // Kolejność na osi czasu wątku (seq) nadaje gateway przy zapisie.
+  uint64 journal_seq = 2;
+  // UUIDv7 nadany przy powstaniu zdarzenia. Klucz idempotencji w bazie.
+  string event_id = 3;
+  // Tura, w której powstało zdarzenie. Pusty między turami (np. zadania w tle, kompaktowanie).
+  string turn_id = 4;
+  google.protobuf.Timestamp occurred_at = 5;
+
+  oneof body {
+    ThreadReady thread_ready = 10;
+    TurnStarted turn_started = 11;
+    TurnFinished turn_finished = 12;
+    ItemStarted item_started = 13;
+    ItemDelta item_delta = 14;
+    ItemCompleted item_completed = 15;
+    ThreadActivity activity = 16;
+    UsageUpdated usage_updated = 17;
+    Notice notice = 18;
+    GoalState goal_state = 19;
+  }
+
+  // Oryginalne zdarzenie dostawcy (JSON). Zawsze ustawione dla zdarzeń dostawcy;
+  // gdy body jest puste, zdarzenie nie ma jeszcze mapowania, ale zostaje zapisane.
+  string raw_json = 30;
+}
+
+message EventAck {
+  string thread_id = 1;
+  // Wszystkie zdarzenia z journal_seq <= ack_seq są zapisane w bazie.
+  uint64 ack_seq = 2;
+}
+
+message ThreadReady {
+  // Claude session id / Codex thread id.
+  string provider_thread_id = 1;
+}
+
+// Skąd worker wie o turze. Wyzwalacz z punktu widzenia platformy (użytkownik, szyna agentów,
+// harmonogram, interakcja) zna gateway i zapisuje go w turns.trigger; worker widzi wtedy po prostu StartTurn.
+enum TurnOrigin {
+  TURN_ORIGIN_UNSPECIFIED = 0;
+  // Tura z komendy StartTurn (turn_id nadał gateway).
+  TURN_ORIGIN_COMMAND = 1;
+  reserved 2;
+  // Turę rozpoczął dostawca, np. po zakończeniu zadania w tle (Claude: tura „meta” po task_notification).
+  // turn_id nadaje worker.
+  TURN_ORIGIN_PROVIDER = 3;
+  // Automatyczne wznowienie tury przerwanej restartem lub drain (Claude: resume_reason). turn_id nadaje worker.
+  TURN_ORIGIN_RECOVERY = 4;
+}
+
+message TurnStarted {
+  string provider_turn_ref = 1;
+  string model = 2;
+  TurnOrigin origin = 3;
+  // Dla TURN_ORIGIN_RECOVERY: przerwana tura, którą ta kontynuuje.
+  string resumes_turn_id = 4;
+  string resume_reason = 5;
+}
+
+enum TurnOutcome {
+  TURN_OUTCOME_UNSPECIFIED = 0;
+  TURN_OUTCOME_COMPLETED = 1;
+  TURN_OUTCOME_INTERRUPTED = 2;
+  TURN_OUTCOME_FAILED = 3;
+}
+
+message TurnFinished {
+  TurnOutcome outcome = 1;
+  // Punkt forka u dostawcy: Codex id tury, Claude uuid wiadomości kończącej turę.
+  string provider_turn_ref = 2;
+  Usage usage = 3;
+  // Powód przerwania (user, drain, worker_restart) albo komunikat błędu.
+  string reason = 4;
+}
+
+enum ThreadStatus {
+  THREAD_STATUS_UNSPECIFIED = 0;
+  THREAD_STATUS_CREATING = 1;
+  THREAD_STATUS_IDLE = 2;
+  THREAD_STATUS_RUNNING = 3;
+  THREAD_STATUS_WAITING_INPUT = 4;   // czeka na odpowiedź użytkownika (zgoda, pytanie, elicitation)
+  THREAD_STATUS_INTERRUPTED = 5;
+  THREAD_STATUS_FAILED = 6;
+}
+
+// Pełny obraz aktywności wątku. Wątek jest zajęty, gdy trwa tura, zadanie w tle
+// albo czeka interakcja. Tylko bezczynny wątek wolno zwolnić (UnloadThread) bez strat.
+message ThreadActivity {
+  ThreadStatus status = 1;
+  string running_turn_id = 2;
+  repeated string background_task_ids = 3;
+  repeated string pending_interaction_ids = 4;
+}
+
+message Usage {
+  uint64 input_tokens = 1;
+  uint64 output_tokens = 2;
+  uint64 cached_input_tokens = 3;
+  double cost_usd = 4;
+  uint64 context_window_tokens = 5;
+}
+
+message UsageUpdated {
+  Usage usage = 1;
+}
+
+enum NoticeLevel {
+  NOTICE_LEVEL_UNSPECIFIED = 0;
+  NOTICE_LEVEL_INFO = 1;
+  NOTICE_LEVEL_WARNING = 2;
+  NOTICE_LEVEL_ERROR = 3;
+}
+
+enum GoalOrigin {
+  GOAL_ORIGIN_UNSPECIFIED = 0;
+  GOAL_ORIGIN_PLATFORM = 1;   // efekt SetGoal
+  // Model użył natywnego narzędzia (Codex create_goal/update_goal, Claude ProposeGoal).
+  // Gateway zapisuje cel jako proposed i wstrzymuje go do akceptacji użytkownika.
+  GOAL_ORIGIN_MODEL = 2;
+}
+
+// Stan natywnego celu: Codex thread/goal/updated|cleared, Claude active_goal.
+message GoalState {
+  string goal_id = 1;           // pusty, gdy cel utworzył model natywnie
+  GoalOrigin origin = 2;
+  // Codex: active | paused | blocked | usageLimited | budgetLimited | complete; Claude: active | cleared.
+  string native_status = 3;
+  string objective = 4;
+  string condition = 5;
+  uint64 tokens_used = 6;
+  uint64 time_used_seconds = 7;
+  uint32 iterations = 8;        // Claude: iteracje ewaluatora
+  string last_reason = 9;       // Claude: dlaczego warunek jeszcze niespełniony
+  bool cleared = 10;
+}
+
+// Zdarzenie informacyjne bez własnego itemu: limit zapytań, ponowienie API, hook,
+// restart workera, drain, zmiana modelu, błąd dostawcy poza turą.
+message Notice {
+  NoticeLevel level = 1;
+  string code = 2;      // np. rate_limit, api_retry, hook, worker_restart, drain, provider_error
+  string message = 3;
+  string data_json = 4;
+}
+
+// ---------- Itemy ----------
+
+message ItemStarted {
+  Item item = 1;
+}
+
+message ItemCompleted {
+  // Pełny, końcowy stan itemu. Zastępuje to, co złożono z delt.
+  Item item = 1;
+}
+
+enum ItemDeltaField {
+  ITEM_DELTA_FIELD_UNSPECIFIED = 0;
+  ITEM_DELTA_FIELD_TEXT = 1;       // agent_message.text, reasoning.text
+  ITEM_DELTA_FIELD_SUMMARY = 2;    // reasoning.summary
+  ITEM_DELTA_FIELD_OUTPUT = 3;     // command_execution.output, tool_call.output, background_task.output
+}
+
+message ItemDelta {
+  string item_id = 1;
+  ItemDeltaField field = 2;
+  string chunk = 3;
+}
+
+enum ItemStatus {
+  ITEM_STATUS_UNSPECIFIED = 0;
+  ITEM_STATUS_IN_PROGRESS = 1;
+  ITEM_STATUS_COMPLETED = 2;
+  ITEM_STATUS_FAILED = 3;
+  ITEM_STATUS_DECLINED = 4;      // odmowa zgody
+  ITEM_STATUS_INTERRUPTED = 5;
+}
+
+// Jeden element osi czasu wątku. item_id jest stabilny między started, delta i completed.
+message Item {
+  // Codex: item.id; Claude: tool_use_id, uuid wiadomości albo task_id.
+  string item_id = 1;
+  // Zagnieżdżenie, np. itemy subagenta (Claude parent_tool_use_id, Codex subAgentActivity).
+  string parent_item_id = 2;
+  ItemStatus status = 3;
+
+  oneof content {
+    UserMessage user_message = 10;
+    AgentMessage agent_message = 11;
+    Reasoning reasoning = 12;
+    CommandExecution command_execution = 13;
+    FileChange file_change = 14;
+    ToolCall tool_call = 15;
+    WebSearch web_search = 16;
+    Plan plan = 17;
+    TodoList todo_list = 18;
+    Subagent subagent = 19;
+    BackgroundTask background_task = 20;
+    AgentBusCall agent_bus_call = 21;
+    Image image = 22;
+    ContextCompaction context_compaction = 23;
+    InteractionPrompt interaction_prompt = 24;
+    // Typ dostawcy bez dedykowanego mapowania. Dane są pełne, UI pokazuje widok ogólny.
+    ProviderItem provider_item = 30;
+  }
+}
+
+// Treść większa niż limit wiadomości trafia do blobu (BlobChunk) i jest wskazywana przez BlobRef.
+// Nic nie jest przycinane.
+message BlobRef {
+  string sha256 = 1;
+  uint64 size_bytes = 2;
+  string mime_type = 3;
+}
+
+message UserMessage {
+  string text = 1;
+  repeated BlobRef attachments = 2;
+  string author_user_id = 3;
+  string author_agent_id = 4;
+}
+
+message AgentMessage {
+  string text = 1;
+}
+
+message Reasoning {
+  string text = 1;
+  string summary = 2;
+}
+
+message CommandExecution {
+  string command = 1;
+  string cwd = 2;
+  optional int32 exit_code = 3;
+  string output = 4;
+  BlobRef output_blob = 5;
+  uint64 duration_ms = 6;
+}
+
+message FileChange {
+  repeated FileChangeEntry changes = 1;
+}
+
+message FileChangeEntry {
+  string path = 1;
+  string kind = 2;   // add | update | delete | move
+  string diff = 3;
+  BlobRef diff_blob = 4;
+  string move_path = 5;
+}
+
+// Narzędzie ogólne: Claude (Read, Grep, Edit, ...), MCP, narzędzia dynamiczne Codexa.
+message ToolCall {
+  string server = 1;   // serwer MCP; pusty dla wbudowanych
+  string name = 2;
+  string input_json = 3;
+  string output = 4;
+  BlobRef output_blob = 5;
+  bool is_error = 6;
+}
+
+message WebSearch {
+  string query = 1;
+  string results_json = 2;
+}
+
+message Plan {
+  string text = 1;
+  repeated PlanStep steps = 2;
+}
+
+message PlanStep {
+  string text = 1;
+  string status = 2;   // pending | in_progress | completed
+}
+
+message TodoList {
+  repeated TodoItem items = 1;
+}
+
+message TodoItem {
+  string text = 1;
+  string status = 2;
+}
+
+// Postęp długiej pracy (subagent, zadanie w tle).
+message TaskProgress {
+  uint64 total_tokens = 1;
+  uint32 tool_uses = 2;
+  uint64 duration_ms = 3;
+  string last_tool_name = 4;
+  string summary = 5;
+}
+
+// Subagent dostawcy (Claude Task / Agent, Codex collab spawnAgent). Jego itemy mają parent_item_id = item_id.
+// To wewnętrzna praca dostawcy w tym samym wątku, nie wątek boczny platformy.
+message Subagent {
+  string agent_type = 1;
+  string description = 2;
+  string prompt = 3;
+  string result = 4;
+  string model = 5;
+  // Codex: wątek subagenta u dostawcy (receiverThreadIds / agentThreadId). Worker mapuje jego zdarzenia tutaj.
+  string provider_thread_id = 6;
+  // Subagent działa w tle i może skończyć po zakończeniu tury.
+  bool background = 7;
+  string task_id = 8;
+  TaskProgress progress = 9;
+}
+
+enum BackgroundTaskKind {
+  BACKGROUND_TASK_KIND_UNSPECIFIED = 0;
+  BACKGROUND_TASK_KIND_SHELL = 1;      // Claude background Bash
+  BACKGROUND_TASK_KIND_AGENT = 2;      // subagent w tle (szczegóły w itemie subagent)
+  BACKGROUND_TASK_KIND_WORKFLOW = 3;   // Claude workflow
+  BACKGROUND_TASK_KIND_PROCESS = 4;    // Codex unified exec: proces żyjący między wywołaniami narzędzi
+}
+
+// Praca, która trwa niezależnie od tury i może emitować zdarzenia po jej zakończeniu.
+// Status itemu: IN_PROGRESS, COMPLETED, FAILED, INTERRUPTED (stop użytkownika, drain, restart).
+message BackgroundTask {
+  string task_id = 1;
+  string description = 2;
+  // Output strumieniowany deltami; po zakończeniu pełny output jako blob (Claude: plik output_file).
+  string output = 3;
+  BlobRef output_blob = 4;
+  BackgroundTaskKind kind = 5;
+  // Tura, w której zadanie powstało (może już być zakończona).
+  string started_in_turn_id = 6;
+  string parent_task_id = 7;
+  string command = 8;
+  string process_id = 9;
+  TaskProgress progress = 10;
+  // Powód zakończenia innego niż sukces: stopped_by_user, drain, worker_restart, limit, error.
+  string stop_reason = 11;
+}
+
+// Wywołanie narzędzia szyny agentów (spawn_thread, send_message, wait_threads, ...).
+// Tworzy je worker przy AgentToolCall, kończy przy AgentToolResult.
+message AgentBusCall {
+  string call_id = 1;
+  string tool_name = 2;
+  string arguments_json = 3;
+  string result_json = 4;
+  bool is_error = 5;
+  // spawn_thread / send_message: wątek i tura, które wywołanie uruchomiło (link w UI).
+  string target_thread_id = 6;
+  string target_turn_id = 7;
+}
+
+message Image {
+  BlobRef blob = 1;
+  string path = 2;
+  string prompt = 3;
+}
+
+message ContextCompaction {
+  string summary = 1;
+}
+
+// Interakcja z użytkownikiem na osi czasu. Tworzy ją gateway po InteractionRequest, kończy po odpowiedzi.
+message InteractionPrompt {
+  string request_id = 1;
+  InteractionKind kind = 2;
+  string tool_name = 3;
+  string request_json = 4;
+  string response_json = 5;
+  string answered_by_user_id = 6;
+  // allowed / declined / answered / expired / cancelled
+  string outcome = 7;
+  // human | parent: kto miał odpowiedzieć (threads.interaction_route).
+  string routed_to = 8;
+  // Gdy odpowiedział agent wątku nadrzędnego (answer_interaction).
+  string answered_by_thread_id = 9;
+}
+
+message ProviderItem {
+  string type = 1;
+  string json = 2;
+}
+
+// Fragment dużej treści. Gateway składa fragmenty, sprawdza sha256 i zapisuje blob,
+// zanim przyjmie zdarzenie, które go wskazuje.
+message BlobChunk {
+  string sha256 = 1;
+  uint64 offset = 2;
+  bytes data = 3;
+  bool last = 4;
+  string mime_type = 5;
+}
+
+// ---------- Interakcje z użytkownikiem ----------
+// Dostawca wstrzymuje pracę i czeka na człowieka: zgoda na narzędzie, pytanie, formularz MCP.
+// Może pochodzić z tury, subagenta albo zadania w tle (item_id wskazuje miejsce na osi czasu).
+
+enum InteractionKind {
+  INTERACTION_KIND_UNSPECIFIED = 0;
+  // Claude canUseTool; Codex item/commandExecution|fileChange|permissions/requestApproval.
+  INTERACTION_KIND_PERMISSION = 1;
+  // Claude AskUserQuestion / onUserDialog; Codex item/tool/requestUserInput.
+  INTERACTION_KIND_QUESTION = 2;
+  // MCP elicitation (oba).
+  INTERACTION_KIND_ELICITATION = 3;
+}
+
+message InteractionRequest {
+  string request_id = 1;
+  string thread_id = 2;
+  string turn_id = 3;          // pusty, gdy pyta zadanie w tle po turze
+  string item_id = 4;          // narzędzie / subagent, którego dotyczy
+  InteractionKind kind = 5;
+  string tool_name = 6;
+  // PERMISSION: wejście narzędzia; QUESTION: pytania i opcje; ELICITATION: schemat formularza.
+  string request_json = 7;
+}
+
+message InteractionResponse {
+  string request_id = 1;
+  // PERMISSION
+  bool allow = 2;
+  bool allow_for_session = 3;    // Codex acceptForSession / Claude zasada na sesję
+  string message = 4;            // powód odmowy przekazywany agentowi
+  string updated_input_json = 5; // opcjonalnie zmodyfikowane wejście narzędzia
+  // QUESTION / ELICITATION
+  string answer_json = 6;
+  // Odrzucenie bez odpowiedzi (anuluj pytanie lub formularz).
+  bool cancelled = 7;
+}
+
+// ---------- Szyna agentów ----------
+
+// Wywołanie narzędzia szyny przez model. Idempotentne po call_id: worker ponawia je po
+// ponownym połączeniu, a gateway zwraca zapisany wynik zamiast wykonywać drugi raz.
+message AgentToolCall {
+  string call_id = 1;
+  string thread_id = 2;
+  string turn_id = 3;          // pusty, gdy woła praca w tle po turze
+  string item_id = 6;          // item narzędzia na osi czasu
+  string tool_name = 4;        // nazwa z AGENT_BUS_TOOLS (packages/domain)
+  string arguments_json = 5;
+}
+
+message AgentToolResult {
+  string call_id = 1;
+  bool is_error = 2;
+  // Tekst dla modelu (wynik albo powód odmowy).
+  string content = 3;
+  // Ten sam wynik w formie strukturalnej, dla osi czasu i UI.
+  string result_json = 4;
+}

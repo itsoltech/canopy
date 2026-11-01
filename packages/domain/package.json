@@ -1,0 +1,17 @@
+{
+  "name": "@open-agents/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
+    "@open-agents/contracts": "workspace:*",
+    "effect": "4.1.1"
+  }
+}

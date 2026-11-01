@@ -1,0 +1,17 @@
+{
+  "name": "open-agents",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*", "tests/*"],
+  "scripts": {
+    "gen": "bun run --filter @open-agents/contracts gen",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test",
+    "check": "bun run gen:check && bun run typecheck && bun test",
+    "gen:check": "bun run gen && git diff --exit-code -- packages/contracts/src/gen"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "typescript": "7.0.2"
+  }
+}
