@@ -1,0 +1,62 @@
+# Adapter Codex (app-server)
+
+Status: **w budowie**.
+
+Gotowe:
+- typy protokołu z przypiętej wersji: `packages/codex-protocol` (Codex 0.164.0),
+- klient JSON-RPC: `apps/worker/src/providers/codex/rpc.ts`,
+- serwis procesu: `CodexAppServer` w `app-server.ts`,
+- testy na żywo: `app-server.live.test.ts`.
+
+Następne: mapowanie powiadomień na itemy `ThreadEvent`, komendy wątków, zgody, narzędzia szyny, nakładka celów.
+
+## Protokół (zaobserwowany na 0.164.0)
+
+- **Ramki:** jeden obiekt JSON na linię przez stdio, bez pola `jsonrpc`.
+  - Klient → serwer: żądania `{id, method, params}` i powiadomienia `{method, params}`.
+  - Serwer → klient: odpowiedzi `{id, result | error}`, powiadomienia `{method, params}` i żądania `{id, method, params}` (zgody, pytania, narzędzia dynamiczne), które czekają na odpowiedź.
+- **Handshake:** `initialize { clientInfo, capabilities: { experimentalApi: true } }`, potem powiadomienie `initialized`. `experimentalApi` jest potrzebne dla `dynamicTools` (szyna agentów).
+- **`thread/start`** zwraca wątek od razu, bez wywołania modelu.
+- **Cele** (`thread/goal/set|get|clear`) działają bez wywołań modelu, dopóki cel nie jest `active`.
+
+Przebieg tury (nagranie, odpowiedź „OK”):
+
+```text
+thread/status/changed (active) → turn/started → [mcpServer/startupStatus/updated, hook/*]
+→ item/started|completed (userMessage) → item/started (agentMessage) → item/agentMessage/delta
+→ turn/moderationMetadata → item/completed (agentMessage, pełny tekst) → thread/tokenUsage/updated
+→ thread/readState/changed → thread/status/changed (idle) → turn/completed (items, status)
+```
+
+Błąd konfiguracji dostawcy: `thread/status/changed (systemError)` → `error { error: { message, codexErrorInfo }, willRetry }` → `turn/completed { status: failed, error }`.
+
+## Testy na żywo
+
+Opt-in, bo zużywają limity kont: `OA_LIVE=1 bun test apps/worker/src/providers/codex/app-server.live.test.ts`.
+
+- `OA_LIVE_CLIPROXYAPI_URL`, `OA_LIVE_CLIPROXYAPI_KEY`: tura przez profil CLIProxyAPI platformy. Lokalnie trzymane w pliku poza repozytorium (`~/.config/open-agents/dev-live.env`, `0600`).
+- `OA_LIVE_NATIVE=1`: tura z konfiguracją Codexa właściciela urządzenia (wymaga, żeby działała bez interakcji).
+- Nagrania strumieni: `OA_LIVE_RECORD_DIR` (domyślnie `/tmp/oa-codex-recordings`), materiał do mapowania zdarzeń.
+
+Potwierdzone na żywo (2026-11-01):
+- handshake, wątki i nakładka celów (bez modelu),
+- **profil CLIProxyAPI z autoryzacją przez `env_key`** (`Authorization: Bearer`), czyli punkt otwarty od początku,
+- **izolowany `CODEX_HOME`**: bez hooków, serwerów MCP i wtyczek urządzenia.
+
+## Izolacja od konfiguracji właściciela urządzenia
+
+Bez `CODEX_HOME` app-server czyta `~/.codex` właściciela urządzenia: jego provider, model, serwery MCP, wtyczki i hooki działają także w wątkach platformy. Zmierzone na tej samej turze „OK”:
+
+| | Tokeny wejściowe | Hooki / MCP urządzenia |
+|---|---|---|
+| `~/.codex` właściciela | 18 693 | tak (`sessionStart` z wtyczki, 2 serwery MCP) |
+| izolowany `CODEX_HOME` | 11 744 | nie |
+
+Profil natywny z `~/.codex` zależy też od środowiska właściciela. W teście tura padła na `Missing environment variable: CLIPROXY_API_KEY`, bo jego provider czyta klucz ze zmiennej, której worker nie ma.
+
+**Propozycja:** worker domyślnie uruchamia app-server z własnym `CODEX_HOME` w katalogu danych. Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy. Profil natywny potrzebuje jednak logowania Codexa (`auth.json`) z `~/.codex` — decyzja w sekcji niżej.
+
+## Decyzje do podjęcia
+
+1. **Logowanie Codexa przy izolowanym `CODEX_HOME`:** dowiązać `~/.codex/auth.json` (wspólne odświeżanie tokenu z CLI właściciela), skopiować go, czy wymagać osobnego `codex login` dla workera?
+2. **Czy izolacja ma być zawsze**, czy profil natywny może świadomie używać pełnego `~/.codex` (opcja w konfiguracji workera)?

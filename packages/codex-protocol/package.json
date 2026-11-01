@@ -1,0 +1,14 @@
+{
+  "name": "@open-agents/codex-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "codexVersion": "0.164.0",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "gen": "rm -rf src/gen && mise exec codex@0.164.0 -- codex app-server generate-ts --experimental --out src/gen",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

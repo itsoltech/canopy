@@ -7,6 +7,7 @@ Powiązane dokumenty:
 - [protocol.md](protocol.md) — kanał gRPC gateway ↔ worker
 - [data-model.md](data-model.md) — model danych PostgreSQL i reguły dostępu
 - [worker-config.md](worker-config.md) — zdalna konfiguracja workerów (lokalnie tylko połączenie z gateway)
+- [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
 - [transcript.md](transcript.md) — zapis wszystkich zdarzeń, itemy, oś czasu dla frontendu
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity
@@ -294,7 +295,7 @@ Zasady, które z tego wynikają (`apps/worker/src/providers`):
 - Nadpisania `-c` dla Codexa są sprawdzane w testach na prawdziwym CLI (`codex app-server --print-startup-config`).
 - CLIProxyAPI powinno nasłuchiwać na `127.0.0.1` tego samego urządzenia. Zdalny adres wymaga `https`.
 
-Do sprawdzenia na żywej instancji CLIProxyAPI: autoryzacja Codexa przez `env_key` (`Authorization: Bearer`). Dokumentacja CLIProxyAPI pokazuje warianty z `auth.json` i nagłówkiem `X-Api-Key`.
+Potwierdzone na żywej instancji CLIProxyAPI (2026-11-01): autoryzacja Codexa przez `env_key` (`Authorization: Bearer`) działa ([codex-adapter.md](codex-adapter.md)).
 
 ## 9. Bezpieczeństwo
 

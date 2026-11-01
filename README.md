@@ -21,6 +21,7 @@ packages/
   contracts/      kontrakt generowany z /proto (protoc-gen-es) — jedyne źródło typów protokołu
   transport/      serwer i klient HTTP/2 (Connect/gRPC), AsyncChannel
   db/             schemat PostgreSQL (migracje SQL), migrator (Effect, @effect/sql-pg)
+  codex-protocol/ typy protokołu `codex app-server` generowane z przypiętej wersji Codexa
   domain/         logika domenowa współdzielona przez gateway, worker i UI (projekcja itemów, narzędzia i reguły szyny agentów)
 tests/
   integration/    testy gateway ↔ worker (Bun ↔ Bun) i interop z @grpc/grpc-js na Node
@@ -61,6 +62,8 @@ bun apps/worker/src/main.ts
 - TLS: gateway `OA_TLS_CERT` / `OA_TLS_KEY`; worker `ca_file` w pliku lokalnym (certyfikat spoza systemowych CA).
 - CLIProxyAPI (opcjonalnie): gateway `OA_CLIPROXYAPI_URL` i `OA_CLIPROXYAPI_API_KEY` — trafia do workerów jako profil `cliproxyapi` w konfiguracji zdalnej.
 
+Testy na żywo z prawdziwymi modelami są opt-in (zużywają limity kont): `OA_LIVE=1 bun test …live.test.ts`, szczegóły w [codex-adapter.md](docs/codex-adapter.md#testy-na-żywo).
+
 ## Dokumentacja
 
 - [Architektura i przepływy danych](docs/architecture.md)
@@ -71,6 +74,7 @@ bun apps/worker/src/main.ts
 - [Wykonanie: tury, praca w tle, subagenci, interakcje](docs/execution.md)
 - [Szyna agentów: delegowanie, interakcje, harmonogram](docs/agent-bus.md)
 - [Cele (goals)](docs/goals.md)
+- [Adapter Codex (app-server)](docs/codex-adapter.md)
 - [Model danych](docs/data-model.md)
 - [Trwałość i aktualizacje w trakcie działania](docs/durability.md)
 - [Wyniki spike'a gRPC po HTTP/2 w Bun](docs/spikes/grpc-http2-bun.md)

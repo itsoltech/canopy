@@ -1,5 +1,5 @@
-import type { Env, ResolvedProfile } from "./profiles.ts";
-import { codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_POLICY, type NativeToolPolicy } from "./native-tools.ts";
+import type { Env, ResolvedProfile } from "../profiles.ts";
+import { codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_POLICY, type NativeToolPolicy } from "../native-tools.ts";
 
 /**
  * Codex runs as one long-lived `codex app-server` per worker (JSON-RPC over stdio).
@@ -17,9 +17,14 @@ export function codexAppServerLaunch(
   baseEnv: Env,
   codexBin = "codex",
   nativeTools: NativeToolPolicy = DEFAULT_NATIVE_TOOL_POLICY,
+  /**
+   * Isolated Codex home for platform agents (CODEX_HOME). Without it Codex reads the device owner's
+   * ~/.codex: their config, MCP servers, plugins and hooks apply to platform threads too.
+   */
+  codexHome?: string,
 ): CodexAppServerLaunch {
   const command = [codexBin, "app-server", ...codexNativeToolOverrides(nativeTools)];
-  const env: Record<string, string | undefined> = { ...baseEnv };
+  const env: Record<string, string | undefined> = { ...baseEnv, ...(codexHome !== undefined && { CODEX_HOME: codexHome }) };
   for (const profile of profiles) {
     if (profile.kind !== "cliproxyapi" || !profile.providers.includes("codex")) continue;
     const provider = codexModelProviderId(profile);

@@ -5,6 +5,7 @@
   "workspaces": ["apps/*", "packages/*", "tests/*"],
   "scripts": {
     "gen": "bun run --filter @open-agents/contracts gen",
+    "gen:codex": "bun run --filter @open-agents/codex-protocol gen",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
     "check": "bun run gen:check && bun run typecheck && bun test",

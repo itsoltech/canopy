@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { codexAppServerLaunch } from "./codex.ts";
+import { codexAppServerLaunch } from "./codex/launch.ts";
 import { claudeNativeToolOptions, codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_POLICY } from "./native-tools.ts";
 
 describe("native provider tools", () => {
