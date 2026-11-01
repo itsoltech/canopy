@@ -1,10 +1,10 @@
 <script lang="ts">
   import { page } from "$app/state";
   import BotsSectionEmpty from "#lib/features/bots/components/BotsSectionEmpty.svelte";
-  import Tooltip from "#lib/features/bots/components/Tooltip.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { needsYou } from "#lib/features/threads/activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import ConnectionStatus from "./ConnectionStatus.svelte";
   import Logo from "./Logo.svelte";
   import SectionSwitch from "./SectionSwitch.svelte";
@@ -35,13 +35,15 @@
         <Icon name="pencil-square" />
       </a>
     {:else}
-      <Tooltip text="Coming soon" align="end">
-        {#snippet children(tip)}
-          <button type="button" class={[iconLink, "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-zinc-500 dark:hover:bg-transparent dark:hover:text-zinc-400"]} aria-label="New bot chat" aria-describedby={tip} aria-disabled="true">
-            <Icon name="pencil-square" />
-          </button>
-        {/snippet}
-      </Tooltip>
+      <button
+        type="button"
+        class={[iconLink, "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-zinc-500 dark:hover:bg-transparent dark:hover:text-zinc-400"]}
+        aria-label="New bot chat"
+        aria-disabled="true"
+        {@attach tooltip("Coming soon", { placement: "bottom-end" })}
+      >
+        <Icon name="pencil-square" />
+      </button>
     {/if}
   </div>
 

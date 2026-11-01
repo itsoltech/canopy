@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
+  import { anchorOnly } from "#lib/shared/ui/Popover.svelte";
   import { conversationMenu, type ConversationHandlers } from "../actions.ts";
   import { avatarRing } from "../avatar-ring.ts";
   import { contextMenu } from "../context-menu.ts";
@@ -7,7 +9,7 @@
   import AvatarBadge from "./AvatarBadge.svelte";
   import AvatarStack from "./AvatarStack.svelte";
   import BotAvatar from "./BotAvatar.svelte";
-  import Menu from "./Menu.svelte";
+  import ActionItems from "./ActionItems.svelte";
 
   /**
    * A pinned conversation at the top of the Bots section: a large avatar with the star badge and the
@@ -28,14 +30,15 @@
   const items = $derived(conversationMenu(conversation, handlers));
 </script>
 
-<Menu {items} label="Actions for {title}" bind:open={menuOpen} align="start" class={["min-w-0", className]}>
-  {#snippet trigger()}
+<DropdownMenu label="Actions for {title}" bind:open={menuOpen}>
+  {#snippet trigger(props)}
     <a
+      {...anchorOnly(props)}
       {href}
       aria-current={current ? "page" : undefined}
       aria-describedby={hint}
       title={title}
-      class="group flex w-full min-w-0 flex-col items-center gap-1.5 rounded-xl px-0.5 pt-2 pb-1.5 select-none [-webkit-touch-callout:none] hover:bg-zinc-950/4 focus-ring aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8"
+      class={["group flex w-full min-w-0 flex-col items-center gap-1.5 rounded-xl px-0.5 pt-2 pb-1.5 select-none [-webkit-touch-callout:none] hover:bg-zinc-950/4 focus-ring aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8", className]}
       {@attach contextMenu(() => (menuOpen = items.length > 0))}
     >
       <span class="relative flex">
@@ -54,4 +57,5 @@
       </span>
     </a>
   {/snippet}
-</Menu>
+  <ActionItems actions={items} />
+</DropdownMenu>

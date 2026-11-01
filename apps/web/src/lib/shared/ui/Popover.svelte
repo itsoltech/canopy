@@ -10,6 +10,14 @@
     readonly onkeydown?: ((event: KeyboardEvent) => void) | undefined;
     readonly [key: symbol]: Attachment<HTMLElement>;
   }
+
+  /**
+   * Only the anchoring of the trigger props, for an element the popover is placed at but that does not
+   * open it on click (a link whose menu opens on right click or long press): `<a {...anchorOnly(props)}>`.
+   */
+  export function anchorOnly(props: PopoverTriggerProps): Record<symbol, Attachment<HTMLElement>> {
+    return Object.fromEntries(Object.getOwnPropertySymbols(props).map((key) => [key, props[key]]));
+  }
 </script>
 
 <script lang="ts">

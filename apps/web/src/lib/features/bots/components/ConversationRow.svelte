@@ -2,12 +2,13 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { clock } from "#lib/shared/clock.svelte.ts";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { conversationMenu, type ConversationHandlers } from "../actions.ts";
   import { listTimeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
   import { conversationTitle, type ConversationView } from "../model.ts";
-  import Menu from "./Menu.svelte";
+  import ActionItems from "./ActionItems.svelte";
 
   /**
    * One conversation in the Bots list (shared by `BotListItem` and `GroupListItem`): avatar, name,
@@ -74,16 +75,19 @@
   </div>
 
   {#if items.length > 0}
-    <Menu {items} label="Actions for {title}" bind:open={menuOpen} class="absolute top-1.5 right-1.5">
+    <DropdownMenu label="Actions for {title}" bind:open={menuOpen} placement="bottom-end">
       {#snippet trigger(props)}
-        <IconButton
-          icon="ellipsis-horizontal"
-          label="Actions for {title}"
-          size="sm"
-          {...props}
-          class="opacity-0 focus-visible:opacity-100 aria-expanded:opacity-100 pointer-coarse:pointer-events-none pointer-fine:group-hover:opacity-100"
-        />
+        <span class="absolute top-1.5 right-1.5">
+          <IconButton
+            icon="ellipsis-horizontal"
+            label="Actions for {title}"
+            size="sm"
+            {...props}
+            class="opacity-0 focus-visible:opacity-100 aria-expanded:opacity-100 pointer-coarse:pointer-events-none pointer-fine:group-hover:opacity-100"
+          />
+        </span>
       {/snippet}
-    </Menu>
+      <ActionItems actions={items} />
+    </DropdownMenu>
   {/if}
 </div>
