@@ -6,7 +6,8 @@
    * Slider over discrete, labelled stops (WAI-ARIA slider). Arrows (and PageUp/PageDown) step,
    * Home/End jump to the ends; drag or click anywhere on the track or a label. The value is the stop's
    * `value`; screen readers hear its `label`. A value that is no stop (undefined) shows a hollow thumb at
-   * the start and reads as `unsetLabel`. `name` adds a hidden input for forms.
+   * the start and reads as `unsetLabel`. `name` adds a hidden input for forms. Thumb and fill glide
+   * between stops (motion.css `t-slide`).
    *
    *   <Slider label="Reasoning effort" steps={[{ value: "low", label: "Low" }, …]} bind:value={effort} />
    */
@@ -77,7 +78,7 @@
 <div class={["grid touch-none gap-2 px-2 select-none", disabled && "opacity-50", className]} {onpointerdown} {onpointermove} role="presentation">
   <div bind:this={track} class="relative h-5">
     <div class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-zinc-950/10 dark:bg-white/10"></div>
-    <div class="absolute top-1/2 left-0 h-1 w-(--fill) -translate-y-1/2 rounded-full bg-zinc-950 dark:bg-white" style:--fill={at(Math.max(index, 0))}></div>
+    <div class="t-slide absolute top-1/2 left-0 h-1 w-(--fill) -translate-y-1/2 rounded-full bg-zinc-950 dark:bg-white" style:--fill={at(Math.max(index, 0))}></div>
     {#each steps as step, i (step.value)}
       <span
         class={["absolute top-1/2 left-(--stop) size-1.5 -translate-1/2 rounded-full", i <= index ? "bg-white/60 dark:bg-zinc-950/60" : "bg-zinc-950/25 dark:bg-white/25"]}
@@ -96,7 +97,7 @@
       aria-disabled={disabled || undefined}
       data-autofocus={autofocus || undefined}
       class={[
-        "absolute top-1/2 left-(--stop) size-5 -translate-1/2 cursor-grab rounded-full shadow-sm focus-ring active:cursor-grabbing sm:size-4 dark:shadow-none",
+        "t-slide absolute top-1/2 left-(--stop) size-5 -translate-1/2 cursor-grab rounded-full shadow-sm focus-ring active:cursor-grabbing sm:size-4 dark:shadow-none",
         unset ? "bg-white ring-2 ring-zinc-950/25 dark:bg-zinc-900 dark:ring-white/30" : "bg-white ring-1 ring-zinc-950/15 dark:bg-zinc-100 dark:ring-white/20",
       ]}
       style:--stop={at(Math.max(index, 0))}

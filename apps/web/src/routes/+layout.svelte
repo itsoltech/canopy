@@ -15,6 +15,8 @@
   import { ModelCatalogState, provideModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
+  import GrowIn from "#lib/shared/ui/GrowIn.svelte";
+  import Toaster from "#lib/shared/ui/Toaster.svelte";
   import { decode } from "#lib/shared/wire.ts";
   import type { LayoutProps } from "./$types";
 
@@ -78,10 +80,11 @@
 
   <div class="flex min-h-0 min-w-0 flex-1 flex-col">
     {#if overview.connection === "unavailable"}
-      <Alert tone="warning" banner>The gateway is not responding. Showing the last known state; retrying automatically.</Alert>
+      <GrowIn><Alert tone="warning" banner>The gateway is not responding. Showing the last known state; retrying automatically.</Alert></GrowIn>
     {/if}
     <main class="min-h-0 flex-1">
       {@render children()}
     </main>
   </div>
 </div>
+<Toaster />

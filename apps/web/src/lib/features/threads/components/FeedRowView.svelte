@@ -27,7 +27,7 @@
   <div class={[!row.open && "pb-3"]}>
     <div class={[well, row.open ? "rounded-t-xl" : "rounded-xl"]}>
       <button type="button" class="flex w-full min-w-0 items-start gap-2 rounded-md py-2.5 text-left text-base/6 focus-ring select-none sm:py-2 sm:text-sm/6" aria-expanded={row.open} onclick={ontoggle}>
-        <span class="flex h-lh items-center"><Icon name="chevron-right" class={["fill-zinc-400 motion-safe:transition-transform dark:fill-zinc-500", row.open && "rotate-90"]} /></span>
+        <span class="flex h-lh items-center"><Icon name="chevron-right" class={["fill-zinc-400 t-acc-chevron dark:fill-zinc-500", row.open && "rotate-90"]} /></span>
         <span class="flex min-w-0 flex-1 items-center gap-2">
           <span class="flex min-w-0 items-center gap-2 text-zinc-700 dark:text-zinc-300">
             <Icon name="square-2-stack" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />

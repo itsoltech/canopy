@@ -2,8 +2,8 @@
  * Anchored positioning for popovers, menus, tooltips and hover cards (no dependency): place a floating
  * element next to its anchor, flip to the other side when it does not fit, shift it along the edge to
  * stay in the viewport. Results go into CSS variables, so the element's classes decide what to use:
- * `--float-x`, `--float-y` (viewport px), `--float-available-height` (room on the chosen side) and
- * `--float-anchor-width`.
+ * `--float-x`, `--float-y` (viewport px), `--float-available-height` (room on the chosen side),
+ * `--float-anchor-width` and `--float-origin` (the anchor's side, for motion that grows from it).
  *
  *   const stop = autoPosition(anchor, panel, { placement: "top-start" });
  *   // panel: class="fixed left-(--float-x) top-(--float-y) max-h-(--float-available-height)"
@@ -82,9 +82,20 @@ export function positionNow(anchor: Element, floating: HTMLElement, options?: Po
   floating.style.setProperty("--float-x", `${position.x}px`);
   floating.style.setProperty("--float-y", `${position.y}px`);
   floating.style.setProperty("--float-available-height", `${position.availableHeight}px`);
-  floating.style.setProperty("--float-anchor-width", `${anchor.getBoundingClientRect().width}px`);
+  const box = anchor.getBoundingClientRect();
+  floating.style.setProperty("--float-anchor-width", `${box.width}px`);
+  floating.style.setProperty("--float-origin", transformOrigin(position, box, floating));
   floating.dataset.side = position.side;
   return position;
+}
+
+/** Where the floating element grows from: the edge facing the anchor, at the anchor's centre. */
+function transformOrigin(position: Position, anchor: DOMRect, floating: HTMLElement): string {
+  const across = (from: number, size: number, center: number) => `${Math.round(clamp(center - from, 0, size))}px`;
+  if (position.side === "top" || position.side === "bottom") {
+    return `${across(position.x, floating.offsetWidth, anchor.left + anchor.width / 2)} ${position.side === "bottom" ? "top" : "bottom"}`;
+  }
+  return `${position.side === "right" ? "left" : "right"} ${across(position.y, floating.offsetHeight, anchor.top + anchor.height / 2)}`;
 }
 
 /**

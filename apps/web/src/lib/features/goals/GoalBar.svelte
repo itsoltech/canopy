@@ -5,6 +5,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import { swap } from "#lib/shared/ui/motion.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { textTones } from "#lib/shared/ui/tone.ts";
   import { setGoal } from "./api.ts";
@@ -82,10 +83,10 @@
       <span id="{id}-label" class="sr-only">Goal</span>
       <span class="min-w-0 flex-1 truncate text-base/6 text-zinc-800 sm:text-sm/6 dark:text-zinc-200">{goal.objective}</span>
       <span class={["flex shrink-0 items-center gap-1.5 text-sm/5 whitespace-nowrap sm:text-xs/5", textTones[look.tone]]}>
-        <StatusDot tone={look.tone} active={look.active && !pending} />{pending ?? look.label}
+        {#key pending ?? look.label}<span class="flex items-center gap-1.5" in:swap><StatusDot tone={look.tone} active={look.active && !pending} />{pending ?? look.label}</span>{/key}
       </span>
       {#if usage}<span class="shrink-0 text-sm/5 text-zinc-500 tabular-nums max-sm:hidden sm:text-xs/5 dark:text-zinc-400">{usage}</span>{/if}
-      <Icon name="chevron-down" class={["size-3.5 shrink-0 fill-zinc-400 motion-safe:transition-transform dark:fill-zinc-500", open && "rotate-180"]} />
+      <Icon name="chevron-down" class={["size-3.5 shrink-0 fill-zinc-400 t-acc-chevron dark:fill-zinc-500", open && "rotate-180"]} />
     </button>
     <div class="flex shrink-0 items-center gap-0.5">
       {#if confirming}
@@ -110,13 +111,16 @@
   {/if}
   <!-- This tab's failed call, else the worker's (Goal.error: the last goal command did not reach the harness). -->
   {#if error || goal.error}<p class="px-3 pb-2 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">{error ?? goal.error}</p>{/if}
-  <div id="{id}-details" hidden={!open} class="grid max-h-[40dvh] gap-3 overflow-y-auto border-t border-zinc-950/5 px-3 pt-2.5 pb-3 dark:border-white/10">
-    {#if open}
-      <p class="text-base/6 break-words whitespace-pre-wrap text-zinc-950 sm:text-sm/6 dark:text-white">{goal.objective}</p>
-      {#if goal.lastReason}
-        <p class="text-sm/5 text-pretty text-zinc-600 dark:text-zinc-400"><span class="font-medium text-zinc-700 dark:text-zinc-300">Latest check:</span> {goal.lastReason}</p>
-      {/if}
-      <GoalStats {goal} {provider} />
-    {/if}
+  <!-- Grows open and shut (accordion, motion.css `t-acc-panel`); inert while closed. -->
+  <div id="{id}-details" class="t-acc-panel" data-open={open || undefined} inert={!open}>
+    <div>
+      <div class="grid max-h-[40dvh] gap-3 overflow-y-auto border-t border-zinc-950/5 px-3 pt-2.5 pb-3 dark:border-white/10">
+        <p class="text-base/6 break-words whitespace-pre-wrap text-zinc-950 sm:text-sm/6 dark:text-white">{goal.objective}</p>
+        {#if goal.lastReason}
+          <p class="text-sm/5 text-pretty text-zinc-600 dark:text-zinc-400"><span class="font-medium text-zinc-700 dark:text-zinc-300">Latest check:</span> {goal.lastReason}</p>
+        {/if}
+        <GoalStats {goal} {provider} />
+      </div>
+    </div>
   </div>
 </section>

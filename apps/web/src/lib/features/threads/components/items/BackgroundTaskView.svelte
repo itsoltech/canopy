@@ -2,6 +2,7 @@
   import { BackgroundTaskKind, ItemStatus, type BackgroundTask } from "@open-agents/contracts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import { swap } from "#lib/shared/ui/motion.ts";
   import { stopBackgroundTask } from "../../api.ts";
   import { useThreadDirectory } from "../../thread-directory.ts";
   import ItemFrame from "./ItemFrame.svelte";
@@ -60,7 +61,7 @@
   {#if running && directory.currentId}
     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
       <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">
-        {stopping ? "Asked the worker to stop it…" : "Keeps running after the turn ends."}
+        {#key stopping}<span class="inline-block" in:swap>{stopping ? "Asked the worker to stop it…" : "Keeps running after the turn ends."}</span>{/key}
       </p>
       <Button size="sm" icon="stop" loading={stopping} onclick={stop}>{stopping ? "Stopping…" : "Stop"}</Button>
     </div>

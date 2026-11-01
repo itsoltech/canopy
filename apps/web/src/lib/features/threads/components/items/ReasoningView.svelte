@@ -2,6 +2,7 @@
   import type { Reasoning } from "@open-agents/contracts";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
+  import { swap } from "#lib/shared/ui/motion.ts";
 
   /** Reasoning, collapsed: the first line of the summary as a preview, the rest on demand. */
   let { reasoning, streaming }: { reasoning: Reasoning; streaming: boolean } = $props();
@@ -13,7 +14,7 @@
   <Disclosure remember="reasoning" summaryClass="-mx-1.5 px-1.5 py-1 text-base/6 hover:bg-zinc-950/2.5 sm:text-sm/6 dark:hover:bg-white/5">
     {#snippet summary()}
       <span class="flex min-w-0 gap-2">
-        <span class={["shrink-0 font-medium", streaming ? "shimmer" : "text-zinc-500 dark:text-zinc-400"]}>{streaming ? "Thinking" : "Thought"}</span>
+        {#key streaming}<span class={["shrink-0 font-medium", streaming ? "shimmer" : "text-zinc-500 dark:text-zinc-400"]} in:swap>{streaming ? "Thinking" : "Thought"}</span>{/key}
         {#if preview}<span class="truncate text-zinc-500 dark:text-zinc-400">{preview}</span>{/if}
       </span>
     {/snippet}

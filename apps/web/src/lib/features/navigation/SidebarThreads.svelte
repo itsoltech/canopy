@@ -4,6 +4,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { needsYou, treeActivity } from "#lib/features/threads/activity.ts";
   import { isSide } from "#lib/features/threads/thread-tree.ts";
+  import { expand, reorder, rise, stagger } from "#lib/shared/ui/motion.ts";
   import SidebarSideThread from "./SidebarSideThread.svelte";
   import SidebarThread from "./SidebarThread.svelte";
 
@@ -11,6 +12,7 @@
    * Thread inbox (T3 style): every main thread of every project, those that need you first (a side
    * thread asking its parent agent does not), then by latest activity in the tree. The open thread's
    * side threads unfold under it; others show a count. `query` filters by title and project.
+   * Rows glide when the order changes, new ones rise in (staggered when several appear together).
    */
   let { currentThreadId, query = "", class: className }: { currentThreadId?: string | undefined; query?: string; class?: ClassValue } = $props();
   const overview = useOverview();
@@ -48,9 +50,9 @@
     </p>
   {:else}
     <ul role="list" class="grid gap-0.5">
-      {#each mains as thread (thread.id)}
+      {#each mains as thread, index (thread.id)}
         {@const sides = sidesOf.get(thread.id) ?? []}
-        <li>
+        <li animate:reorder in:rise={{ delay: stagger(index) }}>
           <SidebarThread
             {thread}
             project={overview.project(thread.projectId)}
@@ -59,7 +61,7 @@
             current={thread.id === currentThreadId}
           />
           {#if openTree === thread.id && sides.length > 0}
-            <ul role="list" aria-label="Side threads of {thread.title}" class="mt-0.5 mb-1 ml-5 grid gap-0.5 border-l border-zinc-950/10 pl-1.5 dark:border-white/10">
+            <ul role="list" aria-label="Side threads of {thread.title}" class="mt-0.5 mb-1 ml-5 grid gap-0.5 border-l border-zinc-950/10 pl-1.5 dark:border-white/10" transition:expand>
               {#each [...sides].sort(byCreation) as side (side.id)}
                 <li><SidebarSideThread thread={side} current={side.id === currentThreadId} /></li>
               {/each}

@@ -3,12 +3,14 @@
   import type { ClassValue } from "svelte/elements";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
+  import { shake } from "./motion.ts";
 
   type AlertTone = "info" | "warning" | "error";
 
   /**
    * Inline message. `error` is announced immediately (role=alert), the others politely (role=status).
-   * `banner` drops the rounded frame for full-width strips under a header.
+   * `banner` drops the rounded frame for full-width strips under a header. An inline error (a form that
+   * failed) shakes when it appears.
    */
   let {
     tone = "info",
@@ -45,7 +47,7 @@
   const look = $derived(looks[tone]);
 </script>
 
-<div class={["flex items-start gap-3 text-base/6 sm:text-sm/6", look.box, banner ? "px-4 py-2.5 sm:px-6" : "rounded-lg p-3 ring-1 ring-inset", className]} role={tone === "error" ? "alert" : "status"}>
+<div class={["flex items-start gap-3 text-base/6 sm:text-sm/6", look.box, banner ? "px-4 py-2.5 sm:px-6" : "rounded-lg p-3 ring-1 ring-inset", className]} role={tone === "error" ? "alert" : "status"} {@attach shake(tone === "error" && !banner)}>
   <div class="flex h-lh items-center"><Icon name={look.icon} class={look.icon_} /></div>
   <div class="min-w-0 flex-1">
     {#if title}<p class={["font-medium", look.title]}>{title}</p>{/if}

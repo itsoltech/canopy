@@ -4,6 +4,8 @@
   import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
+  import { rise } from "#lib/shared/ui/motion.ts";
+  import ResizeSlot from "#lib/shared/ui/ResizeSlot.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
@@ -16,6 +18,7 @@
    * With `onqueue` (a turn runs) a typed message has two ways: submitting steers it into the running
    * turn (Enter, the "Steer" button), `onqueue` keeps it for the next turn (Mod+Enter, the button's menu).
    * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
+   * The send slot eases to the width of what it holds (send, stop, steer), so the pills glide aside.
    */
   let {
     value = $bindable(""),
@@ -88,37 +91,39 @@
     ></textarea>
     <div class="flex items-center justify-end gap-2 p-2.5 pl-3">
       {#if steerMode}
-        <p class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden pointer-coarse:hidden dark:text-zinc-400" aria-hidden="true">
+        <p class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden pointer-coarse:hidden dark:text-zinc-400" aria-hidden="true" in:rise>
           <Kbd hotkey="Enter" />steer<Kbd hotkey="Mod+Enter" class="ml-1" />queue
         </p>
       {/if}
       {@render controls?.()}
-      {#if steerMode && onqueue}
-        <SteerSendButton {sending} disabled={disabled || !canSend || !value.trim()} onsteer={submit} {onqueue} />
-      {:else if stopMode}
-        <button
-          type="button"
-          class="relative grid size-9 shrink-0 place-items-center rounded-full bg-zinc-950 text-white focus-ring disabled:opacity-50 sm:size-8 dark:bg-white dark:text-zinc-950"
-          aria-label="Stop the turn"
-          {@attach tooltip("Stop the turn")}
-          disabled={stopping}
-          onclick={onstop}
-        >
-          {#if stopping}<Spinner class="size-3.5" />{:else}<Icon name="stop" class="size-3.5" />{/if}
-          <TouchTarget />
-        </button>
-      {:else}
-        <button
-          type="submit"
-          class="relative grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-white focus-ring not-disabled:hover:bg-brand-500 disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
-          aria-label="Send"
-          {@attach tooltip("Send", { hotkey: "Enter" })}
-          disabled={disabled || !canSend || sending || !value.trim()}
-        >
-          {#if sending}<Spinner class="size-3.5" />{:else}<Icon name="arrow-up" />{/if}
-          <TouchTarget />
-        </button>
-      {/if}
+      <ResizeSlot>
+        {#if steerMode && onqueue}
+          <SteerSendButton {sending} disabled={disabled || !canSend || !value.trim()} onsteer={submit} {onqueue} />
+        {:else if stopMode}
+          <button
+            type="button"
+            class="relative grid size-9 shrink-0 place-items-center rounded-full bg-zinc-950 text-white focus-ring disabled:opacity-50 sm:size-8 dark:bg-white dark:text-zinc-950"
+            aria-label="Stop the turn"
+            {@attach tooltip("Stop the turn")}
+            disabled={stopping}
+            onclick={onstop}
+          >
+            {#if stopping}<Spinner class="size-3.5" />{:else}<Icon name="stop" class="size-3.5" />{/if}
+            <TouchTarget />
+          </button>
+        {:else}
+          <button
+            type="submit"
+            class="relative grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-white focus-ring not-disabled:hover:bg-brand-500 disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
+            aria-label="Send"
+            {@attach tooltip("Send", { hotkey: "Enter" })}
+            disabled={disabled || !canSend || sending || !value.trim()}
+          >
+            {#if sending}<Spinner class="size-3.5" />{:else}<Icon name="arrow-up" />{/if}
+            <TouchTarget />
+          </button>
+        {/if}
+      </ResizeSlot>
     </div>
   </div>
   {#if meta}

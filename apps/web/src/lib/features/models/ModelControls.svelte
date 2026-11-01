@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import ResizeSlot from "#lib/shared/ui/ResizeSlot.svelte";
   import { effortLevel, type ModelOption } from "./catalog.ts";
   import EffortPicker from "./EffortPicker.svelte";
   import { useModelCatalog } from "./model-catalog.svelte.ts";
@@ -61,7 +62,10 @@
     onselect={select}
     class="shrink"
   />
-  {#if option && option.efforts.length > 0}
-    <EffortPicker bind:open={effortOpen} bind:value={effort} {option} {inherited} onmodel={() => (modelOpen = true)} class="shrink-0" />
-  {/if}
+  <!-- A model without efforts has no effort pill: its slot eases shut instead of the model pill jumping. -->
+  <ResizeSlot>
+    {#if option && option.efforts.length > 0}
+      <EffortPicker bind:open={effortOpen} bind:value={effort} {option} {inherited} onmodel={() => (modelOpen = true)} class="shrink-0" />
+    {/if}
+  </ResizeSlot>
 </span>

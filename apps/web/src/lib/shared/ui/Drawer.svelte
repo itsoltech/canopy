@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import IconButton from "./IconButton.svelte";
 
-  /** Side panel from the left on the native `<dialog>` (mobile navigation). */
+  /** Side panel from the left on the native `<dialog>` (mobile navigation); slides in and out (motion.css `t-drawer`). */
   let { open = $bindable(false), label, children }: { open?: boolean; label: string; children: Snippet } = $props();
 
   let dialog = $state<HTMLDialogElement>();
@@ -20,7 +20,7 @@
   onclick={(event) => {
     if (event.target === dialog) open = false;
   }}
-  class="m-0 h-dvh max-h-none w-full max-w-88 bg-transparent p-0 backdrop:bg-zinc-950/40 dark:backdrop:bg-black/60"
+  class="t-drawer m-0 h-dvh max-h-none w-full max-w-88 bg-transparent p-0 backdrop:bg-zinc-950/40 dark:backdrop:bg-black/60"
 >
   <div class="relative flex h-full w-[calc(100%-3.5rem)] max-w-80 flex-col bg-white shadow-xl ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10">
     <div class="absolute top-2.5 -right-12">
