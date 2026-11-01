@@ -117,10 +117,12 @@ export class Ingest extends Context.Service<
           const body = event.body;
           switch (body.case) {
             case "threadReady":
+              // A new provider thread may replace the one stored (Codex: a thread without turns has no rollout to resume).
               yield* sql`
                 UPDATE threads SET provider_thread_id = ${body.value.providerThreadId},
                                    status = CASE WHEN status = 'creating' THEN 'idle' ELSE status END
-                 WHERE id = ${threadId}::uuid AND provider_thread_id IS NULL
+                 WHERE id = ${threadId}::uuid
+                   AND (provider_thread_id IS NULL OR provider_thread_id = ${body.value.replacesProviderThreadId || null})
               `;
               return;
             case "turnStarted":
@@ -142,8 +144,11 @@ export class Ingest extends Context.Service<
                                  interrupt_reason = ${status === "interrupted" ? body.value.reason || null : null}
                  WHERE id = ${event.turnId}::uuid AND thread_id = ${threadId}::uuid
               `;
+              // A late end of a turn the gateway already closed (e.g. worker restart) must not idle a newer running turn.
               yield* sql`
-                UPDATE threads SET status = ${status === "completed" ? "idle" : status} WHERE id = ${threadId}::uuid AND status <> 'archived'
+                UPDATE threads SET status = ${status === "completed" ? "idle" : status}
+                 WHERE id = ${threadId}::uuid AND status <> 'archived'
+                   AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = ${threadId}::uuid AND r.status = 'running' AND r.id <> ${event.turnId || null}::uuid)
               `;
               return;
             }

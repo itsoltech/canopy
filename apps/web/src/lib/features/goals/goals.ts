@@ -43,6 +43,9 @@ export function goalActions(status: string): { pause: boolean; resume: boolean; 
   return { pause: status === "active", resume: open && status !== "active", clear: open };
 }
 
+/** Goals are the harness's: a gateway thread (a chat agent in the gateway) has none. */
+export const takesGoals = (thread: ui.Thread): boolean => thread.runtime !== "gateway";
+
 /** Only Codex takes a token budget (Claude Code's `/goal` has none; the gateway rejects it). */
 export const takesTokenBudget = (provider: Provider): boolean => provider === Provider.CODEX;
 
@@ -73,9 +76,11 @@ export const showsGoal = (goal: ui.Goal | undefined, dismissed: ReadonlySet<stri
 
 /**
  * Your decision is stored at once, the harness confirms it with its next report (`native_status`).
- * Until then the bar says what it is waiting for; undefined once the harness agrees.
+ * Until then the bar says what it is waiting for; undefined once the harness agrees, or when the command
+ * failed on the worker (`error`: nothing is on its way).
  */
 export function goalPending(goal: ui.Goal): string | undefined {
+  if (goal.error) return undefined;
   const native = goal.nativeStatus;
   if (goal.status === "active" && native === "") return "Starting…";
   if (goal.status === "active" && (native === "paused" || native === "cleared")) return "Resuming…";

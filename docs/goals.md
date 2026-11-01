@@ -51,6 +51,7 @@ Szyna agentów nie ma narzędzi celów: model używa narzędzi harnessu ([agent-
 | `cleared` (Codex `thread/goal/cleared`, Claude `Goal cleared`) | `cancelled`, chyba że użytkownik wstrzymał cel (zostaje `paused`) |
 
 - Decyzja użytkownika jest zapisywana od razu (`SetGoal` zmienia wiersz celu), raport harnessu ją potwierdza (`native_status`). Spóźniony raport `active` nie cofa pauzy (`goalStatusFromHarness`).
+- **Komenda nie dotarła do harnessu** (worker odpowiedział błędem na `SetGoal`, np. wątek nie dał się wznowić): `Goal.error` i `Goal.error_at` (na żywo w `ThreadUpdate.goal`), a status wraca do ostatniego raportu harnessu (`goalStatusAfterFailure`): pauza i usunięcie wracają do `active`, a cel, którego harness nigdy nie potwierdził (`native_status` pusty), jest `blocked`. Wyjątek: inny cel wątku jest już otwarty (wtedy tylko błąd). Wznowienie takiego celu wysyła ponownie treść i budżet. Błąd znika przy następnej komendzie celu i przy jej powodzeniu. Claude: tura `/goal …`, której nie udało się zacząć, zapisuje błąd przy celu tury (bez zmiany statusu).
 - Zakończony cel (`achieved`, `cancelled`) zostaje zakończony; późne raporty aktualizują tylko zużycie i `native_status`.
 - Raport z inną treścią niż otwarty cel (i nie z tury tego celu) to nowy cel harnessu: `created_by = provider`, poprzedni `cancelled`.
 
@@ -92,6 +93,7 @@ sequenceDiagram
 - Cel w platformie żyje w PostgreSQL (`goals`, `native_state` = ostatni raport harnessu).
 - Komenda `SetGoal` idzie przez outbox jak każda inna i niesie `ThreadSpec`, więc worker po restarcie najpierw wznawia wątek Codexa (`thread/resume`), a potem ustawia cel.
 - Gateway nie wysyła celu ponownie po restarcie workera. Codex trzyma cel w stanie wątku; czy przetrwa restart app-servera, nie sprawdzono. Cel Claude ginie z procesem (patrz wyżej).
+- Wątek Codexa bez żadnej tury nie ma rolloutu: `SetGoal` po restarcie workera zaczyna dla niego nowy wątek Codexa (zamiast błędu `thread/resume: no rollout found`), [codex-adapter.md](codex-adapter.md#runtime-wątków).
 - Tury `/goal` Claude są zwykłymi turami w kolejce, więc przeżywają restart gateway i workera jak każda tura.
 
 ## 7. Otwarte

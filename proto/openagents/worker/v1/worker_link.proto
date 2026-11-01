@@ -94,6 +94,15 @@ message Hello {
   string journal_id = 9;
   // Wersja konfiguracji z pamięci podręcznej workera. Gateway wysyła WorkerConfig, gdy jest inna.
   uint64 config_version = 10; // 0 = brak konfiguracji w pamięci
+  // Tury, które ten proces workera prowadzi teraz. Gateway kończy tury `running` wątków tego workera,
+  // których tu nie ma (np. po restarcie procesu workera), z powodem „worker restarted”.
+  // Wiążące tylko z capability "running_turns" (starszy worker nie wysyła listy).
+  repeated RunningTurn running_turns = 11;
+}
+
+message RunningTurn {
+  string thread_id = 1;
+  string turn_id = 2;
 }
 
 enum WorkerState {
@@ -451,6 +460,10 @@ message EventAck {
 message ThreadReady {
   // Claude session id / Codex thread id.
   string provider_thread_id = 1;
+  // Wątek dostawcy, który ten zastępuje (Codex: wątek bez żadnej tury nie ma rolloutu i po restarcie
+  // nie da się go wznowić, więc worker zaczyna nowy). Gateway podmienia provider_thread_id tylko wtedy,
+  // gdy zapisany jest właśnie ten.
+  string replaces_provider_thread_id = 2;
 }
 
 // Skąd worker wie o turze. Wyzwalacz z punktu widzenia platformy (użytkownik, szyna agentów,

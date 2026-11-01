@@ -56,6 +56,11 @@ Cele i praca w tle w modelu UI (pola od 60, osobno od innych zmian kontraktu):
 - `ThreadSnapshot.goal` (otwarty cel albo ostatni zakończony), na żywo `ThreadUpdate.goal`; `Turn.goal_id` (tury celu),
 - zadania w tle to itemy `background_task` na osi czasu (`kind`, `command`, `output`, `started_in_turn_id`, `source_item_id`, `stop_reason`); po turze przychodzą jako zdarzenia bez `turn_id`.
 
+Restart workera i błędy komend (pola od 70):
+- `Thread.runtime`: `gateway` (agent czatowy w gateway: bez celów i pracy w tle) albo `worker`; UI ukrywa przy wątkach gateway pigułkę „Goal” i „Set a goal…”,
+- `Turn.interrupt_reason`: dlaczego tura jest `interrupted`, np. `worker restarted` (worker już jej nie prowadzi), `the turn was no longer running on the worker` (przerwanie tury, której worker nie zna), `superseded: …`,
+- `Goal.error`, `Goal.error_at`: ostatnia komenda celu nie powiodła się na workerze; status wraca wtedy do ostatniego stanu harnessu ([goals.md](goals.md#3-statusy)). `goalPending` w UI nie pokazuje wtedy „Starting… / Pausing…”, a `GoalBar` pokazuje błąd.
+
 ## 3. Rdzeń gateway (`GatewayCore`)
 
 - **Workery:**

@@ -13,6 +13,7 @@ import {
   Provider,
   ProviderProfileKind,
   ThreadEventSchema,
+  type HelloSchema,
   TurnOrigin,
   TurnOutcome,
   ui,
@@ -54,6 +55,8 @@ export type CommandHandler = (value: NonNullable<CommandKind["value"]>, reply: (
 export interface ScriptedWorkerOptions {
   /** Report Claude as available (default: only Codex). */
   readonly claude?: boolean;
+  /** More Hello fields (e.g. capabilities and running_turns of a restarted worker). */
+  readonly hello?: Pick<MessageInitShape<typeof HelloSchema>, "capabilities" | "runningTurns">;
 }
 
 /** Plays a worker: answers commands and emits the events a real provider would. */
@@ -268,7 +271,11 @@ export async function startTestGateway(): Promise<TestGateway> {
   const workers: ScriptedWorker[] = [];
   const connect = async (workerId: string, credential: string, os?: string, options?: ScriptedWorkerOptions) => {
     const worker = new ScriptedWorker(
-      await openGatewayLink({ baseUrl: grpc.url, credential, hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, ...(os && { host: { os } }) } }),
+      await openGatewayLink({
+        baseUrl: grpc.url,
+        credential,
+        hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, ...(os && { host: { os } }), ...options?.hello },
+      }),
       options,
     );
     workers.push(worker);

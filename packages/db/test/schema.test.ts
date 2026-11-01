@@ -160,7 +160,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     pg = await startPostgres();
     runtime = ManagedRuntime.make(pg.layer);
     const applied = await runtime.runPromise(migrate);
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup"]);
+    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart"]);
   }, 60_000);
 
   afterAll(async () => {
@@ -209,13 +209,17 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       ).toContain("foreign key");
     });
 
-    test("placement and lineage are immutable; provider_thread_id is set once", async () => {
+    test("placement and lineage are immutable; provider_thread_id is set once, replaceable only before the first turn", async () => {
       const w = await world();
       const thread = await mainThread(w);
       expect(await failure(`UPDATE threads SET cwd = '/elsewhere' WHERE id = $1`, [thread])).toContain("immutable");
       expect(await failure(`UPDATE threads SET provider = 'codex' WHERE id = $1`, [thread])).toContain("immutable");
       await query(`UPDATE threads SET provider_thread_id = 'sess-1', status = 'running' WHERE id = $1`, [thread]);
-      expect(await failure(`UPDATE threads SET provider_thread_id = 'sess-2' WHERE id = $1`, [thread])).toContain("set once");
+      // No history yet (e.g. a Codex thread without a rollout, started again after a worker restart).
+      await query(`UPDATE threads SET provider_thread_id = 'sess-2' WHERE id = $1`, [thread]);
+      expect(await failure(`UPDATE threads SET provider_thread_id = NULL WHERE id = $1`, [thread])).toContain("set once");
+      await query(`INSERT INTO turns (id, thread_id, ordinal, status, trigger, input, started_at) VALUES ($1, $2, 1, 'running', 'provider', '{}', now())`, [id(), thread]);
+      expect(await failure(`UPDATE threads SET provider_thread_id = 'sess-3' WHERE id = $1`, [thread])).toContain("set once");
     });
   });
 
@@ -645,6 +649,8 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
         "updated_at",
         "finished_at",
         "native_status",
+        "error",
+        "error_at",
       ]);
     });
 

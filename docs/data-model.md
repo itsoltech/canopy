@@ -138,7 +138,7 @@ Pozostałe tabele:
 | `worker_connections` | która instancja gateway trzyma strumień workera; `epoch` do fencingu ([durability.md](durability.md#42-outbox-komend)) |
 | `worker_commands` | outbox komend (protobuf `Command` w `payload`), `status`, `expires_at`, `client_request_id` |
 | `interaction_requests` | zgody, pytania i formularze MCP; z tury, subagenta albo zadania w tle (`turn_id` może być pusty); `routed_to` i autor odpowiedzi: użytkownik albo agent rodzica |
-| `goals` | cele harnessu ([goals.md](goals.md)): objective, status, budżet i zużycie według harnessu, iteracje, ostatni werdykt, autor (`user` z UI albo `provider`), ostatni raport (`native_status`, `native_state`); najwyżej jeden otwarty cel na wątek |
+| `goals` | cele harnessu ([goals.md](goals.md)): objective, status, budżet i zużycie według harnessu, iteracje, ostatni werdykt, autor (`user` z UI albo `provider`), ostatni raport (`native_status`, `native_state`), błąd ostatniej komendy celu (`error`, `error_at`); najwyżej jeden otwarty cel na wątek |
 | `schedules` | harmonogram platformy (jednorazowy / cron): następne uruchomienie, limity, autor (użytkownik albo wywołanie szyny), `hops`, dzierżawa |
 | `agent_bus_calls` | szyna agentów: każde wywołanie narzędzia (`spawn_thread`, `send_message`, `wait_threads`, ...), argumenty, wynik, uruchomiony wątek/tura, `hops`, powiadomienie zwrotne (outbox) |
 | `blobs` | duże treści (output, diff, obraz), adresowane sha256, inline albo w magazynie obiektów |
@@ -164,7 +164,7 @@ W SQL (CHECK, FK, indeksy częściowe):
 W triggerach:
 
 - `threads_before_insert`: wątek boczny dzieli projekt, właściciela, drzewo, worker, workspace i katalog z rodzicem, a `depth = rodzic + 1`; źródło forka jest w tym samym drzewie i ma tego samego dostawcę; punkt forka to zakończona tura; brak punktu ⇒ przypięcie do ostatniej zakończonej tury,
-- `threads_before_update`: placement i pochodzenie są niezmienne; `provider_thread_id` ustawia się raz.
+- `threads_before_update`: placement i pochodzenie są niezmienne; `provider_thread_id` ustawia się raz, a podmienić (nie wyczyścić) można go tylko, dopóki żadna tura wątku nie wystartowała (`0012_worker_restart`: Codex bez rolloutu po restarcie workera).
 
 - zdarzenie itemu ma `item_id`, inne nie; `event_id` unikalny w wątku (deduplikacja ponowień).
 

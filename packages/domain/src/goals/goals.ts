@@ -65,6 +65,15 @@ export function goalStatusFromHarness(provider: "codex" | "claude", nativeStatus
   }
 }
 
+/**
+ * Status after a goal command failed on the worker: what the harness last reported (the user's decision did not
+ * reach it). A goal the harness never confirmed does not exist there: blocked, until the user resumes (the
+ * objective is sent again) or clears it.
+ */
+export function goalStatusAfterFailure(provider: "codex" | "claude", nativeStatus: string): GoalStatus {
+  return nativeStatus ? goalStatusFromHarness(provider, nativeStatus, false, undefined) : "blocked";
+}
+
 /** Finished goals free the thread for a new one (goals_one_open). */
 export function isFinished(status: GoalStatus): boolean {
   return status === "achieved" || status === "cancelled";

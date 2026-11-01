@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ItemDeltaField, ItemStatus } from "@open-agents/contracts";
+import { ItemDeltaField, ItemStatus, TurnOutcome } from "@open-agents/contracts";
 import { Effect } from "effect";
 import { Journal, type ThreadEventInit } from "./journal.ts";
 
@@ -126,6 +126,25 @@ describe("Journal", () => {
     const open = await withJournal(path, (j) => j.openBackgroundTasks());
     expect(open.map((o) => [o.threadId, o.item.itemId, o.item.content.case === "backgroundTask" && o.item.content.value.command])).toEqual([
       ["t1", "bg:1", "npm run dev"],
+    ]);
+  });
+
+  test("tracks turns until their end is journaled, across reopening", async () => {
+    const path = freshPath();
+    await withJournal(path, (j) =>
+      Effect.gen(function* () {
+        yield* j.append("t1", { turnId: "u1", body: { case: "turnStarted", value: {} } });
+        yield* j.append("t1", { turnId: "u1", body: { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } } });
+        yield* j.append("t1", { turnId: "u2", body: { case: "turnStarted", value: {} } });
+        yield* j.append("t2", { turnId: "u3", body: { case: "turnStarted", value: {} } });
+        yield* j.append("t2", { turnId: "", body: { case: "turnStarted", value: {} } });
+      }),
+    );
+    // Acked events are gone; the turn is still open (its end never came).
+    await withJournal(path, (j) => j.ack("t1", 10n));
+    expect(await withJournal(path, (j) => j.openTurns())).toEqual([
+      { threadId: "t1", turnId: "u2" },
+      { threadId: "t2", turnId: "u3" },
     ]);
   });
 });

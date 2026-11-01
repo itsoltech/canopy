@@ -25,6 +25,7 @@ Potwierdzone na żywo (`tests/integration/worker-claude.live.test.ts`, Claude pr
 | przerwanie | `query.interrupt()`, po 10 s bez odpowiedzi `abort` |
 
 - **`thread_ready` bez wywołania modelu:** id sesji wybiera platforma, a fork kopiuje transkrypt (`forkSession`) bez modelu. Tak jak w Codexie wątek jest gotowy od razu.
+- **Sesja, której nigdy nie było** (wątek bez tury, także po restarcie workera): pierwsza tura sprawdza transkrypt (`getSessionMessages`); bez niego proces startuje z `sessionId`, a nie z `resume`, więc odpowiednik Codexowego „no rollout found” nie występuje. Fork ma transkrypt od razu (`forkSession`).
 - **Koniec tury:** wiadomość `result`. Adapter zwalnia wątek przed zapisaniem `turn_finished`, żeby gateway mógł od razu zacząć kolejną turę. Bez zadań w tle zamyka wejście (proces się kończy, sesja jest już zapisana); z zadaniami proces zostaje.
 - **Tury Claude:** wiadomość tury (`system init`, `assistant`, `stream_event`, `result`) między turami oznacza, że Claude sam zaczął turę (np. po `task_notification`): tura `PROVIDER` z nowym ID.
 - **Ponownie dostarczony `StartTurn`** z tym samym `turn_id` nie zaczyna drugiej tury.

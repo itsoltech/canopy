@@ -108,7 +108,8 @@
   {#if reason && !open}
     <p class="line-clamp-2 px-3 pb-2 text-sm/5 text-pretty text-zinc-600 sm:text-xs/5 dark:text-zinc-400">{reason}</p>
   {/if}
-  {#if error}<p class="px-3 pb-2 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">{error}</p>{/if}
+  <!-- This tab's failed call, else the worker's (Goal.error: the last goal command did not reach the harness). -->
+  {#if error || goal.error}<p class="px-3 pb-2 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">{error ?? goal.error}</p>{/if}
   <div id="{id}-details" hidden={!open} class="grid max-h-[40dvh] gap-3 overflow-y-auto border-t border-zinc-950/5 px-3 pt-2.5 pb-3 dark:border-white/10">
     {#if open}
       <p class="text-base/6 break-words whitespace-pre-wrap text-zinc-950 sm:text-sm/6 dark:text-white">{goal.objective}</p>

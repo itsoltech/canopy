@@ -126,6 +126,9 @@ interface Entry {
   readonly steered: Set<string>;
 }
 
+/** thread/resume of a thread without a rollout file (it never had a turn): "no rollout found for thread id …". */
+const NO_ROLLOUT = /no rollout found/i;
+
 const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHandler) => void) =>
   Effect.gen(function* () {
     const codex = yield* CodexAppServer;
@@ -333,10 +336,17 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         return { ...(model && { model }), ...(effort && { effort }) };
       });
 
-    const announce = (entry: Entry) =>
+    const announce = (entry: Entry, replaces = "") =>
       journal
-        .append(entry.platformId, { body: { case: "threadReady", value: { providerThreadId: entry.codexId } } })
+        .append(entry.platformId, {
+          body: { case: "threadReady", value: { providerThreadId: entry.codexId, ...(replaces && { replacesProviderThreadId: replaces }) } },
+        })
         .pipe(Effect.tap((event) => Effect.sync(() => options.publish(event))));
+
+    const startThread = (spec: ThreadSpec, params: ReturnType<typeof threadParams>, operation: string) =>
+      codex
+        .request("thread/start", { ...params, ...(spec.enableAgentBus && { dynamicTools: codexAgentBusTools(spec.depth) }) })
+        .pipe(Effect.mapError(fail(spec.threadId, operation)));
 
     const ensureLoaded = (spec: ThreadSpec) =>
       Effect.gen(function* () {
@@ -346,10 +356,18 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           return yield* new CodexThreadError({ threadId: spec.threadId, operation: "resume", message: "thread was never created on Codex" });
         }
         const params = yield* Effect.try({ try: () => threadParams(spec), catch: (e) => fail(spec.threadId, "resume")(e as Error) });
-        const resumed = yield* codex
-          .request("thread/resume", { threadId: spec.providerThreadId, ...params })
-          .pipe(Effect.mapError(fail(spec.threadId, "resume")));
-        return register(spec.threadId, resumed.thread.id, resumed.thread.path);
+        const resumed = yield* codex.request("thread/resume", { threadId: spec.providerThreadId, ...params }).pipe(
+          Effect.map((response) => response.thread),
+          Effect.catch((error) => (NO_ROLLOUT.test(error.message) ? Effect.succeed(undefined) : Effect.fail(fail(spec.threadId, "resume")(error)))),
+        );
+        if (resumed) return register(spec.threadId, resumed.id, resumed.path);
+        // Codex writes a thread's rollout with its first turn: a thread that never had one is gone with the
+        // process that created it. Nothing is lost by starting it again; the gateway keeps the platform
+        // thread and takes the new Codex id (thread_ready replaces the old one).
+        const started = yield* startThread(spec, params, "resume");
+        const entry = register(spec.threadId, started.thread.id, started.thread.path);
+        yield* announce(entry, spec.providerThreadId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
+        return entry;
       });
 
     return CodexThreads.of({
@@ -363,9 +381,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
                 ...params,
               })
               .pipe(Effect.mapError(fail(spec.threadId, "fork")))
-          : yield* codex
-              .request("thread/start", { ...params, ...(spec.enableAgentBus && { dynamicTools: codexAgentBusTools(spec.depth) }) })
-              .pipe(Effect.mapError(fail(spec.threadId, "create")));
+          : yield* startThread(spec, params, "create");
         const entry = register(spec.threadId, response.thread.id, response.thread.path);
         yield* announce(entry).pipe(Effect.mapError(fail(spec.threadId, "journal")));
         return entry.codexId;
