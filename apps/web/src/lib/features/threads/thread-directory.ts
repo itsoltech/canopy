@@ -8,11 +8,13 @@ export interface ThreadDirectory {
   thread(id: string): ui.Thread | undefined;
   /** A pending interaction (approval, question) is about this item. */
   awaiting(itemId: string): boolean;
+  /** The thread's goal with this id, when it is the one the page knows (its open or last goal). */
+  goal(id: string): ui.Goal | undefined;
 }
 
 const KEY = Symbol("thread-directory");
 export const provideThreadDirectory = (directory: ThreadDirectory) => setContext(KEY, directory);
-export const useThreadDirectory = (): ThreadDirectory => getContext<ThreadDirectory | undefined>(KEY) ?? { currentId: "", thread: () => undefined, awaiting: () => false };
+export const useThreadDirectory = (): ThreadDirectory => getContext<ThreadDirectory | undefined>(KEY) ?? { currentId: "", thread: () => undefined, awaiting: () => false, goal: () => undefined };
 
 /** Each timeline item tells the frames inside it whether it waits for a person. */
 const ITEM_KEY = Symbol("item-awaiting");

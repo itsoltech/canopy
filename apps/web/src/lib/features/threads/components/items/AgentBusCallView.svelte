@@ -8,7 +8,8 @@
 
   /**
    * A call on the agent bus (docs/agent-bus.md): starting or messaging another thread, waiting for
-   * threads, answering interactions, schedules, goals. Violet marks agent-to-agent activity.
+   * threads, answering interactions, schedules. Violet marks agent-to-agent activity. A tool without a
+   * label here (e.g. one no longer offered) shows its name.
    */
   let { call, status }: { call: AgentBusCall; status: ItemStatus } = $props();
 
@@ -28,9 +29,6 @@
     schedule_recurring: "Scheduled a recurring run",
     list_schedules: "Listed schedules",
     cancel_schedule: "Cancelled a schedule",
-    get_goal: "Checked the goal",
-    propose_goal: "Proposed a goal",
-    update_goal: "Updated the goal",
   };
   const args = $derived(parseObject(call.argumentsJson));
   const prompt = $derived(str(args["prompt"]));

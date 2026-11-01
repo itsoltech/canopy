@@ -1,24 +1,49 @@
+<script lang="ts" module>
+  import type { IconName } from "#lib/shared/ui/icons.ts";
+
+  /** A line above the message: what happens to it (queued, steering into the turn, steered). */
+  export interface MessageNote {
+    readonly text: string;
+    /** "spinner" while it is on its way. */
+    readonly icon: IconName | "spinner";
+    readonly tone?: "neutral" | "amber";
+  }
+</script>
+
 <script lang="ts">
   import type { UserMessage } from "@open-agents/contracts";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Spinner from "#lib/shared/ui/Spinner.svelte";
 
-  /** The input of a turn. Messages from another agent (agent bus) are marked as such. */
-  let { message, queued = false }: { message: Pick<UserMessage, "text" | "authorAgentId" | "attachments">; queued?: boolean } = $props();
+  /**
+   * A message you (or another agent, over the agent bus) wrote: the input of a turn, or one steered into
+   * it while it ran. `note` says what happens to it; `pending` dims it until it reaches the agent.
+   */
+  let {
+    message,
+    note,
+    pending = false,
+  }: { message: Pick<UserMessage, "text" | "authorAgentId" | "attachments">; note?: MessageNote | undefined; pending?: boolean } = $props();
   const fromAgent = $derived(Boolean(message.authorAgentId));
 </script>
 
 <div class="flex flex-col items-end gap-1">
-  {#if fromAgent || queued}
-    <p class="flex items-center gap-1 text-sm/5 sm:text-xs/5 {fromAgent ? 'text-violet-700 dark:text-violet-400' : 'text-zinc-500 dark:text-zinc-400'}">
-      <Icon name={fromAgent ? "sparkles" : "clock"} class="size-3.5" />
-      {fromAgent ? "From an agent" : "Queued, runs after the current turn"}
+  {#if fromAgent || note}
+    <p
+      class={[
+        "flex max-w-full items-center gap-1 text-sm/5 sm:text-xs/5",
+        note?.tone === "amber" ? "text-amber-700 dark:text-amber-400" : fromAgent ? "text-violet-700 dark:text-violet-400" : "text-zinc-500 dark:text-zinc-400",
+      ]}
+    >
+      {#if note?.icon === "spinner"}<Spinner class="size-3.5" />{:else}<Icon name={note?.icon ?? "sparkles"} class="size-3.5" />{/if}
+      <span class="min-w-0">{[fromAgent && "From an agent", note?.text].filter(Boolean).join(" · ")}</span>
     </p>
   {/if}
   <div
     class={[
       "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md px-4 py-2.5 text-base/6 break-words whitespace-pre-wrap sm:text-sm/6",
       fromAgent ? "bg-violet-50 text-violet-950 ring-1 ring-violet-600/10 ring-inset dark:bg-violet-400/10 dark:text-violet-50 dark:ring-violet-400/20" : "bg-zinc-100 text-zinc-950 dark:bg-white/10 dark:text-white",
-      queued && "opacity-70",
+      pending && "opacity-70",
     ]}
   >
     {message.text}

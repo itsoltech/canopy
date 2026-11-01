@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import Menu, { type MenuItem } from "./Menu.svelte";
+  import type { BotAction } from "../actions.ts";
+  import ActionItems from "./ActionItems.svelte";
 
   /**
    * React, reply and more on a message. Hidden until the message is hovered or something in it has
@@ -14,7 +16,7 @@
     onreply,
     more = [],
     class: className,
-  }: { label: string; onreact?: (() => void) | undefined; onreply?: (() => void) | undefined; more?: readonly MenuItem[]; class?: ClassValue } = $props();
+  }: { label: string; onreact?: (() => void) | undefined; onreply?: (() => void) | undefined; more?: readonly BotAction[]; class?: ClassValue } = $props();
 </script>
 
 <div
@@ -28,10 +30,11 @@
   {#if onreact}<IconButton icon="face-smile" label="React" size="sm" onclick={onreact} />{/if}
   {#if onreply}<IconButton icon="arrow-uturn-left" label="Reply" size="sm" onclick={onreply} />{/if}
   {#if more.length > 0}
-    <Menu items={more} label="More actions">
+    <DropdownMenu label="More actions" placement="bottom-end">
       {#snippet trigger(props)}
         <IconButton icon="ellipsis-horizontal" label="More" size="sm" {...props} />
       {/snippet}
-    </Menu>
+      <ActionItems actions={more} />
+    </DropdownMenu>
   {/if}
 </div>

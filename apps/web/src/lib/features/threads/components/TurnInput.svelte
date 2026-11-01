@@ -10,14 +10,22 @@
   import { turnOrigin } from "../turn-origin.ts";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
+  import { queuedNote } from "./message-notes.ts";
 
   /**
    * The input of a turn with where it came from (the turn's source): you (a plain message), another
    * agent (a task or a message), a report from a thread it follows, a side thread's question, or a
    * schedule (yours or one an agent set). `hops` (agent-to-agent steps since a person wrote) shows when
-   * an agent chain started the turn.
+   * an agent chain started the turn. `queued`: waits for the running turn; `fallback`: a message steered
+   * into that turn that could not join it, so it runs next (with the gateway's reason).
    */
-  let { turn, text, attachments = [], queued = false }: { turn: ui.Turn; text: string; attachments?: readonly BlobRef[]; queued?: boolean } = $props();
+  let {
+    turn,
+    text,
+    attachments = [],
+    queued = false,
+    fallback,
+  }: { turn: ui.Turn; text: string; attachments?: readonly BlobRef[]; queued?: boolean; fallback?: ui.Steer | undefined } = $props();
 
   const directory = useThreadDirectory();
   const origin = $derived(turnOrigin(turn));
@@ -25,7 +33,7 @@
   const parts = $derived({ note: turn.platformNote, message: turn.messageText });
   const tone = $derived(origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet");
   const icons: Record<string, IconName> = { task: "sparkles", message: "chat-bubble-left-right", report: "document-text", question: "hand-raised", schedule: "clock" };
-  const fallback: Record<string, string> = { agent_bus: "From an agent", interaction: "A side thread is waiting", schedule: "Scheduled", goal: "Goal" };
+  const triggerLabels: Record<string, string> = { agent_bus: "From an agent", interaction: "A side thread is waiting", schedule: "Scheduled", goal: "Goal" };
 
   // Long reports (a side thread's whole answer) start folded.
   const long = $derived(origin.kind === "report" && (parts.message.length > 900 || parts.message.split("\n").length > 14));
@@ -36,7 +44,7 @@
 </script>
 
 {#if origin.kind === "user"}
-  <UserMessageView message={{ text, authorAgentId: "", attachments: [...attachments] }} {queued} />
+  <UserMessageView message={{ text, authorAgentId: "", attachments: [...attachments] }} note={queuedNote(queued, fallback)} pending={queued} />
 {:else}
   <div class="flex flex-col items-end gap-1">
     <p
@@ -63,14 +71,14 @@
           Scheduled task set in <ThreadLink threadId={origin.setBy} fallback="another thread" />
         {/if}
       {:else}
-        {fallback[origin.trigger] ?? origin.trigger}
+        {triggerLabels[origin.trigger] ?? origin.trigger}
       {/if}
       {#if turn.hops > 0}
         <span class="text-zinc-500 tabular-nums dark:text-zinc-400" title="Agent-to-agent steps since a person last wrote; a chain stops at the limit">
           · {turn.hops} {turn.hops === 1 ? "hop" : "hops"}
         </span>
       {/if}
-      {#if queued}<span class="text-zinc-500 dark:text-zinc-400">· queued</span>{/if}
+      {#if queued}<span class="text-zinc-500 dark:text-zinc-400">· {fallback ? "could not join the running turn, runs next" : "queued"}</span>{/if}
     </p>
     <div
       class={[

@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
-import { TurnOrigin, TurnOutcome, ui, type Item, type Notice, type TurnFinished, type TurnStarted, type Usage } from "@open-agents/contracts";
+import { ItemStatus, TurnOrigin, TurnOutcome, ui, type Item, type Notice, type TurnFinished, type TurnStarted, type Usage } from "@open-agents/contracts";
 import { eventItemId, reduceItem } from "@open-agents/domain/items";
-import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
 import { decode } from "#lib/shared/wire.ts";
 
@@ -57,6 +57,10 @@ export class ThreadState {
   notices = $state.raw<TimelineNotice[]>([]);
   /** The thread's schedules (the snapshot has the active and paused ones; changes arrive live). */
   schedules = $state.raw<ui.Schedule[]>([]);
+  /** Messages steered into running turns, oldest first (the snapshot has all of the thread's; changes arrive live). */
+  steers = $state.raw<ui.Steer[]>([]);
+  /** The thread's open goal, else its last finished one (undefined: never had one). */
+  goal = $state.raw<ui.Goal | undefined>(undefined);
   turnResults = $state.raw<ReadonlyMap<string, TurnResult>>(new Map());
   /** Latest token usage of the thread (usage_updated), live only; carries the context window. */
   usage = $state.raw<Usage | undefined>(undefined);
@@ -74,6 +78,16 @@ export class ThreadState {
   readonly inheritedEntries = $derived(this.entries.filter((e) => e.inherited));
   readonly running = $derived(this.ownTurns.some((t) => t.status === "running"));
   readonly queued = $derived(this.ownTurns.filter((t) => t.status === "queued"));
+  /** Background tasks still running (items `background_task` in progress), oldest first. */
+  readonly backgroundTasks = $derived(this.ownEntries.filter((e) => e.item.content.case === "backgroundTask" && e.item.status === ItemStatus.IN_PROGRESS));
+  /**
+   * Steers on their way into the running turn: sent or accepted and not yet in the transcript (a
+   * delivered one is a user_message item with `client_id` = its id; a queued one is a queued turn).
+   */
+  readonly steering = $derived.by(() => {
+    const echoed = new Set(this.ownEntries.flatMap((e) => (e.item.content.case === "userMessage" && e.item.content.value.clientId ? [e.item.content.value.clientId] : [])));
+    return this.steers.filter((s) => (s.status === "pending" || s.status === "accepted") && !echoed.has(s.id));
+  });
   /** Usage of the thread's own turns (from the snapshot, so it survives a reload). */
   readonly totals = $derived(
     this.ownTurns.reduce<UsageTotals>(
@@ -114,6 +128,8 @@ export class ThreadState {
         );
         this.notices = snapshot.notices.flatMap((n) => (n.notice ? [{ seq: n.seq, turnId: n.turnId, notice: n.notice, at: n.occurredAt }] : []));
         this.schedules = snapshot.schedules;
+        this.steers = snapshot.steers;
+        this.goal = snapshot.goal;
         // Live usage (context window) is not in the snapshot: keep what this tab saw before the reconnect.
         this.loaded = true;
         break;
@@ -137,6 +153,12 @@ export class ThreadState {
       case "schedule":
         this.upsertSchedule(change.value);
         break;
+      case "steer":
+        this.upsertSteer(change.value);
+        break;
+      case "goal":
+        this.upsertGoal(change.value);
+        break;
       default:
         break;
     }
@@ -145,6 +167,22 @@ export class ThreadState {
   /** A schedule created or changed here (also before the stream reports it). */
   upsertSchedule(schedule: ui.Schedule): void {
     if (schedule.threadId === this.thread?.id) this.schedules = upsertSchedule(this.schedules, schedule);
+  }
+
+  /** A steer sent here or changed (pending → accepted → delivered or queued). */
+  upsertSteer(steer: ui.Steer): void {
+    if (steer.threadId !== this.thread?.id) return;
+    const index = this.steers.findIndex((s) => s.id === steer.id);
+    this.steers = index >= 0 ? this.steers.with(index, steer) : [...this.steers, steer];
+  }
+
+  /** The goal set or changed here or live; a late update of a goal a newer one replaced is ignored. */
+  upsertGoal(goal: ui.Goal): void {
+    if (goal.threadId !== this.thread?.id) return;
+    const current = this.goal;
+    const created = (g: ui.Goal) => (g.createdAt ? timestampMs(g.createdAt) : 0);
+    if (current && current.id !== goal.id && created(goal) < created(current)) return;
+    this.goal = goal;
   }
 
   #event({ seq, event }: ui.ThreadEventUpdate): void {
@@ -174,7 +212,9 @@ export class ThreadState {
     const index = this.entries.findIndex((e) => e.id === id && !e.inherited);
     const next = reduceItem(index >= 0 ? this.entries[index]?.item : undefined, body);
     if (!next) return;
-    const entry: TimelineEntry = { id, item: next, turnId: event.turnId, firstSeq: index >= 0 ? this.entries[index]!.firstSeq : seq, inherited: false, fromThreadId: "" };
+    const previous = index >= 0 ? this.entries[index] : undefined;
+    // Background work reports after its turn ended without a turn id: it stays in the turn it started in.
+    const entry: TimelineEntry = { id, item: next, turnId: previous?.turnId || event.turnId, firstSeq: previous?.firstSeq ?? seq, inherited: false, fromThreadId: "" };
     this.entries = index >= 0 ? this.entries.with(index, entry) : [...this.entries, entry];
   }
 

@@ -44,7 +44,7 @@
 {:else if content.case === "subagent"}
   <SubagentView agent={content.value} status={item.status} {nested} />
 {:else if content.case === "backgroundTask"}
-  <BackgroundTaskView task={content.value} status={item.status} />
+  <BackgroundTaskView task={content.value} itemId={item.itemId} status={item.status} />
 {:else if content.case === "agentBusCall"}
   <AgentBusCallView call={content.value} status={item.status} />
 {:else if content.case === "image"}

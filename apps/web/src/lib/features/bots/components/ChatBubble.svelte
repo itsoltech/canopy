@@ -1,12 +1,15 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
+  import { anchorOnly } from "#lib/shared/ui/Popover.svelte";
+  import type { BotAction } from "../actions.ts";
   import { fullDateLabel, timeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
   import type { ChatMessageView, ParticipantView } from "../model.ts";
   import LinkChip from "./LinkChip.svelte";
-  import Menu, { type MenuItem } from "./Menu.svelte";
+  import ActionItems from "./ActionItems.svelte";
   import MessageActions from "./MessageActions.svelte";
   import MessageRow from "./MessageRow.svelte";
 
@@ -41,14 +44,14 @@
     replyToName?: string | undefined;
     onreact?: ((message: ChatMessageView) => void) | undefined;
     onreply?: ((message: ChatMessageView) => void) | undefined;
-    more?: readonly MenuItem[];
+    more?: readonly BotAction[];
     class?: ClassValue;
   } = $props();
 
   let touchMenuOpen = $state(false);
   const react = $derived(onreact ? () => onreact(message) : undefined);
   const reply = $derived(onreply ? () => onreply(message) : undefined);
-  const touchItems = $derived<MenuItem[]>([
+  const touchItems = $derived<BotAction[]>([
     ...(react ? [{ label: "React", icon: "face-smile" as const, onselect: react }] : []),
     ...(reply ? [{ label: "Reply", icon: "arrow-uturn-left" as const, onselect: reply }] : []),
     ...more,
@@ -69,9 +72,10 @@
     </p>
   {/if}
   <div class={["flex max-w-full items-center gap-2", end && "flex-row-reverse"]}>
-    <Menu items={touchItems} label="Message actions" bind:open={touchMenuOpen} align={end ? "end" : "start"} class="min-w-0">
-      {#snippet trigger()}
+    <DropdownMenu label="Message actions" bind:open={touchMenuOpen} placement={end ? "bottom-end" : "bottom-start"}>
+      {#snippet trigger(props)}
         <div
+          {...anchorOnly(props)}
           class={[
             "max-w-[min(100%,36rem)] min-w-0 px-3.5 py-2 wrap-anywhere select-text",
             corners,
@@ -86,7 +90,8 @@
           <span class="sr-only">{mine ? "You" : (sender?.name ?? "Unknown")}, {timeLabel(message.at)}: </span>{#if mine}{message.text}{:else}<Markdown text={message.text} />{/if}
         </div>
       {/snippet}
-    </Menu>
+      <ActionItems actions={touchItems} />
+    </DropdownMenu>
     {#if react || reply || more.length > 0}
       <MessageActions label="Actions for this message" onreact={react} onreply={reply} {more} />
     {/if}

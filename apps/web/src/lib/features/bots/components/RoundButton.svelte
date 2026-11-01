@@ -3,8 +3,8 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import { tooltip as withTooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
-  import Tooltip from "./Tooltip.svelte";
 
   /**
    * Round icon button of the bot composer with a tooltip. `unavailable` keeps it focusable (so the
@@ -39,21 +39,17 @@
   };
 </script>
 
-<Tooltip text={tooltip} side="top" class={className}>
-  {#snippet children(tip)}
-    <button
-      {type}
-      aria-label={label}
-      aria-describedby={tooltip === label ? undefined : tip}
-      aria-disabled={unavailable || busy || undefined}
-      class={["relative grid size-9 shrink-0 place-items-center rounded-full focus-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-60 sm:size-8", variants[variant]]}
-      onclick={(event) => {
-        if (unavailable || busy) event.preventDefault();
-        else onclick?.();
-      }}
-    >
-      {#if busy}<Spinner class="size-3.5" />{:else}<Icon name={icon} />{/if}
-      <TouchTarget />
-    </button>
-  {/snippet}
-</Tooltip>
+<button
+  {type}
+  aria-label={label}
+  aria-disabled={unavailable || busy || undefined}
+  class={["relative grid size-9 shrink-0 place-items-center rounded-full focus-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-60 sm:size-8", variants[variant], className]}
+  onclick={(event) => {
+    if (unavailable || busy) event.preventDefault();
+    else onclick?.();
+  }}
+  {@attach withTooltip(tooltip)}
+>
+  {#if busy}<Spinner class="size-3.5" />{:else}<Icon name={icon} />{/if}
+  <TouchTarget />
+</button>

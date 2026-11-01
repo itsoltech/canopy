@@ -258,6 +258,22 @@
     element.scrollIntoView({ block: element.offsetHeight > scroller.clientHeight - footerHeight ? "start" : "nearest" });
   }
 
+  /**
+   * Scrolls to the row with this key and focuses it (e.g. "N running in background" jumping to a task);
+   * the reader stops following the end. False when no row has the key.
+   */
+  export async function reveal(rowKey: string): Promise<boolean> {
+    const at = positions.get(rowKey);
+    if (at === undefined || !scroller) return false;
+    stuck = false;
+    anchor = undefined;
+    // Near its estimated place first, so the window mounts it; then exactly onto it.
+    setTop(Math.max(0, listTop + index.offset(at) - 8));
+    scrollTop = scroller.scrollTop;
+    await focusRow(at);
+    return true;
+  }
+
   function onkeydown(event: KeyboardEvent) {
     const target = event.target as HTMLElement;
     if (event.ctrlKey && event.key === "End") {
