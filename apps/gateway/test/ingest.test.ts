@@ -115,4 +115,25 @@ describe.skipIf(!dockerAvailable)("Ingest on PostgreSQL", () => {
     expect(result.acks.size).toBe(0);
     expect(result.unknownThreads).toHaveLength(1);
   });
+
+  test("goal_state: the live Codex sequence (set, user pause, resume, user clear) lands on the user's goal", async () => {
+    const ids = await seed();
+    const goal = id();
+    await query(`INSERT INTO goals (id, thread_id, objective, status, created_by, created_by_user_id, token_budget) VALUES ($1, $2, 'Count to 3', 'active', 'user', $3, 80000)`, [
+      goal, ids.thread, ids.user,
+    ]);
+    const ingest = (seq: number, body: Body) => runtime.runPromise(Ingest.use((i) => i.ingest(ids.worker, "j", [event(ids.thread, seq, "", body)])));
+    const row = async () => (await query<{ status: string; native_status: string; finished_at: Date | null }>(`SELECT status, native_status, finished_at FROM goals WHERE id = $1`, [goal]))[0];
+    await ingest(1, { case: "goalState", value: { nativeStatus: "active", objective: "Count to 3", tokenBudget: 80000n } });
+    expect(await row()).toMatchObject({ status: "active", native_status: "active" });
+    await query(`UPDATE goals SET status = 'paused' WHERE id = $1`, [goal]); // the user's pause (core)
+    await ingest(2, { case: "goalState", value: { nativeStatus: "paused", objective: "Count to 3", tokenBudget: 80000n } });
+    expect(await row()).toMatchObject({ status: "paused", native_status: "paused" });
+    await query(`UPDATE goals SET status = 'active' WHERE id = $1`, [goal]);
+    await ingest(3, { case: "goalState", value: { nativeStatus: "active", objective: "Count to 3", tokenBudget: 80000n } });
+    expect(await row()).toMatchObject({ status: "active", native_status: "active" });
+    await query(`UPDATE goals SET status = 'cancelled', finished_at = now() WHERE id = $1`, [goal]); // the user's clear
+    await ingest(4, { case: "goalState", value: { cleared: true } });
+    expect(await row()).toMatchObject({ status: "cancelled", native_status: "cleared" });
+  });
 });

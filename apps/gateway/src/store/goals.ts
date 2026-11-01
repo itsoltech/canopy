@@ -77,10 +77,11 @@ export const applyGoalState = (sql: SqlClient.SqlClient, threadId: string, turnI
       SELECT * FROM goals WHERE thread_id = ${threadId}::uuid AND status NOT IN ('achieved', 'cancelled') FOR UPDATE`)[0];
     const turnGoal = turnId ? (yield* sql<{ goal_id: string | null }>`SELECT goal_id FROM turns WHERE id = ${turnId}::uuid`)[0]?.goal_id : undefined;
     let goal = open && (cleared || !state.objective || turnGoal === open.id || sameObjective(open.objective, state.objective)) ? open : undefined;
-    if (!goal && !cleared && state.objective) {
-      // Late reports of a goal that already ended (e.g. Codex usage after complete) update it.
+    if (!goal && !open) {
+      // Late reports of a goal that already ended update it: Codex usage after complete, or the harness
+      // confirming a clear the user asked for (the goal was closed when they asked).
       const latest = yield* latestGoal(sql, threadId);
-      if (!open && latest && sameObjective(latest.objective, state.objective)) goal = latest;
+      if (latest && ((cleared && !state.objective) || sameObjective(latest.objective, state.objective))) goal = latest;
     }
     if (!goal) {
       if (cleared || !state.objective) return undefined;
