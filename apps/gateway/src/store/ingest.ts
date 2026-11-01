@@ -1,14 +1,17 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import {
   ItemSchema,
+  ItemStatus,
   ThreadEventSchema,
   ThreadStatus,
+  TurnEndSource,
   TurnOutcome,
   UsageSchema,
   type Item,
   type ThreadEvent,
 } from "@open-agents/contracts";
 import { eventItemId, eventKind, itemStatus, itemType, reduceItem } from "@open-agents/domain";
+import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { applyGoalState } from "./goals.ts";
@@ -20,6 +23,10 @@ import { applyGoalState } from "./goals.ts";
  * assign seq, insert thread_events, apply side effects (provider thread id, turns, thread status,
  * item projection with the shared reducer) and remember the worker's journal cursor.
  * The caller acks the worker only after this commits.
+ *
+ * settle() is the safety net behind every turn end (docs/durability.md, "Stany tury i wątku"): whatever the worker
+ * reported, nothing of a finished turn stays open. It writes its fixes as gateway events (origin = gateway, the
+ * audit reason in raw), so the UI applies them like any event.
  */
 
 export interface StoredEvent {
@@ -39,10 +46,30 @@ export interface IngestResult {
   readonly failedThreads: readonly { threadId: string; error: SqlError.SqlError }[];
 }
 
+export interface SettleResult {
+  /** Gateway events that closed items, in timeline order. */
+  readonly stored: readonly StoredEvent[];
+  /** The thread's status changed (back to idle). */
+  readonly threadChanged: boolean;
+}
+
+/** Turn states that end it. */
+const ENDED = ["completed", "interrupted", "failed", "cancelled"];
+
 export class Ingest extends Context.Service<
   Ingest,
   {
     ingest(workerId: string, journalId: string, events: readonly ThreadEvent[]): Effect.Effect<IngestResult, SqlError.SqlError>;
+    /**
+     * Closes what a finished turn left open (docs/durability.md, "Stany tury i wątku"): items still in progress in a
+     * finished turn (or outside any turn while none runs) end as interrupted, except background tasks and the
+     * commands they continue; the thread goes back to idle when nothing runs (a running or waiting thread without a
+     * running turn, an interrupted one, a failed one that has a provider thread). `staleSeconds` (sweep): only a
+     * thread unchanged that long counts as running without a turn (a turn_started may still be on its way).
+     */
+    settle(threadId: string, reason: string, options?: { staleSeconds?: number }): Effect.Effect<SettleResult, SqlError.SqlError>;
+    /** Threads settle() would change (the sweep). */
+    unsettledThreads(staleSeconds: number): Effect.Effect<readonly string[], SqlError.SqlError>;
   }
 >()("open-agents/gateway/Ingest") {
   static readonly layer = Layer.effect(
@@ -54,7 +81,8 @@ export class Ingest extends Context.Service<
       // here lost its turn_finished (e.g. a provider crash) and is over.
       const supersede = (threadId: string, turnId: string) =>
         sql`
-          UPDATE turns SET status = 'interrupted', interrupt_reason = 'superseded: the provider started another turn', completed_at = now()
+          UPDATE turns SET status = 'interrupted', interrupt_source = 'system', interrupt_reason = 'superseded: the provider started another turn',
+                           completed_at = now()
            WHERE thread_id = ${threadId}::uuid AND status = 'running' AND id <> ${turnId}::uuid
         `;
 
@@ -135,26 +163,32 @@ export class Ingest extends Context.Service<
               yield* sql`UPDATE threads SET status = 'running' WHERE id = ${threadId}::uuid AND status <> 'archived'`;
               return;
             case "turnFinished": {
-              const status = turnStatus(body.value.outcome);
+              const end = turnEnd(body.value.outcome, body.value.source);
               yield* sql`
-                UPDATE turns SET status = ${status}, last_seq = ${seq}, completed_at = now(),
+                UPDATE turns SET status = ${end.status}, last_seq = ${seq}, completed_at = now(),
                                  provider_turn_ref = coalesce(${body.value.providerTurnRef || null}, provider_turn_ref),
                                  usage = ${body.value.usage ? JSON.stringify(toJson(UsageSchema, body.value.usage)) : null}::jsonb,
-                                 error = ${status === "failed" ? body.value.reason || null : null},
-                                 interrupt_reason = ${status === "interrupted" ? body.value.reason || null : null}
+                                 error = ${end.status === "failed" ? body.value.reason || null : null},
+                                 error_source = ${end.errorSource},
+                                 error_code = ${end.status === "failed" ? body.value.errorCode || null : null},
+                                 interrupt_reason = ${end.status === "interrupted" ? body.value.reason || null : null},
+                                 interrupt_source = ${end.interruptSource}
                  WHERE id = ${event.turnId}::uuid AND thread_id = ${threadId}::uuid
               `;
-              // A late end of a turn the gateway already closed (e.g. worker restart) must not idle a newer running turn.
+              // Any end leaves the thread usable (idle); the turn keeps the outcome. A late end of a turn the gateway
+              // already closed (e.g. worker restart) must not idle a newer running turn.
               yield* sql`
-                UPDATE threads SET status = ${status === "completed" ? "idle" : status}
-                 WHERE id = ${threadId}::uuid AND status <> 'archived'
+                UPDATE threads SET status = 'idle'
+                 WHERE id = ${threadId}::uuid AND status NOT IN ('archived', 'creating')
                    AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = ${threadId}::uuid AND r.status = 'running' AND r.id <> ${event.turnId || null}::uuid)
               `;
               return;
             }
             case "activity": {
+              // Only what the thread does now; how a turn ended is the turn's (a provider's error state of the thread,
+              // e.g. Codex systemError, does not make the thread unusable: the next turn resumes it).
               const status = threadStatus(body.value.status);
-              if (status) yield* sql`UPDATE threads SET status = ${status} WHERE id = ${threadId}::uuid AND status <> 'archived'`;
+              if (status) yield* sql`UPDATE threads SET status = ${status} WHERE id = ${threadId}::uuid AND status NOT IN ('archived', 'creating')`;
               return;
             }
             case "goalState":
@@ -193,6 +227,76 @@ export class Ingest extends Context.Service<
           }
         });
 
+      const insertEvent = (threadId: string, seq: bigint, event: ThreadEvent, origin: "worker" | "gateway") => {
+        const payload = toJson(ThreadEventSchema, create(ThreadEventSchema, { ...event, rawJson: "" }));
+        return sql`
+          INSERT INTO thread_events (thread_id, seq, event_id, origin, turn_id, kind, item_id, payload, raw, occurred_at)
+          VALUES (${threadId}::uuid, ${seq}, ${event.eventId}::uuid, ${origin}, ${event.turnId || null}::uuid, ${eventKind(event)},
+                  ${eventItemId(event.body) ?? null}, ${JSON.stringify(payload)}::jsonb,
+                  ${event.rawJson ? event.rawJson : null}::jsonb,
+                  ${event.occurredAt ? new Date(Number(event.occurredAt.seconds) * 1000 + event.occurredAt.nanos / 1e6) : new Date()})
+        `;
+      };
+
+      /** No turn of the thread runs. */
+      const idleTurns = (threadId: string) => sql`NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = ${threadId}::uuid AND r.status = 'running')`;
+
+      /**
+       * Items settle() closes: open, not a background task (those outlive turns; the worker ends them with their
+       * process), not a command a running background task continues (Codex keeps its item open until the process
+       * exits), in a finished turn, or outside any turn while none runs.
+       */
+      const openLeftovers = (threadId: string) => sql<{ item_id: string; turn_id: string | null; content: JsonValue }>`
+        SELECT i.item_id, i.turn_id, i.content FROM thread_items i LEFT JOIN turns u ON u.id = i.turn_id
+         WHERE i.thread_id = ${threadId}::uuid AND i.status = 'in_progress' AND i.type <> 'background_task'
+           AND (u.status = ANY(${ENDED}::text[]) OR (i.turn_id IS NULL AND ${idleTurns(threadId)}))
+           AND NOT EXISTS (SELECT 1 FROM thread_items b
+                            WHERE b.thread_id = i.thread_id AND b.type = 'background_task' AND b.status = 'in_progress'
+                              AND b.content->'backgroundTask'->>'sourceItemId' = i.item_id)
+         ORDER BY i.first_seq`;
+
+      /** A thread whose status says it works or failed while it can take the next turn. */
+      const stuckThread = (staleSeconds: number) => sql`
+        t.archived_at IS NULL AND (
+          t.status = 'interrupted'
+          OR (t.status = 'failed' AND t.provider_thread_id IS NOT NULL)
+          OR (t.status IN ('running', 'waiting_input') AND t.updated_at <= now() - make_interval(secs => ${staleSeconds})
+              AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = t.id AND r.status = 'running')
+              AND NOT EXISTS (SELECT 1 FROM worker_commands c WHERE c.thread_id = t.id AND c.kind = 'startTurn' AND c.status IN ('pending', 'delivered'))))`;
+
+      const settleThread = (threadId: string, reason: string, staleSeconds: number) =>
+        sql.withTransaction(
+          Effect.gen(function* () {
+            const locked = yield* sql<{ last_seq: string }>`SELECT last_seq FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+            if (!locked[0]) return { stored: [], threadChanged: false };
+            let last = BigInt(locked[0].last_seq);
+            const stored: StoredEvent[] = [];
+            for (const row of yield* openLeftovers(threadId)) {
+              const item = fromJson(ItemSchema, row.content);
+              item.status = ItemStatus.INTERRUPTED;
+              const event = create(ThreadEventSchema, {
+                eventId: Bun.randomUUIDv7(),
+                threadId,
+                turnId: row.turn_id ?? "",
+                occurredAt: timestampNow(),
+                // The audit trail: who closed the item and why (thread_events.raw).
+                rawJson: JSON.stringify({ settled_by: "gateway", reason }),
+                body: { case: "itemCompleted", value: { item } },
+              });
+              const seq = ++last;
+              yield* insertEvent(threadId, seq, event, "gateway");
+              yield* applyItem(threadId, seq, event);
+              stored.push({ threadId, seq, event });
+            }
+            if (stored.length > 0) yield* sql`UPDATE threads SET last_seq = ${last} WHERE id = ${threadId}::uuid`;
+            const changed = yield* sql`
+              UPDATE threads t SET status = 'idle', status_detail = NULL
+               WHERE t.id = ${threadId}::uuid AND ${stuckThread(staleSeconds)}
+              RETURNING t.id`;
+            return { stored, threadChanged: changed.length > 0 };
+          }),
+        );
+
       const ingestThread = (workerId: string, journalId: string, threadId: string, events: readonly ThreadEvent[]) =>
         sql.withTransaction(
           Effect.gen(function* () {
@@ -211,14 +315,7 @@ export class Ingest extends Context.Service<
               known.add(incoming.eventId);
               const seq = ++last;
               const event = yield* resolveTurn(threadId, incoming);
-              const payload = toJson(ThreadEventSchema, create(ThreadEventSchema, { ...event, rawJson: "" }));
-              yield* sql`
-                INSERT INTO thread_events (thread_id, seq, event_id, origin, turn_id, kind, item_id, payload, raw, occurred_at)
-                VALUES (${threadId}::uuid, ${seq}, ${event.eventId}::uuid, 'worker', ${event.turnId || null}::uuid, ${eventKind(event)},
-                        ${eventItemId(event.body) ?? null}, ${JSON.stringify(payload)}::jsonb,
-                        ${event.rawJson ? event.rawJson : null}::jsonb,
-                        ${event.occurredAt ? new Date(Number(event.occurredAt.seconds) * 1000 + event.occurredAt.nanos / 1e6) : new Date()})
-              `;
+              yield* insertEvent(threadId, seq, event, "worker");
               yield* applySideEffects(threadId, seq, event);
               yield* applySteer(threadId, seq, event);
               stored.push({ threadId, seq, event });
@@ -235,6 +332,26 @@ export class Ingest extends Context.Service<
         );
 
       return Ingest.of({
+        settle: Effect.fn("Ingest.settle")((threadId: string, reason: string, options?: { staleSeconds?: number }) =>
+          settleThread(threadId, reason, options?.staleSeconds ?? 0),
+        ),
+        unsettledThreads: Effect.fn("Ingest.unsettledThreads")(function* (staleSeconds: number) {
+          const rows = yield* sql<{ id: string }>`
+            SELECT t.id FROM threads t
+             WHERE t.archived_at IS NULL AND (
+               ${stuckThread(staleSeconds)}
+               OR EXISTS (SELECT 1 FROM thread_items i LEFT JOIN turns u ON u.id = i.turn_id
+                           WHERE i.thread_id = t.id AND i.status = 'in_progress' AND i.type <> 'background_task'
+                             AND (u.status = ANY(${ENDED}::text[])
+                                  OR (i.turn_id IS NULL AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = t.id AND r.status = 'running')))
+                             AND NOT EXISTS (SELECT 1 FROM thread_items b
+                                              WHERE b.thread_id = i.thread_id AND b.type = 'background_task' AND b.status = 'in_progress'
+                                                AND b.content->'backgroundTask'->>'sourceItemId' = i.item_id))
+               OR EXISTS (SELECT 1 FROM interaction_requests q JOIN turns u ON u.id = q.turn_id
+                           WHERE q.thread_id = t.id AND q.status = 'pending' AND u.status = ANY(${ENDED}::text[])))
+             ORDER BY t.id`;
+          return rows.map((r) => r.id);
+        }),
         ingest: Effect.fn("Ingest.ingest")(function* (workerId: string, journalId: string, events: readonly ThreadEvent[]) {
           const byThread = new Map<string, ThreadEvent[]>();
           for (const event of [...events].sort((a, b) => (a.journalSeq < b.journalSeq ? -1 : a.journalSeq > b.journalSeq ? 1 : 0))) {
@@ -265,14 +382,21 @@ export class Ingest extends Context.Service<
   );
 }
 
-function turnStatus(outcome: TurnOutcome): "completed" | "interrupted" | "failed" {
+/**
+ * Status and source of a turn end. A worker without sources (UNSPECIFIED) reports interruptions it was asked for
+ * and errors of its harness, so those are the defaults.
+ */
+export function turnEnd(
+  outcome: TurnOutcome,
+  source: TurnEndSource,
+): { status: "completed" | "interrupted" | "failed"; errorSource: "platform" | "harness" | null; interruptSource: "user" | "system" | null } {
   switch (outcome) {
     case TurnOutcome.COMPLETED:
-      return "completed";
+      return { status: "completed", errorSource: null, interruptSource: null };
     case TurnOutcome.INTERRUPTED:
-      return "interrupted";
+      return { status: "interrupted", errorSource: null, interruptSource: source === TurnEndSource.SYSTEM ? "system" : "user" };
     default:
-      return "failed";
+      return { status: "failed", errorSource: source === TurnEndSource.PLATFORM ? "platform" : "harness", interruptSource: null };
   }
 }
 
@@ -284,10 +408,6 @@ function threadStatus(status: ThreadStatus): string | undefined {
       return "running";
     case ThreadStatus.WAITING_INPUT:
       return "waiting_input";
-    case ThreadStatus.INTERRUPTED:
-      return "interrupted";
-    case ThreadStatus.FAILED:
-      return "failed";
     default:
       return undefined;
   }

@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnOutcome, type BackgroundTaskSchema, type ItemSchema } from "@open-agents/contracts";
+import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnEndSource, TurnOutcome, type BackgroundTaskSchema, type ItemSchema } from "@open-agents/contracts";
 import { isAgentBusTool } from "@open-agents/domain";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
@@ -382,10 +382,14 @@ export class ClaudeEventMapper {
     const usage = message.usage as unknown as Record<string, number | undefined>;
     const outcome = message.subtype === "success" && !message.is_error ? TurnOutcome.COMPLETED : this.#interrupted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED;
     const reason = message.subtype === "success" ? (message.is_error ? message.result : "") : message.errors.join("; ") || message.subtype;
+    // An interruption the platform asked for is the user's; an error result is Claude Code's (API error, limits, max turns).
+    const source = outcome === TurnOutcome.INTERRUPTED ? TurnEndSource.USER : outcome === TurnOutcome.FAILED ? TurnEndSource.HARNESS : TurnEndSource.UNSPECIFIED;
     return {
       case: "turnFinished",
       value: {
         outcome,
+        source,
+        ...(outcome === TurnOutcome.FAILED && { errorCode: message.subtype === "success" ? "error_result" : message.subtype }),
         providerTurnRef: this.#lastUuid ?? "",
         ...(outcome !== TurnOutcome.COMPLETED && reason && { reason }),
         usage: {
@@ -489,7 +493,7 @@ export function toolContent(name: string, input: unknown): Content {
   }
 }
 
-function withOutput(content: Content, output: string, failed: boolean): Content {
+export function withOutput(content: Content, output: string, failed: boolean): Content {
   switch (content.case) {
     case "commandExecution":
       return { case: "commandExecution", value: { ...content.value, output } };
@@ -504,7 +508,7 @@ function withOutput(content: Content, output: string, failed: boolean): Content 
   }
 }
 
-function resultText(content: unknown): string {
+export function resultText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content

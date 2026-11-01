@@ -1,0 +1,12 @@
+{"type":"queue-operation","operation":"enqueue","sessionId":"5e55-1"}
+{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"Run sleep 2 and tell me."},"uuid":"u-1","sessionId":"5e55-1"}
+{"parentUuid":"u-1","isSidechain":false,"type":"attachment","attachment":{"type":"date","date":"2026-11-01"},"uuid":"a-1"}
+{"parentUuid":"a-1","isSidechain":false,"type":"assistant","message":{"id":"msg_A","role":"assistant","model":"claude-x","stop_reason":null,"content":[{"type":"thinking","thinking":"I will run it.","signature":"sig"}]},"uuid":"as-1"}
+{"parentUuid":"as-1","isSidechain":false,"type":"assistant","message":{"id":"msg_A","role":"assistant","model":"claude-x","stop_reason":null,"content":[{"type":"text","text":"Running sleep."}]},"uuid":"as-2"}
+{"parentUuid":"as-2","isSidechain":false,"type":"assistant","message":{"id":"msg_A","role":"assistant","model":"claude-x","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"sleep 2; echo slept-ok","description":"sleep"}}]},"uuid":"as-3"}
+{"parentUuid":"as-3","isSidechain":true,"type":"assistant","message":{"id":"msg_side","role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":"subagent noise"}]},"uuid":"side-1"}
+{"parentUuid":"as-3","isSidechain":false,"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_1","type":"tool_result","content":"slept-ok","is_error":false}]},"uuid":"u-2"}
+{"parentUuid":"u-2","isSidechain":false,"type":"assistant","message":{"id":"msg_B","role":"assistant","model":"claude-x","stop_reason":"end_turn","content":[{"type":"text","text":"It printed slept-ok."}]},"uuid":"as-4"}
+{"type":"last-prompt","lastPrompt":"Run sleep 2 and tell me.","sessionId":"5e55-1"}
+{"parentUuid":"as-4","isSidechain":false,"type":"user","message":{"role":"user","content":"Now run sleep 40."},"uuid":"u-3","sessionId":"5e55-1"}
+{"parentUuid":"u-3","isSidechain":false,"type":"assistant","message":{"id":"msg_C","role":"assistant","model":"claude-x","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_2","name":"Bash","input":{"command":"sleep 40","description":"long sleep"}}]},"uuid":"as-5"}

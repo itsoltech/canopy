@@ -489,6 +489,7 @@ message TurnStarted {
   string resume_reason = 5;
 }
 
+// Trzy stany końcowe tury (docs/durability.md, „Stany tury i wątku”). Wątek zostaje używalny po każdym z nich.
 enum TurnOutcome {
   TURN_OUTCOME_UNSPECIFIED = 0;
   TURN_OUTCOME_COMPLETED = 1;
@@ -496,13 +497,31 @@ enum TurnOutcome {
   TURN_OUTCOME_FAILED = 3;
 }
 
+// Kto przerwał turę (INTERRUPTED) albo skąd przyszedł błąd (FAILED).
+enum TurnEndSource {
+  TURN_END_SOURCE_UNSPECIFIED = 0;
+  // INTERRUPTED: ktoś poprosił o przerwanie przez platformę (użytkownik, agent rodzica przez szynę).
+  TURN_END_SOURCE_USER = 1;
+  // INTERRUPTED: zdarzenie systemowe (restart workera w trakcie tury, drain, harness zginął z naszego powodu).
+  TURN_END_SOURCE_SYSTEM = 2;
+  // FAILED: błąd po naszej stronie (gateway, worker, adapter, dziennik, utracone połączenie).
+  TURN_END_SOURCE_PLATFORM = 3;
+  // FAILED: harness zgłosił błąd (401, limit, błąd modelu, proces harnessu zakończył się błędem).
+  TURN_END_SOURCE_HARNESS = 4;
+}
+
 message TurnFinished {
   TurnOutcome outcome = 1;
   // Punkt forka u dostawcy: Codex id tury, Claude uuid wiadomości kończącej turę.
   string provider_turn_ref = 2;
   Usage usage = 3;
-  // Powód przerwania (user, drain, worker_restart) albo komunikat błędu.
+  // Powód przerwania (np. „worker restarted mid-turn”) albo dokładny komunikat błędu.
   string reason = 4;
+  // Źródło przerwania albo błędu; UNSPECIFIED od starszego workera (gateway zgaduje: przerwanie = user, błąd = harness).
+  TurnEndSource source = 5;
+  // Krótki kod błędu, jeśli jest (np. Codex codexErrorInfo „http_connection_failed:401”, Claude subtype „error_max_turns”,
+  // „process_exit”, „transcript”).
+  string error_code = 6;
 }
 
 enum ThreadStatus {

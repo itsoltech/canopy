@@ -27,9 +27,12 @@ const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
 const { journalId } = await runtime.runPromise(journalHello());
 const host = new WorkerHost({ runtime, dataDir, clientVersion: WORKER_VERSION, log: (m) => console.info(m) });
 console.info(`worker ${local.worker_id}, gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`);
-// Turns and background tasks of a previous process died with it: they end as interrupted (sent after connecting).
+// Turns and background tasks of a previous process died with it: turns are settled from their harness transcripts,
+// tasks end as interrupted (sent after connecting).
 const orphans = await host.recover();
-if (orphans.turns + orphans.tasks > 0) console.info(`closed ${orphans.turns} turn(s) and ${orphans.tasks} background task(s) of the previous process`);
+if (orphans.turns + orphans.tasks > 0) {
+  console.info(`closed ${orphans.turns} turn(s) (${orphans.fromTranscript} from the harness transcript) and ${orphans.tasks} background task(s) of the previous process`);
+}
 
 const shutdown = new AbortController();
 // Graceful stop (docs/durability.md, 3.3): announce DRAINING and half-close the stream so the

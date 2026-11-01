@@ -6,6 +6,7 @@ import {
   ItemStatus,
   NoticeLevel,
   ThreadStatus,
+  TurnEndSource,
   TurnOrigin,
   TurnOutcome,
   type ItemSchema,
@@ -47,6 +48,8 @@ export interface MapperContext {
   turnId(codexTurnId: string): string | undefined;
   /** Codex turn ids started by the platform (StartTurn); others are provider-started (e.g. goal continuation). */
   isCommandTurn(codexTurnId: string): boolean;
+  /** The platform asked to interrupt this turn (turn/interrupt): its interruption is the user's, else the system's. */
+  interruptRequested?(codexTurnId: string): boolean;
 }
 
 /** A command item that may outlive its turn (unified exec process). */
@@ -130,6 +133,7 @@ export class CodexEventMapper {
             value: {
               outcome: turnOutcome(turn.status),
               providerTurnRef: turn.id,
+              ...turnEndSource(turn, this.#ctx.interruptRequested?.(turn.id) ?? true),
               ...(turn.error && { reason: turn.error.message }),
               ...(usage && { usage: usageOf(usage) }),
             },
@@ -569,6 +573,28 @@ function toolStatus(status: "inProgress" | "completed" | "failed" | "declined"):
     case "declined":
       return ItemStatus.DECLINED;
   }
+}
+
+/** Where a turn's end came from: Codex's errors are the harness's; an interruption is the user's when asked for. */
+function turnEndSource(turn: v2.Turn, asked: boolean): { source: TurnEndSource; errorCode?: string } {
+  switch (turn.status) {
+    case "failed":
+      return { source: TurnEndSource.HARNESS, ...(turn.error?.codexErrorInfo && { errorCode: codexErrorCode(turn.error.codexErrorInfo) }) };
+    case "interrupted":
+      return { source: asked ? TurnEndSource.USER : TurnEndSource.SYSTEM };
+    default:
+      return { source: TurnEndSource.UNSPECIFIED };
+  }
+}
+
+/** e.g. `{ httpConnectionFailed: { httpStatusCode: 401 } }` -> "httpConnectionFailed:401"; a string stays as is. */
+export function codexErrorCode(info: unknown): string {
+  if (typeof info === "string") return info;
+  if (!info || typeof info !== "object") return "";
+  const [key, detail] = Object.entries(info)[0] ?? [];
+  if (!key) return "";
+  const status = detail && typeof detail === "object" ? Object.entries(detail).find(([k]) => /status/i.test(k))?.[1] : undefined;
+  return typeof status === "number" ? `${key}:${status}` : key;
 }
 
 function turnOutcome(status: v2.TurnStatus): TurnOutcome {

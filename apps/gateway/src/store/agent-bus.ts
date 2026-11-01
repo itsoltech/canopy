@@ -452,7 +452,7 @@ export class AgentBusStore extends Context.Service<
 
         failQueuedTurns: (threadId, reason) =>
           sql<{ id: string }>`
-            UPDATE turns SET status = 'failed', error = ${reason}, completed_at = now()
+            UPDATE turns SET status = 'failed', error = ${reason}, error_source = 'platform', completed_at = now()
              WHERE thread_id = ${threadId}::uuid AND status = 'queued' RETURNING id`.pipe(Effect.map((rows) => rows.map((r) => r.id))),
 
         close: (threadId) =>

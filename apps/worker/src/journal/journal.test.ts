@@ -143,8 +143,35 @@ describe("Journal", () => {
     // Acked events are gone; the turn is still open (its end never came).
     await withJournal(path, (j) => j.ack("t1", 10n));
     expect(await withJournal(path, (j) => j.openTurns())).toEqual([
-      { threadId: "t1", turnId: "u2" },
-      { threadId: "t2", turnId: "u3" },
+      { threadId: "t1", turnId: "u2", items: [] },
+      { threadId: "t2", turnId: "u3", items: [] },
     ]);
+  });
+
+  test("keeps the harness record and the items of open turns until their end", async () => {
+    const path = freshPath();
+    const harness = { harness: "codex" as const, transcript: "/rollout.jsonl", sessionId: "c1", offset: 120, providerTurn: "" };
+    await withJournal(path, (j) =>
+      Effect.gen(function* () {
+        yield* j.noteHarness("t1", "u1", harness);
+        yield* j.append("t1", { turnId: "u1", body: { case: "turnStarted", value: {} } });
+        yield* j.noteHarness("t1", "u1", { ...harness, providerTurn: "codex-turn" });
+        const item = (id: string, status: ItemStatus) => ({ itemId: id, status, content: { case: "agentMessage" as const, value: { text: id } } });
+        yield* j.append("t1", { turnId: "u1", body: { case: "itemStarted", value: { item: item("a", ItemStatus.IN_PROGRESS) } } });
+        yield* j.append("t1", { turnId: "u1", body: { case: "itemCompleted", value: { item: item("a", ItemStatus.COMPLETED) } } });
+        yield* j.append("t1", { turnId: "u1", body: { case: "itemStarted", value: { item: item("b", ItemStatus.IN_PROGRESS) } } });
+        // A late started event does not reopen a finished item; items of turns that are not open are not tracked.
+        yield* j.append("t1", { turnId: "u1", body: { case: "itemStarted", value: { item: item("a", ItemStatus.IN_PROGRESS) } } });
+        yield* j.append("t1", { turnId: "other", body: { case: "itemStarted", value: { item: item("c", ItemStatus.IN_PROGRESS) } } });
+      }),
+    );
+    const [open] = await withJournal(path, (j) => j.openTurns());
+    expect(open?.harness).toEqual({ ...harness, providerTurn: "codex-turn" });
+    expect(open?.items.map((i) => [i.item.itemId, i.done])).toEqual([
+      ["a", true],
+      ["b", false],
+    ]);
+    await withJournal(path, (j) => j.append("t1", { turnId: "u1", body: { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } } }));
+    expect(await withJournal(path, (j) => j.openTurns())).toEqual([]);
   });
 });
