@@ -8,7 +8,7 @@ export const isProviderKey = (value: string): value is ProviderKey => (providerK
 export const providerKeyOf = (provider: Provider): ProviderKey | undefined => (provider === Provider.CLAUDE ? "CLAUDE" : provider === Provider.CODEX ? "CODEX" : undefined);
 
 /** Providers whose CLI the worker reports as available (installed, logged in). */
-export function availableProviders(worker: ui.Worker | undefined): ProviderKey[] {
+function availableProviders(worker: ui.Worker | undefined): ProviderKey[] {
   return providerKeys.filter((key) => worker?.providers.some((p) => p.provider === Provider[key] && p.available));
 }
 
@@ -23,15 +23,6 @@ export function profilesFor(worker: ui.Worker | undefined, key: ProviderKey): Pr
  */
 export const profileIdValue = (id: string): string => (id === "native" ? "" : id);
 export const profileValue = (profile: ProviderProfile): string => profileIdValue(profile.id);
-
-/** Why a provider/profile pair cannot start on the worker, or undefined when it can. */
-export function placementProblem(worker: ui.Worker | undefined, key: ProviderKey, profileId: string): string | undefined {
-  if (!worker) return undefined; // unknown worker: the gateway decides
-  const name = key === "CLAUDE" ? "Claude" : "Codex";
-  if (!availableProviders(worker).includes(key)) return `${name} is not available on ${worker.name}`;
-  if (!profilesFor(worker, key).some((p) => profileValue(p) === profileId)) return `The profile ${profileId || "native"} cannot run ${name} on ${worker.name}`;
-  return undefined;
-}
 
 /** One provider + profile choice of the new-thread "agent" pill. */
 export interface AgentChoice {
