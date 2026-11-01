@@ -9,7 +9,7 @@ export interface TestPostgres {
   readonly stop: () => void;
 }
 
-/** Throwaway PostgreSQL 17 in Docker on a random local port. */
+/** Throwaway PostgreSQL 17 in Docker on a random local port (tests only). */
 export async function startPostgres(): Promise<TestPostgres> {
   const name = `open-agents-test-${Bun.randomUUIDv7().slice(-12)}`;
   const run = Bun.spawnSync([

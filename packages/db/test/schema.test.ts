@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { migrate } from "../src/index.ts";
-import { dockerAvailable, startPostgres, type TestPostgres } from "./postgres.ts";
+import { dockerAvailable, startPostgres, type TestPostgres } from "../src/testing.ts";
 
 const id = () => Bun.randomUUIDv7();
 

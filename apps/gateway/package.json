@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./worker-link": "./src/worker-link/index.ts"
+    "./worker-link": "./src/worker-link/index.ts",
+    "./store": "./src/store/index.ts"
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",
@@ -14,7 +15,11 @@
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",
     "@connectrpc/connect": "2.3.0",
+    "@effect/sql-pg": "4.1.1",
     "@open-agents/contracts": "workspace:*",
-    "@open-agents/transport": "workspace:*"
+    "@open-agents/db": "workspace:*",
+    "@open-agents/domain": "workspace:*",
+    "@open-agents/transport": "workspace:*",
+    "effect": "4.1.1"
   }
 }
