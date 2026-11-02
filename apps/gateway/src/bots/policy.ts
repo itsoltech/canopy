@@ -1,10 +1,12 @@
 import { DEFAULT_BUS_LIMITS } from "@open-agents/domain";
 import type { ToolSpec } from "./types.ts";
+import { areaTool, areaTools } from "./tools/index.ts";
 
 /** An allowlist of descriptors, never a model-supplied tool name, grants capability. */
 export function needsApproval(tool: ToolSpec, policy: string, args: Record<string, unknown> = {}): boolean {
   if (tool.source === "platform" && tool.name === "ask_user") return true;
   if (tool.source === "platform" && tool.name === "update_self" && ["model", "effort", "provider", "provider_instance", "approval_policy"].some((key) => Object.hasOwn(args, key))) return true;
+  if (tool.source === "platform" && tool.readOnly === true) return false;
   return policy === "always" || tool.dangerous === true || (tool.source === "mcp" && tool.readOnly !== true);
 }
 
@@ -30,6 +32,7 @@ export function approvalPrompt(tool: ToolSpec, args: Record<string, unknown>, ph
 }
 
 export function statusPhrase(tool: ToolSpec, args: Record<string, unknown> = {}): string {
+  if (tool.source === "platform" && areaTool.has(tool.name)) return areaTool.get(tool.name)!.phrase(args);
   const label = (value: unknown, fallback: string) => typeof value === "string" ? value.replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 80) : fallback;
   if (tool.source === "mcp") {
     const verb = /search|find|query/i.test(tool.remoteName ?? "") ? "Searching" : /list|get|read|fetch|check/i.test(tool.remoteName ?? "") ? "Checking" : "Using";
@@ -62,7 +65,7 @@ const str = { type: "string" };
 function tool(name: string, description: string, properties: Record<string, unknown> = {}, required: string[] = [], dangerous = false): ToolSpec {
   return { name, description, source: "platform", dangerous, parameters: { type: "object", properties, required, additionalProperties: false } };
 }
-export const PLATFORM_TOOLS: ToolSpec[] = [
+const legacyTools: ToolSpec[] = [
   tool("list_projects", "List the user's projects and their workspaces. The system No project entry has kind scratch; choose its workspace on the desired worker for a conversation in a fresh scratch directory."),
   tool("list_workers", "List workers and their availability."),
   tool("list_provider_instances", "List configured provider instances; never secrets."),
@@ -93,4 +96,9 @@ export const PLATFORM_TOOLS: ToolSpec[] = [
   tool("ask_user", "Ask the user a question and wait durably for their answer. Offer up to 6 short options when the answer is a choice; the user can still answer in their own words.", {
     question: str, options: { type: "array", items: str, maxItems: 6 },
   }, ["question"]),
+];
+
+export const PLATFORM_TOOLS: ToolSpec[] = [
+  ...legacyTools.filter((t) => !areaTool.has(t.name)).map((t) => ({ ...t, readOnly: ["list_models", "list_bots"].includes(t.name) })),
+  ...areaTools.map((t) => t.spec),
 ];

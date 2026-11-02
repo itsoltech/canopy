@@ -38,6 +38,8 @@ service GatewayService {
   rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
 
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc RenameProject(RenameProjectRequest) returns (CreateProjectResponse);
+  rpc ArchiveProject(ArchiveProjectRequest) returns (ArchiveProjectResponse);
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
 
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
@@ -151,6 +153,7 @@ message Project {
   // "scratch": systemowe No project; ukryte w zarządzaniu projektami.
   string kind = 410;
   repeated Workspace workspaces = 4;
+  google.protobuf.Timestamp archived_at = 480;
 }
 
 message Workspace {
@@ -451,6 +454,17 @@ message CreateProjectRequest {
 message CreateProjectResponse {
   Project project = 1;
 }
+
+message RenameProjectRequest {
+  string project_id = 1;
+  string name = 2;
+}
+
+message ArchiveProjectRequest {
+  string project_id = 1;
+}
+
+message ArchiveProjectResponse {}
 
 message CreateWorkspaceRequest {
   string project_id = 1;

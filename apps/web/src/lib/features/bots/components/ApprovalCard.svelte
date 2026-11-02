@@ -58,8 +58,8 @@
             Needs approval<Icon name="chevron-down" class="size-3.5 fill-current" />
           </button>
         {/snippet}
-        <MenuCheckItem checked={policy === "safe"} description="Reading is free; anything that changes or sends asks first." onselect={() => onpolicy("safe")}>Ask before changes</MenuCheckItem>
-        <MenuCheckItem checked={policy === "always"} description="Every tool asks first, also reading." onselect={() => onpolicy("always")}>Ask before every action</MenuCheckItem>
+        <MenuCheckItem checked={policy === "safe"} description="Reversible platform actions run directly; destructive actions and connected service writes ask first." onselect={() => onpolicy("safe")}>Ask before changes</MenuCheckItem>
+        <MenuCheckItem checked={policy === "always"} description="Changes and connected service actions ask first. Platform reads run directly." onselect={() => onpolicy("always")}>Ask before every action</MenuCheckItem>
       </DropdownMenu>
     {:else}
       <p class="text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">Needs approval</p>

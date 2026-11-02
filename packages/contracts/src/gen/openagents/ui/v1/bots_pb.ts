@@ -70,7 +70,7 @@ export type BotConfiguration = Message<"openagents.ui.v1.BotConfiguration"> & {
   mcpServerIds: string[];
 
   /**
-   * safe: zgoda na zapisy MCP i niebezpieczne akcje; always: na każdą akcję narzędzia.
+   * safe: zgoda na zapisy MCP i niebezpieczne akcje; always: na każdą akcję poza odczytami platformy.
    *
    * @generated from field: string approval_policy = 10;
    */

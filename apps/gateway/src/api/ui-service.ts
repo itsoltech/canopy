@@ -29,6 +29,8 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       watchOverview: (_request, context) => core.watchOverview(context.signal),
       listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),
       createProject: (request) => guard(async () => create(ui.CreateProjectResponseSchema, { project: await core.createProject(request.name) })),
+      renameProject: (request) => guard(async () => create(ui.CreateProjectResponseSchema, { project: await core.renameProject(request.projectId, request.name) })),
+      archiveProject: (request) => guard(async () => { await core.archiveProject(request.projectId); return create(ui.ArchiveProjectResponseSchema); }),
       createWorkspace: (request) =>
         guard(async () => create(ui.CreateWorkspaceResponseSchema, { workspace: await core.createWorkspace(request) })),
       updateWorkspace: (request) =>
