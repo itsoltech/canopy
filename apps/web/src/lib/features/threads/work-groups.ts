@@ -35,6 +35,8 @@ export interface WorkSummary {
   readonly running: number;
   readonly live: boolean;
   readonly hint: string;
+  /** Rows under the fold; an ended turn with none has nothing to unfold. */
+  readonly size: number;
 }
 
 const turnIdOf = (row: TimelineRow): string =>
@@ -158,7 +160,7 @@ function summarize(turn: ui.Turn, work: readonly TimelineRow[], tasksBySource: R
       return `${n} ${n === 1 ? one : many}`;
     });
   const spanMs = turn.startedAt && turn.completedAt ? timestampMs(turn.completedAt) - timestampMs(turn.startedAt) : undefined;
-  return { spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined, counts: parts.join(", "), running: running.size, live: !isTerminal(turn.status), hint: currentWorkHint(work, tasksBySource) };
+  return { spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined, counts: parts.join(", "), running: running.size, live: !isTerminal(turn.status), hint: currentWorkHint(work, tasksBySource), size: work.length };
 }
 
 const isToolRow = (row: TimelineRow): boolean => row.kind === "item" && !["agentMessage", "userMessage", "reasoning"].includes(row.node.entry.item.content.case ?? "");

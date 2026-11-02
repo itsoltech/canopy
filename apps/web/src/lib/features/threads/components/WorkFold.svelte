@@ -21,17 +21,21 @@
   });
   const span = $derived(summary.live && turn.startedAt ? Math.max(0, now - timestampMs(turn.startedAt)) : summary.spanMs);
   const label = $derived(summary.live ? "Working for" : summary.spanMs === undefined ? "Work" : "Worked for");
+  // An ended turn whose fold holds nothing: the duration as plain text, no chevron, nothing to open.
+  const empty = $derived(!summary.live && summary.size === 0);
 </script>
 
 <div class={["flex items-center gap-3", className]}>
-  <button
-    type="button"
-    class="group/fold flex min-w-0 items-start gap-2 rounded-md py-2.5 text-left text-base/6 text-zinc-500 focus-ring select-none hover:text-zinc-800 sm:py-1 sm:text-sm/6 dark:text-zinc-400 dark:hover:text-zinc-200"
-    aria-expanded={open}
-    onclick={ontoggle}
+  <svelte:element
+    this={empty ? "div" : "button"}
+    type={empty ? undefined : "button"}
+    class={["group/fold flex min-w-0 items-start gap-2 rounded-md py-2.5 text-left text-base/6 text-zinc-500 select-none sm:py-1 sm:text-sm/6 dark:text-zinc-400", !empty && "focus-ring hover:text-zinc-800 dark:hover:text-zinc-200"]}
+    aria-expanded={empty ? undefined : open}
+    onclick={empty ? undefined : ontoggle}
   >
-    <span class="flex h-lh shrink-0 items-center">
-      <Icon name="chevron-right" class={["t-acc-chevron fill-zinc-400 group-hover/fold:fill-zinc-500 dark:fill-zinc-500 dark:group-hover/fold:fill-zinc-400", open && "rotate-90"]} />
+    <!-- The chevron's place stays (aligned with other folds), empty when there is nothing to open. -->
+    <span class="flex h-lh w-4 shrink-0 items-center">
+      {#if !empty}<Icon name="chevron-right" class={["t-acc-chevron fill-zinc-400 group-hover/fold:fill-zinc-500 dark:fill-zinc-500 dark:group-hover/fold:fill-zinc-400", open && "rotate-90"]} />{/if}
     </span>
     <span class="flex min-w-0 items-baseline gap-x-2">
       <span class={["shrink-0 font-medium", summary.live && "shimmer"]}>{label}{#if span !== undefined}&nbsp;<span class="tabular-nums">{formatSpan(span)}</span>{/if}</span>
@@ -44,6 +48,6 @@
         </span>
       {/if}
     </span>
-  </button>
+  </svelte:element>
   <Rule class="min-w-4" />
 </div>
