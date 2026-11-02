@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { toJsonString } from "@bufbuild/protobuf";
@@ -35,7 +36,7 @@ describe.skipIf(!dockerAvailable)("worker enrollment and credential lifecycle ov
     const invitation = await gw.api.createWorkerEnrollment({ name: "Second machine" });
     const configPath = join(dir, "second", "worker.json");
     const dataDir = join(dir, "data");
-    const cli = Bun.spawn([process.execPath, resolve("apps/worker/src/main.ts"), "enroll", "--gateway", gw.grpcUrl, "--token", invitation.token, "--config", configPath, "--data-dir", dataDir], { stdout: "pipe", stderr: "pipe" });
+    const cli = Bun.spawn([process.execPath, fileURLToPath(new URL("../../apps/worker/src/main.ts", import.meta.url)), "enroll", "--gateway", gw.grpcUrl, "--token", invitation.token, "--config", configPath, "--data-dir", dataDir], { stdout: "pipe", stderr: "pipe" });
     const [stdout, stderr, code] = await Promise.all([new Response(cli.stdout).text(), new Response(cli.stderr).text(), cli.exited]);
     expect({ code, stderr }).toEqual({ code: 0, stderr: "" });
     expect(statSync(configPath).mode & 0o777).toBe(0o600);
@@ -57,11 +58,11 @@ describe.skipIf(!dockerAvailable)("worker enrollment and credential lifecycle ov
     expect(storedSecrets).not.toContain(config.credential);
     const configBefore = readFileSync(configPath, "utf8");
     const unused = await gw.api.createWorkerEnrollment({ name: "Keep existing file" });
-    const duplicate = Bun.spawn([process.execPath, resolve("apps/worker/src/main.ts"), "enroll", "--gateway", gw.grpcUrl, "--token", unused.token, "--config", configPath], { stdout: "pipe", stderr: "pipe" });
+    const duplicate = Bun.spawn([process.execPath, fileURLToPath(new URL("../../apps/worker/src/main.ts", import.meta.url)), "enroll", "--gateway", gw.grpcUrl, "--token", unused.token, "--config", configPath], { stdout: "pipe", stderr: "pipe" });
     expect(await duplicate.exited).toBe(78);
     expect(readFileSync(configPath, "utf8")).toBe(configBefore);
     expect((await gw.api.getWorkerSetup({})).enrollments.find((e) => e.id === unused.enrollment!.id)?.usedAt).toBeUndefined();
-    const forced = Bun.spawn([process.execPath, resolve("apps/worker/src/main.ts"), "enroll", "--gateway", gw.grpcUrl, "--token", unused.token, "--config", configPath, "--force"], { stdout: "pipe", stderr: "pipe" });
+    const forced = Bun.spawn([process.execPath, fileURLToPath(new URL("../../apps/worker/src/main.ts", import.meta.url)), "enroll", "--gateway", gw.grpcUrl, "--token", unused.token, "--config", configPath, "--force"], { stdout: "pipe", stderr: "pipe" });
     expect(await forced.exited).toBe(0);
     expect(statSync(configPath).mode & 0o777).toBe(0o600);
     expect(JSON.parse(readFileSync(configPath, "utf8")).worker_id).not.toBe(config.worker_id);
