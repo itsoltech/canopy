@@ -1,5 +1,8 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { bots } from "@open-agents/contracts";
+import { Provider, ProviderProfileKind, type bots, type ui } from "@open-agents/contracts";
+import { modelOption, type ModelOption } from "#lib/features/models/catalog.ts";
+import { instanceKeyOf } from "#lib/features/providers/instances.ts";
+import type { BotProviderInstance } from "./wizard/draft.ts";
 import type { BotView, ChatEntry, ConversationView } from "./model.ts";
 
 export function botParticipant(bot: bots.Bot): BotView {
@@ -24,9 +27,24 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
   return [...messages, ...approvals];
 }
 
-/** Stable seam for feat/bots-wizard: the wizard's oncreate payload enters here. */
-export interface BotWizardResult {
-  name: string; shape: string; color: string;
-  providerInstance: { id: string; harness: import("@open-agents/contracts").Provider };
-  model: string; effort: string;
+/** Gateway bots use endpoint instances, independently of availability on any worker. */
+export function botWizardInstances(instances: readonly ui.ProviderInstance[], catalogs: readonly ui.WorkerModels[]): BotProviderInstance[] {
+  return instances.filter((i) => i.kind === ProviderProfileKind.CLIPROXYAPI && [Provider.CLAUDE, Provider.CODEX].includes(i.harness)).map((instance) => {
+    const provider = instance.harness === Provider.CLAUDE ? "CLAUDE" : "CODEX";
+    const name = instance.label || instance.id;
+    const models = new Map<string, ModelOption>();
+    for (const catalog of catalogs) {
+      const profile = catalog.profiles.find((p) => p.provider === instance.harness && p.profileId === instance.id);
+      for (const info of profile?.models ?? []) {
+        if (!info.hidden && info.id && !models.has(info.id)) models.set(info.id, modelOption(provider, instance.id, name, info.id, catalog, "catalog"));
+      }
+    }
+    // Custom models remain usable when no worker has ever reported this instance.
+    for (const id of instance.models?.custom ?? []) {
+      if (!models.has(id) && !instance.models?.hidden.includes(id)) models.set(id, { ...modelOption(provider, instance.id, name, id, undefined), efforts: [], defaultEffort: undefined });
+    }
+    const favorites = instance.models?.favorites ?? [];
+    const rank = (id: string) => favorites.includes(id) ? favorites.indexOf(id) : favorites.length;
+    return { id: instanceKeyOf(instance), name, provider, models: [...models.values()].sort((a, b) => rank(a.model) - rank(b.model)) };
+  });
 }

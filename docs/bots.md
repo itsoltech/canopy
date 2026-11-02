@@ -182,11 +182,15 @@ z API, czat przez SSE BFF; można wysłać wiadomość, odpowiedzieć, zatwierdz
 przerwać i przypiąć bota. Awaria wysyłki zachowuje identyfikator żądania przy „Retry message”.
 Kształt i własny kolor są renderowane przez awatar.
 
-Gałąź `feat/bots-wizard` nie była scalona podczas implementacji. Formularz na `/bots`
-ma hook `oncreate(BotWizardResult)` w `features/bots/live.ts` z danymi
-`{name, shape, color, providerInstance, model, effort}`. Obecnie `providerInstance`
-jest obiektem z `id` i `harness`; integracja przyszłego komponentu powinna mapować
-jego payload w tym jednym miejscu. Model i effort można wpisać/wybrać w formularzu.
+Gałąź `feat/bots-wizard` została scalona z `main` podczas implementacji. Akcja „Create bot”
+w sidebarze otwiera `CreateBotWizard`; `oncreate(CreateBotDraft)` zapisuje `CreateBot`
+i otwiera jedyną rozmowę nowego bota. Adapter `botWizardInstances` w `features/bots/live.ts`
+przekazuje wyłącznie instancje endpointowe, katalogi modeli i effortów z istniejącego
+stanu UI oraz własne modele instancji. Złożony klucz `CLAUDE:id` / `CODEX:id` zapobiega
+kolizji identycznych ID instancji różnych dostawców. Własne modele z Settings → Providers
+działają również bez workera. UI wymaga konkretnego ID modelu; pusty domyślny model
+harnessu nie jest modelem API gateway. Awatary korzystają z 14 kształtów i kontrastowych
+oczu komponentu `MascotFace`. API komponentów: [bots-wizard.md](bots-wizard.md).
 
 ## 7. Weryfikacja i dalsza faza
 
@@ -204,7 +208,7 @@ jego payload w tym jednym miejscu. Model i effort można wpisać/wybrać w formu
   Sekrety live pochodzą wyłącznie z pliku środowiska poza repozytorium; brak wartości
   w kodzie, commitach, wynikach testów i dokumentacji.
 
-Faza 2: pełny wizard z katalogami modeli, ustawienia persony i polityk, zarządzanie MCP
+Faza 2: edycja wyglądu przez istniejący `EditBotAppearance`, ustawienia persony i polityk, zarządzanie MCP
 z połączeniem testowym i rotacją nagłówków, otwieranie i grupowanie wymian bot↔bot,
 podgląd uczestników, liczniki nieprzeczytanych, animacje i dopracowanie dostępności,
 harmonogramy cykliczne botów, kompakcja kontekstu i wydajniejsze strony/zdarzenia czatu.

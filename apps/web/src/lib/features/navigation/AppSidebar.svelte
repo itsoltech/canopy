@@ -40,7 +40,7 @@
         <Icon name="pencil-square" />
       </a>
     {:else}
-      <a href="/bots" class={iconLink} aria-label="Create bot">
+      <a href="/bots?create=1" class={iconLink} aria-label="Create bot">
         <Icon name="pencil-square" />
       </a>
     {/if}

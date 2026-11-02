@@ -2,63 +2,64 @@
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { onMount } from "svelte";
-  import { goto } from "$app/navigation";
+  import { goto, replaceState } from "$app/navigation";
+  import { page } from "$app/state";
   import { create } from "@bufbuild/protobuf";
-  import { bots, ProviderProfileKind, ui } from "@open-agents/contracts";
+  import { bots, ui } from "@open-agents/contracts";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode, encode } from "#lib/shared/wire.ts";
-  import type { BotWizardResult } from "#lib/features/bots/live.ts";
+  import { instanceKeyOf } from "#lib/features/providers/instances.ts";
+  import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
+  import { botWizardInstances } from "#lib/features/bots/live.ts";
+  import CreateBotWizard, { type CreateBotDraft } from "#lib/features/bots/wizard/CreateBotWizard.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   let instances = $state.raw<ui.ProviderInstance[]>([]);
-  let selection = $state("");
-  let name = $state("");
-  let shape = $state("round");
-  let color = $state("#38bdf8");
-  let model = $state("");
-  let effort = $state("");
+  let existing = $state.raw<bots.Bot[]>([]);
+  let open = $state(false);
+  let loaded = $state(false);
   let error = $state("");
-  let saving = $state(false);
+  const catalogs = useModelCatalog();
+  const options = $derived(botWizardInstances(instances, [...catalogs.workers.values()]));
   const requestId = crypto.randomUUID();
-  onMount(() => {
-    void requestJson("GET", "/api/providers").then((payload) => {
-      instances = decode(ui.ListProviderInstancesResponseSchema, payload).instances.filter((i) => i.kind === ProviderProfileKind.CLIPROXYAPI);
-      selection = instances[0] ? `${instances[0].harness}/${instances[0].id}` : "";
-    }).catch(() => { error = "Could not load provider instances"; });
+  $effect(() => {
+    if (loaded && page.url.searchParams.get("create") === "1") {
+      open = true;
+      replaceState("/bots", page.state);
+    }
   });
-  // Replace the form with feat/bots-wizard and pass this callback as oncreate.
-  async function oncreate(result: BotWizardResult) {
-    saving = true;
-    try {
-      const response = decode(bots.GetBotResponseSchema, await requestJson("POST", "/api/bots", encode(bots.CreateBotRequestSchema, create(bots.CreateBotRequestSchema, {
-        clientRequestId: requestId, configuration: { ...result, provider: result.providerInstance.harness, providerInstance: result.providerInstance.id, approvalPolicy: "safe" },
-      }))));
-      window.dispatchEvent(new Event("bots-changed"));
-      await goto(`/bots/${response.bot!.id}`);
-    } catch (cause) { error = cause instanceof Error ? cause.message : "Could not create bot"; }
-    finally { saving = false; }
+  onMount(() => {
+    void Promise.all([requestJson("GET", "/api/providers"), requestJson("GET", "/api/bots")]).then(([providers, list]) => {
+      instances = decode(ui.ListProviderInstancesResponseSchema, providers).instances;
+      existing = decode(bots.ListBotsResponseSchema, list).bots;
+      loaded = true;
+    }).catch(() => { error = "Could not load bots and provider instances"; });
+  });
+  async function oncreate(result: CreateBotDraft) {
+    const instance = instances.find((i) => instanceKeyOf(i) === result.providerInstanceId);
+    if (!instance) throw new Error("Provider instance is no longer available");
+    const response = decode(bots.GetBotResponseSchema, await requestJson("POST", "/api/bots", encode(bots.CreateBotRequestSchema, create(bots.CreateBotRequestSchema, {
+      clientRequestId: requestId, configuration: {
+        name: result.name, shape: result.shape, color: result.color, provider: instance.harness,
+        providerInstance: instance.id, model: result.model, effort: result.effort ?? "", approvalPolicy: "safe",
+      },
+    }))));
+    window.dispatchEvent(new Event("bots-changed"));
+    await goto(`/bots/${response.bot!.id}`);
   }
-  function submit() {
-    const instance = instances.find((i) => `${i.harness}/${i.id}` === selection);
-    if (instance) void oncreate({ name, shape, color, providerInstance: instance, model, effort });
-  }
-  const field = "w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700";
 </script>
 
 <svelte:head><title>Bots · Open Agents</title></svelte:head>
 
 <div class="flex h-full flex-col">
   <TopBar><Crumb>Bots</Crumb></TopBar>
-  <div class="min-h-0 flex-1 overflow-y-auto p-6">
-    <form class="mx-auto grid max-w-md gap-4" onsubmit={(event) => { event.preventDefault(); submit(); }}>
-      <h1 class="text-xl font-semibold">Create a bot</h1>
-      <label class="grid gap-1 text-sm">Name<input class={field} bind:value={name} maxlength="80" required /></label>
-      <label class="grid gap-1 text-sm">Shape<select class={field} bind:value={shape}>{#each ["round", "squircle", "ghost", "cloud", "drop", "capsule", "triangle"] as value}<option value={value}>{value}</option>{/each}</select></label>
-      <label class="grid gap-1 text-sm">Colour<input type="color" bind:value={color} /></label>
-      <label class="grid gap-1 text-sm">Provider instance<select class={field} bind:value={selection} required>{#each instances as i}<option value={`${i.harness}/${i.id}`}>{i.label || i.id}</option>{/each}</select></label>
-      {#if !instances.length}<p class="text-sm text-zinc-500">Add an endpoint provider in <a href="/settings/providers" class="underline">Settings → Providers</a> to create a bot.</p>{/if}
-      <label class="grid gap-1 text-sm">Model<input class={field} bind:value={model} required maxlength="200" placeholder="Model ID" /></label>
-      <label class="grid gap-1 text-sm">Effort<select class={field} bind:value={effort}><option value="">Default</option>{#each ["low", "medium", "high"] as value}<option value={value}>{value}</option>{/each}</select></label>
-      {#if error}<p role="alert" class="text-sm text-red-500">{error}</p>{/if}
-      <button class="rounded-lg bg-brand-600 px-4 py-2 text-white disabled:opacity-50" disabled={saving || !selection}>{saving ? "Creating…" : "Create bot"}</button>
-    </form>
+  <div class="grid min-h-0 flex-1 place-content-center gap-4 overflow-y-auto p-6 text-center">
+    <h1 class="text-xl font-semibold">Your bots</h1>
+    <p class="max-w-md text-sm text-zinc-500">A conversation with a bot that remembers your messages and can work with your connected services and agents.</p>
+    {#if error}<p role="alert" class="text-sm text-red-500">{error}</p>{/if}
+    <Button variant="primary" disabled={!loaded} onclick={() => (open = true)}>Create bot</Button>
+    {#if loaded && (!options.length || options.every((i) => !i.models.length))}
+      <p class="max-w-md text-sm text-zinc-500">Add an endpoint provider and models in <a href="/settings/providers" class="underline">Settings → Providers</a>. Custom model IDs also work without a connected worker.</p>
+    {/if}
   </div>
 </div>
+<CreateBotWizard bind:open instances={options} existingNames={existing.map((b) => b.configuration?.name ?? "")} {oncreate} />
