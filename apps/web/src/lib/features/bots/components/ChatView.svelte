@@ -78,7 +78,7 @@
 <div class={["flex h-full min-h-0 flex-col", className]}>
   <ConversationHeader {conversation} {actions} {statusLine} />
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="min-h-0 flex-1 overflow-y-auto focus:outline-none" role="log" aria-label="Conversation" tabindex="0" bind:this={log} onscroll={() => { if (log) following = log.scrollHeight - log.scrollTop - log.clientHeight < 80; }} {@attach openAtUnread}>
+  <div class="relative min-h-0 flex-1 overflow-y-auto focus:outline-none" role="log" aria-label="Conversation" tabindex="0" bind:this={log} onscroll={() => { if (log) following = log.scrollHeight - log.scrollTop - log.clientHeight < 80; }} {@attach openAtUnread}>
     <ChatTimeline
       {conversation}
       {entries}
