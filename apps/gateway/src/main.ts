@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { startGrpcServer } from "@open-agents/transport";
+import { startConnectHttpServer, startGrpcServer } from "@open-agents/transport";
 import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
@@ -22,6 +22,7 @@ const core = new GatewayCore({
   instanceId: `${process.pid}@${Bun.env["HOSTNAME"] ?? "gateway"}`,
   userId,
   ...(env["OA_PUBLIC_GATEWAY_URL"] && { publicGatewayUrl: env["OA_PUBLIC_GATEWAY_URL"] }),
+  ...(env["OA_MOBILE_GATEWAY_URL"] && { mobileGatewayUrl: env["OA_MOBILE_GATEWAY_URL"] }),
   log: (m) => console.info(m),
   attachmentLimits: attachmentLimits(env),
 });
@@ -33,14 +34,23 @@ const server = await startGrpcServer({
   routes: (router) => {
     core.link.routes(router);
     core.workers.routes(router);
+    core.mobile.routes(router);
     uiRoutes(core)(router);
   },
-  interceptors: [serviceTokenAuth(serviceToken)],
+  interceptors: [serviceTokenAuth(serviceToken, core.mobile)],
   host: env["OA_HOST"] ?? "0.0.0.0",
   port: Number(env["OA_PORT"] ?? 7443),
   ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
 });
 console.info(`gateway listening on ${server.url}`);
+const mobileServer = env["OA_MOBILE_PORT"] ? await startConnectHttpServer({
+  // WorkerLink remains on HTTP/2. Phones only need unary + server-streaming UI RPCs.
+  routes: (router) => { core.mobile.routes(router); uiRoutes(core)(router); },
+  interceptors: [serviceTokenAuth(serviceToken, core.mobile)],
+  host: "127.0.0.1",
+  port: Number(env["OA_MOBILE_PORT"]),
+}) : undefined;
+if (mobileServer) console.info(`mobile Connect listener on ${mobileServer.url} (private TLS proxy required)`);
 core.scheduler.start();
 // Open items of finished turns, threads stuck in a busy or failed look: fixed now and every few minutes.
 core.startSweep();
@@ -55,6 +65,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     core.backgroundTasks.stop();
     await core.bots.stop();
     await core.link.shutdown();
+    await mobileServer?.close();
     await server.close();
     await runtime.dispose();
     process.exit(0);

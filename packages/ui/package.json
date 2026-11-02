@@ -1,0 +1,19 @@
+{
+  "name": "@open-agents/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/tokens.ts",
+    "./icons": "./src/icons.ts",
+    "./provider-icons": "./src/provider-icons.ts",
+    "./mascot": "./src/mascot.ts",
+    "./settings": "./src/settings.ts"
+  },
+  "scripts": {
+    "gen": "bun scripts/palette.ts",
+    "gen:check": "bun scripts/palette.ts --check",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": { "tailwindcss": "4.3.3" }
+}

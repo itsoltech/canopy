@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Canopy",
+    "slug": "canopy-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "../web/static/icon-512.png",
+    "scheme": "canopy",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "app.canopy.mobile",
+      "supportsTablet": true,
+      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+    },
+    "android": {
+      "package": "app.canopy.mobile",
+      "predictiveBackGestureEnabled": true
+    },
+    "platforms": ["ios", "android"],
+    "plugins": [
+      "expo-router",
+      ["expo-camera", { "cameraPermission": "Allow Canopy to scan a pairing QR code.", "microphonePermission": false, "recordAudioAndroid": false }],
+      ["expo-secure-store", { "faceIDPermission": false }],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "../web/static/icon-512.png",
+          "imageWidth": 96,
+          "dark": { "backgroundColor": "#000000", "image": "../web/static/icon-512.png" }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

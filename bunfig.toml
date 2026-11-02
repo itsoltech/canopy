@@ -1,3 +1,7 @@
+[install]
+# Native modules must have one physical installation (Expo + Bun monorepo).
+linker = "hoisted"
+
 [test]
 # Temp directories of tests are removed at the end of the run at the latest (packages/testing).
 preload = ["./packages/testing/src/preload.ts"]

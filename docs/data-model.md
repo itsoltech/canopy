@@ -1,5 +1,18 @@
 # Model danych (PostgreSQL)
 
+## Urządzenia mobilne
+
+Migracja `0046_mobile_devices` dodaje `mobile_pairings` i `mobile_devices`, powiązane
+z `users.id` przez `owner_user_id`. Parowanie przechowuje unikalny SHA-256 kodu,
+`expires_at` (10 minut), `used_at`, `revoked_at` i `device_id`. Urządzenie przechowuje
+unikalny SHA-256 tokenu, nazwę, platformę iOS/Android, `created_at`, `last_seen_at`
+oraz `revoked_at`. Jawny kod/token zwracany jest raz; nie jest zapisywany w bazie.
+Wymiana blokuje zaproszenie w transakcji, sprawdza rzeczywisty czas po uzyskaniu blokady
+i atomowo tworzy urządzenie oraz oznacza zużyty kod. Revocation i wymiana nie mogą
+użyć jednego kodu dwukrotnie. Zarządzanie i parowanie zapisują audit_log.
+Autoryzacja sprawdza revocation przy każdym RPC, a zapis last seen ogranicza do raz/minutę.
+Szczegóły granicy pojedynczego właściciela i wdrożenia: [mobile.md](mobile.md).
+
 ## Wątki bez projektu (scratch)
 
 Migracja `0032_scratch_projects` dodaje `projects.kind`: `project` (domyślnie, także dla

@@ -18,6 +18,7 @@ apps/
   gateway/        serwer centralny: WorkerLinkService i GatewayService (gRPC), orkiestracja, PostgreSQL; docelowo chat runtime, agent bus
   worker/         usługa na edge device: klient WorkerLinkService, dziennik, zdalna konfiguracja, adaptery Codex (app-server) i Claude (Agent SDK)
   web/            frontend SvelteKit (BFF): strony i API po HTTP/1.1, SSE do przeglądarki, gRPC do gateway
+  mobile/         Canopy iOS/Android (Expo development build): Connect, streaming fetch, parowanie urządzeń
 packages/
   contracts/      kontrakt generowany z /proto (protoc-gen-es) — jedyne źródło typów protokołu
   transport/      serwer i klient HTTP/2 (Connect/gRPC), AsyncChannel
@@ -70,6 +71,7 @@ Testy na żywo z prawdziwymi modelami są opt-in (zużywają limity kont): `OA_L
 - [Cele (goals): cele harnessów śledzone przez platformę](docs/goals.md)
 - [Adapter Codex (app-server)](docs/codex-adapter.md)
 - [API dla UI i architektura frontendu (SvelteKit BFF)](docs/ui-api.md)
+- [Canopy mobile: development build, parowanie i Tailscale](docs/mobile.md)
 - [Adapter Claude (Agent SDK)](docs/claude-adapter.md)
 - [Model danych](docs/data-model.md)
 - [Trwałość i aktualizacje w trakcie działania](docs/durability.md)

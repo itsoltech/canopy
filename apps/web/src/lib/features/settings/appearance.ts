@@ -1,6 +1,7 @@
 import { ui } from "@open-agents/contracts";
 import { create } from "@bufbuild/protobuf";
 import { SIDEBAR_WIDTH, storedSidebarWidth } from "@open-agents/domain";
+import { accents, type AccentName } from "@open-agents/ui";
 
 /**
  * Appearance settings (stored by the gateway) as the attributes of `<html>` that layout.css reads:
@@ -8,7 +9,7 @@ import { SIDEBAR_WIDTH, storedSidebarWidth } from "@open-agents/domain";
  * into the page (hooks.server.ts), the browser updates them when the settings change.
  */
 export type SchemeName = "system" | "light" | "dark";
-export type AccentName = "default" | "grove" | "ocean" | "ember" | "iris" | "rose";
+export type { AccentName } from "@open-agents/ui";
 export type ChatWidthName = "comfortable" | "wide" | "full";
 
 export const schemeNames: Record<SchemeName, ui.ColorScheme> = {
@@ -32,16 +33,29 @@ export const chatWidthNames: Record<ChatWidthName, ui.ChatWidth> = {
   full: ui.ChatWidth.FULL,
 };
 
-const nameOf = <N extends string, V>(table: Record<N, V>, value: V, fallback: N): N =>
+const nameOf = <N extends string, V>(
+  table: Record<N, V>,
+  value: V,
+  fallback: N,
+): N =>
   (Object.keys(table) as N[]).find((name) => table[name] === value) ?? fallback;
 
 /** Unspecified values are the defaults: system scheme, default accent, comfortable width. */
-export const schemeOf = (appearance: ui.AppearanceSettings | undefined): SchemeName => nameOf(schemeNames, appearance?.colorScheme, "system");
-export const accentOf = (appearance: ui.AppearanceSettings | undefined): AccentName => nameOf(accentNames, appearance?.accent, "default");
-export const chatWidthOf = (appearance: ui.AppearanceSettings | undefined): ChatWidthName => nameOf(chatWidthNames, appearance?.chatWidth, "comfortable");
+export const schemeOf = (
+  appearance: ui.AppearanceSettings | undefined,
+): SchemeName => nameOf(schemeNames, appearance?.colorScheme, "system");
+export const accentOf = (
+  appearance: ui.AppearanceSettings | undefined,
+): AccentName => nameOf(accentNames, appearance?.accent, "default");
+export const chatWidthOf = (
+  appearance: ui.AppearanceSettings | undefined,
+): ChatWidthName =>
+  nameOf(chatWidthNames, appearance?.chatWidth, "comfortable");
 
 /** Values for the `%oa.*%` placeholders of app.html. */
-export function documentAttributes(appearance: ui.AppearanceSettings | undefined): Record<string, string> {
+export function documentAttributes(
+  appearance: ui.AppearanceSettings | undefined,
+): Record<string, string> {
   const scheme = schemeOf(appearance);
   return {
     "%oa.dark%": scheme === "dark" ? " dark" : "",
@@ -49,9 +63,14 @@ export function documentAttributes(appearance: ui.AppearanceSettings | undefined
     "%oa.colorSchemeMeta%": scheme === "system" ? "light dark" : scheme,
     "%oa.accent%": accentOf(appearance),
     "%oa.chatWidth%": chatWidthOf(appearance),
-    "%oa.sidebarWidth%": String(storedSidebarWidth(appearance?.sidebarWidth ?? 0) || SIDEBAR_WIDTH.default),
+    "%oa.sidebarWidth%": String(
+      storedSidebarWidth(appearance?.sidebarWidth ?? 0) ||
+        SIDEBAR_WIDTH.default,
+    ),
     "%oa.sidebarCollapsed%": String(appearance?.sidebarCollapsed ?? false),
-    "%oa.threadPanelCollapsed%": String(appearance?.threadPanelCollapsed ?? false),
+    "%oa.threadPanelCollapsed%": String(
+      appearance?.threadPanelCollapsed ?? false,
+    ),
   };
 }
 
@@ -59,9 +78,12 @@ export function documentAttributes(appearance: ui.AppearanceSettings | undefined
 export function appearanceFromDocument(): ui.AppearanceSettings {
   const data = document.documentElement.dataset;
   return create(ui.AppearanceSettingsSchema, {
-    colorScheme: schemeNames[data["colorScheme"] as SchemeName] ?? ui.ColorScheme.SYSTEM,
+    colorScheme:
+      schemeNames[data["colorScheme"] as SchemeName] ?? ui.ColorScheme.SYSTEM,
     accent: accentNames[data["accent"] as AccentName] ?? ui.AccentTheme.DEFAULT,
-    chatWidth: chatWidthNames[data["chatWidth"] as ChatWidthName] ?? ui.ChatWidth.COMFORTABLE,
+    chatWidth:
+      chatWidthNames[data["chatWidth"] as ChatWidthName] ??
+      ui.ChatWidth.COMFORTABLE,
     sidebarWidth: Number(data["sidebarWidth"]) || SIDEBAR_WIDTH.default,
     sidebarCollapsed: data["sidebarCollapsed"] === "true",
     threadPanelCollapsed: data["threadPanelCollapsed"] === "true",
@@ -69,20 +91,45 @@ export function appearanceFromDocument(): ui.AppearanceSettings {
 }
 
 /** Applies appearance to the live document (browser only); "system" follows prefers-color-scheme. */
-export function applyAppearance(appearance: ui.AppearanceSettings | undefined): void {
+export function applyAppearance(
+  appearance: ui.AppearanceSettings | undefined,
+): void {
   const root = document.documentElement;
   const scheme = schemeOf(appearance);
-  root.classList.toggle("dark", scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches));
+  root.classList.toggle(
+    "dark",
+    scheme === "dark" ||
+      (scheme === "system" &&
+        matchMedia("(prefers-color-scheme: dark)").matches),
+  );
   root.dataset["colorScheme"] = scheme;
   root.dataset["accent"] = accentOf(appearance);
   root.dataset["chatWidth"] = chatWidthOf(appearance);
-  root.dataset["sidebarWidth"] = String(appearance?.sidebarWidth || SIDEBAR_WIDTH.default);
-  root.dataset["sidebarCollapsed"] = String(appearance?.sidebarCollapsed ?? false);
-  root.dataset["threadPanelCollapsed"] = String(appearance?.threadPanelCollapsed ?? false);
-  document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", scheme === "system" ? "light dark" : scheme);
+  root.dataset["sidebarWidth"] = String(
+    appearance?.sidebarWidth || SIDEBAR_WIDTH.default,
+  );
+  root.dataset["sidebarCollapsed"] = String(
+    appearance?.sidebarCollapsed ?? false,
+  );
+  root.dataset["threadPanelCollapsed"] = String(
+    appearance?.threadPanelCollapsed ?? false,
+  );
+  document
+    .querySelector('meta[name="color-scheme"]')
+    ?.setAttribute("content", scheme === "system" ? "light dark" : scheme);
 }
 
 /** Names of the choices as the settings and the command palette show them. */
-export const schemeLabels: Record<SchemeName, string> = { system: "System", light: "Light", dark: "Dark" };
-export const accentLabels: Record<AccentName, string> = { default: "Default", grove: "Grove", ocean: "Ocean", ember: "Ember", iris: "Iris", rose: "Rose" };
-export const chatWidthLabels: Record<ChatWidthName, string> = { comfortable: "Comfortable", wide: "Wide", full: "Full width" };
+export const schemeLabels: Record<SchemeName, string> = {
+  system: "System",
+  light: "Light",
+  dark: "Dark",
+};
+export const accentLabels = Object.fromEntries(
+  accents.map((a) => [a.name, a.label]),
+) as Record<AccentName, string>;
+export const chatWidthLabels: Record<ChatWidthName, string> = {
+  comfortable: "Comfortable",
+  wide: "Wide",
+  full: "Full width",
+};

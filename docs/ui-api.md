@@ -1,5 +1,28 @@
 # API dla UI i architektura frontendu
 
+## Canopy mobile
+
+Natywny klient `apps/mobile` korzysta z tego samego `GatewayService` przez Connect
+z binarnym protobuf i streaming `expo/fetch`. Osobny HTTP/1.1 listener
+`OA_MOBILE_PORT` na loopback działa za prywatnym Tailscale Serve HTTPS;
+przeglądarka nadal komunikuje się wyłącznie z BFF. Telefon nigdy nie otrzymuje
+`OA_UI_SERVICE_TOKEN`.
+
+Settings → Mobile devices tworzy 10-minutowy kod/QR, listuje urządzenia i odwołuje
+zaproszenia/tokeny przez BFF `/api/mobile-devices` i `/api/mobile-devices/:id`.
+RPC administracyjne to `GetMobileDevices`, `CreateMobilePairing`, `RevokeMobilePairing`
+i `RevokeMobileDevice`; są dostępne tylko z service tokenem. Publiczne
+`MobilePairingService.ExchangeMobilePairing` jednorazowo wymienia kod na revocable
+token urządzenia, przechowywany jako hash w DB i w SecureStore na telefonie.
+`UnpairMobileDevice` odwołuje wyłącznie bieżące urządzenie z context auth.
+
+Token urządzenia daje dostęp właściciela do pozostałych RPC GatewayService.
+`WatchOverviewRequest.include_snapshot` (762) żąda początkowego
+`OverviewUpdate.mobile_snapshot` (763: overview i wątki), aby odtworzyć stan po
+reconnect. `mobile_device` (760) i `mobile_pairing` (761) zawierają tylko metadane,
+bez sekretów. Revoke kończy otwarte streamy w procesie gatewaya.
+[Transport, model uprawnień, development builds i dokładne komendy](mobile.md).
+
 ## Connectors
 
 `connectors.proto` i osiem RPC `GatewayService` obsługują katalog, nazwane konta,
@@ -162,7 +185,7 @@ flowchart LR
 - **Gateway jest jedynym stanem globalnym.** Przechowuje projekty, wątki, tury, transkrypty, interakcje i komendy. Orkiestruje workery.
 - **SvelteKit jest BFF.** Przeglądarka rozmawia tylko z nim, po HTTP/1.1. Serwer SvelteKit woła gateway po gRPC z prywatnym tokenem usługi, a zmiany na żywo przekazuje przeglądarce przez **SSE**. Prywatny adres BFF i token usługi zostają na serwerze. UI pokazuje publiczny adres gRPC dla workerów, token enrollment i nowy credential rotacji (sekrety jednorazowo), bez klienta gRPC.
 - **Frontend jest SPA (`ssr = false` w głównym `+layout.ts`).** adapter-node podaje powłokę i pliki statyczne, przekazuje `/api/*` do gateway i obsługuje istniejące akcje formularzy. Dane tras pobierają klientowe `+page.ts` przez `/api/*`; overview, ustawienia i katalog modeli pobierają stany funkcji. Akcje tworzenia wątku/projektu/workspace pozostają po stronie BFF: `enhance` zachowuje walidację, błędy pól i przekierowania bez SSR.
-- Gateway podaje `GatewayService` na tym samym serwerze HTTP/2 co `WorkerLinkService`. Interceptor (`serviceTokenAuth`) przepuszcza wywołania `GatewayService` tylko z tokenem usługi (`OA_UI_SERVICE_TOKEN`, porównanie odporne na pomiar czasu). Workery uwierzytelniają się osobno, w handlerze `WorkerLinkService`.
+- Gateway podaje `GatewayService` na tym samym serwerze HTTP/2 co `WorkerLinkService`, a opcjonalnie także na mobilnym HTTP/1.1 listenerze. Interceptor (`serviceTokenAuth`) przyjmuje token usługi BFF (`OA_UI_SERVICE_TOKEN`, porównanie odporne na pomiar czasu) lub aktywny token urządzenia, mapowany na obecnego pojedynczego właściciela. Administracja parowaniem wymaga tokenu usługi. Workery uwierzytelniają się osobno, w handlerze `WorkerLinkService`.
 
 ## 2. `GatewayService`
 

@@ -1,6 +1,7 @@
 # Canopy — architektura
 
-Status: **szkic do dyskusji** (2026-11-01). Zaimplementowany jest tylko kanał gateway ↔ worker (gRPC po HTTP/2) z testami.
+Status: opis działającego gatewaya, workerów i web BFF oraz pierwszej aplikacji
+mobilnej (2026-11-02). Logowanie użytkowników i część docelowych rozszerzeń pozostają w planach.
 
 Powiązane dokumenty:
 
@@ -12,6 +13,7 @@ Powiązane dokumenty:
 - [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`
 - [grok-adapter.md](grok-adapter.md) — własny SDK ACP stdio Grok CLI, native/CLIProxyAPI i MCP narzędzi platformy
 - [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
+- [mobile.md](mobile.md) — Canopy iOS/Android, Connect przez streaming fetch, parowanie i prywatny Tailscale HTTPS
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
 - [transcript.md](transcript.md) — zapis wszystkich zdarzeń, itemy, oś czasu dla frontendu
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity
@@ -35,6 +37,7 @@ Platforma do zarządzania agentami AI dla wielu użytkowników:
 | Komponent | Gdzie działa | Odpowiedzialność |
 |---|---|---|
 | **Web UI** | przeglądarka | SPA Svelte 5 / SvelteKit (`ssr = false`): lista agentów, czaty, transkrypty na żywo, uprawnienia i workery. adapter-node podaje powłokę z wyglądem użytkownika, wersjonowane assety oraz BFF (`/api/*`, SSE i akcje formularzy) do gRPC gateway. |
+| **Mobile** | iOS/Android | Expo development build, Connect protobuf przez streaming `expo/fetch`, token urządzenia w SecureStore. Bez Expo web. |
 | **Gateway** | serwer centralny (Bun) | Jedyny punkt kontaktu UI. Auth, autoryzacja, API, persystencja, routing komend do workerów, runtime agentów czatowych, szyna agent ↔ agent. |
 | **Worker** | edge device: Linux, Omarchy, macOS, Windows (Bun) | Uruchamia wątki agentów SDK w dozwolonych katalogach, wznawia je i forkuje. Normalizuje zdarzenia SDK i strumieniuje je do gateway. |
 | **PostgreSQL** | obok gateway | Użytkownicy, projekty, agenci, workery, wątki, tury, transkrypty, outbox, audyt. |
@@ -48,11 +51,14 @@ Tylko gateway łączy się z bazą. Worker nie ma dostępu do bazy i nie przyjmu
 flowchart LR
     subgraph Client["Klient"]
         UI["Web UI<br/>(przeglądarka)"]
+        M["Canopy iOS / Android"]
     end
 
     subgraph Central["Serwer centralny"]
         GW["Gateway (Bun)<br/>API · Auth · Router<br/>Chat runtime · Agent bus"]
         PG[("PostgreSQL")]
+        BFF["SvelteKit BFF"]
+        TS["Tailscale Serve<br/>prywatny HTTPS"]
     end
 
     subgraph Edge1["Edge: serwer Linux"]
@@ -68,7 +74,10 @@ flowchart LR
 
     LLM["Anthropic API<br/>OpenAI API"]
 
-    UI -- "HTTPS: API (Connect/REST)<br/>WSS/stream: zdarzenia live" --> GW
+    UI -- "HTTP: JSON / SSE" --> BFF
+    BFF -- "gRPC HTTP/2, service token" --> GW
+    M -- "Connect + device token" --> TS
+    TS -- "HTTP/1.1 loopback, OA_MOBILE_PORT" --> GW
     GW -- "SQL (TLS)" --> PG
     W1 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW
     W2 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW
@@ -85,6 +94,7 @@ flowchart LR
 |---|---|---|---|
 | Przeglądarka ⇄ SvelteKit (BFF) | HTTPS (HTTP/1.1): strony, akcje, JSON; SSE dla zmian na żywo | przeglądarka | Prywatny adres BFF i token usługi zostają na serwerze; UI pokazuje publiczny adres gRPC dla workerów i jednorazowe sekrety enrollment/rotacji ([ui-api.md](ui-api.md)). |
 | SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. |
+| Mobile → Tailscale Serve → Gateway | HTTPS Connect, dalej HTTP/1.1 loopback | aplikacja | Unary i server streaming przez `expo/fetch`. Jednorazowe parowanie, osobny odwoływalny token urządzenia; administracja urządzeniami tylko przez BFF. |
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Działa za NAT-em i firewallem. Szczegóły: [protocol.md](protocol.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |
 | Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Poświadczenia zostają na urządzeniu (login Claude Code / Codex lub klucz API). |
