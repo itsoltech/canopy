@@ -19,12 +19,12 @@
     badge,
     label,
     class: className,
-  }: { participant: Pick<ParticipantView, "id" | "kind" | "name" | "imageUrl">; size?: AvatarSize; badge?: "pinned" | "online" | undefined; label?: string | undefined; class?: ClassValue } = $props();
+  }: { participant: Pick<ParticipantView, "id" | "kind" | "name" | "imageUrl" | "shape" | "color">; size?: AvatarSize; badge?: "pinned" | "online" | undefined; label?: string | undefined; class?: ClassValue } = $props();
 
   const box: Record<AvatarSize, string> = { xs: "size-5", sm: "size-7", md: "size-10", lg: "size-14", xl: "size-18" };
   const initialsText: Record<AvatarSize, string> = { xs: "text-[0.5625rem]", sm: "text-[0.6875rem]", md: "text-sm", lg: "text-lg", xl: "text-xl" };
 
-  const mascot = $derived(mascotFor(participant.id));
+  const mascot = $derived(mascotFor(participant.id, participant.shape));
   const initials = $derived(
     participant.name
       .split(/\s+/)
@@ -43,7 +43,7 @@
     <span class={["grid size-full place-items-center rounded-full bg-zinc-200 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200", initialsText[size]]}>{initials}</span>
   {:else}
     <svg viewBox="0 0 40 40" class={["size-full rounded-full", mascot.tone.background]}>
-      <path d={mascot.shape.body} class={mascot.tone.body} />
+      <path d={mascot.shape.body} class={participant.color ? undefined : mascot.tone.body} fill={participant.color} />
       {#each eyeX as x (x)}
         {#if mascot.eyes === "round"}
           <circle cx={x} cy={mascot.shape.eyeY} r="3.2" class="fill-white" />

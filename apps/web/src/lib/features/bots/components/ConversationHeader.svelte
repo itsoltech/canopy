@@ -14,7 +14,7 @@
    * two bots with ⇄ between them (watched chat). The menu button opens the navigation on small
    * screens (the sidebar toggle shows and hides it on desktop); `actions` go on the right.
    */
-  let { conversation, actions, class: className }: { conversation: ConversationView; actions?: Snippet; class?: ClassValue } = $props();
+  let { conversation, actions, statusLine = "", class: className }: { conversation: ConversationView; actions?: Snippet; statusLine?: string; class?: ClassValue } = $props();
   const shell = useShell();
   const title = $derived(conversationTitle(conversation));
 </script>
@@ -42,6 +42,7 @@
         <span class="sr-only">participants</span>
       {/if}
     </span>
+    {#if statusLine}<span role="status" class="block pt-0.5 text-center text-xs font-normal text-zinc-500 dark:text-zinc-400">{statusLine}</span>{/if}
   </h1>
   <div class="flex flex-1 items-center justify-end gap-1">
     {@render actions?.()}

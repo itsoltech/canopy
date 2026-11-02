@@ -1,11 +1,10 @@
 <script lang="ts">
   import { page } from "$app/state";
-  import BotsSectionEmpty from "#lib/features/bots/components/BotsSectionEmpty.svelte";
+  import LiveBotsNav from "#lib/features/bots/components/LiveBotsNav.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { needsYou, unseenResult } from "#lib/features/threads/activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import ConnectionStatus from "./ConnectionStatus.svelte";
   import Logo from "./Logo.svelte";
   import SectionSwitch from "./SectionSwitch.svelte";
@@ -41,15 +40,9 @@
         <Icon name="pencil-square" />
       </a>
     {:else}
-      <button
-        type="button"
-        class={[iconLink, "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-zinc-500 dark:hover:bg-transparent dark:hover:text-zinc-400"]}
-        aria-label="New bot chat"
-        aria-disabled="true"
-        {@attach tooltip("Coming soon", { placement: "bottom-end" })}
-      >
+      <a href="/bots" class={iconLink} aria-label="Create bot">
         <Icon name="pencil-square" />
-      </button>
+      </a>
     {/if}
   </div>
 
@@ -80,7 +73,7 @@
     {#if section === "threads"}
       <SidebarThreads {currentThreadId} query={queries.threads} />
     {:else}
-      <BotsSectionEmpty query={queries.bots} />
+      <LiveBotsNav query={queries.bots} />
     {/if}
   </nav>
 

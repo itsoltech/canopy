@@ -69,10 +69,10 @@ function hash(value: string): number {
   return h;
 }
 
-export function mascotFor(id: string): Mascot {
+export function mascotFor(id: string, shape?: string): Mascot {
   const h = hash(id);
   return {
-    shape: shapes[h % shapes.length]!,
+    shape: shapes[["round", "squircle", "ghost", "cloud", "drop", "capsule", "triangle"].indexOf(shape ?? "")] ?? shapes[h % shapes.length]!,
     tone: tones[(h >>> 4) % tones.length]!,
     eyes: eyes[(h >>> 9) % eyes.length]!,
     gaze: (((h >>> 12) % 3) - 1) as -1 | 0 | 1,

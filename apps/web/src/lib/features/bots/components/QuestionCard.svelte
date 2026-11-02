@@ -18,11 +18,13 @@
   }: { question: QuestionView; onanswer?: ((optionId: string) => void) | undefined; answering?: string | undefined; class?: ClassValue } = $props();
 
   const id = $props.id();
+  let text = $state("");
   const letters = "ABCDEFGHIJ";
   const answered = $derived(Boolean(question.answer));
   const open = $derived(!answered && !answering && Boolean(onanswer));
 
   function onkeydown(event: KeyboardEvent) {
+    if (event.target instanceof Element && event.target.closest("input, textarea, [contenteditable=true]")) return;
     if (!open || event.altKey || event.ctrlKey || event.metaKey || event.key.length !== 1) return;
     const option = question.options[letters.indexOf(event.key.toUpperCase())];
     if (!option) return;
@@ -75,6 +77,13 @@
       </li>
     {/each}
   </ul>
+  {#if question.freeText && !answered}
+    <form class="flex gap-2 px-3 pb-2" onsubmit={(event) => { event.preventDefault(); if (text.trim() && open) onanswer?.(`text:${text.trim()}`); }}>
+      <label class="sr-only" for="{id}-answer">Your answer</label>
+      <input id="{id}-answer" bind:value={text} disabled={!open} class="min-w-0 flex-1 rounded-lg border border-zinc-300 px-2 py-1 dark:border-zinc-700" placeholder="Your answer" maxlength="32000" />
+      <button type="submit" disabled={!open || !text.trim()} class="rounded-lg bg-brand-600 px-3 py-1 text-white disabled:opacity-50">Send</button>
+    </form>
+  {/if}
   <p class="px-3 pt-1 pb-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
     {#if question.answer}
       Answered {timeLabel(question.answer.at)}
