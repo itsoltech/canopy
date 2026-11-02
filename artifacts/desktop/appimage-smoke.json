@@ -1,0 +1,11 @@
+{
+  "packaged": true,
+  "worker": "online",
+  "mode": "local",
+  "rendererErrors": [],
+  "bridgeConfigurationDeniedOutsideSetup": true,
+  "settingsReload": true,
+  "deepLinkPrefill": true,
+  "electronExited": true,
+  "cleanPostgresShutdown": true
+}
