@@ -36,6 +36,7 @@ interface Stored {
   modelFavorites?: JsonValue;
   composer?: JsonValue;
   textGeneration?: JsonValue;
+  sidebar?: JsonValue;
 }
 
 export class SettingsStore extends Context.Service<
@@ -50,6 +51,7 @@ export class SettingsStore extends Context.Service<
       modelFavorites?: ui.ModelFavorites;
       composer?: ui.ComposerSettings;
       textGeneration?: ui.TextGenerationSettings;
+      sidebar?: ui.SidebarSettings;
       expectedVersion: bigint;
     }): Fx<ui.UserSettings>;
     updateProject(input: { userId: string; projectId: string; threadDefaults?: ui.ThreadDefaults; expectedVersion: bigint }): Fx<ui.ProjectSettings>;
@@ -78,6 +80,7 @@ export class SettingsStore extends Context.Service<
           threadDefaults: threadDefaults(stored),
           modelFavorites: modelFavorites(stored),
           composer: composer(stored),
+          sidebar: stored.sidebar ? fromJson(ui.SidebarSettingsSchema, stored.sidebar, { ignoreUnknownFields: true }) : create(ui.SidebarSettingsSchema),
           textGeneration: stored.textGeneration ? fromJson(ui.TextGenerationSettingsSchema, stored.textGeneration, { ignoreUnknownFields: true }) : create(ui.TextGenerationSettingsSchema),
           version: BigInt(row?.version ?? 0),
           ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
@@ -124,7 +127,7 @@ export class SettingsStore extends Context.Service<
             Effect.map((rows) => rows.map((r) => toProject(r.project_id, r))),
           ),
 
-        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, textGeneration: nextGeneration, expectedVersion }) =>
+        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, textGeneration: nextGeneration, sidebar: nextSidebar, expectedVersion }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const current = (yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid FOR UPDATE`)[0];
@@ -136,6 +139,7 @@ export class SettingsStore extends Context.Service<
                 ...(nextFavorites && { modelFavorites: toJson(ui.ModelFavoritesSchema, nextFavorites) }),
                 ...(nextComposer && { composer: toJson(ui.ComposerSettingsSchema, nextComposer) }),
                 ...(nextGeneration && { textGeneration: toJson(ui.TextGenerationSettingsSchema, nextGeneration) }),
+                ...(nextSidebar && { sidebar: toJson(ui.SidebarSettingsSchema, nextSidebar) }),
               };
               const row = yield* write({
                 current,

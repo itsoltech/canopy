@@ -28,6 +28,7 @@ import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { toUiAttachment, type StoredAttachment } from "./attachments.ts";
 import { toUiQuote, type StoredQuote } from "./quotes.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
+import { threadLifecycle, type ThreadLifecycle } from "./thread-lifecycle.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -79,6 +80,11 @@ export interface ThreadRow {
   last_seq: bigint;
   created_at: Date;
   archived_at?: Date | null;
+  archived_by?: string | null;
+  archived_by_thread_id?: string | null;
+  archived_by_thread_title?: string | null;
+  deleted_at?: Date | null;
+  marked_unread?: boolean;
   pending_interactions?: bigint | number;
   last_activity_at?: Date | null;
   /** Joined: status of the open goal, running background tasks. */
@@ -189,11 +195,11 @@ export class GatewayStore extends Context.Service<
     listProjects(ownerUserId: string): Fx<ui.Project[]>;
     // threads and turns
     createThread(ownerUserId: string, request: ui.CreateThreadRequest): Fx<ThreadRow>;
-    thread(threadId: string): Fx<ThreadRow>;
+    thread(threadId: string, includeDeleted?: boolean): Fx<ThreadRow>;
     /** The owner saw the thread up to `upToSeq` (capped at its last event; the marker only grows). False when nothing changed. */
     markThreadSeen(ownerUserId: string, threadId: string, upToSeq: bigint): Fx<boolean>;
     /** Threads of a project, or of every project the user owns when projectId is empty. */
-    listThreads(ownerUserId: string, projectId: string): Fx<ReadonlyArray<ThreadRow>>;
+    listThreads(ownerUserId: string, projectId: string, includeArchived?: boolean): Fx<ReadonlyArray<ThreadRow>>;
     threadSpec(row: ThreadRow): ThreadSpec;
     setThreadStatus(threadId: string, status: string, detail: string | null): Fx<void>;
     /**
@@ -260,7 +266,7 @@ export class GatewayStore extends Context.Service<
     answerInteraction(requestId: string, by: { userId: string } | { threadId: string }, answer: ui.AnswerInteractionRequest): Fx<ui.Interaction>;
     pendingInteractions(threadId: string): Fx<ui.Interaction[]>;
     interactionAnswer(requestId: string): Fx<{ threadId: string; answer: ui.AnswerInteractionRequest } | undefined>;
-  }
+  } & ThreadLifecycle
 >()("open-agents/gateway/GatewayStore") {
   static readonly layer = (secretsKey: Buffer) =>
     Layer.effect(
@@ -325,6 +331,8 @@ export class GatewayStore extends Context.Service<
                    ORDER BY u.last_seq DESC LIMIT 1) AS unseen_result,
                  (SELECT u.status FROM turns u WHERE u.thread_id = t.id AND u.status IN ('completed', 'failed', 'interrupted')
                    ORDER BY u.ordinal DESC LIMIT 1) AS last_turn_status,
+                 coalesce((SELECT r.marked_unread FROM thread_reads r WHERE r.user_id = t.owner_user_id AND r.thread_id = t.id), false) AS marked_unread,
+                 (SELECT a.title FROM threads a WHERE a.id = t.archived_by_thread_id AND a.deleted_at IS NULL) AS archived_by_thread_title,
                  CASE WHEN t.kind = 'side' THEN
                    (SELECT left(m.content->'agentMessage'->>'text', ${LAST_MESSAGE_PREVIEW}) FROM thread_items m
                      WHERE m.thread_id = t.id AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1) END AS last_message,
@@ -362,6 +370,7 @@ export class GatewayStore extends Context.Service<
           });
 
         const store: GatewayStore["Service"] = {
+          ...threadLifecycle(sql, (input) => store.enqueueCommand(input)),
           ensureUser: (email, displayName) =>
             Effect.gen(function* () {
               const rows = yield* sql<{ id: string }>`
@@ -630,32 +639,29 @@ export class GatewayStore extends Context.Service<
               }),
             ),
 
-          thread: (threadId) =>
-            sql.unsafe<ThreadRow>(threadSelect("WHERE t.id = $1::uuid"), [threadId]).pipe(Effect.flatMap((rows) => one(rows, "thread"))),
+          thread: (threadId, includeDeleted = false) =>
+            sql.unsafe<ThreadRow>(threadSelect("WHERE t.id = $1::uuid AND (t.deleted_at IS NULL OR $2::boolean)"), [threadId, includeDeleted]).pipe(Effect.flatMap((rows) => one(rows, "thread"))),
 
           markThreadSeen: (ownerUserId, threadId, upToSeq) =>
             Effect.gen(function* () {
               const rows = yield* sql<{ seen_seq: string }>`
                 INSERT INTO thread_reads (user_id, thread_id, seen_seq)
                 SELECT t.owner_user_id, t.id, least(${upToSeq.toString()}::bigint, t.last_seq) FROM threads t
-                 WHERE t.id = ${threadId}::uuid AND t.owner_user_id = ${ownerUserId}::uuid
-                ON CONFLICT (user_id, thread_id) DO UPDATE SET seen_seq = EXCLUDED.seen_seq, seen_at = now()
-                 WHERE thread_reads.seen_seq < EXCLUDED.seen_seq
+                 WHERE t.id = ${threadId}::uuid AND t.owner_user_id = ${ownerUserId}::uuid AND t.deleted_at IS NULL
+                ON CONFLICT (user_id, thread_id) DO UPDATE SET seen_seq = greatest(thread_reads.seen_seq, EXCLUDED.seen_seq),
+                  marked_unread = false, seen_at = now()
+                 WHERE thread_reads.seen_seq < EXCLUDED.seen_seq OR thread_reads.marked_unread
                 RETURNING seen_seq`;
               if (rows.length > 0) return true;
-              yield* one(yield* sql<{ id: string }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid`, "thread");
+              yield* one(yield* sql<{ id: string }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid AND deleted_at IS NULL`, "thread");
               return false;
             }),
 
-          listThreads: (ownerUserId, projectId) =>
-            projectId
-              ? sql.unsafe<ThreadRow>(threadSelect("WHERE t.project_id = $1::uuid AND t.archived_at IS NULL ORDER BY t.created_at"), [projectId])
-              : sql.unsafe<ThreadRow>(
-                  threadSelect(
-                    "WHERE t.owner_user_id = $1::uuid AND t.archived_at IS NULL AND EXISTS (SELECT 1 FROM projects p WHERE p.id = t.project_id AND p.archived_at IS NULL) ORDER BY t.created_at",
-                  ),
-                  [ownerUserId],
-                ),
+          listThreads: (ownerUserId, projectId, includeArchived = false) =>
+            sql.unsafe<ThreadRow>(threadSelect(`WHERE t.owner_user_id = $1::uuid AND ($2::uuid IS NULL OR t.project_id = $2::uuid)
+              AND t.deleted_at IS NULL AND ($3::boolean OR t.archived_at IS NULL)
+              AND EXISTS (SELECT 1 FROM projects p WHERE p.id = t.project_id AND p.archived_at IS NULL) ORDER BY t.created_at`),
+              [ownerUserId, projectId || null, includeArchived]),
 
           threadSpec: (row) =>
             create(ThreadSpecSchema, {
@@ -673,7 +679,7 @@ export class GatewayStore extends Context.Service<
             }),
 
           setThreadStatus: (threadId, status, detail) =>
-            sql`UPDATE threads SET status = ${status}, status_detail = ${detail} WHERE id = ${threadId}::uuid`.pipe(Effect.asVoid),
+            sql`UPDATE threads SET status = ${status}, status_detail = ${detail} WHERE id = ${threadId}::uuid AND deleted_at IS NULL AND archived_at IS NULL`.pipe(Effect.asVoid),
 
           enqueueTurn: ({ threadId, text, userId, clientRequestId, model = "", effort = "", permissionMode = "", input }) =>
             sql.withTransaction(
@@ -738,7 +744,7 @@ export class GatewayStore extends Context.Service<
             sql<TurnRow>`
               SELECT u.* FROM turns u JOIN threads t ON t.id = u.thread_id
                WHERE u.thread_id = ${threadId}::uuid AND u.status = 'queued' AND t.provider_thread_id IS NOT NULL
-                 AND t.status IN ('idle', 'interrupted', 'failed')
+                 AND t.status IN ('idle', 'interrupted', 'failed') AND t.deleted_at IS NULL AND t.archived_at IS NULL
                  AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = u.thread_id AND r.status = 'running')
                  AND NOT EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = u.id AND c.status IN ('pending', 'delivered', 'completed'))
                ORDER BY u.ordinal LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
@@ -1006,6 +1012,12 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     runtime: row.runtime,
     lastMessage: row.last_message ?? "",
     unseenResult: row.unseen_result ?? "",
+    markedUnread: row.marked_unread ?? false,
+    ...(row.archived_at && { archivedAt: timestampFromDate(new Date(row.archived_at)) }),
+    archivedBy: row.archived_by ?? "",
+    archivedByThreadId: row.archived_by_thread_id ?? "",
+    archivedByThreadTitle: row.archived_by_thread_title ?? "",
+    ...(row.deleted_at && { deletedAt: timestampFromDate(new Date(row.deleted_at)) }),
     lastTurnStatus: row.last_turn_status ?? "",
   });
 }

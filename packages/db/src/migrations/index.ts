@@ -23,6 +23,7 @@ import forkFromTurn from "./0020_fork_from_turn.sql" with { type: "text" };
 import queueManage from "./0021_queue_manage.sql" with { type: "text" };
 import threadTitles from "./0022_thread_titles.sql" with { type: "text" };
 import agentSenders from "./0023_agent_senders.sql" with { type: "text" };
+import sidebarThreads from "./0026_sidebar_threads.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -62,6 +63,7 @@ export const migrations = Migrator.fromRecord({
   "0021_queue_manage": sqlFile(queueManage),
   "0022_thread_titles": sqlFile(threadTitles),
   "0023_agent_senders": sqlFile(agentSenders),
+  "0026_sidebar_threads": sqlFile(sidebarThreads),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

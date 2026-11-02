@@ -213,7 +213,7 @@ export class AgentBus {
         await this.#host.interrupt(call.args.thread_id);
         return { thread_id: call.args.thread_id, interrupted: true };
       case "close_thread":
-        await store((s) => s.close(call.args.thread_id));
+        await store((s) => s.close(call.args.thread_id, caller.id));
         await this.#host.interrupt(call.args.thread_id);
         await this.#host.broadcastThread(call.args.thread_id);
         return { thread_id: call.args.thread_id, closed: true };

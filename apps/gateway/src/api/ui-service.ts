@@ -21,7 +21,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
           await core.removeWorkspace(request.workspaceId);
           return create(ui.RemoveWorkspaceResponseSchema, {});
         }),
-      listThreads: (request) => guard(async () => create(ui.ListThreadsResponseSchema, { threads: await core.listThreads(request.projectId) })),
+      listThreads: (request) => guard(async () => create(ui.ListThreadsResponseSchema, { threads: await core.listThreads(request.projectId, request.includeArchived) })),
       getThread: (request) => guard(async () => create(ui.GetThreadResponseSchema, { thread: await core.getThread(request.threadId) })),
       createThread: (request) => guard(async () => create(ui.CreateThreadResponseSchema, { thread: await core.createThread(request) })),
       sendMessage: (request) => guard(async () => create(ui.SendMessageResponseSchema, await core.sendMessage(request))),
@@ -82,6 +82,10 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       searchThreads: (request) => guard(() => core.searchThreads(request)),
       markThreadSeen: (request) =>
         guard(async () => create(ui.MarkThreadSeenResponseSchema, { thread: await core.markThreadSeen(request.threadId, request.upToSeq) })),
+      setThreadRead: (request) => guard(async () => create(ui.MarkThreadSeenResponseSchema, { thread: await core.setThreadRead(request.threadId, request.unread) })),
+      setThreadArchived: (request) => guard(async () => create(ui.GetThreadResponseSchema, { thread: await core.setThreadArchived(request.threadId, request.archived) })),
+      deleteThread: (request) => guard(async () => create(ui.DeleteThreadResponseSchema, { threadIds: await core.deleteThread(request.threadId) })),
+      restoreThread: (request) => guard(async () => create(ui.ListThreadsResponseSchema, { threads: await core.restoreThread(request.threadId) })),
     });
 }
 

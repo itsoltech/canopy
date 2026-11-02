@@ -62,7 +62,7 @@ export class QueueStore extends Context.Service<
       const sql = yield* SqlClient.SqlClient;
 
       const lockThread = (threadId: string, ownerUserId: string) =>
-        sql<{ id: string }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid FOR UPDATE`.pipe(
+        sql<{ id: string }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`.pipe(
           Effect.flatMap((rows) => (rows[0] ? Effect.void : Effect.fail(new NotFound("thread not found")))),
         );
 

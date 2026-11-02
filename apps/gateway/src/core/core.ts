@@ -497,6 +497,8 @@ export class GatewayCore {
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */
   async pump(threadId: string): Promise<void> {
+    const state = await this.#run((s) => s.thread(threadId, true));
+    if (state.deleted_at || state.archived_at) return;
     // Steers that never joined their turn run next (in order, before anything queued after them).
     for (const steerId of await this.#steers((s) => s.dropped(threadId))) await this.#queueSteer(steerId, "");
     // The user may reorder or edit the queue meanwhile: the head starts only as read, else it is read again.
@@ -685,12 +687,41 @@ export class GatewayCore {
     if (project) this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
   }
 
-  async listThreads(projectId: string): Promise<ui.Thread[]> {
-    return (await this.#run((s) => s.listThreads(this.#options.userId, projectId))).map((row) => this.#uiThread(row));
+  async listThreads(projectId: string, includeArchived = false): Promise<ui.Thread[]> {
+    return (await this.#run((s) => s.listThreads(this.#options.userId, projectId, includeArchived))).map((row) => this.#uiThread(row));
   }
 
   async getThread(threadId: string): Promise<ui.Thread> {
-    return this.#uiThread(await this.#run((s) => s.thread(threadId)));
+    const row = await this.#run((s) => s.thread(threadId));
+    if (row.owner_user_id !== this.#options.userId) throw new NotFound("thread not found");
+    return this.#uiThread(row);
+  }
+
+  async setThreadRead(threadId: string, unread: boolean): Promise<ui.Thread> {
+    await this.#run((s) => s.setThreadRead(this.#options.userId, threadId, unread));
+    await this.#broadcastThread(threadId);
+    return this.getThread(threadId);
+  }
+
+  async setThreadArchived(threadId: string, archived: boolean): Promise<ui.Thread> {
+    const commands = await this.#run((s) => s.setThreadArchived(this.#options.userId, threadId, archived));
+    for (const entry of commands) void this.#deliver(entry.workerId, entry.command);
+    await this.#broadcastThread(threadId);
+    for (const schedule of await this.listSchedules(create(ui.ListSchedulesRequestSchema, { threadId }))) this.#announceSchedule(schedule);
+    return this.getThread(threadId);
+  }
+
+  async deleteThread(threadId: string): Promise<string[]> {
+    const { ids, commands } = await this.#run((s) => s.deleteThread(this.#options.userId, threadId));
+    for (const entry of commands) void this.#deliver(entry.workerId, entry.command);
+    for (const id of ids) await this.#broadcastThread(id);
+    return ids;
+  }
+
+  async restoreThread(threadId: string): Promise<ui.Thread[]> {
+    const ids = await this.#run((s) => s.restoreThread(this.#options.userId, threadId));
+    for (const id of ids) await this.#broadcastThread(id);
+    return Promise.all(ids.map((id) => this.getThread(id)));
   }
 
   /** The user saw the thread up to an event: a lower marker changes nothing; a new one reaches every device. */
@@ -1071,6 +1102,7 @@ export class GatewayCore {
     const { threadId, clientRequestId } = request;
     const thread = await this.#run((s) => s.thread(threadId));
     if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
+    if (thread.archived_at) throw new InvalidError("the thread is archived");
     const existingSteer = await this.#steers((s) => s.byClientRequest(threadId, clientRequestId));
     if (existingSteer) return { steer: toUiSteer(existingSteer) };
     const existingTurn = await this.#run((s) => s.turnByClientRequest(threadId, clientRequestId));
@@ -1605,6 +1637,10 @@ export class GatewayCore {
 
   /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
   async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
+    if (request.sidebar) {
+      const ids = [...request.sidebar.projectIds, ...request.sidebar.pinnedThreadIds];
+      if (ids.length > 1000 || ids.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) throw new InvalidError("invalid sidebar ids");
+    }
     if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults);
     if (request.modelFavorites) checkFavorites(request.modelFavorites);
     if (request.composer && !(request.composer.runningDelivery in ui.MessageDelivery)) throw new InvalidError("unknown message delivery");
@@ -1622,6 +1658,7 @@ export class GatewayCore {
         ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),
         ...(request.composer && { composer: request.composer }),
         ...(request.textGeneration && { textGeneration: request.textGeneration }),
+        ...(request.sidebar && { sidebar: { ...request.sidebar, projectIds: [...new Set(request.sidebar.projectIds)], pinnedThreadIds: [...new Set(request.sidebar.pinnedThreadIds)] } }),
         expectedVersion: request.expectedVersion,
       }),
     );
@@ -1910,7 +1947,7 @@ export class GatewayCore {
   }
 
   async #broadcastThread(threadId: string): Promise<void> {
-    const thread = this.#uiThread(await this.#run((s) => s.thread(threadId)));
+    const thread = this.#uiThread(await this.#run((s) => s.thread(threadId, true)));
     this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "thread", value: thread } }));
     this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));
   }
