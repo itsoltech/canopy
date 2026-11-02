@@ -14,9 +14,16 @@ import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 // Private card delivery is optional; the file stays outside the repo and its contents are never logged.
 const privateFile = process.env["OA_LIVE_PROXY_FILE"];
-const connection: { url?: string; key?: string } = privateFile ? await Bun.file(privateFile).json() : {};
-const proxyUrl = connection.url ?? process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = connection.key ?? process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const privateUrlFile = process.env["OA_LIVE_PROXY_URL_FILE"];
+const privateKeyFile = process.env["OA_LIVE_PROXY_KEY_FILE"];
+const connection: { url?: string; key?: string } = privateFile ? await Bun.file(privateFile).json().catch(() => {
+  throw new Error("Private proxy file must contain JSON with url and key; contents suppressed");
+}) : {};
+const proxyUrl = privateUrlFile ? (await Bun.file(privateUrlFile).text()).trim() : connection.url ?? process.env["OA_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = privateKeyFile ? (await Bun.file(privateKeyFile).text()).trim() : connection.key ?? process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+if (process.env["OA_LIVE"] === "1" && (typeof proxyUrl !== "string" || !proxyUrl || typeof proxyKey !== "string" || !proxyKey || !dockerAvailable)) {
+  throw new Error("Live scratch verification requires private proxy credentials and Docker; refusing to silently skip it");
+}
 
 describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)("no-project real worker through CLIProxyAPI", () => {
   const makeTemp = tempDirs();
