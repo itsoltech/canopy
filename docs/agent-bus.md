@@ -192,6 +192,8 @@ Osobna definicja `packages/domain/src/agent-bus/questions.ts` jest źródłem sc
 
 `ask_user({questions, wait: false})` od razu zwraca `question_set_id` i `status: pending`. `get_answers({question_set_id, wait?})` odczytuje stan. Odpowiedź zawiera `status: answered | dismissed` i uporządkowaną listę `answers`; każdy element ma `id` i jedną z postaci:
 
+Tura albo steer z odpowiedzią ma w osi czasu własne źródło `answer` (widok `turn_sources`, migracja 0042): „Your answer”, „Answer from ‹wątek›” (rodzic) albo „Answer from ‹bot›” — gdy odpowiedział bot narzędziem `answer_interaction` w imieniu użytkownika (`interaction_requests.answered_by_bot_id`, `Turn.bot_id`). Wcześniej taka tura wyglądała jak wiadomość od samego pytającego wątku.
+
 ```json
 {"id":"auth","kind":"choice","labels":["OAuth"]}
 {"id":"notes","kind":"text","text":"Wymagane SSO"}

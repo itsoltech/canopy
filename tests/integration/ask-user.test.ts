@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
-import { Provider, TurnOutcome, type AgentToolResult } from "@open-agents/contracts";
+import { create } from "@bufbuild/protobuf";
+import { Provider, TurnOutcome, ui, type AgentToolResult } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -20,6 +21,10 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
   const pending = async (id: string) => {
     const updates = await watchUntil(gw.api, id, (u) => u.length > 0);
     return updates[0]?.change.case === "snapshot" ? updates[0].change.value.interactions : [];
+  };
+  const uiTurn = async (threadId: string, turnId: string) => {
+    const updates = await watchUntil(gw.api, threadId, (u) => u.length > 0);
+    return updates[0]?.change.case === "snapshot" ? updates[0].change.value.turns.find((t) => t.id === turnId) : undefined;
   };
   const start = async () => {
     gw.worker.holdTurns = true;
@@ -87,8 +92,28 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
     await gw.api.answerInteraction({ requestId: result.question_set_id, answerJson: JSON.stringify({ answers: [{ id: "auth", kind: "skipped" }] }) });
     const next = await eventually(() => turns(source.threadId), (r) => r.length === 2 && r[1]?.status === "completed");
     expect(next[1]).toMatchObject({ trigger: "agent_bus", hops: 1, text: expect.stringContaining('"kind":"skipped"') });
+    // The UI shows it as your answer, not as a message from the asking thread itself.
+    const answerTurn = await uiTurn(source.threadId, next[1]!.id);
+    expect(answerTurn).toMatchObject({ sourceKind: "answer", sourceThreadId: "", botId: "" });
     await gw.core.bus.deliverAnswers();
     expect(await turns(source.threadId)).toHaveLength(2);
+  });
+
+  test("a bot answering on the user's behalf is named on the answer turn", async () => {
+    const botId = Bun.randomUUIDv7();
+    await gw.runtime.runPromise(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`INSERT INTO bots(id, owner_user_id, client_request_id, configuration, provider, provider_instance) VALUES (${botId}::uuid, ${gw.userId}::uuid, ${botId}, '{}'::jsonb, 'codex', 'none')`;
+    }));
+    const source = await start();
+    const result = json(await gw.worker.callTool({ ...source, tool: "ask_user", args: { questions, wait: false } }));
+    gw.worker.finish(source.threadId, source.turnId);
+    await eventually(() => turns(source.threadId), (r) => r[0]?.status === "completed");
+    gw.worker.holdTurns = false;
+    await gw.core.answerInteraction(create(ui.AnswerInteractionRequestSchema, { requestId: result.question_set_id, answerJson: JSON.stringify({ answers: [{ id: "auth", kind: "skipped" }] }) }), botId);
+    const next = await eventually(() => turns(source.threadId), (r) => r.length === 2);
+    const answerTurn = await uiTurn(source.threadId, next[1]!.id);
+    expect(answerTurn).toMatchObject({ sourceKind: "answer", botId });
   });
 
   test("a refused async steer falls back to a new turn with the same hops and answer", async () => {

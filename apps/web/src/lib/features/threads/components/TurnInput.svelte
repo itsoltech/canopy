@@ -31,7 +31,7 @@
   // The platform's note (where the input comes from) and the delivered content, kept apart by the gateway.
   const parts = $derived({ note: turn.platformNote, message: turn.messageText });
   const tone = $derived(origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet");
-  const icons: Record<string, IconName> = { task: "sparkles", message: "chat-bubble-left-right", report: "document-text", question: "hand-raised", schedule: "clock" };
+  const icons: Record<string, IconName> = { task: "sparkles", message: "chat-bubble-left-right", report: "document-text", question: "hand-raised", schedule: "clock", answer: "chat-bubble-left-right" };
   const triggerLabels: Record<string, string> = { agent_bus: "From an agent", interaction: "A side thread is waiting", schedule: "Scheduled", goal: "Goal" };
 
   // Long reports (a side thread's whole answer) start folded.
@@ -62,11 +62,19 @@
         tone === "amber" ? "text-amber-700 dark:text-amber-400" : tone === "sky" ? "text-sky-700 dark:text-sky-400" : "text-violet-700 dark:text-violet-400",
       ]}
     >
-      {#if !(origin.kind === "other" && turn.botId)}<Icon name={icons[origin.kind] ?? "sparkles"} class="size-3.5" />{/if}
+      {#if !((origin.kind === "other" || origin.kind === "answer") && turn.botId)}<Icon name={icons[origin.kind] ?? "sparkles"} class="size-3.5" />{/if}
       {#if origin.kind === "task"}
         <AgentSenderLabel verb="Task from" threadId={origin.threadId} sender={turn.sender} />
       {:else if origin.kind === "message"}
         <AgentSenderLabel verb="Message from" threadId={origin.threadId} sender={turn.sender} />
+      {:else if origin.kind === "answer"}
+        {#if turn.botId}
+          <BotSenderLabel verb="Answer from" botId={turn.botId} />
+        {:else if origin.threadId}
+          <AgentSenderLabel verb="Answer from" threadId={origin.threadId} sender={turn.sender} />
+        {:else}
+          Your answer
+        {/if}
       {:else if origin.kind === "report"}
         <AgentSenderLabel verb="Report from" threadId={origin.threadId} sender={turn.sender} fallback="a thread it follows" />
       {:else if origin.kind === "question"}

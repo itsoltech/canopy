@@ -60,7 +60,7 @@ function questionView(a: bots.BotApproval): QuestionView {
 /** The gateway's approval text: "Needs approval · Sending to Notion" and then one "Label: value" per line. */
 export function approvalView(a: bots.BotApproval): ApprovalView {
   const [heading = "", ...lines] = a.prompt.split("\n");
-  const fields = lines.map((line) => {
+  const fields = lines.filter((line) => line.trim()).map((line) => {
     const colon = line.indexOf(": ");
     return colon > 0 && colon < 60 ? { label: line.slice(0, colon), value: line.slice(colon + 2) } : { label: "", value: line };
   });

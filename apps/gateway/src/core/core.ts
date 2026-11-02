@@ -1779,12 +1779,13 @@ export class GatewayCore {
     );
   }
 
-  async answerInteraction(request: ui.AnswerInteractionRequest): Promise<ui.Interaction> {
-    return this.#answer({ userId: this.#options.userId }, request);
+  /** `botId`: a bot answered on the user's behalf (its answer_interaction tool); the timeline names it. */
+  async answerInteraction(request: ui.AnswerInteractionRequest, botId?: string): Promise<ui.Interaction> {
+    return this.#answer({ userId: this.#options.userId, ...(botId && { botId }) }, request);
   }
 
   /** Stores the answer (user or parent agent), announces it and passes it to the waiting worker. */
-  async #answer(by: { userId: string } | { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction> {
+  async #answer(by: { userId: string; botId?: string } | { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction> {
     const interaction = await this.#run((s) => s.answerInteraction(request.requestId, by, request));
     await this.#publishInteraction(interaction);
     if (interaction.toolName === "ask_user") {

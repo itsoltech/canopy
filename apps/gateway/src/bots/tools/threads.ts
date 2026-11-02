@@ -52,7 +52,7 @@ const answerInteraction: PlatformTool = {
     const interaction = await pendingInteraction(c);
     const questions = questionsOf(interaction);
     const cancelled = c.args["cancelled"] === true;
-    return json(ui.InteractionSchema, await c.core.answerInteraction(create(ui.AnswerInteractionRequestSchema, { requestId: interaction.requestId, allow: c.args["allow"] === true, allowForSession: c.args["allow_for_session"] === true, message: c.optional("message"), answerJson: questions && !cancelled ? answerJson(c, questions) : "", cancelled })));
+    return json(ui.InteractionSchema, await c.core.answerInteraction(create(ui.AnswerInteractionRequestSchema, { requestId: interaction.requestId, allow: c.args["allow"] === true, allowForSession: c.args["allow_for_session"] === true, message: c.optional("message"), answerJson: questions && !cancelled ? answerJson(c, questions) : "", cancelled }), c.turn.bot_id));
   }), "approval"),
   async prepare(c) {
     const interaction = await pendingInteraction(c);

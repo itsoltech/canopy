@@ -10,6 +10,8 @@ export type TurnOrigin =
   | { readonly kind: "task"; readonly threadId: string }
   /** send_message from another thread of the tree. */
   | { readonly kind: "message"; readonly threadId: string }
+  /** Answers to this agent's own ask_user: from a parent thread (`threadId`), a bot (Turn.bot_id) or you (neither). */
+  | { readonly kind: "answer"; readonly threadId: string }
   /** A thread this one is following finished a turn and reports back. */
   | { readonly kind: "report"; readonly threadId: string }
   /** A side thread (interaction_route = parent) waits for this agent's answer. */
@@ -27,6 +29,8 @@ export function turnOrigin(turn: ui.Turn): TurnOrigin {
     case "message":
     case "report":
       return { kind: turn.sourceKind, threadId: turn.sourceThreadId };
+    case "answer":
+      return { kind: "answer", threadId: turn.sourceThreadId };
     case "question":
       return { kind: "question", threadId: turn.sourceThreadId, requestId: turn.interactionRequestId };
     case "schedule":

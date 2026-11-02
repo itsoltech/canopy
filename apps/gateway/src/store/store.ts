@@ -113,6 +113,8 @@ export interface TurnRow {
   id: string;
   /** The bot that started or sent the turn (trigger bot), when the query joins it. */
   bot_id?: string | null;
+  /** Joined from turn_sources: the bot that answered this turn's ask_user on the user's behalf. */
+  answer_bot_id?: string | null;
   thread_id: string;
   ordinal: number;
   status: string;
@@ -281,7 +283,7 @@ export class GatewayStore extends Context.Service<
     // interactions
     recordInteraction(request: InteractionRequest): Fx<ui.Interaction>;
     /** Answered by the user, or by the parent thread's agent (answer_interaction on the agent bus). */
-    answerInteraction(requestId: string, by: { userId: string } | { threadId: string }, answer: ui.AnswerInteractionRequest): Fx<ui.Interaction>;
+    answerInteraction(requestId: string, by: { userId: string; botId?: string } | { threadId: string }, answer: ui.AnswerInteractionRequest): Fx<ui.Interaction>;
     pendingInteractions(threadId: string): Fx<ui.Interaction[]>;
     interactionAnswer(requestId: string): Fx<{ threadId: string; answer: ui.AnswerInteractionRequest } | undefined>;
     interactionEvent(requestId: string): Fx<{ seq: bigint; event: import("@open-agents/contracts").ThreadEvent } | undefined>;
@@ -1036,6 +1038,7 @@ export class GatewayStore extends Context.Service<
               const threadId = "threadId" in by && !answer.cancelled ? by.threadId : null;
               const rows = yield* sql<InteractionRow>`
                 UPDATE interaction_requests SET status = ${status}, answered_by = ${userId}::uuid, answered_by_thread_id = ${threadId}::uuid,
+                       answered_by_bot_id = ${"botId" in by && by.botId && !answer.cancelled ? by.botId : null}::uuid,
                        answered_at = now(),
                        response = ${JSON.stringify({ allow: answer.allow, allowForSession: answer.allowForSession, message: answer.message, answerJson: answer.answerJson, cancelled: answer.cancelled })}::jsonb,
                        answer_delivery = CASE WHEN question_call_id IS NOT NULL THEN 'pending' ELSE NULL END
@@ -1197,7 +1200,7 @@ export function toUiSender(row: SenderColumns): ui.AgentSender | undefined {
 
 export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
   // Agent-sent input (a task, a message, a report) names its sender; other sources show their own way.
-  const sender = row.source_kind === "task" || row.source_kind === "message" || row.source_kind === "report" ? toUiSender(row) : undefined;
+  const sender = row.source_kind === "task" || row.source_kind === "message" || row.source_kind === "report" || (row.source_kind === "answer" && row.source_thread_id) ? toUiSender(row) : undefined;
   return create(ui.TurnSchema, {
     id: row.id,
     ordinal: row.ordinal,
@@ -1222,7 +1225,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     questionKind: row.question_kind ?? "",
     questionTool: row.question_tool ?? "",
     backgroundItemIds: row.background_item_ids ?? [],
-    botId: row.bot_id ?? "",
+    botId: row.bot_id || row.answer_bot_id || "",
     sourceKind: row.source_kind ?? "",
     sourceThreadId: row.source_thread_id ?? "",
     scheduleId: row.schedule_id ?? "",
