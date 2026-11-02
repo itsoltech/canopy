@@ -36,6 +36,23 @@
     class?: ClassValue;
   } = $props();
 
+  let press: { pointerId: number; x: number; y: number; moved: boolean } | undefined;
+  function preserveFocus(event: PointerEvent) {
+    event.preventDefault();
+    press = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+  }
+  function trackPress(event: PointerEvent) {
+    if (press?.pointerId === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8) press.moved = true;
+  }
+  function pick(event: PointerEvent, option: MentionOption) {
+    trackPress(event);
+    const tap = press?.pointerId === event.pointerId && !press.moved;
+    press = undefined;
+    // WebKit may suppress click after a cancelled pointerdown. Movement disqualifies a
+    // swipe even when the browser sends pointerup instead of pointercancel.
+    if (event.button === 0 && tap) { event.preventDefault(); onchoose(option); }
+  }
+
   const groups = $derived.by(() => {
     const out: { label: string; entries: { option: MentionOption; index: number }[] }[] = [];
     options.forEach((option, index) => {
@@ -48,7 +65,7 @@
 
   $effect(() => {
     if (active < 0) return;
-    if (active === 0) document.getElementById(`${id}-list`)?.scrollTo({ top: 0 });
+    if (active === 0) document.getElementById(`${id}-list`)?.closest<HTMLElement>("[data-mention-scroll], [popover]")?.scrollTo({ top: 0 });
     else document.getElementById(`${id}-option-${active}`)?.scrollIntoView({ block: "nearest" });
   });
 
@@ -67,7 +84,7 @@
 </script>
 
 <div class={className}>
-<ul id="{id}-list" role="listbox" aria-label={label} class="grid grid-cols-1 content-start p-1">
+<ul id="{id}-list" role="listbox" aria-label={label} class="grid grid-cols-1 content-start p-1" onpointerdown={preserveFocus} onpointermove={trackPress} onpointercancel={() => { press = undefined; }}>
   {#each groups as group (group.label)}
     <li role="presentation" class={[listboxHeadingClasses, "-mx-1 px-3.5"]}>
       <div class="truncate">{group.label}</div>
@@ -82,9 +99,9 @@
         aria-selected={index === active}
         data-active={index === active || undefined}
         class={["flex items-start gap-2.5", listboxOptionClasses]}
-        onpointerdown={(event) => event.preventDefault()}
-        onpointermove={() => onactive(index)}
-        onclick={() => onchoose(option)}
+        onpointermove={(event) => { if (event.pointerType !== "touch") onactive(index); }}
+        onpointerup={(event) => pick(event, option)}
+        onclick={(event) => { if (event.detail === 0) onchoose(option); }}
       >
         <div class="flex h-lh shrink-0 items-center">
           {#if icon}
