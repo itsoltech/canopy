@@ -52,7 +52,7 @@ function questionView(a: bots.BotApproval): QuestionView {
   const options = a.options.map((label, index) => ({ id: `option:${index}`, label }));
   const chosen = options.find((o) => o.label === a.answer);
   return {
-    id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, prompt: a.prompt, options, freeText: true,
+    id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, prompt: a.prompt, options, freeText: true, routineTitle: a.routineTitle || undefined,
     ...(a.status !== "pending" && { answer: { optionId: chosen?.id ?? "", at: dateOf(a.createdAt), text: a.answer, skipped: a.status === "discarded" } }),
   };
 }
@@ -65,7 +65,7 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
     return colon > 0 && colon < 60 ? { label: line.slice(0, colon), value: line.slice(colon + 2) } : { label: "", value: line };
   });
   const status = a.status === "approved" ? "approved" : a.status === "discarded" ? (a.answer ? "edited" : "discarded") : "pending";
-  return { id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, action: heading.replace(/^Needs approval · /, "") || "Use a tool", fields, status };
+  return { id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, action: heading.replace(/^Needs approval · /, "") || "Use a tool", fields, status, routineTitle: a.routineTitle || undefined };
 }
 
 /** Messages of one bot ⇄ bot exchange, each from the bot that wrote it. */

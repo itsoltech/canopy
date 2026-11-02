@@ -71,6 +71,26 @@ przypomnienia. Zmiana rewizji aktualizuje istniejący strumień `/api/bots/:id/e
 bez przeładowania i bez technicznego wpisu w czacie. UI API wystawia tylko włącz/wyłącz,
 usuń rutynę i anuluj przypomnienie; tworzenie/edycja treści odbywa się przez rozmowę.
 
+### Panel rozmowy
+
+Na `/bots/:botId` przycisk **Bot details** w oszronionym nagłówku otwiera prawą kolumnę
+336 px od `lg` (1024 px). Czat dostaje pozostałą szerokość. Preferencja desktopowa jest
+w `localStorage` pod `canopy:bot-details:<owner_user_id>`, wspólna dla botów właściciela;
+brak dostępu do storage nie blokuje UI. Poniżej `lg` przycisk otwiera istniejący `Dialog`
+(dolny panel na telefonie); przy wejściu na telefon modal pozostaje zamknięty. Grupy
+i podgląd wymian bot–bot nie dostają tego przycisku — rutyny należą do jednego bota.
+
+Panel pokazuje dużą żywą maskotkę, nazwę, model/dostawcę, przycisk ustawień, rutyny
+i aktywne przypomnienia jednorazowe. Wiersz rutyny: tytuł, serwerowy opis crona,
+przełącznik z zestawu UI, menu usunięcia z potwierdzeniem, strefa/następny termin
+i dyskretny ostatni wynik. Brak formularza tworzenia lub edycji: pusty stan podaje
+przykład prośby do bota. Sekcje składa `DetailsSection`; `BotDetailsPanel` ma dodatkowy
+slot na przyszłe Connections. Nie zmienia komponentów ustawień połączeń.
+
+Przegląd **componentize** wydzielił `BotDetailsLayout`, `BotDetailsPanel`, `DetailsSection`,
+`RoutineRow` i `ReminderRow`. Ruch z **transitions-dev**: card resize + panel reveal,
+z reduced motion; mobilny dialog korzysta ze wspólnego ruchu dolnego panelu.
+
 
 Status: **rdzeń, edytor ustawień, samodzielna edycja, archiwum i rutyny**, 2026-11-02. Bot ma jedną rozmowę
 z właścicielem i działa w procesie gateway. Nie ma katalogu, workera ani lokalnego
