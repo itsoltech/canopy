@@ -20,8 +20,8 @@
 
 <label
   class={[
-    "flex gap-3 rounded-xl p-3 ring-1 ring-zinc-950/10 has-checked:bg-brand-50/50 has-checked:ring-brand-600/40 dark:ring-white/10 dark:has-checked:bg-brand-500/10 dark:has-checked:ring-brand-500/40",
-    leading ? "items-center has-focus-visible:outline-2 has-focus-visible:outline-brand-500" : "",
+    "flex min-h-12 gap-3 rounded-xl p-3 ring-1 ring-zinc-950/10 has-checked:bg-brand-50/50 has-checked:ring-brand-600/40 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 dark:ring-white/10 dark:has-checked:bg-brand-500/10 dark:has-checked:ring-brand-500/40",
+    leading && "items-center",
     className,
   ]}
 >
