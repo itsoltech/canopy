@@ -588,6 +588,12 @@ export class GatewayCore {
     return toUiThread(await this.#run((s) => s.thread(threadId)));
   }
 
+  /** The user saw the thread up to an event: a lower marker changes nothing; a new one reaches every device. */
+  async markThreadSeen(threadId: string, upToSeq: bigint): Promise<ui.Thread> {
+    if (await this.#run((s) => s.markThreadSeen(this.#options.userId, threadId, upToSeq))) await this.#broadcastThread(threadId);
+    return this.getThread(threadId);
+  }
+
   async createThread(request: ui.CreateThreadRequest): Promise<ui.Thread> {
     await this.#checkProvider(request);
     const where = { workspaceId: request.workspaceId, provider: request.provider, profileId: request.providerProfileId };

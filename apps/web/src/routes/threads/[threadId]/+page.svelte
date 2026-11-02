@@ -41,6 +41,7 @@
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
+  import { trackSeen } from "#lib/features/threads/seen.svelte.ts";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
@@ -84,6 +85,13 @@
       const turn = view.turns.find((t) => t.id === turnId);
       return turn !== undefined && isTerminal(turn.status);
     },
+  });
+
+  // Its latest result counts as seen once it has been on screen (the sidebar's "Completed" goes out everywhere).
+  let atEnd = $state(true);
+  trackSeen(() => {
+    const live = overview.threads.get(threadId) ?? thread;
+    return { threadId, unseen: Boolean(live?.unseenResult), lastSeq: live?.lastSeq ?? 0n, atEnd };
   });
 
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
@@ -242,7 +250,7 @@
 
     <div class="min-h-0 flex-1">
       {#key threadId}
-        <VirtualFeed bind:this={feed} {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working}>
+        <VirtualFeed bind:this={feed} bind:atEnd {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working}>
           {#snippet placeholder()}
             {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
           {/snippet}

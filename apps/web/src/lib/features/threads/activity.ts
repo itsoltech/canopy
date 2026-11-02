@@ -33,5 +33,16 @@ export function workState(thread: ui.Thread): WorkState {
   return thread.backgroundTasks > 0 ? "background" : "idle";
 }
 
-/** A turn runs, the thread starts or a background task still runs. */
-export const isWorking = (thread: ui.Thread) => ["starting", "running", "background"].includes(workState(thread));
+/** How a finished turn ended, while the user has not seen it (Thread.unseen_result). */
+export type TurnResult = "completed" | "failed" | "interrupted";
+const results: readonly string[] = ["completed", "failed", "interrupted"] satisfies TurnResult[];
+export const unseenResult = (thread: ui.Thread): TurnResult | undefined => (results.includes(thread.unseenResult) ? (thread.unseenResult as TurnResult) : undefined);
+
+/**
+ * Busy without needing anyone: a turn running or starting, asking its agent, or background tasks alone with
+ * nothing new to look at. Lists show such threads calm (dimmed) so finished and waiting ones stand out.
+ */
+export function isCalm(thread: ui.Thread): boolean {
+  const state = workState(thread);
+  return state === "starting" || state === "running" || state === "asks" || (state === "background" && !unseenResult(thread));
+}

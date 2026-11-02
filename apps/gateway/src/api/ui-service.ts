@@ -64,6 +64,8 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
         guard(async () => create(ui.UploadAttachmentResponseSchema, { attachment: await core.uploadAttachment(request.name, request.data) })),
       getAttachment: (request) => guard(() => core.getAttachment(request.attachmentId, request.thumbnail)),
       getThreadBlob: (request) => guard(() => core.getThreadBlob(request.threadId, request.sha256)),
+      markThreadSeen: (request) =>
+        guard(async () => create(ui.MarkThreadSeenResponseSchema, { thread: await core.markThreadSeen(request.threadId, request.upToSeq) })),
     });
 }
 

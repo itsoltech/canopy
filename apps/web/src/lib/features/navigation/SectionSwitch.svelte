@@ -7,14 +7,14 @@
   /**
    * Segmented "Threads | Bots" switch at the top of the sidebar. Each segment links to the last page
    * of its section; `attention` puts a dot on a segment you are not in: amber when something there needs
-   * you, a pulsing sky one while something there works. The raised pill slides to the active segment
-   * (sliding tabs, motion.css `t-tabs-pill`).
+   * you, emerald when something there finished and you have not seen it. The raised pill slides to the
+   * active segment (sliding tabs, motion.css `t-tabs-pill`).
    */
   let {
     active,
     attention = {},
     class: className,
-  }: { active: Section; attention?: Partial<Record<Section, "needs" | "working" | undefined>>; class?: ClassValue } = $props();
+  }: { active: Section; attention?: Partial<Record<Section, "needs" | "unseen" | undefined>>; class?: ClassValue } = $props();
   const at = $derived(sections.findIndex((section) => section.id === active));
 </script>
 
@@ -32,8 +32,8 @@
           {section.label}
           {#if dot === "needs"}
             <StatusDot tone="amber" /><span class="sr-only">, needs you</span>
-          {:else if dot === "working"}
-            <StatusDot tone="sky" active /><span class="sr-only">, working</span>
+          {:else if dot === "unseen"}
+            <StatusDot tone="emerald" /><span class="sr-only">, new results</span>
           {/if}
         </a>
       </li>

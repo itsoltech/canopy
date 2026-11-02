@@ -40,6 +40,7 @@
     row,
     footer,
     inserted,
+    atEnd = $bindable(true),
   }: {
     rows: readonly T[];
     key: (row: T) => string;
@@ -56,6 +57,8 @@
     footer?: Snippet;
     /** How a row inserted between shown rows enters (none by default: e.g. older history above). */
     inserted?: (row: T) => "unfold" | "reveal" | undefined;
+    /** Out: the reader follows the end (the latest rows are on screen). */
+    atEnd?: boolean;
   } = $props();
 
   const uid = $props.id();
@@ -78,6 +81,9 @@
   let measured = $state(0);
   /** Following the end (the reader is at the bottom). */
   let stuck = $state(true);
+  $effect(() => {
+    atEnd = stuck;
+  });
   let focusedKey = $state<string>();
   /** The first row at the top of the viewport and its distance from the top edge. */
   let anchor: { key: string; element: HTMLElement; top: number } | undefined;

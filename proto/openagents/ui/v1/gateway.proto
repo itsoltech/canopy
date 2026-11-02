@@ -70,6 +70,10 @@ service GatewayService {
   rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse);
   rpc GetAttachment(GetAttachmentRequest) returns (GetAttachmentResponse);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
+
+  // Stan przeczytania (sekcja na końcu pliku): użytkownik widział wątek do zdarzenia up_to_seq (ostatnia wiadomość
+  // agenta była na ekranie); Thread.unseen_result gaśnie na wszystkich urządzeniach (OverviewUpdate.thread).
+  rpc MarkThreadSeen(MarkThreadSeenRequest) returns (MarkThreadSeenResponse);
 }
 
 // ---------- Model ----------
@@ -166,6 +170,10 @@ message Thread {
   // Numery od 95: subagenci platformy (docs/agent-bus.md).
   // Wątki boczne: początek ostatniej wiadomości agenta (wynik subagenta) do karty w wątku rodzica. Główne: pusty.
   string last_message = 95;
+
+  // Numery od 180: stan przeczytania. Wynik ostatniej zakończonej tury, której użytkownik jeszcze nie widział
+  // (completed | failed | interrupted); pusty, gdy widział wszystko (MarkThreadSeen).
+  string unseen_result = 180;
 }
 
 message Turn {
@@ -956,4 +964,16 @@ message GetThreadBlobRequest {
 message GetThreadBlobResponse {
   bytes data = 1;
   string mime_type = 2;
+}
+
+// ---------- Stan przeczytania ----------
+
+message MarkThreadSeenRequest {
+  string thread_id = 1;
+  // Ostatnie zdarzenie wątku na ekranie użytkownika (ThreadEvent.seq); znacznik tylko rośnie, najwyżej do Thread.last_seq.
+  uint64 up_to_seq = 2;
+}
+
+message MarkThreadSeenResponse {
+  Thread thread = 1;
 }

@@ -1,17 +1,3 @@
-<script module lang="ts">
-  import type { WorkState } from "./activity.ts";
-
-  /** Tint of a list row by what its thread does (inset ring, so the row keeps its size); idle rows stay plain. */
-  export const workRowTones: Record<WorkState, string> = {
-    needs: "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
-    asks: "bg-violet-500/6 inset-ring inset-ring-violet-500/20 dark:bg-violet-400/6 dark:inset-ring-violet-400/15",
-    starting: "bg-sky-500/6 inset-ring inset-ring-sky-500/20 dark:bg-sky-400/6 dark:inset-ring-sky-400/15",
-    running: "bg-sky-500/6 inset-ring inset-ring-sky-500/20 dark:bg-sky-400/6 dark:inset-ring-sky-400/15",
-    background: "bg-sky-500/4 inset-ring inset-ring-sky-500/15 dark:bg-sky-400/4 dark:inset-ring-sky-400/10",
-    idle: "",
-  };
-</script>
-
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import type { Snippet } from "svelte";

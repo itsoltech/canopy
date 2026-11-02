@@ -2,7 +2,7 @@
   import { page } from "$app/state";
   import BotsSectionEmpty from "#lib/features/bots/components/BotsSectionEmpty.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { isWorking, needsYou } from "#lib/features/threads/activity.ts";
+  import { needsYou, unseenResult } from "#lib/features/threads/activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import ConnectionStatus from "./ConnectionStatus.svelte";
@@ -22,7 +22,7 @@
   const queries = $state<Record<Section, string>>({ threads: "", bots: "" });
   const threadsAttention = $derived.by(() => {
     const threads = [...overview.threads.values()];
-    return threads.some(needsYou) ? "needs" : threads.some(isWorking) ? "working" : undefined;
+    return threads.some(needsYou) ? "needs" : threads.some((t) => unseenResult(t) !== undefined) ? "unseen" : undefined;
   });
   const online = $derived(overview.workers.filter((w) => w.online).length);
   const settingsActive = $derived(page.url.pathname.startsWith("/settings"));

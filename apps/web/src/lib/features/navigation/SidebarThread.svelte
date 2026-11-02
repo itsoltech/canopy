@@ -13,8 +13,8 @@
   /**
    * One thread in the inbox (T3 layout): project and status, title, then where it runs with its marks
    * (goal, side threads, started by an agent) and the provider's mark. `sides` = number of side threads under it.
-   * What it does leads the row (ThreadActivityMark in the avatar's place, background tasks with their count)
-   * and tints it, so working and waiting threads stand out; the open thread's highlight stays on top. Hover,
+   * What it does leads the row (ThreadActivityMark in the avatar's place, background tasks with their count);
+   * busy rows step back, finished unseen ones and those that need you stand out (SidebarThreadLink). Hover,
    * focus or tap-and-hold shows its summary (ThreadHoverCard).
    */
   let {
@@ -34,11 +34,11 @@
     <ThreadActivityMark {thread}>
       {#snippet idle()}<ProjectAvatar name={project?.name ?? "?"} />{/snippet}
     </ThreadActivityMark>
-    <span class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{project?.name ?? "Unknown project"}</span>
-    <ThreadStatusText {thread} icons={false} />
+    <span class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5 dark:text-zinc-400">{project?.name ?? "Unknown project"}</span>
+    <ThreadStatusText {thread} icons={false} class="group-data-calm:opacity-60" />
   </span>
-  <span class="truncate text-base/6 text-zinc-800 group-aria-[current=page]:text-zinc-950 sm:text-sm/6 dark:text-zinc-200 dark:group-aria-[current=page]:text-white">{thread.title}</span>
-  <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/5">
+  <span class="truncate text-base/6 text-zinc-800 group-data-calm:opacity-60 group-data-result:text-zinc-950 group-aria-[current=page]:text-zinc-950 sm:text-sm/6 dark:text-zinc-200 dark:group-data-result:text-white dark:group-aria-[current=page]:text-white">{thread.title}</span>
+  <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5">
     <Icon name="computer-desktop" class="size-3.5 {worker?.online ? 'fill-zinc-400 dark:fill-zinc-500' : 'fill-zinc-300 dark:fill-zinc-700'}" />
     <span class="min-w-0 flex-1 truncate">{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{basename(thread.cwd)}</span>
     <span class="flex shrink-0 items-center gap-2">
