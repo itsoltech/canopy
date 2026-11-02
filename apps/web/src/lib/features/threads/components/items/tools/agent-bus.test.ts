@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { agentsOf, busError, busLook, deliveryOf, interactionsOf, permissionWords, scheduleOf, schedulesOf, summariesOf, transcriptOf } from "./agent-bus.ts";
+import { agentsOf, busError, busLook, isBusTool, deliveryOf, interactionsOf, permissionWords, scheduleOf, schedulesOf, summariesOf, transcriptOf } from "./agent-bus.ts";
 
 const summary = {
   thread_id: "01a19868-b267-75e4-9a45-8a566cb687ce",
@@ -25,6 +25,12 @@ describe("busLook", () => {
     expect(busLook("list_threads", { scope: "tree" }, false).title).toBe("Listed the thread tree");
     expect(busLook("answer_interaction", { response: "deny" }, false).title).toBe("Denied for a side thread");
     expect(busLook("some_new_tool", {}, false).title).toBe("Some new tool");
+  });
+
+  test("bus tools", () => {
+    expect(isBusTool("read_thread")).toBe(true);
+    expect(isBusTool("exec_command")).toBe(false);
+    expect(isBusTool("toString")).toBe(false);
   });
 
   test("errors", () => {

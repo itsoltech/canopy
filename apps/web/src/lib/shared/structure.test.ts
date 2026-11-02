@@ -12,6 +12,11 @@ describe("structure", () => {
     expect(node.fields[2]!.node).toEqual({ kind: "enum", label: "Messages", raw: "messages" });
   });
 
+  test("numbers grouped", () => {
+    expect(structure(300000)).toEqual({ kind: "number", text: "300,000" });
+    expect(structure(0.0000112)).toEqual({ kind: "number", text: "0.0000112" });
+  });
+
   test("enum tokens in words, raw kept", () => {
     expect(structure("full_auto")).toEqual({ kind: "enum", label: "Full auto", raw: "full_auto" });
     expect(structure("ITEM_STATUS_COMPLETED")).toEqual({ kind: "enum", label: "Completed", raw: "ITEM_STATUS_COMPLETED" });

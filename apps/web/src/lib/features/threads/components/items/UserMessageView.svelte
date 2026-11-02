@@ -18,6 +18,7 @@
   import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
   import { withoutPlatformNote } from "#lib/features/mentions/editor.ts";
   import MentionChip from "#lib/features/mentions/MentionChip.svelte";
+  import { withoutIds } from "#lib/shared/humanize.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
@@ -79,7 +80,7 @@
     >
       {#if quotes.length > 0}<MessageQuotes {quotes} class={[message.text.trim() && "mb-2"]} />{/if}
       {#if message.text.trim()}
-        <Markdown text={shown?.text ?? message.text} breaks elements={shown && { ranges: shown.mentions, render: chip }} class="text-inherit dark:text-inherit" />
+        <Markdown text={shown?.text ?? (message.text.startsWith("[open-agents]") ? withoutIds(message.text) : message.text)} breaks elements={shown && { ranges: shown.mentions, render: chip }} class="text-inherit dark:text-inherit" />
       {/if}
       {@render details?.()}
     </div>

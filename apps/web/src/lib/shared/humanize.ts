@@ -187,3 +187,14 @@ export function humanizeSeconds(total: number): string {
   ].filter(Boolean);
   return parts.slice(0, 2).join(" ");
 }
+
+/**
+ * Text for people without the ids written into it for agents: `(thread_id: 01a…)` goes, `(schedule_id: 01a…,
+ * delayed)` keeps `(delayed)`. Used on the platform's notes in messages ("[open-agents] Message from …").
+ */
+export function withoutIds(text: string): string {
+  const id = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+  return text
+    .replace(new RegExp(` ?\\(\\w+_id: ${id}\\)`, "gi"), "")
+    .replace(new RegExp(`\\(\\w+_id: ${id}, `, "gi"), "(");
+}

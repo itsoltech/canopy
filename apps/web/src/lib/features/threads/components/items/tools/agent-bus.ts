@@ -37,6 +37,9 @@ const LOOKS: Record<string, Look> = {
   cancel_schedule: { doing: "Cancelling a schedule", done: "Cancelled a schedule", tried: "cancel a schedule", icon: "calendar-days" },
 };
 
+/** A tool of the agent bus (its calls also arrive as their own agent bus items, also from Codex scripts). */
+export const isBusTool = (name: string): boolean => Object.hasOwn(LOOKS, name);
+
 const ANSWERS: Record<string, string> = { allow: "Allowed", deny: "Denied", answer: "Answered", cancel: "Dismissed" };
 
 /** Title and icon of a bus call; a tool this UI does not know shows its name in words. */

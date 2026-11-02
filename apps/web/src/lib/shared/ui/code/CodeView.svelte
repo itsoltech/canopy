@@ -31,7 +31,7 @@
   const gutter = $derived(start !== undefined ? `calc(${String(start + shownCount - 1).length}ch + 1.25rem)` : undefined);
 </script>
 
-<div class={["grid gap-1", className]}>
+<div class={["grid min-w-0 gap-1", className]}>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="code-surface flex max-h-[32rem] rounded-lg bg-zinc-950/2.5 focus-ring dark:bg-white/5" tabindex="0" role="region" aria-label={label}>
     {#if start !== undefined}

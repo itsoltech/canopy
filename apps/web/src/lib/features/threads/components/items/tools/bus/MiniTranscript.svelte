@@ -1,5 +1,6 @@
 <script lang="ts">
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
+  import { withoutIds } from "#lib/shared/humanize.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import type { TranscriptLine } from "../agent-bus.ts";
@@ -32,11 +33,13 @@
           <div
             class={[
               "max-h-36 max-w-[85%] min-w-0 overflow-hidden rounded-xl px-3 py-1.5 break-words",
+              // A long message fades out where it is cut; the whole thread is one link away.
+              line.text.length > 280 && "mask-b-from-70%",
               line.role === "user" ? "bg-zinc-950/5 dark:bg-white/10" : "ring-1 ring-zinc-950/10 ring-inset dark:ring-white/10",
             ]}
           >
             <span class="sr-only">{line.role === "user" ? "User: " : "Agent: "}</span>
-            {#if line.role === "agent"}<Markdown text={line.text} />{:else}<p class="text-base/6 text-pretty whitespace-pre-line text-zinc-900 sm:text-sm/6 dark:text-zinc-100">{line.text}</p>{/if}
+            {#if line.role === "agent"}<Markdown text={line.text} />{:else}<p class="text-base/6 text-pretty whitespace-pre-line text-zinc-900 sm:text-sm/6 dark:text-zinc-100">{withoutIds(line.text)}</p>{/if}
           </div>
         </li>
       {/if}

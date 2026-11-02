@@ -28,6 +28,9 @@ export interface Field {
 /** Keys whose one-word values are states or kinds (`"open"`, `"baseBranch"`), shown in words. */
 const ENUM_KEYS = /^(type|kind|status|state|mode|phase|role|source|delivery|view|scope|outcome|level)$|_(type|kind|status|mode)$|(Type|Kind|Status|Mode)$/;
 
+/** Whole numbers grouped (300,000), fractions as they are. */
+const GROUPED = new Intl.NumberFormat("en", { maximumFractionDigits: 20, useGrouping: true });
+
 /** Text longer than this, or with a line break, is shown as a block of its own. */
 const LONG = 120;
 /** Nesting below this depth stays a short JSON line (a value that deep is rarely read). */
@@ -40,7 +43,7 @@ const isPath = (text: string) =>
 export function structure(value: unknown, key = "", depth = 0): Node {
   if (value === null || value === undefined) return { kind: "empty" };
   if (typeof value === "boolean") return { kind: "bool", value };
-  if (typeof value === "number" || typeof value === "bigint") return { kind: "number", text: String(value) };
+  if (typeof value === "number" || typeof value === "bigint") return { kind: "number", text: GROUPED.format(value) };
   if (typeof value === "string") return leaf(value, key, depth);
   if (depth >= MAX_DEPTH) return { kind: "long", text: JSON.stringify(value) };
   if (Array.isArray(value)) return { kind: "list", items: value.map((item) => structure(item, singular(key), depth + 1)) };

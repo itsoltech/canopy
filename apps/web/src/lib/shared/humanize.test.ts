@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { humanizeEnum, humanizeKey, humanizeSeconds, humanizeToolName, isEnumToken, isIdKey, isIsoDateTime, isOpaqueId, words } from "./humanize.ts";
+import { humanizeEnum, humanizeKey, humanizeSeconds, humanizeToolName, isEnumToken, isIdKey, isIsoDateTime, isOpaqueId, withoutIds, words } from "./humanize.ts";
 
 describe("words", () => {
   test("splits every naming style", () => {
@@ -97,5 +97,13 @@ describe("humanizeSeconds", () => {
     expect(humanizeSeconds(45)).toBe("45 seconds");
     expect(humanizeSeconds(90061)).toBe("1 day 1 hour");
     expect(humanizeSeconds(0)).toBe("");
+  });
+});
+
+describe("withoutIds", () => {
+  test("ids written for agents leave the text", () => {
+    expect(withoutIds('[open-agents] Message from the thread "Lister" (thread_id: 01a19868-b267-75e4-9a45-8a566cb687ce):')).toBe('[open-agents] Message from the thread "Lister":');
+    expect(withoutIds("[open-agents] Scheduled wake-up (schedule_id: 01a19856-ff8e-7015-923e-0d6cb862d72a, delayed):")).toBe("[open-agents] Scheduled wake-up (delayed):");
+    expect(withoutIds("No ids (here).")).toBe("No ids (here).");
   });
 });

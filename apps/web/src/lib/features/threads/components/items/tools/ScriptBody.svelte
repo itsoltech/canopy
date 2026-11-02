@@ -7,6 +7,7 @@
   import CodeView from "#lib/shared/ui/code/CodeView.svelte";
   import OutputBlock from "../OutputBlock.svelte";
   import type { ToolBodyProps } from "./body.ts";
+  import { isBusTool } from "./agent-bus.ts";
   import { parseScriptCalls, parseScriptOutput } from "./parse.ts";
   import ResultText from "./ResultText.svelte";
   import Section from "./Section.svelte";
@@ -20,6 +21,12 @@
   const code = $derived(str(input["code"]));
   const calls = $derived(parseScriptCalls(code));
   const result = $derived(streaming ? undefined : parseScriptOutput(call.output));
+  // Tool results in the output belong, in order, to the calls that are not shell commands.
+  const toolCalls = $derived(calls.filter((c) => c.command === undefined));
+  const ownerOf = (index: number): string => {
+    const nth = result ? result.parts.slice(0, index).filter((p) => p.kind === "json").length : 0;
+    return toolCalls[nth]?.tool ?? "";
+  };
 </script>
 
 {#if calls.length > 0}
@@ -46,10 +53,10 @@
     {#if result.parts.length === 0}
       <p class="text-sm/5 text-zinc-500 italic sm:text-xs/5 dark:text-zinc-400">{result.failed ? result.status : "No output."}</p>
     {/if}
-    <div class="grid gap-2">
+    <div class="grid grid-cols-[minmax(0,1fr)] gap-2">
       {#each result.parts as part, index (index)}
         {#if part.kind === "command"}
-          <div class="grid gap-1">
+          <div class="grid grid-cols-[minmax(0,1fr)] gap-1">
             <div class="flex items-center gap-1.5 text-sm/5 sm:text-xs/5">
               {#if part.exitCode !== undefined}
                 <Badge tone={part.exitCode === 0 ? "emerald" : "rose"}>{part.exitCode === 0 ? "Succeeded" : `Exit code ${part.exitCode}`}</Badge>
@@ -59,6 +66,9 @@
             </div>
             {#if part.output.trim()}<CodeBlock text={part.output.replace(/\n$/, "")} label="Command output" data-quote-kind="command_output" />{/if}
           </div>
+        {:else if part.kind === "json" && isBusTool(ownerOf(index))}
+          <!-- Agent bus calls in a script also arrive as their own items, with their own view. -->
+          <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{humanizeToolName(ownerOf(index))}: its result shows in the agent call below.</p>
         {:else if part.kind === "json"}
           <StructuredView node={structure(part.value)} />
         {:else}
