@@ -318,6 +318,8 @@ message Interaction {
   string status = 8;
   string routed_to = 9;
   google.protobuf.Timestamp created_at = 10;
+  // Pytanie platformy wait=false: agent pracuje dalej, odpowiedź trafia jako steer lub nowa tura.
+  bool asynchronous = 250;
 }
 
 // ---------- Overview ----------

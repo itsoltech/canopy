@@ -24,6 +24,7 @@ export interface BusHost {
   queued(threadId: string, turn: TurnRow): Promise<void>;
   /** A message was stored as a steer of a running turn: send it to the worker. */
   steered(steerId: string): Promise<void>;
+  interaction(interaction: ui.Interaction): Promise<void>;
   interrupt(threadId: string): Promise<void>;
   answer(by: { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction>;
   broadcastThread(threadId: string): Promise<void>;
@@ -35,7 +36,7 @@ export interface BusHost {
 
 const WAIT_POLL_MS = 1_000;
 /** Tools whose execution stores the call together with what it created (one transaction). */
-const STORES_ITS_CALL = new Set(["spawn_thread", "send_message", "schedule_wakeup", "schedule_recurring"]);
+const STORES_ITS_CALL = new Set(["spawn_thread", "send_message", "schedule_wakeup", "schedule_recurring", "ask_user"]);
 
 export class AgentBus {
   readonly #host: BusHost;
@@ -47,7 +48,8 @@ export class AgentBus {
   async handle(request: AgentToolCall): Promise<AgentToolResult> {
     const source: CallSource = { callId: request.callId, threadId: request.threadId, turnId: request.turnId, itemId: request.itemId };
     const stored = await this.#host.run(AgentBusStore.use((s) => s.storedCall(request.callId)));
-    if (stored && stored.status !== "requested") {
+    // A synchronous ask is persisted before waiting; reconnecting attaches to that same question set.
+    if (stored && stored.status !== "requested" && !(stored.tool === "ask_user" && stored.status === "completed")) {
       return stored.status === "completed" ? ok(request.callId, stored.result ?? {}) : failure(request.callId, stored.error ?? "failed");
     }
     const decoded = decodeAgentBusCall(request.toolName, request.argumentsJson);
@@ -105,6 +107,7 @@ export class AgentBus {
 
   /** A turn finished: notify the threads that asked to hear about it. */
   async onTurnFinished(turnId: string): Promise<void> {
+    await this.deliverAnswers();
     const due = await this.#host.run(AgentBusStore.use((s) => s.dueNotifications(turnId)));
     for (const { call, target, turnStatus, lastMessage } of due) {
       const label = target.kind === "side" ? "side thread" : "thread";
@@ -114,6 +117,14 @@ export class AgentBus {
       };
       const turn = await this.#host.run(AgentBusStore.use((s) => s.deliverNotification(call.id, input)));
       if (turn) await this.#host.queued(call.source_thread_id, turn);
+    }
+  }
+
+  async deliverAnswers(): Promise<void> {
+    const due = await this.#host.run(AgentBusStore.use((s) => s.deliverAnswers()));
+    for (const delivery of due) {
+      if (delivery.turn) await this.#host.queued(delivery.threadId, delivery.turn);
+      else if (delivery.steerId) await this.#host.steered(delivery.steerId);
     }
   }
 
@@ -158,6 +169,14 @@ export class AgentBus {
   async #execute(call: AgentBusCall, source: CallSource, caller: ThreadRow, hops: number): Promise<JsonValue> {
     const store = <A, E>(use: (s: AgentBusStore["Service"]) => Effect.Effect<A, E>) => this.#host.run(AgentBusStore.use(use));
     switch (call.tool) {
+      case "ask_user": {
+        const interaction = await store((s) => s.askUser(source, call.args, hops));
+        await this.#host.interaction(interaction);
+        await this.onInteraction(interaction);
+        return this.#answers(source, interaction.requestId, call.args.wait);
+      }
+      case "get_answers":
+        return this.#answers(source, call.args.question_set_id, call.args.wait ?? false);
       case "list_agents":
         return { agents: [], note: "No agent catalog yet: spawn_thread starts a copy of you (same provider, model and settings)." };
       case "spawn_thread": {
@@ -275,6 +294,15 @@ export class AgentBus {
         await store((s) => s.cancelSchedule(call.args.schedule_id));
         await this.#host.scheduleChanged(call.args.schedule_id);
         return { schedule_id: call.args.schedule_id, cancelled: true };
+    }
+  }
+
+  async #answers(source: CallSource, id: string, wait: boolean): Promise<JsonValue> {
+    const deadline = Date.now() + (wait ? 120_000 : 0);
+    for (;;) {
+      const result = await this.#host.run(AgentBusStore.use((s) => s.getAnswers(source, id, true)));
+      if (!result || typeof result !== "object" || Array.isArray(result) || result["status"] !== "pending" || result["waiting"] === false || Date.now() >= deadline) return result;
+      await Bun.sleep(Math.min(250, Math.max(0, deadline - Date.now())));
     }
   }
 }

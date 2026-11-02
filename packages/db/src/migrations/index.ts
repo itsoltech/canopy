@@ -21,6 +21,7 @@ import globalProviders from "./0018_global_providers.sql" with { type: "text" };
 import threadReads from "./0019_thread_reads.sql" with { type: "text" };
 import forkFromTurn from "./0020_fork_from_turn.sql" with { type: "text" };
 import queueManage from "./0021_queue_manage.sql" with { type: "text" };
+import askUser from "./0025_ask_user.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -58,6 +59,7 @@ export const migrations = Migrator.fromRecord({
   "0019_thread_reads": sqlFile(threadReads),
   "0020_fork_from_turn": sqlFile(forkFromTurn),
   "0021_queue_manage": sqlFile(queueManage),
+  "0025_ask_user": sqlFile(askUser),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

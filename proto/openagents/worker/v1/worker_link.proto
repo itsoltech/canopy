@@ -930,6 +930,7 @@ message InteractionPrompt {
   string routed_to = 8;
   // Gdy odpowiedział agent wątku nadrzędnego (answer_interaction).
   string answered_by_thread_id = 9;
+  bool asynchronous = 250;
 }
 
 message ProviderItem {
