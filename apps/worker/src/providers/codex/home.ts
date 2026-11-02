@@ -12,6 +12,10 @@ import { prepareProviderHome, type ProviderHome } from "../home.ts";
 
 export interface CodexHomeOptions {
   readonly dataDir: string;
+  /** The home itself (an instance's shadow home); default <dataDir>/codex-home. */
+  readonly path?: string;
+  /** The home keeps the instance's own login (no device login linked). */
+  readonly ownLogin?: boolean;
   /** Link the device owner's login (auth.json). */
   readonly linkDeviceLogin: boolean;
   /** Device owner's Codex home: $CODEX_HOME of the worker process, else ~/.codex. */
@@ -26,10 +30,11 @@ export function deviceCodexHome(env: Readonly<Record<string, string | undefined>
 
 export function prepareCodexHome(options: CodexHomeOptions): CodexHome {
   return prepareProviderHome({
-    path: join(options.dataDir, "codex-home"),
+    path: options.path ?? join(options.dataDir, "codex-home"),
     loginFile: "auth.json",
     deviceHome: options.deviceCodexHome ?? deviceCodexHome(process.env),
     linkDeviceLogin: options.linkDeviceLogin,
+    ...(options.ownLogin && { ownLogin: true }),
     missingLogin: "no Codex login on this device; run `codex login` or use a CLIProxyAPI profile",
   });
 }

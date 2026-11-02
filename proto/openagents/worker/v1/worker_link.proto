@@ -140,6 +140,13 @@ message ProviderProfile {
   string detail = 6; // powód niedostępności, np. brak klucza
   // Nazwa nadana przez użytkownika (docs/worker-config.md, "Profile dostawców"); pusta = id.
   string display_name = 7;
+  // Globalne instancje dostawców (docs/worker-config.md, sekcja 9): wersja CLI tej instancji (jej pliku
+  // wykonywalnego) i sposób uwierzytelnienia, bez sekretów.
+  string version = 8;
+  // Np. "ChatGPT", "API key", "endpoint key", "device login"; pusty = nieznany.
+  string auth = 9;
+  // Instancja ma poświadczenia (logowanie, klucz); false + detail mówi, czego brakuje.
+  bool authenticated = 10;
 }
 
 message ProviderInfo {
@@ -209,6 +216,22 @@ message ProviderProfileConfig {
   repeated ProfileEnvVar env = 7;
   // Wyłączony przez użytkownika: niedostępny dla nowych tur (raport: available = false, detail "disabled").
   bool disabled = 8;
+
+  // Globalne instancje dostawców (docs/worker-config.md, sekcja 9). Profil z jednym dostawcą jest instancją
+  // (dostawca + id); to samo id może mieć osobny profil dla drugiego dostawcy.
+  // Plik wykonywalny harnessu tej instancji; pusty = ProviderConfig.executable_path albo PATH.
+  string executable_path = 9;
+  // Katalog domowy właściciela urządzenia, z którego worker dowiązuje logowanie CLI (CODEX_HOME / CLAUDE_CONFIG_DIR);
+  // pusty = środowisko procesu workera, inaczej ~/.codex / ~/.claude.
+  string home_path = 10;
+  // Izolowany katalog domowy, z którym działa harness (stan, sesje, logowanie); pusty = <data_dir>/codex-home
+  // albo claude-home (wspólny dla instancji bez własnych ustawień uruchomienia).
+  string shadow_home_path = 11;
+  // Dodatkowe argumenty uruchomienia harnessu (Codex: po `app-server`, Claude: flagi Claude Code).
+  repeated string launch_args = 12;
+  // Własne logowanie instancji w jej izolowanym katalogu (np. ChatGPT przez StartLogin), bez dowiązania
+  // logowania właściciela urządzenia.
+  bool own_login = 13;
 }
 
 message ProfileEnvVar {
@@ -280,6 +303,9 @@ message Command {
     SetGoal set_goal = 18;
     // Modele, effort i steer (sekcja na końcu pliku).
     ListModels list_models = 40;
+    // Globalne instancje dostawców (sekcja na końcu pliku).
+    ProbeProviders probe_providers = 41;
+    StartLogin start_login = 42;
   }
 }
 
@@ -460,6 +486,8 @@ message CommandResult {
   repeated DirectoryEntry entries = 5;
   // Wynik ListModels.
   repeated ProfileModels models = 40;
+  // Wynik StartLogin.
+  LoginStarted login = 41;
 }
 
 message DirectoryEntry {
@@ -1015,4 +1043,26 @@ message ListModels {
   // Puste = wszyscy dostawcy i profile.
   Provider provider = 1;
   string profile_id = 2;
+}
+
+// ---------- Globalne instancje dostawców ----------
+// docs/worker-config.md, sekcja 9.
+
+// Ponowne sprawdzenie dostawców i instancji bieżącej konfiguracji (wersje CLI, dostępność, logowanie), bez nowej
+// wersji. Worker wysyła ConfigApplied z tą samą wersją i nowym raportem, potem odpowiada CommandResult
+// (capability "probe_providers").
+message ProbeProviders {}
+
+// Logowanie instancji z own_login przez API harnessu (capability "codex_device_login": Codex app-server
+// account/login/start z kodem urządzenia). Worker czeka w tle na zakończenie i wysyła wtedy ConfigApplied.
+message StartLogin {
+  Provider provider = 1;
+  string profile_id = 2;
+}
+
+message LoginStarted {
+  // Adres, pod którym użytkownik potwierdza logowanie (w dowolnej przeglądarce), i jednorazowy kod.
+  string verification_url = 1;
+  string user_code = 2;
+  string login_id = 3;
 }

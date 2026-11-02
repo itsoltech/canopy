@@ -144,7 +144,7 @@ Nieczytane, bo zależą od folderu wątku, a katalog jest per worker: projektowy
 
 Gateway zapisuje ostatni katalog workera (`worker_model_catalogs`) i odświeża go komendą `ListModels`.
 
-**Wybór modeli profilu.** Użytkownik może zawęzić modele profilu widoczne w pickerach; gateway oznacza pozostałe jako `hidden` w `ListModels` i `OverviewUpdate.models`, pełny katalog daje `ListModelsRequest.unfiltered`, a walidacja używa pełnego katalogu ([worker-config.md](worker-config.md#82-wybór-modeli)).
+**Modele instancji.** Użytkownik wybiera modele instancji widoczne w pickerach, ulubione (pierwsze, w swojej kolejności) i własne id modeli; gateway oznacza pozostałe jako `hidden` w `ListModels` i `OverviewUpdate.models`, dokłada własne modele i układa ulubione na początku; pełny katalog daje `ListModelsRequest.unfiltered`, a walidacja używa pełnego katalogu z własnymi modelami ([worker-config.md](worker-config.md#93-modele-w-pickerach)).
 
 **Model i wysiłek tury.** `StartTurn.model` / `effort` to wartości rozstrzygnięte przez gateway (nadpisanie z wiadomości, inaczej domyślne wątku). Codex dostaje je w `turn/start`, zawsze jawnie: bez wyboru domyślny model katalogu i jego `default_effort` (wyżej), bo nadpisanie w Codexie obowiązuje także kolejne tury. Claude dostaje `model` i `effort` w `query()` (`low | medium | high | xhigh | max`; inna wartość = błąd startu tury); bez wyboru skonfigurowany domyślny wysiłek dla tego modelu, jeśli jest.
 
@@ -175,7 +175,8 @@ Model pusty = model `is_default` katalogu. Tura zapisuje rozstrzygnięte wartoś
 
 ## Profile dostawców
 
-- Profile są w zdalnej konfiguracji (`WorkerConfig.profiles`: wbudowany `native` i własne użytkownika z nazwą, zmiennymi środowiskowymi i flagą `disabled`); worker raportuje ich dostępność i nazwę w `ConfigApplied` (bez kluczy i wartości zmiennych).
+- Profile są w zdalnej konfiguracji (`WorkerConfig.profiles`): to efektywne **globalne instancje dostawców** włączone na tym workerze, jedna na parę (dostawca, id), z nazwą, zmiennymi, flagą `disabled` i środowiskiem uruchomienia (`executable_path`, `home_path`, `shadow_home_path`, `launch_args`, `own_login`); gateway je wylicza z definicji i nadpisań ([worker-config.md](worker-config.md#9-globalne-instancje-dostawców)). Worker raportuje w `ConfigApplied` dostępność, nazwę, wersję CLI i sposób uwierzytelnienia każdej instancji (`version`, `auth`, `authenticated`; bez kluczy i wartości zmiennych).
+- `ProbeProviders` (capability `probe_providers`): ponowne sprawdzenie bieżącej konfiguracji, nowy `ConfigApplied` z tą samą wersją. `StartLogin` (capability `codex_device_login`): logowanie ChatGPT kodem urządzenia dla instancji Codexa z `own_login`, wynik `CommandResult.login` (`verification_url`, `user_code`), zakończenie przez kolejny `ConfigApplied`.
 - Gateway zapisuje profil per wątek i przekazuje go w `ThreadSpec.provider_profile_id`. Pusty oznacza `native`.
 - Worker odrzuca nieznany, niedostępny albo niepasujący do dostawcy profil (`CommandResult.ok = false`).
 - Szczegóły: [architecture.md](architecture.md#8-profile-dostawców-i-cliproxyapi).

@@ -58,6 +58,7 @@
       {#if detail}
         <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
           {#if providerMark}<ProviderIcon provider={option.provider} class="size-3" />{/if}
+          {#if option.accent}<span class="size-2 shrink-0 rounded-full" style:background-color={option.accent} aria-hidden="true"></span>{/if}
           <span class="truncate" title={option.description || undefined}>{detail}</span>
         </span>
       {/if}

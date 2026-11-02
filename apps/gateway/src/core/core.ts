@@ -35,7 +35,8 @@ import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments
 import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
 import {
   AgentBusStore,
-  applyModelSelections,
+  applyInstanceModels,
+  harnessOf,
   GatewayStore,
   GoalStore,
   Ingest,
@@ -44,7 +45,8 @@ import {
   modelProblem,
   permissionModeName,
   permissionModeOf,
-  ProfileStore,
+  InstanceStore,
+  withCustomModels,
   SettingsStore,
   SteerStore,
   toUiGoal,
@@ -77,7 +79,7 @@ import { Scheduler } from "./scheduler.ts";
  */
 
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | ProfileStore | AttachmentStore,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | InstanceStore | AttachmentStore,
   unknown
 >;
 
@@ -532,7 +534,7 @@ export class GatewayCore {
 
   async overview(): Promise<ui.GetOverviewResponse> {
     const [workers, projects] = await Promise.all([
-      this.#run((s) => s.listWorkers(this.online)),
+      this.#workers(),
       this.#run((s) => s.listProjects(this.#options.userId)),
     ]);
     return create(ui.GetOverviewResponseSchema, { workers, projects, agents: [] });
@@ -747,16 +749,18 @@ export class GatewayCore {
     const projects = await this.#run((s) => s.listProjects(this.#options.userId));
     const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId);
     if (!workspace) return; // the store reports the missing workspace
-    const worker = (await this.#run((s) => s.listWorkers(this.online))).find((w) => w.id === workspace.workerId);
+    const worker = (await this.#workers()).find((w) => w.id === workspace.workerId);
     if (!worker || worker.appliedVersion === 0n) return;
     const name = request.provider === Provider.CLAUDE ? "Claude" : "Codex";
     const provider = worker.providers.find((p) => p.provider === request.provider);
     if (!provider?.available) throw new InvalidError(`${name} is not available on ${worker.name}${provider?.detail ? `: ${provider.detail}` : ""}`);
     const profileId = request.providerProfileId || "native";
-    const profile = worker.profiles.find((p) => p.id === profileId);
-    if (!profile) throw new InvalidError(`profile "${profileId}" is not configured on ${worker.name}`);
-    if (!profile.providers.includes(request.provider)) throw new InvalidError(`profile "${profileId}" does not serve ${name}`);
-    if (!profile.available) throw new InvalidError(`profile "${profileId}" is not available on ${worker.name}${profile.detail ? `: ${profile.detail}` : ""}`);
+    const instance = worker.providerInstances.find((i) => i.harness === request.provider && i.id === profileId);
+    if (!instance) throw new InvalidError(`${name} has no provider instance "${profileId}"`);
+    if (!instance.enabled) throw new InvalidError(`${name} · ${instance.label || profileId} is turned off on ${worker.name}`);
+    const profile = worker.profiles.find((p) => p.id === profileId && p.providers.includes(request.provider));
+    if (!profile) throw new InvalidError(`${name} · ${instance.label || profileId} is not applied on ${worker.name} yet`);
+    if (!profile.available) throw new InvalidError(`${name} · ${instance.label || profileId} is not available on ${worker.name}${profile.detail ? `: ${profile.detail}` : ""}`);
   }
 
   /** CreateThread to the worker (with the fork point of a forked thread), then announce the thread. */
@@ -864,7 +868,7 @@ export class GatewayCore {
 
   /** Catalogs of the user's workers; refresh asks the worker(s) again (online ones). */
   async listModels(request: ui.ListModelsRequest): Promise<ui.WorkerModels[]> {
-    const workers = (await this.#run((s) => s.listWorkers(this.online))).filter((w) => !request.workerId || w.id === request.workerId);
+    const workers = (await this.#workers()).filter((w) => !request.workerId || w.id === request.workerId);
     if (request.workerId && workers.length === 0) throw new InvalidError("worker not found");
     if (request.refresh) {
       const online = workers.filter((w) => w.online);
@@ -895,52 +899,109 @@ export class GatewayCore {
     }
   }
 
-  /** Models a profile's selection leaves out are marked hidden (store/models.ts, applyModelSelections). */
+  /** The instances' model choices: hidden models, custom models, favorites first (store/instance-config.ts). */
   async #forPickers(catalogs: ui.WorkerModels[]): Promise<ui.WorkerModels[]> {
     if (catalogs.length === 0) return catalogs;
-    const rules = await this.#profiles((s) => s.selections(catalogs.map((c) => c.workerId)));
-    return catalogs.map((catalog) => applyModelSelections(catalog, rules.filter((r) => r.worker_id === catalog.workerId)));
+    const rules = await this.#instances((s) => s.modelRules());
+    return catalogs.map((catalog) => applyInstanceModels(catalog, rules));
   }
 
-  // ------------------------------------------------------------------ provider profiles
+  // ------------------------------------------------------------------ provider instances
 
-  /** A worker's profiles for the settings screen: no secret values, only whether they are set. */
-  async listProviderProfiles(workerId: string): Promise<ui.ListProviderProfilesResponse> {
-    return create(ui.ListProviderProfilesResponseSchema, await this.#profiles((s) => s.profiles(workerId)));
+  /** Every global instance with its state on every worker; no secret values, only whether they are set. */
+  async listProviderInstances(): Promise<ui.ProviderInstance[]> {
+    return this.#instances((s) => s.list());
   }
 
-  /** New or changed profile: a new configuration version, sent to the worker now when it is online. */
-  async saveProviderProfile(request: ui.SaveProviderProfileRequest): Promise<ui.SaveProviderProfileResponse> {
-    const { configVersion, profileId } = await this.#profiles((s) => s.save({ userId: this.#options.userId, request }));
-    await this.#configChanged(request.workerId);
-    const { profiles } = await this.#profiles((s) => s.profiles(request.workerId));
-    return create(ui.SaveProviderProfileResponseSchema, { configVersion, ...(profiles.find((p) => p.id === profileId) && { profile: profiles.find((p) => p.id === profileId) }) });
+  /** New or changed instance: new configuration versions for the workers it runs on, sent to the online ones. */
+  async saveProviderInstance(request: ui.SaveProviderInstanceRequest): Promise<ui.ProviderInstance> {
+    const { harness, id, changed } = await this.#instances((s) => s.save({ userId: this.#options.userId, request }));
+    await this.#configsChanged(changed);
+    return this.#instances((s) => s.get(harness, id));
   }
 
-  async deleteProviderProfile(request: ui.DeleteProviderProfileRequest): Promise<bigint> {
-    const version = await this.#profiles((s) =>
-      s.remove({ userId: this.#options.userId, workerId: request.workerId, profileId: request.profileId, expectedVersion: request.expectedConfigVersion }),
+  async deleteProviderInstance(request: ui.DeleteProviderInstanceRequest): Promise<void> {
+    await this.#configsChanged(await this.#instances((s) => s.remove({ userId: this.#options.userId, request })));
+  }
+
+  async setInstanceWorkers(request: ui.SetInstanceWorkersRequest): Promise<ui.ProviderInstance> {
+    await this.#configsChanged(await this.#instances((s) => s.setWorkers({ userId: this.#options.userId, request })));
+    return this.#instance(request.harness, request.id);
+  }
+
+  async setInstanceWorker(request: ui.SetInstanceWorkerRequest): Promise<ui.ProviderInstance> {
+    await this.#configsChanged(await this.#instances((s) => s.setWorker({ userId: this.#options.userId, request })));
+    return this.#instance(request.harness, request.id);
+  }
+
+  /** Favorites, visibility and custom models: pickers change at once, the workers' configurations do not. */
+  async setInstanceModels(request: ui.SetInstanceModelsRequest): Promise<ui.ProviderInstance> {
+    await this.#instances((s) => s.setModels(request));
+    await this.#publishModels(await this.#models((s) => s.catalogs([])));
+    await this.#broadcastWorkers();
+    return this.#instance(request.harness, request.id);
+  }
+
+  /**
+   * Versions, availability and logins checked again on the online workers (ProbeProviders: each answers with a new
+   * ConfigApplied for the same version). Workers that are offline or too old are listed as skipped.
+   */
+  async refreshProviders(request: ui.RefreshProvidersRequest): Promise<ui.RefreshProvidersResponse> {
+    const workers = (await this.#workers()).filter((w) => !request.workerId || w.id === request.workerId);
+    if (request.workerId && workers.length === 0) throw new InvalidError("worker not found");
+    const skipped: string[] = [];
+    await Promise.all(
+      workers.map(async (worker) => {
+        const connection = this.link.connections.get(worker.id);
+        if (!connection?.isOpen) return void skipped.push(`${worker.name}: offline`);
+        if (!connection.hello.capabilities.includes("probe_providers")) return void skipped.push(`${worker.name}: the worker is too old to check again`);
+        const result = await connection.sendCommand({ case: "probeProviders", value: {} }, 60_000).catch((error: unknown) => ({ ok: false, errorMessage: describeError(error), errorCode: "" }));
+        if (!result.ok) skipped.push(`${worker.name}: ${result.errorMessage || result.errorCode}`);
+      }),
     );
-    await this.#configChanged(request.workerId);
-    return version;
+    return create(ui.RefreshProvidersResponseSchema, { instances: await this.listProviderInstances(), skipped });
   }
 
-  /** Which models pickers show for a profile; the worker's catalog itself is unchanged. */
-  async setModelSelection(request: ui.SetModelSelectionRequest): Promise<ui.ModelSelection | undefined> {
-    const selection = await this.#profiles((s) => s.setSelection({ userId: this.#options.userId, request }));
-    await this.#publishModels(await this.#models((s) => s.catalogs([request.workerId])));
-    return selection;
+  /** Login of an instance through the harness's API (Codex: ChatGPT device code); the worker finishes it. */
+  async startProviderLogin(request: ui.StartProviderLoginRequest): Promise<ui.StartProviderLoginResponse> {
+    const connection = this.link.connections.get(request.workerId);
+    if (!connection?.isOpen) throw new UnavailableError("the worker is offline");
+    if (!connection.hello.capabilities.includes("codex_device_login")) throw new InvalidError("this worker cannot sign in from the app; update it");
+    if (request.harness !== Provider.CODEX) throw new InvalidError("only Codex signs in from the app; sign in to Claude Code on the device");
+    const result = await connection.sendCommand({ case: "startLogin", value: { provider: request.harness, profileId: request.id } }, 60_000);
+    if (!result.ok || !result.login) throw new InvalidError(result.errorMessage || result.errorCode || "the login did not start");
+    return create(ui.StartProviderLoginResponseSchema, { verificationUrl: result.login.verificationUrl, userCode: result.login.userCode });
   }
 
-  /** The stored configuration goes to the worker (it answers ConfigApplied and a new model catalog). */
-  async #configChanged(workerId: string): Promise<void> {
-    const config = await this.#run((s) => s.workerConfig(workerId));
-    if (config) this.link.pushConfig(workerId, config);
+  /** Writes the effective instances of every worker that is behind (gateway start; after a migration). */
+  async syncProviderInstances(): Promise<void> {
+    await this.#configsChanged(await this.#instances((s) => s.sync(this.#options.userId)));
+  }
+
+  async #instance(harness: Provider, id: string): Promise<ui.ProviderInstance> {
+    const name = harnessOf(harness);
+    if (!name) throw new InvalidError("choose Claude or Codex");
+    return this.#instances((s) => s.get(name, id));
+  }
+
+  /** The stored configurations go to the workers (each answers ConfigApplied and a new model catalog). */
+  async #configsChanged(workerIds: readonly string[]): Promise<void> {
+    for (const workerId of workerIds) {
+      const config = await this.#run((s) => s.workerConfig(workerId));
+      if (config) this.link.pushConfig(workerId, config);
+    }
     await this.#broadcastWorkers();
   }
 
-  #profiles<A, E>(use: (store: ProfileStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(ProfileStore.use(use));
+  #instances<A, E>(use: (store: InstanceStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(InstanceStore.use(use));
+  }
+
+  /** Workers with their instances (Worker.provider_instances). */
+  async #workers(): Promise<ui.Worker[]> {
+    const [workers, instances] = await Promise.all([this.#run((s) => s.listWorkers(this.online)), this.#instances((s) => s.workerInstances())]);
+    for (const worker of workers) worker.providerInstances = instances.get(worker.id) ?? [];
+    return workers;
   }
 
   /**
@@ -970,8 +1031,10 @@ export class GatewayCore {
     }
     const profile = profileId && profileId !== "native" ? profileId : "native";
     const catalog = workerId ? (await this.#models((s) => s.catalogs([workerId]))).at(0) : undefined;
-    const models = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profile);
-    return { models, provider, profile };
+    const listed = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profile);
+    // The instance's custom models are accepted like listed ones.
+    const rule = listed && (await this.#instances((s) => s.modelRules())).find((r) => r.harness === harnessOf(provider) && r.id === profile);
+    return { models: listed && withCustomModels(listed, rule), provider, profile };
   }
 
   /** SteerTurn to the worker (outbox); the result decides between accepted and the queue. */
@@ -1423,7 +1486,7 @@ export class GatewayCore {
   }
 
   async #broadcastWorkers(): Promise<void> {
-    for (const worker of await this.#run((s) => s.listWorkers(this.online))) {
+    for (const worker of await this.#workers()) {
       this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "worker", value: worker } }));
     }
   }

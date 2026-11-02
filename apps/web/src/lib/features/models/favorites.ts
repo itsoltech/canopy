@@ -1,53 +1,48 @@
-import { create } from "@bufbuild/protobuf";
-import { Provider, ui } from "@open-agents/contracts";
-import { useSettings, type SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
+import { Provider } from "@open-agents/contracts";
+import { useOverview, type OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
+import { providerCall } from "#lib/features/providers/instances.ts";
+import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import type { ModelOption } from "./catalog.ts";
 
 /**
- * Your favorite models, in the order you starred them: a user setting kept by the gateway
- * (`UserSettings.model_favorites`, written like the other sections, so it follows you across devices).
- * The picker lists them under the star and gives the first nine ⌘1…⌘9. A star shows at once; a failed
- * write reloads the settings, which takes it back.
- *
- * A favorite names provider, profile and model; an empty profile matches the model on any profile. The
- * native profile is stored as "native" (the forms' "" would mean "any").
+ * Favorite models are the provider instance's (InstanceModels.favorites, docs/worker-config.md, 9.3), in the order
+ * set in Settings → Providers: one list per instance, the same on every worker. The picker lists them under the star
+ * (instance by instance, in their order) and gives the first nine ⌘1…⌘9; the star changes only the favorites (the
+ * gateway sends the new lists to every picker through the overview).
  */
 export interface FavoriteModels {
   has(option: ModelOption): boolean;
   toggle(option: ModelOption): void;
-  /** The favorites among `options`, in your order (one option each). */
+  /** The favorites among `options`, in the instances' order (one option each). */
   among(options: readonly ModelOption[]): ModelOption[];
 }
 
-const storedProfile = (profileId: string) => profileId || "native";
-const matches = (favorite: ui.FavoriteModel, option: ModelOption) =>
-  favorite.provider === Provider[option.provider] && favorite.model === option.model && (!favorite.profileId || favorite.profileId === storedProfile(option.profileId));
-
-class SettingsFavorites implements FavoriteModels {
-  constructor(private readonly settings: SettingsState) {}
+class InstanceFavorites implements FavoriteModels {
+  constructor(private readonly overview: OverviewState) {}
 
   has(option: ModelOption): boolean {
-    return this.settings.modelFavorites.some((f) => matches(f, option));
+    return option.favoriteIndex !== undefined;
   }
 
   toggle(option: ModelOption): void {
-    const current = this.settings.modelFavorites;
-    const next = this.has(option)
-      ? current.filter((f) => !matches(f, option))
-      : [...current, create(ui.FavoriteModelSchema, { provider: Provider[option.provider], profileId: storedProfile(option.profileId), model: option.model })];
-    void this.settings.updateModelFavorites(next);
+    const harness = Provider[option.provider];
+    const id = option.profileId || "native";
+    const instance = this.overview.workers.flatMap((w) => w.providerInstances).find((i) => i.harness === harness && i.id === id);
+    const current = instance?.favorites ?? [];
+    const favorites = current.includes(option.model) ? current.filter((m) => m !== option.model) : [...current, option.model];
+    providerCall("models", { harness, id, favoritesOnly: true, models: { favorites } }).catch((error: unknown) =>
+      toast(error instanceof Error ? error.message : "Could not change the favorites", { tone: "error" }),
+    );
   }
 
   among(options: readonly ModelOption[]): ModelOption[] {
+    const instances = [...new Set(options.map((o) => `${o.provider}:${o.profileId}`))];
     const seen = new Set<string>();
-    return this.settings.modelFavorites.flatMap((favorite) => {
-      const option = options.find((o) => !seen.has(o.key) && matches(favorite, o));
-      if (!option) return [];
-      seen.add(option.key);
-      return [option];
-    });
+    return options
+      .filter((o) => o.favoriteIndex !== undefined && !seen.has(o.key) && seen.add(o.key))
+      .sort((a, b) => instances.indexOf(`${a.provider}:${a.profileId}`) - instances.indexOf(`${b.provider}:${b.profileId}`) || a.favoriteIndex! - b.favoriteIndex!);
   }
 }
 
-/** Call during component setup (reads the settings context). */
-export const useFavoriteModels = (): FavoriteModels => new SettingsFavorites(useSettings());
+/** Call during component setup (reads the overview context). */
+export const useFavoriteModels = (): FavoriteModels => new InstanceFavorites(useOverview());

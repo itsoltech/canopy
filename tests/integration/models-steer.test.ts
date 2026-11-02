@@ -60,7 +60,7 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
   test("the worker's catalog after its config: ListModels, and a refresh asks the worker again", async () => {
     const listed = await eventually(() => gw.api.listModels({}), (r) => r.workers.length === 1);
     const worker = listed.workers[0]!;
-    expect([worker.workerId, worker.configVersion]).toEqual([gw.workerId, 1n]);
+    expect([worker.workerId, worker.configVersion]).toEqual([gw.workerId, 2n]);
     expect(worker.profiles.map((p) => [p.provider, p.profileId, p.models.map((m) => m.id)])).toEqual([[Provider.CODEX, "native", ["gpt-6.1-sol", "gpt-5.5"]]]);
     expect(worker.profiles[0]!.models[0]).toMatchObject({ isDefault: true, efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "low" });
 

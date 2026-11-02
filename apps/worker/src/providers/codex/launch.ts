@@ -26,8 +26,10 @@ export function codexAppServerLaunch(
   codexHome?: string,
   /** The profile's own variables (a process that serves one profile with variables). */
   profileEnv: Readonly<Record<string, string>> = {},
+  /** Launch arguments of the instance (a process that serves one instance with its own runtime). */
+  extraArgs: readonly string[] = [],
 ): CodexAppServerLaunch {
-  const command = [codexBin, "app-server", ...codexNativeToolOverrides(nativeTools)];
+  const command = [codexBin, "app-server", ...codexNativeToolOverrides(nativeTools), ...extraArgs];
   const env: Record<string, string | undefined> = { ...baseEnv, ...profileEnv, ...(codexHome !== undefined && { CODEX_HOME: codexHome }) };
   for (const profile of profiles) {
     if (profile.kind !== "cliproxyapi" || !profile.providers.includes("codex")) continue;

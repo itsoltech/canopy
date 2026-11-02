@@ -7,7 +7,7 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import { duration, expand } from "#lib/shared/ui/motion.ts";
-  import { envRow, ruleKind, type EnvVarDraft } from "./profiles.ts";
+  import { envRow, ruleKind, type EnvVarDraft } from "./instances.ts";
   import SecretValue from "./SecretValue.svelte";
   import type { ProviderProfileKind } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";

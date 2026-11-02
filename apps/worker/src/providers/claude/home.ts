@@ -12,6 +12,10 @@ import { prepareProviderHome, type ProviderHome } from "../home.ts";
 
 export interface ClaudeHomeOptions {
   readonly dataDir: string;
+  /** The home itself (an instance's shadow home); default <dataDir>/claude-home. */
+  readonly path?: string;
+  /** The home keeps the instance's own login (no device login linked). */
+  readonly ownLogin?: boolean;
   readonly linkDeviceLogin: boolean;
   /** Device owner's Claude config dir: $CLAUDE_CONFIG_DIR of the worker process, else ~/.claude. */
   readonly deviceClaudeHome?: string;
@@ -23,10 +27,11 @@ export function deviceClaudeHome(env: Readonly<Record<string, string | undefined
 
 export function prepareClaudeHome(options: ClaudeHomeOptions): ProviderHome {
   return prepareProviderHome({
-    path: join(options.dataDir, "claude-home"),
+    path: options.path ?? join(options.dataDir, "claude-home"),
     loginFile: ".credentials.json",
     deviceHome: options.deviceClaudeHome ?? deviceClaudeHome(process.env),
     linkDeviceLogin: options.linkDeviceLogin,
+    ...(options.ownLogin && { ownLogin: true }),
     missingLogin: "no Claude login file on this device; run `claude login` or use a CLIProxyAPI profile",
   });
 }

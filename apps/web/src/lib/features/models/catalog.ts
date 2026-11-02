@@ -1,14 +1,15 @@
 import { Provider, type ModelInfo, type ProfileModels, type ui } from "@open-agents/contracts";
 import { modelFor } from "#lib/features/settings/thread-defaults.ts";
-import { knownModels, profileDisplayName, profileIdValue, profilesFor, profileValue, type ProviderKey, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
+import { instanceLabel, instanceOf, instancesFor, instanceValue, knownModels, profileIdValue, type ProviderKey, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
 
 /**
  * Model options for the pickers: one entry per provider + profile + model, with what the UI shows and
  * the reasoning efforts it accepts. This is the client-side interface the composers use.
  *
- * The models of a profile come from the worker's catalog (`ListModels`, kept live by
- * `OverviewUpdate.models`): its names, descriptions, efforts and default effort; hidden models are left
- * out. A model with no efforts has no effort setting (the picker hides the control). Only a profile the
+ * Profiles are the worker's provider instances (global, turned on per worker; docs/worker-config.md, section 9):
+ * a new thread sees only those turned on and available on its worker. The models of an instance come from the
+ * worker's catalog (`ListModels`, kept live by `OverviewUpdate.models`) with the instance's choices applied by the
+ * gateway: its names, descriptions, efforts and default effort, favorites first; hidden models are left out. A model with no efforts has no effort setting (the picker hides the control). Only a profile the
  * worker has not reported a list for (an offline worker that never did, an older worker) falls back to
  * what the UI knows: the profile's default, the defaults' model, the CLI's aliases and models from your
  * threads, with per-provider stand-in efforts.
@@ -25,8 +26,12 @@ export interface ModelOption {
   readonly provider: ProviderKey;
   /** Profile id as the forms send it ("" = the worker's native login). */
   readonly profileId: string;
-  /** Profile name as the worker reports it. */
+  /** The instance's label. */
   readonly profileName: string;
+  /** The instance's accent color (#rrggbb, "" = none), a marker in the picker. */
+  readonly accent: string;
+  /** Place among the instance's favorites (undefined = not a favorite). */
+  readonly favoriteIndex: number | undefined;
   /** Model id sent to the provider ("" = the profile's default model). */
   readonly model: string;
   readonly name: string;
@@ -127,12 +132,24 @@ export function profileCatalog(catalog: ui.WorkerModels | undefined, provider: P
 const catalogEntry = (list: ProfileModels | undefined, model: string): ModelInfo | undefined =>
   model ? (list?.models.find((m) => m.id === model) ?? list?.models.find((m) => m.resolvedModel === model)) : list?.models.find((m) => m.isDefault);
 
-function fromCatalog(provider: ProviderKey, profileId: string, profileName: string, info: ModelInfo, list: ProfileModels): ModelOption {
+/** What the options of an instance share: its label, accent and favorites. */
+interface InstanceMeta {
+  readonly name: string;
+  readonly accent: string;
+  readonly favorites: readonly string[];
+}
+
+const plainMeta = (name: string): InstanceMeta => ({ name, accent: "", favorites: [] });
+const favoriteIndexOf = (meta: InstanceMeta, model: string) => (meta.favorites.includes(model) ? meta.favorites.indexOf(model) : undefined);
+
+function fromCatalog(provider: ProviderKey, profileId: string, meta: InstanceMeta, info: ModelInfo, list: ProfileModels): ModelOption {
   return {
     key: modelKey(provider, profileId, info.id),
     provider,
     profileId,
-    profileName,
+    profileName: meta.name,
+    accent: meta.accent,
+    favoriteIndex: favoriteIndexOf(meta, info.id),
     model: info.id,
     name: info.displayName && info.displayName !== info.id ? info.displayName : modelDisplayName(info.id),
     description: info.description,
@@ -146,14 +163,16 @@ function fromCatalog(provider: ProviderKey, profileId: string, profileName: stri
 }
 
 /** An option outside the catalog's list (a model typed by hand, a fallback entry). */
-function standIn(provider: ProviderKey, profileId: string, profileName: string, model: string, origin: ModelOption["origin"], list: ProfileModels | undefined): ModelOption {
+function standIn(provider: ProviderKey, profileId: string, meta: InstanceMeta, model: string, origin: ModelOption["origin"], list: ProfileModels | undefined): ModelOption {
   // A profile with a catalog does not know the model's efforts: no effort setting rather than a guess.
   const effort = list ? undefined : fallbackEfforts[provider];
   return {
     key: modelKey(provider, profileId, model),
     provider,
     profileId,
-    profileName,
+    profileName: meta.name,
+    accent: meta.accent,
+    favoriteIndex: favoriteIndexOf(meta, model),
     model,
     name: modelDisplayName(model),
     description: "",
@@ -180,17 +199,18 @@ export function modelOption(
 ): ModelOption {
   const list = profileCatalog(catalog, provider, profileId);
   const info = catalogEntry(list, model);
-  if (!info || !list) return standIn(provider, profileId, profileName, model, origin, list);
-  const option = fromCatalog(provider, profileId, profileName, info, list);
+  const meta = plainMeta(profileName);
+  if (!info || !list) return standIn(provider, profileId, meta, model, origin, list);
+  const option = fromCatalog(provider, profileId, meta, info, list);
   // An alias's resolved id keeps the id it was given (that is what the thread stores and sends).
   return info.id === model || !model ? option : { ...option, key: modelKey(provider, profileId, model), model, name: modelDisplayName(model), isDefault: false };
 }
 
 /** Models of one provider on one profile, in the catalog's order (default first without one). */
-function profileModels(provider: ProviderKey, profileId: string, profileName: string, sources: ModelSources): ModelOption[] {
+function profileModels(provider: ProviderKey, profileId: string, meta: InstanceMeta, sources: ModelSources): ModelOption[] {
   const list = profileCatalog(sources.catalog, provider, profileId);
   const shown = list?.models.filter((m) => !m.hidden) ?? [];
-  if (list && shown.length > 0) return shown.map((info) => fromCatalog(provider, profileId, profileName, info, list));
+  if (list && shown.length > 0) return shown.map((info) => fromCatalog(provider, profileId, meta, info, list));
   // No list (or an empty one that says why): what the UI knows.
   const fromDefaults = sources.defaults ? modelFor(sources.defaults, Provider[provider]) : "";
   const entries: { model: string; origin: ModelOption["origin"] }[] = [
@@ -200,19 +220,24 @@ function profileModels(provider: ProviderKey, profileId: string, profileName: st
     ...knownModels(sources.threads, provider).map((model) => ({ model, origin: "recent" as const })),
   ];
   const seen = new Set<string>();
-  return entries.filter((e) => !seen.has(e.model) && seen.add(e.model)).map((e) => standIn(provider, profileId, profileName, e.model, e.origin, undefined));
+  return entries.filter((e) => !seen.has(e.model) && seen.add(e.model)).map((e) => standIn(provider, profileId, meta, e.model, e.origin, undefined));
 }
 
-/** Every option the worker can run now: its available providers × profiles × models. */
+/**
+ * Every option the worker can run now: its available providers × instances turned on and available there × models.
+ * A thread (`only`) keeps its instance, also when it is turned off, unavailable or the worker is offline.
+ */
 export function modelOptions(sources: ModelSources): ModelOption[] {
   const providers = sources.only ? [sources.only.provider] : providerKeys;
   return providers.flatMap((provider) => {
     const available = sources.worker?.providers.some((p) => providerKeyOf(p.provider) === provider && p.available);
     if (!available && !sources.only) return [];
-    const profiles = profilesFor(sources.worker, provider).filter((p) => !sources.only || profileValue(p) === sources.only.profileId);
-    // A thread's profile stays offered even when the worker is offline or no longer reports it.
-    const named = profiles.length > 0 ? profiles.map((p) => ({ id: profileValue(p), name: profileDisplayName(p) })) : sources.only ? [{ id: sources.only.profileId, name: sources.only.profileId || "native" }] : [];
-    return named.flatMap((profile) => profileModels(provider, profile.id, profile.name, sources));
+    const meta = (i: ui.WorkerInstance): InstanceMeta => ({ name: instanceLabel(i), accent: i.accentColor, favorites: i.favorites });
+    if (sources.only) {
+      const own = instanceOf(sources.worker, provider, sources.only.profileId);
+      return profileModels(provider, sources.only.profileId, own ? meta(own) : plainMeta(sources.only.profileId || "native"), sources);
+    }
+    return instancesFor(sources.worker, provider).flatMap((instance) => profileModels(provider, instanceValue(instance), meta(instance), sources));
   });
 }
 
