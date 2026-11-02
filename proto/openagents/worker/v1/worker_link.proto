@@ -887,10 +887,19 @@ message BackgroundTask {
   string command = 8;
   string process_id = 9;
   TaskProgress progress = 10;
-  // Powód zakończenia innego niż sukces: stopped_by_user, stopped, drain, worker_restart, limit, error.
+  // Powód zakończenia innego niż sukces: stopped_by_user, stopped, drain, limit, error,
+  // worker_shutdown (worker zatrzymany łagodnie: restart, wdrożenie), worker_lost (proces workera zginął bez
+  // zapisu zatrzymania: awaria, kill -9), worker_restart (runtime dostawcy uruchomiony od nowa: zmiana ustawień
+  // albo jego proces się zakończył). Słowa dla ludzi i modeli: packages/domain/src/background-tasks.ts.
   string stop_reason = 11;
   // Item, który uruchomił zadanie (Codex commandExecution, Claude tool_use Bash).
   string source_item_id = 12;
+  // Numery od 230: kiedy zadanie zaczęło się i skończyło. Worker ustawia je przy zdarzeniach zadania (także przy
+  // zamknięciu przez restart workera: chwila zamknięcia); gateway uzupełnia brakujące czasem zdarzenia.
+  google.protobuf.Timestamp started_at = 230;
+  google.protobuf.Timestamp ended_at = 231;
+  // Kod wyjścia procesu, gdy jest znany (Codex unified exec).
+  optional int32 exit_code = 232;
 }
 
 // Wywołanie narzędzia szyny agentów (spawn_thread, send_message, wait_threads, ...).
@@ -941,6 +950,7 @@ message InteractionPrompt {
   string routed_to = 8;
   // Gdy odpowiedział agent wątku nadrzędnego (answer_interaction).
   string answered_by_thread_id = 9;
+  bool asynchronous = 250;
 }
 
 message ProviderItem {

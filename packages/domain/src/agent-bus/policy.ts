@@ -106,6 +106,11 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
       : { allowed: true, hops: nextHops };
 
   switch (call.tool) {
+    case "ask_user":
+      if (caller.archived) return deny("this thread is archived");
+      return withHops(false);
+    case "get_answers":
+      return allow;
     case "list_agents":
     case "list_threads":
     case "list_interactions":
@@ -209,6 +214,22 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
         }
       }
       return withHops(false);
+    }
+
+    // The thread's own background tasks; another thread's like get_thread (read: same owner) and interrupt_thread (stop: descendants).
+    case "list_background_tasks":
+    case "get_background_task": {
+      const id = call.args.thread_id;
+      if (id === undefined || id === caller.id) return allow;
+      const target = sameOwner(facts, id);
+      return typeof target === "string" ? deny(target) : allow;
+    }
+
+    case "stop_background_task": {
+      const id = call.args.thread_id;
+      if (id === undefined || id === caller.id) return allow;
+      const target = descendant(facts, id);
+      return typeof target === "string" ? deny(target) : allow;
     }
 
     case "cancel_schedule": {

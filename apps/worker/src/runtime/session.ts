@@ -31,6 +31,7 @@ export async function serveLink(
           const command = message.payload.value;
           // Commands run concurrently (a long turn must not block an interrupt); results go back when ready.
           void host.handleCommand(command).then((result) => {
+            if (!result) return; // the worker is stopping: redelivered to the next process
             try {
               link.send({ case: "commandResult", value: result });
             } catch {

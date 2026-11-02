@@ -12,7 +12,7 @@
    * them up ("3 subagents · 2 running · 1 done") with the providers they run on, opening into a row per subagent
    * (accordion, motion.css `t-acc-panel`). Live from the thread index; `class` sets the overlap with what is below.
    */
-  let { subagents, class: className }: { subagents: readonly Subagent[]; class?: ClassValue } = $props();
+  let { subagents, embedded = false, class: className }: { subagents: readonly Subagent[]; embedded?: boolean; class?: ClassValue } = $props();
 
   const id = $props.id();
   let open = $state(false);
@@ -20,7 +20,7 @@
   const providers = $derived([...new Set(subagents.map((s) => providerKeyOf(s.thread.provider)).filter((p) => p !== undefined))]);
 </script>
 
-<section aria-labelledby="{id}-summary" class={["rounded-t-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10", className]}>
+<section aria-labelledby="{id}-summary" class={[!embedded && "rounded-t-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10", className]}>
   <button
     type="button"
     class="flex w-full min-w-0 items-center gap-2 rounded-t-2xl px-3.5 py-2 text-left focus-ring hover:bg-zinc-950/2.5 dark:hover:bg-white/4"

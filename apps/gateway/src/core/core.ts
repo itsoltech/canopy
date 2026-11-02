@@ -50,6 +50,7 @@ import type { StoredQuote } from "../store/quotes.ts";
 import {
   AgentBusStore,
   applyInstanceModels,
+  BackgroundTaskStore,
   harnessOf,
   GatewayStore,
   GoalStore,
@@ -79,6 +80,7 @@ import {
 import { cronProblem, nextCronRun } from "./cron.ts";
 import { checkedQuotes, withQuotes } from "./quotes.ts";
 import { AgentBus } from "./agent-bus.ts";
+import { BackgroundTasks } from "./background-tasks.ts";
 import { Hub } from "./hub.ts";
 import { Scheduler } from "./scheduler.ts";
 import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt } from "./thread-titles.ts";
@@ -97,7 +99,7 @@ import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt 
  */
 
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | BackgroundTaskStore,
   unknown
 >;
 
@@ -110,6 +112,8 @@ export interface GatewayCoreOptions {
   readonly commandTimeoutMs?: number;
   /** Per file, per message and how many files (docs/ui-api.md, "Załączniki"); defaults: DEFAULT_ATTACHMENT_LIMITS. */
   readonly attachmentLimits?: AttachmentLimits;
+  /** How long a Claude task that completed by itself waits for Claude's own wake-up turn (core/background-tasks.ts). */
+  readonly backgroundGraceMs?: number;
 }
 
 /** Bytes per BlobChunk on the worker link (attachments down, previews up). */
@@ -150,6 +154,8 @@ export class GatewayCore {
   readonly hub = new Hub();
   readonly bus: AgentBus;
   readonly scheduler: Scheduler;
+  /** Background tasks for their agents: the tools, and the notes about every end (docs/execution.md, "Pobudka"). */
+  readonly backgroundTasks: BackgroundTasks;
   readonly #options: GatewayCoreOptions;
   readonly #journalIds = new Map<string, string>();
   /** Threads whose events failed to store on a connection: skipped until the worker reconnects and resends. */
@@ -180,12 +186,27 @@ export class GatewayCore {
         await this.pump(threadId);
       },
       steered: (steerId) => this.#sendSteer(steerId),
+      interaction: (interaction) => this.#publishInteraction(interaction),
       interrupt: (threadId) => this.interrupt(threadId),
       answer: (by, request) => this.#answer(by, request),
       broadcastThread: (threadId) => this.#broadcastThread(threadId),
       scheduleChanged: (scheduleId) => this.#publishSchedule(scheduleId),
       spawnInstances: (thread) => this.#spawnInstances(thread),
+      backgroundTask: (call, callerId) => this.backgroundTasks.tool(call, callerId),
     });
+    this.backgroundTasks = new BackgroundTasks(
+      {
+        run: (effect) => this.#options.runtime.runPromise(effect),
+        queued: async (threadId, turn) => {
+          await this.#broadcastTurn(threadId, turn.id); // re-read: the UI gets the turn with its source
+          await this.pump(threadId);
+        },
+        steered: (steerId) => this.#sendSteer(steerId),
+        stop: (threadId, itemId) => this.#stopTask(threadId, itemId),
+        log: (message) => this.#log(message),
+      },
+      { ...(options.backgroundGraceMs !== undefined && { graceMs: options.backgroundGraceMs }) },
+    );
     // Ticks only after start() (main.ts); tests drive tick() directly.
     this.scheduler = new Scheduler({
       run: (effect) => this.#options.runtime.runPromise(effect),
@@ -238,8 +259,7 @@ export class GatewayCore {
           case "interactionRequest": {
             const request = message.payload.value;
             const interaction = await this.#run((s) => s.recordInteraction(request));
-            this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
-            await this.#broadcastThread(interaction.threadId);
+            await this.#publishInteraction(interaction);
             // Re-sent after a reconnect and already answered: answer again from the database.
             const answered = await this.#run((s) => s.interactionAnswer(interaction.requestId));
             if (answered) this.#sendAnswer(connection, answered.answer);
@@ -347,6 +367,9 @@ export class GatewayCore {
     for (const stored of result.stored) {
       if (stored.event.body.case === "turnFinished") await this.bus.onTurnFinished(stored.event.turnId);
     }
+    // A background task ended (its note waits) or a turn started (notes that wait for one can join it).
+    const notes = result.stored.filter(({ event: { body } }) => body.case === "turnStarted" || (body.case === "itemCompleted" && body.value.item?.content.case === "backgroundTask"));
+    for (const threadId of new Set(notes.map((s) => s.threadId))) await this.backgroundTasks.deliver(threadId);
   }
 
   async #redeliver(workerId: string): Promise<void> {
@@ -426,7 +449,7 @@ export class GatewayCore {
   async #endLostTurns(input: Parameters<GatewayStore["Service"]["endLostTurns"]>[0]): Promise<void> {
     const { turns, interactions } = await this.#run((s) => s.endLostTurns(input));
     for (const interaction of interactions) {
-      this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
+      await this.#publishInteraction(interaction);
     }
     for (const { threadId, turnId } of turns) {
       this.#log(`turn ${turnId} of thread ${threadId} ended: ${input.reason}`);
@@ -454,7 +477,7 @@ export class GatewayCore {
       this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: stored.seq, event: stored.event } } }));
     }
     for (const interaction of expired) {
-      this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
+      await this.#publishInteraction(interaction);
     }
     const changed = settled.stored.length > 0 || expired.length > 0 || settled.threadChanged;
     if (changed) this.#log(`thread ${threadId} settled: ${settled.stored.length} item(s), ${expired.length} interaction(s)${settled.threadChanged ? ", idle again" : ""} (${reason})`);
@@ -471,6 +494,7 @@ export class GatewayCore {
    * of finished turns. Idempotent; at gateway start and every few minutes. Returns the threads it changed.
    */
   async sweep(): Promise<string[]> {
+    await this.bus.deliverAnswers();
     const threads = await this.#options.runtime.runPromise(Ingest.use((i) => i.unsettledThreads(SWEEP_STALE_SECONDS)));
     const changed: string[] = [];
     for (const threadId of threads) {
@@ -1448,6 +1472,7 @@ export class GatewayCore {
     await this.#dispatch(
       thread.worker_id,
       {
+        commandId: steerId,
         kind: {
           case: "steerTurn",
           value: {
@@ -1484,6 +1509,12 @@ export class GatewayCore {
   /** The steer runs as the next turn instead (reason "" keeps the stored one, e.g. from a steer_dropped notice). */
   async #queueSteer(steerId: string, reason: string): Promise<void> {
     const current = await this.#steers((s) => s.steer(steerId));
+    // A note about background tasks: no turn from the steer, its notes are delivered anew.
+    if (current.background_note) {
+      await this.backgroundTasks.release(current.thread_id, steerId, reason || current.reason || "the turn ended before the note could join it");
+      await this.#publishSteer(steerId);
+      return;
+    }
     const { steer, turn } = await this.#steers((s) => s.queue(steerId, reason || current.reason || "the turn ended before the message could join it"));
     this.hub.publishThread(steer.thread_id, create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }));
     if (turn) await this.#broadcastTurn(steer.thread_id, turn.id);
@@ -1569,13 +1600,23 @@ export class GatewayCore {
   /** Stores the answer (user or parent agent), announces it and passes it to the waiting worker. */
   async #answer(by: { userId: string } | { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction> {
     const interaction = await this.#run((s) => s.answerInteraction(request.requestId, by, request));
-    this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
-    await this.#broadcastThread(interaction.threadId);
+    await this.#publishInteraction(interaction);
+    if (interaction.toolName === "ask_user") {
+      await this.bus.deliverAnswers();
+      return interaction;
+    }
     const thread = await this.#run((s) => s.thread(interaction.threadId));
     const connection = thread.worker_id ? this.link.connections.get(thread.worker_id) : undefined;
     // Offline: the worker re-sends the request after reconnecting and gets the stored answer.
     if (connection?.isOpen) this.#sendAnswer(connection, request);
     return interaction;
+  }
+
+  async #publishInteraction(interaction: ui.Interaction): Promise<void> {
+    this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
+    const stored = await this.#run((s) => s.interactionEvent(interaction.requestId));
+    if (stored) this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "event", value: stored } }));
+    await this.#broadcastThread(interaction.threadId);
   }
 
   /** Snapshot first, then live updates after it (subscribe before reading, skip what the snapshot has). */
@@ -1895,11 +1936,19 @@ export class GatewayCore {
     const item = await this.#run((s) => s.threadItem(thread.id, request.itemId));
     if (item?.content.case !== "backgroundTask") throw new InvalidError("background task not found");
     if (item.status !== ItemStatus.IN_PROGRESS) throw new InvalidError("the background task is not running");
+    await this.#stopTask(thread.id, request.itemId);
+  }
+
+  /** StopTask to the thread's worker for a background item (the user's Stop, an agent's stop_background_task). */
+  async #stopTask(threadId: string, itemId: string): Promise<void> {
+    const thread = await this.#run((s) => s.thread(threadId));
+    const item = await this.#run((s) => s.threadItem(threadId, itemId));
+    if (item?.content.case !== "backgroundTask") throw new InvalidError("background task not found");
     if (!thread.worker_id) throw new InvalidError("the thread has no worker");
     await this.#dispatch(
       thread.worker_id,
-      { kind: { case: "stopTask", value: { threadId: thread.id, taskId: item.content.value.taskId } } },
-      { threadId: thread.id, ttlSeconds: TTL.stopTask },
+      { kind: { case: "stopTask", value: { threadId, taskId: item.content.value.taskId } } },
+      { threadId, ttlSeconds: TTL.stopTask },
     );
   }
 

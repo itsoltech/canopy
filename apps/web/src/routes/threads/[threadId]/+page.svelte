@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus, ui } from "@open-agents/contracts";
+  import { InteractionKind, ItemStatus, ui } from "@open-agents/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -100,6 +100,7 @@
       return turn !== undefined && isTerminal(turn.status);
     },
     steer: (id) => view.steers.find((s) => s.id === id),
+    item: (id) => view.ownEntries.find((e) => e.id === id)?.item,
     delivery: (callId) => view.deliveries.get(callId),
     get canFork() {
       return canFork;
@@ -286,7 +287,8 @@
       toast(`Could not interrupt: ${cause instanceof Error ? cause.message : "unknown error"}`, { tone: "error" });
     }
   }
-  const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${view.pending.length > 0 ? `, ${view.pending.length} waiting for you` : ""}` : "");
+  const blockingQuestions = $derived(view.pending.filter((interaction) => !interaction.asynchronous).length);
+  const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${blockingQuestions > 0 ? `, ${blockingQuestions} waiting for you` : ""}` : "");
 </script>
 
 <svelte:head><title>{thread?.title ?? "Thread"} · Open Agents</title></svelte:head>
@@ -357,10 +359,10 @@
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
             <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
-              {#if view.pending.length > 0}
+              {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
                 <GrowIn class="pb-3">
                   <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
-                    {#each view.pending as interaction (interaction.requestId)}
+                    {#each view.pending.filter((i) => i.kind !== InteractionKind.QUESTION) as interaction (interaction.requestId)}
                       <div in:rise><InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} /></div>
                     {/each}
                   </div>
@@ -383,22 +385,16 @@
                   <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
                 </GrowIn>
               {/if}
-              <!-- Subagents and the queue are tabs attached to the composer, stacked: each slides under the top edge
-                   of what follows it (the queue under the composer, the subagents under the queue). -->
-              {#if thread && thread.status !== "archived" && subagents.length > 0}
-                <GrowIn class="-mb-4 px-3.5 sm:px-5">
-                  <SubagentsPanel {subagents} class="pb-4" />
-                </GrowIn>
-              {/if}
-              {#if thread && queue.rows.length > 0}
-                <GrowIn class="-mb-4 px-2 sm:px-3">
-                  <QueuePanel {queue} delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} class="pb-4" />
-                </GrowIn>
-              {/if}
+              {#snippet composerPanels()}
+                {#if subagents.length > 0}<SubagentsPanel {subagents} embedded />{/if}
+                <QueuePanel {queue} embedded delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} />
+              {/snippet}
               {#if thread}
                 <ThreadComposerSlot {thread} {parent}>
                 <Composer
                   class="relative"
+                  top={queue.rows.length > 0 || subagents.length > 0 ? composerPanels : undefined}
+                  questions={view.pending}
                   {thread}
                   {worker}
                   running={view.running}

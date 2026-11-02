@@ -5,7 +5,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
+import { create } from "@bufbuild/protobuf";
+import { BackgroundTaskKind, CommandSchema, ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
 import type { WorkerConnection } from "@open-agents/gateway/worker-link";
 import { tempDir } from "@open-agents/testing";
 import { journalHello } from "@open-agents/worker/gateway-link";
@@ -170,4 +171,68 @@ describe("worker restart", () => {
     await restarted.close();
     await next.dispose();
   });
+
+  test("background tasks a crash killed end as worker_lost, with their end time, once", async () => {
+    const path = join(dir, "restart-tasks.db");
+    const previous = ManagedRuntime.make(Journal.layer(path));
+    await previous.runPromise(Journal.use((j) => j.append("thread-c", { body: { case: "itemStarted", value: { item: task("bg:exec-9", "9") } } })));
+    await previous.dispose();
+    const next = ManagedRuntime.make(Journal.layer(path));
+    const restarted = new WorkerHost({ runtime: next, dataDir: join(dir, "data-restart-tasks"), clientVersion: "test" });
+    const before = Date.now();
+    expect(await restarted.recover()).toEqual({ turns: 0, tasks: 1, fromTranscript: 0 });
+    const ended = (await next.runPromise(Journal.use((j) => j.pending(new Map())))).at(-1);
+    expect(ended?.body).toMatchObject({ case: "itemCompleted", value: { item: { itemId: "bg:exec-9", status: ItemStatus.INTERRUPTED, content: { value: { stopReason: "worker_lost" } } } } });
+    const content = ended?.body.case === "itemCompleted" && ended.body.value.item?.content.case === "backgroundTask" ? ended.body.value.item.content.value : undefined;
+    expect(Number(content?.endedAt?.seconds ?? 0n) * 1000).toBeGreaterThanOrEqual(Math.floor(before / 1000) * 1000);
+    expect(content?.startedAt).toBeDefined(); // kept from the start
+    expect(await restarted.recover()).toEqual({ turns: 0, tasks: 0, fromTranscript: 0 });
+    await restarted.close();
+    await next.dispose();
+  });
 });
+
+const task = (itemId: string, taskId: string) => ({
+  itemId,
+  status: ItemStatus.IN_PROGRESS,
+  content: {
+    case: "backgroundTask" as const,
+    value: { taskId, processId: taskId, kind: BackgroundTaskKind.PROCESS, command: "python3 train.py", startedAt: { seconds: 1_790_000_000n, nanos: 0 } },
+  },
+});
+
+describe("graceful shutdown", () => {
+  test("running background tasks end as worker_shutdown with their end time, reported over the link before it closes", async () => {
+    // A worker of its own (its own journal and link), with a task the (provider-less) runtime ran: the journal has it open.
+    const journal = ManagedRuntime.make(Journal.layer(join(dir, "shutdown.db")));
+    const stopping = new WorkerHost({ runtime: journal, dataDir: join(dir, "data-shutdown"), clientVersion: "test" });
+    const link = await connectWorker(gateway.server.url, { hello: { workerId: "worker-1", ...(await journal.runPromise(journalHello())) } });
+    void serveLink(link, stopping, journal);
+    const peer = await gateway.nextConnection();
+    const threadId = Bun.randomUUIDv7();
+    await journal.runPromise(Journal.use((j) => j.append(threadId, { body: { case: "itemStarted", value: { item: task("bg:exec-1", "4242") } } })));
+    const ack = (async () => {
+      for await (const message of peer.messages) {
+        if (message.payload.case !== "threadEvent") continue;
+        const event = message.payload.value;
+        peer.send({ case: "eventAck", value: { threadId: event.threadId, ackSeq: event.journalSeq } });
+        const body = event.body;
+        if (body.case === "itemCompleted" && body.value.item?.itemId === "bg:exec-1") return body.value.item;
+      }
+      return undefined;
+    })();
+    expect(await stopping.shutdown()).toBe(1);
+    const ended = await ack;
+    expect(ended).toMatchObject({ status: ItemStatus.INTERRUPTED, content: { case: "backgroundTask", value: { taskId: "4242", stopReason: "worker_shutdown" } } });
+    expect(ended?.content.case === "backgroundTask" && ended.content.value.endedAt).toBeTruthy();
+    // Acked: nothing is left for the next process, which finds no task to close.
+    expect(await stopping.flush(5_000)).toBe(true);
+    // Commands after the stop get no answer: they stay in the gateway's outbox for the next process.
+    expect(await stopping.handleCommand(create(CommandSchema, { commandId: Bun.randomUUIDv7(), kind: { case: "listDirectory", value: { path: "" } } }))).toBeUndefined();
+    expect(await journal.runPromise(Journal.use((j) => j.openBackgroundTasks()))).toEqual([]);
+    expect(await new WorkerHost({ runtime: journal, dataDir: join(dir, "data-after-shutdown"), clientVersion: "test" }).recover()).toMatchObject({ tasks: 0 });
+    link.close();
+    await journal.dispose();
+  });
+});
+

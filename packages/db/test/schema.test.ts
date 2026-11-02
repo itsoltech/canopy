@@ -160,7 +160,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     pg = await startPostgres();
     runtime = ManagedRuntime.make(pg.layer);
     const applied = await runtime.runPromise(migrate);
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode", "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage", "22_thread_titles", "23_agent_senders"]);
+    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode", "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage", "22_thread_titles", "23_agent_senders", "24_background_task_notes", "25_ask_user"]);
   }, 60_000);
 
   afterAll(async () => {

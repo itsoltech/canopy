@@ -16,6 +16,7 @@ import {
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";
+import { questionStore, type QuestionStore } from "./questions.ts";
 
 /**
  * Agent bus persistence (docs/agent-bus.md): the facts `authorizeBusCall` decides on, and the writes of
@@ -242,7 +243,7 @@ export class AgentBusStore extends Context.Service<
      * unless one exists already or the agent chain is too long (then the user answers in the UI).
      */
     forwardInteraction(input: { requestId: string; input: (thread: ThreadRow) => TurnInput; maxHops: number }): Fx<ForwardedInteraction | undefined>;
-  }
+  } & QuestionStore
 >()("open-agents/gateway/AgentBusStore") {
   static readonly layer = Layer.effect(
     AgentBusStore,
@@ -364,6 +365,7 @@ export class AgentBusStore extends Context.Service<
         );
 
       const store: AgentBusStore["Service"] = {
+        ...questionStore(sql),
         storedCall: (callId) =>
           isUuid(callId)
             ? sql<BusCallRow>`SELECT * FROM agent_bus_calls WHERE id = ${callId}::uuid`.pipe(Effect.map((rows) => rows[0]))

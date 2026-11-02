@@ -1,4 +1,4 @@
-import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { clone, create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import {
   ItemSchema,
   ItemStatus,
@@ -10,8 +10,8 @@ import {
   type Item,
   type ThreadEvent,
 } from "@open-agents/contracts";
-import { eventItemId, eventKind, itemStatus, itemType, previewRefs, reduceItem } from "@open-agents/domain";
-import { timestampNow } from "@bufbuild/protobuf/wkt";
+import { DEFAULT_BUS_LIMITS, eventItemId, eventKind, itemStatus, itemType, previewRefs, reduceItem, stoppedByUser } from "@open-agents/domain";
+import { timestampDate, timestampNow } from "@bufbuild/protobuf/wkt";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { applyGoalState } from "./goals.ts";
@@ -23,6 +23,9 @@ import { applyGoalState } from "./goals.ts";
  * assign seq, insert thread_events, apply side effects (provider thread id, turns, thread status,
  * item projection with the shared reducer) and remember the worker's journal cursor.
  * The caller acks the worker only after this commits.
+ *
+ * Background tasks (docs/execution.md, "Pobudka"): their items get the event's time as start and end when the worker
+ * did not stamp them, and every end writes the note the agent gets (background_task_notes, once per task).
  *
  * settle() is the safety net behind every turn end (docs/durability.md, "Stany tury i wątku"): whatever the worker
  * reported, nothing of a finished turn stays open. It writes its fixes as gateway events (origin = gateway, the
@@ -126,8 +129,12 @@ export class Ingest extends Context.Service<
             SELECT content FROM thread_items WHERE thread_id = ${threadId}::uuid AND item_id = ${itemId} FOR UPDATE
           `;
           const current: Item | undefined = rows[0] ? fromJson(ItemSchema, rows[0].content) : undefined;
-          const next = reduceItem(current, event.body);
-          if (!next || next === current) return;
+          // A background task's first end is its end (e.g. worker_shutdown with its time; a later close of the same
+          // task by another process does not rewrite why it ended).
+          if (current?.content.case === "backgroundTask" && current.status !== ItemStatus.IN_PROGRESS && event.body.case === "itemCompleted") return;
+          const reduced = reduceItem(current, event.body);
+          if (!reduced || reduced === current) return;
+          const next = stampBackgroundTask(reduced, event);
           const content = JSON.stringify(toJson(ItemSchema, next));
           const turnId = event.turnId || null;
           yield* sql`
@@ -138,10 +145,33 @@ export class Ingest extends Context.Service<
               SET type = EXCLUDED.type, status = EXCLUDED.status, content = EXCLUDED.content,
                   parent_item_id = EXCLUDED.parent_item_id, last_seq = EXCLUDED.last_seq
           `;
+          if (next.content.case === "backgroundTask" && next.status !== ItemStatus.IN_PROGRESS && (!current || current.status === ItemStatus.IN_PROGRESS)) {
+            yield* noteBackgroundEnd(threadId, itemId, next);
+          }
           // Previews the item shows (the worker sent them before the event): readable through this thread.
           for (const { sha256 } of previewRefs(next)) {
             yield* sql`INSERT INTO thread_blobs (thread_id, sha256) VALUES (${threadId}::uuid, ${sha256}) ON CONFLICT DO NOTHING`;
           }
+        });
+
+      /**
+       * A background task ended: the note its agent gets (core/background-notes.ts delivers it). Stopped by the user:
+       * no turn of its own (it joins the next one). A Claude task that ended by itself: Claude may wake up for it.
+       * Hops: the turn that started the task + 1; past the limit the note only joins the next turn.
+       */
+      const noteBackgroundEnd = (threadId: string, itemId: string, item: Item) =>
+        Effect.gen(function* () {
+          if (item.content.case !== "backgroundTask") return;
+          const task = item.content.value;
+          const natural = item.status === ItemStatus.COMPLETED || (item.status === ItemStatus.FAILED && (!task.stopReason || task.stopReason === "error"));
+          const endedAt = task.endedAt ? timestampDate(task.endedAt) : new Date();
+          yield* sql`
+            INSERT INTO background_task_notes (thread_id, item_id, wake, harness_wakes, ended_at, hops)
+            SELECT ${threadId}::uuid, ${itemId}, ${!stoppedByUser(task.stopReason)} AND coalesce(u.hops, 0) + 1 <= ${DEFAULT_BUS_LIMITS.maxHops},
+                   ${natural} AND t.provider = 'claude', ${endedAt}, least(coalesce(u.hops, 0) + 1, 16)
+              FROM threads t JOIN thread_items i ON i.thread_id = t.id AND i.item_id = ${itemId} LEFT JOIN turns u ON u.id = i.turn_id
+             WHERE t.id = ${threadId}::uuid
+            ON CONFLICT (thread_id, item_id) DO NOTHING`;
         });
 
       const applySideEffects = (threadId: string, seq: bigint, event: ThreadEvent) =>
@@ -221,6 +251,11 @@ export class Ingest extends Context.Service<
                 RETURNING agent_call_id, turn_id)
               UPDATE agent_bus_calls c SET target_turn_id = s.turn_id FROM s WHERE c.id = s.agent_call_id AND c.target_turn_id IS NULL
             `;
+            // A note about background tasks (a steer of the platform's) reached its agent.
+            yield* sql`
+              UPDATE background_task_notes SET status = 'delivered', updated_at = now()
+               WHERE thread_id = ${threadId}::uuid AND steer_id = ${steerId}::uuid AND status = 'steering'
+            `;
           } else if (body.case === "notice" && body.value.code === "steer_dropped") {
             steerId = (JSON.parse(body.value.dataJson || "{}") as { input_id?: unknown }).input_id as string | undefined;
             if (typeof steerId !== "string" || !isUuid(steerId)) return;
@@ -252,7 +287,7 @@ export class Ingest extends Context.Service<
        */
       const openLeftovers = (threadId: string) => sql<{ item_id: string; turn_id: string | null; content: JsonValue }>`
         SELECT i.item_id, i.turn_id, i.content FROM thread_items i LEFT JOIN turns u ON u.id = i.turn_id
-         WHERE i.thread_id = ${threadId}::uuid AND i.status = 'in_progress' AND i.type <> 'background_task'
+         WHERE i.thread_id = ${threadId}::uuid AND i.status = 'in_progress' AND i.type NOT IN ('background_task', 'interaction_prompt')
            AND (u.status = ANY(${ENDED}::text[]) OR (i.turn_id IS NULL AND ${idleTurns(threadId)}))
            AND NOT EXISTS (SELECT 1 FROM thread_items b
                             WHERE b.thread_id = i.thread_id AND b.type = 'background_task' AND b.status = 'in_progress'
@@ -345,14 +380,14 @@ export class Ingest extends Context.Service<
              WHERE t.archived_at IS NULL AND (
                ${stuckThread(staleSeconds)}
                OR EXISTS (SELECT 1 FROM thread_items i LEFT JOIN turns u ON u.id = i.turn_id
-                           WHERE i.thread_id = t.id AND i.status = 'in_progress' AND i.type <> 'background_task'
+                           WHERE i.thread_id = t.id AND i.status = 'in_progress' AND i.type NOT IN ('background_task', 'interaction_prompt')
                              AND (u.status = ANY(${ENDED}::text[])
                                   OR (i.turn_id IS NULL AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = t.id AND r.status = 'running')))
                              AND NOT EXISTS (SELECT 1 FROM thread_items b
                                               WHERE b.thread_id = i.thread_id AND b.type = 'background_task' AND b.status = 'in_progress'
                                                 AND b.content->'backgroundTask'->>'sourceItemId' = i.item_id))
                OR EXISTS (SELECT 1 FROM interaction_requests q JOIN turns u ON u.id = q.turn_id
-                           WHERE q.thread_id = t.id AND q.status = 'pending' AND u.status = ANY(${ENDED}::text[])))
+                           WHERE q.thread_id = t.id AND q.status = 'pending' AND q.question_call_id IS NULL AND u.status = ANY(${ENDED}::text[])))
              ORDER BY t.id`;
           return rows.map((r) => r.id);
         }),
@@ -402,6 +437,20 @@ export function turnEnd(
     default:
       return { status: "failed", errorSource: source === TurnEndSource.PLATFORM ? "platform" : "harness", interruptSource: null };
   }
+}
+
+/** A background task's start and end default to its event's time (a worker that did not stamp them). */
+function stampBackgroundTask(item: Item, event: ThreadEvent): Item {
+  if (item.content.case !== "backgroundTask") return item;
+  const task = item.content.value;
+  const ended = item.status !== ItemStatus.IN_PROGRESS;
+  if (task.startedAt && (!ended || task.endedAt)) return item;
+  const stamped = clone(ItemSchema, item);
+  if (stamped.content.case !== "backgroundTask") return item;
+  const at = event.occurredAt ?? timestampNow();
+  stamped.content.value.startedAt ??= at;
+  if (ended) stamped.content.value.endedAt ??= at;
+  return stamped;
 }
 
 function threadStatus(status: ThreadStatus): string | undefined {

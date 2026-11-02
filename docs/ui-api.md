@@ -91,6 +91,20 @@ Restart workera i błędy komend (pola od 70):
 - `Turn.interrupt_source` (73): przy `interrupted` kto przerwał — `user` albo `system` (np. `worker restarted mid-turn`). Stopka tury w UI pokazuje „Harness error: …” / „Platform error: …”, „by you”, „by the system: …” i dla przerwania przez system akcję „Continue” (wiadomość wznawiająca sesję). Stany i macierz: [durability.md](durability.md#47-stany-tury-i-wątku). Wątek po każdym końcu tury jest `idle`; `failed` tylko dla wątku, który nie powstał,
 - `Goal.error`, `Goal.error_at`: ostatnia komenda celu nie powiodła się na workerze; status wraca wtedy do ostatniego stanu harnessu ([goals.md](goals.md#3-statusy)). `goalPending` w UI nie pokazuje wtedy „Starting… / Pausing…”, a `GoalBar` pokazuje błąd.
 
+### Pytania nad kompozytorem
+
+`Interaction.asynchronous` i `InteractionPrompt.asynchronous` (pole **250** w odpowiednich wiadomościach) oznaczają pytanie, przy którym agent pracuje dalej. Domyślne `false` zachowuje zachowanie natywnych interakcji. Async pozostaje w `snapshot.interactions` i strumieniu interakcji, lecz nie zwiększa `Thread.pending_interactions` ani komunikatu czytnika ekranu „waiting for you”.
+
+`ComposerTop` to wspólna powierzchnia/slot nad polem wiadomości: panel subagentów, kolejka i pytania tworzą jeden stos z jednym nachodzeniem na composer. Warianty `embedded` paneli nie dodają własnych obwódek ani przesunięć. `Composer` wybiera najstarszy zestaw blokujący przed async, przechowuje szkice per id zestawu i używa osobnego `MessageComposer` do zwykłych wiadomości.
+
+`QuestionForm`, `QuestionOption` i `QuestionSession` obsługują kroki, Back, Skip, Skip all, Dismiss (sync), zwijanie i przełączanie async na wiadomości. Pole odpowiedzi używa placeholdera „Type your own answer, or leave this blank to use the selected option” i przycisku „Submit”; wpisany tekst ma pierwszeństwo przed zaznaczeniami. Rekomendacja jest oznaczeniem, bez automatycznego wyboru. Zwykły szkic wiadomości zostaje zamontowany przy przełączaniu. Natywne pytania poufne zachowują pole hasła i ukryte odpowiedzi w rekordzie osi czasu.
+
+Opcje to natywne radio/checkbox ze wspólnego `Input`, grupa ma `fieldset`/`legend`. Przy fokusie w grupie 1–9 wybiera opcję, ↑/↓ przenosi fokus, Enter zatwierdza; cyfry w composerze pozostają tekstem. Przejście kroku przenosi fokus na legendę, jeśli użytkownik operował w panelu. Zwijanie ma `aria-expanded`, `aria-controls` i `inert`; ruch korzysta z istniejących `.t-acc-panel`/`.t-acc-chevron` i tokenów `layout.css`, z wyłączeniem przejść dla reduced motion.
+
+Odpowiedź nadal idzie przez `AnswerInteraction` / `POST api/interactions/[id]`. Dla `ask_user`: `{answerJson: JSON.stringify({answers: [{id, kind: "choice", labels: [...]}, {id, kind: "text", text: "..."}, {id, kind: "skipped"}]})}`; kompletna lista odpowiada zestawowi pytań. Dismiss: `{cancelled: true}`. Adaptery zachowują natywne formaty Claude i Codexa. `interaction_prompt` zostaje na osi czasu jako skrót tematu i odpowiedzi z autorem; rozwinięcie pokazuje cały zestaw i jawnie pominięte pytania.
+
+Fixture do sprawdzenia w przeglądarce: `OA_ASK_BROWSER=1 bun test tests/integration/ask-user.browser.test.ts` uruchamia izolowany gateway ze skryptowanym workerem i Vite na **5293**. Drukuje adresy sync/async i ścieżkę pliku `stop`; utworzenie tego pliku zamyka stos i usuwa katalogi przez `@open-agents/testing`. Nie korzysta z istniejącego stosu developerskiego.
+
 ### Załączniki
 
 Pliki dołączone do wiadomości (obrazy, zrzuty ekranu, tekst, kod, PDF, archiwa). Platforma nie zgaduje limitów modeli: agent dostaje pliki na dysku workera i sam decyduje, co z nimi zrobić (obrazy może obejrzeć przez `view_image`, [agent-bus.md](agent-bus.md#view_image)).

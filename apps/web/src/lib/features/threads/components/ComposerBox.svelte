@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Input from "#lib/shared/ui/Input.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
   import { rise } from "#lib/shared/ui/motion.ts";
   import ResizeSlot from "#lib/shared/ui/ResizeSlot.svelte";
@@ -57,6 +58,9 @@
     sources,
     elements,
     elementCount = 0,
+    allowEmpty = false,
+    sendLabel = "Send",
+    secret = false,
     class: className,
   }: {
     value?: string;
@@ -81,6 +85,9 @@
     sources?: MentionSources | undefined;
     elements?: Snippet;
     elementCount?: number;
+    allowEmpty?: boolean;
+    sendLabel?: string;
+    secret?: boolean;
     class?: ClassValue;
   } = $props();
   const triggers: ReadonlySet<TriggerChar> = new Set(["/", "$", "@", "#"]);
@@ -88,7 +95,7 @@
 
   const id = $props.id();
   const hasFiles = $derived((draft?.files.length ?? 0) > 0);
-  const hasContent = $derived(Boolean(value.trim()) || hasFiles || elementCount > 0);
+  const hasContent = $derived(Boolean(value.trim()) || hasFiles || elementCount > 0 || allowEmpty);
   const onfiles = $derived(draft ? (files: File[]) => draft.add(files) : undefined);
   const stopMode = $derived(Boolean(onstop) && !hasContent);
   // Files go with the next turn: a message with them is never steered.
@@ -144,6 +151,10 @@
   >
     {#if draft}<DraftTray {draft} class="px-3 pt-3" />{/if}
     {@render elements?.()}
+    {#if secret}
+      <label for="{id}-secret" class="sr-only">{label}</label>
+      <Input id="{id}-secret" type="password" bare bind:value {placeholder} {disabled} {onkeydown} autocomplete="off" class="px-4 pt-3.5 pb-4 text-base/6 sm:text-sm/6" />
+    {:else}
     <MentionEditor
       id="{id}-input"
       {label}
@@ -160,6 +171,7 @@
       {onpaste}
       class={["px-4 pt-3.5 text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
     />
+    {/if}
     <input type="hidden" {name} value={trimmed.text} />
     {#if trimmed.mentions.length > 0}<input type="hidden" name="mentions" value={JSON.stringify(mentionsToWire(trimmed.mentions))} />{/if}
     <div class="flex items-center justify-end gap-2 p-2.5 pl-3">
@@ -197,11 +209,11 @@
           <button
             type="submit"
             class="relative grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-white focus-ring not-disabled:hover:bg-brand-500 disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
-            aria-label="Send"
-            {@attach tooltip("Send", { hotkey: "Enter" })}
+            aria-label={sendLabel}
+            {@attach tooltip(sendLabel, { hotkey: "Enter" })}
             disabled={disabled || !canSend || sending || !hasContent}
           >
-            {#if sending}<Spinner class="size-3.5" />{:else}<Icon name="arrow-up" />{/if}
+            {#if sending}<Spinner class="size-3.5" />{:else}<Icon name={sendLabel === "Submit" ? "check" : "arrow-up"} />{/if}
             <TouchTarget />
           </button>
         {/if}

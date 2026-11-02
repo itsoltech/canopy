@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./items": "./src/items.ts"
+    "./items": "./src/items.ts",
+    "./background-tasks": "./src/background-tasks/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

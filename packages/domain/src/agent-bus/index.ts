@@ -32,3 +32,5 @@ export {
   type SpawnPermissionMode,
   type ToolJsonSpec,
 } from "./tools.ts";
+export { decodeUserAnswers, questionAnswerInput, questionResult, questionsProblem, type UserQuestion, type UserAnswer } from "./questions.ts";
+export { BACKGROUND_TASK_TOOLS, isBackgroundTaskTool, type BackgroundTaskToolName } from "./background-tasks.ts";
