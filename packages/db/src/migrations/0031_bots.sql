@@ -107,8 +107,8 @@ ALTER TABLE turns ADD CONSTRAINT turns_bot_call CHECK ((trigger = 'bot') = (bot_
 ALTER TABLE turn_steers ADD COLUMN bot_call_id uuid REFERENCES bot_tool_calls(id);
 ALTER TABLE turn_steers DROP CONSTRAINT turn_steers_author;
 ALTER TABLE turn_steers ADD CONSTRAINT turn_steers_author CHECK (
-  CASE WHEN background_note THEN num_nonnulls(author_user_id, agent_call_id, bot_call_id) = 0
-       ELSE num_nonnulls(author_user_id, agent_call_id, bot_call_id) = 1 END
+  CASE WHEN background_note THEN num_nonnulls(author_user_id, agent_call_id, notification_call_id, bot_call_id) = 0
+       ELSE num_nonnulls(author_user_id, agent_call_id, notification_call_id, bot_call_id) = 1 END
 );
 -- Własne pobudki bota; harmonogramy pracy workerów nadal używają schedules.
 CREATE TABLE bot_wakeups (

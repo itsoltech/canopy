@@ -26,6 +26,8 @@ export interface SteerRow {
   author_user_id: string | null;
   agent_call_id: string | null;
   bot_call_id?: string | null;
+  /** A platform report about this call's target, rather than another send_message. */
+  notification_call_id?: string | null;
   hops: number;
   client_request_id: string | null;
   model: string;
@@ -82,12 +84,14 @@ export class SteerStore extends Context.Service<
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       const select = `
-        SELECT s.*, c.source_thread_id, st.title AS source_title, st.provider AS source_provider, st.provider_profile_id AS source_profile_id,
+        SELECT s.*, CASE WHEN s.notification_call_id IS NOT NULL THEN c.target_thread_id ELSE c.source_thread_id END AS source_thread_id,
+               st.title AS source_title, st.provider AS source_provider, st.provider_profile_id AS source_profile_id,
                coalesce(nullif(su.model, ''), st.settings ->> 'model', '') AS source_model, st.project_id AS source_project_id,
                st.worker_id AS source_worker_id,
                CASE WHEN s.background_note THEN ARRAY(SELECT n.item_id FROM background_task_notes n WHERE n.steer_id = s.id ORDER BY n.ended_at, n.item_id) END AS background_item_ids
-          FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = s.agent_call_id
-          LEFT JOIN threads st ON st.id = c.source_thread_id LEFT JOIN turns su ON su.id = c.source_turn_id`;
+          FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = coalesce(s.agent_call_id, s.notification_call_id)
+          LEFT JOIN threads st ON st.id = CASE WHEN s.notification_call_id IS NOT NULL THEN c.target_thread_id ELSE c.source_thread_id END
+          LEFT JOIN turns su ON su.id = CASE WHEN s.notification_call_id IS NOT NULL THEN c.target_turn_id ELSE c.source_turn_id END`;
       const one = (id: string) =>
         sql.unsafe<SteerRow>(`${select} WHERE s.id = $1::uuid`, [id]).pipe(
           Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("steer not found")))),
@@ -132,6 +136,7 @@ export class SteerStore extends Context.Service<
         queue: (id, reason) =>
           sql.withTransaction(
             Effect.gen(function* () {
+              yield* sql`SELECT id FROM threads WHERE id = (SELECT thread_id FROM turn_steers WHERE id = ${id}::uuid) FOR UPDATE`;
               const locked = yield* sql<SteerRow>`SELECT * FROM turn_steers WHERE id = ${id}::uuid FOR UPDATE`;
               const steer = locked[0];
               if (!steer) return yield* Effect.fail(new NotFound("steer not found"));
@@ -144,12 +149,12 @@ export class SteerStore extends Context.Service<
                     RETURNING *`
                 : [];
               // Like the message would have been queued: a user's turn, or the agent's (same call, same hops).
-              const agent = steer.agent_call_id !== null;
+              const agent = steer.agent_call_id !== null || !!steer.notification_call_id;
               const bot = steer.bot_call_id != null;
               const rows = back[0] ? back : yield* sql<TurnRow>`
                 INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, bot_call_id, hops, input, model, effort, permission_mode)
                 SELECT ${Bun.randomUUIDv7()}::uuid, ${steer.thread_id}::uuid, coalesce(max(ordinal), 0) + 1, ${bot ? "bot" : agent ? "agent_bus" : "user"},
-                       ${steer.author_user_id}::uuid, ${steer.agent_call_id}::uuid, ${steer.bot_call_id ?? null}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
+                       ${steer.author_user_id}::uuid, ${steer.agent_call_id ?? steer.notification_call_id ?? null}::uuid, ${steer.bot_call_id ?? null}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
                        ${steer.model}, ${steer.effort}, ${steer.permission_mode}
                   FROM turns WHERE thread_id = ${steer.thread_id}::uuid
                 RETURNING *`;
@@ -158,7 +163,10 @@ export class SteerStore extends Context.Service<
                 UPDATE turn_steers SET status = 'queued', queued_turn_id = ${turn.id}::uuid, reason = ${reason}, updated_at = now()
                  WHERE id = ${id}::uuid`;
               // The agent hears back when this turn finishes (its source shows the message).
-              if (agent) yield* sql`UPDATE agent_bus_calls SET target_turn_id = ${turn.id}::uuid WHERE id = ${steer.agent_call_id}::uuid`;
+              if (steer.notification_call_id) {
+                yield* sql`UPDATE agent_bus_calls SET notify_status = 'delivered', notified_turn_id = ${turn.id}::uuid
+                  WHERE id = ${steer.notification_call_id}::uuid AND notify_status = 'steering'`;
+              } else if (agent) yield* sql`UPDATE agent_bus_calls SET target_turn_id = ${turn.id}::uuid WHERE id = ${steer.agent_call_id}::uuid`;
               return { steer: yield* one(id), turn };
             }),
           ),

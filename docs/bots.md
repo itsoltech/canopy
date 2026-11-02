@@ -63,7 +63,7 @@ Wywołanie nieznanej funkcji zwraca błąd, nie uruchamia dynamicznego dispatche
 
 ## 2. Dane i jedna rozmowa
 
-Migracja **0030_bots** jest addytywna. Wybrano osobny schemat tabel. Obecne `threads`
+Migracja **0031_bots** (po scaleniu `0030_bus_notify_delivery` z main) jest addytywna. Wybrano osobny schemat tabel. Obecne `threads`
 wymagają projektu, mają reguły główny/boczny, placement, fork i szynę z relacją rodzica.
 Sztuczny projekt i ukryty wątek gateway naruszałyby semantykę niezależnej sekcji Bots.
 `runtime='gateway'` pozostaje w schemacie Threads dla przyszłych agentów projektowych.
