@@ -28,6 +28,8 @@
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
   import QueuePanel from "#lib/features/threads/queue/QueuePanel.svelte";
   import { QueueState } from "#lib/features/threads/queue/queue-state.svelte.ts";
+  import SubagentsPanel from "#lib/features/threads/subagents/SubagentsPanel.svelte";
+  import { subagentsOf } from "#lib/features/threads/subagents/subagents.ts";
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { forkFrom, lastForkPoint } from "#lib/features/threads/fork.svelte.ts";
@@ -94,6 +96,7 @@
       return turn !== undefined && isTerminal(turn.status);
     },
     steer: (id) => view.steers.find((s) => s.id === id),
+    delivery: (callId) => view.deliveries.get(callId),
     get canFork() {
       return canFork;
     },
@@ -107,6 +110,8 @@
     return { threadId, unseen: Boolean(live?.unseenResult), lastSeq: live?.lastSeq ?? 0n, atEnd };
   });
 
+  // The subagents its agent started (spawn_thread), live from the thread index: the panel above the composer.
+  const subagents = $derived(thread ? subagentsOf(threads, thread.id) : []);
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
   const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
   const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived");
@@ -376,6 +381,13 @@
               {#if view.backgroundTasks.length > 0}
                 <GrowIn class="justify-self-start pb-3">
                   <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
+                </GrowIn>
+              {/if}
+              <!-- Subagents and the queue are tabs attached to the composer, stacked: each slides under the top edge
+                   of what follows it (the queue under the composer, the subagents under the queue). -->
+              {#if thread && subagents.length > 0}
+                <GrowIn class="-mb-4 px-3.5 sm:px-5">
+                  <SubagentsPanel {subagents} class="pb-4" />
                 </GrowIn>
               {/if}
               {#if thread && queue.rows.length > 0}

@@ -10,6 +10,16 @@ export {
   type ThreadNode,
 } from "./policy.ts";
 export {
+  agentCatalog,
+  agentKey,
+  resolveSpawnTarget,
+  type Harness,
+  type SpawnInstance,
+  type SpawnModel,
+  type SpawnResolution,
+  type SpawnTarget,
+} from "./agents.ts";
+export {
   AGENT_BUS_TOOLS,
   agentBusToolSpecs,
   agentBusToolsFor,

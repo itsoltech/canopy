@@ -74,7 +74,7 @@
 {:else if row.kind === "working"}
   <p class="pb-3 text-base/6 sm:text-sm/6"><span class="shimmer inline-block py-1 font-medium">Working…</span></p>
 {:else}
-  <div class="pb-3"><UserMessageView message={{ text: row.steer.text, authorAgentId: row.steer.sourceThreadId, attachments: [], mentions: row.steer.mentions }} quotes={row.steer.quotes} note={steeringNote(row.steer)} pending /></div>
+  <div class="pb-3"><UserMessageView message={{ text: row.steer.text, authorAgentId: row.steer.sourceThreadId, attachments: [], mentions: row.steer.mentions }} quotes={row.steer.quotes} note={steeringNote(row.steer)} sender={row.steer.sender} pending /></div>
 {/if}
 
 {#snippet body(row: Extract<FeedRow, { kind: "timeline" | "work" }>)}

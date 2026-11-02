@@ -1,16 +1,18 @@
 <script lang="ts">
-  import { PermissionMode } from "@open-agents/contracts";
+  import { PermissionMode, Provider } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { permissionLabel } from "../../labels.ts";
   import { useThreadDirectory } from "../../thread-directory.ts";
+  import ProviderModel from "../ProviderModel.svelte";
 
   /**
    * A platform subagent started by spawn_thread (docs/agent-bus.md), as the parent's timeline shows it:
-   * the child thread's live status, what it runs with and the start of its last message (its result),
-   * linking to the thread. `spawned` is what the call returned, for a thread the directory does not know.
+   * the child thread's live status, what it runs on (provider, model, effort, permissions) and the start of its last
+   * message (its result), linking to the thread. `spawned` is what the call returned, for a thread the directory
+   * does not know (its provider as list_agents names it, e.g. "claude/native").
    */
   let {
     threadId,
@@ -20,7 +22,7 @@
   }: {
     threadId: string;
     title: string;
-    spawned: { model: string; effort: string; permissionMode: string };
+    spawned: { provider: string; model: string; effort: string; permissionMode: string };
     class?: ClassValue;
   } = $props();
 
@@ -36,7 +38,8 @@
         ? permissionLabel(PermissionMode[spawned.permissionMode.toUpperCase() as keyof typeof PermissionMode])
         : "",
   );
-  const settings = $derived([model || "Default model", effort, permission].filter(Boolean));
+  const provider = $derived(thread?.provider ?? (spawned.provider.startsWith("claude") ? Provider.CLAUDE : spawned.provider.startsWith("codex") ? Provider.CODEX : undefined));
+  const settings = $derived([effort, permission].filter(Boolean));
   const result = $derived(thread?.lastMessage.trim() ?? "");
   const working = $derived(Boolean(look?.active));
 </script>
@@ -58,8 +61,10 @@
     {/if}
     <Icon name="chevron-right" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
   </div>
-  <p class="truncate pl-6 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-    <span class="sr-only">Subagent settings: </span>{settings.join(" · ")}
+  <p class="flex min-w-0 items-center gap-1 pl-6 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+    <span class="sr-only">Subagent runs on: </span>
+    {#if provider}<ProviderModel {provider} model={model} class="shrink-0" />{:else}<span class="shrink-0">{model || "Default model"}</span>{/if}
+    {#if settings.length > 0}<span class="truncate">· {settings.join(" · ")}</span>{/if}
   </p>
   <p class="line-clamp-3 pl-6 text-base/6 text-pretty whitespace-pre-line text-zinc-700 sm:text-sm/6 dark:text-zinc-300">
     {#if result}

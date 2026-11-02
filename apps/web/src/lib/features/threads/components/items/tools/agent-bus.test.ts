@@ -127,8 +127,16 @@ describe("other results", () => {
     expect(interactionsOf({ interactions: [{ request_id: "r", thread_id: "t", kind: "permission", tool_name: "Bash", request: { command: "rm" } }] })).toEqual([
       { threadId: "t", kind: "Permission", tool: "Bash", request: { command: "rm" } },
     ]);
-    expect(agentsOf({ agents: [{ slug: "code_reviewer", description: "Reviews", provider: "claude", model: "opus" }] })).toEqual([
-      { name: "Code reviewer", description: "Reviews", settings: "Claude · opus" },
+    expect(
+      agentsOf({
+        agents: [
+          { provider: "claude/native", name: "Claude · device login", models: [{ id: "opus", name: "Opus", default: true }, { id: "haiku" }] },
+          { provider: "codex/proxy", name: "Codex · Proxy", models: [], note: "no model list reported: omit model to use the default" },
+        ],
+      }),
+    ).toEqual([
+      { name: "Claude · device login", description: "Opus (default), haiku", settings: "claude/native" },
+      { name: "Codex · Proxy", description: "no model list reported: omit model to use the default", settings: "codex/proxy" },
     ]);
     expect(agentsOf({ agents: [], note: "x" })).toEqual([]);
   });
