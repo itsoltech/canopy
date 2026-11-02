@@ -2,6 +2,7 @@
   import type { Item } from "@open-agents/contracts";
   import { parseObject, prettyJson, str } from "#lib/shared/format.ts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
+  import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import Diff from "../Diff.svelte";
 
   /** What a permission request asks for: a command, a file change (with its diff) or extra permissions. */
@@ -23,7 +24,7 @@
   {:else if changes.length > 0}
     {#each changes as change, index (index)}
       <p class="truncate font-mono text-[0.8125rem]/5 font-medium text-zinc-950 dark:text-white">{change.kind === "add" ? "New file" : change.kind === "delete" ? "Delete" : "Edit"} {change.path}</p>
-      {#if change.diff}<Diff diff={change.diff} label="Proposed change to {change.path}" class="max-h-64" />{/if}
+      {#if change.diff}<Diff diff={change.diff} label="Proposed change to {change.path}" lang={languageOfPath(change.path)} class="max-h-64" />{/if}
     {/each}
   {:else if toolName === "permissions" && request["permissions"]}
     <CodeBlock text={prettyJson(JSON.stringify(request["permissions"]))} label="Requested permissions" class="max-h-48" />

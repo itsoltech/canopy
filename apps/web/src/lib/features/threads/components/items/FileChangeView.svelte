@@ -2,6 +2,7 @@
   import { ItemStatus, type FileChange } from "@open-agents/contracts";
   import { basename, formatBytes } from "#lib/shared/format.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
+  import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import type { Tone } from "#lib/shared/ui/tone.ts";
   import Diff from "../Diff.svelte";
   import ItemFrame from "./ItemFrame.svelte";
@@ -53,7 +54,7 @@
         {/if}
       </div>
       {#if entry.diff}
-        <Diff diff={entry.diff} label="Diff of {entry.path}" />
+        <Diff diff={entry.diff} label="Diff of {entry.path}" lang={languageOfPath(entry.movePath || entry.path)} />
       {:else if entry.diffBlob}
         <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Diff ({formatBytes(entry.diffBlob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.</p>
       {/if}
