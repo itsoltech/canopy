@@ -10,6 +10,8 @@ Weryfikacja działa na prywatnym PostgreSQL/gateway/scripted worker i produkcyjn
 
 Polecenia: `bun install`, `bun run typecheck`, `bun run check:tmp`, `bun run --cwd apps/web build`, `OA_COMPOSER_BROWSER=1 bun test tests/integration/composer-compact.browser.test.ts`. Testy jednostkowe maszyny stanów obejmują progi, histerezę, fokus, pisanie, drop/paste, menu, dół feedu i pytanie synchroniczne. Test przeglądarkowy mierzy ten sam wiersz przed/po zwinięciu, streamingu i pisaniu; sprawdza też przewinięcie na dół, Ctrl+End, panele, pliki, reduced motion, rozmiary nagłówków/ikon i cele dotykowe.
 
+Wyniki: `bun install`, pełny `typecheck` i build zakończone poprawnie; `svelte-check`: 0 błędów i 0 ostrzeżeń. `check:tmp`: 794 pass, 124 skip, 0 fail, pusty prywatny katalog tymczasowy. Maszyna stanów: 8/8. Pełny zestaw przeglądarkowy: 7/7, 101 asercji. Zwinięcie przesunęło czytany wiersz o 0 px we wszystkich czterech wariantach; streaming i fokus/pisanie dały odchylenie 0,1875–0,453125 px (poniżej tolerancji 2 px). Pomiar DOM potwierdził nagłówki 32–36 px, wiersz subagenta 40 px, chevron 12 px i cele dotykowe co najmniej 40 px.
+
 Screenshoty kompozytora (1440×1000 oraz 390×844 z emulacją dotyku):
 
 | Widok | Kompaktowy | Rozwinięty |
