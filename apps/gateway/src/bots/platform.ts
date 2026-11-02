@@ -34,7 +34,7 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
   const action = <A, E>(effect: Effect.Effect<A, E, GatewayStore | BotStore>) => options.runtime.runPromise(BotStore.use((s) => s.action(turn, call, effect)));
   try {
     switch (call.tool.name) {
-      case "list_projects": return (await core.overview()).projects.map((p) => ({ id: p.id, name: p.name, workspaces: p.workspaces.map((w) => ({ id: w.id, worker_id: w.workerId, label: w.label })) }));
+      case "list_projects": return (await core.overview()).projects.map((p) => ({ id: p.id, name: p.name, kind: p.kind, workspaces: p.workspaces.map((w) => ({ id: w.id, worker_id: w.workerId, label: w.label })) }));
       case "list_workers": return (await core.overview()).workers.map((w) => ({ id: w.id, name: w.name, online: w.online }));
       case "list_provider_instances": return (await core.listProviderInstances()).map((i) => ({ id: i.id, label: i.label, provider: Provider[i.harness], kind: i.kind }));
       case "list_bots": return (await core.bots.list()).map((b) => ({ id: b.id, name: b.configuration?.name }));

@@ -16,6 +16,19 @@ export function pathStyle(os: string, sample: string): PathStyle {
 
 const lib = (style: PathStyle) => (style === "win32" ? win32 : posix);
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Stable names use ids only: titles never become paths or change a thread's directory. */
+export function scratchBase(root: string, ownerId: string, style: PathStyle): string {
+  if (!UUID.test(ownerId) || !isAbsolutePath(root, style)) throw new Error("invalid scratch root or owner id");
+  return lib(style).join(normalizePath(root, style), ".open-agents", "scratch", ownerId);
+}
+
+export function scratchCwd(base: string, threadId: string, style: PathStyle): string {
+  if (!UUID.test(threadId) || !isAbsolutePath(base, style)) throw new Error("invalid scratch base or thread id");
+  return lib(style).join(base, threadId);
+}
+
 export function isAbsolutePath(path: string, style: PathStyle): boolean {
   return style === "win32" ? /^[A-Za-z]:[\\/]|^\\\\[^\\]/.test(path) : path.startsWith("/");
 }

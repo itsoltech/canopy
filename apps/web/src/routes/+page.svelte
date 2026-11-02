@@ -26,6 +26,7 @@
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import TextLink from "#lib/shared/ui/TextLink.svelte";
   import type { PageProps } from "./$types";
 
@@ -109,7 +110,7 @@
 
 <div class="flex h-full flex-col">
   <TopBar>
-    <Crumb><span class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400"><Icon name="folder" class="fill-zinc-400 dark:fill-zinc-600" />{project?.name ?? "No project"}</span></Crumb>
+    <Crumb><span class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400"><ProjectMark name={project?.name ?? "No project"} kind={project?.kind} />{project?.name ?? "No project"}</span></Crumb>
     <Crumb>New thread</Crumb>
   </TopBar>
 
@@ -177,8 +178,13 @@
           {/if}
           {#if blocker === "no-worker"}
             <ComposerNotice>
-              {project.name} is not on any worker yet, so there is nowhere to run the thread.
-              <TextLink href="/settings/projects/{project.id}">Add it to a worker</TextLink>
+              {#if project.kind === "scratch"}
+                Choose a worker with an allowed directory to start a scratch thread.
+                <TextLink href="/settings/workers">Configure a worker</TextLink>
+              {:else}
+                {project.name} is not on any worker yet, so there is nowhere to run the thread.
+                <TextLink href="/settings/projects/{project.id}">Add it to a worker</TextLink>
+              {/if}
             </ComposerNotice>
           {:else if blocker === "offline"}
             <ComposerNotice tone="warning">
@@ -186,6 +192,9 @@
             </ComposerNotice>
           {:else if blocker === "no-agent"}
             <ComposerNotice tone="warning">{worker?.name} reports neither Claude nor Codex as available. Check the worker in Settings.</ComposerNotice>
+          {/if}
+          {#if project.kind === "scratch" && workspace && !blocker}
+            <ComposerNotice>A dedicated scratch directory is created when you send. Files are kept until you remove them manually.</ComposerNotice>
           {/if}
         </form>
       {/if}

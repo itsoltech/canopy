@@ -218,6 +218,32 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     expect(counts[0]?.n).toBe("1");
   }, 20_000);
 
+  test("a bot discovers No project and starts a worker thread in its dedicated scratch cwd", async () => {
+    const scratch = (await current.overview()).projects.find((p) => p.kind === "scratch")!;
+    const placement = scratch.workspaces.find((w) => w.workerId === gw.workerId)!;
+    const bot = await add("Scratch bridge");
+    model = async (input) => {
+      if (lastInput(input).startsWith("Thread ")) return reply("Scratch worker finished");
+      const last = input.messages.at(-1);
+      if (last?.role !== "tool") return tool("list_projects");
+      const result = JSON.parse(last.text) as unknown;
+      if (Array.isArray(result)) {
+        expect(result).toContainEqual(expect.objectContaining({ id: scratch.id, name: "No project", kind: "scratch" }));
+        return tool("start_thread", { project_id: scratch.id, workspace_id: placement.id, provider: "codex", provider_instance: "bots-test", model: "gpt-6.1-sol", prompt: "inspect scratch" });
+      }
+      return reply("Started scratch worker");
+    };
+    await send(bot.id, "start without a project");
+    const snapshot = await eventually(() => read(bot.id), (s) => !s.working && s.messages.some((m) => m.text === "Scratch worker finished"), 10_000);
+    expect(snapshot.messages.some((m) => m.text === "Started scratch worker")).toBe(true);
+    const threads = (await current.listThreads(scratch.id));
+    expect(threads).toHaveLength(1);
+    const thread = threads[0]!;
+    expect(thread).toMatchObject({ projectId: scratch.id, workspaceId: placement.id, workerId: gw.workerId, cwd: `${placement.rootPath}/${thread.id}` });
+    const command = currentWorker.commands.find((c) => c.case === "createThread" && c.value.thread?.threadId === thread.id);
+    expect(command?.case === "createThread" && command.value.thread).toMatchObject({ scratch: true, cwd: thread.cwd });
+  }, 20_000);
+
   test("a committed platform result wins over a failure in post-commit dispatch", async () => {
     const bot = await add("Committed action");
     const count = (await current.listThreads(projectId)).length;
