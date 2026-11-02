@@ -40,6 +40,11 @@ describe.skipIf(Bun.env["OA_BOTS_WIZARD_BROWSER"] !== "1")("bot wizard gallery",
         close() {}
       } as unknown as typeof EventSource;
     });
+    // Serve the real Vite responses through Playwright's HTTP client. Chromium aborts loopback
+    // requests when unrelated Docker tests change host interfaces (ERR_NETWORK_CHANGED).
+    await context.route("**/*", async (route) => route.fulfill({ response: await route.fetch() }));
+    // HMR is irrelevant to acceptance (the sources stay fixed). Keep its handshake local too.
+    await context.routeWebSocket("ws://127.0.0.1:5197/**", (socket) => socket.send(JSON.stringify({ type: "connected" })));
     await context.route("**/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       const body = path === "/api/settings" ? toJson(ui.GetSettingsResponseSchema, create(ui.GetSettingsResponseSchema, {
