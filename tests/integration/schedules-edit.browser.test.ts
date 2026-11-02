@@ -48,7 +48,15 @@ describe.skipIf(Bun.env["OA_SCHEDULE_EDIT_BROWSER"] !== "1")("schedule edit brow
     mobile = await chromium.launchPersistentContext(makeTemp("oa-schedule-edit-mobile-"), { ...options, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
     for (const context of [desktop, mobile]) {
       context.setDefaultTimeout(10_000);
-      context.on("page", (page) => page.on("pageerror", (error) => problems.push(error.message)));
+      await context.addInitScript(() => window.addEventListener("vite:preloadError", (event) => console.error("preloadError", (event as Event & { payload?: Error }).payload)));
+      context.on("page", (page) => page.on("pageerror", (error) => {
+        problems.push(error.stack || error.message);
+        console.error(error.stack || error.message);
+      }));
+      context.on("page", (page) => {
+        page.on("console", (message) => { if (message.type() === "error" && message.text().startsWith("preloadError")) console.error(message.text()); });
+        page.on("requestfailed", (request) => console.error("requestfailed", request.url(), request.failure()?.errorText));
+      });
     }
   }, 60_000);
   afterAll(async () => {
@@ -81,21 +89,22 @@ describe.skipIf(Bun.env["OA_SCHEDULE_EDIT_BROWSER"] !== "1")("schedule edit brow
           await dialog.waitFor();
           expect(await dialog.locator('textarea[name="prompt"]').inputValue()).toBe(fresh.prompt);
           expect(await dialog.locator('input[name="scheduleName"]').inputValue()).toBe(fresh.configuredName);
-          expect(await dialog.locator('select[name="projectId"]').inputValue()).toBe(project.id);
-          expect(await dialog.locator('select[name="placement"]').inputValue()).toBe("specific");
-          expect(await dialog.locator('select[name="workspaceId"]').inputValue()).toBe(workspace.id);
+          expect(await dialog.locator('input[type="hidden"][name="projectId"]').inputValue()).toBe(project.id);
+          expect(await dialog.locator('input[type="hidden"][name="placement"]').inputValue()).toBe("specific");
+          expect(await dialog.locator('input[type="hidden"][name="workspaceId"]').inputValue()).toBe(workspace.id);
           expect(await dialog.locator('input[name="threadTitle"]').inputValue()).toBe("Scheduled release");
           expect(await dialog.locator('input[name="cron"]').inputValue()).toBe("30 9 * * 1-5");
-          expect(await dialog.locator('select[name="timezone"]').inputValue()).toBe("Europe/Warsaw");
+          expect(await dialog.locator('input[type="hidden"][name="timezone"]').inputValue()).toBe("Europe/Warsaw");
           expect(await dialog.locator('input[name="maxRuns"]').inputValue()).toBe("7");
-          expect(await dialog.locator('select[name="missedPolicy"]').inputValue()).toBe("skip");
-          expect(await dialog.locator('select[name="concurrency"]').inputValue()).toBe("allow");
+          expect(await dialog.locator('input[type="hidden"][name="missedPolicy"]').inputValue()).toBe("skip");
+          expect(await dialog.locator('input[type="hidden"][name="concurrency"]').inputValue()).toBe("allow");
           await dialog.getByText("Next runs", { exact: true }).waitFor();
           expect(await dialog.evaluate((node) => node.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
           await screenshot(page, `${prefix}-edit`);
           await dialog.locator('textarea[name="prompt"]').fill(`Edited ${prefix} build`);
           await dialog.locator('input[name="scheduleName"]').fill(`${prefix} updated build`);
-          await dialog.locator('select[name="placement"]').selectOption("round_robin");
+          await dialog.getByRole("combobox", { name: "Placement", exact: true }).click();
+          await page.getByRole("option", { name: "Round robin", exact: true }).click();
           await dialog.locator('input[name="cron"]').fill("0 11 * * 1-5");
           await dialog.getByRole("button", { name: "Save changes", exact: true }).click();
           await dialog.waitFor({ state: "hidden" });

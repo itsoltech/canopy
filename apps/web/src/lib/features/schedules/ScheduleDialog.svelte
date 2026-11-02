@@ -175,16 +175,13 @@
   }
 
   const segment =
-    "flex flex-1 cursor-pointer items-center justify-center rounded-md px-3 py-1.5 text-base/6 font-medium text-zinc-600 has-checked:bg-white has-checked:text-zinc-950 has-checked:shadow-xs has-checked:ring-1 has-checked:ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1 sm:text-sm/6 dark:text-zinc-400 dark:has-checked:bg-white/10 dark:has-checked:text-white dark:has-checked:shadow-none dark:has-checked:ring-white/10";
+    "flex flex-1 cursor-pointer items-center justify-center rounded-md px-3 py-1.5 text-base/6 font-medium text-zinc-600 has-checked:bg-white has-checked:text-zinc-950 has-checked:shadow-xs has-checked:ring-1 has-checked:ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 pointer-coarse:min-h-12 sm:py-1 sm:text-sm/6 dark:text-zinc-400 dark:has-checked:bg-white/10 dark:has-checked:text-white dark:has-checked:shadow-none dark:has-checked:ring-white/10";
 </script>
 
 <Dialog bind:open title={editing ? "Edit scheduled task" : "Schedule a task"} description={editing ? "Changes apply to work that has not started. Editing keeps this task’s status and run history." : "Send a message at a set time, in an existing thread or a fresh thread for each run."} size="lg" class={className}>
   <form class="grid gap-5" onsubmit={submit} novalidate>
     <Field label="Run the task">
-      <Select name="target" bind:value={target}>
-        <option value="thread">In this thread</option>
-        <option value="new_thread">Start a new thread each run</option>
-      </Select>
+      <Select name="target" bind:value={target} options={[{ value: "thread", label: "In this thread" }, { value: "new_thread", label: "Start a new thread each run" }]} />
     </Field>
     {#if target === "new_thread"}
       <GrowIn><NewThreadScheduleFields bind:value={newThread} /></GrowIn>
@@ -192,15 +189,7 @@
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">In {overview.threads.get(editing.threadId)?.title || "the original thread"}. To use another existing thread, create a separate task.</p>
     {:else if !fixedThreadId}
       <Field label="Thread">
-        <Select name="threadId" bind:value={threadId}>
-          {#each groups as group (group.project.id)}
-            <optgroup label={group.project.name}>
-              {#each group.threads as thread (thread.id)}<option value={thread.id}>{thread.title}</option>{/each}
-            </optgroup>
-          {:else}
-            <option value="">No threads yet</option>
-          {/each}
-        </Select>
+        <Select name="threadId" bind:value={threadId} options={groups.length ? groups.flatMap((group) => group.threads.map((thread) => ({ value: thread.id, label: thread.title, group: group.project.name }))) : [{ value: "", label: "No threads yet" }]} />
       </Field>
     {/if}
 
@@ -225,13 +214,7 @@
       {:else}
         <div class="grid gap-4 sm:grid-cols-2">
           <Field label="How often">
-            <Select name="frequency" bind:value={frequency}>
-              <option value="hourly">Every hour</option>
-              <option value="daily">Every day</option>
-              <option value="weekdays">Weekdays</option>
-              <option value="weekly">Every week</option>
-              <option value="custom">Custom (cron)</option>
-            </Select>
+            <Select name="frequency" bind:value={frequency} options={[{ value: "hourly", label: "Every hour" }, { value: "daily", label: "Every day" }, { value: "weekdays", label: "Weekdays" }, { value: "weekly", label: "Every week" }, { value: "custom", label: "Custom (cron)" }]} />
           </Field>
           {#if frequency === "hourly"}
             <Field label="At minute">
@@ -248,22 +231,14 @@
           {/if}
           {#if frequency === "weekly"}
             <Field label="On">
-              <Select name="weekday" bind:value={weekday}>
-                {#each weekdays as day, index (day)}<option value={String(index)}>{day}</option>{/each}
-              </Select>
+              <Select name="weekday" bind:value={weekday} options={weekdays.map((label, index) => ({ value: String(index), label }))} />
             </Field>
           {/if}
           <Field label="Time zone" class={frequency === "weekly" ? "" : "sm:col-span-2"}>
-            <Select name="timezone" bind:value={timezone}>
-              {#each zones as zone (zone)}<option value={zone}>{zone}</option>{/each}
-            </Select>
+            <Select name="timezone" bind:value={timezone} options={zones.map((value) => ({ value, label: value }))} />
           </Field>
           <Field label="Ends">
-            <Select name="ends" bind:value={ends}>
-              <option value="never">Never</option>
-              <option value="until">On a date</option>
-              <option value="count">After a number of runs</option>
-            </Select>
+            <Select name="ends" bind:value={ends} options={[{ value: "never", label: "Never" }, { value: "until", label: "On a date" }, { value: "count", label: "After a number of runs" }]} />
           </Field>
           {#if ends === "until"}
             <Field label="Last run before">
@@ -286,17 +261,11 @@
 
     {#if target === "new_thread" && kind === "recurring"}
       <Field label="While a previous run is working">
-        <Select name="concurrency" bind:value={concurrency}>
-          <option value="skip_if_running">Skip the next run</option>
-          <option value="allow">Start another thread</option>
-        </Select>
+        <Select name="concurrency" bind:value={concurrency} options={[{ value: "skip_if_running", label: "Skip the next run" }, { value: "allow", label: "Start another thread" }]} />
       </Field>
     {/if}
     <Field label="If a run is missed" description="After a gateway outage, or after 2 minutes without an eligible worker for a pool.">
-      <Select name="missedPolicy" bind:value={missedPolicy}>
-        <option value="run_once">Run once when back</option>
-        <option value="skip">Skip it</option>
-      </Select>
+      <Select name="missedPolicy" bind:value={missedPolicy} options={[{ value: "run_once", label: "Run once when back" }, { value: "skip", label: "Skip it" }]} />
     </Field>
 
     {#if error}<Alert tone="error">{error}</Alert>{/if}

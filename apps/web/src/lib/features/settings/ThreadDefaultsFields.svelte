@@ -34,7 +34,6 @@
   const inheritedAgent = $derived(inherited && inherited.provider !== Provider.UNSPECIFIED ? providerLabel(inherited.provider) : "any available");
 
   const set = (change: Partial<Omit<ui.ThreadDefaults, "$typeName">>) => onchange(create(ui.ThreadDefaultsSchema, { ...value, ...change }));
-  const selected = (event: Event) => (event.currentTarget as HTMLSelectElement | HTMLInputElement).value;
   const workerName = (ws: ui.Workspace) => overview.worker(ws.workerId)?.name ?? "Unknown worker";
 </script>
 
@@ -43,14 +42,8 @@
   description={inherited ? "Where new threads of this project start." : "Where new threads start. Projects and “New thread” in a project take precedence."}
 >
   {#snippet control()}
-    <Select name="workspaceId" aria-label={inherited ? "Default worker" : "Default project and worker"} value={value.workspaceId} onchange={(e) => set({ workspaceId: selected(e) })} class="w-56 sm:w-64">
-      <option value="">Last used</option>
-      {#each workspaces.filter((g) => g.workspaces.length > 0) as group (group.project.id)}
-        <optgroup label={group.project.name}>
-          {#each group.workspaces as ws (ws.id)}<option value={ws.id}>{workerName(ws)} · {ws.rootPath}</option>{/each}
-        </optgroup>
-      {/each}
-    </Select>
+    <Select name="workspaceId" aria-label={inherited ? "Default worker" : "Default project and worker"} value={value.workspaceId} onchange={(workspaceId) => set({ workspaceId })} class="w-56 sm:w-64"
+      options={[{ value: "", label: "Last used" }, ...workspaces.flatMap((group) => group.workspaces.map((ws) => ({ value: ws.id, label: workerName(ws), description: ws.rootPath, group: group.project.name })))]} />
   {/snippet}
 </SettingsRow>
 <SettingsRow title="Agent" description="Claude or Codex. New threads offer only what the workspace's worker has.">
@@ -59,25 +52,20 @@
       name="provider"
       aria-label="Default agent"
       value={provider ?? ""}
-      onchange={(e) => {
-        const key = selected(e);
+      onchange={(key) => {
         // The profile belongs to the agent; models are kept per agent.
         set({ provider: isProviderKey(key) ? Provider[key] : Provider.UNSPECIFIED, providerProfileId: "" });
       }}
       class="w-56 sm:w-48"
-    >
-      <option value="">{inherited ? `Use my default (${inheritedAgent})` : "Any available"}</option>
-      {#each providerKeys as key (key)}<option value={key}>{providerLabel(Provider[key])}</option>{/each}
-    </Select>
+      options={[{ value: "", label: inherited ? `Use my default (${inheritedAgent})` : "Any available" }, ...providerKeys.map((key) => ({ value: key, label: providerLabel(Provider[key]) }))]}
+    />
   {/snippet}
 </SettingsRow>
 {#if provider}
   <SettingsRow title="Profile" description="How the agent reaches its model.">
     {#snippet control()}
-      <Select name="profileId" aria-label="Default profile" value={value.providerProfileId} onchange={(e) => set({ providerProfileId: selected(e) })} class="w-56 sm:w-48">
-        <option value="">First available</option>
-        {#each profiles as id (id)}<option value={id}>{id}</option>{/each}
-      </Select>
+      <Select name="profileId" aria-label="Default profile" value={value.providerProfileId} onchange={(providerProfileId) => set({ providerProfileId })} class="w-56 sm:w-48"
+        options={[{ value: "", label: "First available" }, ...profiles.map((id) => ({ value: id, label: id }))]} />
     {/snippet}
   </SettingsRow>
   <SettingsRow title="Model" description="Leave empty for the profile's default model.">
@@ -98,14 +86,11 @@
       name="permissionMode"
       aria-label="Default permissions"
       value={value.permissionMode === PermissionMode.UNSPECIFIED ? (inherited ? "" : "ASK") : PermissionMode[value.permissionMode]}
-      onchange={(e) => {
-        const key = selected(e);
+      onchange={(key) => {
         set({ permissionMode: key in PermissionMode ? PermissionMode[key as keyof typeof PermissionMode] : PermissionMode.UNSPECIFIED });
       }}
       class="w-56 sm:w-48"
-    >
-      {#if inherited}<option value="">Use my default ({permissionLabel(inherited.permissionMode)})</option>{/if}
-      {#each permissionModes as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
-    </Select>
+      options={[...(inherited ? [{ value: "", label: `Use my default (${permissionLabel(inherited.permissionMode)})` }] : []), ...permissionModes]}
+    />
   {/snippet}
 </SettingsRow>
