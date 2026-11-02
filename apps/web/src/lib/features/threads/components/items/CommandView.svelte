@@ -7,10 +7,9 @@
 
   /** Shell command: command line, exit code, duration; output streams in while it runs. */
   let { command, status, streaming = false }: { command: CommandExecution; status: ItemStatus; streaming?: boolean } = $props();
-  const failed = $derived((command.exitCode !== undefined && command.exitCode !== 0) || status === ItemStatus.FAILED);
 </script>
 
-<ItemFrame icon="command-line" {status} defaultOpen={status === ItemStatus.IN_PROGRESS || failed}>
+<ItemFrame icon="command-line" {status}>
   {#snippet title()}
     <code class="block truncate font-mono text-[0.8125rem] text-zinc-950 dark:text-white" title={command.command}>{command.command.split("\n")[0]}</code>
   {/snippet}

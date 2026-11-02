@@ -16,6 +16,7 @@
   import ToolCallView from "./ToolCallView.svelte";
   import UserMessageView from "./UserMessageView.svelte";
   import WebSearchView from "./WebSearchView.svelte";
+  import { provideItemChildren } from "./item-context.ts";
 
   /**
    * One transcript item (docs/transcript.md); every type has a view. `nested` = its child items.
@@ -25,6 +26,8 @@
   let { item, nested, turnEnded = false }: { item: Item; nested?: Snippet | undefined; turnEnded?: boolean } = $props();
   const content = $derived(item.content);
   const streaming = $derived(item.status === ItemStatus.IN_PROGRESS && !turnEnded);
+  const inlineChildren = $derived(["userMessage", "agentMessage", "reasoning", "contextCompaction"].includes(content.case ?? ""));
+  provideItemChildren(() => content.case === "subagent" || inlineChildren ? undefined : nested);
 </script>
 
 {#if content.case === "userMessage"}
@@ -42,9 +45,9 @@
 {:else if content.case === "webSearch"}
   <WebSearchView search={content.value} status={item.status} />
 {:else if content.case === "plan"}
-  <ChecklistView title="Plan" text={content.value.text} steps={content.value.steps} />
+  <ChecklistView title="Plan" text={content.value.text} steps={content.value.steps} status={item.status} />
 {:else if content.case === "todoList"}
-  <ChecklistView title="To do" steps={content.value.items} />
+  <ChecklistView title="To do" steps={content.value.items} status={item.status} />
 {:else if content.case === "subagent"}
   <SubagentView agent={content.value} status={item.status} {nested} />
 {:else if content.case === "backgroundTask"}
@@ -61,6 +64,6 @@
   <ProviderItemView item={content.value} status={item.status} />
 {/if}
 
-{#if nested && content.case !== "subagent"}
+{#if nested && inlineChildren}
   <div class="mt-1 grid gap-1 border-l-2 border-zinc-950/5 pl-3 dark:border-white/10">{@render nested()}</div>
 {/if}
