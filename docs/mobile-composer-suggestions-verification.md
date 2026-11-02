@@ -57,6 +57,14 @@ Pliki pozostają lokalnie w `artifacts/mentions-mobile/` (ignorowane przez Git):
 - `{webkit,chromium}-{390,1440}-{light,dark}-{Commands,Skills,Files,Threads}.png`: wszystkie triggery, motywy i rozmiary.
 - `{webkit,chromium}-visual-viewport.png`: panel z limitem dla symulowanego mniejszego viewportu.
 
+## Wynik końcowy
+
+- `bun install`: kod 0, po ostatnim scaleniu bez zmian zależności.
+- `bun run typecheck`: kod 0, Svelte 0 błędów i 0 ostrzeżeń; build web: kod 0.
+- `bun run check:tmp`: **818 pass, 139 skip, 0 fail**, 957 testów / 146 plików, 209,32 s; `nothing left in the temp dir`. Pominięte testy wymagają osobnego opt-in, np. prawdziwych providerów i innych scenariuszy browser.
+- Browser suite uruchomione osobno po pełnej baterii: **13 pass, 0 fail**, 411 asercji, 52,91 s; Chromium i WebKit, brak wyjątków przeglądarki. Przy wcześniejszym równoległym biegu z pełną baterią wystąpiły błędy ładowania modułów Chromium przed pokazaniem edytora; końcowy przebieg sekwencyjny ich nie wykazał.
+- Przegląd końcowy i ponowny pass componentize: wspólna lista bez duplikacji, prezentacja i viewport zamknięte w `MentionSuggestions`, bez zmian wspólnych komponentów. `git diff --check` czyste. Commity implementacji: `559557c`; testów i procedury: `89813b6`. Scalono nowszy `main` (`4b36e34` przez `973cf89`, następnie `2fadf83` przez `3bf4a74`) i ponowiono weryfikację. Bez push i PR.
+
 ## Do sprawdzenia na prawdziwym iPhonie
 
 Na buildzie tej gałęzi przez HTTPS/tailnet, z polską klawiaturą i predykcją: wpisać `$` i `/`, dotknąć wyniku, przewinąć listę i dopisać tekst. Sugestie powinny pozostać nad polem i nad klawiaturą, a wybór nie powinien chować klawiatury. Sprawdzić też `@`/`#`, przełączenie klawiatury symboli i powrót do zwiniętego composera. Natywny IME i pozycja względem rzeczywistej klawiatury pozostają do potwierdzenia na urządzeniu.
