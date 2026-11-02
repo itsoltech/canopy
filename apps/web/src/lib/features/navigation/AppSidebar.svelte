@@ -33,7 +33,7 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <div class="flex h-12 shrink-0 items-center justify-between gap-2 pr-2 pl-4">
+  <div class="canopy-sidebar-header flex h-12 shrink-0 items-center justify-between gap-2 pr-2 pl-4">
     <Logo />
     {#if section === "threads"}
       <a href="/" class={iconLink} aria-label="New thread" title="New thread">

@@ -12,7 +12,7 @@
   const overview = useOverview();
   const route = useSettingsRoute();
 
-  const section = $derived(settingsSections.find((s) => route.url.pathname.startsWith(s.href)));
+  const section = $derived(route.url.pathname === "/settings/desktop" ? { label: "Desktop" } : settingsSections.find((s) => route.url.pathname.startsWith(s.href)));
   const project = $derived(route.params.projectId ? overview.project(route.params.projectId) : undefined);
   const worker = $derived(route.params.workerId ? overview.worker(route.params.workerId) : undefined);
   const crumbs = $derived<{ label: string; href?: string }[]>(
