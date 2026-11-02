@@ -53,6 +53,8 @@ message WorkerMessage {
     AgentToolCall agent_tool_call = 15;
     BlobChunk blob_chunk = 16;
     ConfigApplied config_applied = 17;
+    // Załączniki (docs/protocol.md#załączniki): worker pobiera bajty załącznika tury.
+    FetchBlob fetch_blob = 18;
     // Modele, effort i steer (sekcja na końcu pliku).
     ModelCatalog model_catalog = 40;
   }
@@ -70,6 +72,8 @@ message GatewayMessage {
     AgentToolResult agent_tool_result = 14;
     Drain drain = 15;
     WorkerConfig config = 16;
+    // Odpowiedź na FetchBlob: fragmenty bajtów (request_id) albo błąd.
+    BlobChunk blob_chunk = 17;
   }
 }
 
@@ -98,6 +102,9 @@ message Hello {
   // których tu nie ma (np. po restarcie procesu workera), z powodem „worker restarted”.
   // Wiążące tylko z capability "running_turns" (starszy worker nie wysyła listy).
   repeated RunningTurn running_turns = 11;
+  // Katalog załączników na urządzeniu (ścieżka absolutna, poza repozytoriami), np. <data_dir>/attachments.
+  // Plik załącznika: <attachments_root>/<thread_id>/<attachment_id>/<nazwa>. Pusty = worker bez załączników.
+  string attachments_root = 12;
 }
 
 message RunningTurn {
@@ -334,6 +341,29 @@ message UserInput {
   // Autor wiadomości: użytkownik albo inny agent (szyna agentów).
   string author_user_id = 2;
   string author_agent_id = 3;
+  // Pliki dołączone do wiadomości. Tekst zawiera już notatkę platformy z ich ścieżkami; worker zapisuje
+  // każdy plik pod path (pobiera bajty przez FetchBlob, sprawdza sha256) przed przekazaniem tury dostawcy.
+  repeated InputAttachment attachments = 4;
+}
+
+message InputAttachment {
+  string attachment_id = 1;
+  string sha256 = 2;
+  uint64 size_bytes = 3;
+  string mime_type = 4;
+  string name = 5;
+  // Ścieżka absolutna na workerze: <attachments_root>/<thread_id>/<attachment_id>/<name>.
+  string path = 6;
+  // image | file
+  string kind = 7;
+}
+
+// Prośba workera o bajty załącznika wątku (UserInput.attachments). Gateway odpowiada fragmentami BlobChunk
+// z tym samym request_id; tylko załączniki wątków tego workera.
+message FetchBlob {
+  string request_id = 1;
+  string thread_id = 2;
+  string sha256 = 3;
 }
 
 // Przerywa tylko turę. Zadania w tle działają dalej (zatrzymuje je StopTask).
@@ -710,6 +740,8 @@ message ToolCall {
   string output = 4;
   BlobRef output_blob = 5;
   bool is_error = 6;
+  // Obrazy w wyniku narzędzia (Claude Read na pliku obrazu, obrazy z MCP): podglądy wysłane przez workera.
+  repeated BlobRef images = 7;
 }
 
 message WebSearch {
@@ -803,10 +835,21 @@ message AgentBusCall {
   string target_turn_id = 7;
 }
 
+// Obraz, który agent obejrzał albo wygenerował. blob = podgląd tego, co widział model (worker zmniejsza,
+// koduje na nowo bez metadanych i wysyła BlobChunk przed zdarzeniem).
 message Image {
   BlobRef blob = 1;
   string path = 2;
   string prompt = 3;
+  // view_image (narzędzie platformy) | native (Codex view_image) | generated
+  string source = 4;
+  // Wymiary podglądu (blob) i oryginału.
+  uint32 width = 5;
+  uint32 height = 6;
+  uint32 original_width = 7;
+  uint32 original_height = 8;
+  // Powód, dla którego obrazu nie ma (np. ścieżka poza dozwolonymi katalogami).
+  string detail = 9;
 }
 
 message ContextCompaction {
@@ -836,12 +879,16 @@ message ProviderItem {
 
 // Fragment dużej treści. Gateway składa fragmenty, sprawdza sha256 i zapisuje blob,
 // zanim przyjmie zdarzenie, które go wskazuje.
+// Worker -> gateway: podgląd obrazu (Image.blob, ToolCall.images), przed zdarzeniem, które go wskazuje.
+// Gateway -> worker: odpowiedź na FetchBlob (request_id); error = brak dostępu albo blobu (ostatni fragment).
 message BlobChunk {
   string sha256 = 1;
   uint64 offset = 2;
   bytes data = 3;
   bool last = 4;
   string mime_type = 5;
+  string request_id = 6;
+  string error = 7;
 }
 
 // ---------- Interakcje z użytkownikiem ----------
