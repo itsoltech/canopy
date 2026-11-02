@@ -160,6 +160,7 @@
       inheritedTurns: view.inheritedTurns,
       historyOpen,
       openWork: folds.open,
+      openGroups: folds.groups,
     }),
   );
   $effect(() => {
@@ -257,9 +258,13 @@
     if (!entry) return false;
     const top = topLevelEntry(own ? view.ownEntries : view.inheritedEntries, entry);
     if (inherited && !historyOpen) historyOpen = true;
-    if (own && top.turnId && !folds.open.has(top.turnId)) folds.toggle(top.turnId, true);
+    if (top.turnId && !folds.open.has(top.turnId)) folds.toggle(top.turnId, true);
     await tick();
-    if (!(await feed?.reveal(`item:${top.id}`))) return false;
+    const group = rows.find((row) => row.kind === "work-group" && row.items.includes(`item:${top.id}`));
+    if (group) folds.toggleGroup(group.key.replace(/^history:[^:]+:/, ""), true);
+    await tick();
+    const target = rows.find((row) => (row.kind === "timeline" || row.kind === "answer") && row.row?.kind === "item" && row.row.node.entry.id === top.id);
+    if (!target || !(await feed?.reveal(target.key))) return false;
     await tick();
     const element = feedRegion?.querySelector<HTMLElement>(`[data-quote-item="${CSS.escape(entry.id)}"]`);
     if (!element) return true;
@@ -384,7 +389,7 @@
             {/if}
           {/snippet}
           {#snippet row(row: FeedRow)}
-            <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} onwork={(turnId) => folds.toggle(turnId)} />
+            <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} onwork={(turnId) => folds.toggle(turnId)} ongroup={(key) => folds.toggleGroup(key)} />
           {/snippet}
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
