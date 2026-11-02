@@ -41,7 +41,7 @@
   {/snippet}
   {#each permissionModes as option (option.value)}
     <MenuCheckItem checked={option.value === value} description={option.description} onselect={() => onselect(option.value)}>
-      <PermissionModeTitle mode={option.value} note={option.value === inherited ? "· thread default" : undefined} />
+      <PermissionModeTitle mode={option.value} note={option.value === inherited ? "Default" : undefined} />
     </MenuCheckItem>
   {/each}
 </DropdownMenu>
