@@ -21,7 +21,6 @@
     "sharp": "0.35.5"
   },
   "devDependencies": {
-    "@open-agents/testing": "workspace:*",
-    "playwright-core": "1.64.1"
+    "@open-agents/testing": "workspace:*"
   }
 }

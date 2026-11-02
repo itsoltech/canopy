@@ -35,29 +35,7 @@ Reduced motion disables smooth scrolling, tick transitions, card travel and the 
 
 ## Verification
 
-```sh
-bun install
-bun test apps/web/test/turn-rail.test.ts apps/web/test/worked-for.test.ts apps/web/src/lib/shared/ui/virtual/size-index.test.ts
-bun run typecheck
-bun run check:tmp
-bun run --filter @open-agents/web build
-OA_TURN_RAIL_BROWSER=1 bun test tests/integration/turn-rail.browser.test.ts
-```
-
-The opt-in browser suite uses `/usr/bin/chromium`, a private throwaway PostgreSQL/gateway/scripted
-worker, and the built web app at `127.0.0.1:5299`. It creates 120 completed turns plus one running turn,
-then checks visible-range tracking, Markdown previews, warm movement, far virtualized jumps, keyboard
-navigation, first/last input alignment within 2px (also after measurements settle), compression,
-"Jump to latest", light/dark at 1440px, hidden phone rail at 390px, short threads and reduced motion.
-The suite closes its own browser/processes/container. It does not use `/tmp/oa-stack` or ports
-17443, 5180 or 8444. Screenshots are written to `artifacts/turn-rail/` (ignored by Git).
-Immutable JS/CSS files are fulfilled from the actual web build by Playwright. This avoids Chromium's
-`ERR_NETWORK_CHANGED` module-load failures when concurrent Docker test stacks change host interfaces;
-HTML, API and SSE still use the live private stack. Static HTTP serving is outside this UI suite.
-
-The unit suite covers compression up to 10,000 turns, visible-range boundaries, fold index changes,
-final/live answer slots, rich input without provider platform notes, missing input and queued/withdrawn turns. Browser coverage is Chromium;
-Safari/Firefox and a physical screen reader are outside this task's verification.
+UI tests are not kept in the repository; the rail is checked in a browser while working on it.
 
 The `componentize` pass keeps the rail interaction, preview content and pure model in separate files,
 reuses `Popover`/`MarkdownSnippet`, and preserves Svelte's class merging at each component boundary.

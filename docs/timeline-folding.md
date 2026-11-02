@@ -12,8 +12,7 @@ Grupy i itemy są osobnymi wirtualnymi wierszami; zamknięte grupy nie montują 
 
 ## Weryfikacja
 
-Testy jednostkowe: `bun test apps/web/test/worked-for.test.ts` — start bez itemów, live → ended, wiadomość pozostająca poza foldem, grupy i ich etykiety, aktywny hint, puste rozumowanie, tury przerwane/nieudane, zadania w tle i historia forka.
 
-Test przeglądarkowy: `OA_TIMELINE_BROWSER=1 bun test tests/integration/timeline-folding.browser.test.ts` (wymaga builda web i `/usr/bin/chromium`). Używa osobnego PostgreSQL/gateway/scripted worker, web na 5398; nie dotyka współdzielonego stosu. Scenariusz obejmuje 32 grupy, 192 komendy i odczyty, pośrednie wiadomości, MCP/agent-bus/diff, błąd i działającą komendę, pamięć rozwinięcia, przejście wiadomości do foldu, długą strumieniowaną odpowiedź, kotwiczenie i „Jump to latest”. Macierz: 1440×1000 i 390×844, light i dark; osobno krótka odpowiedź i reduced motion.
+Testy UI nie są utrzymywane w repozytorium (zasada: testy tylko dla integracji gateway↔worker i krytycznej logiki); widok sprawdza się w przeglądarce podczas pracy nad nim.
 
 Zrzuty: `artifacts/timeline-folding/<width>-<theme>-live-collapsed.png`, `*-live-expanded.png`, `*-ended.png`. Są lokalnymi artefaktami, pomijanymi przez git.

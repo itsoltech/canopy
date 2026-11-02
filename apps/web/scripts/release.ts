@@ -1,9 +1,10 @@
 import { existsSync, lstatSync, mkdirSync, readlinkSync, readdirSync, renameSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildVersion } from "./build-version.ts";
 import { spawnSync } from "node:child_process";
 
-const web = resolve(import.meta.dir, "..");
+const web = fileURLToPath(new URL("..", import.meta.url));
 const root = resolve(web, process.env["WEB_RELEASES_DIR"] ?? "releases");
 const keep = Number(process.env["WEB_RELEASE_KEEP"] ?? 3);
 if (!Number.isInteger(keep) || keep < 2) throw new Error("WEB_RELEASE_KEEP must be an integer >= 2");

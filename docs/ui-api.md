@@ -212,7 +212,6 @@ Panel subagentów filtruje wyłącznie pracujących i oczekujących na odpowied�
 
 Przy nawigacji TurnRail rezerwa do wyrównania ostatniego wiersza jest liczona razem z wysokością nakładki (`footerHeight + alignmentSpace`). `scrollend` odświeża kotwicę tylko po nawigacji smooth; własne korekty całkowitoliczbowego `scrollTop` zachowują pierwotny offset ułamkowy, aby streaming nie kumulował błędu zaokrągleń.
 
-Weryfikacja przeglądarkowa: `OA_COMPOSER_BROWSER=1 bun test tests/integration/composer-compact.browser.test.ts`, po zbudowaniu web. Test uruchamia własny gateway/PostgreSQL/workera i web na porcie 5297; screenshoty trafiają do `artifacts/composer-compact/`. Porównania paneli przed/po i ograniczenia opisuje [raport](composer-compact-verification.md).
 
 ### Pytania nad kompozytorem
 
@@ -226,7 +225,6 @@ Opcje to semantyczne inputy radio/checkbox ze wspólnego `Input`, z własną gra
 
 Odpowiedź nadal idzie przez `AnswerInteraction` / `POST api/interactions/[id]`. Dla `ask_user`: `{answerJson: JSON.stringify({answers: [{id, kind: "choice", labels: [...]}, {id, kind: "text", text: "..."}, {id, kind: "skipped"}]})}`; kompletna lista odpowiada zestawowi pytań. Dismiss: `{cancelled: true}`. Adaptery zachowują natywne formaty Claude i Codexa. `interaction_prompt` zostaje na osi czasu jako skrót tematu i odpowiedzi z autorem; rozwinięcie pokazuje cały zestaw i jawnie pominięte pytania.
 
-Fixture do sprawdzenia w przeglądarce: `OA_ASK_BROWSER=1 bun test tests/integration/ask-user.browser.test.ts` uruchamia izolowany gateway ze skryptowanym workerem i Vite na **5293**. Drukuje adresy sync/async i ścieżkę pliku `stop`; utworzenie tego pliku zamyka stos i usuwa katalogi przez `@open-agents/testing`. Nie korzysta z istniejącego stosu developerskiego.
 
 ### Załączniki
 
