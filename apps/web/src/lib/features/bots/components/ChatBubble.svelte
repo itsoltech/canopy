@@ -96,7 +96,7 @@
             corners,
             mine
               ? "bg-zinc-900 text-base/6 whitespace-pre-wrap text-white sm:text-sm/6 dark:bg-zinc-100 dark:text-zinc-950"
-              : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800/80 dark:text-zinc-100 [&>div]:gap-2 [&_pre]:my-1",
+              : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800/80 dark:text-zinc-100 [&>div]:gap-2 [&>div]:text-base/6 sm:[&>div]:text-sm/6 [&_pre]:my-1",
             message.delivery === "sending" && "opacity-60",
           ]}
           title={fullDateLabel(message.at)}
