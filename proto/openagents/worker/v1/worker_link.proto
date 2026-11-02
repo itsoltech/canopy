@@ -327,6 +327,9 @@ message StartTurn {
   // Puste = domyślne profilu (Codex: domyślny model katalogu, Claude: domyślny Claude Code).
   string model = 40;
   string effort = 41;
+  // Tryb uprawnień tej tury: nadpisanie z wiadomości albo domyślny wątku (gateway rozstrzyga; zawsze ustawiony).
+  // UNSPECIFIED = thread.permission_mode (starszy gateway). Zgody czekające w turze w toku się nie zmieniają.
+  PermissionMode permission_mode = 42;
 }
 
 message UserInput {

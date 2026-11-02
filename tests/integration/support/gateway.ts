@@ -10,6 +10,7 @@ import { createGrpcTransport } from "@connectrpc/connect-node";
 import {
   ItemStatus,
   NoticeLevel,
+  PermissionMode,
   Provider,
   ProviderProfileKind,
   ThreadEventSchema,
@@ -74,6 +75,8 @@ export class ScriptedWorker {
   readonly inputs = new Map<string, string[]>();
   /** Model and effort each turn was started with, by turn id. */
   readonly turnSettings = new Map<string, { model: string; effort: string }>();
+  /** StartTurn.permission_mode and the thread's mode (ThreadSpec) per turn. */
+  readonly turnModes = new Map<string, { turn: PermissionMode; thread: PermissionMode }>();
   /** Steers this worker got: input id -> text. */
   readonly steered = new Map<string, string>();
   /** Turns stay running until finish() (to steer into them). */
@@ -202,10 +205,11 @@ export class ScriptedWorker {
           break;
         }
         case "startTurn": {
-          const { thread, turnId, input, model, effort } = kind.value;
+          const { thread, turnId, input, model, effort, permissionMode } = kind.value;
           const threadId = thread!.threadId;
           this.inputs.set(threadId, [...(this.inputs.get(threadId) ?? []), input!.text]);
           this.turnSettings.set(turnId, { model, effort });
+          this.turnModes.set(turnId, { turn: permissionMode, thread: thread!.permissionMode });
           reply(true);
           this.emit(threadId, turnId, { case: "turnStarted", value: { providerTurnRef: `ct-${turnId.slice(-4)}`, origin: TurnOrigin.COMMAND } });
           if (this.holdTurns) {

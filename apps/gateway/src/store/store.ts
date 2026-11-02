@@ -93,6 +93,8 @@ export interface TurnRow {
   /** The message's override while queued; the values sent to the worker once started ('' = default). */
   model?: string;
   effort?: string;
+  /** Same as model: the override ('' = the thread's default), then the mode sent (PermissionMode enum name). */
+  permission_mode?: string;
   error: string | null;
   /** failed: platform | harness; interrupted: user | system (docs/durability.md, "Stany tury i wątku"). */
   error_source?: string | null;
@@ -165,13 +167,21 @@ export class GatewayStore extends Context.Service<
     listThreads(ownerUserId: string, projectId: string): Fx<ReadonlyArray<ThreadRow>>;
     threadSpec(row: ThreadRow): ThreadSpec;
     setThreadStatus(threadId: string, status: string, detail: string | null): Fx<void>;
-    enqueueTurn(input: { threadId: string; text: string; userId: string; clientRequestId: string; model?: string; effort?: string }): Fx<TurnRow>;
+    enqueueTurn(input: {
+      threadId: string;
+      text: string;
+      userId: string;
+      clientRequestId: string;
+      model?: string;
+      effort?: string;
+      permissionMode?: string;
+    }): Fx<TurnRow>;
     /** A user turn with this client request id, if any (SendMessage idempotency across queue and steer). */
     turnByClientRequest(threadId: string, clientRequestId: string): Fx<TurnRow | undefined>;
-    /** The thread's default model and effort (unset = unchanged). */
-    updateThreadSettings(threadId: string, settings: { model?: string; effort?: string }): Fx<ThreadRow>;
-    /** Records the model and effort a turn is started with. */
-    setTurnModel(turnId: string, model: string, effort: string): Fx<void>;
+    /** The thread's default model, effort and permission mode (unset = unchanged). */
+    updateThreadSettings(threadId: string, settings: { model?: string; effort?: string; permissionMode?: string }): Fx<ThreadRow>;
+    /** Records the model, effort and permission mode a turn is started with. */
+    setTurnSettings(turnId: string, settings: { model: string; effort: string; permissionMode: string }): Fx<void>;
     /** Oldest queued user turn of an idle, ready thread with no StartTurn in the outbox yet. */
     nextTurn(threadId: string): Fx<TurnRow | undefined>;
     runningTurn(threadId: string): Fx<TurnRow | undefined>;
@@ -498,7 +508,7 @@ export class GatewayStore extends Context.Service<
                 const settings = JSON.stringify({
                   model: request.model,
                   effort: request.effort,
-                  permissionMode: PermissionMode[request.permissionMode] ?? "ASK",
+                  permissionMode: permissionModeName(request.permissionMode) || "ASK",
                   instructions: request.instructions,
                 });
                 yield* sql`
@@ -539,7 +549,7 @@ export class GatewayStore extends Context.Service<
               cwd: row.cwd ?? "",
               model: row.settings.model ?? "",
               instructions: row.settings.instructions ?? "",
-              permissionMode: PermissionMode[(row.settings.permissionMode ?? "ASK") as keyof typeof PermissionMode] ?? PermissionMode.ASK,
+              permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
               // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
               enableAgentBus: row.runtime === "worker",
               providerThreadId: row.provider_thread_id ?? "",
@@ -549,13 +559,13 @@ export class GatewayStore extends Context.Service<
           setThreadStatus: (threadId, status, detail) =>
             sql`UPDATE threads SET status = ${status}, status_detail = ${detail} WHERE id = ${threadId}::uuid`.pipe(Effect.asVoid),
 
-          enqueueTurn: ({ threadId, text, userId, clientRequestId, model = "", effort = "" }) =>
+          enqueueTurn: ({ threadId, text, userId, clientRequestId, model = "", effort = "", permissionMode = "" }) =>
             Effect.gen(function* () {
               if (!text.trim()) return yield* Effect.fail(new Invalid("message is empty"));
               const rows = yield* sql<TurnRow>`
-                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort)
+                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort, permission_mode)
                 SELECT ${Bun.randomUUIDv7()}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'user', ${userId}::uuid,
-                       ${clientRequestId || null}, ${JSON.stringify({ text })}::jsonb, ${model}, ${effort}
+                       ${clientRequestId || null}, ${JSON.stringify({ text })}::jsonb, ${model}, ${effort}, ${permissionMode}
                   FROM turns WHERE thread_id = ${threadId}::uuid
                 ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
                 RETURNING *`;
@@ -574,8 +584,8 @@ export class GatewayStore extends Context.Service<
               Effect.andThen(store.thread(threadId)),
             ),
 
-          setTurnModel: (turnId, model, effort) =>
-            sql`UPDATE turns SET model = ${model}, effort = ${effort} WHERE id = ${turnId}::uuid`.pipe(Effect.asVoid),
+          setTurnSettings: (turnId, { model, effort, permissionMode }) =>
+            sql`UPDATE turns SET model = ${model}, effort = ${effort}, permission_mode = ${permissionMode} WHERE id = ${turnId}::uuid`.pipe(Effect.asVoid),
 
           nextTurn: (threadId) =>
             sql<TurnRow>`
@@ -797,6 +807,17 @@ function interactionKind(kind: InteractionKind): string {
   return kind === InteractionKind.QUESTION ? "question" : kind === InteractionKind.ELICITATION ? "elicitation" : "permission";
 }
 
+/** A stored mode (PermissionMode enum name, as in threads.settings); '' or unknown = UNSPECIFIED. */
+export function permissionModeOf(name: string | undefined): PermissionMode {
+  const mode = PermissionMode[(name ?? "") as keyof typeof PermissionMode];
+  return mode === undefined || mode === PermissionMode.UNSPECIFIED ? PermissionMode.UNSPECIFIED : mode;
+}
+
+/** The stored name of a mode; UNSPECIFIED = '' (the thread's default). */
+export function permissionModeName(mode: PermissionMode): string {
+  return mode === PermissionMode.UNSPECIFIED ? "" : (PermissionMode[mode] ?? "");
+}
+
 export function toUiThread(row: ThreadRow): ui.Thread {
   return create(ui.ThreadSchema, {
     id: row.id,
@@ -808,7 +829,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     providerProfileId: row.provider_profile_id ?? "",
     model: row.settings.model ?? "",
     effort: row.settings.effort ?? "",
-    permissionMode: PermissionMode[(row.settings.permissionMode ?? "ASK") as keyof typeof PermissionMode] ?? PermissionMode.ASK,
+    permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
     workerId: row.worker_id ?? "",
     workspaceId: row.workspace_id ?? "",
     cwd: row.cwd ?? "",
@@ -860,6 +881,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     interactionRequestId: row.interaction_request_id ?? "",
     model: row.model ?? "",
     effort: row.effort ?? "",
+    permissionMode: permissionModeOf(row.permission_mode),
     goalId: row.goal_id ?? "",
   });
 }

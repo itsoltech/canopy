@@ -7,11 +7,11 @@
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import WorkerHoverCard from "#lib/features/overview/WorkerHoverCard.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import PillText from "#lib/shared/ui/PillText.svelte";
   import { interruptThread, sendMessage, type Delivery } from "../api.ts";
-  import { permissionLabel, providerLabel } from "../labels.ts";
+  import { permissionKey, providerLabel, type PermissionModeKey } from "../labels.ts";
   import ComposerBox from "./ComposerBox.svelte";
+  import PermissionPicker from "./PermissionPicker.svelte";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -20,8 +20,9 @@
    * queued turn or the steer) so the page shows it before the stream does.
    * Pills: the model and reasoning effort for the next messages (same provider and profile as the
    * thread), sent with each message as an override for its turn; unchanged = the thread's defaults.
-   * Under the box: where the thread runs (hover for the worker) and its permission mode
-   * (fixed for the thread's life).
+   * Under the box: where the thread runs (hover for the worker) and the permission mode for the next
+   * messages, sent like the model as an override of their turns (the thread's default = no override; a
+   * steer runs in the mode of the turn it joins).
    */
   let {
     thread,
@@ -51,7 +52,13 @@
   const mine = $derived(choice.threadId === thread.id ? choice : undefined);
   const option = $derived(mine?.option ?? offer.current);
   const effort = $derived(mine?.effort);
-  const override = $derived(turnOverride(option, offer.current, effort, thread.effort));
+  const threadMode = $derived(permissionKey(thread.permissionMode));
+  let modeChoice = $state<{ threadId: string; mode: PermissionModeKey }>();
+  const mode = $derived(modeChoice?.threadId === thread.id ? modeChoice.mode : threadMode);
+  const override = $derived({
+    ...turnOverride(option, offer.current, effort, thread.effort),
+    ...(mode !== threadMode && { permissionMode: mode }),
+  });
 
   let text = $state("");
   let sending = $state(false);
@@ -128,7 +135,7 @@
     {/snippet}
     {#snippet meta()}
       <WorkerHoverCard {worker} />
-      <span class="flex shrink-0 items-center gap-1.5"><Icon name="shield-check" class="size-3.5" />{permissionLabel(thread.permissionMode)}</span>
+      <PermissionPicker value={mode} inherited={threadMode} onselect={(next) => (modeChoice = { threadId: thread.id, mode: next })} class="-mr-1.5" />
     {/snippet}
   </ComposerBox>
   {#if outcome}<p class="px-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">{outcome}</p>{/if}

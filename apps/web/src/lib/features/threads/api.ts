@@ -1,4 +1,5 @@
 import { ui } from "@open-agents/contracts";
+import type { PermissionModeKey } from "./labels.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 
@@ -11,20 +12,24 @@ export type Delivery = "queue" | "steer";
 
 /**
  * A message: `turn` when it became a turn (queued, also a steer without a running turn), `steer` when it
- * joins the running turn. `model` / `effort`: this turn only (unset = the thread's defaults).
+ * joins the running turn. `model` / `effort` / `permissionMode`: this turn only (unset = the thread's defaults; a
+ * steer runs in the mode of the turn it joins).
  */
 export async function sendMessage(
   threadId: string,
   text: string,
   clientRequestId: string,
-  turn: { model?: string; effort?: string } = {},
+  turn: { model?: string; effort?: string; permissionMode?: PermissionModeKey } = {},
   delivery: Delivery = "queue",
 ): Promise<ui.SendMessageResponse> {
   return decode(ui.SendMessageResponseSchema, await post(`${threadPath(threadId)}/messages`, { text, clientRequestId, ...turn, delivery }));
 }
 
-/** The thread's default model and effort: unset = unchanged, "" = the profile's default. */
-export async function updateThread(threadId: string, change: { model?: string; effort?: string }): Promise<ui.Thread | undefined> {
+/** The thread's default model, effort and permission mode: unset = unchanged, "" = the profile's default. */
+export async function updateThread(
+  threadId: string,
+  change: { model?: string; effort?: string; permissionMode?: PermissionModeKey },
+): Promise<ui.Thread | undefined> {
   return decode(ui.UpdateThreadResponseSchema, await post(`${threadPath(threadId)}/settings`, change)).thread;
 }
 

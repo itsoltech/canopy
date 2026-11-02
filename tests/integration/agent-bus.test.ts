@@ -13,6 +13,8 @@ import { eventually, failure, startTestGateway, watchUntil, type TestGateway } f
 
 let gw: TestGateway;
 let mainId = "";
+let projectId = "";
+let workspaceId = "";
 
 const json = (result: AgentToolResult) => JSON.parse(result.content) as Record<string, unknown>;
 const query = <A extends object>(text: string, ...params: unknown[]) =>
@@ -23,16 +25,16 @@ const query = <A extends object>(text: string, ...params: unknown[]) =>
     }),
   );
 const turns = (threadId: string) =>
-  query<{ ordinal: number; status: string; trigger: string; hops: number; text: string }>(
-    "SELECT ordinal, status, trigger, hops, input->>'text' AS text FROM turns WHERE thread_id = $1::uuid ORDER BY ordinal",
+  query<{ id: string; ordinal: number; status: string; trigger: string; hops: number; text: string }>(
+    "SELECT id, ordinal, status, trigger, hops, input->>'text' AS text FROM turns WHERE thread_id = $1::uuid ORDER BY ordinal",
     threadId,
   );
 
 describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () => {
   beforeAll(async () => {
     gw = await startTestGateway();
-    const projectId = (await gw.api.createProject({ name: "Bus" })).project!.id;
-    const workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/app", label: "" })).workspace!.id;
+    projectId = (await gw.api.createProject({ name: "Bus" })).project!.id;
+    workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/app", label: "" })).workspace!.id;
     const main = (await gw.api.createThread({ projectId, workspaceId, title: "Orchestrator", provider: Provider.CODEX, permissionMode: PermissionMode.ASK, initialMessage: "plan" }))
       .thread!;
     mainId = main.id;
@@ -332,5 +334,42 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(waited.threads[0]).toMatchObject({ last_turn: { status: "completed" }, permission_mode: "read_only" });
     expect(waited.threads[0]?.last_message).toContain("Review");
     await gw.worker.callTool({ threadId: mainId, tool: "close_thread", args: { thread_id: result.thread_id } });
+  });
+
+  test("the spawn ceiling is the calling turn's permission mode, not the thread's default", async () => {
+    // A FULL_AUTO thread whose current message runs READ_ONLY: its subagents get read_only at most.
+    gw.worker.holdTurns = false;
+    const thread = (await gw.api.createThread({ projectId, workspaceId, title: "Turn ceiling", provider: Provider.CODEX, permissionMode: PermissionMode.FULL_AUTO }))
+      .thread!;
+    await eventually(() => gw.api.getThread({ threadId: thread.id }), (r) => r.thread?.status === "idle");
+    gw.worker.holdTurns = true;
+    const sent = await gw.api.sendMessage({ threadId: thread.id, text: "look only", clientRequestId: "ceiling-1", permissionMode: PermissionMode.READ_ONLY });
+    const turnId = sent.turn!.id;
+    await eventually(() => turns(thread.id), (t) => t.some((x) => x.id === turnId && x.status === "running"));
+    const broader = await gw.worker.callTool({ threadId: thread.id, turnId, tool: "spawn_thread", args: { title: "x", prompt: "y", permission_mode: "ask" } });
+    expect([broader.isError, broader.content]).toEqual([true, "permission_mode ask is broader than yours (read_only); a subagent cannot get more permissions than you"]);
+    // Asking for none: the calling turn's mode, not the thread's FULL_AUTO.
+    const child = json(await gw.worker.callTool({ threadId: thread.id, turnId, tool: "spawn_thread", args: { title: "Child", prompt: "y", notify: false } })) as {
+      thread_id: string;
+      permission_mode: string;
+    };
+    expect(child.permission_mode).toBe("read_only");
+    expect(gw.worker.created.find((c) => c.threadId === child.thread_id)?.permissionMode).toBe(PermissionMode.READ_ONLY);
+    gw.worker.holdTurns = false;
+    gw.worker.finish(thread.id, turnId);
+    await eventually(() => turns(thread.id), (t) => t.every((x) => x.status !== "running"));
+    // The next turn is back on FULL_AUTO: the thread's default is the ceiling again.
+    const next = (await gw.api.sendMessage({ threadId: thread.id, text: "go", clientRequestId: "ceiling-2" })).turn!;
+    gw.worker.holdTurns = true;
+    await eventually(() => turns(thread.id), (t) => t.some((x) => x.id === next.id && x.status !== "queued"));
+    const full = json(await gw.worker.callTool({ threadId: thread.id, turnId: next.id, tool: "spawn_thread", args: { title: "Full", prompt: "y", permission_mode: "full_auto", notify: false } })) as {
+      permission_mode: string;
+    };
+    expect(full.permission_mode).toBe("full_auto");
+    gw.worker.holdTurns = false;
+    gw.worker.finish(thread.id, next.id);
+    await eventually(() => turns(thread.id), (t) => t.every((x) => x.status !== "running" && x.status !== "queued"));
+    // The children's first turns too: nothing may still run when the gateway closes.
+    for (const id of [child.thread_id]) await gw.worker.callTool({ threadId: thread.id, tool: "close_thread", args: { thread_id: id } });
   });
 });

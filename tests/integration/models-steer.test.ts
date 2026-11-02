@@ -246,6 +246,95 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
     expect(await turns(sideId)).toHaveLength(1);
   });
 
+  test("permission mode: per-message override and thread default reach StartTurn; a steer keeps the running turn's mode", async () => {
+    gw.worker.holdTurns = false;
+    const modes = (threadId: string) =>
+      query<{ id: string; status: string; permission_mode: string }>(
+        "SELECT id, status, permission_mode FROM turns WHERE thread_id = $1::uuid ORDER BY ordinal",
+        threadId,
+      );
+    const thread = (
+      await gw.api.createThread({
+        projectId,
+        workspaceId,
+        title: "modes",
+        provider: Provider.CODEX,
+        permissionMode: PermissionMode.READ_ONLY,
+        initialMessage: "one",
+        clientRequestId: "create-modes",
+      })
+    ).thread!;
+    expect(thread.permissionMode).toBe(PermissionMode.READ_ONLY);
+    const [first] = await eventually(() => modes(thread.id), (t) => t[0]?.status === "completed");
+    expect(gw.worker.turnModes.get(first!.id)).toEqual({ turn: PermissionMode.READ_ONLY, thread: PermissionMode.READ_ONLY });
+    expect(first!.permission_mode).toBe("READ_ONLY"); // recorded as what the turn ran with
+
+    // One message in FULL_AUTO; the next one is back on the thread's default.
+    const sent = await gw.api.sendMessage({ threadId: thread.id, text: "two", clientRequestId: "pm-2", permissionMode: PermissionMode.FULL_AUTO });
+    expect(sent.turn?.permissionMode).toBe(PermissionMode.FULL_AUTO);
+    await gw.api.sendMessage({ threadId: thread.id, text: "three", clientRequestId: "pm-3" });
+    let all = await eventually(() => modes(thread.id), (t) => t.length === 3 && t[2]?.status === "completed");
+    expect(all.map((t) => gw.worker.turnModes.get(t.id)?.turn)).toEqual([PermissionMode.READ_ONLY, PermissionMode.FULL_AUTO, PermissionMode.READ_ONLY]);
+    expect(all.map((t) => t.permission_mode)).toEqual(["READ_ONLY", "FULL_AUTO", "READ_ONLY"]);
+    expect(await failure(gw.api.sendMessage({ threadId: thread.id, text: "x", clientRequestId: "pm-x", permissionMode: 42 as PermissionMode }))).toContain(
+      "unknown permission mode",
+    );
+
+    // A new thread default: unset fields stay, the model and effort are untouched; ThreadSpec carries it too.
+    const updated = (await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.ACCEPT_EDITS })).thread!;
+    expect([updated.permissionMode, updated.model]).toEqual([PermissionMode.ACCEPT_EDITS, thread.model]);
+    expect((await gw.api.updateThread({ threadId: thread.id, effort: "" })).thread!.permissionMode).toBe(PermissionMode.ACCEPT_EDITS);
+    await gw.api.sendMessage({ threadId: thread.id, text: "four", clientRequestId: "pm-4" });
+    all = await eventually(() => modes(thread.id), (t) => t.length === 4 && t[3]?.status === "completed");
+    expect(gw.worker.turnModes.get(all[3]!.id)).toEqual({ turn: PermissionMode.ACCEPT_EDITS, thread: PermissionMode.ACCEPT_EDITS });
+
+    // A steer joins the running turn and runs in its mode; its own override is for a fallback turn.
+    gw.worker.steerMode = "accept";
+    gw.worker.holdTurns = true;
+    await gw.api.sendMessage({ threadId: thread.id, text: "five", clientRequestId: "pm-5", permissionMode: PermissionMode.READ_ONLY });
+    const running = (await eventually(() => modes(thread.id), (t) => t[4]?.status === "running"))[4]!;
+    const steer = await gw.api.sendMessage({
+      threadId: thread.id,
+      text: "and this",
+      clientRequestId: "pm-6",
+      delivery: ui.MessageDelivery.STEER,
+      permissionMode: PermissionMode.FULL_AUTO,
+    });
+    expect(steer.steer?.turnId).toBe(running.id);
+    await eventually(() => steers(thread.id), (s) => s[0]?.status === "delivered");
+    gw.worker.holdTurns = false;
+    gw.worker.finish(thread.id, running.id);
+    all = await eventually(() => modes(thread.id), (t) => t[4]?.status === "completed");
+    expect(all).toHaveLength(5);
+    expect(all[4]!.permission_mode).toBe("READ_ONLY");
+
+    gw.worker.steerMode = "not_running";
+    gw.worker.holdTurns = true;
+    await gw.api.sendMessage({ threadId: thread.id, text: "six", clientRequestId: "pm-7" });
+    const sixth = (await eventually(() => modes(thread.id), (t) => t[5]?.status === "running"))[5]!;
+    await gw.api.sendMessage({ threadId: thread.id, text: "late", clientRequestId: "pm-8", delivery: ui.MessageDelivery.STEER, permissionMode: PermissionMode.FULL_AUTO });
+    await eventually(() => steers(thread.id), (s) => s[1]?.status === "queued");
+    gw.worker.holdTurns = false;
+    gw.worker.finish(thread.id, sixth.id);
+    all = await eventually(() => modes(thread.id), (t) => t[6]?.status === "completed");
+    expect(all.slice(5).map((t) => t.permission_mode)).toEqual(["ACCEPT_EDITS", "FULL_AUTO"]);
+    gw.worker.steerMode = "accept";
+
+    // The snapshot shows each turn's mode and the thread's default.
+    const snapshot = (await watchUntil(gw.api, thread.id, (u) => u.length >= 1))[0]!;
+    const view = snapshot.change.case === "snapshot" ? snapshot.change.value : undefined;
+    expect(view?.thread?.permissionMode).toBe(PermissionMode.ACCEPT_EDITS);
+    expect(view?.turns.map((t) => t.permissionMode)).toEqual([
+      PermissionMode.READ_ONLY,
+      PermissionMode.FULL_AUTO,
+      PermissionMode.READ_ONLY,
+      PermissionMode.ACCEPT_EDITS,
+      PermissionMode.READ_ONLY,
+      PermissionMode.ACCEPT_EDITS,
+      PermissionMode.FULL_AUTO,
+    ]);
+  });
+
   test("model favorites are a user settings section", async () => {
     const current = await gw.api.getSettings({});
     const favorites = { models: [{ provider: Provider.CODEX, profileId: "native", model: "gpt-5.5" }, { provider: Provider.CLAUDE, profileId: "", model: "claude-haiku-5-5" }] };
