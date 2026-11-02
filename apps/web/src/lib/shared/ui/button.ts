@@ -26,6 +26,11 @@ export function buttonClasses(variant: ButtonVariant, size: ButtonSize, withIcon
 }
 
 /** Square icon-only button (the 48px touch target is added by the component). */
+// An icon alone reads heavier than a word in the same colour: ghost icon buttons rest a step lighter and
+// take the full colour on hover.
+const ghostIcon =
+  "text-zinc-500 not-disabled:hover:bg-zinc-950/5 not-disabled:hover:text-zinc-950 aria-expanded:text-zinc-950 dark:text-zinc-400 dark:not-disabled:hover:bg-white/10 dark:not-disabled:hover:text-white dark:aria-expanded:text-white";
+
 export function iconButtonClasses(variant: ButtonVariant, size: ButtonSize): string {
-  return `${base} ${variants[variant]} ${size === "md" ? "rounded-lg p-2.5 sm:p-2" : "rounded-md p-2 sm:p-1.5"}`;
+  return `${base} ${variant === "ghost" ? ghostIcon : variants[variant]} ${size === "md" ? "rounded-lg p-2.5 sm:p-2" : "rounded-md p-2 sm:p-1.5"}`;
 }
