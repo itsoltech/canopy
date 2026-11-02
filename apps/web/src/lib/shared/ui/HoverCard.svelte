@@ -28,8 +28,7 @@
 
   /**
    * Preview card for a trigger: opens after hovering it (`openDelay`, none while another card is open or just
-   * closed) or on keyboard focus, stays while
-   * the pointer is over the card, closes shortly after leaving both. Touch screens have no hover, so a
+   * closed) or on keyboard focus, stays while the pointer is over the card, closes shortly after leaving both. Touch screens have no hover, so a
    * tap toggles it (the trigger is a button) or, with `touch="press"`, a tap-and-hold opens it and a tap
    * keeps doing what the trigger does (a link navigates; it gets no popup semantics). Escape and a click
    * outside close it. It never takes focus.
