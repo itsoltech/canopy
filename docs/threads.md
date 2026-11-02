@@ -22,7 +22,8 @@ gdy żaden fork ani wątek boczny nie potrzebuje plików.
 Sidebar, filtr projektów, hover card i paleta poleceń pokazują „No project” oraz tę samą ikonę.
 Settings → Threads → „Project and worker” pozwala wybrać worker w grupie „No project”.
 Systemowy projekt nie występuje w Settings → Projects. Harmonogram nowego wątku pozwala
-wybrać „No project” i konkretny worker. Nie wymaga to API botów.
+wybrać „No project” i konkretny worker. Boty również mogą wskazać tę pozycję i workspace
+workera przez `list_projects` oraz `start_thread`.
 
 Przed wysłaniem pierwszej wiadomości katalog scratch jeszcze nie istnieje, więc lista plików
 we wzmiankach jest pusta. Katalog komend i umiejętności pochodzi wtedy z pierwszego allowed root

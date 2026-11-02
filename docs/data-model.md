@@ -3,8 +3,8 @@
 ## Wątki bez projektu (scratch)
 
 Migracja `0032_scratch_projects` dodaje `projects.kind`: `project` (domyślnie, także dla
-istniejących danych) albo `scratch`. Numer to ostatnia migracja main (`0029`) + 3;
-`0030` i `0031` pozostają wolne dla zmian rozwijanych równolegle.
+istniejących danych) albo `scratch`. Numer wybrano jako ówczesną ostatnią migrację main (`0029`) + 3;
+po scaleniu main poprzedzają go również `0030_bus_notify_delivery` i `0031_bots`.
 
 Każdy użytkownik ma dokładnie jeden automatycznie provisionowany projekt systemowy „No project”.
 Unikalny indeks po właścicielu zabezpiecza współbieżne pierwsze odczyty. Tożsamość, właściciel,

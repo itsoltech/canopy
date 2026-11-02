@@ -20,7 +20,9 @@ Błąd utworzenia/walidacji to `SCRATCH_NOT_ALLOWED`; zwykłe wątki nie tworzą
 zachowują dotychczasowe reguły właściciela oraz drzewa. `sidebar.project_ids` może wskazywać
 systemowy projekt, a `ThreadDefaults.workspace_id` — jego workspace. `NewThreadSchedule`
 używa jego `project_id` i wybranego `workspace_id` z `placement = "specific"`; każdy run ma nowy cwd.
-Nie dodano zależności od API botów. `CreateWorkspace`, `UpdateWorkspace`, `RemoveWorkspace`
+Botowy `list_projects` zwraca także `kind = "scratch"`; `start_thread` z identyfikatorem
+projektu systemowego i workspace'em wybranego workera korzysta z tego samego nadawania cwd.
+`CreateWorkspace`, `UpdateWorkspace`, `RemoveWorkspace`
 i `UpdateProjectSettings` nie pozwalają ręcznie modyfikować zasobów systemowych.
 
 Scratch powstaje dopiero przy `CreateThread`. `SearchFiles` w scope nowego wątku scratch
