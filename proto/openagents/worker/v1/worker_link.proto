@@ -1117,6 +1117,8 @@ enum MentionKind {
   MENTION_KIND_FILE = 4;
   // Inny wątek platformy tego użytkownika: notatka platformy z thread_id, agent czyta go read_thread / get_thread.
   MENTION_KIND_THREAD = 5;
+  // Bot gateway tego użytkownika; name = bot_id, label = nazwa w znaczniku @Nazwa.
+  MENTION_KIND_BOT = 6;
 }
 
 // Jedna wzmianka: fragment tekstu [start, end) (jednostki UTF-16, jak string w JS i w protobuf-es) zajmuje jej

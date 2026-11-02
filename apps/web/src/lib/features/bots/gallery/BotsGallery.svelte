@@ -190,10 +190,10 @@
 
       <GallerySection title="Composer and read-only bar" description="Attachments and voice are not built yet, so “+” and the mic explain that. Typing turns the mic into send.">
         <div class="grid max-w-xl gap-4">
-          <BotComposer bind:value={composerValue} onsend={(text) => (log = `Sent “${text}”.`)} />
-          <BotComposer value="Sending this one…" sending onsend={() => {}} />
-          <BotComposer disabled disabledReason="Canopy Bot is unavailable right now" onsend={() => {}} />
-          <BotComposer onsend={() => {}} onattach={() => (log = "Attach.")} />
+          <BotComposer botId="gallery" quoteKey="bot:gallery" bind:value={composerValue} onsend={(text) => (log = `Sent “${text}”.`)} />
+          <BotComposer botId="gallery" quoteKey="bot:gallery-sending" value="Sending this one…" sending onsend={() => {}} />
+          <BotComposer botId="gallery" quoteKey="bot:gallery-disabled" disabled disabledReason="Canopy Bot is unavailable right now" onsend={() => {}} />
+          <BotComposer botId="gallery" quoteKey="bot:gallery-attach" onsend={() => {}} onattach={() => (log = "Attach.")} />
           <WatchBar bots={chats.watch.conversation.bots} onclose={() => (log = "Close chat.")} />
         </div>
       </GallerySection>

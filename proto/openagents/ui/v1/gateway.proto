@@ -8,6 +8,7 @@ package openagents.ui.v1;
 import "google/protobuf/timestamp.proto";
 import "openagents/worker/v1/worker_link.proto";
 import "openagents/ui/v1/bots.proto";
+import "openagents/ui/v1/quotes.proto";
 
 service GatewayService {
   // Boty działające wyłącznie w gateway (docs/bots.md).
@@ -1302,25 +1303,6 @@ message StartProviderLoginRequest {
 message StartProviderLoginResponse {
   string verification_url = 1;
   string user_code = 2;
-}
-
-// ---------- Cytaty (docs/ui-api.md, "Cytaty") ----------
-
-// Fragment tego, co agent wytworzył w wątku (odpowiedź, rozumowanie, wynik polecenia, wywołanie narzędzia,
-// kod, diff), zacytowany przez użytkownika w wiadomości.
-message Quote {
-  // Dokładnie zaznaczony tekst, tak jak go widać (bez znaczników markdown), z podziałami linii.
-  string text = 1;
-  // Komentarz użytkownika do cytatu (opcjonalny).
-  string comment = 2;
-  // Item, z którego pochodzi cytat (Item.item_id), i wątek tego itemu (także odziedziczona historia forka).
-  string source_item_id = 3;
-  string source_thread_id = 4;
-  // agent_message | reasoning | command_output | tool_call | code | diff; pusty = nieznany (tekst).
-  // command_output, tool_call, code i diff trafiają do agenta jako blok kodu.
-  string source_kind = 5;
-  // Język bloku kodu (np. "ts"), gdy cytat pochodzi z bloku kodu z językiem; inaczej pusty.
-  string language = 6;
 }
 
 // ---------- Załączniki (docs/ui-api.md) ----------

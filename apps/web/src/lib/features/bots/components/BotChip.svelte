@@ -3,6 +3,7 @@
   import { botTextTone } from "../mascot.ts";
   import type { ParticipantView } from "../model.ts";
   import BotAvatar from "./BotAvatar.svelte";
+  import { BOT_CHIP_CLASS } from "../mention-chip.ts";
 
   /**
    * A bot named inline: a small avatar and the name in the bot's colour ("‹avatar› FIXme CRM"), in a
@@ -10,7 +11,7 @@
    */
   let { bot, href, class: className }: { bot: ParticipantView; href?: string | undefined; class?: ClassValue } = $props();
   const classes = $derived([
-    "inline-flex max-w-full items-baseline gap-1 font-medium whitespace-nowrap align-baseline",
+    BOT_CHIP_CLASS,
     botTextTone(bot),
     href && "rounded-sm hover:underline focus-ring",
     className,

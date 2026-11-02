@@ -213,6 +213,10 @@ Pliki, które użytkownik dołącza do wiadomości ([ui-api.md](ui-api.md#załą
 
 ## Wzmianki
 
+`MentionKind.BOT=6` współdzieli zakresy i edytor z wątkami, ale jest obsługiwany wyłącznie
+przez rozmowy botów w gateway (`SendBotMessage` / `BotMessage`, pole 450).
+`name` to ID bota, `label` to nazwa w znaczniku `@Nazwa`. Nie trafia do workera.
+
 Wiadomość może nieść wzmianki (`UserInput.mentions`, numery od 140; kontrakt i zasady: [ui-api.md](ui-api.md#wzmianki)): zakresy w `UserInput.text`, które gateway już złożył dla dostawcy (notatka platformy, przepisanie dla Claude). Worker:
 
 - Codex: `turn/start` i `turn/steer` dostają tekst z `text_elements` (zakres bajtów UTF-8 i znacznik każdej wzmianki) oraz itemy `skill {name, path}`, `mention {name, path}` (aplikacje, pluginy) i `localImage` (wspomniany obraz). Echo `userMessage` z `clientId` tury albo steera dostaje te wzmianki w `UserMessage.mentions`.
