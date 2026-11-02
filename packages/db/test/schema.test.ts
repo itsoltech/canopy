@@ -160,7 +160,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     pg = await startPostgres();
     runtime = ManagedRuntime.make(pg.layer);
     const applied = await runtime.runPromise(migrate);
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode", "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage", "22_thread_titles", "23_agent_senders", "24_background_task_notes", "25_ask_user", "26_sidebar_threads"]);
+    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode", "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage", "22_thread_titles", "23_agent_senders", "24_background_task_notes", "25_ask_user", "26_sidebar_threads", "27_schedules_new_thread"]);
   }, 60_000);
 
   afterAll(async () => {
@@ -606,9 +606,9 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
   });
 
   describe("schedules", () => {
-    const insertSchedule = `INSERT INTO schedules (id, thread_id, kind, prompt, run_at, cron, until, max_runs, next_run_at,
+    const insertSchedule = `INSERT INTO schedules (id, thread_id, project_id, kind, prompt, run_at, cron, until, max_runs, next_run_at,
                                                    created_by_user_id, created_by_call_id, hops)
-                            VALUES ($1, $2, $3, 'check CI', $4, $5, $6, $7, $8, $9, $10, $11)`;
+                            VALUES ($1, $2, (SELECT project_id FROM threads WHERE id = $2), $3, 'check CI', $4, $5, $6, $7, $8, $9, $10, $11)`;
     const soon = () => new Date(Date.now() + 600_000);
 
     test("user schedules may be open-ended; agent schedules must be bounded and extend the chain", async () => {

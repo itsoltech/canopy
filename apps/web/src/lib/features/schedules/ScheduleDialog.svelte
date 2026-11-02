@@ -13,6 +13,8 @@
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import { createSchedule } from "./api.ts";
   import { describeCron } from "./schedules.ts";
+  import NewThreadScheduleFields from "./NewThreadScheduleFields.svelte";
+  import GrowIn from "#lib/shared/ui/GrowIn.svelte";
 
   /**
    * New scheduled task: what to tell the agent, once at a time or repeatedly (a preset or a cron) in a
@@ -53,6 +55,10 @@
   const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   let threadId = $state("");
+  let target = $state<"thread" | "new_thread">("thread");
+  let newThread = $state<ui.NewThreadSchedule>();
+  let concurrency = $state("skip_if_running");
+  let name = $state("");
   let prompt = $state("");
   let kind = $state<"once" | "recurring">("once");
   let runAt = $state("");
@@ -74,6 +80,11 @@
     if (!open) return;
     untrack(() => {
       threadId = fixedThreadId ?? groups[0]?.threads[0]?.id ?? "";
+      target = fixedThreadId || groups.length ? "thread" : "new_thread";
+      newThread = undefined;
+      concurrency = "skip_if_running";
+      name = "";
+      missedPolicy = "run_once";
       prompt = "";
       kind = "once";
       runAt = local(nextHour());
@@ -101,20 +112,22 @@
   });
 
   function request(): ui.CreateScheduleRequest | string {
-    if (!threadId) return "Choose a thread.";
+    if (target === "thread" && !threadId) return "Choose a thread.";
+    if (target === "new_thread" && (!newThread?.projectId || !newThread.provider)) return "Choose a project and an agent.";
+    const destination = { target, threadId: target === "thread" ? threadId : "", ...(target === "new_thread" && newThread && { newThread }), concurrency, name };
     if (!prompt.trim()) return "Tell the agent what to do.";
     if (kind === "once") {
       const date = new Date(runAt);
       if (Number.isNaN(date.getTime())) return "Choose when to run it.";
       if (date.getTime() < Date.now()) return "Choose a time in the future.";
-      return create(ui.CreateScheduleRequestSchema, { threadId, prompt: prompt.trim(), when: { case: "runAt", value: timestampFromDate(date) }, missedPolicy });
+      return create(ui.CreateScheduleRequestSchema, { ...destination, prompt: prompt.trim(), when: { case: "runAt", value: timestampFromDate(date) }, missedPolicy });
     }
     if (cron.split(" ").length !== 5) return "A cron has five fields: minute, hour, day of month, month, day of week.";
     const end = ends === "until" ? new Date(until) : undefined;
     if (end && (Number.isNaN(end.getTime()) || end.getTime() < Date.now())) return "The end date must be in the future.";
     if (ends === "count" && !(maxRuns >= 1)) return "Run it at least once.";
     return create(ui.CreateScheduleRequestSchema, {
-      threadId,
+      ...destination,
       prompt: prompt.trim(),
       when: { case: "cron", value: cron },
       timezone,
@@ -148,9 +161,17 @@
     "flex flex-1 cursor-pointer items-center justify-center rounded-md px-3 py-1.5 text-base/6 font-medium text-zinc-600 has-checked:bg-white has-checked:text-zinc-950 has-checked:shadow-xs has-checked:ring-1 has-checked:ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1 sm:text-sm/6 dark:text-zinc-400 dark:has-checked:bg-white/10 dark:has-checked:text-white dark:has-checked:shadow-none dark:has-checked:ring-white/10";
 </script>
 
-<Dialog bind:open title="Schedule a task" description="The agent gets this message as a new turn at the time you choose, also when you are away.">
+<Dialog bind:open title="Schedule a task" description="Send a message at a set time, in an existing thread or a fresh thread for each run." size="lg">
   <form class="grid gap-5" onsubmit={submit} novalidate>
-    {#if !fixedThreadId}
+    <Field label="Run the task">
+      <Select name="target" bind:value={target}>
+        <option value="thread">In this thread</option>
+        <option value="new_thread">Start a new thread each run</option>
+      </Select>
+    </Field>
+    {#if target === "new_thread"}
+      <GrowIn><NewThreadScheduleFields bind:value={newThread} /></GrowIn>
+    {:else if !fixedThreadId}
       <Field label="Thread">
         <Select name="threadId" bind:value={threadId}>
           {#each groups as group (group.project.id)}
@@ -166,6 +187,9 @@
 
     <Field label="Message to the agent">
       <Textarea name="prompt" rows={3} bind:value={prompt} placeholder="Check the build and report anything that broke." data-autofocus required />
+    </Field>
+    <Field label="Task name (optional)">
+      <Input name="scheduleName" bind:value={name} maxlength={120} placeholder="Use the message as its name" />
     </Field>
 
     <fieldset class="grid gap-3">
@@ -240,7 +264,15 @@
       {/if}
     </fieldset>
 
-    <Field label="If a run is missed" description="For example while the gateway was down.">
+    {#if target === "new_thread" && kind === "recurring"}
+      <Field label="While a previous run is working">
+        <Select name="concurrency" bind:value={concurrency}>
+          <option value="skip_if_running">Skip the next run</option>
+          <option value="allow">Start another thread</option>
+        </Select>
+      </Field>
+    {/if}
+    <Field label="If a run is missed" description="After a gateway outage, or after 2 minutes without an eligible worker for a pool.">
       <Select name="missedPolicy" bind:value={missedPolicy}>
         <option value="run_once">Run once when back</option>
         <option value="skip">Skip it</option>

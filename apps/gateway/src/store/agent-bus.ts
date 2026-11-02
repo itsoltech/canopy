@@ -1,9 +1,10 @@
-import { create, type JsonValue } from "@bufbuild/protobuf";
+import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ui } from "@open-agents/contracts";
+import { ui, type Command } from "@open-agents/contracts";
 import {
   agentKey,
   fuzzyRank,
+  selectScheduleWorkspace,
   SPAWN_PERMISSION_MODES,
   type AgentBusArgs,
   type BusFacts,
@@ -15,7 +16,7 @@ import {
 } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
-import { Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";
+import { GatewayStore, Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";
 import { questionStore, type QuestionStore } from "./questions.ts";
 
 /**
@@ -89,7 +90,7 @@ export interface Notification {
 
 export interface ScheduleRow {
   id: string;
-  thread_id: string;
+  thread_id: string | null;
   kind: "once" | "recurring";
   prompt: string;
   run_at: Date | null;
@@ -105,9 +106,17 @@ export interface ScheduleRow {
   last_turn_id?: string | null;
   created_at?: Date;
   created_by_user_id?: string | null;
-  /** Joined: the thread's project and, for agent schedules, the calling thread. */
-  project_id?: string;
+  project_id: string;
+  /** Joined for schedules created through an agent-bus call. */
   created_by_thread_id?: string | null;
+  target: "thread" | "new_thread";
+  new_thread: JsonValue | null;
+  concurrency: "allow" | "skip_if_running";
+  name: string;
+  placement_cursor: string | null;
+  lease_owner: string | null;
+  recent_runs?: JsonValue[];
+  owner_user_id?: string;
 }
 
 export interface NewSchedule {
@@ -122,6 +131,15 @@ export interface NewSchedule {
   readonly nextRunAt: Date;
   readonly hops: number;
   readonly missedPolicy?: "run_once" | "skip";
+  readonly newThread?: ui.NewThreadSchedule;
+  readonly concurrency?: "allow" | "skip_if_running";
+  readonly name?: string;
+}
+
+export interface FiredSchedule {
+  threadId: string;
+  turn?: TurnRow;
+  created?: { thread: ThreadRow; command: Command };
 }
 
 /**
@@ -226,7 +244,7 @@ export class AgentBusStore extends Context.Service<
      * Records a run: queues the turn (unless skipped), counts it, sets the next run or completes the
      * schedule, releases the lease. A schedule of an archived thread is cancelled instead.
      */
-    fireSchedule(input: { schedule: ScheduleRow; input: TurnInput; run: boolean; nextRunAt: Date | undefined }): Fx<{ threadId: string; turn?: TurnRow }>;
+    fireSchedule(input: { schedule: ScheduleRow; input: TurnInput; run: boolean; nextRunAt: Date | undefined; eligibleWorkerIds: readonly string[]; now: Date }): Effect.Effect<FiredSchedule, SqlError.SqlError | NotFound | Invalid, GatewayStore>;
     /** Pending interactions routed to the caller (from its side threads). */
     parentInteractions(callerId: string): Fx<ReadonlyArray<{ request_id: string; thread_id: string; kind: string; tool_name: string; request: JsonValue }>>;
     /**
@@ -348,8 +366,15 @@ export class AgentBusStore extends Context.Service<
           RETURNING *`.pipe(Effect.map((rows) => rows[0]!));
 
       const scheduleSelect = `
-        SELECT s.*, t.project_id, c.source_thread_id AS created_by_thread_id
-          FROM schedules s JOIN threads t ON t.id = s.thread_id LEFT JOIN agent_bus_calls c ON c.id = s.created_by_call_id`;
+        SELECT s.*, p.owner_user_id, c.source_thread_id AS created_by_thread_id,
+          (SELECT coalesce(jsonb_agg(r.data ORDER BY r.scheduled_for DESC), '[]'::jsonb) FROM
+            (SELECT sr.scheduled_for, jsonb_build_object('scheduledFor', to_char(sr.scheduled_for AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+              'number', sr.number, 'threadId', coalesce(sr.thread_id::text, ''), 'turnId', coalesce(sr.turn_id::text, ''),
+              'workerId', coalesce(sr.worker_id::text, ''), 'workspaceId', coalesce(sr.workspace_id::text, ''), 'outcome', sr.outcome,
+              'createdAt', to_char(sr.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) AS data
+             FROM schedule_runs sr WHERE sr.schedule_id = s.id ORDER BY sr.scheduled_for DESC LIMIT 5) r) AS recent_runs
+          FROM schedules s JOIN projects p ON p.id = s.project_id LEFT JOIN threads t ON t.id = s.thread_id
+          LEFT JOIN agent_bus_calls c ON c.id = s.created_by_call_id`;
 
       /**
        * The caller's effective permission mode: the mode its calling turn runs with (a message may override the
@@ -617,8 +642,8 @@ export class AgentBusStore extends Context.Service<
               };
               yield* insertCall({ source, tool, args, status: "completed", result });
               yield* sql`
-                INSERT INTO schedules (id, thread_id, kind, prompt, run_at, cron, timezone, until, max_runs, next_run_at, created_by_call_id, hops)
-                VALUES (${id}::uuid, ${schedule.threadId}::uuid, ${schedule.kind}, ${schedule.prompt}, ${schedule.runAt ?? null},
+                INSERT INTO schedules (id, thread_id, project_id, kind, prompt, run_at, cron, timezone, until, max_runs, next_run_at, created_by_call_id, hops)
+                VALUES (${id}::uuid, ${schedule.threadId}::uuid, (SELECT project_id FROM threads WHERE id = ${schedule.threadId}::uuid), ${schedule.kind}, ${schedule.prompt}, ${schedule.runAt ?? null},
                         ${schedule.cron ?? null}, ${schedule.timezone}, ${schedule.until ?? null}, ${schedule.maxRuns ?? null},
                         ${schedule.nextRunAt}, ${source.callId}::uuid, ${schedule.hops})`;
               return result;
@@ -639,8 +664,8 @@ export class AgentBusStore extends Context.Service<
         schedulesFor: ({ ownerUserId, projectId, threadId, includeFinished }) =>
           sql.unsafe<ScheduleRow>(
             `${scheduleSelect}
-              WHERE t.owner_user_id = $1::uuid AND t.deleted_at IS NULL
-                AND ($2::uuid IS NULL OR t.project_id = $2::uuid)
+              WHERE p.owner_user_id = $1::uuid AND (s.thread_id IS NULL OR t.deleted_at IS NULL)
+                AND ($2::uuid IS NULL OR s.project_id = $2::uuid)
                 AND ($3::uuid IS NULL OR s.thread_id = $3::uuid)
                 AND ($4::boolean OR s.status IN ('active', 'paused'))
               ORDER BY s.next_run_at NULLS LAST, s.created_at`,
@@ -656,8 +681,11 @@ export class AgentBusStore extends Context.Service<
           Effect.gen(function* () {
             const id = Bun.randomUUIDv7();
             yield* sql`
-              INSERT INTO schedules (id, thread_id, kind, prompt, run_at, cron, timezone, until, max_runs, next_run_at, missed_policy, created_by_user_id, hops)
-              VALUES (${id}::uuid, ${schedule.threadId}::uuid, ${schedule.kind}, ${schedule.prompt}, ${schedule.runAt ?? null},
+              INSERT INTO schedules (id, thread_id, project_id, target, new_thread, concurrency, name, kind, prompt, run_at, cron, timezone, until, max_runs, next_run_at, missed_policy, created_by_user_id, hops)
+              VALUES (${id}::uuid, ${schedule.threadId || null}::uuid,
+                      coalesce(${schedule.newThread?.projectId ?? null}::uuid, (SELECT project_id FROM threads WHERE id = ${schedule.threadId || null}::uuid)),
+                      ${schedule.newThread ? "new_thread" : "thread"}, ${schedule.newThread ? JSON.stringify(toJson(ui.NewThreadScheduleSchema, schedule.newThread)) : null}::jsonb,
+                      ${schedule.concurrency ?? "skip_if_running"}, ${schedule.name ?? ""}, ${schedule.kind}, ${schedule.prompt}, ${schedule.runAt ?? null},
                       ${schedule.cron ?? null}, ${schedule.timezone}, ${schedule.until ?? null}, ${schedule.maxRuns ?? null},
                       ${schedule.nextRunAt}, ${schedule.missedPolicy ?? "run_once"}, ${userId}::uuid, 0)`;
             return yield* store.schedule(id);
@@ -684,17 +712,63 @@ export class AgentBusStore extends Context.Service<
                            ORDER BY next_run_at LIMIT 50 FOR UPDATE SKIP LOCKED)
             RETURNING *`,
 
-        fireSchedule: ({ schedule, input, run, nextRunAt }) =>
+        fireSchedule: ({ schedule: claimed, input, run: shouldRun, nextRunAt, eligibleWorkerIds, now }) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              const owner = yield* thread(schedule.thread_id);
-              if (owner.archived_at != null || owner.deleted_at != null) {
+              // Fence stale leases and already handled occurrences, including ticks racing a pause or restart.
+              const schedule = (yield* sql<ScheduleRow>`SELECT * FROM schedules WHERE id = ${claimed.id}::uuid FOR UPDATE`)[0];
+              if (!schedule || schedule.status !== 'active' || schedule.lease_owner !== claimed.lease_owner ||
+                  new Date(schedule.next_run_at!).getTime() !== new Date(claimed.next_run_at!).getTime()) return { threadId: "" };
+              const occurrence = new Date(schedule.next_run_at!);
+              const spec = schedule.new_thread ? fromJson(ui.NewThreadScheduleSchema, schedule.new_thread) : undefined;
+              let run = shouldRun;
+              let outcome = run ? "started" : "missed";
+              if (schedule.until && now > new Date(schedule.until)) { run = false; outcome = "expired"; nextRunAt = undefined; }
+              if (spec && run && schedule.concurrency === "skip_if_running") {
+                const busy = yield* sql`SELECT 1 FROM schedule_runs sr WHERE sr.schedule_id = ${schedule.id}::uuid AND (
+                  EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = sr.thread_id AND u.status IN ('queued', 'running')) OR
+                  EXISTS (SELECT 1 FROM thread_items i WHERE i.thread_id = sr.thread_id AND i.type = 'background_task' AND i.status = 'in_progress')
+                ) LIMIT 1`;
+                if (busy.length) { run = false; outcome = "running"; }
+              }
+              const candidates = spec && run ? yield* sql<{ id: string; worker_id: string; load: number }>`
+                SELECT pw.id, pw.worker_id, (SELECT count(*)::int FROM turns u JOIN threads t ON t.id = u.thread_id
+                  WHERE t.worker_id = pw.worker_id AND u.status IN ('queued', 'running')) AS load
+                FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id JOIN projects p ON p.id = pw.project_id
+                WHERE pw.project_id = ${schedule.project_id}::uuid AND pw.archived_at IS NULL AND p.archived_at IS NULL
+                  AND w.archived_at IS NULL AND w.revoked_at IS NULL
+                  AND pw.worker_id = ANY(${[...eligibleWorkerIds]}::uuid[])
+                  AND (${spec.placement !== "specific"}::boolean OR pw.id = ${spec.workspaceId || null}::uuid)` : [];
+              const placement = spec ? selectScheduleWorkspace(spec.placement, candidates, schedule.placement_cursor) : undefined;
+              if (spec && run && !placement) {
+                // Keep the occurrence key. The lease bounds retry frequency without changing its due time.
+                yield* sql`UPDATE schedules SET lease_until = ${new Date(now.getTime() + 4_000)} WHERE id = ${schedule.id}::uuid`;
+                return { threadId: "" };
+              }
+              let created: FiredSchedule["created"];
+              let owner: ThreadRow | undefined;
+              if (spec && run && placement) {
+                const gateway = yield* GatewayStore;
+                owner = yield* gateway.createThread(schedule.created_by_user_id!, create(ui.CreateThreadRequestSchema, {
+                  projectId: schedule.project_id!, workspaceId: placement.id, provider: spec.provider, providerProfileId: spec.providerProfileId,
+                  model: spec.model, effort: spec.effort, permissionMode: spec.permissionMode, title: spec.title,
+                }));
+                yield* sql`UPDATE threads SET origin = 'schedule', schedule_id = ${schedule.id}::uuid,
+                  schedule_name = ${schedule.name || schedule.prompt.slice(0, 60)}, schedule_run = ${schedule.runs + 1},
+                  title = ${spec.title || schedule.prompt.split("\n")[0]!.slice(0, 60)} WHERE id = ${owner.id}::uuid`;
+                owner = yield* gateway.thread(owner.id);
+                const command = yield* gateway.enqueueCommand({ workerId: placement.worker_id, threadId: owner.id,
+                  command: { kind: { case: "createThread", value: { thread: gateway.threadSpec(owner) } } }, ttlSeconds: 365 * 24 * 3600 });
+                created = { thread: owner, command };
+              } else if (!spec) owner = yield* thread(schedule.thread_id!);
+              if (owner && (owner.archived_at != null || owner.deleted_at != null)) {
                 yield* sql`
                   UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, updated_at = now()
                    WHERE id = ${schedule.id}::uuid`;
                 return { threadId: owner.id };
               }
-              const turn = run
+              if (owner) yield* sql`SELECT id FROM threads WHERE id = ${owner.id}::uuid FOR UPDATE`;
+              const turn = run && owner
                 ? yield* sql<TurnRow>`
                     INSERT INTO turns (id, thread_id, ordinal, trigger, schedule_id, hops, input)
                     SELECT ${Bun.randomUUIDv7()}::uuid, ${owner.id}::uuid, coalesce(max(ordinal), 0) + 1, 'schedule', ${schedule.id}::uuid,
@@ -702,17 +776,21 @@ export class AgentBusStore extends Context.Service<
                       FROM turns WHERE thread_id = ${owner.id}::uuid
                     RETURNING *`.pipe(Effect.map((rows) => rows[0]))
                 : undefined;
-              const runs = schedule.runs + (run ? 1 : 0);
+              yield* sql`INSERT INTO schedule_runs (schedule_id, scheduled_for, number, thread_id, turn_id, worker_id, workspace_id, outcome)
+                VALUES (${schedule.id}::uuid, ${occurrence}, ${turn ? schedule.runs + 1 : 0}, ${turn ? owner!.id : null}::uuid,
+                  ${turn?.id ?? null}::uuid, ${turn ? owner!.worker_id : null}::uuid, ${turn ? owner!.workspace_id : null}::uuid, ${outcome})`;
+              const runs = schedule.runs + (turn ? 1 : 0);
               const finished =
                 nextRunAt === undefined ||
                 (schedule.max_runs !== null && runs >= schedule.max_runs) ||
                 (schedule.until !== null && nextRunAt.getTime() > new Date(schedule.until).getTime());
               yield* sql`
                 UPDATE schedules SET runs = ${runs}, last_turn_id = coalesce(${turn?.id ?? null}::uuid, last_turn_id),
+                       placement_cursor = coalesce(${placement?.id ?? null}::uuid, placement_cursor),
                        next_run_at = ${finished ? null : nextRunAt}, status = ${finished ? "completed" : "active"},
                        lease_owner = NULL, lease_until = NULL, updated_at = now()
                  WHERE id = ${schedule.id}::uuid`;
-              return { threadId: owner.id, ...(turn && { turn }) };
+              return { threadId: owner?.id ?? "", ...(turn && { turn }), ...(created && { created }) };
             }),
           ),
 
@@ -811,7 +889,7 @@ export function toUiSchedule(row: ScheduleRow): ui.Schedule {
   const created = ts(row.created_at);
   return create(ui.ScheduleSchema, {
     id: row.id,
-    threadId: row.thread_id,
+    threadId: row.thread_id ?? "",
     projectId: row.project_id ?? "",
     kind: row.kind,
     prompt: row.prompt,
@@ -828,6 +906,11 @@ export function toUiSchedule(row: ScheduleRow): ui.Schedule {
     createdByThreadId: row.created_by_thread_id ?? "",
     lastTurnId: row.last_turn_id ?? "",
     ...(created && { createdAt: created }),
+    target: row.target,
+    ...(row.new_thread && { newThread: fromJson(ui.NewThreadScheduleSchema, row.new_thread) }),
+    concurrency: row.concurrency,
+    name: row.name || row.prompt.slice(0, 60),
+    recentRuns: (row.recent_runs ?? []).map((r) => fromJson(ui.ScheduleRunSchema, r)),
   });
 }
 

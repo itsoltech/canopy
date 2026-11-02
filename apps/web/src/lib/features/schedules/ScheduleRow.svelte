@@ -6,7 +6,9 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ScheduleActions from "./ScheduleActions.svelte";
-  import { describeWhen, isFinished, runsLabel, scheduleStatusLook } from "./schedules.ts";
+  import ScheduleRuns from "./ScheduleRuns.svelte";
+  import { modelDisplayName } from "#lib/features/models/catalog.ts";
+  import { describeWhen, isFinished, placementLabels, runsLabel, scheduleStatusLook } from "./schedules.ts";
 
   /** One scheduled task: its message, when it runs, the next run, runs so far, its thread and who set it. */
   let { schedule, onchange }: { schedule: ui.Schedule; onchange?: ((schedule: ui.Schedule) => void) | undefined } = $props();
@@ -36,10 +38,17 @@
         </div>
       {/if}
       <div class="flex items-center gap-1 tabular-nums"><dt class="sr-only">Runs</dt><dd>{runsLabel(schedule)}</dd></div>
+      {#if schedule.target === "new_thread" && schedule.newThread}
+        <div class="flex min-w-0 items-center gap-1">
+          <dt class="sr-only">Target</dt>
+          <dd class="break-words">New thread in {overview.project(schedule.projectId)?.name ?? "project"} · {placementLabels[schedule.newThread.placement]} · {modelDisplayName(schedule.newThread.model)}</dd>
+        </div>
+      {:else}
       <div class="flex min-w-0 items-center gap-1">
         <dt>Thread</dt>
         <dd class="truncate"><a href="/threads/{schedule.threadId}" class={linkClass}>{thread?.title ?? "Thread"}</a></dd>
       </div>
+      {/if}
       <div class="flex min-w-0 items-center gap-1">
         <dt class="sr-only">Set by</dt>
         {#if schedule.createdBy === "agent"}
@@ -56,6 +65,7 @@
         {/if}
       </div>
     </dl>
+    {#if schedule.recentRuns.length}<ScheduleRuns runs={schedule.recentRuns} class="pt-2" />{/if}
   </div>
   <ScheduleActions {schedule} {onchange} />
 </div>

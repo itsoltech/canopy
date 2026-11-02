@@ -442,6 +442,10 @@ export class InstanceStore extends Context.Service<
                     new InstanceConflict(`${used} thread${used === 1 ? " uses" : "s use"} this instance; turn it off instead (its threads then show why they cannot run)`),
                   );
                 }
+                const scheduled = yield* sql`SELECT 1 FROM schedules WHERE target = 'new_thread' AND status IN ('active', 'paused')
+                  AND new_thread->>'provider' = ${harness === "claude" ? "PROVIDER_CLAUDE" : "PROVIDER_CODEX"}
+                  AND coalesce(nullif(new_thread->>'providerProfileId', ''), 'native') = ${row.id} LIMIT 1`;
+                if (scheduled.length) return yield* Effect.fail(new InstanceConflict("a scheduled task uses this instance; cancel it or turn the instance off instead"));
                 yield* sql`DELETE FROM provider_instances WHERE harness = ${harness} AND id = ${row.id}`;
                 return yield* sync(userId);
               }),

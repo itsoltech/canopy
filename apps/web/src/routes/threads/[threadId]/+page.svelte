@@ -14,6 +14,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
+  import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import { interruptThread } from "#lib/features/threads/api.ts";
   import { requestTitleRegeneration } from "#lib/features/threads/title-actions.ts";
   import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
@@ -341,6 +342,7 @@
             {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
           {/snippet}
           {#snippet top()}
+            {#if thread?.scheduleId}<ScheduleOrigin {thread} class="pt-4" />{/if}
             {#if thread?.spawnedByAgent && thread.parentThreadId}
               <SubagentOrigin parentThreadId={thread.parentThreadId} parentTitle={parent?.title} class="mt-4" />
             {/if}

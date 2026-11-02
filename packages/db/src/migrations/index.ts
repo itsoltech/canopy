@@ -26,6 +26,7 @@ import agentSenders from "./0023_agent_senders.sql" with { type: "text" };
 import backgroundTaskNotes from "./0024_background_task_notes.sql" with { type: "text" };
 import askUser from "./0025_ask_user.sql" with { type: "text" };
 import sidebarThreads from "./0026_sidebar_threads.sql" with { type: "text" };
+import schedulesNewThread from "./0027_schedules_new_thread.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -68,6 +69,7 @@ export const migrations = Migrator.fromRecord({
   "0024_background_task_notes": sqlFile(backgroundTaskNotes),
   "0025_ask_user": sqlFile(askUser),
   "0026_sidebar_threads": sqlFile(sidebarThreads),
+  "0027_schedules_new_thread": sqlFile(schedulesNewThread),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

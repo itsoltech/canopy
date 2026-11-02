@@ -8,6 +8,7 @@
   import { statusLook } from "#lib/shared/ui/status.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import AgentBadge from "./AgentBadge.svelte";
+  import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
 
   /**
    * A thread as a navigation row: live status, title, agent marker and waiting interactions.
@@ -35,6 +36,7 @@
     <span class="flex min-w-0 items-center gap-1.5 text-base/6 sm:text-sm/6">
       <span class="truncate text-zinc-700 group-aria-[current=page]:font-medium group-aria-[current=page]:text-zinc-950 dark:text-zinc-300 dark:group-aria-[current=page]:text-white">{thread.title}</span>
       {#if thread.spawnedByAgent}<AgentBadge compact />{/if}
+      <ScheduleOrigin {thread} compact />
       <span class="sr-only">({look.label})</span>
     </span>
     {#if meta}
