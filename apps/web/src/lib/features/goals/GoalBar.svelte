@@ -26,6 +26,8 @@
     disabled = false,
     onchange,
     ondismiss,
+    embedded = false,
+    compact = false,
     class: className,
   }: {
     goal: ui.Goal;
@@ -34,6 +36,10 @@
     disabled?: boolean;
     onchange?: ((goal: ui.Goal) => void) | undefined;
     ondismiss?: (() => void) | undefined;
+    /** Inside the composer's panel stack (queue, subagents): no surface of its own, the panels' row rhythm. */
+    embedded?: boolean;
+    /** The composer is compact: the details stay folded. */
+    compact?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -51,6 +57,7 @@
   const reason = $derived(goal.status !== "active" && goal.status !== "paused" ? goal.lastReason : "");
 
   let open = $state(false);
+  const expanded = $derived(open && !compact);
   let confirming = $state(false);
   let busy = $state<GoalAction>();
   let error = $state<string>();
@@ -70,23 +77,23 @@
   }
 </script>
 
-<section aria-labelledby="{id}-label" class={["min-w-0 rounded-xl bg-zinc-950/2.5 ring-1 ring-zinc-950/5 dark:bg-white/4 dark:ring-white/10", className]}>
-  <div class="flex items-center gap-1 py-1 pr-1 pl-1.5">
+<section aria-labelledby="{id}-label" class={["min-w-0", !embedded && "rounded-xl bg-zinc-950/2.5 ring-1 ring-zinc-950/5 dark:bg-white/4 dark:ring-white/10", className]}>
+  <div class={["flex items-center gap-1", embedded ? "py-0.5 pr-1.5 pl-2.5" : "py-1 pr-1 pl-1.5"]}>
     <button
       type="button"
-      class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1.5 text-left focus-ring hover:bg-zinc-950/2.5 dark:hover:bg-white/4"
-      aria-expanded={open}
+      class={["flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 text-left focus-ring hover:bg-zinc-950/2.5 dark:hover:bg-white/4", embedded ? "min-h-8 py-1" : "py-1.5"]}
+      aria-expanded={expanded}
       aria-controls="{id}-details"
       onclick={() => (open = !open)}
     >
       <Icon name={look.icon} class={["shrink-0", textTones[look.tone]]} />
       <span id="{id}-label" class="sr-only">Goal</span>
-      <span class="min-w-0 flex-1 truncate text-base/6 text-zinc-800 sm:text-sm/6 dark:text-zinc-200">{goal.objective}</span>
+      <span class={["min-w-0 flex-1 truncate text-zinc-800 dark:text-zinc-200", embedded ? "text-sm/5 sm:text-[0.8125rem]/5" : "text-base/6 sm:text-sm/6"]}>{goal.objective}</span>
       <span class={["flex shrink-0 items-center gap-1.5 text-sm/5 whitespace-nowrap sm:text-xs/5", textTones[look.tone]]}>
         {#key pending ?? look.label}<span class="flex items-center gap-1.5" in:swap><StatusDot tone={look.tone} active={look.active && !pending} />{pending ?? look.label}</span>{/key}
       </span>
       {#if usage}<span class="shrink-0 text-sm/5 text-zinc-500 tabular-nums max-sm:hidden sm:text-xs/5 dark:text-zinc-400">{usage}</span>{/if}
-      <Icon name="chevron-down" class={["size-3.5 shrink-0 fill-zinc-400 t-acc-chevron dark:fill-zinc-500", open && "rotate-180"]} />
+      <Icon name="chevron-down" class={["size-3.5 shrink-0 fill-zinc-400 t-acc-chevron dark:fill-zinc-500", expanded && "rotate-180"]} />
     </button>
     <div class="flex shrink-0 items-center gap-0.5">
       {#if confirming}
@@ -106,13 +113,13 @@
       {/if}
     </div>
   </div>
-  {#if reason && !open}
+  {#if reason && !expanded && !compact}
     <p class="line-clamp-2 px-3 pb-2 text-sm/5 text-pretty text-zinc-600 sm:text-xs/5 dark:text-zinc-400">{reason}</p>
   {/if}
   <!-- This tab's failed call, else the worker's (Goal.error: the last goal command did not reach the harness). -->
   {#if error || goal.error}<p class="px-3 pb-2 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">{error ?? goal.error}</p>{/if}
   <!-- Grows open and shut (accordion, motion.css `t-acc-panel`); inert while closed. -->
-  <div id="{id}-details" class="t-acc-panel" data-open={open || undefined} inert={!open}>
+  <div id="{id}-details" class="t-acc-panel" data-open={expanded || undefined} inert={!expanded}>
     <div>
       <div class="grid max-h-[40dvh] gap-3 overflow-y-auto border-t border-zinc-950/5 px-3 pt-2.5 pb-3 dark:border-white/10">
         <p class="text-base/6 break-words whitespace-pre-wrap text-zinc-950 sm:text-sm/6 dark:text-white">{goal.objective}</p>

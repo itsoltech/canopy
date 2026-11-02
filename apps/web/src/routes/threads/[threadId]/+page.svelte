@@ -404,24 +404,26 @@
                   </div>
                 </GrowIn>
               {/if}
-              {#if thread && shownGoal}
-                <GrowIn class="pb-3">
-                  <GoalBar
-                    goal={shownGoal}
-                    provider={thread.provider}
-                    threadId={thread.id}
-                    disabled={closed}
-                    onchange={(goal) => view.upsertGoal(goal)}
-                    ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
-                  />
-                </GrowIn>
-              {/if}
               {#if view.backgroundTasks.length > 0}
                 <GrowIn class="justify-self-start pb-3">
                   <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
                 </GrowIn>
               {/if}
               {#snippet composerPanels()}
+                {#if thread && shownGoal}
+                  <div class="t-rise">
+                    <GoalBar
+                      goal={shownGoal}
+                      provider={thread.provider}
+                      threadId={thread.id}
+                      disabled={closed}
+                      embedded
+                      {compact}
+                      onchange={(goal) => view.upsertGoal(goal)}
+                      ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
+                    />
+                  </div>
+                {/if}
                 {#if subagents.length > 0}
                   <div class="t-rise" out:subagentPresence|global><SubagentsPanel {subagents} {compact} embedded /></div>
                 {/if}
@@ -431,11 +433,11 @@
                 <ThreadComposerSlot {thread} {parent} {compact}>
                 <Composer
                   {compact}
-                  panelsLabel={queue.rows.length > 0 || subagents.length > 0 ? `${subagents.length} agents · ${queue.rows.length} queued` : undefined}
+                  panelsLabel={queue.rows.length > 0 || subagents.length > 0 ? `${subagents.length} agents · ${queue.rows.length} queued` : shownGoal ? "Goal" : undefined}
                   onexpand={expandComposer}
                   onfocuschange={(focused) => { compaction.focus(focused); compact = compaction.compact; }}
                   class="relative"
-                  top={queue.rows.length > 0 || subagents.length > 0 ? composerPanels : undefined}
+                  top={queue.rows.length > 0 || subagents.length > 0 || shownGoal ? composerPanels : undefined}
                   questions={view.pending}
                   {thread}
                   {worker}
