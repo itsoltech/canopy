@@ -126,6 +126,9 @@ message Hello {
   // Katalog załączników na urządzeniu (ścieżka absolutna, poza repozytoriami), np. <data_dir>/attachments.
   // Plik załącznika: <attachments_root>/<thread_id>/<attachment_id>/<nazwa>. Pusty = worker bez załączników.
   string attachments_root = 12;
+  // Stała baza nowych rozmów No project: <data_dir>/scratch.
+  string scratch_root = 13;
+  string home_directory = 14;
 }
 
 message RunningTurn {
@@ -195,8 +198,8 @@ message Welcome {
 message WorkerConfig {
   // Rośnie przy każdej zmianie. Worker potwierdza zastosowaną wersję w ConfigApplied.
   uint64 version = 1;
-  // Katalogi, w których wolno uruchamiać wątki (ścieżki absolutne na urządzeniu).
-  repeated string allowed_roots = 2;
+  // Pole historyczne: ignorowane. Katalogi ograniczają uprawnienia użytkownika OS.
+  repeated string allowed_roots = 2 [deprecated = true];
   ProviderConfig claude = 3;
   ProviderConfig codex = 4;
   repeated ProviderProfileConfig profiles = 5;
@@ -278,7 +281,7 @@ message WorkerLimits {
 }
 
 message ConfigIssue {
-  string path = 1;       // np. allowed_roots[1], profiles[cliproxy].base_url
+  string path = 1;       // np. profiles[cliproxy].base_url
   string message = 2;
   // fatal: konfiguracja odrzucona, worker zostaje przy poprzedniej.
   bool fatal = 3;
@@ -354,7 +357,7 @@ enum PermissionMode {
 message ThreadSpec {
   // Katalog bez poświadczeń. Wykonanie zawsze autoryzuje gateway.
   repeated ConnectorTool connector_tools = 520;
-  // Utwórz katalog scratch wewnątrz allowed_roots przed uruchomieniem harnessu.
+  // Utwórz zarządzany katalog scratch przed uruchomieniem harnessu.
   bool scratch = 410;
   string thread_id = 1;
   Provider provider = 2;
@@ -519,7 +522,7 @@ message UnloadThread {
 }
 
 message ListDirectory {
-  string path = 1; // musi leżeć w allowed_roots
+  string path = 1; // absolutny istniejący katalog; pusty = katalog domowy workera
 }
 
 message CommandResult {
@@ -529,6 +532,8 @@ message CommandResult {
   string error_message = 4;
   // Wynik ListDirectory i podobnych komend zapytań.
   repeated DirectoryEntry entries = 5;
+  // Rzeczywista ścieżka listowanego katalogu (także dla pustego ListDirectory.path).
+  string directory_path = 6;
   // Wynik ListModels.
   repeated ProfileModels models = 40;
   // Wynik StartLogin.
@@ -1216,7 +1221,7 @@ message MentionCatalog {
 message ListMentionCatalog {
   Provider provider = 1;
   string profile_id = 2;
-  // Katalog wątku (musi leżeć w allowed_roots): skille i komendy projektu.
+  // Istniejący katalog wątku: skille i komendy projektu. Pusty = katalog domowy workera.
   string cwd = 3;
   // Bez pamięci podręcznej workera.
   bool refresh = 4;

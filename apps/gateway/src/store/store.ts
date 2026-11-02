@@ -25,7 +25,7 @@ import { Context, Effect, Layer, Result } from "effect";
 import { decodeUserAnswers, type UserQuestion } from "@open-agents/domain";
 import { writeInteractionTimeline } from "./interaction-timeline.ts";
 import { SqlClient, type SqlError } from "effect/sql";
-import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle, scratchBase, scratchCwd } from "./paths.ts";
+import { isAbsolutePath, isWithinWorkspace, normalizePath, pathKey, pathStyle, scratchBase, scratchCwd } from "./paths.ts";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { toUiAttachment, type StoredAttachment } from "./attachments.ts";
 import { toUiQuote, type StoredQuote } from "./quotes.ts";
@@ -296,27 +296,22 @@ export class GatewayStore extends Context.Service<
           rows[0] === undefined ? Effect.fail(new NotFound(`${what} not found`)) : Effect.succeed(rows[0]);
 
         /**
-         * A workspace directory on a worker, normalized: absolute, inside the worker's allowed roots and not
+         * A workspace directory on a worker, normalized: absolute and not
          * already a workspace of the project there (`except`: the workspace being moved).
          */
         const workspaceRoot = (input: { projectId: string; workerId: string; rootPath: string; except?: string }) =>
           Effect.gen(function* () {
             const { projectId, workerId, rootPath } = input;
             // A project spans workers (Linux, macOS, Windows): the path follows the worker's rules.
-            const workers = yield* sql<{ os: string; config: { allowedRoots?: string[] } | null }>`
-              SELECT w.os, c.config FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
+            const workers = yield* sql<{ os: string }>`
+              SELECT w.os FROM workers w
                WHERE w.id = ${workerId}::uuid AND w.archived_at IS NULL AND w.revoked_at IS NULL`;
             const worker = workers[0];
             if (!worker) return yield* Effect.fail(new NotFound("worker not found"));
-            // Before the worker's first connection its OS is unknown: its configured roots tell the style.
-            const style = pathStyle(worker.os, worker.config?.allowedRoots?.[0] ?? rootPath);
+            const style = pathStyle(worker.os, rootPath);
             if (!isAbsolutePath(rootPath, style)) return yield* Effect.fail(new Invalid("root path must be absolute"));
             const root = normalizePath(rootPath, style);
-            // Lexical check against the worker's configured roots, so a workspace never points outside them.
-            // The worker remains the authority: it checks real paths (symlinks) when a thread starts.
-            if (!isWithinRoots(root, worker.config?.allowedRoots ?? [], style, worker.os)) {
-              return yield* Effect.fail(new Invalid(`${root} is outside the worker's allowed directories`));
-            }
+            // The core asks the worker to validate existence; the worker checks again at thread start.
             const existing = yield* sql<{ id: string; root_path: string }>`
               SELECT id, root_path FROM project_workspaces
                WHERE project_id = ${projectId}::uuid AND worker_id = ${workerId}::uuid AND archived_at IS NULL`;
@@ -419,6 +414,8 @@ export class GatewayStore extends Context.Service<
                 providers: hello.providers.map((p) => ({ provider: Provider[p.provider], available: p.available, version: p.version })),
                 // Where the worker keeps attachments (paths in the platform note); empty = it cannot take them.
                 attachmentsRoot: hello.attachmentsRoot,
+                scratchRoot: hello.scratchRoot,
+                homeDirectory: hello.homeDirectory,
               });
               yield* sql`
                 UPDATE workers SET os = ${hello.host?.os ?? ""}, arch = ${hello.host?.arch ?? ""}, version = ${hello.host?.workerVersion ?? ""},
@@ -504,7 +501,7 @@ export class GatewayStore extends Context.Service<
           listWorkers: (online, ownerUserId) =>
             Effect.gen(function* () {
               const rows = yield* sql<{
-                id: string; name: string; os: string; version: string; capabilities: { hostname?: string }; last_seen_at: Date | null;
+                id: string; name: string; os: string; version: string; capabilities: { hostname?: string; homeDirectory?: string }; last_seen_at: Date | null;
                 config: JsonValue | null; config_version: bigint | null; applied_version: bigint | null; apply_report: JsonValue | null;
               }>`
                 SELECT w.id, w.name, w.os, w.version, w.capabilities, w.last_seen_at,
@@ -515,8 +512,7 @@ export class GatewayStore extends Context.Service<
                  ORDER BY w.name`;
               return rows.map((r) => {
                 const report = r.apply_report ? fromJson(ConfigAppliedSchema, r.apply_report, { ignoreUnknownFields: true }) : undefined;
-                const config = r.config as { allowedRoots?: string[]; profiles?: { id?: string; displayName?: string }[] } | null;
-                const roots = config?.allowedRoots ?? [];
+                const config = r.config as { profiles?: { id?: string; displayName?: string }[] } | null;
                 // Names the user gave: the configuration knows them before the worker reports (older workers never do).
                 for (const profile of report?.profiles ?? []) {
                   profile.displayName ||= config?.profiles?.find((p) => p.id === profile.id)?.displayName ?? "";
@@ -530,7 +526,7 @@ export class GatewayStore extends Context.Service<
                   version: r.version,
                   providers: report?.providers ?? [],
                   profiles: report?.profiles ?? [],
-                  allowedRoots: roots,
+                  homeDirectory: r.capabilities?.homeDirectory ?? "",
                   configVersion: r.config_version ? BigInt(r.config_version) : 0n,
                   appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
                   configIssues: report?.issues ?? [],
@@ -618,12 +614,12 @@ export class GatewayStore extends Context.Service<
                 VALUES (${Bun.randomUUIDv7()}::uuid, ${ownerUserId}::uuid, 'No project', 'system-scratch', 'scratch')
                 ON CONFLICT (owner_user_id) WHERE kind = 'scratch' DO NOTHING`;
               const scratch = (yield* sql<{ id: string }>`SELECT id FROM projects WHERE owner_user_id = ${ownerUserId}::uuid AND kind = 'scratch' FOR UPDATE`)[0]!;
-              const workers = yield* sql<{ id: string; os: string; config: { allowedRoots?: string[] } }>`
-                SELECT w.id, w.os, c.config FROM workers w JOIN worker_configs c ON c.worker_id = w.id
+              const workers = yield* sql<{ id: string; os: string; capabilities: { scratchRoot?: string } }>`
+                SELECT w.id, w.os, w.capabilities FROM workers w JOIN worker_configs c ON c.worker_id = w.id
                 WHERE (w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
                   AND w.archived_at IS NULL AND w.revoked_at IS NULL`;
               for (const worker of workers) {
-                const root = worker.config.allowedRoots?.[0];
+                const root = worker.capabilities.scratchRoot;
                 if (!root) continue;
                 const style = pathStyle(worker.os, root);
                 if (!isAbsolutePath(root, style)) continue;
@@ -642,7 +638,7 @@ export class GatewayStore extends Context.Service<
                  WHERE p.owner_user_id = ${ownerUserId}::uuid AND w.archived_at IS NULL
                    AND (p.kind <> 'scratch' OR (host.archived_at IS NULL AND host.revoked_at IS NULL
                      AND (host.owner_user_id IS NULL OR host.owner_user_id = ${ownerUserId}::uuid)
-                     AND EXISTS (SELECT 1 FROM worker_configs c WHERE c.worker_id = host.id AND jsonb_array_length(coalesce(c.config->'allowedRoots', '[]'::jsonb)) > 0)))
+                     AND coalesce(host.capabilities->>'scratchRoot', '') <> ''))
                  ORDER BY w.created_at`;
               return projects.map((p) =>
                 create(ui.ProjectSchema, {
@@ -696,7 +692,7 @@ export class GatewayStore extends Context.Service<
                   return yield* Effect.fail(new Invalid("a new no-project thread gets its own scratch directory"));
                 }
                 const requested = request.cwd ? normalizePath(request.cwd, style) : undefined;
-                if ((workspace.project_kind !== "scratch" || !inherited) && requested && (!isAbsolutePath(request.cwd, style) || !isWithinRoots(requested, [workspace.root_path], style, workspace.os))) {
+                if ((workspace.project_kind !== "scratch" || !inherited) && requested && (!isAbsolutePath(request.cwd, style) || !isWithinWorkspace(requested, workspace.root_path, style, workspace.os))) {
                   return yield* Effect.fail(new Invalid(`${request.cwd} is outside the workspace ${workspace.root_path}`));
                 }
                 const cwd = inherited?.cwd ?? (workspace.project_kind === "scratch" ? scratchCwd(workspace.root_path, id, style) : requested ?? workspace.root_path);

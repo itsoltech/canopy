@@ -21,7 +21,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Stable names use ids only: titles never become paths or change a thread's directory. */
 export function scratchBase(root: string, ownerId: string, style: PathStyle): string {
   if (!UUID.test(ownerId) || !isAbsolutePath(root, style)) throw new Error("invalid scratch root or owner id");
-  return lib(style).join(normalizePath(root, style), ".open-agents", "scratch", ownerId);
+  return lib(style).join(normalizePath(root, style), ownerId);
 }
 
 export function scratchCwd(base: string, threadId: string, style: PathStyle): string {
@@ -46,11 +46,9 @@ export function pathKey(path: string, style: PathStyle, os: string): string {
   return style === "win32" || os === "darwin" ? normalized.toLowerCase() : normalized;
 }
 
-/** Whether `path` is one of `roots` or below one. */
-export function isWithinRoots(path: string, roots: readonly string[], style: PathStyle, os = ""): boolean {
+/** A thread may use a subdirectory of its project workspace. This is not a worker access boundary. */
+export function isWithinWorkspace(path: string, workspace: string, style: PathStyle, os = ""): boolean {
   const p = lib(style);
-  return roots.some((root) => {
-    const relative = p.relative(pathKey(root, style, os), pathKey(path, style, os));
-    return !(relative === ".." || relative.startsWith(`..${p.sep}`) || p.isAbsolute(relative));
-  });
+  const relative = p.relative(pathKey(workspace, style, os), pathKey(path, style, os));
+  return !(relative === ".." || relative.startsWith(`..${p.sep}`) || p.isAbsolute(relative));
 }

@@ -4,6 +4,13 @@ Status: **częściowo zaimplementowane**. Tury, interakcje, steer i **praca w tl
 
 Powiązane: [threads.md](threads.md), [transcript.md](transcript.md), [durability.md](durability.md).
 
+Worker nie ma listy dozwolonych katalogów. Wątek może działać w dowolnym istniejącym katalogu
+dostępnym dla użytkownika OS workera; tryb uprawnień i sandbox pozostają właściwościami konkretnego
+wątku. Dodanie lub zmiana workspace'u wymaga sprawdzenia katalogu przez połączonego workera,
+a start wątku sprawdza go ponownie. Brak katalogu daje `CWD_NOT_FOUND`, ścieżka pliku zamiast
+katalogu — `CWD_NOT_DIRECTORY`. Nowe rozmowy No project tworzą prywatne katalogi w
+`<data_dir>/scratch/<user>/<thread>`. Istniejące rozmowy zachowują zapisane cwd.
+
 ## 1. Rodzaje pracy w wątku
 
 | Rodzaj | Kto startuje | Czas życia | Na osi czasu |

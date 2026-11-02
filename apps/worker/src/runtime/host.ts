@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { ensureScratchDirectory } from "./scratch.ts";
 import { ThreadSecretFiles } from "./thread-secrets.ts";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
+import { homedir } from "node:os";
 import { clone, create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import {
@@ -28,7 +29,7 @@ import {
   TurnOutcome,
 } from "@open-agents/contracts";
 import { Cause, Context, Effect, Exit, Layer, Scope, type ManagedRuntime } from "effect";
-import { applyWorkerConfig, instanceShadowHome, isAllowedPath, type AppliedConfig, type DeviceHomes, type DeviceProbe, systemProbe } from "../config/remote.ts";
+import { applyWorkerConfig, instanceShadowHome, type AppliedConfig, type DeviceHomes, type DeviceProbe, systemProbe } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { Journal } from "../journal/index.ts";
 import { deviceClaudeHome, prepareClaudeHome } from "../providers/claude/home.ts";
@@ -80,6 +81,7 @@ type ConfigAppliedInit = MessageInitShape<typeof ConfigAppliedSchema>;
 type DirectoryEntryInit = MessageInitShape<typeof DirectoryEntrySchema>;
 type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 interface CommandOutput {
+  readonly directoryPath?: string;
   readonly generatedText?: string;
   readonly entries?: DirectoryEntryInit[];
   readonly models?: ProfileModelsInit[];
@@ -338,6 +340,7 @@ export class WorkerHost {
         commandId: command.commandId,
         ok: true,
         ...(output.entries && { entries: output.entries }),
+        ...(output.directoryPath && { directoryPath: output.directoryPath }),
         ...(output.models && { models: output.models }),
         ...(output.login && { login: output.login }),
         ...(output.mentionCatalog && { mentionCatalog: output.mentionCatalog }),
@@ -425,7 +428,7 @@ export class WorkerHost {
 
   async #execute(command: Command): Promise<CommandOutput> {
     const kind = command.kind;
-    if (kind.case === "listDirectory") return { entries: this.#listDirectory(kind.value.path) };
+    if (kind.case === "listDirectory") return this.#listDirectory(kind.value.path);
     const config = this.#config;
     if (!config) throw new CommandError("WORKER_NOT_CONFIGURED", "the worker has no configuration yet", false);
     switch (kind.case) {
@@ -433,10 +436,10 @@ export class WorkerHost {
         const spec = kind.value.thread;
         if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
         if (spec.scratch) {
-          try { ensureScratchDirectory(spec.cwd, config.allowedRoots); }
+          try { ensureScratchDirectory(spec.cwd, join(this.#options.dataDir, "scratch")); }
           catch (error) { throw new CommandError("SCRATCH_NOT_ALLOWED", error instanceof Error ? error.message : String(error), true); }
         }
-        this.#checkCwd(config, spec.cwd);
+        this.#checkCwd(spec.cwd);
         this.#cwds.set(spec.threadId, spec.cwd);
         const fork = kind.value.fork;
         // A fork point without its provider ref would make both harnesses copy the whole history instead.
@@ -450,6 +453,7 @@ export class WorkerHost {
       case "startTurn": {
         const { thread: spec, turnId, input, model, effort, permissionMode } = kind.value;
         if (!spec || !input) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
+        this.#checkCwd(spec.cwd);
         this.#cwds.set(spec.threadId, spec.cwd);
         // The files first: the input already names their paths.
         if (input.attachments.length > 0) await this.#ensureAttachments(spec.threadId, input.attachments);
@@ -523,9 +527,10 @@ export class WorkerHost {
       case "startLogin":
         return { login: await this.#startLogin(kind.value.provider, kind.value.profileId) };
       case "listMentionCatalog": {
-        const { provider, cwd, refresh } = kind.value;
+        const { provider, refresh } = kind.value;
+        const cwd = kind.value.cwd || homedir();
         const profileId = kind.value.profileId || "native";
-        this.#checkCwd(config, cwd);
+        this.#checkCwd(cwd);
         const folder = realpathSync(cwd);
         const listed =
           provider === Provider.CLAUDE
@@ -540,7 +545,7 @@ export class WorkerHost {
       }
       case "searchFiles": {
         const { cwd, query, limit } = kind.value;
-        this.#checkCwd(config, cwd);
+        this.#checkCwd(cwd);
         const found = await searchFiles(cwd, query, limit);
         return { fileSearch: { ...found, matches: found.matches.map((m) => ({ ...m, indices: [...m.indices] })) } };
       }
@@ -640,14 +645,15 @@ export class WorkerHost {
     throw new CommandError(code, error instanceof Error || (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : String(error), true);
   }
 
-  #checkCwd(config: AppliedConfig, cwd: string): void {
+  #checkCwd(cwd: string): void {
+    if (!isAbsolute(cwd)) throw new CommandError("CWD_NOT_ABSOLUTE", `${cwd} must be an absolute directory path`, true);
     let real: string;
     try {
       real = realpathSync(cwd);
     } catch {
       throw new CommandError("CWD_NOT_FOUND", `${cwd} does not exist`, true);
     }
-    if (!isAllowedPath(config, real)) throw new CommandError("CWD_NOT_ALLOWED", `${cwd} is outside the allowed roots`, true);
+    if (!statSync(real).isDirectory()) throw new CommandError("CWD_NOT_DIRECTORY", `${cwd} is not a directory`, true);
   }
 
   #listDirectory(path: string) {
@@ -663,12 +669,14 @@ export class WorkerHost {
       }
       return { name, isDir, isGitRepo: isDir && existsSync(join(full, ".git")) };
     };
-    if (!path) return config.allowedRoots.map((root) => ({ ...entry(root, ""), name: root }));
-    this.#checkCwd(config, path);
-    return readdirSync(realpathSync(path))
+    path ||= homedir();
+    this.#checkCwd(path);
+    const directoryPath = realpathSync(path);
+    const entries = readdirSync(directoryPath)
       .sort()
       .slice(0, 1000)
       .map((name) => entry(realpathSync(path), name));
+    return { entries, directoryPath };
   }
 
   async #remember(result: CommandResultInit): Promise<void> {

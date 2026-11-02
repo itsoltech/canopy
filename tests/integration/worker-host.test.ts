@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { create } from "@bufbuild/protobuf";
 import { BackgroundTaskKind, CommandSchema, ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
 import type { WorkerConnection } from "@open-agents/gateway/worker-link";
@@ -54,7 +55,7 @@ describe("worker command handling", () => {
     expect(result).toMatchObject({ ok: false, errorCode: "WORKER_NOT_CONFIGURED" });
   });
 
-  test("configuration arrives, then directories can be browsed inside the allowed roots", async () => {
+  test("configuration with legacy roots is accepted; browse home and any existing absolute directory", async () => {
     connection.send({ case: "config", value: { version: 1n, allowedRoots: [root], claude: { enabled: false }, codex: { enabled: false } } });
     for await (const message of connection.messages) {
       if (message.payload.case === "configApplied") {
@@ -63,18 +64,20 @@ describe("worker command handling", () => {
       }
     }
     const roots = await connection.sendCommand({ case: "listDirectory", value: { path: "" } });
-    expect(roots.entries.map((e) => [e.name, e.isDir])).toEqual([[root, true]]);
+    expect(roots).toMatchObject({ ok: true, directoryPath: homedir() });
     const listing = await connection.sendCommand({ case: "listDirectory", value: { path: root } });
     expect(listing.entries.map((e) => [e.name, e.isDir, e.isGitRepo])).toEqual([
       ["notes", true, false],
       ["project-a", true, true],
     ]);
     const outside = await connection.sendCommand({ case: "listDirectory", value: { path: "/" } });
-    expect(outside).toMatchObject({ ok: false, errorCode: "CWD_NOT_ALLOWED" });
+    expect(outside).toMatchObject({ ok: true, directoryPath: "/" });
+    expect(await connection.sendCommand({ case: "listDirectory", value: { path: join(dir, "missing") } })).toMatchObject({ ok: false, errorCode: "CWD_NOT_FOUND" });
+    expect(await connection.sendCommand({ case: "listDirectory", value: { path: "relative" } })).toMatchObject({ ok: false, errorCode: "CWD_NOT_ABSOLUTE" });
   });
 
-  test("threads: directory outside the roots, missing directory, unsupported and disabled providers", async () => {
-    expect(await connection.sendCommand({ case: "createThread", value: { thread: thread(dir) } })).toMatchObject({ errorCode: "CWD_NOT_ALLOWED" });
+  test("threads: any existing directory reaches provider; missing directory fails before provider", async () => {
+    expect(await connection.sendCommand({ case: "createThread", value: { thread: thread(dir) } })).toMatchObject({ errorCode: "PROVIDER_UNAVAILABLE" });
     expect(await connection.sendCommand({ case: "createThread", value: { thread: thread(join(root, "nope")) } })).toMatchObject({
       errorCode: "CWD_NOT_FOUND",
     });
@@ -91,9 +94,9 @@ describe("worker command handling", () => {
     expect(result).toMatchObject({ ok: false, errorCode: "FORK_POINT_UNKNOWN" });
   });
 
-  test("CreateThread prepares a scratch cwd before calling the provider, and refuses creation outside allowed roots", async () => {
-    const suffix = join(".open-agents", "scratch", Bun.randomUUIDv7(), Bun.randomUUIDv7());
-    const cwd = join(root, suffix);
+  test("CreateThread prepares private scratch in worker data; existing legacy cwd stays valid", async () => {
+    const suffix = join("scratch", Bun.randomUUIDv7(), Bun.randomUUIDv7());
+    const cwd = join(dir, "data", suffix);
     const result = await connection.sendCommand({ case: "createThread", value: { thread: { ...thread(cwd), scratch: true } } });
     // Provider is intentionally disabled, but placement has succeeded before that boundary.
     expect(result.errorCode).toBe("PROVIDER_UNAVAILABLE");
@@ -101,13 +104,16 @@ describe("worker command handling", () => {
     const outside = join(dir, suffix);
     expect((await connection.sendCommand({ case: "createThread", value: { thread: { ...thread(outside), scratch: true } } })).errorCode).toBe("SCRATCH_NOT_ALLOWED");
     expect(existsSync(outside)).toBe(false);
+    const legacy = join(root, ".open-agents", suffix);
+    mkdirSync(legacy, { recursive: true });
+    expect((await connection.sendCommand({ case: "createThread", value: { thread: { ...thread(legacy), scratch: true } } })).errorCode).toBe("PROVIDER_UNAVAILABLE");
   });
 
   test("a redelivered command is answered from the journal, not executed again", async () => {
-    const first = await connection.sendCommand({ case: "createThread", value: { thread: thread(dir) } });
+    const first = await connection.sendCommand({ case: "createThread", value: { thread: thread(join(dir, "missing")) } });
     // Same command id again (what the gateway outbox does after a reconnect).
     const replay = await runtime.runPromise(Journal.use((j) => j.commandResult(first.commandId)));
-    expect(replay).toMatchObject({ commandId: first.commandId, ok: false, errorCode: "CWD_NOT_ALLOWED" });
+    expect(replay).toMatchObject({ commandId: first.commandId, ok: false, errorCode: "CWD_NOT_FOUND" });
   });
 
   test("an interrupt for a turn this process does not run fails with TURN_NOT_RUNNING", async () => {

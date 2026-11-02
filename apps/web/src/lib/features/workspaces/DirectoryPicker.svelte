@@ -1,67 +1,95 @@
 <script lang="ts">
   import { ui } from "@open-agents/contracts";
+  import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { pathSeparator } from "#lib/features/overview/workers.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import Input from "#lib/shared/ui/Input.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { decode } from "#lib/shared/wire.ts";
+  import DirectoryShortcuts from "./DirectoryShortcuts.svelte";
 
   /**
-   * Browses directories on a worker (inside its allowed roots, enforced by the worker) and
+   * Browses accessible directories on a worker and
    * returns the chosen path through `value`: the directory currently open. The list keeps one height:
    * skeleton rows while a directory loads, its entries resolving in once it arrives.
    */
-  let { workerId, os, value = $bindable(""), class: className }: { workerId: string; os: string; value?: string; class?: ClassValue } = $props();
+  let { workerId, os, initialPath, value = $bindable(""), class: className }: { workerId: string; os: string; initialPath?: string | undefined; value?: string; class?: ClassValue } = $props();
+  const overview = useOverview();
 
   let path = $state("");
+  let address = $state("");
   let entries = $state.raw<ui.ListDirectoryResponse["entries"]>([]);
-  // Allowed roots (absolute paths): "Up" from a root goes back to the list of roots.
-  let roots = $state.raw<string[]>([]);
+  const locations = $derived([...new Set(overview.projects.filter((p) => p.kind !== "scratch")
+    .flatMap((p) => p.workspaces.filter((w) => w.workerId === workerId).map((w) => w.rootPath)))].slice(-4).reverse());
   let error = $state<string | undefined>(undefined);
   let loading = $state(false);
 
-  async function open(next: string) {
+  async function open(next: string, signal?: AbortSignal) {
     loading = true;
+    value = "";
     error = undefined;
     try {
       const response = await fetch(`/api/workers/${encodeURIComponent(workerId)}/directory?${new URLSearchParams({ path: next })}`, {
-        signal: AbortSignal.timeout(15_000),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
       });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error((payload as { message?: string }).message ?? `HTTP ${response.status}`);
-      entries = decode(ui.ListDirectoryResponseSchema, payload).entries.filter((e) => e.isDir);
-      if (!next) roots = entries.map((e) => e.name);
-      path = next;
-      value = next;
+      const listing = decode(ui.ListDirectoryResponseSchema, payload);
+      entries = listing.entries.filter((e) => e.isDir);
+      path = listing.path;
+      address = path;
+      value = path;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      if (!signal?.aborted) error = e instanceof Error ? e.message : String(e);
     } finally {
-      loading = false;
+      if (!signal?.aborted) loading = false;
     }
   }
 
   $effect(() => {
-    if (workerId) void open("");
+    const controller = new AbortController();
+    if (workerId) void open(untrack(() => initialPath ?? ""), controller.signal);
+    return () => controller.abort();
   });
 
   // Paths are built with the worker's separator (a Windows worker gets `C:\code\app`).
   const join = (base: string, name: string) => (base ? `${base.replace(/[/\\]$/, "")}${pathSeparator(os)}${name}` : name);
-  const parent = $derived(roots.includes(path) ? "" : path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))));
+  const parent = $derived.by(() => {
+    const trimmed = path.replace(/[/\\]+$/, "");
+    const index = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+    if (os === "win32" && /^[A-Za-z]:$/.test(trimmed)) return path;
+    if (os === "win32" && /^\\\\[^\\]+\\[^\\]+$/.test(trimmed)) return path;
+    if (index <= 0) return pathSeparator(os);
+    const next = trimmed.slice(0, index);
+    return os === "win32" && /^[A-Za-z]:$/.test(next) ? `${next}\\` : next;
+  });
 </script>
 
-<div class={["overflow-hidden rounded-lg ring-1 ring-zinc-950/10 dark:ring-white/10", className]}>
+<div class={["grid min-w-0 gap-3", className]}>
+  <div class="flex min-w-0 items-center gap-2">
+    <div class="min-w-0 flex-1">
+      <Input name="directoryAddress" aria-label="Directory path" bind:value={address} disabled={loading} placeholder={os === "win32" ? "C:\\Users\\you\\project" : "/home/you/project"}
+        oninput={() => (value = "")} onkeydown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (!loading && address.trim()) void open(address.trim()); } }} />
+    </div>
+    <Button size="sm" disabled={loading || !address.trim()} onclick={() => open(address.trim())}>Go</Button>
+  </div>
+  <DirectoryShortcuts {locations} disabled={loading} onopen={(location) => open(location)} />
+  <div class="overflow-hidden rounded-lg ring-1 ring-zinc-950/10 dark:ring-white/10">
   <div class="flex items-center gap-2 border-b border-zinc-950/5 bg-zinc-950/2.5 py-1 pr-3 pl-1 dark:border-white/5 dark:bg-white/5">
-    <IconButton icon="arrow-left" label="Up one level" size="sm" disabled={!path || loading} onclick={() => open(parent)} />
-    <code class="min-w-0 flex-1 truncate font-mono text-sm/6 sm:text-[0.8125rem]/6" title={path} aria-live="polite">{path || "Allowed directories"}</code>
+    <IconButton icon="arrow-left" label="Up one level" size="sm" disabled={!path || path === parent || loading} onclick={() => open(parent)} />
+    <p class="min-w-0 flex-1 truncate font-mono text-base/6 sm:text-sm/6" title={path} aria-live="polite">{path || "Home"}</p>
     <Spinner class={["text-zinc-400", !loading && "invisible"]} />
   </div>
   {#if error}
-    <Alert tone="error" class="m-2">{error}</Alert>
-  {:else}
+    <div class="p-2"><Alert tone="error">{error}</Alert></div>
+  {/if}
     <ul role="list" class="h-56 overflow-y-auto py-1" aria-busy={loading} aria-label="Subdirectories">
       {#if loading}
         <!-- Rows as tall as an entry. -->
@@ -85,9 +113,9 @@
             </button>
           </li>
         {:else}
-          <li class="px-3 py-2 text-sm/6 text-zinc-500 dark:text-zinc-400">No subdirectories.</li>
+          <li class="px-3 py-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">No subdirectories.</li>
         {/each}
       {/if}
     </ul>
-  {/if}
+  </div>
 </div>

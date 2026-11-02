@@ -5,7 +5,7 @@ import { Result, Schema } from "effect";
 
 /**
  * The only configuration a worker keeps locally: how to reach the gateway (docs/worker-config.md).
- * Everything else (allowed roots, providers, profiles, limits) comes from the gateway as WorkerConfig.
+ * Providers, profiles and limits come from the gateway as WorkerConfig.
  * The worker always dials out, so it works behind NAT and firewalls without open ports.
  *
  * The file holds the worker credential: like an SSH key it must not be readable by other users.
@@ -16,6 +16,9 @@ export const LocalConfig = Schema.Struct({
   }),
   worker_id: Schema.String.check(Schema.isUUID()),
   credential: Schema.String.check(Schema.isMinLength(16)),
+  /** Legacy setting accepted and ignored, including invalid/nonexistent directories. */
+  allowedRoots: Schema.optionalKey(Schema.Unknown),
+  allowed_roots: Schema.optionalKey(Schema.Unknown),
   /** Extra CA (PEM file) for a gateway with a private certificate. */
   ca_file: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
   /** Journal, blobs in flight, logs. Defaults to a per-OS data directory. */

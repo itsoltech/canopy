@@ -113,7 +113,10 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
 
     test("an offline worker: Unavailable with its name for the popup", async () => {
       const spare = await gw.addWorker("spare", ["/x"]);
+      const connected = await gw.connect(spare.workerId, spare.credential);
       const ws = (await api.createWorkspace({ projectId, workerId: spare.workerId, rootPath: "/x/app", label: "spare" })).workspace!;
+      connected.link.close();
+      await eventually(() => api.getOverview({}), (o) => o.workers.some((w) => w.id === spare.workerId && !w.online));
       expect(await failure(api.searchFiles({ scope: { workspaceId: ws.id }, query: "a" }))).toContain("spare is offline");
     });
 

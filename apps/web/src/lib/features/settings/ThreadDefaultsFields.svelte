@@ -43,7 +43,7 @@
 >
   {#snippet control()}
     <Select name="workspaceId" aria-label={inherited ? "Default worker" : "Default project and worker"} value={value.workspaceId} onchange={(workspaceId) => set({ workspaceId })} class="w-56 sm:w-64"
-      options={[{ value: "", label: "Last used" }, ...workspaces.flatMap((group) => group.workspaces.map((ws) => ({ value: ws.id, label: workerName(ws), description: ws.rootPath, group: group.project.name })))]} />
+      options={[{ value: "", label: "Last used" }, ...workspaces.flatMap((group) => group.workspaces.map((ws) => ({ value: ws.id, label: workerName(ws), group: group.project.name })))]} />
   {/snippet}
 </SettingsRow>
 <SettingsRow title="Agent" description="Claude or Codex. New threads offer only what the workspace's worker has.">

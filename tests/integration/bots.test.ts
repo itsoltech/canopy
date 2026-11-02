@@ -42,7 +42,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     current = new GatewayCore({ runtime: gw.runtime, userId: gw.userId, instanceId: Bun.randomUUIDv7(), botModel: (i) => model(i) });
     const core = current;
     const grpc = await startGrpcServer({ routes: (router) => core.link.routes(router) });
-    const link = await openGatewayLink({ baseUrl: grpc.url, credential: gw.workerCredential, hello: { workerId: gw.workerId, journalId: "bots-restarted" } });
+    const link = await openGatewayLink({ baseUrl: grpc.url, credential: gw.workerCredential, hello: { workerId: gw.workerId, journalId: "bots-restarted", scratchRoot: "/worker-data/scratch", homeDirectory: "/home/test" } });
     currentWorker = new ScriptedWorker(link);
     closeRestartedLink = async () => { link.close(); await core.link.shutdown(); await grpc.close(); };
     current.bots.start();

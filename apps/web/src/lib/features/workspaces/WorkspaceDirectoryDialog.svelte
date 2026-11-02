@@ -9,7 +9,7 @@
 
   /**
    * Puts a project on a worker (`?/createWorkspace`) or moves it to another directory there
-   * (`?/updateWorkspace`, with `workspace`): browse the worker's allowed directories and use the open one.
+   * (`?/updateWorkspace`, with `workspace`): browse accessible directories and use the open one.
    */
   let {
     open = $bindable(false),
@@ -46,7 +46,7 @@
         <input type="hidden" name="label" value={worker.name} />
       {/if}
       <input type="hidden" name="rootPath" value={rootPath} />
-      <DirectoryPicker workerId={worker.id} os={worker.os} bind:value={rootPath} />
+      <DirectoryPicker workerId={worker.id} os={worker.os} initialPath={workspace?.rootPath} bind:value={rootPath} />
       {#if submitted && error}<Alert tone="error">{error}</Alert>{/if}
       <DialogActions>
         <Button onclick={() => (open = false)}>Cancel</Button>
