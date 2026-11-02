@@ -89,6 +89,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     expect((await settled(a.id)).messages.map((m) => m.text)).toEqual(["hello", "Reply: hello"]);
     await send(a.id, "second");
     expect((await settled(a.id)).messages.at(-1)?.text).toBe("Reply: second");
+    expect((await gw.api.listBots({})).bots.find((b) => b.id === a.id)?.lastMessage?.text).toBe("Reply: second");
     const abort = new AbortController();
     for await (const snapshot of gw.api.watchBotConversation({ botId: a.id }, { signal: abort.signal })) {
       expect(snapshot.messages).toHaveLength(4); break;
@@ -216,6 +217,28 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     }));
     expect(counts[0]?.n).toBe("1");
   }, 20_000);
+
+  test("a committed platform result wins over a failure in post-commit dispatch", async () => {
+    const bot = await add("Committed action");
+    const count = (await current.listThreads(projectId)).length;
+    const start = current.startBotThread.bind(current);
+    current.startBotThread = async (...args) => {
+      await start(...args);
+      throw new Error("fixture: connection failed after committing the platform action");
+    };
+    model = async (i) => {
+      if (lastInput(i).startsWith("Thread ")) return reply("Worker finished");
+      const last = i.messages.at(-1);
+      if (last?.role === "tool") return reply(JSON.parse(last.text).thread_id ? "Committed once" : "Lost committed result");
+      return tool("start_thread", { project_id: projectId, workspace_id: workspaceId, provider: "codex", provider_instance: "bots-test", model: "gpt-6.1-sol", prompt: "committed worker" });
+    };
+    try {
+      await send(bot.id, "start once");
+      const snapshot = await eventually(() => read(bot.id), (s) => !s.working && s.messages.some((m) => m.text === "Worker finished"), 10_000);
+      expect(snapshot.messages.some((m) => m.text === "Committed once")).toBe(true);
+      expect((await current.listThreads(projectId)).length).toBe(count + 1);
+    } finally { current.startBotThread = start; }
+  }, 15_000);
 
   test("bot messages steer a worker, or fall back to a queued bot turn with one completion notification", async () => {
     for (const mode of ["accept", "not_running"] as const) {
