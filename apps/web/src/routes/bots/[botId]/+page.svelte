@@ -35,6 +35,7 @@
   let pending = $state<{ id: string; text: string; at: Date; baseline: number; failed: boolean }[]>([]);
   let instances = $state.raw<ui.ProviderInstance[]>([]);
   let changingModel = $state(false);
+  let observedBotId: string | undefined;
 
   const bot = $derived(botList.list.find((b) => b.id === data.bot.id) ?? snapshot.bot ?? data.bot);
   const config = $derived(bot.configuration ?? create(bots.BotConfigurationSchema));
@@ -55,7 +56,9 @@
 
   $effect(() => botList.use());
   $effect(() => {
-    if (botList.loaded && !botList.error && !botList.list.some((b) => b.id === data.bot.id)) void goto('/bots');
+    const id = data.bot.id;
+    if (botList.list.some((b) => b.id === id)) observedBotId = id;
+    else if (observedBotId === id && botList.loaded && !botList.error) void goto('/bots');
   });
   $effect(() => {
     const id = data.bot.id;
