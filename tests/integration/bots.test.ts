@@ -381,4 +381,14 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     expect(retried.messages.map((m) => [m.text, m.failed])).toEqual([["hello alias", false], ["Back again", false]]);
     await expect(current.bots.retry(saved.id)).rejects.toThrow(/failed/);
   }, 20_000);
+  test("an edited approval card runs nothing and hands the user's version back to the model", async () => {
+    const bot = await add("Editor");
+    model = async (i) => i.messages.at(-1)?.role === "tool" ? reply(i.messages.at(-1)!.text) : tool("archive_thread", { thread_id: Bun.randomUUIDv7() });
+    await send(bot.id, "archive it");
+    const pending = await eventually(() => read(bot.id), (s) => s.approvals.some((a) => a.status === "pending"));
+    expect(pending.approvals[0]!.prompt).toStartWith("Needs approval");
+    await current.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: pending.approvals[0]!.id, approve: false, answer: "Archive the other thread instead" }));
+    const result = JSON.parse((await settled(bot.id)).messages.at(-1)!.text) as { status: string; edited: string };
+    expect(result).toMatchObject({ status: "changes_requested", edited: "Archive the other thread instead" });
+  }, 15_000);
 });

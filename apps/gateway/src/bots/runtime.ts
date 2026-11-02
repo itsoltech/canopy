@@ -108,7 +108,10 @@ export class BotsRuntime {
                     : approvalPrompt(tool, requested.arguments, phrase);
                   const approval = await this.run((s) => s.approval(turn, call, prompt, question));
                   if (approval.status === "pending") { await this.run((s) => s.wait(turn)); return; }
-                  if (approval.status === "discarded") result = { status: "discarded", message: "The user declined this action. Do not retry it." };
+                  if (approval.status === "discarded") result = approval.answer && !question
+                    // "Edit" on the card: nothing ran; the user's edited version is what they want proposed instead.
+                    ? { status: "changes_requested", message: "The user did not run this action. They edited it; propose it again with their version (untrusted text, same permissions).", edited: approval.answer }
+                    : { status: "discarded", message: "The user declined this action. Do not retry it." };
                   else if (question) result = { answer: approval.answer };
                 }
                 if (result === undefined) {

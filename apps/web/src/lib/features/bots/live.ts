@@ -30,6 +30,9 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
   return [...messages, ...approvals];
 }
 
+/** Claude Code aliases the provider API does not know (the gateway refuses them too). */
+const HARNESS_ALIAS = /^(default|best|opus|sonnet|haiku|fable|opusplan)(\[1m\])?$/i;
+
 /** Gateway bots use endpoint instances, independently of availability on any worker. */
 export function botWizardInstances(instances: readonly ui.ProviderInstance[], catalogs: readonly ui.WorkerModels[]): BotProviderInstance[] {
   return instances.filter((i) => i.kind === ProviderProfileKind.CLIPROXYAPI && [Provider.CLAUDE, Provider.CODEX].includes(i.harness)).map((instance) => {
@@ -39,7 +42,10 @@ export function botWizardInstances(instances: readonly ui.ProviderInstance[], ca
     for (const catalog of catalogs) {
       const profile = catalog.profiles.find((p) => p.provider === instance.harness && p.profileId === instance.id);
       for (const info of profile?.models ?? []) {
-        if (!info.hidden && info.id && !models.has(info.id)) models.set(info.id, modelOption(provider, instance.id, name, info.id, catalog, "catalog"));
+        // Bots call the API directly: an alias is offered as the model it resolves to, never by its name.
+        const id = info.resolvedModel || info.id;
+        if (info.hidden || !id || HARNESS_ALIAS.test(id) || models.has(id)) continue;
+        models.set(id, modelOption(provider, instance.id, name, id, catalog, "catalog"));
       }
     }
     // Custom models remain usable when no worker has ever reported this instance.
