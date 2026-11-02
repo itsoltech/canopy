@@ -9,12 +9,18 @@ describe("structure", () => {
     expect(node.fields.map((f) => f.label)).toEqual(["Thread ID", "Limit", "View"]);
     expect(node.fields[0]!.node).toEqual({ kind: "id", id: "01a198ce-fe6b-757d-a524-4dd87fb54c63" });
     expect(node.fields[1]!.node).toEqual({ kind: "number", text: "10" });
-    expect(node.fields[2]!.node).toEqual({ kind: "text", text: "messages" });
+    expect(node.fields[2]!.node).toEqual({ kind: "enum", label: "Messages", raw: "messages" });
   });
 
   test("enum tokens in words, raw kept", () => {
     expect(structure("full_auto")).toEqual({ kind: "enum", label: "Full auto", raw: "full_auto" });
     expect(structure("ITEM_STATUS_COMPLETED")).toEqual({ kind: "enum", label: "Completed", raw: "ITEM_STATUS_COMPLETED" });
+  });
+
+  test("one-word states and kinds under their keys", () => {
+    expect(structure("baseBranch", "type")).toEqual({ kind: "enum", label: "Base branch", raw: "baseBranch" });
+    expect(structure("open", "state")).toEqual({ kind: "enum", label: "Open", raw: "open" });
+    expect(structure("open", "title").kind).toBe("text");
   });
 
   test("dates, links, paths and long text", () => {

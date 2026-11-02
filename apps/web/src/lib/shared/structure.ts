@@ -25,6 +25,9 @@ export interface Field {
   readonly node: Node;
 }
 
+/** Keys whose one-word values are states or kinds (`"open"`, `"baseBranch"`), shown in words. */
+const ENUM_KEYS = /^(type|kind|status|state|mode|phase|role|source|delivery|view|scope|outcome|level)$|_(type|kind|status|mode)$|(Type|Kind|Status|Mode)$/;
+
 /** Text longer than this, or with a line break, is shown as a block of its own. */
 const LONG = 120;
 /** Nesting below this depth stays a short JSON line (a value that deep is rarely read). */
@@ -66,7 +69,7 @@ function leaf(text: string, key: string, depth: number): Node {
   if (isIsoDateTime(trimmed)) return { kind: "date", iso: trimmed };
   if (/^https?:\/\/\S+$/.test(trimmed)) return { kind: "url", href: trimmed };
   if (isPath(trimmed)) return { kind: "path", path: trimmed };
-  if (isEnumToken(trimmed)) return { kind: "enum", label: humanizeEnum(trimmed), raw: trimmed };
+  if (isEnumToken(trimmed) || (ENUM_KEYS.test(key) && /^[a-z]+([A-Z][a-z0-9]*)*$/.test(trimmed))) return { kind: "enum", label: humanizeEnum(trimmed), raw: trimmed };
   if (text.includes("\n") || text.length > LONG) return { kind: "long", text };
   return { kind: "text", text };
 }

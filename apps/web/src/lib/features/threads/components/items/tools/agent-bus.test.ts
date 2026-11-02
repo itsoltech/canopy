@@ -30,6 +30,8 @@ describe("busLook", () => {
   test("errors", () => {
     expect(busError('{"error":"thread not found"}')).toBe("thread not found");
     expect(busError("plain reason")).toBe("plain reason");
+    expect(busError('{"error":"close_thread: only threads you spawned can be closed"}', "close_thread")).toBe("only threads you spawned can be closed");
+    expect(busLook("close_thread", {}, false, true).title).toBe("Tried to close");
   });
 });
 

@@ -4,9 +4,12 @@
  * undefined (or an empty result) when the text has another shape; the view then shows the text itself.
  */
 
-/** Claude adds reminders for the model to some results; they are not part of the file. */
+/** Claude adds reminders for the model to some results and wraps errors in a tag; neither is for people. */
 export function stripReminders(text: string): string {
-  return text.replace(/\n*<system-reminder>[\s\S]*?<\/system-reminder>\n*/g, "\n").replace(/\n+$/, "");
+  return text
+    .replace(/\n*<system-reminder>[\s\S]*?<\/system-reminder>\n*/g, "\n")
+    .replace(/<\/?tool_use_error>/g, "")
+    .replace(/\n+$/, "");
 }
 
 export interface NumberedText {
@@ -32,6 +35,8 @@ export function parseNumberedLines(output: string): NumberedText | undefined {
     if (lines.length === 0) start = Number(match[1]);
     lines.push(match[2]!);
   }
+  // A file ending in a newline reads as one more, empty, numbered line.
+  if (lines.length > 1 && lines.at(-1) === "") lines.pop();
   return { start, lines };
 }
 

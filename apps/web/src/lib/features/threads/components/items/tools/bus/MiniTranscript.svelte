@@ -1,6 +1,7 @@
 <script lang="ts">
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import type { TranscriptLine } from "../agent-bus.ts";
 
   /**
@@ -28,14 +29,15 @@
         </li>
       {:else}
         <li class={["flex", line.role === "user" && "justify-end"]}>
-          <p
+          <div
             class={[
-              "line-clamp-4 max-w-[85%] rounded-xl px-3 py-1.5 text-base/6 text-pretty break-words whitespace-pre-line sm:text-sm/6",
-              line.role === "user" ? "bg-zinc-950/5 text-zinc-900 dark:bg-white/10 dark:text-zinc-100" : "text-zinc-700 ring-1 ring-zinc-950/10 ring-inset dark:text-zinc-300 dark:ring-white/10",
+              "max-h-36 max-w-[85%] min-w-0 overflow-hidden rounded-xl px-3 py-1.5 break-words",
+              line.role === "user" ? "bg-zinc-950/5 dark:bg-white/10" : "ring-1 ring-zinc-950/10 ring-inset dark:ring-white/10",
             ]}
           >
-            <span class="sr-only">{line.role === "user" ? "User: " : "Agent: "}</span>{line.text}
-          </p>
+            <span class="sr-only">{line.role === "user" ? "User: " : "Agent: "}</span>
+            {#if line.role === "agent"}<Markdown text={line.text} />{:else}<p class="text-base/6 text-pretty whitespace-pre-line text-zinc-900 sm:text-sm/6 dark:text-zinc-100">{line.text}</p>{/if}
+          </div>
         </li>
       {/if}
     {/each}

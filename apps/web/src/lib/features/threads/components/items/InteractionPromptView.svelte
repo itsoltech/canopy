@@ -19,8 +19,11 @@
    */
   let { prompt, status }: { prompt: InteractionPrompt; status: ItemStatus } = $props();
   const kind = $derived(prompt.kind === InteractionKind.PERMISSION ? "Permission" : prompt.kind === InteractionKind.QUESTION ? "Question" : "Form");
+  // A question says itself in the body; a permission names what it is about.
   const subject = $derived(
-    prompt.toolName === "shell" ? "Run a command" : prompt.toolName === "apply_patch" ? "Apply a change" : prompt.toolName === "permissions" ? "Extra permissions" : humanizeToolName(prompt.toolName),
+    prompt.kind !== InteractionKind.PERMISSION
+      ? ""
+      : prompt.toolName === "shell" ? "Run a command" : prompt.toolName === "apply_patch" ? "Apply a change" : prompt.toolName === "permissions" ? "Extra permissions" : humanizeToolName(prompt.toolName),
   );
   const questions = $derived(prompt.kind === InteractionKind.QUESTION ? parseQuestions(prompt.requestJson) : []);
   // Answers to questions arrive keyed by question id (`{ id: { answers: [...] } }`), possibly under `answers`.
@@ -35,7 +38,10 @@
     };
     return Object.fromEntries(Object.entries(map).map(([id, value]) => [id, text(value)]));
   });
-  const response = $derived(structureJson(prompt.responseJson));
+  // A permission's answer is its outcome (the badge); only a message given with it adds something.
+  const response = $derived(
+    prompt.kind === InteractionKind.PERMISSION ? structureJson(JSON.stringify({ message: parseObject(prompt.responseJson)["message"] ?? null })) : structureJson(prompt.responseJson),
+  );
   const answered = $derived(questions.some((q) => answers[q.id]));
 </script>
 
@@ -43,7 +49,7 @@
   {#snippet title()}
     <span class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
       <span class="shrink-0">{kind}</span>
-      <span class="truncate font-medium text-zinc-950 dark:text-white">{subject}</span>
+      {#if subject}<span class="truncate font-medium text-zinc-950 dark:text-white">{subject}</span>{/if}
       {#if prompt.answeredByThreadId}
         <span class="text-zinc-500 dark:text-zinc-400">answered by</span><ThreadLink threadId={prompt.answeredByThreadId} fallback="Parent agent" />
       {:else if prompt.routedTo === "parent" && !prompt.outcome}
@@ -70,7 +76,7 @@
   {:else}
     <StructuredView node={structureJson(prompt.requestJson)} />
   {/if}
-  {#if prompt.responseJson && !answered && !isEmptyNode(response) && !questions.some((q) => q.secret)}
+  {#if prompt.responseJson && !answered && !isEmptyNode(response) && !(response.kind === "object" && response.fields.every((f) => isEmptyNode(f.node))) && !questions.some((q) => q.secret)}
     <Section label="Response"><StructuredView node={response} /></Section>
   {/if}
   <RawToggle

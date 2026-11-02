@@ -3,13 +3,14 @@ import { parseFileList, parseGrepOutput, parseNumberedLines, parsePatch, parseSc
 
 describe("parseNumberedLines", () => {
   test("cat -n output with tabs or arrows", () => {
-    expect(parseNumberedLines("     1\tstart\n     2\tend\n     3\t")).toEqual({ start: 1, lines: ["start", "end", ""] });
+    expect(parseNumberedLines("     1\tstart\n     2\tend\n     3\t")).toEqual({ start: 1, lines: ["start", "end"] });
     expect(parseNumberedLines("  10→a\n  11→b")).toEqual({ start: 10, lines: ["a", "b"] });
   });
 
   test("reminders for the model are left out", () => {
     expect(parseNumberedLines("1\tx\n\n<system-reminder>\nnote\n</system-reminder>\n")).toEqual({ start: 1, lines: ["x"] });
     expect(stripReminders("a\n<system-reminder>b</system-reminder>")).toBe("a");
+    expect(stripReminders("<tool_use_error>File does not exist.</tool_use_error>")).toBe("File does not exist.");
   });
 
   test("other text is not numbered lines", () => {

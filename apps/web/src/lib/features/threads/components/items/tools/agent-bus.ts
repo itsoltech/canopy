@@ -14,33 +14,36 @@ import { describeTool } from "./registry.ts";
 interface Look {
   readonly doing: string;
   readonly done: string;
+  /** What it tried, for a refused call ("Tried to close"). */
+  readonly tried: string;
   readonly icon: IconName;
 }
 
 const LOOKS: Record<string, Look> = {
-  spawn_thread: { doing: "Starting a subagent", done: "Started a subagent", icon: "sparkles" },
-  send_message: { doing: "Sending a message to", done: "Sent a message to", icon: "paper-airplane" },
-  wait_threads: { doing: "Waiting for", done: "Waited for", icon: "clock" },
-  get_thread: { doing: "Checking", done: "Checked", icon: "signal" },
-  read_thread: { doing: "Reading", done: "Read", icon: "document-text" },
-  list_threads: { doing: "Listing subagents", done: "Listed subagents", icon: "queue-list" },
-  interrupt_thread: { doing: "Interrupting", done: "Interrupted", icon: "stop" },
-  close_thread: { doing: "Closing", done: "Closed", icon: "archive-box" },
-  list_interactions: { doing: "Checking pending questions", done: "Checked pending questions", icon: "question-mark-circle" },
-  answer_interaction: { doing: "Answering for a side thread", done: "Answered for a side thread", icon: "hand-raised" },
-  list_agents: { doing: "Listing agents", done: "Listed agents", icon: "user-group" },
-  schedule_wakeup: { doing: "Scheduling a wake-up", done: "Scheduled a wake-up", icon: "clock" },
-  schedule_recurring: { doing: "Scheduling a recurring run", done: "Scheduled a recurring run", icon: "arrow-path-rounded-square" },
-  list_schedules: { doing: "Listing schedules", done: "Listed schedules", icon: "calendar-days" },
-  cancel_schedule: { doing: "Cancelling a schedule", done: "Cancelled a schedule", icon: "calendar-days" },
+  spawn_thread: { doing: "Starting a subagent", done: "Started a subagent", tried: "start a subagent", icon: "sparkles" },
+  send_message: { doing: "Sending a message to", done: "Sent a message to", tried: "send a message to", icon: "paper-airplane" },
+  wait_threads: { doing: "Waiting for", done: "Waited for", tried: "wait for", icon: "clock" },
+  get_thread: { doing: "Checking", done: "Checked", tried: "check", icon: "signal" },
+  read_thread: { doing: "Reading", done: "Read", tried: "read", icon: "document-text" },
+  list_threads: { doing: "Listing subagents", done: "Listed subagents", tried: "list subagents", icon: "queue-list" },
+  interrupt_thread: { doing: "Interrupting", done: "Interrupted", tried: "interrupt", icon: "stop" },
+  close_thread: { doing: "Closing", done: "Closed", tried: "close", icon: "archive-box" },
+  list_interactions: { doing: "Checking pending questions", done: "Checked pending questions", tried: "check pending questions", icon: "question-mark-circle" },
+  answer_interaction: { doing: "Answering for a side thread", done: "Answered for a side thread", tried: "answer for a side thread", icon: "hand-raised" },
+  list_agents: { doing: "Listing agents", done: "Listed agents", tried: "list agents", icon: "user-group" },
+  schedule_wakeup: { doing: "Scheduling a wake-up", done: "Scheduled a wake-up", tried: "schedule a wake-up", icon: "clock" },
+  schedule_recurring: { doing: "Scheduling a recurring run", done: "Scheduled a recurring run", tried: "schedule a recurring run", icon: "arrow-path-rounded-square" },
+  list_schedules: { doing: "Listing schedules", done: "Listed schedules", tried: "list schedules", icon: "calendar-days" },
+  cancel_schedule: { doing: "Cancelling a schedule", done: "Cancelled a schedule", tried: "cancel a schedule", icon: "calendar-days" },
 };
 
 const ANSWERS: Record<string, string> = { allow: "Allowed", deny: "Denied", answer: "Answered", cancel: "Dismissed" };
 
 /** Title and icon of a bus call; a tool this UI does not know shows its name in words. */
-export function busLook(tool: string, args: Record<string, unknown>, running: boolean): { title: string; icon: IconName } {
+export function busLook(tool: string, args: Record<string, unknown>, running: boolean, refused = false): { title: string; icon: IconName } {
   const look = LOOKS[tool];
   if (!look) return { title: humanizeToolName(tool), icon: "sparkles" };
+  if (refused) return { title: `Tried to ${look.tried}`, icon: look.icon };
   if (tool === "list_threads" && str(args["scope"]) === "tree") return { title: running ? "Listing the thread tree" : "Listed the thread tree", icon: look.icon };
   if (tool === "answer_interaction" && !running) {
     const answer = ANSWERS[str(args["response"])];
@@ -49,10 +52,11 @@ export function busLook(tool: string, args: Record<string, unknown>, running: bo
   return { title: running ? look.doing : look.done, icon: look.icon };
 }
 
-/** The reason a refused call gives (`{"error": "…"}` or its text). */
-export function busError(resultJson: string): string {
+/** The reason a refused call gives (`{"error": "…"}` or its text), without the tool's name in front. */
+export function busError(resultJson: string, tool = ""): string {
   const record = parseObject(resultJson);
-  return str(record["error"]) || resultJson.trim();
+  const reason = str(record["error"]) || resultJson.trim();
+  return tool && reason.startsWith(`${tool}: `) ? reason.slice(tool.length + 2) : reason;
 }
 
 export interface ThreadSummary {

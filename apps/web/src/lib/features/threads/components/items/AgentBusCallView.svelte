@@ -34,7 +34,7 @@
   const args = $derived(parseObject(call.argumentsJson));
   const result = $derived(parseObject(call.resultJson));
   const running = $derived(status === ItemStatus.IN_PROGRESS);
-  const look = $derived(busLook(tool, args, running));
+  const look = $derived(busLook(tool, args, running, call.isError));
   const failed = $derived(call.isError || status === ItemStatus.FAILED);
   const directory = useThreadDirectory();
   // The thread it is about: target_thread_id when the gateway sets it, otherwise the result (spawn_thread) or the arguments.
@@ -91,7 +91,7 @@
 
 {#snippet body()}
   {#if call.isError}
-    <p class="rounded-lg bg-rose-50 p-3 text-base/6 break-words whitespace-pre-wrap text-rose-900 sm:text-sm/6 dark:bg-rose-400/10 dark:text-rose-200">{busError(call.resultJson) || "The call was refused."}</p>
+    <p class="rounded-lg bg-rose-50 p-3 text-base/6 break-words whitespace-pre-wrap text-rose-900 sm:text-sm/6 dark:bg-rose-400/10 dark:text-rose-200">{busError(call.resultJson, tool) || "The call was refused."}</p>
   {/if}
   {#if tool === "spawn_thread"}
     {#if str(args["prompt"])}{@render well("Prompt", str(args["prompt"]))}{/if}
