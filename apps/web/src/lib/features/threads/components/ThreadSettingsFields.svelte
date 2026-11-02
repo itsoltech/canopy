@@ -27,20 +27,12 @@
     label="{provider} profile"
     description={profiles.length === 0 ? `The worker reports no profile for ${provider}; its default is used.` : `Side threads run on the main thread's agent (${provider}).`}
   >
-    <Select name="profileId" bind:value={profile}>
-      {#each profiles as option (option.id)}
-        <option value={instanceValue(option)}>{instanceLabel(option)}</option>
-      {:else}
-        <option value="">Default</option>
-      {/each}
-    </Select>
+    <Select name="profileId" bind:value={profile} options={profiles.length ? profiles.map((option) => ({ value: instanceValue(option), label: instanceLabel(option) })) : [{ value: "", label: "Default" }]} />
   </Field>
   <Field label="Model" optional>
     {#if key}<ModelIdField provider={key} label="Model" value={parent.model} />{/if}
   </Field>
 </div>
 <Field label="Permissions" description={modeDescription}>
-  <Select name="permissionMode" bind:value={mode}>
-    {#each permissionModes as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
-  </Select>
+  <Select name="permissionMode" bind:value={mode} options={permissionModes} />
 </Field>

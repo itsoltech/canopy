@@ -40,5 +40,5 @@
 {#if href}
   <a {href} class={["flex items-center gap-3 px-4 py-3.5 hover:bg-zinc-950/2.5 focus-ring focus-visible:-outline-offset-2 dark:hover:bg-white/2.5", className]}>{@render body()}</a>
 {:else}
-  <div class={["flex items-start gap-3 px-4 py-3.5 sm:items-center", className]}>{@render body()}</div>
+  <div class={["flex flex-col items-start gap-3 px-4 py-3.5 sm:flex-row sm:items-center", className]}>{@render body()}</div>
 {/if}

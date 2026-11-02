@@ -135,7 +135,8 @@
     </PillButton>
   {/snippet}
 
-  <div class="flex h-[min(26rem,var(--float-available-height,26rem))] in-data-sheet:h-[70dvh]">
+  <!-- Fixed height: clip, so the bottom buttons' touch targets don't make the panel scroll by a few pixels. -->
+  <div class="flex h-[min(26rem,var(--float-available-height,26rem))] overflow-clip in-data-sheet:h-[70dvh]">
     <div role="group" aria-label="Show models" class="flex shrink-0 flex-col items-center gap-1 border-r border-zinc-950/5 p-1.5 dark:border-white/8">
       {#snippet railButton(target: "favorites" | ProviderKey, label: string)}
         {@const pressed = !searching && current === target}
