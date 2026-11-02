@@ -363,6 +363,9 @@ message Turn {
   // Numery od 230: tura z notatką platformy o zakończonych zadaniach w tle (trigger background_task,
   // source_kind background_task): item_id tych itemów background_task (docs/execution.md, „Pobudka”).
   repeated string background_item_ids = 230;
+
+  // Numery od 470: tura zlecona albo wysłana przez bota (trigger bot): jego id; nazwę, kształt i kolor UI bierze z listy botów.
+  string bot_id = 470;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).

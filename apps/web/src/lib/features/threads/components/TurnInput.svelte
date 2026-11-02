@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BotSenderLabel from "./BotSenderLabel.svelte";
   import type { BlobRef, ui } from "@open-agents/contracts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
@@ -61,7 +62,7 @@
         tone === "amber" ? "text-amber-700 dark:text-amber-400" : tone === "sky" ? "text-sky-700 dark:text-sky-400" : "text-violet-700 dark:text-violet-400",
       ]}
     >
-      <Icon name={icons[origin.kind] ?? "sparkles"} class="size-3.5" />
+      {#if !(origin.kind === "other" && turn.botId)}<Icon name={icons[origin.kind] ?? "sparkles"} class="size-3.5" />{/if}
       {#if origin.kind === "task"}
         <AgentSenderLabel verb="Task from" threadId={origin.threadId} sender={turn.sender} />
       {:else if origin.kind === "message"}
@@ -78,6 +79,8 @@
         {:else}
           Scheduled task set in <ThreadLink threadId={origin.setBy} fallback="another thread" />
         {/if}
+      {:else if turn.botId}
+        <BotSenderLabel botId={turn.botId} />
       {:else}
         {triggerLabels[origin.trigger] ?? origin.trigger}
       {/if}
