@@ -444,6 +444,22 @@
   }
 }
 
+/* --- Inline code forming: as its closing backtick is typed, the code's wash fades in under text already in place
+ * (no movement, no change of layout). ---------------------------------------------------------------------- */
+.t-code-form {
+  animation: t-code-form var(--duration-quick) var(--ease-in-out);
+}
+@keyframes t-code-form {
+  from {
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-code-form {
+    animation: none !important;
+  }
+}
+
 /* --- Entrances on mount ---------------------------------------------------------------------------------
  * t-swap: text states swap (04), a status label that changed rises in (put it in a {#key}).
  * t-rise: a new row in a list or the timeline (transform only: layout and measuring are untouched).
