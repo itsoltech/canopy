@@ -30,7 +30,8 @@
       return [where, turn.error].filter(Boolean).join(": ");
     }
     if (turn.status === "interrupted" && turn.interruptSource === "system") return `by the system: ${reasons[reason] ?? (reason || "unknown reason")}`;
-    if (turn.status === "interrupted" && turn.interruptSource === "user") return reason && reason !== "interrupted" && reason !== "user" ? `by you: ${reason}` : "by you";
+    // You know why you stopped it; what the harness logged then (e.g. Claude's "[ede_diagnostic] …") is in the hint.
+    if (turn.status === "interrupted" && turn.interruptSource === "user") return "by you";
     return reason ? (reasons[reason] ?? reason) : "";
   });
   const canContinue = $derived(turn.status === "interrupted" && turn.interruptSource === "system" && !turn.inherited && Boolean(directory.currentId));
@@ -58,7 +59,7 @@
   {#if turn.status !== "completed"}
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm/5 sm:text-xs/5">
       <span class={["flex items-center gap-1 font-medium", textTones[look.tone]]}><Icon name={icon} class="size-3.5" />{look.label}</span>
-      {#if detail}<span class={turn.status === "failed" ? "text-rose-700 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400"} title={turn.errorCode ? `Error code: ${turn.errorCode}` : undefined}>{detail}</span>{/if}
+      {#if detail}<span class={turn.status === "failed" ? "text-rose-700 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400"} title={turn.errorCode ? `Error code: ${turn.errorCode}` : turn.interruptSource === "user" && reason && reason !== "interrupted" && reason !== "user" ? reason : undefined}>{detail}</span>{/if}
       {#if canContinue}
         <button
           type="button"
