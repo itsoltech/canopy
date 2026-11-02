@@ -65,8 +65,13 @@
         bind:value={queries[section]}
         placeholder={section === "threads" ? "Search threads" : "Search bots"}
         autocomplete="off"
-        class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400"
+        class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:appearance-none"
       />
+      {#if queries[section]}
+        <button type="button" aria-label="Clear search" onclick={() => (queries[section] = "")} class="-my-1 -mr-1 grid size-6 shrink-0 place-items-center rounded-md text-zinc-400 hover:bg-zinc-950/5 hover:text-zinc-700 focus-ring dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-200">
+          <Icon name="x-mark" class="size-3.5" />
+        </button>
+      {/if}
     </label>
     {#if section === "threads"}<SidebarProjectFilter />{/if}
   </div>
