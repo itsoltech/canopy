@@ -12,6 +12,7 @@
    * Focus starts on the first `[data-autofocus]` element inside, else on the close button.
    * `size="lg"`: wider from `sm`, for forms with lists (e.g. a provider profile's variables).
    * `size="output"`: 880px terminal viewer; `fullscreen`: fills the phone screen.
+   * `dismissible={false}` prevents user dismissal while the caller finishes an async save.
    */
   let {
     open = $bindable(false),
@@ -20,10 +21,11 @@
     size = "md",
     fullscreen = false,
     bare = false,
+    dismissible = true,
     onkeydown,
     class: className,
     children,
-  }: { open?: boolean; title: string; description?: string; size?: "md" | "lg" | "output"; fullscreen?: boolean; bare?: boolean; onkeydown?: ((event: KeyboardEvent) => void) | undefined; class?: ClassValue; children: Snippet } = $props();
+  }: { open?: boolean; title: string; description?: string; size?: "md" | "lg" | "output"; fullscreen?: boolean; bare?: boolean; dismissible?: boolean; onkeydown?: ((event: KeyboardEvent) => void) | undefined; class?: ClassValue; children: Snippet } = $props();
 
   let dialog = $state<HTMLDialogElement>();
   const id = $props.id();
@@ -58,13 +60,14 @@
   {onkeydown}
   aria-labelledby="{id}-title"
   aria-describedby={description ? `${id}-description` : undefined}
+  oncancel={(event) => { if (!dismissible) event.preventDefault(); }}
   onclose={() => {
     if (!open) return;
     open = false;
     exit();
   }}
   onclick={(event) => {
-    if (event.target === dialog) open = false; // click on the backdrop
+    if (dismissible && event.target === dialog) open = false; // click on the backdrop
   }}
   data-sheet
   inert={closing || undefined}
@@ -75,7 +78,7 @@
     className,
   ]}
 >
-  <SheetHandle onclose={() => (open = false)} class="absolute inset-x-0 top-0 sm:hidden" />
+  <SheetHandle onclose={() => { if (dismissible) open = false; }} class="absolute inset-x-0 top-0 sm:hidden" />
   {#if bare}
     <h2 id="{id}-title" class="sr-only">{title}</h2>
     {#if open || closing}{@render children()}{/if}
@@ -86,7 +89,7 @@
         <h2 id="{id}-title" class="text-lg/7 font-semibold text-balance">{title}</h2>
         {#if description}<p id="{id}-description" class="mt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{description}</p>{/if}
       </div>
-      <IconButton icon="x-mark" label="Close" size="sm" class="-m-1" onclick={() => (open = false)} />
+      <IconButton icon="x-mark" label="Close" size="sm" class="-m-1" disabled={!dismissible} onclick={() => (open = false)} />
     </div>
     <div class="mt-5">
       {#if open || closing}{@render children()}{/if}
