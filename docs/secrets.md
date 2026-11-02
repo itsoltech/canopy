@@ -190,3 +190,7 @@ bez pozostawionych katalogów testowych. Opt-in live uruchomione osobno:
 4 pass, 0 fail, 58 asercji. Zestaw sekretów i schematu bazy: 44 pass, 0 fail.
 Po scaleniu main poprawiono fixture obcego właściciela workera oraz unikalne
 nazwy botów w testach platformy; nie osłabiono walidacji produkcyjnej.
+Następnie scalono main `c9bcc8c`, zawierający równoważną poprawkę samych nazw
+w fixture botów. Po tym scaleniu dotknięty zestaw ma 7 pass, 0 fail (234 asercje),
+a typecheck testów integracyjnych przechodzi. Kod produktu i migracje nie zmieniły
+się w tym ostatnim scaleniu.
