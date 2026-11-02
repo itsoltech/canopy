@@ -27,6 +27,14 @@ export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: R
   return statusPhrase(tool, args);
 }
 
+/** A tool's own pre-approval check (see PlatformTool.prepare); throws errors the model can act on. */
+export async function prepareBotTool(core: GatewayCore, options: GatewayCoreOptions, turn: BotTurn, call: StoredCall): Promise<{ prompt?: string } | undefined> {
+  const registered = call.tool.source === "platform" ? areaTool.get(call.tool.name) : undefined;
+  if (!registered?.prepare) return undefined;
+  validate(registered.spec.parameters, call.arguments);
+  return registered.prepare(context(core, options, turn, call));
+}
+
 export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions, turn: BotTurn, call: StoredCall): Promise<unknown> {
   const args = call.arguments;
   const string = (key: string, max?: number) => requiredString(args, key, max);
