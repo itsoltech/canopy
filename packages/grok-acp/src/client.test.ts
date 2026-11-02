@@ -51,3 +51,23 @@ test("timeout terminates a stuck process and rejects every outstanding request",
     await expect(collect(client.prompt("fake-session", [{ type: "text", text: "hang" }]))).rejects.toThrow("timed out");
   } finally { await client.dispose(); }
 });
+test("an agent ignoring cancellation is terminated; waiting permission callbacks are aborted", async () => {
+  let permissionSignal: AbortSignal | undefined;
+  const client = new GrokClient({ executable: process.execPath, args, cancelTimeoutMs: 30, callbacks: {
+    requestPermission: async (_request, signal) => { permissionSignal = signal; return new Promise(() => {}); },
+  } });
+  try {
+    await client.initialize();
+    const stream = client.prompt("fake-session", [{ type: "text", text: "permission" }]);
+    const pending = stream.next();
+    while (!permissionSignal) await Bun.sleep(1);
+    await client.cancel("fake-session");
+    expect(permissionSignal.aborted).toBe(true);
+    expect((await pending).value).toMatchObject({ stopReason: "cancelled" });
+    await stream.next();
+    const ignored = collect(client.prompt("fake-session", [{ type: "text", text: "ignore-cancel" }]));
+    await client.cancel("fake-session");
+    await expect(ignored).rejects.toThrow("cancellation");
+  } finally { await client.dispose(); }
+  expect(() => process.kill(client.pid!, 0)).toThrow();
+});

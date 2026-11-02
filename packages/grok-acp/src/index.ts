@@ -14,6 +14,7 @@ export interface GrokOptions {
   callbacks?: ClientCallbacks;
   requestTimeoutMs?: number;
   promptTimeoutMs?: number;
+  cancelTimeoutMs?: number;
   /** Additional values to redact in stderr and remote errors (endpoint and credentials). */
   secrets?: readonly string[];
   maxFrameBytes?: number;
@@ -27,12 +28,15 @@ export class GrokClient {
   readonly #pending = new Map<number, Pending>();
   readonly #callbacks = new AbortController();
   readonly #streams = new Map<string, EventStream>();
+  readonly #permissions = new Map<string, Set<AbortController>>();
+  readonly #cancellations = new Map<string, ReturnType<typeof setTimeout>>();
   readonly #exited: Promise<void>;
   #closed: Error | undefined;
   #nextId = 1;
   #writes = Promise.resolve();
   #stderr = "";
   #initialized: InitializeResult | undefined;
+  #killTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: GrokOptions = {}) {
     this.#options = options;
@@ -41,18 +45,20 @@ export class GrokClient {
       stdio: ["pipe", "pipe", "pipe"], detached: process.platform !== "win32",
     });
     this.#exited = new Promise((resolve) => {
-      this.#process.once("close", (code, signal) => { this.#fail(new AcpError(`Grok exited (${signal ?? code})`)); resolve(); });
+      this.#process.once("close", (code, signal) => { this.#fail(new AcpError(`Grok exited (${signal ?? code})`)); clearTimeout(this.#killTimer); resolve(); });
     });
     this.#process.on("error", () => this.#fail(new AcpError("Cannot start Grok CLI")));
     this.#process.stdin.on("error", () => this.#fail(new AcpError("Grok stdin closed")));
     this.#process.stderr.setEncoding("utf8");
-    this.#process.stderr.on("data", (chunk: string) => { this.#stderr = this.#redact(this.#stderr + chunk).slice(-16_384); });
+    // Keep a bounded raw tail, redact only when read: a secret can span data chunks.
+    this.#process.stderr.on("data", (chunk: string) => { this.#stderr = (this.#stderr + chunk).slice(-16_384); });
     void this.#read();
   }
 
   get stderr(): string { return this.#redact(this.#stderr); }
   get pid(): number | undefined { return this.#process.pid; }
   get capabilities(): InitializeResult | undefined { return this.#initialized; }
+  get closed(): boolean { return !!this.#closed; }
 
   async initialize(): Promise<InitializeResult> {
     const cb = this.#options.callbacks;
@@ -74,7 +80,12 @@ export class GrokClient {
   }
   setMode(sessionId: string, modeId: string): Promise<unknown> { return this.request("session/set_mode", { sessionId, modeId }); }
   setModel(sessionId: string, modelId: string): Promise<unknown> { return this.request("session/set_model", { sessionId, modelId }); }
-  cancel(sessionId: string): Promise<void> { return this.#send({ method: "session/cancel", params: { sessionId } }); }
+  cancel(sessionId: string): Promise<void> {
+    for (const controller of this.#permissions.get(sessionId) ?? []) controller.abort();
+    if (this.#streams.has(sessionId) && !this.#cancellations.has(sessionId)) this.#cancellations.set(sessionId,
+      setTimeout(() => this.#fail(new AcpError("Grok did not acknowledge cancellation")), this.#options.cancelTimeoutMs ?? 5000));
+    return this.#send({ method: "session/cancel", params: { sessionId } });
+  }
 
   async *prompt(sessionId: string, prompt: Content[], signal?: AbortSignal): AsyncGenerator<PromptEvent> {
     if (this.#streams.has(sessionId)) throw new AcpError("A prompt is already running in this session");
@@ -91,6 +102,7 @@ export class GrokClient {
     } finally {
       signal?.removeEventListener("abort", abort);
       this.#streams.delete(sessionId);
+      clearTimeout(this.#cancellations.get(sessionId)); this.#cancellations.delete(sessionId);
       if (!completed && !this.#closed) await this.dispose(); // abandoned consumer cannot leave a running turn
     }
   }
@@ -126,10 +138,14 @@ export class GrokClient {
   #fail(error: Error): void {
     if (this.#closed) return;
     this.#closed = error;
+    this.#killTimer = setTimeout(() => this.#kill("SIGKILL"), 1500);
+    this.#killTimer.unref();
     this.#callbacks.abort();
     for (const p of this.#pending.values()) { clearTimeout(p.timer); p.reject(error); }
     this.#pending.clear();
     for (const stream of this.#streams.values()) stream.end(error);
+    for (const timer of this.#cancellations.values()) clearTimeout(timer);
+    this.#cancellations.clear();
     this.#kill("SIGTERM");
   }
   #send(message: object): Promise<void> {
@@ -183,7 +199,21 @@ export class GrokClient {
   async #callback(method: string, params: unknown): Promise<unknown> {
     const cb = this.#options.callbacks;
     const signal = this.#callbacks.signal;
-    if (method === "session/request_permission") return cb?.requestPermission ? cb.requestPermission(params as PermissionRequest, signal) : { outcome: { outcome: "cancelled" } };
+    if (method === "session/request_permission") {
+      const request = params as PermissionRequest;
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      signal.addEventListener("abort", abort, { once: true });
+      const pending = this.#permissions.get(request.sessionId) ?? new Set<AbortController>();
+      pending.add(controller); this.#permissions.set(request.sessionId, pending);
+      try {
+        if (!cb?.requestPermission || signal.aborted) return { outcome: { outcome: "cancelled" } };
+        return await Promise.race([cb.requestPermission(request, controller.signal), new Promise((resolve) => controller.signal.addEventListener("abort", () => resolve({ outcome: { outcome: "cancelled" } }), { once: true }))]);
+      } finally {
+        pending.delete(controller); if (!pending.size) this.#permissions.delete(request.sessionId);
+        signal.removeEventListener("abort", abort);
+      }
+    }
     if (method === "fs/read_text_file" && cb?.readTextFile) return cb.readTextFile(params as Parameters<NonNullable<ClientCallbacks["readTextFile"]>>[0]);
     if (method === "fs/write_text_file" && cb?.writeTextFile) return cb.writeTextFile(params as Parameters<NonNullable<ClientCallbacks["writeTextFile"]>>[0]);
     if (method.startsWith("terminal/") && cb?.terminal) return cb.terminal(method, params, signal);

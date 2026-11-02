@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 const send = (value: object) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...value }) + "\n");
 let promptId: number | undefined;
+let ignoreCancel = false;
 const updates = (sessionId: string, update: object) => send({ method: "session/update", params: { sessionId, update } });
 for await (const line of createInterface({ input: process.stdin })) {
   const m = JSON.parse(line);
@@ -12,6 +13,7 @@ for await (const line of createInterface({ input: process.stdin })) {
   else if (m.method === "session/prompt") {
     promptId = m.id;
     const text = m.params.prompt[0].text;
+    if (text === "ignore-cancel") { ignoreCancel = true; continue; }
     if (text === "crash") { process.stderr.write("Bearer sensitive-test-token\n"); process.exit(7); }
     if (text === "hang") continue;
     if (text === "permission") { send({ id: "permission", method: "session/request_permission", params: { sessionId: "fake-session", toolCall: { toolCallId: "cmd", title: "pwd", kind: "execute" }, options: [{ optionId: "yes", kind: "allow_once", name: "Allow" }, { optionId: "no", kind: "reject_once", name: "Deny" }] } }); continue; }
@@ -20,6 +22,6 @@ for await (const line of createInterface({ input: process.stdin })) {
   } else if (m.id === "permission") {
     updates("fake-session", { sessionUpdate: "agent_message_chunk", content: { type: "text", text: m.result.outcome.optionId } });
     send({ id: promptId, result: { stopReason: "end_turn" } });
-  } else if (m.method === "session/cancel") send({ id: promptId, result: { stopReason: "cancelled" } });
+  } else if (m.method === "session/cancel" && !ignoreCancel) send({ id: promptId, result: { stopReason: "cancelled" } });
   else if (m.id) send({ id: m.id, result: {} });
 }
