@@ -109,6 +109,8 @@ const LAST_MESSAGE_PREVIEW = 600;
 
 export interface TurnRow {
   id: string;
+  /** The bot that started or sent the turn (trigger bot), when the query joins it. */
+  bot_id?: string | null;
   thread_id: string;
   ordinal: number;
   status: string;
@@ -830,7 +832,7 @@ export class GatewayStore extends Context.Service<
             sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
 
           turnsOf: (threadId) => sql<TurnRow>`
-            SELECT u.*, s.* FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
+            SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
              WHERE u.thread_id = ${threadId}::uuid ORDER BY u.ordinal`,
 
           titleInput: (threadId) => sql<TurnRow>`
@@ -894,7 +896,7 @@ export class GatewayStore extends Context.Service<
               const thread = yield* store.thread(threadId);
               // A fork shows the history it inherits (thread_items_view / thread_fork_chain), marked as inherited.
               const inheritedTurns = yield* sql<TurnRow>`
-                SELECT u.*, s.* FROM thread_fork_chain(${threadId}::uuid) c
+                SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
                  WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
                  ORDER BY c.level DESC, u.ordinal`;
@@ -1188,6 +1190,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     questionKind: row.question_kind ?? "",
     questionTool: row.question_tool ?? "",
     backgroundItemIds: row.background_item_ids ?? [],
+    botId: row.bot_id ?? "",
     sourceKind: row.source_kind ?? "",
     sourceThreadId: row.source_thread_id ?? "",
     scheduleId: row.schedule_id ?? "",

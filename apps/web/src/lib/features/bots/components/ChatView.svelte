@@ -132,12 +132,15 @@
 </script>
 
 <div data-mascot-chat class={["flex h-full min-h-0 flex-col", className]}>
-  <ConversationHeader {conversation} {subtitle} {actions} state={mascotState} event={messageEvent} />
   <div class="relative flex min-h-0 flex-1 flex-col">
+    <!-- Over the conversation, frosted: messages scrolling under it stay faintly visible. The log starts below it
+         (scroll-padding keeps focused and jumped-to messages clear of it). -->
+    <ConversationHeader {conversation} {subtitle} {actions} state={mascotState} event={messageEvent}
+      class="absolute inset-x-0 top-0 z-10 bg-white/75 backdrop-blur-md backdrop-saturate-150 dark:bg-black/70" />
     <!-- `relative`: screen-reader labels positioned inside messages stay inside the scroller. -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
-      class="relative min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-none"
+      class="relative min-h-0 flex-1 scroll-pt-14 overflow-y-auto overscroll-contain pt-14 focus:outline-none"
       role="log"
       aria-label="Conversation"
       tabindex="0"
