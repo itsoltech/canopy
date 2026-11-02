@@ -166,7 +166,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     const checked: Mention[] = [];
     for (const mention of mentions) {
       if (mention.kind !== MentionKind.BOT || mention.name === botId || input.slice(mention.start, mention.end) !== mentionPlaceholder(mention)) return yield* Effect.fail(new Invalid("only other bots can be mentioned, with a matching @name range"));
-       const target = yield* active(user, mention.name);
+      const target = yield* active(user, mention.name);
       // Labels/paths from the client are never authority. Snapshot the owner's bot name for model context.
       checked.push(create(MentionSchema, { kind: MentionKind.BOT, name: target.id, label: botConfiguration(target).name, start: mention.start, end: mention.end }));
     }

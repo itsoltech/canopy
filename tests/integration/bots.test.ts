@@ -123,7 +123,12 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     model = async (input) => { seen.push(input); return reply("ok"); };
     const bot = await add("Mention author");
     const target = await add("Kropek");
-    await add("Kropek"); // Identical display names must not lose the selected identity.
+    const legacyDuplicate = await add("Legacy Kropek");
+    // Old data may contain identical names; new creates/updates enforce unique names.
+    await gw.runtime.runPromise(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`UPDATE bots SET configuration = jsonb_set(configuration, '{name}', '"Kropek"'::jsonb) WHERE id = ${legacyDuplicate.id}::uuid`;
+    }));
     const text = "🙂 ask @Kropek how he's doing";
     const mention = { kind: MentionKind.BOT, name: target.id, label: "Kropek", start: text.indexOf("@"), end: text.indexOf("@") + "@Kropek".length };
     const quotes = [{ text: "Wątek został zarchiwizowany.\nStatus: interrupted", comment: "Czy możesz zapytać o ten wynik?", sourceItemId: Bun.randomUUIDv7(), sourceThreadId: bot.id, sourceKind: "agent_message" }];

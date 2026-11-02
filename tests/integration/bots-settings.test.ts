@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, toJson } from "@bufbuild/protobuf";
-import { bots, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
+import { bots, MentionKind, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayCore } from "@open-agents/gateway/core";
 import { Effect } from "effect";
@@ -164,6 +164,11 @@ describe.skipIf(!dockerAvailable)('bot settings and archive through gateway', ()
     await core.bots.run((s) => s.deliver());
     expect((await read(bot.id)).messages.some((m) => m.text === 'Resumed reminder')).toBe(false);
     const sender = await add('Archived sender');
+    const mentionText = '@Archive settings';
+    await expect(core.bots.send(create(bots.SendBotMessageRequestSchema, { botId: sender.id, text: mentionText, mentions: [{ kind: MentionKind.BOT, name: bot.id, label: 'Archive settings', start: 0, end: mentionText.length }], clientRequestId: Bun.randomUUIDv7() }))).rejects.toThrow(/archived/);
+    model = async (i) => i.messages.at(-1)?.role === 'tool' ? reply(i.messages.at(-1)!.text) : { text: '', calls: [{ id: 'list', name: 'list_bots', arguments: {} }] };
+    await send(sender.id, 'which bots can you message?');
+    expect((await settled(sender.id)).messages.at(-1)?.text).not.toContain(bot.id);
     model = async (i) => i.messages.at(-1)?.role === 'tool' ? reply(i.messages.at(-1)!.text) : { text: '', calls: [{ id: 'send', name: 'send_bot_message', arguments: { bot_id: bot.id, text: 'blocked bot message' } }] };
     await send(sender.id, 'message archived bot');
     expect((await settled(sender.id)).messages.at(-1)?.text).toContain('archived');
