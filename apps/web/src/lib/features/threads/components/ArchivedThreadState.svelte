@@ -20,13 +20,15 @@
     <div class="min-w-0 flex-1">
       <h2 class="font-medium text-balance text-zinc-800 dark:text-zinc-200">This thread is archived</h2>
       <p class="pt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        {#if thread.archivedBy === "user"}Archived by you{:else if thread.archivedBy === "agent"}Archived by the agent in “{thread.archivedByThreadTitle || parent?.title || 'the parent thread'}”{:else}Archived{/if}{#if thread.archivedAt}{" "}<time datetime={isoDateTime(thread.archivedAt)} title={formatDateTime(thread.archivedAt)}>{formatRelative(thread.archivedAt, clock.now)}</time>{/if}.
+        {#if thread.archivedBy === "user"}Archived by you{:else if thread.archivedBy === "agent"}Archived by the agent in “{thread.archivedByThreadTitle || parent?.title || 'the parent thread'}”{:else if thread.archivedBy === "cascade"}Archived with “{thread.archivedByThreadTitle || parent?.title || 'the parent thread'}”{:else}Archived{/if}{#if thread.archivedAt}{" "}<time datetime={isoDateTime(thread.archivedAt)} title={formatDateTime(thread.archivedAt)}>{formatRelative(thread.archivedAt, clock.now)}</time>{/if}.
         The conversation is here whenever you need it.
       </p>
     </div>
   </div>
   <div class="flex flex-wrap gap-2">
-    <Button size="sm" icon="arrow-uturn-left" loading={restoring} onclick={unarchive}>Unarchive</Button>
+    {#if thread.archivedBy === "cascade"}
+      <Button size="sm" icon="arrow-uturn-left" loading={restoring} onclick={unarchive}>Unarchive with parent</Button>
+    {:else}<Button size="sm" icon="arrow-uturn-left" loading={restoring} onclick={unarchive}>Unarchive</Button>{/if}
     {#if thread.parentThreadId}<ButtonLink size="sm" href="/threads/{thread.parentThreadId}" icon="arrow-turn-up-right">Open parent thread</ButtonLink>{/if}
   </div>
 </section>

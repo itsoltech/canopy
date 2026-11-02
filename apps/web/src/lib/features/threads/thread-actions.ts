@@ -17,7 +17,7 @@ export function threadActions(thread: ui.Thread, projectName: string, pinned: bo
     { id: "read", label: thread.markedUnread || thread.unseenResult ? "Mark as read" : "Mark as unread", icon: "chat-bubble-left", group: 1 },
     { id: "filter", label: `Filter by ${projectName}`, icon: "bars-3", group: 2 },
     { id: "settings", label: "Project settings", icon: "cog-6-tooth", group: 2 },
-    { id: "archive", label: archived ? "Unarchive" : "Archive thread", icon: "archive-box", group: 3 },
+    { id: "archive", label: archived ? (thread.archivedBy === "cascade" ? "Unarchive with parent" : "Unarchive") : "Archive thread", icon: "archive-box", group: 3 },
     { id: "delete", label: "Delete…", icon: "trash", group: 3 },
   ];
 }

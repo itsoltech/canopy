@@ -2,10 +2,19 @@
 
 ## Filtr, menu i archiwum
 
-Przycisk obok „Search threads” otwiera wyszukiwanie projektów, wybór wielu projektów, skróty do
-ustawień i „Archived threads”. Filtr oraz przypięcia są wspólne dla urządzeń, zapisane w gateway.
+Przycisk obok „Search threads” otwiera wyszukiwanie projektów i wybór wielu projektów.
+Filtr oraz przypięcia są wspólne dla urządzeń, zapisane w gateway.
 Wyszukiwanie tytułów wątków głównych i bocznych oraz nazw projektów działa wewnątrz filtra.
 Aktywny filtr ma licznik i szybkie czyszczenie; pusty wynik ma „Clear filters”.
+
+Pod aktywnymi wątkami znajduje się zwijana sekcja „Archived · N” z chevronem. Licznik obejmuje
+główne wiersze pasujące do filtra projektów i wyszukiwania. Stan rozwinięcia zapisuje się w gateway
+(`sidebar.archived_expanded`), także między urządzeniami. Rozwinięcie pobiera pierwsze 20 wierszy,
+a „Load more” kolejne strony. Wiersz ma przygaszony awatar projektu, ucięty tytuł, względny czas
+archiwizacji po prawej i to samo menu z „Unarchive”. Zwinięcie pozostawia sam nagłówek; jeśli otwarty
+wątek jest archiwalny, sekcja pokazuje jego wyróżniony wiersz i przypina całość u dołu podczas
+przewijania. Wyjątkiem są boczne pod aktywnym rodzicem: pozostają w jego „Previous agents”.
+Indeks startowy nie przesyła całego archiwum. Szczegóły stron: [ui-api.md](ui-api.md#pasek-boczny-i-cykl-życia-wątku).
 
 Menu otwiera prawy przycisk myszy, przytrzymanie na ekranie dotykowym, klawisz Menu lub Shift+F10
 na wierszu i przycisk „…” po najechaniu lub ustawieniu fokusu. Dotknięcie przechodzi do wątku.
@@ -14,14 +23,25 @@ Akcje: nowa karta, nowy wątek w projekcie, przypięcie, rename, generowanie tyt
 filtr projektu, kopiowanie, ustawienia, archiwizacja i usunięcie. Odpowiednie akcje bieżącego wątku są w Cmd+K.
 
 Archiwum zachowuje czytelną oś czasu. Zamiast kompozytora pokazuje ikonę, czas i autora archiwizacji
-(użytkownik albo agent ze wskazaniem rodzica), „Unarchive” i odnośnik do rodzica subagenta.
+(użytkownik, agent albo archiwizacja razem z rodzicem), „Unarchive” i odnośnik do rodzica subagenta.
 Przywrócenie płynnie przywraca kompozytor. Starsze archiwum pokazuje tylko znane informacje.
 Gateway odrzuca wiadomości do archiwum.
+
+Główny wątek i jego boczne archiwizują się razem. Gateway w jednej transakcji oznacza aktywne
+boczne jako `archived_by=cascade`, przerywa działające tury i anuluje kolejkę, harmonogramy oraz
+oczekujące dostarczenia, tak jak przy niezależnej archiwizacji. Przywrócenie głównego odtwarza tylko
+dzieci z tym oznaczeniem. Boczne zarchiwizowane wcześniej przez użytkownika albo agenta pozostają
+w archiwum. „Unarchive with parent” przy takim dziecku przywraca głównego i jego kaskadę.
+Samodzielna archiwizacja bocznego nie zmienia rodzica ani rodzeństwa. Najpierw trzeba przywrócić
+rodzica, aby niezależnie przywrócić jego dziecko. W Archived główny ma jeden wiersz, a boczne są
+pod nim w „Previous agents”; nie powielają się jako osobne wyniki ani na aktywnej liście.
 
 Pasek i Lineage pokazują aktywnych subagentów; archiwalni trafiają do zwijanej grupy „Previous agents · N”
 z ikoną dostawcy, tytułem i czasem. Gdy wszystkie dzieci są archiwalne, pod otwartym rodzicem
 pozostaje ta zwinięta grupa. Lineage podaje liczbę pracujących subagentów. Przypięcia używają FLIP,
 archiwizacja/usunięcie zwija wiersz; menu i grupy respektują wspólne tokeny oraz ograniczenie ruchu.
+Wspólny `SidebarThreadChildren` utrzymuje ten sam układ dzieci w obu listach; kompaktowy
+`SidebarArchivedThread` korzysta ze wspólnego `SidebarThreadLink`, więc obsługa menu pozostaje jedna.
 
 Usunięcie jest miękkie (`deleted_at`): ukrywa wątek także w wyszukiwaniu, wzmiankach i `list_threads`.
 Razem z rodzicem usuwa dzieci, przerywa ich tury, anuluje harmonogramy i kolejkę. Potwierdzenie podaje

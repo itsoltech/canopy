@@ -84,4 +84,21 @@ export const icons = {
   "chat-bubble-bottom-center-text": [{ d: "M1 8.74c0 .983.713 1.825 1.69 1.943.904.108 1.817.19 2.737.243.363.02.688.231.85.556l1.052 2.103a.75.75 0 0 0 1.342 0l1.052-2.103c.162-.325.487-.535.85-.556.92-.053 1.833-.134 2.738-.243.976-.118 1.689-.96 1.689-1.942V4.259c0-.982-.713-1.824-1.69-1.942a44.45 44.45 0 0 0-10.62 0C1.712 2.435 1 3.277 1 4.26v4.482Zm3-3.49a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 5.25ZM4.75 7a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z", evenodd: true }],
 } as const satisfies Record<string, readonly { d: string; evenodd?: boolean }[]>;
 
-export type IconName = keyof typeof icons;
+/**
+ * Line icons (24×24, stroke), Lucide (ISC), https://lucide.dev — lighter than the solid micro set, for quiet
+ * actions next to content (copy, fork). Circles and rects are written as paths.
+ */
+export const lineIcons = {
+  "copy": ["M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z", "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"],
+  "copied": ["M20 6 9 17l-5-5"],
+  "git-fork": [
+    "M12 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
+    "M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
+    "M18 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
+    "M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9",
+    "M12 12v3",
+  ],
+} as const;
+
+export type SolidIconName = keyof typeof icons;
+export type IconName = SolidIconName | keyof typeof lineIcons;

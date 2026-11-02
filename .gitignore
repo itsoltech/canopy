@@ -10,5 +10,6 @@ build/
 coverage/
 .tmp/
 /artifacts/sidebar-filter-menu/
+/artifacts/sidebar-archived-section/
 /artifacts/schedules-new-thread/
 /artifacts/composer-compact/

@@ -8,15 +8,18 @@ export function sidebarThreads(threads: readonly ui.Thread[], settings: ui.Sideb
   const selected = new Set(settings.projectIds);
   const eligible = threads.filter((t) => !t.deletedAt && (!selected.size || selected.has(t.projectId)));
   const ids = new Set(eligible.map((t) => t.id));
+  const archivedParents = new Set(threads.filter((t) => t.status === "archived").map((t) => t.id));
   const pins = new Set(settings.pinnedThreadIds);
   const sides = new Map<string, ui.Thread[]>();
   for (const t of eligible) if (isSide(t) && ids.has(t.parentThreadId)) sides.set(t.parentThreadId, [...(sides.get(t.parentThreadId) ?? []), t]);
   const q = query.trim().toLowerCase();
   const matches = (t: ui.Thread) => !q || t.title.toLowerCase().includes(q) || projectName(t.projectId).toLowerCase().includes(q);
   const roots = eligible.filter((t) => {
-    if ((t.status === "archived") !== settings.archived) return false;
-    if (settings.archived || pins.has(t.id)) return matches(t) || (sides.get(t.id) ?? []).some(matches);
-    return !(isSide(t) && ids.has(t.parentThreadId) && eligible.some((p) => p.id === t.parentThreadId && p.status !== "archived"))
+    if (t.status === "archived") return false;
+    // Parent events arrive before their cascade children; never flash those children as active roots.
+    if (isSide(t) && archivedParents.has(t.parentThreadId)) return false;
+    if (pins.has(t.id)) return matches(t) || (sides.get(t.id) ?? []).some(matches);
+    return !(isSide(t) && ids.has(t.parentThreadId))
       && (matches(t) || (sides.get(t.id) ?? []).some(matches));
   });
   roots.sort((a, b) => {
@@ -25,4 +28,15 @@ export function sidebarThreads(threads: readonly ui.Thread[], settings: ui.Sideb
     return Number(pins.has(b.id)) - Number(pins.has(a.id)) || Number(bTree.some(needsYou)) - Number(aTree.some(needsYou)) || Number(treeActivity(bTree) - treeActivity(aTree));
   });
   return { roots, sides, pins };
+}
+
+/** An archived side under an active main belongs to Previous agents, including when it is current. */
+export function collapsedArchivedThread(current: ui.Thread | undefined, expanded: boolean, threads: ReadonlyMap<string, ui.Thread>, projectIds: readonly string[], query: string, projectName: (id: string) => string): ui.Thread | undefined {
+  if (expanded || !current || current.deletedAt || current.status !== "archived") return;
+  if (projectIds.length && !projectIds.includes(current.projectId)) return;
+  const q = query.trim().toLowerCase();
+  if (q && !current.title.toLowerCase().includes(q) && !projectName(current.projectId).toLowerCase().includes(q)) return;
+  const parent = threads.get(current.parentThreadId);
+  if (isSide(current) && parent && !parent.deletedAt && parent.status !== "archived") return;
+  return current;
 }

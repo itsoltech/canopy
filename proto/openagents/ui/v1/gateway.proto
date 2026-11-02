@@ -21,6 +21,7 @@ service GatewayService {
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
 
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
+  rpc ListArchivedThreads(ListArchivedThreadsRequest) returns (ListArchivedThreadsResponse);
   rpc GetThread(GetThreadRequest) returns (GetThreadResponse);
   rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
@@ -217,7 +218,7 @@ message Thread {
   // Jak skończyła się ostatnia zakończona tura (completed | failed | interrupted); pusty przed pierwszą.
   string last_turn_status = 210;
   google.protobuf.Timestamp archived_at = 270;
-  // user | agent; pusty dla archiwizacji sprzed migracji 0026.
+  // user | agent | cascade (z głównym wątkiem); pusty dla archiwizacji sprzed migracji 0026.
   string archived_by = 271;
   string archived_by_thread_id = 272;
   string archived_by_thread_title = 273;
@@ -441,8 +442,26 @@ message CreateWorkspaceResponse {
 message ListThreadsRequest {
   // Pusty = wątki wszystkich projektów użytkownika.
   string project_id = 1;
-  // Domyślnie lista aktywnych; klient indeksu pobiera również archiwum do grup Previous agents.
+  // Domyślnie lista aktywnych; zgodność dla klientów pobierających całe archiwum.
   bool include_archived = 270;
+  // Indeks sidebara: aktywne i zarchiwizowane boczne pod aktywnym rodzicem. Ma pierwszeństwo nad include_archived.
+  bool sidebar_only = 310;
+}
+
+// Archiwum sidebara: strony głównych wątków; boczne wracają wyłącznie w side_threads.
+message ListArchivedThreadsRequest {
+  repeated string project_ids = 1; // puste = wszystkie projekty użytkownika
+  string query = 2; // fragment tytułu albo nazwy projektu, bez rozróżniania wielkości liter
+  uint32 page_size = 3; // 0 = 20, najwyżej 100
+  string page_token = 4; // nieprzezroczysty kursor; obowiązuje tylko dla tych samych filtrów
+  bool count_only = 5; // zwinięta sekcja: bez przesyłania wierszy
+}
+
+message ListArchivedThreadsResponse {
+  repeated Thread threads = 1; // archived_at malejąco, następnie id malejąco
+  string next_page_token = 2;
+  uint32 total_count = 3; // wszystkie pasujące, także przed kursorem
+  repeated Thread side_threads = 4; // nieusunięte boczne wyłącznie głównych wątków z tej strony
 }
 
 message GetThreadRequest {
@@ -779,7 +798,8 @@ message UserSettings {
 message SidebarSettings {
   repeated string project_ids = 1;
   repeated string pinned_thread_ids = 2;
-  bool archived = 3;
+  bool archived = 3 [deprecated = true]; // dawny widok; ignorowany przez nowy sidebar
+  bool archived_expanded = 310;
 }
 
 // Globalne ustawienie użytkownika. Pusty model = automatyczny wybór z instancji wątku.
