@@ -24,6 +24,9 @@ export function profilesFor(worker: ui.Worker | undefined, key: ProviderKey): Pr
 export const profileIdValue = (id: string): string => (id === "native" ? "" : id);
 export const profileValue = (profile: ProviderProfile): string => profileIdValue(profile.id);
 
+/** The name the user gave the profile, else its id ("Device login" for the built-in one). */
+export const profileDisplayName = (profile: ProviderProfile): string => profile.displayName || (profile.id === "native" ? "Device login" : profile.id);
+
 /** One provider + profile choice of the new-thread "agent" pill. */
 export interface AgentChoice {
   readonly value: string;
@@ -40,7 +43,7 @@ export function agentChoices(worker: ui.Worker | undefined): { provider: Provide
       value: `${provider}:${profileValue(profile)}`,
       provider,
       profileId: profileValue(profile),
-      label: `${provider === "CLAUDE" ? "Claude" : "Codex"} · ${profile.id}`,
+      label: `${provider === "CLAUDE" ? "Claude" : "Codex"} · ${profileDisplayName(profile)}`,
     })),
   }));
 }

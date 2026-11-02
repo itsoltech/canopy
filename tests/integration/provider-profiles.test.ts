@@ -146,7 +146,7 @@ describe.skipIf(!dockerAvailable)("provider profiles (gateway + scripted worker)
     const { configVersion } = await profiles();
     const base = { workerId: gw.workerId, displayName: "X", kind: ProviderProfileKind.NATIVE, providers: [Provider.CODEX], enabled: true };
     expect(await failure(gw.api.saveProviderProfile({ ...base, env: [{ name: "CODEX_HOME", value: "/tmp" }] }))).toContain("controlled by the worker");
-    expect(await failure(gw.api.saveProviderProfile({ ...base, env: [{ name: "OA_X", value: "1" }] }))).toContain("reserved");
+    expect(await failure(gw.api.saveProviderProfile({ ...base, env: [{ name: "OPENAGENTS_X_API_KEY", value: "1" }] }))).toContain("reserved");
     expect(await failure(gw.api.saveProviderProfile({ ...base, kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://x", env: [{ name: "ANTHROPIC_BASE_URL", value: "http://y" }] }))).toContain("endpoint");
     expect(await failure(gw.api.saveProviderProfile({ ...base, env: [{ name: "NEW_SECRET", secret: true }] }))).toContain("enter the secret value");
     expect(await failure(gw.api.saveProviderProfile({ ...base, expectedConfigVersion: configVersion - 1n }))).toContain("changed");

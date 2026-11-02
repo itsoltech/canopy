@@ -271,10 +271,10 @@ Typy protokołu app-server generuje sam Codex (`codex app-server generate-ts`); 
 
 ```ts
 type ProviderProfileConfig =
-  | { kind: "native"; id: "native" }                       // logowanie CLI na urządzeniu, zawsze dostępny
-  | { kind: "cliproxyapi"; id: string; baseUrl: string;     // np. http://127.0.0.1:8317
-      apiKey: string;                                       // z gateway (secrets), tylko w pamięci workera
-      providers?: ("claude" | "codex")[] };
+  | { kind: "native"; id: string; ...wspólne }             // logowanie CLI na urządzeniu; "native" zawsze jest
+  | { kind: "cliproxyapi"; id: string; baseUrl: string;     // endpoint, np. http://127.0.0.1:8317
+      apiKey: string; ...wspólne };                         // z gateway (secrets), tylko w pamięci workera
+// wspólne: providers?, displayName?, env?: { name, value, secret? }[], disabled?
 ```
 
 - Gateway wysyła profile w `WorkerConfig`, a worker raportuje ich dostępność w `ConfigApplied` (bez kluczy). Gateway przypisuje profil wątkowi (`threads.provider_profile_id`) i wysyła go w `ThreadSpec.provider_profile_id`.
@@ -288,6 +288,8 @@ type ProviderProfileConfig =
 | Klucz | `env.ANTHROPIC_AUTH_TOKEN` (usuwane `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`) | `env_key = "OPENAGENTS_<ID>_API_KEY"`, wartość w env procesu, nie w argv |
 | Wybór | per wątek | `thread/start { modelProvider: "openagents_<id>" }`; jeden proces obsługuje wątki natywne i przez proxy |
 | Model | `options.model` z agenta | `thread/start { model }` z agenta |
+
+Profile tworzy i zmienia użytkownik (Settings → Workers → worker); zmienne środowiskowe, lista zakazanych nazw i wybór modeli: [worker-config.md](worker-config.md#8-profile-dostawców).
 
 Zasady, które z tego wynikają (`apps/worker/src/providers`):
 

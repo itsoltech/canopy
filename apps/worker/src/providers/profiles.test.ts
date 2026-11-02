@@ -139,7 +139,7 @@ describe("codexAppServerLaunch", () => {
 });
 
 describe("custom profiles and their environment", () => {
-  const PROBE = { name: "OA_PROFILE", value: "x" };
+  const PROBE = { name: "OPENAGENTS_TEAM_API_KEY", value: "x" };
 
   test("a profile's variables reach Claude over the base env; auth of an endpoint profile still wins", () => {
     const [, proxy, custom] = resolved([

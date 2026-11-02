@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
+  import { profileDisplayName } from "#lib/features/threads/providers.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { formatRelative } from "#lib/shared/format.ts";
   import HoverCard from "#lib/shared/ui/HoverCard.svelte";
@@ -34,7 +35,7 @@
         {#each worker.providers as provider (provider.provider)}<li>{providerSummary(provider)}</li>{/each}
       </ul>
       {#if worker.profiles.length > 0}
-        <p>Profiles: {worker.profiles.map((p) => p.id).join(", ")}</p>
+        <p>Profiles: {worker.profiles.map(profileDisplayName).join(", ")}</p>
       {/if}
     </div>
   </HoverCard>

@@ -22,6 +22,11 @@
 
   const section = $derived(settingsSections.find((s) => page.url.pathname.startsWith(s.href)));
   const project = $derived(page.params.projectId ? overview.project(page.params.projectId) : undefined);
+  const worker = $derived(page.params.workerId ? overview.worker(page.params.workerId) : undefined);
+  /** A page below a section: the section's crumb links back, the page's own name ends the trail. */
+  const parent = $derived(
+    project ? { href: "/settings/projects", label: "Projects", current: project.name } : worker ? { href: "/settings/workers", label: "Workers", current: worker.name } : undefined,
+  );
 
   let dialog = $state<HTMLDialogElement>();
   let leaving = $state(false);
@@ -67,15 +72,15 @@
           <ol role="list" class="flex min-w-0 items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
             <li><a href="/settings" class="rounded-sm hover:text-zinc-950 focus-ring dark:hover:text-white">Settings</a></li>
             <li class="flex min-w-0 items-center gap-2 before:text-zinc-300 before:content-['/'] dark:before:text-zinc-700">
-              {#if project}
-                <a href="/settings/projects" class="rounded-sm hover:text-zinc-950 focus-ring dark:hover:text-white">Projects</a>
+              {#if parent}
+                <a href={parent.href} class="rounded-sm hover:text-zinc-950 focus-ring dark:hover:text-white">{parent.label}</a>
               {:else}
                 <span id="settings-title" class="truncate text-zinc-950 dark:text-white">{section?.label ?? "Settings"}</span>
               {/if}
             </li>
-            {#if project}
+            {#if parent}
               <li class="flex min-w-0 items-center gap-2 before:text-zinc-300 before:content-['/'] dark:before:text-zinc-700">
-                <span id="settings-title" class="truncate text-zinc-950 dark:text-white">{project.name}</span>
+                <span id="settings-title" class="truncate text-zinc-950 dark:text-white">{parent.current}</span>
               </li>
             {/if}
           </ol>

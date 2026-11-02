@@ -144,6 +144,8 @@ Nieczytane, bo zależą od folderu wątku, a katalog jest per worker: projektowy
 
 Gateway zapisuje ostatni katalog workera (`worker_model_catalogs`) i odświeża go komendą `ListModels`.
 
+**Wybór modeli profilu.** Użytkownik może zawęzić modele profilu widoczne w pickerach; gateway oznacza pozostałe jako `hidden` w `ListModels` i `OverviewUpdate.models`, pełny katalog daje `ListModelsRequest.unfiltered`, a walidacja używa pełnego katalogu ([worker-config.md](worker-config.md#82-wybór-modeli)).
+
 **Model i wysiłek tury.** `StartTurn.model` / `effort` to wartości rozstrzygnięte przez gateway (nadpisanie z wiadomości, inaczej domyślne wątku). Codex dostaje je w `turn/start`, zawsze jawnie: bez wyboru domyślny model katalogu i jego `default_effort` (wyżej), bo nadpisanie w Codexie obowiązuje także kolejne tury. Claude dostaje `model` i `effort` w `query()` (`low | medium | high | xhigh | max`; inna wartość = błąd startu tury); bez wyboru skonfigurowany domyślny wysiłek dla tego modelu, jeśli jest.
 
 **Wysiłek a model.** Wysiłek przechodzi przez katalog profilu wątku (`worker_model_catalogs`, `turnEffort` w `apps/gateway/src/store/models.ts`), żeby tura nie niosła wysiłku do modelu, który go nie ma:
@@ -165,7 +167,7 @@ Model pusty = model `is_default` katalogu. Tura zapisuje rozstrzygnięte wartoś
 
 ## Profile dostawców
 
-- Profile są w zdalnej konfiguracji (`WorkerConfig.profiles`); worker raportuje ich dostępność w `ConfigApplied` (bez kluczy).
+- Profile są w zdalnej konfiguracji (`WorkerConfig.profiles`: wbudowany `native` i własne użytkownika z nazwą, zmiennymi środowiskowymi i flagą `disabled`); worker raportuje ich dostępność i nazwę w `ConfigApplied` (bez kluczy i wartości zmiennych).
 - Gateway zapisuje profil per wątek i przekazuje go w `ThreadSpec.provider_profile_id`. Pusty oznacza `native`.
 - Worker odrzuca nieznany, niedostępny albo niepasujący do dostawcy profil (`CommandResult.ok = false`).
 - Szczegóły: [architecture.md](architecture.md#8-profile-dostawców-i-cliproxyapi).

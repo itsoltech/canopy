@@ -23,8 +23,11 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
  */
 const ALWAYS_DENIED = ["HOME", "USERPROFILE", "PATH", "PWD", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CLAUDE_CODE_ENTRYPOINT"] as const;
 
-/** Prefixes owned by the platform: worker settings (OA_*) and the Codex key variables of endpoint profiles. */
-const DENIED_PREFIXES = ["OA_", "OPENAGENTS_"] as const;
+/**
+ * Prefix owned by the platform: the Codex key variables of endpoint profiles (OPENAGENTS_<ID>_API_KEY). The
+ * worker's own settings (OA_*) are read by the worker process only, so a harness variable of that name is harmless.
+ */
+const DENIED_PREFIXES = ["OPENAGENTS_"] as const;
 
 /** An endpoint profile sets its own endpoint and key; these would compete with it. */
 const ENDPOINT_DENIED = ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;

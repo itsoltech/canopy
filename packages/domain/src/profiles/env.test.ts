@@ -3,7 +3,7 @@ import { envListProblems, envNameProblem } from "./env.ts";
 
 describe("profile env rules", () => {
   test("accepts ordinary names", () => {
-    expect(envNameProblem("native", "OA_PROFILE_PROBE")).toContain("reserved");
+    expect(envNameProblem("native", "OA_PROFILE_PROBE")).toBeUndefined();
     expect(envNameProblem("native", "PROFILE_PROBE")).toBeUndefined();
     expect(envNameProblem("native", "_private1")).toBeUndefined();
     expect(envNameProblem("native", "ANTHROPIC_API_KEY")).toBeUndefined();
