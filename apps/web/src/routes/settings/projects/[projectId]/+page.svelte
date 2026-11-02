@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { page } from "$app/state";
   import { ui } from "@open-agents/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import ProjectThreadList from "#lib/features/projects/ProjectThreadList.svelte";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import ThreadDefaultsFields from "#lib/features/settings/ThreadDefaultsFields.svelte";
@@ -13,11 +13,12 @@
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
 
-  let { data, form }: PageProps = $props();
+  let { data }: PageProps = $props();
+  const route = useSettingsRoute<PageProps["form"]>();
   const overview = useOverview();
   const settings = useSettings();
 
-  const projectId = $derived(page.params.projectId ?? "");
+  const projectId = $derived(route.params.projectId ?? "");
   const project = $derived(overview.project(projectId));
   // Server list, with live status updates (and new threads, e.g. spawned by agents) laid over it.
   const threads = $derived(overview.liveThreads(projectId, decode(ui.ListThreadsResponseSchema, data.threads).threads));
@@ -36,7 +37,7 @@
 
 {#if project}
   <SettingsGroup title="Workers" description="Where this project lives: a directory on each worker you add it to. A new thread runs on one of them.">
-    <ProjectWorkers {project} error={form?.action === "workspace" ? form.error : undefined} />
+    <ProjectWorkers {project} error={route.form?.action === "workspace" ? route.form.error : undefined} />
   </SettingsGroup>
 
   <SettingsGroup title="Thread defaults" description="Starting values of new threads in this project, over your own defaults from Settings → Threads.">

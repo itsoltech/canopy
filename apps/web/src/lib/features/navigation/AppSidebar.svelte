@@ -2,6 +2,7 @@
   import { page } from "$app/state";
   import BotsSectionEmpty from "#lib/features/bots/components/BotsSectionEmpty.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { needsYou } from "#lib/features/threads/activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
@@ -22,7 +23,8 @@
   const queries = $state<Record<Section, string>>({ threads: "", bots: "" });
   const threadsNeedYou = $derived([...overview.threads.values()].some(needsYou));
   const online = $derived(overview.workers.filter((w) => w.online).length);
-  const settingsActive = $derived(page.url.pathname.startsWith("/settings"));
+  // Settings as a page (loaded on its own) or over the current one.
+  const settingsActive = $derived(isSettingsRoute(page.route.id) || isSettingsRoute(page.shallow?.route?.id));
   const iconLink =
     "relative grid size-9 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring sm:size-8 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white";
 </script>

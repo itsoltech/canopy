@@ -1,12 +1,13 @@
 <script lang="ts">
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import NewProjectForm from "#lib/features/projects/NewProjectForm.svelte";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import type { PageProps } from "./$types";
 
-  let { form }: PageProps = $props();
+  const route = useSettingsRoute<PageProps["form"]>();
   const overview = useOverview();
   const summary = (workspaces: { workerId: string; rootPath: string }[]) => {
     if (workspaces.length === 0) return "No workspaces yet";
@@ -28,5 +29,5 @@
 </SettingsGroup>
 
 <SettingsGroup title="New project">
-  <div class="p-4"><NewProjectForm error={form?.error} /></div>
+  <div class="p-4"><NewProjectForm error={route.form?.error} /></div>
 </SettingsGroup>

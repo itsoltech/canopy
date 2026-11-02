@@ -2,13 +2,14 @@
   import "./layout.css";
   import favicon from "#lib/assets/favicon.svg";
   import { ui } from "@open-agents/contracts";
-  import { afterNavigate } from "$app/navigation";
+  import { afterNavigate, beforeNavigate } from "$app/navigation";
   import { page } from "$app/state";
   import { untrack } from "svelte";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
-  import { returnTo } from "#lib/features/settings/return-to.svelte.ts";
   import { applyAppearance } from "#lib/features/settings/appearance.ts";
   import { SettingsState, provideSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
+  import SettingsOverlay from "#lib/features/settings/SettingsOverlay.svelte";
   import { sectionMemory } from "#lib/features/navigation/sections.svelte.ts";
   import { provideShell } from "#lib/features/navigation/shell.ts";
   import SidebarColumn from "#lib/features/navigation/SidebarColumn.svelte";
@@ -64,11 +65,10 @@
 
   let menuOpen = $state(false);
   provideShell({ openMenu: () => (menuOpen = true), sidebar });
+  // Close the menu as a navigation starts: Settings then opens over the page (focus returns to the menu button).
+  beforeNavigate(() => (menuOpen = false));
   afterNavigate(({ to }) => {
-    menuOpen = false;
     if (to) sectionMemory.visit(to.url);
-    // Closing Settings returns to the last page outside it.
-    if (to && !to.url.pathname.startsWith("/settings")) returnTo.url = `${to.url.pathname}${to.url.search}`;
   });
 </script>
 
@@ -95,8 +95,10 @@
       <GrowIn><Alert tone="warning" banner>The gateway is not responding. Showing the last known state; retrying automatically.</Alert></GrowIn>
     {/if}
     <main class="min-h-0 flex-1">
-      {@render children()}
+      <!-- A settings page loaded on its own shows in the settings dialog, until it goes over the new thread. -->
+      {#if !isSettingsRoute(page.route.id) || page.error}{@render children()}{/if}
     </main>
   </div>
 </div>
+<SettingsOverlay route={children} />
 <Toaster />

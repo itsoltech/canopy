@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { invalidate } from "$app/navigation";
-  import { page } from "$app/state";
   import { Provider, ui } from "@open-agents/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import WorkerSettings from "#lib/features/overview/WorkerSettings.svelte";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import DeleteProfileDialog from "#lib/features/profiles/DeleteProfileDialog.svelte";
   import ProfileDialog from "#lib/features/profiles/ProfileDialog.svelte";
   import ProfileRow from "#lib/features/profiles/ProfileRow.svelte";
@@ -18,9 +17,10 @@
   import type { PageProps } from "./$types";
 
   let { data }: PageProps = $props();
+  const route = useSettingsRoute();
   const overview = useOverview();
 
-  const workerId = $derived(page.params.workerId ?? "");
+  const workerId = $derived(route.params.workerId ?? "");
   const worker = $derived(overview.worker(workerId));
   const loaded = $derived(decode(ui.ListProviderProfilesResponseSchema, data.profiles));
   const profiles = $derived(loaded.profiles.map((p) => withReport(p, worker)));
@@ -33,7 +33,7 @@
 
   const modelsHref = (profile: ui.ProviderProfileSettings) => (provider: Provider) =>
     `/settings/workers/${workerId}/models?profile=${encodeURIComponent(profile.id)}&provider=${provider === Provider.CLAUDE ? "claude" : "codex"}`;
-  const reload = () => invalidate("app:profiles");
+  const reload = () => route.refresh("app:profiles");
 
   function edit(profile: ui.ProviderProfileSettings | undefined) {
     editing = profile;
