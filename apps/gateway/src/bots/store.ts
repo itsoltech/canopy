@@ -116,7 +116,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   const validate = (user: string, config: bots.BotConfiguration, requireCatalog = false) => Effect.gen(function* () {
     if (!config.name.trim() || config.name.length > 80 || /[\x00-\x1f\x7f]/.test(config.name) || !["round", "cloud", "diamond", "spark", "clover", "blob", "flower", "droplet", "pill", "triangle", "square", "star", "hexagon", "pumpkin"].includes(config.shape) || !/^#[0-9a-f]{6}$/i.test(config.color)) return yield* Effect.fail(new Invalid("a name, known mascot shape and #rrggbb color are required"));
     if (![Provider.CLAUDE, Provider.CODEX].includes(config.provider) || !config.model || config.model.length > 200 || config.effort.length > 40 || config.instructions.length > 32_000) return yield* Effect.fail(new Invalid("invalid bot model configuration"));
-    if (!["safe", "always", ""].includes(config.approvalPolicy) || config.mcpServerIds.length > 32 || new Set(config.mcpServerIds).size !== config.mcpServerIds.length) return yield* Effect.fail(new Invalid("invalid approval policy or MCP connections"));
+    if (!["safe", "always", "full_auto", ""].includes(config.approvalPolicy) || config.mcpServerIds.length > 32 || new Set(config.mcpServerIds).size !== config.mcpServerIds.length) return yield* Effect.fail(new Invalid("invalid approval policy or MCP connections"));
     const instances = yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${config.provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${config.providerInstance} AND kind = 'endpoint'`;
     if (!instances[0]) return yield* Effect.fail(new Invalid("bots require a gateway-accessible endpoint provider instance; native CLI login is not supported"));
     for (const id of config.mcpServerIds) yield* server(user, id);
@@ -314,8 +314,14 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       yield* creationHop(turn.hops);
       const creator = yield* active(user, turn.bot_id);
       const approved = (yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid AND bot_id = ${turn.bot_id}::uuid AND turn_id = ${turn.id}::uuid AND status = 'approved'`)[0];
-      if (!approved?.proposed_bot) return yield* Effect.fail(new Invalid("creating a bot requires user approval of its configuration"));
-      const saved = yield* save(user, fromJson(bots.BotConfigurationSchema, approved.proposed_bot), { requestId: call.id });
+      let proposal = approved?.proposed_bot ? fromJson(bots.BotConfigurationSchema, approved.proposed_bot) : undefined;
+      // Full auto: no card was shown, so validate the proposal here exactly as the card would have.
+      if (!proposal && botConfiguration(creator).approvalPolicy === "full_auto") {
+        const draft = yield* Effect.try({ try: () => proposedBot(call.arguments, botConfiguration(creator)), catch: (error) => error instanceof Invalid ? error : new Invalid("invalid bot configuration") });
+        proposal = yield* validate(user, draft, true);
+      }
+      if (!proposal) return yield* Effect.fail(new Invalid("creating a bot requires user approval of its configuration"));
+      const saved = yield* save(user, proposal, { requestId: call.id });
       yield* sql`UPDATE bots SET created_by_bot_id = ${creator.id}::uuid, created_by_bot_name = ${botConfiguration(creator).name} WHERE id = ${saved.id}::uuid`;
       return { id: saved.id, name: saved.configuration!.name };
     }),

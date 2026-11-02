@@ -17,7 +17,7 @@
    * Without `onanswer` (a watched chat, or answered) the card is read-only.
    */
   export type ApprovalAnswer = { approve: true } | { approve: false; edited?: string | undefined };
-  export type ApprovalPolicy = "safe" | "always";
+  export type ApprovalPolicy = "safe" | "always" | "full_auto";
 
   let {
     approval,
@@ -61,6 +61,7 @@
         {/snippet}
         <MenuCheckItem checked={policy === "safe"} description="Reversible platform actions run directly; destructive actions and connected service writes ask first." onselect={() => onpolicy("safe")}>Ask before changes</MenuCheckItem>
         <MenuCheckItem checked={policy === "always"} description="Changes and connected service actions ask first. Platform reads run directly." onselect={() => onpolicy("always")}>Ask before every action</MenuCheckItem>
+        <MenuCheckItem checked={policy === "full_auto"} description="Approves what is waiting and runs everything from now on without asking. Questions to you still appear." onselect={() => onpolicy("full_auto")}>Full auto</MenuCheckItem>
       </DropdownMenu>
     {:else}
       <p class="text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">Needs approval</p>

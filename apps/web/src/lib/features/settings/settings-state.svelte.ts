@@ -3,6 +3,7 @@ import { getContext, setContext } from "svelte";
 import { ui } from "@open-agents/contracts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
+import { userTimeZone } from "#lib/shared/ui/date-time.ts";
 
 /** Shown next to the settings: a write that hit a change from elsewhere, or one that failed. */
 export interface SettingsNotice {
@@ -39,6 +40,7 @@ export class SettingsState {
   /** Writes queued or in flight. */
   saving = $state(0);
   #queue: Promise<void> = Promise.resolve();
+  #timezoneSynced = false;
   /** What the gateway last confirmed (without changes still being written). */
   #server: { user: ui.UserSettings; projects: Map<string, ui.ProjectSettings> } = { user: create(ui.UserSettingsSchema), projects: new Map() };
 
@@ -113,6 +115,30 @@ export class SettingsState {
 
   async reload(): Promise<void> {
     this.#replace(decode(ui.GetSettingsResponseSchema, await requestJson("GET", "/api/settings")));
+    this.#syncDeviceTimezone();
+  }
+
+  /** Once after the first full load; reconnects and stream updates never resync the device zone. */
+  #syncDeviceTimezone(): void {
+    if (this.#timezoneSynced) return;
+    this.#timezoneSynced = true;
+    const timezone = userTimeZone();
+    if (!timezone || timezone === this.#server.user.timezone) return;
+    void this.#enqueue(async () => {
+      const before = this.#server.user;
+      for (let attempt = 0; ; attempt++) {
+        if (timezone === this.#server.user.timezone) return;
+        try {
+          const body = create(ui.UpdateUserSettingsRequestSchema, { timezone, expectedVersion: this.#server.user.version });
+          const response = await requestJson("PUT", "/api/settings/user", encode(ui.UpdateUserSettingsRequestSchema, body));
+          const saved = decode(ui.UpdateUserSettingsResponseSchema, response).settings;
+          if (saved && saved.version > this.#server.user.version) this.#confirmUser(saved);
+          return;
+        } catch (cause) {
+          if (!(await this.#retryAfterConflict(cause, attempt, () => this.#server.user, before, ui.UserSettingsSchema, true))) return;
+        }
+      }
+    }).catch(() => undefined);
   }
 
   updateAppearance(change: Partial<Omit<MessageShape<typeof ui.AppearanceSettingsSchema>, "$typeName">>): Promise<void> {
@@ -184,7 +210,7 @@ export class SettingsState {
    * elsewhere (`section` = what the gateway has now, `before` = what it had when the write started;
    * true = try again); otherwise report the failure and show what the gateway has.
    */
-  async #retryAfterConflict<D extends DescMessage>(cause: unknown, attempt: number, section: () => MessageShape<D>, before: MessageShape<D>, schema: D): Promise<boolean> {
+  async #retryAfterConflict<D extends DescMessage>(cause: unknown, attempt: number, section: () => MessageShape<D>, before: MessageShape<D>, schema: D, silent = false): Promise<boolean> {
     const conflict = cause instanceof HttpError && cause.status === 409;
     try {
       await this.reload();
@@ -192,10 +218,10 @@ export class SettingsState {
       // keep what is shown; the stream or the next write catches up
     }
     if (conflict && attempt === 0) {
-      if (!equals(schema, section(), before)) this.notice = { tone: "info", text: "These settings were just changed on another device. Your change was applied on top." };
+      if (!silent && !equals(schema, section(), before)) this.notice = { tone: "info", text: "These settings were just changed on another device. Your change was applied on top." };
       return true;
     }
-    this.notice = { tone: "error", text: `Could not save the change: ${cause instanceof Error ? cause.message : "unknown error"}` };
+    if (!silent) this.notice = { tone: "error", text: `Could not save the change: ${cause instanceof Error ? cause.message : "unknown error"}` };
     return false;
   }
 

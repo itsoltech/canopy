@@ -137,6 +137,21 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
     await expect(gw.api.createBot({ configuration: config("CAFe\u0301"), clientRequestId: Bun.randomUUIDv7() })).rejects.toThrow(/name/);
   }, 20_000);
 
+  test("full auto creates the bot without a card, validated like the card", async () => {
+    const parent = await add("Auto creator");
+    await gw.api.updateBot({ botId: parent.id, configuration: { ...parent.configuration!, approvalPolicy: "full_auto" } });
+    propose({ name: "Auto child", model: "missing-model" });
+    await send(parent.id);
+    expect((await settled(parent.id)).approvals).toHaveLength(0);
+    expect((await core.bots.list()).some((b) => b.configuration?.name === "Auto child")).toBe(false);
+    propose({ name: "Auto child" });
+    await send(parent.id);
+    expect((await settled(parent.id)).approvals).toHaveLength(0);
+    const child = (await core.bots.list()).filter((b) => b.configuration?.name === "Auto child");
+    expect(child).toHaveLength(1);
+    expect(child[0]!.configuration).toMatchObject({ model: "gpt-parent", approvalPolicy: "full_auto" });
+  }, 20_000);
+
   test("a created bot is reachable through send_bot_message, and creation obeys the automated hop limit", async () => {
     const parent = await add("Messaging creator");
     propose({ name: "Reachable child", instructions: "Always answer CHILD_REPLY." });

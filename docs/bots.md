@@ -16,9 +16,14 @@ wykonania, licznik oraz krótki wewnętrzny wynik. Soft delete zachowuje audyt.
 
 **Granice:** maksymalnie **20** nieusuniętych rutyn na bota (także wyłączonych), odstęp
 co najmniej **15 minut**, sprawdzany przez wspólny `cronProblem`; `nextCronRun` zachowuje
-reguły DST Bun. Nie ma ustawienia strefy użytkownika ani bota: jak scheduler wątków,
-domyślnie stosujemy **UTC**. Narzędzie przyjmuje strefę IANA z prośby użytkownika;
-model ma ustalić strefę dla niejednoznacznego czasu lokalnego. Panel podaje strefę.
+reguły DST Bun. `create_routine` i `update_routine` przy pominięciu strefy używają
+`UserSettings.timezone` (IANA, pole **620**), synchronizowanej ze strefą przeglądarki.
+Tak samo działają narzędzia `create_schedule` i `update_schedule`. Jawna strefa IANA
+ma pierwszeństwo; **UTC** jest wartością zastępczą tylko przy braku zapisanej strefy.
+Prompt podaje strefę użytkownika, aktualny czas lokalny z offsetem i czas ISO UTC.
+`schedule_wakeup.run_at` wymaga ISO z offsetem właściwym dla strefy użytkownika
+w wybranym dniu (z uwzględnieniem DST). Panel podaje strefę zapisaną w rutynie;
+zmiana strefy urządzenia sama nie przelicza istniejących rutyn i harmonogramów.
 Rutyna zapamiętuje `nextHop` tury tworzącej; dalsze akcje i odpowiedzi zachowują limit
 **8 hops**. Kolejne wystąpienie tego samego crona zaczyna od zapamiętanych hops,
 nie od hops poprzedniego wykonania. Kontekst spoza użytkownika nie może sam tworzyć
@@ -240,6 +245,12 @@ Legenda zgód: **R** — odczyt platformy, nigdy nie wymaga karty, także przy `
 Zdalne MCP zachowuje dotychczasowe reguły: `safe` przepuszcza wyłącznie deklarowane
 odczyty bez flagi destrukcyjnej, pozostałe operacje wymagają zgody; `always` pyta także
 o odczyty MCP. `ask_user` zawsze tworzy kartę pytania.
+
+**Full auto** (`full_auto`): żadnych kart zgody — także dla **A**, zapisów MCP, `create_bot`
+(konfiguracja walidowana jak przy karcie) i zmian własnego modelu/polityki przez `update_self`.
+Zostają tylko pytania do użytkownika (`ask_user`). Przejście na `full_auto` z innej polityki
+przez `update_self` nadal wymaga karty; użytkownik włącza je w ustawieniach bota albo z menu
+„Needs approval ⌄” na karcie — wtedy oczekujące karty tego bota są od razu zatwierdzane.
 
 ### Projekty i workspaces
 

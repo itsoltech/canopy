@@ -880,6 +880,8 @@ message ProviderModel {
 }
 
 message UserSettings {
+  // Strefa IANA synchronizowana z urządzenia; pusta = UTC.
+  string timezone = 620;
   AppearanceSettings appearance = 1;
   ThreadDefaults thread_defaults = 2;
   // Rośnie przy każdej zmianie; 0 = jeszcze nie zapisane.
@@ -935,6 +937,8 @@ message GetSettingsResponse {
 
 // Ustawione sekcje zastępują zapisane; nieustawione zostają.
 message UpdateUserSettingsRequest {
+  // Brak = bez zmian; ustawiona wartość musi być nazwą strefy IANA.
+  optional string timezone = 620;
   AppearanceSettings appearance = 1;
   ThreadDefaults thread_defaults = 2;
   // Wersja, od której klient zaczął zmianę (konflikt = FailedPrecondition, klient pobiera ustawienia od nowa).

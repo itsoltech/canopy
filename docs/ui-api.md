@@ -521,6 +521,22 @@ Harmonogramy i ustawienia botów korzystają z wyborów bez ścieżek. Szczegó�
 edytora roots. Katalog nadal jest widoczny i edytowalny w ustawieniach projektu oraz dostępny
 w skróconym wierszu katalogu roboczego panelu wątku, tooltipach i kopiowaniu.
 
+### Strefa czasowa użytkownika
+
+`UserSettings.timezone` (pole **620**) to nazwa strefy IANA; brak zapisanej wartości
+oznacza UTC dla botów. `UpdateUserSettingsRequest.timezone` (optional, **620**)
+zmienia wyłącznie strefę i podlega `expected_version`; brak pola zachowuje wartość.
+Gateway odrzuca puste, nieznane nazwy i same offsety. Strefa jest częścią JSON
+w `user_settings`, więc nie wymaga migracji. Zmiany rozsyła `OverviewUpdate.user_settings`.
+
+Web po pierwszym pełnym pobraniu ustawień porównuje je z `userTimeZone()` i przy
+różnicy zapisuje strefę urządzenia istniejącą kolejką zapisów. W danym załadowaniu
+aplikacji synchronizuje tylko raz; po 409 pobiera aktualną wersję i ponawia raz,
+bez komunikatów konfliktu. Nie uruchamia synchronizacji ponownie po SSE ani reconnect.
+Settings → General → Appearance pokazuje strefę tylko do odczytu jako
+„Time zone: Europe/Warsaw (from this device)”. Harmonogramy wątków tworzone w web
+nadal wysyłają strefę przeglądarki bez zmian.
+
 ## 5. Uruchomienie (development)
 
 ```bash
