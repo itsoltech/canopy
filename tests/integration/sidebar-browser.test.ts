@@ -122,6 +122,7 @@ describe.skipIf(Bun.env["OA_BROWSER_TESTS"] !== "1")("sidebar browser acceptance
     await row().waitFor();
     await page.getByRole("button", { name: "Unarchive", exact: true }).click();
     await page.getByRole("region", { name: "Archived thread", exact: true }).waitFor({ state: "hidden" });
+    expect(await eventually(() => row().count(), (count) => count === 1)).toBe(1); // outgoing archive row finishes its transition
     await row().waitFor();
     await row().click({ button: "right" });
     await menu.getByRole("menuitem", { name: "Delete…", exact: true }).click();

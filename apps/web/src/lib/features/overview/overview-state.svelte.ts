@@ -37,12 +37,18 @@ export class OverviewState {
 
   /** Cache just the archive pages the user loaded; keep newer stream values over an HTTP snapshot. */
   remember(threads: readonly ui.Thread[], before: ReadonlyMap<string, ui.Thread>): void {
+    if (!threads.length) return;
     const next = new Map(this.threads);
     for (const thread of threads) {
       if (this.#deleted.has(thread.id) || thread.deletedAt || this.threads.get(thread.id) !== before.get(thread.id)) continue;
       next.set(thread.id, thread);
     }
     this.threads = next;
+  }
+
+  /** A loaded archive row follows lifecycle events immediately, before the next paged refresh. */
+  liveThread(thread: ui.Thread): ui.Thread | undefined {
+    return this.#deleted.has(thread.id) ? undefined : this.threads.get(thread.id) ?? thread;
   }
 
   /** A project's threads with live changes laid over them, plus threads created since `list` was loaded. */

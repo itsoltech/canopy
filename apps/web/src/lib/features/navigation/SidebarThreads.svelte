@@ -1,19 +1,17 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import { ui } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { groupSideThreads, isSide } from "#lib/features/threads/thread-tree.ts";
-  import PreviousAgents from "#lib/features/threads/components/PreviousAgents.svelte";
   import { expand, reorder, rise, stagger } from "#lib/shared/ui/motion.ts";
   import Button from "#lib/shared/ui/Button.svelte";
-  import SidebarSideThread from "./SidebarSideThread.svelte";
+  import SidebarThreadChildren from "./SidebarThreadChildren.svelte";
   import SidebarThread from "./SidebarThread.svelte";
   import { sidebarThreads } from "./sidebar-threads.ts";
   import SidebarArchivedThreads from "./SidebarArchivedThreads.svelte";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
-  import { ui as schemas } from "@open-agents/contracts";
 
   let { currentThreadId, query = "", class: className }: { currentThreadId?: string | undefined; query?: string; class?: ClassValue } = $props();
   const overview = useOverview();
@@ -28,7 +26,7 @@
     fetchedCurrent = undefined;
     // An archived main is intentionally absent from the active overview, including on a direct URL.
     if (id) void requestJson("GET", `/api/threads/${encodeURIComponent(id)}`).then((response) => {
-      if (!cancelled) fetchedCurrent = decode(schemas.GetThreadResponseSchema, response).thread;
+      if (!cancelled) fetchedCurrent = decode(ui.GetThreadResponseSchema, response).thread;
     }).catch(() => undefined);
     return () => { cancelled = true; };
   });
@@ -69,14 +67,7 @@
               <SidebarThread {thread} project={overview.project(thread.projectId)} worker={overview.worker(thread.workerId)} sides={openTree === thread.id ? 0 : sides.active.length} current={thread.id === currentThreadId} />
             </div>
             {#if openTree === thread.id && (sides.active.length || sides.previous.length)}
-              <div class="mt-0.5 mb-1 ml-5 border-l border-zinc-950/10 pl-1.5 dark:border-white/10" transition:expand>
-                <ul role="list" aria-label="Side threads of {thread.title}" class="grid gap-0.5">
-                  {#each sides.active as side (side.id)}<li><SidebarSideThread thread={side} current={side.id === currentThreadId} /></li>{/each}
-                </ul>
-                <PreviousAgents threads={sides.previous}>
-                  {#snippet row(side)}<SidebarSideThread thread={side} current={side.id === currentThreadId} previous />{/snippet}
-                </PreviousAgents>
-              </div>
+              <SidebarThreadChildren {sides} title={thread.title} {currentThreadId} class="mt-0.5 mb-1 ml-5" />
             {/if}
           {:else}<h2 class="px-3 pt-3 pb-1 text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">{entry.heading}</h2>{/if}
         </li>

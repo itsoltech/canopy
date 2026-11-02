@@ -13,8 +13,7 @@
   import SidebarArchivedThread from "./SidebarArchivedThread.svelte";
   import { ArchivedThreadsPager, type ArchivedPageState } from "./archived-threads.ts";
   import { groupSideThreads } from "#lib/features/threads/thread-tree.ts";
-  import PreviousAgents from "#lib/features/threads/components/PreviousAgents.svelte";
-  import SidebarSideThread from "./SidebarSideThread.svelte";
+  import SidebarThreadChildren from "./SidebarThreadChildren.svelte";
   import { collapsedArchivedThread } from "./sidebar-threads.ts";
 
   let { current, query, class: className }: { current?: ui.Thread | undefined; query: string; class?: ClassValue } = $props();
@@ -32,6 +31,7 @@
     return page;
   }, (next) => (pageState = next));
   let pageState: ArchivedPageState = $state.raw(pager.state);
+  const roots = $derived(pageState.threads.map((thread) => overview.liveThread(thread)).filter((thread): thread is ui.Thread => !!thread && !thread.deletedAt && thread.status === "archived"));
   let revision = $state(0);
 
   // Refresh the same number of loaded pages after lifecycle/title/project changes. Reconnects also
@@ -53,6 +53,16 @@
     untrack(() => void pager.refresh(filter, open));
   });
   const retry = () => void pager.refresh({ projectIds: [...settings.sidebar.projectIds], query }, expanded);
+  function outgoing(event: Event) {
+    const node = event.currentTarget as HTMLElement;
+    node.inert = true;
+    node.ariaHidden = "true";
+  }
+  function incoming(event: Event) {
+    const node = event.currentTarget as HTMLElement;
+    node.inert = false;
+    node.removeAttribute("aria-hidden");
+  }
 </script>
 
 <section aria-label="Archived" data-archived-section data-sticky={sticky ? "true" : undefined}
@@ -65,21 +75,17 @@
       <Icon name="chevron-right" class={["t-acc-chevron ml-auto fill-zinc-400 dark:fill-zinc-500", expanded && "rotate-90"]} />
     </button>
   </h2>
-  <div {id}>
+  <!-- Overlap the outgoing sticky card and the entering list so their heights never add together. -->
+  <div {id} class="grid grid-cols-1">
     {#if expanded}
-      <div transition:expand>
-        <ul role="list" aria-label="Archived threads" aria-busy={pageState.loading} class="grid gap-0.5">
-          {#each pageState.threads as thread (thread.id)}
+      <div class="col-start-1 row-start-1 min-w-0" transition:expand onoutrostart={outgoing} onintrostart={incoming}>
+        <ul role="list" aria-label="Archived threads" aria-busy={pageState.loading} class="grid grid-cols-1 gap-0.5">
+          {#each roots as thread (thread.id)}
             {@const sides = groupSideThreads(pageState.sideThreads.filter((side) => side.parentThreadId === thread.id))}
-            <li animate:reorder in:rise out:expand>
+            <li class="min-w-0" animate:reorder in:rise out:expand>
               <SidebarArchivedThread {thread} current={current?.id === thread.id} />
               {#if sides.active.length || sides.previous.length}
-                <div class="ml-5 border-l border-zinc-950/10 pl-1.5 dark:border-white/10">
-                  {#if sides.active.length}<ul role="list" aria-label="Side threads of {thread.title}">{#each sides.active as side (side.id)}<li><SidebarSideThread thread={side} current={current?.id === side.id} /></li>{/each}</ul>{/if}
-                  <PreviousAgents threads={sides.previous}>
-                    {#snippet row(side)}<SidebarSideThread thread={side} current={current?.id === side.id} previous />{/snippet}
-                  </PreviousAgents>
-                </div>
+                <SidebarThreadChildren {sides} title={thread.title} currentThreadId={current?.id} class="ml-5" />
               {/if}
             </li>
           {:else}
@@ -93,7 +99,7 @@
         {/if}
       </div>
     {:else if sticky}
-      <div data-archived-current transition:rise><SidebarArchivedThread thread={sticky} current /></div>
+      <div data-archived-current class="col-start-1 row-start-1 min-w-0" transition:rise onoutrostart={outgoing} onintrostart={incoming}><SidebarArchivedThread thread={sticky} current /></div>
     {/if}
   </div>
   {#if pageState.error && expanded}

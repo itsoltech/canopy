@@ -8,6 +8,7 @@ export function sidebarThreads(threads: readonly ui.Thread[], settings: ui.Sideb
   const selected = new Set(settings.projectIds);
   const eligible = threads.filter((t) => !t.deletedAt && (!selected.size || selected.has(t.projectId)));
   const ids = new Set(eligible.map((t) => t.id));
+  const archivedParents = new Set(threads.filter((t) => t.status === "archived").map((t) => t.id));
   const pins = new Set(settings.pinnedThreadIds);
   const sides = new Map<string, ui.Thread[]>();
   for (const t of eligible) if (isSide(t) && ids.has(t.parentThreadId)) sides.set(t.parentThreadId, [...(sides.get(t.parentThreadId) ?? []), t]);
@@ -16,7 +17,7 @@ export function sidebarThreads(threads: readonly ui.Thread[], settings: ui.Sideb
   const roots = eligible.filter((t) => {
     if (t.status === "archived") return false;
     // Parent events arrive before their cascade children; never flash those children as active roots.
-    if (isSide(t) && threads.some((parent) => parent.id === t.parentThreadId && parent.status === "archived")) return false;
+    if (isSide(t) && archivedParents.has(t.parentThreadId)) return false;
     if (pins.has(t.id)) return matches(t) || (sides.get(t.id) ?? []).some(matches);
     return !(isSide(t) && ids.has(t.parentThreadId))
       && (matches(t) || (sides.get(t.id) ?? []).some(matches));
