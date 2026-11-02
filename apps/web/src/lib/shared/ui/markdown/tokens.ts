@@ -35,3 +35,53 @@ function share(before: Token, after: Token): Token {
 }
 
 const looseOf = (token: Token): boolean | undefined => ("loose" in token ? Boolean(token.loose) : undefined);
+
+/**
+ * A message as one run of inline tokens, for one-line or clamped previews (the last message of a subagent):
+ * blocks flatten into their inline content separated by spaces, code blocks become their first line as inline
+ * code, links keep only their text (previews sit inside links) and images their alt text.
+ */
+export function snippetTokens(text: string): Token[] {
+  const out: Token[] = [];
+  const space = (): void => {
+    if (out.length > 0) out.push({ type: "text", raw: " ", text: " " } as Tokens.Text);
+  };
+  const inline = (tokens: Token[] | undefined): Token[] =>
+    (tokens ?? []).flatMap((token): Token[] => {
+      if (token.type === "link") return inline((token as Tokens.Link).tokens);
+      if (token.type === "image") return [{ type: "text", raw: token.raw, text: (token as Tokens.Image).text } as Tokens.Text];
+      if (token.type === "br") return [{ type: "text", raw: " ", text: " " } as Tokens.Text];
+      if ("tokens" in token && Array.isArray(token.tokens)) return [{ ...token, tokens: inline(token.tokens) } as Token];
+      return [token];
+    });
+  const walk = (tokens: Token[]): void => {
+    for (const token of tokens) {
+      if (token.type === "space" || token.type === "hr" || token.type === "html") continue;
+      if (token.type === "code") {
+        const first = (token as Tokens.Code).text.split("\n").find((line) => line.trim()) ?? "";
+        if (first) {
+          space();
+          out.push({ type: "codespan", raw: first, text: first.trim() } as Tokens.Codespan);
+        }
+      } else if (token.type === "list") {
+        for (const item of (token as Tokens.List).items) walk(item.tokens);
+      } else if (token.type === "blockquote") {
+        walk((token as Tokens.Blockquote).tokens);
+      } else if (token.type === "table") {
+        const table = token as Tokens.Table;
+        for (const row of [table.header, ...table.rows]) for (const cell of row) {
+          space();
+          out.push(...inline(cell.tokens));
+        }
+      } else if ("tokens" in token && Array.isArray(token.tokens)) {
+        space();
+        out.push(...inline(token.tokens));
+      } else if ("text" in token && typeof token.text === "string") {
+        space();
+        out.push({ type: "text", raw: token.text, text: token.text } as Tokens.Text);
+      }
+    }
+  };
+  walk(lexMarkdown(text));
+  return out;
+}
