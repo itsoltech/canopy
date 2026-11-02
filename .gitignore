@@ -10,3 +10,4 @@ build/
 coverage/
 .tmp/
 /artifacts/sidebar-filter-menu/
+/artifacts/schedules-new-thread/
