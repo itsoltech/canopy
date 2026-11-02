@@ -21,6 +21,7 @@ import {
   type AgentToolResult,
   type Command,
   type InputAttachment,
+  type UserInput,
   type InteractionRequest,
   type ProfileModelsSchema,
   type WorkerConfig,
@@ -29,7 +30,7 @@ import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
 import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, ModelStore, ProfileStore, QueueStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
+import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
 import type { AttachmentLimits } from "@open-agents/domain";
 import { startGrpcServer } from "@open-agents/transport";
 import { applyWorkerConfig } from "@open-agents/worker/config";
@@ -40,7 +41,7 @@ import type { SqlClient } from "effect/sql";
 export const SERVICE_TOKEN = "t".repeat(48);
 
 export type TestRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | ProfileStore | AttachmentStore | SqlClient.SqlClient,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | SqlClient.SqlClient,
   unknown
 >;
 
@@ -83,6 +84,8 @@ export class ScriptedWorker {
   }[] = [];
   /** Inputs of the turns this worker ran, per thread. */
   readonly inputs = new Map<string, string[]>();
+  /** The whole input of each started turn (and steer), by turn id (steer: input id). */
+  readonly started = new Map<string, UserInput>();
   /** Attachments of each started turn, by turn id. */
   readonly attachments = new Map<string, InputAttachment[]>();
   /** Model and effort each turn was started with, by turn id. */
@@ -172,7 +175,11 @@ export class ScriptedWorker {
       if (payload.case === "config") {
         this.configs.push(payload.value);
         // Profiles as the real worker validates and reports them (no CLI probing: the device runs nothing).
-        const applied = applyWorkerConfig(payload.value, { which: () => null, version: () => undefined, realDirectory: (path) => path });
+        const applied = applyWorkerConfig(payload.value, {
+          which: (command) => (command === "codex" || (command === "claude" && this.options.claude) ? `/usr/bin/${command}` : null),
+          version: () => "0.164.0",
+          realDirectory: (path) => path,
+        });
         const profiles = applied.report.profiles?.length ? applied.report.profiles : [{ id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CLAUDE, Provider.CODEX], available: true }];
         this.#profiles = profiles.filter((p) => p.available && p.id !== "native" && p.providers?.includes(Provider.CODEX)).map((p) => p.id ?? "");
         // Like a real worker: what this device offers (here Codex and its profiles; Claude missing).
@@ -244,6 +251,7 @@ export class ScriptedWorker {
             break;
           }
           this.steered.set(inputId, input!.text);
+          this.started.set(inputId, input!);
           reply(true);
           if (this.steerMode === "drop") {
             this.emit(threadId, turnId, {
@@ -263,6 +271,7 @@ export class ScriptedWorker {
           const threadId = thread!.threadId;
           this.inputs.set(threadId, [...(this.inputs.get(threadId) ?? []), input!.text]);
           this.attachments.set(turnId, input!.attachments);
+          this.started.set(turnId, input!);
           this.turnSettings.set(turnId, { model, effort });
           this.turnModes.set(turnId, { turn: permissionMode, thread: thread!.permissionMode });
           reply(true);
@@ -318,7 +327,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
       SteerStore.layer,
       QueueStore.layer,
       GoalStore.layer,
-      ProfileStore.layer(secretsKey),
+      InstanceStore.layer(secretsKey),
       AttachmentStore.layer,
     ).pipe(Layer.provideMerge(pg.layer)),
   );
@@ -326,7 +335,9 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
   const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
   const addWorker = async (name: string, allowedRoots: string[]) => {
     const added = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name, ownerUserId: userId })));
-    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { allowedRoots, codex: { enabled: true } }, userId)));
+    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { allowedRoots, codex: { enabled: true }, claude: { enabled: true } }, userId)));
+    // Its effective provider instances (the built-in native ones, all workers).
+    await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [added.workerId])));
     return added;
   };
   const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });

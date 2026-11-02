@@ -1,4 +1,3 @@
-import { withAttachmentsNote } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import type { SteerRow } from "./steers.ts";
@@ -33,8 +32,13 @@ export class QueueStore extends Context.Service<
      * queue the client does not know yet keep theirs. Returns the listed turns in their new order.
      */
     reorder(input: { threadId: string; ownerUserId: string; turnIds: readonly string[] }): Fx<TurnRow[]>;
-    /** A user's queued message gets a new text (overrides and attachments stay); `expectedRevision` as read. */
-    edit(input: { turnId: string; ownerUserId: string; text: string; expectedRevision: number }): Fx<TurnRow>;
+    /** A user's queued message as the scheduler would read it now (no lock; `edit` checks the revision). */
+    queued(input: { turnId: string; ownerUserId: string }): Fx<TurnRow>;
+    /**
+     * A user's queued message gets a new input (composed by the caller like a sent message: its attachments note,
+     * its mentions; overrides stay); `expectedRevision` as read.
+     */
+    edit(input: { turnId: string; ownerUserId: string; input: TurnRow["input"]; expectedRevision: number }): Fx<TurnRow>;
     /** A user's queued message leaves the queue (cancelled, withdrawn = deleted). */
     remove(input: { turnId: string; ownerUserId: string }): Fx<TurnRow>;
     /** Undoes `remove`: back in the queue at its place. */
@@ -124,16 +128,22 @@ export class QueueStore extends Context.Service<
             }),
           ),
 
-        edit: ({ turnId, ownerUserId, text, expectedRevision }) =>
+        queued: ({ turnId, ownerUserId }) =>
+          sql<TurnRow>`
+            SELECT u.* FROM turns u JOIN threads t ON t.id = u.thread_id
+             WHERE u.id = ${turnId}::uuid AND t.owner_user_id = ${ownerUserId}::uuid`.pipe(
+            Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("turn not found")))),
+          ),
+
+        edit: ({ turnId, ownerUserId, input, expectedRevision }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const turn = yield* lockUserMessage(turnId, ownerUserId);
               if (turn.revision !== expectedRevision) return yield* Effect.fail(new QueueConflict("this message was changed elsewhere; edit the new version"));
-              const attachments = turn.input.attachments ?? [];
-              if (!text.trim() && attachments.length === 0) return yield* Effect.fail(new Invalid("message is empty"));
-              // With attachments the model gets the platform note (their paths) before the message, as when sent.
-              const input = turn.input.note ? { ...turn.input, message: text, text: withAttachmentsNote(turn.input.note, text) } : { ...turn.input, text };
-              yield* sql`UPDATE turns SET input = ${JSON.stringify(input)}::jsonb, revision = revision + 1 WHERE id = ${turnId}::uuid`;
+              if (!(input.message ?? input.text ?? "").trim() && (turn.input.attachments ?? []).length === 0) return yield* Effect.fail(new Invalid("message is empty"));
+              // The files stay the turn's (they are bound to it).
+              const next = { ...input, ...(turn.input.attachments && { attachments: turn.input.attachments }) };
+              yield* sql`UPDATE turns SET input = ${JSON.stringify(next)}::jsonb, revision = revision + 1 WHERE id = ${turnId}::uuid`;
               return yield* readOne(turnId);
             }),
           ),
@@ -170,7 +180,7 @@ export class QueueStore extends Context.Service<
               const id = Bun.randomUUIDv7();
               yield* sql`
                 INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, model, effort, permission_mode, from_turn_id)
-                VALUES (${id}::uuid, ${turn.thread_id}::uuid, ${running[0].id}::uuid, ${JSON.stringify({ text: turn.input.text ?? "" })}::jsonb,
+                VALUES (${id}::uuid, ${turn.thread_id}::uuid, ${running[0].id}::uuid, ${JSON.stringify(turn.input)}::jsonb,
                         ${turn.author_user_id}::uuid, ${turn.model ?? ""}, ${turn.effort ?? ""}, ${turn.permission_mode ?? ""}, ${turnId}::uuid)`;
               yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'steered', completed_at = now() WHERE id = ${turnId}::uuid`;
               const steer = (yield* sql<SteerRow>`SELECT * FROM turn_steers WHERE id = ${id}::uuid`)[0]!;

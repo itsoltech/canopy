@@ -2,6 +2,8 @@ import { ui } from "@open-agents/contracts";
 import type { PermissionModeKey } from "./labels.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
+import type { Mention } from "@open-agents/contracts";
+import { mentionsToWire } from "#lib/features/mentions/wire.ts";
 
 /** Browser-side calls to the BFF (same origin, JSON). */
 const post = (path: string, body: unknown) => requestJson("POST", path, body);
@@ -22,10 +24,18 @@ export async function sendMessage(
   turn: { model?: string; effort?: string; permissionMode?: PermissionModeKey } = {},
   delivery: Delivery = "queue",
   attachmentIds: readonly string[] = [],
+  mentions: readonly Mention[] = [],
 ): Promise<ui.SendMessageResponse> {
   return decode(
     ui.SendMessageResponseSchema,
-    await post(`${threadPath(threadId)}/messages`, { text, clientRequestId, ...turn, delivery, ...(attachmentIds.length > 0 && { attachmentIds }) }),
+    await post(`${threadPath(threadId)}/messages`, {
+      text,
+      clientRequestId,
+      ...turn,
+      delivery,
+      ...(attachmentIds.length > 0 && { attachmentIds }),
+      ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }),
+    }),
   );
 }
 
@@ -62,9 +72,18 @@ export async function reorderQueue(threadId: string, turnIds: readonly string[])
   return decode(ui.ReorderQueuedTurnsResponseSchema, await post(queuePath(threadId), { turnIds })).turns;
 }
 
-/** A queued message's new text; `expectedRevision` = the `Turn.revision` the edit started from. */
-export async function editQueued(threadId: string, turnId: string, text: string, expectedRevision: number): Promise<ui.Turn | undefined> {
-  return decode(ui.EditQueuedTurnResponseSchema, await post(queuePath(threadId, turnId), { action: "edit", text, expectedRevision })).turn;
+/** A queued message's new text with its mentions; `expectedRevision` = the `Turn.revision` the edit started from. */
+export async function editQueued(
+  threadId: string,
+  turnId: string,
+  text: string,
+  expectedRevision: number,
+  mentions: readonly Mention[] = [],
+): Promise<ui.Turn | undefined> {
+  return decode(
+    ui.EditQueuedTurnResponseSchema,
+    await post(queuePath(threadId, turnId), { action: "edit", text, expectedRevision, ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }) }),
+  ).turn;
 }
 
 export async function deleteQueued(threadId: string, turnId: string): Promise<ui.Turn | undefined> {

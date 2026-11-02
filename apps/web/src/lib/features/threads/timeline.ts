@@ -1,4 +1,5 @@
 import type { ui } from "@open-agents/contracts";
+import { dayKey } from "#lib/shared/format.ts";
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-state.svelte.ts";
 
 /** An item with the items nested under it (subagent work has `parent_item_id`). */
@@ -8,8 +9,11 @@ export interface ItemNode {
 }
 
 export type TimelineRow =
-  /** `number`: the turn's place among the shown turns (its ordinal less the withdrawn turns before it). */
-  | { readonly kind: "turn-start"; readonly key: string; readonly turn: ui.Turn; readonly number: number }
+  /**
+   * `newDay`: the turn starts a day the timeline has not shown yet (the first turn starts one too). `number`: the
+   * turn's place among the shown turns (its ordinal less the withdrawn turns before it).
+   */
+  | { readonly kind: "turn-start"; readonly key: string; readonly turn: ui.Turn; readonly newDay: boolean; readonly number: number }
   /** The turn's input before the provider echoes it as a user_message item. */
   | { readonly kind: "input"; readonly key: string; readonly turn: ui.Turn }
   /**
@@ -18,7 +22,8 @@ export type TimelineRow =
    */
   | { readonly kind: "item"; readonly key: string; readonly node: ItemNode; readonly inputOf: ui.Turn | undefined; readonly steer: boolean }
   | { readonly kind: "notice"; readonly key: string; readonly notice: TimelineNotice }
-  | { readonly kind: "turn-end"; readonly key: string; readonly turn: ui.Turn; readonly result: TurnResult | undefined };
+  /** `answer`: the text of the turn's last agent message (what "Copy answer" copies); "" without one. */
+  | { readonly kind: "turn-end"; readonly key: string; readonly turn: ui.Turn; readonly result: TurnResult | undefined; readonly answer: string };
 
 /**
  * A user_message that joined a running turn (steer): its `client_id` is the steer's id. The turn's own
@@ -47,8 +52,8 @@ export const isTerminal = (status: string) => TERMINAL.has(status);
 type Element = { seq: bigint; turnId: string } & ({ node: ItemNode } | { notice: TimelineNotice });
 
 /**
- * Orders items and notices by seq and frames each turn: a start row before its first element and an
- * end row (status, usage) after its last one. Items of other turns or between turns (background
+ * Orders items and notices by seq and frames each turn: a start row before its first element (marking a
+ * new day) and an end row (status, usage, the last answer) after its last one. Items of other turns or between turns (background
  * work) keep their place in the sequence. Turns without any element yet (just started, or failed
  * before the provider ran) follow at the end; queued turns are not rows (the page shows them apart), nor
  * are turns the user took out of the queue (`withdrawn`: deleted, or steered into another turn).
@@ -93,15 +98,24 @@ export function buildTimeline(
   elements.forEach((element, index) => element.turnId && lastIndex.set(element.turnId, index));
   const echoed = new Set(entries.filter((e) => e.item.content.case === "userMessage" && !isSteerMessage(e)).map((e) => e.turnId));
 
+  const answers = new Map<string, string>();
+  for (const element of elements) {
+    const content = "node" in element ? element.node.entry.item.content : undefined;
+    if (content?.case === "agentMessage" && content.value.text.trim()) answers.set(element.turnId, content.value.text);
+  }
+
   const rows: TimelineRow[] = [];
   const opened = new Set<string>();
+  let lastDay = "";
   const open = (turn: ui.Turn) => {
     opened.add(turn.id);
-    rows.push({ kind: "turn-start", key: `start:${turn.id}`, turn, number: number(turn) });
+    const day = dayKey(turn.startedAt ?? turn.queuedAt);
+    rows.push({ kind: "turn-start", key: `start:${turn.id}`, turn, newDay: day !== "" && day !== lastDay, number: number(turn) });
+    if (day) lastDay = day;
     if (!echoed.has(turn.id) && turn.inputText) rows.push({ kind: "input", key: `input:${turn.id}`, turn });
   };
   const close = (turn: ui.Turn) => {
-    if (isTerminal(turn.status)) rows.push({ kind: "turn-end", key: `end:${turn.id}`, turn, result: results.get(turn.id) });
+    if (isTerminal(turn.status)) rows.push({ kind: "turn-end", key: `end:${turn.id}`, turn, result: results.get(turn.id), answer: answers.get(turn.id) ?? "" });
   };
 
   elements.forEach((element, index) => {

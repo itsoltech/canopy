@@ -1,6 +1,7 @@
-import { json } from "@sveltejs/kit";
+import { error, json } from "@sveltejs/kit";
 import { Schema } from "effect";
 import { PermissionMode, ui } from "@open-agents/contracts";
+import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { readBody } from "#lib/server/body.ts";
 import { call } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
@@ -19,15 +20,24 @@ const Body = Schema.Struct({
   delivery: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
   // Uploaded attachments (api/attachments); a message with attachments is always queued.
   attachmentIds: Schema.optionalKey(Schema.Array(Schema.String.check(Schema.isUUID())).check(Schema.isMaxLength(50))),
+  // Commands, skills, plugins, files and threads in the text (protobuf JSON Mention; the gateway checks them).
+  mentions: Schema.optionalKey(Schema.Array(Schema.Unknown).check(Schema.isMaxLength(50))),
 });
 
 export const POST: RequestHandler = async ({ request, params }) => {
-  const { delivery, permissionMode, attachmentIds, ...body } = await readBody(request, Body);
+  const { delivery, permissionMode, attachmentIds, mentions: rawMentions, ...body } = await readBody(request, Body);
+  let mentions;
+  try {
+    mentions = mentionsFromWire(rawMentions);
+  } catch (cause) {
+    error(400, cause instanceof Error ? cause.message : "invalid mentions");
+  }
   const response = await call((api) =>
     api.sendMessage({
       threadId: params.threadId,
       ...body,
       attachmentIds: [...(attachmentIds ?? [])],
+      mentions,
       ...(permissionMode && { permissionMode: PermissionMode[permissionMode] }),
       delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
     }),

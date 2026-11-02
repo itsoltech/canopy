@@ -1,15 +1,16 @@
 <script lang="ts">
-  import { page } from "$app/state";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import { settingsGroups, settingsSections } from "./sections.ts";
+  import { useSettingsRoute } from "./settings-route.ts";
 
   /** Settings sections with a search filter (T3 style); a scrolling row on narrow screens. */
   let query = $state("");
   const visible = $derived(
     settingsSections.filter((s) => !query.trim() || `${s.label} ${s.keywords}`.toLowerCase().includes(query.trim().toLowerCase())),
   );
-  const active = (href: string) => page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
+  const route = useSettingsRoute();
+  const active = (href: string) => route.url.pathname === href || route.url.pathname.startsWith(`${href}/`);
   const itemClass =
     "flex shrink-0 items-center gap-2.5 rounded-lg whitespace-nowrap px-2.5 py-2 text-base/6 text-zinc-600 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring aria-[current=page]:bg-zinc-950/5 aria-[current=page]:text-zinc-950 sm:py-1.5 sm:text-sm/6 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/8 dark:aria-[current=page]:text-white";
 </script>

@@ -10,7 +10,10 @@ declare global {
       settings?: Promise<ui.GetSettingsResponse | null>;
     }
     // interface PageData {}
-    // interface PageState {}
+    interface PageState {
+      /** Settings open as an overlay (shallow routing): the page underneath, to go back to after a reload. */
+      settingsOver?: string;
+    }
     // interface Platform {}
   }
 }

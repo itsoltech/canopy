@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
-import { ProviderProfileKind, DeviceLogin } from "@open-agents/contracts";
-import { GatewayStore } from "./store/index.ts";
+import { DeviceLogin } from "@open-agents/contracts";
+import { GatewayStore, InstanceStore } from "./store/index.ts";
 import { ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
 
 /**
@@ -36,17 +36,14 @@ const userId = await ensureDevUser(runtime, Bun.env["OA_DEV_USER_EMAIL"] ?? "dev
 const { workerId, credential } = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: values.name!, ownerUserId: userId })));
 
 // CLIProxyAPI key: read from an env var of this process (never a CLI argument), stored encrypted.
-let profiles: { id: string; kind: ProviderProfileKind; baseUrl: string }[] = [];
-const secretRefs: Record<string, string> = {};
+let secretId: string | undefined;
 if (values["cliproxy-url"]) {
   const keyEnv = values["cliproxy-key-env"] ?? "OA_CLIPROXYAPI_API_KEY";
   const key = Bun.env[keyEnv];
   if (!key) throw new Error(`${keyEnv} is not set`);
-  const secretId = await runtime.runPromise(
+  secretId = await runtime.runPromise(
     GatewayStore.use((s) => s.putSecret({ ownerUserId: userId, name: `cliproxyapi-${workerId.slice(-8)}`, plaintext: key, createdBy: userId })),
   );
-  profiles = [{ id: "cliproxyapi", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: values["cliproxy-url"] }];
-  secretRefs["cliproxyapi"] = secretId;
 }
 await runtime.runPromise(
   GatewayStore.use((s) =>
@@ -54,15 +51,20 @@ await runtime.runPromise(
       workerId,
       {
         allowedRoots: values.root!,
-        // Both CLIs; the worker reports the ones it cannot find. With a proxy profile no device login is linked.
-        codex: { enabled: true, ...(profiles.length > 0 && { deviceLogin: DeviceLogin.NONE }) },
-        claude: { enabled: true, ...(profiles.length > 0 && { deviceLogin: DeviceLogin.NONE }) },
-        profiles,
+        // Both CLIs; the worker reports the ones it cannot find. With a proxy no device login is linked.
+        codex: { enabled: true, ...(secretId && { deviceLogin: DeviceLogin.NONE }) },
+        claude: { enabled: true, ...(secretId && { deviceLogin: DeviceLogin.NONE }) },
       },
       userId,
-      secretRefs,
     ),
   ),
 );
+// Global provider instances (docs/worker-config.md, section 9): the proxy as the "cliproxyapi" instance of both
+// harnesses, enabled on this worker; then the worker's configuration gets its effective instances.
+if (secretId) {
+  const apiKey = { secretRef: secretId };
+  await runtime.runPromise(InstanceStore.use((s) => s.registerEndpoint({ userId, workerId, baseUrl: values["cliproxy-url"]!, apiKey })));
+}
+await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [workerId])));
 await runtime.dispose();
 console.log(JSON.stringify({ gateway_url: values["gateway-url"], worker_id: workerId, credential }, null, 2));

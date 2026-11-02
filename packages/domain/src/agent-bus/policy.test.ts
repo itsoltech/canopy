@@ -95,6 +95,16 @@ describe("communication inside the tree", () => {
     expect(reason({ tool: "read_thread", args: { thread_id: "b" } }, facts(a))).toBe("allowed");
   });
 
+  test("a thread the user mentioned is readable from another tree, nothing else", () => {
+    const mentioned = new Map([...all, ["x", { ...x, mentioned: true }]]);
+    const read = (tool: "read_thread" | "get_thread"): AgentBusCall => (tool === "read_thread" ? { tool, args: { thread_id: "x" } } : { tool, args: { thread_id: "x" } });
+    expect(reason(read("read_thread"), facts(a, { targets: mentioned }))).toBe("allowed");
+    expect(reason(read("get_thread"), facts(a, { targets: mentioned }))).toBe("allowed");
+    expect(reason(send("x"), facts(a, { targets: mentioned }))).toContain("not found in your thread tree");
+    expect(reason({ tool: "interrupt_thread", args: { thread_id: "x" } }, facts(root, { targets: mentioned }))).toContain("not found");
+    expect(reason(read("read_thread"), facts(a))).toContain("not found in your thread tree");
+  });
+
   test("hops stop agent ping-pong without human input", () => {
     const limit = DEFAULT_BUS_LIMITS.maxHops;
     const quiet: AgentBusCall = { tool: "send_message", args: { thread_id: "b", prompt: "again", notify: false } };

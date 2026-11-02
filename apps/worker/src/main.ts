@@ -73,8 +73,9 @@ while (!stopping.signal.aborted) {
         host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: WORKER_VERSION },
         state: WorkerState.ACTIVE,
         // running_turns: the list below is complete, the gateway ends its other running turns of this worker.
+        // probe_providers, codex_device_login: provider instances are checked again and sign in from the app.
         // attachments: turns may carry files (fetched with FetchBlob into attachments_root).
-        capabilities: ["running_turns", "attachments"],
+        capabilities: ["running_turns", "attachments", "probe_providers", "codex_device_login"],
         attachmentsRoot: host.attachmentsRoot,
         runningTurns: host.runningTurns(),
         configVersion: host.config?.version ?? 0n,

@@ -40,11 +40,13 @@
 </script>
 
 {#if origin.kind === "user"}
-  <!-- With attachments the agent got a platform note listing their paths: the message shows the files, the full text folds. -->
+  <!-- With attachments or mentions the agent got a platform note (file paths, threads) or a reordered command: the
+       message shows as written, with its files and chips, and the full text folds. -->
+  {@const rich = turn.attachments.length > 0 || turn.mentions.length > 0}
   <UserMessageView
-    message={{ text: turn.attachments.length > 0 && parts.note ? parts.message : text, authorAgentId: "", attachments: [...attachments] }}
+    message={{ text: rich ? parts.message : text, authorAgentId: "", attachments: [...attachments], mentions: turn.mentions }}
     files={turn.attachments}
-    details={turn.attachments.length > 0 && parts.note ? fullText : undefined}
+    details={rich && text !== parts.message ? fullText : undefined}
   />
 {:else}
   <div class="flex flex-col items-end gap-1">

@@ -1,7 +1,9 @@
 export { claudeProfileOptions } from "./claude/profile.ts";
 export { codexAppServerLaunch, codexModelProviderId, codexThreadProvider, type CodexAppServerLaunch } from "./codex/launch.ts";
 export {
+  hasOwnRuntime,
   NATIVE_PROFILE,
+  providersOf,
   ProfileError,
   resolveProfiles,
   selectProfile,
@@ -10,6 +12,7 @@ export {
   type Env,
   type NativeProfileConfig,
   type ProfileEnvVarConfig,
+  type ProfileRuntimeConfig,
   type ProfileStatus,
   type ProviderProfileConfig,
   type ResolvedProfile,

@@ -3,6 +3,8 @@ import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 const dateTime = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" });
+const time = new Intl.DateTimeFormat("en", { timeStyle: "short" });
+const date = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
 
 /** 1234 → "1.2K". */
 export const formatCount = (value: bigint | number): string => compact.format(Number(value));
@@ -56,6 +58,24 @@ export function formatAge(timestamp: Timestamp | undefined, now = Date.now()): s
 }
 
 export const formatDateTime = (timestamp: Timestamp | undefined): string => (timestamp ? dateTime.format(timestampDate(timestamp)) : "");
+
+export const formatTime = (timestamp: Timestamp | undefined): string => (timestamp ? time.format(timestampDate(timestamp)) : "");
+
+/** The local calendar day of a timestamp ("2026-11-02"), for telling days apart; "" without one. */
+export function dayKey(timestamp: Timestamp | undefined): string {
+  if (!timestamp) return "";
+  const at = timestampDate(timestamp);
+  return `${at.getFullYear()}-${at.getMonth() + 1}-${at.getDate()}`;
+}
+
+/** A day separator's label: "Today", "Yesterday" or the date ("Nov 2, 2026"). */
+export function formatDay(timestamp: Timestamp | undefined, now = new Date()): string {
+  if (!timestamp) return "";
+  const at = timestampDate(timestamp);
+  const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((midnight(now) - midnight(at)) / 86_400_000);
+  return days === 0 ? "Today" : days === 1 ? "Yesterday" : date.format(at);
+}
 
 export const isoDateTime = (timestamp: Timestamp | undefined): string => (timestamp ? timestampDate(timestamp).toISOString() : "");
 

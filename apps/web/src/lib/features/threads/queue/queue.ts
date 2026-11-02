@@ -1,4 +1,5 @@
-import { PermissionMode, type ui } from "@open-agents/contracts";
+import { create } from "@bufbuild/protobuf";
+import { MentionSchema, PermissionMode, type Mention, type ui } from "@open-agents/contracts";
 import { effortLevel, modelDisplayName } from "#lib/features/models/catalog.ts";
 import { permissionLabel } from "../labels.ts";
 
@@ -33,8 +34,28 @@ export const ownMessage = (turn: ui.Turn): boolean => turn.trigger === "user";
 /** A message steered from the queue takes no files: a message with attachments runs as its own turn. */
 export const steerable = (turn: ui.Turn): boolean => ownMessage(turn) && turn.attachments.length === 0;
 
-/** The text a row shows: the message without the platform's note (attachments, a source). */
-export const queuedText = (turn: ui.Turn): string => (turn.messageText || turn.inputText).replace(/\s+/g, " ").trim();
+/** The message as the user wrote it (without the platform's note: attachments, mentions, a source). */
+export const messageOf = (turn: ui.Turn): string => turn.messageText || turn.inputText;
+
+/** The text a row shows: the message on one line. */
+export const queuedText = (turn: ui.Turn): string => messageOf(turn).replace(/\s+/g, " ").trim();
+
+/**
+ * The mentions of `before` that are still in `after` (an inline edit is plain text): each chip's text, found again
+ * in order, with its new range; a chip whose text was changed or removed is dropped.
+ */
+export function relocateMentions(before: string, mentions: readonly Mention[], after: string): Mention[] {
+  let from = 0;
+  return [...mentions]
+    .sort((a, b) => a.start - b.start)
+    .flatMap((mention) => {
+      const token = before.slice(mention.start, mention.end);
+      const start = token ? after.indexOf(token, from) : -1;
+      if (start < 0) return [];
+      from = start + token.length;
+      return [create(MentionSchema, { ...mention, start, end: from })];
+    });
+}
 
 /** What the message runs with instead of the thread's defaults ("GPT-5.5", "High effort", "Read only", "2 files"). */
 export function overrides(turn: ui.Turn): string[] {

@@ -60,3 +60,8 @@ export function applyAppearance(appearance: ui.AppearanceSettings | undefined): 
   root.dataset["chatWidth"] = chatWidthOf(appearance);
   document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", scheme === "system" ? "light dark" : scheme);
 }
+
+/** Names of the choices as the settings and the command palette show them. */
+export const schemeLabels: Record<SchemeName, string> = { system: "System", light: "Light", dark: "Dark" };
+export const accentLabels: Record<AccentName, string> = { default: "Default", grove: "Grove", ocean: "Ocean", ember: "Ember", iris: "Iris", rose: "Rose" };
+export const chatWidthLabels: Record<ChatWidthName, string> = { comfortable: "Comfortable", wide: "Wide", full: "Full width" };

@@ -4,7 +4,10 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
 
-  /** Row of the context panel: icon, content, optional aside. A link with `href`, a button with `onclick`. */
+  /**
+   * Row of the context panel: icon (or `lead`, e.g. a brand mark), content, optional aside. A link with
+   * `href`, a button with `onclick`.
+   */
   let {
     icon,
     iconClass,
@@ -14,6 +17,7 @@
     class: className,
     children,
     aside,
+    lead,
   }: {
     icon: IconName;
     iconClass?: ClassValue;
@@ -23,6 +27,7 @@
     class?: ClassValue;
     children: Snippet;
     aside?: Snippet;
+    lead?: Snippet;
   } = $props();
   const interactive = $derived(Boolean(href || onclick));
   const classes = $derived([
@@ -34,7 +39,7 @@
 </script>
 
 {#snippet content()}
-  <Icon name={icon} class={iconClass ?? "fill-zinc-400 dark:fill-zinc-500"} />
+  {#if lead}{@render lead()}{:else}<Icon name={icon} class={iconClass ?? "fill-zinc-400 dark:fill-zinc-500"} />{/if}
   <span class="min-w-0 flex-1 truncate">{@render children()}</span>
   {@render aside?.()}
 {/snippet}

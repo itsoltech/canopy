@@ -4,7 +4,7 @@
   import ModelIdField from "#lib/features/models/ModelIdField.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import { permissionModes, providerLabel } from "../labels.ts";
-  import { profilesFor, profileValue, providerKeyOf } from "../providers.ts";
+  import { instanceLabel, instancesFor, instanceValue, providerKeyOf } from "../providers.ts";
 
   /**
    * Agent settings of a side thread (form fields `profileId`, `model`, `permissionMode`), pre-filled
@@ -14,7 +14,7 @@
   let { worker, parent }: { worker: ui.Worker | undefined; parent: ui.Thread } = $props();
   const provider = $derived(providerLabel(parent.provider));
   const key = $derived(providerKeyOf(parent.provider));
-  const profiles = $derived(key ? profilesFor(worker, key) : []);
+  const profiles = $derived(key ? instancesFor(worker, key) : []);
   // svelte-ignore state_referenced_locally
   let mode = $state<string>(PermissionMode[parent.permissionMode] ?? "ASK");
   // svelte-ignore state_referenced_locally
@@ -29,7 +29,7 @@
   >
     <Select name="profileId" bind:value={profile}>
       {#each profiles as option (option.id)}
-        <option value={profileValue(option)}>{option.id}</option>
+        <option value={instanceValue(option)}>{instanceLabel(option)}</option>
       {:else}
         <option value="">Default</option>
       {/each}

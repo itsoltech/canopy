@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { PermissionMode, ui } from "@open-agents/contracts";
-import { moveTo, ordered, overrides, queuedText, steerable } from "./queue.ts";
+import { MentionKind, MentionSchema } from "@open-agents/contracts";
+import { moveTo, ordered, overrides, queuedText, relocateMentions, steerable } from "./queue.ts";
 
 const turn = (id: string, extra: MessageInitShape<typeof ui.TurnSchema> = {}) => create(ui.TurnSchema, { id, status: "queued", trigger: "user", ...extra });
 
@@ -26,5 +27,19 @@ describe("queue panel", () => {
     expect(overrides(turn("b"))).toEqual([]);
     expect(queuedText(queued)).toBe("fix it");
     expect([steerable(queued), steerable(turn("c")), steerable(turn("d", { trigger: "agent_bus" }))]).toEqual([false, true, false]);
+  });
+
+  test("relocateMentions keeps the chips the edited text still has, at their new places", () => {
+    const before = "use $review on @src/a.ts now";
+    const mentions = [
+      create(MentionSchema, { kind: MentionKind.FILE, name: "src/a.ts", start: 15, end: 24 }),
+      create(MentionSchema, { kind: MentionKind.SKILL, name: "review", start: 4, end: 11 }),
+    ];
+    const after = "please use $review on @src/a.ts";
+    expect(relocateMentions(before, mentions, after).map((m) => [m.name, after.slice(m.start, m.end)])).toEqual([
+      ["review", "$review"],
+      ["src/a.ts", "@src/a.ts"],
+    ]);
+    expect(relocateMentions(before, mentions, "use $review now").map((m) => m.name)).toEqual(["review"]);
   });
 });

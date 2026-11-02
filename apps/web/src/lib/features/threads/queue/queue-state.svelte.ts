@@ -1,7 +1,7 @@
 import type { ui } from "@open-agents/contracts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { deleteQueued, editQueued, reorderQueue, restoreQueued, steerQueued } from "../api.ts";
-import { moveTo, ordered } from "./queue.ts";
+import { messageOf, moveTo, ordered, relocateMentions } from "./queue.ts";
 
 /** Where the queue comes from (the thread's live state) and where confirmed changes go before the stream has them. */
 export interface QueueSource {
@@ -84,7 +84,9 @@ export class QueueState {
 
   async edit(turn: ui.Turn, text: string): Promise<string | undefined> {
     try {
-      const saved = await editQueued(this.#source().threadId, turn.id, text, turn.revision);
+      // The chips the new text still has keep their mentions (the inline editor is plain text).
+      const mentions = relocateMentions(messageOf(turn), turn.mentions, text);
+      const saved = await editQueued(this.#source().threadId, turn.id, text, turn.revision, mentions);
       if (saved) this.#sink.turn(saved);
       this.editing = undefined;
       return undefined;

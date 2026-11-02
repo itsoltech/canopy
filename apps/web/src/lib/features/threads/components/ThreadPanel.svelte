@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ui, Usage } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
+  import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import { osLabel } from "#lib/features/overview/workers.ts";
   import ScheduleActions from "#lib/features/schedules/ScheduleActions.svelte";
   import { describeWhen } from "#lib/features/schedules/schedules.ts";
@@ -11,6 +12,7 @@
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { permissionLabel, permissionLook, providerLabel } from "../labels.ts";
   import type { UsageTotals } from "../thread-state.svelte.ts";
+  import { providerKeyOf } from "../providers.ts";
   import { isSide, type ThreadTree } from "../thread-tree.ts";
   import ThreadStatusText from "../ThreadStatusText.svelte";
   import PanelRow from "./PanelRow.svelte";
@@ -46,6 +48,7 @@
     onnewside?: (() => void) | undefined;
     class?: ClassValue;
   } = $props();
+  const providerKey = $derived(providerKeyOf(thread.provider));
 
   const lookup = (id: string) => (tree.main.id === id ? tree.main : tree.sides.find((s) => s.id === id));
   const source = $derived(thread.forkSourceThreadId ? lookup(thread.forkSourceThreadId) : undefined);
@@ -68,6 +71,7 @@
 
   <section aria-label="Agent" class="grid grid-cols-1 p-1.5">
     <PanelRow icon="cpu-chip">
+      {#snippet lead()}{#if providerKey}<ProviderIcon provider={providerKey} />{:else}<Icon name="cpu-chip" class="fill-zinc-400 dark:fill-zinc-500" />{/if}{/snippet}
       {providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}
       {#snippet aside()}{#if thread.providerProfileId}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5">{thread.providerProfileId}</span>{/if}{/snippet}
     </PanelRow>

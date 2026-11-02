@@ -208,12 +208,12 @@ describe.skipIf(!dockerAvailable)("managing the queue (gateway + scripted worker
       const textOfA = edited === "" ? "A2" : "A";
       if (reordered === "") expect(ran).toEqual(["C", textOfA, "B"]);
       else {
-        // The scheduler took A first; the rest kept the order they had.
-        expect(reordered).toContain("already started");
+        // The scheduler took A first (it may even have finished already); the rest kept the order they had.
+        expect(reordered).toMatch(/already started|no longer queued/);
         expect(ran[0]).toBe(textOfA);
         expect(ran.slice(1)).toEqual(["B", "C"]);
       }
-      if (edited !== "") expect(edited).toContain("already started");
+      if (edited !== "") expect(edited).toMatch(/already started|no longer queued/);
     }
   }, 60_000);
 

@@ -5,6 +5,11 @@ import {
   ForkSpecSchema,
   GoalDirective,
   InteractionResponseSchema,
+  MentionCatalogSchema,
+  MentionKind,
+  MentionSchema,
+  type Mention,
+  type MentionCatalog,
   ItemStatus,
   PermissionMode,
   Provider,
@@ -26,16 +31,22 @@ import {
   DEFAULT_ATTACHMENT_LIMITS,
   DEFAULT_BUS_LIMITS,
   formatSize,
+  checkMentions,
+  composeMessage,
+  fuzzyRank,
   isFinished,
+  MentionError,
   storedSidebarWidth,
   withAttachmentsNote,
   type AttachmentLimits,
 } from "@open-agents/domain";
 import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
+import { isPlatformCommand, mentionsFromJson, mentionsToJson, PLATFORM_COMMANDS, workerPath } from "./mentions.ts";
 import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
 import {
   AgentBusStore,
-  applyModelSelections,
+  applyInstanceModels,
+  harnessOf,
   GatewayStore,
   GoalStore,
   Ingest,
@@ -44,8 +55,9 @@ import {
   modelProblem,
   permissionModeName,
   permissionModeOf,
-  ProfileStore,
+  InstanceStore,
   QueueStore,
+  withCustomModels,
   SettingsStore,
   SteerStore,
   toUiGoal,
@@ -78,7 +90,7 @@ import { Scheduler } from "./scheduler.ts";
  */
 
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | ProfileStore | AttachmentStore,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore,
   unknown
 >;
 
@@ -100,6 +112,9 @@ const MAX_PREVIEW_BYTES = 8 * 1024 ** 2;
 const PREVIEW_TYPES: ReadonlySet<string> = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
 type TurnInputJson = TurnRow["input"];
+
+/** How long the gateway reuses a worker's mention catalog (refresh skips it; the worker keeps its own). */
+const CATALOG_TTL_MS = 30_000;
 
 /** Where a model is chosen: an existing thread, or a new one (workspace, provider, profile). */
 type ModelScope = { thread: ThreadRow } | { workspaceId: string; provider: Provider; profileId: string };
@@ -132,6 +147,8 @@ export class GatewayCore {
   readonly #journalIds = new Map<string, string>();
   /** Threads whose events failed to store on a connection: skipped until the worker reconnects and resends. */
   readonly #blocked = new WeakMap<WorkerConnection, Set<string>>();
+  /** Mention catalogs by worker + provider + profile + folder (the composer asks on every popup). */
+  readonly #catalogs = new Map<string, { at: number; catalog: MentionCatalog }>();
   /** Previews a worker is uploading (BlobChunk), by sha256, until their last chunk. */
   readonly #uploads = new WeakMap<WorkerConnection, Map<string, { chunks: Uint8Array[]; size: number; mimeType: string }>>();
   #sweepTimer: ReturnType<typeof setInterval> | undefined;
@@ -509,6 +526,7 @@ export class GatewayCore {
           input: {
             text: turn.input.text ?? "",
             authorUserId: this.#options.userId,
+            mentions: mentionsFromJson(turn.input.delivered),
             attachments: (turn.input.attachments ?? []).map((a) => ({
               attachmentId: a.id,
               sha256: a.sha256,
@@ -562,10 +580,22 @@ export class GatewayCore {
     return turns;
   }
 
+  /**
+   * A queued message's new text, composed like a sent one: the note of its files (they stay), its mentions checked
+   * and resolved. The revision guards the rest (the turn may change or start meanwhile).
+   */
   async editQueuedTurn(request: ui.EditQueuedTurnRequest): Promise<ui.Turn> {
-    const row = await this.#queue((q) =>
-      q.edit({ turnId: request.turnId, ownerUserId: this.#options.userId, text: request.text, expectedRevision: request.expectedRevision }),
-    );
+    const ownerUserId = this.#options.userId;
+    const current = await this.#queue((q) => q.queued({ turnId: request.turnId, ownerUserId }));
+    const thread = await this.#run((s) => s.thread(current.thread_id));
+    const text = request.text;
+    const { mentions, goal } = await this.#messageMentions({ id: thread.id, cwd: thread.cwd ?? "" }, text, request.mentions);
+    if (goal !== undefined) throw new InvalidError("a /goal message does not wait in the queue; send it instead");
+    const attachments = current.input.attachments ?? [];
+    const note = attachments.length > 0 ? attachmentsNote(attachments) : "";
+    const base: TurnInputJson = note ? { text: withAttachmentsNote(note, text), note, message: text, attachments } : { text };
+    const input = this.#composeInput(thread.provider, text, mentions, base) ?? base;
+    const row = await this.#queue((q) => q.edit({ turnId: request.turnId, ownerUserId, input, expectedRevision: request.expectedRevision }));
     return this.#publishQueued(row);
   }
 
@@ -603,7 +633,7 @@ export class GatewayCore {
 
   async overview(): Promise<ui.GetOverviewResponse> {
     const [workers, projects] = await Promise.all([
-      this.#run((s) => s.listWorkers(this.online)),
+      this.#workers(),
       this.#run((s) => s.listProjects(this.#options.userId)),
     ]);
     return create(ui.GetOverviewResponseSchema, { workers, projects, agents: [] });
@@ -665,26 +695,34 @@ export class GatewayCore {
     await this.#checkModel(where, request.model, request.effort);
     // A model without efforts keeps none as the thread's default.
     const effort = turnEffort((await this.#profileModels(where)).models, request.model, request.effort);
-    if (request.initialAttachmentIds.length === 0) {
+    if (request.initialAttachmentIds.length === 0 && request.initialMentions.length === 0) {
       const row = await this.#run((s) => s.createThread(this.#options.userId, effort === request.effort ? request : { ...request, effort }));
       await this.#startThread(row);
       return toUiThread(row);
     }
-    // With attachments: checked first (no thread for a message that cannot go), then the first message as a turn.
+    // With attachments or mentions: checked first (no thread for a message that cannot go), then the first message as a turn.
     const projects = await this.#run((s) => s.listProjects(this.#options.userId));
-    const workerId = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId)?.workerId ?? "";
-    const files = await this.#messageAttachments(request.initialAttachmentIds, workerId);
+    const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId);
+    const files = request.initialAttachmentIds.length > 0 ? await this.#messageAttachments(request.initialAttachmentIds, workspace?.workerId ?? "") : undefined;
+    const { mentions, goal } = await this.#messageMentions({ cwd: request.cwd || workspace?.rootPath || "" }, request.initialMessage, request.initialMentions);
+    if (goal !== undefined && files) throw new InvalidError("a /goal message cannot carry attachments");
     const row = await this.#run((s) => s.createThread(this.#options.userId, { ...request, effort, initialMessage: "" }));
-    await this.#run((s) =>
-      s.enqueueTurn({
-        threadId: row.id,
-        text: request.initialMessage,
-        userId: this.#options.userId,
-        clientRequestId: request.clientRequestId,
-        input: files.input(row.id, request.initialMessage),
-      }),
-    );
+    if (goal === undefined) {
+      const provider = request.provider === Provider.CLAUDE ? "claude" : "codex";
+      const input = this.#composeInput(provider, request.initialMessage, mentions, files?.input(row.id, request.initialMessage));
+      await this.#run((s) =>
+        s.enqueueTurn({
+          threadId: row.id,
+          text: request.initialMessage,
+          userId: this.#options.userId,
+          clientRequestId: request.clientRequestId,
+          ...(input && { input }),
+        }),
+      );
+    }
     await this.#startThread(row);
+    // A /goal first message: the new thread's goal (Claude: its /goal turn; Codex: thread/goal/set after the thread).
+    if (goal !== undefined) await this.setGoal(create(ui.SetGoalRequestSchema, { threadId: row.id, action: "set", objective: goal }));
     return toUiThread(row);
   }
 
@@ -810,6 +848,125 @@ export class GatewayCore {
     return this.#options.runtime.runPromise(AttachmentStore.use(use));
   }
 
+  // ------------------------------------------------------------------ mentions (docs/ui-api.md, "Wzmianki")
+
+  /** Commands, skills and plugins of the scope's provider (worker, cached CATALOG_TTL_MS), the platform's commands first. */
+  async listMentionCatalog(request: ui.ListMentionCatalogRequest): Promise<ui.ListMentionCatalogResponse> {
+    const scope = await this.#mentionScope(request.scope);
+    const key = `${scope.workerId}|${scope.provider}|${scope.profileId}|${scope.cwd}`;
+    const cached = this.#catalogs.get(key);
+    let catalog = !request.refresh && cached && Date.now() - cached.at < CATALOG_TTL_MS ? cached.catalog : undefined;
+    if (!catalog) {
+      const result = await this.#workerQuery(
+        scope.workerId,
+        { case: "listMentionCatalog", value: { provider: scope.provider, profileId: scope.profileId, cwd: scope.cwd, refresh: request.refresh } },
+        45_000,
+      );
+      catalog = result.mentionCatalog ?? create(MentionCatalogSchema, { provider: scope.provider, profileId: scope.profileId, cwd: scope.cwd });
+      this.#catalogs.set(key, { at: Date.now(), catalog });
+      if (this.#catalogs.size > 200) this.#catalogs.delete(this.#catalogs.keys().next().value ?? "");
+    }
+    // Goals need a worker thread of either provider; the platform runs /goal itself (SetGoal).
+    const entries = [...PLATFORM_COMMANDS, ...catalog.entries.filter((e) => !PLATFORM_COMMANDS.some((p) => p.kind === e.kind && p.name === e.name))];
+    return create(ui.ListMentionCatalogResponseSchema, { catalog: { ...catalog, entries } });
+  }
+
+  /** Fuzzy file search in the scope's folder on its worker. */
+  async searchFiles(request: ui.SearchFilesRequest): Promise<ui.SearchFilesResponse> {
+    const scope = await this.#mentionScope(request.scope);
+    const result = await this.#workerQuery(scope.workerId, { case: "searchFiles", value: { cwd: scope.cwd, query: request.query, limit: request.limit } }, 20_000);
+    return create(ui.SearchFilesResponseSchema, { ...(result.fileSearch && { result: result.fileSearch }) });
+  }
+
+  /** The user's threads by title (fuzzy), best match first, the most recent activity first among equals. */
+  async searchThreads(request: ui.SearchThreadsRequest): Promise<ui.SearchThreadsResponse> {
+    const limit = Math.min(request.limit || 20, 50);
+    const activity = (t: ui.Thread) => (t.lastActivityAt ? timestampDate(t.lastActivityAt).getTime() : 0);
+    const threads = (await this.#run((s) => s.listThreads(this.#options.userId, "")))
+      .map(toUiThread)
+      .filter((t) => t.id !== request.excludeThreadId)
+      .sort((a, b) => activity(b) - activity(a));
+    const ranked = fuzzyRank(request.query, threads, (t) => [t.title || "Untitled"], limit);
+    return create(ui.SearchThreadsResponseSchema, { threads: ranked.map((r) => r.item) });
+  }
+
+  /** Worker, provider, profile and folder of a thread, or of a new thread in a workspace. */
+  async #mentionScope(scope: ui.MentionScope | undefined): Promise<{ workerId: string; provider: Provider; profileId: string; cwd: string }> {
+    if (scope?.threadId) {
+      const thread = await this.#run((s) => s.thread(scope.threadId));
+      if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
+      if (!thread.worker_id || thread.runtime !== "worker") throw new InvalidError("this thread has no worker");
+      return {
+        workerId: thread.worker_id,
+        provider: thread.provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
+        profileId: thread.provider_profile_id || "native",
+        cwd: thread.cwd ?? "",
+      };
+    }
+    const projects = await this.#run((s) => s.listProjects(this.#options.userId));
+    const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === scope?.workspaceId);
+    if (!workspace) throw new InvalidError("workspace not found");
+    return {
+      workerId: workspace.workerId,
+      provider: scope?.provider || Provider.CODEX,
+      profileId: scope?.providerProfileId || "native",
+      cwd: scope?.cwd || workspace.rootPath,
+    };
+  }
+
+  /** A read-only command to an online worker; offline = Unavailable with a message the popup shows. */
+  async #workerQuery(workerId: string, kind: CommandInit, timeoutMs: number): Promise<CommandResult> {
+    const connection = this.link.connections.get(workerId);
+    if (!connection?.isOpen) {
+      const worker = (await this.#run((s) => s.listWorkers(this.online))).find((w) => w.id === workerId);
+      throw new UnavailableError(`${worker?.name || "the worker"} is offline`);
+    }
+    const result = await connection.sendCommand(kind, timeoutMs);
+    if (!result.ok) throw new InvalidError(result.errorMessage || result.errorCode);
+    return result;
+  }
+
+  /**
+   * A user's message with mentions: checked against the text, files resolved to their path on the worker, threads
+   * to the user's own (their title as the label). A platform command (/goal) is returned apart: the rest of the text
+   * is its argument.
+   */
+  async #messageMentions(thread: { id?: string; cwd: string }, text: string, mentions: readonly Mention[]): Promise<{ mentions: Mention[]; goal?: string }> {
+    if (mentions.length === 0) return { mentions: [] };
+    let checked: Mention[];
+    try {
+      checked = checkMentions(text, mentions);
+    } catch (error) {
+      if (error instanceof MentionError) throw new InvalidError(error.message);
+      throw error;
+    }
+    const command = checked.find(isPlatformCommand);
+    if (command) {
+      if (command.name !== "goal") throw new InvalidError(`unknown platform command /${command.name}`);
+      return { mentions: [], goal: `${text.slice(0, command.start)}${text.slice(command.end)}`.replace(/\s+/g, " ").trim() };
+    }
+    const resolved: Mention[] = [];
+    for (const m of checked) {
+      if (m.kind === MentionKind.FILE) {
+        resolved.push(create(MentionSchema, { ...m, path: workerPath(thread.cwd, m.name) }));
+      } else if (m.kind === MentionKind.THREAD) {
+        const target = await this.#run((s) => s.thread(m.name)).catch(() => undefined);
+        if (!target || target.owner_user_id !== this.#options.userId || target.id === thread.id) throw new InvalidError("a mentioned thread was not found");
+        resolved.push(create(MentionSchema, { ...m, label: target.title || "Untitled" }));
+      } else {
+        resolved.push(m);
+      }
+    }
+    return { mentions: resolved };
+  }
+
+  /** The turn (or steer) input of a message with mentions: composed for the provider after the other notes. */
+  #composeInput(provider: string, message: string, mentions: readonly Mention[], base: TurnInputJson | undefined): TurnInputJson | undefined {
+    if (mentions.length === 0) return base;
+    const composed = composeMessage(provider === "claude" ? Provider.CLAUDE : Provider.CODEX, message, mentions, base?.note ? [base.note] : []);
+    return { ...base, text: composed.text, note: composed.note, message, mentions: mentionsToJson(mentions), delivered: mentionsToJson(composed.mentions) };
+  }
+
   /**
    * The worker's last report (ConfigApplied) must offer the provider and the profile for it. A worker that
    * has not reported yet is not judged: the thread waits for it like for an offline worker.
@@ -818,16 +975,18 @@ export class GatewayCore {
     const projects = await this.#run((s) => s.listProjects(this.#options.userId));
     const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId);
     if (!workspace) return; // the store reports the missing workspace
-    const worker = (await this.#run((s) => s.listWorkers(this.online))).find((w) => w.id === workspace.workerId);
+    const worker = (await this.#workers()).find((w) => w.id === workspace.workerId);
     if (!worker || worker.appliedVersion === 0n) return;
     const name = request.provider === Provider.CLAUDE ? "Claude" : "Codex";
     const provider = worker.providers.find((p) => p.provider === request.provider);
     if (!provider?.available) throw new InvalidError(`${name} is not available on ${worker.name}${provider?.detail ? `: ${provider.detail}` : ""}`);
     const profileId = request.providerProfileId || "native";
-    const profile = worker.profiles.find((p) => p.id === profileId);
-    if (!profile) throw new InvalidError(`profile "${profileId}" is not configured on ${worker.name}`);
-    if (!profile.providers.includes(request.provider)) throw new InvalidError(`profile "${profileId}" does not serve ${name}`);
-    if (!profile.available) throw new InvalidError(`profile "${profileId}" is not available on ${worker.name}${profile.detail ? `: ${profile.detail}` : ""}`);
+    const instance = worker.providerInstances.find((i) => i.harness === request.provider && i.id === profileId);
+    if (!instance) throw new InvalidError(`${name} has no provider instance "${profileId}"`);
+    if (!instance.enabled) throw new InvalidError(`${name} · ${instance.label || profileId} is turned off on ${worker.name}`);
+    const profile = worker.profiles.find((p) => p.id === profileId && p.providers.includes(request.provider));
+    if (!profile) throw new InvalidError(`${name} · ${instance.label || profileId} is not applied on ${worker.name} yet`);
+    if (!profile.available) throw new InvalidError(`${name} · ${instance.label || profileId} is not available on ${worker.name}${profile.detail ? `: ${profile.detail}` : ""}`);
   }
 
   /** CreateThread to the worker (with the fork point of a forked thread), then announce the thread. */
@@ -857,7 +1016,7 @@ export class GatewayCore {
    * A message: the next turn (queue), or into the running turn (steer; without one it is queued too).
    * Idempotent by client_request_id across both.
    */
-  async sendMessage(request: ui.SendMessageRequest): Promise<{ turn?: ui.Turn; steer?: ui.Steer }> {
+  async sendMessage(request: ui.SendMessageRequest): Promise<{ turn?: ui.Turn; steer?: ui.Steer; goal?: ui.Goal }> {
     const { threadId, clientRequestId } = request;
     const thread = await this.#run((s) => s.thread(threadId));
     if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
@@ -867,6 +1026,12 @@ export class GatewayCore {
     if (existingTurn) return { turn: toUiTurn(existingTurn) };
     const files = request.attachmentIds.length > 0 ? await this.#messageAttachments(request.attachmentIds, thread.worker_id ?? "") : undefined;
     if (!request.text.trim() && !files) throw new InvalidError("message is empty");
+    const { mentions, goal } = await this.#messageMentions({ id: thread.id, cwd: thread.cwd ?? "" }, request.text, request.mentions);
+    if (goal !== undefined) {
+      // The platform's /goal: the rest of the message is the objective (docs/goals.md).
+      if (files) throw new InvalidError("a /goal message cannot carry attachments");
+      return { goal: await this.setGoal(create(ui.SetGoalRequestSchema, { threadId, action: "set", objective: goal })) };
+    }
     // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
     await this.#checkModel({ thread }, request.model || thread.settings.model || "", request.effort);
     const permissionMode = checkedPermissionMode(request.permissionMode);
@@ -874,6 +1039,7 @@ export class GatewayCore {
     if (request.delivery === ui.MessageDelivery.STEER && !files) {
       const running = await this.#run((s) => s.runningTurn(threadId));
       if (running && thread.worker_id) {
+        const steerInput = this.#composeInput(thread.provider, request.text, mentions, undefined);
         const steer = await this.#steers((s) =>
           s.create({
             threadId,
@@ -884,12 +1050,14 @@ export class GatewayCore {
             model: request.model,
             effort: request.effort,
             permissionMode,
+            ...(steerInput && { input: { ...steerInput, text: steerInput.text ?? request.text } }),
           }),
         );
         await this.#sendSteer(steer.id);
         return { steer: toUiSteer(await this.#steers((s) => s.steer(steer.id))) };
       }
     }
+    const input = this.#composeInput(thread.provider, request.text, mentions, files?.input(threadId, request.text));
     const turn = await this.#run((s) =>
       s.enqueueTurn({
         threadId,
@@ -899,7 +1067,7 @@ export class GatewayCore {
         model: request.model,
         effort: request.effort,
         permissionMode,
-        ...(files && { input: files.input(threadId, request.text) }),
+        ...(input && { input }),
       }),
     );
     const update = toUiTurn(turn);
@@ -935,7 +1103,7 @@ export class GatewayCore {
 
   /** Catalogs of the user's workers; refresh asks the worker(s) again (online ones). */
   async listModels(request: ui.ListModelsRequest): Promise<ui.WorkerModels[]> {
-    const workers = (await this.#run((s) => s.listWorkers(this.online))).filter((w) => !request.workerId || w.id === request.workerId);
+    const workers = (await this.#workers()).filter((w) => !request.workerId || w.id === request.workerId);
     if (request.workerId && workers.length === 0) throw new InvalidError("worker not found");
     if (request.refresh) {
       const online = workers.filter((w) => w.online);
@@ -966,52 +1134,109 @@ export class GatewayCore {
     }
   }
 
-  /** Models a profile's selection leaves out are marked hidden (store/models.ts, applyModelSelections). */
+  /** The instances' model choices: hidden models, custom models, favorites first (store/instance-config.ts). */
   async #forPickers(catalogs: ui.WorkerModels[]): Promise<ui.WorkerModels[]> {
     if (catalogs.length === 0) return catalogs;
-    const rules = await this.#profiles((s) => s.selections(catalogs.map((c) => c.workerId)));
-    return catalogs.map((catalog) => applyModelSelections(catalog, rules.filter((r) => r.worker_id === catalog.workerId)));
+    const rules = await this.#instances((s) => s.modelRules());
+    return catalogs.map((catalog) => applyInstanceModels(catalog, rules));
   }
 
-  // ------------------------------------------------------------------ provider profiles
+  // ------------------------------------------------------------------ provider instances
 
-  /** A worker's profiles for the settings screen: no secret values, only whether they are set. */
-  async listProviderProfiles(workerId: string): Promise<ui.ListProviderProfilesResponse> {
-    return create(ui.ListProviderProfilesResponseSchema, await this.#profiles((s) => s.profiles(workerId)));
+  /** Every global instance with its state on every worker; no secret values, only whether they are set. */
+  async listProviderInstances(): Promise<ui.ProviderInstance[]> {
+    return this.#instances((s) => s.list());
   }
 
-  /** New or changed profile: a new configuration version, sent to the worker now when it is online. */
-  async saveProviderProfile(request: ui.SaveProviderProfileRequest): Promise<ui.SaveProviderProfileResponse> {
-    const { configVersion, profileId } = await this.#profiles((s) => s.save({ userId: this.#options.userId, request }));
-    await this.#configChanged(request.workerId);
-    const { profiles } = await this.#profiles((s) => s.profiles(request.workerId));
-    return create(ui.SaveProviderProfileResponseSchema, { configVersion, ...(profiles.find((p) => p.id === profileId) && { profile: profiles.find((p) => p.id === profileId) }) });
+  /** New or changed instance: new configuration versions for the workers it runs on, sent to the online ones. */
+  async saveProviderInstance(request: ui.SaveProviderInstanceRequest): Promise<ui.ProviderInstance> {
+    const { harness, id, changed } = await this.#instances((s) => s.save({ userId: this.#options.userId, request }));
+    await this.#configsChanged(changed);
+    return this.#instances((s) => s.get(harness, id));
   }
 
-  async deleteProviderProfile(request: ui.DeleteProviderProfileRequest): Promise<bigint> {
-    const version = await this.#profiles((s) =>
-      s.remove({ userId: this.#options.userId, workerId: request.workerId, profileId: request.profileId, expectedVersion: request.expectedConfigVersion }),
+  async deleteProviderInstance(request: ui.DeleteProviderInstanceRequest): Promise<void> {
+    await this.#configsChanged(await this.#instances((s) => s.remove({ userId: this.#options.userId, request })));
+  }
+
+  async setInstanceWorkers(request: ui.SetInstanceWorkersRequest): Promise<ui.ProviderInstance> {
+    await this.#configsChanged(await this.#instances((s) => s.setWorkers({ userId: this.#options.userId, request })));
+    return this.#instance(request.harness, request.id);
+  }
+
+  async setInstanceWorker(request: ui.SetInstanceWorkerRequest): Promise<ui.ProviderInstance> {
+    await this.#configsChanged(await this.#instances((s) => s.setWorker({ userId: this.#options.userId, request })));
+    return this.#instance(request.harness, request.id);
+  }
+
+  /** Favorites, visibility and custom models: pickers change at once, the workers' configurations do not. */
+  async setInstanceModels(request: ui.SetInstanceModelsRequest): Promise<ui.ProviderInstance> {
+    await this.#instances((s) => s.setModels(request));
+    await this.#publishModels(await this.#models((s) => s.catalogs([])));
+    await this.#broadcastWorkers();
+    return this.#instance(request.harness, request.id);
+  }
+
+  /**
+   * Versions, availability and logins checked again on the online workers (ProbeProviders: each answers with a new
+   * ConfigApplied for the same version). Workers that are offline or too old are listed as skipped.
+   */
+  async refreshProviders(request: ui.RefreshProvidersRequest): Promise<ui.RefreshProvidersResponse> {
+    const workers = (await this.#workers()).filter((w) => !request.workerId || w.id === request.workerId);
+    if (request.workerId && workers.length === 0) throw new InvalidError("worker not found");
+    const skipped: string[] = [];
+    await Promise.all(
+      workers.map(async (worker) => {
+        const connection = this.link.connections.get(worker.id);
+        if (!connection?.isOpen) return void skipped.push(`${worker.name}: offline`);
+        if (!connection.hello.capabilities.includes("probe_providers")) return void skipped.push(`${worker.name}: the worker is too old to check again`);
+        const result = await connection.sendCommand({ case: "probeProviders", value: {} }, 60_000).catch((error: unknown) => ({ ok: false, errorMessage: describeError(error), errorCode: "" }));
+        if (!result.ok) skipped.push(`${worker.name}: ${result.errorMessage || result.errorCode}`);
+      }),
     );
-    await this.#configChanged(request.workerId);
-    return version;
+    return create(ui.RefreshProvidersResponseSchema, { instances: await this.listProviderInstances(), skipped });
   }
 
-  /** Which models pickers show for a profile; the worker's catalog itself is unchanged. */
-  async setModelSelection(request: ui.SetModelSelectionRequest): Promise<ui.ModelSelection | undefined> {
-    const selection = await this.#profiles((s) => s.setSelection({ userId: this.#options.userId, request }));
-    await this.#publishModels(await this.#models((s) => s.catalogs([request.workerId])));
-    return selection;
+  /** Login of an instance through the harness's API (Codex: ChatGPT device code); the worker finishes it. */
+  async startProviderLogin(request: ui.StartProviderLoginRequest): Promise<ui.StartProviderLoginResponse> {
+    const connection = this.link.connections.get(request.workerId);
+    if (!connection?.isOpen) throw new UnavailableError("the worker is offline");
+    if (!connection.hello.capabilities.includes("codex_device_login")) throw new InvalidError("this worker cannot sign in from the app; update it");
+    if (request.harness !== Provider.CODEX) throw new InvalidError("only Codex signs in from the app; sign in to Claude Code on the device");
+    const result = await connection.sendCommand({ case: "startLogin", value: { provider: request.harness, profileId: request.id } }, 60_000);
+    if (!result.ok || !result.login) throw new InvalidError(result.errorMessage || result.errorCode || "the login did not start");
+    return create(ui.StartProviderLoginResponseSchema, { verificationUrl: result.login.verificationUrl, userCode: result.login.userCode });
   }
 
-  /** The stored configuration goes to the worker (it answers ConfigApplied and a new model catalog). */
-  async #configChanged(workerId: string): Promise<void> {
-    const config = await this.#run((s) => s.workerConfig(workerId));
-    if (config) this.link.pushConfig(workerId, config);
+  /** Writes the effective instances of every worker that is behind (gateway start; after a migration). */
+  async syncProviderInstances(): Promise<void> {
+    await this.#configsChanged(await this.#instances((s) => s.sync(this.#options.userId)));
+  }
+
+  async #instance(harness: Provider, id: string): Promise<ui.ProviderInstance> {
+    const name = harnessOf(harness);
+    if (!name) throw new InvalidError("choose Claude or Codex");
+    return this.#instances((s) => s.get(name, id));
+  }
+
+  /** The stored configurations go to the workers (each answers ConfigApplied and a new model catalog). */
+  async #configsChanged(workerIds: readonly string[]): Promise<void> {
+    for (const workerId of workerIds) {
+      const config = await this.#run((s) => s.workerConfig(workerId));
+      if (config) this.link.pushConfig(workerId, config);
+    }
     await this.#broadcastWorkers();
   }
 
-  #profiles<A, E>(use: (store: ProfileStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(ProfileStore.use(use));
+  #instances<A, E>(use: (store: InstanceStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(InstanceStore.use(use));
+  }
+
+  /** Workers with their instances (Worker.provider_instances). */
+  async #workers(): Promise<ui.Worker[]> {
+    const [workers, instances] = await Promise.all([this.#run((s) => s.listWorkers(this.online)), this.#instances((s) => s.workerInstances())]);
+    for (const worker of workers) worker.providerInstances = instances.get(worker.id) ?? [];
+    return workers;
   }
 
   /**
@@ -1041,8 +1266,10 @@ export class GatewayCore {
     }
     const profile = profileId && profileId !== "native" ? profileId : "native";
     const catalog = workerId ? (await this.#models((s) => s.catalogs([workerId]))).at(0) : undefined;
-    const models = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profile);
-    return { models, provider, profile };
+    const listed = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profile);
+    // The instance's custom models are accepted like listed ones.
+    const rule = listed && (await this.#instances((s) => s.modelRules())).find((r) => r.harness === harnessOf(provider) && r.id === profile);
+    return { models: listed && withCustomModels(listed, rule), provider, profile };
   }
 
   /** SteerTurn to the worker (outbox); the result decides between accepted and the queue. */
@@ -1060,7 +1287,12 @@ export class GatewayCore {
             threadId: steer.thread_id,
             turnId: steer.turn_id,
             inputId: steer.id,
-            input: { text: steer.input.text, authorUserId: steer.author_user_id ?? "", authorAgentId: steer.source_thread_id ?? "" },
+            input: {
+              text: steer.input.text,
+              authorUserId: steer.author_user_id ?? "",
+              authorAgentId: steer.source_thread_id ?? "",
+              mentions: mentionsFromJson(steer.input.delivered),
+            },
           },
         },
       },
@@ -1496,7 +1728,7 @@ export class GatewayCore {
   }
 
   async #broadcastWorkers(): Promise<void> {
-    for (const worker of await this.#run((s) => s.listWorkers(this.online))) {
+    for (const worker of await this.#workers()) {
       this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "worker", value: worker } }));
     }
   }

@@ -24,6 +24,8 @@ const core = new GatewayCore({
   log: (m) => console.info(m),
   attachmentLimits: attachmentLimits(env),
 });
+// Workers' configurations follow the global provider instances (e.g. right after the migration to them).
+await core.syncProviderInstances();
 const certFile = env["OA_TLS_CERT"];
 const keyFile = env["OA_TLS_KEY"];
 const server = await startGrpcServer({

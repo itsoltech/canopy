@@ -2,7 +2,10 @@
   import type { ui } from "@open-agents/contracts";
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
+  import type { Mention } from "@open-agents/contracts";
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
+  import { trimValue } from "#lib/features/mentions/editor.ts";
+  import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { turnOverride, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
@@ -27,6 +30,8 @@
    * steer runs in the mode of the turn it joins).
    * Attachments (paperclip, drop, paste): uploaded as they are added, sent with the message, which then always
    * runs as the next turn (its files reach the worker before the turn starts).
+   * Mentions ("/", "$", "@", "#"; docs/ui-api.md "Wzmianki") come from the thread's worker and folder; "/goal" is
+   * the platform's command: the rest of the message becomes the thread's goal.
    */
   let {
     thread,
@@ -49,7 +54,6 @@
     class?: ClassValue;
   } = $props();
 
-  const settings = useSettings();
   // The thread's provider and profile stay; only models on them are offered. `current` = the thread's default.
   const offer = useThreadModels(() => ({ thread, worker }));
   // Your choice for this thread's next messages (kept per thread; navigating to another starts fresh).
@@ -66,6 +70,13 @@
   });
 
   let text = $state("");
+  let mentions = $state<Mention[]>([]);
+  // The thread's worker, provider and folder (a side thread has its own); "#" offers every thread but this one.
+  const sources = new MentionSources(
+    () => (thread.runtime === "worker" && thread.workerId ? { threadId: thread.id } : undefined),
+    () => thread.id,
+  );
+  const settings = useSettings();
   const draft = new AttachmentDraft(() => limitsOf(settings?.attachmentLimits));
   let sending = $state(false);
   let stopping = $state(false);
@@ -83,7 +94,7 @@
   }
 
   async function send(delivery: Delivery) {
-    const message = text.trim();
+    const { text: message, mentions: sentMentions } = trimValue({ text, mentions });
     if ((!message && draft.files.length === 0) || sending || disabled) return;
     if (draft.blocker) {
       error = draft.blocker;
@@ -94,11 +105,13 @@
     error = undefined;
     outcome = undefined;
     try {
-      const response = await sendMessage(thread.id, message, requestId, override, attachmentIds.length > 0 ? "queue" : delivery, attachmentIds);
+      const response = await sendMessage(thread.id, message, requestId, override, attachmentIds.length > 0 ? "queue" : delivery, attachmentIds, sentMentions);
       onsent?.(response);
+      if (response.goal) outcome = `Goal set: ${response.goal.objective}`;
       // Steered while the turn was ending: the gateway queued it as the next turn.
       if (delivery === "steer" && response.turn) outcome = "The turn had just ended, so your message runs as the next turn.";
       text = "";
+      mentions = [];
       draft.clear();
       requestId = crypto.randomUUID();
     } catch (e) {
@@ -125,6 +138,8 @@
   {#if error}<Alert tone="error">{error}</Alert>{/if}
   <ComposerBox
     bind:value={text}
+    bind:mentions
+    {sources}
     placeholder={running ? "Steer the agent, or queue for the next turn…" : "Ask anything…"}
     {disabled}
     {sending}

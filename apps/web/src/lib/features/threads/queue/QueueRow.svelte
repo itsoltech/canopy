@@ -6,7 +6,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { overrides, ownMessage, queuedText, steerable } from "./queue.ts";
+  import { messageOf, overrides, ownMessage, queuedText, steerable } from "./queue.ts";
   import QueueEditor from "./QueueEditor.svelte";
   import QueueHandle from "./QueueHandle.svelte";
   import QueueRowMenu from "./QueueRowMenu.svelte";
@@ -92,7 +92,7 @@
   {onkeydown}
 >
   {#if editing}
-    <QueueEditor {text} {onsave} {oncancel} />
+    <QueueEditor text={messageOf(turn)} {onsave} {oncancel} />
   {:else}
     <div class="flex items-center gap-1 py-0.5 pr-0.5 pl-0.5">
       <QueueHandle label={text} bind:element={handle} {ondragstart} />

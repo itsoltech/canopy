@@ -24,6 +24,11 @@ export interface ThreadNode {
   readonly ancestorIds: readonly string[];
   readonly provider: string;
   readonly archived: boolean;
+  /**
+   * The user mentioned this thread in the caller's messages (a thread mention, docs/ui-api.md "Wzmianki"): the caller
+   * may read it (get_thread, read_thread) even outside its tree. Only threads of the same owner are marked.
+   */
+  readonly mentioned?: boolean;
 }
 
 export interface InteractionFacts {
@@ -143,6 +148,8 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
 
     case "get_thread":
     case "read_thread": {
+      const mentioned = facts.targets.get(call.args.thread_id);
+      if (mentioned?.mentioned && mentioned.id !== caller.id) return allow;
       const target = inTree(facts, call.args.thread_id);
       return typeof target === "string" ? deny(target) : allow;
     }

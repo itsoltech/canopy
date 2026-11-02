@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { profileDisplayName } from "#lib/features/threads/providers.ts";
+  import { instanceLabel } from "#lib/features/threads/providers.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { formatRelative } from "#lib/shared/format.ts";
   import HoverCard from "#lib/shared/ui/HoverCard.svelte";
@@ -11,7 +11,7 @@
 
   /**
    * A worker's name that previews it on hover, focus or tap: online state, host and system, agent CLIs
-   * and profiles. The same facts are in Settings → Workers.
+   * and providers. The same facts are in Settings → Workers.
    */
   let { worker, class: className }: { worker: ui.Worker | undefined; class?: ClassValue } = $props();
 </script>
@@ -34,8 +34,8 @@
       <ul role="list" class="grid gap-0.5">
         {#each worker.providers as provider (provider.provider)}<li>{providerSummary(provider)}</li>{/each}
       </ul>
-      {#if worker.profiles.length > 0}
-        <p>Profiles: {worker.profiles.map(profileDisplayName).join(", ")}</p>
+      {#if worker.providerInstances.some((i) => i.enabled && i.available)}
+        <p>Providers: {worker.providerInstances.filter((i) => i.enabled && i.available).map(instanceLabel).join(", ")}</p>
       {/if}
     </div>
   </HoverCard>

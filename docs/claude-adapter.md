@@ -96,6 +96,12 @@ Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test
 - `mcp__openagents__view_image` ([agent-bus.md](agent-bus.md#view_image)) — serwer `openagents` jest zawsze, narzędzia szyny tylko z `enable_agent_bus`. Mapowanie: item `image` (`source = view_image`), błąd w `detail`.
 - Obrazy w `tool_result` (np. `Read` na pliku obrazu) → `ToolCall.images`: podgląd z bloku `image` (base64) wyniku, czyli dokładnie to, co dostał model.
 
+## Wzmianki
+
+- **Katalog** (`claude/catalog.ts`): `query()` bez promptu z folderem wątku, izolowanym `CLAUDE_CONFIG_DIR` i `settingSources` project + local (jak tura), potem `supportedCommands()` (ok. 0,3–0,5 s, bez modelu). Claude Code traktuje skille jak komendy, a wiersz mówi tylko, czy jest wbudowany: skillem jest wiersz z folderem `.claude/skills/<nazwa>/SKILL.md` (w folderze wątku lub wyżej, albo w `skills/` katalogu konfiguracji). Źródło z końcówki opisu („(project)”, „(user)”). Pominięte: wbudowane komendy terminala, sesji i ustawień platformy, subagentów i harmonogramu (gdy wyłączone) oraz natywny `/goal`. Pamięć workera 5 min albo do zmiany katalogów `skills` / `commands`.
+- **Wejście:** komenda na początku (`/stamp pelican`), skill na początku jako `/nazwa`, inne skille przez narzędzie Skill (notatka), `@ścieżka` pliku Claude Code rozwija sam (na żywo odpowiedź z treścią pliku bez wywołania Read).
+- Potwierdzone na żywo (`tests/integration/mentions.live.test.ts`, `claude-haiku-5-5` przez CLIProxyAPI): skill projektu, komenda projektu z argumentem przeniesiona z końca wiadomości, plik, wspomniany wątek czytany przez `get_thread` i `read_thread`.
+
 ## Izolacja
 
 - **`CLAUDE_CONFIG_DIR`** = `<data_dir>/claude-home`. Ustawienia, hooki, wtyczki i serwery MCP właściciela urządzenia nie działają w wątkach platformy. Dowiązane jest tylko logowanie (`.credentials.json`), chyba że worker używa CLIProxyAPI.
