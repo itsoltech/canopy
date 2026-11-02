@@ -93,7 +93,7 @@ const legacyTools: ToolSpec[] = [
     approval_policy: { type: "string", enum: ["safe", "always", "full_auto"] },
   }),
   tool("send_bot_message", "Send to another bot. Its reply arrives as a follow-up. Do not echo requests back to their sender.", { bot_id: str, text: str }, ["bot_id", "text"]),
-  tool("schedule_wakeup", "Create a one-shot reminder for yourself. run_at is an ISO timestamp with timezone.", { run_at: str, prompt: str }, ["run_at", "prompt"]),
+  tool("schedule_wakeup", "Create a one-shot reminder for yourself. run_at is an ISO timestamp with timezone. Use the user's timezone from the runtime prompt and its UTC offset at the requested date (including daylight saving changes) for local times.", { run_at: str, prompt: str }, ["run_at", "prompt"]),
   tool("list_schedules", "List your own one-shot reminders."),
   tool("cancel_schedule", "Cancel one of your reminders.", { schedule_id: str }, ["schedule_id"], true),
   tool("archive_thread", "Archive a thread after the user approves.", { thread_id: str }, ["thread_id"], true),

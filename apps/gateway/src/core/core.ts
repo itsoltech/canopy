@@ -1853,6 +1853,12 @@ export class GatewayCore {
 
   /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
   async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
+    if (request.timezone !== undefined) {
+      try {
+        if (!request.timezone || request.timezone.length > 100 || /^[+-]/.test(request.timezone)) throw new Error();
+        new Intl.DateTimeFormat("en", { timeZone: request.timezone }).format();
+      } catch { throw new InvalidError("unknown IANA timezone"); }
+    }
     if (request.sidebar) {
       const ids = [...request.sidebar.projectIds, ...request.sidebar.pinnedThreadIds, ...request.sidebar.pinnedBotIds];
       if (ids.length > 1000 || ids.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) throw new InvalidError("invalid sidebar ids");
@@ -1870,6 +1876,7 @@ export class GatewayCore {
       s.updateUser({
         userId: this.#options.userId,
         ...(request.appearance && { appearance: { ...request.appearance, sidebarWidth: storedSidebarWidth(request.appearance.sidebarWidth) } }),
+        ...(request.timezone !== undefined && { timezone: request.timezone }),
         ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
         ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),
         ...(request.composer && { composer: request.composer }),
