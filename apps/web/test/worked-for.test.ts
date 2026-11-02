@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
-import { AgentMessageSchema, CommandExecutionSchema, FileChangeSchema, ItemSchema, ItemStatus, ReasoningSchema, UserMessageSchema, ui, type Item } from "@open-agents/contracts";
+import { AgentMessageSchema, BackgroundTaskSchema, CommandExecutionSchema, FileChangeSchema, ItemSchema, ItemStatus, ReasoningSchema, UserMessageSchema, ui, type Item } from "@open-agents/contracts";
 import { FeedBuilder, feedInserted, type FeedInput } from "../src/lib/features/threads/feed.ts";
 import type { TimelineEntry } from "../src/lib/features/threads/thread-state.svelte.ts";
 import { buildTimeline } from "../src/lib/features/threads/timeline.ts";
@@ -120,6 +120,34 @@ describe("the feed with folds", () => {
     historyOpen: false,
     openWork: new Set(),
     ...over,
+  });
+
+  test("a live background task owns its source's running count, including system stops outside the turn", () => {
+    for (const taskTurn of ["t1", ""]) {
+      for (const status of [ItemStatus.INTERRUPTED, ItemStatus.COMPLETED, ItemStatus.FAILED]) {
+        const builder = new FeedBuilder();
+        const command = ran("source", "t1", ItemStatus.IN_PROGRESS);
+        const task = entry("bg", taskTurn, { case: "backgroundTask", value: create(BackgroundTaskSchema, { sourceItemId: "source", startedInTurnId: "t1" }) }, ItemStatus.IN_PROGRESS);
+        const entries = [input("in", "t1"), command, task, said("final", "t1")];
+        const turns = [turn("t1", "completed")];
+        const before = builder.build(feedInput({ entries, turns })).find((row) => row.kind === "work")!;
+        expect(before.kind === "work" && before.summary.running).toBe(1);
+        const finished = { ...task, item: create(ItemSchema, { ...task.item, status, content: { case: "backgroundTask", value: create(BackgroundTaskSchema, { sourceItemId: "source", stopReason: status === ItemStatus.INTERRUPTED ? "stopped" : "" }) } }) };
+        const after = builder.build(feedInput({ entries: entries.map((e) => e === task ? finished : e), turns })).find((row) => row.kind === "work")!;
+        expect(after.kind === "work" && after.summary.running).toBe(0);
+        expect(after).not.toBe(before);
+      }
+    }
+  });
+
+  test("nested tool sources follow background status while independent running tasks remain counted", () => {
+    const source = ran("source", "t1", ItemStatus.IN_PROGRESS);
+    source.item.parentItemId = "parent";
+    const parent = ran("parent", "t1");
+    const task = entry("bg", "t1", { case: "backgroundTask", value: create(BackgroundTaskSchema, { sourceItemId: "source" }) }, ItemStatus.INTERRUPTED);
+    const other = entry("other", "t1", { case: "backgroundTask", value: create(BackgroundTaskSchema) }, ItemStatus.IN_PROGRESS);
+    const work = fold([parent, source, task, other], [turn("t1", "completed")]).find((r) => r.kind === "work");
+    expect(work?.kind === "work" && work.summary.running).toBe(1);
   });
 
   test("the fold is a row with a stable key; opening it keeps every other row object", () => {
