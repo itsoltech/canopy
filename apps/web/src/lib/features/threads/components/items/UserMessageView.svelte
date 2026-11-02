@@ -22,13 +22,14 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
+  import AgentSenderLabel from "../AgentSenderLabel.svelte";
 
   /**
    * A message you (or another agent, over the agent bus) wrote: the input of a turn, or one steered into
    * it while it ran. `note` says what happens to it; `pending` dims it until it reaches the agent. `files`: the
    * message's attachments (images and file chips under the text); `quotes`: passages of the thread it quotes, in
    * the bubble above the text; `details` goes inside the bubble (e.g. the full text the agent received with the
-   * platform note).
+   * platform note). `sender`: the thread whose agent wrote it (send_message), named like a turn from an agent.
    */
   let {
     message,
@@ -37,6 +38,7 @@
     files = [],
     quotes = [],
     details,
+    sender,
   }: {
     message: Pick<UserMessage, "text" | "authorAgentId" | "attachments"> & { mentions?: UserMessage["mentions"] };
     note?: MessageNote | undefined;
@@ -44,8 +46,9 @@
     files?: readonly ui.Attachment[];
     quotes?: readonly ui.Quote[];
     details?: Snippet | undefined;
+    sender?: ui.AgentSender | undefined;
   } = $props();
-  const fromAgent = $derived(Boolean(message.authorAgentId));
+  const fromAgent = $derived(Boolean(message.authorAgentId || sender));
   // With mentions the chips render; the platform's note in front (threads, files) is the agent's, not shown here.
   const shown = $derived(message.mentions?.length ? withoutPlatformNote({ text: message.text, mentions: [...message.mentions] }) : undefined);
 </script>
@@ -54,7 +57,7 @@
   {#if fromAgent || note}
     <p
       class={[
-        "flex max-w-full items-center gap-1 text-sm/5 sm:text-xs/5",
+        "flex max-w-full flex-wrap items-center justify-end gap-x-1.5 gap-y-1 text-sm/5 sm:text-xs/5",
         note?.tone === "amber" ? "text-amber-700 dark:text-amber-400" : fromAgent ? "text-violet-700 dark:text-violet-400" : "text-zinc-500 dark:text-zinc-400",
       ]}
     >
@@ -62,7 +65,12 @@
       {#key note?.text}
         <span class="flex min-w-0 items-center gap-1" in:swap>
           {#if note?.icon === "spinner"}<Spinner class="size-3.5" />{:else}<Icon name={note?.icon ?? "sparkles"} class="size-3.5" />{/if}
-          <span class="min-w-0">{[fromAgent && "From an agent", note?.text].filter(Boolean).join(" · ")}</span>
+          {#if sender}
+            <AgentSenderLabel verb="Message from" threadId={sender.threadId} {sender} />
+            {#if note}<span class="min-w-0 text-zinc-500 dark:text-zinc-400">· {note.text}</span>{/if}
+          {:else}
+            <span class="min-w-0">{[fromAgent && "From an agent", note?.text].filter(Boolean).join(" · ")}</span>
+          {/if}
         </span>
       {/key}
     </p>

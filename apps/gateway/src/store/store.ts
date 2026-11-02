@@ -74,6 +74,10 @@ export interface ThreadRow {
   status: string;
   status_detail: string | null;
   title: string;
+  title_source: "provisional" | "generated" | "user";
+  title_revision: bigint;
+  title_requested: boolean;
+  title_context: string;
   last_seq: bigint;
   created_at: Date;
   archived_at?: Date | null;
@@ -85,6 +89,8 @@ export interface ThreadRow {
   /** Joined for side threads: the start of the last agent message (a subagent's result). */
   last_message?: string | null;
   unseen_result?: string | null;
+  /** Joined: how the latest ended turn ended. */
+  last_turn_status?: string | null;
 }
 
 /** Characters of a side thread's last message in ui.Thread (the subagent card in the parent's timeline). */
@@ -120,11 +126,18 @@ export interface TurnRow {
   usage?: JsonValue | null;
   hops?: number;
   schedule_id?: string | null;
+  agent_call_id?: string | null;
   interaction_request_id?: string | null;
   goal_id?: string | null;
-  /** Joined from turn_sources. */
+  /** Joined from turn_sources (with the sender's thread: SenderColumns). */
   source_kind?: string | null;
   source_thread_id?: string | null;
+  source_title?: string | null;
+  source_provider?: string | null;
+  source_profile_id?: string | null;
+  source_model?: string | null;
+  source_project_id?: string | null;
+  source_worker_id?: string | null;
   source_status?: string | null;
   question_kind?: string | null;
   question_tool?: string | null;
@@ -203,12 +216,17 @@ export class GatewayStore extends Context.Service<
     turnByClientRequest(threadId: string, clientRequestId: string): Fx<TurnRow | undefined>;
     /** The thread's default model, effort and permission mode (unset = unchanged). */
     updateThreadSettings(threadId: string, settings: { model?: string; effort?: string; permissionMode?: string }): Fx<ThreadRow>;
+    renameThread(threadId: string, title: string): Fx<ThreadRow>;
+    beginTitle(threadId: string, automatic: boolean, context?: string, provisional?: string): Fx<ThreadRow | undefined>;
+    finishTitle(threadId: string, revision: bigint, title: string): Fx<boolean>;
     /** Records the model, effort and permission mode a turn is started with. */
     setTurnSettings(turnId: string, settings: { model: string; effort: string; permissionMode: string }): Fx<void>;
     /** Oldest queued user turn of an idle, ready thread with no StartTurn in the outbox yet. */
     nextTurn(threadId: string): Fx<TurnRow | undefined>;
     runningTurn(threadId: string): Fx<TurnRow | undefined>;
     turnsOf(threadId: string): Fx<ReadonlyArray<TurnRow>>;
+    /** First task in the visible history, including the fork's inherited prefix. */
+    titleInput(threadId: string): Fx<TurnRow | undefined>;
     /** A queued or running turn fails here (e.g. it could not start): the error, where it came from, its code. */
     failTurn(turnId: string, error: string, source: "platform" | "harness", code?: string): Fx<void>;
     /** Pending interactions of the thread's finished turns expire (nothing can answer them any more). */
@@ -308,6 +326,8 @@ export class GatewayStore extends Context.Service<
                    WHERE u.thread_id = t.id AND u.status IN ('completed', 'failed', 'interrupted')
                      AND u.last_seq > coalesce((SELECT r.seen_seq FROM thread_reads r WHERE r.user_id = t.owner_user_id AND r.thread_id = t.id), 0)
                    ORDER BY u.last_seq DESC LIMIT 1) AS unseen_result,
+                 (SELECT u.status FROM turns u WHERE u.thread_id = t.id AND u.status IN ('completed', 'failed', 'interrupted')
+                   ORDER BY u.ordinal DESC LIMIT 1) AS last_turn_status,
                  CASE WHEN t.kind = 'side' THEN
                    (SELECT left(m.content->'agentMessage'->>'text', ${LAST_MESSAGE_PREVIEW}) FROM thread_items m
                      WHERE m.thread_id = t.id AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1) END AS last_message,
@@ -598,11 +618,11 @@ export class GatewayStore extends Context.Service<
                 });
                 yield* sql`
                   INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, runtime, provider,
-                                       provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title)
+                                       provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title, title_source)
                   VALUES (${id}::uuid, ${workspace.project_id}::uuid, ${ownerUserId}::uuid, ${parent ? "side" : "main"},
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
                           ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${cwd},
-                          ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || "New thread"})`;
+                          ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"})`;
                 if (request.initialMessage.trim()) {
                   yield* sql`
                     INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input)
@@ -697,6 +717,23 @@ export class GatewayStore extends Context.Service<
               Effect.andThen(store.thread(threadId)),
             ),
 
+          renameThread: (threadId, title) =>
+            sql`UPDATE threads SET title = ${title}, title_source = 'user', title_revision = title_revision + 1
+                 WHERE id = ${threadId}::uuid AND archived_at IS NULL`.pipe(Effect.andThen(store.thread(threadId))),
+
+          beginTitle: (threadId, automatic, context, provisional) =>
+            sql<ThreadRow>`UPDATE threads SET title_revision = title_revision + 1, title_requested = true,
+                  title_context = CASE WHEN title_context = '' THEN ${context ?? ""} ELSE title_context END,
+                  title = CASE WHEN ${automatic} THEN ${provisional ?? "New thread"} ELSE title END
+                WHERE id = ${threadId}::uuid AND archived_at IS NULL
+                  AND (NOT ${automatic} OR (title_source = 'provisional' AND NOT title_requested))
+                RETURNING *`.pipe(Effect.map((rows) => rows[0])),
+
+          finishTitle: (threadId, revision, title) =>
+            sql`UPDATE threads SET title = ${title}, title_source = 'generated'
+                 WHERE id = ${threadId}::uuid AND title_revision = ${revision} AND archived_at IS NULL
+                 RETURNING id`.pipe(Effect.map((rows) => rows.length > 0)),
+
           setTurnSettings: (turnId, { model, effort, permissionMode }) =>
             sql`UPDATE turns SET model = ${model}, effort = ${effort}, permission_mode = ${permissionMode} WHERE id = ${turnId}::uuid`.pipe(Effect.asVoid),
 
@@ -713,8 +750,15 @@ export class GatewayStore extends Context.Service<
             sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
 
           turnsOf: (threadId) => sql<TurnRow>`
-            SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
+            SELECT u.*, s.* FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
              WHERE u.thread_id = ${threadId}::uuid ORDER BY u.ordinal`,
+
+          titleInput: (threadId) => sql<TurnRow>`
+            SELECT u.* FROM thread_fork_chain(${threadId}::uuid) c JOIN turns u ON u.thread_id = c.thread_id
+             WHERE u.trigger IN ('user', 'goal', 'agent_bus')
+               AND COALESCE(u.input->>'message', u.input->>'text', '') <> ''
+               AND (c.level = 0 OR (u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)))
+             ORDER BY c.level DESC, u.ordinal LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
 
           failTurn: (turnId, error, source, code) =>
             sql`
@@ -770,7 +814,7 @@ export class GatewayStore extends Context.Service<
               const thread = yield* store.thread(threadId);
               // A fork shows the history it inherits (thread_items_view / thread_fork_chain), marked as inherited.
               const inheritedTurns = yield* sql<TurnRow>`
-                SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM thread_fork_chain(${threadId}::uuid) c
+                SELECT u.*, s.* FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
                  WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
                  ORDER BY c.level DESC, u.ordinal`;
@@ -973,6 +1017,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     kind: row.kind === "side" ? ui.ThreadKind.SIDE : ui.ThreadKind.MAIN,
     parentThreadId: row.parent_thread_id ?? "",
     title: row.title,
+    titleSource: row.title_source,
     provider: row.provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
     providerProfileId: row.provider_profile_id ?? "",
     model: row.settings.model ?? "",
@@ -999,10 +1044,37 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     runtime: row.runtime,
     lastMessage: row.last_message ?? "",
     unseenResult: row.unseen_result ?? "",
+    lastTurnStatus: row.last_turn_status ?? "",
+  });
+}
+
+/** Joined columns describing the thread an agent's steer or turn came from (ui.AgentSender). */
+export interface SenderColumns {
+  source_thread_id?: string | null;
+  source_title?: string | null;
+  source_provider?: string | null;
+  source_profile_id?: string | null;
+  source_model?: string | null;
+  source_project_id?: string | null;
+  source_worker_id?: string | null;
+}
+
+export function toUiSender(row: SenderColumns): ui.AgentSender | undefined {
+  if (!row.source_thread_id || row.source_title == null) return undefined;
+  return create(ui.AgentSenderSchema, {
+    threadId: row.source_thread_id,
+    title: row.source_title,
+    provider: row.source_provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
+    providerProfileId: row.source_profile_id ?? "",
+    model: row.source_model ?? "",
+    projectId: row.source_project_id ?? "",
+    workerId: row.source_worker_id ?? "",
   });
 }
 
 export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
+  // Agent-sent input (a task, a message, a report) names its sender; other sources show their own way.
+  const sender = row.source_kind === "task" || row.source_kind === "message" || row.source_kind === "report" ? toUiSender(row) : undefined;
   return create(ui.TurnSchema, {
     id: row.id,
     ordinal: row.ordinal,
@@ -1039,6 +1111,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     revision: row.revision ?? 0,
     mentions: mentionsFromJson(row.input?.mentions),
     quotes: (row.input?.quotes ?? []).map(toUiQuote),
+    ...(sender && { sender }),
   });
 }
 

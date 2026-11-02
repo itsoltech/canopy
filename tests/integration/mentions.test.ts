@@ -220,7 +220,7 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
   });
 
   describe("agent bus", () => {
-    test("a mentioned thread of another tree is readable from the mentioning thread only", async () => {
+    test("a mentioned thread of another tree can be read and messaged, like any thread of the same owner", async () => {
       const other = await newThread("Mentioned");
       const unrelated = await newThread("Not mentioned");
       const thread = await newThread("Reader");
@@ -231,10 +231,14 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
       expect(read.isError).toBe(false);
       const transcript = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "read_thread", args: { thread_id: other.id } });
       expect(transcript.isError).toBe(false);
-      const refused = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "get_thread", args: { thread_id: unrelated.id } });
-      expect(refused.isError).toBe(true);
-      const message2 = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "send_message", args: { thread_id: other.id, prompt: "hi" } });
-      expect(message2.isError).toBe(true);
+      // The mention points the agent at it; the owner's other threads are as reachable (docs/agent-bus.md, section 6).
+      const unmentioned = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "get_thread", args: { thread_id: unrelated.id } });
+      expect(unmentioned.isError).toBe(false);
+      const sent = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "send_message", args: { thread_id: other.id, prompt: "hi", notify: false } });
+      expect(sent.isError).toBe(false);
+      // Control stays with the thread's own descendants.
+      const interrupt = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "interrupt_thread", args: { thread_id: other.id } });
+      expect(interrupt.isError).toBe(true);
     });
   });
 });

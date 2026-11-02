@@ -14,6 +14,7 @@
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
   import { interruptThread } from "#lib/features/threads/api.ts";
+  import { requestTitleRegeneration } from "#lib/features/threads/title-actions.ts";
   import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
   import BackgroundTaskDialog from "#lib/features/threads/components/BackgroundTaskDialog.svelte";
   import { backgroundTasks } from "#lib/features/threads/background-tasks.ts";
@@ -27,6 +28,8 @@
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
   import QueuePanel from "#lib/features/threads/queue/QueuePanel.svelte";
   import { QueueState } from "#lib/features/threads/queue/queue-state.svelte.ts";
+  import SubagentsPanel from "#lib/features/threads/subagents/SubagentsPanel.svelte";
+  import { subagentsOf } from "#lib/features/threads/subagents/subagents.ts";
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { forkFrom, lastForkPoint } from "#lib/features/threads/fork.svelte.ts";
@@ -93,6 +96,7 @@
       return turn !== undefined && isTerminal(turn.status);
     },
     steer: (id) => view.steers.find((s) => s.id === id),
+    delivery: (callId) => view.deliveries.get(callId),
     get canFork() {
       return canFork;
     },
@@ -106,6 +110,8 @@
     return { threadId, unseen: Boolean(live?.unseenResult), lastSeq: live?.lastSeq ?? 0n, atEnd };
   });
 
+  // The subagents its agent started (spawn_thread), live from the thread index: the panel above the composer.
+  const subagents = $derived(thread ? subagentsOf(threads, thread.id) : []);
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
   const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
   const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived");
@@ -259,6 +265,7 @@
       { id: "thread:fork", title: "Fork thread", group: "actions", icon: "arrow-turn-up-right", keywords: "fork branch copy duplicate new chat", rank: -7, when: () => Boolean(forkPoint), run: forkThread },
       { id: "thread:schedule", title: "Schedule a task…", group: "actions", icon: "clock", keywords: "schedule later cron recurring", rank: -7, when: () => canSchedule, run: openSchedule },
       { id: "thread:model", title: "Model and effort…", group: "actions", icon: "cpu-chip", keywords: "model reasoning effort", rank: -7, when: () => !closed, run: () => (modelOpen = true) },
+      { id: "thread:regenerate-title", title: "Regenerate title", group: "actions", icon: "arrow-path", keywords: "thread title generate name", rank: -7, when: () => !closed, run: () => requestTitleRegeneration(current.id) },
       { id: "thread:permissions", title: "Permissions…", group: "actions", icon: "shield-check", keywords: "permission mode approvals sandbox", rank: -7, when: () => !closed, run: () => (permissionsOpen = true) },
       { id: "thread:goal", title: openGoal ? "Replace the goal…" : "Set a goal…", group: "actions", icon: "flag", keywords: "goal objective", rank: -7, when: () => goalsHere, disabled: !canGoal, run: setGoalLater },
       { id: "thread:details", title: "Toggle thread details", group: "actions", icon: "view-columns", keywords: "panel context sidebar", rank: -6, run: togglePanel },
@@ -377,12 +384,13 @@
                 </GrowIn>
               {/if}
               {#snippet composerPanels()}
+                {#if subagents.length > 0}<SubagentsPanel {subagents} embedded />{/if}
                 <QueuePanel {queue} embedded delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} />
               {/snippet}
               {#if thread}
                 <Composer
                   class="relative"
-                  top={queue.rows.length > 0 ? composerPanels : undefined}
+                  top={queue.rows.length > 0 || subagents.length > 0 ? composerPanels : undefined}
                   questions={view.pending}
                   {thread}
                   {worker}

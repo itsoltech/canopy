@@ -63,6 +63,8 @@ export class ThreadState {
   schedules = $state.raw<ui.Schedule[]>([]);
   /** Messages steered into running turns, oldest first (the snapshot has all of the thread's; changes arrive live). */
   steers = $state.raw<ui.Steer[]>([]);
+  /** Where this thread's spawn_thread / send_message calls went, by call id (snapshot, then live). */
+  deliveries = $state.raw<ReadonlyMap<string, ui.BusDelivery>>(new Map());
   /** The thread's open goal, else its last finished one (undefined: never had one). */
   goal = $state.raw<ui.Goal | undefined>(undefined);
   turnResults = $state.raw<ReadonlyMap<string, TurnResult>>(new Map());
@@ -134,6 +136,7 @@ export class ThreadState {
         this.notices = snapshot.notices.flatMap((n) => (n.notice ? [{ seq: n.seq, turnId: n.turnId, notice: n.notice, at: n.occurredAt }] : []));
         this.schedules = snapshot.schedules;
         this.steers = snapshot.steers;
+        this.deliveries = new Map(snapshot.busDeliveries.map((d) => [d.callId, d]));
         this.goal = snapshot.goal;
         // Live usage (context window) is not in the snapshot: keep what this tab saw before the reconnect.
         this.loaded = true;
@@ -161,6 +164,9 @@ export class ThreadState {
         break;
       case "goal":
         this.upsertGoal(change.value);
+        break;
+      case "busDelivery":
+        this.deliveries = new Map(this.deliveries).set(change.value.callId, change.value);
         break;
       default:
         break;

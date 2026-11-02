@@ -20,6 +20,7 @@
   import type { BackgroundEntry } from "../background-tasks.ts";
   import type { Item } from "@open-agents/contracts";
   import { useThreadDirectory } from "../thread-directory.ts";
+  import ThreadTitleActions from "./ThreadTitleActions.svelte";
 
   /**
    * Context of a thread (T3's right panel): where it runs, which agent, who answers its approvals,
@@ -69,6 +70,7 @@
 </script>
 
 <div class={["grid grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white py-1.5 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10", className]}>
+  <ThreadTitleActions {thread} />
   <section aria-label="Placement" class="grid grid-cols-1 px-1.5 pb-1.5">
     <PanelRow icon="computer-desktop">
       {worker?.name ?? "Unknown worker"}

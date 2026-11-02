@@ -11,6 +11,7 @@
   import { useThreadDirectory } from "../../thread-directory.ts";
   import AgentWell from "./AgentWell.svelte";
   import ItemFrame from "./ItemFrame.svelte";
+  import MessageDeliveryCard from "./MessageDeliveryCard.svelte";
   import SubagentCard from "./SubagentCard.svelte";
   import ThreadLink from "./ThreadLink.svelte";
   import { agentsOf, busError, busLook, deliveryOf, interactionsOf, scheduleOf, schedulesOf, summariesOf, transcriptOf } from "./tools/agent-bus.ts";
@@ -28,7 +29,8 @@
    * threads, reading them, answering interactions, schedules. Violet marks agent-to-agent activity. Each
    * tool reads as a sentence with the threads it is about as links, and opens to its result in a shape
    * made for it (thread statuses, a short transcript, a schedule in words); arguments and result as sent
-   * stay behind "Show raw". A started subagent also gets a card that follows the child thread live.
+   * stay behind "Show raw". A started subagent also gets a card that follows the child thread live; a sent
+   * message one that follows the turn it reached (MessageDeliveryCard), in place of the link in the title.
    */
   let { call, status }: { call: AgentBusCall; status: ItemStatus } = $props();
 
@@ -42,9 +44,11 @@
   // The thread it is about: target_thread_id when the gateway sets it, otherwise the result (spawn_thread) or the arguments.
   const target = $derived(call.targetThreadId || str(result["thread_id"]) || str(args["thread_id"]));
   const subagent = $derived(tool === "spawn_thread" && !call.isError && target !== "");
+  const message = $derived(tool === "send_message" && !call.isError && target !== "" && call.resultJson !== "");
   const waitingFor = $derived(Array.isArray(args["thread_ids"]) ? (args["thread_ids"] as unknown[]).filter((id): id is string => typeof id === "string") : []);
   const titled = new Set(["send_message", "get_thread", "read_thread", "interrupt_thread", "close_thread"]);
   const spawned = $derived({
+    provider: str(result["provider"]) || str(args["provider"]),
     model: str(result["model"]) || str(args["model"]),
     effort: str(result["effort"]) || str(args["effort"]),
     permissionMode: str(result["permission_mode"]) || str(args["permission_mode"]),
@@ -67,7 +71,7 @@
 {#snippet title()}
   <span class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
     <span class="font-medium text-violet-800 dark:text-violet-300">{look.title}</span>
-    {#if titled.has(tool) && target}
+    {#if titled.has(tool) && target && !message}
       <ThreadLink threadId={target} fallback={str(args["title"]) || "Side thread"} />
     {:else if tool === "wait_threads"}
       {#each waitingFor as id (id)}<ThreadLink threadId={id} />{/each}
@@ -168,7 +172,7 @@
         {/each}
       </ul>
     {:else if !running && !call.isError}
-      <EmptyNote>No agents in the catalog yet: a subagent starts as a copy of this agent.</EmptyNote>
+      <EmptyNote>No providers reported yet: a subagent starts as a copy of this agent.</EmptyNote>
     {/if}
   {:else if tool === "schedule_wakeup" || tool === "schedule_recurring"}
     {@const schedule = scheduleOf(args, result)}
@@ -203,4 +207,7 @@
 {/if}
 {#if subagent}
   <SubagentCard threadId={target} title={str(args["title"]) || "Subagent"} {spawned} class="mb-1 ml-6" />
+{/if}
+{#if message}
+  <MessageDeliveryCard callId={call.callId} threadId={target} sentDelivery={str(result["delivery"])} class="mb-1 ml-6" />
 {/if}

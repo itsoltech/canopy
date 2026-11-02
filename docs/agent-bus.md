@@ -12,12 +12,15 @@ Potwierdzone na żywo (Codex przez CLIProxyAPI, przez UI/BFF):
 - wątek główny wywołuje `spawn_thread`, wątek boczny powstaje w tym samym katalogu i wykonuje zadanie, a wynik wraca do wątku głównego jako tura powiadomienia (`hops` 1 → 2), po której model odpowiada użytkownikowi,
 - `schedule_wakeup` za 60 s: gateway odpala turę `trigger = schedule` i model wykonuje zaplanowane polecenie.
 
+Potwierdzone na żywo (2026-11-02, `tests/integration/subagents-any-provider.live.test.ts`, przez CLIProxyAPI): wątek Codexa (`gpt-6.1-sol`) uruchamia subagenta na Claude (`claude/cliproxyapi`, `claude-haiku-5-5`), wątek Claude subagenta na Codexie (`codex/cliproxyapi`); dziecko wykonuje zadanie, a wynik wraca do rodzica. Wątek Codexa znajduje niezwiązany wątek Claude (`list_threads` `scope: all`), wysyła mu wiadomość (`send_message`), cel wykonuje ją jako turę od agenta (`hops` 1), a odpowiedź wraca do nadawcy.
+
 Zestaw narzędzi wątku Codexa jest ustalany przy `thread/start`. Wątki utworzone przed zmianą zestawu (np. przed włączeniem harmonogramu) mają stary zestaw.
 
 | Narzędzie | Stan |
 |---|---|
 | `spawn_thread` (z `fork`, `notify`, `interactions`), `send_message`, `wait_threads`, `get_thread`, `read_thread`, `list_threads`, `interrupt_thread`, `close_thread`, `list_interactions`, `answer_interaction` | działa |
-| `list_agents`, `spawn_thread.agent` | brak katalogu agentów: `list_agents` zwraca pustą listę, `agent` jest odrzucane (wątek boczny to kopia wywołującego) |
+| `list_agents`, `spawn_thread.provider` | działa: subagent na dowolnej instancji dostawcy workera (Claude ↔ Codex), z modelem i wysiłkiem z jej katalogu ([Subagenci dowolnego dostawcy](#subagenci-dowolnego-dostawcy)). Katalogu ról agentów nadal nie ma: pole `agent` zniknęło ze schematu (`instructions` daje rolę) |
+| `send_message` / `get_thread` / `read_thread` do dowolnego wątku właściciela | działa: także poza drzewem (inny projekt, inny worker), jak wiadomość człowieka; `list_threads` `scope: all` szuka po tytule ([Wiadomości między dowolnymi wątkami](#wiadomości-między-dowolnymi-wątkami)) |
 | `send_message.delivery = steer` | działa: gdy cel ma turę w toku, wiadomość (z notatką o nadawcy) trafia do niej (`turn_steers`, `SteerTurn`; Codex `turn/steer`, Claude strumień wejścia). Wynik narzędzia: `delivery: "steer"` i `turn_id` tury w toku. Powiadomienie przychodzi, gdy skończy się tura, do której wiadomość weszła (wywołanie wskazuje ją dopiero po wejściu). Nie weszła (tura skończyła się wcześniej, odmowa dostawcy): następna tura `agent_bus` z tym samym wywołaniem i `hops`, powiadomienie po niej. Bez tury w toku: kolejka (`delivery: "queue"`) |
 | `schedule_wakeup`, `schedule_recurring`, `list_schedules`, `cancel_schedule` | działa (użytkownik ma to samo w UI API: `ListSchedules`, `CreateSchedule`, `SetScheduleStatus`): `Scheduler` w gateway (`apps/gateway/src/core/scheduler.ts`, co 5 s), cron Buna ze strefą czasową (`core/cron.ts`); minimalny odstęp sprawdzany na rzeczywistych terminach |
 
@@ -69,11 +72,11 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 
 | Narzędzie | Poziom 0 | Poziom 1 | Co robi |
 |---|:-:|:-:|---|
-| `list_agents` | ✓ | ✓ | agenci do uruchomienia |
-| `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `model?`, `effort?`, `permission_mode?`, `agent?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`); zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka |
-| `send_message` | ✓ | ✓ | follow-up do wątku z drzewa: `delivery` `queue`/`steer`, `notify?` |
+| `list_agents` | ✓ | ✓ | na czym można uruchomić subagenta: instancje dostawców workera (`claude/native`, `codex/cliproxyapi`, ...) z modelami, wysiłkami i domyślnymi; plus własne ustawienia wywołującego |
+| `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `provider?`, `model?`, `effort?`, `permission_mode?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`); zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka (`provider`, `model`, `effort`, `permission_mode`) |
+| `send_message` | ✓ | ✓ | wiadomość do wątku z drzewa albo dowolnego wątku właściciela: `delivery` `queue`/`steer`, `notify?` |
 | `wait_threads` | ✓ | ✓ | czekanie na wątki (`any`/`all`, ≤ 300 s, ponawialne); zwraca status, wynik ostatniej tury i ostatnią wiadomość każdego |
-| `get_thread` / `read_thread` / `list_threads` | ✓ | ✓ | status (z modelem, wysiłkiem, uprawnieniami, `last_turn`), transkrypt, lista |
+| `get_thread` / `read_thread` / `list_threads` | ✓ | ✓ | status (z dostawcą, modelem, wysiłkiem, uprawnieniami, `last_turn`, projektem i workerem), transkrypt, lista (`children`, `tree`, `all` z `query` i `limit`) |
 | `interrupt_thread` / `close_thread` | ✓ | | sterowanie potomkami |
 | `list_interactions` / `answer_interaction` | ✓ | | pytania i prośby o zgodę od wątków bocznych |
 | `schedule_wakeup` | ✓ | ✓ | jednorazowo później (`delay_seconds` albo `at`, do 7 dni) |
@@ -87,8 +90,8 @@ Każdy subagent to prawdziwy wątek platformy: widoczny w drzewie i na osi czasu
 | Natywnie | Szyna |
 |---|---|
 | Codex `spawn_agent` (`task_name`, `message`) / Claude `Task` (`description`, `prompt`) | `spawn_thread` (`title`, `prompt`) |
-| Codex `agent_type`, Claude `subagent_type` (role z katalogu) | `instructions` (rola wprost); katalog agentów (`agent`, `list_agents`) — jeszcze nie ma |
-| Codex `model`, `reasoning_effort` | `model`, `effort` — z katalogu profilu wywołującego (ten sam dostawca i konto), sprawdzane przez gateway |
+| Codex `agent_type`, Claude `subagent_type` (role z katalogu) | `instructions` (rola wprost); katalogu ról nie ma |
+| Codex `model`, `reasoning_effort` | `provider`, `model`, `effort` — dowolna instancja dostawcy workera (także inny harness), sprawdzane przez gateway jak wątek użytkownika |
 | Codex `fork_turns` | `fork` (cała historia do ostatniej zakończonej tury) |
 | — | `permission_mode` (nie szerszy niż wywołującego), `interactions` |
 | Codex `send_message` / `followup_task`, `send_input` | `send_message` (`steer` / `queue`) |
@@ -100,10 +103,41 @@ Każdy subagent to prawdziwy wątek platformy: widoczny w drzewie i na osi czasu
 Reguły (`authorizeBusCall` i gateway):
 - głębokość: dwa poziomy (subagent nie tworzy kolejnych), limity jak w sekcji 6,
 - uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto`; subagent dostaje uprawnienia wywołującego albo węższe, nigdy szersze. „Uprawnienia wywołującego” to tryb tury, w której padło wywołanie (`turns.permission_mode`: wiadomość może nadpisać domyślny wątku na jedną turę), a bez niego tryb tury w toku, potem domyślny wątku; ten sam tryb dostaje subagent bez `permission_mode`,
-- model i wysiłek: tylko z katalogu profilu wywołującego (gdy worker go zgłosił); fork zachowuje dostawcę,
+- dostawca, model i wysiłek: patrz [Subagenci dowolnego dostawcy](#subagenci-dowolnego-dostawcy); fork zachowuje dostawcę i instancję,
 - rola (`instructions`) dopisuje się do instrukcji wywołującego.
 
-UI: wywołanie `spawn_thread` na osi czasu rodzica ma kartę subagenta (`SubagentCard`) z żywym statusem, modelem, wysiłkiem, uprawnieniami i początkiem ostatniej wiadomości dziecka (`Thread.last_message`); wątek dziecka pokazuje, kto go uruchomił (`SubagentOrigin`).
+UI: wywołanie `spawn_thread` na osi czasu rodzica ma kartę subagenta (`SubagentCard`) z żywym statusem, dostawcą (znak Claude/Codex) i modelem, wysiłkiem, uprawnieniami i początkiem ostatniej wiadomości dziecka (`Thread.last_message`); wątek dziecka pokazuje, kto go uruchomił (`SubagentOrigin`).
+
+**Panel subagentów** (`features/threads/subagents`): nad kompozytorem wątku, przyczepiony jak panel kolejki i ułożony nad nim (każdy wsuwa się pod górną krawędź tego, co pod nim). Zwinięty to jedna linia „3 subagents · 2 running · 1 done” (z `waiting`, `failed`, `interrupted`, gdy są) i znakami dostawców; rozwinięty (akordeon `t-acc-panel`) ma wiersz na subagenta: stan (working / waiting for an answer / completed / failed / interrupted; z `Thread.status`, `pending_interactions` i `Thread.last_turn_status`), tytuł, dostawca + model, początek ostatniej wiadomości. Wiersz prowadzi do wątku bocznego, w którym użytkownik pisze jak w każdym wątku. Dane z żywego indeksu wątków (overview), bez osobnych zapytań.
+
+### Subagenci dowolnego dostawcy
+
+Subagent może działać na **dowolnej instancji dostawcy + modelu + wysiłku**, które użytkownik mógłby wybrać dla nowego wątku w tym workspace: Claude → Codex, Codex → Claude, Claude → Claude, Codex → Codex (także inna instancja tego samego harnessu, np. `codex/cliproxyapi` z `codex/native`).
+
+- `spawn_thread.provider`: `"<harness>/<instancja>"` jak w `list_agents` (`claude/native`, `codex:cliproxyapi` też), sam harness (`"claude"`: instancja wywołującego, gdy to ten sam harness, inaczej `native`, inaczej pierwsza dostępna) albo samo id instancji (gdy jednoznaczne; przy obu harnessach wygrywa własny).
+- Bez `provider` (albo z własną instancją): jak dotąd, kopia wywołującego — jego model i wysiłek, chyba że wywołanie podaje inne.
+- Inna instancja: musi być włączona na workerze wątku i zgłoszona jako dostępna (harness zainstalowany, instancja zastosowana i dostępna — te same warunki co przy `CreateThread`); model domyślnie domyślny instancji, wysiłek domyślnie domyślny modelu.
+- Model musi być w katalogu instancji (z modelami ukrytymi i własnymi z pickerów; alias też), wysiłek wśród wysiłków modelu; model bez wysiłków dostaje pusty. Bez katalogu, z niepełnym albo pustym gateway nie ocenia (worker ma ostatnie słowo). Przed pierwszym raportem workera tylko własna instancja.
+- Czysta funkcja `resolveSpawnTarget` (`packages/domain/src/agent-bus/agents.ts`) dla `spawn_thread` i `agentCatalog` dla `list_agents`; gateway podaje instancje workera z katalogami pickerów (`#spawnInstances`). Wynik trafia do `threads.provider` / `provider_profile_id` / `settings` nowego wątku.
+- Kolejność: najpierw reguły szyny (`authorizeBusCall`: poziom, limity, uprawnienia, fork), potem problem z dostawcą/modelem — wątek boczny słyszy, że nie może tworzyć wątków, a nie że model jest zły.
+- **Fork** zachowuje dostawcę i instancję (historia żyje w katalogu domowym instancji).
+- **Uprawnienia** bez zmian: subagent nigdy szerzej niż tryb tury wywołującego; poziomy, limity i przeskoki też.
+- Sterowanie (`send_message` `steer`/`queue`) działa niezależnie od dostawcy dziecka: steer z wątku Codexa trafia do tury Claude (strumień wejścia) i odwrotnie (`turn/steer`) — sprawdzone w `agent-bus-cross.test.ts`.
+
+### Wiadomości między dowolnymi wątkami
+
+Agent może napisać do **dowolnego wątku tego samego właściciela**, jak człowiek: w innym drzewie, projekcie, na innym workerze.
+
+- `send_message`, `get_thread`, `read_thread`: cel = dowolny wątek właściciela (nie tylko drzewo). Wątki innych właścicieli są nieodróżnialne od nieistniejących (`thread <id> not found`).
+- Znalezienie celu: `list_threads` z `scope: "all"` (wszystkie niezarchiwizowane wątki właściciela, najnowsza aktywność najpierw; `query` dopasowuje tytuł rozmyto jak `SearchThreads`, `limit` do 50; każdy z `project`, `worker`, `provider`), albo wątek wspomniany przez użytkownika (`#`).
+- `wait_threads` i **sterowanie** (`interrupt_thread`, `close_thread`, `answer_interaction`, harmonogramy innych) bez zmian: tylko drzewo / potomkowie.
+- **Przeskoki** działają między drzewami: tura celu ma `hops` wywołującego + 1, odpowiedź (`notify`, domyślnie włączone) + 1 dalej; limit zatrzymuje dwa agenty piszące do siebie w kółko.
+- Notatka dla modelu celu spoza drzewa: `[open-agents] Message from the thread "<tytuł>" (thread_id: …), an agent outside your thread tree; your final message of this turn is reported back to it:` (część o odpowiedzi tylko z `notify`); w drzewie bez zmian.
+- Worker mówi tylko za swoje wątki: wywołanie szyny z `thread_id` wątku innego workera jest odrzucane (`thread … not found`), bo wiadomość może teraz dotrzeć na inny worker.
+
+**Oznaczenie nadawcy** (UI): tura od agenta (`source_kind` `task` / `message` / `report`) i steer agenta mają `sender` (`AgentSender`: wątek nadawcy, tytuł, dostawca, instancja, model tury, która wysłała, projekt, worker; widok `turn_sources` z migracji `0023` i zapytanie steerów). Dymek jest fioletowy (fiolet = od agenta) z linią „Message from ‹wątek› ‹znak dostawcy› model · N hops” prowadzącą do nadawcy (`AgentSenderLabel`); tak samo zadanie subagenta, raport i steer agenta (dostarczony: tylko jego treść, bez notatki platformy).
+
+**Karta wysłanej wiadomości** (oś czasu nadawcy, `MessageDeliveryCard`): wątek docelowy (tytuł, projekt i worker, gdy inne), dostarczenie (`Queued as its next turn` / `Steered into its running turn`) i żywy status tury docelowej. Dane: `ThreadSnapshot.bus_deliveries` i `ThreadUpdate.bus_delivery` (`BusDelivery`: `call_id`, wątek i tura docelowa, `delivery`, `status`; `steering`, dopóki steer nie wszedł). Gateway publikuje je wątkowi nadawcy przy każdej zmianie tury z `agent_call_id` i każdego steera agenta.
 
 Na żywo: `tests/integration/platform-subagents.live.test.ts` — Codex (`gpt-6.1-sol`) i Claude na prośbę „użyj subagenta” wołają `spawn_thread`, dziecko jest wątkiem bocznym widocznym w UI API, jego wynik wraca do rodzica; brak natywnych narzędzi subagentów.
 
@@ -138,14 +172,15 @@ Harmonogram jest funkcją platformy, nie dostawcy: trwały (`schedules`), widocz
 
 Czysta funkcja `authorizeBusCall` (`packages/domain`), wywoływana przez gateway w tej samej transakcji co zapis.
 
-- **Domena komunikacji to jedno drzewo wątków.** Czytać, czekać i pisać można do każdego innego wątku drzewa: dzieci, rodzica, rodzeństwa. Wątki spoza drzewa są nieodróżnialne od nieistniejących.
+- **Czekać** (`wait_threads`) można na każdy inny wątek drzewa: dzieci, rodzica, rodzeństwo.
+- **Pisać i czytać** (`send_message`, `get_thread`, `read_thread`) można do każdego wątku tego samego właściciela, także spoza drzewa ([Wiadomości między dowolnymi wątkami](#wiadomości-między-dowolnymi-wątkami)). Wątki innych właścicieli są nieodróżnialne od nieistniejących.
 - **Sterowanie** (przerwanie, zamknięcie, odpowiadanie na interakcje, harmonogramy innych) tylko nad potomkami.
 - **Limity** (domyślne, konfigurowalne): 8 wątków bocznych na wątek główny, 16 aktywnych wątków w drzewie, 10 harmonogramów na wątek, 8 przeskoków.
 - **Licznik przeskoków (`hops`):** tura z wejścia człowieka albo pobudki dostawcy ma 0. Tura uruchomiona przez szynę, powiadomienie, pytanie do rodzica albo harmonogram agenta ma `hops` przyczyny + 1. Limit zatrzymuje pętle agentów bez udziału człowieka.
-- **Fork** wymaga tego samego dostawcy. Dziedziczy historię do ostatniej zakończonej tury.
+- **Fork** wymaga tego samego dostawcy i instancji. Dziedziczy historię do ostatniej zakończonej tury.
 - Zawsze w imieniu właściciela projektu.
 
-**Wspomniane wątki.** Wątek, który użytkownik wspomniał w wiadomościach danego wątku (wzmianka `#`, [ui-api.md](ui-api.md#wzmianki)), ten wątek może czytać (`get_thread`, `read_thread`) także spoza swojego drzewa; tylko wątki tego samego właściciela, tylko odczyt (wysyłanie i sterowanie nadal w obrębie drzewa). Gateway ustala to przy każdym wywołaniu z `turns.input->'mentions'` i `turn_steers.input->'mentions'` wątku wołającego (`ThreadNode.mentioned`).
+**Wspomniane wątki.** Wzmianka `#` ([ui-api.md](ui-api.md#wzmianki)) wskazuje agentowi wątek (notatka z `thread_id`); dostęp wynika z reguły właściciela powyżej (dawny wyjątek „wspomniany = czytelny” nie jest już potrzebny, `ThreadNode.mentioned` zniknęło).
 
 ## 7. Przepływ: spawn z powiadomieniem
 
@@ -213,6 +248,7 @@ Ustalone (2026-11-01):
 4. Dwa poziomy: wątki boczne nie tworzą kolejnych.
 
 5. Szyna nie ma narzędzi celów: cele należą do harnessu (model używa jego narzędzi), platforma je śledzi ([goals.md](goals.md)).
+6. (2026-11-02) Subagent może działać na dowolnej instancji dostawcy workera; fork zachowuje instancję. `send_message` i odczyty sięgają każdego wątku właściciela; sterowanie i `wait_threads` zostają w drzewie, przeskoki liczą się między drzewami.
 
 Otwarte:
 

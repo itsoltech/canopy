@@ -69,7 +69,7 @@ export class QueueStore extends Context.Service<
       /** The turns with their sources (as GatewayStore.turnsOf), in the given order. */
       const read = (ids: readonly string[]) =>
         sql<TurnRow>`
-          SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool
+          SELECT u.*, s.*
             FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id WHERE u.id = ANY(${`{${ids.join(",")}}`}::uuid[])`.pipe(
           Effect.map((rows) => ids.flatMap((id) => rows.filter((r) => r.id === id))),
         );

@@ -9,7 +9,7 @@ import { NotFound } from "./store.ts";
 /**
  * User and project settings (docs/ui-api.md): stored by the gateway, the browser only reads and writes
  * them. Stored sections are read leniently (fields dropped from the contract are ignored).
- * Sections (appearance, thread defaults, model favorites, composer) are replaced as a whole; every write bumps the version and
+ * Sections (appearance, thread defaults, model favorites, composer, text generation) are replaced as a whole; every write bumps the version and
  * names the version it started from, so two devices never overwrite each other unnoticed.
  */
 
@@ -35,6 +35,7 @@ interface Stored {
   threadDefaults?: JsonValue;
   modelFavorites?: JsonValue;
   composer?: JsonValue;
+  textGeneration?: JsonValue;
 }
 
 export class SettingsStore extends Context.Service<
@@ -48,6 +49,7 @@ export class SettingsStore extends Context.Service<
       threadDefaults?: ui.ThreadDefaults;
       modelFavorites?: ui.ModelFavorites;
       composer?: ui.ComposerSettings;
+      textGeneration?: ui.TextGenerationSettings;
       expectedVersion: bigint;
     }): Fx<ui.UserSettings>;
     updateProject(input: { userId: string; projectId: string; threadDefaults?: ui.ThreadDefaults; expectedVersion: bigint }): Fx<ui.ProjectSettings>;
@@ -76,6 +78,7 @@ export class SettingsStore extends Context.Service<
           threadDefaults: threadDefaults(stored),
           modelFavorites: modelFavorites(stored),
           composer: composer(stored),
+          textGeneration: stored.textGeneration ? fromJson(ui.TextGenerationSettingsSchema, stored.textGeneration, { ignoreUnknownFields: true }) : create(ui.TextGenerationSettingsSchema),
           version: BigInt(row?.version ?? 0),
           ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
         });
@@ -121,7 +124,7 @@ export class SettingsStore extends Context.Service<
             Effect.map((rows) => rows.map((r) => toProject(r.project_id, r))),
           ),
 
-        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, expectedVersion }) =>
+        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, textGeneration: nextGeneration, expectedVersion }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const current = (yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid FOR UPDATE`)[0];
@@ -132,6 +135,7 @@ export class SettingsStore extends Context.Service<
                 ...(nextDefaults && { threadDefaults: toJson(ui.ThreadDefaultsSchema, nextDefaults) }),
                 ...(nextFavorites && { modelFavorites: toJson(ui.ModelFavoritesSchema, nextFavorites) }),
                 ...(nextComposer && { composer: toJson(ui.ComposerSettingsSchema, nextComposer) }),
+                ...(nextGeneration && { textGeneration: toJson(ui.TextGenerationSettingsSchema, nextGeneration) }),
               };
               const row = yield* write({
                 current,

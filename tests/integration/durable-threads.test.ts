@@ -204,7 +204,7 @@ describe.skipIf(!dockerAvailable)("durable threads (gateway + scripted worker)",
     expect((await items(threadId)).find((i) => i.item_id === "stale-cmd")?.status).toBe("interrupted");
     expect(await threadStatus(threadId)).toBe("idle");
     expect((await query<{ n: number }>("SELECT count(*)::int AS n FROM interaction_requests WHERE thread_id = $1::uuid AND status = 'pending'", threadId))[0]?.n).toBe(0);
-    const [audit] = await query<{ reason: string }>("SELECT raw->>'reason' AS reason FROM thread_events WHERE thread_id = $1::uuid AND origin = 'gateway'", threadId);
+    const [audit] = await query<{ reason: string }>("SELECT raw->>'reason' AS reason FROM thread_events WHERE thread_id = $1::uuid AND origin = 'gateway' AND raw->>'reason' LIKE '%sweep%'", threadId);
     expect(audit?.reason).toContain("sweep");
     expect(await gw.core.sweep()).not.toContain(threadId);
     await usable(threadId, "after sweep");

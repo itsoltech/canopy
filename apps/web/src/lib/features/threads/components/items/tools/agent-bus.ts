@@ -240,13 +240,23 @@ export function deliveryOf(args: Record<string, unknown>, result: Record<string,
   return done === "steer" ? "Joins the turn that is running now" : "Runs as the next turn";
 }
 
-/** list_agents rows ({slug, description, provider, model}). */
+/**
+ * list_agents rows: the provider instances a subagent can run on ({provider: "claude/native", name, models: [{id, name,
+ * efforts, default}], note}); `settings` is the instance key, `description` its models (the default first named so).
+ */
 export function agentsOf(result: Record<string, unknown>): { name: string; description: string; settings: string }[] {
   const rows = Array.isArray(result["agents"]) ? result["agents"] : [];
   return rows.flatMap((row: unknown) => {
     if (!row || typeof row !== "object") return [];
     const record = row as Record<string, unknown>;
-    const name = str(record["name"]) || humanizeToolName(str(record["slug"]));
-    return name ? [{ name, description: str(record["description"]), settings: [humanizeEnum(str(record["provider"])), str(record["model"])].filter(Boolean).join(" · ") }] : [];
+    const name = str(record["name"]) || str(record["provider"]);
+    const models = (Array.isArray(record["models"]) ? record["models"] : []).flatMap((m: unknown) => {
+      if (!m || typeof m !== "object") return [];
+      const model = m as Record<string, unknown>;
+      const label = str(model["name"]) || str(model["id"]);
+      return label ? [model["default"] === true ? `${label} (default)` : label] : [];
+    });
+    const shown = models.length > 6 ? [...models.slice(0, 6), `${models.length - 6} more`] : models;
+    return name ? [{ name, description: shown.join(", ") || str(record["note"]), settings: str(record["provider"]) }] : [];
   });
 }

@@ -96,8 +96,9 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(unknown.content).toContain('unknown agent bus tool "rm_rf"');
     const excess = await gw.worker.callTool({ threadId: mainId, tool: "get_thread", args: { thread_id: sideId, extra: 1 } });
     expect(excess.isError).toBe(true);
-    const foreign = await gw.worker.callTool({ threadId: mainId, tool: "get_thread", args: { thread_id: Bun.randomUUIDv7() } });
-    expect(foreign.content).toContain("not found in your thread tree");
+    const missingId = Bun.randomUUIDv7();
+    const foreign = await gw.worker.callTool({ threadId: mainId, tool: "get_thread", args: { thread_id: missingId } });
+    expect(foreign.content).toBe(`thread ${missingId} not found`);
     // Goals are the harness's own (docs/goals.md): the bus has no goal tools.
     const goal = await gw.worker.callTool({ threadId: mainId, tool: "propose_goal", args: { objective: "x", condition: "y" } });
     expect(goal.content).toContain('unknown agent bus tool "propose_goal"');
@@ -321,7 +322,7 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     });
     // Only models and efforts of the caller's provider account.
     const unknown = await gw.worker.callTool({ threadId: mainId, tool: "spawn_thread", args: { title: "x", prompt: "y", model: "gpt-test" } });
-    expect([unknown.isError, unknown.content]).toEqual([true, 'Codex on profile "native" does not offer the model "gpt-test"']);
+    expect([unknown.isError, unknown.content]).toEqual([true, 'codex/native does not offer the model "gpt-test"; call list_agents for its models']);
     // The orchestrator runs in ASK: a subagent cannot get more.
     const broader = await gw.worker.callTool({ threadId: mainId, tool: "spawn_thread", args: { title: "x", prompt: "y", permission_mode: "full_auto" } });
     expect([broader.isError, broader.content]).toEqual([true, "permission_mode full_auto is broader than yours (ask); a subagent cannot get more permissions than you"]);
