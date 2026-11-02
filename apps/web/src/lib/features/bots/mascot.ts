@@ -27,6 +27,66 @@ const shapes: readonly MascotShape[] = [
   { body: "M20 7c2 0 3 1 4 3l9 17c1.5 3-.5 6-4 6H11c-3.5 0-5.5-3-4-6l9-17c1-2 2-3 4-3Z", eyeY: 24 },
 ];
 
+/** Explicit appearance choices. Keep the legacy hashed array above stable for existing avatars. */
+export const mascotShapes = [
+  { id: "round", label: "Round", ...shapes[0]! },
+  { id: "cloud", label: "Cloud", ...shapes[3]! },
+  { id: "diamond", label: "Diamond", body: "M18 5q2-2 4 0l13 13q2 2 0 4L22 35q-2 2-4 0L5 22q-2-2 0-4Z", eyeY: 20 },
+  { id: "spark", label: "Four-point star", body: "M20 3q3 12 5 12l12 5-12 5q-2 0-5 12-3-12-5-12L3 20l12-5q2 0 5-12Z", eyeY: 20 },
+  { id: "clover", label: "Clover", body: "M20 10C9-1 0 12 10 20 0 29 11 41 20 30c9 11 20-1 10-10C40 11 30-1 20 10Z", eyeY: 20 },
+  { id: "blob", label: "Blob", body: "M19 5c7-3 9 5 13 9 7 7 3 13-3 15-4 2-5 8-12 6C7 34 3 28 6 21 8 16 11 8 19 5Z", eyeY: 22 },
+  { id: "flower", label: "Flower", body: "M15 10c-1-10 11-10 10 0 8-6 16 4 7 9 10 3 4 15-4 10 1 10-13 12-14 2-8 7-17-4-8-10-9-5 1-15 9-11Z", eyeY: 21 },
+  { id: "droplet", label: "Droplet", ...shapes[4]! },
+  { id: "pill", label: "Pill", ...shapes[5]! },
+  { id: "triangle", label: "Triangle", ...shapes[6]! },
+  { id: "square", label: "Rounded square", body: "M12 6h16q6 0 6 6v16q0 6-6 6H12q-6 0-6-6V12q0-6 6-6Z", eyeY: 20 },
+  { id: "star", label: "Spiky star", body: "m20 3 4 8 8-4-1 9 7 4-8 4 3 9-9-3-4 8-4-8-9 3 3-9-8-4 7-4-1-9 8 4Z", eyeY: 20 },
+  { id: "hexagon", label: "Hexagon", body: "M15 5h10q2 0 3 2l8 11q1 2 0 4L28 33q-1 2-3 2H15q-2 0-3-2L4 22q-1-2 0-4L12 7q1-2 3-2Z", eyeY: 20 },
+  { id: "pumpkin", label: "Pumpkin", body: "M18 10V5q0-2 3-2h3v4h-3v3c14-6 20 20 6 24q-4 2-7 0-3 2-7 0C-1 30 4 4 18 10Z", eyeY: 22 },
+] as const satisfies readonly (MascotShape & { id: string; label: string })[];
+
+export type MascotShapeId = (typeof mascotShapes)[number]["id"];
+
+export interface BotAppearance {
+  shape: MascotShapeId;
+  /** An opaque sRGB colour, normalized to #rrggbb. */
+  color: string;
+}
+
+export const mascotColors = [
+  { label: "Black", value: "#27272a" },
+  { label: "Brown", value: "#926344" },
+  { label: "Red", value: "#ef4444" },
+  { label: "Orange", value: "#f97316" },
+  { label: "Amber", value: "#fbbf24" },
+  { label: "Green", value: "#65a30d" },
+  { label: "Teal", value: "#14b8a6" },
+  { label: "Blue", value: "#3b82f6" },
+  { label: "Violet", value: "#8b5cf6" },
+  { label: "Pink", value: "#ec4899" },
+  { label: "Grey", value: "#a1a1aa" },
+] as const;
+
+export const defaultAppearance: BotAppearance = { shape: "round", color: "#f97316" };
+
+/** Accept CSS hex shorthand, but never arbitrary CSS or transparent colours. */
+export function normalizeColor(value: string): string | undefined {
+  const hex = value.trim().replace(/^#/, "");
+  if (/^[\da-f]{3}$/i.test(hex)) return `#${[...hex].map((c) => c + c).join("").toLowerCase()}`;
+  return /^[\da-f]{6}$/i.test(hex) ? `#${hex.toLowerCase()}` : undefined;
+}
+
+/** WCAG sRGB relative luminance. Choose whichever eye colour has the higher contrast. */
+export function eyeColor(color: string): "#ffffff" | "#18181b" {
+  const hex = normalizeColor(color) ?? defaultAppearance.color;
+  const channels = [1, 3, 5].map((i) => {
+    const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+  return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / (0.00925 + 0.05) ? "#ffffff" : "#18181b";
+}
+
 /** Colour of a bot: its avatar (background + body) and its name in group chats. */
 export interface MascotTone {
   background: string;
