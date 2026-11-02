@@ -12,12 +12,13 @@ nazwa i aktywność projektu systemowego są niezmienne. `GetOverview` ujawnia j
 ale UI ukrywa go w zarządzaniu projektami; korzystają z niego pickery, filtr i domyślne ustawienia wątków.
 
 Gateway automatycznie zapewnia workspace na każdym aktywnym, nieunieważnionym workerze
-użytkownika lub współdzielonym, który ma dozwolony katalog. Root workspace'u wynosi
-`<allowed_roots[0]>/.open-agents/scratch/<owner-user-id>` (separatory według OS workera).
+użytkownika lub współdzielonym, który zgłosił `Hello.scratch_root`. Root workspace'u wynosi
+`<data_dir>/scratch/<owner-user-id>` (separatory według OS workera).
 Nowy główny wątek ma `cwd = <workspace-root>/<thread-id>`; tytuł nie uczestniczy w nazwie ścieżki.
-Zmiana pierwszego allowed root aktualizuje workspace dla przyszłych rozmów, bez przenoszenia plików
+Zmiana zgłoszonej bazy scratch aktualizuje workspace dla przyszłych rozmów, bez przenoszenia plików
 ani zmiany cwd istniejących wątków. Wątki boczne, `spawn_thread` i forki dzielą cwd źródła.
-Pusty zestaw allowed roots usuwa worker z dostępnych pozycji scratch.
+Historyczne `allowedRoots` w JSON konfiguracji jest ignorowane. Nie potrzeba migracji SQL:
+żadne ograniczenie bazy nie wymaga roots. Istniejące wątki zachowują również stare cwd scratch.
 
 Wszystkie FK, reguły właściciela i drzewa, historia forków, szyna agentów oraz harmonogramy
 korzystają z dotychczasowego modelu: `threads.project_id` i `workspace_id` pozostają wymagane.
@@ -91,7 +92,7 @@ erDiagram
         uuid id PK
         uuid project_id FK
         uuid worker_id FK
-        text root_path "w allowed_roots workera"
+        text root_path "dowolny istniejący katalog absolutny na workerze"
     }
 
     agents {

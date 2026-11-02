@@ -52,14 +52,16 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
   }, 30_000);
   afterAll(async () => { await gw?.close(); });
 
-  test("discover a worker and roots, create project/workspace, validate paths, start a thread and search its title", async () => {
+  test("discover a worker without roots, add any absolute workspace, validate paths, start a thread and search its title", async () => {
     expect(PLATFORM_TOOLS.length).toBeLessThanOrEqual(50);
     expect(new Set(PLATFORM_TOOLS.map((t) => t.name)).size).toBe(PLATFORM_TOOLS.length);
-    const workers = await invoke<{ id: string; allowed_roots: string[]; provider_instances: unknown[] }[]>("list_workers", {}, false, "always");
-    expect(workers.find((w) => w.id === gw.workerId)).toMatchObject({ allowed_roots: ["/repo"] });
+    const workers = await invoke<{ id: string; provider_instances: unknown[] }[]>("list_workers", {}, false, "always");
+    expect(workers.find((w) => w.id === gw.workerId)).not.toHaveProperty("allowed_roots");
     expect(await invoke("list_directory", { worker_id: gw.workerId, path: "/repo" })).toMatchObject({ entries: [{ name: "repo-a", is_directory: true }] });
     projectId = (await invoke<{ id: string }>("create_project", { name: "Bot provisioned" })).id;
-    expect(await invoke("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "/repo-other" })).toMatchObject({ error: expect.stringContaining("outside") });
+    expect(await invoke("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "/missing-workspace" })).toMatchObject({ error: expect.stringContaining("does not exist") });
+    expect(await invoke("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "relative" })).toMatchObject({ error: expect.stringContaining("absolute") });
+    expect(await invoke("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "/elsewhere" })).toHaveProperty("id");
     workspaceId = (await invoke<{ id: string }>("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "/repo", label: "Primary" })).id;
     await invoke("rename_project", { project_id: projectId, name: "Provisioned renamed" });
     await invoke("update_workspace", { workspace_id: workspaceId, label: "Renamed workspace" });
@@ -179,7 +181,7 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     const p = await foreign.createProject("Foreign project");
     const worker = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "Foreign worker", ownerUserId: foreignUser })));
     await gw.runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(worker.workerId, { allowedRoots: ["/foreign"] }, foreignUser)));
-    const workspace = await foreign.createWorkspace(create(ui.CreateWorkspaceRequestSchema, { projectId: p.id, workerId: worker.workerId, rootPath: "/foreign" }));
+    const workspace = await gw.runtime.runPromise(GatewayStore.use((s) => s.createWorkspace({ projectId: p.id, workerId: worker.workerId, rootPath: "/foreign", label: "" })));
     const thread = await foreign.createThread(create(ui.CreateThreadRequestSchema, { projectId: p.id, workspaceId: workspace.id, provider: Provider.CODEX }));
     const schedule = await foreign.createSchedule(create(ui.CreateScheduleRequestSchema, { threadId: thread.id, prompt: "foreign", when: { case: "cron", value: "0 * * * *" } }));
     expect((await invoke<{ id: string }[]>("list_projects")).some((r) => r.id === p.id)).toBe(false);

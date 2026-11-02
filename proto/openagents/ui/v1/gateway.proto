@@ -142,11 +142,13 @@ message Worker {
   string version = 6;
   repeated openagents.worker.v1.ProviderInfo providers = 7;
   repeated openagents.worker.v1.ProviderProfile profiles = 8;
-  repeated string allowed_roots = 9;
+  // Historyczne pole zgodności; gateway zwraca pustą listę.
+  repeated string allowed_roots = 9 [deprecated = true];
   uint64 config_version = 10;
   uint64 applied_version = 11;
   repeated openagents.worker.v1.ConfigIssue config_issues = 12;
   google.protobuf.Timestamp last_seen_at = 13;
+  string home_directory = 14;
   // Globalne instancje dostawców z ich stanem na tym workerze (pickery: tylko enabled i available).
   repeated WorkerInstance provider_instances = 120;
 }
@@ -445,11 +447,12 @@ message OverviewUpdate {
 
 message ListDirectoryRequest {
   string worker_id = 1;
-  string path = 2; // pusty = dozwolone katalogi workera
+  string path = 2; // pusty = katalog domowy workera
 }
 
 message ListDirectoryResponse {
   repeated openagents.worker.v1.DirectoryEntry entries = 1;
+  string path = 2;
 }
 
 message CreateProjectRequest {

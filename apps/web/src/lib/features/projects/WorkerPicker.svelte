@@ -8,12 +8,10 @@
   import PillButton from "#lib/shared/ui/PillButton.svelte";
   import SearchPicker from "#lib/shared/ui/SearchPicker.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
-  import { baseName } from "./placement.ts";
 
   /**
    * The new-thread composer's worker pill: only the workers the project lives on (its workspaces), each
-   * with its status and the project's directory there. An offline worker stays listed, marked. A worker
-   * with several directories of the project shows the directory's name in the pill. The footer links to
+   * with its status and OS. An offline worker stays listed, marked. The footer links to
    * the project's settings, where the workers are configured.
    */
   let { project, value, onselect, class: className }: { project: ui.Project; value: string | undefined; onselect: (workspace: ui.Workspace) => void; class?: ClassValue } = $props();
@@ -22,8 +20,6 @@
   const selected = $derived(project.workspaces.find((w) => w.id === value));
   const nameOf = (ws: ui.Workspace) => overview.worker(ws.workerId)?.name ?? "Unknown worker";
   const online = (ws: ui.Workspace) => overview.worker(ws.workerId)?.online ?? false;
-  const shared = (ws: ui.Workspace) => project.workspaces.filter((w) => w.workerId === ws.workerId).length > 1;
-  const pillName = (ws: ui.Workspace) => (shared(ws) ? `${nameOf(ws)} · ${baseName(ws.rootPath)}` : nameOf(ws));
 </script>
 
 <SearchPicker
@@ -32,7 +28,7 @@
   placeholder="Search workers…"
   items={project.workspaces}
   key={(w) => w.id}
-  text={(w) => `${nameOf(w)} ${w.rootPath}`}
+  text={(w) => nameOf(w)}
   {value}
   {onselect}
   link={project.kind === "scratch" ? { href: "/settings/workers", label: "Manage workers" } : { href: `/settings/projects/${project.id}`, label: project.workspaces.length === 0 ? "Add it to a worker" : "Configure workers" }}
@@ -41,11 +37,11 @@
     <PillButton
       {...props}
       class={["pl-1.5", className]}
-      aria-label={selected ? `Worker: ${pillName(selected)}, ${online(selected) ? "online" : "offline"}` : "Worker: none"}
+      aria-label={selected ? `Worker: ${nameOf(selected)}, ${online(selected) ? "online" : "offline"}` : "Worker: none"}
     >
       <Icon name="computer-desktop" class="size-3.5" />
       {#if selected}
-        <span class="truncate text-zinc-800 dark:text-zinc-200">{pillName(selected)}</span>
+        <span class="truncate text-zinc-800 dark:text-zinc-200">{nameOf(selected)}</span>
         {#if !online(selected)}<StatusDot tone="neutral" /><span class="shrink-0">Offline</span>{/if}
       {:else}
         <span class="truncate">{project.workspaces.length === 0 ? "No worker" : "Choose a worker"}</span>
@@ -53,11 +49,11 @@
     </PillButton>
   {/snippet}
   {#snippet option(ws, state)}
-    <PickerRow title={nameOf(ws)} detail={project.kind === "scratch" ? `${ws.rootPath}/<thread-id>` : ws.rootPath} detailClass="font-mono" status={workerStatus(overview.worker(ws.workerId))} selected={state.selected}>
+    <PickerRow title={nameOf(ws)} status={workerStatus(overview.worker(ws.workerId))} selected={state.selected}>
       {#snippet leading()}<StatusDot tone={online(ws) ? "emerald" : "neutral"} />{/snippet}
     </PickerRow>
   {/snippet}
   {#snippet empty(query)}
-    {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Configure a worker with an allowed directory first.{:else}{project.name} is not on any worker yet.{/if}
+    {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Connect a worker first.{:else}{project.name} is not on any worker yet.{/if}
   {/snippet}
 </SearchPicker>

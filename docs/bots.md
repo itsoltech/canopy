@@ -240,21 +240,22 @@ o odczyty MCP. `ask_user` zawsze tworzy kartę pytania.
 | `create_project` | Nowy projekt; katalog na workerze dodaje się osobno | P |
 | `rename_project` | Nazwa projektu, bez zmiany ścieżek | P |
 | `archive_project` | Miękka archiwizacja projektu i workspace'ów, archiwizacja wątków i anulowanie harmonogramów; historia i pliki pozostają | A |
-| `add_workspace` | Projekt na workerze w istniejącym katalogu; walidacja absolute path, allowed roots, duplikatów i właściciela jak w UI | P |
+| `add_workspace` | Projekt na połączonym workerze w dowolnym istniejącym katalogu absolutnym; walidacja katalogu, duplikatów i właściciela jak w UI | P |
 | `update_workspace` | Katalog na tym samym workerze lub etykieta; istniejące wątki zachowują cwd | P |
 | `remove_workspace` | Usunięcie z miejsc dla nowych wątków, bez kasowania plików i istniejących rozmów | A |
 | `set_project_defaults` | Domyślne miejsce, dostawca, instancja, model per dostawca i permissions z kontrolą wersji | A |
 
 Scratch pozostaje zarządzany przez system. UI nie ma tworzenia katalogów ani domyślnej
 roli/agenta, więc bot również ich nie udaje. Worker sprawdza ścieżki rzeczywiste przy
-starcie wątku; gateway sprawdza allowed roots podczas tworzenia workspace'u.
+starcie wątku i przy dodaniu/zmianie workspace'u na żądanie gateway. Granicą dostępu są
+uprawnienia użytkownika OS workera; tryby uprawnień i sandboxy obowiązują per wątek.
 
 ### Workery i instancje dostawców
 
 | Nazwa | Działanie | Zgoda |
 |---|---|---|
-| `list_workers` | Dostępne workery: online, OS, hostname, allowed roots, włączone i dostępne instancje | R |
-| `list_directory` | Zdalny DirectoryPicker: katalogi w allowed roots; pusta ścieżka pokazuje korzenie | R |
+| `list_workers` | Dostępne workery: online, OS, hostname, włączone i dostępne instancje; bez ścieżek i roots | R |
+| `list_directory` | Zdalny DirectoryPicker: dowolny dostępny katalog absolutny; pusta ścieżka otwiera home workera, `/` korzeń POSIX; odpowiedź zawiera rzeczywistą ścieżkę | R |
 | `list_provider_instances` | Instancje, wybory modeli, stan na dostępnych workerach; tylko nazwy zmiennych, bez wartości | R |
 | `list_models` | Katalog modeli i effort instancji na dostępnym workerze | R |
 | `set_instance_worker` | Włączenie lub wyłączenie istniejącej instancji na jednym dostępnym workerze | A |
@@ -551,14 +552,14 @@ stronicowanie po stronie API i wirtualizację.
 ## 8. Weryfikacja i dalsza praca
 
 `tests/integration/bot-platform-tools.test.ts`: siedem testów gateway na PostgreSQL
-i skryptowanym workerze: projekt → workspace → wątek, allowed roots, wyszukiwanie,
+i skryptowanym workerze: projekt → workspace → wątek, ścieżki absolutne, wyszukiwanie,
 harmonogramy create/edit/conflict/pause/resume/cancel i new_thread round robin,
 fork/interrupt/goal, instancje bez env values, ustawienia i tworzenie bota, pytania/tło,
 zgody i odmowy destrukcji, archiwizacja projektu z wątkami i harmonogramami, odrzucanie
 argumentów sekretów i pól spoza schematu, izolacja właściciela, rollback w środku akcji oraz ponowienie
 tego samego zapisanego wywołania przez nową instancję gateway przed i po commicie.
 `bot-platform-tools.live.test.ts` przez `useLiveProxy`: **Codex / CLIProxyAPI** otrzymuje
-naturalną prośbę o nowy projekt na `stack-worker` w dozwolonym katalogu i wątek z `pwd`.
+naturalną prośbę o nowy projekt na `stack-worker` w istniejącym katalogu i wątek z `pwd`.
 Test potwierdza projekt, workspace, jeden wątek, wykonanie `pwd` w transkrypcie,
 wynik i odpowiedź bota po follow-upie.
 Izolowany PostgreSQL, gateway, prawdziwy worker oraz katalogi testowe; bez `/tmp/oa-stack`

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { DeviceLogin, Provider, ProviderProfileKind, WorkerConfigSchema } from "@open-agents/contracts";
 import { tempDir } from "@open-agents/testing";
-import { applyWorkerConfig, isAllowedPath, systemProbe, type DeviceProbe } from "./remote.ts";
+import { applyWorkerConfig, systemProbe, type DeviceProbe } from "./remote.ts";
 
 const base = tempDir("oa-remote-config-");
 const repo = join(base, "repo");
@@ -39,7 +39,6 @@ describe("applyWorkerConfig", () => {
       probe,
     );
     if (!result.applied) throw new Error("expected applied");
-    expect(result.config.allowedRoots).toEqual([repo]);
     expect(result.config.claude).toEqual({ enabled: true, linkDeviceLogin: true, executable: "/usr/bin/claude", version: "2.3.1" });
     expect(result.config.limits.maxRunningTurns).toBe(2);
     expect(result.config.limits.drainTimeoutSeconds).toBe(600); // default when unset
@@ -53,11 +52,10 @@ describe("applyWorkerConfig", () => {
     expect(JSON.stringify(result.report, (_, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("sk-secret");
   });
 
-  test("bad roots are skipped with an issue; symlinks resolve to real paths", () => {
+  test("legacy allowedRoots are ignored even when relative, missing or symlinked", () => {
     const result = applyWorkerConfig(config({ allowedRoots: ["relative/path", join(base, "missing"), join(base, "link"), repo] }), probe);
     if (!result.applied) throw new Error("expected applied");
-    expect(result.config.allowedRoots).toEqual([repo]);
-    expect(result.report.issues?.map((i) => i.path)).toEqual(["allowed_roots[0]", "allowed_roots[1]"]);
+    expect(result.report.issues).toEqual([]);
   });
 
   test("a missing CLI or a version mismatch disables that provider only", () => {
@@ -113,13 +111,6 @@ describe("applyWorkerConfig", () => {
     expect(codex?.resolved?.providers).toEqual(["codex"]);
   });
 
-  test("isAllowedPath: inside a root, not a sibling with the same prefix", () => {
-    const applied = { allowedRoots: [repo] };
-    expect(isAllowedPath(applied, repo)).toBe(true);
-    expect(isAllowedPath(applied, join(repo, "sub"))).toBe(true);
-    expect(isAllowedPath(applied, `${repo}-other`)).toBe(false);
-    expect(isAllowedPath(applied, base)).toBe(false);
-  });
 });
 
 describe("applyWorkerConfig: custom profiles", () => {

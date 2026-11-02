@@ -17,8 +17,9 @@ describe("local worker config (connection only)", () => {
     const ok = parseLocalConfig(JSON.stringify({ ...VALID, ca_file: "/etc/oa/ca.pem", ping_interval_seconds: 20 }));
     expect(Result.isSuccess(ok) && ok.success.ping_interval_seconds).toBe(20);
     // Remote settings do not belong here: unknown keys are errors, not silently ignored.
-    const extra = parseLocalConfig(JSON.stringify({ ...VALID, allowed_roots: ["/home"] }));
-    expect(Result.isFailure(extra) && extra.failure).toContain("allowed_roots");
+    const extra = parseLocalConfig(JSON.stringify({ ...VALID, providers: [] }));
+    expect(Result.isFailure(extra) && extra.failure).toContain("providers");
+    expect(Result.isSuccess(parseLocalConfig(JSON.stringify({ ...VALID, allowedRoots: ["missing"], allowed_roots: [] })))).toBe(true);
   });
 
   test("rejects bad values and invalid JSON", () => {

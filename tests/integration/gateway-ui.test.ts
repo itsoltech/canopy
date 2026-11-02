@@ -35,7 +35,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
       await Bun.sleep(50);
       overview = await api.getOverview({});
     }
-    expect(overview.workers.map((w) => [w.name, w.online, w.configVersion, w.appliedVersion, w.allowedRoots])).toEqual([["laptop", true, 2n, 2n, ["/repo"]]]);
+    expect(overview.workers.map((w) => [w.name, w.online, w.configVersion, w.appliedVersion, w.allowedRoots])).toEqual([["laptop", true, 2n, 2n, []]]);
   });
 
   test("project, workspace and directory browsing through the worker", async () => {
@@ -114,12 +114,12 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
 
   test("a worker refusing to create the thread makes it failed with the reason", async () => {
     const workerId = (await api.getOverview({})).workers[0]!.id;
-    // Inside the configured root, but refused by the worker (as for a symlink leading outside).
+    // The directory disappeared between adding the workspace and starting the thread.
     const bad = (await api.createWorkspace({ projectId, workerId, rootPath: "/repo/forbidden", label: "x" })).workspace!.id;
     const thread = (await api.createThread({ projectId, workspaceId: bad, title: "Nope", provider: Provider.CODEX })).thread!;
     const updates = await watchUntil(api, thread.id, (u) => u.some((x) => x.change.case === "thread" && x.change.value.status === "failed"));
     const failed = updates.flatMap((u) => (u.change.case === "thread" ? [u.change.value] : [])).find((t) => t.status === "failed");
-    expect(failed?.statusDetail).toContain("CWD_NOT_ALLOWED");
+    expect(failed?.statusDetail).toContain("CWD_NOT_FOUND");
   });
 
   test("only the BFF with the service token may call GatewayService", async () => {
@@ -137,9 +137,12 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     }
   });
 
-  test("a workspace must lie within the worker's allowed directories", async () => {
+  test("workspaces accept any absolute directory, while relative and missing paths fail", async () => {
     const workerId = (await api.getOverview({})).workers[0]!.id;
-    for (const rootPath of ["/etc", "/repo-other", "/repo/../etc"]) {
+    for (const rootPath of ["/etc", "/repo-other"]) {
+      expect((await api.createWorkspace({ projectId, workerId, rootPath })).workspace?.rootPath).toBe(rootPath);
+    }
+    for (const rootPath of ["relative", "/missing-workspace"]) {
       const error = await api.createWorkspace({ projectId, workerId, rootPath, label: "x" }).catch((e: unknown) => e);
       expect((error as ConnectError).code).toBe(Code.InvalidArgument);
     }
@@ -148,16 +151,20 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
   test("a project spans workers on different systems; a thread waits for its worker to connect", async () => {
     const laptopId = (await api.getOverview({})).workers[0]!.id;
     const { workerId: winId, credential } = await gw.addWorker("win-box", ["C:\\code"]);
+    const initialWin = await gw.connect(winId, credential, "win32");
+    await eventually(() => api.getOverview({}), (o) => o.workers.some((w) => w.id === winId && w.online && w.os === "win32"));
 
     // Windows path rules on a Linux gateway: normalized, case-insensitive duplicates refused.
     const winWorkspace = (await api.createWorkspace({ projectId, workerId: winId, rootPath: "C:/code/app/", label: "win" })).workspace!;
     expect(winWorkspace.rootPath).toBe("C:\\code\\app");
     expect(await failure(api.createWorkspace({ projectId, workerId: winId, rootPath: "c:\\CODE\\App", label: "x" }))).toContain("already a workspace");
-    expect(await failure(api.createWorkspace({ projectId, workerId: winId, rootPath: "C:\\other", label: "x" }))).toContain("outside the worker's allowed");
+    expect((await api.createWorkspace({ projectId, workerId: winId, rootPath: "C:\\other", label: "x" })).workspace?.rootPath).toBe("C:\\other");
     expect(await failure(api.createWorkspace({ projectId, workerId: winId, rootPath: "/repo/repo-a", label: "x" }))).toContain("must be absolute");
     // The same project also lives on the laptop: one workspace per (worker, directory).
     const project = (await api.getOverview({})).projects.find((p) => p.id === projectId)!;
     expect(new Set(project.workspaces.map((w) => w.workerId))).toEqual(new Set([laptopId, winId]));
+    initialWin.link.close();
+    await eventually(() => api.getOverview({}), (o) => o.workers.some((w) => w.id === winId && !w.online));
 
     // The Windows worker is offline: the thread is accepted and its command waits in the outbox.
     const thread = (
@@ -186,7 +193,8 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     await watchUntil(api, thread.id, (u) => answers(u).includes("Echo: one") && u.some((x) => x.change.case === "thread" && x.change.value.status === "idle"));
 
     // Another directory on the same worker: same rules as a new workspace; the thread keeps its own directory.
-    expect(await failure(api.updateWorkspace({ workspaceId: ws.id, rootPath: "/etc" }))).toContain("outside the worker's allowed");
+    expect(await failure(api.updateWorkspace({ workspaceId: ws.id, rootPath: "/missing-directory" }))).toContain("does not exist");
+    expect((await api.updateWorkspace({ workspaceId: ws.id, rootPath: "/anywhere-else" })).workspace?.rootPath).toBe("/anywhere-else");
     const moved = (await api.updateWorkspace({ workspaceId: ws.id, rootPath: "/repo/" })).workspace!;
     expect([moved.rootPath, moved.label, moved.workerId]).toEqual(["/repo", "laptop", workerId]);
     expect((await api.updateWorkspace({ workspaceId: ws.id, label: "main checkout" })).workspace?.rootPath).toBe("/repo");
