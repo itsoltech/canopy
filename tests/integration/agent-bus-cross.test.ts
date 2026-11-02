@@ -249,7 +249,10 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
         const store = yield* GatewayStore;
         const userId = yield* store.ensureUser("other@localhost", "Other");
         const project = yield* store.createProject(userId, "Theirs");
-        const workspace = yield* store.createWorkspace({ projectId: project.id, workerId: gw.workerId, rootPath: "/repo/theirs", label: "" });
+        // Their own worker: a thread can only be placed on a worker of its owner.
+        const worker = yield* store.addWorker({ ownerUserId: userId, name: "their-worker" });
+        yield* store.setWorkerConfig(worker.workerId, { allowedRoots: ["/repo"], codex: { enabled: true }, claude: { enabled: true } }, userId);
+        const workspace = yield* store.createWorkspace({ projectId: project.id, workerId: worker.workerId, rootPath: "/repo/theirs", label: "" });
         return yield* store.createThread(userId, create(ui.CreateThreadRequestSchema, { projectId: project.id, workspaceId: workspace.id, title: "Their thread", provider: Provider.CODEX }));
       }),
     );
