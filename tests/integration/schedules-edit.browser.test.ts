@@ -8,7 +8,7 @@ import type { BrowserContext, Page } from "playwright-core";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { tempDirs } from "@open-agents/testing";
-import { eventually, SERVICE_TOKEN, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, SCRIPTED_MODELS, SERVICE_TOKEN, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(Bun.env["OA_SCHEDULE_EDIT_BROWSER"] !== "1")("schedule edit browser acceptance", () => {
   const makeTemp = tempDirs();
@@ -27,8 +27,13 @@ describe.skipIf(Bun.env["OA_SCHEDULE_EDIT_BROWSER"] !== "1")("schedule edit brow
   beforeAll(async () => {
     mkdirSync(shots, { recursive: true });
     gw = await startTestGateway();
+    const second = await gw.addWorker("Claude worker", ["/repo"]);
+    await gw.connect(second.workerId, second.credential, "linux", { claude: true, models: [...SCRIPTED_MODELS, {
+      provider: Provider.CLAUDE, profileId: "native", models: [{ id: "claude-haiku-5-5", displayName: "Claude Haiku", isDefault: true, efforts: [] }],
+    }] });
     project = (await gw.api.createProject({ name: "Schedule editing" })).project!;
     workspace = (await gw.api.createWorkspace({ projectId: project.id, workerId: gw.workerId, rootPath: "/repo" })).workspace!;
+    await gw.api.createWorkspace({ projectId: project.id, workerId: second.workerId, rootPath: "/repo" });
     thread = (await gw.api.createThread({ projectId: project.id, workspaceId: workspace.id, title: "Release review", provider: Provider.CODEX })).thread!;
     await eventually(() => gw.api.getThread({ threadId: thread.id }), (r) => r.thread?.status === "idle");
     await eventually(() => gw.api.getOverview({}), (o) => o.workers.every((w) => w.providerInstances.some((i) => i.available)));
@@ -175,6 +180,30 @@ describe.skipIf(Bun.env["OA_SCHEDULE_EDIT_BROWSER"] !== "1")("schedule edit brow
       expect(await current(initial.id)).toMatchObject({ status: "paused", prompt: "Edited while paused" });
       expect((await current(initial.id)).nextRunAt).toBeUndefined();
       await gw.api.setScheduleStatus({ scheduleId: initial.id, status: "cancelled" });
+      expect(problems).toEqual([]);
+    } finally { await page.close(); }
+  }, 30_000);
+
+  test("prefills a pool model from a worker that offers its provider, including models without effort", async () => {
+    const s = (await gw.api.createSchedule({ target: "new_thread", prompt: "Claude pool task", name: "Claude pool task",
+      when: { case: "runAt", value: timestampFromDate(new Date(Date.now() + 3_600_000)) },
+      newThread: { projectId: project.id, placement: "any", provider: Provider.CLAUDE, model: "claude-haiku-5-5", permissionMode: PermissionMode.READ_ONLY },
+    })).schedule!;
+    const page = await desktop.newPage();
+    try {
+      await page.goto(`${base}/settings/schedules`);
+      const row = page.getByRole("listitem").filter({ has: page.getByText(s.name, { exact: true }) });
+      await row.getByRole("button", { name: "Scheduled task actions" }).click();
+      await page.getByRole("menuitem", { name: "Edit…", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Edit scheduled task", exact: true });
+      await dialog.getByText("Claude · Native", { exact: true }).waitFor();
+      expect(await dialog.getByRole("button", { name: /^Reasoning effort:/ }).count()).toBe(0);
+      expect(await dialog.getByRole("button", { name: "Permissions: Read only", exact: true }).count()).toBe(1);
+      await screenshot(page, "desktop-claude-pool-edit");
+      await dialog.getByRole("button", { name: "Save changes", exact: true }).click();
+      await dialog.waitFor({ state: "hidden" });
+      expect((await current(s.id)).newThread).toEqual(s.newThread);
+      await gw.api.setScheduleStatus({ scheduleId: s.id, status: "cancelled" });
       expect(problems).toEqual([]);
     } finally { await page.close(); }
   }, 30_000);

@@ -22,7 +22,10 @@
   let projectId = $state(initial?.projectId ?? overview.projects[0]?.id ?? "");
   let placement = $state(initial?.placement || "any");
   let workspaceId = $state(initial?.workspaceId ?? "");
-  const initialWorker = untrack(() => overview.workers.find((w) => overview.project(projectId)?.workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId))));
+  const initialWorker = untrack(() => {
+    const candidates = overview.workers.filter((w) => overview.project(projectId)?.workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId)));
+    return candidates.find((w) => initial && scheduleWorkerEligible(w, initial, false)) ?? candidates[0];
+  });
   const initialProfile = initial?.providerProfileId === "native" ? "" : initial?.providerProfileId || "";
   let option = $state<ModelOption | undefined>(initial ? modelOption(initial.provider === Provider.CLAUDE ? "CLAUDE" : "CODEX", initialProfile,
     initialWorker?.providerInstances.find((i) => i.harness === initial.provider && i.id === (initialProfile || "native"))?.label || initialProfile || "Native", initial.model, initialWorker ? catalog.of(initialWorker.id) : undefined) : undefined);

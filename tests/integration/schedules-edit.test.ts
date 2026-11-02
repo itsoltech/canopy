@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
+import { PermissionMode, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { AgentBusStore, GatewayStore } from "@open-agents/gateway/store";
 import { Effect } from "effect";
@@ -173,5 +173,18 @@ describe.skipIf(!dockerAvailable)("schedule editing with a scripted worker", () 
       userId: outsider, schedule: { threadId: thread.id, kind: "once", prompt: "Unauthorized", runAt: timestampDate(s.runAt!), nextRunAt: timestampDate(s.runAt!), timezone: "UTC", hops: 0 },
     }))))).toContain("schedule not found");
     await gw.api.setScheduleStatus({ scheduleId: s.id, status: "cancelled" });
+  });
+
+  test("the edited provider instance is used by the next new thread", async () => {
+    await gw.api.saveProviderInstance({ harness: Provider.CODEX, id: "scheduled-login", create: true, label: "Scheduled login", kind: ProviderProfileKind.NATIVE, allWorkers: true });
+    await eventually(() => gw.api.getOverview({}), (o) => o.workers.some((w) => w.providerInstances.some((i) => i.id === "scheduled-login" && i.available)));
+    const s = await make("new_thread");
+    const edited = await update(s, { newThread: { ...s.newThread!, providerProfileId: "scheduled-login" } });
+    await gw.core.scheduler.tick(timestampDate(edited.nextRunAt!));
+    const ran = await current(s.id);
+    const spawned = await eventually(() => gw.api.getThread({ threadId: ran.recentRuns[0]!.threadId }), (r) => r.thread?.status === "idle");
+    expect(spawned.thread?.providerProfileId).toBe("scheduled-login");
+    await eventually(() => gw.runtime.runPromise(GatewayStore.use((store) => store.turnsOf(spawned.thread!.id))), (rows) => rows[0]?.status === "completed");
+    expect(gw.worker.created.find((entry) => entry.threadId === spawned.thread!.id)?.providerProfileId).toBe("scheduled-login");
   });
 });

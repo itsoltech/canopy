@@ -76,6 +76,8 @@ export function sortSchedules(schedules: Iterable<ui.Schedule>): ui.Schedule[] {
 
 export function upsertSchedule(list: readonly ui.Schedule[], schedule: ui.Schedule): ui.Schedule[] {
   const index = list.findIndex((s) => s.id === schedule.id);
+  // A save response can arrive after the stream already announced a later edit or execution.
+  if (index >= 0 && list[index]!.version > schedule.version) return [...list];
   return index >= 0 ? list.with(index, schedule) : [...list, schedule];
 }
 export const placementLabels: Record<string, string> = {
