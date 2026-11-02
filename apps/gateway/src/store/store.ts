@@ -58,6 +58,9 @@ export interface ThreadRow {
   root_thread_id: string;
   depth: number;
   origin: string;
+  schedule_id?: string | null;
+  schedule_name?: string;
+  schedule_run?: number | null;
   interaction_route: "human" | "parent";
   agent_id: string | null;
   runtime: string;
@@ -1037,6 +1040,9 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     status: row.status,
     agentId: row.agent_id ?? "",
     spawnedByAgent: row.origin === "agent",
+    scheduleId: row.schedule_id ?? "",
+    scheduleName: row.schedule_name ?? "",
+    scheduleRun: row.schedule_run ?? 0,
     statusDetail: row.status_detail ?? "",
     lastSeq: BigInt(row.last_seq),
     createdAt: timestampFromDate(new Date(row.created_at)),

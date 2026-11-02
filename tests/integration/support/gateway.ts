@@ -311,6 +311,8 @@ export interface TestGateway {
   readonly userId: string;
   readonly worker: ScriptedWorker;
   readonly workerId: string;
+  /** Ephemeral credential for reconnecting the fixture's primary worker after a gateway restart. */
+  readonly workerCredential: string;
   /** Registers another worker (not connected) with its own allowed roots. */
   addWorker(name: string, allowedRoots: string[]): Promise<{ workerId: string; credential: string }>;
   /** Connects a scripted worker; closed with the gateway. */
@@ -385,6 +387,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
     userId,
     worker,
     workerId: laptop.workerId,
+    workerCredential: laptop.credential,
     addWorker,
     connect,
     close: async () => {

@@ -1,4 +1,4 @@
-import { create, toJson, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
+import { create, fromJson, toJson, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
 import {
   CommandResultSchema,
   CommandSchema,
@@ -83,6 +83,7 @@ import { AgentBus } from "./agent-bus.ts";
 import { BackgroundTasks } from "./background-tasks.ts";
 import { Hub } from "./hub.ts";
 import { Scheduler } from "./scheduler.ts";
+import { PLACEMENTS, scheduleWorkerEligible } from "@open-agents/domain";
 import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt } from "./thread-titles.ts";
 
 /**
@@ -217,6 +218,15 @@ export class GatewayCore {
       owner: options.instanceId,
       log: (message) => this.#log(message),
       changed: (scheduleId) => this.#publishSchedule(scheduleId),
+      eligibleWorkers: async (schedule) => {
+        const spec = fromJson(ui.NewThreadScheduleSchema, schedule.new_thread!);
+        return (await this.#workers()).filter((w) => scheduleWorkerEligible(w, spec, spec.placement !== "specific")).map((w) => w.id);
+      },
+      created: async ({ thread, command }, prompt) => {
+        this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: this.#uiThread(thread) } }));
+        void this.#deliver(thread.worker_id!, command);
+        this.#autoTitle(thread.id, titleContext({ text: prompt }));
+      },
     });
   }
 
@@ -1746,9 +1756,37 @@ export class GatewayCore {
 
   /** A user's schedule: like an agent's, but it may be open-ended and starts no agent chain (hops 0). */
   async createSchedule(request: ui.CreateScheduleRequest): Promise<ui.Schedule> {
-    const thread = await this.#run((s) => s.thread(request.threadId));
-    if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
-    if (thread.archived_at) throw new InvalidError("the thread is archived");
+    const target = request.target || "thread";
+    if (target !== "thread" && target !== "new_thread") throw new InvalidError("target is thread or new_thread");
+    const concurrency = request.concurrency || "skip_if_running";
+    if (concurrency !== "allow" && concurrency !== "skip_if_running") throw new InvalidError("concurrency is allow or skip_if_running");
+    let newThread: ui.NewThreadSchedule | undefined;
+    if (target === "thread") {
+      if (request.newThread) throw new InvalidError("thread target cannot include new_thread");
+      const thread = await this.#run((s) => s.thread(request.threadId));
+      if (thread.owner_user_id !== this.#options.userId || thread.deleted_at) throw new InvalidError("thread not found");
+      if (thread.archived_at) throw new InvalidError("the thread is archived");
+    } else {
+      if (request.threadId || !request.newThread) throw new InvalidError("new_thread requires its configuration and no thread_id");
+      const spec = request.newThread;
+      const placement = spec.placement || "any";
+      if (!(PLACEMENTS as readonly string[]).includes(placement)) throw new InvalidError("unknown placement policy");
+      if (spec.provider !== Provider.CLAUDE && spec.provider !== Provider.CODEX) throw new InvalidError("choose a provider");
+      if (!Object.values(PermissionMode).includes(spec.permissionMode)) throw new InvalidError("unknown permission mode");
+      const project = (await this.#run((s) => s.listProjects(this.#options.userId))).find((p) => p.id === spec.projectId);
+      if (!project) throw new InvalidError("project not found");
+      const workspaces = project.workspaces.filter((w) => placement !== "specific" || w.id === spec.workspaceId);
+      if (!workspaces.length || (placement !== "specific" && spec.workspaceId)) throw new InvalidError("choose a workspace of the project only for specific placement");
+      const instance = await this.#instances((s) => s.get(harnessOf(spec.provider)!, spec.providerProfileId || "native"));
+      if (!instance) throw new InvalidError("provider instance not found");
+      const workers = await this.#workers();
+      const candidates = workspaces.filter((w) => workers.find((worker) => worker.id === w.workerId)?.providerInstances.some((i) => i.harness === spec.provider && i.id === (spec.providerProfileId || "native") && i.enabled));
+      if (!candidates.length) throw new InvalidError("the provider instance is not enabled on any workspace of this project");
+      // Validate against each known catalog: a pool may contain different CLI versions/catalogs.
+      for (const workspace of candidates) await this.#checkModel({ workspaceId: workspace.id, provider: spec.provider, profileId: spec.providerProfileId }, spec.model, spec.effort);
+      newThread = create(ui.NewThreadScheduleSchema, { ...spec, placement, title: spec.title.trim(), permissionMode: spec.permissionMode || PermissionMode.ASK });
+    }
+    const configuration = { threadId: request.threadId, ...(newThread && { newThread }), concurrency: concurrency as "allow" | "skip_if_running", name: request.name.trim().slice(0, 120) };
     const prompt = request.prompt.trim();
     if (!prompt) throw new InvalidError("prompt is required");
     const missedPolicy = request.missedPolicy || "run_once";
@@ -1763,7 +1801,7 @@ export class GatewayCore {
       row = await this.#bus((s) =>
         s.createUserSchedule({
           userId: this.#options.userId,
-          schedule: { threadId: thread.id, kind: "once", prompt, runAt, timezone: "UTC", nextRunAt: runAt, hops: 0, missedPolicy },
+          schedule: { ...configuration, kind: "once", prompt, runAt, timezone: "UTC", nextRunAt: runAt, hops: 0, missedPolicy },
         }),
       );
     } else if (request.when.case === "cron") {
@@ -1778,7 +1816,7 @@ export class GatewayCore {
         s.createUserSchedule({
           userId: this.#options.userId,
           schedule: {
-            threadId: thread.id,
+            ...configuration,
             kind: "recurring",
             prompt,
             cron,
@@ -1821,8 +1859,7 @@ export class GatewayCore {
     const status = request.status;
     if (status !== "active" && status !== "paused" && status !== "cancelled") throw new InvalidError("status is active, paused or cancelled");
     const current = await this.#bus((s) => s.schedule(request.scheduleId));
-    const owner = await this.#run((s) => s.thread(current.thread_id));
-    if (owner.owner_user_id !== this.#options.userId) throw new InvalidError("schedule not found");
+    if (current.owner_user_id !== this.#options.userId) throw new InvalidError("schedule not found");
     let nextRunAt: Date | undefined;
     if (status === "active") {
       // Resumed: a missed one-off runs now; a recurring one continues from now.
@@ -1847,7 +1884,7 @@ export class GatewayCore {
   }
 
   #announceSchedule(schedule: ui.Schedule): void {
-    this.hub.publishThread(schedule.threadId, create(ui.ThreadUpdateSchema, { change: { case: "schedule", value: schedule } }));
+    if (schedule.threadId) this.hub.publishThread(schedule.threadId, create(ui.ThreadUpdateSchema, { change: { case: "schedule", value: schedule } }));
     this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "schedule", value: schedule } }));
   }
 

@@ -223,6 +223,9 @@ message Thread {
   string archived_by_thread_title = 273;
   google.protobuf.Timestamp deleted_at = 274;
   bool marked_unread = 275;
+  string schedule_id = 290;
+  string schedule_name = 291;
+  uint32 schedule_run = 292;
 }
 
 // Wątek agenta, od którego przyszło wejście tury albo steer (zadanie, wiadomość, raport): do oznaczenia wiadomości
@@ -615,6 +618,39 @@ message Schedule {
   string created_by_thread_id = 16;
   string last_turn_id = 17;
   google.protobuf.Timestamp created_at = 18;
+  // thread (default) | new_thread; new-thread targets are user-only.
+  string target = 290;
+  NewThreadSchedule new_thread = 291;
+  // skip_if_running (default) | allow
+  string concurrency = 292;
+  repeated ScheduleRun recent_runs = 293;
+  string name = 294;
+}
+
+message NewThreadSchedule {
+  string project_id = 1;
+  // any (default) | least_busy | round_robin | specific
+  string placement = 2;
+  // Required only for specific.
+  string workspace_id = 3;
+  openagents.worker.v1.Provider provider = 4;
+  string provider_profile_id = 5;
+  string model = 6;
+  string effort = 7;
+  openagents.worker.v1.PermissionMode permission_mode = 8;
+  string title = 9;
+}
+
+message ScheduleRun {
+  google.protobuf.Timestamp scheduled_for = 1;
+  uint32 number = 2;
+  string thread_id = 3;
+  string turn_id = 4;
+  string worker_id = 5;
+  string workspace_id = 6;
+  // started | missed | running | expired
+  string outcome = 7;
+  google.protobuf.Timestamp created_at = 8;
 }
 
 message ListSchedulesRequest {
@@ -640,6 +676,10 @@ message CreateScheduleRequest {
   google.protobuf.Timestamp until = 6;
   uint32 max_runs = 7;
   string missed_policy = 8; // pusty = run_once
+  string target = 290;
+  NewThreadSchedule new_thread = 291;
+  string concurrency = 292;
+  string name = 293;
 }
 
 message CreateScheduleResponse {
