@@ -5,6 +5,7 @@
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import AgentWell from "./AgentWell.svelte";
   import ItemFrame from "./ItemFrame.svelte";
+  import MessageDeliveryCard from "./MessageDeliveryCard.svelte";
   import SubagentCard from "./SubagentCard.svelte";
   import ThreadLink from "./ThreadLink.svelte";
 
@@ -12,7 +13,7 @@
    * A call on the agent bus (docs/agent-bus.md): starting or messaging another thread, waiting for
    * threads, answering interactions, schedules. Violet marks agent-to-agent activity. A tool without a
    * label here (e.g. one no longer offered) shows its name. A started subagent also gets a card that
-   * follows the child thread live.
+   * follows the child thread live; a sent message one that follows the turn it reached.
    */
   let { call, status }: { call: AgentBusCall; status: ItemStatus } = $props();
 
@@ -40,7 +41,9 @@
   const result = $derived(parseObject(call.resultJson));
   const target = $derived(call.targetThreadId || str(result["thread_id"]) || str(args["thread_id"]));
   const subagent = $derived(call.toolName === "spawn_thread" && !call.isError && target !== "");
+  const message = $derived(call.toolName === "send_message" && !call.isError && target !== "" && call.resultJson !== "");
   const spawned = $derived({
+    provider: str(result["provider"]) || str(args["provider"]),
     model: str(result["model"]) || str(args["model"]),
     effort: str(result["effort"]) || str(args["effort"]),
     permissionMode: str(result["permission_mode"]) || str(args["permission_mode"]),
@@ -51,7 +54,7 @@
   {#snippet title()}
     <span class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
       <span class="font-medium text-violet-800 dark:text-violet-300">{labels[call.toolName] ?? call.toolName}</span>
-      {#if target && !subagent}
+      {#if target && !subagent && !message}
         <ThreadLink threadId={target} fallback={str(args["title"]) || "Side thread"} />
       {:else}
         {#each waitingFor as id (id)}<ThreadLink threadId={id} />{/each}
@@ -72,4 +75,12 @@
 </ItemFrame>
 {#if subagent}
   <SubagentCard threadId={target} title={str(args["title"]) || "Subagent"} {spawned} class="mb-1 ml-6" />
+{/if}
+{#if message}
+  <MessageDeliveryCard
+    callId={call.callId}
+    threadId={target}
+    sentDelivery={str(result["delivery"])}
+    class="mb-1 ml-6"
+  />
 {/if}
