@@ -298,8 +298,9 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex collaboration tools (liv
     const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]).find((s) => s.config.id === "live")!
       .resolved!;
     const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-    // Codex's own send_message is not listed: the bus has a tool of that name.
-    const COLLAB = /\b(spawn_agent|wait_agent|send_input|followup_task|interrupt_agent|close_agent|resume_agent)\b/;
+    // Declarations only (spawn_thread's description mentions spawn_agent). Codex's own send_message is not listed:
+    // the bus has a tool of that name.
+    const COLLAB = /("name":"|### `|\b)(spawn_agent|wait_agent|send_input|followup_task|interrupt_agent|close_agent|resume_agent)("|`|\(args)/;
     const run = async (withOverride: boolean, prompt: string) => {
       const home = mkdtempSync(join(tmpdir(), "oa-codex-home-"));
       const cwd = mkdtempSync(join(tmpdir(), "oa-codex-collab-"));
