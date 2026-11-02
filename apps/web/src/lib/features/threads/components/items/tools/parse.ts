@@ -229,3 +229,66 @@ export function shortUrl(url: string): string {
     return url;
   }
 }
+
+/**
+ * MCP results come as content blocks (`[{"type":"text","text":"…"}]`): their text, joined. Anything else
+ * (plain text, other JSON) is returned as it is.
+ */
+export function unwrapContent(output: string): string {
+  const text = output.trim();
+  if (!text.startsWith("[")) return output;
+  try {
+    const blocks: unknown = JSON.parse(text);
+    if (!Array.isArray(blocks) || blocks.length === 0) return output;
+    const texts = blocks.map((block: unknown) => {
+      if (!block || typeof block !== "object") return undefined;
+      const record = block as Record<string, unknown>;
+      if (record["type"] === "text" && typeof record["text"] === "string") return record["text"];
+      return typeof record["type"] === "string" && record["type"] !== "text" ? `[${record["type"]}]` : undefined;
+    });
+    return texts.every((t) => t !== undefined) ? texts.join("\n\n") : output;
+  } catch {
+    return output;
+  }
+}
+
+export interface WebLink {
+  readonly title: string;
+  readonly url: string;
+}
+
+/**
+ * Web search results: a JSON list of `{title, url}`, or Claude's text with a `Links: [...]` line; the
+ * links and whatever text remains (the summary).
+ */
+export function parseWebResults(output: string): { links: WebLink[]; text: string } {
+  const toLinks = (value: unknown): WebLink[] =>
+    Array.isArray(value)
+      ? value.flatMap((entry: unknown) => {
+          if (!entry || typeof entry !== "object") return [];
+          const record = entry as Record<string, unknown>;
+          const url = typeof record["url"] === "string" ? record["url"] : "";
+          return url ? [{ url, title: typeof record["title"] === "string" && record["title"] ? record["title"] : shortUrl(url) }] : [];
+        })
+      : [];
+  const text = stripReminders(output).trim();
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (Array.isArray(parsed)) return { links: toLinks(parsed), text: "" };
+  } catch {
+    // Text: look for the links line below.
+  }
+  const links: WebLink[] = [];
+  const rest = text
+    .replace(/^Links:\s*(\[.*\])\s*$/gm, (_, json: string) => {
+      try {
+        links.push(...toLinks(JSON.parse(json)));
+        return "";
+      } catch {
+        return _;
+      }
+    })
+    .replace(/^Web search results for query:.*$/m, "")
+    .trim();
+  return { links, text: rest };
+}

@@ -1,0 +1,39 @@
+<script lang="ts">
+  import { formatDateTime } from "#lib/shared/format.ts";
+  import LongText from "#lib/shared/ui/LongText.svelte";
+  import { safeHref } from "#lib/shared/ui/markdown/safe-url.ts";
+  import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+  import type { Node } from "#lib/shared/structure.ts";
+  import { shortUrl } from "./parse.ts";
+  import IdValue from "./IdValue.svelte";
+
+  /** One value of a structured view, as people read it (structure.ts kinds); lists and objects are StructuredView's. */
+  let { node }: { node: Node } = $props();
+</script>
+
+{#if node.kind === "text"}
+  <span class="break-words">{node.text}</span>
+{:else if node.kind === "long"}
+  <LongText text={node.text} />
+{:else if node.kind === "number"}
+  <span class="tabular-nums">{node.text}</span>
+{:else if node.kind === "bool"}
+  {node.value ? "Yes" : "No"}
+{:else if node.kind === "date"}
+  <time datetime={node.iso} title={node.iso}>{formatDateTime(timestampFromDate(new Date(node.iso)))}</time>
+{:else if node.kind === "enum"}
+  <span title={node.raw}>{node.label}</span>
+{:else if node.kind === "id"}
+  <IdValue id={node.id} />
+{:else if node.kind === "url"}
+  {@const href = safeHref(node.href)}
+  {#if href}
+    <a {href} target="_blank" rel="noopener noreferrer nofollow" title={node.href} class="break-all text-sky-700 underline decoration-sky-700/30 underline-offset-2 hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-400/30">{shortUrl(node.href)}</a>
+  {:else}
+    <span class="break-all">{node.href}</span>
+  {/if}
+{:else if node.kind === "path"}
+  <code class="font-mono break-all text-zinc-800 dark:text-zinc-200" title={node.path}>{node.path}</code>
+{:else if node.kind === "empty"}
+  <span class="text-zinc-400 dark:text-zinc-500">None</span>
+{/if}

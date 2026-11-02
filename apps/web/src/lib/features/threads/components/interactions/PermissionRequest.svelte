@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { Item } from "@open-agents/contracts";
-  import { parseObject, prettyJson, str } from "#lib/shared/format.ts";
-  import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
+  import { parseObject, str } from "#lib/shared/format.ts";
+  import { structure, structureJson } from "#lib/shared/structure.ts";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import Diff from "../Diff.svelte";
+  import StructuredView from "../items/tools/StructuredView.svelte";
 
   /** What a permission request asks for: a command, a file change (with its diff) or extra permissions. */
   let { toolName, requestJson, related }: { toolName: string; requestJson: string; related: Item | undefined } = $props();
@@ -27,8 +28,9 @@
       {#if change.diff}<Diff diff={change.diff} label="Proposed change to {change.path}" lang={languageOfPath(change.path)} class="max-h-64" />{/if}
     {/each}
   {:else if toolName === "permissions" && request["permissions"]}
-    <CodeBlock text={prettyJson(JSON.stringify(request["permissions"]))} label="Requested permissions" class="max-h-48" />
+    <StructuredView node={structure(request["permissions"])} class="max-h-48 overflow-y-auto" />
   {:else if !reason}
-    <CodeBlock text={prettyJson(requestJson)} label="Request" class="max-h-48" />
+    <!-- Any other tool: its input as labelled fields (the raw request stays on the timeline's "Show raw"). -->
+    <StructuredView node={structureJson(requestJson)} class="max-h-48 overflow-y-auto" />
   {/if}
 </div>

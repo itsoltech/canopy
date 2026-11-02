@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseFileList, parseGrepOutput, parseNumberedLines, parsePatch, parseScriptCalls, parseScriptOutput, replacementDiff, shortUrl, stripReminders } from "./parse.ts";
+import { parseFileList, parseGrepOutput, parseNumberedLines, parsePatch, parseScriptCalls, parseScriptOutput, parseWebResults, replacementDiff, shortUrl, stripReminders, unwrapContent } from "./parse.ts";
 
 describe("parseNumberedLines", () => {
   test("cat -n output with tabs or arrows", () => {
@@ -110,5 +110,29 @@ describe("small helpers", () => {
     expect(shortUrl("https://www.example.com/docs/a/")).toBe("example.com/docs/a");
     expect(shortUrl("https://example.com/")).toBe("example.com");
     expect(shortUrl("not a url")).toBe("not a url");
+  });
+});
+
+describe("unwrapContent", () => {
+  test("text blocks joined, other output kept", () => {
+    expect(unwrapContent('[{"type":"text","text":"a"},{"type":"text","text":"b"}]')).toBe("a\n\nb");
+    expect(unwrapContent('[{"type":"text","text":"a"},{"type":"image","data":"x"}]')).toBe("a\n\n[image]");
+    expect(unwrapContent('[{"name":"x"}]')).toBe('[{"name":"x"}]');
+    expect(unwrapContent("plain")).toBe("plain");
+  });
+});
+
+describe("parseWebResults", () => {
+  test("a JSON list", () => {
+    expect(parseWebResults('[{"title":"A","url":"https://a.dev/x"},{"url":"https://b.dev"}]').links).toEqual([
+      { title: "A", url: "https://a.dev/x" },
+      { title: "b.dev", url: "https://b.dev" },
+    ]);
+  });
+
+  test("Claude's text with a links line", () => {
+    const result = parseWebResults('Web search results for query: "svelte"\n\nLinks: [{"title":"Svelte","url":"https://svelte.dev"}]\n\nSvelte is a UI framework.');
+    expect(result.links).toEqual([{ title: "Svelte", url: "https://svelte.dev" }]);
+    expect(result.text).toBe("Svelte is a UI framework.");
   });
 });
