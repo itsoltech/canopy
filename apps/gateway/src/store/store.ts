@@ -506,13 +506,13 @@ export class GatewayStore extends Context.Service<
           listWorkers: (online, ownerUserId) =>
             Effect.gen(function* () {
               const rows = yield* sql<{
-                id: string; name: string; os: string; version: string; capabilities: { hostname?: string; homeDirectory?: string }; last_seen_at: Date | null;
+                id: string; name: string; os: string; version: string; capabilities: { hostname?: string; homeDirectory?: string }; last_seen_at: Date | null; revoked_at: Date | null;
                 config: JsonValue | null; config_version: bigint | null; applied_version: bigint | null; apply_report: JsonValue | null;
               }>`
-                SELECT w.id, w.name, w.os, w.version, w.capabilities, w.last_seen_at,
+                SELECT w.id, w.name, w.os, w.version, w.capabilities, w.last_seen_at, w.revoked_at,
                        c.config, c.version AS config_version, c.applied_version, c.apply_report
                   FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
-                 WHERE w.archived_at IS NULL AND w.revoked_at IS NULL
+                 WHERE w.archived_at IS NULL
                    AND (${ownerUserId ?? null}::uuid IS NULL OR w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId ?? null}::uuid)
                  ORDER BY w.name`;
               return rows.map((r) => {
@@ -525,7 +525,8 @@ export class GatewayStore extends Context.Service<
                 return create(ui.WorkerSchema, {
                   id: r.id,
                   name: r.name,
-                  online: online.has(r.id),
+                  online: !r.revoked_at && online.has(r.id),
+                  ...(r.revoked_at && { revokedAt: timestampFromDate(new Date(r.revoked_at)) }),
                   hostname: r.capabilities?.hostname ?? "",
                   os: r.os,
                   version: r.version,

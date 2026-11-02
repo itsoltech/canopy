@@ -31,6 +31,7 @@ interface ProjectRow extends Row {
 
 /** Stored JSON: the protobuf JSON of each section. */
 interface Stored {
+  workerGatewayUrl?: string;
   timezone?: string;
   appearance?: JsonValue;
   threadDefaults?: JsonValue;
@@ -54,6 +55,7 @@ export class SettingsStore extends Context.Service<
       textGeneration?: ui.TextGenerationSettings;
       sidebar?: ui.SidebarSettings;
       timezone?: string;
+      workerGatewayUrl?: string;
       expectedVersion: bigint;
     }): Fx<ui.UserSettings>;
     updateProject(input: { userId: string; projectId: string; threadDefaults?: ui.ThreadDefaults; expectedVersion: bigint }): Fx<ui.ProjectSettings>;
@@ -78,6 +80,7 @@ export class SettingsStore extends Context.Service<
       const toUser = (row: Row | undefined) => {
         const stored = (row?.settings ?? {}) as Stored;
         return create(ui.UserSettingsSchema, {
+          workerGatewayUrl: stored.workerGatewayUrl ?? "",
           timezone: stored.timezone ?? "",
           appearance: appearance(stored),
           threadDefaults: threadDefaults(stored),
@@ -130,13 +133,14 @@ export class SettingsStore extends Context.Service<
             Effect.map((rows) => rows.map((r) => toProject(r.project_id, r))),
           ),
 
-        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, textGeneration: nextGeneration, sidebar: nextSidebar, timezone, expectedVersion }) =>
+        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, textGeneration: nextGeneration, sidebar: nextSidebar, timezone, workerGatewayUrl, expectedVersion }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const current = (yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid FOR UPDATE`)[0];
               const stored = (current?.settings ?? {}) as Stored;
               const next: Stored = {
                 ...stored,
+                ...(workerGatewayUrl !== undefined && { workerGatewayUrl }),
                 ...(timezone !== undefined && { timezone }),
                 ...(nextAppearance && { appearance: toJson(ui.AppearanceSettingsSchema, nextAppearance) }),
                 ...(nextDefaults && { threadDefaults: toJson(ui.ThreadDefaultsSchema, nextDefaults) }),

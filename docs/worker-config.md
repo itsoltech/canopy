@@ -13,7 +13,102 @@ Status: **zaimplementowana**:
 - schemat: migracja `0002_worker_config`,
 - testy jednostkowe, integracyjne (gRPC) i na PostgreSQL.
 
-Gateway czyta konfigurację tymczasowo ze zmiennych środowiskowych, do czasu podpięcia `worker_configs`.
+Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko połączenie.
+
+## Dodanie maszyny z UI
+
+1. W **Settings → Workers → Add worker** podaj nazwę i **Gateway address for workers**.
+   To origin portu **gRPC**, domyślnie `:7443`, a nie adres strony web. Gateway bierze
+   wartość początkową z `OA_PUBLIC_GATEWAY_URL`; edytowalne nadpisanie należy do ustawień
+   użytkownika. Zmiana nie przeadresowuje istniejących plików `worker.json`.
+2. Wybierz Linux/macOS i podaj URL swojego repozytorium Canopy albo absolutną ścieżkę
+   istniejącego checkoutu **z tą wersją kodu**. Skopiuj komendę i uruchom ją na dodawanej
+   maszynie w bash/zsh jako zwykły użytkownik. Potrzebne są Git, dostęp do repozytorium
+   oraz sieć do gateway; komenda instaluje Bun, jeśli go brakuje, wykonuje `bun install`,
+   enrollment i uruchamia worker. Nie ma jeszcze opublikowanej binarki/instalatora workera.
+3. Wybierz **Check connection**. Kreator pokazuje status z istniejącego overview stream,
+   wykryte wersje CLI oraz czas ważności tokenu. **Generate new token** odwołuje poprzedni
+   token przed utworzeniem nowego. Po zamknięciu kreatora tokenu nie można odczytać ponownie;
+   nieużyte zaproszenie można odwołać na liście **Pending enrollments**.
+4. Po **Connected** wybierz instancje providerów i **Finish**. Przełączniki korzystają
+   z istniejącego `SetInstanceWorker`; zmiany zapisują się od razu. Domyślne przypisania
+   globalnych instancji są synchronizowane przy enrollment. CLI dostawców i ich logowania
+   instalujesz osobno (`claude`, `codex`, `grok`); brak loginu nie blokuje samego połączenia.
+
+Przykład Maca przez Tailscale: obie maszyny muszą być w tej samej zaufanej sieci, a ACL
+muszą pozwalać Macowi na TCP do `canopy-gateway:7443`. Gateway musi nasłuchiwać na interfejsie
+dostępnym z Tailscale (`OA_HOST`, domyślnie `0.0.0.0`). Ustaw `OA_PUBLIC_GATEWAY_URL=http://canopy-gateway:7443`
+albo zapisz taki adres w UI, wybierz **macOS** i wykonaj komendę na Macu. Połączenie HTTP
+jest h2c — używaj go wyłącznie lokalnie lub wewnątrz zaufanej szyfrowanej sieci. Poza nią
+używaj HTTPS/TLS; proxy musi obsługiwać gRPC HTTP/2 i długie strumienie. Nie otwieraj portu
+przychodzącego na Macu. Prywatny CA dodaj do systemowego magazynu zaufania przed enrollment;
+`ca_file` w gotowym `worker.json` obsługuje dodatkowy CA dla późniejszego połączenia.
+
+### CLI i usługa użytkownika
+
+```bash
+# Z katalogu repozytorium; TOKEN pochodzi z kreatora, nie zapisuj go w logach.
+bun apps/worker/src/main.ts enroll --gateway http://canopy-gateway:7443 --token TOKEN
+bun apps/worker/src/main.ts
+
+# Własne lokalizacje (np. drugi worker na tym samym komputerze):
+bun apps/worker/src/main.ts enroll --gateway http://canopy-gateway:7443 --token TOKEN \
+  --config /absolute/path/worker.json --data-dir /absolute/path/worker-data
+bun apps/worker/src/main.ts --config /absolute/path/worker.json
+
+# Drukuje unit systemd --user na Linuxie albo plist launchd na macOS:
+bun apps/worker/src/main.ts service --config /absolute/path/worker.json
+```
+
+`canopy-worker` w opisie interfejsu CLI oznacza ten entrypoint uruchomiony przez Bun;
+pakiet nie instaluje obecnie globalnego polecenia. `--config` ma pierwszeństwo przed
+`OA_WORKER_CONFIG`; bez obu obowiązują ścieżki per OS opisane niżej. `enroll` rezerwuje
+plik z `0600` **przed** wymianą tokenu. Istniejący plik jest odrzucany bez wydania tokenu;
+`--force` zapisuje nowy prywatny plik i atomowo go podmienia, nie podąża za symlinkiem.
+Nie wypisuje credentialu. Utrata odpowiedzi albo awaria po zużyciu tokenu wymaga nowego
+enrollment (lub rotacji credentialu istniejącego workera); token nie odtwarza sekretu.
+Przerwanie procesu podczas enrollment może zostawić pusty zarezerwowany plik; po sprawdzeniu
+jego zawartości usuń go albo użyj `--force`. Kopiowana komenda zawiera token, więc do użycia
+traktuj ją jak hasło (również w historii shella i schowku).
+
+Komenda `service` tylko drukuje treść i komendy aktywacji — niczego nie instaluje.
+Utwórz wskazany katalog `~/.config/systemd/user` albo `~/Library/LaunchAgents`, zapisz
+wydrukowany fragment i wykonaj podane komendy. Fragment zawiera absolutne ścieżki do Bun,
+repo i configu oraz PATH użytkownika (CLI muszą być tam dostępne). Katalog checkoutu musi
+pozostać na miejscu. Na Linuxie `systemctl --user enable --now canopy-worker` uruchamia
+usługę użytkownika; działanie po wylogowaniu wymaga osobnego skonfigurowania linger
+przez administratora. launchd uruchamia worker w sesji zalogowanego użytkownika.
+
+### Tokeny i zarządzanie dostępem
+
+- Migracja **0044_worker_enrollment** dodaje `worker_enrollments`: właściciel, nazwa,
+  SHA-256 tokenu, daty utworzenia/wygaśnięcia/użycia/odwołania i utworzony worker.
+  Token oraz credential mają po 32 losowe bajty (base64url); baza zna tylko ich hashe.
+- Token jest ważny **30 minut** i działa raz. `WorkerEnrollmentService.Enroll` jest
+  anonimowym RPC na tym samym porcie co `WorkerLinkService`, bez tokenu usługi UI.
+  Ma wspólny limit **60 prób/minutę na proces gateway**, także dla błędnych tokenów.
+  Nie ufa nagłówkom proxy; dla wdrożeń publicznych można dodatkowo ograniczyć IP na brzegu.
+  Maksymalnie 20 aktywnych zaproszeń na właściciela; lista obejmuje ostatni dzień (do 100 wpisów).
+- Wymiana blokuje wiersz i w jednej transakcji sprawdza ważność, tworzy worker należący do
+  właściciela tokenu, zapisuje fakty maszyny i początkowy config, synchronizuje instancje
+  oraz oznacza token jako użyty. Klient nie wybiera właściciela. Błędy nie odróżniają
+  złego, zużytego, odwołanego i wygasłego tokenu; nie odbijają wartości wejścia ani SQL.
+- Menu **…**: **Rename**, **Rotate credential**, **Revoke**, **Archive**. Rotacja zachowuje
+  ID/workspace'y/historię, natychmiast zamyka link i pokazuje nowy fragment `worker.json`
+  tylko raz. Podmień credential, zachowując lokalne `data_dir`/`ca_file`, i zrestartuj worker.
+  Revoke ustawia `revoked_at`, odłącza i blokuje reconnect. Obejmuje też rozpoczęty handshake.
+- Archive dodatkowo ustawia `archived_at` workera i jego workspace'ów. Wątki i transkrypty
+  pozostają czytelne, ale nie mogą pracować na tym workerze. Katalogi na urządzeniu nie są
+  kasowane. **Revoke/Archive nie kończą procesów na urządzeniu**; worker po utracie linku
+  może nadal wykonywać rozpoczęte zadania. Zatrzymaj jego usługę lokalnie. Ponowne dodanie
+  przez kreator tworzy nowe ID i nie przenosi starych wątków.
+- Operacje zapisują w `audit_log` aktora, akcję i identyfikator, bez sekretów. BFF zwraca
+  odpowiedzi z tokenem/credentialem z `Cache-Control: no-store`; sekrety nie trafiają do
+  overview, listy tokenów ani logów. Kreator trzyma token w pamięci do zamknięcia.
+
+Administracyjna ścieżka bez UI pozostaje dostępna:
+`bun apps/gateway/src/cli.ts worker add --name NAME --gateway-url URL`.
+Wypisuje **sekretny** `worker.json`; przekieruj go do pliku z umask 077, nie do logów.
 
 ## 1. Zasada
 

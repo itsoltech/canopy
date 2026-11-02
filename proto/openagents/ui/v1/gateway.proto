@@ -12,6 +12,13 @@ import "openagents/ui/v1/quotes.proto";
 import "openagents/ui/v1/connectors.proto";
 
 service GatewayService {
+  rpc GetWorkerSetup(GetWorkerSetupRequest) returns (GetWorkerSetupResponse);
+  rpc CreateWorkerEnrollment(CreateWorkerEnrollmentRequest) returns (CreateWorkerEnrollmentResponse);
+  rpc RevokeWorkerEnrollment(RevokeWorkerEnrollmentRequest) returns (WorkerOperationResponse);
+  rpc RenameWorker(RenameWorkerRequest) returns (WorkerOperationResponse);
+  rpc RotateWorkerCredential(WorkerRequest) returns (RotateWorkerCredentialResponse);
+  rpc RevokeWorker(WorkerRequest) returns (WorkerOperationResponse);
+  rpc ArchiveWorker(WorkerRequest) returns (WorkerOperationResponse);
   rpc ListConnectors(ListConnectorsRequest) returns (ListConnectorsResponse);
   rpc SaveConnectorAccount(SaveConnectorAccountRequest) returns (ConnectorAccountResponse);
   rpc SetConnectorAccess(SetConnectorAccessRequest) returns (ConnectorAccountResponse);
@@ -145,7 +152,33 @@ service GatewayService {
 
 // ---------- Model ----------
 
+// Only metadata is listed/streamed. Plaintext tokens and credentials are returned once.
+message WorkerEnrollment {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  google.protobuf.Timestamp used_at = 4;
+  google.protobuf.Timestamp revoked_at = 5;
+  string worker_id = 6;
+}
+message GetWorkerSetupRequest {}
+message GetWorkerSetupResponse {
+  string gateway_url = 1;
+  repeated WorkerEnrollment enrollments = 2;
+}
+message CreateWorkerEnrollmentRequest { string name = 1; }
+message CreateWorkerEnrollmentResponse {
+  WorkerEnrollment enrollment = 1;
+  string token = 2;
+}
+message RevokeWorkerEnrollmentRequest { string id = 1; }
+message WorkerRequest { string worker_id = 1; }
+message RenameWorkerRequest { string worker_id = 1; string name = 2; }
+message RotateWorkerCredentialResponse { string credential = 1; }
+message WorkerOperationResponse {}
+
 message Worker {
+  google.protobuf.Timestamp revoked_at = 700;
   string id = 1;
   string name = 2;
   bool online = 3;
@@ -443,6 +476,8 @@ message WatchOverviewRequest {}
 
 message OverviewUpdate {
   oneof change {
+    string worker_removed = 700;
+    WorkerEnrollment enrollment = 701;
     Worker worker = 1;
     Thread thread = 2;
     Project project = 3;
@@ -882,6 +917,7 @@ message ProviderModel {
 }
 
 message UserSettings {
+  string worker_gateway_url = 700;
   // Strefa IANA synchronizowana z urządzenia; pusta = UTC.
   string timezone = 620;
   AppearanceSettings appearance = 1;
@@ -939,6 +975,7 @@ message GetSettingsResponse {
 
 // Ustawione sekcje zastępują zapisane; nieustawione zostają.
 message UpdateUserSettingsRequest {
+  optional string worker_gateway_url = 700;
   // Brak = bez zmian; ustawiona wartość musi być nazwą strefy IANA.
   optional string timezone = 620;
   AppearanceSettings appearance = 1;

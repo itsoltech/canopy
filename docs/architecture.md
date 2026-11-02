@@ -83,7 +83,7 @@ flowchart LR
 
 | Od → do | Protokół | Kto inicjuje | Uwagi |
 |---|---|---|---|
-| Przeglądarka ⇄ SvelteKit (BFF) | HTTPS (HTTP/1.1): strony, akcje, JSON; SSE dla zmian na żywo | przeglądarka | Bez adresu gateway i tokenów w przeglądarce ([ui-api.md](ui-api.md)). |
+| Przeglądarka ⇄ SvelteKit (BFF) | HTTPS (HTTP/1.1): strony, akcje, JSON; SSE dla zmian na żywo | przeglądarka | Prywatny adres BFF i token usługi zostają na serwerze; UI pokazuje publiczny adres gRPC dla workerów i jednorazowe sekrety enrollment/rotacji ([ui-api.md](ui-api.md)). |
 | SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. |
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Działa za NAT-em i firewallem. Szczegóły: [protocol.md](protocol.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |
@@ -136,12 +136,12 @@ sequenceDiagram
     participant W as Worker
 
     U->>UI: "Dodaj worker"
-    UI->>GW: CreateEnrollmentToken
-    GW->>DB: insert enrollment_token (hash, TTL 15 min)
+    UI->>GW: CreateWorkerEnrollment(name)
+    GW->>DB: insert worker_enrollments (SHA-256, TTL 30 min)
     GW-->>UI: jednorazowy token
-    U->>W: open-agents-worker enroll --gateway URL --token T
+    U->>W: bun apps/worker/src/main.ts enroll --gateway URL --token T
     W->>GW: WorkerEnrollmentService.Enroll(token, hostname, os, arch)
-    GW->>DB: insert worker (owner = U), unieważnij token
+    GW->>DB: transakcja: worker (owner = U), config, instancje, zużycie tokenu
     GW-->>W: worker_id + poświadczenie workera
     Note over W: zapis w lokalnym configu (uprawnienia 0600)
     W->>GW: WorkerLinkService.Connect (bidi stream)

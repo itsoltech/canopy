@@ -1,19 +1,50 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
+import { parseArgs } from "node:util";
 import { ManagedRuntime, Result } from "effect";
 import { WorkerState } from "@open-agents/contracts";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
 import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
+import { enrollWorker, workerServiceSnippet } from "./enroll.ts";
+
+const cliArgs = Bun.argv.slice(2);
+const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";
+let cli;
+try {
+  cli = parseArgs({ args: cliArgs, strict: true, options: {
+    gateway: { type: "string" }, token: { type: "string" }, config: { type: "string" }, "data-dir": { type: "string" }, force: { type: "boolean" }, help: { type: "boolean" },
+  } }).values;
+} catch {
+  console.error("Usage: canopy-worker enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\n       canopy-worker [--config PATH]\n       canopy-worker service [--config PATH]");
+  process.exit(64);
+}
+const configPath = cli.config ?? defaultConfigPath(Bun.env, process.platform);
+if (cli.help) {
+  console.info("Canopy worker\nEnroll: bun apps/worker/src/main.ts enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\nStart: bun apps/worker/src/main.ts [--config PATH]\nService: bun apps/worker/src/main.ts service [--config PATH]");
+  process.exit(0);
+}
+if (command === "enroll") {
+  if (!cli.gateway || !cli.token) { console.error("--gateway and --token are required"); process.exit(64); }
+  try {
+    await enrollWorker({ gateway: cli.gateway, token: cli.token, configPath, ...(cli["data-dir"] && { dataDir: cli["data-dir"] }), ...(cli.force && { force: true }) });
+    const pathArg = `'${resolve(configPath).replaceAll("'", `'"'"'`)}'`;
+    console.info(`Enrolled. Config saved with mode 0600: ${resolve(configPath)}\nStart: bun apps/worker/src/main.ts --config ${pathArg}\nFor a user service: bun apps/worker/src/main.ts service --config ${pathArg}`);
+    process.exit(0);
+  } catch (error) { console.error(error instanceof Error ? error.message : "Enrollment failed"); process.exit(78); }
+}
+if (command === "service") {
+  console.info(workerServiceSnippet(process.platform, configPath));
+  process.exit(0);
+}
 
 const WORKER_VERSION = "0.0.0";
 /** How long a graceful stop waits for the gateway to ack what it recorded (stopped background tasks). */
 const SHUTDOWN_FLUSH_MS = 3_000;
 
 // Local config is only how to reach the gateway; everything else arrives as WorkerConfig.
-const configPath = defaultConfigPath(Bun.env, process.platform);
 const loaded = await loadLocalConfig(configPath, process.platform);
 if (Result.isFailure(loaded)) {
   console.error(loaded.failure);
