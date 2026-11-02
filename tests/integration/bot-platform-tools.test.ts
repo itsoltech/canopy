@@ -23,7 +23,8 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     const task = requested.get(prompt);
     return task ? { text: "", calls: [{ id: "scripted-call", name: task.name, arguments: task.args }] } : { text: "Completion received", calls: [] };
   };
-  const config = () => create(bots.BotConfigurationSchema, { name: "Platform test", shape: "round", color: "#22aaff", provider: Provider.CODEX, providerInstance: "platform-test", model: "gpt-6.1-sol", approvalPolicy: "safe" });
+  // Bot names are unique per owner: every scripted bot gets its own.
+  const config = () => create(bots.BotConfigurationSchema, { name: `Platform test ${Bun.randomUUIDv7().slice(-8)}`, shape: "round", color: "#22aaff", provider: Provider.CODEX, providerInstance: "platform-test", model: "gpt-6.1-sol", approvalPolicy: "safe" });
   const read = (id: string) => gw.core.bots.run((s) => s.conversation(gw.userId, id));
   async function invoke<T = Record<string, unknown>>(name: string, args: Record<string, unknown> = {}, approval = false, policy = "safe"): Promise<T> {
     const token = Bun.randomUUIDv7();
