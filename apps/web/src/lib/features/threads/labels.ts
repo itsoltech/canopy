@@ -10,6 +10,17 @@ export const permissionModes = [
   { value: "FULL_AUTO", label: "Full auto", description: "Runs without asking, sandboxed to the workspace." },
 ] as const satisfies readonly { value: keyof typeof PermissionMode; label: string; description: string }[];
 
-export function permissionLabel(mode: PermissionMode): string {
-  return permissionModes.find((m) => PermissionMode[m.value] === mode)?.label ?? "Ask first";
+export type PermissionModeKey = (typeof permissionModes)[number]["value"];
+
+/** The mode's key; unspecified (and unknown) = ASK, as the worker treats it. */
+export function permissionKey(mode: PermissionMode): PermissionModeKey {
+  return permissionModes.find((m) => PermissionMode[m.value] === mode)?.value ?? "ASK";
 }
+
+export function permissionLabel(mode: PermissionMode | PermissionModeKey): string {
+  const key = typeof mode === "string" ? mode : permissionKey(mode);
+  return permissionModes.find((m) => m.value === key)?.label ?? "Ask first";
+}
+
+/** FULL_AUTO runs without asking: shown with a warning wherever it is chosen or shown. */
+export const isFullAuto = (mode: PermissionMode | PermissionModeKey): boolean => mode === "FULL_AUTO" || mode === PermissionMode.FULL_AUTO;

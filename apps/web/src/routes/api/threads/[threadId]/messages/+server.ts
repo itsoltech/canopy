@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { Schema } from "effect";
-import { ui } from "@open-agents/contracts";
+import { PermissionMode, ui } from "@open-agents/contracts";
 import { readBody } from "#lib/server/body.ts";
 import { call } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
@@ -12,14 +12,21 @@ const Body = Schema.Struct({
   // This turn only; missing or "" = the thread's defaults.
   model: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   effort: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
+  // This turn's permission mode (enum key); missing = the thread's default.
+  permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO"])),
   // queue (default): the next turn; steer: into the running turn (queued when none runs).
   delivery: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
 });
 
 export const POST: RequestHandler = async ({ request, params }) => {
-  const { delivery, ...body } = await readBody(request, Body);
+  const { delivery, permissionMode, ...body } = await readBody(request, Body);
   const response = await call((api) =>
-    api.sendMessage({ threadId: params.threadId, ...body, delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE }),
+    api.sendMessage({
+      threadId: params.threadId,
+      ...body,
+      ...(permissionMode && { permissionMode: PermissionMode[permissionMode] }),
+      delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
+    }),
   );
   return json(encode(ui.SendMessageResponseSchema, response));
 };

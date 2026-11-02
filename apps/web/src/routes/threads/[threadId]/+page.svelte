@@ -17,6 +17,7 @@
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
+  import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
@@ -140,6 +141,7 @@
     scheduling = true;
   };
   let modelOpen = $state(false);
+  let permissionsOpen = $state(false);
 
   // Goal: the bar above the composer (an open goal, or an achieved one until dismissed in this tab), set
   // or replaced from the thread's actions or the composer.
@@ -190,6 +192,7 @@
             <MenuItem icon="arrows-right-left" disabled={!canBranch} onselect={openSide}>New side thread</MenuItem>
             <MenuItem icon="clock" disabled={!canSchedule} onselect={openSchedule}>Schedule a task</MenuItem>
             <MenuItem icon="cpu-chip" disabled={closed} onselect={() => (modelOpen = true)}>Model and effort…</MenuItem>
+            <MenuItem icon="shield-check" disabled={closed} onselect={() => (permissionsOpen = true)}>Permissions…</MenuItem>
             {#if goalsHere}
               <MenuItem icon="flag" disabled={!canGoal} onselect={setGoalLater}>{openGoal ? "Replace the goal…" : "Set a goal…"}</MenuItem>
             {/if}
@@ -325,6 +328,7 @@
   </Dialog>
   <SideThreadDialog bind:open={sideOpen} main={tree.main} {worker} />
   <ThreadModelDialog bind:open={modelOpen} {thread} {worker} />
+  <ThreadPermissionsDialog bind:open={permissionsOpen} {thread} />
   <GoalDialog bind:open={goalDialog} threadId={thread.id} provider={thread.provider} current={view.goal} onset={(goal) => view.upsertGoal(goal)} />
   <ScheduleDialog bind:open={scheduling} threadId={thread.id} oncreated={(schedule) => view.upsertSchedule(schedule)} />
 {/if}
