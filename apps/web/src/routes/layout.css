@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "../lib/shared/ui/motion.css" layer(components);
+@import "../lib/shared/ui/code/syntax.css";
 
 /* Dark mode by class (set before first paint in app.html from the Appearance setting; default: system). */
 @custom-variant dark (&:where(.dark, .dark *));
