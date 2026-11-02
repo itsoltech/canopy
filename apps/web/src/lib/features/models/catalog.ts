@@ -17,8 +17,6 @@ import { knownModels, profileDisplayName, profileIdValue, profilesFor, profileVa
 export interface EffortLevel {
   readonly id: string;
   readonly label: string;
-  /** Label under the slider stop. */
-  readonly short: string;
 }
 
 export interface ModelOption {
@@ -59,20 +57,20 @@ export interface ModelSources {
   readonly only?: { readonly provider: ProviderKey; readonly profileId: string } | undefined;
 }
 
-const effortLabels: Record<string, { label: string; short: string }> = {
-  none: { label: "None", short: "None" },
-  minimal: { label: "Minimal", short: "Minimal" },
-  low: { label: "Low", short: "Low" },
-  medium: { label: "Medium", short: "Medium" },
-  high: { label: "High", short: "High" },
-  xhigh: { label: "Extra high", short: "X-High" },
-  max: { label: "Max", short: "Max" },
-  ultra: { label: "Ultra", short: "Ultra" },
+const effortLabels: Record<string, string> = {
+  none: "None",
+  minimal: "Minimal",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra high",
+  max: "Max",
+  ultra: "Ultra",
 };
 
 export function effortLevel(id: string): EffortLevel {
   const known = effortLabels[id];
-  return { id, label: known?.label ?? capitalize(id), short: known?.short ?? capitalize(id) };
+  return { id, label: known ?? capitalize(id) };
 }
 
 /** Per-provider stand-ins, only for profiles without a catalog. */
@@ -105,6 +103,17 @@ export function modelDisplayName(model: string): string {
   const gpt = /^gpt-([\d.]+[a-z]?)(?:-(.+))?$/i.exec(model);
   if (gpt) return [`GPT-${gpt[1]}`, ...(gpt[2]?.split("-").map(capitalize) ?? [])].join(" ");
   return model;
+}
+
+/**
+ * A model's name without its family prefix, as ChatGPT names the model under the effort:
+ * "GPT-6.1-Sol" → "6.1 Sol", "GPT-5.5 Codex" → "5.5 Codex", "Claude Opus 5.5" → "Opus 5.5"; others as they are.
+ */
+export function shortModelName(name: string): string {
+  const gpt = /^gpt-(\d.*)$/i.exec(name);
+  if (gpt) return gpt[1]!.replaceAll("-", " ");
+  const claude = /^claude (\S.*)$/i.exec(name);
+  return claude ? claude[1]! : name;
 }
 
 const capitalize = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);

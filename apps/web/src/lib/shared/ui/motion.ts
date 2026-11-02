@@ -101,6 +101,29 @@ export function swap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {})
   };
 }
 
+/**
+ * Text states swap (04) for a value on a scale, both halves at once: the old text leaves and the new one
+ * arrives along the scale's direction (`step` 1 = up the scale: the new text rises in from below, the old
+ * one rises out; -1 the other way), with a fade and cross-blur on --duration-quick. Use the same call as
+ * `in:` and `out:` on the text inside a `{#key}`, both stacked in one grid cell (SwapText.svelte), so
+ * the swap never shifts the layout. With reduced motion it is a cross-fade.
+ */
+export function stepSwap(
+  _node: HTMLElement,
+  { step = 1, distance = "micro" }: { step?: number; distance?: "micro" | "base" } = {},
+  options?: { direction: "in" | "out" | "both" },
+): TransitionConfig {
+  const ms = duration("quick");
+  if (prefersReducedMotion.current) return { duration: ms, css: (t) => `opacity: ${t}` };
+  const offset = length(`--distance-${distance}`, distance === "base" ? 8 : 4) * (options?.direction === "out" ? -step : step);
+  const blur = length("--blur-small", 2);
+  return {
+    duration: ms,
+    easing: inOut,
+    css: (t, u) => `opacity: ${t}; translate: 0 ${u * offset}px; filter: blur(${u * blur}px)`,
+  };
+}
+
 /** Icon swap (09), entering half: a status icon that changed grows in from a quarter with a blur. */
 export function iconSwap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}): TransitionConfig {
   const ms = duration("fast");

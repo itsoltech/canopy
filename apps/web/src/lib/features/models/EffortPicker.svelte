@@ -2,19 +2,20 @@
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import { swap } from "#lib/shared/ui/motion.ts";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
   import Popover from "#lib/shared/ui/Popover.svelte";
   import Slider from "#lib/shared/ui/Slider.svelte";
-  import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { effectiveEffort, effortLevel, providerName, type ModelOption } from "./catalog.ts";
-  import ProviderIcon from "./ProviderIcon.svelte";
+  import SwapText from "#lib/shared/ui/SwapText.svelte";
+  import { effectiveEffort, effortLevel, providerName, shortModelName, type ModelOption } from "./catalog.ts";
 
   /**
-   * Reasoning effort (ChatGPT-style): a pill opens a compact popover — the effort's name, the model under
-   * it (opens the model picker), a reset to the default, and a slider over the model's supported efforts.
-   * `value` undefined = the default: `inherited` (the thread's) when the model takes it, else the model's
-   * own; without either the provider decides ("Default", hollow slider thumb). Until you choose, the pill
-   * names the default; after, it is just the icon (the model pill shows the effort).
+   * Reasoning effort (ChatGPT's picker): a pill naming the effort opens a compact popover — the effort's
+   * name in the accent, centred, the model under it (opens the model picker), a reset to the default in
+   * the corner and a pill slider over the model's supported efforts. The name swaps along the slider's
+   * direction when it changes. `value` undefined = the default: `inherited` (the thread's) when the model
+   * takes it, else the model's own; without either the provider decides ("Default", hollow thumb, no fill).
+   * While the effort in force is the default, a muted "Default" sits beside its name.
    */
   let {
     option,
@@ -34,49 +35,29 @@
     class?: ClassValue;
   } = $props();
 
-  const steps = $derived(option.efforts.map((e) => ({ value: e.id, label: e.short })));
+  const steps = $derived(option.efforts.map((e) => ({ value: e.id, label: e.label })));
   const fallback = $derived(effectiveEffort(option, inherited));
-  const fallbackLabel = $derived(fallback ? effortLevel(fallback).label : undefined);
-  const level = $derived(value ? effortLevel(value) : undefined);
+  const current = $derived(value ?? fallback);
+  const label = $derived(current ? effortLevel(current).label : "Default");
+  const rank = $derived(option.efforts.findIndex((e) => e.id === current));
+  const isDefault = $derived(fallback !== undefined && current === fallback);
 </script>
 
-<Popover bind:open label="Reasoning effort" placement="top-start" class="w-[min(20rem,calc(100vw-1rem))]">
+<!-- rounded-3xl! wins over the panel's own rounded-xl (same specificity, later in the stylesheet). -->
+<Popover bind:open label="Reasoning effort" placement="top-start" class="w-[min(19rem,calc(100vw-1rem))] rounded-3xl!">
   {#snippet trigger(props)}
-    {#if value}
-      <PillButton {...props} class={["pl-1.5", className]} aria-label="Reasoning effort: {level?.label}" {@attach tooltip(`Effort: ${level?.label}`)}>
-        <Icon name="light-bulb" class="size-3.5 fill-zinc-500 dark:fill-zinc-400" />
-      </PillButton>
-    {:else}
-      <PillButton {...props} class={["pl-1.5", className]} aria-label="Reasoning effort: default{fallbackLabel ? ` (${fallbackLabel})` : ''}">
-        <Icon name="light-bulb" class="size-3.5 fill-zinc-400 dark:fill-zinc-500" />
-        <span class="truncate">{fallbackLabel ?? "Default"}</span>
-      </PillButton>
-    {/if}
+    <PillButton {...props} class={["pl-1.5", className]} aria-label="Reasoning effort: {label}{isDefault && current ? ' (default)' : ''}">
+      <Icon name="light-bulb" class={["size-3.5", value ? "fill-zinc-500 dark:fill-zinc-400" : "fill-zinc-400 dark:fill-zinc-500"]} />
+      <SwapText text={label} {rank} />
+    </PillButton>
   {/snippet}
 
-  <div class="grid gap-4 p-4">
-    <div class="flex items-start gap-3">
-      <div class="grid min-w-0 flex-1 gap-0.5">
-        <p class="text-lg/7 font-medium text-zinc-950 dark:text-white" aria-live="polite">
-          {#if level}{level.label}{:else if fallbackLabel}{fallbackLabel} <span class="font-normal text-zinc-500 dark:text-zinc-400">· default</span>{:else}Default{/if}
-        </p>
-        <button
-          type="button"
-          class="-ml-1 flex min-w-0 items-center gap-1.5 justify-self-start rounded-md px-1 text-left text-base/6 text-zinc-500 focus-ring hover:text-zinc-950 sm:text-sm/5 dark:text-zinc-400 dark:hover:text-white"
-          onclick={() => {
-            open = false;
-            onmodel();
-          }}
-        >
-          <ProviderIcon provider={option.provider} class="size-3.5" />
-          <span class="truncate">{option.name}</span>
-          <Icon name="chevron-right" class="size-3.5 fill-zinc-400 dark:fill-zinc-500" />
-        </button>
-      </div>
+  <div class="relative grid gap-4 p-4">
+    <div class="absolute top-2.5 right-2.5">
       <IconButton
-        icon="arrow-uturn-left"
+        icon="arrow-path"
         size="sm"
-        label={fallbackLabel ? `Reset to the default (${fallbackLabel})` : "Reset to the default"}
+        label={fallback ? `Reset to the default (${effortLevel(fallback).label})` : "Reset to the default"}
         disabled={!value}
         onclick={(event) => {
           value = undefined;
@@ -85,9 +66,29 @@
         }}
       />
     </div>
-    <Slider {steps} label="Reasoning effort" unsetLabel="Default" value={value ?? fallback} onchange={(next) => (value = next)} autofocus />
-    {#if !value && !fallback}
-      <p class="text-sm/5 text-pretty text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{option.name} has no default effort listed: {providerName(option.provider)} uses its own.</p>
+    <div class="grid justify-items-center gap-0.5 px-8 pt-1 text-center">
+      <div class="relative flex text-xl/7 font-medium text-brand-600 dark:text-brand-400">
+        <SwapText text={label} {rank} distance="base" />
+        {#if isDefault}
+          <div class="absolute top-1/2 left-full ml-1.5 -translate-y-1/2 text-xs/4 font-normal whitespace-nowrap text-zinc-400 dark:text-zinc-500" in:swap>Default</div>
+        {/if}
+      </div>
+      <button
+        type="button"
+        class="flex max-w-full min-w-0 items-center gap-0.5 rounded-md px-1 text-base/6 text-zinc-500 focus-ring hover:text-zinc-950 sm:text-sm/5 dark:text-zinc-400 dark:hover:text-white"
+        aria-label="Model: {option.name}"
+        onclick={() => {
+          open = false;
+          onmodel();
+        }}
+      >
+        <span class="truncate">{shortModelName(option.name)}</span>
+        <Icon name="chevron-right" class="size-3.5 shrink-0 fill-zinc-400 dark:fill-zinc-500" />
+      </button>
+    </div>
+    <Slider {steps} variant="pill" label="Reasoning effort" unsetLabel="Default" value={current} onchange={(next) => (value = next)} autofocus />
+    {#if !current}
+      <p class="text-center text-sm/5 text-pretty text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{option.name} has no default effort listed: {providerName(option.provider)} uses its own.</p>
     {/if}
   </div>
 </Popover>

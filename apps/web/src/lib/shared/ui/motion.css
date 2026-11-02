@@ -232,8 +232,23 @@
     left var(--duration-fast) var(--ease-smooth-out),
     width var(--duration-fast) var(--ease-smooth-out);
 }
+/* The pill slider's thumb also grows while pressed (scale on --duration-quick; no growth with reduced
+   motion, where the scale tokens are 1), and its dots cross-fade as the fill passes them. */
+.t-slide-thumb {
+  transition:
+    left var(--duration-fast) var(--ease-smooth-out),
+    scale var(--duration-quick) var(--ease-out);
+}
+.t-slide-thumb[data-pressed] {
+  scale: calc(2 - var(--scale-large));
+}
+.t-slide-dot {
+  transition: background-color var(--duration-fast) var(--ease-smooth-out);
+}
 @media (prefers-reduced-motion: reduce) {
-  .t-slide {
+  .t-slide,
+  .t-slide-thumb,
+  .t-slide-dot {
     transition: none !important;
   }
 }
