@@ -9,7 +9,7 @@ harnessu. Kod: `apps/gateway/src/bots`, kontrakt: `proto/openagents/ui/v1/bots.p
 ## Rutyny — cron działający w tle
 
 Migracja **0039_bot_routines** dodaje `bot_routines` i pochodzenie rutyny na `bot_turns`.
-0037/0038 pozostają zarezerwowane dla innych gałęzi. Nowe pola istniejących komunikatów
+Nowe pola istniejących komunikatów
 zajmują **560–599**: `BotConversation.routines/reminders`, `BotApproval.routine_title`
 oraz `Bot.owner_user_id/unread_count/last_read_seq`.
 Rutyna ma tytuł, instrukcje, pięciopolowy cron, strefę IANA, opis angielski generowany
@@ -379,8 +379,8 @@ zarówno RPC, jak i narzędzie; blokada właściciela serializuje równoległe t
 Idempotentne ponowienie już wykonanego żądania działa także po osiągnięciu limitu.
 Tworzenie podlega temu samemu limitowi hops co pozostałe działania botów i nie uruchamia
 automatycznie nowej rozmowy. Migracja **0040_bot_creation** dodaje snapshot propozycji
-oraz pochodzenie; pola kontraktu używają zakresu **600–601**. Nie zajmuje numerów
-0038/0039 przeznaczonych na Connections i routines (0039 jest już scalona).
+oraz pochodzenie; pola kontraktu używają zakresu **600–601**. Connectors mają migrację
+0041 (0038 w gałęzi przenumerowano przy merge, bo Migrator stosuje tylko wyższe numery).
 
 Edycja innych botów (`update_bot`) pozostaje poza zakresem. Nie przyznajemy jej przez
 samo zapisanie pochodzenia; ewentualna implementacja wymaga sprawdzenia twórcy i osobnej zgody.
@@ -411,7 +411,7 @@ przed/po, bez JSON. Maskotka reaguje istniejącą animacją. Instrukcje są trwa
 promptu i obowiązują od następnej tury; linia zmiany nie wchodzi do historii wysyłanej modelowi.
 
 Rejestr zastępują konta [Connectors](connectors.md), z grantami konkretnych botów.
-Migracja 0038 zachowuje serwery i przypięcia jako Custom MCP server. Nowe poświadczenia
+Migracja 0041 zachowuje serwery i przypięcia jako Custom MCP server. Nowe poświadczenia
 OAuth/nagłówki są AES-256-GCM w koncie; stare odwołania do `secrets` pozostają czytelne.
 Do UI wracają tylko nazwy nagłówków. Zdalny klient odrzuca redirecty i zmianę origin SSE.
 Nie ma transportu stdio; HTTP jest dozwolone tylko na loopback, pozostałe URL wymagają HTTPS.

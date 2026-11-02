@@ -35,9 +35,9 @@ import scratchProjects from "./0032_scratch_projects.sql" with { type: "text" };
 import botMentions from "./0033_bot_mentions.sql" with { type: "text" };
 import botArchive from "./0034_bot_archive.sql" with { type: "text" };
 import threadSecrets from "./0036_thread_secrets.sql" with { type: "text" };
-import connectors from "./0038_connectors.sql" with { type: "text" };
 import botRoutines from "./0039_bot_routines.sql" with { type: "text" };
 import botCreation from "./0040_bot_creation.sql" with { type: "text" };
+import connectors from "./0041_connectors.sql" with { type: "text" };
 import grokProvider from "./0042_grok_provider.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
@@ -90,9 +90,9 @@ export const migrations = Migrator.fromRecord({
   "0033_bot_mentions": sqlFile(botMentions),
   "0034_bot_archive": sqlFile(botArchive),
   "0036_thread_secrets": sqlFile(threadSecrets),
-  "0038_connectors": sqlFile(connectors),
   "0039_bot_routines": sqlFile(botRoutines),
   "0040_bot_creation": sqlFile(botCreation),
+  "0041_connectors": sqlFile(connectors),
   "0042_grok_provider": sqlFile(grokProvider),
 });
 

@@ -19,7 +19,7 @@ Badanie dostawców i decyzje projektowe: [connectors.md](connectors.md).
 4. Wątek: zgoda `ASK` przed zapisem, odmowa `READ_ONLY`, wykonanie `FULL_AUTO`,
    deduplikacja call ID i odmowa replay po odebraniu grantu. Audyt bez argumentów
    i sekretów; credential echo z fake MCP jest redagowane przed wynikiem workera.
-5. Migracja `0038`: stare bot MCP z zaszyfrowanymi odwołaniami do nagłówków,
+5. Migracja `0041` (przy merge przenumerowana z 0038): stare bot MCP z zaszyfrowanymi odwołaniami do nagłówków,
    zachowane granty własnych botów, odrzucenie obcych attachments, brak grantów workerów.
 
 ## Wyniki komend

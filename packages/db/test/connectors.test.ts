@@ -4,14 +4,14 @@ import { Migrator, SqlClient } from 'effect/sql';
 import { migrate, migrations } from '../src/index.ts';
 import { dockerAvailable, startPostgres, type TestPostgres } from '../src/testing.ts';
 
-describe.skipIf(!dockerAvailable)('migration 0038: bot MCP registry to connector accounts', () => {
+describe.skipIf(!dockerAvailable)('migration 0041: bot MCP registry to connector accounts', () => {
   let pg: TestPostgres;
   let runtime: ManagedRuntime.ManagedRuntime<SqlClient.SqlClient, unknown>;
   const owner = Bun.randomUUIDv7(), foreign = Bun.randomUUIDv7(), bot = Bun.randomUUIDv7(), foreignBot = Bun.randomUUIDv7(), server = Bun.randomUUIDv7(), disabled = Bun.randomUUIDv7(), secret = Bun.randomUUIDv7();
   const query = <A extends object = Record<string, unknown>>(text: string, ...params: unknown[]) => runtime.runPromise(Effect.gen(function* () { const sql = yield* SqlClient.SqlClient; return yield* sql.unsafe<A>(text, params); }));
   beforeAll(async () => {
     pg = await startPostgres(); runtime = ManagedRuntime.make(pg.layer);
-    await runtime.runPromise(Migrator.make({})({ loader: Effect.map(migrations, (all) => all.filter(([n]) => n < 38)), table: 'schema_migrations' }));
+    await runtime.runPromise(Migrator.make({})({ loader: Effect.map(migrations, (all) => all.filter(([n]) => n < 41)), table: 'schema_migrations' }));
     await query("INSERT INTO users(id,email,display_name,role) VALUES ($1,'connectors@test','Owner','user'),($2,'foreign@test','Foreign','user')", owner, foreign);
     await query("INSERT INTO secrets(id,owner_user_id,name,ciphertext,key_id,created_by) VALUES ($1,$2,'bot-mcp-fixture','\\x010203','env-v1',$2)", secret, owner);
     await query("INSERT INTO bots(id,owner_user_id,client_request_id,configuration,provider,provider_instance) VALUES ($1,$2,'b','{}','codex','native'),($3,$4,'f','{}','codex','native')", bot, owner, foreignBot, foreign);
