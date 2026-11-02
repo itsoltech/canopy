@@ -65,10 +65,11 @@
   }
 </script>
 
-<!-- Nothing archived (and the open thread is not): no section at all, an empty "Archived · 0" only takes room. -->
+<!-- Nothing archived (and the open thread is not): no section at all, an empty "Archived · 0" only takes room.
+     Sticky: down to the list's very edge (-bottom-3 over its pb-3), so no rows scroll by underneath. -->
 {#if pageState.totalCount !== 0 || sticky || pageState.error}
 <section aria-label="Archived" data-archived-section data-sticky={sticky ? "true" : undefined}
-  class={["pt-2", sticky && "sticky bottom-0 z-10 bg-zinc-50 pb-1 max-lg:bg-white dark:bg-zinc-950", className]}>
+  class={["pt-2", sticky && "sticky -bottom-3 z-10 bg-zinc-50 pb-4 max-lg:bg-white dark:bg-zinc-950", className]}>
   <h2>
     <button type="button" aria-expanded={expanded} aria-controls={id} title={pageState.error || undefined} onclick={() => void settings.updateSidebar({ archivedExpanded: !expanded })}
       class="flex h-10 w-full items-center gap-1 rounded-lg px-3 text-sm font-medium text-zinc-500 hover:bg-zinc-950/4 focus-ring sm:h-9 sm:text-xs dark:text-zinc-400 dark:hover:bg-white/4">
