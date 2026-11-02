@@ -67,7 +67,9 @@ export class ScriptedWorker {
   readonly handlers = new Map<string, CommandHandler>();
   readonly interactionAnswers: { requestId: string; allow: boolean }[] = [];
   /** Threads this worker was asked to create, with their cwd. */
-  readonly created: { threadId: string; cwd: string; enableAgentBus: boolean; depth: number }[] = [];
+  readonly created: {
+    threadId: string; cwd: string; enableAgentBus: boolean; depth: number; model: string; instructions: string; permissionMode: number;
+  }[] = [];
   /** Inputs of the turns this worker ran, per thread. */
   readonly inputs = new Map<string, string[]>();
   /** Model and effort each turn was started with, by turn id. */
@@ -167,7 +169,10 @@ export class ScriptedWorker {
             reply(false, { errorCode: "CWD_NOT_ALLOWED", errorMessage: `${spec.cwd} is outside the allowed roots` });
             break;
           }
-          this.created.push({ threadId: spec.threadId, cwd: spec.cwd, enableAgentBus: spec.enableAgentBus, depth: spec.depth });
+          this.created.push({
+            threadId: spec.threadId, cwd: spec.cwd, enableAgentBus: spec.enableAgentBus, depth: spec.depth,
+            model: spec.model, instructions: spec.instructions, permissionMode: spec.permissionMode,
+          });
           reply(true);
           this.emit(spec.threadId, "", { case: "threadReady", value: { providerThreadId: `codex-${spec.threadId.slice(-4)}` } });
           break;

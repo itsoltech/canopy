@@ -122,6 +122,10 @@ export class GatewayCore {
       answer: (by, request) => this.#answer(by, request),
       broadcastThread: (threadId) => this.#broadcastThread(threadId),
       scheduleChanged: (scheduleId) => this.#publishSchedule(scheduleId),
+      modelProblem: async (thread, model, effort) => {
+        const { models, provider, profile } = await this.#profileModels({ thread });
+        return modelProblem(models, provider, profile, model, effort);
+      },
     });
     // Ticks only after start() (main.ts); tests drive tick() directly.
     this.scheduler = new Scheduler({

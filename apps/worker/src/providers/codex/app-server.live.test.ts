@@ -14,6 +14,7 @@ import { resolveProfiles } from "../profiles.ts";
 import { CodexAppServer } from "./app-server.ts";
 import { prepareCodexHome } from "./home.ts";
 import { codexAppServerLaunch, codexThreadProvider } from "./launch.ts";
+import { codexAgentBusTools } from "./threads.ts";
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -294,7 +295,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex dynamic tools (live)", (
 // rollout), with a control run without the override; with it, a request for a subagent goes to our spawn_thread.
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex collaboration tools (live)", () => {
   test("off for a multi-agent v2 model; a subagent request calls the bus tool spawn_thread", async () => {
-    const { agentBusToolSpecs, agentBusToolsFor } = await import("@open-agents/domain");
     const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]).find((s) => s.config.id === "live")!
       .resolved!;
     const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
@@ -312,7 +312,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex collaboration tools (liv
             const codex = yield* CodexAppServer;
             const started = yield* codex.request("thread/start", {
               cwd, approvalPolicy: "never", sandbox: "read-only", model, ...codexThreadProvider(profile),
-              dynamicTools: agentBusToolSpecs(agentBusToolsFor(0)).map((t) => ({ type: "function" as const, ...t })),
+              dynamicTools: codexAgentBusTools(0),
             });
             yield* runTurn(started.thread.id, prompt);
             return started.thread.path ?? "";
