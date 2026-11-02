@@ -3,6 +3,7 @@
   import { goalLook } from "#lib/features/goals/goals.ts";
   import { formatDateTime, isoDateTime } from "#lib/shared/format.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Rule from "#lib/shared/ui/Rule.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import { silentTriggerLabel } from "../turn-origin.ts";
@@ -28,5 +29,5 @@
   {/if}
   {#if label}<span>{label}</span>{/if}
   {#if at}<time datetime={isoDateTime(at)} class="max-sm:hidden">{formatDateTime(at)}</time>{/if}
-  <span class="h-px flex-1 bg-zinc-950/5 dark:bg-white/10"></span>
+  <Rule />
 </div>

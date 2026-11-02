@@ -17,6 +17,15 @@ export function formatDuration(ms: bigint | number): string {
   return `${minutes}m ${Math.round(seconds % 60)}s`;
 }
 
+/** A span of time for "Worked for …": 12000 → "12s", 134000 → "2m 14s", 3780000 → "1h 3m" (whole units, at least 1s). */
+export function formatSpan(ms: bigint | number): string {
+  const seconds = Math.max(1, Math.floor(Number(ms) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
 export function formatBytes(bytes: bigint | number): string {
   const value = Number(bytes);
   if (value < 1024) return `${value} B`;
