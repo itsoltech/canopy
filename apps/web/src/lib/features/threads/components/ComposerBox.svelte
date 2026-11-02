@@ -151,7 +151,7 @@
       anchor={box}
       {onkeydown}
       {onpaste}
-      class={["px-4 pt-3.5 text-base/6", disabled && "cursor-not-allowed"]}
+      class={["px-4 pt-3.5 text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
     />
     <input type="hidden" {name} value={trimmed.text} />
     {#if trimmed.mentions.length > 0}<input type="hidden" name="mentions" value={JSON.stringify(mentionsToWire(trimmed.mentions))} />{/if}
