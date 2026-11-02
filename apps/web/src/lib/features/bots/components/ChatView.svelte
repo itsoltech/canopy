@@ -84,6 +84,18 @@
   const quoteDrafts = useQuoteDrafts();
   const quoteKey = $derived(`bot:${conversation.id}`);
   let composerRegion = $state<HTMLElement>();
+  /** Height of the floating composer: the conversation scrolls under it and keeps that much room at its end. */
+  let composerHeight = $state(0);
+  /** The log's scrollbar width: the fade stops short of it. */
+  let gutter = $state(0);
+  $effect(() => {
+    if (!log) return;
+    const measure = () => (gutter = log ? log.offsetWidth - log.clientWidth : 0);
+    const observer = new ResizeObserver(measure);
+    observer.observe(log);
+    measure();
+    return () => observer.disconnect();
+  });
   let log = $state<HTMLElement>();
   let content = $state<HTMLElement>();
   let composer = $state<ReturnType<typeof BotComposer>>();
@@ -154,6 +166,8 @@
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
       class="relative min-h-0 flex-1 scroll-pt-14 overflow-y-auto overscroll-contain pt-14 focus:outline-none"
+      style:padding-bottom="{composerHeight}px"
+      style:scroll-padding-bottom="{composerHeight}px"
       role="log"
       aria-label="Conversation"
       tabindex="0"
@@ -187,33 +201,36 @@
       </div>
     </div>
     {#if !following}
-      <div class="absolute bottom-3 left-1/2 -translate-x-1/2" transition:rise>
+      <div class="absolute left-1/2 z-20 -translate-x-1/2" style:bottom="{composerHeight + 12}px" transition:rise>
         <span class="flex rounded-full bg-white shadow-md ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10">
           <RoundButton icon="arrow-down" label="Jump to the latest message" variant="secondary" onclick={() => { following = true; toEnd("smooth"); }} />
         </span>
       </div>
     {/if}
-  </div>
-  <div bind:this={composerRegion} class="mx-auto w-full max-w-(--chat-width) shrink-0 px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
-    {#if archived && conversation.archived}
-      {@render archived()}
-    {:else if conversation.kind === "watch"}
-      <WatchBar bots={conversation.bots} {onclose} />
-    {:else}
-      <BotComposer
-        bind:this={composer}
-        bind:value={draft}
-        bind:mentions={draftMentions}
-        botId={conversation.id}
-        {quoteKey}
-        placeholder={conversation.bots.length === 1 ? `Message ${conversation.bots[0]!.name}` : "Message"}
-        {sending}
-        disabled={Boolean(composerDisabledReason)}
-        disabledReason={composerDisabledReason}
-        onsend={send}
-        {onattach}
-      />
-    {/if}
+
+    <!-- Floats over the end of the conversation (sticky bottom): messages fade out under it. -->
+    <div class="pointer-events-none absolute bottom-0 left-0 z-10 bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black" style:right="{gutter}px" style:height="{composerHeight + 32}px" aria-hidden="true"></div>
+    <div bind:this={composerRegion} bind:clientHeight={composerHeight} class="absolute inset-x-0 bottom-0 z-10 mx-auto w-full max-w-(--chat-width) px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
+      {#if archived && conversation.archived}
+        {@render archived()}
+      {:else if conversation.kind === "watch"}
+        <WatchBar bots={conversation.bots} {onclose} />
+      {:else}
+        <BotComposer
+          bind:this={composer}
+          bind:value={draft}
+          bind:mentions={draftMentions}
+          botId={conversation.id}
+          {quoteKey}
+          placeholder={conversation.bots.length === 1 ? `Message ${conversation.bots[0]!.name}` : "Message"}
+          {sending}
+          disabled={Boolean(composerDisabledReason)}
+          disabledReason={composerDisabledReason}
+          onsend={send}
+          {onattach}
+        />
+      {/if}
+    </div>
   </div>
 </div>
 {#if conversation.kind !== "watch" && !conversation.archived}<CiteLayer threadId={quoteKey} root={log} avoid={composerRegion} />{/if}
