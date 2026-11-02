@@ -82,6 +82,6 @@
     {/if}
   </div>
   {#if !pinned}
-    <div class="absolute inset-x-0 bottom-3 flex justify-center"><Button size="sm" icon="arrow-down" onclick={latest}>Jump to latest</Button></div>
+    <div class="absolute inset-x-0 bottom-3 flex justify-center"><span class="flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50"><Button size="sm" icon="arrow-down" onclick={latest}>Jump to latest</Button></span></div>
   {/if}
 </div>
