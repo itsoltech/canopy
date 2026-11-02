@@ -8,16 +8,20 @@
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import { forkable } from "../fork-point.ts";
   import { permissionLabel, permissionLook } from "../labels.ts";
+  import { useThreadDirectory } from "../thread-directory.ts";
   import type { TurnResult } from "../thread-state.svelte.ts";
   import { turnReveal } from "../turn-reveal.svelte.ts";
+  import ForkButton from "./ForkButton.svelte";
 
   /**
    * The quiet line under an ended turn (`t-quiet`: shown by a `data-shown` ancestor, see turn-reveal):
-   * "Copy answer" (`answer`: the turn's last agent message), how long the turn ran, the model and effort
+   * "Copy answer" (`answer`: the turn's last agent message), "Fork from here" (a new thread with the history up
+   * to this ended turn, opened once created), how long the turn ran, the model and effort
    * it ran with (empty = the profile's defaults, not shown), its permission mode (full auto in amber;
    * turns from before modes were recorded show none) and its token usage (kept with the turn). It keeps
-   * one line, so showing it moves nothing; on touch screens "Copy answer" and a details button stay
+   * one line, so showing it moves nothing; on touch screens "Copy answer", "Fork from here" and a details button stay
    * visible, and the button opens the rest (it may wrap then).
    */
   let { turn, result, answer, class: className }: { turn: ui.Turn; result: TurnResult | undefined; answer: string; class?: ClassValue } = $props();
@@ -29,13 +33,16 @@
   const took = $derived(turn.startedAt && turn.completedAt ? timestampMs(turn.completedAt) - timestampMs(turn.startedAt) : undefined);
   const details = $derived((took !== undefined && took >= 0) || Boolean(ranWith) || turn.permissionMode !== PermissionMode.UNSPECIFIED || hasUsage);
   const pinned = $derived(turnReveal.pinned.has(turn.id));
+  const directory = useThreadDirectory();
+  const canFork = $derived(Boolean(directory.canFork && directory.currentId) && forkable(turn));
 </script>
 
 <div class={["-ml-2 flex min-h-8 items-center gap-x-2 text-sm/5 sm:-ml-1.5 sm:min-h-7 sm:text-xs/5", className]} role="group" aria-label="Turn details">
   {#if turn.status === "completed"}<span class="sr-only">Completed</span>{/if}
-  {#if answer || details}
+  {#if answer || canFork || details}
     <div class="flex shrink-0 items-center t-quiet t-quiet-touch">
       {#if answer}<CopyButton text={answer} label="Copy answer" />{/if}
+      {#if canFork}<ForkButton threadId={directory.currentId} turnId={turn.id} />{/if}
       {#if details}
         <IconButton
           icon="information-circle"

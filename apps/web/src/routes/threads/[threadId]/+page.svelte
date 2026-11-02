@@ -24,6 +24,7 @@
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
+  import { forkFrom, lastForkPoint } from "#lib/features/threads/fork.svelte.ts";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState, type TimelineEntry } from "#lib/features/threads/thread-state.svelte.ts";
   import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
@@ -89,6 +90,9 @@
       return turn !== undefined && isTerminal(turn.status);
     },
     steer: (id) => view.steers.find((s) => s.id === id),
+    get canFork() {
+      return canFork;
+    },
     revealQuote: (quote) => revealQuote(quote.sourceItemId),
   });
 
@@ -157,6 +161,10 @@
     panelSheet = false;
     sideOpen = true;
   };
+  // "Fork thread" forks after the latest ended turn; "Fork from here" (TurnDetails) after the one it is under.
+  const canFork = $derived(thread?.runtime === "worker" && thread.status !== "creating");
+  const forkPoint = $derived(canFork ? lastForkPoint(view.ownTurns, view.inheritedTurns) : undefined);
+  const forkThread = () => forkPoint && forkFrom(threadId, forkPoint.id);
   let scheduling = $state(false);
   const canSchedule = $derived(Boolean(thread && thread.status !== "archived" && thread.status !== "failed"));
   const openSchedule = () => {
@@ -238,6 +246,7 @@
     return [
       { id: "thread:interrupt", title: "Interrupt", group: "actions", icon: "stop", keywords: "stop cancel turn", rank: -8, when: () => working, run: stop },
       { id: "thread:side", title: "Side thread…", group: "actions", icon: "arrows-right-left", keywords: "new side branch fork", rank: -7, when: () => canBranch, run: openSide },
+      { id: "thread:fork", title: "Fork thread", group: "actions", icon: "arrow-turn-up-right", keywords: "fork branch copy duplicate new chat", rank: -7, when: () => Boolean(forkPoint), run: forkThread },
       { id: "thread:schedule", title: "Schedule a task…", group: "actions", icon: "clock", keywords: "schedule later cron recurring", rank: -7, when: () => canSchedule, run: openSchedule },
       { id: "thread:model", title: "Model and effort…", group: "actions", icon: "cpu-chip", keywords: "model reasoning effort", rank: -7, when: () => !closed, run: () => (modelOpen = true) },
       { id: "thread:permissions", title: "Permissions…", group: "actions", icon: "shield-check", keywords: "permission mode approvals sandbox", rank: -7, when: () => !closed, run: () => (permissionsOpen = true) },
@@ -280,6 +289,7 @@
           <DropdownMenu label="Thread actions" placement="bottom-end">
             {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="Thread actions" {...props} />{/snippet}
             <MenuItem icon="arrows-right-left" disabled={!canBranch} onselect={openSide}>New side thread</MenuItem>
+            <MenuItem icon="arrow-turn-up-right" disabled={!forkPoint} onselect={forkThread}>Fork thread</MenuItem>
             <MenuItem icon="clock" disabled={!canSchedule} onselect={openSchedule}>Schedule a task</MenuItem>
             <MenuItem icon="cpu-chip" disabled={closed} onselect={() => (modelOpen = true)}>Model and effort…</MenuItem>
             <MenuItem icon="shield-check" disabled={closed} onselect={() => (permissionsOpen = true)}>Permissions…</MenuItem>

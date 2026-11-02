@@ -14,6 +14,8 @@ export interface ThreadDirectory {
   turnEnded?(turnId: string): boolean;
   /** The thread's steer with this id (a message steered into a turn: its text and quotes). */
   steer?(id: string): ui.Steer | undefined;
+  /** Its turns can be forked from ("Fork from here"): a thread on a worker that started at its provider. */
+  readonly canFork?: boolean;
   /** Scrolls to the item a quote came from and highlights it; false when it is not in this thread any more. */
   revealQuote?(quote: ui.Quote): Promise<boolean>;
 }

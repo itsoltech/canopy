@@ -3,6 +3,7 @@
   import { iconButtonClasses, type ButtonSize, type ButtonVariant } from "./button.ts";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
+  import Spinner from "./Spinner.svelte";
   import { tooltip, type TooltipOptions } from "./tooltip.ts";
   import TouchTarget from "./TouchTarget.svelte";
 
@@ -12,6 +13,8 @@
     label: string;
     variant?: ButtonVariant;
     size?: ButtonSize;
+    /** Replaces the icon with a spinner and disables the button (an action in progress). */
+    loading?: boolean;
     /** Icon colour (`fill-*`), e.g. a filled star. */
     iconClass?: ClassValue;
     /** Tooltip placement, shortcut hint, … (its text is always `label`). */
@@ -19,10 +22,10 @@
     class?: ClassValue;
   };
 
-  let { icon, label, variant = "ghost", size = "md", type = "button", iconClass, tooltipOptions, class: className, ...rest }: Props = $props();
+  let { icon, label, variant = "ghost", size = "md", type = "button", loading = false, disabled, iconClass, tooltipOptions, class: className, ...rest }: Props = $props();
 </script>
 
-<button {type} class={[iconButtonClasses(variant, size), className]} aria-label={label} {...rest} {@attach tooltip(label, tooltipOptions)}>
-  <Icon name={icon} class={iconClass} />
+<button {type} class={[iconButtonClasses(variant, size), className]} aria-label={label} disabled={disabled || loading} aria-busy={loading || undefined} {...rest} {@attach tooltip(label, tooltipOptions)}>
+  {#if loading}<Spinner />{:else}<Icon name={icon} class={iconClass} />{/if}
   <TouchTarget />
 </button>
