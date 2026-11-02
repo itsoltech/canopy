@@ -19,9 +19,9 @@ Gateway czyta konfigurację tymczasowo ze zmiennych środowiskowych, do czasu po
 
 | Lokalnie (plik na urządzeniu) | Zdalnie (gateway → `WorkerConfig`) |
 |---|---|
-| `gateway_url`, `worker_id`, `credential` | dozwolone katalogi (`allowed_roots`) |
+| `gateway_url`, `worker_id`, `credential` | dostawcy i ich ustawienia |
 | `ca_file` (prywatny certyfikat gateway) | dostawcy: włączony, ścieżka CLI, wymagana wersja |
-| `data_dir` (dziennik, bloby w drodze) | profile dostawców (wbudowany `native` i własne) z kluczami i zmiennymi środowiskowymi |
+| `data_dir` (dziennik, bloby w drodze, scratch) | profile dostawców (wbudowany `native` i własne) z kluczami i zmiennymi środowiskowymi |
 | `ping_interval_seconds` (utrzymanie mapowania NAT) | natywne narzędzia (subagenci, harmonogram) |
 | | limity (tury, zadania w tle, drain, zwalnianie) |
 | | Codex: dowiązanie logowania urządzenia do izolowanego `CODEX_HOME` (`device_login`) |
@@ -43,7 +43,7 @@ Gateway czyta konfigurację tymczasowo ze zmiennych środowiskowych, do czasu po
   - Linux: `$XDG_CONFIG_HOME/open-agents/worker.json`,
   - macOS: `~/Library/Application Support/open-agents/worker.json`,
   - Windows: `%APPDATA%\open-agents\worker.json`.
-- Dekodowanie jest ścisłe (Effect Schema): nieznany klucz to błąd. Ustawienie zdalne wpisane lokalnie nie zostanie po cichu zignorowane.
+- Dekodowanie jest ścisłe (Effect Schema): nieznany klucz to błąd. Wyjątkiem zgodności są stare `allowedRoots` i `allowed_roots`: są przyjmowane i ignorowane, podobnie jak pole historyczne w zdalnej konfiguracji i bazie. Worker nie ma listy dozwolonych katalogów.
 - Plik zawiera poświadczenie, więc jak klucz SSH nie może być dostępny dla innych użytkowników (POSIX: `chmod 600`). Inaczej worker kończy pracę z kodem 78 (`EX_CONFIG`), żeby supervisor nie restartował go w pętli. Na Windows ACL ustawia instalator.
 - Plik tworzy rejestracja workera (enrollment): token z UI zamieniany na `worker_id` i `credential`.
 
@@ -75,7 +75,7 @@ sequenceDiagram
 - **Walidacja jest na urządzeniu**, bo tylko ono wie, czy katalog istnieje i jaka wersja CLI jest zainstalowana:
   - błędny wpis (ścieżka względna, brak katalogu, brak CLI, zła wersja, profil bez klucza) wyłącza tylko ten wpis i trafia do `issues`,
   - błąd krytyczny (np. zduplikowane id profilu) odrzuca całą konfigurację, a worker zostaje przy poprzedniej.
-- **Ścieżki:** katalogi są rozwiązywane do ścieżek rzeczywistych (symlinki), a sprawdzanie `cwd` wątku (`isAllowedPath`) porównuje ścieżki rzeczywiste przez `path.relative`, więc `/repo-other` nie przejdzie jako `/repo`.
+- **Ścieżki:** workspace może wskazywać dowolny bezwzględny katalog dostępny dla użytkownika OS workera. Przy dodaniu lub zmianie workspace'u gateway pyta połączonego workera o katalog. Przy starcie wątku worker ponownie rozwiązuje dowiązania i sprawdza, czy ścieżka istnieje i jest katalogiem. Brak katalogu daje czytelny błąd; zwykły workspace nie tworzy katalogów.
 - **Worker bez konfiguracji** odrzuca komendy z `WORKER_NOT_CONFIGURED`.
 
 ## 4. Sekrety
@@ -91,16 +91,19 @@ Zmiana względem wcześniejszego założenia „poświadczenia LLM nie opuszczaj
 
 ### Katalogi No project
 
-Scratch używa istniejącego `allowed_roots[0]`, bez dodawania nowych uprawnień ani pola konfiguracji.
-Gateway zapewnia workspace `<root>/.open-agents/scratch/<user-id>`, a `CreateThread` z
-`ThreadSpec.scratch` tworzy jego podkatalog UUID wątku na workerze. Worker waliduje rzeczywistą
-ścieżkę rootu i każdy nowy składnik; symlink w poddrzewie scratch jest błędem. Root może być
-symlinkiem już rozwiązanym podczas stosowania konfiguracji. Pusty allowed root lub brak praw zapisu
-uniemożliwia start. Na POSIX nowe katalogi mają `0700`. Zmiana pierwszego rootu dotyczy przyszłych
-nowych rozmów; istniejące wątki i forki zachowują cwd, nadal podlegając aktualnym allowed roots.
+Scratch ma stałą bazę `<data_dir>/scratch`, zgłaszaną przez workera w `Hello.scratch_root`.
+Gateway zapewnia workspace `<data_dir>/scratch/<user-id>`, a `CreateThread` z
+`ThreadSpec.scratch` tworzy podkatalog UUID wątku. Worker sprawdza każdy składnik zarządzanego
+poddrzewa; symlinki są błędem. Na POSIX nowe katalogi mają `0700`. Brak praw zapisu uniemożliwia
+start. Zmiana `data_dir` dotyczy tylko przyszłych niezależnych rozmów. Istniejące wątki i forki
+zachowują zapisane cwd, także stare `<root>/.open-agents/scratch/<user>/<thread>`.
+Stare katalogi muszą istnieć; worker ich nie przenosi ani nie odtwarza w dawnej lokalizacji.
 Pliki nie są usuwane automatycznie. Ich pełną ścieżkę i zasady ręcznego usuwania pokazuje panel wątku.
 
-Zdalne `allowed_roots` oznaczają, że kto kontroluje gateway, ten wskazuje workerowi katalogi. Tak czy inaczej gateway zleca agentom pracę z shellem na urządzeniu, więc zaufanie do gateway już jest pełne w granicach uprawnień użytkownika systemowego workera. Środki:
+Bez roots worker może uruchamiać wątki w dowolnym katalogu dostępnym dla jego użytkownika
+systemowego. Tryby uprawnień i sandboxy nadal obowiązują osobno dla każdego wątku.
+Gateway zleca agentom pracę z shellem na urządzeniu, więc zaufanie do gateway obejmuje
+uprawnienia użytkownika systemowego workera. Środki:
 
 - worker działa jako **dedykowany użytkownik systemowy** z dostępem tylko do potrzebnych katalogów (to jest właściwa granica bezpieczeństwa na urządzeniu),
 - zmiana konfiguracji wymaga uprawnień (właściciel workera albo admin dla współdzielonych) i trafia do `audit_log` oraz `worker_config_history`,
@@ -108,7 +111,7 @@ Zdalne `allowed_roots` oznaczają, że kto kontroluje gateway, ten wskazuje work
 
 ## 6. Zmiana na żywo
 
-- Katalogi, limity i domyślne narzędzia natywne obowiązują od następnej tury.
+- Limity i domyślne narzędzia natywne obowiązują od następnej tury.
 - Zmiana profili albo ustawień Codexa wymaga restartu `codex app-server`. Worker robi to, gdy nie ma żadnej tury w toku (zmiana czeka do końca ostatniej). Restartują się tylko procesy, których ustawienia się zmieniły (osobny app-server profilu ze zmiennymi, sekcja 8.1); ich wątki wznawiają się w nowym procesie (`thread/resume`), a procesy w tle zamkniętego procesu kończą się jako przerwane.
 - Claude Code dostaje środowisko profilu przy każdej turze (`query()` per tura), więc zmiana obowiązuje od następnej tury po zastosowaniu konfiguracji.
 

@@ -71,7 +71,7 @@
     {#if placement === "specific"}
       <Field label="Worker" class="sm:col-span-2">
         <Select name="workspaceId" bind:value={workspaceId} options={workspaces.length ? workspaces.map((workspace) => ({ value: workspace.id,
-          label: `${overview.worker(workspace.workerId)?.name ?? "Unknown worker"}${project?.kind === "scratch" ? "" : ` · ${workspace.label || workspace.rootPath}`}${overview.worker(workspace.workerId)?.online ? "" : " · Offline"}`,
+          label: `${overview.worker(workspace.workerId)?.name ?? "Unknown worker"}${overview.worker(workspace.workerId)?.online ? "" : " · Offline"}`,
         })) : [{ value: "", label: "No workers have this project" }]} />
       </Field>
     {/if}

@@ -6,14 +6,15 @@
 (nowe pole **410**); zwykłe projekty mają `kind = "project"`. Jest pierwszy w odpowiedzi.
 Klient ukrywa go w zarządzaniu projektami, ale pokazuje w pickerze nowego wątku, filtrze
 sidebaru, domyślnym wyborze workspace'u i harmonogramach. Workspace'y scratch są provisionowane
-automatycznie na dostępnych dla właściciela workerach z allowed roots. Zmiany workerów publikują
+automatycznie na dostępnych dla właściciela workerach zgłaszających `Hello.scratch_root`. Baza to
+`<data_dir>/scratch/<user-id>`. Zmiany workerów publikują
 również aktualny projekt scratch przez `WatchOverview.project`.
 
 `CreateThread` zachowuje istniejący kontrakt: `project_id` i `workspace_id` wskazują systemowe
 zasoby wybrane z overview. Dla nowego głównego wątku scratch `cwd` musi być pusty: gateway nadaje
 `<workspace.root_path>/<thread.id>`. Wymuszenie własnego cwd daje `InvalidArgument`.
 Fork i wątek boczny dziedziczą katalog źródła. Komenda workera ma `ThreadSpec.scratch = true`
-(nowe pole **410**): worker tworzy katalog przed uruchomieniem harnessu i sprawdza allowed roots.
+(pole **410**): worker tworzy katalog przed uruchomieniem harnessu, sprawdza jego składniki i odrzuca symlinki.
 Błąd utworzenia/walidacji to `SCRATCH_NOT_ALLOWED`; zwykłe wątki nie tworzą brakujących katalogów.
 
 `Thread.cwd` pokazuje pełną ścieżkę. `ListThreads`, wyszukiwanie, wzmianki, archiwum i szyna
@@ -26,7 +27,7 @@ projektu systemowego i workspace'em wybranego workera korzysta z tego samego nad
 i `UpdateProjectSettings` nie pozwalają ręcznie modyfikować zasobów systemowych.
 
 Scratch powstaje dopiero przy `CreateThread`. `SearchFiles` w scope nowego wątku scratch
-zwraca pustą listę; `ListMentionCatalog` pobiera komendy i umiejętności z pierwszego allowed root.
+zwraca pustą listę; `ListMentionCatalog` pobiera komendy i umiejętności z katalogu domowego workera.
 Scope istniejącego wątku używa jego cwd. Pliki są zachowywane bez automatycznego cleanupu,
 także po archiwizacji lub soft delete; panel szczegółów opisuje ręczne sprzątanie.
 
@@ -113,11 +114,11 @@ flowchart LR
 
 | Metoda | Co robi |
 |---|---|
-| `GetOverview` | workery (online, wykryte CLI, profile, dozwolone katalogi, wersja konfiguracji i raport) oraz projekty z workspace'ami |
+| `GetOverview` | workery (online, OS, wykryte CLI, profile, wersja konfiguracji i raport) oraz projekty z workspace'ami; historyczne `allowed_roots` jest puste |
 | `WatchOverview` | strumień zmian workerów, projektów i wątków |
-| `ListDirectory` | przeglądanie katalogów na workerze, w dozwolonych katalogach (wybór workspace'u) |
+| `ListDirectory` | przeglądanie dowolnego dostępnego katalogu absolutnego na workerze; pusty `path` otwiera home; odpowiedź zawiera `entries` i rzeczywisty `path` |
 | `CreateProject`, `CreateWorkspace` | projekt; workspace = katalog na workerze |
-| `UpdateWorkspace`, `RemoveWorkspace` | projekt na workerach: projekt żyje na workerach, na których ma workspace. `UpdateWorkspace` zmienia katalog na tym samym workerze (`optional root_path`, `label`; te same sprawdzenia co `CreateWorkspace`: ścieżka bezwzględna, w dozwolonych katalogach, bez duplikatu w projekcie na tym workerze); istniejące wątki zostają w swoim katalogu. `RemoveWorkspace` zdejmuje projekt z workera (archiwizacja): znika z `Project.workspaces` i z nowych wątków głównych, istniejące wątki działają dalej, a ich wątki boczne i forki (`CreateThread` z `parent_thread_id`) powstają w tym samym workspace'ie. Obie zmiany idą w `OverviewUpdate.project`; nieznany albo usunięty workspace = `NotFound` |
+| `UpdateWorkspace`, `RemoveWorkspace` | projekt żyje na workerach, na których ma workspace. `UpdateWorkspace` zmienia katalog na tym samym workerze (`optional root_path`, `label`; jak `CreateWorkspace`: dowolna ścieżka bezwzględna, istniejący katalog potwierdzony przez połączonego workera, bez duplikatu w projekcie na tym workerze). Istniejące wątki zachowują cwd. `RemoveWorkspace` archiwizuje workspace: znika z `Project.workspaces` i nowych wątków głównych; istniejące wątki, ich boczne i forki działają dalej. Obie zmiany idą w `OverviewUpdate.project`; nieznany albo usunięty workspace = `NotFound` |
 | `ListThreads`, `GetThread`, `CreateThread` | wątki projektu (pusty projekt = wszystkie wątki użytkownika); jeden wątek; nowy wątek (główny albo boczny, opcjonalnie fork) z opcjonalną pierwszą wiadomością. Gateway sprawdza według ostatniego raportu workera, że dostawca jest dostępny, a profil istnieje, jest dostępny i obsługuje tego dostawcę; fork zachowuje dostawcę rodzica. Fork od tury („Fork from here”, [threads.md](threads.md#fork-od-tury-fork-from-here)): `fork_at_turn_id` (zakończona tura z widocznej historii wątku `fork_thread_id`, także odziedziczona) bez `parent_thread_id` tworzy nowy wątek główny z miejscem i ustawieniami tamtego wątku (pola miejsca, dostawcy i modelu z żądania są pomijane; pusty tytuł = „Fork of ‹tytuł›”); tura w toku, spoza historii albo bez punktu u dostawcy = `InvalidArgument`. `Thread.fork_after_turn_id` i `fork_after_turn_ordinal` mówią, od której tury (numer w wątku źródłowym). `model` i `effort` to domyślne wątku (`Thread.model`, `Thread.effort`), sprawdzane z katalogiem profilu, gdy worker go zgłosił i jest kompletny (model po `id` albo `resolved_model`; wysiłek z `efforts` modelu, a bez modelu z modelu `is_default`). Model z katalogu bez `efforts` nie ma wysiłku: `Thread.effort` zostaje pusty ([reguła wysiłku](protocol.md#modele-effort-i-steer)) |
 | `SendMessage` | wiadomość; idempotentne po `client_request_id` (także między kolejką a steerem). `model` i `effort` nadpisują domyślne wątku tylko dla tej tury. Z katalogiem sprawdzany jest model i wysiłek podany w wiadomości; domyślny wysiłek wątku nie blokuje wyboru modelu: przy starcie tury model bez `efforts` nie dostaje wysiłku, a wysiłek, którego model nie oferuje, zamienia się na `default_effort` modelu albo pusty (`Turn.effort` = to, z czym tura ruszyła; [reguła wysiłku](protocol.md#modele-effort-i-steer)). `delivery`: `QUEUE` (domyślnie, następna tura → `response.turn`) albo `STEER` (do tury w toku → `response.steer`; bez tury w toku działa jak `QUEUE`). Steer ma statusy `pending` → `accepted` → `delivered` albo `queued` (nie wszedł: tura skończyła się wcześniej albo dostawca odmówił; jest następną turą `queued_turn_id`, powód w `reason`); model i wysiłek z wiadomości obowiązują dopiero w tej turze. `permission_mode` nadpisuje tryb uprawnień wątku tylko dla tej tury (`UNSPECIFIED` = domyślny wątku); steer zostaje przy trybie tury, do której wchodzi, a nadpisanie obowiązuje, gdy wraca do kolejki ([tryb uprawnień tury](protocol.md#modele-effort-i-steer)); nieznana wartość = błąd. W transkrypcie steer to item `user_message` z `client_id = steer.id` w turze, do której wszedł, w miejscu, w którym wszedł. Zmiany na żywo: `ThreadUpdate.steer`, snapshot ma `steers` |
 | `UpdateThread` | domyślny model, wysiłek i tryb uprawnień wątku (`permission_mode`: nieustawiony albo `UNSPECIFIED` = bez zmian; zmienia go tylko właściciel, agenci nie mają do tego narzędzia) (`optional`: nieustawione = bez zmian, pusty = domyślny profilu); dotyczy tur bez nadpisania. Podany wysiłek jest sprawdzany z katalogiem; przy samej zmianie modelu dotychczasowy wysiłek idzie za modelem według tej samej reguły (model bez `efforts`: pusty, wysiłek spoza listy: `default_effort` albo pusty). Zmiana idzie w `ThreadUpdate.thread` |
@@ -473,9 +474,22 @@ Stany: brak gateway (powłoka renderuje się dalej, baner i ponawianie), ponowne
 Bezpieczeństwo:
 - przeglądarka nie zna adresu gateway ani tokenu,
 - formularze chroni kontrola `Origin` SvelteKit (CSRF), a endpointy JSON wymagają `content-type: application/json` (formularz z innej strony go nie ustawi),
-- workspace musi leżeć w dozwolonych katalogach workera: gateway sprawdza to leksykalnie przy tworzeniu (według systemu workera), worker ścieżki rzeczywiste przy starcie wątku ([threads.md](threads.md#projekt-na-wielu-workerach-i-systemach)).
+- workspace może wskazywać dowolny istniejący katalog absolutny dostępny dla użytkownika OS workera: połączony worker sprawdza go przy dodaniu/zmianie i ponownie przy starcie wątku. Tryby uprawnień i sandboxy nadal obowiązują per wątek ([threads.md](threads.md#projekt-na-wielu-workerach-i-systemach)).
 
 Projekt może żyć na wielu workerach (workspace na każdym): ustawienia projektu pokazują każdy worker (system, online) z katalogiem projektu, lista wątków i nagłówek wątku pokazują workera, a wybór katalogu buduje ścieżki separatorem systemu workera. Nowego wątku nie da się wysłać na worker offline (kompozytor mówi dlaczego); istniejące wątki i ich wiadomości na workerze offline czekają na jego połączenie.
+
+DirectoryPicker przy dodawaniu workspace'u otwiera katalog domowy workera, a przy edycji —
+obecny katalog workspace'u. Pole „Directory path” przyjmuje wpisaną lub wklejoną ścieżkę;
+„Go” albo Enter sprawdza ją na workerze. „Home”, „Up one level” oraz skróty do maksymalnie
+czterech katalogów używanych przez projekty na tym workerze ułatwiają nawigację. Pełna ścieżka
+skrótu pozostaje w tooltipie. Zapis jest dostępny dopiero po poprawnym odczytaniu katalogu;
+picker nie tworzy folderów. Kontrolki korzystają ze wspólnego kitu UI.
+
+Listy workerów nie pokazują ścieżek: kompozytor pokazuje nazwę, status i OS; ustawienia
+wątków grupują opcje według projektu i podpisują je nazwą workera (także „No project”).
+Harmonogramy i ustawienia botów korzystają z wyborów bez ścieżek. Szczegóły workera nie mają
+edytora roots. Katalog nadal jest widoczny i edytowalny w ustawieniach projektu oraz dostępny
+w skróconym wierszu katalogu roboczego panelu wątku, tooltipach i kopiowaniu.
 
 ## 5. Uruchomienie (development)
 
@@ -486,7 +500,7 @@ export OA_SECRETS_KEY=$(openssl rand -base64 32)   # trzymać stały: szyfruje s
 export OA_UI_SERVICE_TOKEN=$(openssl rand -hex 32) # ten sam dla SvelteKit
 
 # rejestracja workera (wypisuje worker.json; zapisać z chmod 600)
-OA_CLIPROXYAPI_API_KEY=... bun apps/gateway/src/cli.ts worker add --name laptop --root ~/code \
+OA_CLIPROXYAPI_API_KEY=... bun apps/gateway/src/cli.ts worker add --name laptop \
   --gateway-url http://127.0.0.1:7443 [--cliproxy-url https://proxy:8443]
 
 bun apps/gateway/src/main.ts          # migracje (OA_MIGRATE=1, domyślnie), serwer gRPC na :7443

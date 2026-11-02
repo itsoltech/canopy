@@ -24,7 +24,7 @@ describe.skipIf(!dockerAvailable)("no-project threads", () => {
 
   test("without any user project: one system project, a workspace per accessible worker, unique cwd per thread", async () => {
     expect(project).toMatchObject({ name: "No project", kind: "scratch" });
-    expect(workspace.rootPath).toBe(`/repo/.open-agents/scratch/${gw.userId}`);
+    expect(workspace.rootPath).toBe(`/worker-data/scratch/${gw.userId}`);
     expect((await gw.api.getOverview({})).projects).toHaveLength(1);
     const concurrent = await Promise.all([gw.api.getOverview({}), gw.api.getOverview({})]);
     expect(concurrent.every((o) => o.projects[0]?.id === project.id && o.projects[0]?.workspaces.length === 1)).toBe(true);
@@ -38,9 +38,11 @@ describe.skipIf(!dockerAvailable)("no-project threads", () => {
     expect(spec?.case === "createThread" && spec.value.thread).toMatchObject({ scratch: true, cwd: first.cwd });
     expect(gw.worker.inputs.get(first.id)).toEqual(["hello"]);
     expect(await failure(gw.api.createThread({ projectId: project.id, workspaceId: workspace.id, provider: Provider.CODEX, cwd: workspace.rootPath }))).toContain("own scratch directory");
-    const worker = await gw.addWorker("scratch-server", ["/srv"]);
+    const worker = await gw.addWorker("scratch-server");
+    await gw.connect(worker.workerId, worker.credential);
+    await eventually(() => gw.api.getOverview({}), (o) => o.workers.some((w) => w.id === worker.workerId && w.online));
     const refreshed = (await gw.api.getOverview({})).projects.find((p) => p.id === project.id)!;
-    expect(refreshed.workspaces.find((w) => w.workerId === worker.workerId)?.rootPath).toBe(`/srv/.open-agents/scratch/${gw.userId}`);
+    expect(refreshed.workspaces.find((w) => w.workerId === worker.workerId)?.rootPath).toBe(`/worker-data/scratch/${gw.userId}`);
   });
 
   test("side threads, spawn_thread and forks retain the same directory and tree rules", async () => {
@@ -92,7 +94,7 @@ describe.skipIf(!dockerAvailable)("no-project threads", () => {
     const scope = { workspaceId: workspace.id, provider: Provider.CODEX };
     expect((await gw.api.searchFiles({ scope, query: "" })).result?.matches).toEqual([]);
     await gw.api.listMentionCatalog({ scope, refresh: true });
-    expect(requested).toEqual(["/repo"]);
+    expect(requested).toEqual(["/home/test"]);
     const thread = await createThread("Scratch mentions");
     await gw.api.searchFiles({ scope: { threadId: thread.id }, query: "notes" });
     await gw.api.listMentionCatalog({ scope: { threadId: thread.id }, refresh: true });
@@ -133,20 +135,28 @@ describe.skipIf(!dockerAvailable)("no-project threads", () => {
     expect(denied._tag).toBe("Failure");
   });
 
-  test("changing roots moves only future scratch threads and an empty allowlist removes the placement", async () => {
+  test("legacy roots are ignored; a changed worker data directory moves only future scratch threads", async () => {
     const worker = await gw.addWorker("movable scratch", ["/before"]);
-    await gw.connect(worker.workerId, worker.credential);
+    const firstWorker = await gw.connect(worker.workerId, worker.credential);
+    await eventually(() => gw.api.getOverview({}), (o) => o.workers.some((w) => w.id === worker.workerId && w.online));
     let placement = (await gw.api.getOverview({})).projects.find((p) => p.id === project.id)!.workspaces.find((w) => w.workerId === worker.workerId)!;
     const parent = await createThread("Before root change", { workspaceId: placement.id, initialMessage: "save history" });
     await gw.runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(worker.workerId, { allowedRoots: ["/after", "/before"], codex: { enabled: true } }, gw.userId)));
     placement = (await gw.api.getOverview({})).projects.find((p) => p.id === project.id)!.workspaces.find((w) => w.workerId === worker.workerId)!;
     const next = await createThread("After root change", { workspaceId: placement.id });
-    expect(next.cwd).toBe(`/after/.open-agents/scratch/${gw.userId}/${next.id}`);
+    expect(next.cwd).toBe(`/worker-data/scratch/${gw.userId}/${next.id}`);
     expect((await gw.api.getThread({ threadId: parent.id })).thread?.cwd).toBe(parent.cwd);
     const turns = await gw.runtime.runPromise(GatewayStore.use((s) => s.turnsOf(parent.id)));
     const fork = (await gw.api.createThread({ forkThreadId: parent.id, forkAtTurnId: turns[0]!.id })).thread!;
     expect(fork.cwd).toBe(parent.cwd);
     await gw.runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(worker.workerId, { allowedRoots: [], codex: { enabled: true } }, gw.userId)));
-    expect((await gw.api.getOverview({})).projects.find((p) => p.id === project.id)!.workspaces.some((w) => w.workerId === worker.workerId)).toBe(false);
+    expect((await gw.api.getOverview({})).projects.find((p) => p.id === project.id)!.workspaces.some((w) => w.workerId === worker.workerId)).toBe(true);
+    firstWorker.link.close();
+    await eventually(() => gw.api.getOverview({}), (o) => o.workers.some((w) => w.id === worker.workerId && !w.online));
+    await gw.connect(worker.workerId, worker.credential, undefined, { hello: { scratchRoot: "/new-data/scratch" } });
+    await eventually(() => gw.api.getOverview({}), (o) => o.projects.find((p) => p.id === project.id)?.workspaces.some((w) => w.workerId === worker.workerId && w.rootPath.startsWith("/new-data/")) === true);
+    const relocated = await createThread("After data directory change", { workspaceId: placement.id });
+    expect(relocated.cwd).toBe(`/new-data/scratch/${gw.userId}/${relocated.id}`);
+    expect((await gw.api.getThread({ threadId: parent.id })).thread?.cwd).toBe(parent.cwd);
   });
 });

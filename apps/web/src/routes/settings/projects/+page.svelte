@@ -12,7 +12,7 @@
   const summary = (workspaces: { workerId: string; rootPath: string }[]) => {
     if (workspaces.length === 0) return "No workspaces yet";
     const workers = [...new Set(workspaces.map((w) => overview.worker(w.workerId)?.name ?? "unknown worker"))];
-    return workspaces.length === 1 ? `${workers[0]} · ${workspaces[0]?.rootPath}` : `${workspaces.length} workspaces on ${workers.join(", ")}`;
+    return workspaces.length === 1 ? workers[0] : `${workspaces.length} workspaces on ${workers.join(", ")}`;
   };
 </script>
 

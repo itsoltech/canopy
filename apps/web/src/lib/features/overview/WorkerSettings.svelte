@@ -28,13 +28,6 @@
     {#snippet leading()}<Icon name="computer-desktop" class="fill-zinc-400 dark:fill-zinc-500" />{/snippet}
     {#snippet control()}<StatusBadge status={worker.online ? "online" : "offline"} />{/snippet}
   </SettingsRow>
-  <SettingsRow title="Directories" description="Workspaces must be inside these.">
-    {#snippet control()}
-      <div class="grid max-w-xs justify-items-end">
-        {#each worker.allowedRoots as root (root)}<code class="max-w-full truncate font-mono text-[0.8125rem]/6 text-zinc-600 dark:text-zinc-400" title={root}>{root}</code>{:else}<span class="text-sm/6 text-zinc-500">None</span>{/each}
-      </div>
-    {/snippet}
-  </SettingsRow>
   <SettingsRow title="Agents" description="Agent CLIs found on the machine.">
     {#snippet control()}
       <div class="flex flex-wrap justify-end gap-1.5">

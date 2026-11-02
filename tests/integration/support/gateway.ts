@@ -74,7 +74,7 @@ export interface ScriptedWorkerOptions {
   /** Its model catalog (default SCRIPTED_MODELS: Codex only). */
   readonly models?: MessageInitShape<typeof ProfileModelsSchema>[];
   /** More Hello fields (e.g. capabilities and running_turns of a restarted worker). */
-  readonly hello?: Pick<MessageInitShape<typeof HelloSchema>, "capabilities" | "runningTurns" | "attachmentsRoot">;
+  readonly hello?: Pick<MessageInitShape<typeof HelloSchema>, "capabilities" | "runningTurns" | "attachmentsRoot" | "scratchRoot" | "homeDirectory">;
 }
 
 /** Plays a worker: answers commands and emits the events a real provider would. */
@@ -239,12 +239,13 @@ export class ScriptedWorker {
       }
       switch (kind.case) {
         case "listDirectory":
-          reply(true, { entries: [{ name: "repo-a", isDir: true, isGitRepo: true }] });
+          if (kind.value.path.includes("missing")) reply(false, { errorCode: "CWD_NOT_FOUND", errorMessage: `${kind.value.path} does not exist` });
+          else reply(true, { directoryPath: kind.value.path || "/home/test", entries: [{ name: "repo-a", isDir: true, isGitRepo: true }] });
           break;
         case "createThread": {
           const spec = kind.value.thread!;
           if (spec.cwd.includes("forbidden")) {
-            reply(false, { errorCode: "CWD_NOT_ALLOWED", errorMessage: `${spec.cwd} is outside the allowed roots` });
+            reply(false, { errorCode: "CWD_NOT_FOUND", errorMessage: `${spec.cwd} does not exist` });
             break;
           }
           this.created.push({
@@ -323,8 +324,8 @@ export interface TestGateway {
   readonly workerId: string;
   /** Ephemeral credential for reconnecting the fixture's primary worker after a gateway restart. */
   readonly workerCredential: string;
-  /** Registers another worker (not connected) with its own allowed roots. */
-  addWorker(name: string, allowedRoots: string[]): Promise<{ workerId: string; credential: string }>;
+  /** Registers another worker; optional roots exercise compatibility with stored old configs. */
+  addWorker(name: string, allowedRoots?: string[]): Promise<{ workerId: string; credential: string }>;
   /** Connects a scripted worker; closed with the gateway. */
   connect(workerId: string, credential: string, os?: string, options?: ScriptedWorkerOptions): Promise<ScriptedWorker>;
   close(): Promise<void>;
@@ -352,9 +353,9 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
   );
   await runtime.runPromise(migrate);
   const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
-  const addWorker = async (name: string, allowedRoots: string[]) => {
+  const addWorker = async (name: string, allowedRoots?: string[]) => {
     const added = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name, ownerUserId: userId })));
-    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { allowedRoots, codex: { enabled: true }, claude: { enabled: true } }, userId)));
+    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { ...(allowedRoots && { allowedRoots }), codex: { enabled: true }, claude: { enabled: true } }, userId)));
     // Its effective provider instances (the built-in native ones, all workers).
     await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [added.workerId])));
     return added;
@@ -380,7 +381,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
       await openGatewayLink({
         baseUrl: grpc.url,
         credential,
-        hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, attachmentsRoot: SCRIPTED_ATTACHMENTS_ROOT, ...(os && { host: { os } }), ...options?.hello,
+        hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, attachmentsRoot: SCRIPTED_ATTACHMENTS_ROOT, scratchRoot: "/worker-data/scratch", homeDirectory: "/home/test", ...(os && { host: { os }, ...(os === "win32" && { scratchRoot: "C:\\worker-data\\scratch", homeDirectory: "C:\\Users\\test" }) }), ...options?.hello,
           ...(options?.secretsDataDir && { capabilities: [...(options.hello?.capabilities ?? []), "thread_secrets"] }) },
       }),
       options,
@@ -388,8 +389,11 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
     workers.push(worker);
     return worker;
   };
-  const laptop = await addWorker("laptop", ["/repo"]);
+  const laptop = await addWorker("laptop");
   const worker = await connect(laptop.workerId, laptop.credential, undefined, options.worker);
+  // Directory validation can finish before configuration/catalog delivery. Return a ready fixture.
+  await eventually(() => api.getOverview({}), (o) => o.workers.some((w) => w.id === laptop.workerId && w.appliedVersion > 0n));
+  await eventually(() => api.listModels({}), (r) => r.workers.some((w) => w.workerId === laptop.workerId && w.configVersion > 0n));
   return {
     pg,
     runtime,

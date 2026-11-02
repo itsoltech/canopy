@@ -5,28 +5,27 @@ import { ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
 
 /**
  * Administration until the UI has these screens:
- *   bun apps/gateway/src/cli.ts worker add --name laptop --root /home/me/code \
+ *   bun apps/gateway/src/cli.ts worker add --name laptop \
  *     [--gateway-url https://agents.example.com] [--cliproxy-url URL --cliproxy-key-env VAR] [--model gpt-6.1-sol]
  * Prints the worker's local config (worker.json) to stdout; store it with chmod 600.
  */
 const [area, action, ...rest] = Bun.argv.slice(2);
 if (area !== "worker" || action !== "add") {
-  console.error("usage: cli.ts worker add --name NAME --root PATH [--root PATH] [--gateway-url URL] [--cliproxy-url URL --cliproxy-key-env VAR]");
+  console.error("usage: cli.ts worker add --name NAME [--gateway-url URL] [--cliproxy-url URL --cliproxy-key-env VAR]");
   process.exit(64);
 }
 const { values } = parseArgs({
   args: rest,
   options: {
     name: { type: "string" },
-    root: { type: "string", multiple: true },
     "gateway-url": { type: "string", default: "http://127.0.0.1:7443" },
     "cliproxy-url": { type: "string" },
     "cliproxy-key-env": { type: "string" },
   },
   strict: true,
 });
-if (!values.name || !values.root?.length) {
-  console.error("--name and at least one --root are required");
+if (!values.name) {
+  console.error("--name is required");
   process.exit(64);
 }
 
@@ -50,7 +49,6 @@ await runtime.runPromise(
     s.setWorkerConfig(
       workerId,
       {
-        allowedRoots: values.root!,
         // Both CLIs; the worker reports the ones it cannot find. With a proxy no device login is linked.
         codex: { enabled: true, ...(secretId && { deviceLogin: DeviceLogin.NONE }) },
         claude: { enabled: true, ...(secretId && { deviceLogin: DeviceLogin.NONE }) },

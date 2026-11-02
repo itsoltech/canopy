@@ -1,6 +1,6 @@
 /**
  * Live tests (OA_LIVE=1): a real worker behind the CLIProxyAPI, set up the way the product does it
- * (docs/worker-config.md, section 9): the worker's own part of the configuration (allowed roots, the harnesses,
+ * (docs/worker-config.md, section 9): the worker's own part of the configuration (the harnesses,
  * no device login) and the proxy as the global "cliproxyapi" provider instance of each harness, enabled on that
  * worker through the UI API (key stored as a gateway secret, synced to the worker as its effective configuration).
  */
@@ -14,7 +14,7 @@ const LIVE_PROFILE = "cliproxyapi";
 export interface LiveProxyOptions {
   readonly url: string;
   readonly key: string;
-  /** Directories the worker may open. */
+  /** Legacy fixture configuration; accepted for compatibility and ignored by the worker. */
   readonly allowedRoots: readonly string[];
   /** Harnesses enabled on the worker, each with the proxy instance (default: Codex and Claude). */
   readonly harnesses?: readonly Provider[];

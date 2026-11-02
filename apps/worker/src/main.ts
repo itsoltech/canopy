@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync } from "node:fs";
-import { hostname } from "node:os";
-import { join } from "node:path";
+import { homedir, hostname } from "node:os";
+import { join, resolve } from "node:path";
 import { ManagedRuntime, Result } from "effect";
 import { WorkerState } from "@open-agents/contracts";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
@@ -20,7 +20,7 @@ if (Result.isFailure(loaded)) {
   process.exit(78); // EX_CONFIG: the supervisor should not restart in a loop
 }
 const local = loaded.success;
-const dataDir = local.data_dir ?? defaultDataDir(Bun.env, process.platform);
+const dataDir = resolve(local.data_dir ?? defaultDataDir(Bun.env, process.platform));
 const ca = local.ca_file ? readFileSync(local.ca_file) : undefined;
 mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 
@@ -90,6 +90,8 @@ while (!stopping.signal.aborted) {
         // attachments: turns may carry files (fetched with FetchBlob into attachments_root).
         capabilities: ["running_turns", "attachments", "probe_providers", "codex_device_login", "generate_text", "thread_secrets"],
         attachmentsRoot: host.attachmentsRoot,
+        scratchRoot: join(dataDir, "scratch"),
+        homeDirectory: homedir(),
         runningTurns: host.runningTurns(),
         configVersion: host.config?.version ?? 0n,
         ...(await runtime.runPromise(journalHello())),

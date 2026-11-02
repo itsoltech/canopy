@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import {
   ConfigAppliedSchema,
@@ -38,8 +38,6 @@ export interface ProviderRuntime {
 
 export interface AppliedConfig {
   readonly version: bigint;
-  /** Real paths (symlinks resolved), existing directories only. */
-  readonly allowedRoots: readonly string[];
   readonly claude: ProviderRuntime;
   readonly codex: ProviderRuntime;
   readonly profiles: readonly ProfileStatus[];
@@ -143,21 +141,6 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
   const issues: Omit<ConfigIssue, "$typeName">[] = [];
   const issue = (path: string, message: string, fatal = false) => issues.push({ path, message, fatal });
 
-  // Allowed roots: absolute, existing directories; symlinks resolved so later checks compare real paths.
-  const allowedRoots: string[] = [];
-  for (const [i, root] of config.allowedRoots.entries()) {
-    if (!isAbsolute(root)) {
-      issue(`allowed_roots[${i}]`, `"${root}" is not an absolute path`);
-      continue;
-    }
-    const real = probe.realDirectory(root);
-    if (!real) {
-      issue(`allowed_roots[${i}]`, `"${root}" does not exist or is not a directory`);
-      continue;
-    }
-    if (!allowedRoots.includes(real)) allowedRoots.push(real);
-  }
-
   const claude = providerRuntime("claude", config.claude, probe, issue);
   const codex = providerRuntime("codex", config.codex, probe, issue);
 
@@ -190,7 +173,6 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
     report: create(ConfigAppliedSchema, { ...report, applied: true }),
     config: {
       version: config.version,
-      allowedRoots,
       claude,
       codex,
       profiles,
@@ -207,14 +189,6 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
       },
     },
   };
-}
-
-/** True when `realPath` (symlinks already resolved) is one of the allowed roots or inside one. */
-export function isAllowedPath(config: Pick<AppliedConfig, "allowedRoots">, realPath: string): boolean {
-  return config.allowedRoots.some((root) => {
-    const rel = relative(root, realPath);
-    return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-  });
 }
 
 function providerRuntime(

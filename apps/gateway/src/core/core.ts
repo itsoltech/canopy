@@ -47,6 +47,7 @@ import {
 import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
 import { isPlatformCommand, mentionsFromJson, mentionsToJson, PLATFORM_COMMANDS, workerPath } from "./mentions.ts";
 import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
+import { isAbsolutePath, pathStyle } from "../store/paths.ts";
 import type { StoredQuote } from "../store/quotes.ts";
 import {
   AgentBusStore,
@@ -720,7 +721,7 @@ export class GatewayCore {
     if (!connection?.isOpen) throw new UnavailableError(`worker ${workerId} is offline`);
     const result = await connection.sendCommand({ case: "listDirectory", value: { path } }, 15_000);
     if (!result.ok) throw new InvalidError(result.errorMessage || result.errorCode);
-    return create(ui.ListDirectoryResponseSchema, { entries: result.entries });
+    return create(ui.ListDirectoryResponseSchema, { entries: result.entries, path: result.directoryPath || path });
   }
 
   async createProject(name: string): Promise<ui.Project> {
@@ -754,6 +755,8 @@ export class GatewayCore {
       const overview = await this.overview();
       if (!overview.projects.some((p) => p.id === request.projectId)) throw new NotFound("project not found");
       if (!overview.workers.some((w) => w.id === request.workerId)) throw new NotFound("worker not found");
+      if (overview.projects.find((p) => p.id === request.projectId)?.kind === "scratch") throw new InvalidError("scratch workspaces are managed automatically");
+      await this.#validateWorkspaceDirectory(request.workerId, request.rootPath);
       const workspace = await this.#run((s) =>
         s.createWorkspace({ projectId: request.projectId, workerId: request.workerId, rootPath: request.rootPath, label: request.label }),
       );
@@ -763,11 +766,23 @@ export class GatewayCore {
   }
 
   async updateWorkspace(request: ui.UpdateWorkspaceRequest): Promise<ui.Workspace> {
+    if (request.rootPath !== undefined) {
+      const workspace = (await this.overview()).projects.filter((p) => p.kind !== "scratch").flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId);
+      if (!workspace) throw new NotFound("workspace not found");
+      await this.#validateWorkspaceDirectory(workspace.workerId, request.rootPath);
+    }
     const workspace = await this.#run((s) =>
       s.updateWorkspace(this.#options.userId, { workspaceId: request.workspaceId, rootPath: request.rootPath, label: request.label }),
     );
     await this.#publishProject(workspace.projectId);
     return workspace;
+  }
+
+  async #validateWorkspaceDirectory(workerId: string, path: string): Promise<void> {
+    const worker = (await this.#workers()).find((w) => w.id === workerId);
+    if (!worker) throw new NotFound("worker not found");
+    if (!isAbsolutePath(path, pathStyle(worker.os, path))) throw new InvalidError("root path must be absolute");
+    await this.#workerQuery(workerId, { case: "listDirectory", value: { path } }, 15_000);
   }
 
   async removeWorkspace(workspaceId: string): Promise<void> {
@@ -1120,14 +1135,14 @@ export class GatewayCore {
     const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === scope?.workspaceId);
     if (!workspace) throw new InvalidError("workspace not found");
     const scratchDraft = projects.find((p) => p.id === workspace.projectId)?.kind === "scratch";
-    // Before creation, list the machine's commands/skills from its configured root. File search
+    // Before creation, list the machine's commands/skills from its home. File search
     // remains empty; after creation both catalogs and files use the thread's exact scratch cwd.
-    const root = scratchDraft ? (await this.#workers()).find((w) => w.id === workspace.workerId)?.allowedRoots[0] : undefined;
+    const root = scratchDraft ? (await this.#workers()).find((w) => w.id === workspace.workerId)?.homeDirectory : undefined;
     return {
       workerId: workspace.workerId,
       provider: scope?.provider || Provider.CODEX,
       profileId: scope?.providerProfileId || "native",
-      cwd: root ?? (scope?.cwd || workspace.rootPath),
+      cwd: scratchDraft ? root || "" : scope?.cwd || workspace.rootPath,
       scratchDraft,
     };
   }

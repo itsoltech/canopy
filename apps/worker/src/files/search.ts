@@ -48,7 +48,7 @@ interface Listing {
 
 const cache = new Map<string, Listing>();
 
-/** `cwd` must already be checked against the allowed roots (WorkerHost). */
+/** `cwd` must already be validated as an existing absolute directory (WorkerHost). */
 export async function searchFiles(cwd: string, query: string, limit = DEFAULT_LIMIT, now = Date.now()): Promise<FileSearchOutput> {
   const root = realpathSync(cwd);
   let listing = cache.get(root);
