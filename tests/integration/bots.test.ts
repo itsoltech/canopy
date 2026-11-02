@@ -118,7 +118,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     expect(seen).toEqual([["first queued"], ["first queued", "Answer: first queued", "second queued"]]);
   });
 
-  test("structured bot mentions are durable, owner-validated and identify the exact bot to the model", async () => {
+  test("structured bot mentions and quotes are durable, validated and unambiguous to the model", async () => {
     const seen: ModelInput[] = [];
     model = async (input) => { seen.push(input); return reply("ok"); };
     const bot = await add("Mention author");
@@ -126,16 +126,23 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     await add("Kropek"); // Identical display names must not lose the selected identity.
     const text = "🙂 ask @Kropek how he's doing";
     const mention = { kind: MentionKind.BOT, name: target.id, label: "Kropek", start: text.indexOf("@"), end: text.indexOf("@") + "@Kropek".length };
-    const request = { botId: bot.id, text, mentions: [mention], clientRequestId: Bun.randomUUIDv7() };
+    const quotes = [{ text: "Wątek został zarchiwizowany.\nStatus: interrupted", comment: "Czy możesz zapytać o ten wynik?", sourceItemId: Bun.randomUUIDv7(), sourceThreadId: bot.id, sourceKind: "agent_message" }];
+    const request = { botId: bot.id, text, mentions: [mention], quotes, clientRequestId: Bun.randomUUIDv7() };
     const accepted = await gw.api.sendBotMessage(request);
     const stored = (await settled(bot.id)).messages[0]!;
     expect(stored.text).toBe(text);
+    expect(stored.quotes[0]?.text).toBe(quotes[0]!.text);
+    expect(stored.quotes[0]?.comment).toBe(quotes[0]!.comment);
+    expect(stored.quotes[0]?.sourceItemId).toBe(quotes[0]!.sourceItemId);
     expect(stored.mentions.map((m) => [m.kind, m.name, m.label, m.start, m.end])).toEqual([[MentionKind.BOT, target.id, "Kropek", mention.start, mention.end]]);
     expect(lastInput(seen[0]!)).toContain(text);
     expect(lastInput(seen[0]!)).toContain(`"Kropek" (bot_id ${target.id})`);
+    expect(lastInput(seen[0]!)).toContain("> Wątek został zarchiwizowany.\n> Status: interrupted");
+    expect(lastInput(seen[0]!)).toContain(`Comment: ${quotes[0]!.comment}`);
     await send(bot.id, "and now?");
     await settled(bot.id);
     expect(seen[1]!.messages[0]!.text).toContain(`bot_id ${target.id}`);
+    expect(seen[1]!.messages[0]!.text).toContain(quotes[0]!.comment);
 
     const foreign = await add("Foreign");
     const otherUser = await gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("mentions-other@test.local", "Other")));
@@ -156,6 +163,12 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     ];
     for (const mentions of invalid) expect(await failure(gw.api.sendBotMessage({ ...request, mentions, clientRequestId: Bun.randomUUIDv7() }))).not.toBe("");
     expect((await read(bot.id)).messages.filter((m) => m.senderId === "user")).toHaveLength(2);
+    for (const invalidQuotes of [
+      [{ text: " " }], [{ text: "x", sourceKind: "unknown" }], [{ text: "x".repeat(20_001) }], [{ text: "x", comment: "x".repeat(4_001) }], Array.from({ length: 21 }, () => ({ text: "x" })),
+    ]) expect(await failure(gw.api.sendBotMessage({ ...request, quotes: invalidQuotes, clientRequestId: Bun.randomUUIDv7() }))).not.toBe("");
+    await gw.api.sendBotMessage({ botId: bot.id, text: "", quotes, clientRequestId: Bun.randomUUIDv7() });
+    const quoteOnly = (await settled(bot.id)).messages.find((m) => m.senderId === "user" && m.text === "");
+    expect(quoteOnly?.quotes[0]?.text).toBe(quotes[0]!.text);
     // The displayed name is untrusted input; model context comes from the selected owner's bot.
     await gw.api.sendBotMessage({ ...request, text: "@Spoof", mentions: [{ ...mention, label: "Spoof", start: 0, end: 6 }], clientRequestId: Bun.randomUUIDv7() });
     expect((await settled(bot.id)).messages.find((m) => m.text === "@Spoof")?.mentions[0]?.label).toBe("Kropek");

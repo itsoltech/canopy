@@ -3,5 +3,5 @@
 export * from "./gen/openagents/worker/v1/worker_link_pb.ts";
 
 // UI API (gateway <-> browser). Namespaced to keep worker and UI names apart (Thread, Worker, ...).
-export * as ui from "./gen/openagents/ui/v1/gateway_pb.ts";
+export * as ui from "./ui.ts";
 export * as bots from "./gen/openagents/ui/v1/bots_pb.ts";

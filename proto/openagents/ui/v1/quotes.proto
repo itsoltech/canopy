@@ -1,0 +1,14 @@
+syntax = "proto3";
+package openagents.ui.v1;
+
+// Wspólny cytat w wiadomości wątku albo bota. Metadane źródła służą tylko nawigacji UI.
+message Quote {
+  string text = 1;
+  string comment = 2;
+  string source_item_id = 3;
+  // Id rozmowy źródłowej (wątek albo bot).
+  string source_thread_id = 4;
+  // agent_message | reasoning | command_output | tool_call | code | diff; pusty = tekst.
+  string source_kind = 5;
+  string language = 6;
+}

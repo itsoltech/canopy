@@ -4,6 +4,7 @@ package openagents.ui.v1;
 
 import "google/protobuf/timestamp.proto";
 import "openagents/worker/v1/worker_link.proto";
+import "openagents/ui/v1/quotes.proto";
 
 message BotConfiguration {
   string name = 1;
@@ -40,6 +41,7 @@ message BotMessage {
   bool failed = 10;
   // Wybrane chipy w wiadomości użytkownika; BOT.name = bot_id, zakresy UTF-16.
   repeated openagents.worker.v1.Mention mentions = 450;
+  repeated Quote quotes = 451;
 }
 message BotApproval {
   string id = 1;
@@ -74,6 +76,7 @@ message SendBotMessageRequest {
   string text = 2;
   string client_request_id = 3;
   repeated openagents.worker.v1.Mention mentions = 450;
+  repeated Quote quotes = 451;
 }
 message SendBotMessageResponse { string turn_id = 1; }
 message WatchBotConversationRequest { string bot_id = 1; }

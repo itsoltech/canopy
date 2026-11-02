@@ -1,12 +1,14 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { bots, MentionKind, MentionSchema, ProfileModelsSchema, Provider, type Mention, type ProfileModels } from "@open-agents/contracts";
+import { bots, MentionKind, MentionSchema, ProfileModelsSchema, Provider, type Mention, type ProfileModels, type ui } from "@open-agents/contracts";
 import { checkMentions, mentionPlaceholder } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import type { InstanceRow } from "../store/instance-config.ts";
+import { checkedQuotes } from "../core/quotes.ts";
+import { toUiQuote, type StoredQuote } from "../store/quotes.ts";
 import { apiModel } from "./model.ts";
 import { modelInput, storedMentions } from "./mentions.ts";
 import { nextHop } from "./policy.ts";
@@ -17,6 +19,7 @@ interface MessageRow {
   kind: string; text: string; exchange_id: string | null; created_at: Date;
   message_key?: string; turn_status?: string;
   mentions: JsonValue[];
+  quotes: StoredQuote[];
 }
 interface ApprovalRow {
   id: string; bot_id: string; turn_id: string; kind: string; prompt: string;
@@ -35,6 +38,7 @@ const messageView = (row: MessageRow) => create(bots.BotMessageSchema, {
   kind: row.kind, text: row.text, exchangeId: row.exchange_id ?? "", createdAt: timestampFromDate(new Date(row.created_at)),
   failed: row.kind === "event" && row.message_key === "answer" && row.turn_status === "failed",
   mentions: storedMentions(row.mentions),
+  quotes: row.quotes.map(toUiQuote),
 });
 const approvalView = (row: ApprovalRow) => create(bots.BotApprovalSchema, {
   id: row.id, botId: row.bot_id, turnId: row.turn_id, kind: row.kind, prompt: row.prompt,
@@ -121,12 +125,14 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     for (const serverId of active.mcpServerIds) yield* sql`INSERT INTO bot_mcp_connections(bot_id, server_id) VALUES (${row.id}::uuid, ${serverId}::uuid)`;
     return botView(row);
   }));
-  const enqueue = (user: string, botId: string, input: string, requestId: string, options: { hops?: number; sender?: string; replyTo?: string; exchangeId?: string; event?: boolean; mentions?: readonly Mention[] } = {}) => sql.withTransaction(Effect.gen(function* () {
+  const enqueue = (user: string, botId: string, input: string, requestId: string, options: { hops?: number; sender?: string; replyTo?: string; exchangeId?: string; event?: boolean; mentions?: readonly Mention[]; quotes?: readonly ui.Quote[] } = {}) => sql.withTransaction(Effect.gen(function* () {
     yield* owned(user, botId, true);
-    if (!input.trim() || input.length > 100_000 || !requestId || requestId.length > 200) return yield* Effect.fail(new Invalid("text and client_request_id are required"));
+    if (input.length > 100_000 || !requestId || requestId.length > 200) return yield* Effect.fail(new Invalid("valid text and client_request_id are required"));
     // A retry returns the original turn even if a mentioned bot was deleted since acceptance.
     const previous = (yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0];
     if (previous) return previous.id;
+    const quotes = yield* Effect.try({ try: () => checkedQuotes(options.quotes ?? [], (message) => new Invalid(message)), catch: (error) => error as Invalid });
+    if (!input.trim() && quotes.length === 0) return yield* Effect.fail(new Invalid("text or quotes are required"));
     const mentions = yield* Effect.try({ try: () => checkMentions(input, options.mentions ?? []), catch: (error) => new Invalid(error instanceof Error ? error.message : "invalid mentions") });
     const checked: Mention[] = [];
     for (const mention of mentions) {
@@ -140,8 +146,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       VALUES (${turnId}::uuid, ${botId}::uuid, ${requestId}, ${input}, ${options.hops ?? 0}, ${options.replyTo ?? null}::uuid, ${options.exchangeId ?? null}::uuid)
       ON CONFLICT(bot_id, client_request_id) DO NOTHING`;
     const turn = (yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0]!;
-    yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, mentions)
-      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turn.id}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb)
+    yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, mentions, quotes)
+      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turn.id}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb, ${JSON.stringify(quotes)}::jsonb)
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
     yield* changed(botId);
     return turn.id;
@@ -194,7 +200,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     history: (turn: BotTurn) => sql<MessageRow>`SELECT m.* FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
       WHERE m.bot_id = ${turn.bot_id}::uuid AND (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid)
       ORDER BY t.created_at, t.id, m.seq`
-      .pipe(Effect.map((rows): ModelMessage[] => rows.map((r) => ({ role: r.sender_id === turn.bot_id ? "assistant" : "user", text: modelInput(r.text, storedMentions(r.mentions)) })))),
+      .pipe(Effect.map((rows): ModelMessage[] => rows.map((r) => ({ role: r.sender_id === turn.bot_id ? "assistant" : "user", text: modelInput(r.text, storedMentions(r.mentions), r.quotes) })))),
     claim: (user: string) => sql.withTransaction(Effect.gen(function* () {
       // Lock the bot first; exactly its oldest unfinished turn can be claimed by any gateway.
       const rows = yield* sql<BotRow>`SELECT b.* FROM bots b WHERE deleted_at IS NULL AND owner_user_id = ${user}::uuid AND EXISTS (
