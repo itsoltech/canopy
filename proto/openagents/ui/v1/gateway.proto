@@ -16,6 +16,8 @@ service GatewayService {
   rpc SaveConnectorAccount(SaveConnectorAccountRequest) returns (ConnectorAccountResponse);
   rpc SetConnectorAccess(SetConnectorAccessRequest) returns (ConnectorAccountResponse);
   rpc DisconnectConnector(ConnectorAccountRequest) returns (ConnectorAccountResponse);
+  // Odłącza (jak Disconnect) i usuwa konto z listy; audyt zostaje bez powiązania z kontem.
+  rpc DeleteConnectorAccount(ConnectorAccountRequest) returns (DeleteConnectorAccountResponse);
   rpc TestConnector(ConnectorAccountRequest) returns (TestConnectorResponse);
   rpc SaveConnectorOAuthApp(SaveConnectorOAuthAppRequest) returns (SaveConnectorOAuthAppResponse);
   rpc BeginConnectorOAuth(BeginConnectorOAuthRequest) returns (BeginConnectorOAuthResponse);

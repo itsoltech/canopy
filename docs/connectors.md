@@ -42,6 +42,9 @@ Każde konto zachowuje własną rejestrację/tokeny; odświeżanie jest serializ
 blokadą konta w PostgreSQL, również przy wielu gatewayach. Brak możliwości
 odświeżenia oznacza `needs_reconnect`. Disconnect najpierw odbiera dostęp,
 następnie próbuje revoke i usuwa lokalne tokeny niezależnie od wyniku dostawcy.
+Delete (`DeleteConnectorAccount`) robi najpierw Disconnect (jeśli konto nie jest już
+odłączone), potem usuwa konto, granty, stany OAuth i rekordy deduplikacji; wpisy audytu
+zostają bez powiązania z kontem. Elementy timeline zachowują zapisaną nazwę konta.
 
 ## Harnessy i zgody
 

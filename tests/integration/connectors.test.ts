@@ -73,6 +73,14 @@ describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker 
     await expect(gw.core.connectors.run((s) => s.owned(otherUser, account.id))).rejects.toThrow();
     const cipher = await query<{ credentials: Uint8Array }>('SELECT credentials FROM connector_accounts WHERE id=$1::uuid', account.id);
     expect(Buffer.from(cipher[0]!.credentials).toString()).not.toContain(fake.secret);
+    // Delete: only the owner; the account, its grants and replay records go, audit rows stay unlinked.
+    await expect(gw.core.connectors.run((s) => s.remove(otherUser, account.id))).rejects.toThrow();
+    account = await grant(account);
+    await gw.api.deleteConnectorAccount({ accountId: account.id });
+    expect((await gw.api.listConnectors({})).accounts.some((a) => a.id === account.id)).toBe(false);
+    expect(await query('SELECT 1 FROM connector_worker_grants WHERE account_id=$1::uuid', account.id)).toHaveLength(0);
+    expect(await query('SELECT 1 FROM connector_audit WHERE thread_id=$1::uuid', t.id)).not.toHaveLength(0);
+    expect((await call(t, account.id, read.name)).isError).toBe(true);
   }, 30_000);
 
   test('bot grants, model tools and canonical @ account mention', async () => {
