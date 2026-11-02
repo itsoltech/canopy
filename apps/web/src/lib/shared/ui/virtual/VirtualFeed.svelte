@@ -75,6 +75,8 @@
   let scrollTop = $state(0);
   let listTop = $state(0);
   let footerHeight = $state(0);
+  /** Width of the scroller's vertical scrollbar (the backdrop under the composer stops before it). */
+  let gutter = $state(0);
   let measured = $state(0);
   /** Following the end (the reader is at the bottom). */
   let stuck = $state(true);
@@ -161,6 +163,7 @@
       measured++;
       viewport = measuredViewport;
       footerHeight = measuredFooter;
+      if (scroller) gutter = scroller.offsetWidth - scroller.clientWidth;
       if (scroller && list) listTop = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
     });
   };
@@ -383,6 +386,7 @@
   }
 </script>
 
+<div class="relative h-full">
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   bind:this={scroller}
@@ -420,8 +424,7 @@
         {/each}
       </div>
     </div>
-    <div bind:this={footerElement} class="sticky bottom-0 z-10 bg-white pb-[max(--spacing(3),env(safe-area-inset-bottom))] dark:bg-black">
-      <div class="pointer-events-none absolute inset-x-0 bottom-full h-8 bg-linear-to-t from-white dark:from-black" aria-hidden="true"></div>
+    <div bind:this={footerElement} class="sticky bottom-0 z-10 pb-[max(--spacing(3),env(safe-area-inset-bottom))]">
       {#if !stuck}
         <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2" transition:rise>
           <Button size="sm" icon="arrow-down" class="shadow-md dark:shadow-none" onclick={jump}>Jump to latest</Button>
@@ -430,5 +433,16 @@
       {@render footer?.()}
     </div>
   </div>
+</div>
+<!-- Under the composer and its fade, across the whole width of the scroll area (not just the chat column), so
+     content wider than the column (list numbers, wide tables) never shows beside or under the composer. Outside
+     the scroller, it adds no scrollable overflow; it stops before the scrollbar and sits between the rows and the
+     sticky footer (z-10). -->
+<div
+  class="pointer-events-none absolute bottom-0 left-0 z-[5] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black"
+  style:right="{gutter}px"
+  style:height="calc({footerHeight}px + 2rem)"
+  aria-hidden="true"
+></div>
 </div>
 {@html pinScript}
