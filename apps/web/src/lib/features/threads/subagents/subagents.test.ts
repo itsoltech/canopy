@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@open-agents/contracts";
-import { subagentState, subagentsOf, subagentSummary } from "./subagents.ts";
+import { isActiveSubagent, subagentState, subagentsOf, subagentSummary } from "./subagents.ts";
 
 const thread = (id: string, extra: Partial<Pick<ui.Thread, "status" | "lastTurnStatus" | "pendingInteractions" | "parentThreadId" | "spawnedByAgent">> & { created?: number } = {}) =>
   create(ui.ThreadSchema, { id, status: "idle", parentThreadId: "p", spawnedByAgent: true, createdAt: { seconds: BigInt(extra.created ?? 0) }, ...extra });
@@ -29,12 +29,34 @@ describe("the panel's list and summary", () => {
     thread("other", { parentThreadId: "q", status: "running" }),
   ];
 
-  test("only the agent's subagents of this thread, the ones at work first, newest first", () => {
-    expect(subagentsOf(threads, "p").map((s) => s.thread.id)).toEqual(["asks", "busy", "done"]);
+  test("only active agents started by this thread, newest first", () => {
+    expect(subagentsOf(threads, "p").map((s) => s.thread.id)).toEqual(["asks", "busy"]);
   });
 
   test("one line with the counts that are there", () => {
-    expect(subagentSummary(subagentsOf(threads, "p"))).toBe("3 subagents · 1 running · 1 waiting · 1 done");
-    expect(subagentSummary(subagentsOf([thread("x", { lastTurnStatus: "failed" })], "p"))).toBe("1 subagent · 1 failed");
+    expect(subagentSummary(subagentsOf(threads, "p"))).toBe("1 subagent working · 1 needs you");
+    expect(subagentSummary(subagentsOf([thread("x", { lastTurnStatus: "failed" })], "p"))).toBe("");
+    expect(subagentSummary(subagentsOf([thread("a", { status: "running" }), thread("b", { status: "running" }), thread("q", { status: "waiting_input" })], "p"))).toBe("2 subagents working · 1 needs you");
+    expect(subagentSummary(subagentsOf([thread("q", { pendingInteractions: 1 })], "p"))).toBe("1 subagent needs you");
+    expect(subagentSummary(subagentsOf([thread("q", { status: "waiting_input" }), thread("r", { pendingInteractions: 2 })], "p"))).toBe("2 subagents need you");
+  });
+
+  test("terminal/closed and idle agents are absent, even with stale interactions", () => {
+    const inactive = [
+      thread("done", { lastTurnStatus: "completed" }), thread("failed", { lastTurnStatus: "failed" }),
+      thread("stopped", { lastTurnStatus: "interrupted" }), thread("idle"),
+      ...["archived", "closed", "failed", "interrupted"].map((status) => thread(status, { status, pendingInteractions: 1 })),
+    ];
+    expect(inactive.every((t) => !isActiveSubagent(t))).toBe(true);
+    expect(subagentsOf(inactive, "p")).toEqual([]);
+    // A mixed caller cannot accidentally count an ended agent in the summary either.
+    expect(subagentSummary(inactive.map((t) => ({ thread: t, state: subagentState(t) })))).toBe("");
+  });
+
+  test("a new run or a pending answer re-enters; finishing removes the last strip", () => {
+    expect(subagentsOf([thread("x", { status: "running", lastTurnStatus: "completed" })], "p")).toHaveLength(1);
+    expect(subagentsOf([thread("x", { lastTurnStatus: "completed", pendingInteractions: 1 })], "p")[0]?.state).toBe("waiting");
+    expect(subagentsOf([thread("x", { status: "creating" })], "p")).toHaveLength(1);
+    expect(subagentsOf([thread("x", { lastTurnStatus: "completed" })], "p")).toEqual([]);
   });
 });
