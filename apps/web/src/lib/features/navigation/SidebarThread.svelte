@@ -3,12 +3,15 @@
   import { basename } from "#lib/shared/format.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
+  import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
+  import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import ThreadStatusText from "#lib/features/threads/ThreadStatusText.svelte";
   import ThreadWorkBadges from "#lib/features/threads/ThreadWorkBadges.svelte";
 
   /**
    * One thread in the inbox (T3 layout): project and status, title, then where it runs with its marks
-   * (goal, background tasks, side threads, started by an agent). `sides` = number of side threads under it.
+   * (goal, background tasks, side threads, started by an agent) and the provider's mark. `sides` = number of
+   * side threads under it.
    */
   let {
     thread,
@@ -17,6 +20,9 @@
     sides = 0,
     current = false,
   }: { thread: ui.Thread; project: ui.Project | undefined; worker: ui.Worker | undefined; sides?: number; current?: boolean } = $props();
+
+  const provider = $derived(providerKeyOf(thread.provider));
+  const providerName = $derived(provider === "CLAUDE" ? "Claude" : "Codex");
 </script>
 
 <a
@@ -37,6 +43,7 @@
       <ThreadWorkBadges {thread} />
       {#if sides > 0}<span class="flex items-center gap-0.5" title="{sides} side {sides === 1 ? 'thread' : 'threads'}"><Icon name="arrows-right-left" class="size-3.5" />{sides}</span>{/if}
       {#if thread.spawnedByAgent}<Icon name="sparkles" class="size-3.5 fill-violet-500 dark:fill-violet-400" label="Started by an agent" />{/if}
+      {#if provider}<span class="flex" title={thread.providerProfileId ? `${providerName} · ${thread.providerProfileId}` : providerName}><ProviderIcon {provider} label={providerName} class="size-3.5 opacity-70" /></span>{/if}
     </span>
   </span>
 </a>
