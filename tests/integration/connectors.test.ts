@@ -76,6 +76,9 @@ describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker 
     let account = await save('personal'); const tool = (await gw.api.testConnector({ accountId: account.id })).tools[0]!;
     const source = { userId: gw.userId, botId: bot.id, accountId: account.id };
     await expect(gw.core.connectors.call(source, Bun.randomUUIDv7(), tool.name, { marker: 'bot' }, AbortSignal.timeout(5000))).rejects.toThrow();
+    const label = 'Custom MCP server · personal', text = `Use @${label}`;
+    const mention = { kind: MentionKind.CONNECTOR, name: account.id, label, start: 4, end: text.length };
+    await expect(gw.api.sendBotMessage({ botId: bot.id, clientRequestId: Bun.randomUUIDv7(), text, mentions: [mention] })).rejects.toThrow();
     account = await grant(account, [bot.id]);
     expect((await gw.core.connectors.botTools(bot.id)).some((t) => t.name === tool.name)).toBe(true);
     expect(JSON.stringify(await gw.core.connectors.call(source, Bun.randomUUIDv7(), tool.name, { marker: 'bot' }, AbortSignal.timeout(5000)))).toContain('bot');
@@ -83,8 +86,7 @@ describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker 
     await gw.api.updateBot({ botId: bot.id, configuration: { ...configuration, instructions: 'Keep grants' } });
     await gw.api.createBot(createRequest);
     expect((await gw.api.listConnectors({ botId: bot.id })).accounts.map((a) => a.id)).toContain(account.id);
-    const label = 'Custom MCP server · personal', text = `Use @${label}`;
-    await gw.api.sendBotMessage({ botId: bot.id, clientRequestId: Bun.randomUUIDv7(), text, mentions: [{ kind: MentionKind.CONNECTOR, name: account.id, label, start: 4, end: text.length }] });
+    await gw.api.sendBotMessage({ botId: bot.id, clientRequestId: Bun.randomUUIDv7(), text, mentions: [mention] });
     await eventually(() => gw.core.bots.run((s) => s.conversation(gw.userId,bot.id)), (c) => !c.working);
     const conversation = await gw.core.bots.run((s) => s.conversation(gw.userId,bot.id));
     expect(conversation.messages[0]!.mentions[0]).toMatchObject({ kind: MentionKind.CONNECTOR, name: account.id, label, source: 'custom' });

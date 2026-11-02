@@ -1,7 +1,7 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, connectors, MentionKind, MentionSchema, ProfileModelsSchema, Provider, type Mention, type ProfileModels, type ui } from "@open-agents/contracts";
-import { connectorStore } from "../connectors/store.ts";
+import { ConnectorFailure, connectorStore } from "../connectors/store.ts";
 import { connectorType } from "../connectors/catalog.ts";
 import { checkMentions, mentionPlaceholder } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
@@ -177,7 +177,9 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     for (const mention of mentions) {
       if (input.slice(mention.start, mention.end) !== mentionPlaceholder(mention)) return yield* Effect.fail(new Invalid("mention must have a matching @name range"));
       if (mention.kind === MentionKind.CONNECTOR) {
-        const account = yield* connections.authorize({ userId: user, botId, accountId: mention.name });
+        const account = yield* connections.authorize({ userId: user, botId, accountId: mention.name }).pipe(
+          Effect.mapError((error) => error instanceof ConnectorFailure ? new Invalid("Connector access denied") : error),
+        );
         checked.push(create(MentionSchema, { kind: MentionKind.CONNECTOR, name: account.id, source: account.connector_type, label: `${connectorType(account.connector_type)?.name} · ${account.name}`, start: mention.start, end: mention.end }));
         continue;
       }
