@@ -409,7 +409,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         const config = yield* validate(creator.owner_user_id, draft, true);
         proposal = toJson(bots.BotConfigurationSchema, config);
         // Keep a prose fallback for clients predating the structured preview.
-        prompt = [`Needs approval · Creating bot ‹${config.name}›`, `Name: ${config.name}`, `Model: ${config.model}`, `Effort: ${config.effort || "Model default"}`, `Instance: ${config.provider === Provider.CLAUDE ? "Claude" : "Codex"} · ${config.providerInstance}`, `Approval policy: ${config.approvalPolicy}`, `Instructions: ${config.instructions || "No additional instructions."}`].join("\n");
+        prompt = [`Needs approval · Creating bot “${config.name}”`, `Name: ${config.name}`, `Model: ${config.model}`, `Effort: ${config.effort || "Model default"}`, `Instance: ${config.provider === Provider.CLAUDE ? "Claude" : "Codex"} · ${config.providerInstance}`, `Approval policy: ${config.approvalPolicy}`, `Instructions: ${config.instructions || "No additional instructions."}`].join("\n");
       }
       yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot) VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}, ${JSON.stringify(proposal)}::jsonb) ON CONFLICT(id) DO NOTHING`;
       return approvalView((yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid`)[0]!);

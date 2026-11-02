@@ -66,7 +66,7 @@
       <p class="text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">Needs approval</p>
     {/if}
   </header>
-  {#if approval.routineTitle}<p class="px-4 pt-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">From routine ‹{approval.routineTitle}›</p>{/if}
+  {#if approval.routineTitle}<p class="px-4 pt-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">From routine “{approval.routineTitle}”</p>{/if}
   <h3 id="{id}-title" class="px-4 pt-1 text-base/6 font-medium text-pretty text-zinc-950 sm:text-sm/6 dark:text-white">{approval.action}</h3>
 
   {#if approval.botProposal}
