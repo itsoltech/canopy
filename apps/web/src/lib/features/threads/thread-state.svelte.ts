@@ -4,6 +4,7 @@ import { eventItemId, reduceItem } from "@open-agents/domain/items";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
 import { decode } from "#lib/shared/wire.ts";
+import { liveSource } from "#lib/shared/live-source.ts";
 
 export interface TimelineEntry {
   readonly id: string;
@@ -267,20 +268,20 @@ export class ThreadState {
   /** Subscribes to the BFF event stream; returns the cleanup for $effect. */
   connect(threadId: string): () => void {
     this.connection = "connecting";
-    const source = new EventSource(`/api/threads/${encodeURIComponent(threadId)}/events`);
-    source.onerror = () => {
-      // EventSource reconnects by itself; a fresh snapshot follows.
-      if (this.loaded) this.connection = "reconnecting";
-    };
-    source.addEventListener("failure", () => {
-      this.connection = "reconnecting";
-      this.failure = "Lost the connection to the gateway. Reconnecting…";
+    // Every (re)connect starts with a fresh snapshot from the server, so nothing needs reconciling here.
+    return liveSource(`/api/threads/${encodeURIComponent(threadId)}/events`, {
+      ondrop: () => {
+        if (this.loaded) this.connection = "reconnecting";
+      },
+      onfailure: () => {
+        this.connection = "reconnecting";
+        this.failure = "Lost the connection to the gateway. Reconnecting…";
+      },
+      onmessage: (data) => {
+        this.apply(decode(ui.ThreadUpdateSchema, JSON.parse(data)));
+        this.connection = "live";
+        this.failure = undefined;
+      },
     });
-    source.onmessage = (message) => {
-      this.apply(decode(ui.ThreadUpdateSchema, JSON.parse(message.data)));
-      this.connection = "live";
-      this.failure = undefined;
-    };
-    return () => source.close();
   }
 }
