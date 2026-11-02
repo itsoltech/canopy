@@ -1,10 +1,12 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
-  import { toasts } from "./toast.svelte.ts";
+  import { dismiss, toasts } from "./toast.svelte.ts";
+  import TouchTarget from "./TouchTarget.svelte";
 
   /**
    * Where `toast()` messages show: a polite live region at the top centre. A toast rises in (motion.css
-   * `t-toast`), a success draws its check (`t-success-check`), and it sinks out a little faster.
+   * `t-toast`), a success draws its check (`t-success-check`), and it sinks out a little faster. A toast
+   * with an action (Undo) shows its button after the text.
    */
 </script>
 
@@ -22,6 +24,20 @@
         <Icon name={entry.tone === "error" ? "exclamation-circle" : "information-circle"} class={entry.tone === "error" ? "fill-rose-400" : "fill-sky-400"} />
       {/if}
       {entry.text}
+      {#if entry.action}
+        {@const action = entry.action}
+        <button
+          type="button"
+          class="relative -my-1 -mr-2 rounded-full px-2 py-1 font-semibold text-brand-400 focus-ring hover:bg-white/10"
+          onclick={() => {
+            dismiss(entry.id);
+            action.run();
+          }}
+        >
+          {action.label}
+          <TouchTarget />
+        </button>
+      {/if}
     </div>
   {/each}
 </div>

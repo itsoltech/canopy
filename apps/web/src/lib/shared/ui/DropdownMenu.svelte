@@ -24,10 +24,20 @@
     open = $bindable(false),
     label,
     placement = "bottom-start",
+    sheet = false,
     class: className,
     trigger,
     children,
-  }: { open?: boolean; label: string; placement?: Placement; class?: ClassValue; trigger: Snippet<[PopoverTriggerProps]>; children: Snippet } = $props();
+  }: {
+    open?: boolean;
+    label: string;
+    placement?: Placement;
+    /** A bottom sheet on phones (menus of touch-first controls). */
+    sheet?: boolean;
+    class?: ClassValue;
+    trigger: Snippet<[PopoverTriggerProps]>;
+    children: Snippet;
+  } = $props();
 
   let start = $state<"first" | "last">("first");
   const menu = $state({
@@ -56,6 +66,7 @@
   bind:open
   {label}
   {placement}
+  {sheet}
   role="menu"
   {triggerKeydown}
   panelKeydown={navigate}
