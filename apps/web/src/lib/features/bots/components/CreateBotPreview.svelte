@@ -9,7 +9,7 @@
     { label: "Model", value: proposal.model },
     { label: "Effort", value: proposal.effort || "Model default" },
     { label: "Instance", value: `${proposal.provider} · ${proposal.instance}` },
-    { label: "Approval", value: proposal.approvalPolicy === "always" ? "Ask before every action" : "Ask before sensitive actions" },
+    { label: "Approval", value: proposal.approvalPolicy === "always" ? "Ask before every action" : proposal.approvalPolicy === "full_auto" ? "Full auto: never asks" : "Ask before sensitive actions" },
   ]);
 </script>
 

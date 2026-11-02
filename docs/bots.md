@@ -241,6 +241,12 @@ Zdalne MCP zachowuje dotychczasowe reguły: `safe` przepuszcza wyłącznie dekla
 odczyty bez flagi destrukcyjnej, pozostałe operacje wymagają zgody; `always` pyta także
 o odczyty MCP. `ask_user` zawsze tworzy kartę pytania.
 
+**Full auto** (`full_auto`): żadnych kart zgody — także dla **A**, zapisów MCP, `create_bot`
+(konfiguracja walidowana jak przy karcie) i zmian własnego modelu/polityki przez `update_self`.
+Zostają tylko pytania do użytkownika (`ask_user`). Przejście na `full_auto` z innej polityki
+przez `update_self` nadal wymaga karty; użytkownik włącza je w ustawieniach bota albo z menu
+„Needs approval ⌄” na karcie — wtedy oczekujące karty tego bota są od razu zatwierdzane.
+
 ### Projekty i workspaces
 
 | Nazwa | Działanie | Zgoda |

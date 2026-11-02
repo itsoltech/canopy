@@ -97,10 +97,11 @@
         <SettingsSection title="Model" description="Choose a provider endpoint and a model that Canopy can call directly.">
           <ProviderModelFields {instances} bind:instanceId bind:option bind:effort disabled={busy} onchange={() => (modelChanged = true)} />
         </SettingsSection>
-        <SettingsSection title="Permissions" description="You decide when your bot needs approval. Changing its own model or permissions always asks first.">
+        <SettingsSection title="Permissions" description="You decide when your bot needs approval. Outside full auto, changing its own model or permissions always asks first.">
           <Field label="Ask for approval"><Select bind:value={policy} disabled={busy} options={[
             { value: 'safe', label: 'For actions that need care', description: 'External writes and sensitive platform actions ask first. Read-only tools can run.' },
             { value: 'always', label: 'For every tool', description: 'Every tool action waits for your approval.' },
+            { value: 'full_auto', label: 'Never (full auto)', description: 'Every action runs right away, including changes, external writes and its own settings. Questions to you still appear.' },
           ]} /></Field>
         </SettingsSection>
         <SettingsSection title="Connections" description="Attach remote MCP servers from your registry. Connection changes apply from the next turn.">

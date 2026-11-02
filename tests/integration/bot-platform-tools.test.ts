@@ -189,6 +189,10 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     await gw.core.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: waiting.approvals[0]!.id, approve: false }));
     await eventually(() => read(refused.id), (s) => !s.working);
     expect((await gw.api.getThread({ threadId: disposable.id })).thread?.id).toBe(disposable.id);
+    const autoDisposable = (await gw.api.createThread({ projectId, workspaceId, provider: Provider.CODEX, providerProfileId: "platform-test", title: "Auto disposable" })).thread!;
+    // Full auto: the destructive action runs with no card.
+    await invoke("delete_thread", { thread_id: autoDisposable.id }, false, "full_auto");
+    expect((await gw.api.listThreads({ includeArchived: true })).threads.some((t) => t.id === autoDisposable.id)).toBe(false);
     await invoke("delete_thread", { thread_id: disposable.id }, true);
     expect((await gw.api.listThreads({ includeArchived: true })).threads.some((t) => t.id === disposable.id)).toBe(false);
     const project = (await gw.api.createProject({ name: "Archive me" })).project!;
