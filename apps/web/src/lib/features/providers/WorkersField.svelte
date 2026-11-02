@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import type { ui } from "@open-agents/contracts";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Fieldset from "#lib/shared/ui/Fieldset.svelte";
@@ -14,6 +15,7 @@
     error,
     disabled = false,
     onchange,
+    class: className,
   }: {
     workers: readonly ui.Worker[];
     allWorkers: boolean;
@@ -21,10 +23,11 @@
     error?: string | undefined;
     disabled?: boolean;
     onchange: (next: { allWorkers: boolean; workerIds: string[] }) => void;
+    class?: ClassValue;
   } = $props();
 </script>
 
-<Fieldset legend="Workers" description="Only these workers get the instance; elsewhere it is absent." {error} {disabled}>
+<Fieldset legend="Workers" description="Only these workers get the instance; elsewhere it is absent." {error} {disabled} class={className}>
   <Checkbox
     name="all-workers"
     label="All workers"

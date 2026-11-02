@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import type { ui } from "@open-agents/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -11,7 +12,7 @@
    * code): the worker starts it, the user opens the link anywhere and enters the code; the worker finishes it and
    * reports the login (the status line turns "Authenticated · ChatGPT").
    */
-  let { instance, worker, signedIn }: { instance: ui.ProviderInstance; worker: ui.Worker; signedIn: boolean } = $props();
+  let { instance, worker, signedIn, class: className }: { instance: ui.ProviderInstance; worker: ui.Worker; signedIn: boolean; class?: ClassValue } = $props();
 
   let code = $state<{ url: string; userCode: string }>();
   let busy = $state(false);
@@ -34,7 +35,7 @@
   }
 </script>
 
-<div class="grid gap-3">
+<div class={["grid gap-3", className]}>
   {#if code}
     <div class="grid gap-2 rounded-xl bg-zinc-950/2.5 p-4 dark:bg-white/2.5" in:rise>
       <p class="text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300">Open the link, sign in with ChatGPT and enter this code. It expires in 15 minutes.</p>

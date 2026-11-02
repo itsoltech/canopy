@@ -1,9 +1,10 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import { Provider, ProviderProfileKind, type ui } from "@open-agents/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import StatusDot from "#lib/shared/ui/StatusDot.svelte";
+  import InsetList from "#lib/shared/ui/InsetList.svelte";
   import { formatRelative } from "#lib/shared/format.ts";
   import DefinitionForm from "./DefinitionForm.svelte";
   import InstanceMark from "./InstanceMark.svelte";
@@ -13,6 +14,7 @@
   import OverrideForm from "./OverrideForm.svelte";
   import type { ProvidersState } from "./providers-state.svelte.ts";
   import SettingsSection from "./SettingsSection.svelte";
+  import StatusLine from "./StatusLine.svelte";
   import WorkersField from "./WorkersField.svelte";
 
   /**
@@ -26,12 +28,14 @@
     workers,
     state: providers,
     ondeleted,
+    class: className,
   }: {
     instance: ui.ProviderInstance;
     worker: ui.Worker | undefined;
     workers: readonly ui.Worker[];
     state: ProvidersState;
     ondeleted: () => void;
+    class?: ClassValue;
   } = $props();
 
   let failure = $state<string>();
@@ -68,7 +72,7 @@
   }
 </script>
 
-<div class="grid gap-8">
+<div class={["grid grid-cols-1 gap-8", className]}>
   <header class="flex items-start gap-3">
     <InstanceMark {instance} class="size-10" />
     <div class="min-w-0 flex-1">
@@ -88,7 +92,7 @@
       {@const status = statusOn(on, worker.online)}
       <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-base/6 sm:text-sm/6">
         <dt class="text-zinc-500 dark:text-zinc-400">On {worker.name}</dt>
-        <dd class="flex items-center gap-1.5 text-zinc-950 dark:text-white"><StatusDot tone={status.tone} />{status.label}</dd>
+        <dd class="text-zinc-950 dark:text-white"><StatusLine {status} /></dd>
         {#if on?.version}<dt class="text-zinc-500 dark:text-zinc-400">Version</dt><dd class="font-mono text-zinc-950 dark:text-white">{on.version}</dd>{/if}
         {#if on?.reported && !on.available && on.detail}<dt class="text-zinc-500 dark:text-zinc-400">Detail</dt><dd class="text-pretty text-zinc-950 dark:text-white">{on.detail}</dd>{/if}
         {#if on?.checkedAt}<dt class="text-zinc-500 dark:text-zinc-400">Checked</dt><dd class="text-zinc-950 dark:text-white">{formatRelative(on.checkedAt)}{on.synced ? "" : " · newer settings on their way"}</dd>{/if}
@@ -97,18 +101,18 @@
         <LoginPanel {instance} {worker} signedIn={on.authenticated} />
       {/if}
     {:else}
-      <ul role="list" class="divide-y divide-zinc-950/5 rounded-xl ring-1 ring-zinc-950/10 dark:divide-white/8 dark:ring-white/10">
+      <InsetList label="Status on each worker">
         {#each instance.workers as w (w.workerId)}
           {@const status = statusOn(w, onlineOf(w.workerId))}
           <li class="flex items-center gap-3 px-3 py-2.5">
             <span class="min-w-0 flex-1 truncate text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white">{nameOf(w.workerId)}</span>
             {#if w.version}<span class="shrink-0 font-mono text-sm/5 text-zinc-500 sm:text-xs/5">v{w.version}</span>{/if}
-            <span class="flex shrink-0 items-center gap-1.5 text-sm/5 text-zinc-600 dark:text-zinc-400"><StatusDot tone={status.tone} />{status.label}</span>
+            <StatusLine {status} class="shrink-0 text-sm/5 text-zinc-600 dark:text-zinc-400" />
           </li>
         {:else}
           <li class="px-3 py-2.5 text-base/6 text-zinc-500 sm:text-sm/6">No workers yet.</li>
         {/each}
-      </ul>
+      </InsetList>
       <WorkersField {workers} allWorkers={instance.allWorkers} workerIds={instance.workers.filter((w) => w.enabled).map((w) => w.workerId)} onchange={setWorkers} />
     {/if}
   </SettingsSection>

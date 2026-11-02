@@ -11,6 +11,7 @@
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import InsetList from "#lib/shared/ui/InsetList.svelte";
   import { pageSlide } from "#lib/shared/ui/motion.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { decode } from "#lib/shared/wire.ts";
@@ -101,15 +102,15 @@
   {/snippet}
 </SettingsHeading>
 
-<div class="grid gap-4">
+<div class="grid grid-cols-1 gap-4">
   <ScopeBar {workers} bind:scope />
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}
   {#if providers.skipped.length > 0}<Alert tone="info">Not checked: {providers.skipped.join("; ")}</Alert>{/if}
   {#if worker && !worker.online}<Alert tone="info">{worker.name} is offline. Changes are saved and reach it when it connects.</Alert>{/if}
 
-  <div class="grid gap-6 md:grid-cols-[15rem_minmax(0,1fr)] md:items-start">
+  <div class="grid grid-cols-1 gap-6 md:grid-cols-[16rem_minmax(0,1fr)] md:items-start">
     <nav aria-label="Provider instances" class={["md:sticky md:top-0", pane === "detail" && "max-md:hidden"]}>
-      <ul role="list" class="divide-y divide-zinc-950/5 overflow-hidden rounded-xl ring-1 ring-zinc-950/10 dark:divide-white/8 dark:ring-white/10">
+      <InsetList>
         {#each providers.instances as instance (instanceKeyOf(instance))}
           <li>
             <InstanceRow
@@ -122,13 +123,13 @@
             />
           </li>
         {/each}
-      </ul>
+      </InsetList>
     </nav>
 
-    <div class={["grid min-w-0", pane === "list" && "max-md:hidden"]}>
+    <div class={["grid min-w-0 grid-cols-1", pane === "list" && "max-md:hidden"]}>
       {#if selected}
         {#key `${instanceKeyOf(selected)}:${scope ?? ""}`}
-          <div class="col-start-1 row-start-1 grid min-w-0 gap-4" in:pageSlide>
+          <div class="col-start-1 row-start-1 grid min-w-0 grid-cols-1 gap-4" in:pageSlide>
             <button
               type="button"
               class="-ml-1 flex items-center gap-1 justify-self-start rounded-md px-1 text-base/6 text-zinc-600 hover:text-zinc-950 focus-ring md:hidden dark:text-zinc-400 dark:hover:text-white"

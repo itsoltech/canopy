@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import type { ui } from "@open-agents/contracts";
   import { untrack } from "svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -18,7 +19,7 @@
    * Saving makes new configuration versions for the workers it runs on. Threads keep the instance's id; an instance
    * threads use keeps its kind of connection.
    */
-  let { instance, onsaved }: { instance: ui.ProviderInstance; onsaved: (instance: ui.ProviderInstance | undefined) => void } = $props();
+  let { instance, onsaved, class: className }: { instance: ui.ProviderInstance; onsaved: (instance: ui.ProviderInstance | undefined) => void; class?: ClassValue } = $props();
 
   let draft = $state(untrack(() => draftOf(instance)));
   let tried = $state(false);
@@ -52,7 +53,7 @@
   }
 </script>
 
-<form class="grid gap-8" onsubmit={submit} novalidate>
+<form class={["grid gap-8", className]} onsubmit={submit} novalidate>
   <SettingsSection title="Identity">
     <div class="grid gap-4 sm:grid-cols-2">
       <Field label="Display name" error={shown.label}>

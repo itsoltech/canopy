@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import { Provider } from "@open-agents/contracts";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
@@ -16,6 +17,7 @@
     launchArgs = $bindable(""),
     inherited,
     prefix,
+    class: className,
   }: {
     harness: Provider;
     binaryPath: string;
@@ -25,13 +27,14 @@
     /** The definition's values (placeholders on a worker). */
     inherited?: { binaryPath: string; homePath: string; shadowHomePath: string; launchArgs: string } | undefined;
     prefix: string;
+    class?: ClassValue;
   } = $props();
 
   const codex = $derived(harness === Provider.CODEX);
   const hint = (value: string | undefined, fallback: string) => (inherited ? value || `Definition: ${fallback}` : fallback);
 </script>
 
-<div class="grid gap-4 sm:grid-cols-2">
+<div class={["grid gap-4 sm:grid-cols-2", className]}>
   <Field label="Binary path" description="Empty: {codex ? 'codex' : 'claude'} from the worker's settings or PATH.">
     <Input name="{prefix}-binary" bind:value={binaryPath} placeholder={hint(inherited?.binaryPath, codex ? "codex" : "claude")} autocomplete="off" spellcheck="false" class="font-mono" />
   </Field>

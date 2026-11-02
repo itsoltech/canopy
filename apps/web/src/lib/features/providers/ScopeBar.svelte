@@ -16,7 +16,7 @@
 
 <div class={["flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-zinc-950/2.5 px-3 py-2 dark:bg-white/2.5", className]}>
   <label for="provider-scope" class="text-base/6 text-zinc-600 sm:text-sm/6 dark:text-zinc-400">Applying settings on</label>
-  <Select id="provider-scope" name="provider-scope" bind:value={() => scope ?? "", (next: string) => (scope = next || undefined)} class="min-w-0 flex-1 sm:max-w-xs">
+  <Select id="provider-scope" name="provider-scope" bind:value={() => scope ?? "", (next: string) => (scope = next || undefined)} class="min-w-0 flex-1 basis-40 sm:max-w-xs">
     <option value="">All workers</option>
     {#each workers as worker (worker.id)}
       <option value={worker.id}>{worker.name} · {where(worker)}{worker.online ? "" : " (offline)"}</option>

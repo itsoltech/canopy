@@ -17,8 +17,9 @@ import { decode, encode } from "#lib/shared/wire.ts";
 export const instanceKeyOf = (instance: Pick<ui.ProviderInstance, "harness" | "id">): string => `${Provider[instance.harness]}:${instance.id}`;
 export const harnessName = (harness: Provider): string => (harness === Provider.CLAUDE ? "Claude" : "Codex");
 export const harnessKey = (harness: Provider): ProviderKey => providerKeyOf(harness) ?? "CODEX";
+/** The label, else the harness's name for the built-in device login (T3: "Codex", "Claude"), else the id. */
 export const instanceName = (instance: Pick<ui.ProviderInstance, "label" | "id" | "builtIn" | "harness">): string =>
-  instance.label || (instance.builtIn ? `${harnessName(instance.harness)} · device login` : instance.id);
+  instance.label || (instance.builtIn ? harnessName(instance.harness) : instance.id);
 export const kindLabel = (kind: ProviderProfileKind): string => (kind === ProviderProfileKind.CLIPROXYAPI ? "API endpoint" : "Device login");
 export const ruleKind = (kind: ProviderProfileKind): ProfileKind => (kind === ProviderProfileKind.CLIPROXYAPI ? "endpoint" : "native");
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);

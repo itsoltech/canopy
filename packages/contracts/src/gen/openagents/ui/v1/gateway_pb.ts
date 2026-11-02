@@ -2009,6 +2009,8 @@ export type UserSettings = Message<"openagents.ui.v1.UserSettings"> & {
   updatedAt?: Timestamp | undefined;
 
   /**
+   * Nieużywane od globalnych instancji dostawców: ulubione są w InstanceModels.favorites (migracja 0018 je przeniosła).
+   *
    * @generated from field: openagents.ui.v1.ModelFavorites model_favorites = 40;
    */
   modelFavorites?: ModelFavorites | undefined;
@@ -2316,7 +2318,7 @@ export type ListModelsRequest = Message<"openagents.ui.v1.ListModelsRequest"> & 
   refresh: boolean;
 
   /**
-   * Pełny katalog bez wyboru modeli profilu (ekran ustawień). Domyślnie modele odznaczone w wyborze mają hidden.
+   * Pełny katalog bez wyborów modeli instancji (ekran ustawień). Domyślnie modele ukryte w instancji mają hidden, własne dochodzą, ulubione są pierwsze.
    *
    * @generated from field: bool unfiltered = 100;
    */

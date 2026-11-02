@@ -1,11 +1,12 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import { Provider, ProviderProfileKind } from "@open-agents/contracts";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Fieldset from "#lib/shared/ui/Fieldset.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
-  import Radio from "#lib/shared/ui/Radio.svelte";
+  import ChoiceCard from "#lib/shared/ui/ChoiceCard.svelte";
   import type { KeyAction } from "./instances.ts";
   import SecretValue from "./SecretValue.svelte";
 
@@ -25,6 +26,7 @@
     kindLocked = false,
     errors,
     prefix,
+    class: className,
   }: {
     harness: Provider;
     kind: ProviderProfileKind;
@@ -36,6 +38,7 @@
     kindLocked?: boolean;
     errors: { baseUrl?: string | undefined; apiKey?: string | undefined };
     prefix: string;
+    class?: ClassValue;
   } = $props();
 
   const endpoint = $derived(kind === ProviderProfileKind.CLIPROXYAPI);
@@ -49,16 +52,10 @@
   ]);
 </script>
 
-<div class="grid gap-4">
+<div class={["grid gap-4", className]}>
   <Fieldset legend="Connection" disabled={kindLocked}>
     {#each options as option (option.value)}
-      <label class="flex gap-3 rounded-xl p-3 ring-1 ring-zinc-950/10 has-checked:bg-brand-50/50 has-checked:ring-brand-600/40 dark:ring-white/10 dark:has-checked:bg-brand-500/10 dark:has-checked:ring-brand-500/40">
-        <span class="flex h-lh items-center text-base/6 sm:text-sm/6"><Radio name="{prefix}-kind" value={option.value} checked={kind === option.value} onchange={() => (kind = option.value)} /></span>
-        <span class="min-w-0 text-base/6 sm:text-sm/6">
-          <span class="font-medium text-zinc-950 dark:text-white">{option.label}</span>
-          <span class="block text-pretty text-zinc-500 dark:text-zinc-400">{option.description}</span>
-        </span>
-      </label>
+      <ChoiceCard name="{prefix}-kind" checked={kind === option.value} title={option.label} description={option.description} onchange={() => (kind = option.value)} />
     {/each}
   </Fieldset>
   {#if endpoint}

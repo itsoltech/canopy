@@ -608,6 +608,7 @@ message UserSettings {
   // Rośnie przy każdej zmianie; 0 = jeszcze nie zapisane.
   uint64 version = 3;
   google.protobuf.Timestamp updated_at = 4;
+  // Nieużywane od globalnych instancji dostawców: ulubione są w InstanceModels.favorites (migracja 0018 je przeniosła).
   ModelFavorites model_favorites = 40;
 }
 
@@ -695,7 +696,7 @@ message ListModelsRequest {
   string worker_id = 1;
   // Lista od nowa z workera (musi być online); bez tego ostatni zapisany raport.
   bool refresh = 2;
-  // Pełny katalog bez wyboru modeli profilu (ekran ustawień). Domyślnie modele odznaczone w wyborze mają hidden.
+  // Pełny katalog bez wyborów modeli instancji (ekran ustawień). Domyślnie modele ukryte w instancji mają hidden, własne dochodzą, ulubione są pierwsze.
   bool unfiltered = 100;
 }
 

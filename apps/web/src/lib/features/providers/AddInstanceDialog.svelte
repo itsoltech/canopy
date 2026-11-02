@@ -1,8 +1,8 @@
 <script lang="ts">
   import { Provider, type ui } from "@open-agents/contracts";
-  import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import ChoiceCard from "#lib/shared/ui/ChoiceCard.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
@@ -11,7 +11,8 @@
   import { pageSlide } from "#lib/shared/ui/motion.ts";
   import AccentPicker from "./AccentPicker.svelte";
   import ConnectionFields from "./ConnectionFields.svelte";
-  import { draftProblems, harnessKey, harnessName, idFromLabel, newDraft, providerCall, saveRequest, type DraftProblems } from "./instances.ts";
+  import InstanceMark from "./InstanceMark.svelte";
+  import { draftProblems, harnessName, idFromLabel, newDraft, providerCall, saveRequest, type DraftProblems } from "./instances.ts";
   import RuntimeFields from "./RuntimeFields.svelte";
   import WorkersField from "./WorkersField.svelte";
 
@@ -124,14 +125,9 @@
             <fieldset class="grid gap-2">
               <legend class="sr-only">Provider</legend>
               {#each harnesses as h (h.value)}
-                <label class="flex items-center gap-3 rounded-xl p-3 ring-1 ring-zinc-950/10 has-checked:bg-brand-50/50 has-checked:ring-brand-600/40 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 dark:ring-white/10 dark:has-checked:bg-brand-500/10 dark:has-checked:ring-brand-500/40">
-                  <input type="radio" name="harness" class="sr-only" checked={draft.harness === h.value} onchange={() => (draft.harness = h.value)} />
-                  <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-white ring-1 ring-zinc-950/10 dark:bg-white/5 dark:ring-white/10"><ProviderIcon provider={harnessKey(h.value)} class="size-5" /></span>
-                  <span class="min-w-0 text-base/6 sm:text-sm/6">
-                    <span class="font-medium text-zinc-950 dark:text-white">{harnessName(h.value)}</span>
-                    <span class="block text-zinc-500 dark:text-zinc-400">{h.description}</span>
-                  </span>
-                </label>
+                <ChoiceCard name="harness" checked={draft.harness === h.value} title={harnessName(h.value)} description={h.description} onchange={() => (draft.harness = h.value)}>
+                  {#snippet leading()}<InstanceMark instance={{ harness: h.value, accentColor: "" }} class="size-9" />{/snippet}
+                </ChoiceCard>
               {/each}
             </fieldset>
           {:else if step === 1}

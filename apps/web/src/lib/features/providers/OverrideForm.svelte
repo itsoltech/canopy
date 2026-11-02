@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import { ProviderProfileKind, type ui } from "@open-agents/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -16,7 +17,12 @@
    * endpoint address or key (e.g. another network), and variables added or replaced by name. An empty field follows
    * the definition (shown as the placeholder). Saving makes a new configuration version for this worker only.
    */
-  let { instance, worker, onsaved }: { instance: ui.ProviderInstance; worker: ui.Worker; onsaved: (instance: ui.ProviderInstance | undefined) => void } = $props();
+  let {
+    instance,
+    worker,
+    onsaved,
+    class: className,
+  }: { instance: ui.ProviderInstance; worker: ui.Worker; onsaved: (instance: ui.ProviderInstance | undefined) => void; class?: ClassValue } = $props();
 
   const on = $derived(instance.workers.find((w) => w.workerId === worker.id));
   /** Text fields of the form; "" = follow the definition. */
@@ -32,9 +38,11 @@
   let tried = $state(false);
   let busy = $state(false);
   let failure = $state<string>();
+  // Back to the stored overrides whenever they change (after a save, or a change elsewhere).
   $effect.pre(() => {
-    draft = overrideDraftOf(on);
-    text = textOf(draft);
+    const stored = overrideDraftOf(on);
+    draft = stored;
+    text = textOf(stored);
     tried = false;
   });
 
@@ -72,7 +80,7 @@
   }
 </script>
 
-<form class="grid gap-8" onsubmit={submit} novalidate>
+<form class={["grid gap-8", className]} onsubmit={submit} novalidate>
   {#if endpoint}
     <SettingsSection title="Connection on {worker.name}" description="Empty: the definition's address and key.">
       <div class="grid gap-4">
@@ -109,7 +117,12 @@
 
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}
   <DialogActions>
-    <Button variant="ghost" onclick={() => ((draft = overrideDraftOf(on)), (text = textOf(draft)), (tried = false))}>Discard changes</Button>
+    <Button variant="ghost" onclick={() => {
+        const stored = overrideDraftOf(on);
+        draft = stored;
+        text = textOf(stored);
+        tried = false;
+      }}>Discard changes</Button>
     <Button type="submit" variant="primary" loading={busy}>Save for {worker.name}</Button>
   </DialogActions>
 </form>

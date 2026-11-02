@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import type { ModelInfo, ui } from "@open-agents/contracts";
   import { flip } from "svelte/animate";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -7,6 +8,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
+  import InsetList from "#lib/shared/ui/InsetList.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import { duration } from "#lib/shared/ui/motion.ts";
@@ -22,11 +24,13 @@
     catalog,
     models,
     onchange,
+    class: className,
   }: {
     /** The workers' catalog for this instance (unfiltered). */
     catalog: readonly ModelInfo[];
     models: ui.InstanceModels | undefined;
     onchange: (next: ui.InstanceModels) => Promise<void>;
+    class?: ClassValue;
   } = $props();
 
   let query = $state("");
@@ -61,7 +65,7 @@
   }
 </script>
 
-<div class="grid gap-4">
+<div class={["grid gap-4", className]}>
   <div class="flex flex-wrap items-center gap-2">
     <SearchField label="Filter models" name="model-filter" bind:value={query} placeholder="Filter models" class="min-w-0 flex-1 basis-48" />
     {#if counts.hidden < counts.all}
@@ -82,7 +86,7 @@
     {#if group.rows.length > 0}
       <section aria-label={group.title}>
         <h4 class="px-1 text-sm/6 font-medium text-zinc-500 sm:text-xs/6 dark:text-zinc-400">{group.title}</h4>
-        <ul role="list" class="mt-1 divide-y divide-zinc-950/5 rounded-xl ring-1 ring-zinc-950/10 dark:divide-white/8 dark:ring-white/10">
+        <InsetList class="mt-1">
           {#each group.rows as row (row.id)}
             {@const index = favoriteIds.indexOf(row.id)}
             <li class="flex items-center gap-2 py-2 pr-3 pl-1.5" animate:flip={{ duration: duration("fast") }}>
@@ -113,7 +117,7 @@
               <Switch name="model-{row.id}-shown" label="Show {row.name} in the picker" checked={!row.hidden} onchange={(on) => change(withVisibility(current, row as ModelRow, on))} />
             </li>
           {/each}
-        </ul>
+        </InsetList>
       </section>
     {/if}
   {/each}
