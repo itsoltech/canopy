@@ -10,4 +10,5 @@
   const tokens = $derived(snippetTokens(text));
 </script>
 
-<MarkdownInline {tokens} />
+<!-- Bold stays bold but a step under the full text colour: a preview is muted as a whole. -->
+<span class="[&_strong]:text-zinc-700 dark:[&_strong]:text-zinc-200"><MarkdownInline {tokens} /></span>
