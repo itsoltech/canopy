@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file openagents/ui/v1/bots.proto.
  */
 export const file_openagents_ui_v1_bots: GenFile = /*@__PURE__*/
-  fileDesc("ChtvcGVuYWdlbnRzL3VpL3YxL2JvdHMucHJvdG8SEG9wZW5hZ2VudHMudWkudjEi8QEKEEJvdENvbmZpZ3VyYXRpb24SDAoEbmFtZRgBIAEoCRINCgVzaGFwZRgCIAEoCRINCgVjb2xvchgDIAEoCRIwCghwcm92aWRlchgEIAEoDjIeLm9wZW5hZ2VudHMud29ya2VyLnYxLlByb3ZpZGVyEhkKEXByb3ZpZGVyX2luc3RhbmNlGAUgASgJEg0KBW1vZGVsGAYgASgJEg4KBmVmZm9ydBgHIAEoCRIUCgxpbnN0cnVjdGlvbnMYCCABKAkSFgoObWNwX3NlcnZlcl9pZHMYCSADKAkSFwoPYXBwcm92YWxfcG9saWN5GAogASgJIvQBCgNCb3QSCgoCaWQYASABKAkSOQoNY29uZmlndXJhdGlvbhgCIAEoCzIiLm9wZW5hZ2VudHMudWkudjEuQm90Q29uZmlndXJhdGlvbhIuCgpjcmVhdGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIzCgxsYXN0X21lc3NhZ2UY3gIgASgLMhwub3BlbmFnZW50cy51aS52MS5Cb3RNZXNzYWdlEhEKCGFyY2hpdmVkGK4DIAEoCCLpAgoKQm90TWVzc2FnZRIKCgJpZBgBIAEoCRILCgNzZXEYAiABKAQSDgoGYm90X2lkGAMgASgJEhEKCXNlbmRlcl9pZBgEIAEoCRIUCgxyZWNpcGllbnRfaWQYBSABKAkSDAoEa2luZBgGIAEoCRIMCgR0ZXh0GAcgASgJEhMKC2V4Y2hhbmdlX2lkGAggASgJEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmZhaWxlZBgKIAEoCBI8Cg9zZXR0aW5nX2NoYW5nZXMYrgMgAygLMiIub3BlbmFnZW50cy51aS52MS5Cb3RTZXR0aW5nQ2hhbmdlEjAKCG1lbnRpb25zGMIDIAMoCzIdLm9wZW5hZ2VudHMud29ya2VyLnYxLk1lbnRpb24SKAoGcXVvdGVzGMMDIAMoCzIXLm9wZW5hZ2VudHMudWkudjEuUXVvdGUiQAoQQm90U2V0dGluZ0NoYW5nZRINCgVmaWVsZBgBIAEoCRIOCgZiZWZvcmUYAiABKAkSDQoFYWZ0ZXIYAyABKAkiuQEKC0JvdEFwcHJvdmFsEgoKAmlkGAEgASgJEg4KBmJvdF9pZBgCIAEoCRIPCgd0dXJuX2lkGAMgASgJEgwKBGtpbmQYBCABKAkSDgoGcHJvbXB0GAUgASgJEg4KBnN0YXR1cxgGIAEoCRIOCgZhbnN3ZXIYByABKAkSLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHb3B0aW9ucxgJIAMoCSLPAQoPQm90Q29udmVyc2F0aW9uEiIKA2JvdBgBIAEoCzIVLm9wZW5hZ2VudHMudWkudjEuQm90Ei4KCG1lc3NhZ2VzGAIgAygLMhwub3BlbmFnZW50cy51aS52MS5Cb3RNZXNzYWdlEjAKCWFwcHJvdmFscxgDIAMoCzIdLm9wZW5hZ2VudHMudWkudjEuQm90QXBwcm92YWwSEwoLc3RhdHVzX2xpbmUYBCABKAkSDwoHd29ya2luZxgFIAEoCBIQCghyZXZpc2lvbhgGIAEoBCJoChBDcmVhdGVCb3RSZXF1ZXN0EjkKDWNvbmZpZ3VyYXRpb24YASABKAsyIi5vcGVuYWdlbnRzLnVpLnYxLkJvdENvbmZpZ3VyYXRpb24SGQoRY2xpZW50X3JlcXVlc3RfaWQYAiABKAkiXQoQVXBkYXRlQm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkSOQoNY29uZmlndXJhdGlvbhgCIAEoCzIiLm9wZW5hZ2VudHMudWkudjEuQm90Q29uZmlndXJhdGlvbiIfCg1HZXRCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSI0Cg5HZXRCb3RSZXNwb25zZRIiCgNib3QYASABKAsyFS5vcGVuYWdlbnRzLnVpLnYxLkJvdCIsCg9MaXN0Qm90c1JlcXVlc3QSGQoQaW5jbHVkZV9hcmNoaXZlZBiuAyABKAgiNwoQTGlzdEJvdHNSZXNwb25zZRIjCgRib3RzGAEgAygLMhUub3BlbmFnZW50cy51aS52MS5Cb3QiIgoQRGVsZXRlQm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkiEwoRRGVsZXRlQm90UmVzcG9uc2UiIwoRQXJjaGl2ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIiUKE1VuYXJjaGl2ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIqwBChVTZW5kQm90TWVzc2FnZVJlcXVlc3QSDgoGYm90X2lkGAEgASgJEgwKBHRleHQYAiABKAkSGQoRY2xpZW50X3JlcXVlc3RfaWQYAyABKAkSMAoIbWVudGlvbnMYwgMgAygLMh0ub3BlbmFnZW50cy53b3JrZXIudjEuTWVudGlvbhIoCgZxdW90ZXMYwwMgAygLMhcub3BlbmFnZW50cy51aS52MS5RdW90ZSIpChZTZW5kQm90TWVzc2FnZVJlc3BvbnNlEg8KB3R1cm5faWQYASABKAkiLQobV2F0Y2hCb3RDb252ZXJzYXRpb25SZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSItChZSZWFkQm90RXhjaGFuZ2VSZXF1ZXN0EhMKC2V4Y2hhbmdlX2lkGAEgASgJIkkKF1JlYWRCb3RFeGNoYW5nZVJlc3BvbnNlEi4KCG1lc3NhZ2VzGAEgAygLMhwub3BlbmFnZW50cy51aS52MS5Cb3RNZXNzYWdlIlAKGEFuc3dlckJvdEFwcHJvdmFsUmVxdWVzdBITCgthcHByb3ZhbF9pZBgBIAEoCRIPCgdhcHByb3ZlGAIgASgIEg4KBmFuc3dlchgDIAEoCSJMChlBbnN3ZXJCb3RBcHByb3ZhbFJlc3BvbnNlEi8KCGFwcHJvdmFsGAEgASgLMh0ub3BlbmFnZW50cy51aS52MS5Cb3RBcHByb3ZhbCIlChNJbnRlcnJ1cHRCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIWChRJbnRlcnJ1cHRCb3RSZXNwb25zZSIhCg9SZXRyeUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhIKEFJldHJ5Qm90UmVzcG9uc2UigAEKDEJvdE1jcFNlcnZlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkSDwoHZW5hYmxlZBgFIAEoCBIUCgxoZWFkZXJfbmFtZXMYBiADKAkSDwoHYm90X2lkcxgHIAMoCSL0AQoXU2F2ZUJvdE1jcFNlcnZlclJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRILCgN1cmwYAyABKAkSEQoJdHJhbnNwb3J0GAQgASgJEg8KB2VuYWJsZWQYBSABKAgSRwoHaGVhZGVycxgGIAMoCzI2Lm9wZW5hZ2VudHMudWkudjEuU2F2ZUJvdE1jcFNlcnZlclJlcXVlc3QuSGVhZGVyc0VudHJ5EhUKDWNsZWFyX2hlYWRlcnMYByABKAgaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiSgoYU2F2ZUJvdE1jcFNlcnZlclJlc3BvbnNlEi4KBnNlcnZlchgBIAEoCzIeLm9wZW5hZ2VudHMudWkudjEuQm90TWNwU2VydmVyIhoKGExpc3RCb3RNY3BTZXJ2ZXJzUmVxdWVzdCJMChlMaXN0Qm90TWNwU2VydmVyc1Jlc3BvbnNlEi8KB3NlcnZlcnMYASADKAsyHi5vcGVuYWdlbnRzLnVpLnYxLkJvdE1jcFNlcnZlciIuChlEZWxldGVCb3RNY3BTZXJ2ZXJSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSIcChpEZWxldGVCb3RNY3BTZXJ2ZXJSZXNwb25zZSIsChdUZXN0Qm90TWNwU2VydmVyUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiQgoKQm90TWNwVG9vbBIMCgRuYW1lGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEhEKCXJlYWRfb25seRgDIAEoCCJHChhUZXN0Qm90TWNwU2VydmVyUmVzcG9uc2USKwoFdG9vbHMYASADKAsyHC5vcGVuYWdlbnRzLnVpLnYxLkJvdE1jcFRvb2xiBnByb3RvMw", [file_google_protobuf_timestamp, file_openagents_worker_v1_worker_link, file_openagents_ui_v1_quotes]);
+  fileDesc("ChtvcGVuYWdlbnRzL3VpL3YxL2JvdHMucHJvdG8SEG9wZW5hZ2VudHMudWkudjEi8QEKEEJvdENvbmZpZ3VyYXRpb24SDAoEbmFtZRgBIAEoCRINCgVzaGFwZRgCIAEoCRINCgVjb2xvchgDIAEoCRIwCghwcm92aWRlchgEIAEoDjIeLm9wZW5hZ2VudHMud29ya2VyLnYxLlByb3ZpZGVyEhkKEXByb3ZpZGVyX2luc3RhbmNlGAUgASgJEg0KBW1vZGVsGAYgASgJEg4KBmVmZm9ydBgHIAEoCRIUCgxpbnN0cnVjdGlvbnMYCCABKAkSFgoObWNwX3NlcnZlcl9pZHMYCSADKAkSFwoPYXBwcm92YWxfcG9saWN5GAogASgJIrsCCgNCb3QSCgoCaWQYASABKAkSOQoNY29uZmlndXJhdGlvbhgCIAEoCzIiLm9wZW5hZ2VudHMudWkudjEuQm90Q29uZmlndXJhdGlvbhIuCgpjcmVhdGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIzCgxsYXN0X21lc3NhZ2UY3gIgASgLMhwub3BlbmFnZW50cy51aS52MS5Cb3RNZXNzYWdlEhEKCGFyY2hpdmVkGK4DIAEoCBIWCg1vd25lcl91c2VyX2lkGLAEIAEoCRIVCgx1bnJlYWRfY291bnQYsQQgASgNEhYKDWxhc3RfcmVhZF9zZXEYsgQgASgEIukCCgpCb3RNZXNzYWdlEgoKAmlkGAEgASgJEgsKA3NlcRgCIAEoBBIOCgZib3RfaWQYAyABKAkSEQoJc2VuZGVyX2lkGAQgASgJEhQKDHJlY2lwaWVudF9pZBgFIAEoCRIMCgRraW5kGAYgASgJEgwKBHRleHQYByABKAkSEwoLZXhjaGFuZ2VfaWQYCCABKAkSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGZmFpbGVkGAogASgIEjwKD3NldHRpbmdfY2hhbmdlcxiuAyADKAsyIi5vcGVuYWdlbnRzLnVpLnYxLkJvdFNldHRpbmdDaGFuZ2USMAoIbWVudGlvbnMYwgMgAygLMh0ub3BlbmFnZW50cy53b3JrZXIudjEuTWVudGlvbhIoCgZxdW90ZXMYwwMgAygLMhcub3BlbmFnZW50cy51aS52MS5RdW90ZSJAChBCb3RTZXR0aW5nQ2hhbmdlEg0KBWZpZWxkGAEgASgJEg4KBmJlZm9yZRgCIAEoCRINCgVhZnRlchgDIAEoCSLRAQoLQm90QXBwcm92YWwSCgoCaWQYASABKAkSDgoGYm90X2lkGAIgASgJEg8KB3R1cm5faWQYAyABKAkSDAoEa2luZBgEIAEoCRIOCgZwcm9tcHQYBSABKAkSDgoGc3RhdHVzGAYgASgJEg4KBmFuc3dlchgHIAEoCRIuCgpjcmVhdGVkX2F0GAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdvcHRpb25zGAkgAygJEhYKDXJvdXRpbmVfdGl0bGUYsAQgASgJIrMCCg9Cb3RDb252ZXJzYXRpb24SIgoDYm90GAEgASgLMhUub3BlbmFnZW50cy51aS52MS5Cb3QSLgoIbWVzc2FnZXMYAiADKAsyHC5vcGVuYWdlbnRzLnVpLnYxLkJvdE1lc3NhZ2USMAoJYXBwcm92YWxzGAMgAygLMh0ub3BlbmFnZW50cy51aS52MS5Cb3RBcHByb3ZhbBITCgtzdGF0dXNfbGluZRgEIAEoCRIPCgd3b3JraW5nGAUgASgIEhAKCHJldmlzaW9uGAYgASgEEi8KCHJvdXRpbmVzGLAEIAMoCzIcLm9wZW5hZ2VudHMudWkudjEuQm90Um91dGluZRIxCglyZW1pbmRlcnMYsQQgAygLMh0ub3BlbmFnZW50cy51aS52MS5Cb3RSZW1pbmRlciKAAwoKQm90Um91dGluZRIKCgJpZBgBIAEoCRIOCgZib3RfaWQYAiABKAkSDQoFdGl0bGUYAyABKAkSFAoMaW5zdHJ1Y3Rpb25zGAQgASgJEgwKBGNyb24YBSABKAkSEAoIdGltZXpvbmUYBiABKAkSFQoNc2NoZWR1bGVfdGV4dBgHIAEoCRIPCgdlbmFibGVkGAggASgIEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2xhc3RfcnVuX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtuZXh0X3J1bl9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMbGFzdF9vdXRjb21lGA0gASgJEhEKCXJ1bl9jb3VudBgOIAEoDSJVCgtCb3RSZW1pbmRlchIKCgJpZBgBIAEoCRIOCgZwcm9tcHQYAiABKAkSKgoGcnVuX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJSChtTZXRCb3RSb3V0aW5lRW5hYmxlZFJlcXVlc3QSDgoGYm90X2lkGAEgASgJEhIKCnJvdXRpbmVfaWQYAiABKAkSDwoHZW5hYmxlZBgDIAEoCCI9ChdEZWxldGVCb3RSb3V0aW5lUmVxdWVzdBIOCgZib3RfaWQYASABKAkSEgoKcm91dGluZV9pZBgCIAEoCSJDChJCb3RSb3V0aW5lUmVzcG9uc2USLQoHcm91dGluZRgBIAEoCzIcLm9wZW5hZ2VudHMudWkudjEuQm90Um91dGluZSIaChhEZWxldGVCb3RSb3V0aW5lUmVzcG9uc2UiPwoYQ2FuY2VsQm90UmVtaW5kZXJSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRITCgtyZW1pbmRlcl9pZBgCIAEoCSIbChlDYW5jZWxCb3RSZW1pbmRlclJlc3BvbnNlIjkKEk1hcmtCb3RSZWFkUmVxdWVzdBIOCgZib3RfaWQYASABKAkSEwoLdGhyb3VnaF9zZXEYAiABKAQiaAoQQ3JlYXRlQm90UmVxdWVzdBI5Cg1jb25maWd1cmF0aW9uGAEgASgLMiIub3BlbmFnZW50cy51aS52MS5Cb3RDb25maWd1cmF0aW9uEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJIl0KEFVwZGF0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJEjkKDWNvbmZpZ3VyYXRpb24YAiABKAsyIi5vcGVuYWdlbnRzLnVpLnYxLkJvdENvbmZpZ3VyYXRpb24iHwoNR2V0Qm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkiNAoOR2V0Qm90UmVzcG9uc2USIgoDYm90GAEgASgLMhUub3BlbmFnZW50cy51aS52MS5Cb3QiLAoPTGlzdEJvdHNSZXF1ZXN0EhkKEGluY2x1ZGVfYXJjaGl2ZWQYrgMgASgIIjcKEExpc3RCb3RzUmVzcG9uc2USIwoEYm90cxgBIAMoCzIVLm9wZW5hZ2VudHMudWkudjEuQm90IiIKEERlbGV0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhMKEURlbGV0ZUJvdFJlc3BvbnNlIiMKEUFyY2hpdmVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIlChNVbmFyY2hpdmVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSKsAQoVU2VuZEJvdE1lc3NhZ2VSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRIMCgR0ZXh0GAIgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAMgASgJEjAKCG1lbnRpb25zGMIDIAMoCzIdLm9wZW5hZ2VudHMud29ya2VyLnYxLk1lbnRpb24SKAoGcXVvdGVzGMMDIAMoCzIXLm9wZW5hZ2VudHMudWkudjEuUXVvdGUiKQoWU2VuZEJvdE1lc3NhZ2VSZXNwb25zZRIPCgd0dXJuX2lkGAEgASgJIi0KG1dhdGNoQm90Q29udmVyc2F0aW9uUmVxdWVzdBIOCgZib3RfaWQYASABKAkiLQoWUmVhZEJvdEV4Y2hhbmdlUmVxdWVzdBITCgtleGNoYW5nZV9pZBgBIAEoCSJJChdSZWFkQm90RXhjaGFuZ2VSZXNwb25zZRIuCghtZXNzYWdlcxgBIAMoCzIcLm9wZW5hZ2VudHMudWkudjEuQm90TWVzc2FnZSJQChhBbnN3ZXJCb3RBcHByb3ZhbFJlcXVlc3QSEwoLYXBwcm92YWxfaWQYASABKAkSDwoHYXBwcm92ZRgCIAEoCBIOCgZhbnN3ZXIYAyABKAkiTAoZQW5zd2VyQm90QXBwcm92YWxSZXNwb25zZRIvCghhcHByb3ZhbBgBIAEoCzIdLm9wZW5hZ2VudHMudWkudjEuQm90QXBwcm92YWwiJQoTSW50ZXJydXB0Qm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkiFgoUSW50ZXJydXB0Qm90UmVzcG9uc2UiIQoPUmV0cnlCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSISChBSZXRyeUJvdFJlc3BvbnNlIoABCgxCb3RNY3BTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRILCgN1cmwYAyABKAkSEQoJdHJhbnNwb3J0GAQgASgJEg8KB2VuYWJsZWQYBSABKAgSFAoMaGVhZGVyX25hbWVzGAYgAygJEg8KB2JvdF9pZHMYByADKAki9AEKF1NhdmVCb3RNY3BTZXJ2ZXJSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSCwoDdXJsGAMgASgJEhEKCXRyYW5zcG9ydBgEIAEoCRIPCgdlbmFibGVkGAUgASgIEkcKB2hlYWRlcnMYBiADKAsyNi5vcGVuYWdlbnRzLnVpLnYxLlNhdmVCb3RNY3BTZXJ2ZXJSZXF1ZXN0LkhlYWRlcnNFbnRyeRIVCg1jbGVhcl9oZWFkZXJzGAcgASgIGi4KDEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkoKGFNhdmVCb3RNY3BTZXJ2ZXJSZXNwb25zZRIuCgZzZXJ2ZXIYASABKAsyHi5vcGVuYWdlbnRzLnVpLnYxLkJvdE1jcFNlcnZlciIaChhMaXN0Qm90TWNwU2VydmVyc1JlcXVlc3QiTAoZTGlzdEJvdE1jcFNlcnZlcnNSZXNwb25zZRIvCgdzZXJ2ZXJzGAEgAygLMh4ub3BlbmFnZW50cy51aS52MS5Cb3RNY3BTZXJ2ZXIiLgoZRGVsZXRlQm90TWNwU2VydmVyUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiHAoaRGVsZXRlQm90TWNwU2VydmVyUmVzcG9uc2UiLAoXVGVzdEJvdE1jcFNlcnZlclJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIkIKCkJvdE1jcFRvb2wSDAoEbmFtZRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIRCglyZWFkX29ubHkYAyABKAgiRwoYVGVzdEJvdE1jcFNlcnZlclJlc3BvbnNlEisKBXRvb2xzGAEgAygLMhwub3BlbmFnZW50cy51aS52MS5Cb3RNY3BUb29sYgZwcm90bzM", [file_google_protobuf_timestamp, file_openagents_worker_v1_worker_link, file_openagents_ui_v1_quotes]);
 
 /**
  * @generated from message openagents.ui.v1.BotConfiguration
@@ -119,6 +119,21 @@ export type Bot = Message<"openagents.ui.v1.Bot"> & {
    * @generated from field: bool archived = 430;
    */
   archived: boolean;
+
+  /**
+   * @generated from field: string owner_user_id = 560;
+   */
+  ownerUserId: string;
+
+  /**
+   * @generated from field: uint32 unread_count = 561;
+   */
+  unreadCount: number;
+
+  /**
+   * @generated from field: uint64 last_read_seq = 562;
+   */
+  lastReadSeq: bigint;
 };
 
 /**
@@ -294,6 +309,11 @@ export type BotApproval = Message<"openagents.ui.v1.BotApproval"> & {
    * @generated from field: repeated string options = 9;
    */
   options: string[];
+
+  /**
+   * @generated from field: string routine_title = 560;
+   */
+  routineTitle: string;
 };
 
 /**
@@ -336,6 +356,16 @@ export type BotConversation = Message<"openagents.ui.v1.BotConversation"> & {
    * @generated from field: uint64 revision = 6;
    */
   revision: bigint;
+
+  /**
+   * @generated from field: repeated openagents.ui.v1.BotRoutine routines = 560;
+   */
+  routines: BotRoutine[];
+
+  /**
+   * @generated from field: repeated openagents.ui.v1.BotReminder reminders = 561;
+   */
+  reminders: BotReminder[];
 };
 
 /**
@@ -344,6 +374,251 @@ export type BotConversation = Message<"openagents.ui.v1.BotConversation"> & {
  */
 export const BotConversationSchema: GenMessage<BotConversation> = /*@__PURE__*/
   messageDesc(file_openagents_ui_v1_bots, 5);
+
+/**
+ * @generated from message openagents.ui.v1.BotRoutine
+ */
+export type BotRoutine = Message<"openagents.ui.v1.BotRoutine"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string bot_id = 2;
+   */
+  botId: string;
+
+  /**
+   * @generated from field: string title = 3;
+   */
+  title: string;
+
+  /**
+   * @generated from field: string instructions = 4;
+   */
+  instructions: string;
+
+  /**
+   * @generated from field: string cron = 5;
+   */
+  cron: string;
+
+  /**
+   * @generated from field: string timezone = 6;
+   */
+  timezone: string;
+
+  /**
+   * @generated from field: string schedule_text = 7;
+   */
+  scheduleText: string;
+
+  /**
+   * @generated from field: bool enabled = 8;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 9;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 10;
+   */
+  updatedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp last_run_at = 11;
+   */
+  lastRunAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp next_run_at = 12;
+   */
+  nextRunAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string last_outcome = 13;
+   */
+  lastOutcome: string;
+
+  /**
+   * @generated from field: uint32 run_count = 14;
+   */
+  runCount: number;
+};
+
+/**
+ * Describes the message openagents.ui.v1.BotRoutine.
+ * Use `create(BotRoutineSchema)` to create a new message.
+ */
+export const BotRoutineSchema: GenMessage<BotRoutine> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 6);
+
+/**
+ * @generated from message openagents.ui.v1.BotReminder
+ */
+export type BotReminder = Message<"openagents.ui.v1.BotReminder"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string prompt = 2;
+   */
+  prompt: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp run_at = 3;
+   */
+  runAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message openagents.ui.v1.BotReminder.
+ * Use `create(BotReminderSchema)` to create a new message.
+ */
+export const BotReminderSchema: GenMessage<BotReminder> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 7);
+
+/**
+ * @generated from message openagents.ui.v1.SetBotRoutineEnabledRequest
+ */
+export type SetBotRoutineEnabledRequest = Message<"openagents.ui.v1.SetBotRoutineEnabledRequest"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+
+  /**
+   * @generated from field: string routine_id = 2;
+   */
+  routineId: string;
+
+  /**
+   * @generated from field: bool enabled = 3;
+   */
+  enabled: boolean;
+};
+
+/**
+ * Describes the message openagents.ui.v1.SetBotRoutineEnabledRequest.
+ * Use `create(SetBotRoutineEnabledRequestSchema)` to create a new message.
+ */
+export const SetBotRoutineEnabledRequestSchema: GenMessage<SetBotRoutineEnabledRequest> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 8);
+
+/**
+ * @generated from message openagents.ui.v1.DeleteBotRoutineRequest
+ */
+export type DeleteBotRoutineRequest = Message<"openagents.ui.v1.DeleteBotRoutineRequest"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+
+  /**
+   * @generated from field: string routine_id = 2;
+   */
+  routineId: string;
+};
+
+/**
+ * Describes the message openagents.ui.v1.DeleteBotRoutineRequest.
+ * Use `create(DeleteBotRoutineRequestSchema)` to create a new message.
+ */
+export const DeleteBotRoutineRequestSchema: GenMessage<DeleteBotRoutineRequest> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 9);
+
+/**
+ * @generated from message openagents.ui.v1.BotRoutineResponse
+ */
+export type BotRoutineResponse = Message<"openagents.ui.v1.BotRoutineResponse"> & {
+  /**
+   * @generated from field: openagents.ui.v1.BotRoutine routine = 1;
+   */
+  routine?: BotRoutine | undefined;
+};
+
+/**
+ * Describes the message openagents.ui.v1.BotRoutineResponse.
+ * Use `create(BotRoutineResponseSchema)` to create a new message.
+ */
+export const BotRoutineResponseSchema: GenMessage<BotRoutineResponse> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 10);
+
+/**
+ * @generated from message openagents.ui.v1.DeleteBotRoutineResponse
+ */
+export type DeleteBotRoutineResponse = Message<"openagents.ui.v1.DeleteBotRoutineResponse"> & {
+};
+
+/**
+ * Describes the message openagents.ui.v1.DeleteBotRoutineResponse.
+ * Use `create(DeleteBotRoutineResponseSchema)` to create a new message.
+ */
+export const DeleteBotRoutineResponseSchema: GenMessage<DeleteBotRoutineResponse> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 11);
+
+/**
+ * @generated from message openagents.ui.v1.CancelBotReminderRequest
+ */
+export type CancelBotReminderRequest = Message<"openagents.ui.v1.CancelBotReminderRequest"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+
+  /**
+   * @generated from field: string reminder_id = 2;
+   */
+  reminderId: string;
+};
+
+/**
+ * Describes the message openagents.ui.v1.CancelBotReminderRequest.
+ * Use `create(CancelBotReminderRequestSchema)` to create a new message.
+ */
+export const CancelBotReminderRequestSchema: GenMessage<CancelBotReminderRequest> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 12);
+
+/**
+ * @generated from message openagents.ui.v1.CancelBotReminderResponse
+ */
+export type CancelBotReminderResponse = Message<"openagents.ui.v1.CancelBotReminderResponse"> & {
+};
+
+/**
+ * Describes the message openagents.ui.v1.CancelBotReminderResponse.
+ * Use `create(CancelBotReminderResponseSchema)` to create a new message.
+ */
+export const CancelBotReminderResponseSchema: GenMessage<CancelBotReminderResponse> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 13);
+
+/**
+ * @generated from message openagents.ui.v1.MarkBotReadRequest
+ */
+export type MarkBotReadRequest = Message<"openagents.ui.v1.MarkBotReadRequest"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+
+  /**
+   * @generated from field: uint64 through_seq = 2;
+   */
+  throughSeq: bigint;
+};
+
+/**
+ * Describes the message openagents.ui.v1.MarkBotReadRequest.
+ * Use `create(MarkBotReadRequestSchema)` to create a new message.
+ */
+export const MarkBotReadRequestSchema: GenMessage<MarkBotReadRequest> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 14);
 
 /**
  * @generated from message openagents.ui.v1.CreateBotRequest
@@ -365,7 +640,7 @@ export type CreateBotRequest = Message<"openagents.ui.v1.CreateBotRequest"> & {
  * Use `create(CreateBotRequestSchema)` to create a new message.
  */
 export const CreateBotRequestSchema: GenMessage<CreateBotRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 6);
+  messageDesc(file_openagents_ui_v1_bots, 15);
 
 /**
  * @generated from message openagents.ui.v1.UpdateBotRequest
@@ -387,7 +662,7 @@ export type UpdateBotRequest = Message<"openagents.ui.v1.UpdateBotRequest"> & {
  * Use `create(UpdateBotRequestSchema)` to create a new message.
  */
 export const UpdateBotRequestSchema: GenMessage<UpdateBotRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 7);
+  messageDesc(file_openagents_ui_v1_bots, 16);
 
 /**
  * @generated from message openagents.ui.v1.GetBotRequest
@@ -404,7 +679,7 @@ export type GetBotRequest = Message<"openagents.ui.v1.GetBotRequest"> & {
  * Use `create(GetBotRequestSchema)` to create a new message.
  */
 export const GetBotRequestSchema: GenMessage<GetBotRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 8);
+  messageDesc(file_openagents_ui_v1_bots, 17);
 
 /**
  * @generated from message openagents.ui.v1.GetBotResponse
@@ -421,7 +696,7 @@ export type GetBotResponse = Message<"openagents.ui.v1.GetBotResponse"> & {
  * Use `create(GetBotResponseSchema)` to create a new message.
  */
 export const GetBotResponseSchema: GenMessage<GetBotResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 9);
+  messageDesc(file_openagents_ui_v1_bots, 18);
 
 /**
  * @generated from message openagents.ui.v1.ListBotsRequest
@@ -438,7 +713,7 @@ export type ListBotsRequest = Message<"openagents.ui.v1.ListBotsRequest"> & {
  * Use `create(ListBotsRequestSchema)` to create a new message.
  */
 export const ListBotsRequestSchema: GenMessage<ListBotsRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 10);
+  messageDesc(file_openagents_ui_v1_bots, 19);
 
 /**
  * @generated from message openagents.ui.v1.ListBotsResponse
@@ -455,7 +730,7 @@ export type ListBotsResponse = Message<"openagents.ui.v1.ListBotsResponse"> & {
  * Use `create(ListBotsResponseSchema)` to create a new message.
  */
 export const ListBotsResponseSchema: GenMessage<ListBotsResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 11);
+  messageDesc(file_openagents_ui_v1_bots, 20);
 
 /**
  * @generated from message openagents.ui.v1.DeleteBotRequest
@@ -472,7 +747,7 @@ export type DeleteBotRequest = Message<"openagents.ui.v1.DeleteBotRequest"> & {
  * Use `create(DeleteBotRequestSchema)` to create a new message.
  */
 export const DeleteBotRequestSchema: GenMessage<DeleteBotRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 12);
+  messageDesc(file_openagents_ui_v1_bots, 21);
 
 /**
  * @generated from message openagents.ui.v1.DeleteBotResponse
@@ -485,7 +760,7 @@ export type DeleteBotResponse = Message<"openagents.ui.v1.DeleteBotResponse"> & 
  * Use `create(DeleteBotResponseSchema)` to create a new message.
  */
 export const DeleteBotResponseSchema: GenMessage<DeleteBotResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 13);
+  messageDesc(file_openagents_ui_v1_bots, 22);
 
 /**
  * @generated from message openagents.ui.v1.ArchiveBotRequest
@@ -502,7 +777,7 @@ export type ArchiveBotRequest = Message<"openagents.ui.v1.ArchiveBotRequest"> & 
  * Use `create(ArchiveBotRequestSchema)` to create a new message.
  */
 export const ArchiveBotRequestSchema: GenMessage<ArchiveBotRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 14);
+  messageDesc(file_openagents_ui_v1_bots, 23);
 
 /**
  * @generated from message openagents.ui.v1.UnarchiveBotRequest
@@ -519,7 +794,7 @@ export type UnarchiveBotRequest = Message<"openagents.ui.v1.UnarchiveBotRequest"
  * Use `create(UnarchiveBotRequestSchema)` to create a new message.
  */
 export const UnarchiveBotRequestSchema: GenMessage<UnarchiveBotRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 15);
+  messageDesc(file_openagents_ui_v1_bots, 24);
 
 /**
  * @generated from message openagents.ui.v1.SendBotMessageRequest
@@ -556,7 +831,7 @@ export type SendBotMessageRequest = Message<"openagents.ui.v1.SendBotMessageRequ
  * Use `create(SendBotMessageRequestSchema)` to create a new message.
  */
 export const SendBotMessageRequestSchema: GenMessage<SendBotMessageRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 16);
+  messageDesc(file_openagents_ui_v1_bots, 25);
 
 /**
  * @generated from message openagents.ui.v1.SendBotMessageResponse
@@ -573,7 +848,7 @@ export type SendBotMessageResponse = Message<"openagents.ui.v1.SendBotMessageRes
  * Use `create(SendBotMessageResponseSchema)` to create a new message.
  */
 export const SendBotMessageResponseSchema: GenMessage<SendBotMessageResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 17);
+  messageDesc(file_openagents_ui_v1_bots, 26);
 
 /**
  * @generated from message openagents.ui.v1.WatchBotConversationRequest
@@ -590,7 +865,7 @@ export type WatchBotConversationRequest = Message<"openagents.ui.v1.WatchBotConv
  * Use `create(WatchBotConversationRequestSchema)` to create a new message.
  */
 export const WatchBotConversationRequestSchema: GenMessage<WatchBotConversationRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 18);
+  messageDesc(file_openagents_ui_v1_bots, 27);
 
 /**
  * @generated from message openagents.ui.v1.ReadBotExchangeRequest
@@ -607,7 +882,7 @@ export type ReadBotExchangeRequest = Message<"openagents.ui.v1.ReadBotExchangeRe
  * Use `create(ReadBotExchangeRequestSchema)` to create a new message.
  */
 export const ReadBotExchangeRequestSchema: GenMessage<ReadBotExchangeRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 19);
+  messageDesc(file_openagents_ui_v1_bots, 28);
 
 /**
  * @generated from message openagents.ui.v1.ReadBotExchangeResponse
@@ -624,7 +899,7 @@ export type ReadBotExchangeResponse = Message<"openagents.ui.v1.ReadBotExchangeR
  * Use `create(ReadBotExchangeResponseSchema)` to create a new message.
  */
 export const ReadBotExchangeResponseSchema: GenMessage<ReadBotExchangeResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 20);
+  messageDesc(file_openagents_ui_v1_bots, 29);
 
 /**
  * @generated from message openagents.ui.v1.AnswerBotApprovalRequest
@@ -651,7 +926,7 @@ export type AnswerBotApprovalRequest = Message<"openagents.ui.v1.AnswerBotApprov
  * Use `create(AnswerBotApprovalRequestSchema)` to create a new message.
  */
 export const AnswerBotApprovalRequestSchema: GenMessage<AnswerBotApprovalRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 21);
+  messageDesc(file_openagents_ui_v1_bots, 30);
 
 /**
  * @generated from message openagents.ui.v1.AnswerBotApprovalResponse
@@ -668,7 +943,7 @@ export type AnswerBotApprovalResponse = Message<"openagents.ui.v1.AnswerBotAppro
  * Use `create(AnswerBotApprovalResponseSchema)` to create a new message.
  */
 export const AnswerBotApprovalResponseSchema: GenMessage<AnswerBotApprovalResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 22);
+  messageDesc(file_openagents_ui_v1_bots, 31);
 
 /**
  * @generated from message openagents.ui.v1.InterruptBotRequest
@@ -685,7 +960,7 @@ export type InterruptBotRequest = Message<"openagents.ui.v1.InterruptBotRequest"
  * Use `create(InterruptBotRequestSchema)` to create a new message.
  */
 export const InterruptBotRequestSchema: GenMessage<InterruptBotRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 23);
+  messageDesc(file_openagents_ui_v1_bots, 32);
 
 /**
  * @generated from message openagents.ui.v1.InterruptBotResponse
@@ -698,7 +973,7 @@ export type InterruptBotResponse = Message<"openagents.ui.v1.InterruptBotRespons
  * Use `create(InterruptBotResponseSchema)` to create a new message.
  */
 export const InterruptBotResponseSchema: GenMessage<InterruptBotResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 24);
+  messageDesc(file_openagents_ui_v1_bots, 33);
 
 /**
  * Ponawia ostatnią turę, jeśli zakończyła się błędem: ta sama wiadomość użytkownika, bez nowego wpisu w czacie.
@@ -717,7 +992,7 @@ export type RetryBotRequest = Message<"openagents.ui.v1.RetryBotRequest"> & {
  * Use `create(RetryBotRequestSchema)` to create a new message.
  */
 export const RetryBotRequestSchema: GenMessage<RetryBotRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 25);
+  messageDesc(file_openagents_ui_v1_bots, 34);
 
 /**
  * @generated from message openagents.ui.v1.RetryBotResponse
@@ -730,7 +1005,7 @@ export type RetryBotResponse = Message<"openagents.ui.v1.RetryBotResponse"> & {
  * Use `create(RetryBotResponseSchema)` to create a new message.
  */
 export const RetryBotResponseSchema: GenMessage<RetryBotResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 26);
+  messageDesc(file_openagents_ui_v1_bots, 35);
 
 /**
  * @generated from message openagents.ui.v1.BotMcpServer
@@ -781,7 +1056,7 @@ export type BotMcpServer = Message<"openagents.ui.v1.BotMcpServer"> & {
  * Use `create(BotMcpServerSchema)` to create a new message.
  */
 export const BotMcpServerSchema: GenMessage<BotMcpServer> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 27);
+  messageDesc(file_openagents_ui_v1_bots, 36);
 
 /**
  * @generated from message openagents.ui.v1.SaveBotMcpServerRequest
@@ -832,7 +1107,7 @@ export type SaveBotMcpServerRequest = Message<"openagents.ui.v1.SaveBotMcpServer
  * Use `create(SaveBotMcpServerRequestSchema)` to create a new message.
  */
 export const SaveBotMcpServerRequestSchema: GenMessage<SaveBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 28);
+  messageDesc(file_openagents_ui_v1_bots, 37);
 
 /**
  * @generated from message openagents.ui.v1.SaveBotMcpServerResponse
@@ -849,7 +1124,7 @@ export type SaveBotMcpServerResponse = Message<"openagents.ui.v1.SaveBotMcpServe
  * Use `create(SaveBotMcpServerResponseSchema)` to create a new message.
  */
 export const SaveBotMcpServerResponseSchema: GenMessage<SaveBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 29);
+  messageDesc(file_openagents_ui_v1_bots, 38);
 
 /**
  * @generated from message openagents.ui.v1.ListBotMcpServersRequest
@@ -862,7 +1137,7 @@ export type ListBotMcpServersRequest = Message<"openagents.ui.v1.ListBotMcpServe
  * Use `create(ListBotMcpServersRequestSchema)` to create a new message.
  */
 export const ListBotMcpServersRequestSchema: GenMessage<ListBotMcpServersRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 30);
+  messageDesc(file_openagents_ui_v1_bots, 39);
 
 /**
  * @generated from message openagents.ui.v1.ListBotMcpServersResponse
@@ -879,7 +1154,7 @@ export type ListBotMcpServersResponse = Message<"openagents.ui.v1.ListBotMcpServ
  * Use `create(ListBotMcpServersResponseSchema)` to create a new message.
  */
 export const ListBotMcpServersResponseSchema: GenMessage<ListBotMcpServersResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 31);
+  messageDesc(file_openagents_ui_v1_bots, 40);
 
 /**
  * @generated from message openagents.ui.v1.DeleteBotMcpServerRequest
@@ -896,7 +1171,7 @@ export type DeleteBotMcpServerRequest = Message<"openagents.ui.v1.DeleteBotMcpSe
  * Use `create(DeleteBotMcpServerRequestSchema)` to create a new message.
  */
 export const DeleteBotMcpServerRequestSchema: GenMessage<DeleteBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 32);
+  messageDesc(file_openagents_ui_v1_bots, 41);
 
 /**
  * @generated from message openagents.ui.v1.DeleteBotMcpServerResponse
@@ -909,7 +1184,7 @@ export type DeleteBotMcpServerResponse = Message<"openagents.ui.v1.DeleteBotMcpS
  * Use `create(DeleteBotMcpServerResponseSchema)` to create a new message.
  */
 export const DeleteBotMcpServerResponseSchema: GenMessage<DeleteBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 33);
+  messageDesc(file_openagents_ui_v1_bots, 42);
 
 /**
  * @generated from message openagents.ui.v1.TestBotMcpServerRequest
@@ -926,7 +1201,7 @@ export type TestBotMcpServerRequest = Message<"openagents.ui.v1.TestBotMcpServer
  * Use `create(TestBotMcpServerRequestSchema)` to create a new message.
  */
 export const TestBotMcpServerRequestSchema: GenMessage<TestBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 34);
+  messageDesc(file_openagents_ui_v1_bots, 43);
 
 /**
  * @generated from message openagents.ui.v1.BotMcpTool
@@ -953,7 +1228,7 @@ export type BotMcpTool = Message<"openagents.ui.v1.BotMcpTool"> & {
  * Use `create(BotMcpToolSchema)` to create a new message.
  */
 export const BotMcpToolSchema: GenMessage<BotMcpTool> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 35);
+  messageDesc(file_openagents_ui_v1_bots, 44);
 
 /**
  * @generated from message openagents.ui.v1.TestBotMcpServerResponse
@@ -970,5 +1245,5 @@ export type TestBotMcpServerResponse = Message<"openagents.ui.v1.TestBotMcpServe
  * Use `create(TestBotMcpServerResponseSchema)` to create a new message.
  */
 export const TestBotMcpServerResponseSchema: GenMessage<TestBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 36);
+  messageDesc(file_openagents_ui_v1_bots, 45);
 

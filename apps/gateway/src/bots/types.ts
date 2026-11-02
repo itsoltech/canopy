@@ -31,12 +31,15 @@ export interface BotRow {
   id: string; owner_user_id: string; configuration: unknown;
   created_at: Date; updated_at: Date; revision: string | bigint;
   status_line: string;
+  last_read_seq: string | bigint;
+  unread_count?: number | string;
   archived_at: Date | null;
 }
 export interface BotTurn {
   id: string; bot_id: string; input: string; hops: number;
   status: string; checkpoint: ModelMessage[]; lease_token: string;
   reply_to_bot_id: string | null; exchange_id: string | null;
+  routine_id: string | null; routine_title: string;
 }
 export interface StoredCall {
   id: string; turn_id: string; call_key: string; tool: ToolSpec;
