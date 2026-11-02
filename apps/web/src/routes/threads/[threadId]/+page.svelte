@@ -187,6 +187,8 @@
   // A quote in a message shows where it came from: its item (in folded work or the inherited history: opened
   // first) scrolls into view and flashes (motion.css `data-flash`).
   let feedRegion = $state<HTMLElement>();
+  // The sticky part at the feed's bottom (waiting cards, goal, composer): the Cite button keeps clear of it.
+  let feedFooter = $state<HTMLElement>();
   async function revealQuote(itemId: string): Promise<boolean> {
     const own = view.ownEntries.find((e) => e.id === itemId);
     const inherited = own ? undefined : view.inheritedEntries.find((e) => e.id === itemId);
@@ -319,7 +321,7 @@
           {/snippet}
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
-            <div class="grid grid-cols-1 pt-2">
+            <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
               {#if view.pending.length > 0}
                 <GrowIn class="pb-3">
                   <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
@@ -417,4 +419,4 @@
 {/if}
 
 <p class="sr-only" role="status">{announcement}</p>
-<CiteLayer {threadId} root={feedRegion} />
+<CiteLayer {threadId} root={feedRegion} avoid={feedFooter} />

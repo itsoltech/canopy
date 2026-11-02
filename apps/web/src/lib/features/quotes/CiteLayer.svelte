@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Attachment } from "svelte/attachments";
-  import { computePosition } from "#lib/shared/ui/floating.ts";
   import { formatHotkey, matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import CiteButton from "./CiteButton.svelte";
+  import { citePosition } from "./cite-position.ts";
   import { useQuoteDrafts } from "./quote-drafts.svelte.ts";
   import QuoteCommentPopover from "./QuoteCommentPopover.svelte";
   import { selectedQuote, type SelectedQuote } from "./selection.ts";
@@ -13,10 +13,12 @@
    * Cite: select text the agent produced inside `root` (the thread's feed) and a small "Cite" button appears at
    * the end of the selection — after the mouse is released or the keyboard selection settles (with a mouse),
    * or below the selection handles on touch screens, clear of the system's own menu above it. It opens the
-   * comment popover; Save adds the quote to the thread's quote drafts (the composer sends them). Alt+Q cites
-   * the current selection from the keyboard. Nothing in the transcript moves: the button lives in the top layer.
+   * comment popover; Save adds the quote to the thread's quote drafts (the composer shows it as a chip and sends
+   * it). Alt+Q cites the current selection from the keyboard. Nothing in the transcript moves: the button lives in
+   * the top layer. It stays between the top of `root` and the top of `avoid` (the sticky composer at the bottom of
+   * the feed): next to a selection right above the composer it flips above the selection instead of covering it.
    */
-  let { threadId, root }: { threadId: string; root: HTMLElement | undefined } = $props();
+  let { threadId, root, avoid }: { threadId: string; root: HTMLElement | undefined; avoid?: HTMLElement | undefined } = $props();
 
   const CITE_HOTKEY = "Alt+Q";
   const drafts = useQuoteDrafts();
@@ -28,6 +30,8 @@
   let range: Range | undefined;
   let pointerDown = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** Said to screen readers after a save (the chip appears in the composer). */
+  let announced = $state("");
 
   function read() {
     if (editing) return;
@@ -41,6 +45,7 @@
     }
     range = live.cloneRange();
     quote = found;
+    announced = "";
   }
 
   function schedule(ms: number) {
@@ -101,19 +106,17 @@
       const rects = [...(range?.getClientRects() ?? [])].filter((r) => r.width > 0 || r.height > 0);
       const backward = quote?.backward ?? false;
       const line = backward ? rects[0] : rects.at(-1);
-      const viewport = { width: document.documentElement.clientWidth, height: window.innerHeight };
-      if (!line || line.bottom < 0 || line.top > viewport.height) {
+      // The room: from the top of the feed to the top of what sits over its bottom (the composer).
+      const room = {
+        top: Math.max(0, root?.getBoundingClientRect().top ?? 0),
+        bottom: Math.min(window.innerHeight, avoid?.getBoundingClientRect().top ?? window.innerHeight),
+        width: document.documentElement.clientWidth,
+      };
+      const position = citePosition(line, { width: node.offsetWidth, height: node.offsetHeight }, room, { backward, touch });
+      if (!position) {
         if (!editing) quote = undefined;
         return;
       }
-      // A point at the selection's end (its start when made backwards), the height of that line.
-      const x = backward ? line.left : line.right;
-      const anchor = { left: x, right: x, width: 0, top: line.top, bottom: line.bottom, height: line.height };
-      const position = computePosition(anchor, { width: node.offsetWidth, height: node.offsetHeight }, viewport, {
-        placement: touch ? "bottom" : backward ? "top-start" : "bottom-end",
-        // Below the selection handles on touch screens.
-        offset: touch ? 28 : 6,
-      });
       node.style.setProperty("--float-x", `${position.x}px`);
       node.style.setProperty("--float-y", `${position.y}px`);
     };
@@ -134,7 +137,7 @@
   function save(comment: string) {
     if (!quote) return;
     const added = drafts.add(threadId, { text: quote.text, source: quote.source, comment });
-    if (added) toast("Quote added to your next message");
+    if (added) announced = "Quote added to the message";
     else toast("A message can carry up to 20 quotes", { tone: "error" });
     getSelection()?.removeAllRanges();
   }
@@ -158,4 +161,4 @@
   />
   <QuoteCommentPopover bind:open={editing} anchor={button} quote={quote.text} placement={touch ? "bottom" : "bottom-start"} onsave={save} onclosed={done} />
 {/if}
-<p class="sr-only" role="status">{quote && !editing ? `Selected text can be quoted: ${formatHotkey(CITE_HOTKEY)}` : ""}</p>
+<p class="sr-only" role="status">{quote && !editing ? `Selected text can be quoted: ${formatHotkey(CITE_HOTKEY)}` : announced}</p>
