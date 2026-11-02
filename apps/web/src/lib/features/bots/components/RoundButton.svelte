@@ -33,8 +33,8 @@
   } = $props();
 
   const variants = {
-    primary: "bg-brand-600 text-white aria-disabled:bg-zinc-950/10 aria-disabled:text-zinc-400 not-aria-disabled:hover:bg-brand-500 dark:aria-disabled:bg-white/10 dark:aria-disabled:text-zinc-500",
-    secondary: "bg-white text-zinc-700 shadow-xs ring-1 ring-zinc-950/10 not-aria-disabled:hover:bg-zinc-50 dark:bg-white/5 dark:text-zinc-300 dark:shadow-none dark:ring-white/10 dark:not-aria-disabled:hover:bg-white/10",
+    primary: "bg-zinc-900 fill-white text-white aria-disabled:bg-zinc-950/10 aria-disabled:text-zinc-400 not-aria-disabled:hover:bg-zinc-700 dark:bg-white dark:text-zinc-950 dark:aria-disabled:bg-white/10 dark:aria-disabled:text-zinc-500 dark:not-aria-disabled:hover:bg-zinc-200",
+    secondary: "bg-zinc-950/5 text-zinc-700 not-aria-disabled:hover:bg-zinc-950/10 dark:bg-white/8 dark:text-zinc-300 dark:not-aria-disabled:hover:bg-white/12",
     ghost: "text-zinc-500 not-aria-disabled:hover:bg-zinc-950/5 not-aria-disabled:hover:text-zinc-950 dark:text-zinc-400 dark:not-aria-disabled:hover:bg-white/10 dark:not-aria-disabled:hover:text-white",
   };
 </script>

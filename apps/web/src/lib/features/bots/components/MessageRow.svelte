@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { nameTone } from "../mascot.ts";
+  import { botTextTone } from "../mascot.ts";
   import type { ParticipantView } from "../model.ts";
   import BotAvatar from "./BotAvatar.svelte";
 
@@ -29,7 +29,7 @@
   {/if}
   <div class={["flex min-w-0 flex-1 flex-col gap-1", side === "end" ? "items-end" : "items-start"]}>
     {#if showName && sender}
-      <p class={["px-3 text-sm/5 font-medium sm:text-xs/5", sender.kind === "bot" ? nameTone(sender.id) : "text-zinc-500 dark:text-zinc-400"]}>{sender.name}</p>
+      <p class={["px-3 text-sm/5 font-medium sm:text-xs/5", sender.kind === "bot" ? botTextTone(sender) : "text-zinc-500 dark:text-zinc-400"]} style:--bot-color={sender.color}>{sender.name}</p>
     {/if}
     {@render children()}
   </div>

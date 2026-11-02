@@ -142,3 +142,11 @@ export function mascotFor(id: string, shape?: string): Mascot {
 
 /** Colour of a participant's name (bots by id; you are not coloured). */
 export const nameTone = (id: string): string => mascotFor(id).tone.name;
+
+/**
+ * Text in a bot's own colour (its name, a mention), readable on both themes: the colour mixed toward black
+ * in light mode and toward white in dark mode. Set `--bot-color` (style:--bot-color) on the same element.
+ * Bots without a chosen colour use their generated tone.
+ */
+export const botTextTone = (bot: { id: string; color?: string | undefined }): string =>
+  bot.color ? "text-[color-mix(in_oklab,var(--bot-color)_72%,black)] dark:text-[color-mix(in_oklab,var(--bot-color)_70%,white)]" : nameTone(bot.id);

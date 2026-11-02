@@ -1,70 +1,105 @@
 <script lang="ts">
-  import { tick, untrack, type Snippet } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
+  import { rise } from "#lib/shared/ui/motion.ts";
+  import type { ExchangeSegment } from "../chat-timeline.ts";
   import type { ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
+  import type { ApprovalAnswer, ApprovalPolicy } from "./ApprovalCard.svelte";
   import BotComposer from "./BotComposer.svelte";
   import ChatTimeline from "./ChatTimeline.svelte";
   import ConversationHeader from "./ConversationHeader.svelte";
+  import RoundButton from "./RoundButton.svelte";
   import WatchBar from "./WatchBar.svelte";
 
   /**
-   * A whole bot chat: header, the scrolling conversation (opens at the "New" divider, else at the
-   * end) and the composer, or the read-only bar with "Close chat" in a watched bot ⇄ bot chat.
+   * A whole bot chat: header, the scrolling conversation (opens at the "New" divider, else at the end) and
+   * the composer, or the bar with "Close chat" in a bot ⇄ bot chat you only read. The conversation follows
+   * new messages (and what the bot is doing) only while you are at the bottom; scrolled up, a button takes
+   * you back down. Reply puts a quote of the message into the composer.
    */
   let {
     conversation,
     entries,
     me,
+    directory = [],
+    subtitle,
     firstUnreadId,
+    status,
     answering,
+    retrying = false,
+    policy,
     sending = false,
-    statusLine = "",
     composerDisabledReason,
+    exchangeHref,
     onsend,
     onanswer,
+    onapprove,
+    onpolicy,
+    onretry,
+    onchangemodel,
     onreact,
-    onreply,
     onclose,
     onattach,
-    onrecord,
     actions,
     class: className,
   }: {
     conversation: ConversationView;
     entries: readonly ChatEntry[];
     me: ParticipantView;
+    directory?: readonly ParticipantView[];
+    subtitle?: string | undefined;
     firstUnreadId?: string | undefined;
+    status?: { bot: ParticipantView; text: string; waiting: boolean } | undefined;
     answering?: Readonly<Record<string, string>>;
+    retrying?: boolean;
+    policy?: ApprovalPolicy | undefined;
     sending?: boolean;
-    statusLine?: string;
     /** Set when you cannot write right now (e.g. the bot is unavailable); shown in the box. */
     composerDisabledReason?: string | undefined;
+    exchangeHref?: ((segment: ExchangeSegment) => string) | undefined;
     onsend: (text: string) => void;
     onanswer?: ((questionId: string, optionId: string) => void) | undefined;
+    onapprove?: ((approvalId: string, answer: ApprovalAnswer) => void) | undefined;
+    onpolicy?: ((policy: ApprovalPolicy) => void) | undefined;
+    onretry?: (() => void) | undefined;
+    onchangemodel?: (() => void) | undefined;
     onreact?: ((message: ChatMessageView) => void) | undefined;
-    onreply?: ((message: ChatMessageView) => void) | undefined;
     onclose?: (() => void) | undefined;
     onattach?: (() => void) | undefined;
-    onrecord?: (() => void) | undefined;
     actions?: Snippet;
     class?: ClassValue;
   } = $props();
 
   let draft = $state("");
   let log = $state<HTMLElement>();
+  let content = $state<HTMLElement>();
+  let composer = $state<ReturnType<typeof BotComposer>>();
   let following = $state(true);
+  const toEnd = (behavior: ScrollBehavior = "instant") => log?.scrollTo({ top: log.scrollHeight, behavior });
 
+  // Whatever grows the conversation (a message, a card, the status line, a long answer) keeps the end in
+  // view while you are there.
   $effect(() => {
-    entries.length;
-    const node = log;
-    if (node && untrack(() => following)) void tick().then(() => node.scrollTo({ top: node.scrollHeight }));
+    const node = content;
+    if (!node) return;
+    const observer = new ResizeObserver(() => {
+      if (following) toEnd();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
   });
 
   // Your own message goes to the end of the conversation: follow it there.
   function send(text: string) {
     following = true;
     onsend(text);
-    void tick().then(() => log?.scrollTo({ top: log.scrollHeight }));
+    void tick().then(() => toEnd());
+  }
+
+  function reply(message: ChatMessageView) {
+    const quote = message.text.trim().split("\n").slice(0, 3).map((line) => `> ${line}`).join("\n");
+    draft = `${quote}\n\n${draft}`;
+    void tick().then(() => composer?.focus());
   }
 
   function openAtUnread(node: HTMLElement) {
@@ -76,26 +111,66 @@
 </script>
 
 <div class={["flex h-full min-h-0 flex-col", className]}>
-  <ConversationHeader {conversation} {actions} {statusLine} />
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="relative min-h-0 flex-1 overflow-y-auto focus:outline-none" role="log" aria-label="Conversation" tabindex="0" bind:this={log} onscroll={() => { if (log) following = log.scrollHeight - log.scrollTop - log.clientHeight < 80; }} {@attach openAtUnread}>
-    <ChatTimeline
-      {conversation}
-      {entries}
-      {me}
-      {firstUnreadId}
-      {answering}
-      {onanswer}
-      {onreact}
-      {onreply}
-      class="mx-auto w-full max-w-(--chat-width) px-3 py-4 sm:px-6"
-    />
+  <ConversationHeader {conversation} {subtitle} {actions} />
+  <div class="relative flex min-h-0 flex-1 flex-col">
+    <!-- `relative`: screen-reader labels positioned inside messages stay inside the scroller. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div
+      class="relative min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-none"
+      role="log"
+      aria-label="Conversation"
+      tabindex="0"
+      bind:this={log}
+      onscroll={() => {
+        if (log) following = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+      }}
+      {@attach openAtUnread}
+    >
+      <div bind:this={content}>
+        <ChatTimeline
+          {conversation}
+          {entries}
+          {me}
+          {directory}
+          {firstUnreadId}
+          {status}
+          {answering}
+          {retrying}
+          {policy}
+          {exchangeHref}
+          {onanswer}
+          {onapprove}
+          {onpolicy}
+          {onretry}
+          {onchangemodel}
+          {onreact}
+          onreply={conversation.kind === "watch" ? undefined : reply}
+          class="mx-auto w-full max-w-(--chat-width) px-3 pt-4 pb-6 sm:px-6"
+        />
+      </div>
+    </div>
+    {#if !following}
+      <div class="absolute bottom-3 left-1/2 -translate-x-1/2" transition:rise>
+        <span class="flex rounded-full bg-white shadow-md ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10">
+          <RoundButton icon="arrow-down" label="Jump to the latest message" variant="secondary" onclick={() => { following = true; toEnd("smooth"); }} />
+        </span>
+      </div>
+    {/if}
   </div>
-  <div class="mx-auto w-full max-w-(--chat-width) shrink-0 px-3 pt-2 pb-3 sm:px-6 sm:pb-4">
+  <div class="mx-auto w-full max-w-(--chat-width) shrink-0 px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
     {#if conversation.kind === "watch"}
       <WatchBar bots={conversation.bots} {onclose} />
     {:else}
-      <BotComposer bind:value={draft} {sending} disabled={Boolean(composerDisabledReason)} disabledReason={composerDisabledReason} onsend={send} {onattach} {onrecord} />
+      <BotComposer
+        bind:this={composer}
+        bind:value={draft}
+        placeholder={conversation.bots.length === 1 ? `Message ${conversation.bots[0]!.name}` : "Message"}
+        {sending}
+        disabled={Boolean(composerDisabledReason)}
+        disabledReason={composerDisabledReason}
+        onsend={send}
+        {onattach}
+      />
     {/if}
   </div>
 </div>

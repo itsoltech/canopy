@@ -8,6 +8,7 @@
   import { listTimeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
   import { conversationTitle, type ConversationView } from "../model.ts";
+  import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import ActionItems from "./ActionItems.svelte";
 
   /**
@@ -28,12 +29,11 @@
   let menuOpen = $state(false);
   const title = $derived(conversationTitle(conversation));
   const items = $derived(conversationMenu(conversation, handlers));
-  const preview = $derived.by(() => {
+  // Who wrote the last message, when that is not the 1:1 chat's own bot: "You: …", "Notes: …".
+  const author = $derived.by(() => {
     const last = conversation.lastMessage;
-    if (!last) return "No messages yet";
-    if (conversation.kind === "direct" && last.senderId === conversation.bots[0]?.id) return last.text;
-    const sender = conversation.bots.find((b) => b.id === last.senderId)?.name ?? "You";
-    return `${sender}: ${last.text}`;
+    if (!last || last.failed || (conversation.kind === "direct" && last.senderId === conversation.bots[0]?.id)) return "";
+    return last.senderId === "me" ? "You" : (conversation.bots.find((b) => b.id === last.senderId)?.name ?? "");
   });
 </script>
 
@@ -65,7 +65,15 @@
       {/if}
     </p>
     <p class="flex items-center gap-2">
-      <span class={["min-w-0 flex-1 truncate text-sm/5", conversation.unread > 0 ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-500 dark:text-zinc-400"]}>{preview}</span>
+      <span class={["min-w-0 flex-1 truncate text-sm/5", conversation.unread > 0 ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-500 dark:text-zinc-400"]}>
+        {#if !conversation.lastMessage}
+          No messages yet
+        {:else if conversation.lastMessage.failed}
+          <span class="text-rose-600 dark:text-rose-400">Couldn't reply</span>
+        {:else}
+          {#if author}{`${author}: `}{/if}<MarkdownSnippet text={conversation.lastMessage.text} />
+        {/if}
+      </span>
       {#if conversation.unread > 0}
         <span class="shrink-0 rounded-full bg-brand-600 px-1.5 text-xs/5 font-medium text-white tabular-nums">
           {conversation.unread > 99 ? "99+" : conversation.unread}<span class="sr-only"> unread</span>

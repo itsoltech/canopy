@@ -28,9 +28,11 @@ export type ConversationKind = "direct" | "group" | "watch";
 
 export interface ConversationPreview {
   senderId: string;
-  /** Plain text (markdown stripped by the mapper), one line is shown. */
+  /** Markdown of the message; the list shows one line of it. */
   text: string;
   at: Date;
+  /** The bot could not reply (the list says so instead of the technical text). */
+  failed?: boolean | undefined;
 }
 
 export interface ConversationView {
@@ -100,20 +102,66 @@ export interface QuestionView {
   prompt: string;
   options: QuestionOptionView[];
   freeText?: boolean | undefined;
-  /** Set once answered (by you, here or elsewhere). */
-  answer?: { optionId: string; at: Date } | undefined;
+  /** Set once answered (by you, here or elsewhere): the option, or "" with your own words in `text`; skipped = not answered. */
+  answer?: { optionId: string; at: Date; text?: string | undefined; skipped?: boolean | undefined } | undefined;
+}
+
+/** A bot asks before it acts: what it wants to do and the details, as labelled fields (never JSON). */
+export interface ApprovalView {
+  id: string;
+  askedBy: string;
+  at: Date;
+  /** What it wants to do, e.g. "Sending to Notion". */
+  action: string;
+  fields: { label: string; value: string }[];
+  /** pending until you answer; `edited` = you sent your own version back instead of approving. */
+  status: "pending" | "approved" | "discarded" | "edited";
+}
+
+/** A bot could not reply: `detail` is the technical cause (for a tooltip), never shown as a message. */
+export interface ChatErrorView {
+  id: string;
+  botId: string;
+  at: Date;
+  detail: string;
+  /** The last thing in the conversation: Retry runs the same message again. */
+  retryable: boolean;
+}
+
+/**
+ * One message of a bot ⇄ bot exchange seen from this conversation's bot: it wrote to (`sent`) or heard
+ * from (`received`) the other bot. The chat shows a marker instead of the text; the exchange opens apart.
+ */
+export interface ChatExchangeView {
+  id: string;
+  exchangeId: string;
+  at: Date;
+  counterpartId: string;
+  direction: "sent" | "received";
 }
 
 export type ChatEntry =
   | { kind: "message"; message: ChatMessageView }
   | { kind: "event"; event: ChatEventView }
-  | { kind: "question"; question: QuestionView };
+  | { kind: "question"; question: QuestionView }
+  | { kind: "approval"; approval: ApprovalView }
+  | { kind: "error"; error: ChatErrorView }
+  | { kind: "exchange"; exchange: ChatExchangeView };
 
-export const entryId = (entry: ChatEntry): string =>
-  entry.kind === "message" ? entry.message.id : entry.kind === "event" ? entry.event.id : entry.question.id;
+const entryValue = (entry: ChatEntry): { id: string; at: Date } => {
+  switch (entry.kind) {
+    case "message": return entry.message;
+    case "event": return entry.event;
+    case "question": return entry.question;
+    case "approval": return entry.approval;
+    case "error": return entry.error;
+    case "exchange": return entry.exchange;
+  }
+};
 
-export const entryAt = (entry: ChatEntry): Date =>
-  entry.kind === "message" ? entry.message.at : entry.kind === "event" ? entry.event.at : entry.question.at;
+export const entryId = (entry: ChatEntry): string => entryValue(entry).id;
+
+export const entryAt = (entry: ChatEntry): Date => entryValue(entry).at;
 
 /** Name shown for a conversation: the group's title or its bots' names. */
 export function conversationTitle(conversation: ConversationView): string {

@@ -76,7 +76,6 @@
     }, 900);
   }
   const react = (message: ChatMessageView) => (log = `React to “${message.text.slice(0, 40)}”.`);
-  const reply = (message: ChatMessageView) => (log = `Reply to “${message.text.slice(0, 40)}”.`);
 
   const mascotIds = Array.from({ length: 21 }, (_, i) => `bot-${["canopy", "t3", "release", "docs", "triage", "standup", "infra"][i % 7]}-${Math.floor(i / 7)}`);
   const sizes: AvatarSize[] = ["xs", "sm", "md", "lg", "xl"];
@@ -192,7 +191,7 @@
           <BotComposer bind:value={composerValue} onsend={(text) => (log = `Sent “${text}”.`)} />
           <BotComposer value="Sending this one…" sending onsend={() => {}} />
           <BotComposer disabled disabledReason="Canopy Bot is unavailable right now" onsend={() => {}} />
-          <BotComposer onsend={() => {}} onattach={() => (log = "Attach.")} onrecord={() => (log = "Record.")} />
+          <BotComposer onsend={() => {}} onattach={() => (log = "Attach.")} />
           <WatchBar bots={chats.watch.conversation.bots} onclose={() => (log = "Close chat.")} />
         </div>
       </GallerySection>
@@ -229,7 +228,6 @@
               onsend={send}
               onanswer={answer}
               onreact={react}
-              onreply={reply}
               onclose={() => (log = "Close chat: you would stop watching.")}
             />
           {/key}

@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
 
-  /** The Bots section of the sidebar until bots exist: what they will be, no made-up data. */
+  /** The Bots section of the sidebar until bots exist: what they are, and the way to make the first one. */
   let { query = "", class: className }: { query?: string; class?: ClassValue } = $props();
 </script>
 
@@ -12,7 +13,9 @@
   <EmptyState
     icon="chat-bubble-left-right"
     title="No bots yet"
-    description="Bots live in the gateway and will arrive here. Chat with one, bring several into a group, or watch two of them work something out."
+    description="A bot is someone to chat with: it remembers the conversation and works with your services and agents."
     class={className}
-  />
+  >
+    {#snippet action()}<ButtonLink href="/bots?create=1" icon="plus" variant="primary">Create your first bot</ButtonLink>{/snippet}
+  </EmptyState>
 {/if}
