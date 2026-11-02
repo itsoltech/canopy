@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import type { ClassValue } from "svelte/elements";
   import { plural } from "#lib/shared/humanize.ts";
   import { statusLook } from "#lib/shared/ui/status.ts";
@@ -32,7 +33,7 @@
         </p>
       {/if}
       {#if summary.lastMessage}
-        <p class="line-clamp-2 pl-4 text-base/6 text-pretty whitespace-pre-line text-zinc-700 sm:text-sm/6 dark:text-zinc-300"><span class="sr-only">Last message: </span>{summary.lastMessage}</p>
+        <p class="line-clamp-2 pl-4 text-base/6 text-pretty text-zinc-700 sm:text-sm/6 dark:text-zinc-300"><span class="sr-only">Last message: </span><MarkdownSnippet text={summary.lastMessage} /></p>
       {/if}
     </li>
   {/each}
