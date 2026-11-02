@@ -11,7 +11,9 @@ import { Result, Schema } from "effect";
  * - results carry ids, never other threads' full transcripts unless asked (read_thread),
  * - two levels only: a main thread (level 0) orchestrates side threads (level 1); side threads
  *   do not get tools to spawn or control other threads (agentBusToolsFor),
- * - scheduling is a platform feature (durable, visible), replacing provider-native timers.
+ * - scheduling is a platform feature (durable, visible), replacing provider-native timers,
+ * - these are the only subagent tools: the harnesses' own (Codex spawn_agent, Claude Agent/Task) are off
+ *   (apps/worker/src/providers/native-tools.ts), so descriptions say when to use them for delegation.
  */
 
 const ThreadId = Schema.String.check(Schema.isUUID()).annotate({ description: "Thread id returned by spawn_thread or list_threads." });
@@ -24,9 +26,36 @@ const Notify = Schema.Boolean.annotate({
 
 export const ListAgents = Schema.Struct({});
 
+/** Permission modes a side thread may ask for, narrowest first; never broader than the caller's (authorizeBusCall). */
+export const SPAWN_PERMISSION_MODES = ["read_only", "ask", "accept_edits", "full_auto"] as const;
+export type SpawnPermissionMode = (typeof SPAWN_PERMISSION_MODES)[number];
+
 export const SpawnThread = Schema.Struct({
-  title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)).annotate({ description: "Short label shown in the UI." }),
+  title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)).annotate({
+    description: "Short label of the subagent's task, shown to the user (like a task name or description).",
+  }),
   prompt: Prompt.annotate({ description: "Task for the new agent. Include everything it needs; it does not see your context unless fork is true." }),
+  instructions: Schema.optionalKey(
+    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(20_000)).annotate({
+      description: "Role or standing instructions for the subagent (e.g. 'You are a strict code reviewer...'), added to its system instructions.",
+    }),
+  ),
+  model: Schema.optionalKey(
+    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)).annotate({
+      description: "Model id for the subagent (same provider and account as yours). Defaults to your model. Omit unless the task needs a different one.",
+    }),
+  ),
+  effort: Schema.optionalKey(
+    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(40)).annotate({
+      description: "Reasoning effort for the subagent (e.g. low, medium, high), as offered by the model. Defaults to yours.",
+    }),
+  ),
+  permission_mode: Schema.optionalKey(
+    Schema.Literals(SPAWN_PERMISSION_MODES).annotate({
+      description:
+        "What the subagent may do without asking: read_only, ask (risky tools need an answer), accept_edits, full_auto. Defaults to yours; it cannot be broader than yours.",
+    }),
+  ),
   agent: Schema.optionalKey(Schema.String.annotate({ description: "Agent slug from list_agents. Defaults to your own agent." })),
   fork: Schema.optionalKey(
     Schema.Boolean.annotate({
@@ -150,25 +179,32 @@ export const AGENT_BUS_TOOLS = {
   spawn_thread: define({
     name: "spawn_thread",
     description:
-      "Start a side thread with another agent (or a copy of yourself) in the same working directory. Returns immediately with thread_id and turn_id.",
+      "Start a subagent: delegate a task to a new side thread (a copy of you, optionally with its own instructions, model, effort and " +
+      "permissions) in the same working directory. Use this whenever you want to delegate, parallelize or get a second opinion; it is the " +
+      "subagent tool here (there is no spawn_agent or Task tool). The user sees the thread and can steer it. Returns at once with " +
+      "thread_id and turn_id; its final message comes back to you as a new message when it finishes, or call wait_threads to block for it.",
     args: SpawnThread,
     mutates: true,
   }),
   send_message: define({
     name: "send_message",
-    description: "Send a follow-up prompt to a thread in your tree (a child you spawned, your parent or a sibling). Returns turn_id.",
+    description:
+      "Send a follow-up task or message to a thread in your tree (a subagent you spawned, your parent or a sibling): queue runs it as " +
+      "the target's next turn, steer joins its running turn. Returns turn_id.",
     args: SendMessage,
     mutates: true,
   }),
   wait_threads: define({
     name: "wait_threads",
-    description: "Wait until threads finish their current work. Returns status and the last agent message of each.",
+    description:
+      "Wait for subagents (side threads) to finish their current work: until any (default) or all are done, bounded by timeout_seconds. " +
+      "Returns each thread's status, its last turn's outcome and its final message (the result). Call again to keep waiting.",
     args: WaitThreads,
     mutates: false,
   }),
   get_thread: define({
     name: "get_thread",
-    description: "Status of a thread: running turn, background work, pending questions, last result.",
+    description: "Status of a thread: running or queued work, pending questions, model and permissions, last turn's outcome and final message.",
     args: GetThread,
     mutates: false,
   }),
@@ -180,7 +216,7 @@ export const AGENT_BUS_TOOLS = {
   }),
   list_threads: define({
     name: "list_threads",
-    description: "List side threads with their status.",
+    description: "List your subagents (side threads) or the whole thread tree, with status and last result.",
     args: ListThreads,
     mutates: false,
   }),

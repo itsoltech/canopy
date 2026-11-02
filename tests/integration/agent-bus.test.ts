@@ -13,6 +13,8 @@ import { eventually, failure, startTestGateway, watchUntil, type TestGateway } f
 
 let gw: TestGateway;
 let mainId = "";
+let projectId = "";
+let workspaceId = "";
 
 const json = (result: AgentToolResult) => JSON.parse(result.content) as Record<string, unknown>;
 const query = <A extends object>(text: string, ...params: unknown[]) =>
@@ -23,16 +25,16 @@ const query = <A extends object>(text: string, ...params: unknown[]) =>
     }),
   );
 const turns = (threadId: string) =>
-  query<{ ordinal: number; status: string; trigger: string; hops: number; text: string }>(
-    "SELECT ordinal, status, trigger, hops, input->>'text' AS text FROM turns WHERE thread_id = $1::uuid ORDER BY ordinal",
+  query<{ id: string; ordinal: number; status: string; trigger: string; hops: number; text: string }>(
+    "SELECT id, ordinal, status, trigger, hops, input->>'text' AS text FROM turns WHERE thread_id = $1::uuid ORDER BY ordinal",
     threadId,
   );
 
 describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () => {
   beforeAll(async () => {
     gw = await startTestGateway();
-    const projectId = (await gw.api.createProject({ name: "Bus" })).project!.id;
-    const workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/app", label: "" })).workspace!.id;
+    projectId = (await gw.api.createProject({ name: "Bus" })).project!.id;
+    workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/app", label: "" })).workspace!.id;
     const main = (await gw.api.createThread({ projectId, workspaceId, title: "Orchestrator", provider: Provider.CODEX, permissionMode: PermissionMode.ASK, initialMessage: "plan" }))
       .thread!;
     mainId = main.id;
@@ -60,6 +62,10 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     const sideTurns = await eventually(() => turns(sideId), (t) => t[0]?.status === "completed");
     expect(sideTurns[0]).toMatchObject({ trigger: "agent_bus", hops: 1 });
     expect(sideTurns[0]?.text).toContain("Review the diff");
+    // The UI's subagent card reads the result from the thread; main threads carry none.
+    const listed = (await gw.api.listThreads({ projectId: side.projectId })).threads;
+    expect(listed.find((t) => t.id === sideId)?.lastMessage).toStartWith("Echo: [open-agents] Task from");
+    expect(listed.find((t) => t.id === mainId)?.lastMessage).toBe("");
     // ...and the orchestrator got a notification turn with the side thread's last message, and ran it.
     const mainTurns = await eventually(() => turns(mainId), (t) => t.length === 2 && t[1]?.status === "completed");
     expect(mainTurns[1]).toMatchObject({ trigger: "agent_bus", hops: 2 });
@@ -297,5 +303,69 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(scheduled?.scheduleId).not.toBe("");
     expect(scheduled?.sourceThreadId).toBe(mainId); // an agent schedule: created by this thread's agent
     expect(scheduled?.messageText).toBe("Check CI");
+  });
+
+  test("spawn options: role, model, effort and narrower permissions; never broader than the caller; result with its outcome", async () => {
+    const spawned = await gw.worker.callTool({
+      threadId: mainId,
+      tool: "spawn_thread",
+      args: { title: "Strict reviewer", prompt: "Review", instructions: "You are a strict reviewer.", model: "gpt-5.5", effort: "low", permission_mode: "read_only", notify: false },
+    });
+    expect([spawned.isError, spawned.content]).toEqual([false, expect.any(String)]);
+    const result = json(spawned) as { thread_id: string; model: string; effort: string; permission_mode: string };
+    expect([result.model, result.effort, result.permission_mode]).toEqual(["gpt-5.5", "low", "read_only"]);
+    expect(gw.worker.created.find((c) => c.threadId === result.thread_id)).toMatchObject({
+      model: "gpt-5.5",
+      instructions: "You are a strict reviewer.",
+      permissionMode: PermissionMode.READ_ONLY,
+    });
+    // Only models and efforts of the caller's provider account.
+    const unknown = await gw.worker.callTool({ threadId: mainId, tool: "spawn_thread", args: { title: "x", prompt: "y", model: "gpt-test" } });
+    expect([unknown.isError, unknown.content]).toEqual([true, 'Codex on profile "native" does not offer the model "gpt-test"']);
+    // The orchestrator runs in ASK: a subagent cannot get more.
+    const broader = await gw.worker.callTool({ threadId: mainId, tool: "spawn_thread", args: { title: "x", prompt: "y", permission_mode: "full_auto" } });
+    expect([broader.isError, broader.content]).toEqual([true, "permission_mode full_auto is broader than yours (ask); a subagent cannot get more permissions than you"]);
+
+    const waited = json(await gw.worker.callTool({ threadId: mainId, tool: "wait_threads", args: { thread_ids: [result.thread_id], timeout_seconds: 30 } })) as {
+      done: boolean;
+      threads: { last_turn?: { status: string }; last_message: string; permission_mode: string }[];
+    };
+    expect(waited.done).toBe(true);
+    expect(waited.threads[0]).toMatchObject({ last_turn: { status: "completed" }, permission_mode: "read_only" });
+    expect(waited.threads[0]?.last_message).toContain("Review");
+    await gw.worker.callTool({ threadId: mainId, tool: "close_thread", args: { thread_id: result.thread_id } });
+  });
+
+  test("the spawn ceiling is the calling turn's permission mode, not the thread's default", async () => {
+    // A FULL_AUTO thread whose current message runs READ_ONLY: its subagents get read_only at most.
+    gw.worker.holdTurns = false;
+    const thread = (await gw.api.createThread({ projectId, workspaceId, title: "Turn ceiling", provider: Provider.CODEX, permissionMode: PermissionMode.FULL_AUTO }))
+      .thread!;
+    await eventually(() => gw.api.getThread({ threadId: thread.id }), (r) => r.thread?.status === "idle");
+    gw.worker.holdTurns = true;
+    const sent = await gw.api.sendMessage({ threadId: thread.id, text: "look only", clientRequestId: "ceiling-1", permissionMode: PermissionMode.READ_ONLY });
+    const turnId = sent.turn!.id;
+    await eventually(() => turns(thread.id), (t) => t.some((x) => x.id === turnId && x.status === "running"));
+    const broader = await gw.worker.callTool({ threadId: thread.id, turnId, tool: "spawn_thread", args: { title: "x", prompt: "y", permission_mode: "ask" } });
+    expect([broader.isError, broader.content]).toEqual([true, "permission_mode ask is broader than yours (read_only); a subagent cannot get more permissions than you"]);
+    // Asking for none: the calling turn's mode, not the thread's FULL_AUTO.
+    const child = json(await gw.worker.callTool({ threadId: thread.id, turnId, tool: "spawn_thread", args: { title: "Child", prompt: "y", notify: false } })) as {
+      thread_id: string;
+      permission_mode: string;
+    };
+    expect(child.permission_mode).toBe("read_only");
+    expect(gw.worker.created.find((c) => c.threadId === child.thread_id)?.permissionMode).toBe(PermissionMode.READ_ONLY);
+    gw.worker.holdTurns = false;
+    gw.worker.finish(thread.id, turnId);
+    await eventually(() => turns(thread.id), (t) => t.every((x) => x.status !== "running"));
+    // The next turn is back on FULL_AUTO: the thread's default is the ceiling again.
+    const next = (await gw.api.sendMessage({ threadId: thread.id, text: "go", clientRequestId: "ceiling-2" })).turn!;
+    gw.worker.holdTurns = true;
+    await eventually(() => turns(thread.id), (t) => t.some((x) => x.id === next.id && x.status !== "queued"));
+    const full = json(await gw.worker.callTool({ threadId: thread.id, turnId: next.id, tool: "spawn_thread", args: { title: "Full", prompt: "y", permission_mode: "full_auto", notify: false } })) as {
+      permission_mode: string;
+    };
+    expect(full.permission_mode).toBe("full_auto");
+    gw.worker.holdTurns = false;
   });
 });

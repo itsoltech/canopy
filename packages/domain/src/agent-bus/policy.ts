@@ -1,4 +1,4 @@
-import { agentBusToolsFor, type AgentBusCall } from "./tools.ts";
+import { agentBusToolsFor, SPAWN_PERMISSION_MODES, type AgentBusCall, type SpawnPermissionMode } from "./tools.ts";
 
 /**
  * Who may do what on the agent bus (docs/agent-bus.md#4-reguły-dostępu-i-limity).
@@ -10,6 +10,7 @@ import { agentBusToolsFor, type AgentBusCall } from "./tools.ts";
  * - The communication domain is one thread tree: read, wait for and message any other
  *   thread of the tree (children, parent, siblings).
  * - Control (interrupt, close, answering interactions, schedules of others) only over own descendants.
+ * - A side thread never gets broader permissions than the thread that spawned it.
  * - Every turn started through the bus (messages, notifications, agent-created schedules)
  *   carries hops = hops of the causing turn + 1; human input and provider wake-ups start at 0.
  *   This stops agent ping-pong without a human.
@@ -69,6 +70,8 @@ export interface BusFacts {
   readonly activeInTree: number;
   /** spawn_thread: provider of the agent that will run the new thread. */
   readonly spawnProvider?: string;
+  /** spawn_thread: the caller's own permission mode, the ceiling for the new thread. */
+  readonly callerPermissionMode?: SpawnPermissionMode;
   /** answer_interaction: the referenced interaction. */
   readonly interaction?: InteractionFacts;
   /** cancel_schedule: the referenced schedule. */
@@ -114,6 +117,11 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
       }
       if (call.args.fork && facts.spawnProvider !== undefined && facts.spawnProvider !== caller.provider) {
         return deny(`fork keeps the provider: ${caller.provider} cannot fork into ${facts.spawnProvider}`);
+      }
+      const wanted = call.args.permission_mode;
+      const ceiling = facts.callerPermissionMode ?? "ask";
+      if (wanted !== undefined && permissionRank(wanted) > permissionRank(ceiling)) {
+        return deny(`permission_mode ${wanted} is broader than yours (${ceiling}); a subagent cannot get more permissions than you`);
       }
       return withHops(call.args.notify);
     }
@@ -202,6 +210,11 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
       return typeof owner === "string" ? deny(`schedule ${schedule.id} not found`) : allow;
     }
   }
+}
+
+/** read_only < ask < accept_edits < full_auto: how much a thread may do without a human answer. */
+export function permissionRank(mode: SpawnPermissionMode): number {
+  return SPAWN_PERMISSION_MODES.indexOf(mode);
 }
 
 /** Target in the caller's tree, or the reason why not. Unknown and foreign threads look the same. */

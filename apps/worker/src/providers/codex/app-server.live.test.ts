@@ -14,6 +14,7 @@ import { resolveProfiles } from "../profiles.ts";
 import { CodexAppServer } from "./app-server.ts";
 import { prepareCodexHome } from "./home.ts";
 import { codexAppServerLaunch, codexThreadProvider } from "./launch.ts";
+import { codexAgentBusTools } from "./threads.ts";
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -285,5 +286,68 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex dynamic tools (live)", (
       rmSync(home, { recursive: true, force: true });
       rmSync(cwd, { recursive: true, force: true });
     }
+  }, 600_000);
+});
+
+// Models whose catalog entry declares multi_agent_version "v2" (gpt-6.1-sol) got Codex's collaboration tools
+// (spawn_agent, send_message, wait_agent, ...) although features.multi_agent*=false: only agents.enabled=false
+// overrides the catalog (native-tools.ts). Checked in Codex's own record of the turn (`additional_tools` in the
+// rollout), with a control run without the override; with it, a request for a subagent goes to our spawn_thread.
+describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex collaboration tools (live)", () => {
+  test("off for a multi-agent v2 model; a subagent request calls the bus tool spawn_thread", async () => {
+    const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]).find((s) => s.config.id === "live")!
+      .resolved!;
+    const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    // Declarations only (spawn_thread's description mentions spawn_agent). Codex's own send_message is not listed:
+    // the bus has a tool of that name.
+    const COLLAB = /("name":"|### `|\b)(spawn_agent|wait_agent|send_input|followup_task|interrupt_agent|close_agent|resume_agent)("|`|\(args)/;
+    const run = async (withOverride: boolean, prompt: string) => {
+      const home = mkdtempSync(join(tmpdir(), "oa-codex-home-"));
+      const cwd = mkdtempSync(join(tmpdir(), "oa-codex-collab-"));
+      const launch = codexAppServerLaunch([profile], process.env, "codex", undefined, home);
+      const command = withOverride ? launch.command : launch.command.filter((arg, i, all) => arg !== "agents.enabled=false" && all[i + 1] !== "agents.enabled=false");
+      const calls: string[] = [];
+      try {
+        const rollout = await Effect.runPromise(
+          Effect.gen(function* () {
+            const codex = yield* CodexAppServer;
+            const started = yield* codex.request("thread/start", {
+              cwd, approvalPolicy: "never", sandbox: "read-only", model, ...codexThreadProvider(profile),
+              dynamicTools: codexAgentBusTools(0),
+            });
+            yield* runTurn(started.thread.id, prompt);
+            return started.thread.path ?? "";
+          }).pipe(
+            Effect.provide(
+              CodexAppServer.layer({
+                launch: { command, env: launch.env },
+                clientVersion: "0.0.0-live",
+                onServerRequest: async (request) => {
+                  if (request.method !== "item/tool/call") return request.method.endsWith("requestApproval") ? { decision: "decline" } : {};
+                  calls.push((request.params as { tool: string }).tool);
+                  const text = JSON.stringify({ thread_id: "019a0000-0000-7000-8000-000000000001", turn_id: "019a0000-0000-7000-8000-000000000002", note: "The side thread is working." });
+                  return { contentItems: [{ type: "inputText", text }], success: true };
+                },
+              }),
+            ),
+          ),
+        );
+        const tools = (await Bun.file(rollout).text()).split("\n").filter((line) => line.includes('"additional_tools"'));
+        return { tools, calls };
+      } finally {
+        rmSync(home, { recursive: true, force: true });
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    };
+
+    const control = await run(false, "Reply with the single word OK.");
+    expect(control.tools.length).toBeGreaterThan(0);
+    expect(control.tools.some((line) => COLLAB.test(line))).toBe(true); // the bug: v2 tools despite the features
+
+    const fixed = await run(true, "Delegate this to a subagent: count the letters in the word 'subagent'. Start it and then reply DONE.");
+    expect(fixed.tools.length).toBeGreaterThan(0);
+    expect(fixed.tools.some((line) => COLLAB.test(line))).toBe(false);
+    expect(fixed.tools.some((line) => line.includes("### `spawn_thread`") || line.includes('"name":"spawn_thread"'))).toBe(true);
+    expect(fixed.calls).toContain("spawn_thread");
   }, 600_000);
 });

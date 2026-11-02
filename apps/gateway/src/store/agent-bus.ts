@@ -1,7 +1,7 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@open-agents/contracts";
-import type { AgentBusArgs, BusFacts, InteractionFacts, ScheduleFacts, ThreadNode } from "@open-agents/domain";
+import { SPAWN_PERMISSION_MODES, type AgentBusArgs, type BusFacts, type InteractionFacts, type ScheduleFacts, type SpawnPermissionMode, type ThreadNode } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";
@@ -47,7 +47,20 @@ export interface ThreadSummary {
   /** Questions and permission prompts of this thread waiting for its parent agent. */
   readonly waiting_for_parent: number;
   readonly waiting_for_user: number;
+  /** What the thread runs with ('' = the provider's default). */
+  readonly model: string;
+  readonly effort: string;
+  readonly permission_mode: SpawnPermissionMode;
+  /** The latest finished turn: completed, interrupted or failed, with the reason. Absent before the first one ends. */
+  readonly last_turn?: { readonly turn_id: string; readonly status: string; readonly reason?: string };
+  /** The thread's final message so far: a subagent's result. */
   readonly last_message: string;
+}
+
+/** Thread settings keep the contract's enum key (ASK, READ_ONLY, ...); the bus speaks lower case. */
+export function busPermissionMode(stored: string | undefined): SpawnPermissionMode {
+  const mode = (stored ?? "ASK").toLowerCase();
+  return (SPAWN_PERMISSION_MODES as readonly string[]).includes(mode) ? (mode as SpawnPermissionMode) : "ask";
 }
 
 export interface Notification {
@@ -215,9 +228,9 @@ export class AgentBusStore extends Context.Service<
         Effect.gen(function* () {
           const rows = yield* sql<{
             id: string; title: string; kind: "main" | "side"; parent_thread_id: string | null; status: string;
-            running: number; queued: number; for_parent: number; for_user: number;
+            settings: ThreadRow["settings"]; running: number; queued: number; for_parent: number; for_user: number;
           }>`
-            SELECT t.id, t.title, t.kind, t.parent_thread_id, t.status,
+            SELECT t.id, t.title, t.kind, t.parent_thread_id, t.status, t.settings,
                    (SELECT count(*)::int FROM turns u WHERE u.thread_id = t.id AND u.status = 'running') AS running,
                    (SELECT count(*)::int FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued') AS queued,
                    (SELECT count(*)::int FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND i.routed_to = 'parent') AS for_parent,
@@ -225,6 +238,15 @@ export class AgentBusStore extends Context.Service<
               FROM threads t WHERE t.id = ${threadId}::uuid`;
           const row = rows[0];
           if (!row) return yield* Effect.fail(new NotFound("thread not found"));
+          const ended = (yield* sql<{ id: string; status: string; error: string | null; error_source: string | null; interrupt_reason: string | null; interrupt_source: string | null }>`
+            SELECT id, status, error, error_source, interrupt_reason, interrupt_source FROM turns
+             WHERE thread_id = ${row.id}::uuid AND status IN ('completed', 'interrupted', 'failed') ORDER BY ordinal DESC LIMIT 1`)[0];
+          const reason =
+            ended?.status === "failed"
+              ? [ended.error_source, ended.error].filter(Boolean).join(": ")
+              : ended?.status === "interrupted"
+                ? [ended.interrupt_source, ended.interrupt_reason].filter(Boolean).join(": ")
+                : "";
           return {
             thread_id: row.id,
             title: row.title,
@@ -235,6 +257,10 @@ export class AgentBusStore extends Context.Service<
             queued_turns: row.queued,
             waiting_for_parent: row.for_parent,
             waiting_for_user: row.for_user,
+            model: row.settings.model ?? "",
+            effort: row.settings.effort ?? "",
+            permission_mode: busPermissionMode(row.settings.permissionMode),
+            ...(ended && { last_turn: { turn_id: ended.id, status: ended.status, ...(reason && { reason: truncate(reason, 1_000) }) } }),
             last_message: truncate(yield* lastMessage(row.id), 4_000),
           };
         });
@@ -267,6 +293,19 @@ export class AgentBusStore extends Context.Service<
       const scheduleSelect = `
         SELECT s.*, t.project_id, c.source_thread_id AS created_by_thread_id
           FROM schedules s JOIN threads t ON t.id = s.thread_id LEFT JOIN agent_bus_calls c ON c.id = s.created_by_call_id`;
+
+      /**
+       * The caller's effective permission mode: the mode its calling turn runs with (a message may override the
+       * thread's default for one turn), else its running turn's, else the thread's default. The ceiling of
+       * spawn_thread and the mode a subagent gets when it asks for none.
+       */
+      const callerMode = (source: CallSource, caller: ThreadRow) =>
+        sql<{ permission_mode: string }>`
+          SELECT permission_mode FROM turns
+           WHERE permission_mode <> '' AND (id = ${turnRef(source)} OR (thread_id = ${caller.id}::uuid AND status = 'running'))
+           ORDER BY (id = ${turnRef(source)}) DESC NULLS LAST LIMIT 1`.pipe(
+          Effect.map((rows) => busPermissionMode(rows[0]?.permission_mode || caller.settings.permissionMode)),
+        );
 
       const store: AgentBusStore["Service"] = {
         storedCall: (callId) =>
@@ -322,6 +361,7 @@ export class AgentBusStore extends Context.Service<
               callerChildren: counts[0]?.children ?? 0,
               activeInTree: counts[0]?.active ?? 0,
               spawnProvider: caller.provider,
+              callerPermissionMode: yield* callerMode(source, caller),
               ...(interaction && { interaction }),
               ...(schedule && { schedule }),
               ...(scheduleCount !== undefined && { targetSchedules: scheduleCount }),
@@ -350,7 +390,20 @@ export class AgentBusStore extends Context.Service<
               const notify = args.notify ?? true;
               yield* insertCall({ source, tool: "spawn_thread", args, status: "completed", hops, notify });
               const id = Bun.randomUUIDv7();
-              // Same place, provider and settings as the caller (threads_before_insert enforces the placement).
+              // Same place, provider and account as the caller (threads_before_insert enforces the placement); its
+              // settings unless the call narrows them (authorizeBusCall: permissions never broader, the gateway checked
+              // the model against the catalog). A role adds to the caller's instructions.
+              const settings: ThreadRow["settings"] = {
+                ...caller.settings,
+                // The calling turn's mode, not the thread's default (never broader than the caller right now).
+                permissionMode: (yield* callerMode(source, caller)).toUpperCase(),
+                ...(args.model !== undefined && { model: args.model }),
+                ...(args.effort !== undefined && { effort: args.effort }),
+                ...(args.permission_mode !== undefined && { permissionMode: args.permission_mode.toUpperCase() }),
+                ...(args.instructions !== undefined && {
+                  instructions: [caller.settings.instructions, args.instructions].filter(Boolean).join("\n\n"),
+                }),
+              };
               yield* sql`
                 INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, origin, spawned_by_call_id,
                                      interaction_route, runtime, provider, provider_profile_id, worker_id, workspace_id, cwd,
@@ -359,7 +412,7 @@ export class AgentBusStore extends Context.Service<
                         ${caller.root_thread_id}::uuid, ${caller.depth + 1}, 'agent', ${source.callId}::uuid,
                         ${args.interactions ?? "parent"}, 'worker', ${caller.provider}, ${caller.provider_profile_id},
                         ${caller.worker_id}::uuid, ${caller.workspace_id}::uuid, ${caller.cwd},
-                        ${args.fork ? caller.id : null}::uuid, ${JSON.stringify(caller.settings)}::jsonb, 'creating', ${args.title.trim()})`;
+                        ${args.fork ? caller.id : null}::uuid, ${JSON.stringify(settings)}::jsonb, 'creating', ${args.title.trim()})`;
               const input: TurnInput = {
                 note:
                   `[open-agents] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` +
@@ -371,6 +424,9 @@ export class AgentBusStore extends Context.Service<
               const result = {
                 thread_id: id,
                 turn_id: turn.id,
+                model: settings.model ?? "",
+                effort: settings.effort ?? "",
+                permission_mode: busPermissionMode(settings.permissionMode),
                 note: notify
                   ? "The side thread is working. You will get a message in this thread when it finishes its turn; continue meanwhile or call wait_threads."
                   : "The side thread is working. Follow it with wait_threads or get_thread.",
