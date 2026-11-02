@@ -6,6 +6,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'Canopy',
   slug: 'canopy-mobile',
   platforms: ['ios', 'android'],
+  ios: {
+    ...config.ios,
+    infoPlist: {
+      ...config.ios?.infoPlist,
+      NSAppTransportSecurity: {
+        NSAllowsArbitraryLoads: false,
+        NSAllowsLocalNetworking: process.env.CANOPY_DEV_HTTP === '1',
+      },
+    },
+  },
   plugins: [
     ...(config.plugins ?? []),
     ['expo-build-properties', { android: { usesCleartextTraffic: process.env.CANOPY_DEV_HTTP === '1' } }],

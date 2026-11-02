@@ -6,8 +6,10 @@
     "@bufbuild/protobuf": "2.16.0",
     "@connectrpc/connect": "2.3.0",
     "@connectrpc/connect-web": "2.3.0",
+    "@expo-google-fonts/inter": "^0.4.2",
     "@open-agents/contracts": "workspace:*",
     "@open-agents/domain": "workspace:*",
+    "@open-agents/ui": "workspace:*",
     "expo": "~58.0.22",
     "expo-build-properties": "~58.0.12",
     "expo-camera": "~58.0.14",
@@ -27,7 +29,8 @@
     "react": "19.3.0",
     "react-native": "0.88.1",
     "react-native-safe-area-context": "~5.10.1",
-    "react-native-screens": "~4.30.1"
+    "react-native-screens": "~4.30.1",
+    "react-native-svg": "15.16.0"
   },
   "devDependencies": {
     "eslint": "9.39.5",

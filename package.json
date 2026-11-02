@@ -9,7 +9,7 @@
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
     "check": "bun run gen:check && bun run typecheck && bun run check:tmp",
-    "gen:check": "bun run gen && git diff --exit-code -- packages/contracts/src/gen",
+    "gen:check": "bun run gen && git diff --exit-code -- packages/contracts/src/gen && bun run --filter @open-agents/ui gen:check",
     "check:tmp": "bun packages/testing/src/check-temp.ts"
   },
   "devDependencies": {
