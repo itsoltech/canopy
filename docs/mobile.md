@@ -18,8 +18,9 @@ działają po HTTP/1.1; bidirectional streaming WorkerLink nadal wymaga HTTP/2.
 i anulowanie przez AbortSignal. Jest też domyślnym fetch na native w tym SDK,
 ale import jawny chroni aplikację przed `EXPO_PUBLIC_USE_RN_FETCH=1`.
 `WatchOverview` i `WatchThread` nie czekają na zakończenie całej odpowiedzi.
-Test pod Bun sprawdza prawdziwy transport z modułu aplikacji i żywe wiadomości gatewaya;
-nie zastępuje sprawdzenia implementacji native fetch na urządzeniu.
+Test pod Bun sprawdza prawdziwy transport z modułu aplikacji i żywe wiadomości gatewaya.
+Streaming `expo/fetch` sprawdzono również na iOS Simulator i Android Emulator:
+wysłanie wiadomości, częściowa odpowiedź i zakończenie tury.
 
 Cleartext listener gatewaya na `OA_PORT` to h2c (`http2.createServer`), nie HTTP/1.1.
 Telefon nie potrafi użyć tego portu przez fetch. `OA_MOBILE_PORT` dodaje osobny
@@ -130,15 +131,16 @@ samo opublikowanie kontenerowego portu nie udostępni listenera z 127.0.0.1 kont
 
 ## Android emulator: lokalny development build
 
-1. Zainstaluj Android Studio, JDK 17 oraz Android SDK/Build Tools i obraz emulatora
-   zgodny z bieżącym Expo 58. Włącz wirtualizację/KVM. W SDK Manager zainstaluj też
+1. Zainstaluj Android Studio, JDK 17 oraz Android SDK Platform 37 i Build Tools 37
+   wymagane przez Expo 58; obraz emulatora może mieć niższe API (sprawdzany AVD: 36.1).
+   Włącz wirtualizację/KVM. W SDK Manager zainstaluj też Command-line Tools (latest),
    Platform-Tools i Android Emulator; ustaw `ANDROID_HOME` i dodaj `platform-tools`
    oraz `emulator` do PATH zgodnie z dokumentacją Expo. Uruchom AVD z Device Manager.
 2. W root repo wykonaj `bun install`, następnie:
 
    ```bash
    cd apps/mobile
-   bunx expo run:android
+   CANOPY_DEV_HTTP=1 bunx expo run:android
    ```
 
    Polecenie generuje projekt natywny, buduje debug/development client i instaluje go
@@ -189,7 +191,10 @@ Adres Metro i adres gatewaya to dwa różne połączenia. Nie używaj publiczneg
    ```
 
    Wybierz podłączony iPhone i skonfiguruj signing, jeśli Xcode o to poprosi.
-   Dla simulatora na Macu użyj `bunx expo run:ios`. SDK 58 generuje deployment target iOS 16.4.
+   Dla simulatora na Macu użyj `bunx expo run:ios`. Przy lokalnym gatewayu HTTP:
+   `CANOPY_DEV_HTTP=1 bunx expo run:ios`, adres `http://127.0.0.1:7444`.
+   Flaga włącza `NSAllowsLocalNetworking`; `NSAllowsArbitraryLoads` pozostaje false.
+   SDK 58 generuje deployment target iOS 16.4.
 2. Bez lokalnego Maca można zbudować klienta w EAS. Potrzebne są konto Expo i
    Apple Developer do wewnętrznej dystrybucji na fizyczny iPhone. Z `apps/mobile`:
 
@@ -208,6 +213,9 @@ Adres Metro i adres gatewaya to dwa różne połączenia. Nie używaj publiczneg
    Profile `development` ma `developmentClient: true` i `distribution: internal` dla
    obu platform. Dla builda EAS do iOS Simulator użyj `development-simulator` i zainstaluj
    wynik na Macu; nie instaluje się go na iPhonie.
+   Profile development ustawiają `CANOPY_DEV_HTTP=1` dla lokalnych testów. Preview/production
+   nie ustawiają tej flagi i wymagają HTTPS. Kod klienta dodatkowo dopuszcza HTTP tylko
+   w JS development i tylko dla adresów lokalnych wymienionych wyżej.
 4. Włącz Developer Mode na iPhonie, jeśli system o to poprosi. Uruchom Metro:
    `bunx expo start --dev-client --lan` w tej samej sieci co telefon lub wpisz
    `http://TAILSCALE_IP_KOMPUTERA:8081` w development launcherze. Włącz Tailscale
@@ -220,28 +228,57 @@ Nie utrzymujemy ręcznie `android/` i `ios/`. CNG generuje je z konfiguracji i p
 katalogi są w `.gitignore`; po zmianie natywnego modułu/configu potrzebny jest nowy build.
 Samo przejście Metro/OTA nie doda modułu natywnego do istniejącej aplikacji.
 
-## Interfejs i ograniczenia pierwszej wersji
+Przy zdalnym buildzie na Macu ustaw locale UTF-8 (`LANG=en_US.UTF-8`, `LC_ALL=en_US.UTF-8`)
+i upewnij się, że CocoaPods działa z wybraną wersją Ruby. Na hoście testowym stara
+instalacja Homebrew CocoaPods 1.16.2 miała konflikt `ffi` z Ruby 4; osobna instalacja
+CocoaPods 1.17.0 w katalogu zadania rozwiązała problem. Błąd `avdmanager ENOENT` w T3
+oznacza brak Command-line Tools pod `$ANDROID_HOME/cmdline-tools/latest/bin`,
+nawet jeżeli sam obraz AVD jest już zainstalowany.
 
-Pair → Threads → Thread, plus Settings. Lista pokazuje projekt, worker, stan
-running/needs input/idle i aktualizuje się przez WatchOverview. WatchThread składa
+## Interfejs zgodny z web
+
+Pair → Threads/Bots → Thread/Chat, plus Settings i New thread. Lista pokazuje projekt,
+worker/katalog, ikonę providera, czas i stan jak web; aktualizuje się przez WatchOverview.
+Są wyszukiwanie, filtr projektów i Archived. WatchThread składa
 snapshot i delty współdzielonym reducerem itemów. Po utracie połączenia backoff
 z jitterem rośnie od około 1 do 30 sekund; powrót z tła lub odzyskanie sieci uruchamia
 świeży snapshot. Stan pozostaje tylko w pamięci, bez obietnicy offline wysyłania.
 Wysłanie po timeout używa tego samego client_request_id do czasu zmiany treści/trybu,
 więc ręczny retry nie dubluje tury.
 
-Natywny interfejs używa StyleSheet, wspólnych tokenów kolorów, fontu systemowego,
-SafeAreaView, KeyboardAvoidingView, FlatList i kontrolek z etykietami dostępności.
-Zasady `design`: spokojna hierarchia, delikatne separatory, minimalna liczba kart,
-jeden główny akcent, systemowe light/dark i cele dotykowe co najmniej 44–48 dp.
-Brand assety pochodzą z `apps/web/static`; aplikacja nie importuje kodu web.
+`packages/ui` współdzieli z web dane ikon Lucide/providerów, kształty i kolory mascotów,
+nazwy/kolejność Settings i akcentów. `tokens.ts` opisuje skalę typografii, spacing, radii
+i statusy według `apps/web/src/app.css` oraz `shared/ui/status.ts`. Paleta RN jest generowana
+z dokładnie tej samej wersji Tailwind co web: `bun --cwd packages/ui gen`. Konwersja
+OKLCH → sRGB jest konieczna dla natywnego parsera kolorów; `gen:check` wykrywa rozjazd palety
+i wersji Tailwind. CSS web nadal używa Tailwind; zmiany jego skali typografii/radii
+trzeba przenosić do wspólnych tokenów świadomie.
+
+RN używa StyleSheet i Inter 400/500/600 (pakiet fontu, bez pobierania z sieci), SVG
+z tych samych ścieżek, SafeAreaView, KeyboardAvoidingView i FlatList. Jasny/ciemny motyw
+oraz sześć akcentów są ustawieniami gatewaya, synchronizowanymi między klientami.
+Sidebar jest natywnym ekranem listy; web na telefonie otwiera go jako drawer. Panele
+szczegółów/menu są sheetami. Nazwy komponentów odpowiadają web, m.in. SidebarThread,
+ThreadHeader, MessageComposer/ComposerBox, ThreadPanel, AppearanceSettings,
+BotAvatar, ChatBubble i BotDetailsPanel. Brand assety pochodzą z `apps/web/static`.
 
 Markdown renderujemy natywnym Text/View po tokenizacji, bez HTML/WebView i automatycznego
 pobierania obrazów. Linki otwierają tylko HTTP(S) po tapnięciu. Narzędzia/praca są domyślnie
 zwinięte; bardzo długi output ma jawny limit podglądu 12 tys. znaków i odsyłacz opisowy do web.
-Pytania/zgody są widoczne **read-only** i odpowiada się na nie w web. Kompozytor oferuje
-Queue oraz Send now (steer, gdy tura trwa). Brak tworzenia wątków, załączników, botów,
-powiadomień push i trwałego offline cache w tej iteracji.
+Pytania/zgody w wątkach są widoczne **read-only** i odpowiada się na nie w web.
+Kompozytor oferuje Queue, Send now/steer, stop, wybór modelu/effort i permissions;
+respektuje ustawienie zachowania podczas trwającej tury. Goal jest read-only.
+Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
+subagents i panel worker/cwd/model/status/schedules/lineage/connectors.
+
+Settings ma kolejność web: Appearance, Threads, Text generation, Scheduled tasks,
+Projects, Providers, Connectors, Workers, Mobile devices. Edytowalne są Appearance,
+running delivery i instrukcje tytułów; pozostałe sekcje prezentują dane i odsyłają do web
+po zarządzanie. Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
+listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
+szczegółów/routines/reminders (zarządzanie w web). Lista botów odświeża się co 10 sekund.
+Brak załączników, push i trwałego offline cache. To pierwsza iteracja zgodności z web,
+nie pełna równoważność wszystkich jego funkcji.
 
 ## Weryfikacja
 
@@ -249,12 +286,24 @@ W checkoutcie 2026-11-02 przeszły: instalacja Bun, typecheck wszystkich workspa
 generowanie kontraktów, lint mobile, Expo Doctor **20/20**, CNG obu platform,
 eksport bundle Android/iOS i build web BFF. Pełny `check:tmp`: **627 pass, 144 skip,
 0 fail**, bez pozostawionych katalogów testowych. Testy live modeli były pominięte.
-Webowy formularz parowania sprawdzono ręcznie w Chromium także przy szerokości 390 px;
-nie wykonano testów UI ani screenshotów.
+Zbudowano i uruchomiono development client na MacStudio: iPhone 17 Pro / iOS 26.3
+Simulator i Medium Phone / Android 16 (API 36.1) Emulator. Na obu ręcznie sprawdzono
+parowanie kodem, snapshot/listę, aktualizacje live, otwarcie wątku, wysłanie i odpowiedź
+strumieniowaną, chat bota, zachowanie parowania po relaunch oraz unpair z potwierdzonym
+revoke w gatewayu. Zmiana akcentu iOS → Android synchronizuje się; działa systemowy
+light/dark. Panel wątku i zwijanie pracy również otwarto. Bez automatycznych testów UI.
 
-Bez testów UI i bez symulatorów/emulatorów w obecnym środowisku. Przed akceptacją
-na urządzeniu nadal trzeba sprawdzić kamerę, SecureStore, klawiaturę, przełączenie
-light/dark, zachowanie strumienia w native fetch, utratę sieci, tło i revoke.
+Zestawienia rzeczywistego web (390 × 844) i obu aplikacji: [raport i screenshoty](mobile-verification.md).
+Model testowy i worker były skryptowane, bez prawdziwego LLM ani sekretów live.
+Połączenie szło przez prywatny SSH reverse forward na loopback, nie przez Tailscale Serve.
+Kamera/QR na fizycznym telefonie, prawdziwy LLM, HTTPS Serve, utrata sieci i powrót z tła
+pozostają nieweryfikowane ręcznie; retry/reconnect jest zaimplementowany.
+
+Na testowym AVD uniwersalny APK nie mieścił się w wolnej przestrzeni
+(`INSTALL_FAILED_INSUFFICIENT_STORAGE`). Build `arm64-v8a` (~96 MB) zainstalował się poprawnie.
+Na małym AVD użyj `bunx expo run:android --active-arch-only` lub zwiększ jego dysk.
+Na iOS simulator zachowaj standardowe podpisywanie debug: build z
+`CODE_SIGNING_ALLOWED=NO` powodował błąd dostępu do Keychain/SecureStore.
 
 Polecenia z root:
 
