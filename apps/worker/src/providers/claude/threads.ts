@@ -36,6 +36,7 @@ import { claudePermissions } from "./permissions.ts";
 import { claudeProfileOptions } from "./profile.ts";
 import { transcriptPath } from "./transcript.ts";
 import { reconcileTurn, type EndCause } from "../reconcile.ts";
+import { withDeadline } from "../deadline.ts";
 
 /**
  * Platform threads on Claude Code through the Agent SDK (docs/claude-adapter.md).
@@ -737,10 +738,9 @@ const make = (options: ClaudeThreadsOptions) =>
               },
             });
             try {
-              return await Promise.race([
-                q.supportedCommands(),
-                Bun.sleep(30_000).then(() => Promise.reject(new Error("Claude Code did not list its commands within 30 s"))),
-              ]);
+              return await withDeadline(q.supportedCommands(), 30_000, () => {
+                throw new Error("Claude Code did not list its commands within 30 s");
+              });
             } finally {
               prompt.close();
               abort.abort();
@@ -771,10 +771,9 @@ const make = (options: ClaudeThreadsOptions) =>
               },
             });
             try {
-              return await Promise.race([
-                q.supportedModels(),
-                Bun.sleep(30_000).then(() => Promise.reject(new Error("Claude Code did not list its models within 30 s"))),
-              ]);
+              return await withDeadline(q.supportedModels(), 30_000, () => {
+                throw new Error("Claude Code did not list its models within 30 s");
+              });
             } finally {
               prompt.close();
               abort.abort();

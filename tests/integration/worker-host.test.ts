@@ -3,22 +3,21 @@
  * No provider processes: Codex and Claude are disabled in the configuration.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
 import type { WorkerConnection } from "@open-agents/gateway/worker-link";
+import { tempDir } from "@open-agents/testing";
 import { journalHello } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 
-const dir = mkdtempSync(join(tmpdir(), "oa-host-"));
+const dir = tempDir("oa-host-");
 const root = join(dir, "repos");
 mkdirSync(join(root, "project-a", ".git"), { recursive: true });
 mkdirSync(join(root, "notes"), { recursive: true });
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 let gateway: Awaited<ReturnType<typeof startGateway>>;
 let connection: WorkerConnection;

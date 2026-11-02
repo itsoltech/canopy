@@ -172,7 +172,9 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
     if (status.problem && !status.config.disabled) issue(`profiles[${status.config.id}]`, status.problem);
   }
   // What the device says (CLI, version, login) is reported with each instance, not as a configuration issue.
-  profiles = profiles.map((status) => inspectProfile(status, { claude, codex }, probe, homes));
+  // An instance is one harness (provider, id): a profile serving both (a local or older configuration) is checked,
+  // and may be unavailable, per harness, so Claude turned off does not take its Codex side down with it.
+  profiles = profiles.flatMap(perHarness).map((status) => inspectProfile(status, { claude, codex }, probe, homes));
 
   const limits = config.limits;
   const report = {
@@ -252,6 +254,16 @@ function providerInfo(provider: Provider, runtime: ProviderRuntime) {
  * authenticates. A provider that is off or missing, an executable that does not run and a native instance without
  * any login make it unavailable (pickers leave it out); an endpoint authenticates with its key.
  */
+function perHarness(status: ProfileStatus): ProfileStatus[] {
+  const harnesses = providersOf(status.config);
+  if (harnesses.length < 2) return [status];
+  return harnesses.map((harness) => ({
+    ...status,
+    config: { ...status.config, providers: [harness] },
+    ...(status.resolved && { resolved: { ...status.resolved, providers: [harness] } }),
+  }));
+}
+
 function inspectProfile(
   status: ProfileStatus,
   runtimes: Record<"claude" | "codex", ProviderRuntime>,

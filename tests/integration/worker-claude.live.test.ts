@@ -3,11 +3,10 @@
  * creates a Claude thread in ASK mode, runs turns (permission round trips, resume), forks it at a turn and
  * answers an agent bus call. Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/claude-adapter.md).
  */
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { DeviceLogin, InteractionKind, PermissionMode, Provider, ProviderProfileKind, type ThreadEvent } from "@open-agents/contracts";
+import { tempDir } from "@open-agents/testing";
 import { journalHello } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
@@ -26,12 +25,8 @@ const text = (events: ThreadEvent[], turnId: string) =>
     .join("\n");
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Claude end to end (live)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "oa-e2e-claude-"));
-  const repo = mkdtempSync(join(tmpdir(), "oa-e2e-claude-repo-"));
-  afterAll(() => {
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
-  });
+  const dir = tempDir("oa-e2e-claude-");
+  const repo = tempDir("oa-e2e-claude-repo-");
 
   test("ASK turn with permissions, resume, fork at a turn, agent bus call, native subagents off", async () => {
     const gateway = await startGateway();

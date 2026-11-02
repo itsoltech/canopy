@@ -1,7 +1,7 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tempDir } from "@open-agents/testing";
 import { Result } from "effect";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig, parseLocalConfig } from "./local.ts";
 
@@ -10,8 +10,7 @@ const VALID = {
   worker_id: "0196f0c1-0000-7000-8000-000000000001",
   credential: "c".repeat(32),
 };
-const dir = mkdtempSync(join(tmpdir(), "oa-local-config-"));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+const dir = tempDir("oa-local-config-");
 
 describe("local worker config (connection only)", () => {
   test("accepts the connection settings and nothing else", () => {
