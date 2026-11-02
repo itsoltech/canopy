@@ -18,3 +18,20 @@ export const needsYou = (thread: ui.Thread) => waiting(thread) && thread.interac
 
 /** Waits for its parent agent's answer (interaction_route = parent); the user may still step in. */
 export const asksAgent = (thread: ui.Thread) => waiting(thread) && thread.interactionRoute === "parent";
+
+/**
+ * What a thread is doing right now, for the activity mark in lists: waiting for you or its agent first,
+ * then a running or starting turn, then background tasks alone; "idle" covers finished, failed and the rest.
+ */
+export type WorkState = "needs" | "asks" | "starting" | "running" | "background" | "idle";
+
+export function workState(thread: ui.Thread): WorkState {
+  if (needsYou(thread)) return "needs";
+  if (asksAgent(thread)) return "asks";
+  if (thread.status === "creating") return "starting";
+  if (thread.status === "running") return "running";
+  return thread.backgroundTasks > 0 ? "background" : "idle";
+}
+
+/** A turn runs, the thread starts or a background task still runs. */
+export const isWorking = (thread: ui.Thread) => ["starting", "running", "background"].includes(workState(thread));

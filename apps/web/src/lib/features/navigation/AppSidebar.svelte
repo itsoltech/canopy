@@ -2,7 +2,7 @@
   import { page } from "$app/state";
   import BotsSectionEmpty from "#lib/features/bots/components/BotsSectionEmpty.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { needsYou } from "#lib/features/threads/activity.ts";
+  import { isWorking, needsYou } from "#lib/features/threads/activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import ConnectionStatus from "./ConnectionStatus.svelte";
@@ -20,7 +20,10 @@
 
   const section = $derived<Section>(sectionOf(page.url.pathname) ?? sectionMemory.current);
   const queries = $state<Record<Section, string>>({ threads: "", bots: "" });
-  const threadsNeedYou = $derived([...overview.threads.values()].some(needsYou));
+  const threadsAttention = $derived.by(() => {
+    const threads = [...overview.threads.values()];
+    return threads.some(needsYou) ? "needs" : threads.some(isWorking) ? "working" : undefined;
+  });
   const online = $derived(overview.workers.filter((w) => w.online).length);
   const settingsActive = $derived(page.url.pathname.startsWith("/settings"));
   const iconLink =
@@ -47,7 +50,7 @@
     {/if}
   </div>
 
-  <SectionSwitch active={section} attention={{ threads: threadsNeedYou }} class="px-3 pb-2" />
+  <SectionSwitch active={section} attention={{ threads: threadsAttention }} class="px-3 pb-2" />
 
   <div class="px-3 pb-2">
     <label class="flex items-center gap-2 rounded-lg px-2.5 py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400">

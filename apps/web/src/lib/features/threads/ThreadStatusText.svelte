@@ -11,8 +11,9 @@
   /**
    * Thread status as T3 shows it in lists: what needs attention in colour (needs you, asking its
    * agent, working for how long, failed), otherwise how long ago it was last active. A new state swaps in.
+   * `icons={false}` drops the marks of waiting and working where a ThreadActivityMark leads the row.
    */
-  let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
+  let { thread, icons = true, class: className }: { thread: ui.Thread; icons?: boolean; class?: ClassValue } = $props();
   const at = $derived(activityOf(thread));
   const age = $derived(formatAge(at, clock.now));
   const state = $derived(needsYou(thread) ? "needs" : asksAgent(thread) ? "asks" : thread.status);
@@ -21,16 +22,16 @@
 <span class={["flex shrink-0 items-center gap-1 text-sm/5 whitespace-nowrap tabular-nums sm:text-xs/5", className]}>
   {#key state}<span class="flex items-center" in:swap>
   {#if needsYou(thread)}
-    <span class="flex items-center gap-1 text-amber-700 dark:text-amber-400"><Icon name="hand-raised" class="size-3.5" />Needs input</span>
+    <span class="flex items-center gap-1 text-amber-700 dark:text-amber-400">{#if icons}<Icon name="hand-raised" class="size-3.5" />{/if}Needs input</span>
   {:else if asksAgent(thread)}
     <span class="flex items-center gap-1 text-violet-700 dark:text-violet-400" title="Waiting for the main agent to answer. You can answer instead.">
-      <Icon name="hand-raised" class="size-3.5" />Asking agent
+      {#if icons}<Icon name="hand-raised" class="size-3.5" />{/if}Asking agent
     </span>
   {:else if thread.status === "creating"}
-    <span class="flex items-center gap-1 text-sky-700 dark:text-sky-400"><Spinner class="size-3.5" />Starting</span>
+    <span class="flex items-center gap-1 text-sky-700 dark:text-sky-400">{#if icons}<Spinner class="size-3.5" />{/if}Starting</span>
   {:else if thread.status === "running"}
     <span class="flex items-center gap-1 text-sky-700 dark:text-sky-400" title="Working since {formatDateTime(at)}">
-      <Spinner class="size-3.5" />Working{age && age !== "now" ? ` ${age}` : ""}
+      {#if icons}<Spinner class="size-3.5" />{/if}Working{age && age !== "now" ? ` ${age}` : ""}
     </span>
   {:else if thread.status === "failed"}
     <span class="flex items-center gap-1 text-rose-700 dark:text-rose-400"><Icon name="x-circle" class="size-3.5" />Failed</span>
