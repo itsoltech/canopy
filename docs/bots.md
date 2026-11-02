@@ -168,7 +168,7 @@ Jednorazowe przypomnienia własnego bota są w `bot_wakeups`: create/list/cancel
 zwiększenie hops, atomowy zapis pobudki. Cykliczne zadania workerów nadal obsługuje
 istniejący scheduler i UI API; nie są emulowane przez timer procesu Bots.
 
-## 6. API i minimalny UI
+## 6. API
 
 Metody są częścią uwierzytelnionego `GatewayService` (ten sam interceptor usługi i BFF):
 
@@ -176,49 +176,126 @@ Metody są częścią uwierzytelnionego `GatewayService` (ten sam interceptor us
 - `WatchBotConversation`: od razu snapshot, następnie nowy snapshot po zmianie rewizji,
   włącznie ze statusem i kartami. Odczyt PostgreSQL co 250 ms umożliwia odbiór zmian
   także z innej instancji gateway; po reconnect pełny snapshot uzupełnia przerwę.
-- `ReadBotExchange`, `AnswerBotApproval`, `InterruptBot`.
+- `ReadBotExchange` (BFF `GET /api/bot-exchanges/{id}`), `AnswerBotApproval`, `InterruptBot`.
+- `RetryBot` (BFF `POST /api/bots/{id}/retry`): ponawia **ostatnią** turę, jeśli zakończyła
+  się błędem. Usuwa notatkę o błędzie i wznawia tę samą wiadomość od checkpointu; nie tworzy
+  drugiej wiadomości użytkownika. Inna sytuacja to `INVALID_ARGUMENT`.
 - `SaveBotMcpServer`, `ListBotMcpServers`, `DeleteBotMcpServer`, `TestBotMcpServer`;
   test inicjalizuje zdalne połączenie i pobiera katalog narzędzi.
 
-Minimalny frontend używa istniejących `BotsNav`, `ChatView`, `ChatTimeline`, `BotAvatar`
-i `QuestionCard`, bez importowania galerii lub danych fikcyjnych. Lista jest pobierana
-z API, czat przez SSE BFF; można wysłać wiadomość, odpowiedzieć, zatwierdzić, odrzucić,
-przerwać i przypiąć bota. Awaria wysyłki zachowuje identyfikator żądania przy „Retry message”.
-Kształt i własny kolor są renderowane przez awatar.
-Lista pokazuje rzeczywistą ostatnią wiadomość (`Bot.last_message`, pole 350) i jej czas;
-nie wczytuje całej historii każdej rozmowy do sidebara.
+Pola kontraktu dodane po fazie 1 (bez migracji, wyliczane przy odczycie):
+`BotMessage.failed` (pole 10) — tura zakończona błędem; `text` zawiera wtedy szczegół
+techniczny, nie treść rozmowy. `BotApproval.options` (pole 9) — propozycje odpowiedzi
+pytania `ask_user` (do 6), odczytywane z argumentów wywołania (id zgody = id wywołania).
 
-Gałąź `feat/bots-wizard` została scalona z `main` podczas implementacji. Akcja „Create bot”
-w sidebarze otwiera `CreateBotWizard`; `oncreate(CreateBotDraft)` zapisuje `CreateBot`
-i otwiera jedyną rozmowę nowego bota. Adapter `botWizardInstances` w `features/bots/live.ts`
-przekazuje wyłącznie instancje endpointowe, katalogi modeli i effortów z istniejącego
-stanu UI oraz własne modele instancji. Złożony klucz `CLAUDE:id` / `CODEX:id` zapobiega
-kolizji identycznych ID instancji różnych dostawców. Własne modele z Settings → Providers
-działają również bez workera. UI wymaga konkretnego ID modelu; pusty domyślny model
-harnessu nie jest modelem API gateway. Awatary korzystają z 14 kształtów i kontrastowych
-oczu komponentu `MascotFace`. API komponentów: [bots-wizard.md](bots-wizard.md).
+### Model API, nie alias harnessu
 
-## 7. Weryfikacja i dalsza faza
+Bot wywołuje API dostawcy bezpośrednio, więc alias Claude Code (`default`, `opus`, `sonnet`,
+`haiku`, `best`, `opusplan`, także z `[1m]`) kończył każdą odpowiedź HTTP 400. Teraz:
+
+- `CreateBot`/`UpdateBot` zapisują model, na który alias rozwiązuje się w katalogu workera
+  dla tej instancji (`ModelInfo.resolved_model`, np. `default` → `claude-opus-5-5`).
+  Alias bez rozwiązania jest odrzucany z czytelnym błędem; model spoza **kompletnego**
+  katalogu również. Własne modele instancji i brak katalogu przechodzą (endpoint decyduje).
+- Runtime rozwiązuje model przed każdym wywołaniem, więc boty zapisane wcześniej z aliasem
+  (np. „Kropek” na stosie) działają bez migracji danych; przy następnym `UpdateBot` model
+  zostaje zapisany już jako konkretny.
+- Wizard (`botWizardInstances`) oferuje alias jako model, na który się rozwiązuje, a aliasów
+  bez rozwiązania nie pokazuje wcale.
+
+### Zgody, pytania i edycja
+
+Karta zgody: „Needs approval ⌄” (menu polityki bota `safe`/`always`, zapis przez `UpdateBot`),
+cel akcji, pola z etykietami i najdłuższe pole jako podgląd. **Approve** wykonuje akcję,
+**Discard** odrzuca, **Edit** pozwala przepisać podgląd i wysłać własną wersję: to
+`AnswerBotApproval{approve:false, answer:<tekst>}`; nic nie jest wykonywane, a model dostaje
+wynik `changes_requested` z treścią użytkownika (niezaufaną) i proponuje akcję ponownie.
+`ask_user` przyjmuje opcjonalne `options`; karta pytania pokazuje je jako A, B, C…, pozwala
+odpowiedzieć własnymi słowami albo pominąć (Skip = odrzucenie).
+
+## 7. UI czatu
+
+Kod: `apps/web/src/lib/features/bots`, trasy `routes/bots/[botId]` i
+`routes/bots/[botId]/exchanges/[exchangeId]`. Rozmowa wygląda jak komunikator, bez narzędzi,
+JSON i składanych logów pracy.
+
+- **Dymki** (`ChatBubble`, `MessageRow`): Twoje wiadomości w ciemnym neutralnym kolorze
+  (zinc‑900; w trybie ciemnym jasne zinc‑100), bota na miękkiej szarości (zinc‑100 / zinc‑800).
+  Kolejne wiadomości jednego nadawcy w odstępie < 5 min tworzą serię: mniejsze odstępy,
+  ciaśniejsze narożniki od strony sąsiadów, awatar tylko przy ostatniej. Maks. szerokość
+  36rem. Markdown bota dopasowany do dymka; inne boty wymienione z nazwy w tekście są
+  chipami z awatarem w ich kolorze (`BotChip`, `mentions.ts`).
+- **Separatory czasu** tylko na początku, po zmianie dnia i po godzinie ciszy
+  („Today 11:46 AM”).
+- **Status na żywo** (`BotStatusRow`): pod ostatnią wiadomością awatar bota i linia z efektem
+  shimmer („Typing…”, „Searching Notion”); zmiana frazy to text swap. Gdy czeka na Ciebie,
+  linia jest spokojna. Nagłówek pokazuje tylko awatar, nazwę i model. Żywe maskotki dostają
+  stan z rozmowy (`stateForStatus`, błąd, nowa wiadomość jako `event`).
+- **Akcje wiadomości**: Reply (cytat do composera) i Copy pojawiają się obok dymka po
+  najechaniu lub fokusie; na dotyku długie przytrzymanie otwiera menu. Reakcje pominięto —
+  nie ma ich w API.
+- **Bot ⇄ bot**: kolejne wiadomości wymian w czacie zwijają się do linii „Messaged ‹A› and
+  ‹B›”, „Message from ‹A›”, „N messages with ‹A›”. Chip prowadzi do widoku wymiany
+  „A ⇄ B”: wiadomości z nazwami i awatarami po lewej, separatory czasu, „Close chat” (i Esc)
+  wraca do czatu bota. Odpowiedź bota dla Ciebie pozostaje zwykłym dymkiem.
+- **Błędy** (`ChatErrorLine`, `errors.ts`): zamiast „Model endpoint returned HTTP 400” linia
+  „Kropek couldn't reply — the model isn't available.”, szczegół w tooltipie ikony i dla
+  czytników ekranu. Przy ostatniej turze: **Retry** (`RetryBot`) i — gdy przyczyną jest
+  model — **Change model** (`ChangeModelDialog`, `UpdateBot`). Lista boczna pokazuje
+  „Couldn't reply”.
+- **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (załączniki — na razie
+  niedostępne z podpowiedzią), pole „Message ‹Bot›” rosnące do kilku linii, przycisk wysyłki
+  pojawiający się z tekstem (icon swap). Enter wysyła, Shift+Enter nowa linia; na klawiaturze
+  dotykowej Enter to nowa linia. Mikrofon pominięto (nic nie robi). Twoja wiadomość jest
+  widoczna od razu („Sending…”), błąd wysyłki daje „Send again” z tym samym `client_request_id`.
+- **Przewijanie**: czat podąża za nową treścią (wiadomości, karty, status) tylko gdy jesteś
+  na dole (ResizeObserver); przewinięty w górę pokazuje przycisk „Jump to the latest message”.
+  Etykiety `sr-only` są pozycjonowane względem przewijanego logu — wcześniej wydłużały
+  dokument i przewijała się cała strona.
+- **Ruch**: nowe wpisy wchodzą przez `rise` (tylko te, które przyszły po otwarciu czatu),
+  status przez `rise`/`swap`, przycisk wysyłki przez `iconSwap`, akcje przez opacity z
+  opóźnieniem intencji — tokeny z `layout.css`/`motion.ts`. `prefers-reduced-motion`
+  wyłącza przesunięcia, blur i shimmer.
+- **Dostępność**: `role=log` rozmowy (polite), `role=status` dla stanu bota, karty jako
+  regiony nazwane pytaniem/akcją, litery opcji jako skróty, cele dotykowe 48 px
+  (`TouchTarget`) na urządzeniach dotykowych.
+- **Tworzenie**: „Create bot” otwiera `CreateBotWizard`; `oncreate` zapisuje `CreateBot` i otwiera
+  rozmowę. Adapter `botWizardInstances` (`features/bots/live.ts`) przekazuje tylko instancje
+  endpointowe z modelami API (klucz `CLAUDE:id` / `CODEX:id`); własne modele z Settings →
+  Providers działają bez workera. API komponentów: [bots-wizard.md](bots-wizard.md).
+- **Sidebar**: przypięte boty jako duże awatary z gwiazdką i nazwą, potem rozmowy (awatar,
+  nazwa, czas, podgląd przez `MarkdownSnippet`). Jedna wspólna lista (`bot-list.svelte.ts`,
+  odświeżanie co 5 s i po `bots-changed`) dla sidebara i czatu. Pusty stan ma akcję
+  „Create your first bot” (`/bots?create=1` otwiera wizard).
+
+Wirtualizacji nie dodano: rozmowa z botem to zwykle dziesiątki wpisów, a `VirtualFeed` jest
+zbudowany pod oś wątków (składanie tur, kotwice). Gdy historie urosną, rozmowa dostanie
+stronicowanie po stronie API i wirtualizację.
+
+## 8. Weryfikacja i dalsza faza
 
 - Jednostkowe: `apps/gateway/src/bots/{policy,model}.test.ts`; decyzje zgód,
-  przeskoki, opis statusu, protokoły i odrzucenie lokalnych możliwości.
+  przeskoki, opis statusu, protokoły, odrzucenie lokalnych możliwości oraz rozwiązywanie
+  aliasów (`apiModel`).
 - Integracyjne: `tests/integration/bots.test.ts`, prawdziwy PostgreSQL, skryptowany
   model i worker, lokalny serwer HTTP MCP wyłącznie w teście. Tworzenie i deduplikacja,
-  wznowienie generacji, przerwane MCP bez powtórzenia, zgody/odrzucenie/pytania,
-  wymiana botów, powiadomienia workera po restarcie, przerwanie i usunięcie.
+  wznowienie generacji, przerwane MCP bez powtórzenia, zgody/odrzucenie/pytania z opcjami,
+  edycja zgody (`changes_requested`, nic nie wykonane), wymiana botów, powiadomienia workera
+  po restarcie, przerwanie i usunięcie, aliasy przy zapisie i w runtime, `failed` i `RetryBot`.
 - Live: `tests/integration/bots.live.test.ts` przez `useLiveProxy`: **Claude i Codex**
   odpowiadają na czacie, odmawiają lokalnego `ls`, tworzą wątek na prawdziwym workerze
-  stosu testowego i dostają jego wynik jako nową turę. Izolowane porty i katalogi
-  przez `@open-agents/testing`; istniejący `/tmp/oa-stack` i jego porty nie są używane.
+  stosu testowego i dostają jego wynik jako nową turę. `bots-alias.live.test.ts`: prawdziwy
+  katalog Claude przez CLIProxyAPI, wizard oferuje model rozwiązany z `default`, bot
+  utworzony z `default` odpowiada, a bot z aliasem zapisanym w bazie również. Izolowane porty
+  i katalogi przez `@open-agents/testing`; istniejący `/tmp/oa-stack` i jego porty nie są używane.
 - Dowody izolacji harnessów: test przechwycenia requestu i live opisane w sekcji 1.
   Sekrety live pochodzą wyłącznie z pliku środowiska poza repozytorium; brak wartości
   w kodzie, commitach, wynikach testów i dokumentacji.
+- UI: zgodnie z polityką testów brak testów jednostkowych i przeglądarkowych UI w repo.
+  Weryfikacja ręczna w Chromium na jednorazowym stosie (gateway + PostgreSQL, skryptowany
+  model, MCP „Notion”), 1440 i 390 px, jasny i ciemny motyw: brak przewijania dokumentu,
+  wysyłka Enterem, karty, Edit, Retry, status, podążanie, widok wymiany, sidebar.
 
-UI zweryfikowano przez typecheck, build oraz testy adaptera i walidacji wizarda;
-nie uruchamiano przeglądarkowych testów E2E tej integracji. Testy schematu sprawdzają
-również kolejność migracji i ponowne zastosowanie migratora bez zmian.
-
-Faza 2: edycja wyglądu przez istniejący `EditBotAppearance`, ustawienia persony i polityk, zarządzanie MCP
-z połączeniem testowym i rotacją nagłówków, otwieranie i grupowanie wymian bot↔bot,
-podgląd uczestników, liczniki nieprzeczytanych, animacje i dopracowanie dostępności,
-harmonogramy cykliczne botów, kompakcja kontekstu i wydajniejsze strony/zdarzenia czatu.
+Dalej: edycja persony i polityk w osobnym panelu, zarządzanie MCP z rotacją nagłówków,
+reakcje i odpowiedzi w API, liczniki nieprzeczytanych, załączniki, harmonogramy cykliczne
+botów, kompakcja kontekstu, stronicowanie i wirtualizacja długich rozmów.
