@@ -162,6 +162,18 @@ Restart workera i błędy komend (pola od 70):
 - `Turn.interrupt_source` (73): przy `interrupted` kto przerwał — `user` albo `system` (np. `worker restarted mid-turn`). Stopka tury w UI pokazuje „Harness error: …” / „Platform error: …”, „by you”, „by the system: …” i dla przerwania przez system akcję „Continue” (wiadomość wznawiająca sesję). Stany i macierz: [durability.md](durability.md#47-stany-tury-i-wątku). Wątek po każdym końcu tury jest `idle`; `failed` tylko dla wątku, który nie powstał,
 - `Goal.error`, `Goal.error_at`: ostatnia komenda celu nie powiodła się na workerze; status wraca wtedy do ostatniego stanu harnessu ([goals.md](goals.md#3-statusy)). `goalPending` w UI nie pokazuje wtedy „Starting… / Pausing…”, a `GoalBar` pokazuje błąd.
 
+### Kompaktowy kompozytor podczas czytania historii
+
+Kompozytor wątku zwija się po celowym przewinięciu w górę o co najmniej 96 px, gdy od końca dzieli co najmniej 192 px. Histereza utrzymuje wąski widok aż do powrotu na dół (wspólny próg feedu: 8 px) albo interakcji z kompozytorem. Fokus, pisanie, upuszczenie/wklejenie pliku, otwarcie kontrolek i „Jump to latest” rozwijają pole. Fokus wewnątrz kompozytora chroni je przed zwinięciem.
+
+Wąski widok pozostawia pierwszą linię tego samego edytora i przycisk wysyłania/zatrzymania; narzędzia i metadane są zwinięte i `inert`. Kolejka oraz subagenci pozostają zamontowani za wspólną plakietką z opisem liczników. Oczekujące pytania zachowują pełny widok, w szczególności synchroniczne `ask_user` nigdy nie znika. Szkic, wzmianki i historia cofania nie są odtwarzane z kopii.
+
+`ComposerCompaction` obsługuje stan niezależnie od DOM. `VirtualFeed.onreaderscroll` przekazuje tylko przewijanie po gestach użytkownika; streaming i korekty kotwicy nie sterują zwijaniem. Zwolniona wysokość stopki zostaje jako przestrzeń pod historią podczas czytania, aby wysoka kolejka nie zmieniła pozycji czytanego wiersza. Gradient i „Jump to latest” podążają za rzeczywistą wysokością stopki. `ComposerFold` współdzieli przejścia wysokości/przezroczystości na tokenach `--duration-slow` przy otwieraniu i `--duration-medium` przy zamykaniu; reduced motion przełącza natychmiast. Ustawienia i protokół pozostają bez nowego przełącznika.
+
+Panele są gęstsze również przy rozwiniętym kompozytorze: `ComposerPanelHeader` współdzieli nagłówki subagentów i pytań (32 px desktop / 36 px telefon), kolejka ma wiersze 36 px, a subagent z podglądem ostatniej wiadomości 40 px. Tytuły mają 14 px na telefonie / 13 px na desktopie, tekst pomocniczy 13/12 px, ikony dostawców 14 px, chevrony 12 px. `Icon`/`ProviderIcon` mają jawny `size`, a `TouchTarget size="sm"` zachowuje co najmniej 40 px obszaru dotyku bez powiększania wizualnej wysokości nagłówków i opcji.
+
+Weryfikacja przeglądarkowa: `OA_COMPOSER_BROWSER=1 bun test tests/integration/composer-compact.browser.test.ts`, po zbudowaniu web. Test uruchamia własny gateway/PostgreSQL/workera i web na porcie 5297; screenshoty trafiają do `artifacts/composer-compact/`. Porównania paneli przed/po i ograniczenia opisuje [raport](composer-compact-verification.md).
+
 ### Pytania nad kompozytorem
 
 `Interaction.asynchronous` i `InteractionPrompt.asynchronous` (pole **250** w odpowiednich wiadomościach) oznaczają pytanie, przy którym agent pracuje dalej. Domyślne `false` zachowuje zachowanie natywnych interakcji. Async pozostaje w `snapshot.interactions` i strumieniu interakcji, lecz nie zwiększa `Thread.pending_interactions` ani komunikatu czytnika ekranu „waiting for you”.

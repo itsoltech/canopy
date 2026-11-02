@@ -21,7 +21,7 @@
   bind:this={element}
   type="button"
   class={[
-    "relative grid size-9 shrink-0 cursor-grab touch-none place-items-center rounded-lg fill-zinc-400 focus-ring hover:bg-zinc-950/5 hover:fill-zinc-700 sm:size-7 dark:fill-zinc-500 dark:hover:bg-white/10 dark:hover:fill-zinc-200",
+    "relative grid size-6 shrink-0 cursor-grab touch-none place-items-center rounded-md fill-zinc-400 focus-ring hover:bg-zinc-950/5 hover:fill-zinc-700 dark:fill-zinc-500 dark:hover:bg-white/10 dark:hover:fill-zinc-200",
     className,
   ]}
   aria-label="Reorder: {label}"
@@ -31,5 +31,5 @@
 >
   <Icon name="queue-list" class="col-start-1 row-start-1 fill-inherit pointer-coarse:opacity-0 group-focus-within/row:opacity-0 pointer-fine:group-hover/row:opacity-0" />
   <Icon name="bars-2" class="col-start-1 row-start-1 fill-inherit opacity-0 pointer-coarse:opacity-100 group-focus-within/row:opacity-100 pointer-fine:group-hover/row:opacity-100" />
-  <TouchTarget />
+  <TouchTarget size="sm" />
 </button>

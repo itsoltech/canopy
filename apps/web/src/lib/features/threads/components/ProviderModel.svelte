@@ -14,6 +14,6 @@
 </script>
 
 <span class={["inline-flex min-w-0 items-center gap-1", className]}>
-  {#if key}<ProviderIcon provider={key} label={name} class="size-3.5" />{/if}
+  {#if key}<ProviderIcon provider={key} label={name} size="sm" />{/if}
   <span class="truncate">{[model || `${name} default`, effort].filter(Boolean).join(" · ")}</span>
 </span>
