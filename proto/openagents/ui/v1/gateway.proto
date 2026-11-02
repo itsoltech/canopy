@@ -84,6 +84,9 @@ service GatewayService {
   rpc ListMentionCatalog(ListMentionCatalogRequest) returns (ListMentionCatalogResponse);
   rpc SearchFiles(SearchFilesRequest) returns (SearchFilesResponse);
   rpc SearchThreads(SearchThreadsRequest) returns (SearchThreadsResponse);
+  // Stan przeczytania (sekcja na końcu pliku): użytkownik widział wątek do zdarzenia up_to_seq (ostatnia wiadomość
+  // agenta była na ekranie); Thread.unseen_result gaśnie na wszystkich urządzeniach (OverviewUpdate.thread).
+  rpc MarkThreadSeen(MarkThreadSeenRequest) returns (MarkThreadSeenResponse);
 }
 
 // ---------- Model ----------
@@ -182,6 +185,10 @@ message Thread {
   // Numery od 95: subagenci platformy (docs/agent-bus.md).
   // Wątki boczne: początek ostatniej wiadomości agenta (wynik subagenta) do karty w wątku rodzica. Główne: pusty.
   string last_message = 95;
+
+  // Numery od 180: stan przeczytania. Wynik ostatniej zakończonej tury, której użytkownik jeszcze nie widział
+  // (completed | failed | interrupted); pusty, gdy widział wszystko (MarkThreadSeen).
+  string unseen_result = 180;
 }
 
 message Turn {
@@ -1152,4 +1159,16 @@ message SearchThreadsRequest {
 message SearchThreadsResponse {
   // Najpierw najlepiej pasujące, przy równym dopasowaniu najnowsza aktywność.
   repeated Thread threads = 1;
+}
+
+// ---------- Stan przeczytania ----------
+
+message MarkThreadSeenRequest {
+  string thread_id = 1;
+  // Ostatnie zdarzenie wątku na ekranie użytkownika (ThreadEvent.seq); znacznik tylko rośnie, najwyżej do Thread.last_seq.
+  uint64 up_to_seq = 2;
+}
+
+message MarkThreadSeenResponse {
+  Thread thread = 1;
 }

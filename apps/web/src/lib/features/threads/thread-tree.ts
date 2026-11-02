@@ -1,4 +1,5 @@
 import { ui } from "@open-agents/contracts";
+import type { IconName } from "#lib/shared/ui/icons.ts";
 
 export interface ThreadTree {
   readonly main: ui.Thread;
@@ -6,6 +7,12 @@ export interface ThreadTree {
 }
 
 export const isSide = (thread: ui.Thread) => thread.kind === ui.ThreadKind.SIDE || Boolean(thread.parentThreadId);
+
+/** The mark of a side thread in lists: violet sparkles when an agent started it, a copy for a fork, else a turn arrow. */
+export function sideMark(thread: ui.Thread): { icon: IconName; iconClass: string } {
+  if (thread.spawnedByAgent) return { icon: "sparkles", iconClass: "fill-violet-500 dark:fill-violet-400" };
+  return { icon: thread.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right", iconClass: "fill-zinc-400 dark:fill-zinc-600" };
+}
 
 const byCreation = (a: ui.Thread, b: ui.Thread) => Number((a.createdAt?.seconds ?? 0n) - (b.createdAt?.seconds ?? 0n));
 
