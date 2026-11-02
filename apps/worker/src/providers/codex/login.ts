@@ -1,6 +1,7 @@
 import { Context, Effect, Exit, Fiber, Layer, Scope, Stream } from "effect";
 import { CodexAppServer } from "./app-server.ts";
 import type { CodexAppServerLaunch } from "./launch.ts";
+import { withDeadline } from "../deadline.ts";
 
 /**
  * Sign-in of a provider instance from the app (global provider instances, docs/worker-config.md, 9.5): Codex's own
@@ -45,10 +46,7 @@ export async function startCodexDeviceLogin(options: { launch: CodexAppServerLau
     const timeoutMs = options.timeoutMs ?? 15 * 60_000;
     const done = (async () => {
       try {
-        const outcome = await Promise.race([
-          Effect.runPromise(Fiber.join(completed)),
-          Bun.sleep(timeoutMs).then(() => "timeout" as const),
-        ]);
+        const outcome = await withDeadline(Effect.runPromise(Fiber.join(completed)), timeoutMs, () => "timeout" as const);
         if (outcome === "timeout") return { success: false, error: "the sign-in code expired" };
         const params = outcome._tag === "Some" && outcome.value.method === "account/login/completed" ? outcome.value.params : undefined;
         if (!params) return { success: false, error: "Codex ended the sign-in without an answer" };

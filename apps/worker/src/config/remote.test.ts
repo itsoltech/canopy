@@ -96,6 +96,24 @@ describe("applyWorkerConfig", () => {
     expect(result.report.profiles?.find((p) => p.id === "p")).toMatchObject({ available: false, detail: "api_key is not set" });
   });
 
+  test("a profile for both harnesses is an instance per harness: Claude turned off leaves its Codex side usable", () => {
+    const result = applyWorkerConfig(
+      config({
+        claude: { enabled: false },
+        codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
+        profiles: [{ id: "proxy", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "k" }],
+      }),
+      probe,
+    );
+    if (!result.applied) throw new Error("expected applied");
+    expect(result.report.profiles?.filter((p) => p.id === "proxy").map((p) => [p.providers, p.available, p.detail])).toEqual([
+      [[Provider.CLAUDE], false, "disabled in configuration"],
+      [[Provider.CODEX], true, ""],
+    ]);
+    const codex = result.config.profiles.find((s) => s.config.id === "proxy" && s.resolved?.providers.includes("codex"));
+    expect(codex?.resolved?.providers).toEqual(["codex"]);
+  });
+
   test("isAllowedPath: inside a root, not a sibling with the same prefix", () => {
     const applied = { allowedRoots: [repo] };
     expect(isAllowedPath(applied, repo)).toBe(true);
