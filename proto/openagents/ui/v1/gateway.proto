@@ -34,6 +34,7 @@ service GatewayService {
   // Harmonogram platformy (docs/agent-bus.md#5-harmonogram): tworzony przez użytkownika albo agenta.
   rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse);
   rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse);
+  rpc UpdateSchedule(UpdateScheduleRequest) returns (UpdateScheduleResponse);
   // Podgląd: najbliższe terminy cronu w strefie (albo błąd walidacji), bez tworzenia harmonogramu.
   rpc PreviewSchedule(PreviewScheduleRequest) returns (PreviewScheduleResponse);
   // Wstrzymanie, wznowienie albo anulowanie.
@@ -644,6 +645,11 @@ message Schedule {
   string concurrency = 292;
   repeated ScheduleRun recent_runs = 293;
   string name = 294;
+  uint32 version = 330;
+  string last_edited_by_user_id = 331;
+  google.protobuf.Timestamp last_edited_at = 332;
+  // Jawna nazwa, także pusta; name zachowuje etykietę z fallbackiem do wiadomości.
+  string configured_name = 333;
 }
 
 message NewThreadSchedule {
@@ -702,6 +708,17 @@ message CreateScheduleRequest {
 }
 
 message CreateScheduleResponse {
+  Schedule schedule = 1;
+}
+
+// Pełna konfiguracja, walidowana tak samo jak podczas tworzenia. Status i historia pozostają.
+message UpdateScheduleRequest {
+  string schedule_id = 1;
+  uint32 expected_version = 2;
+  CreateScheduleRequest configuration = 3;
+}
+
+message UpdateScheduleResponse {
   Schedule schedule = 1;
 }
 

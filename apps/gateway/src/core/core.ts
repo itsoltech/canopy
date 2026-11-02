@@ -74,6 +74,7 @@ import {
   turnEffort,
   type GoalRow,
   type ScheduleRow,
+  type NewSchedule,
   type ThreadRow,
   type TurnRow,
 } from "../store/index.ts";
@@ -83,6 +84,7 @@ import { AgentBus } from "./agent-bus.ts";
 import { BackgroundTasks } from "./background-tasks.ts";
 import { Hub } from "./hub.ts";
 import { Scheduler } from "./scheduler.ts";
+import { scheduleConfiguration } from "./schedule-configuration.ts";
 import { PLACEMENTS, scheduleWorkerEligible } from "@open-agents/domain";
 import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt } from "./thread-titles.ts";
 
@@ -1763,6 +1765,29 @@ export class GatewayCore {
 
   /** A user's schedule: like an agent's, but it may be open-ended and starts no agent chain (hops 0). */
   async createSchedule(request: ui.CreateScheduleRequest): Promise<ui.Schedule> {
+    const configuration = await this.#scheduleConfiguration(request);
+    const row = await this.#bus((s) => s.createUserSchedule({ userId: this.#options.userId, schedule: configuration }));
+    const schedule = toUiSchedule(row);
+    this.#announceSchedule(schedule);
+    return schedule;
+  }
+
+  async updateSchedule(request: ui.UpdateScheduleRequest): Promise<ui.Schedule> {
+    if (!request.configuration) throw new InvalidError("configuration is required");
+    if (!request.expectedVersion) throw new InvalidError("expected_version is required");
+    const configuration = await this.#scheduleConfiguration(request.configuration);
+    const previous = await this.#bus((s) => s.schedule(request.scheduleId));
+    const row = await this.#bus((s) => s.updateSchedule({ scheduleId: request.scheduleId, expectedVersion: request.expectedVersion,
+      userId: this.#options.userId, schedule: configuration }));
+    const schedule = toUiSchedule(row);
+    if (previous.thread_id && previous.thread_id !== row.thread_id) {
+      this.hub.publishThread(previous.thread_id, create(ui.ThreadUpdateSchema, { change: { case: "schedule", value: schedule } }));
+    }
+    this.#announceSchedule(schedule);
+    return schedule;
+  }
+
+  async #scheduleConfiguration(request: ui.CreateScheduleRequest): Promise<NewSchedule> {
     const target = request.target || "thread";
     if (target !== "thread" && target !== "new_thread") throw new InvalidError("target is thread or new_thread");
     const concurrency = request.concurrency || "skip_if_running";
@@ -1793,55 +1818,8 @@ export class GatewayCore {
       for (const workspace of candidates) await this.#checkModel({ workspaceId: workspace.id, provider: spec.provider, profileId: spec.providerProfileId }, spec.model, spec.effort);
       newThread = create(ui.NewThreadScheduleSchema, { ...spec, placement, title: spec.title.trim(), permissionMode: spec.permissionMode || PermissionMode.ASK });
     }
-    const configuration = { threadId: request.threadId, ...(newThread && { newThread }), concurrency: concurrency as "allow" | "skip_if_running", name: request.name.trim().slice(0, 120) };
-    const prompt = request.prompt.trim();
-    if (!prompt) throw new InvalidError("prompt is required");
-    const missedPolicy = request.missedPolicy || "run_once";
-    if (missedPolicy !== "run_once" && missedPolicy !== "skip") throw new InvalidError("missed_policy is run_once or skip");
-    const now = new Date();
-    const until = request.until ? timestampDate(request.until) : undefined;
-    if (until && until <= now) throw new InvalidError("until is in the past");
-    let row: ScheduleRow;
-    if (request.when.case === "runAt") {
-      const runAt = timestampDate(request.when.value);
-      if (runAt.getTime() < now.getTime() - 60_000) throw new InvalidError("run_at is in the past");
-      row = await this.#bus((s) =>
-        s.createUserSchedule({
-          userId: this.#options.userId,
-          schedule: { ...configuration, kind: "once", prompt, runAt, timezone: "UTC", nextRunAt: runAt, hops: 0, missedPolicy },
-        }),
-      );
-    } else if (request.when.case === "cron") {
-      const cron = request.when.value;
-      const timezone = request.timezone || "UTC";
-      if (!isTimeZone(timezone)) throw new InvalidError(`unknown time zone ${timezone}`);
-      const problem = cronProblem(cron, timezone, DEFAULT_BUS_LIMITS.minCronMinutes, now);
-      if (problem) throw new InvalidError(problem);
-      const nextRunAt = nextCronRun(cron, timezone, now);
-      if (!nextRunAt) throw new InvalidError("cron has no future runs");
-      row = await this.#bus((s) =>
-        s.createUserSchedule({
-          userId: this.#options.userId,
-          schedule: {
-            ...configuration,
-            kind: "recurring",
-            prompt,
-            cron,
-            timezone,
-            ...(until && { until }),
-            ...(request.maxRuns > 0 && { maxRuns: request.maxRuns }),
-            nextRunAt,
-            hops: 0,
-            missedPolicy,
-          },
-        }),
-      );
-    } else {
-      throw new InvalidError("set run_at or cron");
-    }
-    const schedule = toUiSchedule(row);
-    this.#announceSchedule(schedule);
-    return schedule;
+    try { return { ...scheduleConfiguration(request, new Date()), ...(newThread && { newThread }) }; }
+    catch (error) { throw new InvalidError(error instanceof Error ? error.message : "invalid schedule"); }
   }
 
   /** Next runs of a cron in a time zone, validated like CreateSchedule. */
@@ -1879,7 +1857,7 @@ export class GatewayCore {
             : undefined;
       if (!nextRunAt) throw new InvalidError("the schedule has no future runs");
     }
-    const row = await this.#bus((s) => s.setScheduleStatus({ scheduleId: request.scheduleId, status, ...(nextRunAt && { nextRunAt }) }));
+    const row = await this.#bus((s) => s.setScheduleStatus({ scheduleId: request.scheduleId, expectedVersion: current.version, status, ...(nextRunAt && { nextRunAt }) }));
     const schedule = toUiSchedule(row);
     this.#announceSchedule(schedule);
     return schedule;

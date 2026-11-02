@@ -14,6 +14,7 @@ export function nextCronRun(cron: string, timezone: string, after: Date): Date |
  * runs (not just the minute field), so `0,1,2 * * * *` is refused like `* * * * *`.
  */
 export function cronProblem(cron: string, timezone: string, minMinutes: number, now: Date): string | undefined {
+  if (cron.trim().split(/\s+/).length !== 5) return "cron must have five fields";
   let previous: Date | undefined;
   try {
     let at = now;

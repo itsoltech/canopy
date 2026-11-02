@@ -249,6 +249,35 @@ transakcja. Restart przed zatwierdzeniem pozwala ponowić termin, a po zatwierdz
 z outboxa bez tworzenia drugiego wątku. Komenda utworzenia nowego wątku ma ważność 365 dni.
 Historia UI pokazuje pięć ostatnich wystąpień, w tym pominięcia; pełna historia pozostaje w bazie.
 
+### Edycja harmonogramu przez użytkownika
+
+`UpdateSchedule` zastępuje konfigurację aktywnego albo wstrzymanego harmonogramu i wymaga jego
+`expected_version`. Używa tej samej walidacji co tworzenie. Zmienia wiadomość, jawną nazwę, rodzaj celu,
+konfigurację nowego wątku, współbieżność, termin jednorazowy lub cron ze strefą, granice i politykę
+zaległości. Najbliższy termin jest liczony od nowa. Wstrzymany harmonogram pozostaje wstrzymany
+(`next_run_at = NULL`); wznowienie wylicza termin z zapisanej konfiguracji.
+
+Można przełączyć `thread` ↔ `new_thread`, także po wcześniejszych wykonaniach. Bezpośrednie
+przeniesienie `thread` na **inny istniejący wątek** jest zabronione: należy utworzyć osobny harmonogram.
+Historia i odnośnik do ostatniej tury pozostają, również po zmianie projektu nowego wątku. Licznik
+`runs` nie zeruje się; dodatni `max_runs` oznacza łączny limit i musi przekraczać liczbę już wykonanych tur.
+Zakończonego ani anulowanego zadania nie można edytować. Konflikt wersji wymaga ponownego otwarcia edytora.
+
+Użytkownik może też edytować harmonogram agenta, w tym usunąć jego granicę końcową. Pierwotny autor
+i wywołanie szyny pozostają; `last_edited_by_user_id` i `last_edited_at` zapisują ostatniego edytującego.
+Tury istniejącego wątku zachowują licznik przeskoków agenta; nowy wątek zawsze zaczyna od 0.
+
+Pierwsze przejęcie zapisuje osobno `occurrence_at`: klucz historii `(schedule_id, occurrence_at)`.
+Edycja zachowuje ten klucz, zmienia termin wykonania i unieważnia lease. Stary snapshot nie może
+zatwierdzić tury (sprawdzane są wersja, właściciel, termin lease i termin wykonania). Kolejny tick
+przejmuje tę samą tożsamość wystąpienia z nową konfiguracją, dopiero gdy nadejdzie nowy termin.
+Dotyczy to też edycji, która nie zmienia godziny. Pauza zachowuje tożsamość do wznowienia;
+anulowanie świadomie zatrzymuje oczekujące wykonanie. Jeśli wykonanie zatwierdzi transakcję przed
+edycją, zwiększa wersję i edytor dostaje konflikt zamiast nadpisać jego wynik.
+Zapis historii, tury i wyczyszczenie `occurrence_at` są atomowe. Zakończone tury i komendy w outboxie
+nie są zmieniane przez edycję. Przy przesunięciu przejętego wystąpienia `scheduled_for` historii
+pozostaje jego pierwotnym kluczem, a nie nowym czasem wykonania.
+
 ## 6. Reguły dostępu i limity
 
 Czysta funkcja `authorizeBusCall` (`packages/domain`), wywoływana przez gateway w tej samej transakcji co zapis.
