@@ -215,6 +215,8 @@
 
 {@render trigger?.(triggerProps)}
 
+<!-- overflow-x-hidden: on touch screens the 48 px touch targets of buttons at the panel's edge reach a few
+     pixels past it, which would otherwise scroll the panel sideways (a scrollbar on Android). -->
 <div
   bind:this={panel}
   {id}
@@ -230,7 +232,7 @@
   {onfocusout}
   onfocusin={() => (focusInside = true)}
   class={[
-    "t-dropdown fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] overflow-y-auto overscroll-contain rounded-xl border-0 bg-white p-0 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 outline-none dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10",
+    "t-dropdown fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border-0 bg-white p-0 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 outline-none dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10",
     "data-sheet:top-auto data-sheet:bottom-0 data-sheet:left-0 data-sheet:max-h-[85dvh] data-sheet:w-full data-sheet:max-w-none data-sheet:rounded-b-none data-sheet:pb-[env(safe-area-inset-bottom)] data-sheet:backdrop:bg-zinc-950/40 dark:data-sheet:backdrop:bg-black/60",
     className,
   ]}
