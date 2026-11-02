@@ -10,10 +10,12 @@ function action<A>(c: ToolContext, run: (store: BotStore["Service"]) => Effect.E
   return c.options.runtime.runPromise(BotStore.use((s) => s.action(c.turn, c.call, run(s))));
 }
 export const routineTools = [
-  define("create_routine", `Routines: create your own recurring background task. ${authority} Five-field cron, at least 15 minutes apart; max 20 routines. timezone is IANA (default UTC); use the timezone the user supplied, clarify local time if unknown. No notification settings: put conditions for notifying in instructions. No approval card.`, object(fields, ["title", "instructions", "cron"]), "Setting up a routine", (c) =>
+  define("create_routine", `Routines: create your own recurring background task. ${authority} Five-field cron, at least 15 minutes apart; max 20 routines. timezone is IANA; omit it to use the user's timezone (UTC only if none is stored). Accept an explicit timezone from the user. No notification settings: put conditions for notifying in instructions. No approval card.`, object(fields, ["title", "instructions", "cron"]), "Setting up a routine", (c) =>
     action(c, (s) => s.createRoutine(c.options.userId, c.turn, c.call.id, c.args as RoutinePatch, c.core.bots.now()).pipe(Effect.map((r) => json(bots.BotRoutineSchema, r))))),
-  define("update_routine", `Routines: modify your own routine's supplied fields, preserving omitted fields. enabled=false pauses it. ${authority} Same cron/limits as create_routine. No approval card.`, object({ routine_id: str, ...fields, enabled: bool }, ["routine_id"]), "Updating a routine", (c) =>
-    action(c, (s) => s.updateRoutine(c.options.userId, c.turn.bot_id, c.string("routine_id"), c.args as RoutinePatch, c.core.bots.now()).pipe(Effect.map((r) => json(bots.BotRoutineSchema, r))))),
+  define("update_routine", `Routines: modify your own routine's supplied fields, preserving omitted fields except timezone, which defaults to the user's timezone (UTC only if none is stored). enabled=false pauses it. ${authority} Same cron/limits as create_routine. No approval card.`, object({ routine_id: str, ...fields, enabled: bool }, ["routine_id"]), "Updating a routine", async (c) => {
+    const timezone = c.optional("timezone") || (await c.core.settings()).user?.timezone || "UTC";
+    return action(c, (s) => s.updateRoutine(c.options.userId, c.turn.bot_id, c.string("routine_id"), { ...c.args as RoutinePatch, timezone }, c.core.bots.now()).pipe(Effect.map((r) => json(bots.BotRoutineSchema, r))));
+  }),
   define("list_routines", "Routines: list your own recurring background tasks, including disabled tasks, schedule, instructions and last outcome.", object({}), "Checking routines", async (c) =>
     (await c.core.bots.run((s) => s.routines(c.options.userId, c.turn.bot_id))).map((r) => json(bots.BotRoutineSchema, r)), "read"),
   define("delete_routine", `Routines: delete your own routine when requested by the user. ${authority} No approval card.`, object({ routine_id: str }, ["routine_id"]), "Deleting a routine", (c) =>

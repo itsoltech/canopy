@@ -78,7 +78,8 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
     createRoutine: (user: string, turn: BotTurn, id: string, patch: RoutinePatch, now: Date) => Effect.gen(function* () {
       yield* hooks.owned(user, turn.bot_id, true);
       if ((yield* rows(turn.bot_id)).length >= ROUTINE_LIMIT) return yield* Effect.fail(new Invalid(`at most ${ROUTINE_LIMIT} routines per bot`));
-      const c = yield* checked(patch, now);
+      const settings = (yield* sql<{ timezone: string | null }>`SELECT settings->>'timezone' AS timezone FROM user_settings WHERE user_id = ${user}::uuid`)[0];
+      const c = yield* checked({ ...patch, timezone: patch.timezone?.trim() || settings?.timezone || "UTC" }, now);
       const hops = yield* Effect.try({ try: () => nextHop(turn.hops), catch: () => new Invalid("Bot hop limit reached; a new user message is required") });
       const r = (yield* sql<RoutineRow>`INSERT INTO bot_routines(id, bot_id, title, instructions, cron, timezone, schedule_text, next_run_at, hops)
         VALUES (${id}::uuid, ${turn.bot_id}::uuid, ${c.title}, ${c.instructions}, ${c.cron}, ${c.timezone}, ${c.schedule}, ${c.next}, ${hops}) RETURNING *`)[0]!;

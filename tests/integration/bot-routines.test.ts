@@ -79,6 +79,34 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     abort.abort();
   });
 
+  test("a stored user timezone drives an omitted routine timezone and local next run; invalid settings are rejected", async () => {
+    const previous = (await gw.api.getSettings({})).user!;
+    try {
+      const saved = (await gw.api.updateUserSettings({ timezone: "Europe/Warsaw", expectedVersion: previous.version })).settings!;
+      expect((await gw.api.getSettings({})).user?.timezone).toBe("Europe/Warsaw");
+      for (const timezone of ["Invalid/Nowhere", "+01:00", ""]) {
+        expect(await failure(gw.api.updateUserSettings({ timezone, expectedVersion: saved.version }))).toContain("IANA timezone");
+      }
+      expect((await gw.api.getSettings({})).user?.version).toBe(saved.version);
+      const id = await add();
+      const seen: ModelInput[] = [];
+      model = async (i) => {
+        seen.push(i);
+        return i.messages.at(-1)?.role === "tool" ? reply("Ready") : tool("create_routine", { title: definition.title, instructions: definition.instructions, cron: "0 9 * * 1-5" });
+      };
+      const r = (await send(id, "Every weekday at 9 check important changes")).routines[0]!;
+      // Monday 08:01 UTC is already 09:01 in Warsaw: the next run is Tuesday 09:00 CET.
+      expect(r.timezone).toBe("Europe/Warsaw");
+      expect(timestampDate(r.nextRunAt!).toISOString()).toBe("2030-01-08T08:00:00.000Z");
+      expect(seen[0]?.instructions).toContain("User timezone: Europe/Warsaw");
+      expect(seen[0]?.instructions).toContain("09:01:00");
+      expect(seen[0]?.instructions).toContain(clock.toISOString());
+    } finally {
+      const current = (await gw.api.getSettings({})).user!;
+      await gw.api.updateUserSettings({ timezone: previous.timezone || "UTC", expectedVersion: current.version });
+    }
+  });
+
   test("message_user is deliberate, visible exactly once after a checkpoint restart, even under always policy", async () => {
     const id = await add(); const r = await make(id);
     const baseline = (await read(id)).messages.length;
