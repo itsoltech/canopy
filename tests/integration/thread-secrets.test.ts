@@ -2,13 +2,16 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { ItemDeltaField, ItemStatus, Provider, ThreadSecretDeliverySchema, type AgentToolResult } from "@open-agents/contracts";
+import { ItemDeltaField, ItemStatus, Provider, ThreadSecretDeliverySchema, ui, type AgentToolResult } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
+import { GatewayCore } from "@open-agents/gateway/core";
+import { startGrpcServer } from "@open-agents/transport";
+import { openGatewayLink } from "@open-agents/worker/gateway-link";
 import { tempDirs } from "@open-agents/testing";
 import { Journal } from "@open-agents/worker/journal";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
-import { eventually, failure, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
+import { eventually, failure, startTestGateway, watchUntil, ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
 const tempDir = tempDirs();
 const args = { label: "HubSpot access token", description: "Read the development account without sending the token to chat.", placeholder: "pat-…", name: "HUBSPOT_TOKEN" };
@@ -162,5 +165,37 @@ describe.skipIf(!dockerAvailable)("thread secrets (gateway ↔ scripted worker, 
     await eventually(() => Promise.resolve(existsSync(file)), (present) => !present);
     await assertAbsent(value);
     worker.finish(source.threadId, source.turnId);
+  });
+
+  test("a new gateway instance recovers pending requests and saved grants from the database", async () => {
+    const source = await start();
+    const live = await ask(source, "Gateway restart grant");
+    const value = `gateway-restart-${crypto.randomUUID()}`;
+    await gw.api.answerThreadSecret({ requestId: live.callId, value });
+    const file = result(await live.waiting).file!;
+    const pending = await ask(source, "Gateway restart pending");
+    worker.link.close(); worker.secrets!.close();
+    await eventually(async () => gw.core.online.has(gw.workerId), (online) => !online);
+    gw.core.stopSweep();
+    const fresh = new GatewayCore({ runtime: gw.runtime, instanceId: "restart-secrets", userId: gw.userId });
+    const server = await startGrpcServer({ routes: (router) => fresh.link.routes(router) });
+    let restored: ScriptedWorker | undefined;
+    try {
+      restored = new ScriptedWorker(await openGatewayLink({ baseUrl: server.url, credential: gw.workerCredential,
+        hello: { workerId: gw.workerId, journalId: `journal-${gw.workerId.slice(-6)}`, capabilities: ["thread_secrets"] },
+      }), { secretsDataDir: dataDir });
+      await eventually(() => Promise.resolve(existsSync(file)), Boolean);
+      expect(readFileSync(file, "utf8")).toBe(value);
+      const waiting = restored.callTool({ ...source, tool: "request_secret", args: { ...args, request_id: pending.callId } });
+      await fresh.secrets.answer(create(ui.AnswerThreadSecretRequestSchema, { requestId: pending.callId, decline: true }));
+      expect(result(await waiting).status).toBe("declined");
+      await fresh.secrets.revoke(live.callId);
+      await eventually(() => Promise.resolve(existsSync(file)), (present) => !present);
+      expect(existsSync(file)).toBe(false);
+      await assertAbsent(value);
+    } finally {
+      restored?.link.close(); restored?.secrets?.close();
+      fresh.stopSweep(); await fresh.bots.stop(); await fresh.link.shutdown(); await server.close();
+    }
   });
 });

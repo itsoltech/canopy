@@ -49,13 +49,13 @@ describe.skipIf(!enabled)("thread secrets (Codex + Claude, live CLIProxyAPI)", (
   }, 180_000);
   afterAll(async () => { await stop(); await gw?.close(); });
 
-  for (const provider of [Provider.CODEX, Provider.CLAUDE]) {
-    test(`${Provider[provider]} asks privately and proves file access with SHA-256 without exposing the value`, async () => {
+  for (const provider of [Provider.CODEX, Provider.CLAUDE]) for (const mode of [PermissionMode.ASK, PermissionMode.FULL_AUTO]) {
+    test(`${Provider[provider]} ${PermissionMode[mode]} asks privately and proves file access with SHA-256 without exposing the value`, async () => {
       const value = `live-secret-${crypto.randomUUID()}-${crypto.randomUUID()}`;
       const hash = createHash("sha256").update(value).digest("hex");
       const thread = (await gw.api.createThread({ projectId, workspaceId, provider, providerProfileId: "cliproxyapi",
         model: provider === Provider.CODEX ? process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" : process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
-        permissionMode: PermissionMode.ASK, title: `Private secret ${Provider[provider]}`,
+        permissionMode: mode, title: `Private secret ${Provider[provider]}`,
         initialMessage: "Call the platform request_secret tool NOW with label 'Development access token', description 'Verify private file access using SHA-256.', placeholder 'pat-…', name 'DEV_TOKEN'. " +
           "Do not ask in chat. Wait for the result. If pending, renew using request_id. After saved, run sha256sum on the returned private file path (this prints only its hash and path). " +
           `The expected SHA-256 is ${hash}. Compare it and reply exactly SECRET_HASH_MATCH if equal, otherwise SECRET_HASH_MISMATCH. ` +
