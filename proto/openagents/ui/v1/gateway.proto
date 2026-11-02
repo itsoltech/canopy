@@ -210,6 +210,10 @@ message Turn {
   string interrupt_source = 73;
   // Krótki kod błędu (np. „http_connection_failed:401”, „error_max_turns”, „process_exit”), jeśli jest.
   string error_code = 74;
+
+  // Numery od 90: tryb uprawnień tury. Nadpisanie z wiadomości (UNSPECIFIED = domyślny wątku); od startu tury
+  // tryb faktycznie wysłany do workera.
+  openagents.worker.v1.PermissionMode permission_mode = 90;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -356,6 +360,10 @@ message SendMessageRequest {
   string model = 40;
   string effort = 41;
   MessageDelivery delivery = 42;
+  // Numery od 90: tryb uprawnień tury.
+  // Nadpisanie trybu uprawnień tylko dla tej tury (UNSPECIFIED = domyślny wątku). Steer dołącza do tury
+  // w toku i zostaje przy jej trybie; nadpisanie obowiązuje, gdy wiadomość trafi do kolejki.
+  openagents.worker.v1.PermissionMode permission_mode = 90;
 }
 
 message SendMessageResponse {
@@ -656,6 +664,8 @@ message UpdateThreadRequest {
   // Nieustawione = bez zmian; pusty = domyślny profilu / modelu.
   optional string model = 2;
   optional string effort = 3;
+  // Domyślny tryb uprawnień wątku (tury bez nadpisania). Nieustawione albo UNSPECIFIED = bez zmian.
+  optional openagents.worker.v1.PermissionMode permission_mode = 90;
 }
 
 message UpdateThreadResponse {
