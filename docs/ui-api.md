@@ -94,6 +94,21 @@ Co jest na zrzucie?
 
 **Worker offline.** Wiadomość z załącznikami do istniejącego wątku idzie do kolejki jak każda (bajty czekają w gateway, worker pobiera je przy starcie tury). Nowego wątku na workerze offline kompozytor nie wysyła (jak dotąd). Worker, który nigdy nie zgłosił `attachments_root` (starsza wersja), nie przyjmie załączników: `SendMessage` zwraca powód.
 
+### Kolejka
+
+Wiadomości czekające za turą w toku (tury `queued`) użytkownik układa jak w aplikacji Codex. Kolejność kolejki to `Turn.ordinal` (gateway startuje najniższą). Operacje działają tylko na turach `queued`, których gateway jeszcze nie wystartował (jego `StartTurn` nie jest w outboxie); taka tura, albo tura, która już wyszła z kolejki, daje `FailedPrecondition` z powodem („this message already started running”, „this message is no longer in the queue”). Każda zmiana idzie do wszystkich klientów jako `ThreadUpdate.turn`.
+
+| Metoda | Co robi |
+|---|---|
+| `ReorderQueuedTurns` | `{thread_id, turn_ids}` → podane tury dostają, w tej kolejności, miejsca (`ordinal`), które zajmują razem; tury, których klient nie zna (przyszły w międzyczasie), zostają na swoich. Kolejność zmienia się wśród tur kolejki, więc wystartowane tury nie zmieniają miejsca na osi czasu. Także tury agentów i harmonogramów |
+| `EditQueuedTurn` | `{turn_id, text, expected_revision}` → nowy tekst wiadomości użytkownika; nadpisania (model, wysiłek, tryb) i załączniki zostają (z załącznikami `input_text` = notatka + nowy tekst). Inna `Turn.revision` (161) niż oczekiwana = `FailedPrecondition` (zmieniona gdzie indziej) |
+| `DeleteQueuedTurn` | wiadomość użytkownika wychodzi z kolejki: `status = cancelled`, `Turn.withdrawn` (160) = `deleted`; oś czasu jej nie pokazuje |
+| `RestoreQueuedTurn` | cofnięcie usunięcia: tura wraca do kolejki na swoje miejsce (idempotentne) |
+| `SteerQueuedTurn` | wiadomość użytkownika (bez załączników) idzie teraz do tury w toku: w jednej transakcji powstaje steer (`Steer.from_turn_id` (160) = ta tura) i tura wychodzi z kolejki (`withdrawn = steered`). Dalej jak steer z `SendMessage` (`pending` → `accepted` → `delivered`); gdy nie wejdzie, wraca ta sama tura na swoje miejsce w kolejce (`Steer.queued_turn_id = from_turn_id`), nie nowa na końcu. Bez tury w toku = `FailedPrecondition`, wiadomość zostaje w kolejce |
+| `UserSettings.composer` (160) | `ComposerSettings.running_delivery`: co robi Enter, gdy trwa tura — `STEER` (domyślnie; Mod+Enter = kolejka) albo `QUEUE` (Enter = kolejka, Mod+Enter = steer) |
+
+**Wyścig z głową kolejki.** Zmiany kolejki i start jej głowy blokują najpierw wiersz wątku, więc idą jedna po drugiej. Scheduler (`pump`) zapisuje `StartTurn` tylko wtedy, gdy tura nadal jest głową kolejki z rewizją, którą przeczytał (`QueueStore.whileHead`); inaczej czyta kolejkę od nowa. Wystartowana tura ma więc zawsze tekst i miejsce, które użytkownik widział jako ostatnie przyjęte, a zmiana tury, którą scheduler wziął pierwszy, kończy się czytelnym błędem.
+
 ## 3. Rdzeń gateway (`GatewayCore`)
 
 - **Workery:**

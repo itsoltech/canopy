@@ -17,6 +17,7 @@ import turnEndSources from "./0013_turn_end_sources.sql" with { type: "text" };
 import turnPermissionMode from "./0014_turn_permission_mode.sql" with { type: "text" };
 import providerProfiles from "./0015_provider_profiles.sql" with { type: "text" };
 import attachments from "./0016_attachments.sql" with { type: "text" };
+import queueManage from "./0017_queue_manage.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -50,6 +51,7 @@ export const migrations = Migrator.fromRecord({
   "0014_turn_permission_mode": sqlFile(turnPermissionMode),
   "0015_provider_profiles": sqlFile(providerProfiles),
   "0016_attachments": sqlFile(attachments),
+  "0017_queue_manage": sqlFile(queueManage),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

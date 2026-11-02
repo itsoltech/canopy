@@ -45,6 +45,7 @@ import {
   permissionModeName,
   permissionModeOf,
   ProfileStore,
+  QueueStore,
   SettingsStore,
   SteerStore,
   toUiGoal,
@@ -77,7 +78,7 @@ import { Scheduler } from "./scheduler.ts";
  */
 
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | ProfileStore | AttachmentStore,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | ProfileStore | AttachmentStore,
   unknown
 >;
 
@@ -477,10 +478,21 @@ export class GatewayCore {
   async pump(threadId: string): Promise<void> {
     // Steers that never joined their turn run next (in order, before anything queued after them).
     for (const steerId of await this.#steers((s) => s.dropped(threadId))) await this.#queueSteer(steerId, "");
-    const turn = await this.#run((s) => s.nextTurn(threadId));
-    if (!turn) return;
-    const thread = await this.#run((s) => s.thread(threadId));
-    if (!thread.worker_id) return;
+    // The user may reorder or edit the queue meanwhile: the head starts only as read, else it is read again.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const turn = await this.#run((s) => s.nextTurn(threadId));
+      if (!turn) return;
+      const thread = await this.#run((s) => s.thread(threadId));
+      if (!thread.worker_id) return;
+      if (await this.#startTurn(thread, turn)) return;
+    }
+    this.#log(`thread ${threadId}: the queue kept changing, its head was not started`);
+  }
+
+  /** StartTurn for the queue's head, only while it still is the head as read (QueueStore.whileHead). */
+  async #startTurn(thread: ThreadRow, turn: TurnRow): Promise<boolean> {
+    const threadId = thread.id;
+    const workerId = thread.worker_id ?? "";
     const spec = await this.#run((s) => Effect.succeed(s.threadSpec(thread)));
     // The message's override, else the thread's default; an effort the model does not take is left out
     // (turnEffort). Recorded on the turn as what it ran with.
@@ -488,44 +500,103 @@ export class GatewayCore {
     const effort = turnEffort((await this.#profileModels({ thread })).models, model, turn.effort || thread.settings.effort || "");
     // The permission mode the same way: the message's override, else the thread's default (always explicit).
     const permissionMode = turn.permission_mode || permissionModeName(permissionModeOf(thread.settings.permissionMode)) || "ASK";
-    if (model !== (turn.model ?? "") || effort !== (turn.effort ?? "") || permissionMode !== (turn.permission_mode ?? "")) {
-      await this.#run((s) => s.setTurnSettings(turn.id, { model, effort, permissionMode }));
-    }
-    try {
-      await this.#dispatch(
-        thread.worker_id,
-        {
-          kind: {
-            case: "startTurn",
-            value: {
-              thread: spec,
-              turnId: turn.id,
-              input: {
-                text: turn.input.text ?? "",
-                authorUserId: this.#options.userId,
-                attachments: (turn.input.attachments ?? []).map((a) => ({
-                  attachmentId: a.id,
-                  sha256: a.sha256,
-                  sizeBytes: BigInt(a.sizeBytes),
-                  mimeType: a.mimeType,
-                  name: a.name,
-                  path: a.path,
-                  kind: a.kind,
-                })),
-              },
-              model,
-              effort,
-              permissionMode: permissionModeOf(permissionMode),
-            },
+    const command: MessageInitShape<typeof CommandSchema> = {
+      kind: {
+        case: "startTurn",
+        value: {
+          thread: spec,
+          turnId: turn.id,
+          input: {
+            text: turn.input.text ?? "",
+            authorUserId: this.#options.userId,
+            attachments: (turn.input.attachments ?? []).map((a) => ({
+              attachmentId: a.id,
+              sha256: a.sha256,
+              sizeBytes: BigInt(a.sizeBytes),
+              mimeType: a.mimeType,
+              name: a.name,
+              path: a.path,
+              kind: a.kind,
+            })),
           },
+          model,
+          effort,
+          permissionMode: permissionModeOf(permissionMode),
         },
-        { threadId, turnId: turn.id, ttlSeconds: TTL.startTurn },
+      },
+    };
+    let stored: Command | undefined;
+    try {
+      stored = await this.#options.runtime.runPromise(
+        QueueStore.use((q) =>
+          q.whileHead(
+            { threadId, turnId: turn.id, revision: turn.revision ?? 0 },
+            GatewayStore.use((s) =>
+              Effect.gen(function* () {
+                if (model !== (turn.model ?? "") || effort !== (turn.effort ?? "") || permissionMode !== (turn.permission_mode ?? "")) {
+                  yield* s.setTurnSettings(turn.id, { model, effort, permissionMode });
+                }
+                return yield* s.enqueueCommand({ workerId, command, threadId, turnId: turn.id, ttlSeconds: TTL.startTurn });
+              }),
+            ),
+          ),
+        ),
       );
     } catch (error) {
       // Another pass (a finished turn and a new message at once, or another instance) started it first.
-      if (violates(error, "worker_commands_one_start")) return;
+      if (violates(error, "worker_commands_one_start")) return true;
       throw error;
     }
+    if (!stored) return false;
+    void this.#deliver(workerId, stored);
+    return true;
+  }
+
+  // ------------------------------------------------------------------ the queue
+
+  /** New order of the queued turns (docs/ui-api.md, "Kolejka"); every client hears each moved turn. */
+  async reorderQueuedTurns(request: ui.ReorderQueuedTurnsRequest): Promise<ui.Turn[]> {
+    const rows = await this.#queue((q) => q.reorder({ threadId: request.threadId, ownerUserId: this.#options.userId, turnIds: request.turnIds }));
+    const turns = rows.map(toUiTurn);
+    for (const turn of turns) this.hub.publishThread(request.threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: turn } }));
+    return turns;
+  }
+
+  async editQueuedTurn(request: ui.EditQueuedTurnRequest): Promise<ui.Turn> {
+    const row = await this.#queue((q) =>
+      q.edit({ turnId: request.turnId, ownerUserId: this.#options.userId, text: request.text, expectedRevision: request.expectedRevision }),
+    );
+    return this.#publishQueued(row);
+  }
+
+  async deleteQueuedTurn(turnId: string): Promise<ui.Turn> {
+    return this.#publishQueued(await this.#queue((q) => q.remove({ turnId, ownerUserId: this.#options.userId })));
+  }
+
+  /** Undo of a delete: the turn is queued at its place again (and starts when it is the head of an idle thread). */
+  async restoreQueuedTurn(turnId: string): Promise<ui.Turn> {
+    const row = await this.#queue((q) => q.restore({ turnId, ownerUserId: this.#options.userId }));
+    const turn = await this.#publishQueued(row);
+    await this.pump(row.thread_id);
+    return turn;
+  }
+
+  /** A queued message into the running turn now; when it cannot join, its turn is back at its place (SteerStore.queue). */
+  async steerQueuedTurn(turnId: string): Promise<{ steer: ui.Steer; turn: ui.Turn }> {
+    const { steer, turn } = await this.#queue((q) => q.steer({ turnId, ownerUserId: this.#options.userId }));
+    const update = await this.#publishQueued(turn);
+    await this.#sendSteer(steer.id);
+    return { steer: toUiSteer(await this.#steers((s) => s.steer(steer.id))), turn: update };
+  }
+
+  async #publishQueued(row: TurnRow): Promise<ui.Turn> {
+    const turn = toUiTurn(row);
+    this.hub.publishThread(row.thread_id, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: turn } }));
+    return turn;
+  }
+
+  #queue<A, E>(use: (store: QueueStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(QueueStore.use(use));
   }
 
   // ------------------------------------------------------------------ UI operations
@@ -1119,12 +1190,14 @@ export class GatewayCore {
   async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
     if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults);
     if (request.modelFavorites) checkFavorites(request.modelFavorites);
+    if (request.composer && !(request.composer.runningDelivery in ui.MessageDelivery)) throw new InvalidError("unknown message delivery");
     const settings = await this.#settings((s) =>
       s.updateUser({
         userId: this.#options.userId,
         ...(request.appearance && { appearance: { ...request.appearance, sidebarWidth: storedSidebarWidth(request.appearance.sidebarWidth) } }),
         ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
         ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),
+        ...(request.composer && { composer: request.composer }),
         expectedVersion: request.expectedVersion,
       }),
     );

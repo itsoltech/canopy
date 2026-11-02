@@ -70,6 +70,14 @@ service GatewayService {
   rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse);
   rpc GetAttachment(GetAttachmentRequest) returns (GetAttachmentResponse);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
+
+  // Kolejka (sekcja na końcu pliku): wiadomości czekające za turą w toku — kolejność, edycja, usunięcie
+  // (z cofnięciem) i steer do tury w toku. Działa tylko na turach queued, których gateway jeszcze nie wystartował.
+  rpc ReorderQueuedTurns(ReorderQueuedTurnsRequest) returns (ReorderQueuedTurnsResponse);
+  rpc EditQueuedTurn(EditQueuedTurnRequest) returns (EditQueuedTurnResponse);
+  rpc DeleteQueuedTurn(DeleteQueuedTurnRequest) returns (DeleteQueuedTurnResponse);
+  rpc RestoreQueuedTurn(RestoreQueuedTurnRequest) returns (RestoreQueuedTurnResponse);
+  rpc SteerQueuedTurn(SteerQueuedTurnRequest) returns (SteerQueuedTurnResponse);
 }
 
 // ---------- Model ----------
@@ -234,6 +242,14 @@ message Turn {
   openagents.worker.v1.PermissionMode permission_mode = 90;
   // Pliki dołączone do wiadomości (numery od 110). Ich ścieżki na workerze są w platform_note.
   repeated Attachment attachments = 110;
+
+  // Numery od 160: zarządzanie kolejką.
+  // Tura wyjęta z kolejki przez użytkownika (status cancelled, oś czasu jej nie pokazuje): deleted (usunięta,
+  // RestoreQueuedTurn ją przywraca) | steered (wysłana do tury w toku jako steer z Steer.from_turn_id; wraca na
+  // swoje miejsce w kolejce, gdy nie mogła wejść). Pusty dla innych tur.
+  string withdrawn = 160;
+  // Rośnie z każdą edycją wejścia tury w kolejce (EditQueuedTurn.expected_revision).
+  uint32 revision = 161;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -598,6 +614,14 @@ message UserSettings {
   uint64 version = 3;
   google.protobuf.Timestamp updated_at = 4;
   ModelFavorites model_favorites = 40;
+  ComposerSettings composer = 160;
+}
+
+// Kompozytor wątku (numery od 160).
+message ComposerSettings {
+  // Co robi Enter, gdy w wątku trwa tura: STEER (domyślnie, UNSPECIFIED = STEER; Mod+Enter = kolejka) albo QUEUE
+  // (przełącznik queueing w menu kolejki: Enter = kolejka, Mod+Enter = steer).
+  MessageDelivery running_delivery = 1;
 }
 
 // Ustawienia projektu; nadpisują domyślne wartości użytkownika w tym projekcie.
@@ -624,6 +648,7 @@ message UpdateUserSettingsRequest {
   // Wersja, od której klient zaczął zmianę (konflikt = FailedPrecondition, klient pobiera ustawienia od nowa).
   uint64 expected_version = 3;
   ModelFavorites model_favorites = 40;
+  ComposerSettings composer = 160;
 }
 
 message UpdateUserSettingsResponse {
@@ -668,6 +693,9 @@ message Steer {
   google.protobuf.Timestamp created_at = 8;
   // Autor: użytkownik albo wątek agenta (send_message z delivery = steer).
   string source_thread_id = 9;
+  // Numery od 160: steer zrobiony z tury w kolejce (SteerQueuedTurn). Gdy nie wejdzie, ta tura wraca do kolejki
+  // na swoje miejsce (queued_turn_id = from_turn_id) zamiast nowej tury na końcu.
+  string from_turn_id = 160;
 }
 
 // Katalog modeli jednego workera (z ostatniego raportu workera).
@@ -956,4 +984,63 @@ message GetThreadBlobRequest {
 message GetThreadBlobResponse {
   bytes data = 1;
   string mime_type = 2;
+}
+
+// ---------- Kolejka ----------
+// Błędy: tura, która już ruszyła (gateway wysłał jej StartTurn) albo nie jest już w kolejce = FailedPrecondition
+// z powodem; klient ma stan z ThreadUpdate.turn. Każda zmiana idzie do wszystkich klientów jako ThreadUpdate.turn
+// (kolejność = Turn.ordinal; tura z withdrawn znika z kolejki).
+
+// Nowa kolejność: podane tury dostają, w tej kolejności, miejsca (ordinal), które zajmują razem; tury kolejki,
+// których klient nie zna (przyszły w międzyczasie), zostają na swoich miejscach.
+message ReorderQueuedTurnsRequest {
+  string thread_id = 1;
+  repeated string turn_ids = 2;
+}
+
+message ReorderQueuedTurnsResponse {
+  // Podane tury po zmianie, w nowej kolejności.
+  repeated Turn turns = 1;
+}
+
+// Nowy tekst wiadomości w kolejce (tylko tury użytkownika). Nadpisania (model, wysiłek, tryb) i załączniki zostają.
+message EditQueuedTurnRequest {
+  string turn_id = 1;
+  string text = 2;
+  // Turn.revision, od której klient zaczął (inna = FailedPrecondition: ktoś zmienił ją wcześniej).
+  uint32 expected_revision = 3;
+}
+
+message EditQueuedTurnResponse {
+  Turn turn = 1;
+}
+
+// Usuwa wiadomość użytkownika z kolejki (status cancelled, withdrawn = deleted).
+message DeleteQueuedTurnRequest {
+  string turn_id = 1;
+}
+
+message DeleteQueuedTurnResponse {
+  Turn turn = 1;
+}
+
+// Cofnięcie DeleteQueuedTurn: tura wraca do kolejki na swoje miejsce.
+message RestoreQueuedTurnRequest {
+  string turn_id = 1;
+}
+
+message RestoreQueuedTurnResponse {
+  Turn turn = 1;
+}
+
+// Wiadomość z kolejki idzie teraz do tury w toku (jak SendMessage z delivery = STEER): tura wychodzi z kolejki
+// (withdrawn = steered) w tej samej transakcji, w której powstaje steer. Bez tury w toku = FailedPrecondition i
+// wiadomość zostaje w kolejce. Tylko wiadomości użytkownika bez załączników.
+message SteerQueuedTurnRequest {
+  string turn_id = 1;
+}
+
+message SteerQueuedTurnResponse {
+  Steer steer = 1;
+  Turn turn = 2;
 }

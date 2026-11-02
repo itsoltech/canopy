@@ -120,6 +120,10 @@ export interface TurnRow {
   source_status?: string | null;
   question_kind?: string | null;
   question_tool?: string | null;
+  /** Taken out of the queue by the user (cancelled): deleted | steered (docs/ui-api.md, "Kolejka"). */
+  withdrawn?: string | null;
+  /** Grows with every edit of the queued input. */
+  revision?: number;
 }
 
 export interface OutboxRow {
@@ -692,7 +696,7 @@ export class GatewayStore extends Context.Service<
               const inheritedTurns = yield* sql<TurnRow>`
                 SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
-                 WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
+                 WHERE c.level > 0 AND u.status <> 'queued' AND u.withdrawn IS NULL AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
                  ORDER BY c.level DESC, u.ordinal`;
               const turns = yield* store.turnsOf(threadId);
               const itemRows = yield* sql<{ thread_id: string; content: JsonValue; turn_id: string | null; first_seq: bigint; last_seq: bigint; inherited: boolean }>`
@@ -923,6 +927,8 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     permissionMode: permissionModeOf(row.permission_mode),
     goalId: row.goal_id ?? "",
     attachments: (row.input?.attachments ?? []).map(toUiAttachment),
+    withdrawn: row.withdrawn ?? "",
+    revision: row.revision ?? 0,
   });
 }
 

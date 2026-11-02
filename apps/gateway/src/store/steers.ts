@@ -12,6 +12,7 @@ import { NotFound, type TurnRow } from "./store.ts";
  * pending (SteerTurn in the outbox) -> accepted (the provider took it) -> delivered (its user_message item,
  * written by Ingest) | dropped (the turn ended without it, Ingest) -> queued (the next turn, with a reason).
  * A steer for a turn that is no longer running, or one the provider refuses, goes from pending to queued.
+ * A steer made from a queued turn (QueueStore.steer) falls back to that turn, at its place in the queue.
  */
 
 export interface SteerRow {
@@ -31,6 +32,8 @@ export interface SteerRow {
   reason: string | null;
   queued_turn_id: string | null;
   created_at: Date;
+  /** Made from this queued turn (SteerQueuedTurn): it comes back instead of a new turn when the steer falls back. */
+  from_turn_id?: string | null;
   /** Joined: the calling thread of an agent's steer. */
   source_thread_id?: string | null;
 }
@@ -117,9 +120,16 @@ export class SteerStore extends Context.Service<
               const steer = locked[0];
               if (!steer) return yield* Effect.fail(new NotFound("steer not found"));
               if (steer.status === "delivered" || steer.status === "queued" || steer.status === "failed") return { steer: yield* one(id) };
+              // A message steered from the queue goes back to its place there.
+              const back = steer.from_turn_id
+                ? yield* sql<TurnRow>`
+                    UPDATE turns SET status = 'queued', withdrawn = NULL, completed_at = NULL
+                     WHERE id = ${steer.from_turn_id}::uuid AND status = 'cancelled' AND withdrawn = 'steered'
+                    RETURNING *`
+                : [];
               // Like the message would have been queued: a user's turn, or the agent's (same call, same hops).
               const agent = steer.agent_call_id !== null;
-              const rows = yield* sql<TurnRow>`
+              const rows = back[0] ? back : yield* sql<TurnRow>`
                 INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, hops, input, model, effort, permission_mode)
                 SELECT ${Bun.randomUUIDv7()}::uuid, ${steer.thread_id}::uuid, coalesce(max(ordinal), 0) + 1, ${agent ? "agent_bus" : "user"},
                        ${steer.author_user_id}::uuid, ${steer.agent_call_id}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
@@ -152,5 +162,6 @@ export function toUiSteer(row: SteerRow): ui.Steer {
     queuedTurnId: row.queued_turn_id ?? "",
     createdAt: timestampFromDate(new Date(row.created_at)),
     sourceThreadId: row.source_thread_id ?? "",
+    fromTurnId: row.from_turn_id ?? "",
   });
 }

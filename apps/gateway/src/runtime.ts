@@ -2,7 +2,7 @@ import { PgClient } from "@effect/sql-pg";
 import { migrate } from "@open-agents/db";
 import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@open-agents/domain";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
-import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, loadSecretsKey, ModelStore, ProfileStore, SettingsStore, SteerStore } from "./store/index.ts";
+import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, loadSecretsKey, ModelStore, ProfileStore, QueueStore, SettingsStore, SteerStore } from "./store/index.ts";
 
 /** Database-backed services of the gateway, shared by main.ts and cli.ts. */
 export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>) {
@@ -18,6 +18,7 @@ export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>
       SettingsStore.layer,
       ModelStore.layer,
       SteerStore.layer,
+      QueueStore.layer,
       GoalStore.layer,
       ProfileStore.layer(secretsKey),
       AttachmentStore.layer,
