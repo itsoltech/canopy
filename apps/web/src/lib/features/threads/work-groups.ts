@@ -15,6 +15,9 @@ import { isSteerMessage, isTerminal, type ItemNode, type TimelineRow } from "./t
  *   failed) keeps it only when nothing came after it; otherwise its footer (status, reason, Continue)
  *   is the end the reader sees.
  * - Nothing to fold (no work beside the final message): the turn stays as it is.
+ * - Items an ended turn left without anything to show (reasoning without text or summary — Codex
+ *   keeps encrypted reasoning only —, an agent message without text) are dropped: they neither make a
+ *   fold nor sit in one.
  * - Rows of other turns or between turns inside a folded turn's span follow its fold (their order to
  *   each other and to the footer is kept).
  */
@@ -39,6 +42,15 @@ const isBody = (row: TimelineRow): boolean => (row.kind === "item" && !row.input
 
 const isAgentMessage = (row: TimelineRow): boolean => row.kind === "item" && row.node.entry.item.content.case === "agentMessage";
 
+/** An item with nothing to show, without children. */
+function isEmpty(row: TimelineRow): boolean {
+  if (row.kind !== "item" || row.node.children.length > 0) return false;
+  const content = row.node.entry.item.content;
+  if (content.case === "reasoning") return !content.value.text.trim() && !content.value.summary.trim();
+  if (content.case === "agentMessage") return !content.value.text.trim();
+  return false;
+}
+
 export function foldTurns(rows: readonly TimelineRow[], isOpen: (turnId: string) => boolean): FoldedRow[] {
   // Ended turns (they have a footer) and their body rows in order.
   const ended = new Map<string, ui.Turn>();
@@ -46,7 +58,7 @@ export function foldTurns(rows: readonly TimelineRow[], isOpen: (turnId: string)
   const bodies = new Map<string, TimelineRow[]>();
   for (const row of rows) {
     const turnId = turnIdOf(row);
-    if (!ended.has(turnId) || !isBody(row)) continue;
+    if (!ended.has(turnId) || !isBody(row) || isEmpty(row)) continue;
     const list = bodies.get(turnId);
     if (list) list.push(row);
     else bodies.set(turnId, [row]);
@@ -65,6 +77,7 @@ export function foldTurns(rows: readonly TimelineRow[], isOpen: (turnId: string)
   const placed = new Set<string>();
   for (const row of rows) {
     const turnId = turnIdOf(row);
+    if (ended.has(turnId) && isBody(row) && isEmpty(row)) continue;
     const fold = folds.get(turnId);
     if (!fold || !isBody(row)) {
       out.push({ kind: "row", row, work: false });
