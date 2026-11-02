@@ -506,6 +506,11 @@ export class InstanceStore extends Context.Service<
               const [favorites = [], hidden = [], shown = [], custom = []] = lists;
               if (lists.some((l) => l.length > MAX_MODELS) || lists.flat().some((m) => m.length > 200 || /\s/.test(m))) return yield* Effect.fail(new Invalid("invalid model list"));
               if (custom.length > 100) return yield* Effect.fail(new Invalid("at most 100 custom models"));
+              if (request.favoritesOnly) {
+                const updated = yield* sql`UPDATE provider_instances SET favorites = ${favorites}::text[], updated_at = now() WHERE harness = ${harness} AND id = ${request.id} RETURNING id`;
+                if (updated.length === 0) return yield* Effect.fail(new NotFound(`provider instance ${harness}/${request.id} not found`));
+                return;
+              }
               const rows = yield* sql`
                 UPDATE provider_instances
                    SET favorites = ${favorites}::text[], hidden_models = ${hidden}::text[], shown_models = ${shown}::text[], custom_models = ${custom}::text[], updated_at = now()

@@ -3,7 +3,7 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
-  import type { KeyAction } from "./profiles.ts";
+  import type { KeyAction } from "./instances.ts";
 
   /**
    * A secret the gateway stores and never sends back: while one is set it reads "Set" with Replace (and Clear when

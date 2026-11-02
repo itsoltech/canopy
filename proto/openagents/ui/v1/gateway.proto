@@ -1004,6 +1004,8 @@ message SetInstanceModelsRequest {
   openagents.worker.v1.Provider harness = 1;
   string id = 2;
   InstanceModels models = 3;
+  // true = tylko ulubione (gwiazdka w pickerze); pozostałe listy bez zmian.
+  bool favorites_only = 4;
 }
 
 message SetInstanceModelsResponse {
