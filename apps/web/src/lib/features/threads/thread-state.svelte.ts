@@ -58,6 +58,7 @@ export class ThreadState {
   turns = $state.raw<ui.Turn[]>([]);
   entries = $state.raw<TimelineEntry[]>([]);
   interactions = $state.raw<ui.Interaction[]>([]);
+  secrets = $state.raw<ui.ThreadSecret[]>([]);
   notices = $state.raw<TimelineNotice[]>([]);
   /** The thread's schedules (the snapshot has the active and paused ones; changes arrive live). */
   schedules = $state.raw<ui.Schedule[]>([]);
@@ -129,6 +130,7 @@ export class ThreadState {
         this.thread = snapshot.thread;
         this.turns = snapshot.turns;
         this.interactions = snapshot.interactions;
+        this.secrets = snapshot.secrets;
         const known = new Map(this.entries.map((entry) => [`${entry.fromThreadId}:${entry.id}`, entry]));
         this.entries = snapshot.items.flatMap((i) => {
           const previous = known.get(`${i.fromThreadId}:${i.item?.itemId}`);
@@ -151,6 +153,9 @@ export class ThreadState {
         break;
       case "turn":
         this.upsertTurn(change.value);
+        break;
+      case "secret":
+        this.upsertSecret(change.value);
         break;
       case "interaction": {
         const index = this.interactions.findIndex((i) => i.requestId === change.value.requestId);
@@ -182,6 +187,11 @@ export class ThreadState {
     const index = this.turns.findIndex((t) => t.id === turn.id);
     if (index >= 0 && this.turns[index]!.ordinal === turn.ordinal) this.turns = this.turns.with(index, turn);
     else this.turns = [...this.turns.filter((t) => t.id !== turn.id), turn].sort((a, b) => a.ordinal - b.ordinal);
+  }
+
+  upsertSecret(secret: ui.ThreadSecret): void {
+    const index = this.secrets.findIndex((s) => s.requestId === secret.requestId);
+    this.secrets = index < 0 ? [...this.secrets, secret] : this.secrets.map((s, i) => i === index ? secret : s);
   }
 
   /** A schedule created or changed here (also before the stream reports it). */

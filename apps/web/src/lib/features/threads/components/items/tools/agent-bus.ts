@@ -20,6 +20,7 @@ interface Look {
 }
 
 const LOOKS: Record<string, Look> = {
+  request_secret: { doing: "Asking for a secret", done: "Asked for a secret", tried: "ask for a secret", icon: "lock-closed" },
   spawn_thread: { doing: "Starting a subagent", done: "Started a subagent", tried: "start a subagent", icon: "sparkles" },
   send_message: { doing: "Sending a message to", done: "Sent a message to", tried: "send a message to", icon: "paper-airplane" },
   wait_threads: { doing: "Waiting for", done: "Waited for", tried: "wait for", icon: "clock" },
