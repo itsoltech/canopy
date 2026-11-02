@@ -90,7 +90,8 @@ test.skipIf(!dockerAvailable)("Grok: UI API→gateway→worker→fake ACP, appro
     const waiting = await gw.api.sendMessage({ threadId: thread.id, text: "PERMISSION", clientRequestId: crypto.randomUUID() });
     await eventually(() => snapshot(thread.id), (r) => r.interactions.some((i) => i.turnId === waiting.turn?.id && i.status === "pending"), 5000);
     await gw.api.interruptThread({ threadId: thread.id });
-    const cancelled = await eventually(() => snapshot(thread.id), (r) => r.turns.find((t) => t.id === waiting.turn?.id)?.status === "interrupted", 10000);
+    const cancelled = await eventually(() => snapshot(thread.id), (r) => r.turns.find((t) => t.id === waiting.turn?.id)?.status === "interrupted"
+      && r.interactions.filter((i) => i.turnId === waiting.turn?.id).every((i) => i.status !== "pending"), 10000);
     expect(cancelled.interactions.filter((i) => i.turnId === waiting.turn?.id).every((i) => i.status !== "pending")).toBe(true);
   } finally { await stop(); await proxy.stop(true); await gw.close(); }
 }, 60_000);

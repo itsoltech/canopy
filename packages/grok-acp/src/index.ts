@@ -90,7 +90,7 @@ export class GrokClient {
   async *prompt(sessionId: string, prompt: Content[], signal?: AbortSignal): AsyncGenerator<PromptEvent> {
     if (this.#streams.has(sessionId)) throw new AcpError("A prompt is already running in this session");
     if (signal?.aborted) throw new AcpError("Prompt cancelled");
-    const stream = new EventStream(this.#options.maxQueuedEvents ?? 4096);
+    const stream = new EventStream(this.#options.maxQueuedEvents ?? 4096, (error) => this.#fail(error));
     this.#streams.set(sessionId, stream);
     const abort = () => { void this.cancel(sessionId).catch(() => {}); };
     signal?.addEventListener("abort", abort, { once: true });
@@ -226,10 +226,10 @@ class EventStream implements AsyncIterable<PromptEvent> {
   #wake: (() => void) | undefined;
   #done = false;
   #error: Error | undefined;
-  constructor(readonly limit: number) {}
+  constructor(readonly limit: number, readonly overflow: (error: Error) => void) {}
   push(event: PromptEvent): void {
     if (this.#done) return;
-    if (this.#queue.length >= this.limit) { this.end(new AcpError("ACP event consumer fell behind")); return; }
+    if (this.#queue.length >= this.limit) { const error = new AcpError("ACP event consumer fell behind"); this.end(error); this.overflow(error); return; }
     this.#queue.push(event); this.#wake?.();
   }
   end(error?: Error): void { this.#done = true; this.#error = error; this.#wake?.(); }

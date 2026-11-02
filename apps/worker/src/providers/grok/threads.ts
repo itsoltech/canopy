@@ -46,7 +46,7 @@ export class GrokThreads {
     const profile = this.options.profile(spec.providerProfileId);
     if (!profile) throw new Error("Grok provider instance unavailable");
     const chosen = { model: settings?.model || spec.model, effort: settings?.effort || "", permissionMode: settings?.permissionMode || spec.permissionMode };
-    const key = JSON.stringify(chosen);
+    const key = JSON.stringify({ ...chosen, connectorTools: spec.connectorTools });
     const previous = this.#entries.get(spec.threadId);
     if (previous?.turnId) throw new Error("Grok turn already running");
     if (previous?.settings === key && !previous.client.closed) { clearTimeout(previous.idleTimer); return previous; }
@@ -55,6 +55,7 @@ export class GrokThreads {
     const launch = grokLaunch({ dataDir: this.options.dataDir, profile, executable: this.options.executable, model: chosen.model, effort: chosen.effort, readOnly: chosen.permissionMode === PermissionMode.READ_ONLY, fullAuto: chosen.permissionMode === PermissionMode.FULL_AUTO, linkDeviceLogin: this.options.linkDeviceLogin });
     let entry: Entry | undefined;
     const bus = grokBus({ threadId: spec.threadId, depth: spec.depth, agentBus: spec.enableAgentBus, turnId: () => entry?.turnId ?? "", callTool: this.options.callTool,
+      connectorTools: spec.connectorTools,
       record: (event) => this.options.record(spec.threadId, event),
       ...(this.options.viewImage && { viewImage: (path: string) => this.options.viewImage!(spec.threadId, spec.cwd, path) }),
       toolUseId: (name, args) => {
