@@ -7,7 +7,7 @@
 export const segmentedTrack = "gap-0.5 rounded-lg bg-zinc-950/5 p-0.5 dark:bg-white/5";
 
 export const segmentedLabel =
-  "relative flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm/5 font-medium text-zinc-500 hover:text-zinc-950 focus-ring data-active:text-zinc-950 sm:py-1 sm:text-[0.8125rem]/5 dark:text-zinc-400 dark:hover:text-white dark:data-active:text-white";
+  "relative flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm/5 font-medium text-zinc-500 hover:text-zinc-950 focus-ring data-active:text-zinc-950 sm:py-0.5 sm:text-[0.8125rem]/5 dark:text-zinc-400 dark:hover:text-white dark:data-active:text-white";
 
 export const segmentedItem = `${segmentedLabel} data-active:bg-white data-active:shadow-xs data-active:ring-1 data-active:ring-zinc-950/5 dark:data-active:bg-white/10 dark:data-active:shadow-none dark:data-active:ring-0`;
 
