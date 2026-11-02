@@ -29,6 +29,7 @@ import sidebarThreads from "./0026_sidebar_threads.sql" with { type: "text" };
 import schedulesNewThread from "./0027_schedules_new_thread.sql" with { type: "text" };
 import archiveCascade from "./0028_archive_cascade.sql" with { type: "text" };
 import scheduleEdit from "./0029_schedule_edit.sql" with { type: "text" };
+import busNotifyDelivery from "./0032_bus_notify_delivery.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -74,6 +75,7 @@ export const migrations = Migrator.fromRecord({
   "0027_schedules_new_thread": sqlFile(schedulesNewThread),
   "0028_archive_cascade": sqlFile(archiveCascade),
   "0029_schedule_edit": sqlFile(scheduleEdit),
+  "0032_bus_notify_delivery": sqlFile(busNotifyDelivery),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

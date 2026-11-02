@@ -1,6 +1,6 @@
-import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { create, fromJson, toBinary, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ui, type Command } from "@open-agents/contracts";
+import { CommandSchema, ui, type Command } from "@open-agents/contracts";
 import {
   agentKey,
   fuzzyRank,
@@ -18,6 +18,7 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { GatewayStore, Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";
 import { questionStore, type QuestionStore } from "./questions.ts";
+import { finishedTurn, observedSummaryTurns } from "./notification-observation.ts";
 
 /**
  * Agent bus persistence (docs/agent-bus.md): the facts `authorizeBusCall` decides on, and the writes of
@@ -73,9 +74,9 @@ export interface ThreadSummary {
   readonly model: string;
   readonly effort: string;
   readonly permission_mode: SpawnPermissionMode;
-  /** The latest finished turn: completed, interrupted or failed, with the reason. Absent before the first one ends. */
+  /** The latest finished turn: completed, interrupted, failed or cancelled, with the reason. Absent before the first one ends. */
   readonly last_turn?: { readonly turn_id: string; readonly status: string; readonly reason?: string };
-  /** The thread's final message so far: a subagent's result. */
+  /** The latest finished turn's final message: a subagent's result (never output from a newer running turn). */
   readonly last_message: string;
 }
 
@@ -205,7 +206,9 @@ export class AgentBusStore extends Context.Service<
       scheduleThreadId?: string;
     }): Fx<{ caller: ThreadRow; facts: BusFacts }>;
     /** A call that started nothing (reads, refusals, interrupts): stored with its result for idempotency. */
-    recordCall(input: { source: CallSource; tool: string; args: unknown; ok: boolean; result?: JsonValue; error?: string }): Fx<void>;
+    recordCall(input: { source: CallSource; tool: string; args: unknown; ok: boolean; result?: JsonValue; error?: string; observedTurnIds?: readonly string[] }): Fx<void>;
+    /** The caller explicitly stopped caring about a target, before interrupting it. */
+    supersedeNotifications(callerId: string, targetId: string): Fx<void>;
     spawn(input: {
       source: CallSource;
       caller: ThreadRow;
@@ -230,7 +233,7 @@ export class AgentBusStore extends Context.Service<
      * caller's owner, by title (fuzzy) when `query` is given, the most recent activity first.
      */
     listThreads(caller: ThreadRow, scope: "children" | "tree" | "all", options?: { query?: string; limit?: number }): Fx<ThreadSummary[]>;
-    readThread(input: { threadId: string; afterSeq: number; limit: number; view: "messages" | "items" }): Fx<{ entries: JsonValue[]; nextSeq: number }>;
+    readThread(input: { threadId: string; afterSeq: number; limit: number; view: "messages" | "items" }): Fx<{ result: { entries: JsonValue[]; nextSeq: number }; observedTurnIds: string[] }>;
     /** The thread could not be created: its queued turns fail (so callers waiting on them hear back). */
     failQueuedTurns(threadId: string, reason: string): Fx<ReadonlyArray<string>>;
     /** Archives a thread, cancels its queued turns, its schedules and pending notifications about it. */
@@ -263,9 +266,11 @@ export class AgentBusStore extends Context.Service<
      */
     deliveries(by: { sourceThreadId: string } | { turnId: string } | { steerId: string }): Fx<ReadonlyArray<DeliveryRow>>;
     /** Notifications due because `turnId` finished. */
-    dueNotifications(turnId: string): Fx<Notification[]>;
-    /** Queues the notification turn in the calling thread (or cancels it when that thread is gone). */
-    deliverNotification(callId: string, input: TurnInput): Fx<TurnRow | undefined>;
+    dueNotifications(turnId?: string): Fx<Notification[]>;
+    /** A report whose steer failed or whose receiving turn ended without it. Restart reconciliation. */
+    notificationFallbacks(): Fx<string[]>;
+    /** Steers into the caller's running turn, otherwise queues an agent_bus turn. */
+    deliverNotification(callId: string, input: TurnInput): Fx<{ turn?: TurnRow; steerId?: string } | undefined>;
     /**
      * A side thread with interaction_route = parent asks: queue a turn in the parent (trigger = interaction)
      * unless one exists already or the agent chain is too long (then the user answers in the UI).
@@ -296,10 +301,11 @@ export class AgentBusStore extends Context.Service<
       const turnRef = (source: CallSource) =>
         sql`(SELECT id FROM turns WHERE id = ${isUuid(source.turnId) ? source.turnId : null}::uuid AND thread_id = ${source.threadId}::uuid)`;
 
-      const lastMessage = (threadId: string) =>
+      const lastMessage = (threadId: string, turnId?: string) =>
         sql<{ text: string | null }>`
           SELECT content->'agentMessage'->>'text' AS text FROM thread_items
-           WHERE thread_id = ${threadId}::uuid AND type = 'agent_message' ORDER BY first_seq DESC LIMIT 1`.pipe(
+           WHERE thread_id = ${threadId}::uuid AND type = 'agent_message'
+             AND (${turnId ?? null}::uuid IS NULL OR turn_id = ${turnId ?? null}::uuid) ORDER BY first_seq DESC LIMIT 1`.pipe(
           Effect.map((rows) => rows[0]?.text ?? ""),
         );
 
@@ -322,7 +328,7 @@ export class AgentBusStore extends Context.Service<
           if (!row) return yield* Effect.fail(new NotFound("thread not found"));
           const ended = (yield* sql<{ id: string; status: string; error: string | null; error_source: string | null; interrupt_reason: string | null; interrupt_source: string | null }>`
             SELECT id, status, error, error_source, interrupt_reason, interrupt_source FROM turns
-             WHERE thread_id = ${row.id}::uuid AND status IN ('completed', 'interrupted', 'failed') ORDER BY ordinal DESC LIMIT 1`)[0];
+             WHERE thread_id = ${row.id}::uuid AND status IN ('completed', 'interrupted', 'failed', 'cancelled') ORDER BY ordinal DESC LIMIT 1`)[0];
           const reason =
             ended?.status === "failed"
               ? [ended.error_source, ended.error].filter(Boolean).join(": ")
@@ -346,8 +352,37 @@ export class AgentBusStore extends Context.Service<
             effort: row.settings.effort ?? "",
             permission_mode: busPermissionMode(row.settings.permissionMode),
             ...(ended && { last_turn: { turn_id: ended.id, status: ended.status, ...(reason && { reason: truncate(reason, 1_000) }) } }),
-            last_message: truncate(yield* lastMessage(row.id), 4_000),
+            last_message: ended ? truncate(yield* lastMessage(row.id, ended.id), 4_000) : "",
           };
+        });
+
+      // The source thread lock serializes observation, notification delivery and queue dispatch.
+      const consumeNotifications = (callerId: string, status: string, filter: { turnIds: readonly string[] } | { targetId: string }) =>
+        Effect.gen(function* () {
+          yield* sql`SELECT id FROM threads WHERE id = ${callerId}::uuid FOR UPDATE`;
+          const calls = yield* sql<{ id: string; notified_turn_id: string | null }>`
+            SELECT c.id, c.notified_turn_id FROM agent_bus_calls c
+             WHERE c.source_thread_id = ${callerId}::uuid
+               AND (${"targetId" in filter ? filter.targetId : null}::uuid IS NULL
+                    OR c.target_thread_id = ${"targetId" in filter ? filter.targetId : null}::uuid)
+               AND (${"turnIds" in filter ? `{${filter.turnIds.join(",")}}` : null}::uuid[] IS NULL
+                    OR c.target_turn_id = ANY(${"turnIds" in filter ? `{${filter.turnIds.join(",")}}` : null}::uuid[]))
+               AND (c.notify_status IN ('pending', 'steering') OR
+                 (c.notify_status = 'delivered' AND EXISTS (
+                   SELECT 1 FROM turns u WHERE u.id = c.notified_turn_id AND u.status = 'queued'
+                     AND NOT EXISTS (SELECT 1 FROM worker_commands w WHERE w.turn_id = u.id AND w.status IN ('pending', 'delivered', 'completed')))))
+             FOR UPDATE OF c`;
+          for (const call of calls) {
+            yield* sql`UPDATE agent_bus_calls SET notify_status = ${status} WHERE id = ${call.id}::uuid`;
+            yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE id = ${call.notified_turn_id}::uuid AND status = 'queued'`;
+            // An already dispatched input cannot be recalled. Suppress its fallback; a late acknowledgement
+            // or transcript event must not resurrect it. Undispatched outbox commands are withdrawn too.
+            yield* sql`UPDATE turn_steers SET status = 'failed', reason = ${status}, updated_at = now()
+              WHERE notification_call_id = ${call.id}::uuid AND status IN ('pending', 'accepted', 'dropped')`;
+            yield* sql`UPDATE worker_commands SET status = 'failed', completed_at = now()
+              WHERE id IN (SELECT id FROM turn_steers WHERE notification_call_id = ${call.id}::uuid AND status = 'failed')
+                AND status IN ('pending', 'delivered')`;
+          }
         });
 
       const insertCall = (input: {
@@ -463,19 +498,25 @@ export class AgentBusStore extends Context.Service<
             return { caller, facts };
           }),
 
-        recordCall: ({ source, tool, args, ok, result, error }) =>
-          insertCall({
-            source,
-            tool,
-            args,
-            status: ok ? "completed" : "failed",
-            ...(result !== undefined && { result }),
-            ...(error !== undefined && { error }),
-          }).pipe(
+        recordCall: ({ source, tool, args, ok, result, error, observedTurnIds }) =>
+          sql.withTransaction(Effect.gen(function* () {
+            const observed = observedTurnIds ?? observedSummaryTurns(tool, result);
+            if (ok && observed.length > 0) yield* consumeNotifications(source.threadId, tool === "wait_threads" ? "consumed_by_wait" : "consumed_by_read", { turnIds: observed });
+            yield* insertCall({
+              source,
+              tool,
+              args,
+              status: ok ? "completed" : "failed",
+              ...(result !== undefined && { result }),
+              ...(error !== undefined && { error }),
+            });
+          })).pipe(
             // A concurrent duplicate stored it first: same call, same outcome.
             Effect.catchTag("SqlError", (e) => (isUniqueViolation(e) ? Effect.void : Effect.fail(e))),
             Effect.asVoid,
           ),
+
+        supersedeNotifications: (callerId, targetId) => sql.withTransaction(consumeNotifications(callerId, "superseded", { targetId })),
 
         spawn: ({ source, caller, args, target, hops }) =>
           sql.withTransaction(
@@ -610,16 +651,23 @@ export class AgentBusStore extends Context.Service<
 
         readThread: ({ threadId, afterSeq, limit, view }) =>
           Effect.gen(function* () {
-            const rows = yield* sql<{ type: string; content: Record<string, JsonValue>; last_seq: bigint }>`
-              SELECT type, content, last_seq FROM thread_items
-               WHERE thread_id = ${threadId}::uuid AND last_seq > ${afterSeq}
-                 AND (${view} = 'items' OR type IN ('user_message', 'agent_message'))
-               ORDER BY first_seq LIMIT ${limit}`;
+            const rows = yield* sql<{ type: string; content: Record<string, JsonValue>; last_seq: bigint; turn_id: string | null; turn_status: string | null; final: boolean }>`
+              SELECT i.type, i.content, i.last_seq, i.turn_id, u.status AS turn_status,
+                     i.type = 'agent_message' AND NOT EXISTS (
+                       SELECT 1 FROM thread_items later WHERE later.thread_id = i.thread_id AND later.turn_id = i.turn_id
+                         AND later.type = 'agent_message' AND later.first_seq > i.first_seq) AS final
+                FROM thread_items i LEFT JOIN turns u ON u.id = i.turn_id
+               WHERE i.thread_id = ${threadId}::uuid AND i.last_seq > ${afterSeq}
+                 AND (${view} = 'items' OR i.type IN ('user_message', 'agent_message'))
+               ORDER BY i.first_seq LIMIT ${limit}`;
             const entries = rows.map((r): JsonValue => {
               const { itemId: _id, status: _status, ...content } = r.content;
               return { seq: Number(r.last_seq), type: r.type, ...truncateJson(content) };
             });
-            return { entries, nextSeq: rows.length > 0 ? Number(rows[rows.length - 1]!.last_seq) : afterSeq };
+            return {
+              result: { entries, nextSeq: rows.length > 0 ? Number(rows[rows.length - 1]!.last_seq) : afterSeq },
+              observedTurnIds: rows.flatMap((r) => r.final && r.turn_id && finishedTurn(r.turn_status ?? "") ? [r.turn_id] : []),
+            };
           }),
 
         failQueuedTurns: (threadId, reason) =>
@@ -871,37 +919,64 @@ export class AgentBusStore extends Context.Service<
           Effect.gen(function* () {
             const calls = yield* sql<BusCallRow & { turn_status: string }>`
               SELECT c.*, u.status AS turn_status FROM agent_bus_calls c JOIN turns u ON u.id = c.target_turn_id
-               WHERE c.target_turn_id = ${turnId}::uuid AND c.notify_status = 'pending'
+               WHERE (${turnId ?? null}::uuid IS NULL OR c.target_turn_id = ${turnId ?? null}::uuid) AND c.notify_status = 'pending'
                  AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')`;
             return yield* Effect.forEach(calls, (call) =>
               Effect.gen(function* () {
                 const target = yield* thread(call.target_thread_id ?? "");
-                return { call, target, turnStatus: call.turn_status, lastMessage: yield* lastMessage(target.id) };
+                return { call, target, turnStatus: call.turn_status, lastMessage: yield* lastMessage(target.id, call.target_turn_id!) };
               }),
             );
           }),
 
+        notificationFallbacks: () => sql<{ id: string }>`
+          SELECT s.id FROM turn_steers s JOIN agent_bus_calls c ON c.id = s.notification_call_id
+            JOIN turns u ON u.id = s.turn_id LEFT JOIN worker_commands w ON w.id = s.id
+           WHERE c.notify_status = 'steering' AND s.status IN ('pending', 'accepted', 'dropped')
+             AND (s.status = 'dropped' OR u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
+                  OR w.status = 'failed' OR (w.status IN ('pending', 'delivered') AND w.expires_at <= now()))`
+          .pipe(Effect.map((rows) => rows.map((r) => r.id))),
+
         deliverNotification: (callId, input) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              const rows = yield* sql<BusCallRow & { source_archived: boolean }>`
-                SELECT c.*, (t.archived_at IS NOT NULL OR t.deleted_at IS NOT NULL) AS source_archived FROM agent_bus_calls c JOIN threads t ON t.id = c.source_thread_id
+              // Same lock order as consumption and QueueStore.whileHead.
+              const sources = yield* sql<ThreadRow>`SELECT t.* FROM threads t JOIN agent_bus_calls c ON c.source_thread_id = t.id
+                WHERE c.id = ${callId}::uuid FOR UPDATE OF t`;
+              const rows = yield* sql<BusCallRow>`
+                SELECT c.* FROM agent_bus_calls c
                  WHERE c.id = ${callId}::uuid AND c.notify_status = 'pending' FOR UPDATE OF c`;
               const call = rows[0];
               if (!call) return undefined; // delivered meanwhile
-              if (call.source_archived) {
+              const caller = sources[0];
+              if (!caller || caller.archived_at || caller.deleted_at) {
                 yield* sql`UPDATE agent_bus_calls SET notify_status = 'cancelled' WHERE id = ${callId}::uuid`;
                 return undefined;
+              }
+              const hops = Math.min((call.hops ?? 0) + 1, 16);
+              const running = (yield* sql<{ id: string }>`SELECT id FROM turns WHERE thread_id = ${call.source_thread_id}::uuid AND status = 'running' LIMIT 1`)[0];
+              if (running && caller.worker_id) {
+                const steerId = Bun.randomUUIDv7();
+                yield* sql`INSERT INTO turn_steers(id, thread_id, turn_id, input, notification_call_id, hops)
+                  VALUES (${steerId}::uuid, ${caller.id}::uuid, ${running.id}::uuid, ${inputJson(input)}::jsonb, ${callId}::uuid, ${hops})`;
+                const command = create(CommandSchema, { commandId: steerId, kind: { case: "steerTurn", value: {
+                  threadId: caller.id, turnId: running.id, inputId: steerId,
+                  input: { text: input.message ? `${input.note}\n\n${input.message}` : input.note, authorAgentId: call.target_thread_id! },
+                } } });
+                yield* sql`INSERT INTO worker_commands(id, worker_id, thread_id, kind, payload, expires_at)
+                  VALUES (${steerId}::uuid, ${caller.worker_id}::uuid, ${caller.id}::uuid, 'steerTurn', ${toBinary(CommandSchema, command)}, now() + interval '24 hours')`;
+                yield* sql`UPDATE agent_bus_calls SET notify_status = 'steering' WHERE id = ${callId}::uuid`;
+                return { steerId };
               }
               const turn = yield* queueTurn({
                 threadId: call.source_thread_id,
                 input,
                 trigger: "agent_bus",
                 callId,
-                hops: Math.min((call.hops ?? 0) + 1, 16),
+                hops,
               });
               yield* sql`UPDATE agent_bus_calls SET notify_status = 'delivered', notified_turn_id = ${turn.id}::uuid WHERE id = ${callId}::uuid`;
-              return turn;
+              return { turn };
             }),
           ),
 

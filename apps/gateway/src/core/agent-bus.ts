@@ -23,7 +23,7 @@ import { cronProblem, nextCronRun } from "./cron.ts";
  *
  * Every call: strict decode -> facts from the database -> authorizeBusCall (packages/domain) -> execute.
  * Calls are idempotent by call_id: a call re-sent after a reconnect gets its stored result.
- * spawn_thread and send_message return at once; the caller hears back through a notification turn
+ * spawn_thread and send_message return at once; the caller hears back through a platform steer (or a turn)
  * when the target's turn finishes, or polls with wait_threads / get_thread.
  */
 
@@ -35,6 +35,7 @@ export interface BusHost {
   queued(threadId: string, turn: TurnRow): Promise<void>;
   /** A message was stored as a steer of a running turn: send it to the worker. */
   steered(steerId: string): Promise<void>;
+  fallbackSteer(steerId: string): Promise<void>;
   interaction(interaction: ui.Interaction): Promise<void>;
   interrupt(threadId: string): Promise<void>;
   answer(by: { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction>;
@@ -51,8 +52,8 @@ export interface BusHost {
 }
 
 const WAIT_POLL_MS = 1_000;
-/** Tools whose execution stores the call together with what it created (one transaction). */
-const STORES_ITS_CALL = new Set(["spawn_thread", "send_message", "schedule_wakeup", "schedule_recurring", "ask_user"]);
+/** Tools that persist their own call (reads store their result together with notification consumption). */
+const STORES_ITS_CALL = new Set(["spawn_thread", "send_message", "schedule_wakeup", "schedule_recurring", "ask_user", "read_thread"]);
 
 export class AgentBus {
   readonly #host: BusHost;
@@ -125,6 +126,14 @@ export class AgentBus {
   /** A turn finished: notify the threads that asked to hear about it. */
   async onTurnFinished(turnId: string): Promise<void> {
     await this.deliverAnswers();
+    await this.deliverNotifications(turnId);
+  }
+
+  /** Durable reports: also called by the startup/periodic sweep after a gateway restart. */
+  async deliverNotifications(turnId?: string): Promise<void> {
+    if (!turnId) {
+      for (const id of await this.#host.run(AgentBusStore.use((s) => s.notificationFallbacks()))) await this.#host.fallbackSteer(id);
+    }
     const due = await this.#host.run(AgentBusStore.use((s) => s.dueNotifications(turnId)));
     for (const { call, target, turnStatus, lastMessage } of due) {
       const label = target.kind === "side" ? "side thread" : "thread";
@@ -132,8 +141,9 @@ export class AgentBus {
         note: `[open-agents] The ${label} "${target.title}" (thread_id: ${target.id}) finished a turn: ${turnStatus}. Its last message:`,
         message: truncate(lastMessage, 20_000) || "(no message)",
       };
-      const turn = await this.#host.run(AgentBusStore.use((s) => s.deliverNotification(call.id, input)));
-      if (turn) await this.#host.queued(call.source_thread_id, turn);
+      const delivery = await this.#host.run(AgentBusStore.use((s) => s.deliverNotification(call.id, input)));
+      if (delivery?.turn) await this.#host.queued(call.source_thread_id, delivery.turn);
+      else if (delivery?.steerId) await this.#host.steered(delivery.steerId);
     }
   }
 
@@ -222,18 +232,23 @@ export class AgentBus {
       }
       case "get_thread":
         return (await store((s) => s.summary(call.args.thread_id))) as unknown as JsonValue;
-      case "read_thread":
-        return await store((s) =>
+      case "read_thread": {
+        const { result, observedTurnIds } = await store((s) =>
           s.readThread({ threadId: call.args.thread_id, afterSeq: call.args.after_seq ?? 0, limit: call.args.limit ?? 50, view: call.args.view ?? "messages" }),
         );
+        await store((s) => s.recordCall({ source, tool: call.tool, args: call.args, ok: true, result, observedTurnIds }));
+        return result;
+      }
       case "list_threads": {
         const options = { ...(call.args.query !== undefined && { query: call.args.query }), ...(call.args.limit !== undefined && { limit: call.args.limit }) };
         return { threads: (await store((s) => s.listThreads(caller, call.args.scope ?? "children", options))) as unknown as JsonValue };
       }
       case "interrupt_thread":
+        await store((s) => s.supersedeNotifications(caller.id, call.args.thread_id));
         await this.#host.interrupt(call.args.thread_id);
         return { thread_id: call.args.thread_id, interrupted: true };
       case "close_thread":
+        await store((s) => s.supersedeNotifications(caller.id, call.args.thread_id));
         await store((s) => s.close(call.args.thread_id, caller.id));
         await this.#host.interrupt(call.args.thread_id);
         await this.#host.broadcastThread(call.args.thread_id);
