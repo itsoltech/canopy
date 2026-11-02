@@ -36,7 +36,7 @@
       {#each calls as entry, index (index)}
         <li class="min-w-0">
           {#if entry.command !== undefined}
-            <code class="font-mono text-xs break-words whitespace-pre-wrap text-zinc-800 dark:text-zinc-200"><span class="text-zinc-400 select-none dark:text-zinc-500">{"$ "}</span>{entry.command}</code>
+            <code class="font-mono text-xs/5 break-words whitespace-pre-wrap text-zinc-800 dark:text-zinc-200"><span class="text-zinc-400 select-none dark:text-zinc-500">{"$ "}</span>{entry.command}</code>
           {:else}
             <span class="text-zinc-700 dark:text-zinc-300">{humanizeToolName(entry.tool)}</span>
           {/if}
