@@ -7,23 +7,26 @@ const makeTemp = tempDirs();
 
 test("scratch directories are created privately and retained on repeated creation", async () => {
   const root = makeTemp("oa-scratch-worker-");
-  const cwd = join(root, ".open-agents", "scratch", Bun.randomUUIDv7(), Bun.randomUUIDv7());
-  ensureScratchDirectory(cwd, [root]);
+  const cwd = join(root, "scratch", Bun.randomUUIDv7(), Bun.randomUUIDv7());
+  ensureScratchDirectory(cwd, join(root, "scratch"));
   await Bun.write(join(cwd, "keep.txt"), "kept");
-  ensureScratchDirectory(cwd, [root]);
+  ensureScratchDirectory(cwd, join(root, "scratch"));
   expect(await Bun.file(join(cwd, "keep.txt")).text()).toBe("kept");
   if (process.platform !== "win32") expect(statSync(cwd).mode & 0o777).toBe(0o700);
 });
 
-test("scratch creation refuses traversal, outside roots and symlinks before writing there", () => {
+test("managed scratch creation refuses traversal and symlinks before writing there; existing legacy cwd stays valid", () => {
   const root = makeTemp("oa-scratch-safe-");
   const outside = makeTemp("oa-scratch-outside-");
-  const suffix = join(".open-agents", "scratch", Bun.randomUUIDv7(), Bun.randomUUIDv7());
-  expect(() => ensureScratchDirectory(join(outside, suffix), [root])).toThrow("outside");
-  expect(existsSync(join(outside, ".open-agents"))).toBe(false);
-  expect(() => ensureScratchDirectory(join(root, ".open-agents", "scratch", "..", "escape"), [root])).toThrow("invalid scratch");
-  mkdirSync(join(root, ".open-agents"));
-  symlinkSync(outside, join(root, ".open-agents", "scratch"), "dir");
-  expect(() => ensureScratchDirectory(join(root, suffix), [root])).toThrow("real directories");
-  expect(existsSync(join(outside, suffix.split(/[\\/]/)[2]!))).toBe(false);
+  const suffix = join("scratch", Bun.randomUUIDv7(), Bun.randomUUIDv7());
+  expect(() => ensureScratchDirectory(join(outside, suffix), join(root, "scratch"))).toThrow();
+  expect(existsSync(join(outside, "scratch"))).toBe(false);
+  expect(() => ensureScratchDirectory(join(root, "scratch", "..", "escape"), join(root, "scratch"))).toThrow("invalid scratch");
+  symlinkSync(outside, join(root, "scratch"), "dir");
+  expect(() => ensureScratchDirectory(join(root, suffix), join(root, "scratch"))).toThrow("real directories");
+  expect(existsSync(join(outside, suffix.split(/[\\/]/)[1]!))).toBe(false);
+  const legacy = join(outside, ".open-agents", "scratch", Bun.randomUUIDv7(), Bun.randomUUIDv7());
+  mkdirSync(legacy, { recursive: true });
+  ensureScratchDirectory(legacy, join(root, "scratch"));
+  expect(statSync(legacy).isDirectory()).toBe(true);
 });

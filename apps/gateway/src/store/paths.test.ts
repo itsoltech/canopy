@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle } from "./paths.ts";
+import { isAbsolutePath, isWithinWorkspace, normalizePath, pathKey, pathStyle } from "./paths.ts";
 
 describe("worker paths", () => {
   test("style follows the worker's OS, else the path", () => {
@@ -26,19 +26,18 @@ describe("worker paths", () => {
     expect(pathKey("/Repo", "posix", "linux")).not.toBe(pathKey("/repo", "posix", "linux"));
   });
 
-  test("POSIX roots", () => {
-    expect(isWithinRoots("/repo", ["/repo"], "posix")).toBe(true);
-    expect(isWithinRoots("/repo/a/b", ["/repo/"], "posix")).toBe(true);
-    expect(isWithinRoots("/repo/..dots", ["/repo"], "posix")).toBe(true);
-    expect(isWithinRoots("/repo-other", ["/repo"], "posix")).toBe(false);
-    expect(isWithinRoots("/repo/../etc", ["/repo"], "posix")).toBe(false);
-    expect(isWithinRoots("/etc", [], "posix")).toBe(false);
+  test("POSIX workspace subdirectories", () => {
+    expect(isWithinWorkspace("/repo", "/repo", "posix")).toBe(true);
+    expect(isWithinWorkspace("/repo/a/b", "/repo/", "posix")).toBe(true);
+    expect(isWithinWorkspace("/repo/..dots", "/repo", "posix")).toBe(true);
+    expect(isWithinWorkspace("/repo-other", "/repo", "posix")).toBe(false);
+    expect(isWithinWorkspace("/repo/../etc", "/repo", "posix")).toBe(false);
   });
 
-  test("Windows roots", () => {
-    expect(isWithinRoots("C:\\code\\app", ["C:\\code"], "win32")).toBe(true);
-    expect(isWithinRoots("c:/CODE/app", ["C:\\code"], "win32")).toBe(true);
-    expect(isWithinRoots("D:\\code", ["C:\\code"], "win32")).toBe(false);
-    expect(isWithinRoots("C:\\codex", ["C:\\code"], "win32")).toBe(false);
+  test("Windows workspace subdirectories", () => {
+    expect(isWithinWorkspace("C:\\code\\app", "C:\\code", "win32")).toBe(true);
+    expect(isWithinWorkspace("c:/CODE/app", "C:\\code", "win32")).toBe(true);
+    expect(isWithinWorkspace("D:\\code", "C:\\code", "win32")).toBe(false);
+    expect(isWithinWorkspace("C:\\codex", "C:\\code", "win32")).toBe(false);
   });
 });
