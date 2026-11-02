@@ -36,5 +36,5 @@
   {#if thread.spawnedByAgent}<span class="sr-only">(started by an agent)</span>{/if}
   {#if thread.forkSourceThreadId}<span class="sr-only">(fork)</span>{/if}
   {#if previous && when}<time datetime={isoDateTime(when)} title={formatDateTime(when)} class="shrink-0 text-xs text-zinc-500 tabular-nums dark:text-zinc-400">{formatRelative(when, clock.now)}</time>
-  {:else}<ThreadGoalMark {thread} /><ThreadStatusText {thread} icons={false} class="group-data-calm:opacity-60" />{/if}
+  {:else}<ThreadGoalMark {thread} /><ThreadStatusText {thread} icons={false} class="group-data-calm:opacity-60 pointer-fine:group-hover/row:invisible pointer-fine:group-focus-within/row:invisible" />{/if}
 </SidebarThreadLink>

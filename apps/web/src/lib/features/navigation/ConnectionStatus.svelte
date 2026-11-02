@@ -17,7 +17,10 @@
   );
 </script>
 
-<p class={["flex items-center gap-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]} role="status">
-  <StatusDot tone={look.tone} active={connection === "reconnecting"} />
-  <span class="min-w-32 text-right sm:min-w-28">{look.label}</span>
+<!-- The width of the longest label stays reserved (no shift when it changes), on the left: the dot keeps to its word. -->
+<p class={["flex items-center text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]} role="status">
+  <span class="flex min-w-32 items-center justify-end gap-2 sm:min-w-28">
+    <StatusDot tone={look.tone} active={connection === "reconnecting"} />
+    {look.label}
+  </span>
 </p>

@@ -12,7 +12,6 @@
   import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
   import SidebarThreads from "./SidebarThreads.svelte";
   import SidebarProjectFilter from "./SidebarProjectFilter.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
 
   /**
    * App sidebar: logo and the section's "new" action, the Threads | Bots switch (follows the route;
@@ -60,14 +59,19 @@
     <label class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400">
       <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
       <span class="sr-only">Search {section === "threads" ? "threads" : "bots"}</span>
-      <Input bare
+      <input
         type="search"
         name="q"
         bind:value={queries[section]}
         placeholder={section === "threads" ? "Search threads" : "Search bots"}
         autocomplete="off"
-        class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400"
+        class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:appearance-none"
       />
+      {#if queries[section]}
+        <button type="button" aria-label="Clear search" onclick={() => (queries[section] = "")} class="-my-1 -mr-1 grid size-6 shrink-0 place-items-center rounded-md text-zinc-400 hover:bg-zinc-950/5 hover:text-zinc-700 focus-ring dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-200">
+          <Icon name="x-mark" class="size-3.5" />
+        </button>
+      {/if}
     </label>
     {#if section === "threads"}<SidebarProjectFilter />{/if}
   </div>

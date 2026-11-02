@@ -37,7 +37,7 @@
       {#snippet idle()}<ProjectAvatar name={project?.name ?? "?"} />{/snippet}
     </ThreadActivityMark>
     <span class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5 dark:text-zinc-400">{project?.name ?? "Unknown project"}</span>
-    <ThreadStatusText {thread} icons={false} class="group-data-calm:opacity-60" />
+    <ThreadStatusText {thread} icons={false} class="group-data-calm:opacity-60 pointer-fine:group-hover/row:invisible pointer-fine:group-focus-within/row:invisible" />
   </span>
   <SwapText text={thread.title} class={["h-6 min-w-0 w-full overflow-hidden text-base/6 sm:text-sm/6", thread.titleGenerating ? "shimmer" : "text-zinc-800 group-data-calm:opacity-60 group-data-result:text-zinc-950 group-aria-[current=page]:text-zinc-950 dark:text-zinc-200 dark:group-data-result:text-white dark:group-aria-[current=page]:text-white"]} />
   <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5">
