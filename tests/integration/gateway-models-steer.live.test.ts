@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
+import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
 import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
@@ -16,6 +16,7 @@ import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
+import { useLiveProxy } from "./support/live.ts";
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -42,24 +43,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: mo
     // A real worker with both providers through the proxy (its key is a secret reference, as with the CLI).
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;
-    const secretId = await gw.runtime.runPromise(
-      GatewayStore.use((s) => s.putSecret({ ownerUserId: gw.userId, name: "cliproxyapi-live", plaintext: proxyKey!, createdBy: gw.userId })),
-    );
-    await gw.runtime.runPromise(
-      GatewayStore.use((s) =>
-        s.setWorkerConfig(
-          workerId,
-          {
-            allowedRoots: [repo],
-            codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
-            claude: { enabled: true, deviceLogin: DeviceLogin.NONE },
-            profiles: [{ id: "cliproxyapi", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl! }],
-          },
-          gw.userId,
-          { cliproxyapi: secretId },
-        ),
-      ),
-    );
+    await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));
     const host = new WorkerHost({ runtime, dataDir: join(data, "data"), clientVersion: "live" });
     const link = await openGatewayLink({ baseUrl: gw.grpcUrl, credential: added.credential, hello: { workerId, ...(await runtime.runPromise(journalHello())) } });

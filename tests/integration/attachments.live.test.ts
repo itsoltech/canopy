@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind } from "@open-agents/contracts";
+import { PermissionMode, Provider } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
 import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
@@ -19,6 +19,7 @@ import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import sharp from "sharp";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { useLiveProxy } from "./support/live.ts";
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -62,24 +63,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("attachment
     dirs.push(repo, data);
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;
-    const secretId = await gw.runtime.runPromise(
-      GatewayStore.use((s) => s.putSecret({ ownerUserId: gw.userId, name: "cliproxyapi-live", plaintext: proxyKey!, createdBy: gw.userId })),
-    );
-    await gw.runtime.runPromise(
-      GatewayStore.use((s) =>
-        s.setWorkerConfig(
-          workerId,
-          {
-            allowedRoots: [repo],
-            codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
-            claude: { enabled: true, deviceLogin: DeviceLogin.NONE },
-            profiles: [{ id: "cliproxyapi", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl! }],
-          },
-          gw.userId,
-          { cliproxyapi: secretId },
-        ),
-      ),
-    );
+    await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));
     const host = new WorkerHost({ runtime, dataDir, clientVersion: "live" });
     const link = await openGatewayLink({

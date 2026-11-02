@@ -11,12 +11,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
+import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
+import { useLiveProxy } from "./support/live.ts";
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -113,20 +114,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker kil
     const store = <A>(use: (s: GatewayStore["Service"]) => Effect.Effect<A, unknown>) => gw.runtime.runPromise(GatewayStore.use(use));
     let credential = "";
     ({ workerId, credential } = await store((s) => s.addWorker({ name: "live-durable", ownerUserId: gw.userId })));
-    const secret = await store((s) => s.putSecret({ ownerUserId: gw.userId, name: "cliproxyapi-durable", plaintext: proxyKey!, createdBy: gw.userId }));
-    await store((s) =>
-      s.setWorkerConfig(
-        workerId,
-        {
-          allowedRoots: [repo],
-          codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
-          claude: { enabled: true, deviceLogin: DeviceLogin.NONE },
-          profiles: [{ id: "cliproxyapi", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl! }],
-        },
-        gw.userId,
-        { cliproxyapi: secret },
-      ),
-    );
+    await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const config = join(dir, "worker.json");
     writeFileSync(config, JSON.stringify({ gateway_url: gw.grpcUrl, worker_id: workerId, credential, data_dir: dataDir }));
     chmodSync(config, 0o600);

@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
+import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
 import { journalHello, openGatewayLink, resendPending } from "@open-agents/worker/gateway-link";
@@ -18,6 +18,7 @@ import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
+import { useLiveProxy } from "./support/live.ts";
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -71,20 +72,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker res
     gw = await startTestGateway();
     const store = <A>(use: (s: GatewayStore["Service"]) => import("effect").Effect.Effect<A, unknown>) => gw.runtime.runPromise(GatewayStore.use(use));
     ({ workerId, credential } = await store((s) => s.addWorker({ name: "live-restart", ownerUserId: gw.userId })));
-    const secret = await store((s) => s.putSecret({ ownerUserId: gw.userId, name: "cliproxyapi-live", plaintext: proxyKey!, createdBy: gw.userId }));
-    await store((s) =>
-      s.setWorkerConfig(
-        workerId,
-        {
-          allowedRoots: [repo],
-          codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
-          claude: { enabled: false },
-          profiles: [{ id: "cliproxyapi", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl! }],
-        },
-        gw.userId,
-        { cliproxyapi: secret },
-      ),
-    );
+    await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo], harnesses: [Provider.CODEX] });
     await startWorker();
     projectId = (await gw.api.createProject({ name: "Live restart" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId, rootPath: repo })).workspace!.id;

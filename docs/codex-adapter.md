@@ -147,6 +147,7 @@ Opt-in, bo zużywają limity kont: `OA_LIVE=1 bun test apps/worker/src/providers
 - `OA_LIVE_CLIPROXYAPI_URL`, `OA_LIVE_CLIPROXYAPI_KEY`: tura przez profil CLIProxyAPI platformy. Lokalnie trzymane w pliku poza repozytorium (`~/.config/open-agents/dev-live.env`, `0600`).
 - `OA_LIVE_NATIVE=1`: tura z konfiguracją Codexa właściciela urządzenia (wymaga, żeby działała bez interakcji).
 - Nagrania strumieni: `OA_LIVE_RECORD_DIR` (domyślnie `/tmp/oa-codex-recordings`), materiał do mapowania zdarzeń.
+- Testy przez gateway (`tests/integration/*.live.test.ts`) zakładają proxy jak produkt: `useLiveProxy` (`tests/integration/support/live.ts`) zapisuje workerowi jego część konfiguracji (katalogi, harnessy, bez logowania urządzenia) i globalną instancję `cliproxyapi` każdego harnessu przez API UI, włączoną na tym workerze ([worker-config.md](worker-config.md), sekcja 9).
 
 Potwierdzone na żywo (2026-11-01):
 - handshake, wątki i nakładka celów (bez modelu),
