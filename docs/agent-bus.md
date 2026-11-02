@@ -1,5 +1,7 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Grok CLI ma ten sam zestaw narzędzi przez lokalny HTTP MCP przekazany w ACP `session/new` / `session/load`. Gateway nadal wykonuje i autoryzuje wywołania; instancję wybiera się jako `grok/<id>`, także w `spawn_thread` z Claude/Codex i w przeciwnym kierunku. Live potwierdził `list_threads` przez Grok → MCP → handler; pełne mieszane delegowanie jest pokryte resolverem, nie testem live. [Adapter i ograniczenia](grok-adapter.md).
+
 Status: **działa dla Codexa i Claude** (2026-11-01; Claude przez serwer MCP w procesie workera, [claude-adapter.md](claude-adapter.md#szyna-agentów)):
 - wyłączanie natywnych narzędzi dostawców: `apps/worker/src/providers/native-tools.ts`, z testem na prawdziwym Codexie,
 - definicje narzędzi, zestawy per poziom i reguły dostępu: `packages/domain/src/agent-bus`,

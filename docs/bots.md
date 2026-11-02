@@ -1,5 +1,7 @@
 # Boty w gateway
 
+Grok jest dostępny w `start_thread` oraz jako model bota na instancji CLIProxyAPI (chat completions/function tools). Live potwierdził tani `grok-3-mini-fast`, wywołanie narzędzia i kolejną odpowiedź po jego wyniku. Bot nie uruchamia CLI ani lokalnych narzędzi. [Konfiguracja Groka](grok-adapter.md).
+
 Status: **rdzeń, edytor ustawień, samodzielna edycja, archiwum i rutyny**, 2026-11-02. Bot ma jedną rozmowę
 z właścicielem i działa w procesie gateway. Nie ma katalogu, workera ani lokalnego
 harnessu. Kod: `apps/gateway/src/bots`, kontrakt: `proto/openagents/ui/v1/bots.proto`.

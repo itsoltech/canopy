@@ -1,5 +1,7 @@
 # Sekrety wątków
 
+Grok otrzymuje `request_secret` przez platformowy MCP z tym samym zakresem dostępu co pozostałe harnessy. Klucz instancji CLIProxyAPI jest osobnym sekretem konfiguracji, trafia wyłącznie do env procesu Groka; plik custom-model odwołuje się do nazwy env, bez klucza. [Izolacja adaptera](grok-adapter.md#endpointy-i-izolacja).
+
 ## Badanie T3 Code (2026-11-02)
 
 Źródło: publiczne repozytorium [pingdotgg/t3code](https://github.com/pingdotgg/t3code),

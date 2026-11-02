@@ -4,6 +4,8 @@ Status: **częściowo zaimplementowane**. Tury, interakcje, steer i **praca w tl
 
 Powiązane: [threads.md](threads.md), [transcript.md](transcript.md), [durability.md](durability.md).
 
+Grok korzysta ze wspólnego cyklu tur i interakcji przez [SDK ACP](grok-adapter.md). `session/cancel` przerywa turę; steer bez mid-turn input wraca do kolejki gatewaya. `session/load` wznawia trwałą sesję po restarcie workera. Natywne cele, forki i lifecycle zadań w tle nie mają jeszcze mapowania ACP; delegowanie oraz harmonogramy platformy są dostępne przez MCP.
+
 Worker nie ma listy dozwolonych katalogów. Wątek może działać w dowolnym istniejącym katalogu
 dostępnym dla użytkownika OS workera; tryb uprawnień i sandbox pozostają właściwościami konkretnego
 wątku. Dodanie lub zmiana workspace'u wymaga sprawdzenia katalogu przez połączonego workera,
