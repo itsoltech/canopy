@@ -78,7 +78,7 @@ describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker 
     await expect(gw.core.connectors.call(source, Bun.randomUUIDv7(), tool.name, { marker: 'bot' }, AbortSignal.timeout(5000))).rejects.toThrow();
     const label = 'Custom MCP server · personal', text = `Use @${label}`;
     const mention = { kind: MentionKind.CONNECTOR, name: account.id, label, start: 4, end: text.length };
-    await expect(gw.api.sendBotMessage({ botId: bot.id, clientRequestId: Bun.randomUUIDv7(), text, mentions: [mention] })).rejects.toThrow();
+    await expect(gw.core.bots.send(create(bots.SendBotMessageRequestSchema, { botId: bot.id, clientRequestId: Bun.randomUUIDv7(), text, mentions: [mention] }))).rejects.toThrow('Connector access denied');
     account = await grant(account, [bot.id]);
     expect((await gw.core.connectors.botTools(bot.id)).some((t) => t.name === tool.name)).toBe(true);
     expect(JSON.stringify(await gw.core.connectors.call(source, Bun.randomUUIDv7(), tool.name, { marker: 'bot' }, AbortSignal.timeout(5000)))).toContain('bot');
