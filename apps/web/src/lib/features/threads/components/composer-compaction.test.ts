@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { COMPACT_DISTANCE, COMPACT_TRAVEL, ComposerCompaction, FEED_END_THRESHOLD } from "./composer-compaction.ts";
+import { COMPACT_DISTANCE, COMPACT_TRAVEL, ComposerCompaction } from "./composer-compaction.ts";
+import { FEED_END_THRESHOLD } from "../../../shared/ui/virtual/scroll.ts";
 
 describe("composer compaction", () => {
   test("requires both distance from latest and deliberate upward travel", () => {

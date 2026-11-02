@@ -18,6 +18,7 @@
   import { interruptThread, sendMessage, type Delivery } from "../api.ts";
   import { permissionKey, providerLabel, type PermissionModeKey } from "../labels.ts";
   import ComposerBox from "./ComposerBox.svelte";
+  import type { ComposerActivity } from "./composer-compaction.ts";
   import PermissionPicker from "./PermissionPicker.svelte";
 
   /**
@@ -60,7 +61,7 @@
     leading?: Snippet | undefined;
     compact?: boolean;
     panelsLabel?: string;
-    onexpand?: (() => void) | undefined;
+    onexpand?: ((activity?: ComposerActivity) => void) | undefined;
     class?: ClassValue;
   } = $props();
 

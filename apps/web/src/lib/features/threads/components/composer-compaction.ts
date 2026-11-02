@@ -1,14 +1,8 @@
-/** Shared with the feed: returning to this distance resumes following the end. */
-export const FEED_END_THRESHOLD = 8;
+import { FEED_END_THRESHOLD, type ReaderScroll } from "../../../shared/ui/virtual/scroll.ts";
 export const COMPACT_DISTANCE = 192;
 export const COMPACT_TRAVEL = 96;
 
-export interface ReaderScroll {
-  distance: number;
-  /** Positive towards older messages. Only reader-originated movement belongs here. */
-  up: number;
-}
-
+export type ComposerActivity = "typing" | "drop" | "paste" | "menu";
 export class ComposerCompaction {
   compact = false;
   focused = false;
@@ -30,7 +24,7 @@ export class ComposerCompaction {
     if (pendingSync) this.expand();
   }
 
-  interact(_kind: "typing" | "drop" | "paste" | "menu") {
+  interact(_kind: ComposerActivity) {
     this.expand();
   }
 

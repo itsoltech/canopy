@@ -7,7 +7,7 @@
   import { UiMemory } from "../memory.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
-  import { FEED_END_THRESHOLD, type ReaderScroll } from "#lib/features/threads/components/composer-compaction.ts";
+  import { FEED_END_THRESHOLD, type ReaderScroll } from "./scroll.ts";
 
   /**
    * A chat's scroll area: one scroll container with the rows (`role="feed"`, virtualized) and a sticky
@@ -285,6 +285,13 @@
     const top = scroller.scrollTop;
     const ours = Math.abs(top - expected) < 1;
     expected = Number.NaN;
+    // Browsers scroll a sticky contenteditable to its normal-flow location when revealing the
+    // caret during typing (even with preventScroll focus). Keep the reading anchor unless there
+    // was an actual scrolling gesture. This also covers keyboard focus into footer controls.
+    if (!ours && !stuck && performance.now() >= readerUntil && footerElement?.contains(document.activeElement)) {
+      setTop(lastTop);
+      return;
+    }
     if (!ours) {
       const distance = scroller.scrollHeight - top - scroller.clientHeight;
       if (distance <= FEED_END_THRESHOLD) stuck = true;
@@ -381,7 +388,7 @@
       event.preventDefault();
       // The message box first, else the first control of the footer.
       const field = footerElement?.querySelector<HTMLElement>('[contenteditable="true"], textarea:not([disabled])') ?? footerElement?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])");
-      field?.focus();
+      field?.focus({ preventScroll: true });
       return;
     }
     if (event.ctrlKey && event.key === "Home") {
@@ -422,8 +429,10 @@
   {onscrollend}
   {onwheel}
   ontouchmove={() => { readerUntil = performance.now() + 250; }}
-  onpointerdown={() => { readerUntil = performance.now() + 250; }}
+  onpointerdown={(event) => { if (event.target === scroller) readerUntil = performance.now() + 250; }}
+  onpointermove={(event) => { if (event.buttons === 1 && event.target === scroller) readerUntil = performance.now() + 250; }}
   onkeydown={(event) => {
+    if (event.defaultPrevented || (event.target as Element).closest("textarea, input, select, [contenteditable]")) return;
     if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerUntil = performance.now() + 250;
   }}
 >
@@ -452,7 +461,7 @@
       </div>
     </div>
     <div aria-hidden="true" style:height="{stuck ? 0 : Math.max(0, reservedFooter - footerHeight)}px" class="shrink-0"></div>
-    <div bind:this={footerElement} class="sticky bottom-0 z-10 pb-[max(--spacing(3),env(safe-area-inset-bottom))]">
+    <div bind:this={footerElement} class="sticky bottom-0 z-10 pb-[max(--spacing(3),env(safe-area-inset-bottom))]" onfocusin={() => { readerUntil = 0; }}>
       {#if !stuck}
         <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2" transition:rise>
           <Button size="sm" icon="arrow-down" class="shadow-md dark:shadow-none" onclick={jump}>Jump to latest</Button>

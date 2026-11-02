@@ -3,6 +3,8 @@
   import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import ComposerBox from "./ComposerBox.svelte";
+  import ComposerFold from "./ComposerFold.svelte";
+  import type { ComposerActivity } from "./composer-compaction.ts";
   import ComposerTop from "./ComposerTop.svelte";
   import MessageComposer from "./MessageComposer.svelte";
   import QuestionForm from "./interactions/QuestionForm.svelte";
@@ -12,7 +14,7 @@
     thread: ui.Thread; worker: ui.Worker | undefined; running: boolean; disabled?: boolean;
     note?: string | undefined; onsent?: ((response: ui.SendMessageResponse) => void) | undefined;
     leading?: Snippet | undefined; top?: Snippet | undefined; questions?: ui.Interaction[]; class?: ClassValue;
-    compact?: boolean; panelsLabel?: string; onexpand?: () => void; onfocuschange?: (focused: boolean) => void;
+    compact?: boolean; panelsLabel?: string; onexpand?: (activity?: ComposerActivity) => void; onfocuschange?: (focused: boolean) => void;
   } = $props();
   const pending = $derived(questions.filter((q) => q.kind === InteractionKind.QUESTION && q.status === "pending"));
   const active = $derived(pending.find((q) => !q.asynchronous) ?? pending[0]);
@@ -39,13 +41,14 @@
   onfocusout={() => { void tick().then(() => onfocuschange?.(Boolean(root?.contains(document.activeElement)))); }}
 >
   {#if top || (session && !session.done)}
-    <div class="t-composer-fold" data-open={!folded || undefined} inert={folded}>
-    <div><div class="px-2 sm:px-3">
-      <ComposerTop>
-        {@render top?.()}
-        {#if session && !session.done}<QuestionForm {session} more={pending.length - 1} />{/if}
-      </ComposerTop>
-    </div></div></div>
+    <ComposerFold open={!folded}>
+      <div class="-mb-4 px-2 sm:px-3">
+        <ComposerTop>
+          {@render top?.()}
+          {#if session && !session.done}<QuestionForm {session} more={pending.length - 1} />{/if}
+        </ComposerTop>
+      </div>
+    </ComposerFold>
   {/if}
   <!-- Keep the message draft mounted while answering. It returns intact when switching modes. -->
   <div class={["relative min-w-0", answering && "hidden"]} inert={Boolean(answering)}>

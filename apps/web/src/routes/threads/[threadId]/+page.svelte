@@ -22,7 +22,8 @@
   import { backgroundTasks } from "#lib/features/threads/background-tasks.ts";
   import { provideBackgroundOutput } from "#lib/features/threads/background-output.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
-  import { ComposerCompaction, type ReaderScroll } from "#lib/features/threads/components/composer-compaction.ts";
+  import { ComposerCompaction, type ComposerActivity } from "#lib/features/threads/components/composer-compaction.ts";
+  import type { ReaderScroll } from "#lib/shared/ui/virtual/scroll.ts";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
@@ -114,7 +115,11 @@
   let atEnd = $state(true);
   const compaction = $derived.by(() => { void threadId; return new ComposerCompaction(); });
   let compact = $state(false);
-  function expandComposer() { compaction.expand(); compact = false; }
+  function expandComposer(activity?: ComposerActivity) {
+    if (activity) compaction.interact(activity);
+    else compaction.expand();
+    compact = false;
+  }
   function readerScroll(scroll: ReaderScroll) { compaction.scroll(scroll); compact = compaction.compact; }
   $effect(() => {
     compaction.question(view.pending.some((q) => q.kind === InteractionKind.QUESTION && q.status === "pending" && !q.asynchronous));
