@@ -2,6 +2,7 @@
   import { PermissionMode, Provider } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { permissionLabel } from "../../labels.ts";
@@ -66,9 +67,9 @@
     {#if provider}<ProviderModel {provider} model={model} class="shrink-0" />{:else}<span class="shrink-0">{model || "Default model"}</span>{/if}
     {#if settings.length > 0}<span class="truncate">· {settings.join(" · ")}</span>{/if}
   </p>
-  <p class="line-clamp-3 pl-6 text-base/6 text-pretty whitespace-pre-line text-zinc-700 sm:text-sm/6 dark:text-zinc-300">
+  <p class="line-clamp-3 pl-6 text-base/6 text-pretty text-zinc-700 sm:text-sm/6 dark:text-zinc-300">
     {#if result}
-      <span class="sr-only">Last message: </span>{result}
+      <span class="sr-only">Last message: </span><MarkdownSnippet text={result} />
     {:else}
       <span class="text-zinc-500 italic dark:text-zinc-400">{working ? "Working on it…" : "No message yet"}</span>
     {/if}
