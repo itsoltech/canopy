@@ -1,0 +1,337 @@
+import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { bots, Provider } from "@open-agents/contracts";
+import { Context, Effect, Layer } from "effect";
+import { SqlClient } from "effect/sql";
+import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "../store/secrets.ts";
+import { Invalid, NotFound } from "../store/store.ts";
+import type { InstanceRow } from "../store/instance-config.ts";
+import { nextHop } from "./policy.ts";
+import type { BotRow, BotTurn, McpConnection, ModelMessage, StoredCall, ToolSpec } from "./types.ts";
+
+interface MessageRow {
+  id: string; seq: bigint; bot_id: string; sender_id: string; recipient_id: string;
+  kind: string; text: string; exchange_id: string | null; created_at: Date;
+}
+interface ApprovalRow {
+  id: string; bot_id: string; turn_id: string; kind: string; prompt: string;
+  status: string; answer: string; created_at: Date;
+}
+interface ServerRow {
+  id: string; owner_user_id: string; name: string; url: string; transport: string;
+  enabled: boolean; headers: Record<string, { secretRef: string }>;
+}
+export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration as JsonValue);
+export const botView = (row: BotRow) => create(bots.BotSchema, {
+  id: row.id, configuration: botConfiguration(row), createdAt: timestampFromDate(new Date(row.created_at)), updatedAt: timestampFromDate(new Date(row.updated_at)),
+});
+const messageView = (row: MessageRow) => create(bots.BotMessageSchema, {
+  id: row.id, seq: BigInt(row.seq), botId: row.bot_id, senderId: row.sender_id, recipientId: row.recipient_id,
+  kind: row.kind, text: row.text, exchangeId: row.exchange_id ?? "", createdAt: timestampFromDate(new Date(row.created_at)),
+});
+const approvalView = (row: ApprovalRow) => create(bots.BotApprovalSchema, {
+  id: row.id, botId: row.bot_id, turnId: row.turn_id, kind: row.kind, prompt: row.prompt,
+  status: row.status, answer: row.answer, createdAt: timestampFromDate(new Date(row.created_at)),
+});
+const uuid = () => Bun.randomUUIDv7();
+export function requiredString(args: Record<string, unknown>, key: string, max = 100_000): string {
+  const value = args[key];
+  if (typeof value !== "string" || !value.trim() || value.length > max) throw new Invalid(`${key} is required (at most ${max} characters)`);
+  return value.trim();
+}
+export function remoteUrl(raw: string): string {
+  let url: URL;
+  try { url = new URL(raw); } catch { throw new Invalid("a remote http(s) URL is required"); }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.hash || url.search) throw new Invalid("use an http(s) URL without credentials, query or fragment; put tokens in headers");
+  // Connection definitions are explicit user input. Redirects are refused by the MCP client.
+  return url.toString();
+}
+
+function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
+  const owned = (user: string, id: string, lock = false) => sql.unsafe<BotRow>(
+    `SELECT * FROM bots WHERE id = $1::uuid AND owner_user_id = $2::uuid AND deleted_at IS NULL${lock ? " FOR UPDATE" : ""}`, [id, user],
+  ).pipe(Effect.flatMap((rows) => rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("bot not found"))));
+  const changed = (id: string) => sql`UPDATE bots SET revision = revision + 1, updated_at = now() WHERE id = ${id}::uuid`;
+  const fenced = (turn: BotTurn) => sql<BotTurn>`SELECT * FROM bot_turns WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid
+    AND status = 'running' AND lease_until > now() FOR UPDATE`.pipe(Effect.flatMap((r) => r[0] ? Effect.succeed(r[0]) : Effect.fail(new Invalid("bot lease lost"))));
+  const secret = (user: string, id: string) => sql<{ ciphertext: Uint8Array }>`SELECT ciphertext FROM secrets WHERE id = ${id}::uuid AND (owner_user_id = ${user}::uuid OR owner_user_id IS NULL)`
+    .pipe(Effect.flatMap((r) => r[0] ? Effect.succeed(decryptSecret(key, r[0].ciphertext)) : Effect.fail(new NotFound("secret not found"))));
+  const server = (user: string, id: string) => sql<ServerRow>`SELECT * FROM bot_mcp_servers WHERE id = ${id}::uuid AND owner_user_id = ${user}::uuid`
+    .pipe(Effect.flatMap((r) => r[0] ? Effect.succeed(r[0]) : Effect.fail(new NotFound("MCP server not found"))));
+  const resolvedServer = (user: string, id: string) => Effect.gen(function* () {
+    const row = yield* server(user, id);
+    const headers: Record<string, string> = {};
+    for (const [name, ref] of Object.entries(row.headers)) headers[name] = yield* secret(user, ref.secretRef);
+    return { ...row, headers } satisfies McpConnection;
+  });
+  const servers = (user: string) => Effect.gen(function* () {
+    const rows = yield* sql<ServerRow>`SELECT * FROM bot_mcp_servers WHERE owner_user_id = ${user}::uuid ORDER BY name, id`;
+    const links = yield* sql<{ server_id: string; bot_id: string }>`SELECT c.* FROM bot_mcp_connections c JOIN bots b ON b.id = c.bot_id WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL`;
+    return rows.map((r) => create(bots.BotMcpServerSchema, { id: r.id, name: r.name, url: r.url, transport: r.transport, enabled: r.enabled,
+      headerNames: Object.keys(r.headers), botIds: links.filter((l) => l.server_id === r.id).map((l) => l.bot_id) }));
+  });
+  const validate = (user: string, config: bots.BotConfiguration) => Effect.gen(function* () {
+    if (!config.name.trim() || config.name.length > 80 || !/^[a-z0-9_-]{1,40}$/.test(config.shape) || !/^#[0-9a-f]{6}$/i.test(config.color)) return yield* Effect.fail(new Invalid("name, shape and #rrggbb color are required"));
+    if (![Provider.CLAUDE, Provider.CODEX].includes(config.provider) || !config.model || config.model.length > 200 || config.effort.length > 40 || config.instructions.length > 32_000) return yield* Effect.fail(new Invalid("invalid bot model configuration"));
+    if (!["safe", "always", ""].includes(config.approvalPolicy) || config.mcpServerIds.length > 32 || new Set(config.mcpServerIds).size !== config.mcpServerIds.length) return yield* Effect.fail(new Invalid("invalid approval policy or MCP connections"));
+    const instances = yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${config.provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${config.providerInstance} AND kind = 'endpoint'`;
+    if (!instances[0]) return yield* Effect.fail(new Invalid("bots require a gateway-accessible endpoint provider instance; native CLI login is not supported"));
+    for (const id of config.mcpServerIds) yield* server(user, id);
+    return create(bots.BotConfigurationSchema, { ...config, name: config.name.trim(), color: config.color.toLowerCase(), approvalPolicy: config.approvalPolicy || "safe" });
+  });
+  const save = (user: string, config: bots.BotConfiguration, options: { id?: string; requestId?: string }) => sql.withTransaction(Effect.gen(function* () {
+    const checked = yield* validate(user, config);
+    const id = options.id ?? uuid();
+    let row: BotRow;
+    if (options.id) {
+      yield* owned(user, id, true);
+      const rows = yield* sql<BotRow>`UPDATE bots SET configuration = ${JSON.stringify(toJson(bots.BotConfigurationSchema, checked))}::jsonb,
+        provider = ${checked.provider === Provider.CLAUDE ? "claude" : "codex"}, provider_instance = ${checked.providerInstance}, updated_at = now(), revision = revision + 1 WHERE id = ${id}::uuid RETURNING *`;
+      row = rows[0]!;
+    } else {
+      if (!options.requestId || options.requestId.length > 200) return yield* Effect.fail(new Invalid("client_request_id is required"));
+      yield* sql`INSERT INTO bots(id, owner_user_id, client_request_id, configuration, provider, provider_instance)
+        VALUES (${id}::uuid, ${user}::uuid, ${options.requestId}, ${JSON.stringify(toJson(bots.BotConfigurationSchema, checked))}::jsonb,
+          ${checked.provider === Provider.CLAUDE ? "claude" : "codex"}, ${checked.providerInstance}) ON CONFLICT(owner_user_id, client_request_id) DO NOTHING`;
+      row = (yield* sql<BotRow>`SELECT * FROM bots WHERE owner_user_id = ${user}::uuid AND client_request_id = ${options.requestId} AND deleted_at IS NULL`)[0]!;
+      if (!row) return yield* Effect.fail(new Invalid("create request refers to a deleted bot"));
+    }
+    // A repeated create returns the original definition rather than modifying its connections.
+    const active = botConfiguration(row);
+    yield* sql`DELETE FROM bot_mcp_connections WHERE bot_id = ${row.id}::uuid`;
+    for (const serverId of active.mcpServerIds) yield* sql`INSERT INTO bot_mcp_connections(bot_id, server_id) VALUES (${row.id}::uuid, ${serverId}::uuid)`;
+    return botView(row);
+  }));
+  const enqueue = (user: string, botId: string, input: string, requestId: string, options: { hops?: number; sender?: string; replyTo?: string; exchangeId?: string; event?: boolean } = {}) => sql.withTransaction(Effect.gen(function* () {
+    yield* owned(user, botId, true);
+    if (!input.trim() || input.length > 100_000 || !requestId || requestId.length > 200) return yield* Effect.fail(new Invalid("text and client_request_id are required"));
+    const turnId = uuid();
+    yield* sql`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id)
+      VALUES (${turnId}::uuid, ${botId}::uuid, ${requestId}, ${input}, ${options.hops ?? 0}, ${options.replyTo ?? null}::uuid, ${options.exchangeId ?? null}::uuid)
+      ON CONFLICT(bot_id, client_request_id) DO NOTHING`;
+    const turn = (yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0]!;
+    yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id)
+      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turn.id}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${input}, ${options.exchangeId ?? null}::uuid)
+      ON CONFLICT(turn_id, message_key) DO NOTHING`;
+    yield* changed(botId);
+    return turn.id;
+  }));
+  const finish = (turn: BotTurn, status: string, text: string) => sql.withTransaction(Effect.gen(function* () {
+    yield* fenced(turn);
+    const bot = (yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.bot_id}::uuid FOR UPDATE`)[0]!;
+    if (text) yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id)
+      VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.reply_to_bot_id ?? "user"}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid)
+      ON CONFLICT(turn_id, message_key) DO NOTHING`;
+    yield* sql`UPDATE bot_turns SET status = ${status}, lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = ${turn.id}::uuid`;
+    yield* sql`UPDATE bots SET status_line = '', revision = revision + 1, updated_at = now() WHERE id = ${turn.bot_id}::uuid`;
+    if (status === "completed" && turn.reply_to_bot_id && text) {
+      const target = yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.reply_to_bot_id}::uuid AND owner_user_id = ${bot.owner_user_id}::uuid AND deleted_at IS NULL`;
+      if (target[0] && turn.hops < 8) yield* enqueue(bot.owner_user_id, turn.reply_to_bot_id, `Message from ${botConfiguration(bot).name}: ${text}`, `reply:${turn.id}`, {
+        hops: nextHop(turn.hops), sender: turn.bot_id, exchangeId: turn.exchange_id!, event: true,
+      });
+    }
+  }));
+  return {
+    owned, save, enqueue, finish, changed, fenced, servers, resolvedServer,
+    list: (user: string) => sql<BotRow>`SELECT * FROM bots WHERE owner_user_id = ${user}::uuid AND deleted_at IS NULL ORDER BY created_at, id`.pipe(Effect.map((r) => r.map(botView))),
+    remove: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
+      yield* owned(user, id, true);
+      yield* sql`UPDATE bots SET deleted_at = now(), status_line = '', revision = revision + 1 WHERE id = ${id}::uuid`;
+      yield* sql`UPDATE bot_turns SET status = 'interrupted', finished_at = now(), lease_token = NULL, lease_until = NULL WHERE bot_id = ${id}::uuid AND status IN ('queued','running','waiting')`;
+      yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending'`;
+      yield* sql`UPDATE bot_wakeups SET cancelled = true WHERE bot_id = ${id}::uuid`;
+    })),
+    conversation: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
+      // Taking the bot lock synchronizes snapshot revisions with all conversation writers.
+      const bot = yield* owned(user, id, true);
+      const messages = yield* sql<MessageRow>`SELECT * FROM bot_messages WHERE bot_id = ${id}::uuid ORDER BY seq`;
+      const approvals = yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE bot_id = ${id}::uuid ORDER BY created_at, id`;
+      const active = yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('queued','running','waiting') LIMIT 1`;
+      return create(bots.BotConversationSchema, { bot: botView(bot), messages: messages.map(messageView), approvals: approvals.map(approvalView),
+        statusLine: bot.status_line, working: active.length > 0, revision: BigInt(bot.revision) });
+    })),
+    exchange: (user: string, id: string) => sql<MessageRow>`SELECT m.* FROM bot_messages m JOIN bots b ON b.id = m.bot_id JOIN bot_turns t ON t.id = m.turn_id
+      WHERE m.exchange_id = ${id}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND t.reply_to_bot_id IS NOT NULL AND m.message_key IN ('input','answer') ORDER BY m.seq`
+      .pipe(Effect.map((r) => r.map(messageView))),
+    history: (turn: BotTurn) => sql<MessageRow>`SELECT m.* FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
+      WHERE m.bot_id = ${turn.bot_id}::uuid AND (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid)
+      ORDER BY t.created_at, t.id, m.seq`
+      .pipe(Effect.map((rows): ModelMessage[] => rows.map((r) => ({ role: r.sender_id === turn.bot_id ? "assistant" : "user", text: r.text })))),
+    claim: (user: string) => sql.withTransaction(Effect.gen(function* () {
+      // Lock the bot first; exactly its oldest unfinished turn can be claimed by any gateway.
+      const rows = yield* sql<BotRow>`SELECT b.* FROM bots b WHERE deleted_at IS NULL AND owner_user_id = ${user}::uuid AND EXISTS (
+        SELECT 1 FROM bot_turns t WHERE t.bot_id = b.id AND t.status IN ('queued','running') AND (t.lease_until IS NULL OR t.lease_until <= now())
+          AND NOT EXISTS (SELECT 1 FROM bot_turns p WHERE p.bot_id = b.id AND p.status IN ('queued','running','waiting') AND (p.created_at, p.id) < (t.created_at, t.id)))
+        ORDER BY b.updated_at FOR UPDATE SKIP LOCKED LIMIT 1`;
+      if (!rows[0]) return undefined;
+      const id = rows[0].id;
+      const token = uuid();
+      const turns = yield* sql<BotTurn>`UPDATE bot_turns SET status = 'running', lease_token = ${token}::uuid, lease_until = now() + interval '30 seconds'
+        WHERE id = (SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('queued','running') ORDER BY created_at, id LIMIT 1) RETURNING *`;
+      const turn = turns[0]!;
+      // A remote side effect may already have happened. Never repeat it after a crash.
+      yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote MCP call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND tool ->> 'source' = 'mcp'`;
+      yield* sql`UPDATE bots SET status_line = 'Typing…', revision = revision + 1 WHERE id = ${id}::uuid`;
+      return turn;
+    })),
+    heartbeat: (turn: BotTurn) => sql`UPDATE bot_turns SET lease_until = now() + interval '30 seconds' WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid AND status = 'running' AND lease_until > now() RETURNING id`.pipe(Effect.map((r) => r.length > 0)),
+    status: (turn: BotTurn, text: string) => sql.withTransaction(Effect.gen(function* () {
+      yield* fenced(turn);
+      yield* sql`UPDATE bots SET status_line = ${text}, revision = revision + 1 WHERE id = ${turn.bot_id}::uuid`;
+    })),
+    checkpoint: (turn: BotTurn, messages: ModelMessage[]) => sql.withTransaction(Effect.gen(function* () {
+      yield* fenced(turn);
+      yield* sql`UPDATE bot_turns SET checkpoint = ${JSON.stringify(messages)}::jsonb WHERE id = ${turn.id}::uuid`;
+    })),
+    planCall: (turn: BotTurn, callKey: string, tool: ToolSpec, args: Record<string, unknown>) => sql.withTransaction(Effect.gen(function* () {
+      yield* fenced(turn);
+      yield* sql`INSERT INTO bot_tool_calls(id, turn_id, call_key, tool, arguments) VALUES (${uuid()}::uuid, ${turn.id}::uuid, ${callKey}, ${JSON.stringify(tool)}::jsonb, ${JSON.stringify(args)}::jsonb) ON CONFLICT(turn_id, call_key) DO NOTHING`;
+      return (yield* sql<StoredCall>`SELECT * FROM bot_tool_calls WHERE turn_id = ${turn.id}::uuid AND call_key = ${callKey}`)[0]!;
+    })),
+    call: (turn: BotTurn, id: string) => sql<StoredCall>`SELECT * FROM bot_tool_calls WHERE id = ${id}::uuid AND turn_id = ${turn.id}::uuid`.pipe(Effect.map((r) => r[0]!)),
+    // A platform effect and its result commit together; the lease row is held until commit.
+    action: <A, E, R>(turn: BotTurn, call: StoredCall, effect: Effect.Effect<A, E, R>) => sql.withTransaction(Effect.gen(function* () {
+      yield* fenced(turn);
+      const saved = (yield* sql<StoredCall>`SELECT * FROM bot_tool_calls WHERE id = ${call.id}::uuid FOR UPDATE`)[0]!;
+      if (saved.status === "completed" || saved.status === "interrupted") return saved.result as A;
+      const result = yield* effect;
+      yield* sql`UPDATE bot_tool_calls SET status = 'completed', result = ${JSON.stringify(result ?? null)}::jsonb WHERE id = ${call.id}::uuid`;
+      return result;
+    })),
+    remoteStarted: (turn: BotTurn, call: StoredCall) => sql.withTransaction(Effect.gen(function* () {
+      yield* fenced(turn);
+      yield* sql`UPDATE bot_tool_calls SET status = 'running' WHERE id = ${call.id}::uuid AND status = 'pending'`;
+    })),
+    remoteResult: (turn: BotTurn, call: StoredCall, result: unknown) => sql.withTransaction(Effect.gen(function* () {
+      yield* fenced(turn);
+      yield* sql`UPDATE bot_tool_calls SET status = 'completed', result = ${JSON.stringify(result)}::jsonb WHERE id = ${call.id}::uuid`;
+    })),
+    approval: (turn: BotTurn, call: StoredCall, prompt: string, question: boolean) => sql.withTransaction(Effect.gen(function* () {
+      yield* fenced(turn);
+      yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt) VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}) ON CONFLICT(id) DO NOTHING`;
+      return approvalView((yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid`)[0]!);
+    })),
+    wait: (turn: BotTurn) => sql.withTransaction(Effect.gen(function* () {
+      yield* fenced(turn);
+      // Serialize with answer(): an answer cannot arrive between this check and the wait state.
+      const pending = yield* sql`SELECT id FROM bot_approvals WHERE turn_id = ${turn.id}::uuid AND status = 'pending' FOR UPDATE`;
+      yield* sql`UPDATE bot_turns SET status = ${pending.length ? "waiting" : "queued"}, lease_token = NULL, lease_until = NULL WHERE id = ${turn.id}::uuid`;
+      yield* sql`UPDATE bots SET status_line = ${pending.length ? "Waiting for you" : "Typing…"}, revision = revision + 1 WHERE id = ${turn.bot_id}::uuid`;
+    })),
+    answer: (user: string, request: bots.AnswerBotApprovalRequest) => sql.withTransaction(Effect.gen(function* () {
+      const candidates = yield* sql<ApprovalRow>`SELECT a.* FROM bot_approvals a JOIN bots b ON b.id = a.bot_id WHERE a.id = ${request.approvalId}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL`;
+      if (!candidates[0]) return yield* Effect.fail(new NotFound("approval not found"));
+      // Same turn -> approval lock order as wait().
+      yield* sql`SELECT id FROM bot_turns WHERE id = ${candidates[0].turn_id}::uuid FOR UPDATE`;
+      const row = (yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${request.approvalId}::uuid FOR UPDATE`)[0]!;
+      if (row.status !== "pending") return approvalView(row);
+      if (request.answer.length > 32_000) return yield* Effect.fail(new Invalid("answer too long"));
+      const updated = (yield* sql<ApprovalRow>`UPDATE bot_approvals SET status = ${request.approve ? "approved" : "discarded"}, answer = ${request.answer}, answered_at = now() WHERE id = ${row.id}::uuid RETURNING *`)[0]!;
+      yield* sql`UPDATE bot_turns SET status = 'queued' WHERE id = ${row.turn_id}::uuid AND status = 'waiting'`;
+      yield* changed(row.bot_id);
+      return approvalView(updated);
+    })),
+    interrupt: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
+      yield* owned(user, id, true);
+      yield* sql`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = (SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('running','waiting','queued') ORDER BY created_at, id LIMIT 1)`;
+      yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending' AND turn_id IN (SELECT id FROM bot_turns WHERE status = 'interrupted')`;
+      yield* sql`UPDATE bots SET status_line = '', revision = revision + 1 WHERE id = ${id}::uuid`;
+    })),
+    release: (turn: BotTurn) => sql`UPDATE bot_turns SET lease_until = now(), lease_token = NULL WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid`,
+    provider: (user: string, config: bots.BotConfiguration) => Effect.gen(function* () {
+      const instance = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${config.provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${config.providerInstance} AND kind = 'endpoint'`)[0];
+      if (!instance) return yield* Effect.fail(new Invalid("provider endpoint unavailable"));
+      return { url: instance.base_url, key: instance.api_key ? yield* secret(user, instance.api_key.secretRef) : "" };
+    }),
+    connected: (user: string, botId: string) => Effect.gen(function* () {
+      yield* owned(user, botId);
+      const links = yield* sql<{ server_id: string }>`SELECT c.server_id FROM bot_mcp_connections c JOIN bot_mcp_servers s ON s.id = c.server_id WHERE c.bot_id = ${botId}::uuid AND s.owner_user_id = ${user}::uuid AND s.enabled`;
+      const result: McpConnection[] = [];
+      for (const l of links) result.push(yield* resolvedServer(user, l.server_id));
+      return result;
+    }),
+    saveServer: (user: string, request: bots.SaveBotMcpServerRequest) => sql.withTransaction(Effect.gen(function* () {
+      const id = request.id || uuid();
+      const old = request.id ? yield* server(user, id) : undefined;
+      if (!request.name.trim() || request.name.length > 80 || !["http", "sse"].includes(request.transport)) return yield* Effect.fail(new Invalid("name and remote MCP transport (http or sse) are required"));
+      const url = remoteUrl(request.url);
+      if (Object.keys(request.headers).length > 32) return yield* Effect.fail(new Invalid("too many MCP headers"));
+      const headers = request.clearHeaders || Object.keys(request.headers).length ? {} as ServerRow["headers"] : old?.headers ?? {};
+      for (const [name, value] of Object.entries(request.headers)) {
+        if (!/^[a-zA-Z0-9_-]{1,100}$/.test(name) || /^(host|content-length|connection|accept|content-type|mcp-session-id)$/i.test(name) || /[\r\n]/.test(value) || value.length > 32_000) return yield* Effect.fail(new Invalid("invalid MCP header"));
+        const secretId = uuid();
+        yield* sql`INSERT INTO secrets(id, owner_user_id, name, ciphertext, key_id, created_by) VALUES (${secretId}::uuid, ${user}::uuid, ${`bot-mcp-${secretId}`}, ${encryptSecret(key, value)}, ${SECRETS_KEY_ID}, ${user}::uuid)`;
+        headers[name] = { secretRef: secretId };
+      }
+      yield* sql`INSERT INTO bot_mcp_servers(id, owner_user_id, name, url, transport, enabled, headers)
+        VALUES (${id}::uuid, ${user}::uuid, ${request.name.trim()}, ${url}, ${request.transport}, ${request.enabled}, ${JSON.stringify(headers)}::jsonb)
+        ON CONFLICT(id) DO UPDATE SET name = EXCLUDED.name, url = EXCLUDED.url, transport = EXCLUDED.transport, enabled = EXCLUDED.enabled, headers = EXCLUDED.headers`;
+      yield* sql`UPDATE bots SET revision = revision + 1 WHERE id IN (SELECT bot_id FROM bot_mcp_connections WHERE server_id = ${id}::uuid)`;
+      return (yield* servers(user)).find((s) => s.id === id)!;
+    })),
+    deleteServer: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
+      yield* server(user, id);
+      yield* sql`DELETE FROM bot_mcp_servers WHERE id = ${id}::uuid`;
+      // Keep public configuration consistent with the normalized connection relation.
+      yield* sql`UPDATE bots SET configuration = jsonb_set(configuration, '{mcpServerIds}', coalesce((SELECT jsonb_agg(v) FROM jsonb_array_elements_text(coalesce(configuration -> 'mcpServerIds', '[]')) v WHERE v <> ${id}), '[]')), revision = revision + 1 WHERE owner_user_id = ${user}::uuid`;
+    })),
+    sendToBot: (user: string, turn: BotTurn, call: StoredCall) => Effect.gen(function* () {
+      const target = requiredString(call.arguments, "bot_id", 100);
+      if (target === turn.bot_id) return yield* Effect.fail(new Invalid("choose another bot"));
+      const hops = nextHop(turn.hops);
+      nextHop(hops); // reserve the reply's hop, like notify in the agent bus
+      const sender = yield* owned(user, turn.bot_id);
+      const recipient = yield* owned(user, target);
+      yield* enqueue(user, target, `Message from ${botConfiguration(sender).name}: ${requiredString(call.arguments, "text")}`, `bot:${call.id}`, { hops, sender: turn.bot_id, replyTo: turn.bot_id, exchangeId: call.id, event: true });
+      yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id)
+        VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${call.id}, ${turn.bot_id}, ${target}, 'event', ${`Messaged ${botConfiguration(recipient).name}`}, ${call.id}::uuid) ON CONFLICT(turn_id, message_key) DO NOTHING`;
+      yield* changed(sender.id);
+      return { bot_id: target, exchange_id: call.id, status: "queued" };
+    }),
+    watchThread: (turn: BotTurn, call: StoredCall, threadId: string, turnId: string) => Effect.gen(function* () {
+      const hop = nextHop(turn.hops);
+      const replyHop = nextHop(hop);
+      yield* sql`UPDATE turns SET trigger = 'bot', author_user_id = NULL, bot_call_id = ${call.id}::uuid, hops = ${hop} WHERE id = ${turnId}::uuid AND status = 'queued'`;
+      yield* sql`INSERT INTO bot_thread_watches(call_id, bot_id, target_thread_id, target_turn_id, hops)
+        VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${replyHop}) ON CONFLICT(call_id) DO NOTHING`;
+    }),
+    watchSteer: (turn: BotTurn, call: StoredCall, threadId: string, steerId: string) => Effect.gen(function* () {
+      const hops = nextHop(turn.hops);
+      const replyHops = nextHop(hops);
+      yield* sql`UPDATE turn_steers SET bot_call_id = ${call.id}::uuid, author_user_id = NULL, hops = ${hops} WHERE id = ${steerId}::uuid`;
+      yield* sql`INSERT INTO bot_thread_watches(call_id, bot_id, target_thread_id, target_steer_id, hops)
+        VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${threadId}::uuid, ${steerId}::uuid, ${replyHops}) ON CONFLICT(call_id) DO NOTHING`;
+    }),
+    wakeup: (turn: BotTurn, call: StoredCall) => Effect.gen(function* () {
+      const runAt = new Date(requiredString(call.arguments, "run_at", 100));
+      if (!Number.isFinite(runAt.getTime()) || runAt.getTime() <= Date.now()) return yield* Effect.fail(new Invalid("run_at must be in the future"));
+      yield* sql`INSERT INTO bot_wakeups(id, bot_id, prompt, run_at, hops) VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${requiredString(call.arguments, "prompt")}, ${runAt}, ${nextHop(turn.hops)}) ON CONFLICT(id) DO NOTHING`;
+      return { schedule_id: call.id };
+    }),
+    wakeups: (botId: string) => sql`SELECT id, prompt, run_at, cancelled, delivered FROM bot_wakeups WHERE bot_id = ${botId}::uuid ORDER BY run_at`,
+    cancelWakeup: (botId: string, id: string) => sql`UPDATE bot_wakeups SET cancelled = true WHERE id = ${id}::uuid AND bot_id = ${botId}::uuid RETURNING id`.pipe(Effect.map((r) => ({ cancelled: r.length > 0 }))),
+    deliver: () => sql.withTransaction(Effect.gen(function* () {
+      yield* sql`UPDATE bot_thread_watches w SET target_turn_id = CASE WHEN s.status = 'delivered' THEN s.turn_id ELSE s.queued_turn_id END FROM turn_steers s
+        WHERE w.target_steer_id = s.id AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued')`;
+      const watches = yield* sql<{ call_id: string; bot_id: string; target_thread_id: string; target_turn_id: string; hops: number; owner_user_id: string; status: string; title: string }>`SELECT w.*, b.owner_user_id, t.status, th.title FROM bot_thread_watches w
+        JOIN bots b ON b.id = w.bot_id JOIN turns t ON t.id = w.target_turn_id JOIN threads th ON th.id = t.thread_id
+        WHERE NOT w.delivered AND b.deleted_at IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') FOR UPDATE OF w SKIP LOCKED`;
+      for (const watch of watches) {
+        const items = yield* sql<{ content: { agentMessage?: { text?: string } } }>`SELECT content FROM thread_items WHERE thread_id = ${watch.target_thread_id}::uuid AND turn_id = ${watch.target_turn_id}::uuid ORDER BY first_seq`;
+        const text = items.map((i) => i.content.agentMessage?.text ?? "").filter(Boolean).join("\n").slice(0, 80_000);
+        yield* enqueue(watch.owner_user_id, watch.bot_id, `Thread ${watch.title} (${watch.target_thread_id}) ended: ${watch.status}.\n${text}`, `thread:${watch.call_id}`, { hops: watch.hops, sender: watch.target_thread_id, event: true });
+        yield* sql`UPDATE bot_thread_watches SET delivered = true WHERE call_id = ${watch.call_id}::uuid`;
+      }
+      const wakeups = yield* sql<{ id: string; bot_id: string; prompt: string; hops: number; owner_user_id: string }>`SELECT w.*, b.owner_user_id FROM bot_wakeups w JOIN bots b ON b.id = w.bot_id
+        WHERE NOT w.delivered AND NOT w.cancelled AND w.run_at <= now() AND b.deleted_at IS NULL FOR UPDATE OF w SKIP LOCKED`;
+      for (const wake of wakeups) {
+        yield* enqueue(wake.owner_user_id, wake.bot_id, wake.prompt, `wakeup:${wake.id}`, { hops: wake.hops, sender: "system", event: true });
+        yield* sql`UPDATE bot_wakeups SET delivered = true WHERE id = ${wake.id}::uuid`;
+      }
+    })),
+  };
+}
+
+export class BotStore extends Context.Service<BotStore, ReturnType<typeof makeStore>>()('open-agents/gateway/BotStore') {
+  static readonly layer = (key: Buffer) => Layer.effect(BotStore, Effect.gen(function* () { return makeStore(yield* SqlClient.SqlClient, key); }));
+}

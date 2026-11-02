@@ -25,6 +25,7 @@ export interface SteerRow {
   input: { text: string; note?: string; message?: string; quotes?: StoredQuote[] } & StoredMentions;
   author_user_id: string | null;
   agent_call_id: string | null;
+  bot_call_id?: string | null;
   hops: number;
   client_request_id: string | null;
   model: string;
@@ -144,10 +145,11 @@ export class SteerStore extends Context.Service<
                 : [];
               // Like the message would have been queued: a user's turn, or the agent's (same call, same hops).
               const agent = steer.agent_call_id !== null;
+              const bot = steer.bot_call_id != null;
               const rows = back[0] ? back : yield* sql<TurnRow>`
-                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, hops, input, model, effort, permission_mode)
-                SELECT ${Bun.randomUUIDv7()}::uuid, ${steer.thread_id}::uuid, coalesce(max(ordinal), 0) + 1, ${agent ? "agent_bus" : "user"},
-                       ${steer.author_user_id}::uuid, ${steer.agent_call_id}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
+                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, bot_call_id, hops, input, model, effort, permission_mode)
+                SELECT ${Bun.randomUUIDv7()}::uuid, ${steer.thread_id}::uuid, coalesce(max(ordinal), 0) + 1, ${bot ? "bot" : agent ? "agent_bus" : "user"},
+                       ${steer.author_user_id}::uuid, ${steer.agent_call_id}::uuid, ${steer.bot_call_id ?? null}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
                        ${steer.model}, ${steer.effort}, ${steer.permission_mode}
                   FROM turns WHERE thread_id = ${steer.thread_id}::uuid
                 RETURNING *`;

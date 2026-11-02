@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
-import { ui } from "@open-agents/contracts";
+import { ui, bots } from "@open-agents/contracts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
 import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, SettingsConflict } from "../store/index.ts";
 
@@ -8,6 +8,20 @@ import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, S
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
   return (router) =>
     router.service(ui.GatewayService, {
+      createBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.create(r) })),
+      updateBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.update(r) })),
+      deleteBot: (r) => guard(async () => { await core.bots.remove(r.botId); return create(bots.DeleteBotResponseSchema); }),
+      listBots: () => guard(async () => create(bots.ListBotsResponseSchema, { bots: await core.bots.list() })),
+      getBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.get(r.botId) })),
+      sendBotMessage: (r) => guard(async () => create(bots.SendBotMessageResponseSchema, { turnId: await core.bots.send(r) })),
+      watchBotConversation: (r, context) => core.bots.watch(r.botId, context.signal),
+      readBotExchange: (r) => guard(async () => create(bots.ReadBotExchangeResponseSchema, { messages: await core.bots.exchange(r.exchangeId) })),
+      answerBotApproval: (r) => guard(async () => create(bots.AnswerBotApprovalResponseSchema, { approval: await core.bots.answer(r) })),
+      interruptBot: (r) => guard(async () => { await core.bots.interrupt(r.botId); return create(bots.InterruptBotResponseSchema); }),
+      saveBotMcpServer: (r) => guard(async () => create(bots.SaveBotMcpServerResponseSchema, { server: await core.bots.saveServer(r) })),
+      listBotMcpServers: () => guard(async () => create(bots.ListBotMcpServersResponseSchema, { servers: await core.bots.servers() })),
+      deleteBotMcpServer: (r) => guard(async () => { await core.bots.deleteServer(r.serverId); return create(bots.DeleteBotMcpServerResponseSchema); }),
+      testBotMcpServer: (r) => guard(async () => create(bots.TestBotMcpServerResponseSchema, { tools: await core.bots.testServer(r.serverId) })),
       getOverview: () => guard(() => core.overview()),
       watchOverview: (_request, context) => core.watchOverview(context.signal),
       listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),
