@@ -9,7 +9,9 @@ export function sseResponse<T>(
   encode: (value: T) => unknown,
 ): Response {
   const upstream = new AbortController();
-  request.signal.addEventListener("abort", () => upstream.abort(), { once: true });
+  const abort = () => upstream.abort();
+  request.signal.addEventListener("abort", abort, { once: true });
+  if (request.signal.aborted) abort();
   const encoder = new TextEncoder();
 
   const body = new ReadableStream<Uint8Array>({
@@ -21,7 +23,8 @@ export function sseResponse<T>(
           upstream.abort(); // client gone
         }
       };
-      const heartbeat = setInterval(() => send(": ping\n\n"), 15_000);
+      send("event: ready\ndata: {}\n\n");
+      const heartbeat = setInterval(() => send("event: heartbeat\ndata: {}\n\n"), 10_000);
       try {
         for await (const value of source(upstream.signal)) send(`data: ${JSON.stringify(encode(value))}\n\n`);
       } catch (cause) {
@@ -31,6 +34,8 @@ export function sseResponse<T>(
         }
       } finally {
         clearInterval(heartbeat);
+        request.signal.removeEventListener("abort", abort);
+        upstream.abort();
         try {
           controller.close();
         } catch {

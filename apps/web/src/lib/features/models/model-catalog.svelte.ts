@@ -7,7 +7,7 @@ import { threadModelOptions, type ModelOption } from "./catalog.ts";
 
 /**
  * The model catalog of every worker (`ListModels`): per provider and profile the models it offers, as the
- * worker last reported them. Seeded by the server load, kept current by `OverviewUpdate.models` (sent after
+ * worker last reported them. Loaded through the BFF, kept current by `OverviewUpdate.models` (sent after
  * every config change and refresh) and reloaded after a gap in the stream. `refresh` asks a worker again.
  */
 export class ModelCatalogState {

@@ -19,5 +19,5 @@
 
 <p class={["flex items-center gap-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]} role="status">
   <StatusDot tone={look.tone} active={connection === "reconnecting"} />
-  {look.label}
+  <span class="min-w-32 text-right sm:min-w-28">{look.label}</span>
 </p>
