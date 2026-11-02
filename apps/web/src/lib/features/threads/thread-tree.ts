@@ -8,6 +8,15 @@ export interface ThreadTree {
 
 export const isSide = (thread: ui.Thread) => thread.kind === ui.ThreadKind.SIDE || Boolean(thread.parentThreadId);
 
+/** Shared by sidebar and Lineage; deleted threads are never a previous agent. */
+export function groupSideThreads(threads: readonly ui.Thread[]) {
+  const visible = threads.filter((t) => !t.deletedAt);
+  return {
+    active: visible.filter((t) => t.status !== "archived").sort(byCreation),
+    previous: visible.filter((t) => t.status === "archived").sort((a, b) => Number((b.archivedAt?.seconds ?? b.createdAt?.seconds ?? 0n) - (a.archivedAt?.seconds ?? a.createdAt?.seconds ?? 0n))),
+  };
+}
+
 /** The mark of a side thread in lists: violet sparkles when an agent started it, a copy for a fork, else a turn arrow. */
 export function sideMark(thread: ui.Thread): { icon: IconName; iconClass: string } {
   if (thread.spawnedByAgent) return { icon: "sparkles", iconClass: "fill-violet-500 dark:fill-violet-400" };

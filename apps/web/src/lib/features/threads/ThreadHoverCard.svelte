@@ -29,13 +29,13 @@
    */
   const SIDES_SHOWN = 3;
   const muted = "size-4 fill-zinc-400 dark:fill-zinc-500";
-  let { thread, row }: { thread: ui.Thread; row: Snippet<[HoverTriggerProps]> } = $props();
+  let { thread, row, touch = "press", disabled = false }: { thread: ui.Thread; row: Snippet<[HoverTriggerProps]>; touch?: "press" | "none"; disabled?: boolean } = $props();
   const overview = useOverview();
   // Beside the row where the sidebar leaves room; under it in the phone drawer.
   const beside = new MediaQuery("min-width: 40rem");
 </script>
 
-<HoverCard label="Thread {thread.title}" placement={beside.current ? "right-start" : "bottom-start"} touch="press" class="w-80">
+<HoverCard label="Thread {thread.title}" placement={beside.current ? "right-start" : "bottom-start"} {touch} {disabled} class="w-80">
   {#snippet trigger(props)}{@render row(props)}{/snippet}
   {@const project = overview.project(thread.projectId)}
   {@const worker = overview.worker(thread.workerId)}

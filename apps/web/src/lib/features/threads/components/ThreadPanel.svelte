@@ -13,7 +13,8 @@
   import { permissionLabel, permissionLook, providerLabel } from "../labels.ts";
   import type { UsageTotals } from "../thread-state.svelte.ts";
   import { instanceLabel, instanceOf, providerKeyOf } from "../providers.ts";
-  import { isSide, type ThreadTree } from "../thread-tree.ts";
+  import { groupSideThreads, isSide, type ThreadTree } from "../thread-tree.ts";
+  import PreviousAgents from "./PreviousAgents.svelte";
   import ThreadStatusText from "../ThreadStatusText.svelte";
   import PanelRow from "./PanelRow.svelte";
   import BackgroundTasksSection from "./BackgroundTasksSection.svelte";
@@ -67,6 +68,8 @@
   const source = $derived(thread.forkSourceThreadId ? (lookup(thread.forkSourceThreadId) ?? directory.thread(thread.forkSourceThreadId)) : undefined);
   const parent = $derived(thread.parentThreadId ? lookup(thread.parentThreadId) : undefined);
   const hasUsage = $derived(totals.inputTokens > 0n || totals.outputTokens > 0n);
+  const sides = $derived(groupSideThreads(tree.sides));
+  const runningSides = $derived(sides.active.filter((t) => t.status === "running" || t.status === "waiting_input").length);
 </script>
 
 <div class={["grid grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white py-1.5 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10", className]}>
@@ -168,7 +171,7 @@
   {/if}
 
   <section aria-labelledby="lineage-title" class="grid grid-cols-1 px-1.5 pt-1.5">
-    <h2 id="lineage-title" class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Lineage</h2>
+    <h2 id="lineage-title" class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Lineage{runningSides ? ` · ${runningSides} running` : ""}</h2>
     <ul role="list" class="grid grid-cols-1 gap-0.5">
       <li>
         <PanelRow icon="chat-bubble-left-right" href="/threads/{tree.main.id}" current={tree.main.id === thread.id}>
@@ -176,7 +179,7 @@
           {#snippet aside()}<ThreadStatusText thread={tree.main} />{/snippet}
         </PanelRow>
       </li>
-      {#each tree.sides as side (side.id)}
+      {#each sides.active as side (side.id)}
         <li>
           <PanelRow
             icon={side.spawnedByAgent ? "sparkles" : side.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
@@ -191,6 +194,17 @@
         </li>
       {/each}
     </ul>
+    <PreviousAgents threads={sides.previous} class="pl-3">
+      {#snippet row(side)}
+        {@const provider = providerKeyOf(side.provider)}
+        {@const when = side.archivedAt ?? side.lastActivityAt ?? side.createdAt}
+        <PanelRow icon="cpu-chip" href="/threads/{side.id}" current={side.id === thread.id} class="opacity-60">
+          {#snippet lead()}{#if provider}<ProviderIcon {provider} />{:else}<Icon name="cpu-chip" />{/if}{/snippet}
+          {side.title}
+          {#snippet aside()}{#if when}<time datetime={isoDateTime(when)} title={formatDateTime(when)} class="shrink-0 tabular-nums">{formatRelative(when, clock.now)}</time>{/if}{/snippet}
+        </PanelRow>
+      {/snippet}
+    </PreviousAgents>
     {#if onnewside}
       <PanelRow icon="plus" onclick={onnewside} class="text-zinc-500 dark:text-zinc-400">New side thread</PanelRow>
     {/if}

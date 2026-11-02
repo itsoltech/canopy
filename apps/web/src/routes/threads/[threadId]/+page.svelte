@@ -2,6 +2,7 @@
   import { ItemStatus, ui } from "@open-agents/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
+  import { goto } from "$app/navigation";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
@@ -57,6 +58,8 @@
   import { statusLook } from "#lib/shared/ui/status.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
+  import ThreadComposerSlot from "#lib/features/threads/components/ThreadComposerSlot.svelte";
+  import ThreadMenuItems from "#lib/features/threads/components/ThreadMenuItems.svelte";
 
   let { data }: PageProps = $props();
   const threadId = $derived(page.params.threadId ?? "");
@@ -73,6 +76,7 @@
   $effect(() => view.connect(threadId));
 
   const thread = $derived(view.thread);
+  $effect(() => { if (thread?.deletedAt) void goto("/"); });
   const worker = $derived(overview.worker(thread?.workerId ?? ""));
   const project = $derived(overview.project(thread?.projectId ?? ""));
 
@@ -107,7 +111,7 @@
   let atEnd = $state(true);
   trackSeen(() => {
     const live = overview.threads.get(threadId) ?? thread;
-    return { threadId, unseen: Boolean(live?.unseenResult), lastSeq: live?.lastSeq ?? 0n, atEnd };
+    return { threadId, unseen: Boolean(live?.unseenResult || live?.markedUnread), markedUnread: live?.markedUnread ?? false, lastSeq: live?.lastSeq ?? 0n, atEnd };
   });
 
   // The subagents its agent started (spawn_thread), live from the thread index: the panel above the composer.
@@ -314,11 +318,7 @@
               <MenuItem icon="flag" disabled={!canGoal} onselect={setGoalLater}>{openGoal ? "Replace the goal…" : "Set a goal…"}</MenuItem>
             {/if}
             <MenuSeparator />
-            <MenuSub label="Copy" icon="document-duplicate">
-              <MenuItem onselect={() => copy(page.url.href)}>Link</MenuItem>
-              <MenuItem onselect={() => copy(thread.cwd)}>Working directory</MenuItem>
-              <MenuItem onselect={() => copy(thread.id)}>Thread ID</MenuItem>
-            </MenuSub>
+            <ThreadMenuItems {thread} />
           </DropdownMenu>
         {/if}
         <IconButton icon="view-columns" label="Thread details" aria-pressed={panelOpen} onclick={togglePanel} />
@@ -385,7 +385,7 @@
               {/if}
               <!-- Subagents and the queue are tabs attached to the composer, stacked: each slides under the top edge
                    of what follows it (the queue under the composer, the subagents under the queue). -->
-              {#if thread && subagents.length > 0}
+              {#if thread && thread.status !== "archived" && subagents.length > 0}
                 <GrowIn class="-mb-4 px-3.5 sm:px-5">
                   <SubagentsPanel {subagents} class="pb-4" />
                 </GrowIn>
@@ -396,6 +396,7 @@
                 </GrowIn>
               {/if}
               {#if thread}
+                <ThreadComposerSlot {thread} {parent}>
                 <Composer
                   class="relative"
                   {thread}
@@ -413,6 +414,7 @@
                     {/if}
                   {/snippet}
                 </Composer>
+                </ThreadComposerSlot>
               {:else}
                 <Skeleton class="h-28 rounded-2xl" />
               {/if}

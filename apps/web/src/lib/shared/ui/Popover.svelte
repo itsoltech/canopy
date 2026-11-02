@@ -181,7 +181,16 @@
       if (!panel.contains(target)) open = false;
     };
     document.addEventListener("pointerdown", onpointerdown, true);
-    return () => document.removeEventListener("pointerdown", onpointerdown, true);
+    // A choice can remove its own button (for example Clear filters), leaving focus on body.
+    // Keep Escape working in that case as well as on the trigger.
+    const lostFocusEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented && (event.target === document.body || (anchorElement ?? anchor)?.contains(event.target as Node))) {
+        event.preventDefault();
+        open = false;
+      }
+    };
+    document.addEventListener("keydown", lostFocusEscape);
+    return () => { document.removeEventListener("pointerdown", onpointerdown, true); document.removeEventListener("keydown", lostFocusEscape); };
   });
 
   function onkeydown(event: KeyboardEvent) {
