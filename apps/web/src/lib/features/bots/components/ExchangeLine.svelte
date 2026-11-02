@@ -13,6 +13,10 @@
   const unknown = { id: "", kind: "bot", name: "a deleted bot" } as const;
 </script>
 
+{#snippet chip(segment: ExchangeSegment)}
+  <BotChip bot={segment.bot ?? { ...unknown, id: segment.botId }} href={hrefOf(segment)} />
+{/snippet}
+
 <p class={["flex flex-wrap items-center gap-x-1.5 gap-y-1 pl-9 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400", className]}>
   <Icon name="arrows-right-left" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
   {#each phrases as phrase, index (index)}
@@ -21,14 +25,14 @@
       <span>Messaged</span>
       {#each phrase.segments as segment, i (segment.exchangeId + segment.botId)}
         {#if i > 0}<span>{i === phrase.segments.length - 1 ? "and" : ","}</span>{/if}
-        <BotChip bot={segment.bot ?? { ...unknown, id: segment.botId }} href={hrefOf(segment)} />
+        {@render chip(segment)}
       {/each}
     {:else if phrase.kind === "received"}
       <span>Message from</span>
-      <BotChip bot={phrase.segment.bot ?? { ...unknown, id: phrase.segment.botId }} href={hrefOf(phrase.segment)} />
+      {@render chip(phrase.segment)}
     {:else}
       <span class="tabular-nums">{phrase.count} messages with</span>
-      <BotChip bot={phrase.segment.bot ?? { ...unknown, id: phrase.segment.botId }} href={hrefOf(phrase.segment)} />
+      {@render chip(phrase.segment)}
     {/if}
   {/each}
 </p>

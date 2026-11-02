@@ -6,6 +6,7 @@
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import type { ApprovalView } from "../model.ts";
+  import ChatCard from "./ChatCard.svelte";
 
   /**
    * A bot asks before it acts. The card shows what it wants to do and the details as labelled fields; the
@@ -48,7 +49,7 @@
   }
 </script>
 
-<section aria-labelledby="{id}-title" class={["w-full max-w-md rounded-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-900 dark:ring-white/10", className]}>
+<ChatCard labelledby="{id}-title" class={className}>
   <header class="flex items-center justify-between gap-3 px-4 pt-3">
     {#if onpolicy && policy}
       <DropdownMenu label="When this bot asks">
@@ -105,4 +106,4 @@
       </p>
     {/if}
   {/if}
-</section>
+</ChatCard>

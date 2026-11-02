@@ -3,7 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import { rise } from "#lib/shared/ui/motion.ts";
   import { layoutChat, type ExchangeSegment } from "../chat-timeline.ts";
-  import type { ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
+  import type { BotStatusView, ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
   import ApprovalCard, { type ApprovalAnswer, type ApprovalPolicy } from "./ApprovalCard.svelte";
   import BotStatusRow from "./BotStatusRow.svelte";
   import ChatBubble from "./ChatBubble.svelte";
@@ -48,7 +48,7 @@
     directory?: readonly ParticipantView[];
     firstUnreadId?: string | undefined;
     /** What the bot is doing ("Typing…", "Checking Notion"); `waiting` when a card needs you. */
-    status?: { bot: ParticipantView; text: string; waiting: boolean } | undefined;
+    status?: BotStatusView | undefined;
     /** Question or approval id → answer being sent. */
     answering?: Readonly<Record<string, string>>;
     retrying?: boolean;

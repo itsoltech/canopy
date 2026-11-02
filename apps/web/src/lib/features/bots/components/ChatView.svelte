@@ -3,7 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import { rise } from "#lib/shared/ui/motion.ts";
   import type { ExchangeSegment } from "../chat-timeline.ts";
-  import type { ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
+  import type { BotStatusView, ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
   import type { ApprovalAnswer, ApprovalPolicy } from "./ApprovalCard.svelte";
   import BotComposer from "./BotComposer.svelte";
   import ChatTimeline from "./ChatTimeline.svelte";
@@ -49,7 +49,7 @@
     directory?: readonly ParticipantView[];
     subtitle?: string | undefined;
     firstUnreadId?: string | undefined;
-    status?: { bot: ParticipantView; text: string; waiting: boolean } | undefined;
+    status?: BotStatusView | undefined;
     answering?: Readonly<Record<string, string>>;
     retrying?: boolean;
     policy?: ApprovalPolicy | undefined;

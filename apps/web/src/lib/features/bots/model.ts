@@ -140,6 +140,13 @@ export interface ChatExchangeView {
   direction: "sent" | "received";
 }
 
+/** What a bot is doing right now ("Typing…", "Checking Notion"); `waiting` while a card needs you. */
+export interface BotStatusView {
+  bot: ParticipantView;
+  text: string;
+  waiting: boolean;
+}
+
 export type ChatEntry =
   | { kind: "message"; message: ChatMessageView }
   | { kind: "event"; event: ChatEventView }

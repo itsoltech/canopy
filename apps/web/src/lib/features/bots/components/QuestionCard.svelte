@@ -2,9 +2,11 @@
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import Input from "#lib/shared/ui/Input.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { timeLabel } from "../chat-timeline.ts";
   import type { QuestionView } from "../model.ts";
+  import ChatCard from "./ChatCard.svelte";
 
   /**
    * A bot asks you something: options lettered A, B, C… (a click, Enter or the option's letter while the
@@ -35,8 +37,7 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<section aria-labelledby="{id}-prompt" class={["w-full max-w-md rounded-2xl bg-white p-1 ring-1 ring-zinc-950/10 dark:bg-zinc-900 dark:ring-white/10", className]} {onkeydown}>
+<ChatCard labelledby="{id}-prompt" class={["p-1", className]} {onkeydown}>
   <div class="flex items-start gap-2 px-3 pt-2.5 pb-2 text-base/6 sm:text-sm/6">
     <Icon name="question-mark-circle" class="h-lh shrink-0 fill-sky-500 dark:fill-sky-400" />
     <h3 id="{id}-prompt" class="font-medium text-pretty text-zinc-950 dark:text-white">{question.prompt}</h3>
@@ -87,15 +88,9 @@
   {#if question.freeText && open}
     <form class="flex items-end gap-2 px-2 pt-1 pb-1" onsubmit={(event) => { event.preventDefault(); if (text.trim() && open) onanswer?.(`text:${text.trim()}`); }}>
       <label class="sr-only" for="{id}-answer">Your answer</label>
-      <input
-        id="{id}-answer"
-        name="answer"
-        bind:value={text}
-        maxlength="32000"
-        autocomplete="off"
-        placeholder={question.options.length > 0 ? "Or answer in your own words" : "Your answer"}
-        class="min-w-0 flex-1 rounded-xl bg-zinc-950/4 px-3 py-2 text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-2 focus:-outline-offset-1 focus:outline-zinc-950/20 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:placeholder:text-zinc-400 dark:focus:outline-white/20"
-      />
+      <div class="min-w-0 flex-1">
+        <Input id="{id}-answer" name="answer" bind:value={text} maxlength={32000} autocomplete="off" placeholder={question.options.length > 0 ? "Or answer in your own words" : "Your answer"} />
+      </div>
       <Button type="submit" size="sm" variant="primary" disabled={!text.trim()}>Send</Button>
     </form>
   {/if}
@@ -115,4 +110,4 @@
     </p>
     {#if open}<Button size="sm" variant="ghost" onclick={() => onanswer?.("discard")}>Skip</Button>{/if}
   </div>
-</section>
+</ChatCard>
