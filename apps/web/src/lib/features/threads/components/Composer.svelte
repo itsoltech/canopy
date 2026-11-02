@@ -3,7 +3,6 @@
   import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import ComposerBox from "./ComposerBox.svelte";
-  import ComposerFold from "./ComposerFold.svelte";
   import type { ComposerActivity } from "./composer-compaction.ts";
   import ComposerTop from "./ComposerTop.svelte";
   import MessageComposer from "./MessageComposer.svelte";
@@ -31,8 +30,8 @@
     for (const id of sessions.keys()) if (!ids.has(id)) sessions.delete(id);
   });
   const answering = $derived(session && !session.done && !session.messaging);
-  // Questions remain obvious, including an async question the user has started answering.
-  const folded = $derived(compact && !active);
+  // Only blocking questions require the full answer form. Async drafts stay mounted while folded.
+  const folded = $derived(compact && active?.asynchronous !== false);
   let root = $state<HTMLDivElement>();
 </script>
 
@@ -41,14 +40,12 @@
   onfocusout={() => { void tick().then(() => onfocuschange?.(Boolean(root?.contains(document.activeElement)))); }}
 >
   {#if top || (session && !session.done)}
-    <ComposerFold open={!folded}>
-      <div class="-mb-4 px-2 sm:px-3">
+      <div class="-mb-4 px-2 pt-px sm:px-3">
         <ComposerTop>
           {@render top?.()}
-          {#if session && !session.done}<QuestionForm {session} more={pending.length - 1} />{/if}
+          {#if session && !session.done}<QuestionForm {session} more={pending.length - 1} compact={folded} />{/if}
         </ComposerTop>
       </div>
-    </ComposerFold>
   {/if}
   <!-- Keep the message draft mounted while answering. It returns intact when switching modes. -->
   <div class={["relative min-w-0", answering && "hidden"]} inert={Boolean(answering)}>
@@ -66,6 +63,8 @@
         allowEmpty={Boolean(session.labels.length)}
         sendLabel="Submit"
         secret={session.question.secret}
+        compact={folded}
+        {onexpand}
       >
         {#snippet controls()}<p class="flex-1 text-sm/5 text-zinc-500 dark:text-zinc-400">{session.step + 1 < session.questions.length ? "Submit to continue" : "Submit answers"}</p>{/snippet}
       </ComposerBox>

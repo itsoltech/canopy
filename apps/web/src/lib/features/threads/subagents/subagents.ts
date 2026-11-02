@@ -37,24 +37,29 @@ export interface Subagent {
   readonly state: SubagentState;
 }
 
-/** The thread's subagents, the ones still at work first, then the newest. */
-export function subagentsOf(threads: Iterable<ui.Thread>, parentId: string): Subagent[] {
-  const busy = (s: SubagentState) => (s === "working" || s === "waiting" ? 0 : 1);
-  return [...threads]
-    .filter((t) => t.parentThreadId === parentId && t.spawnedByAgent)
-    .map((thread) => ({ thread, state: subagentState(thread) }))
-    .sort((a, b) => busy(a.state) - busy(b.state) || Number((b.thread.createdAt?.seconds ?? 0n) - (a.thread.createdAt?.seconds ?? 0n)));
+/** Closed/failed/interrupted threads cannot be revived by a stale pending-interaction count.
+ * Idle threads count only while they still need a person's answer or approval. */
+export function isActiveSubagent(thread: ui.Thread): boolean {
+  if (!["creating", "running", "waiting_input", "idle"].includes(thread.status)) return false;
+  return thread.status !== "idle" || thread.pendingInteractions > 0;
 }
 
-/** One line: "3 subagents · 2 running · 1 done", with the ones waiting, failed or interrupted when there are any. */
+/** Only the thread's active subagents, newest first. Completed work stays in the timeline/lineage. */
+export function subagentsOf(threads: Iterable<ui.Thread>, parentId: string): Subagent[] {
+  return [...threads]
+    .filter((t) => t.parentThreadId === parentId && t.spawnedByAgent && isActiveSubagent(t))
+    .map((thread) => ({ thread, state: subagentState(thread) }))
+    .sort((a, b) => Number((b.thread.createdAt?.seconds ?? 0n) - (a.thread.createdAt?.seconds ?? 0n)));
+}
+
+/** Active counts only: "2 subagents working · 1 needs you". Empty when no agent is active. */
 export function subagentSummary(list: readonly Subagent[]): string {
-  const count = (state: SubagentState) => list.filter((s) => s.state === state).length;
-  const parts = [
-    [count("working"), "running"],
-    [count("waiting"), "waiting"],
-    [count("completed"), "done"],
-    [count("failed"), "failed"],
-    [count("interrupted"), "interrupted"],
-  ] as const;
-  return [`${list.length} ${list.length === 1 ? "subagent" : "subagents"}`, ...parts.filter(([n]) => n > 0).map(([n, label]) => `${n} ${label}`)].join(" · ");
+  const active = list.filter((s) => isActiveSubagent(s.thread));
+  const working = active.filter((s) => s.state === "working").length;
+  const waiting = active.filter((s) => s.state === "waiting").length;
+  const noun = (n: number) => n === 1 ? "subagent" : "subagents";
+  return [
+    working ? `${working} ${noun(working)} working` : "",
+    waiting ? `${waiting}${working ? "" : ` ${noun(waiting)}`} ${waiting === 1 ? "needs" : "need"} you` : "",
+  ].filter(Boolean).join(" · ");
 }

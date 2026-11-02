@@ -24,20 +24,27 @@ describe("composer compaction", () => {
     expect(state.compact).toBe(false);
   });
 
-  test("focus expands and protects the editor until blur and a fresh scroll", () => {
+  test("deliberate scrolling wins over focus; typing and a new click expand again", () => {
     const state = new ComposerCompaction();
     state.scroll({ distance: 500, up: 500 });
     state.focus(true);
+    state.scroll({ distance: 600, up: 0 });
+    expect(state.compact).toBe(false);
     state.scroll({ distance: 900, up: 400 });
+    expect(state.compact).toBe(true);
+    expect(state.focused).toBe(true);
+    state.interact("typing");
     expect(state.compact).toBe(false);
     state.focus(false);
     state.scroll({ distance: 910, up: 10 });
     expect(state.compact).toBe(false);
     state.scroll({ distance: 1010, up: 100 });
     expect(state.compact).toBe(true);
+    state.interact("pointer");
+    expect(state.compact).toBe(false);
   });
 
-  for (const kind of ["typing", "drop", "paste", "menu"] as const) {
+  for (const kind of ["typing", "pointer", "drop", "paste", "menu"] as const) {
     test(`${kind} expands; passive streaming/layout updates cannot change state`, () => {
       const state = new ComposerCompaction();
       state.scroll({ distance: 500, up: 500 });
