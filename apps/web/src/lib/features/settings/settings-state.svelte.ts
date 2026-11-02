@@ -16,7 +16,7 @@ const userSchemas = { appearance: ui.AppearanceSettingsSchema, threadDefaults: u
 
 /**
  * The user's and projects' settings. The gateway keeps them (docs/ui-api.md); this is a client of it:
- * seeded by the server load, changed by writes through the BFF, and kept current by the overview stream
+ * loaded through the BFF, changed by writes, and kept current by the overview stream
  * (changes from other devices and tabs).
  *
  * A write replaces one section and names the version it started from. Writes run one at a time; a

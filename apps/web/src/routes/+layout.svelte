@@ -2,11 +2,12 @@
   import "./layout.css";
   import favicon from "#lib/assets/favicon.svg";
   import { ui } from "@open-agents/contracts";
+  import { create } from "@bufbuild/protobuf";
   import { afterNavigate, beforeNavigate } from "$app/navigation";
   import { page } from "$app/state";
-  import { untrack } from "svelte";
+  import { onMount } from "svelte";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
-  import { applyAppearance } from "#lib/features/settings/appearance.ts";
+  import { appearanceFromDocument, applyAppearance } from "#lib/features/settings/appearance.ts";
   import { SettingsState, provideSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import SettingsOverlay from "#lib/features/settings/SettingsOverlay.svelte";
@@ -24,37 +25,33 @@
   import Drawer from "#lib/shared/ui/Drawer.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import Toaster from "#lib/shared/ui/Toaster.svelte";
-  import { decode } from "#lib/shared/wire.ts";
+  import UpdateBanner from "#lib/shared/ui/UpdateBanner.svelte";
+  import Skeleton from "#lib/shared/ui/Skeleton.svelte";
+  import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
   import type { LayoutProps } from "./$types";
 
-  let { data, children }: LayoutProps = $props();
+  let { children }: LayoutProps = $props();
 
-  // One live overview per tab: seeded once from the server load, then kept current by SSE.
-  const initial = untrack(() => data);
-  const overview = new OverviewState(
-    initial.overview ? decode(ui.GetOverviewResponseSchema, initial.overview) : undefined,
-    initial.threads ? decode(ui.ListThreadsResponseSchema, initial.threads).threads : [],
-  );
+  // One overview per tab. Its first SSE connection fetches the current state, then follows changes.
+  const overview = new OverviewState(undefined);
   provideOverview(overview);
   $effect(() => overview.connect());
+  let ready = $state(false);
 
   // Settings live in the gateway: seeded by the server, changed from other devices through the stream.
-  const settings = new SettingsState(initial.settings ? decode(ui.GetSettingsResponseSchema, initial.settings) : undefined);
+  const settings = new SettingsState(create(ui.GetSettingsResponseSchema, { user: { appearance: appearanceFromDocument() } }));
   provideSettings(settings);
   $effect(() => overview.subscribe((update) => settings.apply(update)));
-  $effect(() => {
-    // After a gap in the stream the settings may have changed meanwhile.
-    if (overview.resyncs > 0) void settings.reload().catch(() => undefined);
-  });
   // Model catalogs: new ones arrive through the stream; after a gap they reload.
-  const models = new ModelCatalogState(initial.models ? decode(ui.ListModelsResponseSchema, initial.models) : undefined);
+  const models = new ModelCatalogState(undefined);
   provideModelCatalog(models);
   $effect(() => overview.subscribe((update) => models.apply(update)));
   $effect(() => {
-    if (overview.resyncs > 0) void models.reload().catch(() => undefined);
+    if (overview.resyncs > 0) void Promise.allSettled([settings.reload(), models.reload()]).then(() => (ready = true));
   });
   // The server rendered the appearance into <html>; keep it current (and follow the system for "system").
   $effect(() => applyAppearance(settings.appearance));
+  onMount(() => document.getElementById("oa-boot")?.remove());
   $effect(() => {
     const query = matchMedia("(prefers-color-scheme: dark)");
     const follow = () => applyAppearance(settings.appearance);
@@ -116,10 +113,18 @@
     {/if}
     <main class="min-h-0 flex-1">
       <!-- A settings page loaded on its own shows in the settings dialog, until it goes over the new thread. -->
-      {#if !isSettingsRoute(page.route.id) || page.error}{@render children()}{/if}
+      {#if overview.resyncs === 0 && overview.connection === "unavailable" && !page.error}
+        <GatewayUnavailable retry={() => location.reload()} />
+      {:else if !ready && !page.error}
+        <div class="flex h-full flex-col gap-4 p-6" role="status" aria-label="Loading application">
+          <Skeleton class="h-6 w-44" />
+          <div class="m-auto flex w-full max-w-(--chat-width) flex-col gap-4"><Skeleton class="h-8 w-64" /><Skeleton class="h-32 w-full" /></div>
+        </div>
+      {:else if !isSettingsRoute(page.route.id) || page.error}{@render children()}{/if}
     </main>
   </div>
 </div>
-<SettingsOverlay route={children} />
+{#if ready}<SettingsOverlay route={children} />{/if}
 <CommandPalette registry={commands} {palette} />
 <Toaster />
+<UpdateBanner />

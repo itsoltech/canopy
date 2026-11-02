@@ -17,11 +17,11 @@
    * - While the reader is at the bottom it stays there (new rows, streaming growth, a taller composer,
    *   the keyboard opening); once they scroll up, the first visible row keeps its place on screen when
    *   rows above change height or are added (also prepended older history).
-   * - The server renders the last rows and a tiny inline script scrolls to the end before the first paint.
+   * - The first snapshot mounts its last rows; a layout effect pins them before the browser paints.
    * - `placeholder` stands where the rows will be while there are none (a skeleton, bottom-aligned
    *   above the footer like the end of the feed); the first rows after it resolve in. Rows added at the
    *   end later rise in once, when they first mount (`VirtualRow` `enter`); rows mounted by scrolling,
-   *   prepended history and server-rendered rows do not. Rows inserted between shown ones enter only
+   *   prepended history do not. Rows inserted between shown ones enter only
    *   as `inserted` says (e.g. a fold that opened: its rows unfold, staggered). "Jump to latest" rises
    *   in and out.
    * - Keyboard: the scroll area is focusable (Page Up/Down, Home/End scroll it); inside a row, Page
@@ -63,10 +63,8 @@
 
   const uid = $props.id();
   const id = `feed-${uid}`;
-  // Before the first paint (server-rendered HTML): start at the end, before hydration does.
-  const pinScript = `<scr${"ipt"}>{const e=document.getElementById(${JSON.stringify(id)});if(e)e.scrollTop=e.scrollHeight}</scr${"ipt"}>`;
-  /** Height the server renders from the end (unknown viewport). */
-  const SERVER_HEIGHT = 2400;
+  /** Enough rows from the end to fill the viewport before its first measurement. */
+  const INITIAL_HEIGHT = 2400;
   const memory = new UiMemory();
   const index = new SizeIndex((name) => untrack(() => estimate(name)));
 
@@ -100,7 +98,7 @@
   const range = $derived.by((): [number, number] => {
     void layout;
     void scrollTop;
-    if (viewport === 0) return index.tail(SERVER_HEIGHT);
+    if (viewport === 0) return index.tail(INITIAL_HEIGHT);
     const overscan = Math.max(viewport, 480);
     // Reading above: the window follows the anchor row, also when rows were added or resized above it
     // (its scroll position is corrected only once it is mounted).
@@ -444,11 +442,12 @@
      content wider than the column (list numbers, wide tables) never shows beside or under the composer. Outside
      the scroller, it adds no scrollable overflow; it stops before the scrollbar and sits between the rows and the
      sticky footer (z-10). -->
+{#if footerHeight > 0}
 <div
   class="pointer-events-none absolute bottom-0 left-0 z-[5] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black"
   style:right="{gutter}px"
   style:height="calc({footerHeight}px + 2rem)"
   aria-hidden="true"
 ></div>
+{/if}
 </div>
-{@html pinScript}

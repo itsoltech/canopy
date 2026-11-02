@@ -1,7 +1,8 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
   import { beforeNavigate, invalidate } from "$app/navigation";
-  import { page } from "$app/state";
+  import { page, updated } from "$app/state";
+  import { updateState } from "#lib/shared/updates.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
@@ -95,11 +96,21 @@
   });
 
   beforeNavigate((navigation) => {
+    if (updated.current || updateState.available) return;
     const to = navigation.to;
     if (navigation.shallow || routeMode || (navigation.type !== "link" && navigation.type !== "goto")) return;
     if (!to?.route.id || !isSettingsRoute(to.route.id)) return;
     navigation.cancel();
     void overlay.open(to.url.href, Boolean(shallowKey));
+  });
+
+  $effect(() => {
+    if (!key || entry?.status !== "error" || entry.code < 500) return;
+    const target = key;
+    const timer = setInterval(() => {
+      if (!document.hidden && navigator.onLine) void overlay.reload(target);
+    }, 3000);
+    return () => clearInterval(timer);
   });
 
   // The overlay is one history entry over the page: closing is going back to it.

@@ -1,4 +1,6 @@
 import { ui } from "@open-agents/contracts";
+import { create } from "@bufbuild/protobuf";
+import { SIDEBAR_WIDTH, storedSidebarWidth } from "@open-agents/domain";
 
 /**
  * Appearance settings (stored by the gateway) as the attributes of `<html>` that layout.css reads:
@@ -47,7 +49,23 @@ export function documentAttributes(appearance: ui.AppearanceSettings | undefined
     "%oa.colorSchemeMeta%": scheme === "system" ? "light dark" : scheme,
     "%oa.accent%": accentOf(appearance),
     "%oa.chatWidth%": chatWidthOf(appearance),
+    "%oa.sidebarWidth%": String(storedSidebarWidth(appearance?.sidebarWidth ?? 0) || SIDEBAR_WIDTH.default),
+    "%oa.sidebarCollapsed%": String(appearance?.sidebarCollapsed ?? false),
+    "%oa.threadPanelCollapsed%": String(appearance?.threadPanelCollapsed ?? false),
   };
+}
+
+/** Seed the SPA from the shell's gateway settings, before any client fetch or effect can change geometry. */
+export function appearanceFromDocument(): ui.AppearanceSettings {
+  const data = document.documentElement.dataset;
+  return create(ui.AppearanceSettingsSchema, {
+    colorScheme: schemeNames[data["colorScheme"] as SchemeName] ?? ui.ColorScheme.SYSTEM,
+    accent: accentNames[data["accent"] as AccentName] ?? ui.AccentTheme.DEFAULT,
+    chatWidth: chatWidthNames[data["chatWidth"] as ChatWidthName] ?? ui.ChatWidth.COMFORTABLE,
+    sidebarWidth: Number(data["sidebarWidth"]) || SIDEBAR_WIDTH.default,
+    sidebarCollapsed: data["sidebarCollapsed"] === "true",
+    threadPanelCollapsed: data["threadPanelCollapsed"] === "true",
+  });
 }
 
 /** Applies appearance to the live document (browser only); "system" follows prefers-color-scheme. */
@@ -58,6 +76,9 @@ export function applyAppearance(appearance: ui.AppearanceSettings | undefined): 
   root.dataset["colorScheme"] = scheme;
   root.dataset["accent"] = accentOf(appearance);
   root.dataset["chatWidth"] = chatWidthOf(appearance);
+  root.dataset["sidebarWidth"] = String(appearance?.sidebarWidth || SIDEBAR_WIDTH.default);
+  root.dataset["sidebarCollapsed"] = String(appearance?.sidebarCollapsed ?? false);
+  root.dataset["threadPanelCollapsed"] = String(appearance?.threadPanelCollapsed ?? false);
   document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", scheme === "system" ? "light dark" : scheme);
 }
 
