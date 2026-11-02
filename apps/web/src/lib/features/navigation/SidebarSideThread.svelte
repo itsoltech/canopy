@@ -28,7 +28,8 @@
   {#if previous && provider}<ProviderIcon {provider} class="size-3.5 opacity-70" />{:else}
   <ThreadActivityMark {thread} size="sm">
     {#snippet idle()}
-      <Icon name={mark.icon} class={["size-3.5", mark.iconClass]} />
+      <!-- An agent's side thread (subagent) shows what it runs on; forks and your own side threads their kind. -->
+      {#if thread.spawnedByAgent && provider}<ProviderIcon {provider} class="size-3.5" />{:else}<Icon name={mark.icon} class={["size-3.5", mark.iconClass]} />{/if}
     {/snippet}
   </ThreadActivityMark>
   {/if}

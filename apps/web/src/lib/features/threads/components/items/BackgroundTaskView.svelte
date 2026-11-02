@@ -43,7 +43,7 @@
   }
 </script>
 
-<ItemFrame icon="bolt" {status} defaultOpen={running}>
+<ItemFrame icon="bolt" {status}>
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
       <span class="shrink-0">Background</span>

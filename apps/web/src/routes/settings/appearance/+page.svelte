@@ -89,11 +89,10 @@
         name="chatWidth"
         aria-label="Chat width"
         value={chatWidth}
-        onchange={(event) => settings.updateAppearance({ chatWidth: chatWidthNames[(event.currentTarget as HTMLSelectElement).value as ChatWidthName] })}
+        onchange={(value) => settings.updateAppearance({ chatWidth: chatWidthNames[value as ChatWidthName] })}
         class="w-40"
-      >
-        {#each Object.entries(chatWidthLabels) as [value, label] (value)}<option {value}>{label}</option>{/each}
-      </Select>
+        options={Object.entries(chatWidthLabels).map(([value, label]) => ({ value, label }))}
+      />
     {/snippet}
   </SettingsRow>
 </SettingsGroup>

@@ -11,7 +11,7 @@
   let { agent, status, nested }: { agent: Subagent; status: ItemStatus; nested?: Snippet | undefined } = $props();
 </script>
 
-<ItemFrame icon="user-group" {status} defaultOpen={status === ItemStatus.IN_PROGRESS}>
+<ItemFrame icon="user-group" {status}>
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
       <span class="shrink-0 font-medium text-zinc-950 dark:text-white">{humanizeToolName(agent.agentType) || "Subagent"}</span>
