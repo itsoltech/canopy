@@ -6,6 +6,80 @@ Status: **rdzeń, edytor ustawień, samodzielna edycja, archiwum i rutyny**, 202
 z właścicielem i działa w procesie gateway. Nie ma katalogu, workera ani lokalnego
 harnessu. Kod: `apps/gateway/src/bots`, kontrakt: `proto/openagents/ui/v1/bots.proto`.
 
+## Zmiana modelu — ukryte przekazanie kontekstu
+
+Prompt każdej tury podaje **aktualnego dostawcę, etykietę i id instancji, konkretne id
+modelu oraz effort**. Wyjaśnia, że wcześniejsze odpowiedzi mogły pochodzić od innych
+modeli. Pytany o swoją tożsamość bot ma podawać obecną konfigurację, także po przejściu
+z Codexa na Groka; historia rozmowy nie określa tożsamości aktualnego wykonawcy.
+
+Migracja **0045_bot_handoffs** dodaje ukryty rodzaj tury i `bot_handoff_notes`.
+Numer **0044** pozostaje zarezerwowany dla kreatora workerów. Nie dodajemy pól do
+kontraktu ani elementów UI (zakres **740–759** pozostaje wolny).
+
+Zmiana dostawcy, instancji, modelu lub effort przez `UpdateBot` albo zatwierdzone
+`update_self` zapisuje handoff **w tej samej transakcji co konfigurację**. Utworzenie
+bota, również przez innego bota, nie jest zmianą. Bot bez wcześniejszych tur nie
+wymaga przekazania; już jedna przyjęta wiadomość użytkownika może zawierać istotny fakt.
+Zmiana samej nazwy, persony czy polityki zgód nie tworzy handoffu.
+
+Źródłem jest kopia **poprzedniej konfiguracji** wraz z etykietą instancji; nie kopiujemy
+klucza ani URL endpointu. Runtime korzysta z aktualnych poświadczeń tej starej instancji.
+Przekazanie działa w `bot_turns`, z tym samym lease, fencingiem, checkpointem i kolejką
+co rutyny. Ma pierwszeństwo przed oczekującymi turami (również zatrzymanymi na zgodzie),
+ale nie przerywa aktywnej tury z ważnym lease. Następne wiadomości i rutyny czekają
+na notatkę. FIFO pomiędzy zwykłymi turami pozostaje zachowane.
+
+Źródłowy model dostaje pełną widoczną historię jak zwykła tura, stare stałe instrukcje,
+ostatnią notatkę przekazania i stan rutyn, przypomnień oraz obserwowanych wątków.
+Dodatkowo dostaje audyt ostatnich **12 tur** (także ukrytych rutyn i wyników narzędzi),
+do 6000 znaków na turę i 36000 łącznie: do 1000 znaków wejścia oraz ostatnich 8 kroków
+po wejściu tej tury, do 500 znaków tekstu na krok. Pomijamy powtórzoną widoczną historię
+z początku checkpointu. Stan rutyn/przypomnień/wątków ma osobne limity
+8000/4000/2000 znaków. **Nie dostaje żadnych narzędzi**, nawet odczytowych. Próba ich
+wywołania powoduje fallback, bez dispatchu. Notatka ma zachować pracę i otwarte wątki,
+decyzje, preferencje i ton, poznane fakty, obietnice, intencję rutyn oraz następne kroki.
+
+Notatka (maksymalnie **32000 znaków**) trafia wyłącznie do `bot_handoff_notes`, nigdy
+do `bot_messages`. Nie tworzy statusu pisania, widocznej wiadomości, karty ani unread.
+Każda kolejna tura dostaje ostatnią notatkę w system context jako
+`Handoff from your previous model (<model>)`. Poprzednie notatki zostają w bazie do
+audytu; nowy handoff dostaje ostatnią notatkę, aby przekazać wiedzę dalej. Notatka jest
+historycznym kontekstem, nie upoważnieniem do działań ani źródłem tożsamości modelu.
+Prompt każe kontynuować naturalnie, bez ogłaszania przekazania czy wspominania notatek,
+chyba że użytkownik wyraźnie o nie zapyta.
+
+### Limit, błędy i szybkie zmiany
+
+Termin handoffu to **90 sekund od zmiany konfiguracji**, zapisane w bazie. Po terminie
+anulujemy generację i zwalniamy kolejkę z notatką deterministyczną, także gdy model
+ignoruje anulowanie. Restart nie odnawia limitu. Czas oczekiwania na już aktywną zwykłą
+turę podlega jej dotychczasowemu limitowi 10 minut; handoff nie wydłuża go o nowe 90 s.
+Niedostępna/usunięta stara instancja, odwołany klucz, nieistniejący model, pusta odpowiedź
+lub błąd API także uruchamiają fallback. Log i baza przechowują wyłącznie bezpieczny kod
+`source_unavailable_or_failed` lub `deadline_exceeded`, bez treści błędu dostawcy.
+
+Fallback nie wywołuje modelu. Składa stare instrukcje (3000 znaków), aktualny stan
+rutyn/przypomnień/obserwacji (8000), poprzednią notatkę (9000) i wyciąg z ostatnich
+60 wiadomości (11000; do 1200 na wiadomość). Wyciąg jest jawnie oznaczony jako niepełny.
+Nie gwarantujemy bezstratnej pamięci przy bardzo długiej historii; dotychczasowy brak
+kompakcji pełnej rozmowy może spowodować odrzucenie generacji i użycie fallbacku.
+
+**A→B→C podczas oczekującego/aktywnego handoffu:** pozostaje jedna tura ze snapshotem
+A. Nie tworzymy pustego przekazania z B, które jeszcze nie pracowało; notatkę z A
+odbiera aktualny C. Unikalny indeks dopuszcza najwyżej jeden aktywny handoff na bota,
+a blokada bota serializuje równoczesne zapisy ustawień. Jeśli notatka A jest już
+zatwierdzona, następna zmiana tworzy zwykły łańcuch: B dostaje notatkę A i przekazuje ją
+dalej. Restart przed odpowiedzią może powtórzyć koszt generacji; zapisany checkpoint
+jest odtwarzany bez kolejnej generacji, nawet po wygaśnięciu terminu/usunięciu źródła.
+Zapis notatki i zakończenie tury są jedną transakcją; PK `turn_id` gwarantuje jedną
+notatkę na handoff, a fencing odrzuca spóźnioną odpowiedź starego wykonawcy.
+
+Weryfikacja: `tests/integration/bot-handoff.test.ts` obejmuje kolejkę, starą/nową
+konfigurację, niewidoczność, fallback, termin, usuniętą instancję, restart, łańcuch
+i `update_self`. `bot-handoff.live.test.ts` przez CLIProxyAPI uczy bota Codex faktu,
+przełącza go na Groka i sprawdza pamięć oraz aktualną tożsamość.
+
 ## Rutyny — cron działający w tle
 
 Migracja **0039_bot_routines** dodaje `bot_routines` i pochodzenie rutyny na `bot_turns`.

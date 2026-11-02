@@ -43,6 +43,9 @@ export interface BotTurn {
   status: string; checkpoint: ModelMessage[]; lease_token: string;
   reply_to_bot_id: string | null; exchange_id: string | null;
   routine_id: string | null; routine_title: string;
+  handoff_configuration: unknown | null;
+  handoff_instance_label: string | null;
+  handoff_deadline: Date | null;
 }
 export interface StoredCall {
   id: string; turn_id: string; call_key: string; tool: ToolSpec;

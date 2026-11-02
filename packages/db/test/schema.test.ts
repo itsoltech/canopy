@@ -165,7 +165,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode",
       "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage", "22_thread_titles", "23_agent_senders",
       "24_background_task_notes", "25_ask_user", "26_sidebar_threads", "27_schedules_new_thread", "28_archive_cascade", "29_schedule_edit", "30_bus_notify_delivery",
-      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider",
+      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider", "45_bot_handoffs",
     ]);
   }, 60_000);
 

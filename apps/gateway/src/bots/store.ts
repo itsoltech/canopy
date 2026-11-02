@@ -16,6 +16,7 @@ import { modelInput, storedMentions } from "./mentions.ts";
 import { nextHop } from "./policy.ts";
 import { proposedBot } from "./creation.ts";
 import { originOf, routineStore, type RoutineOrigin } from "./routines.ts";
+import { handoffStore } from "./handoffs.ts";
 import type { BotRow, BotTurn, McpConnection, ModelMessage, StoredCall, ToolSpec } from "./types.ts";
 
 interface MessageRow {
@@ -71,6 +72,7 @@ export function remoteUrl(raw: string): string {
 }
 
 function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
+  const handoffs = handoffStore(sql);
   const connections = connectorStore(sql, key);
   const owned = (user: string, id: string, lock = false) => sql.unsafe<BotRow>(
     `SELECT b.*, (SELECT count(*) FROM bot_messages m WHERE m.bot_id = b.id AND m.seq > b.last_read_seq AND m.sender_id = b.id::text AND m.recipient_id = 'user' AND m.kind = 'message') AS unread_count
@@ -171,6 +173,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     }
     // A repeated create returns the original definition rather than modifying its connections.
     const active = botConfiguration(row);
+    if (before) yield* handoffs.enqueue(row.id, before, active);
     // Unrelated bot settings saves never reset grants configured on connector accounts.
     if (!before && row.id === id || before && JSON.stringify(before.mcpServerIds) !== JSON.stringify(active.mcpServerIds)) {
       yield* sql`DELETE FROM connector_bot_grants WHERE bot_id=${row.id}::uuid AND account_id IN (SELECT id FROM connector_accounts WHERE connector_type='custom' AND NOT all_bots)`;
@@ -220,7 +223,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   const finish = (turn: BotTurn, status: string, text: string) => sql.withTransaction(Effect.gen(function* () {
     yield* fenced(turn);
     const bot = (yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.bot_id}::uuid FOR UPDATE`)[0]!;
-    if (text && !turn.routine_id) yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id)
+    if (text && !turn.routine_id && !turn.handoff_configuration) yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id)
       VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.reply_to_bot_id ?? "user"}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid)
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
     yield* sql`UPDATE bot_turns SET status = ${status}, lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = ${turn.id}::uuid`;
@@ -243,6 +246,15 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     ? sql`SELECT id FROM bot_routines WHERE id = ${turn.routine_id}::uuid AND enabled AND deleted_at IS NULL`.pipe(Effect.map((r) => r.length > 0))
     : Effect.succeed(true);
   return {
+    handoffContext: handoffs.context,
+    handoffFallback: handoffs.fallback,
+    latestHandoff: handoffs.latest,
+    finishHandoff: (turn: BotTurn, model: string, note: string, reason = "") => sql.withTransaction(Effect.gen(function* () {
+      yield* fenced(turn);
+      yield* sql`INSERT INTO bot_handoff_notes(turn_id, bot_id, model, note, fallback_reason) VALUES (${turn.id}::uuid, ${turn.bot_id}::uuid, ${model}, ${note.slice(0, 32000)}, ${reason}) ON CONFLICT(turn_id) DO NOTHING`;
+      yield* sql`UPDATE bot_turns SET status = 'completed', finished_at = now(), lease_token = NULL, lease_until = NULL WHERE id = ${turn.id}::uuid`;
+      yield* sql`UPDATE bots SET status_line = '', revision = revision + 1 WHERE id = ${turn.bot_id}::uuid`;
+    })),
     instanceLabel: (config: bots.BotConfiguration) => sql<{ label: string }>`SELECT label FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance}`
       .pipe(Effect.map((rows) => rows[0]?.label ?? config.providerInstance)),
     owned, active, save, enqueue, finish, changed, fenced, servers, resolvedServer, resolveModel,
@@ -351,7 +363,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       // A question's options are the arguments of its ask_user call (the approval id is the call id).
       const approvals = yield* sql<ApprovalRow>`SELECT a.*, t.routine_title, CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options
         FROM bot_approvals a JOIN bot_turns t ON t.id = a.turn_id LEFT JOIN bot_tool_calls c ON c.id = a.id WHERE a.bot_id = ${id}::uuid ORDER BY a.created_at, a.id`;
-      const active = yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('queued','running','waiting') AND (routine_id IS NULL OR status = 'waiting') LIMIT 1`;
+      const active = yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND status IN ('queued','running','waiting') AND (routine_id IS NULL OR status = 'waiting') LIMIT 1`;
       const reminders = yield* sql<{ id: string; prompt: string; run_at: Date }>`SELECT id, prompt, run_at FROM bot_wakeups WHERE bot_id = ${id}::uuid AND NOT delivered AND NOT cancelled ORDER BY run_at`;
       return create(bots.BotConversationSchema, { bot: create(bots.BotSchema, { ...botView(bot), lastMessage: messages.length ? messageView(messages.at(-1)!) : undefined }), messages: messages.map(messageView), approvals: approvals.map(approvalView),
         statusLine: active.length ? bot.status_line : '', working: active.length > 0, revision: BigInt(bot.revision), routines: yield* routines.routines(user, id),
@@ -361,31 +373,33 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       WHERE m.exchange_id = ${id}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND t.reply_to_bot_id IS NOT NULL AND m.message_key IN ('input','answer') ORDER BY m.seq`
       .pipe(Effect.map((r) => r.map(messageView))),
     history: (turn: BotTurn) => sql<MessageRow>`SELECT * FROM (SELECT m.*, t.created_at AS turn_created, t.id AS turn_order FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
-      WHERE m.bot_id = ${turn.bot_id}::uuid AND m.sender_id <> 'self' AND (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid)
+      WHERE m.bot_id = ${turn.bot_id}::uuid AND m.sender_id <> 'self' AND (${Boolean(turn.handoff_configuration)} OR (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid))
       ORDER BY t.created_at DESC, t.id DESC, m.seq DESC LIMIT ${turn.routine_id ? 60 : 2147483647}) recent ORDER BY turn_created, turn_order, seq`
       .pipe(Effect.map((rows): ModelMessage[] => [...rows.map((r): ModelMessage => ({ role: r.sender_id === turn.bot_id ? "assistant" : "user", text: modelInput(r.text, storedMentions(r.mentions), r.quotes) })),
-        ...(turn.routine_id ? [{ role: "user" as const, text: turn.input }] : [])])),
+        ...(turn.routine_id || turn.handoff_configuration ? [{ role: "user" as const, text: turn.input }] : [])])),
     claim: (user: string) => sql.withTransaction(Effect.gen(function* () {
-      // Lock the bot first; exactly its oldest unfinished turn can be claimed by any gateway.
-      const rows = yield* sql<BotRow>`SELECT b.* FROM bots b WHERE deleted_at IS NULL AND archived_at IS NULL AND owner_user_id = ${user}::uuid AND EXISTS (
-        SELECT 1 FROM bot_turns t WHERE t.bot_id = b.id AND t.status IN ('queued','running') AND (t.lease_until IS NULL OR t.lease_until <= now())
-          AND NOT EXISTS (SELECT 1 FROM bot_turns p WHERE p.bot_id = b.id AND p.status IN ('queued','running','waiting') AND (p.created_at, p.id) < (t.created_at, t.id)))
-        ORDER BY b.updated_at FOR UPDATE SKIP LOCKED LIMIT 1`;
+      // Handoff is a configuration barrier ahead of queued work, but never preempts a live lease.
+      const rows = yield* sql<BotRow & { next_turn_id: string }>`SELECT b.*, t.id AS next_turn_id FROM bots b
+        CROSS JOIN LATERAL (SELECT * FROM bot_turns WHERE bot_id = b.id AND status IN ('queued','running','waiting')
+          ORDER BY CASE WHEN status = 'running' AND lease_until > now() THEN 0 WHEN handoff_configuration IS NOT NULL THEN 1 ELSE 2 END, created_at, id LIMIT 1) t
+        WHERE b.deleted_at IS NULL AND b.archived_at IS NULL AND b.owner_user_id = ${user}::uuid
+          AND t.status IN ('queued','running') AND (t.lease_until IS NULL OR t.lease_until <= now())
+        ORDER BY b.updated_at FOR UPDATE OF b SKIP LOCKED LIMIT 1`;
       if (!rows[0]) return undefined;
       const id = rows[0].id;
       const token = uuid();
       const turns = yield* sql<BotTurn>`UPDATE bot_turns SET status = 'running', lease_token = ${token}::uuid, lease_until = now() + interval '30 seconds'
-        WHERE id = (SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('queued','running') ORDER BY created_at, id LIMIT 1) RETURNING *`;
+        WHERE id = ${rows[0].next_turn_id}::uuid RETURNING *`;
       const turn = turns[0]!;
       // A remote side effect may already have happened. Never repeat it after a crash.
       yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote MCP call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND tool ->> 'source' = 'mcp'`;
-      yield* sql`UPDATE bots SET status_line = ${turn.routine_id ? '' : 'Typing…'}, revision = revision + 1 WHERE id = ${id}::uuid`;
+      yield* sql`UPDATE bots SET status_line = ${turn.routine_id || turn.handoff_configuration ? '' : 'Typing…'}, revision = revision + 1 WHERE id = ${id}::uuid`;
       return turn;
     })),
     heartbeat: (turn: BotTurn) => sql`UPDATE bot_turns SET lease_until = now() + interval '30 seconds' WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid AND status = 'running' AND lease_until > now() RETURNING id`.pipe(Effect.map((r) => r.length > 0)),
     status: (turn: BotTurn, text: string) => sql.withTransaction(Effect.gen(function* () {
       yield* fenced(turn);
-      if (!turn.routine_id) yield* sql`UPDATE bots SET status_line = ${text}, revision = revision + 1 WHERE id = ${turn.bot_id}::uuid`;
+      if (!turn.routine_id && !turn.handoff_configuration) yield* sql`UPDATE bots SET status_line = ${text}, revision = revision + 1 WHERE id = ${turn.bot_id}::uuid`;
     })),
     checkpoint: (turn: BotTurn, messages: ModelMessage[]) => sql.withTransaction(Effect.gen(function* () {
       yield* fenced(turn);
@@ -457,13 +471,13 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     })),
     interrupt: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
       yield* owned(user, id, true);
-      yield* sql`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = (SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('running','waiting','queued') ORDER BY created_at, id LIMIT 1)`;
+      yield* sql`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = (SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND status IN ('running','waiting','queued') ORDER BY created_at, id LIMIT 1)`;
       yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending' AND turn_id IN (SELECT id FROM bot_turns WHERE status = 'interrupted')`;
       yield* sql`UPDATE bots SET status_line = '', revision = revision + 1 WHERE id = ${id}::uuid`;
     })),
     retry: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
       yield* active(user, id, true);
-      const last = (yield* sql<{ id: string; status: string }>`SELECT id, status FROM bot_turns WHERE bot_id = ${id}::uuid ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
+      const last = (yield* sql<{ id: string; status: string }>`SELECT id, status FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
       if (last?.status !== "failed") return yield* Effect.fail(new Invalid("only a failed last reply can be retried"));
       // The failure note goes; the same input runs again from its checkpoint.
       yield* sql`DELETE FROM bot_messages WHERE turn_id = ${last.id}::uuid AND message_key = 'answer' AND kind = 'event'`;
