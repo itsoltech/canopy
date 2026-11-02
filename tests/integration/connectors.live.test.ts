@@ -45,7 +45,7 @@ describe.skipIf(!enabled)('connectors (Codex + Claude, live CLIProxyAPI)', () =>
   for (const provider of [Provider.CODEX,Provider.CLAUDE]) test(`${Provider[provider]} calls its granted account through the worker link`, async () => {
     const marker = `CANOPY_${Provider[provider]}_${crypto.randomUUID().slice(0,8)}`;
     const before = fake.calls.length;
-    const thread = (await gw.api.createThread({ projectId,workspaceId,provider,providerProfileId: 'cliproxyapi',permissionMode: PermissionMode.FULL_AUTO,
+    const thread = (await gw.api.createThread({ projectId,workspaceId,provider,providerProfileId: 'cliproxyapi',permissionMode: provider === Provider.CLAUDE ? PermissionMode.READ_ONLY : PermissionMode.FULL_AUTO,
       model: provider === Provider.CODEX ? process.env['OA_LIVE_CODEX_MODEL'] ?? 'gpt-6.1-sol' : process.env['OA_LIVE_CLAUDE_MODEL'] ?? 'claude-haiku-5-5',
       title: `Connector ${Provider[provider]}`,initialMessage: `Call the available connector tool ${toolName} exactly once with {"marker":"${marker}"}. It is on the openagents MCP server in Claude. Discover it with ToolSearch if needed. Do not use shell, network or any other tools. Read the result and reply exactly ${marker}.`,
     })).thread!;

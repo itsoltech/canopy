@@ -380,7 +380,8 @@ const make = (options: ClaudeThreadsOptions) =>
       const busCalls = new Map<string, string[]>();
       let session: Session | undefined;
       const turnId = () => session?.turn?.turnId ?? "";
-      const busTools = [...(spec.enableAgentBus ? claudeBusToolNames(spec.depth) : []), ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : [])];
+      const busTools = [...(spec.enableAgentBus ? claudeBusToolNames(spec.depth) : []), ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : []),
+        ...spec.connectorTools.map((tool) => `mcp__${BUS_SERVER}__${tool.name}`)];
       const attachments = options.attachmentsDir?.(spec.threadId);
       const secrets = options.secretsDir?.(spec.threadId);
       const queryOptions: Options = {
@@ -394,7 +395,7 @@ const make = (options: ClaudeThreadsOptions) =>
         includePartialMessages: true,
         ...permissions.options,
         canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? false),
-        // Bus tools and view_image pass every mode (dontAsk denies whatever is not pre-approved).
+        // dontAsk denies whatever is not pre-approved. Gateway enforces connector grants and permission modes.
         allowedTools: busTools,
         ...claudeNativeToolOptions(options.nativeTools),
         // The platform stops background tasks one by one (StopTask): an interrupt spares them.
