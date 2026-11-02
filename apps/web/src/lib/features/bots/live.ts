@@ -42,7 +42,7 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
     }
     if (m.settingChanges.length) return { kind: "event", event: { id: m.id, at, kind: "info", text: m.text, actorId: botId, changes: m.settingChanges } };
     if (m.kind === "event") return { kind: "event", event: { id: m.id, at, kind: m.senderId === "system" ? "routine_created" : "info", text: m.senderId === "system" ? "Reminder" : displayText(m), ...(m.senderId === "system" && { detail: m.text }), actorId: m.senderId } };
-    return { kind: "message", message: { id: m.id, at, senderId: m.senderId === "user" ? "me" : m.senderId, text: m.text } };
+    return { kind: "message", message: { id: m.id, at, senderId: m.senderId === "user" ? "me" : m.senderId, text: m.text, mentions: m.mentions, quotes: m.quotes } };
   });
   for (const a of snapshot.approvals) entries.push(a.kind === "question" ? { kind: "question", question: questionView(a) } : { kind: "approval", approval: approvalView(a) });
   return entries;

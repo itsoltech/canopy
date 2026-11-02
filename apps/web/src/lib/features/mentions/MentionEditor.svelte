@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Mention } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
+  import type { Snippet } from "svelte";
   import {
     blockBesideCaret,
     caretAfter,
@@ -22,7 +23,7 @@
   import { blockHtml, findFences, openingFence } from "./markdown.ts";
   import MentionList from "./MentionList.svelte";
   import MentionSuggestions from "./MentionSuggestions.svelte";
-  import type { MentionOption, MentionSources } from "./sources.svelte.ts";
+  import type { MentionOption, MentionSourceSet } from "./sources.svelte.ts";
 
   /**
    * The composer's text field with inline mentions (docs/ui-api.md, "Wzmianki"): a contenteditable whose model is
@@ -56,6 +57,9 @@
     autofocus = false,
     singleLine = false,
     sources,
+    optionIcon,
+    containerClass,
+    suggestionsClass,
     triggers = new Set<TriggerChar>(["/", "$", "@", "#"]),
     anchor,
     onkeydown: forward,
@@ -73,7 +77,11 @@
     /** Clip an unfocused draft to its first line without remounting the editor or losing undo. */
     singleLine?: boolean;
     /** Where options come from; without it the field is plain text with line breaks. */
-    sources?: MentionSources | undefined;
+    sources?: MentionSourceSet | undefined;
+    optionIcon?: Snippet<[MentionOption]>;
+    /** Layout of the field and inline suggestions when embedded in a grid composer. */
+    containerClass?: ClassValue;
+    suggestionsClass?: ClassValue;
     triggers?: ReadonlySet<TriggerChar>;
     /** The popup sits above this element (the whole composer box), as wide as it. */
     anchor?: HTMLElement | undefined;
@@ -127,7 +135,7 @@
     const key = mentionsKey(mentions);
     if (!root || (text === shown.text && key === shown.key)) return;
     blocks.clear();
-    root.innerHTML = toHtml({ text, mentions }, icons);
+    root.innerHTML = toHtml({ text, mentions }, icons, sources?.renderMention);
     blocks.refresh(root);
     markTicks(root);
     shown = { text, key };
@@ -137,15 +145,15 @@
   const results = $derived(sources?.results);
   const catalogTrigger = $derived(trigger?.char === "/" || trigger?.char === "$");
   const options = $derived(trigger && results ? results.options : []);
-  const loading = $derived(catalogTrigger ? (sources?.catalogState.loading ?? false) : (results?.loading ?? false));
-  const error = $derived(catalogTrigger ? sources?.catalogState.error : results?.error);
+  const loading = $derived(catalogTrigger ? (sources?.catalogState?.loading ?? false) : (results?.loading ?? false));
+  const error = $derived(catalogTrigger ? sources?.catalogState?.error : results?.error);
   const emptyText = $derived(
-    lastChar === "/" ? "No commands match" : lastChar === "$" ? "No skills or plugins match" : lastChar === "@" ? "No files match" : "No threads match",
+    sources?.presentation?.[lastChar]?.empty ?? (lastChar === "/" ? "No commands match" : lastChar === "$" ? "No skills or plugins match" : lastChar === "@" ? "No files match" : "No threads match"),
   );
   // Catalog lists react to the catalog arriving.
   $effect(() => {
     if (trigger && catalogTrigger && sources) {
-      void sources.catalog.entries;
+      void sources.catalog?.entries;
       sources.query(trigger.char, trigger.query);
     }
   });
@@ -220,7 +228,7 @@
   }
 
   function insertChip(mention: MentionData) {
-    const html = INLINE_RENDERERS.mention.html({ type: "mention", mention }).replace("<span ", '<span data-inserted="" ');
+    const html = (sources?.renderMention?.(mention) ?? INLINE_RENDERERS.mention.html({ type: "mention", mention })).replace("<span ", '<span data-inserted="" ');
     document.execCommand("insertHTML", false, `${html}&nbsp;`);
     // Chrome leaves the caret before inserted non-editable content: put it after the chip and its space.
     const chip = root?.querySelector("[data-inserted]");
@@ -424,10 +432,11 @@
 
 <!-- The placeholder shares the text's grid cell and padding (`class`), so it sits exactly where typing starts. -->
 {#if sources}
-  <MentionSuggestions bind:open={popupOpen} {anchor} label="{label}: suggestions">
+  <MentionSuggestions bind:open={popupOpen} {anchor} label="{label}: suggestions" class={suggestionsClass}>
     <MentionList
       id="{id}-popup"
-      label={lastChar === "@" ? "Files" : lastChar === "#" ? "Threads" : lastChar === "/" ? "Commands" : "Skills and plugins"}
+      label={sources?.presentation?.[lastChar]?.label ?? (lastChar === "@" ? "Files" : lastChar === "#" ? "Threads" : lastChar === "/" ? "Commands" : "Skills and plugins")}
+      {optionIcon}
       {options}
       {active}
       {loading}
@@ -438,7 +447,7 @@
     />
   </MentionSuggestions>
 {/if}
-<div class="grid min-w-0 grid-cols-1">
+<div class={["grid min-w-0 grid-cols-1", containerClass]}>
   {#if !value && !composing && placeholder}
     <p aria-hidden="true" class={["pointer-events-none col-start-1 row-start-1 truncate text-zinc-400 select-none dark:text-zinc-500", className]}>{placeholder}</p>
   {/if}

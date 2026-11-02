@@ -149,4 +149,4 @@ export const nameTone = (id: string): string => mascotFor(id).tone.name;
  * Bots without a chosen colour use their generated tone.
  */
 export const botTextTone = (bot: { id: string; color?: string | undefined }): string =>
-  bot.color ? "text-[color-mix(in_oklab,var(--bot-color)_72%,black)] dark:text-[color-mix(in_oklab,var(--bot-color)_70%,white)]" : nameTone(bot.id);
+  bot.color ? "text-[color-mix(in_oklab,var(--bot-color)_72%,var(--bot-chip-light-target,black))] dark:text-[color-mix(in_oklab,var(--bot-color)_70%,var(--bot-chip-dark-target,white))]" : nameTone(bot.id);

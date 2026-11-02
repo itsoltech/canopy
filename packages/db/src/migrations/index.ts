@@ -32,7 +32,8 @@ import scheduleEdit from "./0029_schedule_edit.sql" with { type: "text" };
 import busNotifyDelivery from "./0030_bus_notify_delivery.sql" with { type: "text" };
 import bots from "./0031_bots.sql" with { type: "text" };
 import scratchProjects from "./0032_scratch_projects.sql" with { type: "text" };
-import botArchive from "./0033_bot_archive.sql" with { type: "text" };
+import botMentions from "./0033_bot_mentions.sql" with { type: "text" };
+import botArchive from "./0034_bot_archive.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -81,7 +82,8 @@ export const migrations = Migrator.fromRecord({
   "0030_bus_notify_delivery": sqlFile(busNotifyDelivery),
   "0031_bots": sqlFile(bots),
   "0032_scratch_projects": sqlFile(scratchProjects),
-  "0033_bot_archive": sqlFile(botArchive),
+  "0033_bot_mentions": sqlFile(botMentions),
+  "0034_bot_archive": sqlFile(botArchive),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

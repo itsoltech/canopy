@@ -81,7 +81,7 @@ Nie są stanem bota. Inne nowe komunikaty mają własny plik proto; nie zajmują
 dotychczasowych komunikatów. Tury workera uruchomione przez bota mają `trigger='bot'`,
 `bot_call_id` i dodatnie `hops`, żeby przejście przez worker nie zerowało łańcucha.
 
-Migracja **0033_bot_archive** dodaje `bots.archived_at`. Archiwizacja zachowuje konfigurację,
+Migracja **0034_bot_archive** dodaje `bots.archived_at` (po scalonej z main `0033_bot_mentions`). Archiwizacja zachowuje konfigurację,
 rozmowę i niedostarczone pobudki; soft delete nadal używa `deleted_at`. Nowe pola istniejących
 komunikatów zajmują zarezerwowany zakres: `Bot.archived`, `ListBotsRequest.include_archived`
 i `BotMessage.setting_changes` mają numer **430** w swoich komunikatach.
@@ -229,6 +229,27 @@ Pola kontraktu dodane po fazie 1 (bez migracji, wyliczane przy odczycie):
 techniczny, nie treść rozmowy. `BotApproval.options` (pole 9) — propozycje odpowiedzi
 pytania `ask_user` (do 6), odczytywane z argumentów wywołania (id zgody = id wywołania).
 
+### Wzmianki i cytaty użytkownika
+
+`SendBotMessageRequest` i `BotMessage` mają `mentions` (**450**) i `quotes` (**451**).
+`Mention.kind=BOT`, `name=bot_id`, `label=nazwa`; zakres `[start,end)` dotyczy znacznika
+`@Nazwa` w oryginalnym tekście, w jednostkach UTF-16. `Quote` jest wspólnym typem
+Threads i Bots (`quotes.proto`); zachowuje tekst, opcjonalny komentarz i metadane źródła.
+Wiadomość może zawierać same cytaty. Starsi klienci mogą nadal wysyłać sam tekst.
+
+Migracja **0033_bot_mentions.sql** dodaje do `bot_messages` kolumny JSONB `mentions`
+i `quotes`, domyślnie puste listy. Archiwum botów korzysta z następnej migracji 0034.
+Tekst w bazie i dymku nie zawiera notatek dla modelu. Gateway odrzuca niepoprawne zakresy,
+nakładanie i ponad 50 wzmianek; dopuszcza wyłącznie inne, istniejące boty właściciela,
+bez usuniętych. Nazwę dla modelu odczytuje z konfiguracji bota. Cytaty przechodzą tę samą
+walidację co Threads: do 20, tekst niepusty do 20 000 znaków, komentarz do 4 000.
+Identyfikatory źródła cytatu są wyłącznie metadanymi UI, nie nadają dostępu do rozmów.
+
+Przy odczycie historii runtime dodaje `quotesNote` przed tekstem użytkownika oraz listę
+`Mentioned bots … "Kropek" (bot_id …)` po nim. Model dostaje wybrane ID do
+`send_bot_message`, także gdy dwa boty mają tę samą nazwę. Snapshoty i checkpointy
+zachowują te dane; ponowienie `client_request_id` zwraca pierwotną turę.
+
 ### Model API, nie alias harnessu
 
 Bot wywołuje API dostawcy bezpośrednio, więc alias Claude Code (`default`, `opus`, `sonnet`,
@@ -265,16 +286,21 @@ JSON i składanych logów pracy.
   Kolejne wiadomości jednego nadawcy w odstępie < 5 min tworzą serię: mniejsze odstępy,
   ciaśniejsze narożniki od strony sąsiadów, awatar tylko przy ostatniej. Maks. szerokość
   36rem. Markdown bota dopasowany do dymka; inne boty wymienione z nazwy w tekście są
-  chipami z awatarem w ich kolorze (`BotChip`, `mentions.ts`).
+  chipami z awatarem w ich kolorze (`BotChip`, `mentions.ts`). W Twoich wiadomościach chipy
+  wynikają ze strukturalnych ID i zakresów, nie ze zgadywania nazwy. `MessageQuotes` pokazuje
+  cytaty z komentarzami nad treścią, z kontrastem dopasowanym do obu motywów dymka.
 - **Separatory czasu** tylko na początku, po zmianie dnia i po godzinie ciszy
   („Today 11:46 AM”).
 - **Status na żywo** (`BotStatusRow`): pod ostatnią wiadomością awatar bota i linia z efektem
   shimmer („Typing…”, „Searching Notion”); zmiana frazy to text swap. Gdy czeka na Ciebie,
   linia jest spokojna. Nagłówek pokazuje tylko awatar, nazwę i model. Żywe maskotki dostają
   stan z rozmowy (`stateForStatus`, błąd, nowa wiadomość jako `event`).
-- **Akcje wiadomości**: Reply (cytat do composera) i Copy pojawiają się obok dymka po
+- **Akcje wiadomości**: Reply i Copy pojawiają się obok dymka po
   najechaniu lub fokusie; na dotyku długie przytrzymanie otwiera menu. Reakcje pominięto —
-  nie ma ich w API.
+  nie ma ich w API. Reply dodaje widoczny tekst wiadomości jako kartę cytatu, bez `>` ani
+  znaczników markdown w polu. Zaznaczenie fragmentu odpowiedzi pokazuje **Cite** (także
+  Alt+Q); wspólne `CiteLayer`, `QuoteCommentPopover` i `QuoteTray` pozwalają dodać komentarz,
+  edytować go i usunąć cytat. Szkice botów mają osobne klucze `bot:<id>`.
 - **Bot ⇄ bot**: kolejne wiadomości wymian w czacie zwijają się do linii „Messaged ‹A› and
   ‹B›”, „Message from ‹A›”, „N messages with ‹A›”. Chip prowadzi do widoku wymiany
   „A ⇄ B”: wiadomości z nazwami i awatarami po lewej, separatory czasu, „Close chat” (i Esc)
@@ -285,10 +311,22 @@ JSON i składanych logów pracy.
   model — **Change model** (`ChangeModelDialog`, `UpdateBot`). Lista boczna pokazuje
   „Couldn't reply”.
 - **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (załączniki — na razie
-  niedostępne z podpowiedzią), pole „Message ‹Bot›” rosnące do kilku linii, przycisk wysyłki
-  pojawiający się z tekstem (icon swap). Enter wysyła, Shift+Enter nowa linia; na klawiaturze
+  niedostępne z podpowiedzią), wspólny `MentionEditor` z Threads zamiast textarea.
+  Markdown na żywo: pogrubienie, kursywa, kod inline i bloki kodu; wklejanie jako czysty tekst.
+  Pole „Message ‹Bot›” rośnie do `min(40dvh,16rem)`; dopiero po osiągnięciu limitu ma
+  stylowane przewijanie. Wiele linii lub cytaty zmieniają pigułkę w zaokrąglone pole,
+  z przejściem promienia na tokenach ruchu i obsługą reduced motion. Przycisk wysyłki
+  pojawia się z tekstem lub cytatem (icon swap). Enter wysyła, Shift+Enter nowa linia; na klawiaturze
   dotykowej Enter to nowa linia. Mikrofon pominięto (nic nie robi). Twoja wiadomość jest
   widoczna od razu („Sending…”), błąd wysyłki daje „Send again” z tym samym `client_request_id`.
+- **Autouzupełnianie**: tylko `@`, pozostałe boty użytkownika bez bieżącego: awatar,
+  kolor, nazwa, model jako opis, filtr fuzzy. ↑↓ i Enter/Tab wybierają, Esc zamyka;
+  dotknięcie wybiera bez utraty fokusu. Desktop ma popover, telefon/wskaźnik coarse panel
+  nad edytorem wewnątrz composera. Brak plików, skillsów oraz wyzwalaczy `/`, `$`, `#`.
+  `MentionSourceSet` oddziela edytor od źródeł. Typowany `BotMentionRegistry` ma grupy
+  `bots` i `connectors`; druga jest dziś pusta i nie ma UI zastępczego. Źródła implementują
+  `search(query) → MentionOption[]`; przyszłe konektory z MCP podłączą się do `@`
+  przez rejestr, bez zmian edytora. `botAvatarHtml` współdzieli wygląd awatara xs z `BotChip`.
 - **Przewijanie**: czat podąża za nową treścią (wiadomości, karty, status) tylko gdy jesteś
   na dole (ResizeObserver); przewinięty w górę pokazuje przycisk „Jump to the latest message”.
   Etykiety `sr-only` są pozycjonowane względem przewijanego logu — wcześniej wydłużały
@@ -335,7 +373,9 @@ stronicowanie po stronie API i wirtualizację.
   model i worker, lokalny serwer HTTP MCP wyłącznie w teście. Tworzenie i deduplikacja,
   wznowienie generacji, przerwane MCP bez powtórzenia, zgody/odrzucenie/pytania z opcjami,
   edycja zgody (`changes_requested`, nic nie wykonane), wymiana botów, powiadomienia workera
-  po restarcie, przerwanie i usunięcie, aliasy przy zapisie i w runtime, `failed` i `RetryBot`.
+  po restarcie, przerwanie i usunięcie, aliasy przy zapisie i w runtime, `failed` i `RetryBot`;
+  strukturalne wzmianki i cytaty: zapis i historia modelu, nazwy jednakowe i podrobione,
+  cudze/usunięte/brakujące ID, zakresy UTF-16, limity, cytat bez tekstu i idempotencja.
   `bots-settings.test.ts`: nowe pola `UpdateBot`, walidacja i wyścig nazw, `update_self`
   z append/replace, izolacja własnego bota, zatwierdzenie/odrzucenie modelu i polityki,
   trwałość po odtworzeniu runtime, wpis przed/po oraz archiwizacja: przerwanie generacji,
@@ -350,6 +390,9 @@ stronicowanie po stronie API i wirtualizację.
   `bots-settings.live.test.ts`: prawdziwy model przez `useLiveProxy` zmienia swoją nazwę
   i zapamiętuje angielskie odpowiedzi po prośbie użytkownika; następna polska wiadomość
   dostaje angielską odpowiedź z nową nazwą.
+- Live wzmianek: `bots-mentions.live.test.ts`, `useLiveProxy`, rzeczywisty CLIProxyAPI:
+  „ask @Kropek how he's doing” ze strukturalną wzmianką powoduje jedno `send_bot_message`
+  z dokładnie wybranym `bot_id` i odpowiedź Kropka w wymianie. Bez kluczy/hostów w repo.
 - Dowody izolacji harnessów: test przechwycenia requestu i live opisane w sekcji 1.
   Sekrety live pochodzą wyłącznie z pliku środowiska poza repozytorium; brak wartości
   w kodzie, commitach, wynikach testów i dokumentacji.
@@ -359,6 +402,9 @@ stronicowanie po stronie API i wirtualizację.
   wysyłka Enterem, karty, Edit, Retry, status, podążanie, widok wymiany, sidebar.
   Edytor i archiwum: sześć sekcji, zapis wyglądu/instrukcji/modelu/polityki, MCP add/test/detach,
   linia samodzielnej zmiany i View, oba menu, Undo, przywracanie i potwierdzone usunięcie.
+  Composer: popover i panel inline, wybór klawiaturą/dotykiem, chip w dymku, Reply bez
+  surowego markdownu, Cite z komentarzem i usuwaniem, pogrubienie/kursywa/kod/blok kodu,
+  wzrost do limitu, stylowane przewijanie i brak przepełnienia dokumentu.
 
 Dalej: rotacja nagłówków istniejących serwerów MCP w UI,
 reakcje i odpowiedzi w API, liczniki nieprzeczytanych, załączniki, harmonogramy cykliczne
