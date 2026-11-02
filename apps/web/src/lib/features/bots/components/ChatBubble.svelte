@@ -30,6 +30,7 @@
     first = true,
     last = true,
     showName = false,
+    gutter = true,
     replyToName,
     bots = [],
     onreact,
@@ -43,6 +44,8 @@
     mine?: boolean;
     first?: boolean;
     last?: boolean;
+    /** The avatar column (group chats); a 1:1 chat has none. */
+    gutter?: boolean;
     showName?: boolean;
     /** Name of the author of the quoted message. */
     replyToName?: string | undefined;
@@ -79,7 +82,7 @@
   {#if found}<BotChip bot={found.bot} />{/if}
 {/snippet}
 
-<MessageRow {sender} {side} {mine} showAvatar={last} {showName} class={["group/message", className]}>
+<MessageRow {sender} {side} {mine} showAvatar={last} {showName} {gutter} class={["group/message", className]}>
   {#if message.replyTo}
     <p class={["flex max-w-[min(85%,32rem)] items-center gap-1.5 px-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", end && "flex-row-reverse"]}>
       <Icon name="arrow-uturn-left" class="size-3.5 shrink-0 fill-zinc-400 dark:fill-zinc-500" />
