@@ -1,5 +1,5 @@
-import { afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync as makeTemp, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { clearFileSearchCache, MAX_LIMIT, MAX_WALK, searchFiles } from "./search.ts";
@@ -12,6 +12,17 @@ const make = (root: string, files: string[]) => {
 };
 
 afterEach(() => clearFileSearchCache());
+
+// Temporary folders (the huge one alone is 21k files) are removed after the run: /tmp is a small shared tmpfs.
+const temps: string[] = [];
+const mkdtempSync = (prefix: string) => {
+  const dir = makeTemp(prefix);
+  temps.push(dir);
+  return dir;
+};
+afterAll(() => {
+  for (const dir of temps) rmSync(dir, { recursive: true, force: true });
+});
 
 describe("git work tree", () => {
   let repo = "";
