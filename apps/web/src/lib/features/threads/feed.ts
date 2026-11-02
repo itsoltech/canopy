@@ -1,18 +1,22 @@
 import type { ui } from "@open-agents/contracts";
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-state.svelte.ts";
 import { buildTimeline, type ItemNode, type TimelineRow } from "./timeline.ts";
+import { foldTurns, type WorkSummary } from "./work-groups.ts";
 
 /**
  * The rows of the thread page's virtual feed, in order: a fork's inherited history (a header that folds
  * it, then per source thread an optional label and its rows, then the "Forked from" line), the thread's
  * own timeline, the working indicator, messages on their way into the running turn (steers) and queued
- * inputs (`fallback`: a steer that could not join its turn and runs next instead).
+ * inputs (`fallback`: a steer that could not join its turn and runs next instead). An ended turn's work
+ * is folded under one "Worked for …" row (`work`, see work-groups.ts), in the history as well.
  */
 export type FeedRow =
   | { readonly kind: "history-head"; readonly key: string; readonly sourceId: string; readonly threadIds: readonly string[]; readonly turns: number; readonly open: boolean }
   | { readonly kind: "history-part"; readonly key: string; readonly threadId: string }
-  /** `history`: inside the folded history (`last`: its last row). */
-  | { readonly kind: "timeline"; readonly key: string; readonly row: TimelineRow; readonly history: boolean; readonly last: boolean }
+  /** `history`: inside the folded history (`last`: its last row). `work`: under an open "Worked for …" fold. */
+  | { readonly kind: "timeline"; readonly key: string; readonly row: TimelineRow; readonly history: boolean; readonly last: boolean; readonly work: boolean }
+  /** An ended turn's folded work (`open`: its rows follow). */
+  | { readonly kind: "work"; readonly key: string; readonly turn: ui.Turn; readonly open: boolean; readonly summary: WorkSummary; readonly history: boolean; readonly last: boolean }
   | { readonly kind: "forked"; readonly key: string; readonly sourceId: string }
   | { readonly kind: "working"; readonly key: string }
   | { readonly kind: "steer"; readonly key: string; readonly steer: ui.Steer }
@@ -34,11 +38,21 @@ export interface FeedInput {
   readonly inheritedEntries: readonly TimelineEntry[];
   readonly inheritedTurns: readonly ui.Turn[];
   readonly historyOpen: boolean;
+  /** Ended turns whose work the reader opened (by turn id). */
+  readonly openWork: ReadonlySet<string>;
 }
 
 /** Group of a row for size estimates: items by their content, other rows by kind. */
 export const feedGroup = (row: FeedRow): string =>
   row.kind === "timeline" ? (row.row.kind === "item" ? `item:${row.row.node.entry.item.content.case ?? ""}` : row.row.kind) + (row.history ? ":history" : "") : row.kind;
+
+/**
+ * How a row inserted mid-feed enters (VirtualFeed `inserted`): the rows of a fold that opened unfold,
+ * a fold that formed when its turn ended resolves in. History rows opening with their header do not.
+ */
+export const feedInserted = (row: FeedRow): "unfold" | "reveal" | undefined =>
+  row.kind === "work" && !row.history ? "reveal" : row.kind === "timeline" && row.work && !row.history ? "unfold" : undefined;
+
 
 const ESTIMATES: Record<string, number> = {
   "history-head": 56,
@@ -51,6 +65,7 @@ const ESTIMATES: Record<string, number> = {
   input: 96,
   notice: 44,
   "turn-end": 40,
+  work: 36,
   "item:userMessage": 96,
   "item:agentMessage": 160,
   "item:subagent": 120,
@@ -68,6 +83,7 @@ export class FeedBuilder {
 
   build(input: FeedInput): FeedRow[] {
     const next: FeedRow[] = [];
+    const open = (turnId: string) => input.openWork.has(turnId);
     const sourceId = input.forkSourceId;
     if (sourceId && input.inheritedTurns.length > 0) {
       const parts = historyParts(sourceId, input.inheritedEntries, input.inheritedTurns, input.results, this.#nodes);
@@ -75,14 +91,20 @@ export class FeedBuilder {
       if (input.historyOpen) {
         parts.forEach((part, p) => {
           if (parts.length > 1) next.push({ kind: "history-part", key: `history:${part.threadId}`, threadId: part.threadId });
-          part.rows.forEach((row, r) =>
-            next.push({ kind: "timeline", key: `history:${part.threadId}:${row.key}`, row, history: true, last: p === parts.length - 1 && r === part.rows.length - 1 }),
-          );
+          const folded = foldTurns(part.rows, open);
+          folded.forEach((fold, r) => {
+            const last = p === parts.length - 1 && r === folded.length - 1;
+            if (fold.kind === "work") next.push({ ...fold, key: `history:${part.threadId}:${fold.key}`, history: true, last });
+            else next.push({ kind: "timeline", key: `history:${part.threadId}:${fold.row.key}`, row: fold.row, history: true, last, work: fold.work });
+          });
         });
       }
       next.push({ kind: "forked", key: "forked", sourceId });
     }
-    for (const row of buildTimeline(input.entries, input.turns, input.notices, input.results, this.#nodes)) next.push({ kind: "timeline", key: row.key, row, history: false, last: false });
+    for (const fold of foldTurns(buildTimeline(input.entries, input.turns, input.notices, input.results, this.#nodes), open)) {
+      if (fold.kind === "work") next.push({ ...fold, history: false, last: false });
+      else next.push({ kind: "timeline", key: fold.row.key, row: fold.row, history: false, last: false, work: fold.work });
+    }
     if (input.working) next.push({ kind: "working", key: "working" });
     for (const steer of input.steering) next.push({ kind: "steer", key: `steer:${steer.id}`, steer });
     const fallbacks = new Map(input.steers.filter((s) => s.queuedTurnId).map((s) => [s.queuedTurnId, s]));
@@ -122,8 +144,9 @@ function historyParts(
 
 /** Same kind and the same values (by identity) one level down, including the timeline row's fields. */
 function sameRow(a: FeedRow, b: FeedRow): boolean {
-  if (!shallowEqual(a, b, ["row", "threadIds"])) return false;
+  if (!shallowEqual(a, b, ["row", "threadIds", "summary"])) return false;
   if (a.kind === "timeline" && b.kind === "timeline") return shallowEqual(a.row, b.row);
+  if (a.kind === "work" && b.kind === "work") return shallowEqual(a.summary, b.summary);
   if (a.kind === "history-head" && b.kind === "history-head") return a.threadIds.length === b.threadIds.length && a.threadIds.every((id, i) => id === b.threadIds[i]);
   return true;
 }

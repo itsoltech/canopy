@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Rule from "#lib/shared/ui/Rule.svelte";
   import type { FeedRow } from "../feed.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import ThreadLink from "./items/ThreadLink.svelte";
@@ -7,12 +8,15 @@
   import { steeringNote } from "./message-notes.ts";
   import TimelineRowView from "./TimelineRowView.svelte";
   import TurnInput from "./TurnInput.svelte";
+  import WorkFold from "./WorkFold.svelte";
 
   /**
    * One row of the thread page's feed. Rows space themselves (bottom padding, measured with the row);
-   * the rows of a fork's inherited history share a well, folded under its header (`ontoggle`).
+   * the rows of a fork's inherited history share a well, folded under its header (`ontoggle`). An ended
+   * turn's work is one "Worked for …" row (`onwork` opens or closes it, by turn id); the rows it opened
+   * hang off a rule under its chevron.
    */
-  let { row, ontoggle }: { row: FeedRow; ontoggle: () => void } = $props();
+  let { row, ontoggle, onwork }: { row: FeedRow; ontoggle: () => void; onwork: (turnId: string) => void } = $props();
 
   const directory = useThreadDirectory();
   const well = "bg-zinc-950/2.5 px-3 dark:bg-white/4";
@@ -44,18 +48,18 @@
       <span class="shrink-0">From</span><ThreadLink threadId={row.threadId} fallback="an earlier thread" />
     </p>
   </div>
-{:else if row.kind === "timeline" && row.history}
+{:else if (row.kind === "timeline" || row.kind === "work") && row.history}
   <div class={[row.last && "pb-3"]}>
     <div class={[well, "pb-3", row.last && "rounded-b-xl"]}>
-      <div class="opacity-90"><TimelineRowView row={row.row} /></div>
+      <div class="opacity-90">{@render body(row)}</div>
     </div>
   </div>
-{:else if row.kind === "timeline"}
-  <div class="pb-3"><TimelineRowView row={row.row} /></div>
+{:else if row.kind === "timeline" || row.kind === "work"}
+  <div class="pb-3">{@render body(row)}</div>
 {:else if row.kind === "forked"}
   <div class="flex items-center gap-3 pb-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
     <span class="flex min-w-0 items-center gap-1.5"><span class="shrink-0">Forked from</span><ThreadLink threadId={row.sourceId} fallback="the source thread" /></span>
-    <span class="h-px min-w-8 flex-1 bg-zinc-950/5 dark:bg-white/10"></span>
+    <Rule class="min-w-8" />
   </div>
 {:else if row.kind === "working"}
   <p class="pb-3 text-base/6 sm:text-sm/6"><span class="shimmer inline-block py-1 font-medium">Working…</span></p>
@@ -64,3 +68,14 @@
 {:else}
   <div class="pb-3"><TurnInput turn={row.turn} text={row.turn.inputText} queued fallback={row.fallback} /></div>
 {/if}
+
+{#snippet body(row: Extract<FeedRow, { kind: "timeline" | "work" }>)}
+  {#if row.kind === "work"}
+    <WorkFold summary={row.summary} open={row.open} ontoggle={() => onwork(row.turn.id)} />
+  {:else if row.work}
+    <!-- The rule continues the fold's chevron (size-4, centred at 8px); it runs through the row gap. -->
+    <div class="-mb-3 ml-2 border-l border-zinc-950/10 pb-3 pl-4 dark:border-white/10"><TimelineRowView row={row.row} /></div>
+  {:else}
+    <TimelineRowView row={row.row} />
+  {/if}
+{/snippet}

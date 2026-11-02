@@ -25,6 +25,7 @@
 
   const working = $derived(view.running);
   let historyOpen = $state(false);
+  let openWork = $state.raw<ReadonlySet<string>>(new Set());
   const builder = new FeedBuilder();
   const rows = $derived(
     builder.build({
@@ -40,6 +41,7 @@
       inheritedEntries: view.inheritedEntries,
       inheritedTurns: view.inheritedTurns,
       historyOpen,
+      openWork,
     }),
   );
 
@@ -91,7 +93,11 @@
     <div class="min-h-0 flex-1" data-bench-scroller>
       <VirtualFeed {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} label="Timeline" busy={working}>
         {#snippet row(row: FeedRow)}
-          <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} />
+          <FeedRowView
+            {row}
+            ontoggle={() => (historyOpen = !historyOpen)}
+            onwork={(turnId) => (openWork = openWork.has(turnId) ? new Set([...openWork].filter((id) => id !== turnId)) : new Set([...openWork, turnId]))}
+          />
         {/snippet}
         {#snippet footer()}
           <div class="pt-2"><div class="h-28 rounded-2xl ring-1 ring-zinc-950/10 dark:ring-white/10"></div></div>
