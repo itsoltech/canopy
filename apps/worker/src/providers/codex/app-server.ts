@@ -30,6 +30,7 @@ export interface CodexMethods {
   "model/list": { params: v2.ModelListParams; result: v2.ModelListResponse };
   "thread/backgroundTerminals/list": { params: v2.ThreadBackgroundTerminalsListParams; result: v2.ThreadBackgroundTerminalsListResponse };
   "thread/backgroundTerminals/terminate": { params: v2.ThreadBackgroundTerminalsTerminateParams; result: v2.ThreadBackgroundTerminalsTerminateResponse };
+  "account/login/start": { params: v2.LoginAccountParams; result: v2.LoginAccountResponse };
 }
 
 /** Answers a server request (approval, user input, dynamic tool call). Throw RpcError to answer with an error. */

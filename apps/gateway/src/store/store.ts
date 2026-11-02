@@ -338,7 +338,7 @@ export class GatewayStore extends Context.Service<
                 };
                 for (const profile of document.profiles ?? []) {
                   if (profile.apiKey) return yield* Effect.fail(new Invalid(`profile ${profile.id}: pass API keys as secret references`));
-                  // Secret variables only through the profile settings (ProfileStore), which stores them encrypted.
+                  // Secret variables only through the provider instances (InstanceStore), which store them encrypted.
                   if (profile.env?.some((v) => v.secret && v.value)) return yield* Effect.fail(new Invalid(`profile ${profile.id}: secret variables go through the profile settings`));
                   const ref = profile.id ? secretRefs[profile.id] : undefined;
                   if (ref) profile.apiKey = { secretRef: ref };

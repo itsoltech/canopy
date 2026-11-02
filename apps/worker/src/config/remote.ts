@@ -1,5 +1,5 @@
-import { existsSync, realpathSync, statSync } from "node:fs";
-import { isAbsolute, relative } from "node:path";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { isAbsolute, join, relative } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import {
   ConfigAppliedSchema,
@@ -15,6 +15,7 @@ import {
   resolveProfiles,
   toProfileReport,
   type NativeToolPolicy,
+  providersOf,
   type ProfileStatus,
   type ProviderProfileConfig,
 } from "../providers/index.ts";
@@ -64,6 +65,41 @@ export interface DeviceProbe {
   /** First line of `<executable> --version`, or undefined when it cannot be run. */
   version(executable: string): string | undefined;
   realDirectory(path: string): string | undefined;
+  /**
+   * The CLI login kept in a home (Codex auth.json, Claude .credentials.json): how it authenticates, null when there is
+   * none, undefined when the device cannot tell (e.g. Claude on macOS keeps it in the Keychain). Absent = cannot tell.
+   */
+  login?(harness: "claude" | "codex", home: string): string | null | undefined;
+}
+
+/** Where provider instances live on the device (global provider instances, docs/worker-config.md, section 9). */
+export interface DeviceHomes {
+  /** The worker's data dir: default shadow homes of instances with their own login. */
+  readonly dataDir: string;
+  /** The device owner's CLI homes (the login linked by default). */
+  readonly claude: string;
+  readonly codex: string;
+  /** The worker process's environment (keys a native Claude may take from it). */
+  readonly env?: Readonly<Record<string, string | undefined>>;
+}
+
+/** The isolated home of an instance with its own login or login source when no shadow home is set. */
+export function instanceHome(dataDir: string, harness: "claude" | "codex", id: string): string {
+  return join(dataDir, "homes", `${harness}-${id}`);
+}
+
+/**
+ * The isolated home an instance runs with: its shadow home, else its own one when it keeps its own login or links
+ * another login (two logins cannot share a home), else undefined = the worker's shared home.
+ */
+export function instanceShadowHome(
+  dataDir: string,
+  harness: "claude" | "codex",
+  id: string,
+  runtime: { readonly shadowHomePath?: string; readonly homePath?: string; readonly ownLogin?: boolean } | undefined,
+): string | undefined {
+  if (runtime?.shadowHomePath) return runtime.shadowHomePath;
+  return runtime?.ownLogin || runtime?.homePath ? instanceHome(dataDir, harness, id) : undefined;
 }
 
 export const systemProbe: DeviceProbe = {
@@ -77,13 +113,33 @@ export const systemProbe: DeviceProbe = {
     const real = realpathSync(path);
     return statSync(real).isDirectory() ? real : undefined;
   },
+  login: (harness, home) => {
+    if (harness === "claude") {
+      if (existsSync(join(home, ".credentials.json"))) return "Claude account";
+      return process.platform === "darwin" ? undefined : null;
+    }
+    const file = join(home, "auth.json");
+    if (!existsSync(file)) return null;
+    try {
+      // Only the shape is read: which kind of credential is there, never its value.
+      const auth = JSON.parse(readFileSync(file, "utf8")) as { tokens?: unknown; OPENAI_API_KEY?: unknown };
+      if (auth.tokens) return "ChatGPT";
+      if (typeof auth.OPENAI_API_KEY === "string" && auth.OPENAI_API_KEY) return "OpenAI API key";
+      return null;
+    } catch {
+      return undefined;
+    }
+  },
 };
+
+/** Variables that let a native Claude authenticate without a login file. */
+const CLAUDE_KEY_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"] as const;
 
 export type ApplyResult =
   | { readonly applied: true; readonly config: AppliedConfig; readonly report: MessageInitShape<typeof ConfigAppliedSchema> }
   | { readonly applied: false; readonly report: MessageInitShape<typeof ConfigAppliedSchema> };
 
-export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = systemProbe): ApplyResult {
+export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = systemProbe, homes?: DeviceHomes): ApplyResult {
   const issues: Omit<ConfigIssue, "$typeName">[] = [];
   const issue = (path: string, message: string, fatal = false) => issues.push({ path, message, fatal });
 
@@ -115,6 +171,8 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
     // Turned off on purpose: reported with the profile, not as a configuration issue.
     if (status.problem && !status.config.disabled) issue(`profiles[${status.config.id}]`, status.problem);
   }
+  // What the device says (CLI, version, login) is reported with each instance, not as a configuration issue.
+  profiles = profiles.map((status) => inspectProfile(status, { claude, codex }, probe, homes));
 
   const limits = config.limits;
   const report = {
@@ -189,6 +247,52 @@ function providerInfo(provider: Provider, runtime: ProviderRuntime) {
   };
 }
 
+/**
+ * What the device says about an instance: its CLI version (its own executable, else the provider's) and how it
+ * authenticates. A provider that is off or missing, an executable that does not run and a native instance without
+ * any login make it unavailable (pickers leave it out); an endpoint authenticates with its key.
+ */
+function inspectProfile(
+  status: ProfileStatus,
+  runtimes: Record<"claude" | "codex", ProviderRuntime>,
+  probe: DeviceProbe,
+  homes: DeviceHomes | undefined,
+): ProfileStatus {
+  const { config } = status;
+  if (config.disabled) return status;
+  const harness = providersOf(config)[0]!;
+  const runtime = runtimes[harness];
+  const own = config.runtime?.executablePath;
+  let version = runtime.version;
+  if (!runtime.enabled) return { config, problem: runtime.problem ?? `${harness} is disabled` };
+  if (own) {
+    const line = probe.version(own);
+    if (line === undefined) return { config, problem: `${own} not found or not runnable` };
+    version = line.match(/\d+\.\d+\.\d+(?:[-+][\w.]+)?/)?.[0] ?? version;
+  }
+  const versioned = { ...status, ...(version !== undefined && { version }) };
+  if (config.kind === "cliproxyapi") return status.resolved ? { ...versioned, auth: "endpoint key", authenticated: true } : { ...versioned, authenticated: false };
+  if (!status.resolved || !homes || !probe.login) return versioned;
+
+  // Native: the instance's own login (shadow home), the device owner's (linked), or keys in the environment.
+  const vars = { ...homes.env, ...status.resolved.env };
+  if (harness === "claude" && CLAUDE_KEY_ENV.some((name) => vars[name])) return { ...versioned, auth: "Claude API key (environment)", authenticated: true };
+  const ownLogin = config.runtime?.ownLogin === true;
+  const home = ownLogin
+    ? instanceShadowHome(homes.dataDir, harness, config.id, config.runtime)
+    : runtime.linkDeviceLogin
+      ? config.runtime?.homePath || homes[harness]
+      : undefined;
+  const login = home === undefined ? null : probe.login(harness, home);
+  if (login === undefined) return versioned;
+  if (login === null) {
+    const problem = ownLogin ? "not signed in" : runtime.linkDeviceLogin ? `no ${harness === "claude" ? "Claude" : "Codex"} login on this device` : "device login is turned off for this worker";
+    const { resolved: _, ...rest } = versioned;
+    return { ...rest, problem, authenticated: false };
+  }
+  return { ...versioned, auth: login, authenticated: true };
+}
+
 function profileConfig(
   profile: WorkerConfig["profiles"][number],
   index: number,
@@ -202,6 +306,15 @@ function profileConfig(
     ...(profile.displayName && { displayName: profile.displayName }),
     ...(profile.env.length > 0 && { env: profile.env.map((v) => ({ name: v.name, value: v.value, secret: v.secret })) }),
     ...(profile.disabled && { disabled: true }),
+    ...((profile.executablePath || profile.homePath || profile.shadowHomePath || profile.launchArgs.length > 0 || profile.ownLogin) && {
+      runtime: {
+        ...(profile.executablePath && { executablePath: profile.executablePath }),
+        ...(profile.homePath && { homePath: profile.homePath }),
+        ...(profile.shadowHomePath && { shadowHomePath: profile.shadowHomePath }),
+        ...(profile.launchArgs.length > 0 && { launchArgs: [...profile.launchArgs] }),
+        ...(profile.ownLogin && { ownLogin: true }),
+      },
+    }),
   };
   switch (profile.kind) {
     case ProviderProfileKind.NATIVE:

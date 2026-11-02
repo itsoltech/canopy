@@ -28,7 +28,7 @@ import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
 import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, GatewayStore, GoalStore, Ingest, ModelStore, ProfileStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
+import { AgentBusStore, GatewayStore, GoalStore, Ingest, InstanceStore, ModelStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
 import { startGrpcServer } from "@open-agents/transport";
 import { applyWorkerConfig } from "@open-agents/worker/config";
 import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
@@ -37,7 +37,7 @@ import type { SqlClient } from "effect/sql";
 
 export const SERVICE_TOKEN = "t".repeat(48);
 
-export type TestRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | ProfileStore | SqlClient.SqlClient, unknown>;
+export type TestRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | InstanceStore | SqlClient.SqlClient, unknown>;
 
 /** The scripted worker's Codex models (native profile): what a real worker would list. */
 export const SCRIPTED_MODELS: MessageInitShape<typeof ProfileModelsSchema>[] = [
@@ -144,7 +144,11 @@ export class ScriptedWorker {
       if (payload.case === "config") {
         this.configs.push(payload.value);
         // Profiles as the real worker validates and reports them (no CLI probing: the device runs nothing).
-        const applied = applyWorkerConfig(payload.value, { which: () => null, version: () => undefined, realDirectory: (path) => path });
+        const applied = applyWorkerConfig(payload.value, {
+          which: (command) => (command === "codex" || (command === "claude" && this.options.claude) ? `/usr/bin/${command}` : null),
+          version: () => "0.164.0",
+          realDirectory: (path) => path,
+        });
         const profiles = applied.report.profiles?.length ? applied.report.profiles : [{ id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CLAUDE, Provider.CODEX], available: true }];
         this.#profiles = profiles.filter((p) => p.available && p.id !== "native" && p.providers?.includes(Provider.CODEX)).map((p) => p.id ?? "");
         // Like a real worker: what this device offers (here Codex and its profiles; Claude missing).
@@ -278,14 +282,16 @@ export async function startTestGateway(): Promise<TestGateway> {
       ModelStore.layer,
       SteerStore.layer,
       GoalStore.layer,
-      ProfileStore.layer(secretsKey),
+      InstanceStore.layer(secretsKey),
     ).pipe(Layer.provideMerge(pg.layer)),
   );
   await runtime.runPromise(migrate);
   const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
   const addWorker = async (name: string, allowedRoots: string[]) => {
     const added = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name, ownerUserId: userId })));
-    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { allowedRoots, codex: { enabled: true } }, userId)));
+    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { allowedRoots, codex: { enabled: true }, claude: { enabled: true } }, userId)));
+    // Its effective provider instances (the built-in native ones, all workers).
+    await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [added.workerId])));
     return added;
   };
   const core = new GatewayCore({ runtime, instanceId: "test", userId, log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });

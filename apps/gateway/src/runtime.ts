@@ -1,7 +1,7 @@
 import { PgClient } from "@effect/sql-pg";
 import { migrate } from "@open-agents/db";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
-import { AgentBusStore, GatewayStore, GoalStore, Ingest, loadSecretsKey, ModelStore, ProfileStore, SettingsStore, SteerStore } from "./store/index.ts";
+import { AgentBusStore, GatewayStore, GoalStore, Ingest, loadSecretsKey, InstanceStore, ModelStore, SettingsStore, SteerStore } from "./store/index.ts";
 
 /** Database-backed services of the gateway, shared by main.ts and cli.ts. */
 export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>) {
@@ -18,7 +18,7 @@ export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>
       ModelStore.layer,
       SteerStore.layer,
       GoalStore.layer,
-      ProfileStore.layer(secretsKey),
+      InstanceStore.layer(secretsKey),
     ).pipe(Layer.provideMerge(database)),
   );
 }

@@ -73,7 +73,8 @@ while (!stopping.signal.aborted) {
         host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: WORKER_VERSION },
         state: WorkerState.ACTIVE,
         // running_turns: the list below is complete, the gateway ends its other running turns of this worker.
-        capabilities: ["running_turns"],
+        // probe_providers, codex_device_login: provider instances are checked again and sign in from the app.
+        capabilities: ["running_turns", "probe_providers", "codex_device_login"],
         runningTurns: host.runningTurns(),
         configVersion: host.config?.version ?? 0n,
         ...(await runtime.runPromise(journalHello())),

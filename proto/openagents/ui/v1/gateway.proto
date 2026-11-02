@@ -57,14 +57,23 @@ service GatewayService {
   rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (UpdateWorkspaceResponse);
   rpc RemoveWorkspace(RemoveWorkspaceRequest) returns (RemoveWorkspaceResponse);
 
-  // Profile dostawców workera (sekcja na końcu pliku): własne profile, zmienne środowiskowe, wybór modeli.
-  rpc ListProviderProfiles(ListProviderProfilesRequest) returns (ListProviderProfilesResponse);
-  // Nowy albo zmieniony profil: nowa wersja konfiguracji workera, wysłana do niego od razu, gdy jest online.
-  rpc SaveProviderProfile(SaveProviderProfileRequest) returns (SaveProviderProfileResponse);
-  // Usunięcie profilu, którego nie używa żaden wątek (używany: FailedPrecondition, można go wyłączyć).
-  rpc DeleteProviderProfile(DeleteProviderProfileRequest) returns (DeleteProviderProfileResponse);
-  // Które modele katalogu profilu widać w pickerach (gateway filtruje ListModels i OverviewUpdate.models).
-  rpc SetModelSelection(SetModelSelectionRequest) returns (SetModelSelectionResponse);
+  // Globalne instancje dostawców (sekcja na końcu pliku, docs/worker-config.md, sekcja 9): definicja raz w gateway,
+  // włączenie i nadpisania per worker, synchronizacja do workerów przez ich wersjonowaną konfigurację.
+  rpc ListProviderInstances(ListProviderInstancesRequest) returns (ListProviderInstancesResponse);
+  // Nowa albo zmieniona instancja: nowe wersje konfiguracji workerów, na których działa.
+  rpc SaveProviderInstance(SaveProviderInstanceRequest) returns (SaveProviderInstanceResponse);
+  // Usunięcie instancji, której nie używa żaden wątek (używana: FailedPrecondition, można ją wyłączyć).
+  rpc DeleteProviderInstance(DeleteProviderInstanceRequest) returns (DeleteProviderInstanceResponse);
+  // Na których workerach działa instancja: wszystkie (także przyszłe) albo wybrane.
+  rpc SetInstanceWorkers(SetInstanceWorkersRequest) returns (SetInstanceWorkersResponse);
+  // Włączenie i nadpisania (ścieżki, argumenty, zmienne, endpoint) na jednym workerze.
+  rpc SetInstanceWorker(SetInstanceWorkerRequest) returns (SetInstanceWorkerResponse);
+  // Ulubione, kolejność, widoczność i własne modele instancji (pickery; bez nowej wersji konfiguracji).
+  rpc SetInstanceModels(SetInstanceModelsRequest) returns (SetInstanceModelsResponse);
+  // Ponowne sprawdzenie wersji, dostępności i logowania na workerach online (ProbeProviders).
+  rpc RefreshProviders(RefreshProvidersRequest) returns (RefreshProvidersResponse);
+  // Logowanie instancji przez API harnessu (Codex: ChatGPT kodem urządzenia).
+  rpc StartProviderLogin(StartProviderLoginRequest) returns (StartProviderLoginResponse);
 }
 
 // ---------- Model ----------
@@ -83,6 +92,8 @@ message Worker {
   uint64 applied_version = 11;
   repeated openagents.worker.v1.ConfigIssue config_issues = 12;
   google.protobuf.Timestamp last_seen_at = 13;
+  // Globalne instancje dostawców z ich stanem na tym workerze (pickery: tylko enabled i available).
+  repeated WorkerInstance provider_instances = 120;
 }
 
 message Project {
@@ -776,57 +787,17 @@ message RemoveWorkspaceRequest {
 
 message RemoveWorkspaceResponse {}
 
-// ---------- Profile dostawców ----------
-// Profil = jak harness (Claude Code, Codex) łączy się z modelem na danym workerze (docs/worker-config.md,
-// "Profile dostawców"). Profil "native" jest wbudowany: zawsze istnieje, nie da się go usunąć ani wyłączyć.
-// Sekrety (klucz API, zmienne oznaczone jako sekret) nigdy nie wracają do UI: jest tylko informacja, że są ustawione.
-
-message ProviderProfileSettings {
-  string worker_id = 1;
-  string id = 2;
-  string display_name = 3;
-  openagents.worker.v1.ProviderProfileKind kind = 4;
-  // Dostawcy, którzy mogą użyć profilu.
-  repeated openagents.worker.v1.Provider providers = 5;
-  // CLIPROXYAPI: adres endpointu.
-  string base_url = 6;
-  bool api_key_set = 7;
-  repeated ProfileEnvVarSettings env = 8;
-  bool enabled = 9;
-  bool built_in = 10;
-  // Ostatni raport workera (ConfigApplied) dla tego profilu.
-  bool available = 11;
-  string detail = 12;
-  // Wątki (niezarchiwizowane), które używają profilu.
-  uint32 thread_count = 13;
-  repeated ModelSelection model_selections = 14;
-}
+// ---------- Globalne instancje dostawców ----------
+// Instancja = dostawca (harness: Claude Code, Codex) + id, zdefiniowana raz w gateway i włączana na wybranych
+// workerach (docs/worker-config.md, sekcja 9). Wbudowane instancje "native" (logowanie CLI na urządzeniu) istnieją
+// zawsze dla obu dostawców: nie da się ich usunąć ani zmienić ich połączenia. Sekrety (klucz API, zmienne oznaczone
+// jako sekret) nigdy nie wracają do UI: jest tylko informacja, że są ustawione.
 
 message ProfileEnvVarSettings {
   string name = 1;
   bool secret = 2;
   // Tylko dla zmiennych jawnych; sekret ma zawsze pustą wartość.
   string value = 3;
-}
-
-message ModelSelection {
-  openagents.worker.v1.Provider provider = 1;
-  // Modele widoczne w pickerach.
-  repeated string shown = 2;
-  // Modele katalogu w chwili zapisu: model spoza tej listy jest nowy i decyduje o nim show_new.
-  repeated string known = 3;
-  bool show_new = 4;
-  google.protobuf.Timestamp updated_at = 5;
-}
-
-message ListProviderProfilesRequest {
-  string worker_id = 1;
-}
-
-message ListProviderProfilesResponse {
-  repeated ProviderProfileSettings profiles = 1;
-  // Wersja konfiguracji workera, z której pochodzą profile (do expected_config_version).
-  uint64 config_version = 2;
 }
 
 message ProfileEnvVarInput {
@@ -836,50 +807,209 @@ message ProfileEnvVarInput {
   optional string value = 3;
 }
 
-message SaveProviderProfileRequest {
+// Jak worker uruchamia harness instancji. Puste = ustawienia workera (izolowany katalog w data_dir, logowanie
+// urządzenia dowiązane z domyślnego katalogu domowego CLI).
+message InstanceRuntime {
+  string binary_path = 1;
+  // Katalog CLI właściciela urządzenia (CODEX_HOME / CLAUDE_CONFIG_DIR), z którego dowiązywane jest logowanie.
+  string home_path = 2;
+  // Izolowany katalog harnessu instancji (stan i sesje; z own_login także logowanie).
+  string shadow_home_path = 3;
+  repeated string launch_args = 4;
+  // Własne logowanie instancji (np. ChatGPT przez StartProviderLogin) zamiast logowania urządzenia.
+  bool own_login = 5;
+}
+
+// Modele instancji w pickerach. Model widoczny = jest w shown albo (dostawca go nie ukrywa i nie ma go w hidden).
+message InstanceModels {
+  // Ulubione w kolejności użytkownika: w pickerze pierwsze, z ⌘1…⌘9.
+  repeated string favorites = 1;
+  repeated string hidden = 2;
+  // Modele ukryte przez dostawcę (np. Codex hidden), które użytkownik pokazał.
+  repeated string shown = 3;
+  // Własne id modeli spoza katalogu (bez danych o wysiłku).
+  repeated string custom = 4;
+}
+
+// Nadpisania na jednym workerze (np. ścieżki zależne od systemu). Nieustawione = definicja globalna.
+message InstanceOverrides {
+  optional string binary_path = 1;
+  optional string home_path = 2;
+  optional string shadow_home_path = 3;
+  // launch_args_set = argumenty tego workera zastępują globalne (także pustą listą).
+  bool launch_args_set = 4;
+  repeated string launch_args = 5;
+  // Zmienne dodane albo zastąpione (po nazwie) na tym workerze.
+  repeated ProfileEnvVarSettings env = 6;
+  // Endpoint: inny adres albo klucz na tym workerze (np. inna sieć).
+  optional string base_url = 7;
+  bool api_key_set = 8;
+}
+
+message InstanceOverridesInput {
+  optional string binary_path = 1;
+  optional string home_path = 2;
+  optional string shadow_home_path = 3;
+  bool launch_args_set = 4;
+  repeated string launch_args = 5;
+  // Pełna lista zmiennych tego workera (sekret bez wartości = bez zmian).
+  repeated ProfileEnvVarInput env = 6;
+  optional string base_url = 7;
+  // Nieustawiony = bez zmian, pusty = bez własnego klucza (globalny), inaczej nowy klucz.
+  optional string api_key = 8;
+}
+
+// Instancja na jednym workerze: włączenie, nadpisania i ostatni raport workera.
+message InstanceOnWorker {
   string worker_id = 1;
-  // Pusty = nowy profil (id powstaje z nazwy).
-  string profile_id = 2;
-  string display_name = 3;
+  bool enabled = 2;
+  // Wybór zapisany dla tego workera; false = wynika z all_workers.
+  bool explicit = 3;
+  InstanceOverrides overrides = 4;
+  // Worker zgłosił instancję w ostatnim raporcie (ConfigApplied).
+  bool reported = 5;
+  bool available = 6;
+  string detail = 7;
+  string version = 8;
+  string auth = 9;
+  bool authenticated = 10;
+  // Wątki (niezarchiwizowane) instancji na tym workerze.
+  uint32 thread_count = 11;
+  google.protobuf.Timestamp checked_at = 12;
+  // Worker ma już wersję konfiguracji z bieżącą definicją instancji.
+  bool synced = 13;
+}
+
+message ProviderInstance {
+  openagents.worker.v1.Provider harness = 1;
+  // Litery, cyfry, "-" i "_" (małe litery); stałe (wątki je zapisują). Unikalne w obrębie dostawcy.
+  string id = 2;
+  string label = 3;
   openagents.worker.v1.ProviderProfileKind kind = 4;
-  repeated openagents.worker.v1.Provider providers = 5;
+  // CLIPROXYAPI: adres endpointu.
+  string base_url = 5;
+  bool api_key_set = 6;
+  repeated ProfileEnvVarSettings env = 7;
+  InstanceRuntime runtime = 8;
+  // Kolor akcentu w pickerze (#rrggbb); pusty = bez.
+  string accent_color = 9;
+  InstanceModels models = 10;
+  // Działa na wszystkich workerach (także przyszłych), poza wyłączonymi wprost.
+  bool all_workers = 11;
+  bool built_in = 12;
+  // Rośnie przy każdej zmianie definicji (expected_revision).
+  uint64 revision = 13;
+  uint32 thread_count = 14;
+  // Każdy worker (niezarchiwizowany), także te, na których instancja jest wyłączona.
+  repeated InstanceOnWorker workers = 15;
+  google.protobuf.Timestamp updated_at = 16;
+}
+
+// Instancja w Worker.provider_instances: to, czego potrzebują pickery.
+message WorkerInstance {
+  openagents.worker.v1.Provider harness = 1;
+  string id = 2;
+  string label = 3;
+  string accent_color = 4;
+  bool enabled = 5;
+  bool available = 6;
+  string detail = 7;
+  repeated string favorites = 8;
+}
+
+message ListProviderInstancesRequest {}
+
+message ListProviderInstancesResponse {
+  repeated ProviderInstance instances = 1;
+}
+
+message SaveProviderInstanceRequest {
+  openagents.worker.v1.Provider harness = 1;
+  string id = 2;
+  // true = nowa instancja (id nie może być zajęte), false = zmiana istniejącej.
+  bool create = 3;
+  string label = 4;
+  openagents.worker.v1.ProviderProfileKind kind = 5;
   string base_url = 6;
   // Nieustawiony = bez zmian, pusty = usunięcie, inaczej nowy klucz.
   optional string api_key = 7;
   // Pełna lista: zastępuje dotychczasową.
   repeated ProfileEnvVarInput env = 8;
-  bool enabled = 9;
-  // Wersja konfiguracji, którą widział klient; inna = FailedPrecondition (BFF: 409). 0 = bez sprawdzania.
-  uint64 expected_config_version = 10;
+  InstanceRuntime runtime = 9;
+  string accent_color = 10;
+  // Wersja definicji, którą widział klient; inna = FailedPrecondition (BFF: 409). 0 = bez sprawdzania.
+  uint64 expected_revision = 11;
+  // Tylko przy tworzeniu: gdzie instancja działa (jak SetInstanceWorkers).
+  bool all_workers = 12;
+  repeated string worker_ids = 13;
 }
 
-message SaveProviderProfileResponse {
-  ProviderProfileSettings profile = 1;
-  uint64 config_version = 2;
+message SaveProviderInstanceResponse {
+  ProviderInstance instance = 1;
 }
 
-message DeleteProviderProfileRequest {
+message DeleteProviderInstanceRequest {
+  openagents.worker.v1.Provider harness = 1;
+  string id = 2;
+  uint64 expected_revision = 3;
+}
+
+message DeleteProviderInstanceResponse {}
+
+message SetInstanceWorkersRequest {
+  openagents.worker.v1.Provider harness = 1;
+  string id = 2;
+  bool all_workers = 3;
+  // Bez all_workers: workery, na których instancja działa (pozostałe: wyłączona).
+  repeated string worker_ids = 4;
+}
+
+message SetInstanceWorkersResponse {
+  ProviderInstance instance = 1;
+}
+
+message SetInstanceWorkerRequest {
+  openagents.worker.v1.Provider harness = 1;
+  string id = 2;
+  string worker_id = 3;
+  // Nieustawione = bez zmian.
+  optional bool enabled = 4;
+  // Nieustawione = bez zmian; ustawione = zastępuje nadpisania tego workera.
+  InstanceOverridesInput overrides = 5;
+}
+
+message SetInstanceWorkerResponse {
+  ProviderInstance instance = 1;
+}
+
+message SetInstanceModelsRequest {
+  openagents.worker.v1.Provider harness = 1;
+  string id = 2;
+  InstanceModels models = 3;
+}
+
+message SetInstanceModelsResponse {
+  ProviderInstance instance = 1;
+}
+
+message RefreshProvidersRequest {
+  // Pusty = wszystkie workery online.
   string worker_id = 1;
-  string profile_id = 2;
-  uint64 expected_config_version = 3;
 }
 
-message DeleteProviderProfileResponse {
-  uint64 config_version = 1;
+message RefreshProvidersResponse {
+  repeated ProviderInstance instances = 1;
+  // Workery, które nie odpowiedziały (offline, starsza wersja, błąd), z powodem.
+  repeated string skipped = 2;
 }
 
-message SetModelSelectionRequest {
-  string worker_id = 1;
-  string profile_id = 2;
-  openagents.worker.v1.Provider provider = 3;
-  // true = wszystkie modele katalogu (jak bez wyboru); shown, known i show_new są wtedy pomijane.
-  bool show_all = 4;
-  repeated string shown = 5;
-  repeated string known = 6;
-  bool show_new = 7;
+message StartProviderLoginRequest {
+  openagents.worker.v1.Provider harness = 1;
+  string id = 2;
+  string worker_id = 3;
 }
 
-message SetModelSelectionResponse {
-  // Brak = wszystkie modele.
-  ModelSelection selection = 1;
+message StartProviderLoginResponse {
+  string verification_url = 1;
+  string user_code = 2;
 }

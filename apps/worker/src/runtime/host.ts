@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { clone, type MessageInitShape } from "@bufbuild/protobuf";
+import { clone, create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import {
   BackgroundTaskKind,
@@ -12,7 +12,7 @@ import {
   type Command,
   type DirectoryEntrySchema,
   type CommandResultSchema,
-  type ConfigAppliedSchema,
+  ConfigAppliedSchema,
   type InteractionRequest,
   type InteractionResponse,
   type Item,
@@ -22,16 +22,17 @@ import {
   TurnOutcome,
 } from "@open-agents/contracts";
 import { Cause, Context, Effect, Exit, Layer, Scope, type ManagedRuntime } from "effect";
-import { applyWorkerConfig, isAllowedPath, type AppliedConfig, type DeviceProbe, systemProbe } from "../config/remote.ts";
+import { applyWorkerConfig, instanceShadowHome, isAllowedPath, type AppliedConfig, type DeviceHomes, type DeviceProbe, systemProbe } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { Journal } from "../journal/index.ts";
 import { deviceClaudeHome, prepareClaudeHome } from "../providers/claude/home.ts";
-import { ClaudeThreads } from "../providers/claude/threads.ts";
+import { claudeExtraArgs, ClaudeThreads, type ClaudeInstanceRuntime } from "../providers/claude/threads.ts";
 import { deviceCodexHome, prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
+import { startCodexDeviceLogin } from "../providers/codex/login.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { claudeConfiguredEffort, readClaudeUserSettings, readCodexConfiguredEffort } from "../providers/default-effort.ts";
-import type { ResolvedProfile } from "../providers/profiles.ts";
+import { hasOwnRuntime, providersOf, type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/profiles.ts";
 import { reconcileTurn, WORKER_RESTARTED } from "../providers/reconcile.ts";
 import type { SteerError } from "../providers/turn-input.ts";
 
@@ -62,6 +63,7 @@ type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 interface CommandOutput {
   readonly entries?: DirectoryEntryInit[];
   readonly models?: ProfileModelsInit[];
+  readonly login?: { verificationUrl: string; userCode: string; loginId: string };
 }
 
 export interface WorkerHostOptions {
@@ -100,6 +102,10 @@ class CommandError extends Error {
 export class WorkerHost {
   readonly #options: WorkerHostOptions;
   #config: AppliedConfig | undefined;
+  /** The configuration as received: checked again on ProbeProviders and after a login from the app. */
+  #received: WorkerConfig | undefined;
+  /** Sign-ins from the app in progress, by provider/profile. */
+  readonly #logins = new Map<string, Promise<unknown>>();
   #link: GatewayLink | undefined;
   /** Codex runtimes by group (SHARED_CODEX, or one per profile with its own variables). */
   readonly #codex = new Map<string, ProviderRuntimeHandle<CodexThreads>>();
@@ -136,13 +142,59 @@ export class WorkerHost {
   }
 
   async applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit> {
-    const result = applyWorkerConfig(message, this.#options.probe ?? systemProbe);
+    const result = applyWorkerConfig(message, this.#options.probe ?? systemProbe, this.#homes());
     if (result.applied) {
+      this.#received = message;
       this.#config = result.config;
       await this.#reconcileRuntimes();
       void this.#publishCatalog(message.version);
     }
     return result.report;
+  }
+
+  /** Where instances live on this device (shadow homes, the device owner's logins). */
+  #homes(): DeviceHomes {
+    return { dataDir: this.#options.dataDir, claude: this.#deviceHomes.claude, codex: this.#deviceHomes.codex, env: process.env };
+  }
+
+  /**
+   * The current configuration checked again (versions, availability, logins: ProbeProviders, a finished sign-in):
+   * a new ConfigApplied for the same version, then the model catalog.
+   */
+  async #probe(): Promise<void> {
+    const received = this.#received;
+    if (!received) throw new CommandError("WORKER_NOT_CONFIGURED", "the worker has no configuration yet", false);
+    const report = await this.applyConfig(received);
+    this.#send({ case: "configApplied", value: create(ConfigAppliedSchema, report) });
+  }
+
+  /** Codex sign-in from the app for an instance with its own login (device code); finishes in the background. */
+  async #startLogin(provider: Provider, profileId: string): Promise<NonNullable<CommandOutput["login"]>> {
+    const config = this.#config;
+    if (!config) throw new CommandError("WORKER_NOT_CONFIGURED", "the worker has no configuration yet", false);
+    if (provider !== Provider.CODEX) throw new CommandError("UNSUPPORTED", "only Codex signs in from the app", true);
+    const status = config.profiles.find((p) => p.config.id === (profileId || "native") && providersOf(p.config).includes("codex"));
+    if (!status) throw new CommandError("UNKNOWN_PROFILE", `unknown provider instance codex/${profileId}`, true);
+    const runtime = status.config.runtime ?? {};
+    if (status.config.kind !== "native" || !runtime.ownLogin) throw new CommandError("UNSUPPORTED", "only an instance with its own login signs in from the app", true);
+    if (!config.codex.enabled || !config.codex.executable) throw new CommandError("PROVIDER_UNAVAILABLE", config.codex.problem ?? "codex is disabled", false);
+    const home = prepareCodexHome({ dataDir: this.#options.dataDir, path: instanceShadowHome(this.#options.dataDir, "codex", status.config.id, runtime)!, ownLogin: true, linkDeviceLogin: false });
+    const env = Object.fromEntries((status.config.env ?? []).map((v) => [v.name, v.value]));
+    const login = await startCodexDeviceLogin({
+      launch: codexAppServerLaunch([], process.env, runtime.executablePath || config.codex.executable, config.nativeTools, home.path, env),
+      clientVersion: this.#options.clientVersion,
+    }).catch((error: unknown) => {
+      throw new CommandError("LOGIN_FAILED", error instanceof Error ? error.message : String(error), false);
+    });
+    const key = `codex/${status.config.id}`;
+    const done = login.done.then(async (outcome) => {
+      this.#log(`codex sign-in of ${status.config.id}: ${outcome.success ? "signed in" : (outcome.error ?? "failed")}`);
+      this.#logins.delete(key);
+      // The new login shows in the report; Codex processes of the instance pick it up when they restart.
+      await this.#probe().catch(() => {});
+    });
+    this.#logins.set(key, done);
+    return { verificationUrl: login.verificationUrl, userCode: login.userCode, loginId: login.loginId };
   }
 
   /** Lists every provider + profile of the current config and sends the catalog (the newest run wins). */
@@ -205,6 +257,7 @@ export class WorkerHost {
         ok: true,
         ...(output.entries && { entries: output.entries }),
         ...(output.models && { models: output.models }),
+        ...(output.login && { login: output.login }),
       };
       await this.#remember(result);
       return result;
@@ -293,6 +346,11 @@ export class WorkerHost {
       }
       case "listModels":
         return { models: await this.#listModels(kind.value.provider, kind.value.profileId) };
+      case "probeProviders":
+        await this.#probe();
+        return {};
+      case "startLogin":
+        return { login: await this.#startLogin(kind.value.provider, kind.value.profileId) };
       case "interruptTurn": {
         const { threadId, turnId } = kind.value;
         // E.g. the turn died with the previous process: the gateway ends it on its side.
@@ -431,9 +489,11 @@ export class WorkerHost {
     const groups = new Map<string, CodexGroup>();
     if (!config.codex.enabled || !config.codex.executable) return groups;
     const usable = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "codex") ? [p.resolved] : []));
-    const group = (profiles: ResolvedProfile[], env: Readonly<Record<string, string>>): CodexGroup => ({
+    const group = (profiles: ResolvedProfile[], env: Readonly<Record<string, string>>, runtime: ProfileRuntimeConfig, id?: string): CodexGroup => ({
       profiles,
       env,
+      runtime,
+      ...(id !== undefined && { id }),
       key: JSON.stringify({
         executable: config.codex.executable,
         linkDeviceLogin: config.codex.linkDeviceLogin,
@@ -442,8 +502,10 @@ export class WorkerHost {
       }),
     });
     // The shared process always runs: threads of an unknown or unavailable profile get its error from it.
-    groups.set(SHARED_CODEX, group(usable.filter((p) => !hasEnv(p)), {}));
-    for (const profile of usable.filter(hasEnv)) groups.set(codexProfileGroup(profile.id), group([profile], profile.env));
+    // Variables and an own runtime (executable, homes, arguments) belong to a process: such an instance gets its own.
+    const own = (p: ResolvedProfile) => hasEnv(p) || hasOwnRuntime(p.runtime ?? {});
+    groups.set(SHARED_CODEX, group(usable.filter((p) => !own(p)), {}, {}));
+    for (const profile of usable.filter(own)) groups.set(codexProfileGroup(profile.id), group([profile], profile.env, profile.runtime ?? {}, profile.id));
     return groups;
   }
 
@@ -488,9 +550,29 @@ export class WorkerHost {
     const home = prepareClaudeHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.claude.linkDeviceLogin, deviceClaudeHome: this.#deviceHomes.claude });
     if (home.problem) this.#log(`claude home: ${home.problem}`);
     const profiles = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "claude") ? [p.resolved] : []));
+    // Instances with their own runtime: their config dir (own login or login source), executable and flags.
+    const runtimes = new Map<string, ClaudeInstanceRuntime>();
+    for (const profile of profiles) {
+      const runtime = profile.runtime ?? {};
+      if (!hasOwnRuntime(runtime)) continue;
+      const shadow = instanceShadowHome(this.#options.dataDir, "claude", profile.id, runtime);
+      const own = shadow
+        ? prepareClaudeHome({
+            dataDir: this.#options.dataDir,
+            path: shadow,
+            ...(runtime.ownLogin && { ownLogin: true }),
+            linkDeviceLogin: config.claude.linkDeviceLogin,
+            deviceClaudeHome: runtime.homePath || this.#deviceHomes.claude,
+          })
+        : home;
+      if (own.problem) this.#log(`claude home of ${profile.id}: ${own.problem}`);
+      const executable = runtime.executablePath || config.claude.executable;
+      runtimes.set(profile.id, { home: own.path, ...(executable && { executable }), extraArgs: claudeExtraArgs(runtime.launchArgs ?? []) });
+    }
     const layer = ClaudeThreads.layer({
       home: home.path,
       ...(config.claude.executable && { executable: config.claude.executable }),
+      runtimeOf: (profile) => runtimes.get(profile.id),
       nativeTools: config.nativeTools,
       baseEnv: process.env,
       configuredEffort: (names) => claudeConfiguredEffort(readClaudeUserSettings(this.#deviceHomes.claude), process.env, names),
@@ -517,13 +599,21 @@ export class WorkerHost {
   async #startCodex(name: string, group: CodexGroup): Promise<void> {
     const config = this.#config;
     if (!config) return;
-    const home = prepareCodexHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.codex.linkDeviceLogin, deviceCodexHome: this.#deviceHomes.codex });
+    const { profiles, runtime } = group;
+    const shadow = group.id !== undefined ? instanceShadowHome(this.#options.dataDir, "codex", group.id, runtime) : undefined;
+    const deviceHome = runtime.homePath || this.#deviceHomes.codex;
+    const home = prepareCodexHome({
+      dataDir: this.#options.dataDir,
+      ...(shadow && { path: shadow }),
+      ...(runtime.ownLogin && { ownLogin: true }),
+      linkDeviceLogin: config.codex.linkDeviceLogin,
+      deviceCodexHome: deviceHome,
+    });
     if (home.problem) this.#log(`codex home: ${home.problem}`);
-    const { profiles } = group;
     const layer = CodexThreads.layer({
-      launch: codexAppServerLaunch(profiles, process.env, config.codex.executable, config.nativeTools, home.path, group.env),
+      launch: codexAppServerLaunch(profiles, process.env, runtime.executablePath || config.codex.executable, config.nativeTools, home.path, group.env, runtime.launchArgs),
       clientVersion: this.#options.clientVersion,
-      configuredEffort: () => readCodexConfiguredEffort(this.#deviceHomes.codex),
+      configuredEffort: () => readCodexConfiguredEffort(deviceHome),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
       publish: (event) => this.#publish(event),
       interact: (request) => this.#interact(request),
@@ -636,6 +726,10 @@ interface CodexGroup {
   readonly profiles: ResolvedProfile[];
   /** Variables of the process (a profile's own). */
   readonly env: Readonly<Record<string, string>>;
+  /** The instance's own runtime (executable, homes, launch arguments); empty for the shared process. */
+  readonly runtime: ProfileRuntimeConfig;
+  /** The instance a process of its own serves. */
+  readonly id?: string;
 }
 
 function codexProfileGroup(profileId: string): string {

@@ -80,9 +80,36 @@ export interface ClaudeThreadsOptions {
    */
   configuredEffort?(names: readonly string[]): string | undefined;
   profile(id: string): ResolvedProfile | undefined;
+  /**
+   * An instance's own runtime (global provider instances, docs/worker-config.md, section 9): its Claude config dir,
+   * executable and Claude Code flags. Absent = the runtime's home and executable.
+   */
+  runtimeOf?(profile: ResolvedProfile): ClaudeInstanceRuntime | undefined;
   publish(event: ThreadEvent): void;
   interact(request: InteractionRequest): Promise<InteractionResponse>;
   callTool(call: AgentToolCall): Promise<AgentToolResult>;
+}
+
+export interface ClaudeInstanceRuntime {
+  readonly home: string;
+  readonly executable?: string;
+  /** Claude Code flags (`--flag value` / `--flag`). */
+  readonly extraArgs?: Record<string, string | null>;
+}
+
+/** Launch arguments as the SDK takes them: `--name value` pairs and bare flags. */
+export function claudeExtraArgs(args: readonly string[]): Record<string, string | null> {
+  const extra: Record<string, string | null> = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (!arg.startsWith("--")) continue;
+    const [name, inline] = arg.slice(2).split(/=(.*)/s, 2);
+    if (!name) continue;
+    if (inline !== undefined) extra[name] = inline;
+    else if (args[i + 1] !== undefined && !args[i + 1]!.startsWith("--")) extra[name] = args[++i]!;
+    else extra[name] = null;
+  }
+  return extra;
 }
 
 export class ClaudeThreads extends Context.Service<
@@ -128,6 +155,8 @@ interface Session {
   autoAllow: boolean;
   /** Read position in each background task's output file. */
   readonly outputs: Map<string, { offset: number; readonly decoder: TextDecoder }>;
+  /** The Claude config dir the session lives in (the instance's own, else the runtime's). */
+  readonly home: string;
   /** Read position in the session transcript (goal verdicts). */
   transcript: { path: string | undefined; offset: number; tail: string };
   /** File reads and the events they produce, one at a time. */
@@ -167,6 +196,30 @@ const make = (options: ClaudeThreadsOptions) =>
     const idleGraceMs = options.idleGraceMs ?? 3_000;
     // Session helpers (forkSession, getSessionMessages) run in this process and read CLAUDE_CONFIG_DIR here.
     process.env["CLAUDE_CONFIG_DIR"] = options.home;
+    /** The runtime of a profile: its own (an instance with its own config dir or executable), else the runtime's. */
+    const runtimeOf = (profile: ResolvedProfile): ClaudeInstanceRuntime => options.runtimeOf?.(profile) ?? { home: options.home, ...(options.executable && { executable: options.executable }) };
+    const queryRuntime = (profile: ResolvedProfile, runtime: ClaudeInstanceRuntime): Pick<Options, "env" | "settingSources" | "pathToClaudeCodeExecutable" | "extraArgs"> => ({
+      ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: runtime.home }),
+      ...(runtime.executable && { pathToClaudeCodeExecutable: runtime.executable }),
+      ...(runtime.extraArgs && Object.keys(runtime.extraArgs).length > 0 && { extraArgs: runtime.extraArgs }),
+    });
+    /**
+     * A session helper in a config dir: CLAUDE_CONFIG_DIR of this process points there meanwhile. Helpers run one at a
+     * time so two homes never mix (queries get their env explicitly and are not affected).
+     */
+    let helpers: Promise<unknown> = Promise.resolve();
+    const inHome = <A>(home: string, run: () => Promise<A>): Promise<A> => {
+      const next = helpers.then(async () => {
+        process.env["CLAUDE_CONFIG_DIR"] = home;
+        try {
+          return await run();
+        } finally {
+          process.env["CLAUDE_CONFIG_DIR"] = options.home;
+        }
+      });
+      helpers = next.catch(() => {});
+      return next;
+    };
 
     const fail = (threadId: string, operation: string) => (error: unknown) =>
       new ClaudeThreadError({ threadId, operation, message: error instanceof Error ? error.message : String(error) });
@@ -213,7 +266,7 @@ const make = (options: ClaudeThreadsOptions) =>
     const readGoalVerdicts = (session: Session) =>
       serial(session, async () => {
         const transcript = session.transcript;
-        transcript.path ??= transcriptPath(options.home, session.sessionId);
+        transcript.path ??= transcriptPath(session.home, session.sessionId);
         if (!transcript.path) return;
         const chunk = readFrom(transcript.path, transcript.offset);
         transcript.offset += chunk.length;
@@ -225,9 +278,9 @@ const make = (options: ClaudeThreadsOptions) =>
         }
       });
 
-    const sessionExists = async (sessionId: string, cwd: string) => {
+    const sessionExists = async (sessionId: string, cwd: string, home: string) => {
       try {
-        return (await getSessionMessages(sessionId, { dir: cwd })).length > 0;
+        return (await inHome(home, () => getSessionMessages(sessionId, { dir: cwd }))).length > 0;
       } catch {
         return false;
       }
@@ -272,10 +325,10 @@ const make = (options: ClaudeThreadsOptions) =>
       session.turn = { turnId, steers: new Map(), ended: false, interrupting: false };
       session.mapper.beginTurn(turnId);
       // Where Claude Code records this turn: everything after the transcript's current end.
-      const transcript = transcriptPath(options.home, session.sessionId);
+      const transcript = transcriptPath(session.home, session.sessionId);
       await Effect.runPromise(
         journal
-          .noteHarness(session.threadId, turnId, { harness: "claude", transcript: options.home, sessionId: session.sessionId, offset: transcript ? fileSize(transcript) : 0, providerTurn: "" })
+          .noteHarness(session.threadId, turnId, { harness: "claude", transcript: session.home, sessionId: session.sessionId, offset: transcript ? fileSize(transcript) : 0, providerTurn: "" })
           .pipe(Effect.ignore),
       );
       await record(session.threadId, { turnId, body: { case: "turnStarted", value: { origin, ...(model && { model }) } } });
@@ -298,7 +351,8 @@ const make = (options: ClaudeThreadsOptions) =>
       const profile = options.profile(spec.providerProfileId);
       if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);
       const sessionId = spec.providerThreadId || spec.threadId;
-      const resume = await sessionExists(sessionId, spec.cwd);
+      const runtime = runtimeOf(profile);
+      const resume = await sessionExists(sessionId, spec.cwd, runtime.home);
       const permissions = claudePermissions(mode);
       const input = new AsyncChannel<SDKUserMessage>();
       const abort = new AbortController();
@@ -310,8 +364,7 @@ const make = (options: ClaudeThreadsOptions) =>
         cwd: spec.cwd,
         ...(model && { model }),
         ...(effort && { effort }),
-        ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: options.home }),
-        ...(options.executable && { pathToClaudeCodeExecutable: options.executable }),
+        ...queryRuntime(profile, runtime),
         ...(resume ? { resume: sessionId } : { sessionId }),
         includePartialMessages: true,
         ...permissions.options,
@@ -338,7 +391,7 @@ const make = (options: ClaudeThreadsOptions) =>
         abortController: abort,
       };
       const q = query({ prompt: input, options: queryOptions });
-      const transcript = transcriptPath(options.home, sessionId);
+      const transcript = transcriptPath(runtime.home, sessionId);
       session = {
         threadId: spec.threadId,
         sessionId,
@@ -353,6 +406,7 @@ const make = (options: ClaudeThreadsOptions) =>
         mode,
         autoAllow: permissions.autoAllow,
         outputs: new Map(),
+        home: runtime.home,
         // Verdicts of earlier turns are already recorded: read only what this process adds.
         transcript: { path: transcript, offset: transcript ? fileSize(transcript) : 0, tail: "" },
         io: Promise.resolve(),
@@ -531,13 +585,17 @@ const make = (options: ClaudeThreadsOptions) =>
 
     return ClaudeThreads.of({
       create: Effect.fn("ClaudeThreads.create")(function* (spec: ThreadSpec, fork?: ForkSpec) {
+        const forkProfile = fork ? options.profile(spec.providerProfileId) : undefined;
+        const forkHome = forkProfile ? runtimeOf(forkProfile).home : options.home;
         const sessionId = fork
           ? yield* Effect.tryPromise({
               try: () =>
-                forkSession(fork.sourceProviderThreadId, {
-                  dir: spec.cwd,
-                  ...(fork.afterProviderTurnRef && { upToMessageId: fork.afterProviderTurnRef }),
-                }).then((r) => r.sessionId),
+                inHome(forkHome, () =>
+                  forkSession(fork.sourceProviderThreadId, {
+                    dir: spec.cwd,
+                    ...(fork.afterProviderTurnRef && { upToMessageId: fork.afterProviderTurnRef }),
+                  }),
+                ).then((r) => r.sessionId),
               catch: fail(spec.threadId, "fork"),
             })
           : spec.threadId;
@@ -649,10 +707,9 @@ const make = (options: ClaudeThreadsOptions) =>
             const q = query({
               prompt,
               options: {
-                cwd: options.home,
-                ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: options.home }),
+                cwd: runtimeOf(profile).home,
+                ...queryRuntime(profile, runtimeOf(profile)),
                 settingSources: [],
-                ...(options.executable && { pathToClaudeCodeExecutable: options.executable }),
                 persistSession: false,
                 strictMcpConfig: true,
                 mcpServers: {},

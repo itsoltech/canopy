@@ -18,6 +18,8 @@ if ((env["OA_MIGRATE"] ?? "1") === "1") {
 const userId = await ensureDevUser(runtime, env["OA_DEV_USER_EMAIL"] ?? "dev@localhost");
 
 const core = new GatewayCore({ runtime, instanceId: `${process.pid}@${Bun.env["HOSTNAME"] ?? "gateway"}`, userId, log: (m) => console.info(m) });
+// Workers' configurations follow the global provider instances (e.g. right after the migration to them).
+await core.syncProviderInstances();
 const certFile = env["OA_TLS_CERT"];
 const keyFile = env["OA_TLS_KEY"];
 const server = await startGrpcServer({
