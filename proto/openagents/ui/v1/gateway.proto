@@ -206,6 +206,8 @@ message Thread {
   uint32 fork_after_turn_ordinal = 191;
   // provisional | generated | user (jawny tytuł, fork lub ręczna zmiana).
   string title_source = 200;
+  // Tytuł jest właśnie generowany (automatycznie albo na żądanie): UI pokazuje, że coś się dzieje.
+  bool title_generating = 201;
 
   // Numery od 210: subagenci dowolnego dostawcy i wiadomości między wątkami (docs/agent-bus.md).
   // Jak skończyła się ostatnia zakończona tura (completed | failed | interrupted); pusty przed pierwszą.

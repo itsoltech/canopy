@@ -297,7 +297,7 @@
         {#if tree && isSide(thread) && tree.main.id !== thread.id}
           <Crumb href="/threads/{tree.main.id}"><span class="truncate max-sm:hidden">{tree.main.title}</span><span class="sm:hidden">…</span></Crumb>
         {/if}
-        <Crumb><span class="truncate">{thread.title}</span></Crumb>
+        <Crumb><span class={["truncate", thread.titleGenerating && "shimmer"]}>{thread.title}</span></Crumb>
       {:else}
         <Crumb><Skeleton class="h-4 w-48" /></Crumb>
       {/if}
