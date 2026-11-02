@@ -8,6 +8,7 @@
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
   import { FEED_END_THRESHOLD, ScrollIntent, type ReaderScroll } from "./scroll.ts";
+  import type { FeedViewport } from "./viewport.ts";
 
   /**
    * A chat's scroll area: one scroll container with the rows (`role="feed"`, virtualized) and an overlay
@@ -44,6 +45,7 @@
     atEnd = $bindable(true),
     onreaderscroll,
     onlatest,
+    onviewport,
   }: {
     rows: readonly T[];
     key: (row: T) => string;
@@ -64,6 +66,8 @@
     atEnd?: boolean;
     onreaderscroll?: (scroll: ReaderScroll) => void;
     onlatest?: () => void;
+    /** Measured visible rows (no overscan), published at most once per animation frame. */
+    onviewport?: (viewport: FeedViewport) => void;
   } = $props();
 
   const uid = $props.id();
@@ -125,6 +129,28 @@
   const padTop = $derived.by(() => (void layout, index.offset(range[0])));
   const padBottom = $derived.by(() => (void layout, layout.total - index.offset(range[1])));
   const visible = $derived(rows.slice(range[0], range[1]));
+  $effect(() => {
+    void layout;
+    const top = scrollTop - listTop;
+    const height = Math.max(0, viewport - footerHeight);
+    const callback = onviewport;
+    if (!callback || !viewport) return;
+    const frame = requestAnimationFrame(() => {
+      const [start, end] = index.range(top, top + height);
+      callback({ start, end, height });
+    });
+    return () => cancelAnimationFrame(frame);
+  });
+
+  // A start-aligned last row needs enough space below it to reach the viewport's top.
+  let alignedKey = $state<string>();
+  const alignmentSpace = $derived.by(() => {
+    void layout;
+    const at = alignedKey === undefined ? undefined : positions.get(alignedKey);
+    return at === undefined ? 0 : Math.max(0, viewport - footerHeight - (layout.total - index.offset(at)));
+  });
+  let rowTarget: string | undefined;
+  let rowTimer: ReturnType<typeof setTimeout> | undefined;
 
   // --- New rows ---------------------------------------------------------------------------------------
   /** Keys shown so far (undefined until the first rows); rows that arrive later enter until they mount. */
@@ -223,6 +249,7 @@
     observer?.disconnect();
     cancelAnimationFrame(commitFrame);
     cancelAnimationFrame(enterFrame);
+    clearTimeout(rowTimer);
   });
   // After every DOM change of the window: keep the reader's place (or the end).
   $effect(() => {
@@ -252,6 +279,19 @@
     // would undo the scroll.
     if (Math.abs(scroller.scrollTop - lastTop) >= 1) onscroll();
     if (performance.now() < smoothUntil) return;
+    if (rowTarget) {
+      const element = elements.get(rowTarget);
+      const at = positions.get(rowTarget);
+      if (at === undefined) rowTarget = undefined;
+      else if (!element) {
+        setTop(listTop + index.offset(at));
+        scrollTop = scroller.scrollTop;
+        return;
+      } else {
+        anchor = { key: rowTarget, element, top: 0 };
+        rowTarget = undefined;
+      }
+    }
     if (stuck) {
       const end = scroller.scrollHeight - scroller.clientHeight;
       if (Math.abs(scroller.scrollTop - end) >= 1) setTop(end);
@@ -290,7 +330,7 @@
     const origin = scrollIntent.origin(top, smoothUntil);
     if (origin !== "programmatic") {
       const distance = scroller.scrollHeight - top - scroller.clientHeight;
-      if (distance <= FEED_END_THRESHOLD) stuck = true;
+      if (!rowTarget && distance <= FEED_END_THRESHOLD) stuck = true;
       else if (top < lastTop - 0.5) stuck = false;
       if (origin === "reader") {
         onreaderscroll?.({ distance, up: lastTop - top });
@@ -313,6 +353,8 @@
   }
 
   function readerGesture() {
+    rowTarget = undefined;
+    clearTimeout(rowTimer);
     if (smoothUntil > 0) {
       smoothUntil = 0;
       // Stop a programmatic smooth scroll at its current position before handing control back.
@@ -334,6 +376,9 @@
 
   function jump() {
     if (!scroller) return;
+    rowTarget = undefined;
+    clearTimeout(rowTimer);
+    alignedKey = undefined;
     onlatest?.();
     stuck = true;
     const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
@@ -345,6 +390,32 @@
   }
 
   // --- Keyboard ---------------------------------------------------------------------------------------
+  /** Read-only estimated/measured row offset, relative to the start of the list. */
+  export function rowOffset(at: number): number {
+    void layout;
+    return index.offset(at);
+  }
+
+  /** Jump even to an unmounted row; measurements then keep its start exactly at the top. */
+  export async function scrollToRow(at: number, options: { align: "start"; smooth?: boolean } = { align: "start" }): Promise<boolean> {
+    const rowKey = index.keyAt(at);
+    if (!scroller || rowKey === undefined) return false;
+    stuck = false;
+    anchor = undefined;
+    alignedKey = rowKey;
+    rowTarget = rowKey;
+    clearTimeout(rowTimer);
+    await tick();
+    if (!scroller || rowTarget !== rowKey) return false;
+    const smooth = options.smooth && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    smoothUntil = smooth ? performance.now() + 1000 : 0;
+    scroller.scrollTo({ top: listTop + index.offset(at), behavior: smooth ? "smooth" : "instant" });
+    scrollTop = scroller.scrollTop;
+    // scrollend need not fire if the estimated destination was already the current position.
+    rowTimer = setTimeout(() => { smoothUntil = 0; settle(); }, smooth ? 1050 : 0);
+    return true;
+  }
+
   async function focusRow(at: number) {
     const rowKey = index.keyAt(at);
     if (rowKey === undefined || !scroller) return;
@@ -363,6 +434,10 @@
   export async function reveal(rowKey: string): Promise<boolean> {
     const at = positions.get(rowKey);
     if (at === undefined || !scroller) return false;
+    rowTarget = undefined;
+    alignedKey = undefined;
+    smoothUntil = 0;
+    clearTimeout(rowTimer);
     stuck = false;
     anchor = undefined;
     // Near its estimated place first, so the window mounts it; then exactly onto it.
@@ -498,7 +573,8 @@
         {/each}
       </div>
     </div>
-    <div aria-hidden="true" style:height="{reservedFooter}px" class="shrink-0"></div>
+    <!-- Rail alignment includes the overlay's height: the footer no longer adds flow space. -->
+    <div aria-hidden="true" style:height="{Math.max(reservedFooter, footerHeight + alignmentSpace)}px" class="shrink-0"></div>
   </div>
 </div>
 <!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,

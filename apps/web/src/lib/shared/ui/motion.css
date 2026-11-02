@@ -22,6 +22,19 @@
   scale: 1;
   transition-duration: var(--duration-fast);
 }
+
+/* Tooltip travel (17): one persistent turn preview follows the rail without reopening. */
+.t-rail-preview:popover-open {
+  transition-property: opacity, scale, translate, top, left, display, overlay;
+  transition-duration: var(--duration-quick);
+}
+.t-rail-tick {
+  transform-origin: left center;
+  transition: scale var(--duration-quick) var(--ease-smooth-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-rail-preview, .t-rail-tick { transition: none !important; }
+}
 @starting-style {
   .t-dropdown:popover-open {
     opacity: 0;
