@@ -8,7 +8,8 @@ export interface ItemNode {
 }
 
 export type TimelineRow =
-  | { readonly kind: "turn-start"; readonly key: string; readonly turn: ui.Turn }
+  /** `number`: the turn's place among the shown turns (its ordinal less the withdrawn turns before it). */
+  | { readonly kind: "turn-start"; readonly key: string; readonly turn: ui.Turn; readonly number: number }
   /** The turn's input before the provider echoes it as a user_message item. */
   | { readonly kind: "input"; readonly key: string; readonly turn: ui.Turn }
   /**
@@ -49,7 +50,8 @@ type Element = { seq: bigint; turnId: string } & ({ node: ItemNode } | { notice:
  * Orders items and notices by seq and frames each turn: a start row before its first element and an
  * end row (status, usage) after its last one. Items of other turns or between turns (background
  * work) keep their place in the sequence. Turns without any element yet (just started, or failed
- * before the provider ran) follow at the end; queued turns are not rows (the page shows them apart).
+ * before the provider ran) follow at the end; queued turns are not rows (the page shows them apart), nor
+ * are turns the user took out of the queue (`withdrawn`: deleted, or steered into another turn).
  * `nodes` keeps item nodes between builds: an unchanged item (and nested items) keeps its node object.
  */
 export function buildTimeline(
@@ -83,6 +85,9 @@ export function buildTimeline(
     ...notices.map((notice) => ({ seq: notice.seq, turnId: notice.turnId, notice })),
   ].sort((a, b) => (a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0));
 
+  const withdrawn = turns.filter((t) => t.withdrawn).map((t) => t.ordinal);
+  const number = (turn: ui.Turn) => turn.ordinal - withdrawn.filter((o) => o < turn.ordinal).length;
+  turns = turns.filter((t) => !t.withdrawn);
   const turnById = new Map(turns.map((t) => [t.id, t]));
   const lastIndex = new Map<string, number>();
   elements.forEach((element, index) => element.turnId && lastIndex.set(element.turnId, index));
@@ -92,7 +97,7 @@ export function buildTimeline(
   const opened = new Set<string>();
   const open = (turn: ui.Turn) => {
     opened.add(turn.id);
-    rows.push({ kind: "turn-start", key: `start:${turn.id}`, turn });
+    rows.push({ kind: "turn-start", key: `start:${turn.id}`, turn, number: number(turn) });
     if (!echoed.has(turn.id) && turn.inputText) rows.push({ kind: "input", key: `input:${turn.id}`, turn });
   };
   const close = (turn: ui.Turn) => {

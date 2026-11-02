@@ -13,7 +13,7 @@
    * (with the objective, when it is the goal the page knows) and, for turns without an input (provider
    * wake-up, recovery), what started it. Inputs show their own origin below.
    */
-  let { turn }: { turn: ui.Turn } = $props();
+  let { turn, number = turn.ordinal }: { turn: ui.Turn; number?: number } = $props();
   const directory = useThreadDirectory();
   const label = $derived(silentTriggerLabel(turn));
   const at = $derived(turn.startedAt ?? turn.queuedAt);
@@ -21,7 +21,7 @@
 </script>
 
 <div class="flex items-center gap-3 pt-4 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-  <span class="font-medium text-zinc-700 tabular-nums dark:text-zinc-300">Turn {turn.ordinal}</span>
+  <span class="font-medium text-zinc-700 tabular-nums dark:text-zinc-300">Turn {number}</span>
   {#if turn.goalId}
     <span class="flex min-w-0 items-center gap-1 text-sky-700 dark:text-sky-400" {@attach tooltip(goal ? `Goal (${goalLook(goal.status).label.toLowerCase()}): ${goal.objective}` : undefined)}>
       <Icon name="flag" class="size-3.5" />Goal{#if goal}<span class="sr-only">: {goal.objective.slice(0, 200)}</span>{/if}

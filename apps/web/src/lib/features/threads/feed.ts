@@ -6,9 +6,9 @@ import { foldTurns, type WorkSummary } from "./work-groups.ts";
 /**
  * The rows of the thread page's virtual feed, in order: a fork's inherited history (a header that folds
  * it, then per source thread an optional label and its rows, then the "Forked from" line), the thread's
- * own timeline, the working indicator, messages on their way into the running turn (steers) and queued
- * inputs (`fallback`: a steer that could not join its turn and runs next instead). An ended turn's work
- * is folded under one "Worked for …" row (`work`, see work-groups.ts), in the history as well.
+ * own timeline, the working indicator and messages on their way into the running turn (steers). Queued
+ * inputs are not rows: the queue panel above the composer shows and manages them (QueuePanel). An ended
+ * turn's work is folded under one "Worked for …" row (`work`, see work-groups.ts), in the history as well.
  */
 export type FeedRow =
   | { readonly kind: "history-head"; readonly key: string; readonly sourceId: string; readonly threadIds: readonly string[]; readonly turns: number; readonly open: boolean }
@@ -19,19 +19,15 @@ export type FeedRow =
   | { readonly kind: "work"; readonly key: string; readonly turn: ui.Turn; readonly open: boolean; readonly summary: WorkSummary; readonly history: boolean; readonly last: boolean }
   | { readonly kind: "forked"; readonly key: string; readonly sourceId: string }
   | { readonly kind: "working"; readonly key: string }
-  | { readonly kind: "steer"; readonly key: string; readonly steer: ui.Steer }
-  | { readonly kind: "queued"; readonly key: string; readonly turn: ui.Turn; readonly fallback: ui.Steer | undefined };
+  | { readonly kind: "steer"; readonly key: string; readonly steer: ui.Steer };
 
 export interface FeedInput {
   readonly entries: readonly TimelineEntry[];
   readonly turns: readonly ui.Turn[];
   readonly notices: readonly TimelineNotice[];
   readonly results: ReadonlyMap<string, TurnResult>;
-  readonly queued: readonly ui.Turn[];
   /** Steers not yet in the transcript (pending or accepted). */
   readonly steering: readonly ui.Steer[];
-  /** All of the thread's steers (a queued one names its turn). */
-  readonly steers: readonly ui.Steer[];
   readonly working: boolean;
   /** A fork: the thread it was forked from, and the history it inherited. */
   readonly forkSourceId?: string | undefined;
@@ -60,7 +56,6 @@ const ESTIMATES: Record<string, number> = {
   forked: 32,
   working: 36,
   steer: 96,
-  queued: 96,
   "turn-start": 36,
   input: 96,
   notice: 44,
@@ -107,8 +102,6 @@ export class FeedBuilder {
     }
     if (input.working) next.push({ kind: "working", key: "working" });
     for (const steer of input.steering) next.push({ kind: "steer", key: `steer:${steer.id}`, steer });
-    const fallbacks = new Map(input.steers.filter((s) => s.queuedTurnId).map((s) => [s.queuedTurnId, s]));
-    for (const turn of input.queued) next.push({ kind: "queued", key: `queued:${turn.id}`, turn, fallback: fallbacks.get(turn.id) });
 
     const previous = this.#rows;
     this.#rows = new Map();

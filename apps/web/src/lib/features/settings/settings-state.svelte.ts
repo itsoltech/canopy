@@ -10,9 +10,14 @@ export interface SettingsNotice {
   readonly text: string;
 }
 
-type UserSection = "appearance" | "threadDefaults" | "modelFavorites";
+type UserSection = "appearance" | "threadDefaults" | "modelFavorites" | "composer";
 
-const userSchemas = { appearance: ui.AppearanceSettingsSchema, threadDefaults: ui.ThreadDefaultsSchema, modelFavorites: ui.ModelFavoritesSchema } as const;
+const userSchemas = {
+  appearance: ui.AppearanceSettingsSchema,
+  threadDefaults: ui.ThreadDefaultsSchema,
+  modelFavorites: ui.ModelFavoritesSchema,
+  composer: ui.ComposerSettingsSchema,
+} as const;
 
 /**
  * The user's and projects' settings. The gateway keeps them (docs/ui-api.md); this is a client of it:
@@ -49,6 +54,17 @@ export class SettingsState {
 
   get modelFavorites(): readonly ui.FavoriteModel[] {
     return this.user.modelFavorites?.models ?? [];
+  }
+
+  /** What Enter does in the composer while a turn runs (Mod+Enter does the other). */
+  get runningDelivery(): "steer" | "queue" {
+    return this.user.composer?.runningDelivery === ui.MessageDelivery.QUEUE ? "queue" : "steer";
+  }
+
+  updateRunningDelivery(delivery: "steer" | "queue"): Promise<void> {
+    return this.#writeUser("composer", () =>
+      create(ui.ComposerSettingsSchema, { runningDelivery: delivery === "queue" ? ui.MessageDelivery.QUEUE : ui.MessageDelivery.STEER }),
+    );
   }
 
   projectDefaults(projectId: string): ui.ThreadDefaults {

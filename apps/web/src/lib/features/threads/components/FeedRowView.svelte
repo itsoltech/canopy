@@ -7,7 +7,6 @@
   import UserMessageView from "./items/UserMessageView.svelte";
   import { steeringNote } from "./message-notes.ts";
   import TimelineRowView from "./TimelineRowView.svelte";
-  import TurnInput from "./TurnInput.svelte";
   import WorkFold from "./WorkFold.svelte";
 
   /**
@@ -63,10 +62,8 @@
   </div>
 {:else if row.kind === "working"}
   <p class="pb-3 text-base/6 sm:text-sm/6"><span class="shimmer inline-block py-1 font-medium">Working…</span></p>
-{:else if row.kind === "steer"}
-  <div class="pb-3"><UserMessageView message={{ text: row.steer.text, authorAgentId: row.steer.sourceThreadId, attachments: [] }} note={steeringNote(row.steer)} pending /></div>
 {:else}
-  <div class="pb-3"><TurnInput turn={row.turn} text={row.turn.inputText} queued fallback={row.fallback} /></div>
+  <div class="pb-3"><UserMessageView message={{ text: row.steer.text, authorAgentId: row.steer.sourceThreadId, attachments: [] }} note={steeringNote(row.steer)} pending /></div>
 {/if}
 
 {#snippet body(row: Extract<FeedRow, { kind: "timeline" | "work" }>)}

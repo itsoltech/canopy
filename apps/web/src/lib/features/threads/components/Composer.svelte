@@ -49,6 +49,7 @@
     class?: ClassValue;
   } = $props();
 
+  const settings = useSettings();
   // The thread's provider and profile stay; only models on them are offered. `current` = the thread's default.
   const offer = useThreadModels(() => ({ thread, worker }));
   // Your choice for this thread's next messages (kept per thread; navigating to another starts fresh).
@@ -65,7 +66,6 @@
   });
 
   let text = $state("");
-  const settings = useSettings();
   const draft = new AttachmentDraft(() => limitsOf(settings?.attachmentLimits));
   let sending = $state(false);
   let stopping = $state(false);
@@ -75,9 +75,11 @@
   // One key per message: a retry after a network error reuses it, a new message gets a new one.
   let requestId = crypto.randomUUID();
 
+  // While a turn runs Enter steers, or queues when queueing is on (Settings, the queue panel's menu).
+  const primary = $derived(settings?.runningDelivery ?? "steer");
   function submit(event: SubmitEvent) {
     event.preventDefault();
-    void send(running ? "steer" : "queue");
+    void send(running ? primary : "queue");
   }
 
   async function send(delivery: Delivery) {
@@ -129,6 +131,8 @@
     {stopping}
     onstop={running ? interrupt : undefined}
     onqueue={running ? () => void send("queue") : undefined}
+    {primary}
+    onalternate={running ? () => void send("steer") : undefined}
     {draft}
   >
     {#snippet controls()}
