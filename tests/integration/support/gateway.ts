@@ -19,6 +19,7 @@ import {
   ui,
   type AgentToolResult,
   type Command,
+  type InputAttachment,
   type InteractionRequest,
   type ProfileModelsSchema,
 } from "@open-agents/contracts";
@@ -26,7 +27,8 @@ import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
 import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, GatewayStore, GoalStore, Ingest, ModelStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
+import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, ModelStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
+import type { AttachmentLimits } from "@open-agents/domain";
 import { startGrpcServer } from "@open-agents/transport";
 import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
 import { Layer, ManagedRuntime } from "effect";
@@ -34,7 +36,13 @@ import type { SqlClient } from "effect/sql";
 
 export const SERVICE_TOKEN = "t".repeat(48);
 
-export type TestRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | SqlClient.SqlClient, unknown>;
+export type TestRuntime = ManagedRuntime.ManagedRuntime<
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | AttachmentStore | SqlClient.SqlClient,
+  unknown
+>;
+
+/** Where the scripted worker keeps attachments (Hello.attachments_root). */
+export const SCRIPTED_ATTACHMENTS_ROOT = "/data/attachments";
 
 /** The scripted worker's Codex models (native profile): what a real worker would list. */
 export const SCRIPTED_MODELS: MessageInitShape<typeof ProfileModelsSchema>[] = [
@@ -56,7 +64,7 @@ export interface ScriptedWorkerOptions {
   /** Report Claude as available (default: only Codex). */
   readonly claude?: boolean;
   /** More Hello fields (e.g. capabilities and running_turns of a restarted worker). */
-  readonly hello?: Pick<MessageInitShape<typeof HelloSchema>, "capabilities" | "runningTurns">;
+  readonly hello?: Pick<MessageInitShape<typeof HelloSchema>, "capabilities" | "runningTurns" | "attachmentsRoot">;
 }
 
 /** Plays a worker: answers commands and emits the events a real provider would. */
@@ -72,6 +80,8 @@ export class ScriptedWorker {
   }[] = [];
   /** Inputs of the turns this worker ran, per thread. */
   readonly inputs = new Map<string, string[]>();
+  /** Attachments of each started turn, by turn id. */
+  readonly attachments = new Map<string, InputAttachment[]>();
   /** Model and effort each turn was started with, by turn id. */
   readonly turnSettings = new Map<string, { model: string; effort: string }>();
   /** Steers this worker got: input id -> text. */
@@ -85,6 +95,7 @@ export class ScriptedWorker {
   readonly #running = new Map<string, string>();
   readonly #seq = new Map<string, bigint>();
   readonly #toolResults = new Map<string, (result: AgentToolResult) => void>();
+  readonly #fetches = new Map<string, { chunks: Uint8Array[]; resolve: (result: { data?: Uint8Array; error?: string }) => void }>();
   constructor(
     readonly link: GatewayLink,
     readonly options: ScriptedWorkerOptions = {},
@@ -120,6 +131,23 @@ export class ScriptedWorker {
     this.emit(threadId, turnId, { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: `ct-${turnId.slice(-4)}` } });
   }
 
+  /** FetchBlob like a real worker before a turn with attachments: the bytes, or the gateway's error. */
+  fetchBlob(threadId: string, sha256: string): Promise<{ data?: Uint8Array; error?: string }> {
+    const requestId = Bun.randomUUIDv7();
+    return new Promise((resolve) => {
+      this.#fetches.set(requestId, { chunks: [], resolve });
+      this.link.send({ case: "fetchBlob", value: { requestId, threadId, sha256 } });
+    });
+  }
+
+  /** Uploads a preview (BlobChunk) in chunks of `chunkBytes`, as a worker does before the event that shows it. */
+  uploadPreview(sha256: string, data: Uint8Array, mimeType: string, chunkBytes = 64 * 1024): void {
+    for (let offset = 0; offset < data.length; offset += chunkBytes) {
+      const end = Math.min(offset + chunkBytes, data.length);
+      this.link.send({ case: "blobChunk", value: { sha256, offset: BigInt(offset), data: data.subarray(offset, end), last: end === data.length, mimeType } });
+    }
+  }
+
   ask(request: MessageInitShape<typeof ui.InteractionSchema> & Partial<InteractionRequest>): void {
     this.link.send({ case: "interactionRequest", value: request as InteractionRequest });
   }
@@ -144,6 +172,16 @@ export class ScriptedWorker {
           },
         });
         this.link.send({ case: "modelCatalog", value: { configVersion: payload.value.version, profiles: this.models } });
+      }
+      if (payload.case === "blobChunk") {
+        const fetch = this.#fetches.get(payload.value.requestId);
+        if (!fetch) continue;
+        fetch.chunks.push(payload.value.data);
+        if (payload.value.last) {
+          this.#fetches.delete(payload.value.requestId);
+          fetch.resolve(payload.value.error ? { error: payload.value.error } : { data: new Uint8Array(Buffer.concat(fetch.chunks)) });
+        }
+        continue;
       }
       if (payload.case === "interactionResponse") this.interactionAnswers.push({ requestId: payload.value.requestId, allow: payload.value.allow });
       if (payload.case === "agentToolResult") {
@@ -205,6 +243,7 @@ export class ScriptedWorker {
           const { thread, turnId, input, model, effort } = kind.value;
           const threadId = thread!.threadId;
           this.inputs.set(threadId, [...(this.inputs.get(threadId) ?? []), input!.text]);
+          this.attachments.set(turnId, input!.attachments);
           this.turnSettings.set(turnId, { model, effort });
           reply(true);
           this.emit(threadId, turnId, { case: "turnStarted", value: { providerTurnRef: `ct-${turnId.slice(-4)}`, origin: TurnOrigin.COMMAND } });
@@ -246,10 +285,19 @@ export interface TestGateway {
 }
 
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
-export async function startTestGateway(): Promise<TestGateway> {
+export async function startTestGateway(options: { attachmentLimits?: AttachmentLimits } = {}): Promise<TestGateway> {
   const pg = await startPostgres();
   const runtime: TestRuntime = ManagedRuntime.make(
-    Layer.mergeAll(GatewayStore.layer(randomBytes(32)), Ingest.layer, AgentBusStore.layer, SettingsStore.layer, ModelStore.layer, SteerStore.layer, GoalStore.layer).pipe(Layer.provideMerge(pg.layer)),
+    Layer.mergeAll(
+      GatewayStore.layer(randomBytes(32)),
+      Ingest.layer,
+      AgentBusStore.layer,
+      SettingsStore.layer,
+      ModelStore.layer,
+      SteerStore.layer,
+      GoalStore.layer,
+      AttachmentStore.layer,
+    ).pipe(Layer.provideMerge(pg.layer)),
   );
   await runtime.runPromise(migrate);
   const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
@@ -258,7 +306,7 @@ export async function startTestGateway(): Promise<TestGateway> {
     await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { allowedRoots, codex: { enabled: true } }, userId)));
     return added;
   };
-  const core = new GatewayCore({ runtime, instanceId: "test", userId, log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
+  const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
   const grpc = await startGrpcServer({
     routes: (router) => {
       core.link.routes(router);
@@ -279,7 +327,7 @@ export async function startTestGateway(): Promise<TestGateway> {
       await openGatewayLink({
         baseUrl: grpc.url,
         credential,
-        hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, ...(os && { host: { os } }), ...options?.hello },
+        hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, attachmentsRoot: SCRIPTED_ATTACHMENTS_ROOT, ...(os && { host: { os } }), ...options?.hello },
       }),
       options,
     );

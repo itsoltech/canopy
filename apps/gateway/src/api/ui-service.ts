@@ -51,6 +51,10 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
           await core.stopBackgroundTask(request);
           return create(ui.StopBackgroundTaskResponseSchema, {});
         }),
+      uploadAttachment: (request) =>
+        guard(async () => create(ui.UploadAttachmentResponseSchema, { attachment: await core.uploadAttachment(request.name, request.data) })),
+      getAttachment: (request) => guard(() => core.getAttachment(request.attachmentId, request.thumbnail)),
+      getThreadBlob: (request) => guard(() => core.getThreadBlob(request.threadId, request.sha256)),
     });
 }
 

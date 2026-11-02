@@ -6,3 +6,4 @@ export { GatewayStore, Invalid, NotFound, toUiThread, toUiTurn, type ThreadRow, 
 export { decryptSecret, encryptSecret, loadSecretsKey } from "./secrets.ts";
 export { ModelStore, modelProblem, turnEffort } from "./models.ts";
 export { SteerStore, toUiSteer, type SteerRow } from "./steers.ts";
+export { AttachmentStore, toUiAttachment, type AttachmentRow, type StoredAttachment } from "./attachments.ts";
