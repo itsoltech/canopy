@@ -36,8 +36,8 @@ export class WorkerAdministration {
     runtime: CoreRuntime; userId: string; link: WorkerLink; publicGatewayUrl?: string;
     publish: (enrollment: ui.WorkerEnrollment) => void;
     changed: () => Promise<void>;
-    removed: (workerId: string) => void;
-  }) {}
+    removed: (workerId: string) => void | Promise<void>;
+  }) { if (options.publicGatewayUrl) checkWorkerGatewayUrl(options.publicGatewayUrl); }
 
   routes = (router: ConnectRouter) => router.service(WorkerEnrollmentService, {
     enroll: (request) => workerGuard(() => this.enroll(request)),
@@ -71,6 +71,8 @@ export class WorkerAdministration {
         const rows = yield* sql<EnrollmentRow>`INSERT INTO worker_enrollments (id, owner_user_id, name, token_hash, expires_at)
           VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${name}, ${digest(token)}, now() + interval '30 minutes')
           RETURNING id, name, expires_at, used_at, revoked_at, worker_id`;
+        yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, 'worker.enrollment.create', 'worker_enrollment', ${rows[0]!.id}::uuid)`;
         return metadata(rows[0]!);
       }));
     }));
@@ -83,9 +85,14 @@ export class WorkerAdministration {
     const { runtime, userId } = this.options;
     const rows = await runtime.runPromise(Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      return yield* sql<EnrollmentRow>`UPDATE worker_enrollments SET revoked_at = now()
+      return yield* sql.withTransaction(Effect.gen(function* () {
+        const rows = yield* sql<EnrollmentRow>`UPDATE worker_enrollments SET revoked_at = now()
         WHERE id = ${id}::uuid AND owner_user_id = ${userId}::uuid AND used_at IS NULL
         RETURNING id, name, expires_at, used_at, revoked_at, worker_id`;
+        if (rows[0]) yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, 'worker.enrollment.revoke', 'worker_enrollment', ${id}::uuid)`;
+        return rows;
+      }));
     }));
     if (!rows[0]) throw new ConnectError("Pending enrollment not found", Code.NotFound);
     this.options.publish(metadata(rows[0]));
@@ -119,6 +126,8 @@ export class WorkerAdministration {
         yield* InstanceStore.use((s) => s.sync(row.owner_user_id, [workerId]));
         const updated = yield* sql<EnrollmentRow>`UPDATE worker_enrollments SET used_at = clock_timestamp(), worker_id = ${workerId}::uuid
           WHERE id = ${row.id}::uuid RETURNING id, name, expires_at, used_at, revoked_at, worker_id`;
+        yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${row.owner_user_id}::uuid, 'worker.enroll', 'worker', ${workerId}::uuid)`;
         return { workerId, credential, enrollment: metadata(updated[0]!) };
       }));
     }));
@@ -148,12 +157,14 @@ export class WorkerAdministration {
           yield* sql`UPDATE workers SET archived_at = now(), revoked_at = coalesce(revoked_at, now()) WHERE id = ${workerId}::uuid`;
           yield* sql`UPDATE project_workspaces SET archived_at = coalesce(archived_at, now()) WHERE worker_id = ${workerId}::uuid`;
         }
+        yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${`worker.${action}`}, 'worker', ${workerId}::uuid)`;
         return true;
       }));
     }));
     if (!found) throw new ConnectError("Active worker not found", Code.NotFound);
     if (action !== "rename") link.disconnect(workerId);
-    if (action === "archive") this.options.removed(workerId);
+    if (action === "archive") await this.options.removed(workerId);
     await this.options.changed();
     return credential;
   }

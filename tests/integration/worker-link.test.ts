@@ -63,6 +63,24 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
     expect(gateway.link.connections.size).toBe(0);
   });
 
+  test("credential invalidation also rejects a handshake already authenticated but waiting for config", async () => {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const isolated = await startGateway({ link: { welcome: async () => { entered.resolve(); await release.promise; return { heartbeatIntervalSeconds: 15 }; } } });
+    try {
+      const pending = connectWorker(isolated.server.url);
+      await entered.promise;
+      isolated.link.disconnect("worker-1");
+      release.resolve();
+      await expectConnectError(pending, Code.Unauthenticated);
+      expect(isolated.link.connections.size).toBe(0);
+    } finally {
+      release.resolve();
+      await isolated.link.shutdown();
+      await isolated.server.close();
+    }
+  });
+
   test("gateway pushes a command to an idle worker and gets the correlated result", async () => {
     const link = await connectWorker(gateway.server.url);
     const connection = await gateway.nextConnection();

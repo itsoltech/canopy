@@ -30,7 +30,8 @@ if (command === "enroll") {
   if (!cli.gateway || !cli.token) { console.error("--gateway and --token are required"); process.exit(64); }
   try {
     await enrollWorker({ gateway: cli.gateway, token: cli.token, configPath, ...(cli["data-dir"] && { dataDir: cli["data-dir"] }), ...(cli.force && { force: true }) });
-    console.info(`Enrolled. Config saved with mode 0600: ${resolve(configPath)}\nStart: bun apps/worker/src/main.ts --config ${JSON.stringify(resolve(configPath))}\nFor a user service: bun apps/worker/src/main.ts service --config ${JSON.stringify(resolve(configPath))}`);
+    const pathArg = `'${resolve(configPath).replaceAll("'", `'"'"'`)}'`;
+    console.info(`Enrolled. Config saved with mode 0600: ${resolve(configPath)}\nStart: bun apps/worker/src/main.ts --config ${pathArg}\nFor a user service: bun apps/worker/src/main.ts service --config ${pathArg}`);
     process.exit(0);
   } catch (error) { console.error(error instanceof Error ? error.message : "Enrollment failed"); process.exit(78); }
 }

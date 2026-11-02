@@ -41,11 +41,14 @@ stateDiagram-v2
 
 ## Uwierzytelnianie
 
-1. Użytkownik generuje w UI jednorazowy token rejestracyjny (TTL ok. 15 min, w bazie tylko hash).
-2. `WorkerEnrollmentService.Enroll` zamienia token na `worker_id` i `worker_credential`.
+1. Użytkownik generuje w UI jednorazowy token rejestracyjny (TTL 30 min, 32 losowe bajty, w bazie tylko SHA-256).
+2. Anonimowy `WorkerEnrollmentService.Enroll` na tym samym porcie gRPC zamienia token i fakty maszyny na `worker_id` i świeży `worker_credential`. Limit: 60 prób/minutę/proces gateway. Utworzenie workera/configu i zużycie tokenu są jedną transakcją; powtórne, wygasłe i odwołane tokeny dostają ten sam błąd bez odbicia wartości sekretu. Właściciel wynika wyłącznie z tokenu.
 3. Worker zapisuje je w lokalnym configu z uprawnieniami `0600` (na Windows: ACL tylko dla użytkownika).
-4. Każde `Connect` niesie `authorization: Bearer <credential>` w metadanych. Gateway sprawdza hash i czy worker nie jest unieważniony.
+4. Każde `Connect` niesie `authorization: Bearer <credential>` w metadanych. Gateway sprawdza hash i czy worker nie jest unieważniony/archiwalny. Rotacja i revoke zamykają obecny strumień i unieważniają handshaki rozpoczęte przed zmianą; stare poświadczenie nie otworzy kolejnego linku. Nie zatrzymuje to lokalnych procesów — trzeba zatrzymać usługę na urządzeniu.
 5. Docelowo: mTLS (certyfikat klienta wydany przy enrollment) albo rotowany token krótkotrwały.
+
+Kreator, CLI, konfiguracja adresu gRPC (również Tailscale) i usługi systemd/launchd:
+[worker-config.md](worker-config.md#dodanie-maszyny-z-ui).
 
 ## Dostarczanie transkryptu (at-least-once + idempotencja)
 

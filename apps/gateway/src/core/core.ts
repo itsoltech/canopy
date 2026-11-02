@@ -214,7 +214,12 @@ export class GatewayCore {
     this.workers = new WorkerAdministration({ runtime: options.runtime, userId: options.userId, link: this.link,
       ...(options.publicGatewayUrl && { publicGatewayUrl: options.publicGatewayUrl }),
       publish: (value) => this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "enrollment", value } })),
-      removed: (value) => this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "workerRemoved", value } })),
+      removed: async (value) => {
+        this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "workerRemoved", value } }));
+        for (const project of await this.#run((s) => s.listProjects(options.userId))) {
+          this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
+        }
+      },
       changed: () => this.#broadcastWorkers(),
     });
     this.secrets = new ThreadSecrets({ runtime: options.runtime, link: this.link, hub: this.hub, userId: options.userId,

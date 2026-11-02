@@ -15,6 +15,30 @@ katalog dla bota/composera/wątku i odrzuca spóźnione odpowiedzi po zmianie wi
 `ToolCall.connector_account_id/type/name` (520–522) zapewniają logo i etykietę konta
 na osi czasu; gateway kanonizuje je z własnego katalogu. [Projekt i ograniczenia](connectors.md).
 
+## Workery: kreator i zarządzanie
+
+`GetWorkerSetup` zwraca publiczny `gateway_url` (`UserSettings.worker_gateway_url`,
+pole **700**, z domyślną wartością `OA_PUBLIC_GATEWAY_URL`) oraz metadane ostatnich
+enrollmentów właściciela, bez tokenów. `UpdateUserSettings.worker_gateway_url` (optional,
+**700**) podlega `expected_version`; pusty string przywraca wartość z env. Adres musi być
+originem HTTP(S), z portem gRPC, bez userinfo, ścieżki, query ani fragmentu.
+
+| RPC | BFF | Efekt |
+|---|---|---|
+| `GetWorkerSetup` | `GET /api/workers/setup` | adres i metadane zaproszeń |
+| `CreateWorkerEnrollment`, `RevokeWorkerEnrollment` | `POST /api/workers/manage/enroll`, `revoke-enrollment` | nazwa → token zwracany raz; odwołanie tylko nieużytego zaproszenia właściciela |
+| `RenameWorker`, `RotateWorkerCredential` | `POST /api/workers/manage/rename`, `rotate` | zmiana nazwy; rotacja zwraca credential raz i zamyka link |
+| `RevokeWorker`, `ArchiveWorker` | `POST /api/workers/manage/revoke`, `archive` | odłączenie i blokada reconnect; archive dodatkowo archiwizuje worker i workspace'y |
+
+Mutacje sprawdzają właściciela w zapytaniach DB. `Worker.revoked_at` ma pole **700**;
+revoked worker zostaje na liście z `online = false`. `OverviewUpdate.worker_removed`
+(**700**) usuwa archiwalnego workera, a `enrollment` (**701**) dostarcza metadane
+zaproszenia (w tym `worker_id` po wymianie); żaden stream nie zawiera sekretu.
+Zmiany projektu po archiwizacji workspace'ów również idą przez overview.
+Kreator obserwuje istniejący `Worker` stream, wykryte CLI i używa `SetInstanceWorker`
+w ostatnim kroku. BFF ustawia `Cache-Control: no-store` na odpowiedziach zarządzania.
+Pełne zasady tokenu, usług i zachowania historii: [worker-config.md](worker-config.md#dodanie-maszyny-z-ui).
+
 ## No project i katalogi scratch
 
 `GetOverview.projects` zawiera projekt systemowy właściciela o `Project.kind = "scratch"`
@@ -136,7 +160,7 @@ flowchart LR
 ```
 
 - **Gateway jest jedynym stanem globalnym.** Przechowuje projekty, wątki, tury, transkrypty, interakcje i komendy. Orkiestruje workery.
-- **SvelteKit jest BFF.** Przeglądarka rozmawia tylko z nim, po HTTP/1.1. Serwer SvelteKit woła gateway po gRPC z prywatnym tokenem usługi, a zmiany na żywo przekazuje przeglądarce przez **SSE**. W przeglądarce nie ma adresu gateway, tokenów ani klienta gRPC.
+- **SvelteKit jest BFF.** Przeglądarka rozmawia tylko z nim, po HTTP/1.1. Serwer SvelteKit woła gateway po gRPC z prywatnym tokenem usługi, a zmiany na żywo przekazuje przeglądarce przez **SSE**. Prywatny adres BFF i token usługi zostają na serwerze. UI pokazuje publiczny adres gRPC dla workerów, token enrollment i nowy credential rotacji (sekrety jednorazowo), bez klienta gRPC.
 - **Frontend jest SPA (`ssr = false` w głównym `+layout.ts`).** adapter-node podaje powłokę i pliki statyczne, przekazuje `/api/*` do gateway i obsługuje istniejące akcje formularzy. Dane tras pobierają klientowe `+page.ts` przez `/api/*`; overview, ustawienia i katalog modeli pobierają stany funkcji. Akcje tworzenia wątku/projektu/workspace pozostają po stronie BFF: `enhance` zachowuje walidację, błędy pól i przekierowania bez SSR.
 - Gateway podaje `GatewayService` na tym samym serwerze HTTP/2 co `WorkerLinkService`. Interceptor (`serviceTokenAuth`) przepuszcza wywołania `GatewayService` tylko z tokenem usługi (`OA_UI_SERVICE_TOKEN`, porównanie odporne na pomiar czasu). Workery uwierzytelniają się osobno, w handlerze `WorkerLinkService`.
 
@@ -502,7 +526,7 @@ Polecenia palety: New thread in ‹bieżący projekt›, New thread in… (podme
 Stany: brak gateway (powłoka renderuje się dalej, baner i ponawianie), ponowne łączenie SSE, worker offline (wątek i wiadomości czekają), wątek w tworzeniu lub nieudany, ładowanie (szkielety), puste listy. Układ od telefonu (skrzynka wątków w szufladzie, panel kontekstu jako arkusz) do desktopu (pasek boczny, czat pośrodku, panel z prawej).
 
 Bezpieczeństwo:
-- przeglądarka nie zna adresu gateway ani tokenu,
+- przeglądarka nie zna prywatnego adresu BFF ani tokenu usługi; enrollment/rotacja pokazują właścicielowi nowy sekret tylko raz,
 - formularze chroni kontrola `Origin` SvelteKit (CSRF), a endpointy JSON wymagają `content-type: application/json` (formularz z innej strony go nie ustawi),
 - workspace może wskazywać dowolny istniejący katalog absolutny dostępny dla użytkownika OS workera: połączony worker sprawdza go przy dodaniu/zmianie i ponownie przy starcie wątku. Tryby uprawnień i sandboxy nadal obowiązują per wątek ([threads.md](threads.md#projekt-na-wielu-workerach-i-systemach)).
 
@@ -608,4 +632,4 @@ Powłoka odpowiada 200 także bez gateway; początkowy HTML zawiera szkielet z w
 
 - **Jeden użytkownik deweloperski** (`OA_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
 - **Jedna instancja gateway** (`Hub` w procesie).
-- Rejestracja workerów na razie przez CLI; instancje dostawców (globalne, włączane per worker), ich zmienne i modele są w UI.
+- Workery dodaje kreator Settings → Workers; administracyjny `worker add` pozostaje w CLI. Instancje dostawców (globalne, włączane per worker), ich zmienne i modele są w UI.
