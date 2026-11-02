@@ -55,7 +55,7 @@
       <li class="py-2"><ChatEventLine event={row.event} /></li>
     {:else if row.kind === "question"}
       <li class="pt-3">
-        <MessageRow sender={row.sender} showName={conversation.kind !== "direct"}>
+        <MessageRow sender={row.sender} showName={conversation.kind !== "direct"} state={row.question.answer ? "done" : "waiting"}>
           <QuestionCard
             question={row.question}
             answering={answering[row.question.id]}

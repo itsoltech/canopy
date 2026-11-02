@@ -18,6 +18,7 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import AnimatedMascotsSetting from "#lib/features/bots/components/AnimatedMascotsSetting.svelte";
 
   /** Saved in the gateway: the same on every device, changes elsewhere show up here live. */
   const settings = useSettings();
@@ -83,6 +84,7 @@
 </section>
 
 <SettingsGroup title="Interface">
+  <AnimatedMascotsSetting />
   <SettingsRow title="Chat width" description="How wide the conversation and the message box are.">
     {#snippet control()}
       <Select
