@@ -53,7 +53,6 @@
     quotes={turn.quotes}
     note={queuedNote(queued, fallback)}
     pending={queued}
-    details={rich && text !== parts.message ? fullText : undefined}
   />
 {:else}
   <div class="flex flex-col items-end gap-1">
@@ -115,19 +114,14 @@
       {:else}
         <Markdown text={parts.message} breaks class="text-inherit dark:text-inherit" />
       {/if}
-      {#if parts.note}
+      <!-- What the platform added for the agent (notes on mentions, quotes, files, the source) stays out of
+           sight; only a side thread's question shows its request, since the bubble does not carry it. -->
+      {#if parts.note && origin.kind === "question"}
         <Disclosure remember="full-text" class="mt-2" summaryClass="text-sm/6 opacity-80 sm:text-xs/6">
-          {#snippet summary()}{origin.kind === "question" ? "Request sent to the agent" : "Full text the agent received"}{/snippet}
-          <CodeBlock {text} label="Full text the agent received" class="mt-2" />
+          {#snippet summary()}Request sent to the agent{/snippet}
+          <CodeBlock {text} label="Request sent to the agent" class="mt-2" />
         </Disclosure>
       {/if}
     </div>
   </div>
 {/if}
-
-{#snippet fullText()}
-  <Disclosure remember="full-text" class={parts.message.trim() && "mt-2"} summaryClass="text-sm/6 opacity-80 sm:text-xs/6">
-    {#snippet summary()}Full text the agent received{/snippet}
-    <CodeBlock {text} label="Full text the agent received" class="mt-2" />
-  </Disclosure>
-{/snippet}
