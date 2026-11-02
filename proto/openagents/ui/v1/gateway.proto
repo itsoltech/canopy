@@ -148,6 +148,10 @@ message Thread {
   // Numery od 70: restart workera i błędy komend celu.
   // gateway (agent czatowy w gateway: bez celów i pracy w tle) | worker (wątek dostawcy na workerze)
   string runtime = 70;
+
+  // Numery od 95: subagenci platformy (docs/agent-bus.md).
+  // Wątki boczne: początek ostatniej wiadomości agenta (wynik subagenta) do karty w wątku rodzica. Główne: pusty.
+  string last_message = 95;
 }
 
 message Turn {
