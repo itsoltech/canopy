@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ThreadSecretRow from "./secrets/ThreadSecretRow.svelte";
+  import { timestampMs } from "@bufbuild/protobuf/wkt";
   import { terminalCwd } from "#lib/shared/ui/terminal.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
@@ -38,6 +40,8 @@
     usage,
     totals,
     schedules,
+    secrets = [],
+    onsecretchange,
     backgroundTasks = [],
     items = new Map(),
     onbackground,
@@ -55,6 +59,9 @@
     totals: UsageTotals;
     /** Active and paused schedules of the thread. */
     schedules: readonly ui.Schedule[];
+    /** The thread's secrets; the saved, unexpired ones are listed (pending requests stay above the composer). */
+    secrets?: readonly ui.ThreadSecret[];
+    onsecretchange?: ((secret: ui.ThreadSecret) => void) | undefined;
     backgroundTasks?: readonly BackgroundEntry[];
     items?: ReadonlyMap<string, Item>;
     onbackground?: ((id: string) => void) | undefined;
@@ -63,6 +70,7 @@
     onnewside?: (() => void) | undefined;
     class?: ClassValue;
   } = $props();
+  const activeSecrets = $derived(secrets.filter((s) => s.status === "saved" && (!s.expiresAt || timestampMs(s.expiresAt) > clock.now)));
   const providerKey = $derived(providerKeyOf(thread.provider));
   const overview = useOverview();
   const scratch = $derived(overview.project(thread.projectId)?.kind === "scratch");
@@ -135,6 +143,17 @@
   </section>
 
   {#if onbackground}<BackgroundTasksSection tasks={backgroundTasks} threadId={thread.id} {items} onopen={onbackground} />{/if}
+
+  {#if activeSecrets.length > 0 && onsecretchange}
+    <section aria-labelledby="secrets-title" class="grid grid-cols-1 p-1.5">
+      <h2 id="secrets-title" class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Secrets</h2>
+      <ul role="list" class="grid grid-cols-1 gap-0.5">
+        {#each activeSecrets as secret (secret.requestId)}
+          <li><ThreadSecretRow {secret} onchange={onsecretchange} /></li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 
   {#if schedules.length > 0 || onschedule}
     <section aria-labelledby="schedules-title" class="grid grid-cols-1 p-1.5">

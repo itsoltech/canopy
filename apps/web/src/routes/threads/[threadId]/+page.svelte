@@ -396,8 +396,8 @@
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
             <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
-              {#if view.secrets.length > 0}
-                <GrowIn class="pb-3"><ThreadSecretsPanel secrets={view.secrets} onchange={(secret) => view.upsertSecret(secret)} /></GrowIn>
+              {#if view.secrets.some((s) => s.status === "pending")}
+                <GrowIn class="pb-3"><ThreadSecretsPanel secrets={view.secrets.filter((s) => s.status === "pending")} onchange={(secret) => view.upsertSecret(secret)} /></GrowIn>
               {/if}
               {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
                 <GrowIn class="pb-3">
@@ -487,6 +487,8 @@
           onbackground={openOutput}
           onschedule={canSchedule ? openSchedule : undefined}
           onschedulechange={(schedule) => view.upsertSchedule(schedule)}
+          secrets={view.secrets}
+          onsecretchange={(secret) => view.upsertSecret(secret)}
           onnewside={canBranch ? openSide : undefined}
         />
       {:else}
@@ -510,6 +512,8 @@
       onbackground={openOutput}
       onschedule={canSchedule ? openSchedule : undefined}
       onschedulechange={(schedule) => view.upsertSchedule(schedule)}
+      secrets={view.secrets}
+      onsecretchange={(secret) => view.upsertSecret(secret)}
       onnewside={canBranch ? openSide : undefined}
       class="-mx-1.5 shadow-none ring-0 dark:ring-0"
     />
