@@ -16,10 +16,11 @@
 
   /**
    * Message box of a bot chat, one rounded pill: "+" on the left, the text growing up to a few lines, and
-   * the send button, which appears once there is text. Enter sends and Shift+Enter adds a line; on touch
+   * the send button, which appears once there is text or a quote. Shared MentionEditor and QuoteTray own
+   * rich text, atomic bot chips and removable quote drafts. Enter sends and Shift+Enter adds a line; on touch
    * keyboards Enter adds a line and the button sends. A missing `onattach` keeps "+" visible but
    * unavailable ("coming soon"); `disabled` (with `disabledReason` as the placeholder) turns the box off.
-   * `focus()` puts the caret at the end (after a reply quote was added).
+   * `focus()` returns to the text after adding a reply quote without changing the draft.
    */
   let {
     value = $bindable(""),

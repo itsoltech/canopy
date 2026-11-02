@@ -2,7 +2,7 @@ import { blockOf, elementOf } from "./editor.ts";
 import { inlineSpans, inlineHtml } from "./markdown.ts";
 
 /**
- * Live inline code in the editor's DOM (markdown.ts has the rules). After an edit, each run of text (between chips,
+ * Live inline markdown in the editor's DOM (markdown.ts has the rules). After an edit, each run of text (between chips,
  * line breaks of `<br>` and blocks) is compared with what its text says; a line that differs (a closing backtick was
  * typed, a backtick deleted, the browser left styled `<font>` / `<span>` behind) is written again with
  * `insertHTML`, so the change is one step of the browser's undo stack: Undo first takes the formatting back, the
@@ -143,7 +143,7 @@ function moveBack(characters: number) {
   for (let i = 0; i < characters; i++) selection.modify("move", "backward", "character");
 }
 
-/** Brings the inline code of `root` in line with its text; true when something was written again. */
+/** Brings code, bold and italic of `root` in line with its text; true when something was written again. */
 export function formatInlineCode(root: HTMLElement): boolean {
   let changed = false;
   for (const run of runsOf(root)) {

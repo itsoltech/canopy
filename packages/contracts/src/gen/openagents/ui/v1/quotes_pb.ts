@@ -19,16 +19,22 @@ export const file_openagents_ui_v1_quotes: GenFile = /*@__PURE__*/
  */
 export type Quote = Message<"openagents.ui.v1.Quote"> & {
   /**
+   * Dokładnie zaznaczony tekst, tak jak widać: bez znaczników markdown, z podziałami linii.
+   *
    * @generated from field: string text = 1;
    */
   text: string;
 
   /**
+   * Opcjonalny komentarz użytkownika do cytatu.
+   *
    * @generated from field: string comment = 2;
    */
   comment: string;
 
   /**
+   * Item.item_id w wątku albo id wiadomości bota; wyłącznie odnośnik UI, nie źródło uprawnień.
+   *
    * @generated from field: string source_item_id = 3;
    */
   sourceItemId: string;
@@ -42,12 +48,15 @@ export type Quote = Message<"openagents.ui.v1.Quote"> & {
 
   /**
    * agent_message | reasoning | command_output | tool_call | code | diff; pusty = tekst.
+   * command_output, tool_call, code i diff trafiają do modelu jako blok kodu.
    *
    * @generated from field: string source_kind = 5;
    */
   sourceKind: string;
 
   /**
+   * Język cytowanego bloku kodu, w pozostałych przypadkach pusty.
+   *
    * @generated from field: string language = 6;
    */
   language: string;

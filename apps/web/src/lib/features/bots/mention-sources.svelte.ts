@@ -3,6 +3,7 @@ import { fuzzyRank } from "@open-agents/domain";
 import type { TriggerChar } from "#lib/features/mentions/editor.ts";
 import type { MentionOption, MentionResults, MentionSourceSet } from "#lib/features/mentions/sources.svelte.ts";
 import { INLINE_RENDERERS } from "#lib/features/mentions/kinds.ts";
+import type { MentionData } from "#lib/features/mentions/kinds.ts";
 import { botParticipant } from "./live.ts";
 import { botMentionHtml } from "./mention-chip.ts";
 import type { ParticipantView } from "./model.ts";
@@ -25,7 +26,7 @@ export class BotMentionSources implements MentionSourceSet {
   #current: () => string;
   #query = $state<string>();
 
-  constructor(list: () => readonly bots.Bot[], current: () => string) {
+  constructor(list: () => readonly bots.Bot[], current: () => string, connectors: readonly BotMentionSource[] = []) {
     this.#bots = list;
     this.#current = current;
     this.registry = {
@@ -34,7 +35,7 @@ export class BotMentionSources implements MentionSourceSet {
         data: { kind: MentionKind.BOT, name: item.id, label: item.configuration?.name ?? "Bot", path: "", source: "", isDir: false },
         title: item.configuration?.name ?? "Bot", detail: item.configuration?.model ?? "", group: "Bots", indices: match.indices,
       })) }],
-      connectors: [],
+      connectors,
     };
   }
 
@@ -47,7 +48,7 @@ export class BotMentionSources implements MentionSourceSet {
     const bot = this.#bots().find((b) => b.id === id);
     return bot ? botParticipant(bot) : { id, kind: "bot", name: fallback };
   };
-  renderMention = (mention: Parameters<NonNullable<MentionSourceSet["renderMention"]>>[0]) => mention.kind === MentionKind.BOT
+  renderMention = (mention: MentionData) => mention.kind === MentionKind.BOT
     ? botMentionHtml(mention, this.participant(mention.name, mention.label))
     : INLINE_RENDERERS.mention.html({ type: "mention", mention });
   query(char: TriggerChar, query: string): void { this.#query = char === "@" ? query : undefined; }

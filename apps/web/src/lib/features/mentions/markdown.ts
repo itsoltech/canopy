@@ -5,6 +5,7 @@ import { Lexer, type Token } from "marked";
  * formats while typing, as pure text rules shared by the DOM (MentionEditor, inline-code.ts) and the model
  * (editor.ts `serialize` / `toHtml`). The text never changes: formatting only shows what the markdown already says.
  *
+ * - Bold and italic: parsed with the same Markdown lexer as message rendering; delimiters remain editable.
  * - Inline code: a single-backtick span on one line (`` `npm i` ``). The backticks stay text, around a `<code>`
  *   with the span's content; a chip or a line break ends the run a span may live in.
  * - Fenced code block: an opening line of three or more backticks with an optional language word, the code, and a

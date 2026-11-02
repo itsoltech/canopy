@@ -3,12 +3,17 @@ package openagents.ui.v1;
 
 // Wspólny cytat w wiadomości wątku albo bota. Metadane źródła służą tylko nawigacji UI.
 message Quote {
+  // Dokładnie zaznaczony tekst, tak jak widać: bez znaczników markdown, z podziałami linii.
   string text = 1;
+  // Opcjonalny komentarz użytkownika do cytatu.
   string comment = 2;
+  // Item.item_id w wątku albo id wiadomości bota; wyłącznie odnośnik UI, nie źródło uprawnień.
   string source_item_id = 3;
   // Id rozmowy źródłowej (wątek albo bot).
   string source_thread_id = 4;
   // agent_message | reasoning | command_output | tool_call | code | diff; pusty = tekst.
+  // command_output, tool_call, code i diff trafiają do modelu jako blok kodu.
   string source_kind = 5;
+  // Język cytowanego bloku kodu, w pozostałych przypadkach pusty.
   string language = 6;
 }
