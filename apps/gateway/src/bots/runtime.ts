@@ -4,7 +4,6 @@ import { Effect } from "effect";
 import type { CoreRuntime } from "../core/core.ts";
 import { Invalid } from "../store/store.ts";
 import { directModel } from "./model.ts";
-import { mcpCall, mcpTools } from "./mcp.ts";
 import { approvalPrompt, needsApproval, PLATFORM_TOOLS, statusPhrase } from "./policy.ts";
 import { botConfiguration, botView, BotStore, requiredString } from "./store.ts";
 import type { BotModel, BotTurn, StoredCall, ToolSpec } from "./types.ts";
@@ -201,9 +200,6 @@ export class BotsRuntime {
   saveServer(request: bots.SaveBotMcpServerRequest) { return this.run((s) => s.saveServer(this.#options.userId, request)); }
   deleteServer(id: string) { return this.run((s) => s.deleteServer(this.#options.userId, id)); }
   async testServer(id: string) {
-    const server = await this.run((s) => s.resolvedServer(this.#options.userId, id));
-    try {
-      return (await mcpTools(server, AbortSignal.timeout(20_000))).map((t) => create(bots.BotMcpToolSchema, { name: t.remoteName ?? t.name, description: t.description, readOnly: t.readOnly === true }));
-    } catch { throw new Invalid("MCP connection failed; check the remote URL, transport and authentication headers"); }
+    return (await this.#options.connectors.test(id)).tools.map((t) => create(bots.BotMcpToolSchema, { name: t.remoteName, description: t.description, readOnly: t.readOnly }));
   }
 }

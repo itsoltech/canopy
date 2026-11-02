@@ -36,7 +36,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       saveBotMcpServer: (r) => connectorGuard(async () => create(bots.SaveBotMcpServerResponseSchema, { server: await core.bots.saveServer(r) })),
       listBotMcpServers: () => connectorGuard(async () => create(bots.ListBotMcpServersResponseSchema, { servers: await core.bots.servers() })),
       deleteBotMcpServer: (r) => connectorGuard(async () => { await core.bots.deleteServer(r.serverId); return create(bots.DeleteBotMcpServerResponseSchema); }),
-      testBotMcpServer: (r) => connectorGuard(async () => create(bots.TestBotMcpServerResponseSchema, { tools: (await core.connectors.test(r.serverId)).tools.map((t) => ({ name: t.remoteName, description: t.description, readOnly: t.readOnly })) })),
+      testBotMcpServer: (r) => connectorGuard(async () => create(bots.TestBotMcpServerResponseSchema, { tools: await core.bots.testServer(r.serverId) })),
       getOverview: () => guard(() => core.overview()),
       watchOverview: (_request, context) => core.watchOverview(context.signal),
       listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),

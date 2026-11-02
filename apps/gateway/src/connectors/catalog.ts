@@ -3,7 +3,7 @@ import { connectors } from "@open-agents/contracts";
 
 /** Endpoints checked against vendor documentation, 2026-11-02; never imply a live account check. */
 export const CONNECTOR_TYPES = [
-  { id: "github", name: "GitHub", url: "https://api.githubcopilot.com/mcp/", authKinds: ["headers", "oauth"], requirements: "Personal access token, or a registered GitHub OAuth app. Live authorization required.", documentationUrl: "https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md" },
+  { id: "github", name: "GitHub", url: "https://api.githubcopilot.com/mcp/", authKinds: ["headers", "oauth"], requirements: "Personal access token, or a registered GitHub app with OAuth credentials. No dynamic registration is advertised; live authorization required.", documentationUrl: "https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md" },
   { id: "slack", name: "Slack", url: "https://mcp.slack.com/mcp", authKinds: ["oauth"], requirements: "Register a Slack app first. Save its client ID and secret, install it, and choose user scopes.", documentationUrl: "https://docs.slack.dev/ai/slack-mcp-server/" },
   { id: "notion", name: "Notion", url: "https://mcp.notion.com/mcp", authKinds: ["oauth", "headers"], requirements: "Sign in with OAuth. MCP tokens are available on Business / Enterprise; integration tokens are different.", documentationUrl: "https://developers.notion.com/guides/mcp/get-started-with-mcp" },
   { id: "linear", name: "Linear", url: "https://mcp.linear.app/mcp", authKinds: ["oauth", "headers"], requirements: "Sign in with OAuth, or use a Linear API key.", documentationUrl: "https://linear.app/docs/mcp" },
