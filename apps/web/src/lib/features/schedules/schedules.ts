@@ -7,6 +7,13 @@ import type { Tone } from "#lib/shared/ui/tone.ts";
 /** A schedule that will not run again (it ran out or was cancelled). */
 export const isFinished = (schedule: ui.Schedule): boolean => schedule.status === "completed" || schedule.status === "cancelled";
 
+/** Terminal (and unknown) states never offer mutating actions. Shared by both row variants. */
+export function scheduleActions(status: string): readonly ("edit" | "pause" | "resume" | "cancel")[] {
+  if (status === "active") return ["edit", "pause", "cancel"];
+  if (status === "paused") return ["edit", "resume", "cancel"];
+  return [];
+}
+
 export function scheduleStatusLook(status: string): { label: string; tone: Tone } {
   switch (status) {
     case "active":
