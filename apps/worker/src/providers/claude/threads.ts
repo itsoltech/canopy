@@ -402,12 +402,13 @@ const make = (options: ClaudeThreadsOptions) =>
         // Only the platform's MCP servers: the device owner's would leak their tools and accounts.
         strictMcpConfig: true,
         mcpServers:
-          spec.enableAgentBus || options.viewImage
+          spec.enableAgentBus || spec.connectorTools.length || options.viewImage
             ? {
                 [BUS_SERVER]: claudeBusServer({
                   threadId: spec.threadId,
                   depth: spec.depth,
                   agentBus: spec.enableAgentBus,
+                  connectorTools: spec.connectorTools,
                   turnId,
                   toolUseId: (tool, args) => busCalls.get(callKey(tool, args))?.shift(),
                   callTool: options.callTool,

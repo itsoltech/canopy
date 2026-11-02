@@ -33,6 +33,7 @@ import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 import { threadLifecycle, type ThreadLifecycle } from "./thread-lifecycle.ts";
 import { archivedPage } from "./archived-pagination.ts";
 import { threadSecretsStore, type ThreadSecretsStore } from "./thread-secrets.ts";
+import { connectorStore } from "../connectors/store.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -175,6 +176,7 @@ export interface OutboxRow {
 export class GatewayStore extends Context.Service<
   GatewayStore,
   ThreadSecretsStore & {
+    connectors: ReturnType<typeof connectorStore>;
     // users
     ensureUser(email: string, displayName: string): Fx<string>;
     // workers
@@ -387,6 +389,7 @@ export class GatewayStore extends Context.Service<
           });
 
         const store: GatewayStore["Service"] = {
+          connectors: connectorStore(sql, secretsKey),
           ...threadSecretsStore(sql, secretsKey),
           ...threadLifecycle(sql, (input) => store.enqueueCommand(input)),
           ensureUser: (email, displayName) =>

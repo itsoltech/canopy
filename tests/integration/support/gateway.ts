@@ -131,13 +131,13 @@ export class ScriptedWorker {
   }
 
   /** What the provider does when the model calls an agent bus tool. */
-  callTool(input: { threadId: string; turnId?: string; tool: string; args: unknown; callId?: string }): Promise<AgentToolResult> {
+  callTool(input: { threadId: string; turnId?: string; tool: string; args: unknown; callId?: string; connectorAccountId?: string }): Promise<AgentToolResult> {
     const callId = input.callId ?? Bun.randomUUIDv7();
     return new Promise((resolve) => {
       this.#toolResults.set(callId, resolve);
       this.link.send({
         case: "agentToolCall",
-        value: { callId, threadId: input.threadId, turnId: input.turnId ?? "", itemId: `tool-${callId.slice(-6)}`, toolName: input.tool, argumentsJson: JSON.stringify(input.args) },
+        value: { callId, threadId: input.threadId, turnId: input.turnId ?? "", itemId: `tool-${callId.slice(-6)}`, toolName: input.tool, argumentsJson: JSON.stringify(input.args), connectorAccountId: input.connectorAccountId ?? '' },
       });
     });
   }

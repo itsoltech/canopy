@@ -8,6 +8,7 @@ import { mcpCall, mcpTools } from "./mcp.ts";
 import { approvalPrompt, needsApproval, PLATFORM_TOOLS, statusPhrase } from "./policy.ts";
 import { botConfiguration, botView, BotStore, requiredString } from "./store.ts";
 import type { BotModel, BotTurn, StoredCall, ToolSpec } from "./types.ts";
+import type { ConnectorsRuntime } from "../connectors/runtime.ts";
 
 /** A failure whose message is safe and useful to show (the UI turns it into a friendly line). */
 class BotFailure extends Error {}
@@ -15,6 +16,7 @@ class BotFailure extends Error {}
 export interface BotRuntimeOptions {
   runtime: CoreRuntime;
   userId: string;
+  connectors: ConnectorsRuntime;
   model?: BotModel;
   platform: (turn: BotTurn, call: StoredCall) => Promise<unknown>;
   describeTool?: (tool: ToolSpec, args: Record<string, unknown>) => Promise<string>;
@@ -80,9 +82,7 @@ export class BotsRuntime {
       const model = await this.run((s) => s.resolveModel(config));
       if ("problem" in model) throw new BotFailure(model.problem);
       config.model = model.model;
-      const servers = await this.run((s) => s.connected(this.#options.userId, turn.bot_id));
-      const tools = [...PLATFORM_TOOLS];
-      for (const server of servers) tools.push(...await mcpTools(server, AbortSignal.any([abort.signal, AbortSignal.timeout(20_000)])));
+      const tools = [...PLATFORM_TOOLS, ...await this.#options.connectors.botTools(turn.bot_id)];
       let messages = turn.checkpoint.length ? turn.checkpoint : await this.run((s) => s.history(turn));
       for (;;) {
         abort.signal.throwIfAborted();
@@ -121,13 +121,9 @@ export class BotsRuntime {
                 if (result === undefined) {
                   await this.run((s) => s.status(turn, phrase));
                   if (tool.source === "mcp") {
-                    const current = (await this.run((s) => s.connected(this.#options.userId, turn.bot_id))).find((s) => s.id === tool.serverId);
-                    if (!current) result = { error: "MCP server disconnected or disabled" };
-                    else {
                       await this.run((s) => s.remoteStarted(turn, call));
-                      try { result = await mcpCall(current, tool, requested.arguments, abort.signal); }
+                      try { result = await this.#options.connectors.call({ userId: this.#options.userId, botId: turn.bot_id, accountId: tool.serverId!, readOnlyOnly: tool.readOnly === true && currentConfig.approvalPolicy !== "always" }, call.id, tool.name, requested.arguments, abort.signal); }
                       catch { abort.signal.throwIfAborted(); result = { error: "Remote MCP call failed; outcome may be unknown. Do not automatically retry writes." }; }
-                    }
                   } else result = await this.#options.platform(turn, call);
                 }
                 result = await this.run((s) => s.remoteResult(turn, call, result));

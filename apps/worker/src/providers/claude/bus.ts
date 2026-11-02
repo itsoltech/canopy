@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { createSdkMcpServer, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import { AgentToolCallSchema, type AgentToolCall, type AgentToolResult } from "@open-agents/contracts";
+import { AgentToolCallSchema, type AgentToolCall, type AgentToolResult, type ConnectorTool } from "@open-agents/contracts";
 import { agentBusToolSpecs, agentBusToolsFor, VIEW_IMAGE_TOOL, viewImageSpec } from "@open-agents/domain";
 import { z } from "zod";
 import type { ViewImageResult } from "../../images/index.ts";
@@ -15,6 +15,7 @@ import { BUS_SERVER } from "./mapping.ts";
  */
 
 export interface ClaudeBusOptions {
+  readonly connectorTools?: readonly ConnectorTool[];
   readonly threadId: string;
   readonly depth: number;
   /** Agent bus tools (ThreadSpec.enable_agent_bus); view_image is there either way when viewImage is set. */
@@ -44,6 +45,18 @@ export function claudeBusServer(options: ClaudeBusOptions): McpSdkServerConfigWi
     timeout: BUS_TIMEOUT_MS,
     tools: [
       ...(options.agentBus ? busTools(options) : []),
+      ...(options.connectorTools ?? []).map((spec) => ({
+        name: spec.name, description: spec.description,
+        inputSchema: z.fromJSONSchema(JSON.parse(spec.inputSchemaJson)) as never,
+        handler: async (args: Record<string, unknown>, extra: unknown) => {
+          const meta = (extra as { _meta?: Record<string, unknown> } | undefined)?._meta;
+          const id = typeof meta?.["claudecode/toolUseId"] === "string" ? meta["claudecode/toolUseId"] as string : options.toolUseId(spec.name, args) ?? crypto.randomUUID();
+          const result = await options.callTool(create(AgentToolCallSchema, { callId: toolCallId(options.threadId, id),
+            threadId: options.threadId, turnId: options.turnId(), itemId: id, toolName: spec.name,
+            connectorAccountId: spec.accountId, argumentsJson: JSON.stringify(args) }));
+          return { content: [{ type: "text" as const, text: result.content }], ...(result.isError && { isError: true }) };
+        },
+      })),
       ...(options.viewImage ? [viewImageTool(options.viewImage)] : []),
     ],
   });

@@ -1,0 +1,120 @@
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { create } from '@bufbuild/protobuf';
+import { bots, connectors, PermissionMode, Provider, ProviderProfileKind } from '@open-agents/contracts';
+import { dockerAvailable } from '@open-agents/db/testing';
+import { GatewayStore } from '@open-agents/gateway/store';
+import { Effect } from 'effect';
+import { SqlClient } from 'effect/sql';
+import { fakeConnector } from './support/connector.ts';
+import { eventually, startTestGateway, type TestGateway } from './support/gateway.ts';
+
+describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker bridge', () => {
+  let gw: TestGateway;
+  let fake: ReturnType<typeof fakeConnector>;
+  let projectId = '', workspaceId = '', deniedWorkspace = '';
+  const query = <A extends object>(text: string, ...params: unknown[]) => gw.runtime.runPromise(Effect.gen(function* () { const sql = yield* SqlClient.SqlClient; return yield* sql.unsafe<A>(text, params); }));
+  const save = async (name: string, authKind = 'headers') => (await gw.api.saveConnectorAccount({ connectorType: 'custom', name, url: fake.url, authKind, token: authKind === 'headers' ? fake.secret : '' })).account!;
+  const grant = async (account: connectors.ConnectorAccount, botIds: string[] = []) => (await gw.api.setConnectorAccess({ accountId: account.id, expectedRevision: account.revision, workerIds: [gw.workerId], botIds })).account!;
+  const thread = async (permissionMode = PermissionMode.FULL_AUTO, workspace = workspaceId) => {
+    const t = (await gw.api.createThread({ projectId, workspaceId: workspace, provider: Provider.CODEX, permissionMode, title: 'Connector test', initialMessage: 'Use connector' })).thread!;
+    const turns = await eventually(() => query<{ id: string; status: string }>('SELECT id,status FROM turns WHERE thread_id=$1::uuid', t.id), (r) => r[0]?.status === 'running');
+    return { id: t.id, turnId: turns[0]!.id };
+  };
+  const call = (t: { id: string; turnId: string }, accountId: string, tool: string, callId?: string, marker = 'CANOPY_CONNECTOR_OK') => gw.worker.callTool({ threadId: t.id, turnId: t.turnId, connectorAccountId: accountId, tool, args: { marker }, ...(callId && { callId }) });
+  beforeAll(async () => {
+    fake = fakeConnector(); gw = await startTestGateway(); gw.worker.holdTurns = true;
+    await gw.api.saveProviderInstance({ harness: Provider.CODEX, id: 'connector-test', label: 'Fixture', create: true, kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: 'http://127.0.0.1:1', apiKey: 'fixture', allWorkers: true });
+    projectId = (await gw.api.createProject({ name: 'Connectors' })).project!.id;
+    workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: '/repo' })).workspace!.id;
+    const other = await gw.addWorker('denied', ['/repo']); const worker = await gw.connect(other.workerId, other.credential); worker.holdTurns = true;
+    deniedWorkspace = (await gw.api.createWorkspace({ projectId, workerId: other.workerId, rootPath: '/repo' })).workspace!.id;
+  }, 60_000);
+  afterAll(async () => { await fake?.close(); await gw?.close(); });
+
+  test('connect → grant → bridge; deduplication, audit, redaction and permission modes', async () => {
+    let account = await save('work');
+    const tools = (await gw.api.testConnector({ accountId: account.id })).tools;
+    const read = tools.find((t) => t.remoteName === 'read_marker')!, write = tools.find((t) => t.remoteName === 'write_marker')!;
+    expect(read.description).toContain('work');
+    const unavailable = await thread(); expect((await call(unavailable, account.id, read.name)).isError).toBe(true);
+    account = await grant(account);
+    const t = await thread(); const callId = Bun.randomUUIDv7(), before = fake.calls.length;
+    const first = await call(t, account.id, read.name, callId);
+    expect(first.isError).toBe(false); expect(first.content).toContain('CANOPY_CONNECTOR_OK'); expect(first.content).not.toContain(fake.secret); expect(first.content).toContain('[REDACTED]');
+    expect(JSON.parse((await call(t, account.id, read.name, callId)).content)).toEqual(JSON.parse(first.content));
+    expect((await call(t, account.id, read.name, callId, 'different')).isError).toBe(true);
+    expect(fake.calls.length).toBe(before + 1);
+    expect(JSON.stringify(gw.worker.commands)).toContain(read.name); expect(JSON.stringify(gw.worker.commands)).not.toContain(fake.secret);
+    const audit = await query<{ tool: string; outcome: string; payload: string }>('SELECT tool,outcome,row_to_json(a)::text AS payload FROM connector_audit a WHERE thread_id=$1::uuid', t.id);
+    expect(audit).toEqual(expect.arrayContaining([expect.objectContaining({ tool: 'read_marker', outcome: 'completed' })]));
+    expect(JSON.stringify(audit)).not.toContain('CANOPY_CONNECTOR_OK'); expect(JSON.stringify(audit)).not.toContain(fake.secret);
+    const ask = await thread(PermissionMode.ASK); const pendingId = Bun.randomUUIDv7();
+    const waiting = call(ask, account.id, write.name, pendingId);
+    const interaction = await eventually(() => query<{ id: string; request: unknown }>('SELECT id,request FROM interaction_requests WHERE id=$1::uuid', pendingId), (r) => !!r.length);
+    expect(JSON.stringify(interaction[0]!.request)).toContain('CANOPY_CONNECTOR_OK');
+    expect(fake.calls.length).toBe(before + 1);
+    await gw.api.answerInteraction({ requestId: pendingId, allow: true }); expect((await waiting).isError).toBe(false);
+    const readonly = await thread(PermissionMode.READ_ONLY); expect((await call(readonly, account.id, write.name)).isError).toBe(true);
+    const denied = await thread(PermissionMode.FULL_AUTO, deniedWorkspace); expect((await call(denied, account.id, read.name)).isError).toBe(true);
+    // Revocation must reject even a previously completed call's replay.
+    account = (await gw.api.setConnectorAccess({ accountId: account.id, expectedRevision: account.revision })).account!;
+    expect((await call(t, account.id, read.name, callId)).isError).toBe(true);
+    const otherUser = await gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser('connector-other@test.local', 'Other')));
+    await expect(gw.core.connectors.run((s) => s.owned(otherUser, account.id))).rejects.toThrow();
+    const cipher = await query<{ credentials: Uint8Array }>('SELECT credentials FROM connector_accounts WHERE id=$1::uuid', account.id);
+    expect(Buffer.from(cipher[0]!.credentials).toString()).not.toContain(fake.secret);
+  }, 30_000);
+
+  test('bot grants, model tools and canonical @ account mention', async () => {
+    const configuration = create(bots.BotConfigurationSchema, { name: 'Connector bot', shape: 'round', color: '#22aaff', provider: Provider.CODEX, providerInstance: 'connector-test', model: 'gpt-6.1-sol' });
+    const bot = (await gw.api.createBot({ configuration, clientRequestId: Bun.randomUUIDv7() })).bot!;
+    let account = await save('personal'); const tool = (await gw.api.testConnector({ accountId: account.id })).tools[0]!;
+    const source = { userId: gw.userId, botId: bot.id, accountId: account.id };
+    await expect(gw.core.connectors.call(source, Bun.randomUUIDv7(), tool.name, { marker: 'bot' }, AbortSignal.timeout(5000))).rejects.toThrow();
+    account = await grant(account, [bot.id]);
+    expect((await gw.core.connectors.botTools(bot.id)).some((t) => t.name === tool.name)).toBe(true);
+    expect(JSON.stringify(await gw.core.connectors.call(source, Bun.randomUUIDv7(), tool.name, { marker: 'bot' }, AbortSignal.timeout(5000)))).toContain('bot');
+    // Saving unrelated bot settings must preserve the connector grant.
+    await gw.api.updateBot({ botId: bot.id, configuration: { ...configuration, instructions: 'Keep grants' } });
+    expect((await gw.api.listConnectors({ botId: bot.id })).accounts.map((a) => a.id)).toContain(account.id);
+  }, 15_000);
+
+  test('OAuth DCR + state/browser binding + S256, refresh rotation, reconnect and revoke', async () => {
+    let account = await save('oauth', 'oauth');
+    console.info('OAuth fixture: saved');
+    const binding = crypto.randomUUID().replaceAll('-', '');
+    const begin = () => gw.api.beginConnectorOAuth({ accountId: account.id, browserBinding: binding, redirectUri: 'http://127.0.0.1:19111/api/connectors/oauth/callback' });
+    const auth = new URL((await begin()).authorizationUrl);
+    console.info('OAuth fixture: authorization started');
+    expect(auth.searchParams.get('code_challenge_method')).toBe('S256'); expect(fake.registrations).toBeGreaterThan(0);
+    const response = await fetch(auth, { redirect: 'manual' }); const callback = new URL(response.headers.get('location')!);
+    const complete = { state: callback.searchParams.get('state')!, code: callback.searchParams.get('code')!, issuer: callback.searchParams.get('iss')!, browserBinding: binding };
+    await expect(gw.api.completeConnectorOAuth({ ...complete, browserBinding: 'x'.repeat(32) })).rejects.toThrow();
+    fake.duration = 1;
+    account = (await gw.api.completeConnectorOAuth(complete)).account!;
+    console.info('OAuth fixture: connected');
+    await expect(gw.api.completeConnectorOAuth(complete)).rejects.toThrow();
+    console.info('OAuth fixture: replay rejected');
+    account = await grant(account);
+    console.info('OAuth fixture: granted');
+    const before = fake.refreshes; const tools = (await gw.api.testConnector({ accountId: account.id })).tools;
+    console.info('OAuth fixture: refreshed');
+    expect(fake.refreshes).toBe(before + 1);
+    const t = await thread(); const result = await call(t, account.id, tools[0]!.name);
+    console.info('OAuth fixture: called');
+    expect(result.isError).toBe(false);
+    for (const token of fake.tokens) { expect(result.content).not.toContain(token); expect(JSON.stringify(gw.worker.commands)).not.toContain(token); }
+    fake.rejectRefresh = true;
+    await expect(gw.api.testConnector({ accountId: account.id })).rejects.toThrow();
+    console.info('OAuth fixture: rejected refresh');
+    expect((await gw.api.listConnectors({})).accounts.find((a) => a.id === account.id)?.status).toBe('needs_reconnect');
+    fake.rejectRefresh = false; fake.duration = 3600;
+    const retry = new URL((await begin()).authorizationUrl), redirect = new URL((await fetch(retry, { redirect: 'manual' })).headers.get('location')!);
+    await gw.api.completeConnectorOAuth({ browserBinding: binding, state: redirect.searchParams.get('state')!, code: redirect.searchParams.get('code')! });
+    await gw.api.disconnectConnector({ accountId: account.id });
+    console.info('OAuth fixture: revoked');
+    expect(fake.revoked.length).toBeGreaterThanOrEqual(2);
+    expect((await call(t, account.id, tools[0]!.name)).isError).toBe(true);
+    expect((await query<{ credentials: unknown }>('SELECT credentials FROM connector_accounts WHERE id=$1::uuid', account.id))[0]!.credentials).toBeNull();
+  }, 60_000);
+});
