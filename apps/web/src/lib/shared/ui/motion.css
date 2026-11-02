@@ -232,8 +232,23 @@
     left var(--duration-fast) var(--ease-smooth-out),
     width var(--duration-fast) var(--ease-smooth-out);
 }
+/* The pill slider's thumb also grows while pressed (scale on --duration-quick; no growth with reduced
+   motion, where the scale tokens are 1), and its dots cross-fade as the fill passes them. */
+.t-slide-thumb {
+  transition:
+    left var(--duration-fast) var(--ease-smooth-out),
+    scale var(--duration-quick) var(--ease-out);
+}
+.t-slide-thumb[data-pressed] {
+  scale: calc(2 - var(--scale-large));
+}
+.t-slide-dot {
+  transition: background-color var(--duration-fast) var(--ease-smooth-out);
+}
 @media (prefers-reduced-motion: reduce) {
-  .t-slide {
+  .t-slide,
+  .t-slide-thumb,
+  .t-slide-dot {
     transition: none !important;
   }
 }
@@ -244,6 +259,30 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .t-resize {
+    transition: none !important;
+  }
+}
+
+/* --- Panel reveal (07) for the app sidebar: the column (`t-sidebar`) eases its width to the panel's or to
+ * 0, opening on --duration-slow and closing faster on --duration-medium; the panel inside (`t-sidebar-panel`)
+ * keeps its own width, rides on the column's edge and fades, so its text never re-wraps. Only a toggle, a
+ * reset or a snap animates (`data-settling`); a drag and a window resize move it directly. */
+.t-sidebar[data-settling] {
+  transition: width var(--duration-slow) var(--ease-smooth-out);
+}
+.t-sidebar[data-settling][data-collapsed] {
+  transition-duration: var(--duration-medium);
+}
+.t-sidebar-panel {
+  transition: opacity var(--duration-slow) var(--ease-smooth-out);
+}
+.t-sidebar[data-collapsed] .t-sidebar-panel {
+  opacity: 0;
+  transition-duration: var(--duration-medium);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-sidebar,
+  .t-sidebar-panel {
     transition: none !important;
   }
 }

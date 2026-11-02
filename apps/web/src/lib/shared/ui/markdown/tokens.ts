@@ -1,6 +1,7 @@
 import { Lexer, type Token, type Tokens } from "marked";
 
-export const lexMarkdown = (text: string): Token[] => Lexer.lex(text, { gfm: true, breaks: false });
+/** `breaks`: a single newline is a line break (people's messages), not a soft wrap (agents' markdown). */
+export const lexMarkdown = (text: string, breaks = false): Token[] => Lexer.lex(text, { gfm: true, breaks });
 
 /**
  * The new token tree with every block, list item and table row that did not change replaced by the

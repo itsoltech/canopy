@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { Token, Tokens } from "marked";
-  import CodeLines from "./CodeLines.svelte";
+  import CodeFence from "../code/CodeFence.svelte";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
   import MarkdownInline from "./MarkdownInline.svelte";
+  import { useInlineElements } from "./inline-elements.ts";
 
-  /** `streaming`: the text is still arriving (code blocks reveal per line, `CodeLines`). */
+  /** `streaming`: the text is still arriving (code blocks reveal per line, `CodeFence`). */
   let { tokens, streaming = false }: { tokens: Token[]; streaming?: boolean } = $props();
+  const elements = useInlineElements();
 
   const headingSize: Record<number, string> = {
     1: "text-lg/7 sm:text-base/7",
@@ -27,11 +29,7 @@
     </p>
   {:else if token.type === "code"}
     {@const code = token as Tokens.Code}
-    <div class="overflow-hidden rounded-lg bg-zinc-950/2.5 ring-1 ring-zinc-950/5 dark:bg-white/5 dark:ring-white/10">
-      {#if code.lang}<div class="border-b border-zinc-950/5 px-3 py-1 font-mono text-xs/5 text-zinc-500 dark:border-white/10 dark:text-zinc-400">{code.lang}</div>{/if}
-      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-      <pre class="code-surface max-h-[32rem] p-3 text-zinc-800 focus-ring dark:text-zinc-200" tabindex="0"><CodeLines text={code.text} {streaming} /></pre>
-    </div>
+    <CodeFence code={elements ? elements.restore(code.text) : code.text} lang={code.lang} {streaming} />
   {:else if token.type === "list"}
     {@const list = token as Tokens.List}
     <svelte:element this={list.ordered ? "ol" : "ul"} class={["grid gap-1 pl-5", list.ordered ? "list-decimal" : "list-disc", "marker:text-zinc-400 dark:marker:text-zinc-500"]} start={list.ordered && list.start !== "" && list.start !== 1 ? list.start : undefined}>

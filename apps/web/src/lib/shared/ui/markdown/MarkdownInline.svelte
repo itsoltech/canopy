@@ -1,9 +1,11 @@
 <script lang="ts">
   import type { Token, Tokens } from "marked";
   import MarkdownInline from "./MarkdownInline.svelte";
+  import { splitSentinels, useInlineElements } from "./inline-elements.ts";
   import { safeHref } from "./safe-url.ts";
 
   let { tokens }: { tokens: Token[] } = $props();
+  const elements = useInlineElements();
 </script>
 
 {#each tokens as token, index (index)}
@@ -14,7 +16,7 @@
   {:else if token.type === "del"}
     <del><MarkdownInline tokens={(token as Tokens.Del).tokens} /></del>
   {:else if token.type === "codespan"}
-    <code class="rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px font-mono text-[0.875em] text-zinc-950 dark:bg-white/10 dark:text-white">{(token as Tokens.Codespan).text}</code>
+    <code class="rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px font-mono text-[0.875em] text-zinc-950 dark:bg-white/10 dark:text-white">{elements ? elements.restore((token as Tokens.Codespan).text) : (token as Tokens.Codespan).text}</code>
   {:else if token.type === "link"}
     {@const link = token as Tokens.Link}
     {@const href = safeHref(link.href)}
@@ -36,7 +38,11 @@
   {:else if token.type === "text" && "tokens" in token && token.tokens}
     <MarkdownInline tokens={token.tokens} />
   {:else if token.type === "escape" || token.type === "text"}
-    {(token as Tokens.Text).text}
+    {#if elements && (token as Tokens.Text).text.includes("\uE000")}
+      {#each splitSentinels((token as Tokens.Text).text) as part, p (p)}{#if typeof part === "number"}{@render elements.render(part)}{:else}{part}{/if}{/each}
+    {:else}
+      {(token as Tokens.Text).text}
+    {/if}
   {:else}
     {token.raw}
   {/if}

@@ -11,11 +11,12 @@
 </script>
 
 <script lang="ts">
+  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import type { Snippet } from "svelte";
   import type { UserMessage, ui } from "@open-agents/contracts";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
   import { withoutPlatformNote } from "#lib/features/mentions/editor.ts";
-  import MentionText from "#lib/features/mentions/MentionText.svelte";
+  import MentionChip from "#lib/features/mentions/MentionChip.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
@@ -72,7 +73,9 @@
         pending && "opacity-70",
       ]}
     >
-      {#if shown}<MentionText text={shown.text} mentions={shown.mentions} />{:else if message.text.trim()}<p class="whitespace-pre-wrap">{message.text}</p>{/if}
+      {#if message.text.trim()}
+        <Markdown text={shown?.text ?? message.text} breaks elements={shown && { ranges: shown.mentions, render: chip }} class="text-inherit dark:text-inherit" />
+      {/if}
       {@render details?.()}
     </div>
   {/if}
@@ -82,3 +85,8 @@
     </p>
   {/if}
 </div>
+
+{#snippet chip(index: number)}
+  {@const mention = shown?.mentions[index]}
+  {#if mention}<MentionChip {mention} />{/if}
+{/snippet}

@@ -1,0 +1,34 @@
+/*
+ * Syntax colours of highlighted code (`code/theme.ts` maps grammar scopes to these roles). Tailwind's
+ * palette at the contrast of our zinc text: -700 on the light code surface, -300/-400 on the dark one.
+ */
+:root {
+  --code-fg: var(--color-zinc-800);
+  --code-comment: var(--color-zinc-500);
+  --code-punctuation: var(--color-zinc-500);
+  --code-keyword: var(--color-violet-700);
+  --code-string: var(--color-emerald-700);
+  --code-regexp: var(--color-teal-700);
+  --code-constant: var(--color-amber-700);
+  --code-function: var(--color-sky-700);
+  --code-type: var(--color-orange-700);
+  --code-tag: var(--color-rose-700);
+  --code-property: var(--color-cyan-800);
+  --code-inserted: var(--color-emerald-700);
+  --code-deleted: var(--color-rose-700);
+}
+:root.dark {
+  --code-fg: var(--color-zinc-200);
+  --code-comment: var(--color-zinc-500);
+  --code-punctuation: var(--color-zinc-400);
+  --code-keyword: var(--color-violet-300);
+  --code-string: var(--color-emerald-300);
+  --code-regexp: var(--color-teal-300);
+  --code-constant: var(--color-amber-300);
+  --code-function: var(--color-sky-300);
+  --code-type: var(--color-orange-300);
+  --code-tag: var(--color-rose-300);
+  --code-property: var(--color-cyan-200);
+  --code-inserted: var(--color-emerald-300);
+  --code-deleted: var(--color-rose-300);
+}
