@@ -1,4 +1,5 @@
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import type { ui } from "@open-agents/contracts";
 import type { FeedRow } from "../feed.ts";
 import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
 
@@ -19,12 +20,12 @@ export function railTurns(rows: readonly FeedRow[]): RailTurn[] {
   const turns: RailTurn[] = [];
   const byId = new Map<string, number>();
   rows.forEach((feed, index) => {
-    if (feed.kind !== "timeline") return;
-    const row = feed.row;
+    const row = feed.kind === "timeline" || feed.kind === "answer" ? feed.row : undefined;
+    if (!row) return;
     if (row.kind === "turn-start") {
       byId.set(row.turn.id, turns.length);
       turns.push({ id: row.turn.id, number: row.number, start: index, row: index,
-        title: previewTitle(row.turn.inputText), answer: "", time: row.turn.startedAt ?? row.turn.queuedAt,
+        title: turnTitle(row.turn), answer: "", time: row.turn.startedAt ?? row.turn.queuedAt,
         running: row.turn.status === "running" });
       return;
     }
@@ -34,7 +35,7 @@ export function railTurns(rows: readonly FeedRow[]): RailTurn[] {
     if (!turn || at === undefined) return;
     if (row.kind === "input" || (row.kind === "item" && row.inputOf)) {
       const text = row.kind === "item" && row.node.entry.item.content.case === "userMessage" ? row.node.entry.item.content.value.text : turn.title;
-      turns[at] = { ...turn, row: index, title: previewTitle(text) };
+      turns[at] = { ...turn, row: index, title: row.kind === "input" ? turnTitle(row.turn) : row.inputOf ? turnTitle(row.inputOf, text) : previewTitle(text) };
     } else if (row.kind === "turn-end" && row.answer) {
       turns[at] = { ...turn, answer: row.answer.slice(0, 2000) };
     } else if (row.kind === "item" && row.node.entry.item.content.case === "agentMessage") {
@@ -46,6 +47,10 @@ export function railTurns(rows: readonly FeedRow[]): RailTurn[] {
 }
 
 const previewTitle = (text: string): string => text.replace(/\s+/g, " ").trim().slice(0, 240) || "Message with attachments";
+function turnTitle(turn: ui.Turn, echoed = turn.inputText): string {
+  const rich = turn.platformNote || turn.attachments.length || turn.mentions.length || turn.quotes.length;
+  return previewTitle(rich ? turn.messageText : turn.messageText || echoed);
+}
 
 export interface RailTick {
   /** Turn indices [start, end), merged only visually. Every turn retains its button. */

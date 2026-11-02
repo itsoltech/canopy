@@ -88,6 +88,20 @@ describe("turn preview and feed mapping", () => {
     expect(opened[1]!.row).toBeGreaterThan(closed[1]!.row);
     expect(opened.map((t) => t.answer)).toEqual(closed.map((t) => t.answer));
   });
+  test("rich inputs preview the user's message, keeping the provider's platform note out", () => {
+    const human = "Review **this file**";
+    const delivered = "[open-agents] Internal paths and quoted context\n\n" + human;
+    const rail = railTurns(new FeedBuilder().build(input({
+      turns: [{ ...turn("rich", 1), messageText: human, inputText: delivered }],
+      entries: [entry("echo", "rich", 1n, { case: "userMessage", value: { text: delivered, clientId: "rich" } })],
+    })));
+    expect(rail[0]!.title).toBe(human);
+    expect(rail[0]!.row).toBe(1);
+    const attachmentsOnly = railTurns(new FeedBuilder().build(input({ turns: [
+      { ...turn("file", 1), platformNote: "Attached file paths", inputText: "[open-agents] /internal/file.png", messageText: "" },
+    ] })));
+    expect(attachmentsOnly[0]!.title).toBe("Message with attachments");
+  });
   test("queued/withdrawn turns stay off the rail; empty and oversized content has bounded previews", () => {
     const rail = railTurns(new FeedBuilder().build(input({ turns: [
       { ...turn("empty", 1), inputText: "" }, { ...turn("long", 2), inputText: "x".repeat(10000) },
