@@ -29,9 +29,19 @@ function asciiName(name: string): string {
   return name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
 }
 
-/** Requests that only a page of this app can make: same origin (a cross-site form or img cannot set the header). */
+/**
+ * Requests that only a page of this app can make: the custom header needs a CORS preflight, which a cross-site
+ * page does not get, and a sent Origin must name this host. The scheme is not compared: behind a proxy without
+ * PROTOCOL_HEADER adapter-node assumes https.
+ */
 export function requireSameOrigin(request: Request, url: URL): void {
-  const origin = request.headers.get("origin");
-  if (origin !== null && origin !== url.origin) error(403, "Cross-origin request");
   if (request.headers.get("x-requested-with") !== "open-agents") error(403, "Missing request header");
+  const origin = request.headers.get("origin");
+  let host: string | undefined;
+  try {
+    host = origin === null ? url.host : new URL(origin).host;
+  } catch {
+    host = undefined;
+  }
+  if (host !== url.host) error(403, "Cross-origin request");
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import { exitDuration } from "#lib/shared/ui/motion.ts";
 
   /**
@@ -46,7 +46,8 @@
   {#if open || closing}
     <figure class="grid gap-3">
       <img {src} alt={name} class="max-h-[calc(100dvh-8rem)] w-auto max-w-full rounded-lg object-contain outline-1 -outline-offset-1 outline-white/10" />
-      <figcaption class="flex min-w-0 items-center justify-between gap-3 text-base/6 text-white sm:text-sm/6">
+      <!-- Its own dark surface: readable over any page, also while the backdrop fades in. -->
+      <figcaption class="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-zinc-950/90 py-2 pr-2 pl-3 text-base/6 text-white sm:text-sm/6">
         <span class="min-w-0">
           <span class="block truncate font-medium">{name}</span>
           {#if detail}<span class="block truncate text-white/60 tabular-nums">{detail}</span>{/if}
@@ -57,7 +58,10 @@
               <Icon name="arrow-down" class="shrink-0 fill-white" />Download
             </a>
           {/if}
-          <IconButton icon="x-mark" label="Close" size="sm" class="text-white hover:bg-white/10" onclick={() => (open = false)} />
+          <button type="button" class="relative grid size-9 place-items-center rounded-md focus-ring hover:bg-white/10 sm:size-8" aria-label="Close" onclick={() => (open = false)}>
+            <Icon name="x-mark" class="fill-white" />
+            <TouchTarget />
+          </button>
         </span>
       </figcaption>
     </figure>
