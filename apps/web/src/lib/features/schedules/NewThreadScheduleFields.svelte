@@ -52,24 +52,16 @@
 <div class={["grid min-w-0 gap-4", className]}>
   <div class="grid gap-4 sm:grid-cols-2">
     <Field label="Project">
-      <Select name="projectId" bind:value={projectId}>
-        {#each overview.projects as project (project.id)}<option value={project.id}>{project.name}</option>{/each}
-        {#if !overview.projects.length}<option value="">No projects yet</option>{/if}
-      </Select>
+      <Select name="projectId" bind:value={projectId} options={overview.projects.length ? overview.projects.map((project) => ({ value: project.id, label: project.name })) : [{ value: "", label: "No projects yet" }]} />
     </Field>
     <Field label="Placement">
-      <Select name="placement" bind:value={placement}>
-        {#each Object.entries(placementLabels) as [key, label] (key)}<option value={key}>{label}</option>{/each}
-      </Select>
+      <Select name="placement" bind:value={placement} options={Object.entries(placementLabels).map(([value, label]) => ({ value, label }))} />
     </Field>
     {#if placement === "specific"}
       <Field label="Worker" class="sm:col-span-2">
-        <Select name="workspaceId" bind:value={workspaceId}>
-          {#each workspaces as workspace (workspace.id)}
-            {@const worker = overview.worker(workspace.workerId)}
-            <option value={workspace.id}>{worker?.name ?? "Unknown worker"} · {workspace.label || workspace.rootPath}{worker?.online ? "" : " · Offline"}</option>
-          {:else}<option value="">No workers have this project</option>{/each}
-        </Select>
+        <Select name="workspaceId" bind:value={workspaceId} options={workspaces.length ? workspaces.map((workspace) => ({ value: workspace.id,
+          label: `${overview.worker(workspace.workerId)?.name ?? "Unknown worker"} · ${workspace.label || workspace.rootPath}${overview.worker(workspace.workerId)?.online ? "" : " · Offline"}`,
+        })) : [{ value: "", label: "No workers have this project" }]} />
       </Field>
     {/if}
   </div>
