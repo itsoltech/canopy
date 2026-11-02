@@ -39,8 +39,9 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
   const get = (botId: string, id: string) => sql<RoutineRow>`SELECT * FROM bot_routines WHERE id = ${id}::uuid AND bot_id = ${botId}::uuid AND deleted_at IS NULL`
     .pipe(Effect.flatMap((r) => r[0] ? Effect.succeed(r[0]) : Effect.fail(new NotFound("routine not found"))));
   const stop = (id: string) => Effect.gen(function* () {
-    yield* sql`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now()
-      WHERE routine_id = ${id}::uuid AND status IN ('queued','running','waiting')`;
+    const stopped = yield* sql`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now()
+      WHERE routine_id = ${id}::uuid AND status IN ('queued','running','waiting') RETURNING id`;
+    if (stopped.length) yield* sql`UPDATE bot_routines SET last_outcome = 'Stopped' WHERE id = ${id}::uuid`;
     yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE status = 'pending'
       AND turn_id IN (SELECT id FROM bot_turns WHERE routine_id = ${id}::uuid AND status = 'interrupted')`;
   });

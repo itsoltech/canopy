@@ -205,6 +205,7 @@ export class BotsRuntime {
     void this.tick().catch(() => undefined);
   }
   exchange(id: string) { return this.run((s) => s.exchange(this.#options.userId, id)); }
+  markRead(request: bots.MarkBotReadRequest) { return this.run((s) => s.markRead(this.#options.userId, request.botId, request.throughSeq)); }
   setRoutineEnabled(request: bots.SetBotRoutineEnabledRequest) {
     return this.run((s) => s.updateRoutine(this.#options.userId, request.botId, request.routineId, { enabled: request.enabled }, this.now()));
   }

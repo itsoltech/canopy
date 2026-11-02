@@ -22,3 +22,5 @@ CREATE INDEX bot_routines_due ON bot_routines(next_run_at) WHERE enabled AND del
 ALTER TABLE bot_turns ADD COLUMN routine_id uuid REFERENCES bot_routines(id);
 ALTER TABLE bot_turns ADD COLUMN routine_title text NOT NULL DEFAULT '';
 CREATE INDEX bot_turns_routine ON bot_turns(routine_id) WHERE routine_id IS NOT NULL;
+-- Czytane są tylko widoczne wiadomości; ukryte uruchomienia nigdy nie przesuwają seq.
+ALTER TABLE bots ADD COLUMN last_read_seq bigint NOT NULL DEFAULT 0 CHECK (last_read_seq >= 0);

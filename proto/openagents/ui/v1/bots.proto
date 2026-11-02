@@ -28,6 +28,8 @@ message Bot {
   BotMessage last_message = 350;
   bool archived = 430;
   string owner_user_id = 560;
+  uint32 unread_count = 561;
+  uint64 last_read_seq = 562;
 }
 message BotMessage {
   string id = 1;
@@ -102,6 +104,7 @@ message BotRoutineResponse { BotRoutine routine = 1; }
 message DeleteBotRoutineResponse {}
 message CancelBotReminderRequest { string bot_id = 1; string reminder_id = 2; }
 message CancelBotReminderResponse {}
+message MarkBotReadRequest { string bot_id = 1; uint64 through_seq = 2; }
 message CreateBotRequest { BotConfiguration configuration = 1; string client_request_id = 2; }
 message UpdateBotRequest { string bot_id = 1; BotConfiguration configuration = 2; }
 message GetBotRequest { string bot_id = 1; }

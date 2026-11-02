@@ -1,10 +1,15 @@
 # Boty w gateway
 
+Status: **rdzeń, edytor ustawień, samodzielna edycja, archiwum i rutyny**, 2026-11-02. Bot ma jedną rozmowę
+z właścicielem i działa w procesie gateway. Nie ma katalogu, workera ani lokalnego
+harnessu. Kod: `apps/gateway/src/bots`, kontrakt: `proto/openagents/ui/v1/bots.proto`.
+
 ## Rutyny — cron działający w tle
 
 Migracja **0039_bot_routines** dodaje `bot_routines` i pochodzenie rutyny na `bot_turns`.
 0037/0038 pozostają zarezerwowane dla innych gałęzi. Nowe pola istniejących komunikatów
-zajmują **560–599**: `BotConversation.routines/reminders` oraz `BotApproval.routine_title`.
+zajmują **560–599**: `BotConversation.routines/reminders`, `BotApproval.routine_title`
+oraz `Bot.owner_user_id/unread_count/last_read_seq`.
 Rutyna ma tytuł, instrukcje, pięciopolowy cron, strefę IANA, opis angielski generowany
 na serwerze przez `cronstrue`, enabled, daty utworzenia/zmiany/ostatniego i następnego
 wykonania, licznik oraz krótki wewnętrzny wynik. Soft delete zachowuje audyt.
@@ -66,6 +71,13 @@ tekst modelu pozostaje ukryty. `send_bot_message`, działania w wątkach, rzeczy
 pytania i karty zgody mają zwykłe widoczne efekty. O tym, czy jest powód powiadomienia,
 decyduje model według instrukcji użytkownika; nie ma dodatkowych ustawień rutyny.
 
+`bots.last_read_seq` trwale przechowuje odczyt właściciela. `Bot.unread_count` liczy
+wyłącznie widoczne wiadomości bota do użytkownika powyżej tego numeru, w tym
+`message_user`; ukryta tura nie zwiększa licznika. `MarkBotRead` przyjmuje `through_seq`,
+sprawdza właściciela i monotonicznie potwierdza najwyżej istniejącą wiadomość.
+Otwarta rozmowa potwierdza odebrany snapshot tylko w widocznej karcie przeglądarki.
+Nie dodaje to systemowych powiadomień push.
+
 `BotConversation` przenosi aktualne rutyny i niedostarczone, nieanulowane jednorazowe
 przypomnienia. Zmiana rewizji aktualizuje istniejący strumień `/api/bots/:id/events`,
 bez przeładowania i bez technicznego wpisu w czacie. UI API wystawia tylko włącz/wyłącz,
@@ -91,10 +103,6 @@ Przegląd **componentize** wydzielił `BotDetailsLayout`, `BotDetailsPanel`, `De
 `RoutineRow` i `ReminderRow`. Ruch z **transitions-dev**: card resize + panel reveal,
 z reduced motion; mobilny dialog korzysta ze wspólnego ruchu dolnego panelu.
 
-
-Status: **rdzeń, edytor ustawień, samodzielna edycja, archiwum i rutyny**, 2026-11-02. Bot ma jedną rozmowę
-z właścicielem i działa w procesie gateway. Nie ma katalogu, workera ani lokalnego
-harnessu. Kod: `apps/gateway/src/bots`, kontrakt: `proto/openagents/ui/v1/bots.proto`.
 
 ## 1. Decyzja o wykonaniu
 

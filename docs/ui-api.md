@@ -42,6 +42,12 @@ odbywa się wyłącznie przez narzędzia bota. `Bot.owner_user_id` (560) pozwala
 lokalną preferencję panelu osobno dla właściciela. `BotApproval.routine_title` (560)
 opisuje pochodzenie widocznej karty. Szczegóły ukrytych tur: [bots.md](bots.md).
 
+`Bot.unread_count` (561) i `last_read_seq` (562) obejmują widoczne wiadomości bota
+do użytkownika, w tym jawne `message_user`; ukryte wykonania nie zwiększają licznika.
+`MarkBotRead` / `POST /api/bots/:botId/read` potwierdza `through_seq` monotonicznie,
+z kontrolą właściciela i ograniczeniem do istniejących wiadomości. UI potwierdza
+snapshot tylko w widocznej karcie. Odpowiedź zachowuje podgląd ostatniej wiadomości.
+
 `RenameProject` zmienia nazwę zwykłego projektu właściciela. `ArchiveProject` atomowo
 archiwizuje projekt, workspace'y i wątki przez istniejący lifecycle oraz anuluje
 harmonogramy projektu, zachowując historię i pliki workerów. Scratch jest wykluczony.

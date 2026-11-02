@@ -37,6 +37,7 @@ export const botView = (row: BotRow) => create(bots.BotSchema, {
   id: row.id, configuration: botConfiguration(row), createdAt: timestampFromDate(new Date(row.created_at)), updatedAt: timestampFromDate(new Date(row.updated_at)),
   archived: Boolean(row.archived_at),
   ownerUserId: row.owner_user_id,
+  lastReadSeq: BigInt(row.last_read_seq), unreadCount: Number(row.unread_count ?? 0),
 });
 const messageView = (row: MessageRow) => create(bots.BotMessageSchema, {
   id: row.id, seq: BigInt(row.seq), botId: row.bot_id, senderId: row.sender_id, recipientId: row.recipient_id,
@@ -68,7 +69,8 @@ export function remoteUrl(raw: string): string {
 
 function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   const owned = (user: string, id: string, lock = false) => sql.unsafe<BotRow>(
-    `SELECT * FROM bots WHERE id = $1::uuid AND owner_user_id = $2::uuid AND deleted_at IS NULL${lock ? " FOR UPDATE" : ""}`, [id, user],
+    `SELECT b.*, (SELECT count(*) FROM bot_messages m WHERE m.bot_id = b.id AND m.seq > b.last_read_seq AND m.sender_id = b.id::text AND m.recipient_id = 'user' AND m.kind = 'message') AS unread_count
+      FROM bots b WHERE b.id = $1::uuid AND b.owner_user_id = $2::uuid AND b.deleted_at IS NULL${lock ? " FOR UPDATE OF b" : ""}`, [id, user],
   ).pipe(Effect.flatMap((rows) => rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("bot not found"))));
   const changed = (id: string) => sql`UPDATE bots SET revision = revision + 1, updated_at = now() WHERE id = ${id}::uuid`;
   const active = (user: string, id: string, lock = false) => owned(user, id, lock).pipe(Effect.flatMap((row) => row.archived_at ? Effect.fail(new Invalid("this bot is archived; unarchive it first")) : Effect.succeed(row)));
@@ -216,6 +218,14 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   return {
     owned, active, save, enqueue, finish, changed, fenced, servers, resolvedServer, resolveModel,
     ...routines,
+    markRead: (user: string, id: string, throughSeq: bigint) => sql.withTransaction(Effect.gen(function* () {
+      yield* owned(user, id, true);
+      if (throughSeq < 0n || throughSeq > 9223372036854775807n) return yield* Effect.fail(new Invalid("invalid read sequence"));
+      // A stale tab can only acknowledge messages it observed, never future messages.
+      yield* sql`UPDATE bots SET last_read_seq = greatest(last_read_seq, least(${throughSeq}, coalesce((SELECT max(seq) FROM bot_messages WHERE bot_id = ${id}::uuid), 0))), revision = revision + 1 WHERE id = ${id}::uuid`;
+      const latest = (yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id WHERE m.bot_id = ${id}::uuid ORDER BY m.seq DESC LIMIT 1`)[0];
+      return create(bots.BotSchema, { ...botView(yield* owned(user, id)), lastMessage: latest ? messageView(latest) : undefined });
+    })),
     messageUser: (turn: BotTurn, call: StoredCall) => Effect.gen(function* () {
       if (!turn.routine_id) return yield* Effect.fail(new Invalid("message_user is only available during background routines; reply normally in conversation"));
       yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text)
@@ -274,7 +284,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       return { updated: true, changes };
     }),
     list: (user: string, includeArchived = false) => Effect.gen(function* () {
-      const rows = yield* sql<BotRow>`SELECT * FROM bots WHERE owner_user_id = ${user}::uuid AND deleted_at IS NULL AND (${includeArchived} OR archived_at IS NULL) ORDER BY created_at, id`;
+      const rows = yield* sql<BotRow>`SELECT b.*, (SELECT count(*) FROM bot_messages m WHERE m.bot_id = b.id AND m.seq > b.last_read_seq AND m.sender_id = b.id::text AND m.recipient_id = 'user' AND m.kind = 'message') AS unread_count
+        FROM bots b WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND (${includeArchived} OR b.archived_at IS NULL) ORDER BY b.created_at, b.id`;
       const latest = yield* sql<MessageRow>`SELECT DISTINCT ON(m.bot_id) m.*, t.status AS turn_status FROM bot_messages m JOIN bots b ON b.id = m.bot_id JOIN bot_turns t ON t.id = m.turn_id
         WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL ORDER BY m.bot_id, m.seq DESC`;
       const byBot = new Map(latest.map((m) => [m.bot_id, messageView(m)]));

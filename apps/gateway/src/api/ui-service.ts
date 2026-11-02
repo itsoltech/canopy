@@ -24,6 +24,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       setBotRoutineEnabled: (r) => guard(async () => create(bots.BotRoutineResponseSchema, { routine: await core.bots.setRoutineEnabled(r) })),
       deleteBotRoutine: (r) => guard(async () => { await core.bots.deleteRoutine(r); return create(bots.DeleteBotRoutineResponseSchema); }),
       cancelBotReminder: (r) => guard(async () => { await core.bots.cancelReminder(r); return create(bots.CancelBotReminderResponseSchema); }),
+      markBotRead: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.markRead(r) })),
       saveBotMcpServer: (r) => guard(async () => create(bots.SaveBotMcpServerResponseSchema, { server: await core.bots.saveServer(r) })),
       listBotMcpServers: () => guard(async () => create(bots.ListBotMcpServersResponseSchema, { servers: await core.bots.servers() })),
       deleteBotMcpServer: (r) => guard(async () => { await core.bots.deleteServer(r.serverId); return create(bots.DeleteBotMcpServerResponseSchema); }),

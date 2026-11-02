@@ -31,6 +31,8 @@ export interface BotRow {
   id: string; owner_user_id: string; configuration: unknown;
   created_at: Date; updated_at: Date; revision: string | bigint;
   status_line: string;
+  last_read_seq: string | bigint;
+  unread_count?: number | string;
   archived_at: Date | null;
 }
 export interface BotTurn {

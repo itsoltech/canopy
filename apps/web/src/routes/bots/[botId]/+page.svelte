@@ -64,6 +64,17 @@
   const modelInstances = $derived(botWizardInstances(instances, [...catalogs.workers.values()]));
 
   $effect(() => botList.use());
+  function markVisibleRead() {
+    const last = snapshot.messages.at(-1)?.seq;
+    if (snapshot.bot && last && last > snapshot.bot.lastReadSeq && document.visibilityState === 'visible') {
+      void botList.markRead(snapshot.bot.id, last).catch(() => undefined);
+    }
+  }
+  $effect(() => { markVisibleRead(); });
+  $effect(() => {
+    document.addEventListener('visibilitychange', markVisibleRead);
+    return () => document.removeEventListener('visibilitychange', markVisibleRead);
+  });
   $effect(() => {
     const id = data.bot.id;
     if (botList.list.some((b) => b.id === id)) observedBotId = id;

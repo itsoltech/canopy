@@ -54,7 +54,11 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
   test("a tool-created routine fires silently, retains context and audit, and changes the stream without a new last message", async () => {
     const id = await add(); const r = await make(id);
     expect(r.scheduleText).toContain("15 minutes");
+    const before = await read(id);
+    expect(before.bot?.unreadCount).toBe(1);
+    await gw.api.markBotRead({ botId: id, throughSeq: before.messages.at(-1)!.seq });
     const baseline = await read(id);
+    expect(baseline.bot?.unreadCount).toBe(0);
     const seen: ModelInput[] = [];
     model = async (i) => { seen.push(i); return reply("Invisible final answer"); };
     await due(r);
@@ -62,6 +66,7 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     expect(final.messages).toEqual(baseline.messages);
     expect(final.bot?.lastMessage?.id).toBe(baseline.bot?.lastMessage?.id);
     expect(final.statusLine).toBe(""); expect(final.working).toBe(false);
+    expect(final.bot?.unreadCount).toBe(0);
     expect(final.routines[0]?.runCount).toBe(1);
     expect(final.routines[0]?.lastOutcome).toBe("Nothing to report");
     expect(seen[0]?.instructions).toContain("HIDDEN BACKGROUND RUN");
@@ -77,6 +82,7 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
   test("message_user is deliberate, visible exactly once after a checkpoint restart, even under always policy", async () => {
     const id = await add(); const r = await make(id);
     const baseline = (await read(id)).messages.length;
+    await gw.api.markBotRead({ botId: id, throughSeq: (await read(id)).messages.at(-1)!.seq });
     clock = timestampDate(r.nextRunAt!);
     await core.bots.run((s) => s.deliverRoutines(gw.userId, clock));
     const turn = (await core.bots.run((s) => s.claim(gw.userId)))!;
@@ -96,12 +102,17 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     expect(final.messages.at(-1)?.recipientId).toBe("user");
     expect(final.approvals).toHaveLength(0);
     expect(final.routines[0]?.lastOutcome).toBe("Sent you a message");
+    expect(final.bot?.unreadCount).toBe(1);
+    const readResult = (await gw.api.markBotRead({ botId: id, throughSeq: final.messages.at(-1)!.seq })).bot!;
+    expect(readResult.unreadCount).toBe(0);
+    expect(readResult.lastMessage?.text).toBe("Important Y happened");
     model = async (i) => i.messages.at(-1)?.role === "tool" ? reply() : tool("message_user", { text: "Another important update" });
     await due(final.routines[0]!);
     const next = await idle(id);
     expect(next.messages).toHaveLength(baseline + 2);
     expect(next.messages.at(-1)?.text).toBe("Another important update");
     expect(next.approvals).toHaveLength(0);
+    expect(next.bot?.unreadCount).toBe(1);
   });
 
   test("disabled/deleted routines cannot run, including an occurrence already queued", async () => {
@@ -166,9 +177,49 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     const stranger = new GatewayCore({ runtime: gw.runtime, instanceId: "stranger", userId: Bun.randomUUIDv7() });
     expect(await failure(stranger.bots.setRoutineEnabled(create(bots.SetBotRoutineEnabledRequestSchema, { botId: id, routineId: r.id, enabled: false })))).toContain("not found");
     expect(await failure(stranger.bots.deleteRoutine(create(bots.DeleteBotRoutineRequestSchema, { botId: id, routineId: r.id })))).toContain("not found");
+    expect(await failure(stranger.bots.markRead(create(bots.MarkBotReadRequestSchema, { botId: id, throughSeq: 1n })))).toContain("not found");
     model = async (i) => i.messages.at(-1)?.role === "tool" ? reply(i.messages.at(-1)!.text) : tool("delete_routine", { routine_id: r.id });
     expect((await send(other, "Delete that routine")).messages.at(-1)?.text).toContain("not found");
     expect((await read(id)).routines[0]?.enabled).toBe(true);
+  });
+
+  test("a busy run coalesces later ticks, and disabling an active model fences out its late answer", async () => {
+    const id = await add(); const r = await make(id);
+    const entered = Promise.withResolvers<void>(); const release = Promise.withResolvers<void>();
+    model = async () => { entered.resolve(); await release.promise; return reply("Must stay invisible after disabling"); };
+    await due(r); await entered.promise;
+    clock = new Date(clock.getTime() + 24 * 60 * 60_000);
+    await core.bots.tick();
+    expect(await query("SELECT id FROM bot_turns WHERE routine_id = $1", [r.id])).toHaveLength(1);
+    expect((await read(id)).working).toBe(false);
+    await gw.api.setBotRoutineEnabled({ botId: id, routineId: r.id, enabled: false });
+    release.resolve();
+    await idle(id);
+    expect((await read(id)).routines[0]?.lastOutcome).toBe("Stopped");
+    expect(await query("SELECT id FROM bot_messages WHERE text LIKE '%Must stay invisible%' AND bot_id = $1", [id])).toHaveLength(0);
+  });
+
+  test("a reply from another bot returns to the routine as hidden work with its notification instructions", async () => {
+    const id = await add(); const other = await add(); const r = await make(id);
+    const bot = (await gw.api.getBot({ botId: id })).bot!;
+    await gw.api.updateBot({ botId: id, configuration: { ...bot.configuration!, approvalPolicy: "safe" } });
+    const otherName = (await gw.api.getBot({ botId: other })).bot!.configuration!.name;
+    let followup: ModelInput | undefined;
+    model = async (i) => {
+      if (i.configuration.name === otherName) return reply("No important changes");
+      if (inputOf(i).includes("Message from")) { followup = i; return reply("Silent follow-up final"); }
+      return i.messages.at(-1)?.role === "tool" ? reply() : tool("send_bot_message", { bot_id: other, text: "Check if anything important happened" });
+    };
+    const baseline = (await read(id)).messages.length;
+    await due(r); await idle(id);
+    await core.bots.tick(); await idle(other);
+    await core.bots.tick(); const final = await idle(id);
+    expect(followup?.instructions).toContain("HIDDEN BACKGROUND RUN");
+    expect(inputOf(followup!)).toContain(definition.instructions);
+    expect(final.messages).toHaveLength(baseline + 1); // Only the deliberate “Messaged …” effect.
+    expect(final.messages.at(-1)?.text).toStartWith("Messaged ");
+    expect(final.messages.some((m) => m.text.includes("Silent follow-up") || m.text.includes("No important changes"))).toBe(false);
+    expect(await query("SELECT id FROM bot_turns WHERE bot_id = $1 AND routine_id = $2", [id, r.id])).toHaveLength(2);
   });
 
   test("minimum interval, timezone, count and hops are enforced in the real tool path; edits preserve fields", async () => {
