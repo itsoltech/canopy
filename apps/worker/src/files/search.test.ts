@@ -1,8 +1,10 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tempDirs } from "@open-agents/testing";
 import { clearFileSearchCache, MAX_LIMIT, MAX_WALK, searchFiles } from "./search.ts";
+
+const tempDir = tempDirs();
 
 const make = (root: string, files: string[]) => {
   for (const file of files) {
@@ -12,17 +14,6 @@ const make = (root: string, files: string[]) => {
 };
 
 afterEach(() => clearFileSearchCache());
-
-// Every folder a test makes goes away afterwards: /tmp is a tmpfs, and the huge folder alone is 21 000 files.
-const made: string[] = [];
-const tempDir = (prefix: string) => {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  made.push(dir);
-  return dir;
-};
-afterAll(() => {
-  for (const dir of made) rmSync(dir, { recursive: true, force: true });
-});
 
 describe("git work tree", () => {
   let repo = "";

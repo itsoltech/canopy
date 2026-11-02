@@ -4,16 +4,17 @@
  * steered message into a running turn (Codex turn/steer, Claude streaming input).
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind, type ModelCatalog, type ThreadEvent } from "@open-agents/contracts";
+import { tempDirs } from "@open-agents/testing";
 import { journalHello } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
+
+const tempDir = tempDirs();
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -43,16 +44,10 @@ const agentText = (events: ThreadEvent[], turnId: string) =>
     .join("\n");
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker: models, effort and steer (live)", () => {
-  const dirs: string[] = [];
-  afterAll(() => {
-    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
-  });
-
   for (const c of CASES) {
     test(`${c.name}: model list, a turn with a chosen effort, a steer into a running turn`, async () => {
-      const dir = mkdtempSync(join(tmpdir(), `oa-live-models-${c.name.toLowerCase()}-`));
-      const repo = mkdtempSync(join(tmpdir(), `oa-live-models-repo-`));
-      dirs.push(dir, repo);
+      const dir = tempDir(`oa-live-models-${c.name.toLowerCase()}-`);
+      const repo = tempDir(`oa-live-models-repo-`);
       const gateway = await startGateway();
       const runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
       const host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "live" });

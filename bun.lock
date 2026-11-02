@@ -68,6 +68,9 @@
         "sharp": "0.35.5",
         "zod": "4.6.7",
       },
+      "devDependencies": {
+        "@open-agents/testing": "workspace:*",
+      },
     },
     "packages/codex-protocol": {
       "name": "@open-agents/codex-protocol",
@@ -101,6 +104,10 @@
         "effect": "4.1.1",
       },
     },
+    "packages/testing": {
+      "name": "@open-agents/testing",
+      "version": "0.0.0",
+    },
     "packages/transport": {
       "name": "@open-agents/transport",
       "version": "0.0.0",
@@ -125,6 +132,9 @@
         "@open-agents/worker": "workspace:*",
         "effect": "4.1.1",
         "sharp": "0.35.5",
+      },
+      "devDependencies": {
+        "@open-agents/testing": "workspace:*",
       },
     },
   },
@@ -266,6 +276,8 @@
     "@open-agents/gateway": ["@open-agents/gateway@workspace:apps/gateway"],
 
     "@open-agents/integration-tests": ["@open-agents/integration-tests@workspace:tests/integration"],
+
+    "@open-agents/testing": ["@open-agents/testing@workspace:packages/testing"],
 
     "@open-agents/transport": ["@open-agents/transport@workspace:packages/transport"],
 

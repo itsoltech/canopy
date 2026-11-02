@@ -5,21 +5,20 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PermissionMode, Provider } from "@open-agents/contracts";
 import type { WorkerConnection } from "@open-agents/gateway/worker-link";
+import { tempDir } from "@open-agents/testing";
 import { journalHello } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 
-const dir = mkdtempSync(join(tmpdir(), "oa-host-attachments-"));
+const dir = tempDir("oa-host-attachments-");
 const root = join(dir, "repos");
 mkdirSync(join(root, "app"), { recursive: true });
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 let gateway: Awaited<ReturnType<typeof startGateway>>;
 let connection: WorkerConnection;

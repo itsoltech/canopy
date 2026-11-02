@@ -4,12 +4,11 @@
  * (docs/execution.md). Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ItemStatus, PermissionMode, Provider, ui, type Item } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { tempDir } from "@open-agents/testing";
 import { journalHello, openGatewayLink, resendPending } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
@@ -32,8 +31,8 @@ async function until<A>(what: string, read: () => Promise<A>, done: (value: A) =
 }
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("harness goals and background work, end to end (live)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "oa-live-goals-"));
-  const repo = mkdtempSync(join(tmpdir(), "oa-live-goals-repo-"));
+  const dir = tempDir("oa-live-goals-");
+  const repo = tempDir("oa-live-goals-repo-");
   let gw: TestGateway;
   let close: () => Promise<void> = async () => {};
   let projectId = "";
@@ -64,8 +63,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("harness go
   afterAll(async () => {
     await close();
     await gw?.close();
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
   });
 
   const newThread = async (provider: Provider, title: string) => {

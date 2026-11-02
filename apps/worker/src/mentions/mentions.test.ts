@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { MentionKind, MentionSchema, type Mention } from "@open-agents/contracts";
 import type { v2 } from "@open-agents/codex-protocol";
+import { tempDirs } from "@open-agents/testing";
 import { claudeCatalogEntries, claudeCatalogStamp, claudeSkillsOnDisk } from "../providers/claude/catalog.ts";
 import { codexAppEntries, codexPluginEntries, codexSkillEntries } from "../providers/codex/catalog.ts";
 import { codexUserInput } from "../providers/codex/input.ts";
@@ -12,6 +12,8 @@ import { withUserMentions } from "../providers/codex/threads.ts";
 import { DEFAULT_NATIVE_TOOL_POLICY } from "../providers/native-tools.ts";
 import { CatalogCache } from "./catalog.ts";
 import { catalogIcon, MAX_ICON_BYTES } from "./icons.ts";
+
+const tempDir = tempDirs();
 
 const mention = (text: string, placeholder: string, init: { kind: MentionKind; name: string; path: string }): Mention => {
   const start = text.indexOf(placeholder);
@@ -54,8 +56,8 @@ describe("Codex input", () => {
 });
 
 describe("Claude catalog", () => {
-  const folder = mkdtempSync(join(tmpdir(), "oa-claude-catalog-"));
-  const home = mkdtempSync(join(tmpdir(), "oa-claude-home-"));
+  const folder = tempDir("oa-claude-catalog-");
+  const home = tempDir("oa-claude-home-");
   mkdirSync(join(folder, ".claude", "skills", "hello-skill"), { recursive: true });
   writeFileSync(join(folder, ".claude", "skills", "hello-skill", "SKILL.md"), "---\nname: hello-skill\n---\n");
   mkdirSync(join(home, "skills", "home-skill"), { recursive: true });
@@ -101,7 +103,7 @@ describe("Claude catalog", () => {
 
 describe("Codex catalog", () => {
   test("enabled skills with display names and icons; installed plugins; accessible apps", () => {
-    const dir = mkdtempSync(join(tmpdir(), "oa-icons-"));
+    const dir = tempDir("oa-icons-");
     writeFileSync(join(dir, "small.svg"), "<svg/>");
     writeFileSync(join(dir, "big.png"), new Uint8Array(MAX_ICON_BYTES + 1));
     const skills = codexSkillEntries({

@@ -1,16 +1,15 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { DeviceLogin, Provider, ProviderProfileKind, WorkerConfigSchema } from "@open-agents/contracts";
+import { tempDir } from "@open-agents/testing";
 import { applyWorkerConfig, isAllowedPath, systemProbe, type DeviceProbe } from "./remote.ts";
 
-const base = mkdtempSync(join(tmpdir(), "oa-remote-config-"));
+const base = tempDir("oa-remote-config-");
 const repo = join(base, "repo");
 mkdirSync(join(repo, "sub"), { recursive: true });
 symlinkSync(repo, join(base, "link"));
-afterAll(() => rmSync(base, { recursive: true, force: true }));
 
 /** Real filesystem, fake CLIs: claude 2.3.1 and codex 0.164.0 installed. */
 const probe: DeviceProbe = {

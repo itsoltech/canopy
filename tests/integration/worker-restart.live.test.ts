@@ -7,12 +7,11 @@
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { tempDir } from "@open-agents/testing";
 import { journalHello, openGatewayLink, resendPending } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
@@ -33,8 +32,8 @@ async function until<A>(what: string, read: () => Promise<A>, done: (value: A) =
 }
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker restart, end to end (live)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "oa-live-restart-"));
-  const repo = mkdtempSync(join(tmpdir(), "oa-live-restart-repo-"));
+  const dir = tempDir("oa-live-restart-");
+  const repo = tempDir("oa-live-restart-repo-");
   let gw: TestGateway;
   let workerId = "";
   let credential = "";
@@ -81,8 +80,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker res
   afterAll(async () => {
     await stop();
     await gw?.close();
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
   });
 
   const newThread = async (title: string) => {

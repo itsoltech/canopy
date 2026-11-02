@@ -5,18 +5,19 @@
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { tempDirs } from "@open-agents/testing";
 import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 import { useLiveProxy } from "./support/live.ts";
+
+const tempDir = tempDirs();
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -33,13 +34,11 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: mo
   let workspaceId = "";
   let projectId = "";
   let stop = async () => {};
-  const dirs: string[] = [];
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = mkdtempSync(join(tmpdir(), "oa-live-ui-repo-"));
-    const data = mkdtempSync(join(tmpdir(), "oa-live-ui-worker-"));
-    dirs.push(repo, data);
+    const repo = tempDir("oa-live-ui-repo-");
+    const data = tempDir("oa-live-ui-worker-");
     // A real worker with both providers through the proxy (its key is a secret reference, as with the CLI).
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;
@@ -61,7 +60,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: mo
   afterAll(async () => {
     await stop();
     await gw?.close();
-    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
   });
 
   test("the worker's catalog reaches the UI for both providers", async () => {

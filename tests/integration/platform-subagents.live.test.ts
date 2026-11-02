@@ -7,12 +7,12 @@
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { tempDirs } from "@open-agents/testing";
 import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
@@ -20,6 +20,8 @@ import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { useLiveProxy } from "./support/live.ts";
+
+const tempDir = tempDirs();
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -49,7 +51,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("platform s
   let projectId = "";
   let dataDir = "";
   let stop = async () => {};
-  const dirs: string[] = [];
   const query = <A extends object>(text: string, ...params: unknown[]) =>
     gw.runtime.runPromise(
       Effect.gen(function* () {
@@ -60,10 +61,9 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("platform s
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = mkdtempSync(join(tmpdir(), "oa-live-ui-repo-"));
-    const data = mkdtempSync(join(tmpdir(), "oa-live-ui-worker-"));
+    const repo = tempDir("oa-live-ui-repo-");
+    const data = tempDir("oa-live-ui-worker-");
     dataDir = data;
-    dirs.push(repo, data);
     // A real worker with both providers through the proxy (its key is a secret reference, as with the CLI).
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;
@@ -85,7 +85,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("platform s
   afterAll(async () => {
     await stop();
     await gw?.close();
-    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
   });
 
   for (const c of CASES) {

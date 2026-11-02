@@ -1,13 +1,15 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { ItemSchema, ItemStatus, TurnEndSource, TurnOutcome } from "@open-agents/contracts";
+import { tempDirs } from "@open-agents/testing";
 import type { OpenTurn } from "../journal/index.ts";
 import { readClaudeTurn } from "./claude/transcript.ts";
 import { readCodexTurn, threadItem } from "./codex/transcript.ts";
 import { reconcileEvents, WORKER_RESTARTED } from "./reconcile.ts";
+
+const tempDir = tempDirs();
 
 /**
  * Harness-truth reconciliation (docs/durability.md, "Rekoncyliacja z transkryptu harnessu") on recorded transcripts
@@ -15,13 +17,10 @@ import { reconcileEvents, WORKER_RESTARTED } from "./reconcile.ts";
  */
 
 const fixture = (name: string) => join(import.meta.dir, "fixtures", name);
-const dirs: string[] = [];
-afterAll(() => dirs.forEach((d) => rmSync(d, { recursive: true, force: true })));
 
 /** A Claude config dir with the session transcript where Claude Code keeps it; returns the home and the content. */
 function claudeHome(sessionId: string, content: string): string {
-  const home = mkdtempSync(join(tmpdir(), "oa-claude-"));
-  dirs.push(home);
+  const home = tempDir("oa-claude-");
   mkdirSync(join(home, "projects", "-work-app"), { recursive: true });
   writeFileSync(join(home, "projects", "-work-app", `${sessionId}.jsonl`), content);
   return home;

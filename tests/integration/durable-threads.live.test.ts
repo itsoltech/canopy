@@ -8,12 +8,12 @@
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { tempDir } from "@open-agents/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
@@ -64,8 +64,8 @@ const jsonl = (path: string) =>
     });
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker killed mid-turn, settled from the harness transcript (live)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "oa-live-durable-"));
-  const repo = mkdtempSync(join(tmpdir(), "oa-live-durable-repo-"));
+  const dir = tempDir("oa-live-durable-");
+  const repo = tempDir("oa-live-durable-repo-");
   const dataDir = join(dir, "data");
   const logs: string[] = [];
   let gw: TestGateway;
@@ -135,8 +135,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker kil
     }
     await gw?.close();
     if (process.env["OA_TEST_LOG"] === "1") console.error(logs.join(""));
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
   });
 
   const newThread = async (title: string, provider: Provider, model: string) => {
