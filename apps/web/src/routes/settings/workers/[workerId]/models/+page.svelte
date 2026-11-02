@@ -1,11 +1,10 @@
 <script lang="ts">
-  import { invalidate } from "$app/navigation";
-  import { page } from "$app/state";
   import { create } from "@bufbuild/protobuf";
   import { Provider, ui } from "@open-agents/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import ModelSelection from "#lib/features/profiles/ModelSelection.svelte";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { profileName, saveSelection } from "#lib/features/profiles/profiles.ts";
   import { providerLabel } from "#lib/features/threads/labels.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -19,9 +18,10 @@
   import type { PageProps } from "./$types";
 
   let { data }: PageProps = $props();
+  const route = useSettingsRoute();
   const overview = useOverview();
 
-  const workerId = $derived(page.params.workerId ?? "");
+  const workerId = $derived(route.params.workerId ?? "");
   const worker = $derived(overview.worker(workerId));
   const provider = $derived(data.provider === "claude" ? Provider.CLAUDE : Provider.CODEX);
   const profile = $derived(decode(ui.ListProviderProfilesResponseSchema, data.profiles).profiles.find((p) => p.id === data.profileId)!);
@@ -46,7 +46,7 @@
     try {
       // The worker lists again (it must be online); it can take a while with a slow proxy.
       await requestJson("POST", "/api/models", { workerId }, 100_000);
-      await invalidate("app:profiles");
+      await route.refresh("app:profiles");
     } catch (error) {
       refreshError = error instanceof Error ? error.message : String(error);
     } finally {
@@ -94,11 +94,11 @@
   onsave={async (shown, showNew) => {
     await saveSelection(request({ shown, known: models.map((m) => m.id), showNew }));
     toast("Model choice saved");
-    await invalidate("app:profiles");
+    await route.refresh("app:profiles");
   }}
   onreset={async () => {
     await saveSelection(request({ showAll: true }));
     toast("Showing the default list");
-    await invalidate("app:profiles");
+    await route.refresh("app:profiles");
   }}
 />

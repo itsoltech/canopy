@@ -75,12 +75,6 @@
     scale: var(--scale-large);
   }
 }
-/* Closing before navigating away (settings): the same exit while the dialog is still open. */
-.t-modal[open][data-closing] {
-  opacity: 0;
-  scale: var(--scale-large);
-  transition-duration: var(--duration-quick);
-}
 @media (width < 40rem) {
   .t-modal[data-sheet] {
     opacity: 1;
@@ -137,10 +131,6 @@
 .t-drawer[open]::backdrop {
   opacity: 1;
   transition-duration: var(--duration-fast);
-}
-.t-modal[open][data-closing]::backdrop {
-  opacity: 0;
-  transition-duration: var(--duration-quick);
 }
 @starting-style {
   .t-dropdown:popover-open::backdrop,
