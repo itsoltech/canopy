@@ -43,6 +43,7 @@
     onclose,
     onattach,
     actions,
+    archived,
     class: className,
   }: {
     conversation: ConversationView;
@@ -69,6 +70,7 @@
     onclose?: (() => void) | undefined;
     onattach?: (() => void) | undefined;
     actions?: Snippet;
+    archived?: Snippet;
     class?: ClassValue;
   } = $props();
 
@@ -83,8 +85,8 @@
   let previousConversation: string | undefined;
   $effect(() => {
     const id = conversation.id;
-    const found = entries.findLast((entry) => entry.kind === "message");
-    const latest = found?.kind === "message" ? found.message.id : undefined;
+    const found = entries.findLast((entry) => entry.kind === "message" || entry.kind === "event" && entry.event.changes?.length);
+    const latest = found?.kind === "message" ? found.message.id : found?.kind === "event" ? found.event.id : undefined;
     if (previousConversation === id && latest && latest !== previousMessage) untrack(() => messageEvent++);
     previousConversation = id;
     previousMessage = latest;
@@ -168,7 +170,7 @@
           {onretry}
           {onchangemodel}
           {onreact}
-          onreply={conversation.kind === "watch" ? undefined : reply}
+          onreply={conversation.kind === "watch" || conversation.archived ? undefined : reply}
           class="mx-auto w-full max-w-(--chat-width) px-3 pt-4 pb-6 sm:px-6"
         />
       </div>
@@ -182,7 +184,9 @@
     {/if}
   </div>
   <div class="mx-auto w-full max-w-(--chat-width) shrink-0 px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
-    {#if conversation.kind === "watch"}
+    {#if archived && conversation.archived}
+      {@render archived()}
+    {:else if conversation.kind === "watch"}
       <WatchBar bots={conversation.bots} {onclose} />
     {:else}
       <BotComposer

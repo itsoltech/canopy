@@ -11,14 +11,20 @@ export interface BotAction {
 
 /** What a conversation in the list can do; a missing handler hides its item. */
 export interface ConversationHandlers {
+  onEdit?: ((conversation: ConversationView) => void) | undefined;
+  onArchive?: ((conversation: ConversationView) => void) | undefined;
+  onDelete?: ((conversation: ConversationView) => void) | undefined;
   /** Pin or unpin (pins will be a user setting in the gateway). */
   onTogglePin?: ((conversation: ConversationView) => void) | undefined;
   onMarkRead?: ((conversation: ConversationView) => void) | undefined;
 }
 
-export function conversationMenu(conversation: ConversationView, { onTogglePin, onMarkRead }: ConversationHandlers): BotAction[] {
+export function conversationMenu(conversation: ConversationView, { onTogglePin, onMarkRead, onEdit, onArchive, onDelete }: ConversationHandlers): BotAction[] {
   const items: BotAction[] = [];
+  if (onEdit && conversation.kind === "direct") items.push({ label: "Edit bot…", icon: "pencil-square", onselect: () => onEdit(conversation) });
   if (onTogglePin) items.push({ label: conversation.pinned ? "Unpin" : "Pin to top", icon: "star", onselect: () => onTogglePin(conversation) });
   if (onMarkRead && conversation.unread > 0) items.push({ label: "Mark as read", icon: "check", onselect: () => onMarkRead(conversation) });
+  if (onArchive) items.push({ label: conversation.archived ? 'Unarchive bot' : 'Archive bot', icon: 'archive-box', onselect: () => onArchive(conversation) });
+  if (onDelete && conversation.archived) items.push({ label: 'Delete bot…', icon: 'trash', onselect: () => onDelete(conversation) });
   return items;
 }

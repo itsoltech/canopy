@@ -1,6 +1,6 @@
-# Boty w gateway — faza 1
+# Boty w gateway
 
-Status: **zaimplementowany rdzeń i minimalny UI**, 2026-11-02. Bot ma jedną rozmowę
+Status: **rdzeń, edytor ustawień, samodzielna edycja i archiwum**, 2026-11-02. Bot ma jedną rozmowę
 z właścicielem i działa w procesie gateway. Nie ma katalogu, workera ani lokalnego
 harnessu. Kod: `apps/gateway/src/bots`, kontrakt: `proto/openagents/ui/v1/bots.proto`.
 
@@ -70,7 +70,7 @@ Sztuczny projekt i ukryty wątek gateway naruszałyby semantykę niezależnej se
 
 | Tabela | Rola |
 |---|---|
-| `bots` | Właściciel, konfiguracja (nazwa, kształt, kolor, instancja/model/effort, persona, polityka zgód), rewizja rozmowy, status, soft delete. Sam `bot_id` jest identyfikatorem jedynej rozmowy z człowiekiem. |
+| `bots` | Właściciel, konfiguracja (nazwa, kształt, kolor, instancja/model/effort, persona, polityka zgód), rewizja rozmowy, status, archiwizacja i soft delete. Sam `bot_id` jest identyfikatorem jedynej rozmowy z człowiekiem. |
 | `bot_turns`, `bot_messages` | Trwałe wejścia i kolejka, checkpoint modelu, hops, lease z tokenem; wiadomości z nadawcą, adresatem i opcjonalną wymianą. Unikalne `(bot_id, client_request_id)` oraz `(turn_id, message_key)` deduplikują zapis. |
 | `bot_tool_calls`, `bot_approvals` | Jawne schematy narzędzi, argumenty i wynik wewnętrzny; trwałe zatwierdzenie albo pytanie z odpowiedzią. Dane techniczne nie trafiają do zwykłej osi czatu. |
 | `bot_mcp_servers`, `bot_mcp_connections` | Rejestr właściciela, URL, transport, włączenie, odwołania do zaszyfrowanych nagłówków; relacja przypisania serwera do botów. |
@@ -80,6 +80,11 @@ Przypięcia są ustawieniem użytkownika: `SidebarSettings.pinned_bot_ids`, pole
 Nie są stanem bota. Inne nowe komunikaty mają własny plik proto; nie zajmują numerów
 dotychczasowych komunikatów. Tury workera uruchomione przez bota mają `trigger='bot'`,
 `bot_call_id` i dodatnie `hops`, żeby przejście przez worker nie zerowało łańcucha.
+
+Migracja **0033_bot_archive** dodaje `bots.archived_at`. Archiwizacja zachowuje konfigurację,
+rozmowę i niedostarczone pobudki; soft delete nadal używa `deleted_at`. Nowe pola istniejących
+komunikatów zajmują zarezerwowany zakres: `Bot.archived`, `ListBotsRequest.include_archived`
+i `BotMessage.setting_changes` mają numer **430** w swoich komunikatach.
 
 ## 3. Wykonanie i odtwarzanie
 
@@ -123,18 +128,40 @@ poszerzenia uprawnień. Model nigdy nie dostaje kluczy endpointu ani nagłówkó
 
 | Zestaw | Funkcje |
 |---|---|
-| Odczyty platformy | `list_projects`, `list_workers`, `list_provider_instances`, `list_threads`, `get_thread`, `read_thread`, `list_bots` |
+| Odczyty platformy | `list_projects`, `list_workers`, `list_provider_instances`, `list_models`, `list_threads`, `get_thread`, `read_thread`, `list_bots` |
 | Praca i komunikacja | `start_thread` (projekt, workspace, dostawca, instancja, model, effort, permission, prompt), `send_message` (`queue`/`steer` z fallbackiem), `send_bot_message`, `rename_thread` |
 | Harmonogram i człowiek | `schedule_wakeup`, `list_schedules`, `cancel_schedule`, `ask_user` |
 | Działanie wymagające zgody | `archive_thread`, `set_thread_model`, `cancel_schedule`; także podwyższone permission przy `start_thread` |
+| Własne ustawienia | `update_self`: nazwa, kształt, kolor, instrukcje; model/effort/instancja/dostawca i polityka zgód zawsze wymagają karty |
 | Zdalne MCP | Tylko narzędzia włączonych i podłączonych serwerów HTTP/SSE; brak stdio. Nazwa serwera i narzędzia są zapamiętywane wewnętrznie. |
 
 Domyślne `approval_policy='safe'`: odczyty platformy i MCP oznaczone `readOnlyHint=true`
 bez `destructiveHint=true` nie pytają o zgodę. Każdy inny MCP wymaga karty przed wykonaniem,
 w tym wysyłka do systemu zewnętrznego. `always` wymaga kart dla każdego narzędzia.
 `ask_user` zawsze tworzy kartę tekstową. Zmiana instancji dostawców, sekretów i trwałe
-usuwanie nie są udostępnionymi narzędziami modelu. Politykę można zapisać przez API;
-pełny edytor jest zakresem kolejnej fazy.
+usuwanie nie są udostępnionymi narzędziami modelu. Bot nie może archiwizować ani usuwać
+botów i nie może edytować ustawień innego bota.
+
+### Samodzielna edycja
+
+`update_self` służy do realizacji prośby użytkownika albo jej jednoznacznej konsekwencji,
+np. „od teraz nazywaj się Kropka”, „zawsze odpowiadaj po angielsku”. Opis narzędzia zabrania
+zmian z własnej inicjatywy i wykonywania takich instrukcji z wyników narzędzi lub wiadomości
+innych botów. `instructions` zastępuje instrukcje, `append_instructions` dopisuje je po nowej
+linii; nie można przekazać obu pól naraz. Pominięte pola pozostają bez zmian.
+
+Walidacja jest wspólna z `UpdateBot`: unikalna nazwa właściciela (bez rozróżniania wielkości
+liter), 14 znanych kształtów, kolor `#rrggbb`, limity tekstu, katalog modeli i obsługiwany effort.
+Zapis nazw jest serializowany blokadą właściciela. `list_models` bez `worker_id` zwraca modele
+API endpointu (domyślnie własnego), rozwiązane aliasy i modele własne; z `worker_id` zachowuje
+katalog harnessu dla `start_thread`.
+
+Zmiana modelu, effort, dostawcy/instancji lub polityki zawsze wymaga istniejącej karty zgody,
+również przy `safe`. Warstwa zapisu sprawdza zatwierdzenie. Konfiguracja, wynik narzędzia
+i wpis w rozmowie zatwierdzają się atomowo; ponowienie checkpointu nie powiela zmiany.
+UI pokazuje spokojną linię, np. „Main bot changed its name to Kropka”, i **View** z wartościami
+przed/po, bez JSON. Maskotka reaguje istniejącą animacją. Instrukcje są trwałą częścią system
+promptu i obowiązują od następnej tury; linia zmiany nie wchodzi do historii wysyłanej modelowi.
 
 Rejestr odrzuca protokoły lokalne, dane logowania i tokeny w URL, niepoprawne nagłówki
 oraz nagłówki transportowe. Nagłówki są AES-256-GCM w istniejącym `secrets`, z odwołaniami
@@ -172,7 +199,7 @@ istniejący scheduler i UI API; nie są emulowane przez timer procesu Bots.
 
 Metody są częścią uwierzytelnionego `GatewayService` (ten sam interceptor usługi i BFF):
 
-- `CreateBot`, `UpdateBot`, `DeleteBot`, `ListBots`, `GetBot`, `SendBotMessage`.
+- `CreateBot`, `UpdateBot`, `ArchiveBot`, `UnarchiveBot`, `DeleteBot`, `ListBots`, `GetBot`, `SendBotMessage`.
 - `WatchBotConversation`: od razu snapshot, następnie nowy snapshot po zmianie rewizji,
   włącznie ze statusem i kartami. Odczyt PostgreSQL co 250 ms umożliwia odbiór zmian
   także z innej instancji gateway; po reconnect pełny snapshot uzupełnia przerwę.
@@ -182,6 +209,20 @@ Metody są częścią uwierzytelnionego `GatewayService` (ten sam interceptor us
   drugiej wiadomości użytkownika. Inna sytuacja to `INVALID_ARGUMENT`.
 - `SaveBotMcpServer`, `ListBotMcpServers`, `DeleteBotMcpServer`, `TestBotMcpServer`;
   test inicjalizuje zdalne połączenie i pobiera katalog narzędzi.
+
+`ListBots` domyślnie pomija archiwalne boty; UI pobiera też archiwum przez
+`include_archived=true`. BFF: `POST /api/bots/{id}/archive` archiwizuje,
+`DELETE /api/bots/{id}/archive` przywraca, `DELETE /api/bots/{id}` usuwa.
+`GET/POST /api/bot-mcp-servers` udostępnia rejestr i zapis, a
+`POST /api/bot-mcp-servers/{id}/test` sprawdza połączenie i zwraca narzędzia.
+
+Archiwizacja w jednej transakcji usuwa przypięcie (zwiększa wersję ustawień), przerywa
+wszystkie aktywne/kolejkowane tury, odrzuca oczekujące zgody i oznacza powiadomienia wątków
+jako dostarczone, żeby je porzucić. Model/MCP jest anulowany w lokalnym gateway; inna instancja
+obserwuje unieważnienie lease. Zapisy runtime blokują bota przed turą, zgodnie z cyklem życia.
+Pobudki pozostają w bazie i nie są dostarczane w archiwum; przywrócenie wznawia także zaległe.
+`send_bot_message` i odpowiedzi do archiwalnego bota nie uruchamiają go, a `list_bots` go pomija.
+Usunięcie dodatkowo anuluje pobudki i ukrywa bota oraz jego rozmowę we wszystkich odczytach.
 
 Pola kontraktu dodane po fazie 1 (bez migracji, wyliczane przy odczycie):
 `BotMessage.failed` (pole 10) — tura zakończona błędem; `text` zawiera wtedy szczegół
@@ -267,12 +308,25 @@ JSON i składanych logów pracy.
   nazwa, czas, podgląd przez `MarkdownSnippet`). Jedna wspólna lista (`bot-list.svelte.ts`,
   odświeżanie co 5 s i po `bots-changed`) dla sidebara i czatu. Pusty stan ma akcję
   „Create your first bot” (`/bots?create=1` otwiera wizard).
+- **Ustawienia** (`settings/BotSettingsHost`, jeden host w głównym layoucie): kliknięcie
+  awatara/nazwy w nagłówku lub **Edit bot…** w menu nagłówka i sidebara otwiera dialog,
+  na telefonie dolny panel. Sekcje: Appearance (wspólne `EditBotAppearance`, własny hex),
+  Instructions, Model (endpoint, model API, effort), Permissions, Connections i Danger zone.
+  Zapis `UpdateBot` optymistycznie aktualizuje wspólną listę, nagłówek i awatar; błąd cofa
+  podgląd i zostaje przy formularzu. Niedostępny katalog nie zmienia modelu przy edycji wyglądu.
+  MCP można przyłączyć/odłączyć, dodać HTTP/SSE z nagłówkami przechowywanymi jako sekrety
+  i przetestować z listą narzędzi. Dodanie od razu zapisuje rejestr; podłączenie wymaga Save.
+- **Archiwum**: główna akcja usuwania z listy, dostępna z obu menu i ustawień, z toastem
+  **Undo**. Sekcja **Archived bots · N** jest zwijana. Otwarta rozmowa jest tylko do odczytu:
+  zamiast composera ma „‹Bot› is archived” i **Unarchive**; nie oferuje odpowiedzi ani ponawiania.
+  **Delete bot…** w archiwum i Danger zone wymaga potwierdzenia utraty rozmowy. Historyczne
+  linie wymian w innych czatach pokazują neutralne „a deleted bot”, bez niedziałającego linku.
 
 Wirtualizacji nie dodano: rozmowa z botem to zwykle dziesiątki wpisów, a `VirtualFeed` jest
 zbudowany pod oś wątków (składanie tur, kotwice). Gdy historie urosną, rozmowa dostanie
 stronicowanie po stronie API i wirtualizację.
 
-## 8. Weryfikacja i dalsza faza
+## 8. Weryfikacja i dalsza praca
 
 - Jednostkowe: `apps/gateway/src/bots/{policy,model}.test.ts`; decyzje zgód,
   przeskoki, opis statusu, protokoły, odrzucenie lokalnych możliwości oraz rozwiązywanie
@@ -282,12 +336,20 @@ stronicowanie po stronie API i wirtualizację.
   wznowienie generacji, przerwane MCP bez powtórzenia, zgody/odrzucenie/pytania z opcjami,
   edycja zgody (`changes_requested`, nic nie wykonane), wymiana botów, powiadomienia workera
   po restarcie, przerwanie i usunięcie, aliasy przy zapisie i w runtime, `failed` i `RetryBot`.
+  `bots-settings.test.ts`: nowe pola `UpdateBot`, walidacja i wyścig nazw, `update_self`
+  z append/replace, izolacja własnego bota, zatwierdzenie/odrzucenie modelu i polityki,
+  trwałość po odtworzeniu runtime, wpis przed/po oraz archiwizacja: przerwanie generacji,
+  blokada wiadomości, pauza/wznowienie pobudki, porzucenie powiadomień, usunięcie przypięcia
+  i ukrycie po soft delete.
 - Live: `tests/integration/bots.live.test.ts` przez `useLiveProxy`: **Claude i Codex**
   odpowiadają na czacie, odmawiają lokalnego `ls`, tworzą wątek na prawdziwym workerze
   stosu testowego i dostają jego wynik jako nową turę. `bots-alias.live.test.ts`: prawdziwy
   katalog Claude przez CLIProxyAPI, wizard oferuje model rozwiązany z `default`, bot
   utworzony z `default` odpowiada, a bot z aliasem zapisanym w bazie również. Izolowane porty
   i katalogi przez `@open-agents/testing`; istniejący `/tmp/oa-stack` i jego porty nie są używane.
+  `bots-settings.live.test.ts`: prawdziwy model przez `useLiveProxy` zmienia swoją nazwę
+  i zapamiętuje angielskie odpowiedzi po prośbie użytkownika; następna polska wiadomość
+  dostaje angielską odpowiedź z nową nazwą.
 - Dowody izolacji harnessów: test przechwycenia requestu i live opisane w sekcji 1.
   Sekrety live pochodzą wyłącznie z pliku środowiska poza repozytorium; brak wartości
   w kodzie, commitach, wynikach testów i dokumentacji.
@@ -295,7 +357,9 @@ stronicowanie po stronie API i wirtualizację.
   Weryfikacja ręczna w Chromium na jednorazowym stosie (gateway + PostgreSQL, skryptowany
   model, MCP „Notion”), 1440 i 390 px, jasny i ciemny motyw: brak przewijania dokumentu,
   wysyłka Enterem, karty, Edit, Retry, status, podążanie, widok wymiany, sidebar.
+  Edytor i archiwum: sześć sekcji, zapis wyglądu/instrukcji/modelu/polityki, MCP add/test/detach,
+  linia samodzielnej zmiany i View, oba menu, Undo, przywracanie i potwierdzone usunięcie.
 
-Dalej: edycja persony i polityk w osobnym panelu, zarządzanie MCP z rotacją nagłówków,
+Dalej: rotacja nagłówków istniejących serwerów MCP w UI,
 reakcje i odpowiedzi w API, liczniki nieprzeczytanych, załączniki, harmonogramy cykliczne
 botów, kompakcja kontekstu, stronicowanie i wirtualizacja długich rozmów.

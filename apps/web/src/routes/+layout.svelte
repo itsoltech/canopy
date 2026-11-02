@@ -25,6 +25,7 @@
   import Drawer from "#lib/shared/ui/Drawer.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import Toaster from "#lib/shared/ui/Toaster.svelte";
+  import BotSettingsHost from "#lib/features/bots/settings/BotSettingsHost.svelte";
   import UpdateBanner from "#lib/shared/ui/UpdateBanner.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
@@ -133,4 +134,5 @@
 {#if ready}<SettingsOverlay route={children} />{/if}
 <CommandPalette registry={commands} {palette} />
 <Toaster />
+<BotSettingsHost />
 <UpdateBanner />
