@@ -69,12 +69,13 @@
 </script>
 
 {#snippet title()}
-  <span class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-    <span class="font-medium text-violet-800 dark:text-violet-300">{look.title}</span>
-    {#if titled.has(tool) && target && !message}
+  <span class="flex min-w-0 items-center gap-1.5">
+    <span class="shrink-0 font-medium text-violet-800 dark:text-violet-300">{look.title}</span>
+    {#if titled.has(tool) && target}
       <ThreadLink threadId={target} fallback={str(args["title"]) || "Side thread"} />
     {:else if tool === "wait_threads"}
-      {#each waitingFor as id (id)}<ThreadLink threadId={id} />{/each}
+      {#if waitingFor[0]}<ThreadLink threadId={waitingFor[0]} />{/if}
+      {#if waitingFor.length > 1}<span class="shrink-0">+{waitingFor.length - 1}</span>{/if}
     {/if}
   </span>
 {/snippet}
@@ -111,6 +112,7 @@
     {#if str(args["prompt"])}{@render well("Message", str(args["prompt"]))}{/if}
     {#if !call.isError && !running}{@render facts([deliveryOf(args, result), args["notify"] === false && "No message when it finishes"])}{/if}
   {:else if tool === "wait_threads"}
+    <div class="flex min-w-0 flex-wrap gap-1.5">{#each waitingFor as id (id)}<ThreadLink threadId={id} />{/each}</div>
     {@render facts([
       str(args["until"]) === "all" ? "Until all finish" : waitingFor.length > 1 ? "Until one finishes" : "",
       typeof args["timeout_seconds"] === "number" && `At most ${humanizeSeconds(args["timeout_seconds"])}`,
@@ -198,16 +200,16 @@
       { label: "Result", text: call.resultJson },
     ]}
   />
+  {#if subagent}
+    <SubagentCard threadId={target} title={str(args["title"]) || "Subagent"} {spawned} />
+  {/if}
+  {#if message}
+    <MessageDeliveryCard callId={call.callId} threadId={target} sentDelivery={str(result["delivery"])} />
+  {/if}
 {/snippet}
 
 {#if hasBody}
-  <ItemFrame icon={look.icon} tone={call.isError ? "rose" : "violet"} {status} defaultOpen={call.isError} {title} {aside}>{@render body()}</ItemFrame>
+  <ItemFrame icon={look.icon} tone={call.isError ? "rose" : "violet"} {status} {title} {aside}>{@render body()}</ItemFrame>
 {:else}
   <ItemFrame icon={look.icon} tone={call.isError ? "rose" : "violet"} {status} {title} {aside} />
-{/if}
-{#if subagent}
-  <SubagentCard threadId={target} title={str(args["title"]) || "Subagent"} {spawned} class="mb-1 ml-6" />
-{/if}
-{#if message}
-  <MessageDeliveryCard callId={call.callId} threadId={target} sentDelivery={str(result["delivery"])} class="mb-1 ml-6" />
 {/if}
