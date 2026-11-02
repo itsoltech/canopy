@@ -1,0 +1,101 @@
+// Boty gateway: osobny kontrakt rozmów, bez transkryptu narzędzi dla UI.
+syntax = "proto3";
+package openagents.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+import "openagents/worker/v1/worker_link.proto";
+
+message BotConfiguration {
+  string name = 1;
+  string shape = 2;
+  string color = 3;
+  openagents.worker.v1.Provider provider = 4;
+  string provider_instance = 5;
+  string model = 6;
+  string effort = 7;
+  string instructions = 8;
+  repeated string mcp_server_ids = 9;
+  // safe: zgoda na zapisy MCP i niebezpieczne akcje; always: na każdą akcję narzędzia.
+  string approval_policy = 10;
+}
+message Bot {
+  string id = 1;
+  BotConfiguration configuration = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  // Podgląd ostatniej zapisanej wiadomości na liście i w snapshotcie rozmowy.
+  BotMessage last_message = 350;
+}
+message BotMessage {
+  string id = 1;
+  uint64 seq = 2;
+  string bot_id = 3;
+  string sender_id = 4;
+  string recipient_id = 5;
+  string kind = 6; // message | event
+  string text = 7;
+  string exchange_id = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+message BotApproval {
+  string id = 1;
+  string bot_id = 2;
+  string turn_id = 3;
+  string kind = 4; // approval | question
+  string prompt = 5;
+  string status = 6; // pending | approved | discarded
+  string answer = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+message BotConversation {
+  Bot bot = 1;
+  repeated BotMessage messages = 2;
+  repeated BotApproval approvals = 3;
+  string status_line = 4;
+  bool working = 5;
+  uint64 revision = 6;
+}
+message CreateBotRequest { BotConfiguration configuration = 1; string client_request_id = 2; }
+message UpdateBotRequest { string bot_id = 1; BotConfiguration configuration = 2; }
+message GetBotRequest { string bot_id = 1; }
+message GetBotResponse { Bot bot = 1; }
+message ListBotsRequest {}
+message ListBotsResponse { repeated Bot bots = 1; }
+message DeleteBotRequest { string bot_id = 1; }
+message DeleteBotResponse {}
+message SendBotMessageRequest { string bot_id = 1; string text = 2; string client_request_id = 3; }
+message SendBotMessageResponse { string turn_id = 1; }
+message WatchBotConversationRequest { string bot_id = 1; }
+message ReadBotExchangeRequest { string exchange_id = 1; }
+message ReadBotExchangeResponse { repeated BotMessage messages = 1; }
+message AnswerBotApprovalRequest { string approval_id = 1; bool approve = 2; string answer = 3; }
+message AnswerBotApprovalResponse { BotApproval approval = 1; }
+message InterruptBotRequest { string bot_id = 1; }
+message InterruptBotResponse {}
+
+message BotMcpServer {
+  string id = 1;
+  string name = 2;
+  string url = 3;
+  string transport = 4; // http | sse (zdalne; nigdy stdio)
+  bool enabled = 5;
+  repeated string header_names = 6; // wartości są sekretami; nie wracają do UI
+  repeated string bot_ids = 7;
+}
+message SaveBotMcpServerRequest {
+  string id = 1; // puste tworzy nowy wpis
+  string name = 2;
+  string url = 3;
+  string transport = 4;
+  bool enabled = 5;
+  map<string, string> headers = 6; // pusty zbiór przy edycji zachowuje poprzednie
+  bool clear_headers = 7;
+}
+message SaveBotMcpServerResponse { BotMcpServer server = 1; }
+message ListBotMcpServersRequest {}
+message ListBotMcpServersResponse { repeated BotMcpServer servers = 1; }
+message DeleteBotMcpServerRequest { string server_id = 1; }
+message DeleteBotMcpServerResponse {}
+message TestBotMcpServerRequest { string server_id = 1; }
+message BotMcpTool { string name = 1; string description = 2; bool read_only = 3; }
+message TestBotMcpServerResponse { repeated BotMcpTool tools = 1; }

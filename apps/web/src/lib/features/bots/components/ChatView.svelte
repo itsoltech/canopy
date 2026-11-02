@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick, type Snippet } from "svelte";
+  import { tick, untrack, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import type { ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
   import BotComposer from "./BotComposer.svelte";
@@ -18,6 +18,7 @@
     firstUnreadId,
     answering,
     sending = false,
+    statusLine = "",
     composerDisabledReason,
     onsend,
     onanswer,
@@ -35,6 +36,7 @@
     firstUnreadId?: string | undefined;
     answering?: Readonly<Record<string, string>>;
     sending?: boolean;
+    statusLine?: string;
     /** Set when you cannot write right now (e.g. the bot is unavailable); shown in the box. */
     composerDisabledReason?: string | undefined;
     onsend: (text: string) => void;
@@ -50,24 +52,33 @@
 
   let draft = $state("");
   let log = $state<HTMLElement>();
+  let following = $state(true);
+
+  $effect(() => {
+    entries.length;
+    const node = log;
+    if (node && untrack(() => following)) void tick().then(() => node.scrollTo({ top: node.scrollHeight }));
+  });
 
   // Your own message goes to the end of the conversation: follow it there.
   function send(text: string) {
+    following = true;
     onsend(text);
     void tick().then(() => log?.scrollTo({ top: log.scrollHeight }));
   }
 
   function openAtUnread(node: HTMLElement) {
     const divider = node.querySelector<HTMLElement>("[role=separator][aria-label='New messages']");
+    following = !divider;
     if (divider) node.scrollTop = divider.offsetTop - node.clientHeight / 3;
     else node.scrollTop = node.scrollHeight;
   }
 </script>
 
 <div class={["flex h-full min-h-0 flex-col", className]}>
-  <ConversationHeader {conversation} {actions} />
+  <ConversationHeader {conversation} {actions} {statusLine} />
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="min-h-0 flex-1 overflow-y-auto focus:outline-none" role="log" aria-label="Conversation" tabindex="0" bind:this={log} {@attach openAtUnread}>
+  <div class="min-h-0 flex-1 overflow-y-auto focus:outline-none" role="log" aria-label="Conversation" tabindex="0" bind:this={log} onscroll={() => { if (log) following = log.scrollHeight - log.scrollTop - log.clientHeight < 80; }} {@attach openAtUnread}>
     <ChatTimeline
       {conversation}
       {entries}
