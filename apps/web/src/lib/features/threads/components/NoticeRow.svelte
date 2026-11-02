@@ -1,6 +1,7 @@
 <script lang="ts">
   import { NoticeLevel } from "@open-agents/contracts";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import { humanizeEnum } from "#lib/shared/humanize.ts";
   import type { TimelineNotice } from "../thread-state.svelte.ts";
 
   /** Platform or provider notice (rate limit, retry, restart, provider error). */
@@ -18,8 +19,8 @@
   <span class="flex h-lh items-center">
     <Icon name={level === NoticeLevel.ERROR ? "exclamation-circle" : level === NoticeLevel.WARNING ? "exclamation-triangle" : "information-circle"} class="opacity-70" />
   </span>
-  <p class="min-w-0 break-words">
-    {#if notice.notice.code}<span class="font-mono text-[0.8125rem] opacity-70">{notice.notice.code}</span>{/if}
-    {notice.notice.message}
+  <!-- The machine code (e.g. rate_limit) stays in the tooltip; the message says it in words. -->
+  <p class="min-w-0 break-words" title={notice.notice.code ? `Code: ${notice.notice.code}` : undefined}>
+    {notice.notice.message || humanizeEnum(notice.notice.code)}
   </p>
 </div>

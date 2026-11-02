@@ -1,3 +1,4 @@
+import { humanizeEnum } from "#lib/shared/humanize.ts";
 import { Provider, type ui } from "@open-agents/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 import type { Tone } from "#lib/shared/ui/tone.ts";
@@ -29,7 +30,7 @@ const looks: Record<string, GoalLook> = {
   cancelled: { label: "Cleared", tone: "neutral", icon: "x-circle" },
 };
 
-export const goalLook = (status: string): GoalLook => looks[status] ?? { label: status ? status.replaceAll("_", " ") : "Goal", tone: "neutral", icon: "flag" };
+export const goalLook = (status: string): GoalLook => looks[status] ?? { label: humanizeEnum(status) || "Goal", tone: "neutral", icon: "flag" };
 
 /** Achieved and cancelled goals stay finished; every other status is the thread's open goal. */
 export const isFinishedGoal = (status: string): boolean => status === "achieved" || status === "cancelled";

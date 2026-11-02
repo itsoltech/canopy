@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { humanizeEnum, isEnumToken } from "#lib/shared/humanize.ts";
   import type { ui } from "@open-agents/contracts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
@@ -24,15 +25,17 @@
   const icon = $derived<IconName>(turn.status === "completed" ? "check-circle" : turn.status === "failed" ? "x-circle" : turn.status === "interrupted" ? "stop" : "minus");
   const reasons: Record<string, string> = { user: "by you", interrupted: "by you", drain: "worker draining", worker_restart: "worker restarted" };
   const reason = $derived(turn.interruptReason || result?.reason || "");
+  // A known reason in words; a machine token (`process_exit`) humanized; prose as it is.
+  const said = (value: string) => reasons[value] ?? (isEnumToken(value) ? humanizeEnum(value).toLowerCase() : value);
   const detail = $derived.by(() => {
     if (turn.status === "failed") {
       const where = turn.errorSource === "harness" ? "Harness error" : turn.errorSource === "platform" ? "Platform error" : "";
       return [where, turn.error].filter(Boolean).join(": ");
     }
-    if (turn.status === "interrupted" && turn.interruptSource === "system") return `by the system: ${reasons[reason] ?? (reason || "unknown reason")}`;
+    if (turn.status === "interrupted" && turn.interruptSource === "system") return `by the system: ${said(reason) || "unknown reason"}`;
     // You know why you stopped it; what the harness logged then (e.g. Claude's "[ede_diagnostic] …") is in the hint.
     if (turn.status === "interrupted" && turn.interruptSource === "user") return "by you";
-    return reason ? (reasons[reason] ?? reason) : "";
+    return said(reason);
   });
   const canContinue = $derived(turn.status === "interrupted" && turn.interruptSource === "system" && !turn.inherited && Boolean(directory.currentId));
   let continuing = $state<"idle" | "sending" | "sent" | "error">("idle");

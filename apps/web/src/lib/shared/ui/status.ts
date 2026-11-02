@@ -1,3 +1,4 @@
+import { humanizeEnum } from "../humanize.ts";
 import type { Tone } from "./tone.ts";
 
 export interface StatusLook {
@@ -29,5 +30,5 @@ const looks: Record<string, StatusLook> = {
 };
 
 export function statusLook(status: string): StatusLook {
-  return looks[status] ?? { label: status ? status.replaceAll("_", " ") : "Unknown", tone: "neutral" };
+  return looks[status] ?? { label: humanizeEnum(status) || "Unknown", tone: "neutral" };
 }
