@@ -8,6 +8,7 @@
   import ItemFrame from "./ItemFrame.svelte";
   import OutputBlock from "./OutputBlock.svelte";
   import TaskProgressText from "./TaskProgressText.svelte";
+  import { useBackgroundOutput } from "../../background-output.ts";
 
   /**
    * Work that outlives its turn (background shell, process, workflow); can finish between turns. While it
@@ -15,6 +16,7 @@
    */
   let { task, itemId, status }: { task: BackgroundTask; itemId: string; status: ItemStatus } = $props();
   const directory = useThreadDirectory();
+  const openOutput = useBackgroundOutput();
   const kinds: Partial<Record<BackgroundTaskKind, string>> = {
     [BackgroundTaskKind.SHELL]: "Shell",
     [BackgroundTaskKind.AGENT]: "Agent",
@@ -71,4 +73,5 @@
   {#if task.stopReason}<p class="text-sm/5 text-orange-700 sm:text-xs/5 dark:text-orange-400">{stopReasons[task.stopReason] ?? task.stopReason}</p>{/if}
   {#if task.progress?.summary}<p class="text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-400">{task.progress.summary}</p>{/if}
   <OutputBlock output={task.output} blob={task.outputBlob} label="Output of {name}" tail={12} empty={running ? "Waiting for output…" : "No output."} streaming={running} />
+  {#if openOutput}<Button size="sm" icon="command-line" onclick={() => openOutput(itemId)}>Open output</Button>{/if}
 </ItemFrame>

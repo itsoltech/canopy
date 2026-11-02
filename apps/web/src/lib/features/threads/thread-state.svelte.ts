@@ -14,6 +14,9 @@ export interface TimelineEntry {
   readonly inherited: boolean;
   /** Inherited: the thread it belongs to (along a chain of forks, not always the direct source). */
   readonly fromThreadId: string;
+  /** Item times observed on the live stream; snapshots currently omit these. */
+  readonly startedAt?: number | undefined;
+  readonly completedAt?: number | undefined;
 }
 
 /** A notice event (rate limit, retry, provider error, restart); the snapshot brings the latest ones. */
@@ -123,9 +126,11 @@ export class ThreadState {
         this.thread = snapshot.thread;
         this.turns = snapshot.turns;
         this.interactions = snapshot.interactions;
-        this.entries = snapshot.items.flatMap((i) =>
-          i.item ? [{ id: i.item.itemId, item: i.item, turnId: i.turnId, firstSeq: i.firstSeq, inherited: i.inherited, fromThreadId: i.fromThreadId }] : [],
-        );
+        const known = new Map(this.entries.map((entry) => [`${entry.fromThreadId}:${entry.id}`, entry]));
+        this.entries = snapshot.items.flatMap((i) => {
+          const previous = known.get(`${i.fromThreadId}:${i.item?.itemId}`);
+          return i.item ? [{ id: i.item.itemId, item: i.item, turnId: i.turnId, firstSeq: i.firstSeq, inherited: i.inherited, fromThreadId: i.fromThreadId, startedAt: previous?.startedAt, completedAt: previous?.completedAt }] : [];
+        });
         this.notices = snapshot.notices.flatMap((n) => (n.notice ? [{ seq: n.seq, turnId: n.turnId, notice: n.notice, at: n.occurredAt }] : []));
         this.schedules = snapshot.schedules;
         this.steers = snapshot.steers;
@@ -214,7 +219,12 @@ export class ThreadState {
     if (!next) return;
     const previous = index >= 0 ? this.entries[index] : undefined;
     // Background work reports after its turn ended without a turn id: it stays in the turn it started in.
-    const entry: TimelineEntry = { id, item: next, turnId: previous?.turnId || event.turnId, firstSeq: previous?.firstSeq ?? seq, inherited: false, fromThreadId: "" };
+    const at = event.occurredAt ? timestampMs(event.occurredAt) : undefined;
+    const entry: TimelineEntry = {
+      id, item: next, turnId: previous?.turnId || event.turnId, firstSeq: previous?.firstSeq ?? seq, inherited: false, fromThreadId: "",
+      startedAt: previous?.startedAt ?? (body.case === "itemStarted" ? at : undefined),
+      completedAt: previous?.completedAt ?? (body.case === "itemCompleted" ? at : undefined),
+    };
     this.entries = index >= 0 ? this.entries.with(index, entry) : [...this.entries, entry];
   }
 
