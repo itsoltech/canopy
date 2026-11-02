@@ -100,7 +100,10 @@ export class BotsRuntime {
               if (call.status === "completed" || call.status === "interrupted") result = call.result;
               else {
                 const phrase = await this.#options.describeTool?.(tool, requested.arguments) ?? statusPhrase(tool, requested.arguments);
-                const policyTool = tool.name === "start_thread" && ![undefined, "ask", "read_only"].includes(requested.arguments["permission"] as string | undefined)
+                const schedulePermission = (requested.arguments["new_thread"] as Record<string, unknown> | undefined)?.["permission"];
+                const policyTool = (tool.name === "start_thread" && ![undefined, "ask", "read_only"].includes(requested.arguments["permission"] as string | undefined))
+                  || (["create_schedule", "update_schedule"].includes(tool.name) && ![undefined, "ask", "read_only"].includes(schedulePermission as string | undefined))
+                  || (tool.name === "update_settings" && requested.arguments["thread_defaults"] !== undefined)
                   ? { ...tool, dangerous: true } : tool;
                 if (needsApproval(policyTool, config.approvalPolicy)) {
                   const question = tool.name === "ask_user";

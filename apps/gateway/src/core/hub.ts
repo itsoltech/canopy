@@ -6,6 +6,7 @@ import { AsyncChannel } from "@open-agents/transport";
  * With several instances this becomes LISTEN/NOTIFY (docs/durability.md, 4.3); the API stays the same.
  */
 export class Hub {
+  constructor(readonly defer?: (action: () => void) => boolean) {}
   readonly #threads = new Map<string, Set<AsyncChannel<ui.ThreadUpdate>>>();
   readonly #overview = new Set<AsyncChannel<ui.OverviewUpdate>>();
 
@@ -37,10 +38,12 @@ export class Hub {
   }
 
   publishThread(threadId: string, update: ui.ThreadUpdate): void {
+    if (this.defer?.(() => this.publishThread(threadId, update))) return;
     for (const channel of this.#threads.get(threadId) ?? []) channel.push(update);
   }
 
   publishOverview(update: ui.OverviewUpdate): void {
+    if (this.defer?.(() => this.publishOverview(update))) return;
     for (const channel of this.#overview) channel.push(update);
   }
 }

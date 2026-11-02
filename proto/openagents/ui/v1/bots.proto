@@ -15,7 +15,7 @@ message BotConfiguration {
   string effort = 7;
   string instructions = 8;
   repeated string mcp_server_ids = 9;
-  // safe: zgoda na zapisy MCP i niebezpieczne akcje; always: na każdą akcję narzędzia.
+  // safe: zgoda na zapisy MCP i niebezpieczne akcje; always: na każdą akcję poza odczytami platformy.
   string approval_policy = 10;
 }
 message Bot {

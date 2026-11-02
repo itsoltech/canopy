@@ -22,6 +22,7 @@ import {
   type ThreadEvent,
 } from "@open-agents/contracts";
 import { Effect, type ManagedRuntime } from "effect";
+import { SqlClient } from "effect/sql";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
@@ -91,6 +92,7 @@ import { BotsRuntime } from "../bots/runtime.ts";
 import { BotStore } from "../bots/store.ts";
 import type { BotModel, BotTurn, StoredCall } from "../bots/types.ts";
 import { botPlatform, describeBotTool } from "../bots/platform.ts";
+import { ActionContext } from "./action-context.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -105,10 +107,8 @@ import { botPlatform, describeBotTool } from "../bots/platform.ts";
  * - UI operations and live fan-out through the hub.
  */
 
-export type CoreRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | BackgroundTaskStore | BotStore,
-  unknown
->;
+export type CoreServices = GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | BackgroundTaskStore | BotStore | SqlClient.SqlClient;
+export type CoreRuntime = ManagedRuntime.ManagedRuntime<CoreServices, unknown>;
 
 export interface GatewayCoreOptions {
   readonly runtime: CoreRuntime;
@@ -160,7 +160,8 @@ const MAX_OBJECTIVE = 4000;
 export class GatewayCore {
   readonly bots: BotsRuntime;
   readonly link: WorkerLink;
-  readonly hub = new Hub();
+  readonly #actions: ActionContext;
+  readonly hub: Hub;
   readonly bus: AgentBus;
   readonly scheduler: Scheduler;
   /** Background tasks for their agents: the tools, and the notes about every end (docs/execution.md, "Pobudka"). */
@@ -177,6 +178,8 @@ export class GatewayCore {
 
   constructor(options: GatewayCoreOptions) {
     this.#options = options;
+    this.#actions = new ActionContext(options.runtime);
+    this.hub = new Hub((action) => this.#actions.defer(action));
     this.bots = new BotsRuntime({ runtime: options.runtime, userId: options.userId,
       ...(options.botModel && { model: options.botModel }), ...(options.log && { log: options.log }),
       platform: (turn, call) => botPlatform(this, options, turn, call),
@@ -419,6 +422,7 @@ export class GatewayCore {
 
   /** Sends a stored command when the worker is online; offline commands wait in the outbox. */
   async #deliver(workerId: string, command: Command): Promise<void> {
+    if (this.#actions.defer(() => this.#deliver(workerId, command))) return;
     const connection = this.link.connections.get(workerId);
     if (!connection?.isOpen || !command.kind.case) return;
     let result: CommandResult;
@@ -549,6 +553,7 @@ export class GatewayCore {
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */
   async pump(threadId: string): Promise<void> {
+    if (this.#actions.defer(() => this.pump(threadId))) return;
     const state = await this.#run((s) => s.thread(threadId, true));
     if (state.deleted_at || state.archived_at) return;
     // Steers that never joined their turn run next (in order, before anything queued after them).
@@ -684,7 +689,7 @@ export class GatewayCore {
   }
 
   #queue<A, E>(use: (store: QueueStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(QueueStore.use(use));
+    return this.#actions.run(QueueStore.use(use));
   }
 
   // ------------------------------------------------------------------ UI operations
@@ -698,6 +703,7 @@ export class GatewayCore {
   }
 
   async listDirectory(workerId: string, path: string): Promise<ui.ListDirectoryResponse> {
+    if (!(await this.overview()).workers.some((w) => w.id === workerId)) throw new NotFound("worker not found");
     const connection = this.link.connections.get(workerId);
     if (!connection?.isOpen) throw new UnavailableError(`worker ${workerId} is offline`);
     const result = await connection.sendCommand({ case: "listDirectory", value: { path } }, 15_000);
@@ -711,7 +717,29 @@ export class GatewayCore {
     return project;
   }
 
+  async renameProject(projectId: string, name: string): Promise<ui.Project> {
+    await this.#run((s) => s.renameProject(this.#options.userId, projectId, name));
+    const project = (await this.overview()).projects.find((p) => p.id === projectId)!;
+    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
+    return project;
+  }
+
+  /** Soft archive through the same thread lifecycle, retaining history and worker files. */
+  async archiveProject(projectId: string): Promise<void> {
+    await this.#actions.transaction(async () => {
+      const project = (await this.overview()).projects.find((p) => p.id === projectId && p.kind !== "scratch");
+      if (!project) throw new NotFound("project not found or is system-managed");
+      await this.#run((s) => s.archiveProject(this.#options.userId, projectId));
+      const threads = await this.listThreads(projectId, true);
+      for (const thread of threads.filter((t) => !t.parentThreadId)) await this.setThreadArchived(thread.id, true);
+      this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: { ...project, archivedAt: timestampFromDate(new Date()) } } }));
+    });
+  }
+
   async createWorkspace(request: ui.CreateWorkspaceRequest): Promise<ui.Workspace> {
+    const overview = await this.overview();
+    if (!overview.projects.some((p) => p.id === request.projectId)) throw new NotFound("project not found");
+    if (!overview.workers.some((w) => w.id === request.workerId)) throw new NotFound("worker not found");
     const workspace = await this.#run((s) =>
       s.createWorkspace({ projectId: request.projectId, workerId: request.workerId, rootPath: request.rootPath, label: request.label }),
     );
@@ -831,21 +859,19 @@ export class GatewayCore {
 
   /** Bot actions use the UI's validation, with creation, worker outbox, watch and result in one transaction. */
   async startBotThread(turn: BotTurn, call: StoredCall, request: ui.CreateThreadRequest): Promise<unknown> {
-    await this.#checkProvider(request);
-    await this.#checkModel({ workspaceId: request.workspaceId, provider: request.provider, profileId: request.providerProfileId }, request.model, request.effort);
-    const userId = this.#options.userId;
-    const result = await this.#options.runtime.runPromise(BotStore.use((bots) => bots.action(turn, call, Effect.gen(function* () {
-      const store = yield* GatewayStore;
-      const row = yield* store.createThread(userId, request);
-      const target = (yield* store.turnsOf(row.id))[0]!;
-      yield* bots.watchThread(turn, call, row.id, target.id);
-      yield* store.enqueueCommand({ workerId: row.worker_id!, threadId: row.id, ttlSeconds: TTL.createThread,
-        command: { kind: { case: "createThread", value: { thread: store.threadSpec(row) } } } });
-      return { thread_id: row.id, turn_id: target.id, worker_id: row.worker_id! };
+    return this.botAction(turn, call, async () => {
+      const thread = await this.createThread(request);
+      const turnId = await this.watchBotThread(turn, call, thread.id);
+      return { thread_id: thread.id, turn_id: turnId, worker_id: thread.workerId };
+    });
+  }
+
+  async watchBotThread(turn: BotTurn, call: StoredCall, threadId: string): Promise<string | undefined> {
+    return this.#actions.run(BotStore.use((bots) => GatewayStore.use((store) => Effect.gen(function* () {
+      const target = (yield* store.turnsOf(threadId))[0];
+      if (target) yield* bots.watchThread(turn, call, threadId, target.id);
+      return target?.id;
     }))));
-    await this.#redeliver(result.worker_id);
-    await this.#broadcastThread(result.thread_id);
-    return result;
   }
 
   /** Publishes and dispatches a bot's atomically queued message after its commit. */
@@ -879,19 +905,10 @@ export class GatewayCore {
   }
 
   async updateBotThread(turn: BotTurn, call: StoredCall, request: ui.UpdateThreadRequest): Promise<unknown> {
-    const thread = await this.#run((s) => s.thread(request.threadId));
-    if (thread.owner_user_id !== this.#options.userId || thread.archived_at) throw new InvalidError("thread not found");
-    const title = request.title?.trim();
-    if (title !== undefined && (!title || title.length > 200 || /[\r\n\p{Cc}]/u.test(title))) throw new InvalidError("title must be one line with 1–200 characters");
-    if (request.model !== undefined) await this.#checkModel({ thread }, request.model, request.effort ?? "");
-    const effort = request.model === undefined ? undefined : turnEffort((await this.#profileModels({ thread })).models, request.model, request.effort ?? "");
-    const result = await this.#options.runtime.runPromise(BotStore.use((bots) => bots.action(turn, call, GatewayStore.use((store) => Effect.gen(function* () {
-      if (title !== undefined) yield* store.renameThread(thread.id, title);
-      if (request.model !== undefined) yield* store.updateThreadSettings(thread.id, { model: request.model, ...(effort !== undefined && { effort }) });
-      return { thread_id: thread.id, title: title ?? thread.title, model: request.model ?? thread.settings.model ?? "", effort: effort ?? thread.settings.effort ?? "" };
-    })))));
-    await this.#broadcastThread(thread.id);
-    return result;
+    return this.botAction(turn, call, async () => {
+      const thread = await this.updateThread(request);
+      return { thread_id: thread.id, title: thread.title, model: thread.model, effort: thread.effort };
+    });
   }
 
   async archiveBotThread(turn: BotTurn, call: StoredCall, threadId: string): Promise<unknown> {
@@ -1024,7 +1041,7 @@ export class GatewayCore {
   }
 
   #attachments<A, E>(use: (store: AttachmentStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(AttachmentStore.use(use));
+    return this.#actions.run(AttachmentStore.use(use));
   }
 
   // ------------------------------------------------------------------ mentions (docs/ui-api.md, "Wzmianki")
@@ -1364,6 +1381,7 @@ export class GatewayCore {
   }
 
   #autoTitle(threadId: string, context: string): void {
+    if (this.#actions.defer(() => this.#autoTitle(threadId, context))) return;
     // One atomic claim across duplicate requests and gateway processes. No outbox or reconnect retries.
     void this.#run((s) => s.beginTitle(threadId, true, context, provisionalTitle(context)))
       .then(async (row) => {
@@ -1374,6 +1392,7 @@ export class GatewayCore {
   }
 
   #launchTitle(thread: ThreadRow): void {
+    if (this.#actions.defer(() => this.#launchTitle(thread))) return;
     const job = this.#generateTitle(thread).catch(() => {
       // SDK/provider failures can contain auth or endpoints. Only a safe, bounded diagnostic is logged.
       this.#log(`thread title ${thread.id}: generation unavailable, failed or timed out; title retained`);
@@ -1530,6 +1549,7 @@ export class GatewayCore {
 
   /** The stored configurations go to the workers (each answers ConfigApplied and a new model catalog). */
   async #configsChanged(workerIds: readonly string[]): Promise<void> {
+    if (this.#actions.defer(() => this.#configsChanged(workerIds))) return;
     for (const workerId of workerIds) {
       const config = await this.#run((s) => s.workerConfig(workerId));
       if (config) this.link.pushConfig(workerId, config);
@@ -1538,12 +1558,12 @@ export class GatewayCore {
   }
 
   #instances<A, E>(use: (store: InstanceStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(InstanceStore.use(use));
+    return this.#actions.run(InstanceStore.use(use));
   }
 
   /** Workers with their instances (Worker.provider_instances). */
   async #workers(): Promise<ui.Worker[]> {
-    const [workers, instances] = await Promise.all([this.#run((s) => s.listWorkers(this.online)), this.#instances((s) => s.workerInstances())]);
+    const [workers, instances] = await Promise.all([this.#run((s) => s.listWorkers(this.online, this.#options.userId)), this.#instances((s) => s.workerInstances())]);
     for (const worker of workers) worker.providerInstances = instances.get(worker.id) ?? [];
     return workers;
   }
@@ -1694,15 +1714,16 @@ export class GatewayCore {
   }
 
   #models<A, E>(use: (store: ModelStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(ModelStore.use(use));
+    return this.#actions.run(ModelStore.use(use));
   }
 
   #steers<A, E>(use: (store: SteerStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(SteerStore.use(use));
+    return this.#actions.run(SteerStore.use(use));
   }
 
   async interrupt(threadId: string): Promise<void> {
     const thread = await this.#run((s) => s.thread(threadId));
+    if (thread.owner_user_id !== this.#options.userId) throw new NotFound("thread not found");
     const turn = await this.#run((s) => s.runningTurn(threadId));
     if (!turn || !thread.worker_id) return;
     await this.#dispatch(
@@ -1721,13 +1742,13 @@ export class GatewayCore {
     const interaction = await this.#run((s) => s.answerInteraction(request.requestId, by, request));
     await this.#publishInteraction(interaction);
     if (interaction.toolName === "ask_user") {
-      await this.bus.deliverAnswers();
+      if (!this.#actions.defer(() => this.bus.deliverAnswers())) await this.bus.deliverAnswers();
       return interaction;
     }
     const thread = await this.#run((s) => s.thread(interaction.threadId));
     const connection = thread.worker_id ? this.link.connections.get(thread.worker_id) : undefined;
     // Offline: the worker re-sends the request after reconnecting and gets the stored answer.
-    if (connection?.isOpen) this.#sendAnswer(connection, request);
+    if (connection?.isOpen && !this.#actions.defer(() => this.#sendAnswer(connection, request))) this.#sendAnswer(connection, request);
     return interaction;
   }
 
@@ -1851,7 +1872,7 @@ export class GatewayCore {
   }
 
   #settings<A, E>(use: (store: SettingsStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(SettingsStore.use(use));
+    return this.#actions.run(SettingsStore.use(use));
   }
 
   // ------------------------------------------------------------------ schedules (UI)
@@ -1974,7 +1995,7 @@ export class GatewayCore {
   }
 
   #bus<A, E>(use: (store: AgentBusStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(AgentBusStore.use(use));
+    return this.#actions.run(AgentBusStore.use(use));
   }
 
   // ------------------------------------------------------------------ goals and background work (UI)
@@ -2094,7 +2115,7 @@ export class GatewayCore {
   }
 
   #goals<A, E>(use: (store: GoalStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(GoalStore.use(use));
+    return this.#actions.run(GoalStore.use(use));
   }
 
   // ------------------------------------------------------------------ helpers
@@ -2141,7 +2162,12 @@ export class GatewayCore {
   }
 
   #run<A, E>(use: (store: GatewayStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
-    return this.#options.runtime.runPromise(GatewayStore.use(use));
+    return this.#actions.run(GatewayStore.use(use));
+  }
+
+  /** Reuse UI validation/mutations inside the bot's fenced, idempotent SQL action. */
+  botAction<A>(turn: BotTurn, call: StoredCall, perform: () => Promise<A>): Promise<A> {
+    return this.#actions.action(turn, call, perform);
   }
 
   #log(message: string): void {
