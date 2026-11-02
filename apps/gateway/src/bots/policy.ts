@@ -5,6 +5,7 @@ import { areaTool, areaTools } from "./tools/index.ts";
 /** An allowlist of descriptors, never a model-supplied tool name, grants capability. */
 export function needsApproval(tool: ToolSpec, policy: string, args: Record<string, unknown> = {}): boolean {
   if (tool.source === "platform" && tool.name === "ask_user") return true;
+  if (tool.source === "platform" && tool.name === "create_bot") return true;
   if (tool.source === "platform" && tool.name === "update_self" && ["model", "effort", "provider", "provider_instance", "approval_policy"].some((key) => Object.hasOwn(args, key))) return true;
   if (tool.source === "platform" && tool.readOnly === true) return false;
   return policy === "always" || tool.dangerous === true || (tool.source === "mcp" && tool.readOnly !== true);
@@ -69,7 +70,7 @@ const legacyTools: ToolSpec[] = [
   tool("list_projects", "List the user's projects and their workspaces. The system No project entry has kind scratch; choose its workspace on the desired worker for a conversation in a fresh scratch directory."),
   tool("list_workers", "List workers and their availability."),
   tool("list_provider_instances", "List configured provider instances; never secrets."),
-  tool("list_models", "List available models and reasoning efforts; never guess model names. For update_self omit worker_id: returns concrete API models and custom models of the endpoint, defaults to your own provider and instance. For start_thread supply worker_id, provider and provider_instance to read that worker's harness catalog.", {
+  tool("list_models", "List available models and reasoning efforts; never guess model names. For update_self or create_bot omit worker_id: returns concrete API models and custom models of the endpoint, defaults to your own provider and instance. For start_thread supply worker_id, provider and provider_instance to read that worker's harness catalog.", {
     provider: { type: "string", enum: ["claude", "codex"] }, provider_instance: str, worker_id: str,
   }),
   tool("list_threads", "List the user's threads in a project.", { project_id: str }, ["project_id"]),

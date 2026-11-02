@@ -42,11 +42,16 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     expect(conversation.working).toBe(false);
     const result = conversation.messages.find((m) => m.senderId === bot.id && m.kind === "message" && /^[\[{]/.test(m.text));
     expect(result).toBeDefined();
-    return JSON.parse(result!.text) as T;
+    const parsed = JSON.parse(result!.text) as T;
+    // Each invocation uses a disposable bot; keep this broad suite within the owner cap.
+    await gw.core.bots.remove(bot.id);
+    return parsed;
   }
   beforeAll(async () => {
     gw = await startTestGateway({ botModel: model });
     await gw.api.saveProviderInstance({ harness: Provider.CODEX, id: "platform-test", label: "Platform", create: true, kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:1", apiKey: "fixture-private-key", env: [{ name: "PUBLIC_VALUE", value: "also-hidden" }, { name: "PRIVATE_VALUE", value: "fixture-private-env", secret: true }], allWorkers: true });
+    // This suite disables its only worker instance; keep the bot API model explicitly configured.
+    await gw.api.setInstanceModels({ harness: Provider.CODEX, id: "platform-test", models: { custom: ["gpt-6.1-sol"] } });
     await eventually(() => gw.core.overview(), (o) => o.workers.some((w) => w.id === gw.workerId && w.providerInstances.some((i) => i.id === "platform-test" && i.available)));
     gw.core.bots.start();
   }, 30_000);

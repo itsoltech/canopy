@@ -27,6 +27,9 @@ message Bot {
   // Podgląd ostatniej zapisanej wiadomości na liście i w snapshotcie rozmowy.
   BotMessage last_message = 350;
   bool archived = 430;
+  // Pochodzenie: nazwa twórcy w chwili utworzenia, zachowana po zmianie nazwy/usunięciu.
+  string created_by_bot_id = 600;
+  string created_by_bot_name = 601;
 }
 message BotMessage {
   string id = 1;
@@ -62,6 +65,8 @@ message BotApproval {
   google.protobuf.Timestamp created_at = 8;
   // Pytanie: proponowane odpowiedzi (do 6); użytkownik może też odpowiedzieć własnymi słowami.
   repeated string options = 9;
+  // Pełny, trwały podgląd create_bot, bez sekretów i MCP. Wykonanie używa tego snapshotu.
+  BotConfiguration proposed_bot = 600;
 }
 message BotConversation {
   Bot bot = 1;

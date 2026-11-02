@@ -32,6 +32,9 @@ export interface BotRow {
   created_at: Date; updated_at: Date; revision: string | bigint;
   status_line: string;
   archived_at: Date | null;
+  deleted_at: Date | null;
+  created_by_bot_id: string | null;
+  created_by_bot_name: string;
 }
 export interface BotTurn {
   id: string; bot_id: string; input: string; hops: number;

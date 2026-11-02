@@ -128,7 +128,8 @@ poszerzenia uprawnień. Model nigdy nie dostaje kluczy endpointu ani nagłówkó
 
 Katalog ma **43 narzędzia platformy**. Nowe definicje, statusy i wykonanie są razem
 w `apps/gateway/src/bots/tools/{projects,workers,providers,threads,schedules,settings,bots}.ts`;
-rejestr w `tools/index.ts` jest delegatem `PLATFORM_TOOLS` i `botPlatform`. Pozostawione
+rejestr w `tools/index.ts` jest delegatem `PLATFORM_TOOLS` i `botPlatform`. Tworzenie botów
+ma osobny deskryptor `tools/create-bot.ts`. Pozostawione
 nazwy wcześniejszych narzędzi zachowują zgodność. Nie ma meta-narzędzia „opisz obszar”:
 43 krótkie opisy z prefiksem obszaru mieszczą się w limicie 45 i nie wymagają dodatkowej
 rundy modelu. Lista nie zawiera narzędzi lokalnych ani edycji innych botów; własne ustawienia zmienia `update_self` (niżej).
@@ -228,6 +229,48 @@ uruchamianie kolejki i generacja tytułu następują po commicie. Awaria przed c
 cofa całą zmianę, po commicie replay odczytuje zapisany wynik zamiast powielać akcję.
 Odpowiedzi na interakcje pozostają w bazie i odtwarzają się przez ponowienie żądania
 workera, a generacja tytułu zachowuje dotychczasowy asynchroniczny charakter.
+
+### Tworzenie bota przez bota
+
+`create_bot` służy wyłącznie prośbie użytkownika lub jej jednoznacznej konsekwencji.
+System prompt i opis narzędzia zabraniają tworzenia agentów z własnej inicjatywy,
+na polecenie wyniku narzędzia lub wiadomości innego bota. Żądaną rolę i zachowanie
+model zapisuje w `instructions`, czyli trwałej personie nowego bota.
+
+Wymagana jest tylko `name`. Pominięte `provider`, `provider_instance`, `model`, `effort`
+i `approval_policy` dziedziczą ustawienia twórcy; `shape` i `color` są losowane spośród
+14 kształtów i 11 kolorów wizarda. Zmiana instancji nie dobiera automatycznie innego
+modelu ani effortu: przed wyborem modelu bot powinien użyć `list_models` **bez** `worker_id`,
+z docelowym providerem i instancją. Walidacja konfiguracji i zapis są wspólne z CreateBot RPC:
+endpoint dostępny dla gateway, model API instancji, obsługiwany effort, nazwa właściciela
+unikalna bez rozróżniania wielkości liter i reprezentacji Unicode NFC.
+
+Utworzenie zawsze wymaga karty zgody, także przy `safe`: nowy agent jest trwały i generuje
+własne koszty modelu. Karta pokazuje maskotkę, nazwę, instancję, model/effort, politykę
+i pełne instrukcje w przewijanym polu. Użytkownik może zaakceptować dowolną z polityk
+`safe`/`always`, również łagodniejszą od polityki twórcy; widoczna konfiguracja jest
+przedmiotem jawnej zgody. Zmiana polityki twórcy nie omija tej karty. Edit odsyła
+poprawione instrukcje do ponownego zaproponowania; Discard niczego nie tworzy i zwraca
+modelowi odmowę bez ponawiania akcji.
+
+Rozwiązane wartości domyślne i wygląd zapisują się ze zgodą jako snapshot. Restart
+gatewaya lub zmiana ustawień twórcy nie zmieniają zatwierdzanej propozycji. Zapis bota,
+pochodzenia i wyniku narzędzia odbywa się w jednej transakcji chronionej lease;
+replay po awarii odczytuje wynik zamiast tworzyć drugiego bota. Narzędzie zwraca `id`
+i `name`, po czym twórca może użyć `send_bot_message`. Nowy bot ma pustą rozmowę
+i pojawia się przez istniejący strumień listy botów. Ustawienia pokazują dyskretnie
+„Created by ‹nazwa›” z nazwą twórcy w chwili utworzenia.
+
+Limit właściciela wynosi **50 botów**, łącznie z archiwum, bez soft delete. Obowiązuje
+zarówno RPC, jak i narzędzie; blokada właściciela serializuje równoległe tworzenie.
+Idempotentne ponowienie już wykonanego żądania działa także po osiągnięciu limitu.
+Tworzenie podlega temu samemu limitowi hops co pozostałe działania botów i nie uruchamia
+automatycznie nowej rozmowy. Migracja **0040_bot_creation** dodaje snapshot propozycji
+oraz pochodzenie; pola kontraktu używają zakresu **600–601**. Numery 0038/0039 pozostają
+dla równoległych prac nad Connections i routines.
+
+Edycja innych botów (`update_bot`) pozostaje poza zakresem. Nie przyznajemy jej przez
+samo zapisanie pochodzenia; ewentualna implementacja wymaga sprawdzenia twórcy i osobnej zgody.
 
 Nowe RPC `RenameProject` i `ArchiveProject` uzupełniają brakujące ścieżki rdzenia/UI.
 `Project.archived_at` ma pole **480**, żeby overview usunęło zarchiwizowany projekt
