@@ -38,7 +38,9 @@ describe("tool sets per level", () => {
   test("main thread gets everything; side threads cannot spawn, control or answer for others", () => {
     expect([...agentBusToolsFor(0)].sort() as string[]).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
     expect(agentBusToolsFor(1).sort()).toEqual([
+      "ask_user",
       "cancel_schedule",
+      "get_answers",
       "get_background_task",
       "get_thread",
       "list_agents",

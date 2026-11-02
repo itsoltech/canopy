@@ -132,12 +132,17 @@ Domyślnie wyłączeni w obu harnessach; delegowanie idzie przez szynę agentów
 |---|---|---|---|
 | `permission` | `canUseTool` | `item/commandExecution|fileChange|permissions/requestApproval` | `allow` / odmowa z powodem / `allow_for_session` / zmienione wejście |
 | `question` | narzędzie `AskUserQuestion` (dialog) | `item/tool/requestUserInput` | `answer_json` albo `cancelled` |
+| `question` platformy | `mcp__openagents__ask_user` | dynamiczne `ask_user` | wspólne `{answers: [...]}`; `wait` wybiera sync/async |
 | `elicitation` | MCP elicitation | `mcpServer/elicitation/request` | `answer_json` albo `cancelled` |
 
 - Adresat zależy od `threads.interaction_route`: użytkownik albo, dla wątków bocznych tworzonych przez agenta, agent wątku głównego ([agent-bus.md](agent-bus.md#4-interakcje-w-wątkach-bocznych)). Użytkownik może odpowiedzieć zawsze.
 - Gateway zapisuje `interaction_requests`, dodaje item `interaction_prompt` na oś czasu i powiadamia UI. Odpowiedź (kto, kiedy, co) trafia do tabeli i na oś czasu.
 - Czas oczekiwania: zgoda ma termin (brak decyzji = odmowa), pytanie i formularz czekają do odpowiedzi albo zatrzymania wątku (`expires_at` opcjonalne).
-- Po restarcie workera oczekujące interakcje zabitego procesu dostają `expired`. Jeśli dostawca wznowi turę (`recovery`), zapyta ponownie.
+- Po restarcie workera oczekujące **natywne** interakcje zabitego procesu dostają `expired`. Jeśli dostawca wznowi turę (`recovery`), zapyta ponownie. Pytania platformy pozostają `pending`; odpowiedź trafia do wznowionego wywołania albo nowej tury `agent_bus`, także po długim wyłączeniu workera.
+- `ask_user` przyjmuje 1–4 pytania z chipem tematu, tekstem, rodzajem (jedna/wiele opcji lub tekst), opisami opcji i opcjonalną rekomendacją. Odpowiedź na każde pytanie to wybrane etykiety, własny tekst albo jawne pominięcie. Odrzucenie całego zestawu synchronicznego daje `dismissed`.
+- **Sync (`wait: true`):** model czeka do odpowiedzi; pojedynczy wait ma 120 s i przy `pending` wymaga ponowienia `get_answers` bez dalszej pracy. Nie jest to limit życia pytania ani techniczna blokada innych narzędzi po upływie wait. Claude MCP ma twardy timeout, więc natywne `AskUserQuestion` i Codex `request_user_input` pozostają dostępne. Uzasadnienie, przypięte wersje SDK i dowody live: [agent-bus.md](agent-bus.md#pytania-platformy-ask_user-i-get_answers).
+- **Async (`wait: false`):** model dostaje od razu id zestawu i pracuje dalej. Odpowiedź jest steerem do trwającej tury lub nową turą, gdy poprzednia się skończyła; `hops` tury pytającej + 1. Trwały outbox i fallback steera chronią odpowiedź przed restartem. `get_answers` pozwala sprawdzić stan we własnym wątku.
+- UI ma wspólny panel pytań nad kompozytorem (także dla pytań natywnych). Sync włącza „Needs input”, async wyświetla informację o dalszej pracy i przełącznik między odpowiedzią a zwykłą wiadomością. Oś czasu zachowuje pytania, odpowiedzi i ich autora.
 
 ## 7. Limity i zasoby
 

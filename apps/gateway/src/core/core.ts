@@ -186,6 +186,7 @@ export class GatewayCore {
         await this.pump(threadId);
       },
       steered: (steerId) => this.#sendSteer(steerId),
+      interaction: (interaction) => this.#publishInteraction(interaction),
       interrupt: (threadId) => this.interrupt(threadId),
       answer: (by, request) => this.#answer(by, request),
       broadcastThread: (threadId) => this.#broadcastThread(threadId),
@@ -258,8 +259,7 @@ export class GatewayCore {
           case "interactionRequest": {
             const request = message.payload.value;
             const interaction = await this.#run((s) => s.recordInteraction(request));
-            this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
-            await this.#broadcastThread(interaction.threadId);
+            await this.#publishInteraction(interaction);
             // Re-sent after a reconnect and already answered: answer again from the database.
             const answered = await this.#run((s) => s.interactionAnswer(interaction.requestId));
             if (answered) this.#sendAnswer(connection, answered.answer);
@@ -449,7 +449,7 @@ export class GatewayCore {
   async #endLostTurns(input: Parameters<GatewayStore["Service"]["endLostTurns"]>[0]): Promise<void> {
     const { turns, interactions } = await this.#run((s) => s.endLostTurns(input));
     for (const interaction of interactions) {
-      this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
+      await this.#publishInteraction(interaction);
     }
     for (const { threadId, turnId } of turns) {
       this.#log(`turn ${turnId} of thread ${threadId} ended: ${input.reason}`);
@@ -477,7 +477,7 @@ export class GatewayCore {
       this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: stored.seq, event: stored.event } } }));
     }
     for (const interaction of expired) {
-      this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
+      await this.#publishInteraction(interaction);
     }
     const changed = settled.stored.length > 0 || expired.length > 0 || settled.threadChanged;
     if (changed) this.#log(`thread ${threadId} settled: ${settled.stored.length} item(s), ${expired.length} interaction(s)${settled.threadChanged ? ", idle again" : ""} (${reason})`);
@@ -494,6 +494,7 @@ export class GatewayCore {
    * of finished turns. Idempotent; at gateway start and every few minutes. Returns the threads it changed.
    */
   async sweep(): Promise<string[]> {
+    await this.bus.deliverAnswers();
     const threads = await this.#options.runtime.runPromise(Ingest.use((i) => i.unsettledThreads(SWEEP_STALE_SECONDS)));
     const changed: string[] = [];
     for (const threadId of threads) {
@@ -1439,6 +1440,7 @@ export class GatewayCore {
     await this.#dispatch(
       thread.worker_id,
       {
+        commandId: steerId,
         kind: {
           case: "steerTurn",
           value: {
@@ -1566,13 +1568,23 @@ export class GatewayCore {
   /** Stores the answer (user or parent agent), announces it and passes it to the waiting worker. */
   async #answer(by: { userId: string } | { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction> {
     const interaction = await this.#run((s) => s.answerInteraction(request.requestId, by, request));
-    this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
-    await this.#broadcastThread(interaction.threadId);
+    await this.#publishInteraction(interaction);
+    if (interaction.toolName === "ask_user") {
+      await this.bus.deliverAnswers();
+      return interaction;
+    }
     const thread = await this.#run((s) => s.thread(interaction.threadId));
     const connection = thread.worker_id ? this.link.connections.get(thread.worker_id) : undefined;
     // Offline: the worker re-sends the request after reconnecting and gets the stored answer.
     if (connection?.isOpen) this.#sendAnswer(connection, request);
     return interaction;
+  }
+
+  async #publishInteraction(interaction: ui.Interaction): Promise<void> {
+    this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "interaction", value: interaction } }));
+    const stored = await this.#run((s) => s.interactionEvent(interaction.requestId));
+    if (stored) this.hub.publishThread(interaction.threadId, create(ui.ThreadUpdateSchema, { change: { case: "event", value: stored } }));
+    await this.#broadcastThread(interaction.threadId);
   }
 
   /** Snapshot first, then live updates after it (subscribe before reading, skip what the snapshot has). */

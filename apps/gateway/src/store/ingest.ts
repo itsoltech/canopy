@@ -287,7 +287,7 @@ export class Ingest extends Context.Service<
        */
       const openLeftovers = (threadId: string) => sql<{ item_id: string; turn_id: string | null; content: JsonValue }>`
         SELECT i.item_id, i.turn_id, i.content FROM thread_items i LEFT JOIN turns u ON u.id = i.turn_id
-         WHERE i.thread_id = ${threadId}::uuid AND i.status = 'in_progress' AND i.type <> 'background_task'
+         WHERE i.thread_id = ${threadId}::uuid AND i.status = 'in_progress' AND i.type NOT IN ('background_task', 'interaction_prompt')
            AND (u.status = ANY(${ENDED}::text[]) OR (i.turn_id IS NULL AND ${idleTurns(threadId)}))
            AND NOT EXISTS (SELECT 1 FROM thread_items b
                             WHERE b.thread_id = i.thread_id AND b.type = 'background_task' AND b.status = 'in_progress'
@@ -380,14 +380,14 @@ export class Ingest extends Context.Service<
              WHERE t.archived_at IS NULL AND (
                ${stuckThread(staleSeconds)}
                OR EXISTS (SELECT 1 FROM thread_items i LEFT JOIN turns u ON u.id = i.turn_id
-                           WHERE i.thread_id = t.id AND i.status = 'in_progress' AND i.type <> 'background_task'
+                           WHERE i.thread_id = t.id AND i.status = 'in_progress' AND i.type NOT IN ('background_task', 'interaction_prompt')
                              AND (u.status = ANY(${ENDED}::text[])
                                   OR (i.turn_id IS NULL AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = t.id AND r.status = 'running')))
                              AND NOT EXISTS (SELECT 1 FROM thread_items b
                                               WHERE b.thread_id = i.thread_id AND b.type = 'background_task' AND b.status = 'in_progress'
                                                 AND b.content->'backgroundTask'->>'sourceItemId' = i.item_id))
                OR EXISTS (SELECT 1 FROM interaction_requests q JOIN turns u ON u.id = q.turn_id
-                           WHERE q.thread_id = t.id AND q.status = 'pending' AND u.status = ANY(${ENDED}::text[])))
+                           WHERE q.thread_id = t.id AND q.status = 'pending' AND q.question_call_id IS NULL AND u.status = ANY(${ENDED}::text[])))
              ORDER BY t.id`;
           return rows.map((r) => r.id);
         }),

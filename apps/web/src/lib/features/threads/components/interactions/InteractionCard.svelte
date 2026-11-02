@@ -7,7 +7,6 @@
   import { answerInteraction } from "../../api.ts";
   import ElicitationForm from "./ElicitationForm.svelte";
   import PermissionRequest from "./PermissionRequest.svelte";
-  import QuestionForm from "./QuestionForm.svelte";
   import ThreadLink from "../items/ThreadLink.svelte";
 
   /**
@@ -71,7 +70,7 @@
         <Button variant="danger" disabled={busy} onclick={() => respond({ allow: false, message: "Denied by the user" })}>Deny</Button>
       </div>
     {:else if interaction.kind === InteractionKind.QUESTION}
-      <QuestionForm requestJson={interaction.requestJson} {busy} submit={respond} />
+      <p class="text-sm/6 text-zinc-500 dark:text-zinc-400">Answer in the question panel above the composer.</p>
     {:else}
       <ElicitationForm requestJson={interaction.requestJson} {busy} submit={respond} />
     {/if}

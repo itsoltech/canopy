@@ -21,7 +21,9 @@ import {
   type ThreadSpec,
   type WorkerConfig,
 } from "@open-agents/contracts";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Result } from "effect";
+import { decodeUserAnswers, type UserQuestion } from "@open-agents/domain";
+import { writeInteractionTimeline } from "./interaction-timeline.ts";
 import { SqlClient, type SqlError } from "effect/sql";
 import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle } from "./paths.ts";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
@@ -262,6 +264,7 @@ export class GatewayStore extends Context.Service<
     answerInteraction(requestId: string, by: { userId: string } | { threadId: string }, answer: ui.AnswerInteractionRequest): Fx<ui.Interaction>;
     pendingInteractions(threadId: string): Fx<ui.Interaction[]>;
     interactionAnswer(requestId: string): Fx<{ threadId: string; answer: ui.AnswerInteractionRequest } | undefined>;
+    interactionEvent(requestId: string): Fx<{ seq: bigint; event: import("@open-agents/contracts").ThreadEvent } | undefined>;
   }
 >()("open-agents/gateway/GatewayStore") {
   static readonly layer = (secretsKey: Buffer) =>
@@ -316,7 +319,7 @@ export class GatewayStore extends Context.Service<
           });
 
         const threadSelect = (where: string) => `
-          SELECT t.*, (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending') AS pending_interactions,
+          SELECT t.*, (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND i.question_wait IS DISTINCT FROM false) AS pending_interactions,
                  greatest(t.created_at, (SELECT max(greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at)))
                                            FROM turns u WHERE u.thread_id = t.id)) AS last_activity_at,
                  (SELECT g.status FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled') LIMIT 1) AS goal_status,
@@ -765,12 +768,17 @@ export class GatewayStore extends Context.Service<
                WHERE id = ${turnId}::uuid AND status IN ('queued', 'running')`.pipe(Effect.asVoid),
 
           expireEndedInteractions: (threadId) =>
-            sql<InteractionRow>`
+            sql.withTransaction(Effect.gen(function* () {
+              yield* sql`SELECT id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+              const rows = yield* sql<InteractionRow>`
               UPDATE interaction_requests q SET status = 'expired', answered_at = now()
                 FROM turns u
                WHERE u.id = q.turn_id AND q.thread_id = ${threadId}::uuid AND q.status = 'pending'
-                 AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
-              RETURNING q.*`.pipe(Effect.map((rows) => rows.map(toInteraction))),
+                 AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled') AND q.question_call_id IS NULL
+              RETURNING q.*`;
+              for (const row of rows) yield* writeInteractionTimeline(sql, row);
+              return rows.map(toInteraction);
+            })),
 
           endLostTurns: (input) =>
             sql.withTransaction(
@@ -793,8 +801,9 @@ export class GatewayStore extends Context.Service<
                      AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = t.id AND r.status = 'running')`;
                 const interactions = yield* sql<InteractionRow>`
                   UPDATE interaction_requests SET status = 'expired', answered_at = now()
-                   WHERE turn_id = ANY(${ids}::uuid[]) AND status = 'pending'
+                   WHERE turn_id = ANY(${ids}::uuid[]) AND status = 'pending' AND question_call_id IS NULL
                   RETURNING *`;
+                for (const row of interactions) yield* writeInteractionTimeline(sql, row);
                 yield* sql`
                   UPDATE turn_steers SET status = 'dropped', reason = ${`the turn ended before the message could join it (${input.reason})`}, updated_at = now()
                    WHERE turn_id = ANY(${ids}::uuid[]) AND status IN ('pending', 'accepted')`;
@@ -857,7 +866,8 @@ export class GatewayStore extends Context.Service<
               yield* sql`
                 INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at)
                 VALUES (${message.commandId}::uuid, ${workerId}::uuid, ${threadId ?? null}::uuid, ${turnId ?? null}::uuid,
-                        ${message.kind.case ?? "unknown"}, ${toBinary(CommandSchema, message)}, now() + make_interval(secs => ${ttlSeconds}))`;
+                        ${message.kind.case ?? "unknown"}, ${toBinary(CommandSchema, message)}, now() + make_interval(secs => ${ttlSeconds}))
+                ON CONFLICT (id) DO NOTHING`;
               return message;
             }),
 
@@ -874,8 +884,11 @@ export class GatewayStore extends Context.Service<
                WHERE id = ${commandId}::uuid`.pipe(Effect.asVoid),
 
           recordInteraction: (request) =>
-            Effect.gen(function* () {
+            sql.withTransaction(Effect.gen(function* () {
               const thread = yield* store.thread(request.threadId);
+              yield* sql`SELECT id FROM threads WHERE id = ${request.threadId}::uuid FOR UPDATE`;
+              const known = yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${request.requestId}::uuid`;
+              if (known[0]) return toInteraction(known[0]);
               const rows = yield* sql<InteractionRow>`
                 INSERT INTO interaction_requests (id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to)
                 VALUES (${request.requestId}::uuid, ${request.threadId}::uuid,
@@ -884,13 +897,21 @@ export class GatewayStore extends Context.Service<
                         ${thread.interaction_route})
                 ON CONFLICT (id) DO UPDATE SET request = interaction_requests.request
                 RETURNING *`;
-              return toInteraction(yield* one(rows, "interaction"));
-            }),
+              const row = yield* one(rows, "interaction");
+              yield* writeInteractionTimeline(sql, row);
+              return toInteraction(row);
+            })),
 
           answerInteraction: (requestId, by, answer) =>
             sql.withTransaction(Effect.gen(function* () {
-              const current = yield* one(yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid`, "interaction");
+              const found = yield* one(yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid`, "interaction");
+              yield* sql`SELECT id FROM threads WHERE id = ${found.thread_id}::uuid FOR UPDATE`;
+              const current = yield* one(yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid FOR UPDATE`, "interaction");
               if (current.status !== "pending") return yield* Effect.fail(new Invalid(`interaction is already ${current.status}`));
+              if (current.question_call_id && !answer.cancelled) {
+                const decoded = decodeUserAnswers(answer.answerJson, (current.request as unknown as { questions: UserQuestion[] }).questions);
+                if (Result.isFailure(decoded)) return yield* Effect.fail(new Invalid(decoded.failure));
+              }
               const status = answer.cancelled
                 ? "cancelled"
                 : current.kind === "permission"
@@ -904,12 +925,21 @@ export class GatewayStore extends Context.Service<
               const rows = yield* sql<InteractionRow>`
                 UPDATE interaction_requests SET status = ${status}, answered_by = ${userId}::uuid, answered_by_thread_id = ${threadId}::uuid,
                        answered_at = now(),
-                       response = ${JSON.stringify({ allow: answer.allow, allowForSession: answer.allowForSession, message: answer.message, answerJson: answer.answerJson, cancelled: answer.cancelled })}::jsonb
+                       response = ${JSON.stringify({ allow: answer.allow, allowForSession: answer.allowForSession, message: answer.message, answerJson: answer.answerJson, cancelled: answer.cancelled })}::jsonb,
+                       answer_delivery = CASE WHEN question_call_id IS NOT NULL THEN 'pending' ELSE NULL END
                  WHERE id = ${requestId}::uuid RETURNING *`;
               // The parent agent no longer needs the turn that would have asked it.
               yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE interaction_request_id = ${requestId}::uuid AND status = 'queued'`;
-              return toInteraction(yield* one(rows, "interaction"));
+              const row = yield* one(rows, "interaction");
+              yield* writeInteractionTimeline(sql, row);
+              return toInteraction(row);
             })),
+
+          interactionEvent: (requestId) => sql<{ seq: string; payload: JsonValue }>`
+            SELECT e.seq, e.payload FROM interaction_requests q
+              JOIN thread_items i ON i.thread_id = q.thread_id AND i.item_id = 'interaction-' || q.id::text
+              JOIN thread_events e ON e.thread_id = i.thread_id AND e.seq = i.last_seq
+             WHERE q.id = ${requestId}::uuid`.pipe(Effect.map((rows) => rows[0] ? { seq: BigInt(rows[0].seq), event: fromJson(ThreadEventSchema, rows[0].payload) } : undefined)),
 
           pendingInteractions: (threadId) =>
             sql<InteractionRow>`SELECT * FROM interaction_requests WHERE thread_id = ${threadId}::uuid AND status = 'pending' ORDER BY created_at`.pipe(
@@ -930,7 +960,7 @@ export class GatewayStore extends Context.Service<
     );
 }
 
-interface InteractionRow {
+export interface InteractionRow {
   id: string;
   thread_id: string;
   turn_id: string | null;
@@ -942,9 +972,16 @@ interface InteractionRow {
   routed_to: string;
   response: JsonValue | null;
   created_at: Date;
+  answered_by?: string | null;
+  answered_by_thread_id?: string | null;
+  question_call_id?: string | null;
+  question_wait?: boolean | null;
+  answer_delivery?: string | null;
+  answer_steer_id?: string | null;
+  answer_turn_id?: string | null;
 }
 
-function toInteraction(row: InteractionRow): ui.Interaction {
+export function toInteraction(row: InteractionRow): ui.Interaction {
   return create(ui.InteractionSchema, {
     requestId: row.id,
     threadId: row.thread_id,
@@ -956,6 +993,7 @@ function toInteraction(row: InteractionRow): ui.Interaction {
     status: row.status,
     routedTo: row.routed_to,
     createdAt: timestampFromDate(new Date(row.created_at)),
+    asynchronous: row.question_wait === false,
   });
 }
 
