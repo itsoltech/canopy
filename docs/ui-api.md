@@ -32,6 +32,12 @@ także po archiwizacji lub soft delete; panel szczegółów opisuje ręczne sprz
 
 ## Bots
 
+`RenameProject` zmienia nazwę zwykłego projektu właściciela. `ArchiveProject` atomowo
+archiwizuje projekt, workspace'y i wątki przez istniejący lifecycle oraz anuluje
+harmonogramy projektu, zachowując historię i pliki workerów. Scratch jest wykluczony.
+`OverviewUpdate.project` z `Project.archived_at` (pole **480**) usuwa projekt z indeksu.
+Obie operacje są dostępne również botom z tą samą walidacją; archiwizacja wymaga zgody.
+
 Sekcja Bots korzysta z tego samego `GatewayService` i uwierzytelnienia BFF. Osobny
 kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdalne MCP.
 `SidebarSettings.pinned_bot_ids` ma numer 350. Pełny zakres: [bots.md](bots.md).

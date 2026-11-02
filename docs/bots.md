@@ -121,20 +121,111 @@ wykorzystuje walidację projektu/workspace'u, dostępności instancji i katalogu
 z UI API. Rozmowy i wyniki innych agentów są niezaufanymi danymi, nie instrukcją
 poszerzenia uprawnień. Model nigdy nie dostaje kluczy endpointu ani nagłówków MCP.
 
-| Zestaw | Funkcje |
-|---|---|
-| Odczyty platformy | `list_projects`, `list_workers`, `list_provider_instances`, `list_threads`, `get_thread`, `read_thread`, `list_bots` |
-| Praca i komunikacja | `start_thread` (projekt, workspace, dostawca, instancja, model, effort, permission, prompt), `send_message` (`queue`/`steer` z fallbackiem), `send_bot_message`, `rename_thread` |
-| Harmonogram i człowiek | `schedule_wakeup`, `list_schedules`, `cancel_schedule`, `ask_user` |
-| Działanie wymagające zgody | `archive_thread`, `set_thread_model`, `cancel_schedule`; także podwyższone permission przy `start_thread` |
-| Zdalne MCP | Tylko narzędzia włączonych i podłączonych serwerów HTTP/SSE; brak stdio. Nazwa serwera i narzędzia są zapamiętywane wewnętrznie. |
+Katalog ma **43 narzędzia platformy**. Nowe definicje, statusy i wykonanie są razem
+w `apps/gateway/src/bots/tools/{projects,workers,providers,threads,schedules,settings,bots}.ts`;
+rejestr w `tools/index.ts` jest delegatem `PLATFORM_TOOLS` i `botPlatform`. Pozostawione
+nazwy wcześniejszych narzędzi zachowują zgodność. Nie ma meta-narzędzia „opisz obszar”:
+43 krótkie opisy z prefiksem obszaru mieszczą się w limicie 45 i nie wymagają dodatkowej
+rundy modelu. Lista nie zawiera narzędzi lokalnych ani edycji innych botów lub `update_self`.
 
-Domyślne `approval_policy='safe'`: odczyty platformy i MCP oznaczone `readOnlyHint=true`
-bez `destructiveHint=true` nie pytają o zgodę. Każdy inny MCP wymaga karty przed wykonaniem,
-w tym wysyłka do systemu zewnętrznego. `always` wymaga kart dla każdego narzędzia.
-`ask_user` zawsze tworzy kartę tekstową. Zmiana instancji dostawców, sekretów i trwałe
-usuwanie nie są udostępnionymi narzędziami modelu. Politykę można zapisać przez API;
-pełny edytor jest zakresem kolejnej fazy.
+Legenda zgód: **R** — odczyt platformy, nigdy nie wymaga karty, także przy `always`;
+**P** — dotychczasowa polityka platformy (`safe`: odwracalna akcja bez karty,
+`always`: karta przed wykonaniem); **A** — karta zawsze, niezależnie od polityki.
+Zdalne MCP zachowuje dotychczasowe reguły: `safe` przepuszcza wyłącznie deklarowane
+odczyty bez flagi destrukcyjnej, pozostałe operacje wymagają zgody; `always` pyta także
+o odczyty MCP. `ask_user` zawsze tworzy kartę pytania.
+
+### Projekty i workspaces
+
+| Nazwa | Działanie | Zgoda |
+|---|---|---|
+| `list_projects` | Projekty, rodzaj, workspace'y, worker i pełne root paths | R |
+| `create_project` | Nowy projekt; katalog na workerze dodaje się osobno | P |
+| `rename_project` | Nazwa projektu, bez zmiany ścieżek | P |
+| `archive_project` | Miękka archiwizacja projektu i workspace'ów, archiwizacja wątków i anulowanie harmonogramów; historia i pliki pozostają | A |
+| `add_workspace` | Projekt na workerze w istniejącym katalogu; walidacja absolute path, allowed roots, duplikatów i właściciela jak w UI | P |
+| `update_workspace` | Katalog na tym samym workerze lub etykieta; istniejące wątki zachowują cwd | P |
+| `remove_workspace` | Usunięcie z miejsc dla nowych wątków, bez kasowania plików i istniejących rozmów | A |
+| `set_project_defaults` | Domyślne miejsce, dostawca, instancja, model per dostawca i permissions z kontrolą wersji | A |
+
+Scratch pozostaje zarządzany przez system. UI nie ma tworzenia katalogów ani domyślnej
+roli/agenta, więc bot również ich nie udaje. Worker sprawdza ścieżki rzeczywiste przy
+starcie wątku; gateway sprawdza allowed roots podczas tworzenia workspace'u.
+
+### Workery i instancje dostawców
+
+| Nazwa | Działanie | Zgoda |
+|---|---|---|
+| `list_workers` | Dostępne workery: online, OS, hostname, allowed roots, włączone i dostępne instancje | R |
+| `list_directory` | Zdalny DirectoryPicker: katalogi w allowed roots; pusta ścieżka pokazuje korzenie | R |
+| `list_provider_instances` | Instancje, wybory modeli, stan na dostępnych workerach; tylko nazwy zmiennych, bez wartości | R |
+| `list_models` | Katalog modeli i effort instancji na dostępnym workerze | R |
+| `set_instance_worker` | Włączenie lub wyłączenie istniejącej instancji na jednym dostępnym workerze | A |
+| `set_instance_models` | Podane listy favorites/hidden/shown; niepodane listy i custom models zostają | A |
+
+Definicje instancji są globalne dla instalacji, tak jak w UI; schemat nie ma właściciela
+instancji. Odpowiedź bota filtruje relacje workerów. Bot nie otrzymuje endpointów,
+wartości env, kluczy, nadpisań runtime ani danych logowania i nie ma pól do ich zapisu.
+Rejestracja workera wymaga poświadczenia CLI i musi zostać wykonana przez użytkownika;
+opis `list_workers` mówi o tym wprost. Brak narzędzia do logowania lub rejestracji.
+
+### Wątki
+
+| Nazwa | Działanie | Zgoda |
+|---|---|---|
+| `list_threads` | Wszystkie projekty lub jeden projekt, wyszukiwanie fragmentu tytułu, statusy, archiwum i limit | R |
+| `get_thread` | Stan, miejsce, model, effort, permission | R |
+| `read_thread` | Ostatnie 100 wiadomości, widoczne turn ids (również odziedziczone) i oczekujące interakcje | R |
+| `start_thread` | Nowy wątek i prompt, atomowy watch wyniku | P; A dla `accept_edits`/`full_auto` |
+| `send_message` | Kolejka lub steer z fallbackiem, watch zakończenia | P |
+| `rename_thread` | Jawny tytuł | P |
+| `set_thread_model` | Model i effort | A |
+| `interrupt_thread` | Przerwanie aktywnej tury przez outbox workera | P |
+| `archive_thread` | Archiwizacja lub przywrócenie (`archived=false`) z regułami kaskady UI | A |
+| `delete_thread` | Soft delete wątku i dzieci, anulowanie pracy; bez kasowania plików | A |
+| `fork_thread` | Fork od zakończonej widocznej tury, odziedziczone miejsce/instancja/ustawienia; opcjonalny prompt i watch | A |
+| `set_goal` | `set`, `pause`, `resume`, `clear`; budżet tylko dla Codexa | P |
+| `regenerate_title` | Generacja tytułu z historii i ustawień użytkownika | P |
+| `set_thread_permission` | Domyślny tryb uprawnień przyszłych tur | A |
+| `answer_interaction` | Odpowiedź na oczekujące pytanie lub zgodę danego wątku | A |
+| `list_background_tasks` | Zadania w tle z widocznej osi czasu, status i output | R |
+| `stop_background_task` | Stop działającego zadania po item id | A |
+
+Fork i wszystkie odpowiedzi na interakcje wymagają zgody konserwatywnie: fork może
+dziedziczyć `full_auto`, a odpowiedź może udzielić uprawnień. Odczyty cudzych wątków,
+workerów i projektów oraz ich mutacje zwracają brak zasobu. Błędne argumenty, modele,
+ścieżki i konflikty wersji wracają jako czytelny wynik narzędzia; diagnostyka SQL,
+transportu, sekrety i wewnętrzne adresy nie są przekazywane modelowi.
+
+### Harmonogramy, ustawienia i boty
+
+| Nazwa | Działanie | Zgoda |
+|---|---|---|
+| `create_schedule` | Harmonogram użytkownika: `thread` lub `new_thread`, termin ISO albo cron, strefa i limity; placement specific/any/least_busy/round_robin | P; A przy podwyższonych permissions nowego wątku |
+| `list_schedules` | Harmonogramy właściciela, filtry projektu/wątku i zakończonych; oddzielnie własne wakeups bota | R |
+| `update_schedule` | Pełna konfiguracja z `expected_version`, te same reguły co tworzenie | P; A przy podwyższonych permissions |
+| `set_schedule_status` | Pauza lub wznowienie harmonogramu użytkownika | P |
+| `cancel_schedule` | Anulowanie harmonogramu właściciela lub własnej pobudki bota (`scope`) | A |
+| `schedule_wakeup` | Jednorazowa własna pobudka bota | P |
+| `get_settings` | Domyślne ustawienia wątków i generacji tekstu, wersje użytkownika i projektów; bez wyglądu | R |
+| `update_settings` | Zastąpienie podanych sekcji, optimistic version; zagnieżdżone pola w protobuf JSON | P dla text generation; A dla thread defaults (mogą zmieniać permissions) |
+| `list_bots` | Boty właściciela | R |
+| `create_bot` | Nowy bot na istniejącej instancji endpointowej, bez sekretów/MCP | A |
+| `send_bot_message` | Wiadomość do innego bota właściciela, odpowiedź jako follow-up | P |
+| `ask_user` | Trwałe pytanie i do sześciu opcji | Karta pytania |
+
+Mutacje używają **tych samych metod `GatewayCore` i walidacji co UI API**.
+`core/action-context.ts` przenosi kontekst transakcji Effect SQL przez asynchroniczne
+metody rdzenia. `BotStore.action` sprawdza lease i zatwierdza mutację oraz wynik razem;
+komendy pozostają w istniejącym outboxie. Hub, wysyłka komend, konfiguracja workera,
+uruchamianie kolejki i generacja tytułu następują po commicie. Awaria przed commitem
+cofa całą zmianę, po commicie replay odczytuje zapisany wynik zamiast powielać akcję.
+Odpowiedzi na interakcje pozostają w bazie i odtwarzają się przez ponowienie żądania
+workera, a generacja tytułu zachowuje dotychczasowy asynchroniczny charakter.
+
+Nowe RPC `RenameProject` i `ArchiveProject` uzupełniają brakujące ścieżki rdzenia/UI.
+`Project.archived_at` ma pole **480**, żeby overview usunęło zarchiwizowany projekt
+również z otwartych kart. Wykorzystują istniejące kolumny `archived_at`; migracji nie ma.
 
 Rejestr odrzuca protokoły lokalne, dane logowania i tokeny w URL, niepoprawne nagłówki
 oraz nagłówki transportowe. Nagłówki są AES-256-GCM w istniejącym `secrets`, z odwołaniami
@@ -165,8 +256,10 @@ Zakończenie wskazanej tury workera tworzy follow-up bota przez trwały watch; d
 także wtedy, gdy zakończenie nastąpiło podczas przerwy gateway.
 
 Jednorazowe przypomnienia własnego bota są w `bot_wakeups`: create/list/cancel,
-zwiększenie hops, atomowy zapis pobudki. Cykliczne zadania workerów nadal obsługuje
-istniejący scheduler i UI API; nie są emulowane przez timer procesu Bots.
+zwiększenie hops, atomowy zapis pobudki. Harmonogramy użytkownika, również cykliczne
+i tworzące nowe wątki, obsługuje istniejący scheduler i UI API przez narzędzia bota;
+nie są emulowane przez timer procesu Bots. Tury tych harmonogramów zachowują semantykę
+harmonogramu użytkownika, a nie automatycznego łańcucha pobudek bota.
 
 ## 6. API
 
@@ -273,6 +366,18 @@ zbudowany pod oś wątków (składanie tur, kotwice). Gdy historie urosną, rozm
 stronicowanie po stronie API i wirtualizację.
 
 ## 8. Weryfikacja i dalsza faza
+
+`tests/integration/bot-platform-tools.test.ts`: siedem testów gateway na PostgreSQL
+i skryptowanym workerze: projekt → workspace → wątek, allowed roots, wyszukiwanie,
+harmonogramy create/edit/conflict/pause/resume/cancel i new_thread round robin,
+fork/interrupt/goal, instancje bez env values, ustawienia i tworzenie bota, pytania/tło,
+zgody i odmowy destrukcji, izolacja właściciela, rollback w środku akcji oraz ponowienie
+tego samego zapisanego wywołania przez nową instancję gateway przed i po commicie.
+`bot-platform-tools.live.test.ts` przez `useLiveProxy`: **Codex / CLIProxyAPI** otrzymuje
+naturalną prośbę o nowy projekt na `stack-worker` w dozwolonym katalogu i wątek z `pwd`.
+Test potwierdza projekt, workspace, jeden wątek, wynik i odpowiedź bota po follow-upie.
+Izolowany PostgreSQL, gateway, prawdziwy worker oraz katalogi testowe; bez `/tmp/oa-stack`
+i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozytorium.
 
 - Jednostkowe: `apps/gateway/src/bots/{policy,model}.test.ts`; decyzje zgód,
   przeskoki, opis statusu, protokoły, odrzucenie lokalnych możliwości oraz rozwiązywanie
