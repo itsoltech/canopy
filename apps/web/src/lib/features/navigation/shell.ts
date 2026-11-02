@@ -1,8 +1,10 @@
 import { getContext, setContext } from "svelte";
+import type { SidebarLayout } from "./sidebar-layout.svelte.ts";
 
-/** Lets pages open the mobile navigation from their own top bar. */
+/** Lets pages open the mobile navigation and toggle the desktop sidebar from their own top bar. */
 export interface Shell {
   openMenu(): void;
+  readonly sidebar?: SidebarLayout | undefined;
 }
 
 const KEY = Symbol("shell");

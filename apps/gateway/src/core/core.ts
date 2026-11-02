@@ -27,6 +27,7 @@ import {
   DEFAULT_BUS_LIMITS,
   formatSize,
   isFinished,
+  storedSidebarWidth,
   withAttachmentsNote,
   type AttachmentLimits,
 } from "@open-agents/domain";
@@ -1114,13 +1115,14 @@ export class GatewayCore {
     });
   }
 
+  /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
   async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
     if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults);
     if (request.modelFavorites) checkFavorites(request.modelFavorites);
     const settings = await this.#settings((s) =>
       s.updateUser({
         userId: this.#options.userId,
-        ...(request.appearance && { appearance: request.appearance }),
+        ...(request.appearance && { appearance: { ...request.appearance, sidebarWidth: storedSidebarWidth(request.appearance.sidebarWidth) } }),
         ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
         ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),
         expectedVersion: request.expectedVersion,

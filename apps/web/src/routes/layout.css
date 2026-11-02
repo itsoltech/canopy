@@ -139,6 +139,12 @@
   html.dark {
     color-scheme: dark;
   }
+  /* While a ResizeHandle is dragged: its cursor everywhere, no text selection. */
+  :root[data-resizing],
+  :root[data-resizing] * {
+    cursor: col-resize !important;
+    user-select: none !important;
+  }
   /* Native disclosure triangles are replaced by our own chevrons. */
   summary::-webkit-details-marker {
     display: none;
