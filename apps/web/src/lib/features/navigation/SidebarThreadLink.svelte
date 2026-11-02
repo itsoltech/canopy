@@ -48,7 +48,6 @@
         needsYou(thread) && "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
         "hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
         className,
-        "pr-9",
         thread.status === "archived" && "opacity-60",
       ]}
     >
@@ -57,10 +56,13 @@
     </a>
   {/snippet}
 </ThreadHoverCard>
-<IconButton icon="ellipsis-horizontal" label="Actions for {thread.title}" size="sm"
-  aria-haspopup="menu" aria-expanded={open} aria-controls={menu["aria-controls"]}
-  onclick={() => (open = !open)} onkeydown={menu.onkeydown}
-  class="absolute top-1.5 right-1 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 aria-expanded:opacity-100 pointer-coarse:hidden" />
+<!-- Floats over the row's time on hover (T3-style), positioned by its own box: IconButton's `relative` would
+     beat an `absolute` passed in `class`. -->
+<span class="absolute top-1.5 right-1.5 flex rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/10 opacity-0 pointer-events-none group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto has-aria-[expanded=true]:pointer-events-auto dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 group-hover/row:opacity-100 group-focus-within/row:opacity-100 has-aria-[expanded=true]:opacity-100 pointer-coarse:hidden">
+  <IconButton icon="ellipsis-horizontal" label="Actions for {thread.title}" size="sm"
+    aria-haspopup="menu" aria-expanded={open} aria-controls={menu["aria-controls"]}
+    onclick={() => (open = !open)} onkeydown={menu.onkeydown} />
+</span>
 </div>
 {/snippet}
 <ThreadMenuItems {thread} />
