@@ -214,6 +214,8 @@ export class GatewayStore extends Context.Service<
     nextTurn(threadId: string): Fx<TurnRow | undefined>;
     runningTurn(threadId: string): Fx<TurnRow | undefined>;
     turnsOf(threadId: string): Fx<ReadonlyArray<TurnRow>>;
+    /** First task in the visible history, including the fork's inherited prefix. */
+    titleInput(threadId: string): Fx<TurnRow | undefined>;
     /** A queued or running turn fails here (e.g. it could not start): the error, where it came from, its code. */
     failTurn(turnId: string, error: string, source: "platform" | "harness", code?: string): Fx<void>;
     /** Pending interactions of the thread's finished turns expire (nothing can answer them any more). */
@@ -736,6 +738,13 @@ export class GatewayStore extends Context.Service<
           turnsOf: (threadId) => sql<TurnRow>`
             SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
              WHERE u.thread_id = ${threadId}::uuid ORDER BY u.ordinal`,
+
+          titleInput: (threadId) => sql<TurnRow>`
+            SELECT u.* FROM thread_fork_chain(${threadId}::uuid) c JOIN turns u ON u.thread_id = c.thread_id
+             WHERE u.trigger IN ('user', 'goal', 'agent_bus')
+               AND COALESCE(u.input->>'message', u.input->>'text', '') <> ''
+               AND (c.level = 0 OR (u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)))
+             ORDER BY c.level DESC, u.ordinal LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
 
           failTurn: (turnId, error, source, code) =>
             sql`

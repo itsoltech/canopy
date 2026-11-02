@@ -74,6 +74,31 @@ describe.skipIf(!dockerAvailable)("thread titles through the worker link", () =>
     expect(requests.length).toBe(count + 1);
   });
 
+  test("regeneration uses inherited fork input and an explicit thread's goal without a user turn", async () => {
+    const source = await createThread("Fix the inherited login task", "Source");
+    const history = await watchUntil(gw.api, source.id, (updates) => updates.some((u) =>
+      u.change.case === "snapshot" && u.change.value.turns.some((t) => t.status === "completed") ||
+      u.change.case === "turn" && u.change.value.status === "completed"));
+    const turn = (await gw.runtime.runPromise(GatewayStore.use((s) => s.turnsOf(source.id)))).find((t) => t.status === "completed")!;
+    expect(history.length).toBeGreaterThan(0);
+    const fork = (await gw.api.createThread({ forkThreadId: source.id, forkAtTurnId: turn.id })).thread!;
+    let count = requests.length;
+    await gw.api.regenerateTitle({ threadId: fork.id });
+    await requested(count + 1);
+    expect(requests.at(-1)?.prompt).toContain("Fix the inherited login task");
+    answer?.(true, { generatedText: "Inherited login task" });
+    await eventually(() => current(fork.id), (t) => t.titleSource === "generated");
+
+    const goalThread = await createThread("", "Explicit goal thread");
+    await gw.api.setGoal({ threadId: goalThread.id, action: "set", objective: "Improve goal scheduling" });
+    count = requests.length;
+    await gw.api.regenerateTitle({ threadId: goalThread.id });
+    await requested(count + 1);
+    expect(requests.at(-1)?.prompt).toContain("Improve goal scheduling");
+    answer?.(true, { generatedText: "Goal scheduling" });
+    await eventually(() => current(goalThread.id), (t) => t.titleSource === "generated");
+  });
+
   test("an unavailable generation instance preserves the provisional title and does not queue retries", async () => {
     const settings = (await gw.api.getSettings({})).user!;
     await gw.api.updateUserSettings({ expectedVersion: settings.version, textGeneration: { provider: Provider.CODEX, profileId: "offline-instance", model: "gpt-5.5", effort: "low" } });

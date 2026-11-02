@@ -1164,10 +1164,11 @@ export class GatewayCore {
   async regenerateTitle(threadId: string): Promise<void> {
     const thread = await this.#run((s) => s.thread(threadId));
     if (thread.owner_user_id !== this.#options.userId || thread.archived_at) throw new InvalidError("thread not found");
-    const first = (await this.#run((s) => s.turnsOf(threadId))).find((t) => t.trigger === "user" || t.trigger === "goal");
+    const first = thread.title_context ? undefined : await this.#run((s) => s.titleInput(threadId));
+    const goal = !thread.title_context && !first ? await this.#goals((s) => s.latest(threadId)) : undefined;
     const context = thread.title_context || (first && titleContext({
       text: first.input.message ?? first.input.text ?? "", attachments: first.input.attachments, quotes: first.input.quotes,
-    }));
+    })) || (goal && titleContext({ text: goal.objective }));
     if (!context) throw new InvalidError("send a message before generating a title");
     if (this.#titleJobs.has(threadId) || this.#titlePreparing.has(threadId)) throw new UnavailableError("title generation is already running");
     this.#titlePreparing.add(threadId);

@@ -32,6 +32,8 @@ Atomowy claim w bazie chroni automatyczną próbę przed duplikatami. Zapis wyni
 
 Brak workera, błąd lub timeout pozostawia dotychczasowy tytuł i zapisuje ogólną diagnostykę. Nie ma outboxa, automatycznych ponowień ani generacji po kolejnych wiadomościach. Ręczna regeneracja pozwala spróbować ponownie.
 
+Regeneracja odtwarza kontekst również ze starszych wątków: pierwszego zadania użytkownika/agenta w widocznej historii (z odziedziczonym prefiksem forka) albo celu, gdy nie było jeszcze wiadomości.
+
 ## Izolacja SDK
 
 Worker ogłasza capability `generate_text`. Komenda przyjmuje prompt i konfigurację instancji, zwraca tekst. Nie tworzy platformowego wątku, tury, zadania w tle ani wpisu w dzienniku komend. Worker dopuszcza cztery generacje równocześnie, przerywa je po 30 sekundach i anuluje oraz sprząta je przy zamknięciu.
