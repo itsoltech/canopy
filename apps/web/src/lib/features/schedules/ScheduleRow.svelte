@@ -3,29 +3,30 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { formatDateTime, formatRelative, isoDateTime } from "#lib/shared/format.ts";
-  import Badge from "#lib/shared/ui/Badge.svelte";
+  import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ScheduleActions from "./ScheduleActions.svelte";
   import ScheduleRuns from "./ScheduleRuns.svelte";
+  import ScheduleStatus from "./ScheduleStatus.svelte";
   import { modelDisplayName } from "#lib/features/models/catalog.ts";
-  import { describeWhen, isFinished, placementLabels, runsLabel, scheduleStatusLook } from "./schedules.ts";
+  import { describeWhen, isFinished, placementLabels, runsLabel } from "./schedules.ts";
 
   /** One scheduled task: its message, when it runs, the next run, runs so far, its thread and who set it. */
-  let { schedule, onchange }: { schedule: ui.Schedule; onchange?: ((schedule: ui.Schedule) => void) | undefined } = $props();
+  let { schedule, onchange, class: className }: { schedule: ui.Schedule; onchange?: ((schedule: ui.Schedule) => void) | undefined; class?: ClassValue } = $props();
 
   const overview = useOverview();
-  const look = $derived(scheduleStatusLook(schedule.status));
   const thread = $derived(overview.threads.get(schedule.threadId));
   const creator = $derived(schedule.createdByThreadId ? overview.threads.get(schedule.createdByThreadId) : undefined);
   const linkClass = "font-medium text-zinc-700 underline decoration-zinc-950/15 underline-offset-2 hover:text-zinc-950 hover:decoration-zinc-950/40 focus-ring dark:text-zinc-300 dark:decoration-white/20 dark:hover:text-white dark:hover:decoration-white/40";
 </script>
 
-<div class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-start">
+<div class={["flex items-start gap-3 px-4 py-3.5", className]}>
   <div class="grid min-w-0 flex-1 gap-1.5">
-    <div class="flex items-start gap-3">
-      <p class="line-clamp-2 min-w-0 flex-1 text-base/6 font-medium break-words text-zinc-950 sm:text-sm/6 dark:text-white" title={schedule.prompt}>{schedule.prompt}</p>
-      <Badge tone={look.tone}>{look.label}</Badge>
+    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+      <p class="line-clamp-2 min-w-0 text-base/6 font-medium break-words text-zinc-950 sm:text-sm/6 dark:text-white" title={schedule.prompt}>{schedule.name || schedule.prompt}</p>
+      <ScheduleStatus status={schedule.status} />
     </div>
+    {#if schedule.name && schedule.name !== schedule.prompt}<p class="line-clamp-2 text-base/6 break-words text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{schedule.prompt}</p>{/if}
     <dl class="flex flex-wrap gap-x-4 gap-y-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
       <div class="flex min-w-0 items-center gap-1.5">
         <dt><Icon name={schedule.kind === "once" ? "clock" : "arrow-path"} class="size-3.5 fill-zinc-400 dark:fill-zinc-500" /><span class="sr-only">When</span></dt>
@@ -65,6 +66,7 @@
         {/if}
       </div>
     </dl>
+    {#if schedule.lastEditedAt}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Edited by you · <time datetime={isoDateTime(schedule.lastEditedAt)} title={formatDateTime(schedule.lastEditedAt)}>{formatRelative(schedule.lastEditedAt, clock.now)}</time></p>{/if}
     {#if schedule.recentRuns.length}<ScheduleRuns runs={schedule.recentRuns} class="pt-2" />{/if}
   </div>
   <ScheduleActions {schedule} {onchange} />

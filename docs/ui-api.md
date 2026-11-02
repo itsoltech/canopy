@@ -83,7 +83,7 @@ flowchart LR
 | `InterruptThread` | przerwanie tury w toku |
 | `AnswerInteraction` | odpowiedź na zgodę albo pytanie |
 | `WatchThread` | najpierw snapshot (wątek, tury ze zużyciem tokenów, itemy, oczekujące interakcje, ostatnie komunikaty, `last_seq`), potem zmiany na żywo: zdarzenia (`seq` + `ThreadEvent`), wątek, tura, interakcja. Snapshot forka zawiera odziedziczoną historię: tury i itemy wątku źródłowego do punktu forka z `inherited = true` i `from_thread_id`. Tura ma `model` i `effort`: nadpisanie z wiadomości, a od startu wartości faktycznie wysłane do workera (puste = domyślne profilu); tak samo `permission_mode` (od startu zawsze ustawiony). Tura ma swoje źródło (`source_kind`: task, message, report, question, schedule; `source_thread_id`, `schedule_id`, `interaction_request_id`; dla raportu `source_status`, dla pytania `question_kind` i `question_tool`), odczytane z relacji w bazie (widok `turn_sources`), nie z treści. `input_text` to dokładnie to, co dostał model; `platform_note` i `message_text` to ta sama treść rozdzielona na notatkę platformy i właściwą wiadomość. Tura od agenta (task, message, report) i steer agenta mają `sender` (`AgentSender`: wątek nadawcy, tytuł, dostawca, instancja, model, projekt, worker), także spoza drzewa. Snapshot ma `bus_deliveries`, a zmiany przychodzą jako `bus_delivery`: dokąd dotarły wywołania `spawn_thread` / `send_message` tego wątku i status tur docelowych ([agent-bus.md](agent-bus.md#wiadomości-między-dowolnymi-wątkami)) |
-| `ListSchedules`, `CreateSchedule`, `PreviewSchedule`, `SetScheduleStatus` | harmonogram platformy (podgląd najbliższych terminów cronu przed utworzeniem; zakończonego ani anulowanego nie da się wznowić): lista (wątek, projekt albo wszystkie; z autorem: użytkownik albo agent i jego wątek), nowy harmonogram użytkownika (jednorazowy `run_at` albo `cron` ze strefą czasową; może być bez końca), wstrzymanie, wznowienie, anulowanie. Zmiany na żywo w `ThreadUpdate.schedule` i `OverviewUpdate.schedule`, a snapshot wątku zawiera jego aktywne i wstrzymane harmonogramy |
+| `ListSchedules`, `CreateSchedule`, `UpdateSchedule`, `PreviewSchedule`, `SetScheduleStatus` | harmonogram platformy: lista z autorem i ostatnim edytującym, tworzenie, edycja z kontrolą wersji, podgląd terminów cronu, wstrzymanie, wznowienie i anulowanie. Użytkownik może edytować także zadania agenta. Zakończonego ani anulowanego zadania nie da się edytować ani wznowić. Zmiany na żywo w `ThreadUpdate.schedule` i `OverviewUpdate.schedule`, a snapshot wątku zawiera jego aktywne i wstrzymane harmonogramy |
 | `SetGoal` | cel harnessu w wątku ([goals.md](goals.md)): `action` = `set` (nowy cel z `objective`, opcjonalnie `token_budget` tylko dla Codexa; zastępuje otwarty), `pause`, `resume`, `clear`. Zwraca `Goal`; decyzja jest zapisana od razu, harness potwierdza ją raportem (`Goal.native_status`). Codex: komenda `SetGoal` do workera; Claude: tura `/goal …` w kolejce (`trigger = goal`; pauza i usunięcie najpierw przerywają turę). Błędy: brak otwartego celu do pauzy/wznowienia/usunięcia, budżet dla Claude, `objective` > 4000 znaków |
 | `StopBackgroundTask` | zatrzymanie zadania w tle (`thread_id`, `item_id` itemu `background_task`, musi być `in_progress`) → komenda `StopTask`; item kończy się `interrupted` (`stop_reason = stopped_by_user`), gdy worker to zgłosi ([execution.md](execution.md#4-zadania-w-tle)) |
 | `ListProviderInstances`, `SaveProviderInstance`, `DeleteProviderInstance`, `SetInstanceWorkers`, `SetInstanceWorker`, `SetInstanceModels`, `RefreshProviders`, `StartProviderLogin` | globalne instancje dostawców ([worker-config.md](worker-config.md#9-globalne-instancje-dostawców)): lista z definicją (bez wartości sekretów: `api_key_set`, zmienna-sekret z pustą wartością), wyborem modeli, liczbą wątków i stanem na każdym workerze (`InstanceOnWorker`: włączona, wybór jawny czy z `all_workers`, nadpisania, ostatni raport: `available`, `detail`, `version`, `auth`, `authenticated`, `checked_at`, `synced`); nowa (`create`, id: małe litery, cyfry, `-`, `_`; unikalne w obrębie dostawcy; od razu `all_workers` albo `worker_ids`) albo zmieniona definicja (`expected_revision`; inna = `FailedPrecondition`); usunięcie nieużywanej (używana: `FailedPrecondition`); gdzie działa (wszystkie workery albo wybrane); włączenie i nadpisania na jednym workerze (sekret bez wartości = bez zmian, `api_key` pusty = klucz definicji); modele (`favorites_only` = sama gwiazdka z pickera); ponowne sprawdzenie na workerach online (`ProbeProviders`, `skipped` = pominięte z powodem); logowanie ChatGPT kodem urządzenia (Codex z `own_login`). Każda zmiana definicji albo przypisania zapisuje nowe wersje konfiguracji tylko workerom, których efektywne instancje się zmieniły, i wysyła je tym online; zmiany na żywo w `OverviewUpdate.worker` (`Worker.provider_instances`: id, dostawca, nazwa, kolor, włączona, dostępna, ulubione) |
@@ -117,6 +117,35 @@ nowych wątków przychodzą w `OverviewUpdate.schedule`; istniejących również
 Przy braku workera puli ponawianie trwa co 5 s; po 2 minutach `skip` pomija, `run_once` zachowuje
 jedno zaległe wykonanie (do `until`, jeśli ustawione). `specific` może utworzyć wątek na offline workerze,
 korzystając z jego ostatniej dostępności instancji. Szczegóły: [agent-bus.md, sekcja 5](agent-bus.md#5-harmonogram).
+
+### Edycja harmonogramów
+
+`UpdateScheduleRequest` zawiera `schedule_id`, wymagane `expected_version` i `configuration`
+(`CreateScheduleRequest`, pełna konfiguracja). Walidacja jest wspólna z tworzeniem, a odpowiedź
+`UpdateScheduleResponse.schedule` zawiera nowy stan. Konflikt z innym zapisem, zmianą statusu albo
+zatwierdzonym wykonaniem zwraca `FailedPrecondition` (BFF: 409); formularz zachowuje wpisane wartości
+i wskazuje konieczność ponownego otwarcia. Odnowienie lease nie zmienia wersji.
+
+Nowe pola `Schedule` mają numery 330–333: `version`, `last_edited_by_user_id`, `last_edited_at`,
+`configured_name`. Ostatnie pole zachowuje jawną nazwę, również pustą; dotychczasowe `name` nadal
+zwraca etykietę z pierwszych 60 znaków wiadomości, gdy nazwy nie podano. Edycja nie zmienia autora
+utworzenia, historii, licznika `runs`, ostatniej tury ani pauzy. Najbliższy termin jest liczony od nowa;
+limit `max_runs` jest łączny, a nie od chwili edycji. `thread` można zamienić na `new_thread` i odwrotnie,
+ale przy pozostaniu w trybie `thread` nie można wybrać innego istniejącego wątku.
+Przejęte, jeszcze niezatwierdzone wystąpienie zachowuje swój klucz historii i użyje nowej konfiguracji
+o nowym terminie. Już uruchomiona praca pozostaje bez zmian.
+
+Settings i panel wątku używają wspólnego menu „…”: `Edit…`, `Pause` lub `Resume`,
+`Cancel schedule…` (nieodwracalne anulowanie wymaga dialogu potwierdzenia). Stan jest kropką z etykietą
+przy tytule lub w metadanych. Zakończone i anulowane zadania nie mają akcji. `Edit scheduled task`
+otwiera ten sam `ScheduleDialog` co tworzenie, wypełniony zapisaną konfiguracją; `Save changes`
+zapisuje wersję z chwili otwarcia. `PreviewSchedule` działa również w edytorze, pokazując trzy
+najbliższe terminy po zmianie cronu lub strefy. Menu i dialog używają istniejących tokenów ruchu
+z `layout.css` i `motion.css`, również przy ograniczonym ruchu.
+
+BFF: `PUT api/schedules/[id]` przyjmuje `UpdateScheduleRequest` (identyfikator z URL jest wiążący),
+a `POST api/schedules/preview` przyjmuje `PreviewScheduleRequest`. Zapis zwraca pełny harmonogram,
+podgląd — terminy `next_runs`; błędy walidacji mają HTTP 400, konflikt wersji HTTP 409.
 
 Cele i praca w tle w modelu UI (pola od 60, osobno od innych zmian kontraktu):
 - `Thread.goal_status` (status otwartego celu albo pusty) i `Thread.background_tasks` (zadania w tle w toku) — także w `WatchOverview`, np. na plakietki w pasku bocznym,

@@ -2,8 +2,9 @@
   import { Provider, PermissionMode, ui } from "@open-agents/contracts";
   import { scheduleWorkerEligible } from "@open-agents/domain";
   import { create } from "@bufbuild/protobuf";
+  import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { modelOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -17,13 +18,20 @@
   let { value = $bindable(), class: className }: { value?: ui.NewThreadSchedule | undefined; class?: ClassValue } = $props();
   const overview = useOverview();
   const catalog = useModelCatalog();
-  let projectId = $state(overview.projects[0]?.id ?? "");
-  let placement = $state("any");
-  let workspaceId = $state("");
-  let option = $state<ModelOption>();
-  let effort = $state<string>();
-  let permission = $state<PermissionModeKey>("ASK");
-  let title = $state("");
+  const initial = untrack(() => value);
+  let projectId = $state(initial?.projectId ?? overview.projects[0]?.id ?? "");
+  let placement = $state(initial?.placement || "any");
+  let workspaceId = $state(initial?.workspaceId ?? "");
+  const initialWorker = untrack(() => {
+    const candidates = overview.workers.filter((w) => overview.project(projectId)?.workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId)));
+    return candidates.find((w) => initial && scheduleWorkerEligible(w, initial, false)) ?? candidates[0];
+  });
+  const initialProfile = initial?.providerProfileId === "native" ? "" : initial?.providerProfileId || "";
+  let option = $state<ModelOption | undefined>(initial ? modelOption(initial.provider === Provider.CLAUDE ? "CLAUDE" : "CODEX", initialProfile,
+    initialWorker?.providerInstances.find((i) => i.harness === initial.provider && i.id === (initialProfile || "native"))?.label || initialProfile || "Native", initial.model, initialWorker ? catalog.of(initialWorker.id) : undefined) : undefined);
+  let effort = $state<string | undefined>(initial?.effort || undefined);
+  let permission = $state<PermissionModeKey>(initial ? PermissionMode[initial.permissionMode] as PermissionModeKey : "ASK");
+  let title = $state(initial?.title ?? "");
   const project = $derived(overview.project(projectId));
   const workspaces = $derived(project?.workspaces ?? []);
   const workers = $derived(overview.workers.filter((w) => workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId))));
@@ -37,7 +45,9 @@
   });
   $effect(() => {
     // Keep custom model ids while their instance is still offered in this placement.
-    if (!option || !options.some((o) => o.provider === option?.provider && o.profileId === option?.profileId)) {
+    const keepingInitial = initial && projectId === initial.projectId && placement === initial.placement &&
+      (placement !== "specific" || workspaceId === initial.workspaceId) && option?.profileId === initialProfile;
+    if (!option || (!keepingInitial && !options.some((o) => o.provider === option?.provider && o.profileId === option?.profileId))) {
       option = options[0];
       effort = undefined;
     }

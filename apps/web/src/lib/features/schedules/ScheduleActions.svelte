@@ -1,25 +1,30 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import { clone } from "@bufbuild/protobuf";
+  import { ui } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import DialogActions from "#lib/shared/ui/DialogActions.svelte";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
+  import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import { setScheduleStatus, type ScheduleStatusChange } from "./api.ts";
-  import { isFinished } from "./schedules.ts";
+  import { scheduleActions } from "./schedules.ts";
+  import ScheduleDialog from "./ScheduleDialog.svelte";
 
-  /**
-   * Pause or resume a schedule, and cancel it (asks once more: a cancelled schedule does not come
-   * back). `compact` shows icon buttons (thread panel). The live stream brings the new status;
-   * `onchange` gets it right away too.
-   */
-  let {
-    schedule,
-    compact = false,
-    onchange,
-    class: className,
-  }: { schedule: ui.Schedule; compact?: boolean; onchange?: ((schedule: ui.Schedule) => void) | undefined; class?: ClassValue } = $props();
-
+  /** Shared by all lists. The editor keeps its opening version while live updates arrive. */
+  let { schedule, compact = false, onchange, class: className }: {
+    schedule: ui.Schedule; compact?: boolean; onchange?: ((schedule: ui.Schedule) => void) | undefined; class?: ClassValue;
+  } = $props();
+  const overview = useOverview();
+  const actions = $derived(scheduleActions(schedule.status));
   let busy = $state<ScheduleStatusChange>();
   let confirming = $state(false);
+  let editing = $state(false);
+  let snapshot = $state<ui.Schedule>();
   let error = $state<string>();
 
   async function change(status: ScheduleStatusChange) {
@@ -31,34 +36,37 @@
       confirming = false;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "The change failed";
-    } finally {
-      busy = undefined;
-    }
+    } finally { busy = undefined; }
   }
 </script>
 
-{#if !isFinished(schedule)}
-  <div class={["flex flex-col items-end gap-1", className]}>
-    <div class="flex items-center gap-1">
-      {#if confirming}
-        <Button size="sm" variant="danger" loading={busy === "cancelled"} onclick={() => change("cancelled")}>Cancel schedule</Button>
-        <Button size="sm" variant="ghost" disabled={Boolean(busy)} onclick={() => (confirming = false)}>Keep</Button>
-      {:else if compact}
-        {#if schedule.status === "paused"}
-          <IconButton icon="play" size="sm" label="Resume" disabled={Boolean(busy)} onclick={() => change("active")} />
-        {:else}
-          <IconButton icon="pause" size="sm" label="Pause" disabled={Boolean(busy)} onclick={() => change("paused")} />
-        {/if}
-        <IconButton icon="x-mark" size="sm" label="Cancel…" disabled={Boolean(busy)} onclick={() => (confirming = true)} />
+<div class={["shrink-0", className]}>
+  {#if actions.length}
+    <DropdownMenu label="Scheduled task actions" placement="bottom-end">
+      {#snippet trigger(props)}
+        <IconButton icon="ellipsis-horizontal" label="Scheduled task actions" size={compact ? "sm" : "md"} loading={Boolean(busy)} {...props} />
+      {/snippet}
+      <MenuItem icon="pencil-square" onselect={() => { snapshot = clone(ui.ScheduleSchema, schedule); editing = true; }}>Edit…</MenuItem>
+      {#if actions.includes("resume")}
+        <MenuItem icon="play" onselect={() => change("active")}>Resume</MenuItem>
       {:else}
-        {#if schedule.status === "paused"}
-          <Button size="sm" icon="play" loading={busy === "active"} disabled={Boolean(busy)} onclick={() => change("active")}>Resume</Button>
-        {:else}
-          <Button size="sm" icon="pause" loading={busy === "paused"} disabled={Boolean(busy)} onclick={() => change("paused")}>Pause</Button>
-        {/if}
-        <Button size="sm" variant="ghost" disabled={Boolean(busy)} onclick={() => (confirming = true)}>Cancel…</Button>
+        <MenuItem icon="pause" onselect={() => change("paused")}>Pause</MenuItem>
       {/if}
-    </div>
-    {#if error}<p class="text-sm/5 text-rose-700 dark:text-rose-400" role="alert">{error}</p>{/if}
+      <MenuSeparator />
+      <MenuItem icon="x-mark" danger onselect={() => { error = undefined; confirming = true; }}>Cancel schedule…</MenuItem>
+    </DropdownMenu>
+  {/if}
+  {#if error && !confirming}<p class="text-base/6 text-rose-700 sm:text-sm/5 dark:text-rose-400" role="alert">{error}</p>{/if}
+</div>
+
+<ScheduleDialog bind:open={editing} schedule={snapshot} threads={[...overview.threads.values()]} oncreated={onchange} />
+<Dialog bind:open={confirming} title="Cancel scheduled task?" description="This task will not run again. Its run history stays available. Work that has already started will continue.">
+  <div class="grid gap-5">
+    <p class="text-base/6 break-words text-zinc-700 sm:text-sm/6 dark:text-zinc-300">{schedule.name || schedule.prompt}</p>
+    {#if error}<Alert tone="error">{error}</Alert>{/if}
+    <DialogActions>
+      <Button disabled={Boolean(busy)} onclick={() => (confirming = false)} data-autofocus>Keep task</Button>
+      <Button variant="danger" loading={busy === "cancelled"} onclick={() => change("cancelled")}>Cancel schedule</Button>
+    </DialogActions>
   </div>
-{/if}
+</Dialog>
