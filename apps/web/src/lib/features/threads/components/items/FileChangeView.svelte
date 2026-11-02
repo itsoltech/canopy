@@ -3,11 +3,14 @@
   import { basename } from "#lib/shared/format.ts";
   import FileDiffEntry from "./FileDiffEntry.svelte";
   import ItemFrame from "./ItemFrame.svelte";
+  import DiffCounts from "./DiffCounts.svelte";
+  import { diffCounts } from "./tools/changes.ts";
 
   /** Files the agent added, edited, moved or deleted, each with its diff. */
   let { change, status }: { change: FileChange; status: ItemStatus } = $props();
 
   const verb = $derived(status === ItemStatus.IN_PROGRESS ? "Editing" : status === ItemStatus.DECLINED ? "Proposed" : "Edited");
+  const counts = $derived(diffCounts(change.changes));
 </script>
 
 <ItemFrame icon="pencil-square" {status}>
@@ -18,6 +21,7 @@
     </span>
   {/snippet}
   {#snippet aside()}
+    <DiffCounts {...counts} />
     {#if change.changes.length > 1}<span>{change.changes.length} files</span>{/if}
   {/snippet}
   {#each change.changes as entry, index (index)}

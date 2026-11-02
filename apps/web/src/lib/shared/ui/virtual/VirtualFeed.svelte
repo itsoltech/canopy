@@ -251,8 +251,8 @@
     // The reader scrolled and its scroll event is still to come: take it in first, or the old anchor
     // would undo the scroll.
     if (Math.abs(scroller.scrollTop - lastTop) >= 1) onscroll();
+    if (performance.now() < smoothUntil) return;
     if (stuck) {
-      if (performance.now() < smoothUntil) return;
       const end = scroller.scrollHeight - scroller.clientHeight;
       if (Math.abs(scroller.scrollTop - end) >= 1) setTop(end);
       return;
@@ -298,11 +298,11 @@
     }
     lastTop = top;
     scrollTop = top;
-    if (!stuck) capture();
+    if (!stuck && performance.now() >= smoothUntil) capture();
   }
 
   function onwheel(event: WheelEvent) {
-    scrollIntent.gesture();
+    readerGesture();
     // Scrolling up during a stream: let go at once, before the next growth pins the end again.
     if (event.deltaY < 0 && scroller && scroller.scrollHeight > scroller.clientHeight + FEED_END_THRESHOLD) {
       // A previous reading anchor may survive a jump to latest. Capture the current end before
@@ -312,8 +312,19 @@
     }
   }
 
+  function readerGesture() {
+    if (smoothUntil > 0) {
+      smoothUntil = 0;
+      // Stop a programmatic smooth scroll at its current position before handing control back.
+      scroller?.scrollTo({ top: scroller.scrollTop, behavior: "instant" });
+      if (!stuck) capture();
+    }
+    scrollIntent.gesture();
+  }
+
   function onscrollend() {
     smoothUntil = 0;
+    if (!stuck) capture();
     settle();
   }
 
@@ -354,6 +365,27 @@
     setTop(Math.max(0, listTop + index.offset(at) - 8));
     scrollTop = scroller.scrollTop;
     await focusRow(at);
+    return true;
+  }
+
+  /** After a turn, let a following reader start an oversized answer at its first line.
+   * No focus change, no movement for a short answer or a reader who scrolled away. */
+  export async function scrollRowToTop(rowKey: string): Promise<boolean> {
+    if (!stuck) return false;
+    await tick();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const element = elements.get(rowKey);
+    if (!stuck || !scroller || !element) return false;
+    const box = element.getBoundingClientRect();
+    if (box.height <= scroller.clientHeight - footerHeight - 16) return false;
+    const top = scroller.scrollTop + box.top - scroller.getBoundingClientRect().top - 8;
+    stuck = false;
+    anchor = { key: rowKey, element, top: 8 };
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) setTop(top);
+    else {
+      smoothUntil = performance.now() + 1000;
+      scroller.scrollTo({ top, behavior: "smooth" });
+    }
     return true;
   }
 
@@ -430,12 +462,12 @@
   {onscroll}
   {onscrollend}
   {onwheel}
-  ontouchmove={() => scrollIntent.gesture()}
-  onpointerdown={(event) => { if (event.target === scroller) scrollIntent.gesture(); }}
-  onpointermove={(event) => { if (event.buttons === 1 && event.target === scroller) scrollIntent.gesture(); }}
+  ontouchmove={readerGesture}
+  onpointerdown={(event) => { if (event.target === scroller) readerGesture(); }}
+  onpointermove={(event) => { if (event.buttons === 1 && event.target === scroller) readerGesture(); }}
   onkeydown={(event) => {
     if (event.defaultPrevented || (event.target as Element).closest("textarea, input, select, [contenteditable]")) return;
-    if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) scrollIntent.gesture();
+    if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerGesture();
   }}
 >
   <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">

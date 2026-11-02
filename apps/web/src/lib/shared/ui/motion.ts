@@ -44,9 +44,9 @@ function length(name: string, fallbackPx: number): number {
  * Accordion expand / collapse (21) for content mounted with its disclosure: height from and to 0 with a
  * fade and cross-blur, on --duration-fast both ways (one reversible motion).
  */
-export function expand(node: HTMLElement, { delay = 0 }: { delay?: number } = {}): TransitionConfig {
+export function expand(node: HTMLElement, { delay = 0, instantReduced = false }: { delay?: number; instantReduced?: boolean } = {}): TransitionConfig {
   const ms = duration("fast");
-  if (prefersReducedMotion.current) return { delay, duration: ms, css: (t) => `opacity: ${t}` };
+  if (prefersReducedMotion.current) return { delay: instantReduced ? 0 : delay, duration: instantReduced ? 0 : ms, css: (t) => `opacity: ${t}` };
   const style = getComputedStyle(node);
   const height = node.offsetHeight;
   const blur = length("--blur-small", 2);
