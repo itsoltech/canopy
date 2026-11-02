@@ -110,7 +110,7 @@
           </button>
         {/if}
       {:else}
-        <p class="whitespace-pre-wrap">{parts.message}</p>
+        <Markdown text={parts.message} breaks class="text-inherit dark:text-inherit" />
       {/if}
       {#if parts.note}
         <Disclosure remember="full-text" class="mt-2" summaryClass="text-sm/6 opacity-80 sm:text-xs/6">

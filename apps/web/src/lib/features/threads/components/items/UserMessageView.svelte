@@ -11,6 +11,7 @@
 </script>
 
 <script lang="ts">
+  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import type { Snippet } from "svelte";
   import type { UserMessage, ui } from "@open-agents/contracts";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
@@ -68,7 +69,7 @@
         pending && "opacity-70",
       ]}
     >
-      {#if message.text.trim()}<p class="whitespace-pre-wrap">{message.text}</p>{/if}
+      {#if message.text.trim()}<Markdown text={message.text} breaks class="text-inherit dark:text-inherit" />{/if}
       {@render details?.()}
     </div>
   {/if}
