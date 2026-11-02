@@ -50,16 +50,24 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
     })),
     setThreadArchived: (userId: string, threadId: string, archived: boolean) => sql.withTransaction(Effect.gen(function* () {
       const row = yield* owned(userId, threadId);
-      if (Boolean(row.archived_at) === archived) return [];
-      const commands = archived ? yield* stop([threadId]) : [];
+      if (Boolean(row.archived_at) === archived) return { ids: [threadId], commands: [] };
+      if (!archived && row.parent_thread_id && (yield* sql`SELECT id FROM threads WHERE id = ${row.parent_thread_id}::uuid AND archived_at IS NOT NULL`).length)
+        return yield* Effect.fail(new Invalid("unarchive the parent thread first"));
+      const children = row.parent_thread_id ? [] : yield* sql<{ id: string }>`SELECT id FROM threads
+        WHERE parent_thread_id = ${threadId}::uuid AND owner_user_id = ${userId}::uuid AND deleted_at IS NULL
+          AND (CASE WHEN ${archived} THEN archived_at IS NULL
+            ELSE archived_at IS NOT NULL AND archived_by = 'cascade' AND archived_by_thread_id = ${threadId}::uuid END)
+        ORDER BY id FOR UPDATE`;
+      const ids = [threadId, ...children.map((child) => child.id)];
+      const commands = archived ? yield* stop(ids) : [];
       yield* sql`UPDATE threads SET status = CASE WHEN ${archived} THEN 'archived'
           WHEN EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = threads.id AND u.status = 'running') THEN 'running'
           WHEN runtime = 'worker' AND provider_thread_id IS NULL THEN CASE WHEN status_detail IS NULL THEN 'creating' ELSE 'failed' END ELSE 'idle' END,
         archived_at = CASE WHEN ${archived} THEN coalesce(archived_at, now()) ELSE NULL END,
-        archived_by = CASE WHEN ${archived} THEN coalesce(archived_by, 'user') ELSE NULL END,
-        archived_by_thread_id = CASE WHEN ${archived} THEN archived_by_thread_id ELSE NULL END
-        WHERE id = ${threadId}::uuid`;
-      return commands;
+        archived_by = CASE WHEN ${archived} THEN CASE WHEN id = ${threadId}::uuid THEN 'user' ELSE 'cascade' END ELSE NULL END,
+        archived_by_thread_id = CASE WHEN ${archived} AND id <> ${threadId}::uuid THEN ${threadId}::uuid ELSE NULL END
+        WHERE id = ANY(${ids}::uuid[])`;
+      return { ids, commands };
     })),
     deleteThread: (userId: string, threadId: string) => sql.withTransaction(Effect.gen(function* () {
       yield* owned(userId, threadId);

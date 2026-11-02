@@ -31,6 +31,7 @@ import { toUiAttachment, type StoredAttachment } from "./attachments.ts";
 import { toUiQuote, type StoredQuote } from "./quotes.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 import { threadLifecycle, type ThreadLifecycle } from "./thread-lifecycle.ts";
+import { archivedPage } from "./archived-pagination.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -206,7 +207,8 @@ export class GatewayStore extends Context.Service<
     /** The owner saw the thread up to `upToSeq` (capped at its last event; the marker only grows). False when nothing changed. */
     markThreadSeen(ownerUserId: string, threadId: string, upToSeq: bigint): Fx<boolean>;
     /** Threads of a project, or of every project the user owns when projectId is empty. */
-    listThreads(ownerUserId: string, projectId: string, includeArchived?: boolean): Fx<ReadonlyArray<ThreadRow>>;
+    listThreads(ownerUserId: string, projectId: string, includeArchived?: boolean, sidebarOnly?: boolean): Fx<ReadonlyArray<ThreadRow>>;
+    listArchivedThreads(ownerUserId: string, request: ui.ListArchivedThreadsRequest): Fx<{ threads: ThreadRow[]; sideThreads: ThreadRow[]; totalCount: number; nextPageToken: string }>;
     threadSpec(row: ThreadRow): ThreadSpec;
     setThreadStatus(threadId: string, status: string, detail: string | null): Fx<void>;
     /**
@@ -327,8 +329,8 @@ export class GatewayStore extends Context.Service<
             );
           });
 
-        const threadSelect = (where: string) => `
-          SELECT t.*, (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND i.question_wait IS DISTINCT FROM false) AS pending_interactions,
+        const threadSelect = (where: string, extraColumns = "") => `
+          SELECT t.*, ${extraColumns} (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND i.question_wait IS DISTINCT FROM false) AS pending_interactions,
                  greatest(t.created_at, (SELECT max(greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at)))
                                            FROM turns u WHERE u.thread_id = t.id)) AS last_activity_at,
                  (SELECT g.status FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled') LIMIT 1) AS goal_status,
@@ -601,6 +603,7 @@ export class GatewayStore extends Context.Service<
                 const provider = request.provider === Provider.CLAUDE ? "claude" : "codex";
                 const id = Bun.randomUUIDv7();
                 const parent = request.parentThreadId ? yield* store.thread(request.parentThreadId) : undefined;
+                if (parent?.archived_at) return yield* Effect.fail(new Invalid("parent thread is archived"));
                 if (parent && parent.workspace_id !== workspace.id) {
                   return yield* Effect.fail(new Invalid("a side thread runs in its parent's workspace"));
                 }
@@ -665,11 +668,40 @@ export class GatewayStore extends Context.Service<
               return false;
             }),
 
-          listThreads: (ownerUserId, projectId, includeArchived = false) =>
+          listThreads: (ownerUserId, projectId, includeArchived = false, sidebarOnly = false) =>
             sql.unsafe<ThreadRow>(threadSelect(`WHERE t.owner_user_id = $1::uuid AND ($2::uuid IS NULL OR t.project_id = $2::uuid)
-              AND t.deleted_at IS NULL AND ($3::boolean OR t.archived_at IS NULL)
+              AND t.deleted_at IS NULL AND (CASE WHEN $4::boolean THEN ((t.archived_at IS NULL AND NOT EXISTS
+                (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id AND parent.archived_at IS NOT NULL)) OR
+                (t.kind = 'side' AND EXISTS (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id
+                  AND parent.owner_user_id = t.owner_user_id AND parent.archived_at IS NULL AND parent.deleted_at IS NULL)))
+                ELSE ($3::boolean OR t.archived_at IS NULL) END)
               AND EXISTS (SELECT 1 FROM projects p WHERE p.id = t.project_id AND p.archived_at IS NULL) ORDER BY t.created_at`),
-              [ownerUserId, projectId || null, includeArchived]),
+              [ownerUserId, projectId || null, includeArchived, sidebarOnly]),
+
+          listArchivedThreads: (ownerUserId, request) => Effect.gen(function* () {
+            const page = yield* Effect.try({ try: () => archivedPage(ownerUserId, request), catch: (cause) => new Invalid((cause as Error).message) });
+            const where = `WHERE t.owner_user_id = $1::uuid AND t.deleted_at IS NULL AND t.archived_at IS NOT NULL
+              AND (cardinality($2::uuid[]) = 0 OR t.project_id = ANY($2::uuid[]))
+              AND EXISTS (SELECT 1 FROM projects p WHERE p.id = t.project_id AND p.archived_at IS NULL
+                AND ($3 = '' OR strpos(lower(t.title), $3) > 0 OR strpos(lower(p.name), $3) > 0
+                  OR EXISTS (SELECT 1 FROM threads child WHERE child.parent_thread_id = t.id AND child.deleted_at IS NULL
+                    AND child.owner_user_id = t.owner_user_id AND strpos(lower(child.title), $3) > 0)))
+              AND NOT (t.kind = 'side' AND EXISTS (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id
+                AND parent.owner_user_id = t.owner_user_id AND parent.deleted_at IS NULL))`;
+            const params = [ownerUserId, page.projects, page.query];
+            const totalCount = (yield* sql.unsafe<{ count: number }>(`SELECT count(*)::int AS count FROM threads t ${where}`, params))[0]!.count;
+            if (request.countOnly) return { threads: [], sideThreads: [], totalCount, nextPageToken: "" };
+            const rows = yield* sql.unsafe<ThreadRow & { archive_cursor: string }>(threadSelect(`${where}
+              AND ($4::timestamptz IS NULL OR (t.archived_at, t.id) < ($4::timestamptz, $5::uuid))
+              ORDER BY t.archived_at DESC, t.id DESC LIMIT $6`,
+              `to_char(t.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archive_cursor,`),
+              [...params, page.cursor?.at ?? null, page.cursor?.id ?? null, page.size + 1]);
+            const threads = rows.slice(0, page.size);
+            const last = threads.at(-1);
+            const sideThreads = threads.length ? yield* sql.unsafe<ThreadRow>(threadSelect(`WHERE t.parent_thread_id = ANY($1::uuid[])
+              AND t.owner_user_id = $2::uuid AND t.deleted_at IS NULL ORDER BY t.created_at`), [threads.map((t) => t.id), ownerUserId]) : [];
+            return { threads, sideThreads: [...sideThreads], totalCount, nextPageToken: rows.length > page.size && last ? page.token(last.archive_cursor, last.id) : "" };
+          }),
 
           threadSpec: (row) =>
             create(ThreadSpecSchema, {

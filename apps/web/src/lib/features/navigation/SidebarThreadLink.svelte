@@ -18,7 +18,7 @@
    * works or asks its agent (rows dim their text, `group-data-calm:`, the activity mark stays clear). The
    * open thread's highlight and hover sit on top. Layout and padding come from `class`.
    */
-  let { thread, current = false, class: className, children }: { thread: ui.Thread; current?: boolean; class?: ClassValue; children: Snippet } = $props();
+  let { thread, current = false, compact = false, class: className, children }: { thread: ui.Thread; current?: boolean; compact?: boolean; class?: ClassValue; children: Snippet } = $props();
   const result = lingeringResult(() => thread);
   let open = $state(false);
   // Where the menu opens from: the pointer for a right click, under the "…" button for a click on it, under
@@ -70,7 +70,7 @@
         needsYou(thread) && "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
         "hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
         className,
-        thread.status === "archived" && "opacity-60",
+        thread.status === "archived" && !compact && "opacity-60",
       ]}
     >
       {@render children()}
@@ -80,7 +80,7 @@
 </ThreadHoverCard>
 <!-- Floats over the row's time on hover (T3-style), positioned by its own box: IconButton's `relative` would
      beat an `absolute` passed in `class`. -->
-<span {...(via === "button" ? anchorOnly(menu) : {})} class="absolute top-1.5 right-1.5 flex rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/10 opacity-0 pointer-events-none group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto has-aria-[expanded=true]:pointer-events-auto dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 group-hover/row:opacity-100 group-focus-within/row:opacity-100 has-aria-[expanded=true]:opacity-100 pointer-coarse:hidden">
+<span {...(via === "button" ? anchorOnly(menu) : {})} class={["absolute right-1.5 flex rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/10 opacity-0 pointer-events-none group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto has-aria-[expanded=true]:pointer-events-auto dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 group-hover/row:opacity-100 group-focus-within/row:opacity-100 has-aria-[expanded=true]:opacity-100 pointer-coarse:hidden", compact ? "top-1 sm:top-0.5" : "top-1.5"]}>
   <IconButton icon="ellipsis-horizontal" label="Actions for {thread.title}" size="sm"
     aria-haspopup="menu" aria-expanded={open} aria-controls={menu["aria-controls"]}
     onclick={() => { via = "button"; open = !open; }} onkeydown={(event) => { via = "button"; menu.onkeydown?.(event); }} />

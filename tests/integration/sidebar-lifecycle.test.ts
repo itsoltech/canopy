@@ -35,7 +35,7 @@ describe.skipIf(!dockerAvailable)("sidebar settings and thread lifecycle", () =>
   test("pins and project selection persist, respect version conflicts and keep other settings", async () => {
     const t = await createThread("Pinned");
     const before = (await gw.api.getSettings({})).user!;
-    const saved = (await gw.api.updateUserSettings({ expectedVersion: before.version, sidebar: { projectIds: [projectId], pinnedThreadIds: [t.id], archived: true } })).settings!;
+    const saved = (await gw.api.updateUserSettings({ expectedVersion: before.version, sidebar: { projectIds: [projectId], pinnedThreadIds: [t.id], archivedExpanded: true } })).settings!;
     expect((await gw.api.getSettings({})).user?.sidebar).toEqual(saved.sidebar);
     expect(saved.appearance).toEqual(before.appearance);
     expect(await failure(gw.api.updateUserSettings({ expectedVersion: before.version, sidebar: {} }))).toContain("changed elsewhere");
@@ -68,6 +68,46 @@ describe.skipIf(!dockerAvailable)("sidebar settings and thread lifecycle", () =>
     expect((await gw.api.listThreads({ includeArchived: true })).threads.some((t) => t.id === child.id)).toBe(true);
     await gw.api.setThreadArchived({ threadId: child.id, archived: false });
     expect((await gw.api.getThread({ threadId: child.id })).thread?.archivedBy).toBe("");
+  });
+
+  test("main archive cascades, interrupts running sides and restores exactly its cascade", async () => {
+    const parent = await createThread("Cascade parent");
+    const running = await createThread("Running cascade helper", parent.id);
+    const userArchived = await createThread("Independently archived helper", parent.id);
+    const agentArchived = await createThread("Agent closed helper", parent.id);
+    const untouched = await createThread("Unrelated active thread");
+    await gw.api.setThreadArchived({ threadId: userArchived.id, archived: true });
+    const closed = await gw.worker.callTool({ threadId: parent.id, tool: "close_thread", args: { thread_id: agentArchived.id } });
+    expect(closed.isError).toBe(false);
+    gw.worker.holdTurns = true;
+    await gw.api.sendMessage({ threadId: running.id, text: "hold", clientRequestId: "running" });
+    await eventually(() => turns(running.id), (rows) => rows[0]?.status === "running");
+    await gw.api.sendMessage({ threadId: running.id, text: "queued", clientRequestId: "queue" });
+    const schedule = (await gw.api.createSchedule({ threadId: running.id, prompt: "later", when: { case: "runAt", value: timestampFromDate(new Date(Date.now() + 3600000)) } })).schedule!;
+    await gw.api.setThreadArchived({ threadId: parent.id, archived: true });
+    const cascaded = (await gw.api.getThread({ threadId: running.id })).thread!;
+    expect([cascaded.status, cascaded.archivedBy, cascaded.archivedByThreadId]).toEqual(["archived", "cascade", parent.id]);
+    expect((await eventually(() => turns(running.id), (rows) => rows[0]?.status === "interrupted")).map((t) => t.status)).toEqual(["interrupted", "cancelled"]);
+    expect((await gw.api.listSchedules({ threadId: running.id, includeFinished: true })).schedules.find((s) => s.id === schedule.id)?.status).toBe("cancelled");
+    expect((await gw.api.listThreads({ sidebarOnly: true })).threads.some((t) => [parent.id, running.id, userArchived.id, agentArchived.id].includes(t.id))).toBe(false);
+    const archive = await gw.api.listArchivedThreads({ query: "Cascade parent" });
+    expect(archive.threads.map((t) => t.id)).toEqual([parent.id]);
+    expect(new Set(archive.sideThreads.map((t) => t.id))).toEqual(new Set([running.id, userArchived.id, agentArchived.id]));
+    expect(await failure(gw.api.setThreadArchived({ threadId: running.id, archived: false }))).toContain("parent thread first");
+    expect(await failure(gw.api.createThread({ projectId, workspaceId, parentThreadId: parent.id, provider: Provider.CODEX, title: "Cannot escape the cascade" }))).toContain("archived");
+    await gw.api.setThreadArchived({ threadId: parent.id, archived: false });
+    expect((await gw.api.getThread({ threadId: running.id })).thread?.status).toBe("idle");
+    expect((await gw.api.getThread({ threadId: running.id })).thread?.archivedBy).toBe("");
+    expect((await gw.api.getThread({ threadId: userArchived.id })).thread?.archivedBy).toBe("user");
+    expect((await gw.api.getThread({ threadId: agentArchived.id })).thread?.archivedBy).toBe("agent");
+    expect((await gw.api.getThread({ threadId: untouched.id })).thread?.status).toBe("idle");
+    expect(await turns(running.id)).toHaveLength(2); // restore does not replay cancelled work
+    // Independent archive after a cascade restore must survive the next parent archive/restore too.
+    await gw.api.setThreadArchived({ threadId: running.id, archived: true });
+    await gw.api.setThreadArchived({ threadId: parent.id, archived: true });
+    await gw.api.setThreadArchived({ threadId: parent.id, archived: false });
+    expect((await gw.api.getThread({ threadId: running.id })).thread?.archivedBy).toBe("user");
+    gw.worker.holdTurns = false;
   });
 
   test("archive and delete cancel durable answers and background notes; restoring does not replay them", async () => {
