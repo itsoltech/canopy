@@ -48,6 +48,7 @@ export interface ConversationView {
   unread: number;
   /** Pinned conversations sit at the top of the Bots section as large avatars. */
   pinned: boolean;
+  archived?: boolean | undefined;
   /** Position among the pinned ones (ascending); ignored when not pinned. */
   pinOrder?: number | undefined;
 }
@@ -90,6 +91,7 @@ export interface ChatEventView {
   detail?: string | undefined;
   /** Who did it (a bot id), for the colour of the line. */
   actorId?: string | undefined;
+  changes?: readonly { field: string; before: string; after: string }[] | undefined;
 }
 
 export interface QuestionOptionView {

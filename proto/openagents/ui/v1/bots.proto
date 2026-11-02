@@ -26,6 +26,7 @@ message Bot {
   google.protobuf.Timestamp updated_at = 4;
   // Podgląd ostatniej zapisanej wiadomości na liście i w snapshotcie rozmowy.
   BotMessage last_message = 350;
+  bool archived = 430;
 }
 message BotMessage {
   string id = 1;
@@ -39,9 +40,16 @@ message BotMessage {
   google.protobuf.Timestamp created_at = 9;
   // Bot nie mógł odpowiedzieć (tura zakończona błędem); text to szczegół techniczny, nie treść rozmowy.
   bool failed = 10;
+  // Ciche zdarzenie samoedycji; wartości przed/po służą wyłącznie widokowi zmian.
+  repeated BotSettingChange setting_changes = 430;
   // Wybrane chipy w wiadomości użytkownika; BOT.name = bot_id, zakresy UTF-16.
   repeated openagents.worker.v1.Mention mentions = 450;
   repeated Quote quotes = 451;
+}
+message BotSettingChange {
+  string field = 1;
+  string before = 2;
+  string after = 3;
 }
 message BotApproval {
   string id = 1;
@@ -67,10 +75,12 @@ message CreateBotRequest { BotConfiguration configuration = 1; string client_req
 message UpdateBotRequest { string bot_id = 1; BotConfiguration configuration = 2; }
 message GetBotRequest { string bot_id = 1; }
 message GetBotResponse { Bot bot = 1; }
-message ListBotsRequest {}
+message ListBotsRequest { bool include_archived = 430; }
 message ListBotsResponse { repeated Bot bots = 1; }
 message DeleteBotRequest { string bot_id = 1; }
 message DeleteBotResponse {}
+message ArchiveBotRequest { string bot_id = 1; }
+message UnarchiveBotRequest { string bot_id = 1; }
 message SendBotMessageRequest {
   string bot_id = 1;
   string text = 2;

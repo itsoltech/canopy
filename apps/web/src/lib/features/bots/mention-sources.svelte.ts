@@ -30,7 +30,7 @@ export class BotMentionSources implements MentionSourceSet {
     this.#bots = list;
     this.#current = current;
     this.registry = {
-      bots: [{ search: (query) => fuzzyRank(query, this.#bots().filter((b) => b.id !== this.#current()), (b) => [b.configuration?.name ?? ""], 40).map(({ item, match }) => ({
+      bots: [{ search: (query) => fuzzyRank(query, this.#bots().filter((b) => b.id !== this.#current() && !b.archived), (b) => [b.configuration?.name ?? ""], 40).map(({ item, match }) => ({
         key: `bot:${item.id}`,
         data: { kind: MentionKind.BOT, name: item.id, label: item.configuration?.name ?? "Bot", path: "", source: "", isDir: false },
         title: item.configuration?.name ?? "Bot", detail: item.configuration?.model ?? "", group: "Bots", indices: match.indices,

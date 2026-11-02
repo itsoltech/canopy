@@ -14,7 +14,7 @@
 </script>
 
 {#snippet chip(segment: ExchangeSegment)}
-  <BotChip bot={segment.bot ?? { ...unknown, id: segment.botId }} href={hrefOf(segment)} />
+  <BotChip bot={segment.bot ?? { ...unknown, id: segment.botId, color: '#71717a', shape: 'round' }} href={segment.bot ? hrefOf(segment) : undefined} />
 {/snippet}
 
 <p class={["flex flex-wrap items-center gap-x-1.5 gap-y-1 pl-9 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400", className]}>

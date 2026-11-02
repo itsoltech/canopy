@@ -38,10 +38,17 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
       case "list_workers": return (await core.overview()).workers.map((w) => ({ id: w.id, name: w.name, online: w.online }));
       case "list_provider_instances": return (await core.listProviderInstances()).map((i) => ({ id: i.id, label: i.label, provider: Provider[i.harness], kind: i.kind }));
       case "list_models": {
+        const requested = optional("provider");
+        if (requested && !["claude", "codex"].includes(requested)) throw new Invalid("unknown provider");
+        if (!optional("worker_id")) {
+          const config = (await core.bots.get(turn.bot_id)).configuration!;
+          return await core.bots.run((s) => s.apiModels(requested ? requested === "claude" ? Provider.CLAUDE : Provider.CODEX : config.provider, optional("provider_instance") || config.providerInstance));
+        }
         const provider = string("provider") === "claude" ? Provider.CLAUDE : Provider.CODEX;
         return (await botModels(core, string("worker_id"), provider, string("provider_instance"))).map((m) => ({ id: m.id, name: m.displayName || m.id, default: m.isDefault, efforts: m.efforts, default_effort: m.defaultEffort }));
       }
       case "list_bots": return (await core.bots.list()).map((b) => ({ id: b.id, name: b.configuration?.name }));
+      case "update_self": return await action(BotStore.use((s) => s.updateSelf(user, turn, call)));
       case "list_threads": return (await core.listThreads(string("project_id"))).map((t) => ({ id: t.id, title: t.title, status: t.status }));
       case "get_thread": { const t = await core.getThread(string("thread_id")); return { id: t.id, title: t.title, status: t.status }; }
       case "read_thread": return options.runtime.runPromise(Effect.gen(function* () {
@@ -75,7 +82,7 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
       case "send_message": {
         return await core.sendBotThreadMessage(turn, call, string("thread_id"), string("text"), optional("delivery") || "queue");
       }
-      case "send_bot_message": return action(BotStore.use((s) => s.sendToBot(user, turn, call)));
+      case "send_bot_message": return await action(BotStore.use((s) => s.sendToBot(user, turn, call)));
       case "schedule_wakeup": return action(BotStore.use((s) => s.wakeup(turn, call)));
       case "list_schedules": return core.bots.run((s) => s.wakeups(turn.bot_id));
       case "cancel_schedule": return action(BotStore.use((s) => s.cancelWakeup(turn.bot_id, string("schedule_id"))));

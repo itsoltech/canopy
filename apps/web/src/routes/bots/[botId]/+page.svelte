@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from "$app/navigation";
   import { bots, Provider, ui, type Mention } from "@open-agents/contracts";
   import { mentionsToWire } from "#lib/features/mentions/wire.ts";
   import { create } from "@bufbuild/protobuf";
@@ -15,6 +16,11 @@
   import { requestJson } from "#lib/shared/http.ts";
   import { liveSource } from "#lib/shared/live-source.ts";
   import Button from "#lib/shared/ui/Button.svelte";
+  import DropdownMenu from '#lib/shared/ui/DropdownMenu.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
+  import MenuItem from '#lib/shared/ui/MenuItem.svelte';
+  import { openBotSettings } from '#lib/features/bots/settings/open.ts';
+  import { archiveBot, reportLifecycleError } from '#lib/features/bots/settings/lifecycle.ts';
   import { decode, encode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
 
@@ -30,8 +36,9 @@
   let pending = $state<{ id: string; text: string; mentions: Mention[]; quotes: ui.Quote[]; at: Date; baseline: number; failed: boolean }[]>([]);
   let instances = $state.raw<ui.ProviderInstance[]>([]);
   let changingModel = $state(false);
+  let observedBotId: string | undefined;
 
-  const bot = $derived(snapshot.bot ?? data.bot);
+  const bot = $derived(botList.list.find((b) => b.id === data.bot.id) ?? snapshot.bot ?? data.bot);
   const config = $derived(bot.configuration ?? create(bots.BotConfigurationSchema));
   const conversation = $derived(botConversation(bot, settings.sidebar.pinnedBotIds));
   const directory = $derived(botList.list.filter((b) => b.id !== bot.id).map(botParticipant));
@@ -53,11 +60,17 @@
   $effect(() => botList.use());
   $effect(() => {
     const id = data.bot.id;
+    if (botList.list.some((b) => b.id === id)) observedBotId = id;
+    else if (observedBotId === id && botList.loaded && !botList.error) void goto('/bots');
+  });
+  $effect(() => {
+    const id = data.bot.id;
     snapshot = create(bots.BotConversationSchema, { bot: data.bot });
     pending = [];
     return liveSource(`/api/bots/${id}/events`, {
       onmessage: (json) => {
         snapshot = decode(bots.BotConversationSchema, JSON.parse(json));
+        if (snapshot.bot) botList.upsert(snapshot.bot);
         connection = "";
       },
       onfailure: () => (connection = "Connection interrupted. Reconnecting…"),
@@ -109,9 +122,7 @@
   }
 
   async function save(configuration: bots.BotConfiguration) {
-    const response = decode(bots.GetBotResponseSchema, await requestJson("PUT", `/api/bots/${data.bot.id}`, encode(bots.UpdateBotRequestSchema, create(bots.UpdateBotRequestSchema, { botId: data.bot.id, configuration }))));
-    if (response.bot) snapshot = create(bots.BotConversationSchema, { ...snapshot, bot: response.bot });
-    window.dispatchEvent(new Event("bots-changed"));
+    await botList.save(bot, configuration);
   }
   async function setPolicy(next: ApprovalPolicy) {
     try { await save(create(bots.BotConfigurationSchema, { ...config, approvalPolicy: next })); }
@@ -156,24 +167,34 @@
       {answering}
       {retrying}
       {policy}
+      onanswer={bot.archived ? undefined : answer}
+      onapprove={bot.archived ? undefined : approve}
+      onpolicy={bot.archived ? undefined : setPolicy}
       exchangeHref={(segment) => `/bots/${data.bot.id}/exchanges/${segment.exchangeId}`}
       onsend={send}
-      onanswer={answer}
-      onapprove={approve}
-      onpolicy={setPolicy}
-      onretry={retry}
-      onchangemodel={openChangeModel}
+      onretry={bot.archived ? undefined : retry}
+      onchangemodel={bot.archived ? undefined : openChangeModel}
       class="flex-1"
     >
       {#snippet actions()}
         {#if snapshot.working}<Button size="sm" variant="ghost" icon="stop" onclick={interrupt}>Stop</Button>{/if}
+        <DropdownMenu label="Bot actions" placement="bottom-end">
+          {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="Bot actions" {...props} />{/snippet}
+          <MenuItem icon="pencil-square" onselect={() => openBotSettings(bot.id)}>Edit bot…</MenuItem>
+          {#if !bot.archived}<MenuItem icon="star" onselect={() => { void settings.pinBot(bot.id, !conversation.pinned); }}>{conversation.pinned ? 'Unpin' : 'Pin to top'}</MenuItem>{/if}
+          <MenuItem icon="archive-box" onselect={() => { void archiveBot(bot, !bot.archived).then(() => settings.pinBot(bot.id, false)).catch(reportLifecycleError); }}>{bot.archived ? 'Unarchive bot' : 'Archive bot'}</MenuItem>
+          {#if bot.archived}<MenuItem icon="trash" onselect={() => window.dispatchEvent(new CustomEvent('delete-bot', { detail: bot.id }))}>Delete bot…</MenuItem>{/if}
+        </DropdownMenu>
+      {/snippet}
+      {#snippet archived()}
+        {#if bot.archived}<div class="flex flex-wrap items-center justify-center gap-3 rounded-xl bg-zinc-950/3 p-4 text-base/6 sm:text-sm/6 dark:bg-white/4"><p class="text-zinc-500 dark:text-zinc-400">{config.name} is archived</p><Button onclick={() => { void archiveBot(bot, false).catch(reportLifecycleError); }}>Unarchive</Button></div>{/if}
       {/snippet}
     </ChatView>
   {/key}
   {#if connection || pending.some((p) => p.failed)}
     <div role="alert" class="flex items-center justify-center gap-3 border-t border-zinc-950/5 px-4 py-2 text-sm/5 text-rose-600 dark:border-white/5 dark:text-rose-400">
       {connection || "Your message was not sent."}
-      {#if pending.some((p) => p.failed)}<Button size="sm" variant="ghost" onclick={resend}>Send again</Button>{/if}
+      {#if !bot.archived && pending.some((p) => p.failed)}<Button size="sm" variant="ghost" onclick={resend}>Send again</Button>{/if}
     </div>
   {/if}
 </div>

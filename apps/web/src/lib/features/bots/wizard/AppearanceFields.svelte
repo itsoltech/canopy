@@ -24,7 +24,7 @@
 <div class={["grid gap-5", className]}>
   <MascotPreview {shape} {color} {name} />
   <Field label="Name your Bot" error={touched || submitted ? nameError(name, existingNames, originalName) : undefined}>
-    <Input bind:value={name} name="bot-name" placeholder="e.g. Orbit" autocomplete="off" data-autofocus {disabled} onblur={() => (touched = true)} />
+    <Input bind:value={name} name="bot-name" maxlength={80} placeholder="e.g. Orbit" autocomplete="off" data-autofocus {disabled} onblur={() => (touched = true)} />
   </Field>
   <div class="grid gap-2">
     <p class="text-base/6 font-medium sm:text-sm/6">Shape</p>

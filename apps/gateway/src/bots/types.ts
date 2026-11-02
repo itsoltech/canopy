@@ -31,6 +31,7 @@ export interface BotRow {
   id: string; owner_user_id: string; configuration: unknown;
   created_at: Date; updated_at: Date; revision: string | bigint;
   status_line: string;
+  archived_at: Date | null;
 }
 export interface BotTurn {
   id: string; bot_id: string; input: string; hops: number;
