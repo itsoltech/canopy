@@ -9,9 +9,11 @@
    * the start and reads as `unsetLabel`. `name` adds a hidden input for forms. Thumb and fill glide
    * between stops (motion.css `t-slide`).
    *
-   * `variant="pill"` (ChatGPT's effort slider): a thick rounded track filled in the accent up to a large
-   * white thumb, the stops as dots inside it and no labels under them (the surrounding UI names the
-   * value). The thumb grows a little while pressed.
+   * `variant="pill"` (ChatGPT's effort slider): a compact rounded track filled with the accent's gradient
+   * (lighter → deeper, spanning the whole track, so a stop's colour never changes) up to a white thumb
+   * just inside it, the stops as small dots and no labels under them (the surrounding UI names the
+   * value). The thumb grows a little while pressed; the focus ring circles the track. The hit area
+   * reaches past the track (48px tall on touch screens) without growing it.
    *
    *   <Slider label="Reasoning effort" steps={[{ value: "low", label: "Low" }, …]} bind:value={effort} />
    */
@@ -108,7 +110,14 @@
 {/snippet}
 
 <div
-  class={["touch-none select-none", variant === "line" && "grid gap-2 px-2", disabled && "opacity-50", className]}
+  class={[
+    "touch-none select-none",
+    variant === "line" && "grid gap-2 px-2",
+    // Invisible hit area around the track: 48px tall with a coarse pointer, a few px with a fine one.
+    variant === "pill" && "-my-2.5 cursor-pointer py-2.5 pointer-fine:-my-1 pointer-fine:py-1",
+    disabled && "opacity-50",
+    className,
+  ]}
   {onpointerdown}
   {onpointermove}
   onpointerup={release}
@@ -117,30 +126,31 @@
   role="presentation"
 >
   {#if variant === "pill"}
-    <!-- --pad: half the track height, where the thumb's centre stops at either end. -->
+    <!-- --pad: half the track height, where the thumb's centre stops at either end. A container, so the
+         fill's gradient can span the whole track (100cqw) however far the fill reaches. -->
     <div
       bind:this={track}
-      class="relative h-12 cursor-pointer rounded-full bg-zinc-950/5 [--pad:--spacing(6)] sm:h-11 sm:[--pad:calc(--spacing(11)/2)] dark:bg-white/10"
+      class="@container relative h-7 rounded-full bg-zinc-950/5 [--pad:--spacing(3.5)] has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-brand-500 sm:h-6 sm:[--pad:--spacing(3)] dark:bg-white/10"
     >
       {#if !unset}
         <div
-          class="t-slide absolute inset-y-0 left-0 w-[calc(var(--pad)*2+(100%-var(--pad)*2)*var(--fill))] rounded-full bg-brand-500"
+          class="t-slide absolute inset-y-0 left-0 w-[calc(var(--pad)*2+(100%-var(--pad)*2)*var(--fill))] rounded-full bg-linear-to-r from-brand-400 to-brand-600 bg-size-[100cqw_100%]"
           style:--fill={index / last}
         ></div>
       {/if}
       {#each steps as step, i (step.value)}
         <span
           class={[
-            "t-slide-dot absolute top-1/2 left-[calc(var(--pad)+(100%-var(--pad)*2)*var(--at))] size-1.5 -translate-1/2 rounded-full",
-            i < index ? "bg-white/55" : "bg-zinc-950/20 dark:bg-white/25",
+            "t-slide-dot absolute top-1/2 left-[calc(var(--pad)+(100%-var(--pad)*2)*var(--at))] size-1 -translate-1/2 rounded-full",
+            i < index ? "bg-white/60" : "bg-zinc-950/20 dark:bg-white/25",
           ]}
           style:--at={i / last}
           aria-hidden="true"
         ></span>
       {/each}
-      <!-- The accent focus ring would vanish on the accent fill: a neutral one instead. -->
+      <!-- The ring goes round the track (has-focus-visible above): on the thumb it would sit on the fill. -->
       {@render thumb([
-        "t-slide t-slide-thumb absolute top-1/2 left-[calc(var(--pad)+(100%-var(--pad)*2)*var(--at))] size-10 -translate-1/2 cursor-grab rounded-full bg-white shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 active:cursor-grabbing sm:size-9 dark:bg-zinc-50 dark:shadow-none dark:focus-visible:outline-white",
+        "t-slide t-slide-thumb absolute top-1/2 left-[calc(var(--pad)+(100%-var(--pad)*2)*var(--at))] size-6 -translate-1/2 cursor-grab rounded-full bg-white shadow-sm outline-none active:cursor-grabbing sm:size-5 dark:bg-zinc-50 dark:shadow-none",
         unset ? "ring-2 ring-zinc-950/15 dark:ring-white/30" : "ring-1 ring-zinc-950/5 dark:ring-0",
       ])}
     </div>

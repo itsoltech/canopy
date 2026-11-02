@@ -19,6 +19,9 @@
     "@connectrpc/connect-node": "2.3.0",
     "@open-agents/contracts": "workspace:*",
     "@open-agents/domain": "workspace:*",
+    "@shikijs/engine-javascript": "4.6.0",
+    "@shikijs/langs": "4.6.0",
+    "@shikijs/primitive": "4.6.0",
     "effect": "4.1.1",
     "marked": "18.1.2"
   },
