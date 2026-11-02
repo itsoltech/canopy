@@ -6,7 +6,7 @@ import { connectorType } from "../connectors/catalog.ts";
 import { checkMentions, mentionPlaceholder } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
-import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "../store/secrets.ts";
+import { decryptSecret } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import type { InstanceRow } from "../store/instance-config.ts";
 import { checkedQuotes } from "../core/quotes.ts";
@@ -27,10 +27,6 @@ interface MessageRow {
 interface ApprovalRow {
   id: string; bot_id: string; turn_id: string; kind: string; prompt: string;
   status: string; answer: string; created_at: Date; options?: unknown;
-}
-interface ServerRow {
-  id: string; owner_user_id: string; name: string; url: string; transport: string;
-  enabled: boolean; headers: Record<string, { secretRef: string }>;
 }
 export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration as JsonValue);
 export const botView = (row: BotRow) => create(bots.BotSchema, {
@@ -156,7 +152,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     // A repeated create returns the original definition rather than modifying its connections.
     const active = botConfiguration(row);
     // Unrelated bot settings saves never reset grants configured on connector accounts.
-    if (!before || JSON.stringify(before.mcpServerIds) !== JSON.stringify(active.mcpServerIds)) {
+    if (!before && row.id === id || before && JSON.stringify(before.mcpServerIds) !== JSON.stringify(active.mcpServerIds)) {
       yield* sql`DELETE FROM connector_bot_grants WHERE bot_id=${row.id}::uuid AND account_id IN (SELECT id FROM connector_accounts WHERE connector_type='custom' AND NOT all_bots)`;
       for (const serverId of active.mcpServerIds) yield* sql`INSERT INTO connector_bot_grants(bot_id,account_id) VALUES (${row.id}::uuid,${serverId}::uuid) ON CONFLICT DO NOTHING`;
     }
@@ -176,7 +172,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       if (input.slice(mention.start, mention.end) !== mentionPlaceholder(mention)) return yield* Effect.fail(new Invalid("mention must have a matching @name range"));
       if (mention.kind === MentionKind.CONNECTOR) {
         const account = yield* connections.authorize({ userId: user, botId, accountId: mention.name });
-        checked.push(create(MentionSchema, { kind: MentionKind.CONNECTOR, name: account.id, label: `${connectorType(account.connector_type)?.name} · ${account.name}`, start: mention.start, end: mention.end }));
+        checked.push(create(MentionSchema, { kind: MentionKind.CONNECTOR, name: account.id, source: account.connector_type, label: `${connectorType(account.connector_type)?.name} · ${account.name}`, start: mention.start, end: mention.end }));
         continue;
       }
       if (mention.kind !== MentionKind.BOT || mention.name === botId) return yield* Effect.fail(new Invalid("only other bots or granted connectors can be mentioned"));

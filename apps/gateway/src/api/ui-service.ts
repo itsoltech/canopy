@@ -16,7 +16,10 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       testConnector: (r) => connectorGuard(async () => create(connectors.TestConnectorResponseSchema, await core.connectors.test(r.accountId))),
       saveConnectorOAuthApp: (r) => connectorGuard(async () => { await core.connectors.saveApp(r); return create(connectors.SaveConnectorOAuthAppResponseSchema); }),
       beginConnectorOAuth: (r) => connectorGuard(() => core.connectors.begin(r)),
-      completeConnectorOAuth: (r) => connectorGuard(async () => create(connectors.ConnectorAccountResponseSchema, { account: await core.connectors.complete(r) })),
+      completeConnectorOAuth: async (r) => {
+        try { return create(connectors.CompleteConnectorOAuthResponseSchema, { account: await core.connectors.complete(r) }); }
+        catch { return create(connectors.CompleteConnectorOAuthResponseSchema, { error: 'Authorization expired, was declined or could not finish. Reconnect the account.' }); }
+      },
       createBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.create(r) })),
       updateBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.update(r) })),
       deleteBot: (r) => guard(async () => { await core.bots.remove(r.botId); return create(bots.DeleteBotResponseSchema); }),
@@ -33,7 +36,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       saveBotMcpServer: (r) => connectorGuard(async () => create(bots.SaveBotMcpServerResponseSchema, { server: await core.bots.saveServer(r) })),
       listBotMcpServers: () => connectorGuard(async () => create(bots.ListBotMcpServersResponseSchema, { servers: await core.bots.servers() })),
       deleteBotMcpServer: (r) => connectorGuard(async () => { await core.bots.deleteServer(r.serverId); return create(bots.DeleteBotMcpServerResponseSchema); }),
-      testBotMcpServer: (r) => connectorGuard(async () => create(bots.TestBotMcpServerResponseSchema, { tools: (await core.connectors.test(r.serverId)).tools.map((t) => ({ name: t.name, description: t.description, readOnly: t.readOnly })) })),
+      testBotMcpServer: (r) => connectorGuard(async () => create(bots.TestBotMcpServerResponseSchema, { tools: (await core.connectors.test(r.serverId)).tools.map((t) => ({ name: t.remoteName, description: t.description, readOnly: t.readOnly })) })),
       getOverview: () => guard(() => core.overview()),
       watchOverview: (_request, context) => core.watchOverview(context.signal),
       listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),

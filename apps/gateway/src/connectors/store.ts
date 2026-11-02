@@ -163,7 +163,10 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
     consumeState: (user: string, state: string, binding: string) => sql.withTransaction(Effect.gen(function* () {
       const row = (yield* sql<{ account_id: string; credentials: Uint8Array; account_revision: bigint }>`UPDATE connector_oauth_states SET consumed_at=now()
         WHERE state_hash=${digest(state)} AND owner_user_id=${user}::uuid AND browser_hash=${digest(binding)} AND consumed_at IS NULL AND expires_at>now() RETURNING account_id,credentials,account_revision`)[0];
-      if (!row) return yield* fail("OAuth session expired or does not match this browser. Reconnect the account.");
+      if (!row) {
+        const used = yield* sql`SELECT 1 FROM connector_oauth_states WHERE state_hash=${digest(state)} AND owner_user_id=${user}::uuid AND browser_hash=${digest(binding)} AND consumed_at IS NOT NULL`;
+        return yield* fail(used.length ? "OAuth callback was already used. Start sign-in again." : "OAuth session expired or does not match this browser. Reconnect the account.");
+      }
       return { accountId: row.account_id, revision: BigInt(row.account_revision), value: JSON.parse(decryptSecret(key, row.credentials)) as Credentials };
     })),
     disconnect: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {

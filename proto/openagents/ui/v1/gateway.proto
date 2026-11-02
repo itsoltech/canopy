@@ -19,7 +19,7 @@ service GatewayService {
   rpc TestConnector(ConnectorAccountRequest) returns (TestConnectorResponse);
   rpc SaveConnectorOAuthApp(SaveConnectorOAuthAppRequest) returns (SaveConnectorOAuthAppResponse);
   rpc BeginConnectorOAuth(BeginConnectorOAuthRequest) returns (BeginConnectorOAuthResponse);
-  rpc CompleteConnectorOAuth(CompleteConnectorOAuthRequest) returns (ConnectorAccountResponse);
+  rpc CompleteConnectorOAuth(CompleteConnectorOAuthRequest) returns (CompleteConnectorOAuthResponse);
   // Boty działające wyłącznie w gateway (docs/bots.md).
   rpc CreateBot(CreateBotRequest) returns (GetBotResponse);
   rpc UpdateBot(UpdateBotRequest) returns (GetBotResponse);

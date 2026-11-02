@@ -56,7 +56,7 @@ export class ConnectorsRuntime {
   }
   async complete(request: connectors.CompleteConnectorOAuthRequest) {
     if (!/^[\w-]{32,128}$/.test(request.state) || !/^[\w-]{32,128}$/.test(request.browserBinding) || request.code.length > 8000) throw new ConnectorFailure("Invalid OAuth session");
-    const session = await this.run((s) => s.consumeState(this.options.userId, request.state, request.browserBinding));
+    const session = await this.run((s) => s.consumeState(this.options.userId, request.state, request.browserBinding)).catch(() => { throw new ConnectorFailure('OAuth session is invalid, expired or already used. Start sign-in again.'); });
     if (request.error || !request.code) throw new ConnectorFailure("Authorization was declined. Reconnect when ready.");
     try {
       const user = this.options.userId;
@@ -98,7 +98,7 @@ export class ConnectorsRuntime {
     const connection = await this.#connection(user, id, true);
     try {
       const catalog = await mcpTools(connection.server, AbortSignal.timeout(20_000));
-      const tools = catalog.map((tool) => create(ConnectorToolSchema, { accountId: id, connectorType: connection.row.connector_type, accountName: connection.row.name,
+      const tools = catalog.filter((tool) => redactConnector(tool.remoteName ?? tool.name, connection.value) === (tool.remoteName ?? tool.name) && redactConnector(tool.name, connection.value) === tool.name).map((tool) => create(ConnectorToolSchema, { accountId: id, connectorType: connection.row.connector_type, accountName: connection.row.name,
         name: tool.name, remoteName: tool.remoteName ?? tool.name, description: redactConnector(tool.description, connection.value),
         inputSchemaJson: redactConnector(JSON.stringify(tool.parameters), connection.value), readOnly: tool.readOnly === true }));
       await this.run((s) => s.saveTools(connection.row, tools));
@@ -129,7 +129,7 @@ export class ConnectorsRuntime {
   }
   /** Canonical timeline labels come from owned accounts, never from worker-supplied metadata. */
   async enrich(events: ThreadEvent[]) {
-    const catalogs = new Map<string, { row: AccountRow; tool: ConnectorTool }[]>();
+    const catalogs = new Map<string, readonly AccountRow[]>();
     for (const event of events) {
       const body = event.body;
       const item = body.case === 'itemStarted' || body.case === 'itemCompleted' ? body.value.item : undefined;
@@ -137,14 +137,16 @@ export class ConnectorsRuntime {
       const call = item.content.value;
       let catalog = catalogs.get(event.threadId);
       if (!catalog) {
-        catalog = await this.run((s) => s.list(this.options.userId, { threadId: event.threadId }).pipe(Effect.map((rows) => rows.flatMap((row) => s.tools(row).map((tool) => ({ row, tool })))))).catch(() => []);
+        const thread = await this.options.runtime.runPromise(GatewayStore.use((s) => s.thread(event.threadId)));
+        catalog = await this.run((s) => s.list(thread.owner_user_id)).catch(() => []);
         catalogs.set(event.threadId, catalog);
       }
-      const found = catalog.find(({ tool }) => tool.name === call.name);
-      call.connectorAccountId = found?.row.id ?? '';
-      call.connectorType = found?.row.connector_type ?? '';
-      call.connectorAccountName = found?.row.name ?? '';
-      if (found) call.server = connectorType(found.row.connector_type)?.name ?? found.row.connector_type;
+      // Preserve attribution after a grant was removed or the account disconnected.
+      const found = catalog.find((row) => call.name.startsWith(`${row.namespace.slice(0,39)}__`));
+      call.connectorAccountId = found?.id ?? '';
+      call.connectorType = found?.connector_type ?? '';
+      call.connectorAccountName = found?.name ?? '';
+      if (found) call.server = connectorType(found.connector_type)?.name ?? found.connector_type;
     }
   }
   async disconnect(id: string) {

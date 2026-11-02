@@ -62,3 +62,5 @@ message SaveConnectorOAuthAppResponse {}
 message BeginConnectorOAuthRequest { string account_id = 1; string redirect_uri = 2; string browser_binding = 3; string scope = 4; }
 message BeginConnectorOAuthResponse { string authorization_url = 1; }
 message CompleteConnectorOAuthRequest { string state = 1; string code = 2; string browser_binding = 3; string error = 4; string issuer = 5; }
+// Callback outcomes are explicit, so a declined/expired authorization completes the redirect normally.
+message CompleteConnectorOAuthResponse { ConnectorAccount account = 1; string error = 2; }
