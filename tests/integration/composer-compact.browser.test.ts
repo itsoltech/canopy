@@ -21,6 +21,12 @@ describe.skipIf(Bun.env["OA_COMPOSER_BROWSER"] !== "1")("compact composer browse
   const problems: string[] = [];
   async function testContext(options: BrowserContextOptions) {
     const context = await browser.newContext(options);
+    // Match the turn-rail suite: other throwaway Docker stacks change host interfaces,
+    // which can cancel Chromium module loads with ERR_NETWORK_CHANGED. Use the real built
+    // immutable assets locally; HTML, gateway requests and SSE still go through this stack.
+    await context.route(`${base}/_app/immutable/**`, (route) => route.fulfill({
+      path: resolve(import.meta.dir, "../../apps/web/build/client", new URL(route.request().url()).pathname.slice(1)),
+    }));
     context.on("page", (page) => {
       page.on("pageerror", (error) => {
         const detail = `${error.message}\n${error.stack || ""}`;
