@@ -20,6 +20,13 @@ describe("queue panel", () => {
     expect(ordered(turns, ["b", "c", "a"]).map((t) => t.id)).toEqual(["b", "a", "d"]);
   });
 
+  test("platform notifications never appear as queued user messages, including fallback turns and optimistic order", () => {
+    const turns = [turn("user"), ...["agent_bus", "background_task", "schedule", "interaction", "goal", "provider", "recovery", ""].map((trigger) =>
+      turn(trigger, { trigger, messageText: "platform note" })), turn("sourced", { sourceKind: "report", sourceThreadId: "child" })];
+    expect(ordered(turns, undefined).map((t) => t.id)).toEqual(["user"]);
+    expect(ordered(turns, ["agent_bus", "sourced", "user"]).map((t) => t.id)).toEqual(["user"]);
+  });
+
   test("overrides name what the message runs with; text without the platform note on one line", () => {
     const files = [create(ui.AttachmentSchema, { id: "f1" }), create(ui.AttachmentSchema, { id: "f2" })];
     const queued = turn("a", { model: "gpt-5.5", effort: "high", permissionMode: PermissionMode.READ_ONLY, attachments: files, inputText: "[note]\n\nfix it", messageText: "fix\n it" });
