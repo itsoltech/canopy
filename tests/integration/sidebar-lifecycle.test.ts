@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { PermissionMode, Provider, TurnOutcome } from "@open-agents/contracts";
+import { MentionKind, PermissionMode, Provider, TurnOutcome } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -45,6 +45,7 @@ describe.skipIf(!dockerAvailable)("sidebar settings and thread lifecycle", () =>
     const archived = (await gw.api.setThreadArchived({ threadId: thread.id, archived: true })).thread!;
     expect(archived.archivedBy).toBe("user");
     expect(archived.archivedAt).toBeDefined();
+    expect((await gw.api.setThreadArchived({ threadId: thread.id, archived: true })).thread?.archivedAt).toEqual(archived.archivedAt);
     expect((await gw.api.listThreads({})).threads.some((t) => t.id === thread.id)).toBe(false);
     expect((await gw.api.listThreads({ includeArchived: true })).threads.find((t) => t.id === thread.id)?.status).toBe("archived");
     expect(await failure(gw.api.sendMessage({ threadId: thread.id, text: "no", clientRequestId: "archived" }))).toContain("archived");
@@ -92,6 +93,11 @@ describe.skipIf(!dockerAvailable)("sidebar settings and thread lifecycle", () =>
     }
     expect((await gw.api.listThreads({ projectId, includeArchived: true })).threads.some((t) => deleted.threadIds.includes(t.id))).toBe(false);
     expect((await gw.api.searchThreads({ query: "Delete unique" })).threads).toEqual([]);
+    const placeholder = "#Deleted";
+    expect(await failure(gw.api.sendMessage({
+      threadId: caller.id, text: placeholder, clientRequestId: "stale-mention",
+      mentions: [{ kind: MentionKind.THREAD, name: parent.id, label: "Deleted", start: 0, end: placeholder.length }],
+    }))).toContain("mentioned thread was not found");
     const listed = await gw.worker.callTool({ threadId: caller.id, tool: "list_threads", args: { scope: "all", query: "Delete unique" } });
     expect(listed.isError).toBe(false);
     expect(JSON.parse(listed.content).threads).toEqual([]);

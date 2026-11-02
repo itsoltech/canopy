@@ -707,7 +707,7 @@ export class GatewayCore {
     const commands = await this.#run((s) => s.setThreadArchived(this.#options.userId, threadId, archived));
     for (const entry of commands) void this.#deliver(entry.workerId, entry.command);
     await this.#broadcastThread(threadId);
-    for (const schedule of await this.listSchedules(create(ui.ListSchedulesRequestSchema, { threadId }))) this.#announceSchedule(schedule);
+    for (const schedule of await this.listSchedules(create(ui.ListSchedulesRequestSchema, { threadId, includeFinished: true }))) this.#announceSchedule(schedule);
     return this.getThread(threadId);
   }
 
