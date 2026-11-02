@@ -6,6 +6,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import { focusables } from "#lib/shared/ui/floating.ts";
   import { defaultAppearance, normalizeColor, type MascotShapeId } from "../mascot.ts";
   import AppearanceFields from "./AppearanceFields.svelte";
   import ProviderModelFields from "./ProviderModelFields.svelte";
@@ -77,15 +78,26 @@
       busy = false;
     }
   }
+
+  function keydown(event: KeyboardEvent) {
+    if (event.isComposing || event.defaultPrevented) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("[popover]")) return;
+    if (event.key === "Tab" && form) {
+      const controls = focusables(form).filter((el) => el.tabIndex >= 0);
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && target === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && target === last) { event.preventDefault(); first?.focus(); }
+    }
+    if (event.key === "Enter" && target.matches("input, [role=radio]")) {
+      event.preventDefault();
+      form?.requestSubmit();
+    }
+  }
 </script>
 
 <Dialog bind:open title={editing ? 'Edit Bot appearance' : 'Create New Bot'} bare dismissible={!busy} class={className}
-  onkeydown={(event) => {
-      if (event.key !== 'Enter' || event.isComposing || event.defaultPrevented) return;
-      const target = event.target as HTMLElement;
-      if (target.closest('[popover]') || target.closest('[role=slider]')) return;
-      if (target.matches('input, [role=radio]')) { event.preventDefault(); form?.requestSubmit(); }
-    }}>
+  onkeydown={keydown}>
   <form bind:this={form} novalidate onsubmit={submit} aria-busy={busy || undefined}>
     <div class="flex items-start justify-between gap-4 px-5 pt-6 pb-4 sm:px-6">
       <div class="grid gap-1">

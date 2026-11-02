@@ -48,10 +48,27 @@ describe.skipIf(Bun.env["OA_BOTS_WIZARD_BROWSER"] !== "1")("bot wizard gallery",
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
     });
     const page = await context.newPage();
+    const bootFailures: string[] = [];
     page.on("pageerror", (error) => problems.push(error.message));
     page.on("console", (message) => { if (message.type() === "error" || message.type() === "warning" && message.text().includes("[svelte]")) problems.push(message.text()); });
-    await page.goto(`${base}/dev/bots`, { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Create New Bot", exact: true }).waitFor();
+    page.on("requestfailed", (request) => bootFailures.push(request.failure()?.errorText ?? ""));
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const checkpoint = problems.length;
+      bootFailures.length = 0;
+      try {
+        await page.goto(`${base}/dev/bots`, { waitUntil: "domcontentloaded" });
+        await page.getByRole("button", { name: "Create New Bot", exact: true }).waitFor({ timeout: 5000 });
+        break;
+      } catch (cause) {
+        // Docker-based tests on this host change interfaces. Retry only a proven Chromium network
+        // reset during boot; application errors and failed interactions are never retried/hidden.
+        const reset = bootFailures.some((failure) => failure.includes("ERR_NETWORK_CHANGED"));
+        const onlyNetwork = problems.slice(checkpoint).every((problem) => problem.includes("ERR_NETWORK_CHANGED") || problem.startsWith("Failed to fetch dynamically imported module:"));
+        if (attempt === 2 || !reset || !onlyNetwork) { await context.close(); throw cause; }
+        console.info(`Gallery boot retry ${attempt + 1}: Chromium ERR_NETWORK_CHANGED`);
+        problems.splice(checkpoint);
+      }
+    }
     return { context, page };
   }
 
