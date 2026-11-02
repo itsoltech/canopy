@@ -110,9 +110,11 @@
       Status
       {#snippet aside()}<StatusBadge status={thread.status} />{/snippet}
     </PanelRow>
-    {#if hasUsage}
+    <!-- A thread that has run keeps this row from the first frame (a dash until the snapshot's totals
+         arrive), so the sections below don't move down when they do. -->
+    {#if hasUsage || thread.lastSeq > 0n}
       <PanelRow icon="bolt">
-        <span class="tabular-nums" title="Tokens of this thread's turns">{formatCount(totals.inputTokens)} in · {formatCount(totals.outputTokens)} out</span>
+        {#if hasUsage}<span class="tabular-nums" title="Tokens of this thread's turns">{formatCount(totals.inputTokens)} in · {formatCount(totals.outputTokens)} out</span>{:else}<span class="text-zinc-400 dark:text-zinc-500" aria-label="Token usage loading">–</span>{/if}
         {#snippet aside()}
           <span class="shrink-0 text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5">
             {#if totals.costUsd > 0}${totals.costUsd.toFixed(3)}{:else if usage && usage.contextWindowTokens > 0n}{formatCount(usage.contextWindowTokens)} ctx{/if}
