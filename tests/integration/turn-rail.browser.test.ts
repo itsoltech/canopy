@@ -19,6 +19,22 @@ describe.skipIf(Bun.env["OA_TURN_RAIL_BROWSER"] !== "1")("conversation turn rail
   let shortId: string;
   let liveId: string;
   const problems: string[] = [];
+  const assetFailures: string[] = [];
+  async function prepare(page: Page) {
+    // Concurrent throwaway Docker stacks change host interfaces; Chromium can then cancel module
+    // loads with ERR_NETWORK_CHANGED. Serve the real built immutable files through Playwright so
+    // this UI suite doesn't depend on unrelated host network notifications. HTML/API/SSE stay live.
+    await page.route(`${base}/_app/immutable/**`, (route) => route.fulfill({
+      path: resolve(import.meta.dir, "../../apps/web/build/client", new URL(route.request().url()).pathname.slice(1)),
+    }));
+    page.on("pageerror", (error) => problems.push(error.message));
+    page.on("requestfailed", (request) => {
+      if (request.url().includes("/_app/")) assetFailures.push(`${request.url()}: ${request.failure()?.errorText}`);
+    });
+    page.on("response", (response) => {
+      if (response.status() >= 400 && response.url().includes("/_app/")) assetFailures.push(`${response.status()} ${response.url()}`);
+    });
+  }
   const message = (n: number) => `Review **turn ${n}** and its implementation.\n\n${"Explain the findings, keyboard behaviour and verification results. ".repeat(n % 5 + 1)}\n\nKeep the conversation readable while the agent works.`;
 
   beforeAll(async () => {
@@ -83,7 +99,7 @@ describe.skipIf(Bun.env["OA_TURN_RAIL_BROWSER"] !== "1")("conversation turn rail
       const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
       context.setDefaultTimeout(8000);
       const page = await context.newPage();
-      page.on("pageerror", (error) => problems.push(error.message));
+      await prepare(page);
       try {
         await page.goto(`${base}/threads/${threadId}`);
         const rail = page.getByRole("navigation", { name: "Conversation turns", exact: true });
@@ -157,19 +173,19 @@ describe.skipIf(Bun.env["OA_TURN_RAIL_BROWSER"] !== "1")("conversation turn rail
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     const page = await context.newPage();
     context.setDefaultTimeout(10000);
-    page.on("pageerror", (error) => problems.push(error.message));
+    await prepare(page);
     try {
       await page.goto(`${base}/threads/${threadId}`);
       await page.getByRole("textbox", { name: "Message", exact: true }).waitFor();
       const feed = page.getByRole("region", { name: "Timeline", exact: true });
-      await feed.getByText("Working…", { exact: true }).waitFor();
+      await feed.locator(`article[data-key="input:${liveId}"]`).waitFor();
       expect(await feed.locator("article").count()).toBeGreaterThan(0);
       expect(await feed.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
       expect(await page.getByRole("navigation", { name: "Conversation turns", exact: true }).count()).toBe(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page.screenshot({ path: resolve(shots, `390-${color}.png`) });
+      await page.screenshot({ path: resolve(shots, `390-${color}.png`), animations: "disabled" });
     } catch (error) {
-      console.info(`PHONE ${color} FAILURE`, await page.locator("body").innerText());
+      console.info(`PHONE ${color} FAILURE`, await page.locator("body").innerText(), assetFailures);
       await page.screenshot({ path: resolve(shots, `390-${color}-failure.png`) });
       throw error;
     } finally { await context.close(); }
@@ -179,7 +195,7 @@ describe.skipIf(Bun.env["OA_TURN_RAIL_BROWSER"] !== "1")("conversation turn rail
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
     const page = await context.newPage();
     context.setDefaultTimeout(10000);
-    page.on("pageerror", (error) => problems.push(error.message));
+    await prepare(page);
     try {
       await page.goto(`${base}/threads/${shortId}`);
       await page.getByRole("textbox", { name: "Message", exact: true }).waitFor();
@@ -203,5 +219,8 @@ describe.skipIf(Bun.env["OA_TURN_RAIL_BROWSER"] !== "1")("conversation turn rail
     } finally { await context.close(); }
   }, 20000);
 
-  test("no browser exceptions", () => expect(problems).toEqual([]));
+  test("no browser exceptions", () => {
+    if (assetFailures.length) console.info("ASSET FAILURES", assetFailures);
+    expect(problems).toEqual([]);
+  });
 });

@@ -28,7 +28,9 @@ Its `rowOffset(index)` reads the existing measured/estimated size index.
 `scrollToRow(index, { align: "start", smooth: true })` starts at the estimated offset, mounts the target,
 then corrects its position using the existing measured-row anchor. Extra trailing space permits even
 the last input to reach the top. "Jump to latest" releases that space and follows the end again.
-Wheel scrolling and another reveal/latest action cancel the pending jump correction.
+Reader gestures and another reveal/latest action cancel the pending jump correction. The timeline's
+`scrollRowToTop(key)` remains its separate, mounted-answer-only completion behavior: it deliberately
+does nothing for an unmounted row or someone reading above the end, so it cannot implement rail jumps.
 Reduced motion disables smooth scrolling, tick transitions, card travel and the working pulse.
 
 ## Verification
@@ -49,9 +51,12 @@ navigation, first/last input alignment within 2px (also after measurements settl
 "Jump to latest", light/dark at 1440px, hidden phone rail at 390px, short threads and reduced motion.
 The suite closes its own browser/processes/container. It does not use `/tmp/oa-stack` or ports
 17443, 5180 or 8444. Screenshots are written to `artifacts/turn-rail/` (ignored by Git).
+Immutable JS/CSS files are fulfilled from the actual web build by Playwright. This avoids Chromium's
+`ERR_NETWORK_CHANGED` module-load failures when concurrent Docker test stacks change host interfaces;
+HTML, API and SSE still use the live private stack. Static HTTP serving is outside this UI suite.
 
 The unit suite covers compression up to 10,000 turns, visible-range boundaries, fold index changes,
-final/live answer previews, missing input and queued/withdrawn turns. Browser coverage is Chromium;
+final/live answer slots, rich input without provider platform notes, missing input and queued/withdrawn turns. Browser coverage is Chromium;
 Safari/Firefox and a physical screen reader are outside this task's verification.
 
 The `componentize` pass keeps the rail interaction, preview content and pure model in separate files,
