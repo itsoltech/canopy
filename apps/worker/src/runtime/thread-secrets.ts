@@ -14,6 +14,7 @@ export function secretEventRedactor(): (threadId: string, event: ThreadEventInit
   const buffers = new Map<string, { chunks: Map<number, string>; values: Set<string> }>();
   return (threadId, event) => {
   const body = event.body;
+  if (body?.case === "turnFinished") for (const id of buffers.keys()) if (id.startsWith(`${threadId}/`)) buffers.delete(id);
   const itemId = body?.case === "itemDelta" ? body.value.itemId : body?.case === "itemCompleted" ? body.value.item?.itemId : undefined;
   const key = `${threadId}/${itemId}`;
   const buffered = buffers.get(key);
@@ -53,7 +54,6 @@ export function secretEventRedactor(): (threadId: string, event: ThreadEventInit
   const safe = redact(event) as ThreadEventInit;
   safe.rawJson = "";
   if (safe.body?.case === "itemDelta") safe.body.value.chunk = "";
-  if (safe.body?.case === "turnFinished") for (const id of buffers.keys()) if (id.startsWith(`${threadId}/`)) buffers.delete(id);
   return safe;
   };
 }
