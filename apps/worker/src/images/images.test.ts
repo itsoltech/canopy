@@ -1,15 +1,17 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { beforeAll, describe, expect, test } from "bun:test";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ItemStatus, ThreadEventSchema } from "@open-agents/contracts";
 import { create } from "@bufbuild/protobuf";
+import { tempDirs } from "@open-agents/testing";
 import sharp from "sharp";
 import { toolContent } from "../providers/claude/mapping.ts";
 import { mapItem } from "../providers/codex/mapping.ts";
 import { MAX_MODEL_BYTES } from "./normalize.ts";
 import { inlineImages, PreviewStore } from "./previews.ts";
 import { viewImage } from "./view-image.ts";
+
+const tempDir = tempDirs();
 
 let dir = "";
 let cwd = "";
@@ -27,7 +29,7 @@ async function noise(width: number, height: number): Promise<Buffer> {
 }
 
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "oa-images-"));
+  dir = tempDir("oa-images-");
   cwd = join(dir, "repo");
   attachments = join(dir, "data", "attachments", "thread");
   outside = join(dir, "secret");
@@ -41,7 +43,6 @@ beforeAll(async () => {
   writeFileSync(join(cwd, "noise.png"), await noise(2400, 2400));
 });
 
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("view_image", () => {
   const scope = () => ({ cwd, roots: [cwd, attachments] });

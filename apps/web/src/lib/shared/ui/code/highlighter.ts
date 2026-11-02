@@ -9,34 +9,41 @@ import { DEFAULT_COLOR, theme } from "./theme.ts";
  * on first use, from `highlight.svelte.ts`; one instance serves every code block.
  */
 let shiki: ShikiPrimitive | undefined;
-const loaded = new Map<LanguageId, Promise<LineTokenizer>>();
+/** Per language, the grammar's scope name once it (and the ones it embeds) loaded. */
+const loaded = new Map<LanguageId, Promise<string>>();
 
-/** A tokenizer for one language, once its grammar (and the ones it embeds) loaded. */
-export function tokenizer(lang: LanguageId): Promise<LineTokenizer> {
+function load(lang: LanguageId): Promise<string> {
   let pending = loaded.get(lang);
   if (!pending) {
     pending = grammars[lang]().then(({ default: grammar }) => {
       shiki ??= createShikiPrimitive({ engine: createJavaScriptRegexEngine({ forgiving: true }), themes: [theme], langs: [] });
-      const instance = shiki;
-      instance.loadLanguageSync(grammar);
-      const name = grammar.at(-1)?.name ?? lang;
-      return (text, state) => {
-        const lines = codeToTokensBase(instance, text, {
-          lang: name,
-          theme: theme.name,
-          grammarState: state as GrammarState | undefined,
-          // A pathological line stays plain instead of holding the main thread.
-          tokenizeMaxLineLength: 2000,
-          tokenizeTimeLimit: 50,
-        });
-        return {
-          tokens: (lines[0] ?? []).map((token) => (token.color && token.color !== DEFAULT_COLOR ? { content: token.content, color: token.color } : { content: token.content })),
-          state: getLastGrammarState(instance, lines),
-        };
-      };
+      shiki.loadLanguageSync(grammar);
+      return grammar.at(-1)?.name ?? lang;
     });
     loaded.set(lang, pending);
     pending.catch(() => loaded.delete(lang));
   }
   return pending;
+}
+
+/**
+ * A tokenizer for one language, once its grammar loaded. A line taking longer than `timeLimitMs` (default 50, 0 = no
+ * limit) stays plain: a pathological line does not hold the main thread, but under load an ordinary one may too.
+ */
+export async function tokenizer(lang: LanguageId, { timeLimitMs = 50 }: { timeLimitMs?: number } = {}): Promise<LineTokenizer> {
+  const name = await load(lang);
+  const instance = shiki!;
+  return (text, state) => {
+    const lines = codeToTokensBase(instance, text, {
+      lang: name,
+      theme: theme.name,
+      grammarState: state as GrammarState | undefined,
+      tokenizeMaxLineLength: 2000,
+      tokenizeTimeLimit: timeLimitMs,
+    });
+    return {
+      tokens: (lines[0] ?? []).map((token) => (token.color && token.color !== DEFAULT_COLOR ? { content: token.content, color: token.color } : { content: token.content })),
+      state: getLastGrammarState(instance, lines),
+    };
+  };
 }

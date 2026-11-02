@@ -3,11 +3,13 @@
  * @grpc/grpc-js on real Node.js, in both directions, over h2c and TLS.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ItemDeltaField } from "@open-agents/contracts";
+import { tempDirs } from "@open-agents/testing";
 import { connectWorker, makeSelfSignedCert, startGateway, take, type TestCert } from "./helpers.ts";
+
+const tempDir = tempDirs();
 
 const EVENTS = 100;
 
@@ -18,7 +20,7 @@ let certFile: string;
 let keyFile: string;
 
 beforeAll(async () => {
-  workDir = mkdtempSync(join(tmpdir(), "open-agents-interop-"));
+  workDir = tempDir("open-agents-interop-");
   const build = await Bun.build({
     entrypoints: [join(import.meta.dir, "fixtures/node-peer.ts")],
     target: "node",
@@ -38,7 +40,6 @@ beforeAll(async () => {
 
 afterAll(() => {
   cert.cleanup();
-  rmSync(workDir, { recursive: true, force: true });
 });
 
 type PeerLine = { step: string } & Record<string, unknown>;

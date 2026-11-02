@@ -1,15 +1,12 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tempDirs } from "@open-agents/testing";
 import { claudeConfiguredEffort, codexConfiguredEffort, pickDefaultEffort, readClaudeUserSettings, readCodexConfiguredEffort } from "./default-effort.ts";
 
-describe("configured default effort", () => {
-  const dirs: string[] = [];
-  afterAll(() => {
-    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
-  });
+const tempDir = tempDirs();
 
+describe("configured default effort", () => {
   test("only a level the model offers: configured, else the model's own, else none", () => {
     expect(pickDefaultEffort(["low", "medium", "high"], "high", "medium")).toBe("high");
     expect(pickDefaultEffort(["low", "medium", "high"], "xhigh", "medium")).toBe("medium");
@@ -54,9 +51,8 @@ model_reasoning_effort = "minimal"
   });
 
   test("the files are read from the given homes; missing or broken files mean no default", () => {
-    const codexHome = mkdtempSync(join(tmpdir(), "oa-effort-codex-"));
-    const claudeHome = mkdtempSync(join(tmpdir(), "oa-effort-claude-"));
-    dirs.push(codexHome, claudeHome);
+    const codexHome = tempDir("oa-effort-codex-");
+    const claudeHome = tempDir("oa-effort-claude-");
     expect(readCodexConfiguredEffort(codexHome)).toBeUndefined();
     expect(readClaudeUserSettings(claudeHome)).toBeUndefined();
     writeFileSync(join(codexHome, "config.toml"), 'model_reasoning_effort = "high"\n');

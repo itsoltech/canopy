@@ -4,11 +4,11 @@
  * Notification streams are recorded to $OA_LIVE_RECORD_DIR (default /tmp/oa-codex-recordings)
  * as raw material for the event mapping.
  */
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CODEX_PROTOCOL_VERSION, type ServerNotification } from "@open-agents/codex-protocol";
+import { tempDirs } from "@open-agents/testing";
 import { Effect, Fiber, Stream } from "effect";
 import { resolveProfiles } from "../profiles.ts";
 import { CodexAppServer } from "./app-server.ts";
@@ -16,12 +16,13 @@ import { prepareCodexHome } from "./home.ts";
 import { codexAppServerLaunch, codexThreadProvider } from "./launch.ts";
 import { codexAgentBusTools } from "./threads.ts";
 
+const tempDir = tempDirs();
+
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
 const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
 const recordDir = process.env["OA_LIVE_RECORD_DIR"] ?? "/tmp/oa-codex-recordings";
-const workDir = mkdtempSync(join(tmpdir(), "oa-codex-live-"));
-afterAll(() => rmSync(workDir, { recursive: true, force: true }));
+const workDir = tempDir("oa-codex-live-");
 
 const serverRequests: { method: string }[] = [];
 
@@ -133,7 +134,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
   }, 200_000);
 
   test.skipIf(!proxyUrl || !proxyKey)("isolated CODEX_HOME: no device MCP servers, hooks or plugins in platform threads", async () => {
-    const home = mkdtempSync(join(tmpdir(), "oa-codex-home-"));
+    const home = tempDir("oa-codex-home-");
     const statuses = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]);
     const profile = statuses.find((s) => s.config.id === "live")!.resolved!;
     const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
@@ -161,8 +162,8 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
   }, 200_000);
 
   test.skipIf(!proxyUrl || !proxyKey)("a turn with tools (file change + command), recorded for the event mapping", async () => {
-    const home = mkdtempSync(join(tmpdir(), "oa-codex-home-"));
-    const cwd = mkdtempSync(join(tmpdir(), "oa-codex-tools-"));
+    const home = tempDir("oa-codex-home-");
+    const cwd = tempDir("oa-codex-tools-");
     const statuses = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]);
     const profile = statuses.find((s) => s.config.id === "live")!.resolved!;
     const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
@@ -198,7 +199,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
 
   // Default after the 2026-11-01 decision: isolated CODEX_HOME with the device login linked in.
   test.skipIf(process.env["OA_LIVE_NATIVE"] !== "1")("native profile in the isolated home with the linked device login", async () => {
-    const dataDir = mkdtempSync(join(tmpdir(), "oa-codex-data-"));
+    const dataDir = tempDir("oa-codex-data-");
     try {
       const home = prepareCodexHome({ dataDir, linkDeviceLogin: true });
       expect(home.login).toBe("linked");
@@ -229,8 +230,8 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
 // Codex keeping them with the thread: after a restart of app-server (resume) and in forks.
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex dynamic tools (live)", () => {
   test("a tool given at thread/start is called in the thread, after resume in a new process, and in a fork", async () => {
-    const home = mkdtempSync(join(tmpdir(), "oa-codex-home-"));
-    const cwd = mkdtempSync(join(tmpdir(), "oa-codex-dyn-"));
+    const home = tempDir("oa-codex-home-");
+    const cwd = tempDir("oa-codex-dyn-");
     const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]).find((s) => s.config.id === "live")!
       .resolved!;
     const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
@@ -302,8 +303,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex collaboration tools (liv
     // the bus has a tool of that name.
     const COLLAB = /("name":"|### `|\b)(spawn_agent|wait_agent|send_input|followup_task|interrupt_agent|close_agent|resume_agent)("|`|\(args)/;
     const run = async (withOverride: boolean, prompt: string) => {
-      const home = mkdtempSync(join(tmpdir(), "oa-codex-home-"));
-      const cwd = mkdtempSync(join(tmpdir(), "oa-codex-collab-"));
+      const home = tempDir("oa-codex-home-");
+      const cwd = tempDir("oa-codex-collab-");
       const launch = codexAppServerLaunch([profile], process.env, "codex", undefined, home);
       const command = withOverride ? launch.command : launch.command.filter((arg, i, all) => arg !== "agents.enabled=false" && all[i + 1] !== "agents.enabled=false");
       const calls: string[] = [];

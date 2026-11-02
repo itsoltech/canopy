@@ -1,14 +1,13 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { InputAttachmentSchema } from "@open-agents/contracts";
+import { tempDir } from "@open-agents/testing";
 import { AttachmentFiles } from "./files.ts";
 
-const dataDir = mkdtempSync(join(tmpdir(), "oa-attachments-"));
-afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
+const dataDir = tempDir("oa-attachments-");
 
 const THREAD = "0196f0c1-0000-7000-8000-000000000001";
 const ID = "0196f0c1-0000-7000-8000-0000000000aa";

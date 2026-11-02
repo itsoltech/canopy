@@ -1,0 +1,3 @@
+[test]
+# Temp directories of tests are removed at the end of the run at the latest (packages/testing).
+preload = ["./packages/testing/src/preload.ts"]

@@ -7,17 +7,21 @@
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { existsSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
-import { DeviceLogin, InteractionKind, PermissionMode, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
+import { InteractionKind, PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { tempDirs } from "@open-agents/testing";
 import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
+import { useLiveProxy } from "./support/live.ts";
+
+const tempDir = tempDirs();
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -41,33 +45,14 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: pe
   let projectId = "";
   let repo = "";
   let stop = async () => {};
-  const dirs: string[] = [];
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    repo = mkdtempSync(join(tmpdir(), "oa-live-perm-repo-"));
-    const data = mkdtempSync(join(tmpdir(), "oa-live-perm-worker-"));
-    dirs.push(repo, data);
+    repo = tempDir("oa-live-perm-repo-");
+    const data = tempDir("oa-live-perm-worker-");
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;
-    const secretId = await gw.runtime.runPromise(
-      GatewayStore.use((s) => s.putSecret({ ownerUserId: gw.userId, name: "cliproxyapi-live", plaintext: proxyKey!, createdBy: gw.userId })),
-    );
-    await gw.runtime.runPromise(
-      GatewayStore.use((s) =>
-        s.setWorkerConfig(
-          workerId,
-          {
-            allowedRoots: [repo],
-            codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
-            claude: { enabled: true, deviceLogin: DeviceLogin.NONE },
-            profiles: [{ id: "cliproxyapi", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl! }],
-          },
-          gw.userId,
-          { cliproxyapi: secretId },
-        ),
-      ),
-    );
+    await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));
     const host = new WorkerHost({ runtime, dataDir: join(data, "data"), clientVersion: "live" });
     const link = await openGatewayLink({ baseUrl: gw.grpcUrl, credential: added.credential, hello: { workerId, ...(await runtime.runPromise(journalHello())) } });
@@ -85,7 +70,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: pe
   afterAll(async () => {
     await stop();
     await gw?.close();
-    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
   });
 
   /**

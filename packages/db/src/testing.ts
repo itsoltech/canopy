@@ -33,7 +33,9 @@ export async function startPostgres(): Promise<TestPostgres> {
     "-e", "POSTGRES_PASSWORD=test", "-p", "127.0.0.1::5432", "postgres:17",
   ]);
   if (run.exitCode !== 0) throw new Error(`docker run failed: ${run.stderr.toString()}`);
-  const stop = () => void Bun.spawnSync(["docker", "stop", name], { stdout: "ignore", stderr: "ignore" });
+  // A throwaway container: killed and removed without waiting. A graceful `docker stop` (checkpoint, then exit)
+  // took 3-4 s under load, past the 5 s afterAll limit of every suite that stops it.
+  const stop = () => Bun.spawn(["docker", "rm", "-f", "-v", name], { stdout: "ignore", stderr: "ignore" }).unref();
 
   try {
     const port = Number(Bun.spawnSync(["docker", "port", name, "5432/tcp"]).stdout.toString().trim().split(":").at(-1));

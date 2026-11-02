@@ -2,18 +2,16 @@
  * Durable transcript delivery: worker journal (SQLite) <-> gateway over the real gRPC link.
  * The gateway side is a fake store that persists by event_id and remembers cursors per journal_id.
  */
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { ItemDeltaField, type ThreadEvent } from "@open-agents/contracts";
+import { tempDir } from "@open-agents/testing";
 import { applyAck, journalHello, resendPending, type GatewayLink } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { Effect, ManagedRuntime } from "effect";
 import { connectWorker, startGateway, take } from "./helpers.ts";
 
-const dir = mkdtempSync(join(tmpdir(), "oa-delivery-"));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+const dir = tempDir("oa-delivery-");
 
 /** Gateway-side persistence: cursors per journal, event ids already stored. */
 class FakeStore {

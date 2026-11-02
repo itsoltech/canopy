@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createJavaScriptRegexEngine } from "@shikijs/engine-javascript";
 import { codeToTokensBase, createShikiPrimitive } from "@shikijs/primitive";
 import { languageOfDiff, parseDiff } from "../src/lib/shared/ui/code/diff.ts";
-import { tokenizer } from "../src/lib/shared/ui/code/highlighter.ts";
+import { tokenizer as limitedTokenizer } from "../src/lib/shared/ui/code/highlighter.ts";
 import { IncrementalHighlight, type HighlightedLine } from "../src/lib/shared/ui/code/incremental.ts";
 import { grammars, languageOf, languageOfPath, type LanguageId } from "../src/lib/shared/ui/code/languages.ts";
 import { DEFAULT_COLOR, theme } from "../src/lib/shared/ui/code/theme.ts";
@@ -24,11 +24,17 @@ const samples: Partial<Record<LanguageId, string>> = {
   svelte: ['<script lang="ts">', "  let { name }: { name: string } = $props();", "</script>", "", "<p class=\"x\">{name}</p>", "<style>p { color: red; }</style>"].join("\n"),
 };
 
+/**
+ * Without the per-line time limit: under CPU load (the whole suite, other processes) a line's first tokenization
+ * (regexes compile lazily) can pass 50 ms and stay plain, which is not what these tests check.
+ */
+const tokenizer = (lang: LanguageId) => limitedTokenizer(lang, { timeLimitMs: 0 });
+
 /** Tokens of the whole text in one pass, in the shape the line tokenizer returns. */
 function fullPass(lang: LanguageId, text: string): Promise<HighlightedLine[]> {
   return grammars[lang]().then(({ default: grammar }) => {
     const shiki = createShikiPrimitive({ engine: createJavaScriptRegexEngine({ forgiving: true }), themes: [theme], langs: grammar });
-    return codeToTokensBase(shiki, text, { lang: grammar.at(-1)?.name ?? lang, theme: theme.name }).map((tokens, index) => ({
+    return codeToTokensBase(shiki, text, { lang: grammar.at(-1)?.name ?? lang, theme: theme.name, tokenizeTimeLimit: 0 }).map((tokens, index) => ({
       text: text.split("\n")[index] ?? "",
       tokens: tokens.map((token) => (token.color && token.color !== DEFAULT_COLOR ? { content: token.content, color: token.color } : { content: token.content })),
     }));

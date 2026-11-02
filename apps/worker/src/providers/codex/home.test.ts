@@ -1,11 +1,10 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { lstatSync, mkdirSync, mkdtempSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { lstatSync, mkdirSync, mkdtempSync, readlinkSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tempDir } from "@open-agents/testing";
 import { deviceCodexHome, prepareCodexHome } from "./home.ts";
 
-const base = mkdtempSync(join(tmpdir(), "oa-codex-home-test-"));
-afterAll(() => rmSync(base, { recursive: true, force: true }));
+const base = tempDir("oa-codex-home-test-");
 
 function device(withLogin: boolean): string {
   const dir = mkdtempSync(join(base, "device-"));

@@ -19,5 +19,8 @@
     "@open-agents/worker": "workspace:*",
     "effect": "4.1.1",
     "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@open-agents/testing": "workspace:*"
   }
 }

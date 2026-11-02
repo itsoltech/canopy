@@ -8,15 +8,16 @@
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
+import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { tempDir } from "@open-agents/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
+import { useLiveProxy } from "./support/live.ts";
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -63,8 +64,8 @@ const jsonl = (path: string) =>
     });
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker killed mid-turn, settled from the harness transcript (live)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "oa-live-durable-"));
-  const repo = mkdtempSync(join(tmpdir(), "oa-live-durable-repo-"));
+  const dir = tempDir("oa-live-durable-");
+  const repo = tempDir("oa-live-durable-repo-");
   const dataDir = join(dir, "data");
   const logs: string[] = [];
   let gw: TestGateway;
@@ -113,20 +114,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker kil
     const store = <A>(use: (s: GatewayStore["Service"]) => Effect.Effect<A, unknown>) => gw.runtime.runPromise(GatewayStore.use(use));
     let credential = "";
     ({ workerId, credential } = await store((s) => s.addWorker({ name: "live-durable", ownerUserId: gw.userId })));
-    const secret = await store((s) => s.putSecret({ ownerUserId: gw.userId, name: "cliproxyapi-durable", plaintext: proxyKey!, createdBy: gw.userId }));
-    await store((s) =>
-      s.setWorkerConfig(
-        workerId,
-        {
-          allowedRoots: [repo],
-          codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
-          claude: { enabled: true, deviceLogin: DeviceLogin.NONE },
-          profiles: [{ id: "cliproxyapi", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl! }],
-        },
-        gw.userId,
-        { cliproxyapi: secret },
-      ),
-    );
+    await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const config = join(dir, "worker.json");
     writeFileSync(config, JSON.stringify({ gateway_url: gw.grpcUrl, worker_id: workerId, credential, data_dir: dataDir }));
     chmodSync(config, 0o600);
@@ -147,8 +135,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker kil
     }
     await gw?.close();
     if (process.env["OA_TEST_LOG"] === "1") console.error(logs.join(""));
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
   });
 
   const newThread = async (title: string, provider: Provider, model: string) => {

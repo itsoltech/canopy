@@ -4,11 +4,10 @@
  * allows it, the file appears and the transcript flows back as journaled ThreadEvents.
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md).
  */
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { DeviceLogin, InteractionKind, PermissionMode, Provider, ProviderProfileKind, type ThreadEvent } from "@open-agents/contracts";
+import { tempDir } from "@open-agents/testing";
 import { journalHello } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
@@ -21,12 +20,8 @@ const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
 const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Codex end to end (live)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "oa-e2e-"));
-  const repo = mkdtempSync(join(tmpdir(), "oa-e2e-repo-"));
-  afterAll(() => {
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
-  });
+  const dir = tempDir("oa-e2e-");
+  const repo = tempDir("oa-e2e-repo-");
 
   test("ASK mode: permission round trip through the gateway, file written, transcript delivered", async () => {
     const gateway = await startGateway();

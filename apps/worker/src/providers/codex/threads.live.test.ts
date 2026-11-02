@@ -3,9 +3,8 @@
  * Create -> turn -> fork (inherits history) -> worker restart (new app-server, same CODEX_HOME and
  * journal) -> resume -> turn. Events go through the mapper into the journal.
  */
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
@@ -22,12 +21,15 @@ import {
   type ThreadSpec,
 } from "@open-agents/contracts";
 import { eventItemId, reduceItem } from "@open-agents/domain";
+import { tempDirs } from "@open-agents/testing";
 import { Effect, Layer } from "effect";
 import { Journal } from "../../journal/index.ts";
 import { resolveProfiles } from "../profiles.ts";
 import { prepareCodexHome } from "./home.ts";
 import { codexAppServerLaunch } from "./launch.ts";
 import { CodexThreads } from "./threads.ts";
+
+const tempDir = tempDirs();
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -36,12 +38,8 @@ const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
 const recordDir = process.env["OA_LIVE_RECORD_DIR"] ?? "/tmp/oa-codex-recordings";
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
-  const dataDir = mkdtempSync(join(tmpdir(), "oa-codex-threads-"));
-  const cwd = mkdtempSync(join(tmpdir(), "oa-codex-threads-cwd-"));
-  afterAll(() => {
-    rmSync(dataDir, { recursive: true, force: true });
-    rmSync(cwd, { recursive: true, force: true });
-  });
+  const dataDir = tempDir("oa-codex-threads-");
+  const cwd = tempDir("oa-codex-threads-cwd-");
 
   // bun runs the body of a skipped describe too: resolve only when the live env is present.
   const profile =
@@ -142,7 +140,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
   // The reported gap: in code mode a command failing like a sandbox denial (ping without network) had no item.
   test("every command is in the transcript, also one that fails at once, before and after a restart", async () => {
     const threadId = Bun.randomUUIDv7();
-    const repo = mkdtempSync(join(tmpdir(), "oa-codex-commands-"));
+    const repo = tempDir("oa-codex-commands-");
     Bun.spawnSync(["git", "init", "-q"], { cwd: repo });
     writeFileSync(join(repo, "a.txt"), "a\n");
     const s = (providerThreadId = "") => create(ThreadSpecSchema, { ...spec(threadId, providerThreadId), cwd: repo, permissionMode: PermissionMode.FULL_AUTO });

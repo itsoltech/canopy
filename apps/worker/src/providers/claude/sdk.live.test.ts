@@ -3,11 +3,11 @@
  * Raw material for the event mapping, like the Codex recordings: every SDK message of a turn is written
  * to $OA_LIVE_RECORD_DIR (default /tmp/oa-claude-recordings).
  */
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createSdkMcpServer, forkSession, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { tempDir } from "@open-agents/testing";
 import { z } from "zod";
 import { resolveProfiles } from "../profiles.ts";
 import { claudeProfileOptions } from "./profile.ts";
@@ -17,12 +17,8 @@ const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
 const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
 const model = process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
 const recordDir = process.env["OA_LIVE_RECORD_DIR"] ?? "/tmp/oa-claude-recordings";
-const home = mkdtempSync(join(tmpdir(), "oa-claude-home-"));
-const cwd = mkdtempSync(join(tmpdir(), "oa-claude-cwd-"));
-afterAll(() => {
-  rmSync(home, { recursive: true, force: true });
-  rmSync(cwd, { recursive: true, force: true });
-});
+const home = tempDir("oa-claude-home-");
+const cwd = tempDir("oa-claude-cwd-");
 
 function record(name: string, messages: readonly SDKMessage[]): void {
   mkdirSync(recordDir, { recursive: true });

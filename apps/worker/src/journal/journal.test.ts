@@ -1,13 +1,11 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { ItemDeltaField, ItemStatus, TurnOutcome } from "@open-agents/contracts";
+import { tempDir } from "@open-agents/testing";
 import { Effect } from "effect";
 import { Journal, type ThreadEventInit } from "./journal.ts";
 
-const dir = mkdtempSync(join(tmpdir(), "oa-journal-"));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+const dir = tempDir("oa-journal-");
 let n = 0;
 const freshPath = () => join(dir, `journal-${++n}.db`);
 

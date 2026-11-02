@@ -6,20 +6,23 @@
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { DeviceLogin, MentionKind, MentionSchema, PermissionMode, Provider, ProviderProfileKind, type Mention } from "@open-agents/contracts";
+import { MentionKind, MentionSchema, PermissionMode, Provider, type Mention } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { mentionPlaceholder } from "@open-agents/domain";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { tempDirs } from "@open-agents/testing";
 import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { useLiveProxy } from "./support/live.ts";
+
+const tempDir = tempDirs();
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -49,7 +52,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("mentions w
   let workspaceId = "";
   let projectId = "";
   let stop = async () => {};
-  const dirs: string[] = [];
   const query = <A extends object>(text: string, ...params: unknown[]) =>
     gw.runtime.runPromise(
       Effect.gen(function* () {
@@ -85,9 +87,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("mentions w
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = mkdtempSync(join(tmpdir(), "oa-live-mentions-repo-"));
-    const data = mkdtempSync(join(tmpdir(), "oa-live-mentions-worker-"));
-    dirs.push(repo, data);
+    const repo = tempDir("oa-live-mentions-repo-");
+    const data = tempDir("oa-live-mentions-worker-");
     const write = (path: string, content: string) => {
       mkdirSync(join(repo, path, ".."), { recursive: true });
       writeFileSync(join(repo, path), content);
@@ -100,24 +101,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("mentions w
 
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;
-    const secretId = await gw.runtime.runPromise(
-      GatewayStore.use((s) => s.putSecret({ ownerUserId: gw.userId, name: "cliproxyapi-live", plaintext: proxyKey!, createdBy: gw.userId })),
-    );
-    await gw.runtime.runPromise(
-      GatewayStore.use((s) =>
-        s.setWorkerConfig(
-          workerId,
-          {
-            allowedRoots: [repo],
-            codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
-            claude: { enabled: true, deviceLogin: DeviceLogin.NONE },
-            profiles: [{ id: "cliproxyapi", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl! }],
-          },
-          gw.userId,
-          { cliproxyapi: secretId },
-        ),
-      ),
-    );
+    await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));
     const host = new WorkerHost({ runtime, dataDir: join(data, "data"), clientVersion: "live" });
     const link = await openGatewayLink({
@@ -140,7 +124,6 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("mentions w
   afterAll(async () => {
     await stop();
     await gw?.close();
-    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
   });
 
   test("catalogs: what Codex and Claude report for the repository; file search", async () => {

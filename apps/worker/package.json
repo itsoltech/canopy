@@ -25,5 +25,8 @@
     "effect": "4.1.1",
     "sharp": "0.35.5",
     "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@open-agents/testing": "workspace:*"
   }
 }

@@ -8,8 +8,9 @@
     "gen:codex": "bun run --filter @open-agents/codex-protocol gen",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
-    "check": "bun run gen:check && bun run typecheck && bun test",
-    "gen:check": "bun run gen && git diff --exit-code -- packages/contracts/src/gen"
+    "check": "bun run gen:check && bun run typecheck && bun run check:tmp",
+    "gen:check": "bun run gen && git diff --exit-code -- packages/contracts/src/gen",
+    "check:tmp": "bun packages/testing/src/check-temp.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.4",

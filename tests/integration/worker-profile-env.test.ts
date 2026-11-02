@@ -5,16 +5,16 @@
  * the processes whose settings changed.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, WorkerConfigSchema, type WorkerConfig } from "@open-agents/contracts";
+import { tempDir } from "@open-agents/testing";
 import { Journal } from "@open-agents/worker/journal";
 import { WorkerHost } from "@open-agents/worker/runtime";
 import { ManagedRuntime } from "effect";
 
-const dir = mkdtempSync(join(tmpdir(), "oa-profile-env-"));
+const dir = tempDir("oa-profile-env-");
 const root = join(dir, "repos");
 const log = join(dir, "codex-processes.jsonl");
 const codex = join(dir, "codex");
@@ -79,7 +79,6 @@ beforeAll(() => {
 afterAll(async () => {
   await host.close();
   await runtime.dispose();
-  rmSync(dir, { recursive: true, force: true });
 });
 
 describe("profile environment on the Codex app-server", () => {

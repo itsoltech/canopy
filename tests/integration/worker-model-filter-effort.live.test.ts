@@ -5,16 +5,18 @@
  * The device homes are fixtures (temp dirs), never the real ~/.codex or ~/.claude.
  * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
-import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind, type ModelCatalog, type ThreadEvent } from "@open-agents/contracts";
+import { tempDirs } from "@open-agents/testing";
 import { journalHello } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
+
+const tempDir = tempDirs();
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -43,16 +45,10 @@ const CASES = [
 const NON_AGENT = /image|imagine|video|tts|voice|embedding|moderation|realtime|transcribe/i;
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker: model filter and configured default effort (live)", () => {
-  const dirs: string[] = [];
-  afterAll(() => {
-    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
-  });
-
   for (const c of CASES) {
     test(`${c.name}: no non-agent models, the configured default effort in the catalog and in a turn`, async () => {
-      const dir = mkdtempSync(join(tmpdir(), `oa-live-effort-${c.name.toLowerCase()}-`));
-      const repo = mkdtempSync(join(tmpdir(), "oa-live-effort-repo-"));
-      dirs.push(dir, repo);
+      const dir = tempDir(`oa-live-effort-${c.name.toLowerCase()}-`);
+      const repo = tempDir("oa-live-effort-repo-");
       // Fixture device homes: a Codex profile with its own effort, a Claude per-model effort.
       const codexHome = join(dir, "device-codex");
       const claudeHome = join(dir, "device-claude");

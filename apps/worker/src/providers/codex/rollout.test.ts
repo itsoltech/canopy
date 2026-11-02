@@ -1,11 +1,10 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tempDir } from "@open-agents/testing";
 import { RolloutTail } from "./rollout.ts";
 
-const dir = mkdtempSync(join(tmpdir(), "oa-rollout-"));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+const dir = tempDir("oa-rollout-");
 
 const line = (type: string, payload: object) => JSON.stringify({ timestamp: "2026-11-01T20:00:00.000Z", type, payload }) + "\n";
 

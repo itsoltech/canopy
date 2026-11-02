@@ -45,8 +45,11 @@ bun install
 bun run gen          # proto -> packages/contracts/src/gen
 bun run typecheck    # wszystkie workspace'y
 bun test             # testy jednostkowe i integracyjne
-bun run check        # gen:check + typecheck + test
+bun run check        # gen:check + typecheck + test (przez check:tmp)
+bun run check:tmp    # bun test z prywatnym TMPDIR; błąd, gdy testy zostawią tam katalog oa-* / open-agents-*
 ```
+
+Katalogi tymczasowe testów tylko przez `tempDir(prefix)` / `tempDirs()` z `@open-agents/testing`: usuwane po zakresie (plik, describe), resztę (pominięty describe, przerwany przebieg) usuwa preload z `bunfig.toml` na końcu przebiegu albo obsługa sygnału. `/tmp` to tmpfs z ograniczoną liczbą i-węzłów, wspólny dla wszystkich przebiegów na maszynie.
 
 Ręczne uruchomienie (PostgreSQL, gateway, rejestracja i uruchomienie workera, frontend): [ui-api.md](docs/ui-api.md#5-uruchomienie-development). Worker ma lokalnie tylko połączenie z gateway; całą resztę konfiguracji dostaje z gateway ([worker-config.md](docs/worker-config.md)).
 

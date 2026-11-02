@@ -4,17 +4,17 @@
  * (docs/execution.md). Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DeviceLogin, ItemStatus, PermissionMode, Provider, ProviderProfileKind, ui, type Item } from "@open-agents/contracts";
+import { ItemStatus, PermissionMode, Provider, ui, type Item } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { tempDir } from "@open-agents/testing";
 import { journalHello, openGatewayLink, resendPending } from "@open-agents/worker/gateway-link";
 import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
+import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const LIVE = process.env["OA_LIVE"] === "1";
 const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
@@ -31,8 +31,8 @@ async function until<A>(what: string, read: () => Promise<A>, done: (value: A) =
 }
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("harness goals and background work, end to end (live)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "oa-live-goals-"));
-  const repo = mkdtempSync(join(tmpdir(), "oa-live-goals-repo-"));
+  const dir = tempDir("oa-live-goals-");
+  const repo = tempDir("oa-live-goals-repo-");
   let gw: TestGateway;
   let close: () => Promise<void> = async () => {};
   let projectId = "";
@@ -42,20 +42,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("harness go
     gw = await startTestGateway();
     const store = <A>(use: (s: GatewayStore["Service"]) => import("effect").Effect.Effect<A, unknown>) => gw.runtime.runPromise(GatewayStore.use(use));
     const { workerId, credential } = await store((s) => s.addWorker({ name: "live", ownerUserId: gw.userId }));
-    const secret = await store((s) => s.putSecret({ ownerUserId: gw.userId, name: "cliproxyapi-live", plaintext: proxyKey!, createdBy: gw.userId }));
-    await store((s) =>
-      s.setWorkerConfig(
-        workerId,
-        {
-          allowedRoots: [repo],
-          codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
-          claude: { enabled: true, deviceLogin: DeviceLogin.NONE },
-          profiles: [{ id: "cliproxyapi", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl! }],
-        },
-        gw.userId,
-        { cliproxyapi: secret },
-      ),
-    );
+    await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
     const host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "live" });
     await host.recover();
@@ -70,14 +57,12 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("harness go
     };
     projectId = (await gw.api.createProject({ name: "Live goals" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId, rootPath: repo })).workspace!.id;
-    await until("condition", () => gw.api.getOverview({}), (o) => o.workers.find((w) => w.id === workerId)?.appliedVersion === 2n, 30_000);
+    await liveProxyReady(gw, workerId);
   }, 2 * MINUTE);
 
   afterAll(async () => {
     await close();
     await gw?.close();
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
   });
 
   const newThread = async (provider: Provider, title: string) => {
