@@ -9,6 +9,9 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
+  import AttachButton from "#lib/features/attachments/AttachButton.svelte";
+  import { filesOf, type AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
+  import DraftTray from "#lib/features/attachments/DraftTray.svelte";
   import SteerSendButton from "./SteerSendButton.svelte";
 
   /**
@@ -19,6 +22,8 @@
    * turn (Enter, the "Steer" button), `onqueue` keeps it for the next turn (Mod+Enter, the button's menu).
    * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
    * The send slot eases to the width of what it holds (send, stop, steer), so the pills glide aside.
+   * Attachments (`draft`): a paperclip first in the bottom row, files dropped on the box or pasted into it
+   * (screenshots from the clipboard), their tray above the text; with files a message may go without text.
    */
   let {
     value = $bindable(""),
@@ -34,6 +39,7 @@
     onqueue,
     controls,
     meta,
+    draft,
     class: className,
   }: {
     value?: string;
@@ -49,19 +55,39 @@
     onqueue?: (() => void) | undefined;
     controls?: Snippet;
     meta?: Snippet;
+    draft?: AttachmentDraft | undefined;
     class?: ClassValue;
   } = $props();
 
   const id = $props.id();
-  const stopMode = $derived(Boolean(onstop) && !value.trim());
-  const steerMode = $derived(Boolean(onqueue) && !stopMode && Boolean(value.trim()));
+  const hasFiles = $derived((draft?.files.length ?? 0) > 0);
+  const hasContent = $derived(Boolean(value.trim()) || hasFiles);
+  const onfiles = $derived(draft ? (files: File[]) => draft.add(files) : undefined);
+  const stopMode = $derived(Boolean(onstop) && !hasContent);
+  // Files go with the next turn: a message with them is never steered.
+  const steerMode = $derived(Boolean(onqueue) && !stopMode && Boolean(value.trim()) && !hasFiles);
+  let dragging = $state(false);
+  const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
+  function ondrop(event: DragEvent) {
+    dragging = false;
+    if (!onfiles || !carriesFiles(event)) return;
+    event.preventDefault();
+    onfiles(filesOf(event.dataTransfer));
+  }
+  function onpaste(event: ClipboardEvent) {
+    const files = filesOf(event.clipboardData);
+    if (!onfiles || files.length === 0) return;
+    // A screenshot comes without text: nothing else to paste. Text with files (an office copy) pastes as well.
+    if (!event.clipboardData?.types.includes("text/plain")) event.preventDefault();
+    onfiles(files);
+  }
   let textarea = $state<HTMLTextAreaElement>();
   const submit = () => textarea?.form?.requestSubmit();
 
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
-      if (!value.trim() || !canSend) return;
+      if (!hasContent || !canSend) return;
       if (onqueue && matchesHotkey(event, "Mod+Enter")) onqueue();
       else submit();
     }
@@ -73,8 +99,23 @@
 
 <div class={["grid grid-cols-1 gap-2", className]}>
   <div
-    class="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-950/10 has-focus-visible:ring-zinc-950/25 has-disabled:opacity-70 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10 dark:has-focus-visible:ring-white/20"
+    class={[
+      "rounded-2xl bg-white shadow-sm ring-1 has-focus-visible:ring-zinc-950/25 has-[textarea:disabled]:opacity-70 dark:bg-zinc-950 dark:shadow-none dark:has-focus-visible:ring-white/20",
+      dragging ? "ring-2 ring-brand-600 dark:ring-brand-500" : "ring-zinc-950/10 dark:ring-white/10",
+    ]}
+    role="group"
+    aria-label={onfiles ? `${label}, drop files to attach` : undefined}
+    ondragover={(event) => {
+      if (!onfiles || !carriesFiles(event)) return;
+      event.preventDefault();
+      dragging = true;
+    }}
+    ondragleave={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dragging = false;
+    }}
+    {ondrop}
   >
+    {#if draft}<DraftTray {draft} class="px-3 pt-3" />{/if}
     <label for="{id}-input" class="sr-only">{label}</label>
     <textarea
       id="{id}-input"
@@ -84,6 +125,7 @@
       {placeholder}
       bind:value
       {onkeydown}
+      {onpaste}
       {disabled}
       bind:this={textarea}
       aria-keyshortcuts={onqueue ? "Enter Control+Enter Meta+Enter" : undefined}
@@ -95,10 +137,11 @@
           <Kbd hotkey="Enter" />steer<Kbd hotkey="Mod+Enter" class="ml-1" />queue
         </p>
       {/if}
+      {#if onfiles}<AttachButton {onfiles} {disabled} />{/if}
       {@render controls?.()}
       <ResizeSlot>
         {#if steerMode && onqueue}
-          <SteerSendButton {sending} disabled={disabled || !canSend || !value.trim()} onsteer={submit} {onqueue} />
+          <SteerSendButton {sending} disabled={disabled || !canSend || !hasContent} onsteer={submit} {onqueue} />
         {:else if stopMode}
           <button
             type="button"
@@ -117,7 +160,7 @@
             class="relative grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-white focus-ring not-disabled:hover:bg-brand-500 disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
             aria-label="Send"
             {@attach tooltip("Send", { hotkey: "Enter" })}
-            disabled={disabled || !canSend || sending || !value.trim()}
+            disabled={disabled || !canSend || sending || !hasContent}
           >
             {#if sending}<Spinner class="size-3.5" />{:else}<Icon name="arrow-up" />{/if}
             <TouchTarget />

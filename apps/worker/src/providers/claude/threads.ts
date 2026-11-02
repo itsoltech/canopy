@@ -26,7 +26,8 @@ import { claudeAgentModels, claudeModel, isClaudeEffort, proxyCapabilities, type
 import { claudeNativeToolOptions, type NativeToolPolicy } from "../native-tools.ts";
 import { SteerError, type TurnSettings } from "../turn-input.ts";
 import type { Env, ResolvedProfile } from "../profiles.ts";
-import { claudeBusServer, claudeBusToolNames } from "./bus.ts";
+import type { ViewImageResult } from "../../images/index.ts";
+import { CLAUDE_VIEW_IMAGE_TOOL, claudeBusServer, claudeBusToolNames } from "./bus.ts";
 import { BUS_SERVER, ClaudeEventMapper, startsTurn, type GoalVerdict } from "./mapping.ts";
 import { claudePermissions } from "./permissions.ts";
 import { claudeProfileOptions } from "./profile.ts";
@@ -83,6 +84,12 @@ export interface ClaudeThreadsOptions {
   publish(event: ThreadEvent): void;
   interact(request: InteractionRequest): Promise<InteractionResponse>;
   callTool(call: AgentToolCall): Promise<AgentToolResult>;
+  /** The thread's attachments directory: readable without a prompt (additionalDirectories). */
+  attachmentsDir?(threadId: string): string;
+  /** The platform's view_image (worker-side; docs/agent-bus.md). */
+  viewImage?(threadId: string, cwd: string, path: string): Promise<ViewImageResult>;
+  /** Adds what the transcript shows of an event (image previews) before it is journaled. */
+  enrich?(init: ThreadEventInit): Promise<ThreadEventInit>;
 }
 
 export class ClaudeThreads extends Context.Service<
@@ -171,8 +178,10 @@ const make = (options: ClaudeThreadsOptions) =>
     const fail = (threadId: string, operation: string) => (error: unknown) =>
       new ClaudeThreadError({ threadId, operation, message: error instanceof Error ? error.message : String(error) });
 
-    const record = (threadId: string, init: ThreadEventInit) =>
-      Effect.runPromise(journal.append(threadId, init).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))));
+    const record = async (threadId: string, init: ThreadEventInit) => {
+      const enriched = options.enrich ? await options.enrich(init) : init;
+      return Effect.runPromise(journal.append(threadId, enriched).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))));
+    };
 
     yield* Effect.addFinalizer(() =>
       Effect.promise(async () => {
@@ -305,9 +314,12 @@ const make = (options: ClaudeThreadsOptions) =>
       const busCalls = new Map<string, string[]>();
       let session: Session | undefined;
       const turnId = () => session?.turn?.turnId ?? "";
-      const busTools = spec.enableAgentBus ? claudeBusToolNames(spec.depth) : [];
+      const busTools = [...(spec.enableAgentBus ? claudeBusToolNames(spec.depth) : []), ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : [])];
+      const attachments = options.attachmentsDir?.(spec.threadId);
       const queryOptions: Options = {
         cwd: spec.cwd,
+        // The thread's attachments live outside the workspace (docs/protocol.md, "Załączniki").
+        ...(attachments && { additionalDirectories: [attachments] }),
         ...(model && { model }),
         ...(effort && { effort }),
         ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: options.home }),
@@ -316,24 +328,27 @@ const make = (options: ClaudeThreadsOptions) =>
         includePartialMessages: true,
         ...permissions.options,
         canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? false),
-        // Bus tools pass every mode (dontAsk denies whatever is not pre-approved).
+        // Bus tools and view_image pass every mode (dontAsk denies whatever is not pre-approved).
         allowedTools: busTools,
         ...claudeNativeToolOptions(options.nativeTools),
         // The platform stops background tasks one by one (StopTask): an interrupt spares them.
         perTaskStopAffordance: true,
         // Only the platform's MCP servers: the device owner's would leak their tools and accounts.
         strictMcpConfig: true,
-        mcpServers: spec.enableAgentBus
-          ? {
-              [BUS_SERVER]: claudeBusServer({
-                threadId: spec.threadId,
-                depth: spec.depth,
-                turnId,
-                toolUseId: (tool, args) => busCalls.get(callKey(tool, args))?.shift(),
-                callTool: options.callTool,
-              }),
-            }
-          : {},
+        mcpServers:
+          spec.enableAgentBus || options.viewImage
+            ? {
+                [BUS_SERVER]: claudeBusServer({
+                  threadId: spec.threadId,
+                  depth: spec.depth,
+                  agentBus: spec.enableAgentBus,
+                  turnId,
+                  toolUseId: (tool, args) => busCalls.get(callKey(tool, args))?.shift(),
+                  callTool: options.callTool,
+                  ...(options.viewImage && { viewImage: (path: string) => options.viewImage!(spec.threadId, spec.cwd, path) }),
+                }),
+              }
+            : {},
         systemPrompt: { type: "preset", preset: "claude_code", ...(spec.instructions && { append: spec.instructions }) },
         abortController: abort,
       };
@@ -477,7 +492,7 @@ const make = (options: ClaudeThreadsOptions) =>
           }
           if (message.type === "assistant") {
             for (const block of message.message.content) {
-              if (block.type !== "tool_use" || !block.name.startsWith(`mcp__${BUS_SERVER}__`)) continue;
+              if (block.type !== "tool_use" || !block.name.startsWith(`mcp__${BUS_SERVER}__`) || block.name === CLAUDE_VIEW_IMAGE_TOOL) continue;
               const key = callKey(block.name.slice(`mcp__${BUS_SERVER}__`.length), block.input);
               session.busCalls.set(key, [...(session.busCalls.get(key) ?? []), block.id]);
             }

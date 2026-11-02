@@ -11,7 +11,7 @@ import {
   TurnOutcome,
   type ItemSchema,
 } from "@open-agents/contracts";
-import { isAgentBusTool } from "@open-agents/domain";
+import { isAgentBusTool, VIEW_IMAGE_TOOL } from "@open-agents/domain";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**
@@ -457,6 +457,18 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
       };
     case "dynamicToolCall": {
       const output = (item.contentItems ?? []).map((c) => (c.type === "inputText" ? c.text : `[${c.type}]`)).join("\n");
+      // The platform's view_image (namespace "openagents"): an image item; the preview comes from its result.
+      if (item.tool === VIEW_IMAGE_TOOL && item.namespace === "openagents") {
+        const path = (item.arguments as { path?: unknown } | null)?.path;
+        return {
+          ...base,
+          status: toolStatus(item.status),
+          content: {
+            case: "image",
+            value: { path: typeof path === "string" ? path : "", source: VIEW_IMAGE_TOOL, ...(item.success === false && { detail: output }) },
+          },
+        };
+      }
       if (isAgentBusTool(item.tool)) {
         return {
           ...base,
@@ -493,12 +505,13 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
     case "plan":
       return { ...base, status: lifecycle, content: { case: "plan", value: { text: item.text } } };
     case "imageView":
-      return { ...base, status: lifecycle, content: { case: "image", value: { path: item.path } } };
+      // Codex's own view_image: the worker reads the file for the preview (images/previews.ts).
+      return { ...base, status: lifecycle, content: { case: "image", value: { path: item.path, source: "native" } } };
     case "imageGeneration":
       return {
         ...base,
         status: item.failure ? ItemStatus.FAILED : lifecycle,
-        content: { case: "image", value: { path: item.savedPath ?? "", prompt: item.revisedPrompt ?? "" } },
+        content: { case: "image", value: { path: item.savedPath ?? "", prompt: item.revisedPrompt ?? "", source: "generated" } },
       };
     case "contextCompaction":
       return { ...base, status: lifecycle, content: { case: "contextCompaction", value: {} } };

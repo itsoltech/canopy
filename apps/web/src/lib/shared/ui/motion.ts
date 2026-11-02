@@ -114,6 +114,19 @@ export function iconSwap(_node: HTMLElement, { delay = 0 }: { delay?: number } =
   };
 }
 
+/**
+ * Pop (menu dropdown 05 on a single item): something the user just added (an attachment chip) grows in from
+ * --scale-medium on --duration-fast and leaves on --duration-quick; neighbours glide aside with `reorder`.
+ */
+export function pop(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}, options?: { direction: "in" | "out" | "both" }): TransitionConfig {
+  const out = options?.direction === "out";
+  const ms = duration(out ? "quick" : "fast");
+  if (prefersReducedMotion.current) return { delay, duration: ms, css: (t) => `opacity: ${t}` };
+  const from = length("--scale-medium", 0.97);
+  const blur = length("--blur-small", 2);
+  return { delay, duration: ms, easing: smoothOut, css: (t, u) => `opacity: ${t}; scale: ${from + (1 - from) * t}; filter: blur(${u * blur}px)` };
+}
+
 /** List reorder (`animate:reorder` in a keyed each): rows glide to their new place (position change). */
 export function reorder(node: Element, positions: { from: DOMRect; to: DOMRect }): AnimationConfig {
   return flip(node, positions, { duration: prefersReducedMotion.current ? 0 : duration("fast"), easing: smoothOut });

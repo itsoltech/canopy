@@ -65,6 +65,11 @@ service GatewayService {
   rpc DeleteProviderProfile(DeleteProviderProfileRequest) returns (DeleteProviderProfileResponse);
   // Które modele katalogu profilu widać w pickerach (gateway filtruje ListModels i OverviewUpdate.models).
   rpc SetModelSelection(SetModelSelectionRequest) returns (SetModelSelectionResponse);
+
+  // Załączniki (sekcja na końcu pliku): plik użytkownika do wiadomości, jego bajty i podglądy obrazów z transkryptu.
+  rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse);
+  rpc GetAttachment(GetAttachmentRequest) returns (GetAttachmentResponse);
+  rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
 }
 
 // ---------- Model ----------
@@ -227,6 +232,8 @@ message Turn {
   // Numery od 90: tryb uprawnień tury. Nadpisanie z wiadomości (UNSPECIFIED = domyślny wątku); od startu tury
   // tryb faktycznie wysłany do workera.
   openagents.worker.v1.PermissionMode permission_mode = 90;
+  // Pliki dołączone do wiadomości (numery od 110). Ich ścieżki na workerze są w platform_note.
+  repeated Attachment attachments = 110;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -358,6 +365,8 @@ message CreateThreadRequest {
   string client_request_id = 13;
   // Domyślny wysiłek rozumowania wątku (pusty = domyślny modelu).
   string effort = 40;
+  // Załączniki pierwszej wiadomości (UploadAttachment).
+  repeated string initial_attachment_ids = 110;
 }
 
 message CreateThreadResponse {
@@ -377,6 +386,8 @@ message SendMessageRequest {
   // Nadpisanie trybu uprawnień tylko dla tej tury (UNSPECIFIED = domyślny wątku). Steer dołącza do tury
   // w toku i zostaje przy jej trybie; nadpisanie obowiązuje, gdy wiadomość trafi do kolejki.
   openagents.worker.v1.PermissionMode permission_mode = 90;
+  // Załączniki (UploadAttachment). Wiadomość z załącznikami zawsze idzie do kolejki (nie steer).
+  repeated string attachment_ids = 110;
 }
 
 message SendMessageResponse {
@@ -597,6 +608,8 @@ message GetSettingsRequest {}
 message GetSettingsResponse {
   UserSettings user = 1;
   repeated ProjectSettings projects = 2;
+  // Limity załączników gateway (kompozytor sprawdza je przed wysłaniem).
+  AttachmentLimits attachment_limits = 110;
 }
 
 // Ustawione sekcje zastępują zapisane; nieustawione zostają.
@@ -882,4 +895,60 @@ message SetModelSelectionRequest {
 message SetModelSelectionResponse {
   // Brak = wszystkie modele.
   ModelSelection selection = 1;
+}
+
+// ---------- Załączniki (docs/ui-api.md) ----------
+
+// Plik dołączony do wiadomości. Gateway sam rozpoznaje typ po treści (nie po nazwie ani typie z przeglądarki).
+message Attachment {
+  string id = 1;
+  // Nazwa bez katalogów i znaków sterujących (taka trafia na workera).
+  string name = 2;
+  string mime_type = 3;
+  // image (png, jpeg, gif, webp: podgląd w UI) | file (reszta, także SVG i HEIC)
+  string kind = 4;
+  uint64 size_bytes = 5;
+  uint32 width = 6;
+  uint32 height = 7;
+  string sha256 = 8;
+  // Obraz ma miniaturę (GetAttachment.thumbnail).
+  bool has_thumbnail = 9;
+}
+
+message AttachmentLimits {
+  uint64 max_file_bytes = 1;
+  uint64 max_message_bytes = 2;
+  uint32 max_files = 3;
+}
+
+message UploadAttachmentRequest {
+  string name = 1;
+  bytes data = 2;
+}
+
+message UploadAttachmentResponse {
+  Attachment attachment = 1;
+}
+
+message GetAttachmentRequest {
+  string attachment_id = 1;
+  // Miniatura obrazu (WebP, do 512 px) zamiast pliku.
+  bool thumbnail = 2;
+}
+
+message GetAttachmentResponse {
+  Attachment attachment = 1;
+  bytes data = 2;
+  string mime_type = 3;
+}
+
+// Podgląd obrazu z transkryptu wątku (Image.blob, ToolCall.images), tylko dla właściciela wątku.
+message GetThreadBlobRequest {
+  string thread_id = 1;
+  string sha256 = 2;
+}
+
+message GetThreadBlobResponse {
+  bytes data = 1;
+  string mime_type = 2;
 }

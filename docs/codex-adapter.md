@@ -74,6 +74,13 @@ Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną hist
 | rollout: `function_call` `exec_command` bez itemu Codexa | `command_execution` złożony z wywołania i wyniku (kod wyjścia, output), na końcu tury |
 | hooki, `readState`, metadane moderacji, diff tury, ... | zdarzenie bez ciała, tylko `raw_json` |
 
+## Załączniki i obrazy
+
+- Pliki leżą poza repozytorium (`<data_dir>/attachments/...`); sandbox Codexa (`read-only`, `workspace-write`) czyta cały dysk, więc nic nie trzeba dodawać.
+- `view_image` platformy: narzędzie dynamiczne `openagents` › `view_image` ([agent-bus.md](agent-bus.md#view_image)); item `dynamicToolCall` z tą przestrzenią nazw → item `image` (`source = view_image`), podgląd z `contentItems[].inputImage`.
+- Wbudowane `view_image` Codexa → item `imageView` → `image` (`source = native`), podgląd z pliku (`path`). Wygenerowane obrazy (`imageGeneration`, `savedPath`) → `source = generated`.
+- Obrazy w wynikach narzędzi MCP (`result.content[].type = image`) → `ToolCall.images`.
+
 ## Tryb kodu (code mode)
 
 **Czym jest:** zamiast osobnych narzędzi model dostaje jedno narzędzie `exec` (custom tool), któremu podaje skrypt JavaScript. Skrypt działa w izolacie V8 i woła narzędzia Codexa przez `tools.*` (`tools.exec_command`, `tools.apply_patch`, MCP, ...), także równolegle. Wynik skryptu (`text(...)`, `notify(...)`) wraca do modelu jako `custom_tool_call_output`. Długi skrypt może oddać sterowanie (`Script running with cell ID ...`), a model wraca do niego narzędziem `wait`.

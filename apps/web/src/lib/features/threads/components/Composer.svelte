@@ -2,6 +2,8 @@
   import type { ui } from "@open-agents/contracts";
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
+  import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { turnOverride, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
@@ -23,6 +25,8 @@
    * Under the box: where the thread runs (hover for the worker) and the permission mode for the next
    * messages, sent like the model as an override of their turns (the thread's default = no override; a
    * steer runs in the mode of the turn it joins).
+   * Attachments (paperclip, drop, paste): uploaded as they are added, sent with the message, which then always
+   * runs as the next turn (its files reach the worker before the turn starts).
    */
   let {
     thread,
@@ -61,6 +65,8 @@
   });
 
   let text = $state("");
+  const settings = useSettings();
+  const draft = new AttachmentDraft(() => limitsOf(settings?.attachmentLimits));
   let sending = $state(false);
   let stopping = $state(false);
   let error = $state<string | undefined>(undefined);
@@ -76,16 +82,22 @@
 
   async function send(delivery: Delivery) {
     const message = text.trim();
-    if (!message || sending || disabled) return;
+    if ((!message && draft.files.length === 0) || sending || disabled) return;
+    if (draft.blocker) {
+      error = draft.blocker;
+      return;
+    }
+    const attachmentIds = draft.ids;
     sending = true;
     error = undefined;
     outcome = undefined;
     try {
-      const response = await sendMessage(thread.id, message, requestId, override, delivery);
+      const response = await sendMessage(thread.id, message, requestId, override, attachmentIds.length > 0 ? "queue" : delivery, attachmentIds);
       onsent?.(response);
       // Steered while the turn was ending: the gateway queued it as the next turn.
       if (delivery === "steer" && response.turn) outcome = "The turn had just ended, so your message runs as the next turn.";
       text = "";
+      draft.clear();
       requestId = crypto.randomUUID();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -117,6 +129,7 @@
     {stopping}
     onstop={running ? interrupt : undefined}
     onqueue={running ? () => void send("queue") : undefined}
+    {draft}
   >
     {#snippet controls()}
       {@render leading?.()}

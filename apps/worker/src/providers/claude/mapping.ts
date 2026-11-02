@@ -1,7 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnEndSource, TurnOutcome, type BackgroundTaskSchema, type ItemSchema } from "@open-agents/contracts";
-import { isAgentBusTool } from "@open-agents/domain";
+import { isAgentBusTool, VIEW_IMAGE_TOOL } from "@open-agents/domain";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**
@@ -462,6 +462,8 @@ function textContent(kind: "text" | "thinking", text: string): Content {
 export function toolContent(name: string, input: unknown): Content {
   const args = (input ?? {}) as Record<string, unknown>;
   const str = (key: string) => (typeof args[key] === "string" ? (args[key] as string) : "");
+  // The platform's view_image: an image item; its preview comes from the tool result (images/previews.ts).
+  if (name === `${BUS_PREFIX}${VIEW_IMAGE_TOOL}`) return { case: "image", value: { path: str("path"), source: VIEW_IMAGE_TOOL } };
   if (name.startsWith(BUS_PREFIX) && isAgentBusTool(name.slice(BUS_PREFIX.length))) {
     return { case: "agentBusCall", value: { toolName: name.slice(BUS_PREFIX.length), argumentsJson: JSON.stringify(args) } };
   }
@@ -503,6 +505,8 @@ export function withOutput(content: Content, output: string, failed: boolean): C
       return { case: "agentBusCall", value: { ...content.value, resultJson: output, isError: failed } };
     case "webSearch":
       return { case: "webSearch", value: { ...content.value, resultsJson: output } };
+    case "image":
+      return failed ? { case: "image", value: { ...content.value, detail: output } } : content;
     default:
       return content;
   }

@@ -11,19 +11,34 @@ import {
   ui,
   type Command,
   type CommandResult,
+  type BlobChunk,
+  type FetchBlob,
   type ProfileModels,
   type ThreadEvent,
 } from "@open-agents/contracts";
 import { Effect, type ManagedRuntime } from "effect";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { claudeGoalCommand, DEFAULT_BUS_LIMITS, isFinished } from "@open-agents/domain";
+import {
+  attachmentPath,
+  attachmentsNote,
+  claudeGoalCommand,
+  DEFAULT_ATTACHMENT_LIMITS,
+  DEFAULT_BUS_LIMITS,
+  formatSize,
+  isFinished,
+  withAttachmentsNote,
+  type AttachmentLimits,
+} from "@open-agents/domain";
+import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
+import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
 import {
   AgentBusStore,
   applyModelSelections,
   GatewayStore,
   GoalStore,
   Ingest,
+  NotFound,
   ModelStore,
   modelProblem,
   permissionModeName,
@@ -40,6 +55,7 @@ import {
   type GoalRow,
   type ScheduleRow,
   type ThreadRow,
+  type TurnRow,
 } from "../store/index.ts";
 import { cronProblem, nextCronRun } from "./cron.ts";
 import { AgentBus } from "./agent-bus.ts";
@@ -60,7 +76,7 @@ import { Scheduler } from "./scheduler.ts";
  */
 
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | ProfileStore,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | ProfileStore | AttachmentStore,
   unknown
 >;
 
@@ -71,7 +87,17 @@ export interface GatewayCoreOptions {
   readonly userId: string;
   readonly log?: (message: string) => void;
   readonly commandTimeoutMs?: number;
+  /** Per file, per message and how many files (docs/ui-api.md, "Załączniki"); defaults: DEFAULT_ATTACHMENT_LIMITS. */
+  readonly attachmentLimits?: AttachmentLimits;
 }
+
+/** Bytes per BlobChunk on the worker link (attachments down, previews up). */
+const BLOB_CHUNK_BYTES = 256 * 1024;
+/** Largest preview a worker may upload (it scales images to at most 2000 px). */
+const MAX_PREVIEW_BYTES = 8 * 1024 ** 2;
+const PREVIEW_TYPES: ReadonlySet<string> = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+
+type TurnInputJson = TurnRow["input"];
 
 /** Where a model is chosen: an existing thread, or a new one (workspace, provider, profile). */
 type ModelScope = { thread: ThreadRow } | { workspaceId: string; provider: Provider; profileId: string };
@@ -104,6 +130,8 @@ export class GatewayCore {
   readonly #journalIds = new Map<string, string>();
   /** Threads whose events failed to store on a connection: skipped until the worker reconnects and resends. */
   readonly #blocked = new WeakMap<WorkerConnection, Set<string>>();
+  /** Previews a worker is uploading (BlobChunk), by sha256, until their last chunk. */
+  readonly #uploads = new WeakMap<WorkerConnection, Map<string, { chunks: Uint8Array[]; size: number; mimeType: string }>>();
   #sweepTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(options: GatewayCoreOptions) {
@@ -212,6 +240,13 @@ export class GatewayCore {
           }
           case "heartbeat":
             await this.#run((s) => s.workerSeen(workerId));
+            break;
+          case "blobChunk":
+            // Before the event that points to it (same stream, handled in order).
+            await this.#receiveBlob(connection, message.payload.value);
+            break;
+          case "fetchBlob":
+            void this.#sendBlob(connection, message.payload.value);
             break;
           default:
             break;
@@ -464,7 +499,19 @@ export class GatewayCore {
             value: {
               thread: spec,
               turnId: turn.id,
-              input: { text: turn.input.text ?? "", authorUserId: this.#options.userId },
+              input: {
+                text: turn.input.text ?? "",
+                authorUserId: this.#options.userId,
+                attachments: (turn.input.attachments ?? []).map((a) => ({
+                  attachmentId: a.id,
+                  sha256: a.sha256,
+                  sizeBytes: BigInt(a.sizeBytes),
+                  mimeType: a.mimeType,
+                  name: a.name,
+                  path: a.path,
+                  kind: a.kind,
+                })),
+              },
               model,
               effort,
               permissionMode: permissionModeOf(permissionMode),
@@ -546,9 +593,149 @@ export class GatewayCore {
     await this.#checkModel(where, request.model, request.effort);
     // A model without efforts keeps none as the thread's default.
     const effort = turnEffort((await this.#profileModels(where)).models, request.model, request.effort);
-    const row = await this.#run((s) => s.createThread(this.#options.userId, effort === request.effort ? request : { ...request, effort }));
+    if (request.initialAttachmentIds.length === 0) {
+      const row = await this.#run((s) => s.createThread(this.#options.userId, effort === request.effort ? request : { ...request, effort }));
+      await this.#startThread(row);
+      return toUiThread(row);
+    }
+    // With attachments: checked first (no thread for a message that cannot go), then the first message as a turn.
+    const projects = await this.#run((s) => s.listProjects(this.#options.userId));
+    const workerId = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId)?.workerId ?? "";
+    const files = await this.#messageAttachments(request.initialAttachmentIds, workerId);
+    const row = await this.#run((s) => s.createThread(this.#options.userId, { ...request, effort, initialMessage: "" }));
+    await this.#run((s) =>
+      s.enqueueTurn({
+        threadId: row.id,
+        text: request.initialMessage,
+        userId: this.#options.userId,
+        clientRequestId: request.clientRequestId,
+        input: files.input(row.id, request.initialMessage),
+      }),
+    );
     await this.#startThread(row);
     return toUiThread(row);
+  }
+
+  // ------------------------------------------------------------------ attachments
+
+  get attachmentLimits(): AttachmentLimits {
+    return this.#options.attachmentLimits ?? DEFAULT_ATTACHMENT_LIMITS;
+  }
+
+  /** An upload (docs/ui-api.md, "Załączniki"): typed by its content, images cleaned of metadata, owned by the user. */
+  async uploadAttachment(name: string, data: Uint8Array): Promise<ui.Attachment> {
+    let prepared;
+    try {
+      prepared = await prepareAttachment(name, data, this.attachmentLimits);
+    } catch (error) {
+      if (error instanceof AttachmentRejected) throw new InvalidError(error.message);
+      throw error;
+    }
+    const row = await this.#attachments((s) => s.create({ ownerUserId: this.#options.userId, ...prepared }));
+    return toUiAttachment(row);
+  }
+
+  async getAttachment(attachmentId: string, thumbnail: boolean): Promise<ui.GetAttachmentResponse> {
+    const row = await this.#attachments((s) => s.owned(this.#options.userId, attachmentId));
+    const sha = thumbnail ? row.thumb_sha256 : row.sha256;
+    if (!sha) throw new InvalidError("this attachment has no thumbnail");
+    const blob = await this.#attachments((s) => s.blob(sha));
+    return create(ui.GetAttachmentResponseSchema, { attachment: toUiAttachment(row), data: blob.data, mimeType: blob.mimeType });
+  }
+
+  async getThreadBlob(threadId: string, sha256: string): Promise<ui.GetThreadBlobResponse> {
+    const blob = await this.#attachments((s) => s.threadBlob(this.#options.userId, threadId, sha256));
+    return create(ui.GetThreadBlobResponseSchema, { data: blob.data, mimeType: blob.mimeType });
+  }
+
+  /**
+   * The attachments of a new message: the user's, unsent, within the limits, for a worker that takes attachments.
+   * `input` prepares the turn input: the platform note with each file's path on that worker, then the message.
+   */
+  async #messageAttachments(ids: readonly string[], workerId: string): Promise<{ input(threadId: string, message: string): TurnInputJson }> {
+    const limits = this.attachmentLimits;
+    if (ids.length > limits.maxFiles) throw new InvalidError(`up to ${limits.maxFiles} files can be attached to one message`);
+    const rows = await this.#attachments((s) => s.forMessage(this.#options.userId, ids));
+    const total = rows.reduce((sum, r) => sum + Number(r.size_bytes), 0);
+    if (total > limits.maxMessageBytes) throw new InvalidError(`the attachments are ${formatSize(total)}; a message can carry up to ${formatSize(limits.maxMessageBytes)}`);
+    const { root, os } = await this.#attachments((s) => s.workerRoot(workerId));
+    if (!root) throw new InvalidError("this thread's worker cannot take attachments yet (it has not connected since it was updated)");
+    return {
+      input: (threadId, message) => {
+        const attachments: StoredAttachment[] = rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          mimeType: r.mime_type,
+          kind: r.kind,
+          sizeBytes: Number(r.size_bytes),
+          ...(r.width && { width: r.width }),
+          ...(r.height && { height: r.height }),
+          sha256: r.sha256,
+          hasThumbnail: r.thumb_sha256 !== null,
+          path: attachmentPath(root, os, threadId, r.id, r.name),
+        }));
+        const note = attachmentsNote(attachments);
+        return { text: withAttachmentsNote(note, message), note, message, attachments };
+      },
+    };
+  }
+
+  /** A preview chunk from a worker; the last one stores the blob once its hash and size check out. */
+  async #receiveBlob(connection: WorkerConnection, chunk: BlobChunk): Promise<void> {
+    const uploads = this.#uploads.get(connection) ?? new Map();
+    this.#uploads.set(connection, uploads);
+    const upload = uploads.get(chunk.sha256) ?? { chunks: [], size: 0, mimeType: chunk.mimeType };
+    if (BigInt(upload.size) !== chunk.offset) {
+      // A gap (a lost or repeated chunk): start over from this one only if it is the first.
+      uploads.delete(chunk.sha256);
+      if (chunk.offset !== 0n) return;
+      upload.chunks = [];
+      upload.size = 0;
+    }
+    upload.chunks.push(chunk.data);
+    upload.size += chunk.data.length;
+    uploads.set(chunk.sha256, upload);
+    if (upload.size > MAX_PREVIEW_BYTES) {
+      uploads.delete(chunk.sha256);
+      this.#log(`preview ${chunk.sha256.slice(0, 12)} from worker ${connection.workerId} is over ${formatSize(MAX_PREVIEW_BYTES)}; dropped`);
+      return;
+    }
+    if (!chunk.last) return;
+    uploads.delete(chunk.sha256);
+    const data = Buffer.concat(upload.chunks);
+    if (sha256Hex(data) !== chunk.sha256 || !PREVIEW_TYPES.has(upload.mimeType)) {
+      this.#log(`preview ${chunk.sha256.slice(0, 12)} from worker ${connection.workerId} does not match its hash or type; dropped`);
+      return;
+    }
+    await this.#attachments((s) => s.putBlob(chunk.sha256, new Uint8Array(data), upload.mimeType));
+  }
+
+  /** An attachment's bytes to the worker that runs its thread, in chunks (FetchBlob). */
+  async #sendBlob(connection: WorkerConnection, request: FetchBlob): Promise<void> {
+    const reply = (value: { offset?: bigint; data?: Uint8Array; last: boolean; error?: string }) => {
+      try {
+        connection.send({ case: "blobChunk", value: { requestId: request.requestId, sha256: request.sha256, ...value } });
+        return true;
+      } catch {
+        return false; // link closed: the worker asks again with the redelivered StartTurn
+      }
+    };
+    let data: Uint8Array;
+    try {
+      data = await this.#attachments((s) => s.workerBlob(connection.workerId, request.threadId, request.sha256));
+    } catch (error) {
+      reply({ last: true, error: error instanceof NotFound ? "attachment not found" : `attachment not readable: ${describeError(error)}` });
+      return;
+    }
+    for (let offset = 0; offset < data.length || offset === 0; offset += BLOB_CHUNK_BYTES) {
+      const end = Math.min(offset + BLOB_CHUNK_BYTES, data.length);
+      if (!reply({ offset: BigInt(offset), data: data.subarray(offset, end), last: end >= data.length })) return;
+      if (end >= data.length) break;
+    }
+  }
+
+  #attachments<A, E>(use: (store: AttachmentStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(AttachmentStore.use(use));
   }
 
   /**
@@ -606,11 +793,13 @@ export class GatewayCore {
     if (existingSteer) return { steer: toUiSteer(existingSteer) };
     const existingTurn = await this.#run((s) => s.turnByClientRequest(threadId, clientRequestId));
     if (existingTurn) return { turn: toUiTurn(existingTurn) };
-    if (!request.text.trim()) throw new InvalidError("message is empty");
+    const files = request.attachmentIds.length > 0 ? await this.#messageAttachments(request.attachmentIds, thread.worker_id ?? "") : undefined;
+    if (!request.text.trim() && !files) throw new InvalidError("message is empty");
     // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
     await this.#checkModel({ thread }, request.model || thread.settings.model || "", request.effort);
     const permissionMode = checkedPermissionMode(request.permissionMode);
-    if (request.delivery === ui.MessageDelivery.STEER) {
+    // A message with attachments is always the next turn: its files go to the worker before the turn starts.
+    if (request.delivery === ui.MessageDelivery.STEER && !files) {
       const running = await this.#run((s) => s.runningTurn(threadId));
       if (running && thread.worker_id) {
         const steer = await this.#steers((s) =>
@@ -638,6 +827,7 @@ export class GatewayCore {
         model: request.model,
         effort: request.effort,
         permissionMode,
+        ...(files && { input: files.input(threadId, request.text) }),
       }),
     );
     const update = toUiTurn(turn);
@@ -916,7 +1106,12 @@ export class GatewayCore {
       this.#settings((s) => s.user(this.#options.userId)),
       this.#settings((s) => s.projects(this.#options.userId)),
     ]);
-    return create(ui.GetSettingsResponseSchema, { user, projects });
+    const limits = this.attachmentLimits;
+    return create(ui.GetSettingsResponseSchema, {
+      user,
+      projects,
+      attachmentLimits: { maxFileBytes: BigInt(limits.maxFileBytes), maxMessageBytes: BigInt(limits.maxMessageBytes), maxFiles: limits.maxFiles },
+    });
   }
 
   async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {

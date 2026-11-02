@@ -16,9 +16,10 @@ import {
   type ThreadSpec,
   type UserInput,
 } from "@open-agents/contracts";
-import { agentBusToolSpecs, agentBusToolsFor } from "@open-agents/domain";
+import { agentBusToolSpecs, agentBusToolsFor, viewImageSpec } from "@open-agents/domain";
+import type { ViewImageResult } from "../../images/index.ts";
 import { Context, Effect, Layer, Schema, Stream } from "effect";
-import { Journal } from "../../journal/index.ts";
+import { Journal, type ThreadEventInit } from "../../journal/index.ts";
 import { pickDefaultEffort } from "../default-effort.ts";
 import { codexModel, codexProxyModels, proxyModels, type ModelInit } from "../models.ts";
 import type { ResolvedProfile } from "../profiles.ts";
@@ -65,6 +66,27 @@ export interface CodexThreadsOptions {
   callTool(call: AgentToolCall): Promise<AgentToolResult>;
   /** The device owner's default reasoning effort (their config.toml, default-effort.ts); read on every use. */
   configuredEffort?(): string | undefined;
+  /** The platform's view_image (worker-side; docs/agent-bus.md), offered to every new thread as a dynamic tool. */
+  viewImage?(threadId: string, path: string): Promise<ViewImageResult>;
+  /** Adds what the transcript shows of an event (image previews) before it is journaled. */
+  enrich?(init: ThreadEventInit): Promise<ThreadEventInit>;
+}
+
+/**
+ * Name of the platform's view_image among Codex's dynamic tools. Codex has a built-in tool of that name (local image
+ * files for models that take images), so the platform's is namespaced (docs/codex-adapter.md, "view_image").
+ */
+export const CODEX_VIEW_IMAGE_TOOL = "view_image";
+export const CODEX_VIEW_IMAGE_NAMESPACE = "openagents";
+
+export function codexViewImageTool(): v2.DynamicToolSpec {
+  const spec = viewImageSpec();
+  return {
+    type: "namespace",
+    name: CODEX_VIEW_IMAGE_NAMESPACE,
+    description: "Open Agents platform tools.",
+    tools: [{ type: "function", name: CODEX_VIEW_IMAGE_TOOL, description: spec.description, inputSchema: spec.inputSchema as v2.DynamicToolFunctionSpec["inputSchema"] }],
+  };
 }
 
 /**
@@ -80,6 +102,16 @@ export function codexAgentBusTools(depth: number): v2.DynamicToolSpec[] {
     description: tool.description,
     inputSchema: tool.inputSchema as v2.DynamicToolFunctionSpec["inputSchema"],
   }));
+}
+
+/** Dynamic tools of a new thread: the agent bus (when enabled) and view_image. */
+function dynamicTools(spec: ThreadSpec, viewImage: boolean): { dynamicTools?: v2.DynamicToolSpec[] } {
+  const tools = [...(spec.enableAgentBus ? codexAgentBusTools(spec.depth) : []), ...(viewImage ? [codexViewImageTool()] : [])];
+  return tools.length > 0 ? { dynamicTools: tools } : {};
+}
+
+export function isViewImageCall(call: { namespace?: string | null; tool: string }): boolean {
+  return call.tool === CODEX_VIEW_IMAGE_TOOL && call.namespace === CODEX_VIEW_IMAGE_NAMESPACE;
 }
 
 export class CodexThreads extends Context.Service<
@@ -253,7 +285,10 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           }
         }
         return yield* Effect.forEach(inits, (init) =>
-          journal.append(entry.platformId, init).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))),
+          (options.enrich ? Effect.promise(() => options.enrich!(init)) : Effect.succeed(init)).pipe(
+            Effect.flatMap((enriched) => journal.append(entry.platformId, enriched)),
+            Effect.tap((event) => Effect.sync(() => options.publish(event))),
+          ),
         );
       });
 
@@ -341,6 +376,15 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         case "item/tool/call": {
           if (!entry) throw new RpcError(request.method, -32602, "unknown thread");
           const call = request.params as v2.DynamicToolCallParams;
+          if (isViewImageCall(call) && options.viewImage) {
+            const args = (call.arguments ?? {}) as { path?: unknown };
+            const viewed = await options.viewImage(entry.platformId, typeof args.path === "string" ? args.path : "");
+            return (
+              viewed.ok
+                ? { contentItems: [{ type: "inputImage", imageUrl: `data:${viewed.mimeType};base64,${viewed.base64}` }, { type: "inputText", text: viewed.summary }], success: true }
+                : { contentItems: [{ type: "inputText", text: viewed.message }], success: false }
+            ) satisfies v2.DynamicToolCallResponse;
+          }
           const result = await options.callTool(
             create(AgentToolCallSchema, {
               callId: toolCallId(entry.platformId, call.callId),
@@ -414,7 +458,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
 
     const startThread = (spec: ThreadSpec, params: ReturnType<typeof threadParams>, operation: string) =>
       codex
-        .request("thread/start", { ...params, ...(spec.enableAgentBus && { dynamicTools: codexAgentBusTools(spec.depth) }) })
+        .request("thread/start", { ...params, ...dynamicTools(spec, options.viewImage !== undefined) })
         .pipe(Effect.mapError(fail(spec.threadId, operation)));
 
     const ensureLoaded = (spec: ThreadSpec) =>

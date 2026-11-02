@@ -86,6 +86,10 @@ W jednej transakcji per paczka zdarzeń wątku:
 
 Bloby: worker wysyła `BlobChunk` przed zdarzeniem, które je wskazuje. Gateway sprawdza sha256 i zapisuje blob przed przyjęciem zdarzenia. Zdarzenie wskazujące brakujący blob jest odrzucane i zostaje w dzienniku workera do ponowienia.
 
+### Obrazy
+
+Każdy obraz, który widział model, ma podgląd na osi czasu: `Image.blob` (`view_image`, natywne odczyty, wygenerowane) albo `ToolCall.images` (obrazy w wynikach narzędzi). Worker robi podgląd przed zapisem zdarzenia i wysyła go jako `BlobChunk` przed zdarzeniem ([protocol.md](protocol.md#załączniki)); gateway wiąże blob z wątkiem (`thread_blobs`), a UI czyta go przez `GetThreadBlob` (właściciel, wątek z tego samego drzewa).
+
 ## 6. Frontend
 
 1. **Snapshot:** `thread_items_view(thread_id)` zwraca itemy w kolejności `first_seq`, z odziedziczonymi z forków (`inherited`). Treść dużych pól pobiera się leniwie po `sha256`.

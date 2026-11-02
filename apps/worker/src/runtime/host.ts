@@ -9,6 +9,8 @@ import {
   Provider,
   type AgentToolCall,
   type AgentToolResult,
+  type BlobChunk,
+  type InputAttachment,
   type Command,
   type DirectoryEntrySchema,
   type CommandResultSchema,
@@ -33,6 +35,8 @@ import { CodexThreads } from "../providers/codex/threads.ts";
 import { claudeConfiguredEffort, readClaudeUserSettings, readCodexConfiguredEffort } from "../providers/default-effort.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
 import { reconcileTurn, WORKER_RESTARTED } from "../providers/reconcile.ts";
+import { AttachmentError, AttachmentFiles } from "../attachments/files.ts";
+import { ImageError, PreviewStore, viewImage, type ViewImageResult } from "../images/index.ts";
 import type { SteerError } from "../providers/turn-input.ts";
 
 /**
@@ -53,6 +57,10 @@ import type { SteerError } from "../providers/turn-input.ts";
  *   ones the journal still has open are closed as interrupted. Turns of the previous process too (recover).
  * - Running turns are reported in Hello (runningTurns): the gateway ends the ones it believes run here but
  *   do not; an interrupt for a turn that does not run here fails with TURN_NOT_RUNNING.
+ * - Attachments (docs/protocol.md, "Załączniki"): a turn's files are fetched from the gateway (FetchBlob) into
+ *   `<data_dir>/attachments/<thread>/<attachment>/` before the harness gets the turn.
+ * - Images (docs/agent-bus.md, "view_image"): view_image runs here; every image a model saw gets a preview, sent
+ *   to the gateway (BlobChunk) right before the event that shows it.
  */
 
 type CommandResultInit = MessageInitShape<typeof CommandResultSchema>;
@@ -82,6 +90,9 @@ interface ProviderRuntimeHandle<S> {
   readonly scope: Scope.Closeable;
   readonly context: Context.Context<S>;
 }
+
+/** How long the gateway may take to hand over one attachment. */
+const FETCH_TIMEOUT_MS = 120_000;
 
 /** InterruptTurn for a turn this process does not run (the gateway ends the turn). */
 const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
@@ -114,10 +125,24 @@ export class WorkerHost {
   #catalogRun = 0;
   /** Taken at start: the Claude runtime points this process's CLAUDE_CONFIG_DIR at the isolated home. */
   readonly #deviceHomes: { readonly claude: string; readonly codex: string };
+  readonly #files: AttachmentFiles;
+  readonly #previews: PreviewStore;
+  /** Working directory per thread (from the commands' ThreadSpec): view_image's scope. */
+  readonly #cwds = new Map<string, string>();
+  /** Attachments being fetched (FetchBlob), by request id. */
+  readonly #fetches = new Map<string, { chunks: Uint8Array[]; resolve: (data: Uint8Array) => void; reject: (error: Error) => void }>();
 
   constructor(options: WorkerHostOptions) {
     this.#options = options;
     this.#deviceHomes = options.deviceHomes ?? { claude: deviceClaudeHome(process.env), codex: deviceCodexHome(process.env) };
+    this.#files = new AttachmentFiles(options.dataDir);
+    this.#previews = new PreviewStore(options.dataDir);
+    this.#previews.prune();
+  }
+
+  /** Hello.attachments_root. */
+  get attachmentsRoot(): string {
+    return this.#files.root;
   }
 
   get config(): AppliedConfig | undefined {
@@ -133,6 +158,31 @@ export class WorkerHost {
 
   detach(link: GatewayLink): void {
     if (this.#link === link) this.#link = undefined;
+    // The redelivered StartTurn asks again on the next link.
+    for (const [id, fetch] of this.#fetches) {
+      this.#fetches.delete(id);
+      fetch.reject(new AttachmentError("the gateway link closed while an attachment was on its way", false));
+    }
+  }
+
+  /** A chunk of an attachment the worker asked for (FetchBlob). */
+  handleBlobChunk(chunk: BlobChunk): void {
+    const fetch = this.#fetches.get(chunk.requestId);
+    if (!fetch) return;
+    if (chunk.error) {
+      this.#fetches.delete(chunk.requestId);
+      fetch.reject(new AttachmentError(`the gateway could not hand over the attachment: ${chunk.error}`, true));
+      return;
+    }
+    fetch.chunks.push(chunk.data);
+    if (!chunk.last) return;
+    this.#fetches.delete(chunk.requestId);
+    fetch.resolve(new Uint8Array(Buffer.concat(fetch.chunks)));
+  }
+
+  /** Previews an event points to, sent on `link` before the event (journal resend after Welcome). */
+  sendPreviews(link: GatewayLink, event: ThreadEvent): void {
+    this.#previews.sendFor(link, event, (chunk) => link.send({ case: "blobChunk", value: chunk }));
   }
 
   async applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit> {
@@ -236,7 +286,7 @@ export class WorkerHost {
     for (const turn of open) {
       const { events, record } = await this.#options.runtime.runPromise(reconcileTurn(turn, WORKER_RESTARTED));
       if (record) fromTranscript++;
-      for (const event of events) this.#send({ case: "threadEvent", value: event });
+      for (const event of events) this.#sendEvent(event);
     }
     return { turns: open.length, tasks: await this.#closeOrphans(() => true, "worker_restart"), fromTranscript };
   }
@@ -261,6 +311,7 @@ export class WorkerHost {
         const spec = kind.value.thread;
         if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
         this.#checkCwd(config, spec.cwd);
+        this.#cwds.set(spec.threadId, spec.cwd);
         const fork = kind.value.fork;
         if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.create(spec, fork));
         else await this.#runCodex(spec.provider, (threads) => threads.create(spec, fork), this.#codexGroupOf(spec.providerProfileId));
@@ -269,6 +320,9 @@ export class WorkerHost {
       case "startTurn": {
         const { thread: spec, turnId, input, model, effort, permissionMode } = kind.value;
         if (!spec || !input) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
+        this.#cwds.set(spec.threadId, spec.cwd);
+        // The files first: the input already names their paths.
+        if (input.attachments.length > 0) await this.#ensureAttachments(spec.threadId, input.attachments);
         // UNSPECIFIED (an older gateway): the thread's mode.
         const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode };
         if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.startTurn(spec, turnId, input, settings));
@@ -498,6 +552,9 @@ export class WorkerHost {
       publish: (event) => this.#publish(event),
       interact: (request) => this.#interact(request),
       callTool: (call) => this.#callTool(call),
+      attachmentsDir: (threadId) => this.#files.threadDir(threadId),
+      viewImage: (threadId, cwd, path) => this.#viewImage(threadId, cwd, path),
+      enrich: (init) => this.#previews.enrich(init),
     });
     const scope = await Effect.runPromise(Scope.make());
     const context = await this.#options.runtime.runPromise(Layer.buildWithScope(layer, scope));
@@ -528,6 +585,8 @@ export class WorkerHost {
       publish: (event) => this.#publish(event),
       interact: (request) => this.#interact(request),
       callTool: (call) => this.#callTool(call),
+      viewImage: (threadId, path) => this.#viewImage(threadId, this.#cwds.get(threadId) ?? "", path),
+      enrich: (init) => this.#previews.enrich(init),
     });
     const scope = await Effect.runPromise(Scope.make());
     const context = await this.#options.runtime.runPromise(Layer.buildWithScope(layer, scope));
@@ -562,7 +621,7 @@ export class WorkerHost {
       const event = await this.#options.runtime.runPromise(
         Journal.use((j) => j.append(threadId, { body: { case: "itemCompleted", value: { item: ended } } })),
       );
-      this.#send({ case: "threadEvent", value: event });
+      this.#sendEvent(event);
       closed++;
     }
     return closed;
@@ -577,7 +636,70 @@ export class WorkerHost {
       this.#running.delete(key);
       if (this.#rebuildWanted && this.#running.size === 0) void this.#reconcileRuntimes();
     }
+    this.#sendEvent(event);
+  }
+
+  #sendEvent(event: ThreadEvent): void {
+    const link = this.#link;
+    if (!link) return; // journaled: resent (with its previews) after the next Welcome
+    try {
+      this.sendPreviews(link, event);
+    } catch {
+      // link closed meanwhile
+    }
     this.#send({ case: "threadEvent", value: event });
+  }
+
+  // ------------------------------------------------------------------ attachments and images
+
+  async #ensureAttachments(threadId: string, attachments: readonly InputAttachment[]): Promise<void> {
+    try {
+      await this.#files.ensure(threadId, attachments, (sha256) => this.#fetchBlob(threadId, sha256));
+    } catch (error) {
+      if (error instanceof AttachmentError) throw new CommandError("ATTACHMENT_UNAVAILABLE", error.message, error.final);
+      throw new CommandError("ATTACHMENT_UNAVAILABLE", `attachments could not be written: ${error instanceof Error ? error.message : String(error)}`, false);
+    }
+  }
+
+  #fetchBlob(threadId: string, sha256: string): Promise<Uint8Array> {
+    const link = this.#link;
+    if (!link) return Promise.reject(new AttachmentError("not connected to the gateway", false));
+    const requestId = Bun.randomUUIDv7();
+    return new Promise<Uint8Array>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.#fetches.delete(requestId);
+        reject(new AttachmentError("the gateway did not hand over the attachment in time", false));
+      }, FETCH_TIMEOUT_MS);
+      this.#fetches.set(requestId, {
+        chunks: [],
+        resolve: (data) => (clearTimeout(timer), resolve(data)),
+        reject: (error) => (clearTimeout(timer), reject(error)),
+      });
+      try {
+        link.send({ case: "fetchBlob", value: { requestId, threadId, sha256 } });
+      } catch {
+        this.#fetches.delete(requestId);
+        clearTimeout(timer);
+        reject(new AttachmentError("the gateway link closed", false));
+      }
+    });
+  }
+
+  /** view_image: an image from the thread's working directory or attachments, scaled for any model. */
+  async #viewImage(threadId: string, cwd: string, path: string): Promise<ViewImageResult> {
+    try {
+      if (!cwd) return { ok: false, message: "view_image: the thread's working directory is not known on this worker yet" };
+      const image = await viewImage(path, { cwd, roots: [cwd, this.#files.threadDir(threadId)] });
+      const scaled = image.width !== image.originalWidth || image.height !== image.originalHeight;
+      return {
+        ok: true,
+        base64: Buffer.from(image.data).toString("base64"),
+        mimeType: image.mimeType,
+        summary: `${image.path}: ${image.originalWidth}×${image.originalHeight} px${scaled ? `, shown at ${image.width}×${image.height}` : ""} (${image.mimeType}).`,
+      };
+    } catch (error) {
+      return { ok: false, message: `view_image: ${error instanceof ImageError ? error.message : `the image could not be read (${error instanceof Error ? error.message : String(error)})`}` };
+    }
   }
 
   #interact(request: InteractionRequest): Promise<InteractionResponse> {

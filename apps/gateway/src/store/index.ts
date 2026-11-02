@@ -7,3 +7,4 @@ export { decryptSecret, encryptSecret, loadSecretsKey } from "./secrets.ts";
 export { applyModelSelections, ModelStore, modelProblem, turnEffort, type ModelSelectionRule } from "./models.ts";
 export { NATIVE_PROFILE_ID, ProfileConflict, ProfileStore, type ModelSelectionRow } from "./profiles.ts";
 export { SteerStore, toUiSteer, type SteerRow } from "./steers.ts";
+export { AttachmentStore, toUiAttachment, type AttachmentRow, type StoredAttachment } from "./attachments.ts";

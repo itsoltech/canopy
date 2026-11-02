@@ -90,6 +90,12 @@ Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test
 - `call_id` z id `tool_use` (z `_meta` wywołania albo dopasowany po nazwie i argumentach ze strumienia), więc ponowione wywołanie po ponownym połączeniu dostaje zapisany wynik.
 - Narzędzia szyny są dozwolone w każdym trybie uprawnień (`allowedTools`); autoryzuje je gateway.
 
+## Załączniki i obrazy
+
+- Katalog załączników wątku (`<data_dir>/attachments/<thread_id>`) jest w `additionalDirectories`: `Read` czyta załączniki bez pytania w każdym trybie (sprawdzone na żywo w trybie `ASK`).
+- `mcp__openagents__view_image` ([agent-bus.md](agent-bus.md#view_image)) — serwer `openagents` jest zawsze, narzędzia szyny tylko z `enable_agent_bus`. Mapowanie: item `image` (`source = view_image`), błąd w `detail`.
+- Obrazy w `tool_result` (np. `Read` na pliku obrazu) → `ToolCall.images`: podgląd z bloku `image` (base64) wyniku, czyli dokładnie to, co dostał model.
+
 ## Izolacja
 
 - **`CLAUDE_CONFIG_DIR`** = `<data_dir>/claude-home`. Ustawienia, hooki, wtyczki i serwery MCP właściciela urządzenia nie działają w wątkach platformy. Dowiązane jest tylko logowanie (`.credentials.json`), chyba że worker używa CLIProxyAPI.
