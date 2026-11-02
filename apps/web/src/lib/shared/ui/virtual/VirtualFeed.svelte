@@ -7,6 +7,7 @@
   import { UiMemory } from "../memory.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
+  import { FEED_END_THRESHOLD, type ReaderScroll } from "#lib/features/threads/components/composer-compaction.ts";
 
   /**
    * A chat's scroll area: one scroll container with the rows (`role="feed"`, virtualized) and a sticky
@@ -41,6 +42,8 @@
     footer,
     inserted,
     atEnd = $bindable(true),
+    onreaderscroll,
+    onlatest,
   }: {
     rows: readonly T[];
     key: (row: T) => string;
@@ -59,6 +62,8 @@
     inserted?: (row: T) => "unfold" | "reveal" | undefined;
     /** Out: the reader follows the end (the latest rows are on screen). */
     atEnd?: boolean;
+    onreaderscroll?: (scroll: ReaderScroll) => void;
+    onlatest?: () => void;
   } = $props();
 
   const uid = $props.id();
@@ -76,6 +81,9 @@
   let scrollTop = $state(0);
   let listTop = $state(0);
   let footerHeight = $state(0);
+  // Retain released footer space below the messages while reading. Even a tall queue collapsing
+  // cannot clamp scrollTop or move the reading anchor; the live footer/backdrop still get smaller.
+  let reservedFooter = $state(0);
   /** Width of the scroller's vertical scrollbar (the backdrop under the composer stops before it). */
   let gutter = $state(0);
   let measured = $state(0);
@@ -179,7 +187,10 @@
             const target = entry.target as HTMLElement;
             const height = entry.borderBoxSize[0]?.blockSize ?? target.offsetHeight;
             if (target === scroller) measuredViewport = target.clientHeight;
-            else if (target === footerElement) measuredFooter = height;
+            else if (target === footerElement) {
+              reservedFooter = stuck ? height : Math.max(reservedFooter, measuredFooter, height);
+              measuredFooter = height;
+            }
             else if (target.dataset.key) {
               const at = positions.get(target.dataset.key);
               const meta = at === undefined ? undefined : sized[at];
@@ -225,6 +236,7 @@
   let expected = Number.NaN;
   let lastTop = 0;
   let smoothUntil = 0;
+  let readerUntil = 0;
 
   function setTop(value: number) {
     if (!scroller) return;
@@ -275,8 +287,11 @@
     expected = Number.NaN;
     if (!ours) {
       const distance = scroller.scrollHeight - top - scroller.clientHeight;
-      if (distance <= 8) stuck = true;
+      if (distance <= FEED_END_THRESHOLD) stuck = true;
       else if (top < lastTop - 0.5) stuck = false;
+      if (performance.now() < readerUntil && performance.now() >= smoothUntil) {
+        onreaderscroll?.({ distance, up: lastTop - top });
+      }
     }
     lastTop = top;
     scrollTop = top;
@@ -284,6 +299,7 @@
   }
 
   function onwheel(event: WheelEvent) {
+    readerUntil = performance.now() + 250;
     // Scrolling up during a stream: let go at once, before the next growth pins the end again.
     if (event.deltaY < 0 && scroller && scroller.scrollHeight > scroller.clientHeight + 8) stuck = false;
   }
@@ -295,6 +311,7 @@
 
   function jump() {
     if (!scroller) return;
+    onlatest?.();
     stuck = true;
     const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
     const smooth = distance < viewport * 2 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -363,7 +380,7 @@
     if (event.ctrlKey && event.key === "End") {
       event.preventDefault();
       // The message box first, else the first control of the footer.
-      const field = footerElement?.querySelector<HTMLElement>("textarea:not([disabled])") ?? footerElement?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])");
+      const field = footerElement?.querySelector<HTMLElement>('[contenteditable="true"], textarea:not([disabled])') ?? footerElement?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])");
       field?.focus();
       return;
     }
@@ -391,7 +408,8 @@
 </script>
 
 <div class="relative h-full">
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- The labelled, focusable scroll region supports native scrolling keys. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 <div
   bind:this={scroller}
   {id}
@@ -403,6 +421,11 @@
   {onscroll}
   {onscrollend}
   {onwheel}
+  ontouchmove={() => { readerUntil = performance.now() + 250; }}
+  onpointerdown={() => { readerUntil = performance.now() + 250; }}
+  onkeydown={(event) => {
+    if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerUntil = performance.now() + 250;
+  }}
 >
   <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">
     {@render top?.()}
@@ -428,6 +451,7 @@
         {/each}
       </div>
     </div>
+    <div aria-hidden="true" style:height="{stuck ? 0 : Math.max(0, reservedFooter - footerHeight)}px" class="shrink-0"></div>
     <div bind:this={footerElement} class="sticky bottom-0 z-10 pb-[max(--spacing(3),env(safe-area-inset-bottom))]">
       {#if !stuck}
         <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2" transition:rise>

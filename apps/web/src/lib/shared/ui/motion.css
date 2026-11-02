@@ -361,6 +361,62 @@
 }
 
 /* --- Toast (22): rises with fade + cross-blur on --duration-slow, leaves on --duration-medium. -------- */
+/* Composer: preserve mounted drafts, fold tools/panels, open slower than close. */
+.t-composer-slot {
+  min-height: --spacing(44);
+  transition: min-height var(--duration-slow) var(--ease-smooth-out);
+}
+.t-composer-slot[data-compact] {
+  min-height: 0;
+  transition-duration: var(--duration-medium);
+}
+.t-composer-editor {
+  padding: --spacing(3.5) --spacing(4) 0;
+  transition: padding-bottom var(--duration-slow) var(--ease-smooth-out);
+}
+[data-compact] > .t-composer-editor {
+  padding-right: --spacing(14);
+  padding-bottom: --spacing(3.5);
+  transition-duration: var(--duration-medium);
+}
+[data-compact][data-panels] > .t-composer-editor { padding-right: calc(45% + --spacing(13)); }
+.t-composer-input {
+  min-height: --spacing(16);
+  max-height: --spacing(72);
+  overflow-y: auto;
+  transition: min-height var(--duration-slow) var(--ease-smooth-out), max-height var(--duration-slow) var(--ease-smooth-out);
+}
+.t-composer-input[data-single-line] {
+  min-height: --spacing(6);
+  max-height: --spacing(6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition-duration: var(--duration-medium);
+}
+.t-composer-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-medium) var(--ease-smooth-out);
+}
+.t-composer-fold[data-open] {
+  grid-template-rows: 1fr;
+  transition-duration: var(--duration-slow);
+}
+.t-composer-fold > * {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--duration-medium) var(--ease-smooth-out);
+}
+.t-composer-fold[data-open] > * {
+  opacity: 1;
+  transition-duration: var(--duration-slow);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-composer-slot, .t-composer-editor, .t-composer-input,
+  .t-composer-fold, .t-composer-fold > * { transition: none !important; }
+}
+
 .t-toast {
   opacity: 1;
   translate: 0 0;

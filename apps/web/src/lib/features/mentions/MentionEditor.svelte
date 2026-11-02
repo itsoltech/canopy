@@ -53,6 +53,7 @@
     placeholder = "",
     disabled = false,
     autofocus = false,
+    singleLine = false,
     sources,
     triggers = new Set<TriggerChar>(["/", "$", "@", "#"]),
     anchor,
@@ -68,6 +69,8 @@
     placeholder?: string;
     disabled?: boolean;
     autofocus?: boolean;
+    /** Clip an unfocused draft to its first line without remounting the editor or losing undo. */
+    singleLine?: boolean;
     /** Where options come from; without it the field is plain text with line breaks. */
     sources?: MentionSources | undefined;
     triggers?: ReadonlySet<TriggerChar>;
@@ -81,6 +84,7 @@
   } = $props();
 
   let root = $state<HTMLDivElement>();
+  $effect(() => { if (singleLine && root) root.scrollTop = 0; });
   let composing = $state(false);
   /** What the DOM holds now (to tell outside changes of value/mentions from our own). */
   let shown = { text: "", key: "" };
@@ -425,7 +429,8 @@
     contenteditable={disabled ? "false" : "true"}
     spellcheck="true"
     tabindex={disabled ? -1 : 0}
-    class={["col-start-1 row-start-1 max-h-72 min-h-16 overflow-y-auto break-words whitespace-pre-wrap text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px", className]}
+    class={["t-composer-input col-start-1 row-start-1 break-words whitespace-pre-wrap text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px", className]}
+    data-single-line={singleLine || undefined}
     oninput={(event) => {
       if (!inBlockArea(event.target) || inBlock(event.target)) sync(!(event instanceof InputEvent && event.inputType.startsWith("history")));
     }}

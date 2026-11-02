@@ -45,6 +45,9 @@
     note,
     onsent,
     leading,
+    compact = false,
+    panelsLabel,
+    onexpand,
     class: className,
   }: {
     thread: ui.Thread;
@@ -55,6 +58,9 @@
     onsent?: ((response: ui.SendMessageResponse) => void) | undefined;
     /** Extra controls at the start of the box's bottom row (e.g. setting a goal). */
     leading?: Snippet | undefined;
+    compact?: boolean;
+    panelsLabel?: string;
+    onexpand?: (() => void) | undefined;
     class?: ClassValue;
   } = $props();
 
@@ -156,6 +162,9 @@
 <form class={["grid grid-cols-1 gap-2", className]} onsubmit={submit}>
   {#if error}<Alert tone="error">{error}</Alert>{/if}
   <ComposerBox
+    {compact}
+    {panelsLabel}
+    {onexpand}
     bind:value={text}
     bind:mentions
     {sources}

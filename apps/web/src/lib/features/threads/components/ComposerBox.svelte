@@ -61,6 +61,9 @@
     allowEmpty = false,
     sendLabel = "Send",
     secret = false,
+    compact = false,
+    panelsLabel,
+    onexpand,
     class: className,
   }: {
     value?: string;
@@ -88,6 +91,9 @@
     allowEmpty?: boolean;
     sendLabel?: string;
     secret?: boolean;
+    compact?: boolean;
+    panelsLabel?: string | undefined;
+    onexpand?: (() => void) | undefined;
     class?: ClassValue;
   } = $props();
   const triggers: ReadonlySet<TriggerChar> = new Set(["/", "$", "@", "#"]);
@@ -106,9 +112,11 @@
     dragging = false;
     if (!onfiles || !carriesFiles(event)) return;
     event.preventDefault();
+    onexpand?.();
     onfiles(filesOf(event.dataTransfer));
   }
   function onpaste(event: ClipboardEvent) {
+    onexpand?.();
     const files = filesOf(event.clipboardData);
     if (!onfiles || files.length === 0) return;
     // A screenshot comes without text: nothing else to paste. Text with files (an office copy) pastes as well.
@@ -129,28 +137,34 @@
   }
 </script>
 
-<div class={["grid grid-cols-1 gap-2", className]}>
+<div class={["grid grid-cols-1", className]}>
   <div
     class={[
-      "rounded-2xl bg-white shadow-sm ring-1 has-focus-visible:ring-zinc-950/25 dark:bg-zinc-950 dark:shadow-none dark:has-focus-visible:ring-white/20",
+      "relative rounded-2xl bg-white shadow-sm ring-1 has-focus-visible:ring-zinc-950/25 dark:bg-zinc-950 dark:shadow-none dark:has-focus-visible:ring-white/20",
       disabled && "opacity-70",
       dragging ? "ring-2 ring-brand-600 dark:ring-brand-500" : "ring-zinc-950/10 dark:ring-white/10",
     ]}
     bind:this={box}
+    data-compact={compact || undefined}
+    data-panels={Boolean(panelsLabel) || undefined}
     role="group"
     aria-label={onfiles ? `${label}, drop files to attach` : undefined}
     ondragover={(event) => {
       if (!onfiles || !carriesFiles(event)) return;
       event.preventDefault();
       dragging = true;
+      onexpand?.();
     }}
     ondragleave={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dragging = false;
     }}
     {ondrop}
   >
-    {#if draft}<DraftTray {draft} class="px-3 pt-3" />{/if}
-    {@render elements?.()}
+    <div class="t-composer-fold" data-open={!compact || undefined} inert={compact}><div>
+      {#if draft}<DraftTray {draft} class="px-3 pt-3" />{/if}
+      {@render elements?.()}
+    </div></div>
+    <div class="t-composer-editor">
     {#if secret}
       <label for="{id}-secret" class="sr-only">{label}</label>
       <Input id="{id}-secret" type="password" bare bind:value {placeholder} {disabled} {onkeydown} autocomplete="off" class="px-4 pt-3.5 pb-4 text-base/6 sm:text-sm/6" />
@@ -169,12 +183,15 @@
       anchor={box}
       {onkeydown}
       {onpaste}
-      class={["px-4 pt-3.5 text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
+      singleLine={compact}
+      class={["text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
     />
     {/if}
+    </div>
     <input type="hidden" {name} value={trimmed.text} />
     {#if trimmed.mentions.length > 0}<input type="hidden" name="mentions" value={JSON.stringify(mentionsToWire(trimmed.mentions))} />{/if}
-    <div class="flex items-center justify-end gap-2 p-2.5 pl-3">
+    <div class="t-composer-fold" data-open={!compact || undefined} inert={compact}><div>
+    <div class="flex min-h-13 items-center justify-end gap-2 p-2.5 pr-13 pl-3">
       {#if steerMode}
         <p class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden pointer-coarse:hidden dark:text-zinc-400" aria-hidden="true" in:rise>
           <Kbd hotkey="Enter" />{primary}<Kbd hotkey="Mod+Enter" class="ml-1" />{primary === "queue" ? "steer" : "queue"}
@@ -184,6 +201,13 @@
         <ComposerPlusMenu {onfiles} {triggers} {disabled} ontrigger={sources ? (char) => editor?.insertTrigger(char) : undefined} />
       {/if}
       {@render controls?.()}
+    </div></div></div>
+    {#if compact && panelsLabel}
+      <div class="absolute right-13 bottom-3 max-w-[45%] truncate text-sm/6 tabular-nums">
+        <button type="button" class="rounded-md px-2 text-zinc-500 focus-ring hover:bg-zinc-950/5 dark:text-zinc-400 dark:hover:bg-white/5" aria-label={`Expand composer: ${panelsLabel}`} onclick={onexpand}>{panelsLabel}</button>
+      </div>
+    {/if}
+    <div class="absolute right-2.5 bottom-2.5">
       <ResizeSlot>
         {#if steerMode && onqueue}
           <SteerSendButton
@@ -221,6 +245,8 @@
     </div>
   </div>
   {#if meta}
-    <div class="flex min-w-0 items-center justify-between gap-3 px-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{@render meta()}</div>
+    <div class="t-composer-fold" data-open={!compact || undefined} inert={compact}><div>
+      <div class="flex min-w-0 items-center justify-between gap-3 px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{@render meta()}</div>
+    </div></div>
   {/if}
 </div>
