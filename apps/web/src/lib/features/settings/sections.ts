@@ -16,6 +16,7 @@ export const settingsSections: readonly SettingsSection[] = [
   { href: "/settings/schedules", label: "Scheduled tasks", icon: "clock", group: "General", keywords: "schedule cron recurring repeat wake-up timer automation" },
   { href: "/settings/projects", label: "Projects", icon: "folder", group: "Code", keywords: "project workspace directory threads" },
   { href: "/settings/providers", label: "Providers", icon: "cpu-chip", group: "Connections", keywords: "provider instance codex claude cliproxyapi endpoint key login models favorites environment" },
+  { href: "/settings/connectors", label: "Connectors", icon: "link", group: "Connections", keywords: "github slack outlook microsoft notion linear google atlassian mcp oauth accounts integrations access" },
   { href: "/settings/workers", label: "Workers", icon: "server", group: "Connections", keywords: "worker machine environment device online config" },
 ];
 

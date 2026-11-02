@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Component } from "svelte";
+  import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import { ItemStatus, type ToolCall } from "@open-agents/contracts";
   import { parseObject } from "#lib/shared/format.ts";
   import SeenImage from "#lib/features/attachments/SeenImage.svelte";
@@ -54,9 +56,10 @@
 </script>
 
 <ItemFrame icon={look.icon} {status} tone={failed ? "rose" : "neutral"}>
+  {#snippet lead()}{#if call.connectorAccountId}<ConnectorIcon type={call.connectorType} />{:else}<Icon name={look.icon} class={failed ? 'fill-rose-500 dark:fill-rose-400' : 'fill-zinc-400 dark:fill-zinc-500'} />{/if}{/snippet}
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
-      <span class="shrink-0 text-zinc-800 dark:text-zinc-200">{look.title}</span>
+      <span class="min-w-0 truncate text-zinc-800 dark:text-zinc-200">{call.connectorAccountId ? `${call.server} · ${call.connectorAccountName} · ${call.name.split('__').at(-1)?.replaceAll('_', ' ')}` : look.title}</span>
       {#if look.subject}
         <span class={["truncate text-zinc-500 dark:text-zinc-400", look.mono && "font-mono text-xs"]} title={look.subjectTitle}>{look.subject}</span>
       {/if}

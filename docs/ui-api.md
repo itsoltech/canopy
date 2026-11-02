@@ -1,5 +1,20 @@
 # API dla UI i architektura frontendu
 
+## Connectors
+
+`connectors.proto` i osiem RPC `GatewayService` obsługują katalog, nazwane konta,
+granty, test, disconnect, aplikacje OAuth oraz begin/complete autoryzacji.
+Publiczne DTO nie zwracają poświadczeń. BFF `/api/connectors/**` ustawia prywatne
+cookie sesji OAuth i przekazuje callback do gateway. Wynik callbacku jest jawny
+(`account` albo bezpieczny `error`) i kończy redirect również po odmowie/wygaśnięciu.
+
+Settings → Connectors korzysta z istniejących Dialog/Select/Checkbox/Disclosure.
+`features/connectors` dzieli konto, access picker, formularz aplikacji OAuth,
+formularz połączenia i katalog narzędzi. Wspólne `useConnectorAccounts` ładuje
+katalog dla bota/composera/wątku i odrzuca spóźnione odpowiedzi po zmianie widoku.
+`ToolCall.connector_account_id/type/name` (520–522) zapewniają logo i etykietę konta
+na osi czasu; gateway kanonizuje je z własnego katalogu. [Projekt i ograniczenia](connectors.md).
+
 ## No project i katalogi scratch
 
 `GetOverview.projects` zawiera projekt systemowy właściciela o `Project.kind = "scratch"`

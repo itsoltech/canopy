@@ -1,5 +1,11 @@
 # Sekrety wątków
 
+Poświadczenia zewnętrznych aplikacji opisuje [Connectors](connectors.md).
+Konta używają tego samego klucza AES-256-GCM gateway, ale ich tokeny/nagłówki
+nie korzystają z dostarczania plików sekretów na worker. Worker i model dostają
+wyłącznie katalog oraz zredagowane wyniki proxy. Migracja dawnych bot MCP
+zachowuje istniejące odwołania do zaszyfrowanych sekretów nagłówków.
+
 ## Badanie T3 Code (2026-11-02)
 
 Źródło: publiczne repozytorium [pingdotgg/t3code](https://github.com/pingdotgg/t3code),

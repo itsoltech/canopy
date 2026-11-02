@@ -21,7 +21,6 @@
   let loading = $state(false);
   let loadError = $state('');
   let providers = $state.raw<ui.ProviderInstance[]>([]);
-  let servers = $state<bots.BotMcpServer[]>([]);
   let deleting = $state(false);
   let deletingBusy = $state(false);
   let deleteError = $state('');
@@ -36,10 +35,9 @@
       loadError = '';
       loading = true;
       try {
-        const [instancesJson, serversJson] = await Promise.all([requestJson('GET', '/api/providers'), requestJson('GET', '/api/bot-mcp-servers')]);
+        const instancesJson = await requestJson('GET', '/api/providers');
         if (generation !== version) return;
         providers = decode(ui.ListProviderInstancesResponseSchema, instancesJson).instances;
-        servers = decode(bots.ListBotMcpServersResponseSchema, serversJson).servers;
         open = true;
       } catch (cause) { if (generation === version) loadError = cause instanceof Error ? cause.message : 'Could not load bot settings.'; }
       finally { if (generation === version) loading = false; }
@@ -71,7 +69,7 @@
 </script>
 
 {#if bot}
-  <BotSettingsDialog bind:open {bot} {providers} {instances} bind:servers onarchive={archive} ondelete={() => { deleting = true; deleteError = ''; }} />
+  <BotSettingsDialog bind:open {bot} {providers} {instances} onarchive={archive} ondelete={() => { deleting = true; deleteError = ''; }} />
   <Dialog bind:open={deleting} title="Delete {bot.configuration?.name ?? 'bot'}?" description="The bot and its conversation will disappear from Canopy. This cannot be undone." dismissible={!deletingBusy}>
     {#if deleteError}<Alert tone="error">{deleteError}</Alert>{/if}
     <DialogActions><Button disabled={deletingBusy} onclick={() => (deleting = false)}>Keep bot</Button><Button variant="primary" loading={deletingBusy} onclick={remove}>Delete bot</Button></DialogActions>

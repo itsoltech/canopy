@@ -1,5 +1,6 @@
 import { MentionKind, type Mention } from "@open-agents/contracts";
 import { mentionLabel } from "@open-agents/domain";
+import { connectorMarks } from "#lib/features/connectors/marks.ts";
 import { icons, lineIcons, type IconName, type SolidIconName } from "#lib/shared/ui/icons.ts";
 
 /**
@@ -34,6 +35,8 @@ export function kindLook(m: Pick<Mention, "kind" | "isDir">): KindLook {
       return m.isDir ? { icon: "folder", label: "Files" } : { icon: "document-text", label: "Files" };
     case MentionKind.THREAD:
       return { icon: "chat-bubble-left", label: "Threads" };
+    case MentionKind.CONNECTOR:
+      return { icon: "link", label: "Connectors" };
     default:
       return { icon: "link", label: "Mentions" };
   }
@@ -65,7 +68,8 @@ export const INLINE_RENDERERS: { readonly [T in InlineElement["type"]]: { html(e
   mention: {
     html: ({ mention }) => {
       const icon = safeIcon(mention.icon);
-      const glyph = icon ? `<img src="${escape(icon)}" alt="" class="${CHIP_IMAGE_CLASS}">` : iconSvg(kindLook(mention).icon);
+      const mark = mention.kind === MentionKind.CONNECTOR ? connectorMarks[mention.source] : undefined;
+      const glyph = mark ? `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="${CHIP_ICON_CLASS}"><path d="${mark}"/></svg>` : icon ? `<img src="${escape(icon)}" alt="" class="${CHIP_IMAGE_CLASS}">` : iconSvg(kindLook(mention).icon);
       const data = escape(JSON.stringify({ ...mention, kind: mention.kind }));
       return `<span contenteditable="false" data-element="mention" data-mention="${data}" class="${CHIP_CLASS}" title="${escape(chipTitle(mention))}">${glyph}<span class="truncate">${escape(mentionLabel(mention))}</span></span>`;
     },
@@ -81,6 +85,8 @@ export function chipTitle(m: MentionData): string {
       return m.name;
     case MentionKind.THREAD:
       return `Thread: ${m.label || m.name}`;
+    case MentionKind.CONNECTOR:
+      return `Connector: ${m.label || m.name}`;
     default:
       return `$${m.name}`;
   }
