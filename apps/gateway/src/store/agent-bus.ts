@@ -342,7 +342,7 @@ export class AgentBusStore extends Context.Service<
             kind: row.kind,
             parent_thread_id: row.parent_thread_id,
             status: row.status,
-            provider: agentKey({ harness: row.provider === "claude" ? "claude" : "codex", instance: row.provider_profile_id ?? "" }),
+            provider: agentKey({ harness: row.provider === "claude" ? "claude" : row.provider === "grok" ? "grok" : "codex", instance: row.provider_profile_id ?? "" }),
             project: row.project ?? "",
             worker: row.worker ?? "",
             settled: row.running === 0 && row.queued === 0 && row.status !== "creating",

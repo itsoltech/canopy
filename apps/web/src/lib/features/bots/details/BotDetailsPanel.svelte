@@ -52,7 +52,7 @@
     <MascotFace {shape} color={config.color} legacy={shape ? undefined : mascotFor(bot.id, config.shape)} state={status ? stateForStatus(status) : 'idle'} event={bot.lastMessage?.id} label={participant.name} class="size-28" />
     <div class="grid min-w-0 max-w-full gap-1">
       <h2 class="text-xl font-semibold text-balance wrap-anywhere tracking-tight text-zinc-950 dark:text-white">{participant.name}</h2>
-      <p class="text-pretty text-zinc-500 wrap-anywhere dark:text-zinc-400">{modelDisplayName(config.model)} · {config.provider === Provider.CODEX ? 'Codex' : 'Claude'}</p>
+      <p class="text-pretty text-zinc-500 wrap-anywhere dark:text-zinc-400">{modelDisplayName(config.model)} · {config.provider === Provider.CODEX ? 'Codex' : config.provider === Provider.GROK ? 'Grok' : 'Claude'}</p>
     </div>
     <Button size="sm" variant="secondary" icon="cog-6-tooth" onclick={() => openBotSettings(bot.id)}>Bot settings</Button>
   </div>

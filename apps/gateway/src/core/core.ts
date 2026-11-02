@@ -95,6 +95,7 @@ import type { BotModel, BotTurn, StoredCall } from "../bots/types.ts";
 import { botPlatform, describeBotTool } from "../bots/platform.ts";
 import { ThreadSecrets } from "./thread-secrets.ts";
 import { ActionContext } from "./action-context.ts";
+import { providerOf } from "../store/instance-config.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -870,7 +871,7 @@ export class GatewayCore {
     if (goal !== undefined && files) throw new InvalidError("a /goal message cannot carry attachments");
     const row = await this.#run((s) => s.createThread(this.#options.userId, { ...request, effort, initialMessage: "" }));
     if (goal === undefined) {
-      const provider = request.provider === Provider.CLAUDE ? "claude" : "codex";
+      const provider = harnessOf(request.provider)!;
       const input = this.#composeInput(provider, request.initialMessage, mentions, files?.input(row.id, request.initialMessage));
       await this.#run((s) =>
         s.enqueueTurn({
@@ -1128,7 +1129,7 @@ export class GatewayCore {
       if (!thread.worker_id || thread.runtime !== "worker") throw new InvalidError("this thread has no worker");
       return {
         workerId: thread.worker_id,
-        provider: thread.provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
+        provider: providerOf(thread.provider),
         profileId: thread.provider_profile_id || "native",
         cwd: thread.cwd ?? "",
       };
@@ -1201,7 +1202,7 @@ export class GatewayCore {
     if (mentions.length === 0) return quotes.length > 0 ? withQuotes(base ?? { text: message, message }, quotes) : base;
     // The quotes' note joins the other notes before the message, so the mentions' ranges shift past it too.
     const note = joinNotes(base?.note ?? "", quotesNote(quotes));
-    const composed = composeMessage(provider === "claude" ? Provider.CLAUDE : Provider.CODEX, message, mentions, note ? [note] : []);
+    const composed = composeMessage(providerOf(provider), message, mentions, note ? [note] : []);
     return {
       ...base,
       text: composed.text,
@@ -1223,7 +1224,7 @@ export class GatewayCore {
     if (!workspace) return; // the store reports the missing workspace
     const worker = (await this.#workers()).find((w) => w.id === workspace.workerId);
     if (!worker || worker.appliedVersion === 0n) return;
-    const name = request.provider === Provider.CLAUDE ? "Claude" : "Codex";
+    const name = request.provider === Provider.CLAUDE ? "Claude" : request.provider === Provider.GROK ? "Grok" : "Codex";
     const provider = worker.providers.find((p) => p.provider === request.provider);
     if (!provider?.available) throw new InvalidError(`${name} is not available on ${worker.name}${provider?.detail ? `: ${provider.detail}` : ""}`);
     const profileId = request.providerProfileId || "native";
@@ -1441,7 +1442,7 @@ export class GatewayCore {
   async #generateTitle(thread: ThreadRow): Promise<void> {
     const settings = (await this.#settings((s) => s.user(thread.owner_user_id))).textGeneration;
     const explicit = !!settings?.model;
-    const provider = explicit ? settings!.provider : thread.provider === "claude" ? Provider.CLAUDE : Provider.CODEX;
+    const provider = explicit ? settings!.provider : providerOf(thread.provider);
     const profileId = (explicit ? settings!.profileId : thread.provider_profile_id) || "native";
     const workers = (await this.#workers()).filter((w) => this.online.has(w.id) && w.providerInstances.some((i) => i.harness === provider && i.id === profileId && i.enabled && i.available));
     const worker = workers.find((w) => w.id === thread.worker_id) ?? workers[0];
@@ -1450,6 +1451,7 @@ export class GatewayCore {
     const catalog = (await this.#forPickers(await this.#models((s) => s.catalogs([worker.id]))))[0];
     const listed = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profileId);
     const choice = explicit ? { model: settings!.model, effort: turnEffort(listed, settings!.model, settings!.effort) } : titleModel(listed, thread.settings.model ?? "");
+    if (provider === Provider.GROK && !/^grok-3-mini(?:-fast)?$/.test(choice.model)) throw new InvalidError("Choose grok-3-mini or grok-3-mini-fast for inexpensive Grok titles");
     const result = await connection.sendCommand({ case: "generateText", value: {
       provider, profileId, ...choice, prompt: titlePrompt(thread.title_context, settings?.threadTitleInstructions),
     } }, 32_000);
@@ -1618,7 +1620,7 @@ export class GatewayCore {
     let profileId: string;
     if ("thread" in where) {
       workerId = where.thread.worker_id ?? undefined;
-      provider = where.thread.provider === "claude" ? Provider.CLAUDE : Provider.CODEX;
+      provider = providerOf(where.thread.provider);
       profileId = where.thread.provider_profile_id ?? "";
     } else {
       const projects = await this.#run((s) => s.listProjects(this.#options.userId));
@@ -1717,9 +1719,9 @@ export class GatewayCore {
     if (!worker || worker.appliedVersion === 0n) return undefined;
     const catalog = (await this.#forPickers(await this.#models((s) => s.catalogs([worker.id])))).at(0);
     return worker.providerInstances
-      .filter((i) => i.enabled && (i.harness === Provider.CLAUDE || i.harness === Provider.CODEX))
+      .filter((i) => i.enabled && harnessOf(i.harness))
       .map((instance): SpawnInstance => {
-        const harness = instance.harness === Provider.CLAUDE ? "claude" : "codex";
+        const harness = harnessOf(instance.harness)!;
         const provider = worker.providers.find((p) => p.provider === instance.harness);
         const profile = worker.profiles.find((p) => p.id === instance.id && p.providers.includes(instance.harness));
         const models = catalog?.profiles.find((p) => p.provider === instance.harness && p.profileId === instance.id);
@@ -1862,7 +1864,7 @@ export class GatewayCore {
     if (request.textGeneration) {
       const t = request.textGeneration;
       if (t.threadTitleInstructions.length > 4_000 || t.profileId.length > 100 || t.model.length > 200 || t.effort.length > 40) throw new InvalidError("text generation setting is too long");
-      if (t.model && t.provider !== Provider.CLAUDE && t.provider !== Provider.CODEX) throw new InvalidError("text generation needs a provider instance");
+      if (t.model && !harnessOf(t.provider)) throw new InvalidError("text generation needs a provider instance");
       if (t.effort && !/^[a-z][a-z0-9_-]*$/.test(t.effort)) throw new InvalidError("invalid text generation effort");
     }
     const settings = await this.#settings((s) =>
@@ -1958,7 +1960,7 @@ export class GatewayCore {
       const spec = request.newThread;
       const placement = spec.placement || "any";
       if (!(PLACEMENTS as readonly string[]).includes(placement)) throw new InvalidError("unknown placement policy");
-      if (spec.provider !== Provider.CLAUDE && spec.provider !== Provider.CODEX) throw new InvalidError("choose a provider");
+      if (!harnessOf(spec.provider)) throw new InvalidError("choose a provider");
       if (!Object.values(PermissionMode).includes(spec.permissionMode)) throw new InvalidError("unknown permission mode");
       const project = (await this.#run((s) => s.listProjects(this.#options.userId))).find((p) => p.id === spec.projectId);
       if (!project) throw new InvalidError("project not found");
@@ -2046,6 +2048,7 @@ export class GatewayCore {
     if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
     if (thread.archived_at) throw new InvalidError("the thread is archived");
     if (thread.runtime !== "worker" || !thread.worker_id) throw new InvalidError("goals need a worker thread");
+    if (thread.provider === "grok") throw new InvalidError("Grok ACP goals are not supported yet");
     const claude = thread.provider === "claude";
     const current = await this.#goals((s) => s.latest(thread.id));
     const open = current && !isFinished(current.status) ? current : undefined;
@@ -2249,7 +2252,7 @@ function violates(error: unknown, constraint: string): boolean {
 function checkFavorites(favorites: ui.ModelFavorites): void {
   if (favorites.models.length > 200) throw new InvalidError("at most 200 favorite models");
   for (const f of favorites.models) {
-    if (f.provider !== Provider.CLAUDE && f.provider !== Provider.CODEX) throw new InvalidError("a favorite model needs a provider");
+    if (!harnessOf(f.provider)) throw new InvalidError("a favorite model needs a provider");
     if (!f.model || f.model.length > 200 || f.profileId.length > 100) throw new InvalidError("a favorite model needs a model id (at most 200 characters)");
   }
   const keys = favorites.models.map((f) => `${f.provider}/${f.profileId}/${f.model}`);

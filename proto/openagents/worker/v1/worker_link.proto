@@ -202,6 +202,7 @@ message WorkerConfig {
   repeated string allowed_roots = 2 [deprecated = true];
   ProviderConfig claude = 3;
   ProviderConfig codex = 4;
+  ProviderConfig grok = 640;
   repeated ProviderProfileConfig profiles = 5;
   NativeToolsConfig native_tools = 6;
   WorkerLimits limits = 7;
@@ -342,6 +343,7 @@ enum Provider {
   PROVIDER_UNSPECIFIED = 0;
   PROVIDER_CLAUDE = 1;
   PROVIDER_CODEX = 2;
+  PROVIDER_GROK = 3;
 }
 
 enum PermissionMode {

@@ -3,10 +3,10 @@ import { ui } from "@open-agents/contracts";
 import { Invalid } from "../../store/store.ts";
 import { define, json, message, object, str } from "./shared.ts";
 
-const defaults = object({ workspaceId: str, provider: { type: "string", enum: ["PROVIDER_UNSPECIFIED", "PROVIDER_CLAUDE", "PROVIDER_CODEX"] }, providerProfileId: str,
+const defaults = object({ workspaceId: str, provider: { type: "string", enum: ["PROVIDER_UNSPECIFIED", "PROVIDER_CLAUDE", "PROVIDER_CODEX", "PROVIDER_GROK"] }, providerProfileId: str,
   permissionMode: { type: "string", enum: ["PERMISSION_MODE_UNSPECIFIED", "PERMISSION_MODE_ASK", "PERMISSION_MODE_READ_ONLY", "PERMISSION_MODE_ACCEPT_EDITS", "PERMISSION_MODE_FULL_AUTO"] },
-  models: { type: "array", maxItems: 2, items: object({ provider: { type: "string", enum: ["PROVIDER_CLAUDE", "PROVIDER_CODEX"] }, model: str }, ["provider", "model"]) } });
-const textGeneration = object({ provider: { type: "string", enum: ["PROVIDER_UNSPECIFIED", "PROVIDER_CLAUDE", "PROVIDER_CODEX"] }, profileId: str, model: str, effort: str, threadTitleInstructions: str });
+  models: { type: "array", maxItems: 3, items: object({ provider: { type: "string", enum: ["PROVIDER_CLAUDE", "PROVIDER_CODEX", "PROVIDER_GROK"] }, model: str }, ["provider", "model"]) } });
+const textGeneration = object({ provider: { type: "string", enum: ["PROVIDER_UNSPECIFIED", "PROVIDER_CLAUDE", "PROVIDER_CODEX", "PROVIDER_GROK"] }, profileId: str, model: str, effort: str, threadTitleInstructions: str });
 export const settingsTools = [
   define("get_settings", "Settings: read user and project thread defaults and user text generation settings with versions. Appearance is excluded. Nested settings use protobuf JSON field names and enum names (e.g. provider=PROVIDER_CODEX).", object({}), "Checking settings", async ({ core }) => {
     const s = await core.settings();

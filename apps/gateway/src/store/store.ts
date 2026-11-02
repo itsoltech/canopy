@@ -33,6 +33,7 @@ import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 import { threadLifecycle, type ThreadLifecycle } from "./thread-lifecycle.ts";
 import { archivedPage } from "./archived-pagination.ts";
 import { threadSecretsStore, type ThreadSecretsStore } from "./thread-secrets.ts";
+import { harnessOf, providerOf } from "./instance-config.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -372,6 +373,7 @@ export class GatewayStore extends Context.Service<
                  AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)`;
             const point = rows[0];
             if (!point) return yield* Effect.fail(new Invalid("the turn is not in this thread's history"));
+            if (point.provider === "grok") return yield* Effect.fail(new Invalid("Grok ACP does not support session forks"));
             if (!["completed", "failed", "interrupted"].includes(point.status)) {
               return yield* Effect.fail(new Invalid(`turn ${point.ordinal} is ${point.status}: a fork starts after an ended turn`));
             }
@@ -662,9 +664,11 @@ export class GatewayStore extends Context.Service<
                      FOR SHARE OF p`,
                   "workspace",
                 );
-                const provider = request.provider === Provider.CLAUDE ? "claude" : "codex";
+                const provider = harnessOf(request.provider);
+                if (!provider) return yield* Effect.fail(new Invalid("unknown provider"));
                 const id = Bun.randomUUIDv7();
                 const parent = request.parentThreadId ? yield* store.thread(request.parentThreadId) : undefined;
+                if (parent?.provider === "grok" && request.fork) return yield* Effect.fail(new Invalid("Grok ACP does not support session forks"));
                 if (parent?.archived_at) return yield* Effect.fail(new Invalid("parent thread is archived"));
                 if (parent && parent.workspace_id !== workspace.id) {
                   return yield* Effect.fail(new Invalid("a side thread runs in its parent's workspace"));
@@ -772,7 +776,7 @@ export class GatewayStore extends Context.Service<
           threadSpec: (row) =>
             create(ThreadSpecSchema, {
               threadId: row.id,
-              provider: row.provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
+              provider: providerOf(row.provider),
               providerProfileId: row.provider_profile_id ?? "",
               cwd: row.cwd ?? "",
               scratch: row.project_kind === "scratch",
@@ -1128,7 +1132,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     parentThreadId: row.parent_thread_id ?? "",
     title: row.title,
     titleSource: row.title_source,
-    provider: row.provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
+    provider: providerOf(row.provider),
     providerProfileId: row.provider_profile_id ?? "",
     model: row.settings.model ?? "",
     effort: row.settings.effort ?? "",
@@ -1183,7 +1187,7 @@ export function toUiSender(row: SenderColumns): ui.AgentSender | undefined {
   return create(ui.AgentSenderSchema, {
     threadId: row.source_thread_id,
     title: row.source_title,
-    provider: row.source_provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
+    provider: providerOf(row.source_provider),
     providerProfileId: row.source_profile_id ?? "",
     model: row.source_model ?? "",
     projectId: row.source_project_id ?? "",

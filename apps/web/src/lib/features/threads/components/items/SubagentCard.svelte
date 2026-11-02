@@ -39,7 +39,7 @@
         ? permissionLabel(PermissionMode[spawned.permissionMode.toUpperCase() as keyof typeof PermissionMode])
         : "",
   );
-  const provider = $derived(thread?.provider ?? (spawned.provider.startsWith("claude") ? Provider.CLAUDE : spawned.provider.startsWith("codex") ? Provider.CODEX : undefined));
+  const provider = $derived(thread?.provider ?? (spawned.provider.startsWith("claude") ? Provider.CLAUDE : spawned.provider.startsWith("codex") ? Provider.CODEX : spawned.provider.startsWith("grok") ? Provider.GROK : undefined));
   const settings = $derived([effort, permission].filter(Boolean));
   const result = $derived(thread?.lastMessage.trim() ?? "");
   const working = $derived(Boolean(look?.active));

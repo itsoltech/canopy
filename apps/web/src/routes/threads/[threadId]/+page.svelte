@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { InteractionKind, ItemStatus, ui } from "@open-agents/contracts";
+  import { InteractionKind, ItemStatus, Provider, ui } from "@open-agents/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -208,7 +208,7 @@
     sideOpen = true;
   };
   // "Fork thread" forks after the latest ended turn; "Fork from here" (TurnDetails) after the one it is under.
-  const canFork = $derived(thread?.runtime === "worker" && thread.status !== "creating");
+  const canFork = $derived(thread?.runtime === "worker" && thread.provider !== Provider.GROK && thread.status !== "creating");
   const forkPoint = $derived(canFork ? lastForkPoint(view.ownTurns, view.inheritedTurns) : undefined);
   const forkThread = () => forkPoint && forkFrom(threadId, forkPoint.id);
   let scheduling = $state(false);

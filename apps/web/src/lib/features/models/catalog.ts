@@ -82,17 +82,19 @@ export function effortLevel(id: string): EffortLevel {
 const fallbackEfforts: Record<ProviderKey, { readonly efforts: readonly string[]; readonly default: string }> = {
   CLAUDE: { efforts: ["low", "medium", "high", "xhigh", "max"], default: "high" },
   CODEX: { efforts: ["low", "medium", "high", "xhigh"], default: "medium" },
+  GROK: { efforts: [], default: "" },
 };
 
 /** Model aliases the provider's CLI resolves itself (always valid, whatever the current versions are). */
 const aliases: Record<ProviderKey, readonly string[]> = {
   CLAUDE: ["opus", "sonnet", "haiku"],
   CODEX: [],
+  GROK: [],
 };
 
 export const modelKey = (provider: ProviderKey, profileId: string, model: string): string => `${provider}:${profileId}:${model}`;
 
-export const providerName = (provider: ProviderKey): string => (provider === "CLAUDE" ? "Claude" : "Codex");
+export const providerName = (provider: ProviderKey): string => (provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex");
 
 /**
  * Readable name of a model id the catalog does not name:

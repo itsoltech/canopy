@@ -51,13 +51,13 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
       case "list_provider_instances": return (await core.listProviderInstances()).map((i) => ({ id: i.id, label: i.label, provider: Provider[i.harness], kind: i.kind }));
       case "list_models": {
         const requested = optional("provider");
-        if (requested && !["claude", "codex"].includes(requested)) throw new Invalid("unknown provider");
+        if (requested && !["claude", "codex", "grok"].includes(requested)) throw new Invalid("unknown provider");
         if (!optional("worker_id")) {
           const config = (await core.bots.get(turn.bot_id)).configuration!;
-          return await core.bots.run((s) => s.apiModels(requested ? requested === "claude" ? Provider.CLAUDE : Provider.CODEX : config.provider, optional("provider_instance") || config.providerInstance));
+          return await core.bots.run((s) => s.apiModels(requested ? requested === "claude" ? Provider.CLAUDE : requested === "grok" ? Provider.GROK : Provider.CODEX : config.provider, optional("provider_instance") || config.providerInstance));
         }
         if (!(await core.overview()).workers.some((w) => w.id === string("worker_id"))) throw new NotFound("worker not found");
-        const provider = string("provider") === "claude" ? Provider.CLAUDE : Provider.CODEX;
+        const provider = string("provider") === "claude" ? Provider.CLAUDE : string("provider") === "grok" ? Provider.GROK : Provider.CODEX;
         return (await botModels(core, string("worker_id"), provider, string("provider_instance"))).map((m) => ({ id: m.id, name: m.displayName || m.id, default: m.isDefault, efforts: m.efforts, default_effort: m.defaultEffort }));
       }
       case "list_bots": return (await core.bots.list()).map((b) => ({ id: b.id, name: b.configuration?.name }));
@@ -75,8 +75,8 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
       case "start_thread": {
         const permissions: Record<string, PermissionMode> = { ask: PermissionMode.ASK, read_only: PermissionMode.READ_ONLY, accept_edits: PermissionMode.ACCEPT_EDITS, full_auto: PermissionMode.FULL_AUTO };
         const permission = permissions[optional("permission") || "ask"];
-        if (!permission || !["claude", "codex"].includes(string("provider"))) throw new Invalid("unknown provider or permission");
-        const provider = string("provider") === "claude" ? Provider.CLAUDE : Provider.CODEX;
+        if (!permission || !["claude", "codex", "grok"].includes(string("provider"))) throw new Invalid("unknown provider or permission");
+        const provider = string("provider") === "claude" ? Provider.CLAUDE : string("provider") === "grok" ? Provider.GROK : Provider.CODEX;
         // Without a model: the instance's default on the workspace's worker (bots must not guess model names).
         let model = optional("model");
         if (!model) {

@@ -40,6 +40,7 @@ export interface AppliedConfig {
   readonly version: bigint;
   readonly claude: ProviderRuntime;
   readonly codex: ProviderRuntime;
+  readonly grok: ProviderRuntime;
   readonly profiles: readonly ProfileStatus[];
   readonly nativeTools: NativeToolPolicy;
   readonly limits: {
@@ -67,7 +68,7 @@ export interface DeviceProbe {
    * The CLI login kept in a home (Codex auth.json, Claude .credentials.json): how it authenticates, null when there is
    * none, undefined when the device cannot tell (e.g. Claude on macOS keeps it in the Keychain). Absent = cannot tell.
    */
-  login?(harness: "claude" | "codex", home: string): string | null | undefined;
+  login?(harness: "claude" | "codex" | "grok", home: string): string | null | undefined;
 }
 
 /** Where provider instances live on the device (global provider instances, docs/worker-config.md, section 9). */
@@ -77,12 +78,13 @@ export interface DeviceHomes {
   /** The device owner's CLI homes (the login linked by default). */
   readonly claude: string;
   readonly codex: string;
+  readonly grok?: string;
   /** The worker process's environment (keys a native Claude may take from it). */
   readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
 /** The isolated home of an instance with its own login or login source when no shadow home is set. */
-export function instanceHome(dataDir: string, harness: "claude" | "codex", id: string): string {
+export function instanceHome(dataDir: string, harness: "claude" | "codex" | "grok", id: string): string {
   return join(dataDir, "homes", `${harness}-${id}`);
 }
 
@@ -92,7 +94,7 @@ export function instanceHome(dataDir: string, harness: "claude" | "codex", id: s
  */
 export function instanceShadowHome(
   dataDir: string,
-  harness: "claude" | "codex",
+  harness: "claude" | "codex" | "grok",
   id: string,
   runtime: { readonly shadowHomePath?: string; readonly homePath?: string; readonly ownLogin?: boolean } | undefined,
 ): string | undefined {
@@ -118,6 +120,7 @@ export const systemProbe: DeviceProbe = {
     }
     const file = join(home, "auth.json");
     if (!existsSync(file)) return null;
+    if (harness === "grok") return "Grok account";
     try {
       // Only the shape is read: which kind of credential is there, never its value.
       const auth = JSON.parse(readFileSync(file, "utf8")) as { tokens?: unknown; OPENAI_API_KEY?: unknown };
@@ -143,6 +146,7 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
 
   const claude = providerRuntime("claude", config.claude, probe, issue);
   const codex = providerRuntime("codex", config.codex, probe, issue);
+  const grok = providerRuntime("grok", config.grok, probe, issue);
 
   let profiles: ProfileStatus[] = [];
   try {
@@ -157,14 +161,14 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
   // What the device says (CLI, version, login) is reported with each instance, not as a configuration issue.
   // An instance is one harness (provider, id): a profile serving both (a local or older configuration) is checked,
   // and may be unavailable, per harness, so Claude turned off does not take its Codex side down with it.
-  profiles = profiles.flatMap(perHarness).map((status) => inspectProfile(status, { claude, codex }, probe, homes));
+  profiles = profiles.flatMap(perHarness).map((status) => inspectProfile(status, { claude, codex, grok }, probe, homes));
 
   const limits = config.limits;
   const report = {
     version: config.version,
     issues,
     profiles: profiles.map(toProfileReport),
-    providers: [providerInfo(Provider.CLAUDE, claude), providerInfo(Provider.CODEX, codex)],
+    providers: [providerInfo(Provider.CLAUDE, claude), providerInfo(Provider.CODEX, codex), providerInfo(Provider.GROK, grok)],
   };
   if (issues.some((i) => i.fatal)) return { applied: false, report: create(ConfigAppliedSchema, { ...report, applied: false }) };
 
@@ -175,6 +179,7 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
       version: config.version,
       claude,
       codex,
+      grok,
       profiles,
       nativeTools: {
         nativeSubagents: config.nativeTools?.subagents ?? false,
@@ -192,7 +197,7 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
 }
 
 function providerRuntime(
-  name: "claude" | "codex",
+  name: "claude" | "codex" | "grok",
   config: ProviderConfig | undefined,
   probe: DeviceProbe,
   issue: (path: string, message: string) => void,
@@ -240,7 +245,7 @@ function perHarness(status: ProfileStatus): ProfileStatus[] {
 
 function inspectProfile(
   status: ProfileStatus,
-  runtimes: Record<"claude" | "codex", ProviderRuntime>,
+  runtimes: Record<"claude" | "codex" | "grok", ProviderRuntime>,
   probe: DeviceProbe,
   homes: DeviceHomes | undefined,
 ): ProfileStatus {
@@ -263,6 +268,7 @@ function inspectProfile(
   // Native: the instance's own login (shadow home), the device owner's (linked), or keys in the environment.
   const vars = { ...homes.env, ...status.resolved.env };
   if (harness === "claude" && CLAUDE_KEY_ENV.some((name) => vars[name])) return { ...versioned, auth: "Claude API key (environment)", authenticated: true };
+  if (harness === "grok" && (vars["XAI_API_KEY"] || vars["GROK_CODE_XAI_API_KEY"])) return { ...versioned, auth: "xAI API key (environment)", authenticated: true };
   const ownLogin = config.runtime?.ownLogin === true;
   const home = ownLogin
     ? instanceShadowHome(homes.dataDir, harness, config.id, config.runtime)
@@ -272,7 +278,7 @@ function inspectProfile(
   const login = home === undefined ? null : probe.login(harness, home);
   if (login === undefined) return versioned;
   if (login === null) {
-    const problem = ownLogin ? "not signed in" : runtime.linkDeviceLogin ? `no ${harness === "claude" ? "Claude" : "Codex"} login on this device` : "device login is turned off for this worker";
+    const problem = ownLogin ? "not signed in" : runtime.linkDeviceLogin ? `no ${harness === "claude" ? "Claude" : harness === "grok" ? "Grok" : "Codex"} login on this device` : "device login is turned off for this worker";
     const { resolved: _, ...rest } = versioned;
     return { ...rest, problem, authenticated: false };
   }
@@ -287,7 +293,7 @@ function profileConfig(
   const common = {
     id: profile.id,
     ...(profile.providers.length > 0 && {
-      providers: profile.providers.map((p) => (p === Provider.CLAUDE ? ("claude" as const) : ("codex" as const))),
+      providers: profile.providers.map((p) => (p === Provider.CLAUDE ? ("claude" as const) : p === Provider.GROK ? ("grok" as const) : ("codex" as const))),
     }),
     ...(profile.displayName && { displayName: profile.displayName }),
     ...(profile.env.length > 0 && { env: profile.env.map((v) => ({ name: v.name, value: v.value, secret: v.secret })) }),

@@ -10,7 +10,7 @@
    */
   let { provider, model, effort = "", class: className }: { provider: Provider; model: string; effort?: string; class?: ClassValue } = $props();
   const key = $derived(providerKeyOf(provider));
-  const name = $derived(key === "CLAUDE" ? "Claude" : "Codex");
+  const name = $derived(key === "CLAUDE" ? "Claude" : key === "GROK" ? "Grok" : "Codex");
 </script>
 
 <span class={["inline-flex min-w-0 items-center gap-1", className]}>

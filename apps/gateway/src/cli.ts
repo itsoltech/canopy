@@ -52,6 +52,7 @@ await runtime.runPromise(
         // Both CLIs; the worker reports the ones it cannot find. With a proxy no device login is linked.
         codex: { enabled: true, ...(secretId && { deviceLogin: DeviceLogin.NONE }) },
         claude: { enabled: true, ...(secretId && { deviceLogin: DeviceLogin.NONE }) },
+        grok: { enabled: true, ...(secretId && { deviceLogin: DeviceLogin.NONE }) },
       },
       userId,
     ),

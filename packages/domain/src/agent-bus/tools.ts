@@ -56,7 +56,7 @@ export const SpawnThread = Schema.Struct({
   provider: Schema.optionalKey(
     Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(120)).annotate({
       description:
-        'Where the subagent runs: a provider from list_agents, e.g. "claude/native" or "codex/cliproxyapi" (or just "claude" / "codex"). ' +
+        'Where the subagent runs: a provider from list_agents, e.g. "claude/native", "codex/cliproxyapi" or "grok/native" (or just "claude" / "codex" / "grok"). ' +
         "Any of them, also another harness than yours. Defaults to yours.",
     }),
   ),

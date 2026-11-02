@@ -30,7 +30,7 @@ export async function useLiveProxy(gw: TestGateway, workerId: string, options: L
     harnesses.includes(provider) ? { enabled: true, deviceLogin: DeviceLogin.NONE } : { enabled: false };
   await gw.runtime.runPromise(
     GatewayStore.use((s) =>
-      s.setWorkerConfig(workerId, { allowedRoots: [...options.allowedRoots], codex: harness(Provider.CODEX), claude: harness(Provider.CLAUDE) }, gw.userId),
+      s.setWorkerConfig(workerId, { allowedRoots: [...options.allowedRoots], codex: harness(Provider.CODEX), claude: harness(Provider.CLAUDE), grok: harness(Provider.GROK) }, gw.userId),
     ),
   );
   const existing = (await gw.api.listProviderInstances({})).instances;

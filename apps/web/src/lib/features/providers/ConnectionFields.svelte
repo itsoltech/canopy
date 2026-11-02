@@ -47,7 +47,7 @@
     {
       value: ProviderProfileKind.NATIVE,
       label: "Device login",
-      description: harness === Provider.CODEX ? "Codex's own login: the device's, or sign in with ChatGPT from here." : "Claude Code's login on the device (or a key in its variables).",
+      description: harness === Provider.GROK ? "Grok CLI's login on the device (grok login), or XAI_API_KEY in its variables." : harness === Provider.CODEX ? "Codex's own login: the device's, or sign in with ChatGPT from here." : "Claude Code's login on the device (or a key in its variables).",
     },
   ]);
 </script>

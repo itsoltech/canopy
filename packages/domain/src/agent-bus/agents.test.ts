@@ -44,6 +44,16 @@ describe("spawn_thread on any provider", () => {
     expect(target({ provider: "claude/cliproxyapi" }, claudeCaller)).toBe("claude/cliproxyapi is not available on this worker: not logged in");
   });
 
+  test("Grok can be chosen from Claude/Codex, and Grok can delegate back with catalog validation", () => {
+    const list: SpawnInstance[] = [...instances, { harness: "grok", id: "proxy", label: "Grok proxy", available: true, complete: true,
+      models: [{ id: "grok-4.6", label: "Grok 4.6", efforts: ["low", "high"], defaultEffort: "high", isDefault: true, hidden: false }] }];
+    const grok: SpawnTarget = { harness: "grok", instance: "proxy", model: "grok-4.6", effort: "high" };
+    for (const caller of [claudeCaller, codexCaller]) expect(target({ provider: "grok/proxy" }, caller, list)).toEqual(grok);
+    expect(target({ provider: "claude/native" }, grok, list)).toMatchObject({ harness: "claude", model: "opus" });
+    expect(target({ provider: "codex/native" }, grok, list)).toMatchObject({ harness: "codex", model: "gpt-6.1-sol", effort: "low" });
+    expect(target({ provider: "grok/proxy", effort: "ultra" }, claudeCaller, list)).toContain("ultra");
+  });
+
   test("an alias, a hidden model and a model without efforts are accepted like in the pickers", () => {
     expect(target({ provider: "claude", model: "claude-opus-5-5" })).toMatchObject({ model: "claude-opus-5-5" });
     expect(target({ provider: "codex/cliproxyapi", model: "gpt-old" })).toMatchObject({ model: "gpt-old", effort: "" });

@@ -8,7 +8,7 @@ import { ModelInfoSchema, ProfileModelsSchema, Provider, ui, type ProfileModels 
  * model choices applied. No database here, so the rules are tested directly.
  */
 
-export type Harness = "claude" | "codex";
+export type Harness = "claude" | "codex" | "grok";
 export type SecretRef = { secretRef: string };
 
 export interface StoredEnvVar {
@@ -69,7 +69,7 @@ export interface AssignmentRow {
 export interface StoredProfile {
   id: string;
   kind: "PROVIDER_PROFILE_KIND_NATIVE" | "PROVIDER_PROFILE_KIND_CLIPROXYAPI";
-  providers: ["PROVIDER_CLAUDE" | "PROVIDER_CODEX"];
+  providers: ["PROVIDER_CLAUDE" | "PROVIDER_CODEX" | "PROVIDER_GROK"];
   baseUrl?: string;
   apiKey?: SecretRef;
   displayName?: string;
@@ -85,8 +85,8 @@ export interface StoredProfile {
 export const NATIVE_ID = "native";
 export const INSTANCE_ID = /^[a-z0-9][a-z0-9_-]{0,62}$/;
 
-export const harnessOf = (provider: Provider): Harness | undefined => (provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : undefined);
-export const providerOf = (harness: Harness): Provider => (harness === "claude" ? Provider.CLAUDE : Provider.CODEX);
+export const harnessOf = (provider: Provider): Harness | undefined => (provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : provider === Provider.GROK ? "grok" : undefined);
+export const providerOf = (harness: string | null | undefined): Provider => (harness === "claude" ? Provider.CLAUDE : harness === "grok" ? Provider.GROK : harness === "codex" ? Provider.CODEX : Provider.UNSPECIFIED);
 export const instanceKey = (harness: Harness, id: string): string => `${harness}/${id}`;
 
 export const isRef = (value: unknown): value is SecretRef => typeof value === "object" && value !== null && typeof (value as SecretRef).secretRef === "string";
@@ -117,7 +117,7 @@ export function effectiveProfile(instance: InstanceRow, assignment: AssignmentRo
   const profile: StoredProfile = {
     id: instance.id,
     kind: endpoint ? "PROVIDER_PROFILE_KIND_CLIPROXYAPI" : "PROVIDER_PROFILE_KIND_NATIVE",
-    providers: [instance.harness === "claude" ? "PROVIDER_CLAUDE" : "PROVIDER_CODEX"],
+    providers: [instance.harness === "claude" ? "PROVIDER_CLAUDE" : instance.harness === "grok" ? "PROVIDER_GROK" : "PROVIDER_CODEX"],
   };
   const baseUrl = endpoint ? (o.baseUrl ?? instance.base_url) : "";
   if (baseUrl) profile.baseUrl = baseUrl;
@@ -157,7 +157,7 @@ export function effectiveProfiles(
     const stub: StoredProfile = {
       id: instance.id,
       kind: instance.kind === "endpoint" ? "PROVIDER_PROFILE_KIND_CLIPROXYAPI" : "PROVIDER_PROFILE_KIND_NATIVE",
-      providers: [instance.harness === "claude" ? "PROVIDER_CLAUDE" : "PROVIDER_CODEX"],
+      providers: [instance.harness === "claude" ? "PROVIDER_CLAUDE" : instance.harness === "grok" ? "PROVIDER_GROK" : "PROVIDER_CODEX"],
       disabled: true,
     };
     if (instance.label) stub.displayName = instance.label;

@@ -46,7 +46,7 @@
       options={[{ value: "", label: "Last used" }, ...workspaces.flatMap((group) => group.workspaces.map((ws) => ({ value: ws.id, label: workerName(ws), group: group.project.name })))]} />
   {/snippet}
 </SettingsRow>
-<SettingsRow title="Agent" description="Claude or Codex. New threads offer only what the workspace's worker has.">
+<SettingsRow title="Agent" description="Claude, Codex or Grok. New threads offer only what the workspace's worker has.">
   {#snippet control()}
     <Select
       name="provider"

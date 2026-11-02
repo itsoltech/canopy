@@ -21,7 +21,7 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
  * Variables the worker sets for every harness process: the isolated homes, the user's home and search path,
  * the SDK's own markers and the worker's own settings. Matched case-insensitively (Windows env is).
  */
-const ALWAYS_DENIED = ["HOME", "USERPROFILE", "PATH", "PWD", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CLAUDE_CODE_ENTRYPOINT"] as const;
+const ALWAYS_DENIED = ["HOME", "USERPROFILE", "PATH", "PWD", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CLAUDE_CODE_ENTRYPOINT", "GROK_HOME", "GROK_AUTH_PATH", "GROK_AUTH", "GROK_CONFIG", "GROK_CONFIG_PATH"] as const;
 
 /**
  * Prefix owned by the platform: the Codex key variables of endpoint profiles (OPENAGENTS_<ID>_API_KEY). The
@@ -30,7 +30,7 @@ const ALWAYS_DENIED = ["HOME", "USERPROFILE", "PATH", "PWD", "CLAUDE_CONFIG_DIR"
 const DENIED_PREFIXES = ["OPENAGENTS_"] as const;
 
 /** An endpoint profile sets its own endpoint and key; these would compete with it. */
-const ENDPOINT_DENIED = ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
+const ENDPOINT_DENIED = ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "XAI_API_KEY", "GROK_CODE_XAI_API_KEY", "GROK_XAI_API_BASE_URL", "GROK_CLI_CHAT_PROXY_BASE_URL", "GROK_MODELS_BASE_URL", "GROK_MODELS_LIST_URL", "GROK_AUTH_PROVIDER_COMMAND"] as const;
 
 /** Names a profile of this kind may not set; for docs and the UI. */
 export function deniedEnvNames(kind: ProfileKind): readonly string[] {

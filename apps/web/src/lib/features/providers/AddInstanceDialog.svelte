@@ -97,6 +97,7 @@
   const harnesses = [
     { value: Provider.CODEX, description: "OpenAI's coding agent (codex app-server)." },
     { value: Provider.CLAUDE, description: "Anthropic's Claude Code (Agent SDK)." },
+    { value: Provider.GROK, description: "xAI's Grok CLI (Agent Client Protocol)." },
   ];
 </script>
 
