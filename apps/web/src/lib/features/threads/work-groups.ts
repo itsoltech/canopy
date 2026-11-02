@@ -52,6 +52,15 @@ function isEmpty(row: TimelineRow): boolean {
 }
 
 export function foldTurns(rows: readonly TimelineRow[], isOpen: (turnId: string) => boolean): FoldedRow[] {
+  // A background task owns its source command's lifecycle after the turn ends. System stops can
+  // finish the task without another source-item update; tasks can also arrive outside the turn.
+  const tasksBySource = new Map<string, TimelineEntry>();
+  const indexTasks = (node: ItemNode) => {
+    const content = node.entry.item.content;
+    if (content.case === "backgroundTask" && content.value.sourceItemId) tasksBySource.set(content.value.sourceItemId, node.entry);
+    node.children.forEach(indexTasks);
+  };
+  for (const row of rows) if (row.kind === "item") indexTasks(row.node);
   // Ended turns (they have a footer) and their body rows in order.
   const ended = new Map<string, ui.Turn>();
   for (const row of rows) if (row.kind === "turn-end" && isTerminal(row.turn.status)) ended.set(row.turn.id, row.turn);
@@ -86,7 +95,7 @@ export function foldTurns(rows: readonly TimelineRow[], isOpen: (turnId: string)
     if (placed.has(turnId)) continue;
     placed.add(turnId);
     const open = isOpen(turnId);
-    out.push({ kind: "work", key: `work:${turnId}`, turn: fold.turn, open, summary: summarize(fold.turn, fold.work) });
+    out.push({ kind: "work", key: `work:${turnId}`, turn: fold.turn, open, summary: summarize(fold.turn, fold.work, tasksBySource) });
     if (open) for (const work of fold.work) out.push({ kind: "row", row: work, work: true });
     if (fold.final) out.push({ kind: "row", row: fold.final, work: false });
   }
@@ -105,11 +114,12 @@ const KINDS: readonly (readonly [string, string, string])[] = [
   ["userMessage", "steered message", "steered messages"],
 ];
 
-function summarize(turn: ui.Turn, work: readonly TimelineRow[]): WorkSummary {
+function summarize(turn: ui.Turn, work: readonly TimelineRow[], tasksBySource: ReadonlyMap<string, TimelineEntry>): WorkSummary {
   const counts = new Map<string, number>();
-  let running = 0;
+  const running = new Set<string>();
   const visit = (node: ItemNode) => {
-    if (node.entry.item.status === ItemStatus.IN_PROGRESS) running++;
+    const entry = tasksBySource.get(node.entry.id) ?? node.entry;
+    if (entry.item.status === ItemStatus.IN_PROGRESS) running.add(entry.id);
     node.children.forEach(visit);
   };
   for (const row of work) {
@@ -125,7 +135,7 @@ function summarize(turn: ui.Turn, work: readonly TimelineRow[]): WorkSummary {
       return `${n} ${n === 1 ? one : many}`;
     });
   const spanMs = turn.startedAt && turn.completedAt ? timestampMs(turn.completedAt) - timestampMs(turn.startedAt) : undefined;
-  return { spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined, counts: parts.join(", "), running };
+  return { spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined, counts: parts.join(", "), running: running.size };
 }
 
 /**
