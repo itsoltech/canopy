@@ -46,7 +46,7 @@
           {#if questions.length > 1} · +{questions.length - 1}{/if}
         </span>
       {/if}
-      {#if subject}<span class="truncate font-medium text-zinc-950 dark:text-white">{subject}</span>{/if}
+      {#if subject}<span class="truncate text-zinc-800 dark:text-zinc-200">{subject}</span>{/if}
       {#if prompt.answeredByThreadId}
         <span class="text-zinc-500 dark:text-zinc-400">answered by</span><ThreadLink threadId={prompt.answeredByThreadId} fallback="Parent agent" />
       {:else if prompt.answeredByUserId}

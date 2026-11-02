@@ -17,7 +17,7 @@
 
 <ItemFrame icon="photo" {status} tone={failed ? "rose" : "neutral"}>
   {#snippet title()}
-    <span class="flex min-w-0 gap-1.5"><span class="shrink-0">{label}</span><span class="truncate font-mono text-[0.8125rem] text-zinc-950 dark:text-white">{image.path || image.prompt || "generated"}</span></span>
+    <span class="flex min-w-0 gap-1.5"><span class="shrink-0">{label}</span><span class="truncate font-mono text-xs text-zinc-950 dark:text-white">{image.path || image.prompt || "generated"}</span></span>
   {/snippet}
   {#if image.prompt}<p class="text-zinc-700 dark:text-zinc-300">{image.prompt}</p>{/if}
   {#if image.blob}

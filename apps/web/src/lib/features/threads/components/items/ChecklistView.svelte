@@ -10,7 +10,7 @@
 </script>
 
 <ItemFrame icon="queue-list" {status}>
-  {#snippet title()}<span class="font-medium text-zinc-950 dark:text-white">{title}</span>{/snippet}
+  {#snippet title()}<span class="text-zinc-800 dark:text-zinc-200">{title}</span>{/snippet}
   {#snippet aside()}{#if steps.length > 0}<span>{done} of {steps.length} done</span>{/if}{/snippet}
   {#if text}<Markdown {text} class="mt-2" />{/if}
   {#if steps.length > 0}<ChecklistSteps {steps} class="mt-3" />{/if}

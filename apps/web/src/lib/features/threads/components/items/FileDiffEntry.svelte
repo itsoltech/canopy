@@ -24,7 +24,7 @@
 <div class="grid gap-1.5">
   <div class="flex min-w-0 items-center gap-2 text-sm/5">
     <Badge tone={look.tone}>{look.label}</Badge>
-    <code class="truncate font-mono text-[0.8125rem] text-zinc-950 dark:text-white" title={path}>{path}{movePath ? ` → ${movePath}` : ""}</code>
+    <code class="truncate font-mono text-xs text-zinc-950 dark:text-white" title={path}>{path}{movePath ? ` → ${movePath}` : ""}</code>
     {#if diff}
       <DiffCounts {...counts} />
     {/if}

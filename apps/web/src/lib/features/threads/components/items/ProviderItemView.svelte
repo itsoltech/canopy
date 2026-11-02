@@ -12,7 +12,7 @@
 </script>
 
 <ItemFrame icon="ellipsis-horizontal" {status}>
-  {#snippet title()}<span class="flex min-w-0 gap-1.5"><span class="shrink-0">Provider event</span><span class="truncate font-medium text-zinc-950 dark:text-white" title={item.type}>{humanizeEnum(item.type) || "Unknown"}</span></span>{/snippet}
+  {#snippet title()}<span class="flex min-w-0 gap-1.5"><span class="shrink-0">Provider event</span><span class="truncate text-zinc-800 dark:text-zinc-200" title={item.type}>{humanizeEnum(item.type) || "Unknown"}</span></span>{/snippet}
   <StructuredView {node} />
   <RawToggle parts={[{ label: "Event", text: item.json }]} />
 </ItemFrame>

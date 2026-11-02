@@ -17,7 +17,7 @@
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
       <span class="shrink-0">{verb}</span>
-      <span class="truncate font-medium text-zinc-950 dark:text-white">{change.changes.map((c) => basename(c.path)).join(", ") || "files"}</span>
+      <span class="truncate text-zinc-800 dark:text-zinc-200">{change.changes.map((c) => basename(c.path)).join(", ") || "files"}</span>
     </span>
   {/snippet}
   {#snippet aside()}

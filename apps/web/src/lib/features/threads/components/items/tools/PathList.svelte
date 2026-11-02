@@ -20,7 +20,7 @@
 </script>
 
 <div class={["grid gap-1", className]}>
-  <ul role="list" class="grid gap-0.5 font-mono text-[0.8125rem]/5 text-zinc-700 dark:text-zinc-300">
+  <ul role="list" class="grid gap-0.5 font-mono text-xs/5 text-zinc-700 dark:text-zinc-300">
     {#each shown as file (file.path)}
       <li class="flex min-w-0 items-baseline justify-between gap-3">
         <span class="truncate" title={file.path}>{relative(file.path)}</span>

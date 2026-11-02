@@ -467,7 +467,8 @@
        its content never re-wraps; a closed panel is inert. -->
   <aside class="relative min-w-0 overflow-hidden max-xl:hidden" aria-label="Thread details" inert={!panelOpen} data-collapsed={!panelOpen || undefined}>
     <div class="t-panel absolute inset-y-0 left-0 w-80 overflow-y-auto py-3 pr-3 pl-1">
-      {#if thread && tree && view.loaded}
+      <!-- What the overview already knows (worker, model, status, lineage) shows at once; usage and tasks fill in. -->
+      {#if thread && tree}
         <ThreadPanel
           {thread}
           {tree}
