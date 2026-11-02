@@ -27,7 +27,7 @@ import { toolCallId } from "../tool-call-id.ts";
 import { CodexAppServer, type ServerRequestHandler } from "./app-server.ts";
 import { codexThreadProvider, type CodexAppServerLaunch } from "./launch.ts";
 import { CodexEventMapper } from "./mapping.ts";
-import { codexPermissions } from "./permissions.ts";
+import { codexPermissions, codexTurnPermissions } from "./permissions.ts";
 import { RolloutTail } from "./rollout.ts";
 import { RpcError } from "./rpc.ts";
 import { reconcileTurn } from "../reconcile.ts";
@@ -388,9 +388,10 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     });
 
     /**
-     * Every turn names its model and effort: Codex keeps a turn's override for the turns after it, so a turn
-     * without an override goes back to the catalog's default model and the default effort the catalog reports
-     * for it (the device owner's configured one when the model offers it, else the model's own).
+     * Every turn names its model, effort and permission mode: Codex keeps a turn's override for the turns after
+     * it, so a turn without an override goes back to the catalog's default model and the default effort the
+     * catalog reports for it (the device owner's configured one when the model offers it, else the model's own),
+     * and to the thread's permission mode. Approvals already pending in a running turn keep their own policy.
      */
     const turnSettings = (spec: ThreadSpec, settings: TurnSettings | undefined) =>
       Effect.gen(function* () {
@@ -401,7 +402,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           settings?.effort ||
           (listed && pickDefaultEffort(listed.supportedReasoningEfforts.map((e) => e.reasoningEffort), options.configuredEffort?.(), listed.defaultReasoningEffort)) ||
           "";
-        return { ...(model && { model }), ...(effort && { effort }) };
+        return { ...(model && { model }), ...(effort && { effort }), ...codexTurnPermissions(settings?.permissionMode || spec.permissionMode) };
       });
 
     const announce = (entry: Entry, replaces = "") =>

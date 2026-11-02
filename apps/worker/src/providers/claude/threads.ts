@@ -14,6 +14,7 @@ import {
   type ForkSpec,
   type InteractionRequest,
   type InteractionResponse,
+  type PermissionMode,
   type ThreadEvent,
   type ThreadSpec,
   type UserInput,
@@ -122,6 +123,9 @@ interface Session {
   turn: SessionTurn | undefined;
   /** Model and effort the process runs with (a later turn may switch the model). */
   model: string;
+  /** Permission mode the process runs with; canUseTool reads autoAllow per request (a later turn may switch it). */
+  mode: PermissionMode;
+  autoAllow: boolean;
   /** Read position in each background task's output file. */
   readonly outputs: Map<string, { offset: number; readonly decoder: TextDecoder }>;
   /** Read position in the session transcript (goal verdicts). */
@@ -230,11 +234,11 @@ const make = (options: ClaudeThreadsOptions) =>
     };
 
     const canUseTool =
-      (spec: ThreadSpec, turnId: () => string, autoAllow: boolean): CanUseTool =>
+      (spec: ThreadSpec, turnId: () => string, autoAllow: () => boolean): CanUseTool =>
       async (toolName, input, context) => {
         if (toolName.startsWith(`mcp__${BUS_SERVER}__`) && context.mcpServer?.source === "sdk") return { behavior: "allow", updatedInput: input };
         const question = toolName === "AskUserQuestion";
-        if (autoAllow && !question) return { behavior: "allow", updatedInput: input };
+        if (autoAllow() && !question) return { behavior: "allow", updatedInput: input };
         const answer = await options.interact(
           create(InteractionRequestSchema, {
             requestId: Bun.randomUUIDv7(),
@@ -290,12 +294,12 @@ const make = (options: ClaudeThreadsOptions) =>
       else close();
     };
 
-    const open = async (spec: ThreadSpec, model: string, effort: Options["effort"]): Promise<Session> => {
+    const open = async (spec: ThreadSpec, model: string, effort: Options["effort"], mode: PermissionMode): Promise<Session> => {
       const profile = options.profile(spec.providerProfileId);
       if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);
       const sessionId = spec.providerThreadId || spec.threadId;
       const resume = await sessionExists(sessionId, spec.cwd);
-      const permissions = claudePermissions(spec.permissionMode);
+      const permissions = claudePermissions(mode);
       const input = new AsyncChannel<SDKUserMessage>();
       const abort = new AbortController();
       const busCalls = new Map<string, string[]>();
@@ -311,7 +315,7 @@ const make = (options: ClaudeThreadsOptions) =>
         ...(resume ? { resume: sessionId } : { sessionId }),
         includePartialMessages: true,
         ...permissions.options,
-        canUseTool: canUseTool(spec, turnId, permissions.autoAllow),
+        canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? false),
         // Bus tools pass every mode (dontAsk denies whatever is not pre-approved).
         allowedTools: busTools,
         ...claudeNativeToolOptions(options.nativeTools),
@@ -346,6 +350,8 @@ const make = (options: ClaudeThreadsOptions) =>
         busCalls,
         turn: undefined,
         model,
+        mode,
+        autoAllow: permissions.autoAllow,
         outputs: new Map(),
         // Verdicts of earlier turns are already recorded: read only what this process adds.
         transcript: { path: transcript, offset: transcript ? fileSize(transcript) : 0, tail: "" },
@@ -358,6 +364,28 @@ const make = (options: ClaudeThreadsOptions) =>
       session.done = consume(session);
       sessions.set(spec.threadId, session);
       return session;
+    };
+
+    /**
+     * A live process (kept by background tasks) takes the next turn's mode before the turn starts: Claude Code's
+     * permission mode, the sandbox (the flag settings layer, where Options.sandbox lives) and auto-allow in
+     * canUseTool. Nothing of the previous turn waits for a decision any more (no turn runs).
+     */
+    const switchMode = async (session: Session, mode: PermissionMode) => {
+      const current = claudePermissions(session.mode);
+      const next = claudePermissions(mode);
+      // Leaving FULL_AUTO: stop auto-allowing first; entering it: only once the sandbox is on.
+      if (!next.autoAllow) session.autoAllow = false;
+      if (Boolean(next.options.sandbox) !== Boolean(current.options.sandbox)) {
+        // Options.sandbox is the settings' sandbox; live, only an explicit `enabled: false` turns it off
+        // (`sandbox: null` leaves the one from the start in place and sandboxed Bash stays auto-allowed).
+        type FlagSandbox = NonNullable<Parameters<Query["applyFlagSettings"]>[0]["sandbox"]>;
+        const sandbox = (next.options.sandbox ?? { enabled: false }) as FlagSandbox;
+        await session.query.applyFlagSettings({ sandbox });
+      }
+      await session.query.setPermissionMode(next.options.permissionMode ?? "default");
+      session.mode = mode;
+      session.autoAllow = next.autoAllow;
     };
 
     /** Steered messages that never joined their turn: the gateway queues them as the next turn. */
@@ -525,6 +553,7 @@ const make = (options: ClaudeThreadsOptions) =>
       startTurn: Effect.fn("ClaudeThreads.startTurn")(function* (spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings) {
         if (started.has(turnId)) return; // redelivered StartTurn
         const model = settings?.model || spec.model;
+        const mode = settings?.permissionMode || spec.permissionMode;
         const requested = settings?.effort ?? "";
         if (requested && !isClaudeEffort(requested)) {
           return yield* new ClaudeThreadError({ threadId: spec.threadId, operation: "turn", message: `unknown reasoning effort "${requested}" (Claude: low, medium, high, xhigh, max)` });
@@ -539,6 +568,15 @@ const make = (options: ClaudeThreadsOptions) =>
               session = undefined;
             }
             if (session?.turn) throw new Error("a turn of this thread is already running");
+            if (session && session.mode !== mode && session.mapper.backgroundTasks.length === 0) {
+              // Only the grace period after tasks keeps it: a new process starts with the turn's mode.
+              if (session.closeTimer) clearTimeout(session.closeTimer);
+              session.closeTimer = undefined;
+              session.closing = true;
+              session.input.close();
+              await session.done;
+              session = undefined;
+            }
             if (!session) {
               // No effort chosen: the device owner's configured default (docs/claude-adapter.md).
               const configured = requested ? undefined : options.configuredEffort?.([model || "default", resolvedModels.get(model || "default") ?? ""]);
@@ -546,12 +584,14 @@ const make = (options: ClaudeThreadsOptions) =>
               const offered = modelEfforts.get(model || "default");
               const fits = configured && isClaudeEffort(configured) && (!offered || offered.includes(configured));
               const effort = isClaudeEffort(requested) ? requested : fits ? configured : undefined;
-              session = await open(spec, model, effort);
-            }
-            else if (model && model !== session.model) {
-              // A process kept alive by background tasks: the turn's model applies from now on.
-              await session.query.setModel(model);
-              session.model = model;
+              session = await open(spec, model, effort, mode);
+            } else {
+              // A process kept alive by background tasks: the turn's model and mode apply from now on.
+              if (model && model !== session.model) {
+                await session.query.setModel(model);
+                session.model = model;
+              }
+              if (mode !== session.mode) await switchMode(session, mode);
             }
             await beginTurn(session, turnId, TurnOrigin.COMMAND, model);
             await record(spec.threadId, userItem(turnId, `user:${turnId}`, turnId, input.text, input.authorUserId));

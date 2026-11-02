@@ -267,9 +267,10 @@ export class WorkerHost {
         return {};
       }
       case "startTurn": {
-        const { thread: spec, turnId, input, model, effort } = kind.value;
+        const { thread: spec, turnId, input, model, effort, permissionMode } = kind.value;
         if (!spec || !input) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
-        const settings = { model, effort };
+        // UNSPECIFIED (an older gateway): the thread's mode.
+        const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode };
         if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.startTurn(spec, turnId, input, settings));
         else await this.#runCodex(spec.provider, (threads) => threads.startTurn(spec, turnId, input, settings), this.#codexGroupOf(spec.providerProfileId));
         return {};

@@ -18,7 +18,7 @@ Potwierdzone na żywo (`tests/integration/worker-claude.live.test.ts`, Claude pr
 |---|---|
 | wątek | sesja Claude Code |
 | `provider_thread_id` | id sesji: przy nowym wątku = id wątku platformy (`sessionId`), przy forku nowe id z `forkSession` |
-| tura | wejście w strumieniu procesu Claude Code (`query()` z async iterable): nowy proces z `sessionId` przy pierwszej turze, z `resume` przy kolejnych; `model` i `effort` ze `StartTurn` (żywy proces: `setModel`) |
+| tura | wejście w strumieniu procesu Claude Code (`query()` z async iterable): nowy proces z `sessionId` przy pierwszej turze, z `resume` przy kolejnych; `model`, `effort` i `permission_mode` ze `StartTurn` (żywy proces: `setModel`, `setPermissionMode`) |
 | proces | jeden na wątek; kończy się z turą, chyba że działają zadania w tle (wtedy zostaje i przyjmuje kolejne tury) |
 | steer | wiadomość w strumieniu wejścia tury z `priority: "next"` i `uuid = input_id` |
 | `provider_turn_ref` | uuid ostatniego wpisu tury w transkrypcie Claude (punkt forka, `upToMessageId`) |
@@ -77,6 +77,7 @@ Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test
 | `READ_ONLY` | `dontAsk` | nic nie pyta; to, co wymaga zgody (edycje, shell), jest odrzucane |
 | `FULL_AUTO` | `acceptEdits` + sandbox dla Bash | nic nie pyta; komendy w sandboxie systemu (zapis tylko w workspace), bez sandboxa komenda nie ruszy (`failIfUnavailable`) |
 
+- Tryb tury (`StartTurn.permission_mode`): nowy proces startuje z nim; proces trzymany przez zadania w tle przełącza się przed turą (`setPermissionMode`, sandbox przez `applyFlagSettings`, wyłączenie jako `{ enabled: false }`, automatyczna zgoda `canUseTool` czytana przy każdym pytaniu). Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).
 - `FULL_AUTO` nigdy nie oznacza `bypassPermissions`.
 - `AskUserQuestion` zawsze trafia do platformy jako pytanie (`QUESTION`), odpowiedź wraca jako `answers`.
 - Różnica względem Codexa: w `READ_ONLY` Codex może uruchamiać komendy w sandboxie tylko do odczytu, Claude nie uruchamia shella.
@@ -95,7 +96,7 @@ Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test
 - Funkcje sesji SDK (`forkSession`, `getSessionMessages`) działają w procesie workera, więc adapter ustawia `CLAUDE_CONFIG_DIR` dla całego procesu.
 - `strictMcpConfig`: tylko serwery MCP platformy.
 - `settingSources: ["project", "local"]`: `CLAUDE.md` i ustawienia repozytorium działają, ustawienia użytkownika nie.
-- Wyłączone narzędzia natywne: subagenci (`Agent`, `Task`, `Workflow`, `ListAgents`, `SendMessage`, `SubagentHandback`) i harmonogramy (`ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList`, `RemoteTrigger`); zastępuje je szyna ([agent-bus.md](agent-bus.md)).
+- Wyłączone narzędzia natywne: subagenci (`Agent`, `Task`, `Workflow`, `ListAgents`, `SendMessage`, `SubagentHandback`) i harmonogramy (`ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList`, `RemoteTrigger`); zastępuje je szyna ([agent-bus.md](agent-bus.md)). Sprawdzone na żywo: lista narzędzi z `system/init` nie ma `Agent` ani `Task` (`worker-claude.live.test.ts`), a prośba o subagenta kończy się `mcp__openagents__spawn_thread` (`platform-subagents.live.test.ts`).
 
 ## Otwarte
 

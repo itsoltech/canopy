@@ -10,6 +10,7 @@ import { createGrpcTransport } from "@connectrpc/connect-node";
 import {
   ItemStatus,
   NoticeLevel,
+  PermissionMode,
   Provider,
   ProviderProfileKind,
   ThreadEventSchema,
@@ -69,11 +70,15 @@ export class ScriptedWorker {
   readonly handlers = new Map<string, CommandHandler>();
   readonly interactionAnswers: { requestId: string; allow: boolean }[] = [];
   /** Threads this worker was asked to create, with their cwd. */
-  readonly created: { threadId: string; cwd: string; enableAgentBus: boolean; depth: number }[] = [];
+  readonly created: {
+    threadId: string; cwd: string; enableAgentBus: boolean; depth: number; model: string; instructions: string; permissionMode: number;
+  }[] = [];
   /** Inputs of the turns this worker ran, per thread. */
   readonly inputs = new Map<string, string[]>();
   /** Model and effort each turn was started with, by turn id. */
   readonly turnSettings = new Map<string, { model: string; effort: string }>();
+  /** StartTurn.permission_mode and the thread's mode (ThreadSpec) per turn. */
+  readonly turnModes = new Map<string, { turn: PermissionMode; thread: PermissionMode }>();
   /** Steers this worker got: input id -> text. */
   readonly steered = new Map<string, string>();
   /** Turns stay running until finish() (to steer into them). */
@@ -183,7 +188,10 @@ export class ScriptedWorker {
             reply(false, { errorCode: "CWD_NOT_ALLOWED", errorMessage: `${spec.cwd} is outside the allowed roots` });
             break;
           }
-          this.created.push({ threadId: spec.threadId, cwd: spec.cwd, enableAgentBus: spec.enableAgentBus, depth: spec.depth });
+          this.created.push({
+            threadId: spec.threadId, cwd: spec.cwd, enableAgentBus: spec.enableAgentBus, depth: spec.depth,
+            model: spec.model, instructions: spec.instructions, permissionMode: spec.permissionMode,
+          });
           reply(true);
           this.emit(spec.threadId, "", { case: "threadReady", value: { providerThreadId: `codex-${spec.threadId.slice(-4)}` } });
           break;
@@ -213,10 +221,11 @@ export class ScriptedWorker {
           break;
         }
         case "startTurn": {
-          const { thread, turnId, input, model, effort } = kind.value;
+          const { thread, turnId, input, model, effort, permissionMode } = kind.value;
           const threadId = thread!.threadId;
           this.inputs.set(threadId, [...(this.inputs.get(threadId) ?? []), input!.text]);
           this.turnSettings.set(turnId, { model, effort });
+          this.turnModes.set(turnId, { turn: permissionMode, thread: thread!.permissionMode });
           reply(true);
           this.emit(threadId, turnId, { case: "turnStarted", value: { providerTurnRef: `ct-${turnId.slice(-4)}`, origin: TurnOrigin.COMMAND } });
           if (this.holdTurns) {

@@ -103,13 +103,14 @@ describe("codexAppServerLaunch", () => {
       "-c", "features.in_app_local_automation=false",
       "-c", "features.sleep_tool=false",
       "-c", "features.apps=false",
+      "-c", "agents.enabled=false",
     ]);
   });
 
   test("cliproxyapi adds a model provider; the key goes through env, not argv", () => {
     const profiles = resolved([PROXY, { ...PROXY, id: "claude-only", providers: ["claude"] }]);
     const launch = codexAppServerLaunch(profiles, ENV);
-    expect(launch.command.slice(12)).toEqual([
+    expect(launch.command.slice(14)).toEqual([
       "-c", 'model_providers.openagents_cliproxy.name="CLIProxyAPI (cliproxy)"',
       "-c", 'model_providers.openagents_cliproxy.base_url="http://127.0.0.1:8317/v1"',
       "-c", 'model_providers.openagents_cliproxy.wire_api="responses"',

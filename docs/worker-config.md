@@ -107,7 +107,7 @@ Zdalne `allowed_roots` oznaczają, że kto kontroluje gateway, ten wskazuje work
 
 ## 8. Profile dostawców
 
-Status: **zaimplementowane** (kontrakt: `ProviderProfileConfig.display_name/env/disabled`, `ProfileEnvVar`, `ProviderProfile.display_name`; UI: `ListProviderProfiles`, `SaveProviderProfile`, `DeleteProviderProfile`, `SetModelSelection`, `ListModelsRequest.unfiltered`; gateway `store/profiles.ts`; worker `providers/profiles.ts`, `runtime/host.ts`; migracja `0014_provider_profiles`; ekran Settings → Workers → worker).
+Status: **zaimplementowane** (kontrakt: `ProviderProfileConfig.display_name/env/disabled`, `ProfileEnvVar`, `ProviderProfile.display_name`; UI: `ListProviderProfiles`, `SaveProviderProfile`, `DeleteProviderProfile`, `SetModelSelection`, `ListModelsRequest.unfiltered`; gateway `store/profiles.ts`; worker `providers/profiles.ts`, `runtime/host.ts`; migracja `0015_provider_profiles`; ekran Settings → Workers → worker).
 
 **Model.** Profil to część konfiguracji workera (`WorkerConfig.profiles`, wersjonowana, z historią):
 

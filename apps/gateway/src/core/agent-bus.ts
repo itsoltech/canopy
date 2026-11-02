@@ -29,6 +29,8 @@ export interface BusHost {
   broadcastThread(threadId: string): Promise<void>;
   /** An agent created or cancelled a schedule: announce it. */
   scheduleChanged(scheduleId: string): Promise<void>;
+  /** Why the caller's provider profile does not offer this model and effort (undefined = fine or not known yet). */
+  modelProblem(thread: ThreadRow, model: string, effort: string): Promise<string | undefined>;
 }
 
 const WAIT_POLL_MS = 1_000;
@@ -78,6 +80,11 @@ export class AgentBus {
     );
     const decision = authorizeBusCall(call, facts);
     if (!decision.allowed) return refuse(decision.reason, call.args);
+    if (call.tool === "spawn_thread" && (call.args.model !== undefined || call.args.effort !== undefined)) {
+      // The subagent runs on the caller's provider and account: the model must be in that catalog.
+      const problem = await this.#host.modelProblem(caller, call.args.model ?? caller.settings.model ?? "", call.args.effort ?? "");
+      if (problem) return refuse(problem, call.args);
+    }
     const hops = decision.hops ?? facts.callerHops + 1;
 
     try {

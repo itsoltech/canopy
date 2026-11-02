@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import { PermissionMode, type ui } from "@open-agents/contracts";
   import { timestampMs } from "@bufbuild/protobuf/wkt";
   import { effortLevel, nameOfModel } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
@@ -9,13 +9,15 @@
   import { statusLook } from "#lib/shared/ui/status.ts";
   import { textTones } from "#lib/shared/ui/tone.ts";
   import { sendMessage } from "../api.ts";
+  import { permissionLabel, permissionLook } from "../labels.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import type { TurnResult } from "../thread-state.svelte.ts";
 
   /**
    * How a turn ended: status, who interrupted it or where its error came from (the platform or the
    * harness) with the reason, how long it ran, the model and effort it ran with (empty = the profile's
-   * defaults, not shown) and its token usage (kept with the turn). A turn the system interrupted (e.g. the
+   * defaults, not shown), its permission mode (full auto in amber; turns from before modes were recorded
+   * show none) and its token usage (kept with the turn). A turn the system interrupted (e.g. the
    * worker restarted mid-turn) can be continued: a short message resumes the harness session.
    */
   let { turn, result }: { turn: ui.Turn; result: TurnResult | undefined } = $props();
@@ -75,6 +77,12 @@
   {/if}
   {#if took !== undefined && took >= 0}<span class="text-zinc-500 tabular-nums dark:text-zinc-400" title="Time the turn ran">{formatDuration(took)}</span>{/if}
   {#if ranWith}<span class="min-w-0 truncate text-zinc-500 dark:text-zinc-400" title="Model and reasoning effort: {ranWithIds}">{ranWith}</span>{/if}
+  {#if turn.permissionMode !== PermissionMode.UNSPECIFIED}
+    {@const look = permissionLook(turn.permissionMode)}
+    <span class={["flex shrink-0 items-center gap-1", look.textClass]} title="Permission mode the turn ran with">
+      <Icon name={look.icon} class={["size-3.5", look.iconClass]} />{permissionLabel(turn.permissionMode)}
+    </span>
+  {/if}
   {#if usage && (usage.inputTokens > 0n || usage.outputTokens > 0n)}
     <span class="text-zinc-500 tabular-nums dark:text-zinc-400" title="Input tokens (cached) · output tokens">
       {formatCount(usage.inputTokens)} in{usage.cachedInputTokens > 0n ? ` (${formatCount(usage.cachedInputTokens)} cached)` : ""} · {formatCount(usage.outputTokens)} out{usage.costUsd > 0 ? ` · $${usage.costUsd.toFixed(3)}` : ""}

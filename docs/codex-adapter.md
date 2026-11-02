@@ -48,6 +48,8 @@ Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway k
   | `READ_ONLY` | `never` | `read-only` |
   | `FULL_AUTO` | `never` | `workspace-write`, nigdy `danger-full-access` domyślnie |
 
+  Ta sama tabela idzie w każdym `turn/start` jako `approvalPolicy` + `sandboxPolicy` (tryb tury ze `StartTurn.permission_mode`), bo Codex trzyma nadpisanie dla kolejnych tur ([protocol.md](protocol.md#modele-effort-i-steer)).
+
 - **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
 
 Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną historią, „restart workera” (nowy proces z tym samym `CODEX_HOME` i dziennikiem), wznowienie i tura w wznowionym wątku.
@@ -152,6 +154,7 @@ Profil natywny z `~/.codex` zależy też od środowiska właściciela. W teście
 
 1. **Worker zawsze uruchamia app-server z własnym `CODEX_HOME`** (`<data_dir>/codex-home`, `0700`, `prepareCodexHome`). Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy.
 2. **Logowanie właściciela urządzenia jest dowiązywane** (`~/.codex/auth.json` → `codex-home/auth.json`; token odświeża się wspólnie z CLI). Wyjątek: workery korzystające z CLIProxyAPI, gdzie gateway ustawia `WorkerConfig.codex.device_login = NONE` i dowiązanie jest usuwane. Bez uprawnień do dowiązań (Windows) plik jest kopiowany, a raport to zgłasza.
-3. **Konektory konta są wyłączone** (`features.apps=false`). Po zalogowaniu kontem ChatGPT Codex uruchamia wbudowany serwer MCP `codex_apps` z aplikacjami połączonymi z kontem właściciela. W wątkach platformy byłby to dostęp do jego prywatnych kont. Można je świadomie włączyć (`NativeToolsConfig.connectors`).
+3. **Natywni subagenci są wyłączeni** także dla modeli z `multi_agent_version: "v2"` w katalogu: `-c agents.enabled=false` obok `features.multi_agent*=false` (same feature'y nie wygrywają z katalogiem; [agent-bus.md](agent-bus.md#1-natywna-orkiestracja-dostawców-wyłączona)).
+4. **Konektory konta są wyłączone** (`features.apps=false`). Po zalogowaniu kontem ChatGPT Codex uruchamia wbudowany serwer MCP `codex_apps` z aplikacjami połączonymi z kontem właściciela. W wątkach platformy byłby to dostęp do jego prywatnych kont. Można je świadomie włączyć (`NativeToolsConfig.connectors`).
 
 Potwierdzone na żywo: profil natywny w izolowanym `CODEX_HOME` z dowiązanym logowaniem odpowiada poprawnie, bez hooków, serwerów MCP i aplikacji urządzenia.
