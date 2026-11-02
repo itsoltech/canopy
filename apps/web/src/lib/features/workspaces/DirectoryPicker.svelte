@@ -42,7 +42,9 @@
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error((payload as { message?: string }).message ?? `HTTP ${response.status}`);
       const listing = decode(ui.ListDirectoryResponseSchema, payload);
-      entries = listing.entries.filter((e) => e.isDir);
+      // Hidden folders (.cache, .config…) after the ones people usually pick.
+      entries = listing.entries.filter((e) => e.isDir)
+        .sort((a, b) => Number(a.name.startsWith(".")) - Number(b.name.startsWith(".")) || a.name.localeCompare(b.name));
       path = listing.path;
       address = path;
       value = path;
