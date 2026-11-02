@@ -9,8 +9,17 @@ import "google/protobuf/timestamp.proto";
 import "openagents/worker/v1/worker_link.proto";
 import "openagents/ui/v1/bots.proto";
 import "openagents/ui/v1/quotes.proto";
+import "openagents/ui/v1/connectors.proto";
 
 service GatewayService {
+  rpc ListConnectors(ListConnectorsRequest) returns (ListConnectorsResponse);
+  rpc SaveConnectorAccount(SaveConnectorAccountRequest) returns (ConnectorAccountResponse);
+  rpc SetConnectorAccess(SetConnectorAccessRequest) returns (ConnectorAccountResponse);
+  rpc DisconnectConnector(ConnectorAccountRequest) returns (ConnectorAccountResponse);
+  rpc TestConnector(ConnectorAccountRequest) returns (TestConnectorResponse);
+  rpc SaveConnectorOAuthApp(SaveConnectorOAuthAppRequest) returns (SaveConnectorOAuthAppResponse);
+  rpc BeginConnectorOAuth(BeginConnectorOAuthRequest) returns (BeginConnectorOAuthResponse);
+  rpc CompleteConnectorOAuth(CompleteConnectorOAuthRequest) returns (ConnectorAccountResponse);
   // Boty działające wyłącznie w gateway (docs/bots.md).
   rpc CreateBot(CreateBotRequest) returns (GetBotResponse);
   rpc UpdateBot(UpdateBotRequest) returns (GetBotResponse);

@@ -1,0 +1,64 @@
+syntax = "proto3";
+package openagents.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+import "openagents/worker/v1/worker_link.proto";
+
+// Publiczne DTO nigdy nie zwracają poświadczeń ani secretRef.
+message ConnectorType {
+  string id = 1;
+  string name = 2;
+  string url = 3;
+  repeated string auth_kinds = 4;
+  string requirements = 5;
+  bool oauth_app_set = 6;
+  string documentation_url = 7;
+}
+message ConnectorAccount {
+  string id = 1;
+  string connector_type = 2;
+  string name = 3;
+  string namespace = 4;
+  string url = 5;
+  string transport = 6;
+  string auth_kind = 7;
+  string status = 8;
+  bool all_workers = 9;
+  repeated string worker_ids = 10;
+  bool all_bots = 11;
+  repeated string bot_ids = 12;
+  uint64 revision = 13;
+  google.protobuf.Timestamp last_used_at = 14;
+  repeated string header_names = 15;
+}
+message ListConnectorsRequest { string thread_id = 1; string bot_id = 2; }
+message ListConnectorsResponse { repeated ConnectorType types = 1; repeated ConnectorAccount accounts = 2; }
+message SaveConnectorAccountRequest {
+  string id = 1;
+  string connector_type = 2;
+  string name = 3;
+  string url = 4;
+  string transport = 5;
+  string auth_kind = 6;
+  // Write-only. Empty credentials on an update preserve them unless replace_credentials.
+  string token = 7;
+  map<string,string> headers = 8;
+  bool replace_credentials = 9;
+  uint64 expected_revision = 10;
+}
+message ConnectorAccountResponse { ConnectorAccount account = 1; }
+message SetConnectorAccessRequest {
+  string account_id = 1;
+  bool all_workers = 2;
+  repeated string worker_ids = 3;
+  bool all_bots = 4;
+  repeated string bot_ids = 5;
+  uint64 expected_revision = 6;
+}
+message ConnectorAccountRequest { string account_id = 1; }
+message TestConnectorResponse { repeated openagents.worker.v1.ConnectorTool tools = 1; ConnectorAccount account = 2; }
+message SaveConnectorOAuthAppRequest { string connector_type = 1; string client_id = 2; string client_secret = 3; string issuer = 4; }
+message SaveConnectorOAuthAppResponse {}
+message BeginConnectorOAuthRequest { string account_id = 1; string redirect_uri = 2; string browser_binding = 3; string scope = 4; }
+message BeginConnectorOAuthResponse { string authorization_url = 1; }
+message CompleteConnectorOAuthRequest { string state = 1; string code = 2; string browser_binding = 3; string error = 4; string issuer = 5; }
