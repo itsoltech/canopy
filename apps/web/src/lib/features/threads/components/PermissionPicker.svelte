@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import Badge from "#lib/shared/ui/Badge.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
-  import { isFullAuto, permissionLabel, permissionModes, type PermissionModeKey } from "../labels.ts";
+  import { isFullAuto, permissionLabel, permissionLook, permissionModes, type PermissionModeKey } from "../labels.ts";
+  import PermissionModeTitle from "./PermissionModeTitle.svelte";
 
   /**
    * Composer pill for a permission mode (new thread: the thread's mode; thread composer: the next
@@ -20,6 +20,7 @@
   }: { value: PermissionModeKey; inherited?: PermissionModeKey | undefined; onselect: (mode: PermissionModeKey) => void; class?: ClassValue } = $props();
 
   const warn = $derived(isFullAuto(value));
+  const look = $derived(permissionLook(value));
 </script>
 
 <DropdownMenu label="Permissions" placement="bottom-end" class="w-72">
@@ -34,17 +35,13 @@
       aria-label="Permissions: {permissionLabel(value)}"
       title={warn ? "Full auto: runs commands and edits without asking (sandboxed to the workspace)" : undefined}
     >
-      <Icon name={warn ? "shield-exclamation" : "shield-check"} class={["size-3.5", warn && "fill-amber-600 dark:fill-amber-400"]} />
+      <Icon name={look.icon} class={["size-3.5", warn && look.iconClass]} />
       <span class="max-sm:sr-only">{permissionLabel(value)}</span>
     </PillButton>
   {/snippet}
   {#each permissionModes as option (option.value)}
     <MenuCheckItem checked={option.value === value} description={option.description} onselect={() => onselect(option.value)}>
-      <span class="flex items-center gap-1.5">
-        {option.label}
-        {#if isFullAuto(option.value)}<Badge tone="amber" icon="shield-exclamation">No prompts</Badge>{/if}
-        {#if option.value === inherited}<span class="text-zinc-500 dark:text-zinc-400">· thread default</span>{/if}
-      </span>
+      <PermissionModeTitle mode={option.value} note={option.value === inherited ? "· thread default" : undefined} />
     </MenuCheckItem>
   {/each}
 </DropdownMenu>

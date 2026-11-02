@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
+  import Radio from "#lib/shared/ui/Radio.svelte";
   import { updateThread } from "../api.ts";
   import { isFullAuto, permissionKey, permissionModes, type PermissionModeKey } from "../labels.ts";
+  import PermissionModeTitle from "./PermissionModeTitle.svelte";
 
   /**
    * The thread's default permission mode (UpdateThread): what turns run with when the composer sends no
@@ -54,22 +55,10 @@
           ]}
         >
           <span class="flex h-lh items-center text-base/6 sm:text-sm/6">
-            <input
-              type="radio"
-              name="{id}-mode"
-              value={option.value}
-              checked={option.value === mode}
-              onchange={() => (picked = option.value)}
-              aria-describedby="{id}-{option.value}"
-              class="size-5 appearance-none rounded-full border border-zinc-300 bg-white checked:border-[5px] checked:border-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:size-4 sm:checked:border-4 dark:border-white/10 dark:bg-white/5 dark:checked:border-brand-500 forced-colors:appearance-auto"
-            />
+            <Radio name="{id}-mode" value={option.value} checked={option.value === mode} onchange={() => (picked = option.value)} aria-describedby="{id}-{option.value}" />
           </span>
           <span class="grid min-w-0 gap-0.5 text-base/6 sm:text-sm/6">
-            <span class="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-zinc-950 dark:text-white">
-              {option.label}
-              {#if warn}<Badge tone="amber" icon="shield-exclamation">No prompts</Badge>{/if}
-              {#if option.value === current}<span class="font-normal text-zinc-500 dark:text-zinc-400">Current</span>{/if}
-            </span>
+            <PermissionModeTitle mode={option.value} note={option.value === current ? "Current" : undefined} class="font-medium text-zinc-950 dark:text-white" />
             <span id="{id}-{option.value}" class="text-zinc-500 dark:text-zinc-400">{option.description}</span>
           </span>
         </label>

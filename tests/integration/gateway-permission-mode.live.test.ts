@@ -92,7 +92,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: pe
    * Sends a message and waits for its turn to end. Permission prompts of the turn are answered with `allow`
    * and returned; a question is answered so nothing hangs.
    */
-  async function turn(threadId: string, request: Partial<ui.SendMessageRequest> & { text: string }, allow = true) {
+  async function turn(threadId: string, request: { text: string; permissionMode?: PermissionMode }, allow = true) {
     const sent = await gw.api.sendMessage({ threadId, clientRequestId: Bun.randomUUIDv7(), ...request });
     const turnId = sent.turn!.id;
     const prompts: ui.Interaction[] = [];

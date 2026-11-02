@@ -9,7 +9,7 @@
   import { statusLook } from "#lib/shared/ui/status.ts";
   import { textTones } from "#lib/shared/ui/tone.ts";
   import { sendMessage } from "../api.ts";
-  import { isFullAuto, permissionLabel } from "../labels.ts";
+  import { permissionLabel, permissionLook } from "../labels.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import type { TurnResult } from "../thread-state.svelte.ts";
 
@@ -78,9 +78,9 @@
   {#if took !== undefined && took >= 0}<span class="text-zinc-500 tabular-nums dark:text-zinc-400" title="Time the turn ran">{formatDuration(took)}</span>{/if}
   {#if ranWith}<span class="min-w-0 truncate text-zinc-500 dark:text-zinc-400" title="Model and reasoning effort: {ranWithIds}">{ranWith}</span>{/if}
   {#if turn.permissionMode !== PermissionMode.UNSPECIFIED}
-    {@const fullAuto = isFullAuto(turn.permissionMode)}
-    <span class={["flex shrink-0 items-center gap-1", fullAuto ? "text-amber-700 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400"]} title="Permission mode the turn ran with">
-      <Icon name={fullAuto ? "shield-exclamation" : "shield-check"} class={["size-3.5", fullAuto ? "fill-amber-600 dark:fill-amber-400" : "fill-zinc-400 dark:fill-zinc-500"]} />{permissionLabel(turn.permissionMode)}
+    {@const look = permissionLook(turn.permissionMode)}
+    <span class={["flex shrink-0 items-center gap-1", look.textClass]} title="Permission mode the turn ran with">
+      <Icon name={look.icon} class={["size-3.5", look.iconClass]} />{permissionLabel(turn.permissionMode)}
     </span>
   {/if}
   {#if usage && (usage.inputTokens > 0n || usage.outputTokens > 0n)}

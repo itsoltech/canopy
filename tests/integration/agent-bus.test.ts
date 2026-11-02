@@ -367,5 +367,9 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     };
     expect(full.permission_mode).toBe("full_auto");
     gw.worker.holdTurns = false;
+    gw.worker.finish(thread.id, next.id);
+    await eventually(() => turns(thread.id), (t) => t.every((x) => x.status !== "running" && x.status !== "queued"));
+    // The children's first turns too: nothing may still run when the gateway closes.
+    for (const id of [child.thread_id]) await gw.worker.callTool({ threadId: thread.id, tool: "close_thread", args: { thread_id: id } });
   });
 });
