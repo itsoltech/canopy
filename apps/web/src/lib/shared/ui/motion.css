@@ -423,6 +423,9 @@
   transition-duration: var(--duration-slow);
 }
 .t-composer-fold > * {
+  /* relative: absolutely placed descendants (an sr-only file input) stay inside the clip; otherwise they
+     escape it and stretch the page below the viewport while the composer is compact. */
+  position: relative;
   min-height: 0;
   overflow: hidden;
   opacity: 0;
