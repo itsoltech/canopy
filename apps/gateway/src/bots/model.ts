@@ -1,4 +1,4 @@
-import { Provider } from "@open-agents/contracts";
+import { Provider, type ProfileModels } from "@open-agents/contracts";
 import type { BotModel, ModelInput, ModelReply, ToolCall } from "./types.ts";
 
 type Endpoint = { url: string; key: string };
@@ -7,6 +7,28 @@ const argumentsOf = (raw: unknown): Record<string, unknown> => {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid model tool arguments");
   return value as Record<string, unknown>;
 };
+
+/** Claude Code model aliases: names the harness resolves, which the Messages API does not accept. */
+const HARNESS_ALIAS = /^(default|best|opus|sonnet|haiku|fable|opusplan)(\[1m\])?$/i;
+
+/**
+ * The model id a bot sends to the provider API. Bots call the API directly, so a harness alias from a
+ * worker's catalog (`default`, `opus`, …) becomes the concrete model it resolves to there. Custom models of
+ * the instance pass as they are; without any catalog the id is trusted (the endpoint has the final word).
+ * Returns a problem for the user instead when the id cannot work.
+ */
+export function apiModel(model: string, catalogs: readonly ProfileModels[], custom: readonly string[] = []): { model: string } | { problem: string } {
+  if (!model) return { problem: "Choose a model for this bot" };
+  if (custom.includes(model)) return { model };
+  const listed = catalogs.flatMap((c) => c.models);
+  const resolved = listed.find((m) => m.id === model && m.resolvedModel && m.resolvedModel !== model)?.resolvedModel;
+  if (resolved) return { model: resolved };
+  if (HARNESS_ALIAS.test(model)) return { problem: `"${model}" is a Claude Code alias, not a model of the provider API; choose a concrete model` };
+  const known = listed.some((m) => m.id === model || m.resolvedModel === model);
+  const complete = catalogs.some((c) => !c.detail && c.models.length > 0);
+  if (!known && complete) return { problem: `This provider instance does not offer the model "${model}"` };
+  return { model };
+}
 
 /** Explicit function schemas only. No provider-hosted tools, CLI, shell, browser or local SDK. */
 export function directModel(resolve: (input: ModelInput) => Promise<Endpoint>): BotModel {

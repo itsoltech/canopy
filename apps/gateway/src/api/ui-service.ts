@@ -18,6 +18,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       readBotExchange: (r) => guard(async () => create(bots.ReadBotExchangeResponseSchema, { messages: await core.bots.exchange(r.exchangeId) })),
       answerBotApproval: (r) => guard(async () => create(bots.AnswerBotApprovalResponseSchema, { approval: await core.bots.answer(r) })),
       interruptBot: (r) => guard(async () => { await core.bots.interrupt(r.botId); return create(bots.InterruptBotResponseSchema); }),
+      retryBot: (r) => guard(async () => { await core.bots.retry(r.botId); return create(bots.RetryBotResponseSchema); }),
       saveBotMcpServer: (r) => guard(async () => create(bots.SaveBotMcpServerResponseSchema, { server: await core.bots.saveServer(r) })),
       listBotMcpServers: () => guard(async () => create(bots.ListBotMcpServersResponseSchema, { servers: await core.bots.servers() })),
       deleteBotMcpServer: (r) => guard(async () => { await core.bots.deleteServer(r.serverId); return create(bots.DeleteBotMcpServerResponseSchema); }),

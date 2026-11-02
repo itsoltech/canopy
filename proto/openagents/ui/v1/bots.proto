@@ -36,6 +36,8 @@ message BotMessage {
   string text = 7;
   string exchange_id = 8;
   google.protobuf.Timestamp created_at = 9;
+  // Bot nie mógł odpowiedzieć (tura zakończona błędem); text to szczegół techniczny, nie treść rozmowy.
+  bool failed = 10;
 }
 message BotApproval {
   string id = 1;
@@ -72,6 +74,9 @@ message AnswerBotApprovalRequest { string approval_id = 1; bool approve = 2; str
 message AnswerBotApprovalResponse { BotApproval approval = 1; }
 message InterruptBotRequest { string bot_id = 1; }
 message InterruptBotResponse {}
+// Ponawia ostatnią turę, jeśli zakończyła się błędem: ta sama wiadomość użytkownika, bez nowego wpisu w czacie.
+message RetryBotRequest { string bot_id = 1; }
+message RetryBotResponse {}
 
 message BotMcpServer {
   string id = 1;
