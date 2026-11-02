@@ -1133,6 +1133,7 @@ export class GatewayCore {
     }
     const resolved: Mention[] = [];
     for (const m of checked) {
+      if (m.kind === MentionKind.BOT) throw new InvalidError("bot mentions are supported in bot conversations only");
       if (m.kind === MentionKind.FILE) {
         resolved.push(create(MentionSchema, { ...m, path: workerPath(thread.cwd, m.name) }));
       } else if (m.kind === MentionKind.THREAD) {

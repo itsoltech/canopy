@@ -38,6 +38,8 @@ message BotMessage {
   google.protobuf.Timestamp created_at = 9;
   // Bot nie mógł odpowiedzieć (tura zakończona błędem); text to szczegół techniczny, nie treść rozmowy.
   bool failed = 10;
+  // Wybrane chipy w wiadomości użytkownika; BOT.name = bot_id, zakresy UTF-16.
+  repeated openagents.worker.v1.Mention mentions = 450;
 }
 message BotApproval {
   string id = 1;
@@ -67,7 +69,12 @@ message ListBotsRequest {}
 message ListBotsResponse { repeated Bot bots = 1; }
 message DeleteBotRequest { string bot_id = 1; }
 message DeleteBotResponse {}
-message SendBotMessageRequest { string bot_id = 1; string text = 2; string client_request_id = 3; }
+message SendBotMessageRequest {
+  string bot_id = 1;
+  string text = 2;
+  string client_request_id = 3;
+  repeated openagents.worker.v1.Mention mentions = 450;
+}
 message SendBotMessageResponse { string turn_id = 1; }
 message WatchBotConversationRequest { string bot_id = 1; }
 message ReadBotExchangeRequest { string exchange_id = 1; }

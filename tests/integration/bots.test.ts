@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
-import { bots, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
+import { bots, MentionKind, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayCore } from "@open-agents/gateway/core";
 import { GatewayStore } from "@open-agents/gateway/store";
@@ -10,7 +10,7 @@ import { startGrpcServer } from "@open-agents/transport";
 import { openGatewayLink } from "@open-agents/worker/gateway-link";
 import { BotStore } from "../../apps/gateway/src/bots/store.ts";
 import type { BotModel, ModelInput, ModelReply } from "../../apps/gateway/src/bots/types.ts";
-import { eventually, ScriptedWorker, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, failure, ScriptedWorker, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 const reply = (text: string): ModelReply => ({ text, calls: [] });
 const tool = (name: string, args: Record<string, unknown> = {}): ModelReply => ({ text: "", calls: [{ id: "model-call", name, arguments: args }] });
@@ -117,6 +117,53 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     await settled(bot.id);
     expect(seen).toEqual([["first queued"], ["first queued", "Answer: first queued", "second queued"]]);
   });
+
+  test("structured bot mentions are durable, owner-validated and identify the exact bot to the model", async () => {
+    const seen: ModelInput[] = [];
+    model = async (input) => { seen.push(input); return reply("ok"); };
+    const bot = await add("Mention author");
+    const target = await add("Kropek");
+    await add("Kropek"); // Identical display names must not lose the selected identity.
+    const text = "🙂 ask @Kropek how he's doing";
+    const mention = { kind: MentionKind.BOT, name: target.id, label: "Kropek", start: text.indexOf("@"), end: text.indexOf("@") + "@Kropek".length };
+    const request = { botId: bot.id, text, mentions: [mention], clientRequestId: Bun.randomUUIDv7() };
+    const accepted = await gw.api.sendBotMessage(request);
+    const stored = (await settled(bot.id)).messages[0]!;
+    expect(stored.text).toBe(text);
+    expect(stored.mentions.map((m) => [m.kind, m.name, m.label, m.start, m.end])).toEqual([[MentionKind.BOT, target.id, "Kropek", mention.start, mention.end]]);
+    expect(lastInput(seen[0]!)).toContain(text);
+    expect(lastInput(seen[0]!)).toContain(`"Kropek" (bot_id ${target.id})`);
+    await send(bot.id, "and now?");
+    await settled(bot.id);
+    expect(seen[1]!.messages[0]!.text).toContain(`bot_id ${target.id}`);
+
+    const foreign = await add("Foreign");
+    const otherUser = await gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("mentions-other@test.local", "Other")));
+    await gw.runtime.runPromise(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`UPDATE bots SET owner_user_id = ${otherUser}::uuid WHERE id = ${foreign.id}::uuid`;
+    }));
+    const invalid = [
+      [{ ...mention, name: foreign.id }],
+      [{ ...mention, name: Bun.randomUUIDv7() }],
+      [{ ...mention, name: bot.id }],
+      [{ ...mention, kind: MentionKind.SKILL }],
+      [{ ...mention, name: "invalid-id" }],
+      [{ ...mention, start: mention.start + 1 }],
+      [{ ...mention, end: text.length + 1 }],
+      [mention, mention],
+      Array.from({ length: 51 }, () => mention),
+    ];
+    for (const mentions of invalid) expect(await failure(gw.api.sendBotMessage({ ...request, mentions, clientRequestId: Bun.randomUUIDv7() }))).not.toBe("");
+    expect((await read(bot.id)).messages.filter((m) => m.senderId === "user")).toHaveLength(2);
+    // The displayed name is untrusted input; model context comes from the selected owner's bot.
+    await gw.api.sendBotMessage({ ...request, text: "@Spoof", mentions: [{ ...mention, label: "Spoof", start: 0, end: 6 }], clientRequestId: Bun.randomUUIDv7() });
+    expect((await settled(bot.id)).messages.find((m) => m.text === "@Spoof")?.mentions[0]?.label).toBe("Kropek");
+    expect(lastInput(seen.at(-1)!)).toContain(`"Kropek" (bot_id ${target.id})`);
+    await gw.api.deleteBot({ botId: target.id });
+    expect((await gw.api.sendBotMessage(request)).turnId).toBe(accepted.turnId);
+    expect(await failure(gw.api.sendBotMessage({ ...request, clientRequestId: Bun.randomUUIDv7() }))).not.toBe("");
+  }, 20_000);
 
   test("gateway restart mid-inference resumes its durable input without duplicate messages", async () => {
     const started = Promise.withResolvers<void>();
