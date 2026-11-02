@@ -23,7 +23,7 @@ import { describeTool } from "./components/items/tools/registry.ts";
 export type FoldedRow =
   | { readonly kind: "row"; readonly row: TimelineRow; readonly work: boolean }
   | { readonly kind: "work"; readonly key: string; readonly turn: ui.Turn; readonly open: boolean; readonly summary: WorkSummary }
-  | { readonly kind: "work-group"; readonly key: string; readonly turn: ui.Turn; readonly open: boolean; readonly label: string; readonly running: boolean }
+  | { readonly kind: "work-group"; readonly key: string; readonly turn: ui.Turn; readonly open: boolean; readonly label: string; readonly running: boolean; readonly items: readonly string[] }
   | { readonly kind: "answer"; readonly key: string; readonly turn: ui.Turn; readonly row: TimelineRow | undefined };
 
 export interface WorkSummary {
@@ -109,7 +109,7 @@ export function foldTurns(rows: readonly TimelineRow[], isOpen: (turnId: string)
         if (!tools.length) return;
         const key = `group:${turnId}:${tools[0]!.key}`;
         const expanded = groupOpen(key);
-        out.push({ kind: "work-group", key, turn: fold.turn, open: expanded, label: groupSummary(tools), running: tools.some((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS) });
+        out.push({ kind: "work-group", key, turn: fold.turn, open: expanded, label: groupSummary(tools), running: tools.some((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS), items: tools.map((r) => r.key) });
         if (expanded) for (const tool of tools) out.push({ kind: "row", row: tool, work: true });
         tools = [];
       };
@@ -158,7 +158,7 @@ function summarize(turn: ui.Turn, work: readonly TimelineRow[], tasksBySource: R
       return `${n} ${n === 1 ? one : many}`;
     });
   const spanMs = turn.startedAt && turn.completedAt ? timestampMs(turn.completedAt) - timestampMs(turn.startedAt) : undefined;
-  return { spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined, counts: parts.join(", "), running: running.size, live: !isTerminal(turn.status), hint: currentWorkHint(work) };
+  return { spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined, counts: parts.join(", "), running: running.size, live: !isTerminal(turn.status), hint: currentWorkHint(work, tasksBySource) };
 }
 
 const isToolRow = (row: TimelineRow): boolean => row.kind === "item" && !["agentMessage", "userMessage", "reasoning"].includes(row.node.entry.item.content.case ?? "");
@@ -195,12 +195,12 @@ export function groupSummary(rows: readonly TimelineRow[]): string {
 }
 
 /** Only active work supplies a live hint; finished calls never masquerade as still running. */
-export function currentWorkHint(rows: readonly TimelineRow[]): string {
-  const active = rows.filter((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS);
+export function currentWorkHint(rows: readonly TimelineRow[], tasksBySource: ReadonlyMap<string, TimelineEntry> = new Map()): string {
+  const active = rows.filter((r) => r.kind === "item" && (tasksBySource.get(r.node.entry.id) ?? r.node.entry).item.status === ItemStatus.IN_PROGRESS);
   const reads = active.filter((r) => activity(r) === "read");
-  if (reads.length > 1) return `Reading ${reads.length} files…`;
   const row = active.at(-1);
   if (!row || row.kind !== "item") return "Thinking…";
+  if (activity(row) === "read" && reads.length > 1) return `Reading ${reads.length} files…`;
   const content = row.node.entry.item.content;
   if (content.case === "commandExecution") return `Running ${content.value.command.split("\n")[0]}…`;
   if (content.case === "toolCall") {
@@ -211,6 +211,7 @@ export function currentWorkHint(rows: readonly TimelineRow[]): string {
   if (content.case === "backgroundTask") return content.value.description || "Running a background task…";
   if (content.case === "agentBusCall") return `Calling ${content.value.toolName}…`;
   if (content.case === "subagent") return content.value.description || "Waiting for a subagent…";
+  if (content.case === "interactionPrompt") return content.value.routedTo === "parent" ? "Waiting for the parent agent…" : "Waiting for your answer…";
   return "Thinking…";
 }
 

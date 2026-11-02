@@ -314,10 +314,19 @@
   }
 
   function onwheel(event: WheelEvent) {
-    smoothUntil = 0;
-    readerUntil = performance.now() + 250;
+    readerGesture();
     // Scrolling up during a stream: let go at once, before the next growth pins the end again.
     if (event.deltaY < 0 && scroller && scroller.scrollHeight > scroller.clientHeight + 8) stuck = false;
+  }
+
+  function readerGesture() {
+    if (smoothUntil > 0) {
+      smoothUntil = 0;
+      // Stop a programmatic smooth scroll at its current position before handing control back.
+      scroller?.scrollTo({ top: scroller.scrollTop, behavior: "instant" });
+      if (!stuck) capture();
+    }
+    readerUntil = performance.now() + 250;
   }
 
   function onscrollend() {
@@ -459,12 +468,12 @@
   {onscroll}
   {onscrollend}
   {onwheel}
-  ontouchmove={() => { readerUntil = performance.now() + 250; }}
-  onpointerdown={(event) => { if (event.target === scroller) readerUntil = performance.now() + 250; }}
-  onpointermove={(event) => { if (event.buttons === 1 && event.target === scroller) readerUntil = performance.now() + 250; }}
+  ontouchmove={readerGesture}
+  onpointerdown={(event) => { if (event.target === scroller) readerGesture(); }}
+  onpointermove={(event) => { if (event.buttons === 1 && event.target === scroller) readerGesture(); }}
   onkeydown={(event) => {
     if (event.defaultPrevented || (event.target as Element).closest("textarea, input, select, [contenteditable]")) return;
-    if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerUntil = performance.now() + 250;
+    if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerGesture();
   }}
 >
   <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">

@@ -29,10 +29,11 @@ export class WorkFolds {
     this.open = next;
   }
 
-  toggleGroup(key: string): void {
+  toggleGroup(key: string, open = !this.groups.has(key)): void {
+    if (open === this.groups.has(key)) return;
     const next = new Set(this.groups);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
+    if (open) next.add(key);
+    else next.delete(key);
     this.groups = next;
   }
 

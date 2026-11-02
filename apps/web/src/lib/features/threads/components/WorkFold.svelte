@@ -8,9 +8,8 @@
   import { timestampMs } from "@bufbuild/protobuf/wkt";
 
   /**
-   * An ended turn's work folded into one row: "Worked for 2m 14s", what it holds and how much of it is
-   * still running (background tasks). The button keeps its place (and focus) when it opens or closes;
-   * the rows it opens follow it in the feed.
+   * Stable live/ended work header. A mounted live fold owns a one-second clock; historical folds have
+   * no timers. The button keeps its place and focus when it opens; flattened work follows in the feed.
    */
   let { summary, turn, open, ontoggle, class: className }: { summary: WorkSummary; turn: ui.Turn; open: boolean; ontoggle: () => void; class?: ClassValue } = $props();
   let now = $state(Date.now());

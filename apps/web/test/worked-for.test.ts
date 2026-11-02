@@ -166,6 +166,7 @@ describe("the feed with folds", () => {
     expect(opened.map((r) => r.key)).toEqual(["start:t1", "item:in", "work:t1", "group:t1:item:c1", "answer:t1", "end:t1"]);
     expect(opened[0]).toBe(closed[0]!);
     expect(opened[3]!.kind).toBe("work-group");
+    expect(opened[3]!.kind === "work-group" && opened[3]!.items).toEqual(["item:c1"]);
     expect(opened.map(feedInserted)).toEqual([undefined, undefined, "reveal", undefined, undefined, undefined]);
     const tools = builder.build(feedInput({ entries, turns, openWork: new Set(["t1"]), openGroups: new Set(["group:t1:item:c1"]) }));
     expect(tools.some((r) => r.key === "item:c1")).toBe(true);
@@ -191,9 +192,11 @@ describe("live work and tool groups", () => {
   test("live hint follows active calls and ignores completed calls", () => {
     expect(currentWorkHint(body([read("r1", ItemStatus.IN_PROGRESS), read("r2", ItemStatus.IN_PROGRESS)]))).toBe("Reading 2 files…");
     expect(currentWorkHint(body([read("r1")]))).toBe("Thinking…");
+    const concurrentReads = [read("r1", ItemStatus.IN_PROGRESS), read("r2", ItemStatus.IN_PROGRESS)];
     const command = ran("cmd", "t1", ItemStatus.IN_PROGRESS);
     if (command.item.content.case === "commandExecution") command.item.content.value.command = "bun test";
     expect(currentWorkHint(body([read("r1"), command]))).toBe("Running bun test…");
+    expect(currentWorkHint(body([...concurrentReads, command]))).toBe("Running bun test…");
   });
 
   test("latest message moves inside when tools resume; answer slot and group keys stay stable", () => {

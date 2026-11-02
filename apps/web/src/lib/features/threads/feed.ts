@@ -8,14 +8,14 @@ import { foldTurns, type WorkSummary } from "./work-groups.ts";
  * it, then per source thread an optional label and its rows, then the "Forked from" line), the thread's
  * own timeline, the working indicator and messages on their way into the running turn (steers). Queued
  * inputs are not rows: the queue panel above the composer shows and manages them (QueuePanel). An ended
- * turn's work is folded under one "Worked for …" row (`work`, see work-groups.ts), in the history as well.
+ * turn's work is folded under one stable live/ended header (`work`, see work-groups.ts), in history too.
  */
 export type FeedRow =
   | { readonly kind: "history-head"; readonly key: string; readonly sourceId: string; readonly threadIds: readonly string[]; readonly turns: number; readonly open: boolean }
   | { readonly kind: "history-part"; readonly key: string; readonly threadId: string }
   /** `history`: inside the folded history (`last`: its last row). `work`: under an open "Worked for …" fold. */
   | { readonly kind: "timeline"; readonly key: string; readonly row: TimelineRow; readonly history: boolean; readonly last: boolean; readonly work: boolean }
-  /** An ended turn's folded work (`open`: its rows follow). */
+  /** Stable fold, flattened tool group or streaming answer slot. */
   | (Extract<import("./work-groups.ts").FoldedRow, { kind: "work" | "work-group" | "answer" }> & { readonly history: boolean; readonly last: boolean })
   | { readonly kind: "forked"; readonly key: string; readonly sourceId: string }
   | { readonly kind: "working"; readonly key: string }
@@ -34,7 +34,7 @@ export interface FeedInput {
   readonly inheritedEntries: readonly TimelineEntry[];
   readonly inheritedTurns: readonly ui.Turn[];
   readonly historyOpen: boolean;
-  /** Ended turns whose work the reader opened (by turn id). */
+  /** Turns whose work the reader opened (by turn id), live or ended. */
   readonly openWork: ReadonlySet<string>;
   readonly openGroups?: ReadonlySet<string>;
 }
@@ -66,7 +66,7 @@ const ESTIMATES: Record<string, number> = {
   answer: 160,
   "item:userMessage": 96,
   "item:agentMessage": 160,
-  "item:subagent": 120,
+  "item:subagent": 44,
 };
 /** First guess of a group's height (px) until one of its rows is measured. */
 export const feedEstimate = (group: string): number => ESTIMATES[group.replace(/:history$/, "")] ?? 44;
@@ -141,9 +141,10 @@ function historyParts(
 
 /** Same kind and the same values (by identity) one level down, including the timeline row's fields. */
 function sameRow(a: FeedRow, b: FeedRow): boolean {
-  if (!shallowEqual(a, b, ["row", "threadIds", "summary"])) return false;
+  if (!shallowEqual(a, b, ["row", "threadIds", "summary", "items"])) return false;
   if (a.kind === "timeline" && b.kind === "timeline") return shallowEqual(a.row, b.row);
   if (a.kind === "answer" && b.kind === "answer") return a.row === undefined || b.row === undefined ? a.row === b.row : shallowEqual(a.row, b.row);
+  if (a.kind === "work-group" && b.kind === "work-group") return a.items.length === b.items.length && a.items.every((key, i) => key === b.items[i]);
   if (a.kind === "work" && b.kind === "work") return shallowEqual(a.summary, b.summary);
   if (a.kind === "history-head" && b.kind === "history-head") return a.threadIds.length === b.threadIds.length && a.threadIds.every((id, i) => id === b.threadIds[i]);
   return true;
