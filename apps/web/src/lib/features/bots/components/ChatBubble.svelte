@@ -7,13 +7,14 @@
   import type { BotAction } from "../actions.ts";
   import { fullDateLabel, timeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
-  import { mentionRanges } from "../mentions.ts";
+  import { mentionRanges, structuredMentionRanges } from "../mentions.ts";
   import type { ChatMessageView, ParticipantView } from "../model.ts";
   import ActionItems from "./ActionItems.svelte";
   import BotChip from "./BotChip.svelte";
   import LinkChip from "./LinkChip.svelte";
   import MessageActions from "./MessageActions.svelte";
   import MessageRow from "./MessageRow.svelte";
+  import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
 
   /**
    * One message in a run. Bots write markdown (safe renderer) on soft grey, other bots named in it become
@@ -30,8 +31,10 @@
     first = true,
     last = true,
     showName = false,
+    gutter = true,
     replyToName,
     bots = [],
+    conversationId,
     onreact,
     onreply,
     more = [],
@@ -43,11 +46,14 @@
     mine?: boolean;
     first?: boolean;
     last?: boolean;
+    /** The avatar column (group chats); a 1:1 chat has none. */
+    gutter?: boolean;
     showName?: boolean;
     /** Name of the author of the quoted message. */
     replyToName?: string | undefined;
     /** Bots whose names become chips in the text. */
     bots?: readonly ParticipantView[];
+    conversationId?: string;
     onreact?: ((message: ChatMessageView) => void) | undefined;
     onreply?: ((message: ChatMessageView) => void) | undefined;
     more?: readonly BotAction[];
@@ -65,7 +71,7 @@
     ...more,
   ]);
   const end = $derived(side === "end");
-  const mentions = $derived(mine ? [] : mentionRanges(message.text, bots.filter((b) => b.id !== message.senderId)));
+  const mentions = $derived(mine ? structuredMentionRanges(message.text, message.mentions ?? [], bots) : mentionRanges(message.text, bots.filter((b) => b.id !== message.senderId)));
   // Concentric with the run: the side facing a neighbour gets the small radius.
   const corners = $derived([
     "rounded-[1.25rem]",
@@ -79,7 +85,7 @@
   {#if found}<BotChip bot={found.bot} />{/if}
 {/snippet}
 
-<MessageRow {sender} {side} {mine} showAvatar={last} {showName} class={["group/message", className]}>
+<MessageRow {sender} {side} {mine} showAvatar={last} {showName} {gutter} class={["group/message", className]}>
   {#if message.replyTo}
     <p class={["flex max-w-[min(85%,32rem)] items-center gap-1.5 px-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", end && "flex-row-reverse"]}>
       <Icon name="arrow-uturn-left" class="size-3.5 shrink-0 fill-zinc-400 dark:fill-zinc-500" />
@@ -95,19 +101,21 @@
             "max-w-[min(100%,36rem)] min-w-0 px-4 py-2 wrap-anywhere select-text",
             corners,
             mine
-              ? "bg-zinc-900 text-base/6 whitespace-pre-wrap text-white sm:text-sm/6 dark:bg-zinc-100 dark:text-zinc-950"
+              ? "bg-zinc-900 text-base/6 whitespace-pre-wrap text-white [--bot-chip-light-target:white] [--bot-chip-dark-target:black] sm:text-sm/6 dark:bg-zinc-100 dark:text-zinc-950"
               : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800/80 dark:text-zinc-100 [&>div]:gap-2 [&>div]:text-base/6 sm:[&>div]:text-sm/6 [&_pre]:my-1",
             message.delivery === "sending" && "opacity-60",
           ]}
           title={fullDateLabel(message.at)}
+          data-quote-item={message.id}
+          data-quote-thread={conversationId}
           {@attach contextMenu(() => {
             if (matchMedia("(pointer: coarse)").matches) touchMenuOpen = true;
           })}
         >
-          <span class="sr-only">{mine ? "You" : (sender?.name ?? "Unknown")}, {timeLabel(message.at)}: </span>{#if mine}{message.text}{:else}<Markdown
+          <span class="sr-only" data-quote-skip>{mine ? "You" : (sender?.name ?? "Unknown")}, {timeLabel(message.at)}: </span>{#if message.quotes?.length}<MessageQuotes quotes={message.quotes} inverted={mine} class="pb-2" />{/if}{#if mine}{#each mentions as found, index (found.start)}{message.text.slice(index === 0 ? 0 : mentions[index - 1]!.end, found.start)}<BotChip bot={found.bot} />{/each}{message.text.slice(mentions.at(-1)?.end ?? 0)}{:else}<div data-quote-kind="agent_message"><Markdown
               text={message.text}
               elements={mentions.length > 0 ? { ranges: mentions, render: mention } : undefined}
-            />{/if}
+            /></div>{/if}
         </div>
       {/snippet}
       <ActionItems actions={touchItems} />

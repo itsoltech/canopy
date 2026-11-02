@@ -167,7 +167,7 @@ export class BotsRuntime {
   async get(id: string) { return botView(await this.run((s) => s.owned(this.#options.userId, id))); }
   async remove(id: string) { await this.interrupt(id); return this.run((s) => s.remove(this.#options.userId, id)); }
   async send(request: bots.SendBotMessageRequest) {
-    const turnId = await this.run((s) => s.enqueue(this.#options.userId, request.botId, request.text, request.clientRequestId));
+    const turnId = await this.run((s) => s.enqueue(this.#options.userId, request.botId, request.text, request.clientRequestId, { mentions: request.mentions, quotes: request.quotes }));
     void this.tick().catch(() => undefined);
     return turnId;
   }

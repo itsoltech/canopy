@@ -1,3 +1,5 @@
+import type { Mention, ui } from "@open-agents/contracts";
+
 /**
  * View model of Bots (agents that live in the gateway). Presentational only: no proto types, so a
  * future contract maps onto these shapes in one place. Times are `Date`s; ids are opaque strings.
@@ -65,6 +67,8 @@ export interface ChatMessageView {
   at: Date;
   /** Markdown from bots; your own messages are shown as plain text. */
   text: string;
+  mentions?: readonly Mention[] | undefined;
+  quotes?: readonly ui.Quote[] | undefined;
   links?: LinkView[] | undefined;
   /** Quoted message this one answers. */
   replyTo?: { senderId: string; excerpt: string } | undefined;

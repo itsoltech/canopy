@@ -1,8 +1,11 @@
+import { Lexer, type Token } from "marked";
+
 /**
  * Live markdown of the composer (docs/ui-api.md, "Wzmianki" → "Markdown na żywo"): the two constructs the editor
  * formats while typing, as pure text rules shared by the DOM (MentionEditor, inline-code.ts) and the model
  * (editor.ts `serialize` / `toHtml`). The text never changes: formatting only shows what the markdown already says.
  *
+ * - Bold and italic: parsed with the same Markdown lexer as message rendering; delimiters remain editable.
  * - Inline code: a single-backtick span on one line (`` `npm i` ``). The backticks stay text, around a `<code>`
  *   with the span's content; a chip or a line break ends the run a span may live in.
  * - Fenced code block: an opening line of three or more backticks with an optional language word, the code, and a
@@ -26,16 +29,55 @@ export function codeSpans(text: string): Array<readonly [number, number]> {
 /** Inline code as it looks in the editor (the chat's `codespan` look, MarkdownInline.svelte). */
 export const INLINE_CODE_CLASS = "rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px font-mono text-[0.875em] text-zinc-950 dark:bg-white/10 dark:text-white";
 
+export interface InlineSpan {
+  readonly start: number;
+  readonly end: number;
+  readonly kind: "code" | "strong" | "em";
+  readonly mask: number;
+}
+
+/** Markdown emphasis and code, with original delimiters kept as editable text. No links or HTML execute. */
+export function inlineSpans(text: string): InlineSpan[] {
+  const spans: InlineSpan[] = [];
+  function walk(tokens: readonly Token[], offset: number) {
+    let at = offset;
+    for (const token of tokens) {
+      if (token.type === "strong" || token.type === "em") {
+        const edge = token.type === "strong" ? 2 : 1;
+        spans.push({ start: at + edge, end: at + token.raw.length - edge, kind: token.type, mask: token.type === "strong" ? 2 : 4 });
+        if ("tokens" in token && token.tokens) walk(token.tokens, at + edge);
+      }
+      at += token.raw.length;
+    }
+  }
+  walk(Lexer.lexInline(text), 0);
+  for (const [start, end] of codeSpans(text)) spans.push({ start, end, kind: "code", mask: 1 });
+  return spans.sort((a, b) => a.start - b.start || b.end - a.end);
+}
+
 /** HTML of one run of text with its code spans (`fresh`: just typed, it fades in). Line breaks become `<br>`. */
 export function inlineHtml(text: string, fresh = false): string {
   let html = "";
-  let at = 0;
   const plain = (s: string) => s.split("\n").map(escapeHtml).join("<br>");
-  for (const [start, end] of codeSpans(text)) {
-    html += `${plain(text.slice(at, start))}<code data-md="code" class="${INLINE_CODE_CLASS}${fresh ? " t-code-form" : ""}">${escapeHtml(text.slice(start, end))}</code>`;
-    at = end;
+  const spans = inlineSpans(text);
+  const points = [...new Set([0, text.length, ...spans.flatMap((s) => [s.start, s.end])])].sort((a, b) => a - b);
+  let opened: InlineSpan[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const from = points[i]!;
+    const to = points[i + 1]!;
+    const active = spans.filter((s) => s.start <= from && s.end >= to);
+    let same = 0;
+    while (same < opened.length && opened[same] === active[same]) same++;
+    for (const span of opened.slice(same).reverse()) html += `</${span.kind}>`;
+    for (const span of active.slice(same)) {
+      const classes = span.kind === "code" ? INLINE_CODE_CLASS : span.kind === "strong" ? "font-semibold" : "italic";
+      html += `<${span.kind} data-md="${span.kind}" class="${classes}${fresh ? " t-code-form" : ""}">`;
+    }
+    html += plain(text.slice(from, to));
+    opened = active;
   }
-  return html + plain(text.slice(at));
+  for (const span of opened.reverse()) html += `</${span.kind}>`;
+  return html;
 }
 
 export interface CodeBlockData {
