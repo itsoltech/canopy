@@ -118,10 +118,10 @@ export class ScriptedWorker {
     void this.#loop();
   }
 
-  emit(threadId: string, turnId: string, body: NonNullable<MessageInitShape<typeof ThreadEventSchema>["body"]>): void {
+  emit(threadId: string, turnId: string, body: MessageInitShape<typeof ThreadEventSchema>["body"], rawJson = "{}"): void {
     const journalSeq = (this.#seq.get(threadId) ?? 0n) + 1n;
     this.#seq.set(threadId, journalSeq);
-    this.link.send({ case: "threadEvent", value: create(ThreadEventSchema, { threadId, turnId, journalSeq, eventId: Bun.randomUUIDv7(), body, rawJson: "{}" }) });
+    this.link.send({ case: "threadEvent", value: create(ThreadEventSchema, { threadId, turnId, journalSeq, eventId: Bun.randomUUIDv7(), ...(body && { body }), rawJson }) });
   }
 
   /** What the provider does when the model calls an agent bus tool. */

@@ -1,0 +1,6 @@
+{"type":"system","subtype":"task_notification","task_id":"old-task","status":"stopped","summary":"Background shell command didn't finish before the previous session ended","output_file":"","session_id":"session"}
+{"type":"system","subtype":"init","session_id":"session"}
+{"type":"result","subtype":"success","is_error":false,"num_turns":0,"origin":{"kind":"task-notification"},"result":"","usage":{"input_tokens":0,"output_tokens":0},"total_cost_usd":0,"session_id":"session"}
+{"type":"system","subtype":"init","session_id":"session"}
+{"type":"assistant","message":{"id":"note-answer","model":"claude-haiku-5-5","content":[{"type":"text","text":"The background task was stopped because the worker shut down for a restart or deploy."}]},"parent_tool_use_id":null,"uuid":"note-answer-entry","session_id":"session"}
+{"type":"result","subtype":"success","is_error":false,"num_turns":1,"result":"The background task was stopped because the worker shut down for a restart or deploy.","usage":{"input_tokens":10,"output_tokens":20},"total_cost_usd":0,"session_id":"session"}
