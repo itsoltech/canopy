@@ -92,7 +92,7 @@ import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt 
 import { BotsRuntime } from "../bots/runtime.ts";
 import { BotStore } from "../bots/store.ts";
 import type { BotModel, BotTurn, StoredCall } from "../bots/types.ts";
-import { botPlatform, describeBotTool } from "../bots/platform.ts";
+import { botPlatform, describeBotTool, prepareBotTool } from "../bots/platform.ts";
 import { ThreadSecrets } from "./thread-secrets.ts";
 import { ActionContext } from "./action-context.ts";
 
@@ -190,6 +190,7 @@ export class GatewayCore {
       ...(options.botModel && { model: options.botModel }), ...(options.log && { log: options.log }),
       platform: (turn, call) => botPlatform(this, options, turn, call),
       describeTool: (tool, args) => describeBotTool(this, tool, args),
+      prepareTool: (turn, call) => prepareBotTool(this, options, turn, call),
     });
     this.link = createWorkerLink({
       authenticate: (credential) => this.#run((s) => s.authenticateWorker(credential)),

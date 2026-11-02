@@ -149,6 +149,27 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     await invoke("answer_interaction", { thread_id: threadId, request_id: requestId, allow: true }, true);
     await eventually(async () => gw.worker.interactionAnswers.some((a) => a.requestId === requestId), Boolean);
     expect(gw.worker.interactionAnswers).toContainEqual({ requestId, allow: true });
+    // A question: a malformed answer comes back to the bot as an error naming the expected shape, with no card for the user;
+    // a valid one gets a readable card (the question and the chosen label) and reaches the worker.
+    const questionId = Bun.randomUUIDv7();
+    gw.worker.ask({ requestId: questionId, threadId, kind: InteractionKind.QUESTION, toolName: "ask_user",
+      requestJson: JSON.stringify({ questions: [{ id: "topic", header: "Topic", question: "Which riddle?", kind: "single_choice", options: [{ label: "Consciousness" }, { label: "Time" }] }] }) });
+    await eventually(() => gw.runtime.runPromise(GatewayStore.use((s) => s.snapshot(threadId))), (s) => s.interactions.some((i) => i.requestId === questionId));
+    const rejected = await invoke<{ error: string }>("answer_interaction", { thread_id: threadId, request_id: questionId, answers: [{ id: "topic", kind: "choice", labels: ["Space"] }] });
+    expect(rejected.error).toContain('topic (single_choice: "Consciousness", "Time")');
+    const reading = await invoke<{ interactions: { request_id?: string; requestId?: string; answer_with?: string; request?: unknown }[] }>("read_thread", { thread_id: threadId });
+    expect(reading.interactions.find((i) => (i.requestId ?? i.request_id) === questionId)).toMatchObject({ answer_with: expect.stringContaining("labels"), request: { questions: [expect.objectContaining({ id: "topic" })] } });
+    const answerToken = Bun.randomUUIDv7();
+    requested.set(answerToken, { name: "answer_interaction", args: { thread_id: threadId, request_id: questionId, answers: [{ id: "topic", kind: "choice", labels: ["Time"] }] } });
+    const answering = await gw.core.bots.create(create(bots.CreateBotRequestSchema, { configuration: config(), clientRequestId: answerToken }));
+    await gw.core.bots.send(create(bots.SendBotMessageRequestSchema, { botId: answering.id, text: answerToken, clientRequestId: answerToken }));
+    const card = (await eventually(() => read(answering.id), (s) => s.approvals.some((a) => a.status === "pending"))).approvals[0]!;
+    expect(card.prompt).toContain("Which riddle?\nAnswer: Time");
+    expect(card.prompt).not.toContain("{");
+    await gw.core.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: card.id, approve: true }));
+    await eventually(async () => gw.worker.interactionAnswers.some((a) => a.requestId === questionId), Boolean);
+    await eventually(() => read(answering.id), (s) => !s.working);
+    await gw.core.bots.remove(answering.id);
     gw.worker.emit(threadId, "", { case: "itemStarted", value: { item: { itemId: "bot-bg", status: ItemStatus.IN_PROGRESS, content: { case: "backgroundTask", value: { taskId: "native-bg", description: "Long command" } } } } });
     await eventually(() => gw.runtime.runPromise(GatewayStore.use((s) => s.threadItem(threadId, "bot-bg"))), Boolean);
     expect(await invoke("list_background_tasks", { thread_id: threadId })).toMatchObject({ tasks: [expect.objectContaining({ item_id: "bot-bg" })] });
