@@ -181,23 +181,32 @@ describe.skipIf(!dockerAvailable)("durable threads (gateway + scripted worker)",
 
   test("the sweep fixes what no turn end settled, with an audit reason, idempotently", async () => {
     worker.holdTurns = false;
-    const created = await gw.api.createThread({ projectId, workspaceId, title: "sweep", provider: Provider.CODEX, permissionMode: PermissionMode.ASK, clientRequestId: "c-sweep", initialMessage: "go" });
+    const created = await gw.api.createThread({ projectId, workspaceId, title: "sweep", provider: Provider.CODEX, permissionMode: PermissionMode.ASK, clientRequestId: "c-sweep" });
     const threadId = created.thread!.id;
-    const [turn] = await eventually(() => turns(threadId), (t) => t[0]?.status === "completed");
+    expect(await eventually(() => threadStatus(threadId), (s) => s === "idle")).toBe("idle");
+    // Seed a historical turn without a worker turnFinished: observing "completed" would not mean its
+    // post-ingest settle() had finished, and that settle could consume the leftovers before sweep().
+    const turnId = Bun.randomUUIDv7();
+    await query(
+      `INSERT INTO turns (id, thread_id, ordinal, status, trigger, input, last_seq, completed_at)
+       VALUES ($1::uuid, $2::uuid, 1, 'completed', 'provider', '{}', 1, now())`,
+      turnId,
+      threadId,
+    );
     // Rows like the ones an older gateway left behind: an item open in a finished turn, an interrupted thread status,
     // a question of a finished turn still pending.
     await query(
       `INSERT INTO thread_items (thread_id, item_id, turn_id, type, status, content, first_seq, last_seq)
        VALUES ($1::uuid, 'stale-cmd', $2::uuid, 'command_execution', 'in_progress', '{"itemId":"stale-cmd","status":"ITEM_STATUS_IN_PROGRESS","commandExecution":{"command":"sleep 40"}}', 1, 1)`,
       threadId,
-      turn!.id,
+      turnId,
     );
     await query("UPDATE threads SET status = 'interrupted' WHERE id = $1::uuid", threadId);
     await query(
       `INSERT INTO interaction_requests (id, thread_id, turn_id, kind, tool_name, request, routed_to) VALUES ($1::uuid, $2::uuid, $3::uuid, 'permission', 'shell', '{}', 'human')`,
       Bun.randomUUIDv7(),
       threadId,
-      turn!.id,
+      turnId,
     );
     expect(await gw.core.sweep()).toContain(threadId);
     expect((await items(threadId)).find((i) => i.item_id === "stale-cmd")?.status).toBe("interrupted");
