@@ -287,9 +287,10 @@ describe.skipIf(!dockerAvailable)("background task notes (gateway)", () => {
     expect(got).toMatchObject({ task_id: "bg:exec-8", status: "running", output: "line 2\nline 3", output_truncated: true });
     expect(got.started_at).toBeString();
     expect(json(await worker.callTool({ threadId, tool: "get_background_task", args: { task_id: "nope" } })).error).toContain("not found");
-    // Another thread's tasks: only within the tree.
+    // Another thread of the same owner: readable (like get_thread), stopping only a descendant's.
     const other = await newThread();
-    expect(json(await worker.callTool({ threadId, tool: "list_background_tasks", args: { thread_id: other } })).error).toContain("not found in your thread tree");
+    expect(json(await worker.callTool({ threadId, tool: "list_background_tasks", args: { thread_id: other } }))).toMatchObject({ tasks: [] });
+    expect(json(await worker.callTool({ threadId, tool: "stop_background_task", args: { task_id: "1", thread_id: other } })).error).toContain("not found in your thread tree");
 
     worker.handlers.set("stopTask", (_value, reply) => {
       reply(true);

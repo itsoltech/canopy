@@ -96,7 +96,7 @@ Narzędzia do sprawdzania własnej pracy w tle ([execution.md](execution.md#4-za
 | `get_background_task` | `task_id` (`item_id`, id procesu Codexa albo zadania Claude), `output_lines?` (≤ 500, domyślnie 80), `thread_id?` | to samo + `output` (ostatnie linie), `output_truncated` |
 | `stop_background_task` | `task_id`, `thread_id?` | `stopping: true`; `StopTask` do workera; koniec bez notatki dla agenta (sam zatrzymał) |
 
-- Dostęp: własny wątek zawsze (także wątek boczny). Inny wątek: odczyt jak `get_thread` (drzewo albo wspomniany), zatrzymanie jak `interrupt_thread` (tylko potomkowie).
+- Dostęp: własny wątek zawsze (także wątek boczny). Inny wątek: odczyt jak `get_thread` (każdy wątek tego samego właściciela), zatrzymanie jak `interrupt_thread` (tylko potomkowie).
 - Wywołania nie zaczynają tur, więc nie wydłużają łańcucha przeskoków. Notatki o końcach zadań (tury `background_task`) — [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania).
 - `stop_reason = stopped_by_user` oznacza Stop użytkownika albo agenta.
 - Codex: wątki utworzone przed tą zmianą nie mają tych narzędzi (zestaw jest ustalany przy `thread/start`); notatki dostają mimo to.
