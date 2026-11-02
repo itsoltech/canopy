@@ -158,7 +158,7 @@
   }
 
   const segment =
-    "flex flex-1 cursor-pointer items-center justify-center rounded-md px-3 py-1.5 text-base/6 font-medium text-zinc-600 has-checked:bg-white has-checked:text-zinc-950 has-checked:shadow-xs has-checked:ring-1 has-checked:ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1 sm:text-sm/6 dark:text-zinc-400 dark:has-checked:bg-white/10 dark:has-checked:text-white dark:has-checked:shadow-none dark:has-checked:ring-white/10";
+    "flex flex-1 cursor-pointer items-center justify-center rounded-md px-3 py-1.5 text-base/6 font-medium text-zinc-600 has-checked:bg-white has-checked:text-zinc-950 has-checked:shadow-xs has-checked:ring-1 has-checked:ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 pointer-coarse:min-h-12 sm:py-1 sm:text-sm/6 dark:text-zinc-400 dark:has-checked:bg-white/10 dark:has-checked:text-white dark:has-checked:shadow-none dark:has-checked:ring-white/10";
 </script>
 
 <Dialog bind:open title="Schedule a task" description="Send a message at a set time, in an existing thread or a fresh thread for each run." size="lg">

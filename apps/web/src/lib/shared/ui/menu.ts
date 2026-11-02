@@ -22,7 +22,7 @@ export function useMenu(): MenuContext {
 
 /** Look shared by every row of a menu (items, check items, submenu triggers). */
 export const menuRowClasses =
-  "group/item relative flex w-full cursor-default items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-base/6 text-zinc-800 outline-none select-none focus:bg-zinc-950/5 focus:text-zinc-950 aria-disabled:opacity-50 aria-expanded:bg-zinc-950/5 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:focus:bg-white/8 dark:focus:text-white dark:aria-expanded:bg-white/8";
+  "group/item relative flex w-full cursor-default items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-base/6 text-zinc-800 outline-none select-none focus:bg-zinc-950/5 focus:text-zinc-950 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500 aria-disabled:opacity-50 aria-expanded:bg-zinc-950/5 pointer-coarse:min-h-12 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:focus:bg-white/8 dark:focus:text-white dark:aria-expanded:bg-white/8";
 
 /** Leading icon of a menu row. */
 export const menuIconClasses = "h-lh fill-zinc-500 group-focus/item:fill-zinc-700 dark:fill-zinc-400 dark:group-focus/item:fill-zinc-200";

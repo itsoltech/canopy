@@ -5,10 +5,9 @@
   import { dateTimeError, formatDateTime, localValue, parseDay, shiftDay, stepTime, userTimeZone, type DateTimeKind } from "./date-time.ts";
   import Button from "./Button.svelte";
   import Calendar from "./Calendar.svelte";
-  import Icon from "./Icon.svelte";
+  import PickerTrigger from "./PickerTrigger.svelte";
   import Popover from "./Popover.svelte";
   import StepperButtons from "./StepperButtons.svelte";
-  import TouchTarget from "./TouchTarget.svelte";
 
   /** Internal renderer for Input's date/time types. Same local ISO wire values; locale display. */
   type Props = Omit<HTMLInputAttributes, "class" | "type"> & { type: DateTimeKind; class?: ClassValue };
@@ -54,7 +53,11 @@
   });
   function apply() {
     if (error || disabled || readonly) return;
-    value = draft;
+    commit(draft);
+  }
+  function commit(next: string) {
+    value = next;
+    if (hidden) hidden.value = next;
     hidden?.dispatchEvent(new Event("input", { bubbles: true }));
     hidden?.dispatchEvent(new Event("change", { bubbles: true }));
     open = false;
@@ -72,13 +75,11 @@
     oninvalid={(event) => { event.preventDefault(); button?.focus(); }} />
   <Popover bind:open label="Choose {label}" sheet class="w-96 max-w-[calc(100vw-1rem)]">
     {#snippet trigger(props)}
-      <button {...props} bind:this={button} {id} type="button" role="combobox" aria-haspopup="dialog" aria-readonly={readonly || undefined} {form} disabled={disabled || readonly}
+      <PickerTrigger {...props} bind:element={button} {id} aria-haspopup="dialog" aria-readonly={readonly || undefined} {form} disabled={disabled || readonly}
         aria-label={rest["aria-label"]} aria-describedby={rest["aria-describedby"] ?? field?.describedBy}
         aria-invalid={rest["aria-invalid"] || field?.invalid || Boolean(valueError) || undefined} aria-required={required || undefined}
-        class={[controlClasses, "relative flex items-center gap-2 text-left pointer-coarse:min-h-12"]}>
-        <span class="min-w-0 flex-1 truncate">{formatted || placeholder || (type === "time" ? "Choose time…" : "Choose date…")}</span>
-        <Icon name={type === "time" ? "clock" : "calendar-days"} class="fill-zinc-500 dark:fill-zinc-400" /><TouchTarget />
-      </button>
+        text={formatted || placeholder || (type === "time" ? "Choose time…" : "Choose date…")}
+        icon={type === "time" ? "clock" : "calendar-days"} />
     {/snippet}
     <div class="grid gap-3 p-3">
       {#if type !== "time"}
@@ -106,6 +107,7 @@
       {/if}
       {#if error}<p role="alert" class="text-sm/5 text-rose-600 dark:text-rose-400">{error}</p>{/if}
       <div class="flex justify-end gap-2 border-t border-zinc-950/5 pt-3 dark:border-white/10">
+        {#if !required && wire}<Button size="sm" variant="ghost" onclick={() => commit("")}>Clear</Button>{/if}
         <Button size="sm" onclick={() => (open = false)}>Cancel</Button>
         <Button size="sm" variant="primary" disabled={Boolean(error)} onclick={apply}>Apply</Button>
       </div>

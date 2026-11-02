@@ -29,7 +29,7 @@
   const id = $props.id();
 </script>
 
-<div class={["flex gap-3", className]}>
+<div class={["flex gap-3 pointer-coarse:min-h-12", className]}>
   <div class="flex h-lh items-center text-base/6 sm:text-sm/6">
       <ChoiceControl
         {id}

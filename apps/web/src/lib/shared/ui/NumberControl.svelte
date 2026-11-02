@@ -37,6 +37,7 @@
     if (disabled || readonly || input?.matches(":disabled")) return;
     value = stepNumber(parsed, direction, numberBound(step), lower, upper);
     raw = String(value);
+    if (input) input.value = raw;
     input?.dispatchEvent(new Event("input", { bubbles: true }));
     input?.dispatchEvent(new Event("change", { bubbles: true }));
   }

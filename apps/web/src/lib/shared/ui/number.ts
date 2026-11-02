@@ -18,7 +18,7 @@ export function clampNumber(value: number, min = -Infinity, max = Infinity): num
 export function stepNumber(value: number | undefined, direction: number, step = 1, min = -Infinity, max = Infinity): number {
   const increment = Number.isFinite(step) && step > 0 ? step : 1;
   const base = Number.isFinite(min) ? min : 0;
-  if (value === undefined) return clampNumber(base, min, max);
+  if (value === undefined) return clampNumber(direction > 0 ? increment : -increment, min, max);
   const position = (value - base) / increment;
   const next = direction > 0 ? Math.floor(position + 1e-9) + 1 : Math.ceil(position - 1e-9) - 1;
   return clampNumber(Number((base + next * increment).toPrecision(14)), min, max);
