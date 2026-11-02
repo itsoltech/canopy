@@ -5,6 +5,8 @@
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import type { Tone } from "#lib/shared/ui/tone.ts";
   import Diff from "../Diff.svelte";
+  import DiffCounts from "./DiffCounts.svelte";
+  import { diffCounts } from "./tools/changes.ts";
 
   /** One changed file: what happened to it, its path, lines added and removed, and its diff (highlighted by file type). */
   let { path, kind, movePath = "", diff, diffBlob }: { path: string; kind: string; movePath?: string; diff: string; diffBlob?: BlobRef | undefined } = $props();
@@ -16,15 +18,7 @@
     move: { label: "Moved", tone: "violet" },
   };
   const look = $derived(kinds[kind] ?? { label: "Changed", tone: "neutral" as Tone });
-  const counts = $derived.by(() => {
-    let added = 0;
-    let removed = 0;
-    for (const line of diff.split("\n")) {
-      if (line.startsWith("+") && !line.startsWith("+++")) added++;
-      else if (line.startsWith("-") && !line.startsWith("---")) removed++;
-    }
-    return { added, removed };
-  });
+  const counts = $derived(diffCounts([{ diff }]));
 </script>
 
 <div class="grid gap-1.5">
@@ -32,10 +26,7 @@
     <Badge tone={look.tone}>{look.label}</Badge>
     <code class="truncate font-mono text-[0.8125rem] text-zinc-950 dark:text-white" title={path}>{path}{movePath ? ` → ${movePath}` : ""}</code>
     {#if diff}
-      <span class="shrink-0 font-mono text-xs/5 tabular-nums">
-        <span class="text-emerald-700 dark:text-emerald-400">+{counts.added}</span>
-        <span class="text-rose-700 dark:text-rose-400">−{counts.removed}</span>
-      </span>
+      <DiffCounts {...counts} />
     {/if}
   </div>
   {#if diff}

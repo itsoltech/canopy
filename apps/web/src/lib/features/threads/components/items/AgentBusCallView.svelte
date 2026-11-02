@@ -198,16 +198,16 @@
       { label: "Result", text: call.resultJson },
     ]}
   />
+  {#if subagent}
+    <SubagentCard threadId={target} title={str(args["title"]) || "Subagent"} {spawned} />
+  {/if}
+  {#if message}
+    <MessageDeliveryCard callId={call.callId} threadId={target} sentDelivery={str(result["delivery"])} />
+  {/if}
 {/snippet}
 
 {#if hasBody}
-  <ItemFrame icon={look.icon} tone={call.isError ? "rose" : "violet"} {status} defaultOpen={call.isError} {title} {aside}>{@render body()}</ItemFrame>
+  <ItemFrame icon={look.icon} tone={call.isError ? "rose" : "violet"} {status} {title} {aside}>{@render body()}</ItemFrame>
 {:else}
   <ItemFrame icon={look.icon} tone={call.isError ? "rose" : "violet"} {status} {title} {aside} />
-{/if}
-{#if subagent}
-  <SubagentCard threadId={target} title={str(args["title"]) || "Subagent"} {spawned} class="mb-1 ml-6" />
-{/if}
-{#if message}
-  <MessageDeliveryCard callId={call.callId} threadId={target} sentDelivery={str(result["delivery"])} class="mb-1 ml-6" />
 {/if}
