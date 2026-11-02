@@ -243,6 +243,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     ? sql`SELECT id FROM bot_routines WHERE id = ${turn.routine_id}::uuid AND enabled AND deleted_at IS NULL`.pipe(Effect.map((r) => r.length > 0))
     : Effect.succeed(true);
   return {
+    instanceLabel: (config: bots.BotConfiguration) => sql<{ label: string }>`SELECT label FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance}`
+      .pipe(Effect.map((rows) => rows[0]?.label ?? config.providerInstance)),
     owned, active, save, enqueue, finish, changed, fenced, servers, resolvedServer, resolveModel,
     ...routines,
     markRead: (user: string, id: string, throughSeq: bigint) => sql.withTransaction(Effect.gen(function* () {
