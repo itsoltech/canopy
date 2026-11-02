@@ -4,9 +4,9 @@
 
   /**
    * Brand mark of a provider: Claude's spark (Anthropic) or OpenAI's knot (Codex). Marks from Simple
-   * Icons (CC0). Decorative unless `label` is given. Sized by `class` (default 16px).
+   * Icons (CC0). Decorative unless `label` is given. `size="sm"` is 14px, default 16px.
    */
-  let { provider, label, class: className }: { provider: ProviderKey; label?: string | undefined; class?: ClassValue } = $props();
+  let { provider, label, size = "md", class: className }: { provider: ProviderKey; label?: string | undefined; size?: "sm" | "md"; class?: ClassValue } = $props();
 
   const paths: Record<ProviderKey, string> = {
     CLAUDE:
@@ -18,7 +18,7 @@
 
 <svg
   viewBox="0 0 24 24"
-  class={["size-4 shrink-0", provider === "CLAUDE" ? "fill-[#D97757]" : "fill-zinc-950 dark:fill-white", className]}
+  class={["shrink-0", size === "sm" ? "size-3.5" : "size-4", provider === "CLAUDE" ? "fill-[#D97757]" : "fill-zinc-950 dark:fill-white", className]}
   aria-hidden={label ? undefined : "true"}
   role={label ? "img" : undefined}
   aria-label={label}

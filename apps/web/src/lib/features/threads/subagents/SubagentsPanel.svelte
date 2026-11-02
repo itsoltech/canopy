@@ -4,6 +4,7 @@
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { providerKeyOf } from "../providers.ts";
+  import ComposerPanelHeader from "../components/ComposerPanelHeader.svelte";
   import SubagentRow from "./SubagentRow.svelte";
   import { subagentSummary, type Subagent } from "./subagents.ts";
 
@@ -21,25 +22,22 @@
 </script>
 
 <section aria-labelledby="{id}-summary" class={[!embedded && "rounded-t-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10", className]}>
-  <button
-    type="button"
-    class="flex w-full min-w-0 items-center gap-2 rounded-t-2xl px-3.5 py-2 text-left focus-ring hover:bg-zinc-950/2.5 dark:hover:bg-white/4"
-    aria-expanded={open}
-    aria-controls="{id}-list"
+  <ComposerPanelHeader
+    expanded={open}
+    controls="{id}-list"
     onclick={() => (open = !open)}
   >
-    <Icon name="sparkles" class="fill-violet-500 dark:fill-violet-400" />
-    <p id="{id}-summary" class="min-w-0 flex-1 truncate text-base/6 text-zinc-700 tabular-nums sm:text-sm/6 dark:text-zinc-300">
+    <Icon name="sparkles" size="sm" class="fill-violet-500 dark:fill-violet-400" />
+    <p id="{id}-summary" class="min-w-0 flex-1 truncate text-zinc-700 tabular-nums dark:text-zinc-300">
       {#key summary}<span in:swap>{summary}</span>{/key}
     </p>
     <span class="flex shrink-0 items-center gap-1" aria-hidden="true">
-      {#each providers as provider (provider)}<ProviderIcon {provider} class="size-3.5 opacity-70" />{/each}
+      {#each providers as provider (provider)}<ProviderIcon {provider} size="sm" class="opacity-70" />{/each}
     </span>
-    <Icon name="chevron-down" class={["size-3.5 fill-zinc-400 t-acc-chevron dark:fill-zinc-500", !open && "rotate-180"]} />
-  </button>
+  </ComposerPanelHeader>
   <div id="{id}-list" class="t-acc-panel" data-open={open || undefined} inert={!open}>
     <div>
-      <ul role="list" class="grid max-h-[30dvh] gap-0.5 overflow-y-auto border-t border-zinc-950/5 p-1 dark:border-white/10">
+      <ul role="list" class="grid max-h-[30dvh] overflow-y-auto border-t border-zinc-950/5 py-1 dark:border-white/10">
         {#each subagents as subagent (subagent.thread.id)}
           <li><SubagentRow {subagent} /></li>
         {/each}

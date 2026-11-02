@@ -94,9 +94,9 @@
   {#if editing}
     <QueueEditor text={messageOf(turn)} allowEmpty={carriesMore(turn)} {onsave} {oncancel} />
   {:else}
-    <div class="flex items-center gap-1 py-0.5 pr-0.5 pl-0.5">
+    <div class="flex min-h-9 items-center gap-1 px-3 py-0.5">
       <QueueHandle label={text} bind:element={handle} {ondragstart} />
-      <p class="min-w-0 flex-1 truncate text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300" title={text}>
+      <p class="min-w-0 flex-1 truncate text-sm/5 text-zinc-700 sm:text-[0.8125rem]/5 dark:text-zinc-300" title={text}>
         {text || (turn.attachments.length > 0 ? "(only files)" : "(only quotes)")}
       </p>
       {#if fallback}

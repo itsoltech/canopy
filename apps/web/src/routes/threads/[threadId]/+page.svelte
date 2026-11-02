@@ -22,6 +22,8 @@
   import { backgroundTasks } from "#lib/features/threads/background-tasks.ts";
   import { provideBackgroundOutput } from "#lib/features/threads/background-output.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
+  import { ComposerCompaction, type ComposerActivity } from "#lib/features/threads/components/composer-compaction.ts";
+  import type { ReaderScroll } from "#lib/shared/ui/virtual/scroll.ts";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
@@ -111,6 +113,19 @@
 
   // Its latest result counts as seen once it has been on screen (the sidebar's "Completed" goes out everywhere).
   let atEnd = $state(true);
+  const compaction = $derived.by(() => { void threadId; return new ComposerCompaction(); });
+  let compact = $state(false);
+  function expandComposer(activity?: ComposerActivity) {
+    if (activity) compaction.interact(activity);
+    else compaction.expand();
+    compact = false;
+  }
+  function readerScroll(scroll: ReaderScroll) { compaction.scroll(scroll); compact = compaction.compact; }
+  $effect(() => {
+    compaction.question(view.pending.some((q) => q.kind === InteractionKind.QUESTION && q.status === "pending" && !q.asynchronous));
+    if (atEnd) compaction.expand();
+    compact = compaction.compact;
+  });
   trackSeen(() => {
     const live = overview.threads.get(threadId) ?? thread;
     return { threadId, unseen: Boolean(live?.unseenResult || live?.markedUnread), markedUnread: live?.markedUnread ?? false, lastSeq: live?.lastSeq ?? 0n, atEnd };
@@ -337,7 +352,7 @@
 
     <div class="min-h-0 flex-1" bind:this={feedRegion}>
       {#key threadId}
-        <VirtualFeed bind:this={feed} bind:atEnd {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working}>
+        <VirtualFeed bind:this={feed} bind:atEnd {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working} onreaderscroll={readerScroll} onlatest={expandComposer}>
           {#snippet placeholder()}
             {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
           {/snippet}
@@ -392,8 +407,12 @@
                 <QueuePanel {queue} embedded delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} />
               {/snippet}
               {#if thread}
-                <ThreadComposerSlot {thread} {parent}>
+                <ThreadComposerSlot {thread} {parent} {compact}>
                 <Composer
+                  {compact}
+                  panelsLabel={queue.rows.length > 0 || subagents.length > 0 ? `${subagents.length} agents · ${queue.rows.length} queued` : undefined}
+                  onexpand={expandComposer}
+                  onfocuschange={(focused) => { compaction.focus(focused); compact = compaction.compact; }}
                   class="relative"
                   top={queue.rows.length > 0 || subagents.length > 0 ? composerPanels : undefined}
                   questions={view.pending}
