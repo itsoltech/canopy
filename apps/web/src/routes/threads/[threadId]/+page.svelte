@@ -34,6 +34,7 @@
   import { QueueState } from "#lib/features/threads/queue/queue-state.svelte.ts";
   import SubagentsPanel from "#lib/features/threads/subagents/SubagentsPanel.svelte";
   import { subagentsOf } from "#lib/features/threads/subagents/subagents.ts";
+  import { subagentPresence } from "#lib/features/threads/subagents/subagent-motion.ts";
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { forkFrom, lastForkPoint } from "#lib/features/threads/fork.svelte.ts";
@@ -408,7 +409,9 @@
                 </GrowIn>
               {/if}
               {#snippet composerPanels()}
-                {#if subagents.length > 0}<SubagentsPanel {subagents} {compact} embedded />{/if}
+                {#if subagents.length > 0}
+                  <div class="t-rise" out:subagentPresence|global><SubagentsPanel {subagents} {compact} embedded /></div>
+                {/if}
                 <QueuePanel {queue} {compact} embedded delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} />
               {/snippet}
               {#if thread}
