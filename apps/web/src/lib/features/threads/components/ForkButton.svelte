@@ -8,4 +8,4 @@
   const busy = $derived(forking.has(turnId));
 </script>
 
-<IconButton icon="arrow-turn-up-right" size="sm" label={busy ? "Forking…" : "Fork from here"} loading={busy} class={className} onclick={() => forkFrom(threadId, turnId)} />
+<IconButton icon="git-fork" size="sm" label={busy ? "Forking…" : "Fork from here"} loading={busy} class={className} onclick={() => forkFrom(threadId, turnId)} />
