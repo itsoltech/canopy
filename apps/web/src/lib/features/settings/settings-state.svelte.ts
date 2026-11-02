@@ -72,6 +72,12 @@ export class SettingsState {
     }));
   }
 
+  pinBot(botId: string, pinned: boolean): Promise<void> {
+    return this.#writeUser("sidebar", (current) => ({ ...current,
+      pinnedBotIds: pinned ? [...new Set([...current.pinnedBotIds, botId])] : current.pinnedBotIds.filter((id) => id !== botId),
+    }));
+  }
+
   updateTextGeneration(change: Partial<Omit<ui.TextGenerationSettings, "$typeName">>): Promise<void> {
     return this.#writeUser("textGeneration", (current) => ({ ...current, ...change }));
   }

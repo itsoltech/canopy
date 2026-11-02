@@ -26,6 +26,13 @@ osobny katalog nowego wątku. Publiczne operacje tworzenia, zmiany i usuwania wo
 oraz ustawień projektu nie modyfikują zasobów systemowych. Archiwizacja i soft delete wątku
 nie usuwają plików scratch. Nie ma automatycznego czyszczenia.
 
+## Rozmowy botów
+
+Migracja `0031_bots` dodaje osobne rozmowy Bots, ich tury/checkpointy, wiadomości,
+wywołania narzędzi, zgody, rejestr zdalnych MCP i outboxy pobudek/wyników workerów.
+`turns.trigger='bot'` i `bot_call_id` zachowują pochodzenie oraz hops przy delegowaniu.
+Uzasadnienie osobnego modelu i niezmienniki: [bots.md](bots.md).
+
 Migracja `0026_sidebar_threads` dodaje do `threads`: `deleted_at`, `deletion_batch_id`,
 `archived_by` (`user` / `agent`) i `archived_by_thread_id`. Soft delete obejmuje rodzica i dzieci;
 identyfikator partii pozwala cofnąć tylko tę operację. Triggery blokują nową pracę oraz tworzenie dzieci

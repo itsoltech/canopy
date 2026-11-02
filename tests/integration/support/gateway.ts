@@ -37,11 +37,13 @@ import { applyWorkerConfig } from "@open-agents/worker/config";
 import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
 import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
+import { BotStore } from "../../../apps/gateway/src/bots/store.ts";
+import type { BotModel } from "../../../apps/gateway/src/bots/types.ts";
 
 export const SERVICE_TOKEN = "t".repeat(48);
 
 export type TestRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | BackgroundTaskStore | SqlClient.SqlClient,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | BackgroundTaskStore | BotStore | SqlClient.SqlClient,
   unknown
 >;
 
@@ -321,7 +323,7 @@ export interface TestGateway {
 }
 
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
-export async function startTestGateway(options: { attachmentLimits?: AttachmentLimits; backgroundGraceMs?: number } = {}): Promise<TestGateway> {
+export async function startTestGateway(options: { attachmentLimits?: AttachmentLimits; backgroundGraceMs?: number; botModel?: BotModel } = {}): Promise<TestGateway> {
   const pg = await startPostgres();
   const secretsKey = randomBytes(32);
   const runtime: TestRuntime = ManagedRuntime.make(
@@ -337,6 +339,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
       InstanceStore.layer(secretsKey),
       AttachmentStore.layer,
       BackgroundTaskStore.layer,
+      BotStore.layer(secretsKey),
     ).pipe(Layer.provideMerge(pg.layer)),
   );
   await runtime.runPromise(migrate);
@@ -348,7 +351,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
     await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [added.workerId])));
     return added;
   };
-  const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
+  const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.botModel && { botModel: options.botModel }), ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
   const grpc = await startGrpcServer({
     routes: (router) => {
       core.link.routes(router);
@@ -391,6 +394,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
     addWorker,
     connect,
     close: async () => {
+      await core.bots.stop();
       for (const w of workers) w.link.close();
       await core.link.shutdown();
       await grpc.close();

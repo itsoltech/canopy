@@ -28,6 +28,12 @@ zwraca pustą listę; `ListMentionCatalog` pobiera komendy i umiejętności z pi
 Scope istniejącego wątku używa jego cwd. Pliki są zachowywane bez automatycznego cleanupu,
 także po archiwizacji lub soft delete; panel szczegółów opisuje ręczne sprzątanie.
 
+## Bots
+
+Sekcja Bots korzysta z tego samego `GatewayService` i uwierzytelnienia BFF. Osobny
+kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdalne MCP.
+`SidebarSettings.pinned_bot_ids` ma numer 350. Pełny zakres: [bots.md](bots.md).
+
 ## Pasek boczny i cykl życia wątku
 
 `UserSettings.sidebar` przechowuje filtr projektów (`project_ids`, puste = wszystkie), przypięcia

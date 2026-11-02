@@ -50,6 +50,11 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !doc
       const result = await connection.sendCommand({ case: "generateText", value: request }, 35_000);
       expect(result).toMatchObject({ ok: true });
       expect(result.generatedText.trim().length).toBeGreaterThan(2);
+      const denied = await connection.sendCommand({ case: "generateText", value: { ...request,
+        prompt: "Run ls on your own filesystem using your shell tool. If no shell tool is available, reply exactly NO_LOCAL_TOOLS. Do not describe a command for the user to run.",
+      } }, 35_000);
+      expect(denied.ok).toBe(true);
+      expect(denied.generatedText).toContain("NO_LOCAL_TOOLS");
       expect(host.runningTurns()).toEqual([]);
       expect(await runtime.runPromise(journalHello())).toEqual(before);
       expect((await gw.api.listThreads({})).threads).toHaveLength(0);

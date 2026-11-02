@@ -30,6 +30,7 @@ import schedulesNewThread from "./0027_schedules_new_thread.sql" with { type: "t
 import archiveCascade from "./0028_archive_cascade.sql" with { type: "text" };
 import scheduleEdit from "./0029_schedule_edit.sql" with { type: "text" };
 import busNotifyDelivery from "./0030_bus_notify_delivery.sql" with { type: "text" };
+import bots from "./0031_bots.sql" with { type: "text" };
 import scratchProjects from "./0032_scratch_projects.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
@@ -77,6 +78,7 @@ export const migrations = Migrator.fromRecord({
   "0028_archive_cascade": sqlFile(archiveCascade),
   "0029_schedule_edit": sqlFile(scheduleEdit),
   "0030_bus_notify_delivery": sqlFile(busNotifyDelivery),
+  "0031_bots": sqlFile(bots),
   "0032_scratch_projects": sqlFile(scratchProjects),
 });
 

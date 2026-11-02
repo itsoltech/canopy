@@ -10,6 +10,8 @@ export interface ParticipantView {
   name: string;
   /** Picture; without one a bot gets its generated mascot and you get your initials. */
   imageUrl?: string | undefined;
+  shape?: string | undefined;
+  color?: string | undefined;
 }
 
 export interface BotView extends ParticipantView {
@@ -97,6 +99,7 @@ export interface QuestionView {
   at: Date;
   prompt: string;
   options: QuestionOptionView[];
+  freeText?: boolean | undefined;
   /** Set once answered (by you, here or elsewhere). */
   answer?: { optionId: string; at: Date } | undefined;
 }

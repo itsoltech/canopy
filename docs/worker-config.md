@@ -1,5 +1,9 @@
 # Konfiguracja workerów
 
+Boty używają globalnej instancji endpointowej z gateway, bez nadpisań workera,
+zmiennych procesu harnessu ani logowania CLI urządzenia. Model i effort należą
+do bota; klucz endpointu pozostaje sekretem gateway. Zasady: [bots.md](bots.md).
+
 Status: **zaimplementowana**:
 - kontrakt: `WorkerConfig`, `ConfigApplied`, `Hello.config_version`,
 - worker: `apps/worker/src/config` (konfiguracja lokalna i zastosowanie zdalnej),
