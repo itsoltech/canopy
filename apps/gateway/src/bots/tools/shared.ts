@@ -62,9 +62,9 @@ export function validate(schema: Record<string, unknown>, value: unknown, path =
     if (!value || typeof value !== "object" || Array.isArray(value)) bad("expected an object");
     const record = value as Record<string, unknown>;
     const properties = schema["properties"] as Record<string, Record<string, unknown>>;
-    for (const key of (schema["required"] ?? []) as string[]) if (!(key in record)) bad(`${key} is required`);
+    for (const key of (schema["required"] ?? []) as string[]) if (!Object.hasOwn(record, key)) bad(`${key} is required`);
     for (const [key, v] of Object.entries(record)) {
-      if (!properties[key]) bad(`unknown field ${key}`);
+      if (!Object.hasOwn(properties, key)) bad(`unknown field ${key}`);
       validate(properties[key]!, v, `${path}.${key}`);
     }
   } else if (schema["type"] === "array") {

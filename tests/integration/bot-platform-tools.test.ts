@@ -115,6 +115,8 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     const serialized = JSON.stringify(instances);
     for (const secret of ["fixture-private-key", "fixture-private-env", "also-hidden"]) expect(serialized).not.toContain(secret);
     expect(serialized).toContain("PUBLIC_VALUE");
+    expect(await invoke("set_instance_worker", { provider: "codex", provider_instance: "platform-test", worker_id: gw.workerId, enabled: true, overrides: { apiKey: "never-accepted" } }, true)).toMatchObject({ error: expect.stringContaining("unknown field overrides") });
+    expect(await invoke("list_workers", { constructor: "unexpected" })).toMatchObject({ error: expect.stringContaining("unknown field constructor") });
     await invoke("set_instance_models", { provider: "codex", provider_instance: "platform-test", favorites: ["gpt-5.5"], hidden: ["gpt-6.1-sol"] }, true);
     expect((await gw.api.listProviderInstances({})).instances.find((i) => i.id === "platform-test")?.models).toMatchObject({ favorites: ["gpt-5.5"], hidden: ["gpt-6.1-sol"] });
     await invoke("set_instance_worker", { provider: "codex", provider_instance: "platform-test", worker_id: gw.workerId, enabled: false }, true);
@@ -161,8 +163,13 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     await invoke("delete_thread", { thread_id: disposable.id }, true);
     expect((await gw.api.listThreads({ includeArchived: true })).threads.some((t) => t.id === disposable.id)).toBe(false);
     const project = (await gw.api.createProject({ name: "Archive me" })).project!;
+    const placement = (await gw.api.createWorkspace({ projectId: project.id, workerId: gw.workerId, rootPath: "/repo/archive" })).workspace!;
+    const archivedThread = (await gw.api.createThread({ projectId: project.id, workspaceId: placement.id, provider: Provider.CODEX, title: "Archive with project" })).thread!;
+    const archivedSchedule = (await gw.api.createSchedule({ target: "new_thread", prompt: "Cancelled with project", when: { case: "cron", value: "0 * * * *" }, newThread: { projectId: project.id, placement: "specific", workspaceId: placement.id, provider: Provider.CODEX, providerProfileId: "platform-test", permissionMode: PermissionMode.READ_ONLY } })).schedule!;
     await invoke("archive_project", { project_id: project.id }, true);
     expect((await gw.api.getOverview({})).projects.some((p) => p.id === project.id)).toBe(false);
+    expect((await gw.api.getThread({ threadId: archivedThread.id })).thread?.archivedAt).toBeDefined();
+    expect((await gw.api.listSchedules({ projectId: project.id, includeFinished: true })).schedules.find((s) => s.id === archivedSchedule.id)?.status).toBe("cancelled");
   }, 30_000);
 
   test("foreign owners cannot list or mutate projects, workspaces, workers, threads or schedules", async () => {

@@ -729,22 +729,25 @@ export class GatewayCore {
     await this.#actions.transaction(async () => {
       const project = (await this.overview()).projects.find((p) => p.id === projectId && p.kind !== "scratch");
       if (!project) throw new NotFound("project not found or is system-managed");
-      await this.#run((s) => s.archiveProject(this.#options.userId, projectId));
+      await this.#run((s) => s.lockProject(this.#options.userId, projectId));
       const threads = await this.listThreads(projectId, true);
       for (const thread of threads.filter((t) => !t.parentThreadId)) await this.setThreadArchived(thread.id, true);
+      await this.#run((s) => s.archiveProject(this.#options.userId, projectId));
       this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: { ...project, archivedAt: timestampFromDate(new Date()) } } }));
     });
   }
 
   async createWorkspace(request: ui.CreateWorkspaceRequest): Promise<ui.Workspace> {
-    const overview = await this.overview();
-    if (!overview.projects.some((p) => p.id === request.projectId)) throw new NotFound("project not found");
-    if (!overview.workers.some((w) => w.id === request.workerId)) throw new NotFound("worker not found");
-    const workspace = await this.#run((s) =>
-      s.createWorkspace({ projectId: request.projectId, workerId: request.workerId, rootPath: request.rootPath, label: request.label }),
-    );
-    await this.#publishProject(workspace.projectId);
-    return workspace;
+    return this.#actions.transaction(async () => {
+      const overview = await this.overview();
+      if (!overview.projects.some((p) => p.id === request.projectId)) throw new NotFound("project not found");
+      if (!overview.workers.some((w) => w.id === request.workerId)) throw new NotFound("worker not found");
+      const workspace = await this.#run((s) =>
+        s.createWorkspace({ projectId: request.projectId, workerId: request.workerId, rootPath: request.rootPath, label: request.label }),
+      );
+      await this.#publishProject(workspace.projectId);
+      return workspace;
+    });
   }
 
   async updateWorkspace(request: ui.UpdateWorkspaceRequest): Promise<ui.Workspace> {

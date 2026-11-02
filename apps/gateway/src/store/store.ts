@@ -198,6 +198,7 @@ export class GatewayStore extends Context.Service<
     listWorkers(online: ReadonlySet<string>, ownerUserId?: string): Fx<ui.Worker[]>;
     // projects
     createProject(ownerUserId: string, name: string): Fx<ui.Project>;
+    lockProject(ownerUserId: string, projectId: string): Fx<void>;
     renameProject(ownerUserId: string, projectId: string, name: string): Fx<void>;
     archiveProject(ownerUserId: string, projectId: string): Fx<void>;
     createWorkspace(input: { projectId: string; workerId: string; rootPath: string; label: string }): Fx<ui.Workspace>;
@@ -543,6 +544,12 @@ export class GatewayStore extends Context.Service<
               yield* sql`INSERT INTO projects (id, owner_user_id, name, slug) VALUES (${id}::uuid, ${ownerUserId}::uuid, ${trimmed}, ${slug})`;
               return create(ui.ProjectSchema, { id, name: trimmed, slug, kind: "project", workspaces: [] });
             }),
+
+          lockProject: (ownerUserId, projectId) => Effect.gen(function* () {
+            const rows = yield* sql`SELECT id FROM projects WHERE id = ${projectId}::uuid
+              AND owner_user_id = ${ownerUserId}::uuid AND kind = 'project' AND archived_at IS NULL FOR UPDATE`;
+            if (!rows.length) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
+          }),
 
           renameProject: (ownerUserId, projectId, name) => Effect.gen(function* () {
             const trimmed = name.trim();

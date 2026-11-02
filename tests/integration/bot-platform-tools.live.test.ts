@@ -57,6 +57,8 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailab
     const threads = (await gw.api.listThreads({ projectId: project!.id })).threads;
     expect(threads).toHaveLength(1);
     expect(threads[0]).toMatchObject({ workerId, cwd: repo, workspaceId: project!.workspaces[0]!.id });
+    const snapshot = await gw.runtime.runPromise(GatewayStore.use((s) => s.snapshot(threads[0]!.id)));
+    expect(snapshot.items.some((i) => i.item?.content.case === "commandExecution" && i.item.content.value.command.includes("pwd"))).toBe(true);
     expect(final.messages.some((m) => m.kind === "event" && m.text.startsWith("Thread ") && m.text.includes(repo))).toBe(true);
     expect(final.messages.at(-1)?.text).toContain(repo);
     expect(final.messages.at(-1)?.text).toContain(name);

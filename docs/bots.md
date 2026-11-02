@@ -409,11 +409,13 @@ stronicowanie po stronie API i wirtualizację.
 i skryptowanym workerze: projekt → workspace → wątek, allowed roots, wyszukiwanie,
 harmonogramy create/edit/conflict/pause/resume/cancel i new_thread round robin,
 fork/interrupt/goal, instancje bez env values, ustawienia i tworzenie bota, pytania/tło,
-zgody i odmowy destrukcji, izolacja właściciela, rollback w środku akcji oraz ponowienie
+zgody i odmowy destrukcji, archiwizacja projektu z wątkami i harmonogramami, odrzucanie
+argumentów sekretów i pól spoza schematu, izolacja właściciela, rollback w środku akcji oraz ponowienie
 tego samego zapisanego wywołania przez nową instancję gateway przed i po commicie.
 `bot-platform-tools.live.test.ts` przez `useLiveProxy`: **Codex / CLIProxyAPI** otrzymuje
 naturalną prośbę o nowy projekt na `stack-worker` w dozwolonym katalogu i wątek z `pwd`.
-Test potwierdza projekt, workspace, jeden wątek, wynik i odpowiedź bota po follow-upie.
+Test potwierdza projekt, workspace, jeden wątek, wykonanie `pwd` w transkrypcie,
+wynik i odpowiedź bota po follow-upie.
 Izolowany PostgreSQL, gateway, prawdziwy worker oraz katalogi testowe; bez `/tmp/oa-stack`
 i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozytorium.
 
