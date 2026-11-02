@@ -1,6 +1,6 @@
 # Weryfikacja ask_user — 2026-11-02
 
-Gałąź: `feat/ask-user`. Lokalny `main` scalony do `939a418` (łącznie z subagentami dowolnego dostawcy, generowaniem tytułów i poprawką fixture sweep). Migracja: `0025_ask_user`; nowe pola istniejących kontraktów: 250. Bez push i PR.
+Gałąź: `feat/ask-user`. Lokalny `main` scalony do `c03347a` (łącznie z subagentami dowolnego dostawcy, generowaniem tytułów, poprawką fixture sweep i powiadomieniami zadań w tle). Migracja: `0025_ask_user`; nowe pola istniejących kontraktów: 250. Bez push i PR. Migracja zachowuje narzędzia `list_background_tasks`, `get_background_task`, `stop_background_task` z 0024; nie zmienia widoku `turn_sources` ani triggerów, więc zachowuje `background_item_ids` i `background_task`.
 
 ## Rezultat i decyzja o oczekiwaniu
 
@@ -18,10 +18,12 @@ Dowody:
 
 `bun run typecheck`, `bun run gen:check`, pełne `bun run check:tmp` i `bun run --filter @open-agents/web build` są wymaganymi kontrolami tej gałęzi. Testy live są osobnym przebiegiem z `OA_LIVE=1`, plikiem środowiska spoza repozytorium i `useLiveProxy`; żadnych wartości poświadczeń w repozytorium ani raporcie.
 
+Po ostatnim scaleniu wszystkie wymagane kontrole przeszły: typecheck (Svelte: 0 błędów i 0 ostrzeżeń), gen:check, web build oraz pełne check:tmp — **748 pass, 96 skip, 0 fail**, 844 testy w 126 plikach, 2876 asercji. Testy opt-in live/browser są pomijane w pełnej suite i uruchamiane osobno. Kontrolowany katalog tymczasowy pozostał pusty; narzędzie odnotowało równoległe katalogi w `/tmp`, w tym własny działający fixture, który następnie zakończono i posprzątano. Build zgłasza ostrzeżenie o rozmiarze chunka.
+
 - Kontrakt domeny i adaptery UI: granice schematu, duplikaty, rekomendacja, tekst zamiast opcji, wiele opcji, skip, dismiss, kolejność odpowiedzi i czytelny tekst dostarczenia.
 - Gateway + skryptowany worker (`ask-user.test.ts`, 9 testów): sync oczekuje i wznawia się po odpowiedzi, idempotencja, async w tej samej turze, nowa tura po jej końcu, odmowa/upuszczenie steera, skip/dismiss, izolacja wątków, parent routing z możliwością odpowiedzi człowieka, restart workera i awaria podczas przekazywania wyniku. Sprawdzane są też hops, autor i rekord osi czasu.
-- Live przez CLIProxyAPI (`ask-user.live.test.ts`, 4 testy): sync i async dla Codexa i Claude. Sync używa odpowiedzi API w wyniku; async dostaje odpowiedź jako dostarczony steer w tej samej turze (`hops = 1`). Wszystkie cztery przeszły także po scaleniu main i zmianie formatowania dostarczenia.
-- Browser fixture: osobny PostgreSQL/gateway ze skryptowanym workerem, Vite 5293. Oba przebiegi fixture zakończone poprawnie; serwer zatrzymany przez uchwyt procesu, tymczasowe katalogi usunięte przez `@open-agents/testing`, karta przeglądarki zamknięta.
+- Live przez CLIProxyAPI (`ask-user.live.test.ts`, 4 testy): sync i async dla Codexa i Claude. Sync używa odpowiedzi API w wyniku; async dostaje odpowiedź jako dostarczony steer w tej samej turze (`hops = 1`). Końcowy przebieg po scaleniu main wraz z testem timeoutu Claude: **5 pass, 0 fail**, 26 asercji, 48,65 s.
+- Browser fixture: osobny PostgreSQL/gateway ze skryptowanym workerem, Vite 5293. Wszystkie przebiegi fixture zakończone poprawnie; serwer zatrzymany przez uchwyt procesu, tymczasowe katalogi usunięte przez `@open-agents/testing`, karta przeglądarki zamknięta. Końcowy podgląd potwierdził czytelny tekst dostarczenia po Skip all. Poprawiono też sprzątanie: oczekujący handler sync kończy się przed zwolnieniem runtime'u; osobny rerun fixture i typecheck testów integracyjnych przeszły.
 
 ## UI i componentize
 
@@ -40,12 +42,14 @@ Zrzuty (poza repozytorium):
 | 390, light, async | `/home/nix/.t3/userdata/browser-artifacts/browser-screenshot-localhost-mvz4tmbd-fa2cb1a4.png` |
 | 390, dark, async | `/home/nix/.t3/userdata/browser-artifacts/browser-screenshot-localhost-mvz4tm8r-55e2517c.png` |
 | Odpowiedzi w rozwiniętym rekordzie osi czasu | `/home/nix/.t3/userdata/browser-artifacts/browser-screenshot-localhost-mvz4rie7-563e5a57.png` |
+| Czytelne dostarczenie odpowiedzi po Skip all, po ostatnim merge | `/home/nix/.t3/userdata/browser-artifacts/browser-screenshot-localhost-mvz5531k-017e72f0.png` |
 
 ## Commity implementacji
 
 - `176a568` — domena, DB, gateway, trwałość, routing i testy.
 - `c1530f8` — panel pytań i adaptery UI.
-- `4a49545`, `684059d` — scalenia main, wspólny stos z panelem subagentów i aktualizacja kontraktów.
+- `4a49545`, `684059d`, `d28ce2a` — scalenia main, wspólny stos z panelem subagentów, aktualizacja kontraktów i zachowanie narzędzi zadań w tle.
 - `9bab3f3` — ochrona przed awarią przy dostarczeniu wyniku, poprawki kontrolek, fokus, szkice i fixture przeglądarki.
+- `5bf5a1d` — czytelne formatowanie odpowiedzi, dokumentacja decyzji i gwarancji oraz sprzątanie testu restartu.
 
-Końcowy commit zawiera czytelne formatowanie odpowiedzi oraz dokumentację z tym raportem; jego SHA jest podane w raporcie końcowym rozmowy.
+Końcowy commit aktualizuje ten raport i sprzątanie fixture przeglądarki; jego SHA jest podane w raporcie końcowym rozmowy. Dedykowany przegląd componentize oraz końcowy przegląd trwałości, walidacji, routingu i zgodności migracji z main nie wykazały dalszych blokad. Ograniczenia sync i zakres weryfikacji dostępności opisano powyżej.

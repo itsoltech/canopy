@@ -13,6 +13,7 @@ test.skipIf(process.env["OA_ASK_BROWSER"] !== "1")("questions: isolated browser 
   const gw = await startTestGateway();
   const stop = join(tempDir("oa-question-browser-"), "stop");
   let web: ReturnType<typeof Bun.spawn> | undefined;
+  const calls: { threadId: string; turnId: string; result: Promise<unknown> }[] = [];
   try {
     const projectId = (await gw.api.createProject({ name: "Question panel QA" })).project!.id;
     const workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo" })).workspace!.id;
@@ -30,7 +31,7 @@ test.skipIf(process.env["OA_ASK_BROWSER"] !== "1")("questions: isolated browser 
       })), Boolean);
       if (!turnId) throw new Error("fixture turn did not start");
       const callId = Bun.randomUUIDv7();
-      void gw.worker.callTool({ threadId: thread.id, turnId, callId, tool: "ask_user", args: { questions, wait } });
+      calls.push({ threadId: thread.id, turnId, result: gw.worker.callTool({ threadId: thread.id, turnId, callId, tool: "ask_user", args: { questions, wait } }) });
       await eventually(async () => gw.runtime.runPromise(Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         return (yield* sql`SELECT id FROM interaction_requests WHERE id = ${callId}::uuid`).length;
@@ -48,6 +49,9 @@ test.skipIf(process.env["OA_ASK_BROWSER"] !== "1")("questions: isolated browser 
   } finally {
     web?.kill();
     if (web) await web.exited;
+    // Release synchronous handlers before disposing the gateway runtime.
+    for (const call of calls) gw.worker.finish(call.threadId, call.turnId);
+    await Promise.all(calls.map((call) => call.result));
     await gw.close();
   }
 }, 1_800_000);
