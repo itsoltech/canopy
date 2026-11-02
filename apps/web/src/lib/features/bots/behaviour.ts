@@ -52,7 +52,7 @@ let reduced = false;
 let enabled = true;
 let attentionOwner: Character | undefined;
 let pointer = { x: 0, y: 0, at: -Infinity, touch: false };
-let timings = { blink: 160, attention: 350, breath: 6000, glance: 1000 };
+let timings = { blink: 160, attention: 350, breath: 6000, glance: 1000, ease: 80 };
 
 function awake(c: Character): boolean {
   return canAnimate({ alive: c.options.alive ?? true, reduced: reduced || !enabled, hidden: document.hidden,
@@ -85,7 +85,7 @@ function reconcile(): void {
 }
 
 function attention(c: Character, kind: Attention, now = performance.now()): void {
-  if (!awake(c) || attentionOwner) return;
+  if (!awake(c) || attentionOwner && attentionOwner !== c) return;
   attentionOwner = c;
   c.attention = { kind, start: now, ms: timings.attention * (kind === "wobble" ? 1.4 : 1) };
   schedule();
@@ -146,7 +146,7 @@ function tick(now: number): void {
       c.glanceAt = now + idleDelay("glance");
     }
     if (!working && state === "idle" && !c.hovered && !recentPointer && now < c.glanceUntil) target = c.glance;
-    const ease = 1 - Math.exp(-dt / 85);
+    const ease = 1 - Math.exp(-dt / timings.ease);
     c.gaze.x += (target.x - c.gaze.x) * ease;
     c.gaze.y += (target.y - c.gaze.y) * ease;
     write(c, c.eyes, `translate(${c.gaze.x.toFixed(3)} ${c.gaze.y.toFixed(3)})`, 0);
@@ -186,7 +186,7 @@ function connect(): void {
   reduced = media.matches;
   const readTimings = () => {
     timings = { blink: (duration("micro") || 80) * 2, attention: duration("medium") || 350,
-      breath: (duration("very-slow") || 500) * 12, glance: (duration("very-slow") || 500) * 2 };
+      breath: (duration("very-slow") || 500) * 12, glance: (duration("very-slow") || 500) * 2, ease: duration("micro") || 80 };
   };
   readTimings();
   const motion = () => { reduced = media.matches; if (!reduced) readTimings(); reconcile(); };
@@ -251,7 +251,7 @@ export function mascotBehaviour(node: SVGSVGElement, options: MascotBehaviour) {
   };
   characters.set(node, c);
   observer!.observe(node); sizes!.observe(node);
-  const enter = () => { c.hovered = true; attention(c, "lift"); };
+  const enter = (event: PointerEvent) => { if (event.pointerType === "touch") return; c.hovered = true; attention(c, "lift"); };
   const leave = () => { c.hovered = false; };
   node.addEventListener("pointerenter", enter);
   node.addEventListener("pointerleave", leave);
