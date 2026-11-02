@@ -965,7 +965,7 @@ export class AgentBusStore extends Context.Service<
                 } } });
                 yield* sql`INSERT INTO worker_commands(id, worker_id, thread_id, kind, payload, expires_at)
                   VALUES (${steerId}::uuid, ${caller.worker_id}::uuid, ${caller.id}::uuid, 'steerTurn', ${toBinary(CommandSchema, command)}, now() + interval '24 hours')`;
-                yield* sql`UPDATE agent_bus_calls SET notify_status = 'steering' WHERE id = ${callId}::uuid`;
+                yield* sql`UPDATE agent_bus_calls SET notify_status = 'steering', notified_steer_id = ${steerId}::uuid WHERE id = ${callId}::uuid`;
                 return { steerId };
               }
               const turn = yield* queueTurn({
