@@ -41,6 +41,7 @@ import {
   storedSidebarWidth,
   withAttachmentsNote,
   type AttachmentLimits,
+  type SpawnInstance,
 } from "@open-agents/domain";
 import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
 import { isPlatformCommand, mentionsFromJson, mentionsToJson, PLATFORM_COMMANDS, workerPath } from "./mentions.ts";
@@ -63,6 +64,7 @@ import {
   withCustomModels,
   SettingsStore,
   SteerStore,
+  toUiDelivery,
   toUiGoal,
   toUiSchedule,
   toUiSteer,
@@ -181,10 +183,7 @@ export class GatewayCore {
       answer: (by, request) => this.#answer(by, request),
       broadcastThread: (threadId) => this.#broadcastThread(threadId),
       scheduleChanged: (scheduleId) => this.#publishSchedule(scheduleId),
-      modelProblem: async (thread, model, effort) => {
-        const { models, provider, profile } = await this.#profileModels({ thread });
-        return modelProblem(models, provider, profile, model, effort);
-      },
+      spawnInstances: (thread) => this.#spawnInstances(thread),
     });
     // Ticks only after start() (main.ts); tests drive tick() directly.
     this.scheduler = new Scheduler({
@@ -249,7 +248,7 @@ export class GatewayCore {
           case "agentToolCall": {
             const call = message.payload.value;
             // Concurrent: wait_threads may take minutes and must not hold up the stream.
-            void this.bus.handle(call).then(
+            void this.bus.handle(call, workerId).then(
               (result) => {
                 try {
                   connection.send({ case: "agentToolResult", value: result });
@@ -1375,7 +1374,56 @@ export class GatewayCore {
 
   async #publishSteer(steerId: string): Promise<void> {
     const steer = await this.#steers((s) => s.steer(steerId)).catch(() => undefined);
-    if (steer) this.hub.publishThread(steer.thread_id, create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }));
+    if (!steer) return;
+    this.hub.publishThread(steer.thread_id, create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }));
+    // An agent's steer: the sender's card follows it (on its way, joined, or queued instead).
+    if (steer.agent_call_id) await this.#publishDeliveries({ steerId });
+  }
+
+  /** The calling threads of the bus calls that reached this turn or steer hear its new status (their timeline cards). */
+  async #publishDeliveries(by: { turnId: string } | { steerId: string }): Promise<void> {
+    for (const row of await this.#bus((s) => s.deliveries(by))) {
+      this.hub.publishThread(row.source_thread_id, create(ui.ThreadUpdateSchema, { change: { case: "busDelivery", value: toUiDelivery(row) } }));
+    }
+  }
+
+  /**
+   * What a subagent of the thread can run on (docs/agent-bus.md): the provider instances enabled on its worker, as
+   * the new-thread pickers offer them (available = harness and instance reported available), with the pickers' model
+   * catalogs (hidden, custom and favorite models applied). Undefined until the worker reported its configuration.
+   */
+  async #spawnInstances(thread: ThreadRow): Promise<SpawnInstance[] | undefined> {
+    const worker = (await this.#workers()).find((w) => w.id === thread.worker_id);
+    if (!worker || worker.appliedVersion === 0n) return undefined;
+    const catalog = (await this.#forPickers(await this.#models((s) => s.catalogs([worker.id])))).at(0);
+    return worker.providerInstances
+      .filter((i) => i.enabled && (i.harness === Provider.CLAUDE || i.harness === Provider.CODEX))
+      .map((instance): SpawnInstance => {
+        const harness = instance.harness === Provider.CLAUDE ? "claude" : "codex";
+        const provider = worker.providers.find((p) => p.provider === instance.harness);
+        const profile = worker.profiles.find((p) => p.id === instance.id && p.providers.includes(instance.harness));
+        const models = catalog?.profiles.find((p) => p.provider === instance.harness && p.profileId === instance.id);
+        const detail = !provider?.available ? provider?.detail || `${harness} is not installed` : !profile ? "not applied on the worker yet" : profile.detail || instance.detail;
+        return {
+          harness,
+          id: instance.id,
+          label: instance.label,
+          available: Boolean(provider?.available && profile?.available && instance.available),
+          ...(detail && { detail }),
+          ...(models && {
+            models: models.models.map((m) => ({
+              id: m.id,
+              resolvedModel: m.resolvedModel,
+              label: m.displayName,
+              efforts: m.efforts,
+              defaultEffort: m.defaultEffort,
+              isDefault: m.isDefault,
+              hidden: m.hidden,
+            })),
+          }),
+          complete: Boolean(models && !models.detail),
+        };
+      });
   }
 
   #models<A, E>(use: (store: ModelStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
@@ -1430,6 +1478,7 @@ export class GatewayCore {
             notices: snapshot.notices,
             schedules: (await this.#bus((s) => s.schedulesFor({ ownerUserId: this.#options.userId, threadId, includeFinished: false }))).map(toUiSchedule),
             steers: (await this.#steers((s) => s.ofThread(threadId))).map(toUiSteer),
+            busDeliveries: (await this.#bus((s) => s.deliveries({ sourceThreadId: threadId }))).map(toUiDelivery),
             ...(await this.#goals((s) => s.latest(threadId)).then((goal) => goal && { goal: toUiGoal(goal) })),
             lastSeq: snapshot.lastSeq,
           },
@@ -1775,7 +1824,10 @@ export class GatewayCore {
 
   async #broadcastTurn(threadId: string, turnId: string): Promise<void> {
     const turn = (await this.#run((s) => s.turnsOf(threadId))).find((t) => t.id === turnId);
-    if (turn) this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }));
+    if (!turn) return;
+    this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }));
+    // Started by another thread's agent (spawn_thread, send_message): its card follows this turn.
+    if (turn.agent_call_id) await this.#publishDeliveries({ turnId });
   }
 
   async #broadcastWorkers(): Promise<void> {

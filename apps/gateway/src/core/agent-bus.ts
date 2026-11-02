@@ -1,14 +1,25 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } from "@open-agents/contracts";
-import { authorizeBusCall, decodeAgentBusCall, DEFAULT_BUS_LIMITS, isAgentBusTool, type AgentBusCall } from "@open-agents/domain";
+import {
+  agentCatalog,
+  authorizeBusCall,
+  decodeAgentBusCall,
+  DEFAULT_BUS_LIMITS,
+  isAgentBusTool,
+  resolveSpawnTarget,
+  type AgentBusCall,
+  type SpawnInstance,
+  type SpawnResolution,
+  type SpawnTarget,
+} from "@open-agents/domain";
 import { Result, type Effect } from "effect";
-import { AgentBusStore, truncate, type CallSource, type ThreadRow, type TurnRow } from "../store/index.ts";
+import { AgentBusStore, GatewayStore, truncate, type CallSource, type ThreadRow, type TurnRow } from "../store/index.ts";
 import { cronProblem, nextCronRun } from "./cron.ts";
-import type { GatewayStore } from "../store/index.ts";
 
 /**
- * Agent bus runtime (docs/agent-bus.md): agents delegate work to side threads and talk to the other
- * threads of their tree through tool calls the worker forwards (AgentToolCall).
+ * Agent bus runtime (docs/agent-bus.md): agents delegate work to side threads (on any provider instance of their
+ * worker) and talk to the other threads of their tree, or to any thread of their owner like the user would, through
+ * tool calls the worker forwards (AgentToolCall).
  *
  * Every call: strict decode -> facts from the database -> authorizeBusCall (packages/domain) -> execute.
  * Calls are idempotent by call_id: a call re-sent after a reconnect gets its stored result.
@@ -29,8 +40,11 @@ export interface BusHost {
   broadcastThread(threadId: string): Promise<void>;
   /** An agent created or cancelled a schedule: announce it. */
   scheduleChanged(scheduleId: string): Promise<void>;
-  /** Why the caller's provider profile does not offer this model and effort (undefined = fine or not known yet). */
-  modelProblem(thread: ThreadRow, model: string, effort: string): Promise<string | undefined>;
+  /**
+   * The provider instances of the thread's worker a subagent can run on (enabled there, with their availability and
+   * the pickers' model catalogs); undefined before the worker reported its configuration.
+   */
+  spawnInstances(thread: ThreadRow): Promise<readonly SpawnInstance[] | undefined>;
 }
 
 const WAIT_POLL_MS = 1_000;
@@ -44,7 +58,8 @@ export class AgentBus {
     this.#host = host;
   }
 
-  async handle(request: AgentToolCall): Promise<AgentToolResult> {
+  /** `workerId`: the worker the call came from; it speaks only for its own threads (messages now reach other workers). */
+  async handle(request: AgentToolCall, workerId?: string): Promise<AgentToolResult> {
     const source: CallSource = { callId: request.callId, threadId: request.threadId, turnId: request.turnId, itemId: request.itemId };
     const stored = await this.#host.run(AgentBusStore.use((s) => s.storedCall(request.callId)));
     if (stored && stored.status !== "requested") {
@@ -63,15 +78,19 @@ export class AgentBus {
     };
     if (Result.isFailure(decoded)) return refuse(decoded.failure, safeJson(request.argumentsJson));
     const call = decoded.success;
-    if (call.tool === "spawn_thread" && call.args.agent !== undefined) {
-      return refuse("agents are not configured yet: omit agent to start a copy of yourself", call.args);
-    }
+    const calling = await this.#host.run(GatewayStore.use((s) => s.thread(request.threadId))).catch(() => undefined);
+    if (calling && workerId !== undefined && calling.worker_id !== workerId) return failure(request.callId, `thread ${request.threadId} not found`);
+    // Where a subagent runs: resolved first, so the fork rule can judge it; a problem is reported after the
+    // bus rules (a side thread hears that it cannot spawn at all, not that the model is wrong).
+    let spawn: SpawnResolution | undefined;
+    if (call.tool === "spawn_thread" && calling) spawn = resolveSpawnTarget(call.args, callerTarget(calling), await this.#host.spawnInstances(calling));
 
     const { caller, facts } = await this.#host.run(
       AgentBusStore.use((s) =>
         s.facts({
           source,
           targetIds: targetsOf(call),
+          ...(spawn?.ok && { spawnTarget: spawn.target }),
           ...(call.tool === "answer_interaction" && { interactionId: call.args.request_id }),
           ...(call.tool === "cancel_schedule" && { scheduleId: call.args.schedule_id }),
           ...((call.tool === "schedule_wakeup" || call.tool === "schedule_recurring") && { scheduleThreadId: call.args.thread_id ?? source.threadId }),
@@ -80,15 +99,11 @@ export class AgentBus {
     );
     const decision = authorizeBusCall(call, facts);
     if (!decision.allowed) return refuse(decision.reason, call.args);
-    if (call.tool === "spawn_thread" && (call.args.model !== undefined || call.args.effort !== undefined)) {
-      // The subagent runs on the caller's provider and account: the model must be in that catalog.
-      const problem = await this.#host.modelProblem(caller, call.args.model ?? caller.settings.model ?? "", call.args.effort ?? "");
-      if (problem) return refuse(problem, call.args);
-    }
+    if (spawn && !spawn.ok) return refuse(spawn.reason, call.args);
     const hops = decision.hops ?? facts.callerHops + 1;
 
     try {
-      const result = await this.#execute(call, source, caller, hops);
+      const result = await this.#execute(call, source, caller, hops, spawn?.ok ? spawn.target : callerTarget(caller));
       if (!STORES_ITS_CALL.has(call.tool)) {
         await this.#host.run(AgentBusStore.use((s) => s.recordCall({ source, tool: call.tool, args: call.args, ok: true, result })));
       }
@@ -155,13 +170,13 @@ export class AgentBus {
     return result;
   }
 
-  async #execute(call: AgentBusCall, source: CallSource, caller: ThreadRow, hops: number): Promise<JsonValue> {
+  async #execute(call: AgentBusCall, source: CallSource, caller: ThreadRow, hops: number, target: SpawnTarget): Promise<JsonValue> {
     const store = <A, E>(use: (s: AgentBusStore["Service"]) => Effect.Effect<A, E>) => this.#host.run(AgentBusStore.use(use));
     switch (call.tool) {
       case "list_agents":
-        return { agents: [], note: "No agent catalog yet: spawn_thread starts a copy of you (same provider, model and settings)." };
+        return agentCatalog(callerTarget(caller), await this.#host.spawnInstances(caller)) as unknown as JsonValue;
       case "spawn_thread": {
-        const { thread, turn, result } = await store((s) => s.spawn({ source, caller, args: call.args, hops }));
+        const { thread, turn, result } = await store((s) => s.spawn({ source, caller, args: call.args, target, hops }));
         await this.#host.startThread(thread);
         await this.#host.queued(thread.id, turn);
         return result;
@@ -190,8 +205,10 @@ export class AgentBus {
         return await store((s) =>
           s.readThread({ threadId: call.args.thread_id, afterSeq: call.args.after_seq ?? 0, limit: call.args.limit ?? 50, view: call.args.view ?? "messages" }),
         );
-      case "list_threads":
-        return { threads: (await store((s) => s.listThreads(caller, call.args.scope ?? "children"))) as unknown as JsonValue };
+      case "list_threads": {
+        const options = { ...(call.args.query !== undefined && { query: call.args.query }), ...(call.args.limit !== undefined && { limit: call.args.limit }) };
+        return { threads: (await store((s) => s.listThreads(caller, call.args.scope ?? "children", options))) as unknown as JsonValue };
+      }
       case "interrupt_thread":
         await this.#host.interrupt(call.args.thread_id);
         return { thread_id: call.args.thread_id, interrupted: true };
@@ -277,6 +294,16 @@ export class AgentBus {
         return { schedule_id: call.args.schedule_id, cancelled: true };
     }
   }
+}
+
+/** What the calling thread runs on: a subagent's default. */
+function callerTarget(thread: ThreadRow): SpawnTarget {
+  return {
+    harness: thread.provider === "claude" ? "claude" : "codex",
+    instance: thread.provider_profile_id || "native",
+    model: thread.settings.model ?? "",
+    effort: thread.settings.effort ?? "",
+  };
 }
 
 /** A reason for the model, found while executing (e.g. a cron the parser rejects). */

@@ -4,7 +4,7 @@ import { ui } from "@open-agents/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { toUiQuote, type StoredQuote } from "./quotes.ts";
-import { NotFound, type TurnRow } from "./store.ts";
+import { NotFound, toUiSender, type SenderColumns, type TurnRow } from "./store.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 
 /**
@@ -37,7 +37,7 @@ export interface SteerRow {
   created_at: Date;
   /** Made from this queued turn (SteerQueuedTurn): it comes back instead of a new turn when the steer falls back. */
   from_turn_id?: string | null;
-  /** Joined: the calling thread of an agent's steer. */
+  /** Joined: the calling thread of an agent's steer, and who it is (AgentSender). */
   source_thread_id?: string | null;
 }
 
@@ -76,7 +76,12 @@ export class SteerStore extends Context.Service<
     SteerStore,
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      const select = `SELECT s.*, c.source_thread_id FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = s.agent_call_id`;
+      const select = `
+        SELECT s.*, c.source_thread_id, st.title AS source_title, st.provider AS source_provider, st.provider_profile_id AS source_profile_id,
+               coalesce(nullif(su.model, ''), st.settings ->> 'model', '') AS source_model, st.project_id AS source_project_id,
+               st.worker_id AS source_worker_id
+          FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = s.agent_call_id
+          LEFT JOIN threads st ON st.id = c.source_thread_id LEFT JOIN turns su ON su.id = c.source_turn_id`;
       const one = (id: string) =>
         sql.unsafe<SteerRow>(`${select} WHERE s.id = $1::uuid`, [id]).pipe(
           Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("steer not found")))),
@@ -156,7 +161,8 @@ export class SteerStore extends Context.Service<
   );
 }
 
-export function toUiSteer(row: SteerRow): ui.Steer {
+export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
+  const sender = toUiSender(row);
   return create(ui.SteerSchema, {
     id: row.id,
     threadId: row.thread_id,
@@ -170,5 +176,6 @@ export function toUiSteer(row: SteerRow): ui.Steer {
     fromTurnId: row.from_turn_id ?? "",
     quotes: (row.input.quotes ?? []).map(toUiQuote),
     mentions: mentionsFromJson(row.input.mentions),
+    ...(sender && { sender }),
   });
 }

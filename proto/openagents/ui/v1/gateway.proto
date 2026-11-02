@@ -203,6 +203,37 @@ message Thread {
   // (Turn.withdrawn). Puste / 0, gdy to nie fork.
   string fork_after_turn_id = 190;
   uint32 fork_after_turn_ordinal = 191;
+
+  // Numery od 210: subagenci dowolnego dostawcy i wiadomości między wątkami (docs/agent-bus.md).
+  // Jak skończyła się ostatnia zakończona tura (completed | failed | interrupted); pusty przed pierwszą.
+  string last_turn_status = 210;
+}
+
+// Wątek agenta, od którego przyszło wejście tury albo steer (zadanie, wiadomość, raport): do oznaczenia wiadomości
+// agenta w UI („from <wątek>”) także wtedy, gdy wątek nadawcy jest w innym drzewie, projekcie albo na innym workerze.
+message AgentSender {
+  string thread_id = 1;
+  string title = 2;
+  openagents.worker.v1.Provider provider = 3;
+  // Instancja dostawcy (pusty = native).
+  string provider_profile_id = 4;
+  // Model tury, która wysłała (task, message), albo domyślny wątku; pusty = domyślny dostawcy.
+  string model = 5;
+  string project_id = 6;
+  string worker_id = 7;
+}
+
+// Dokąd dotarło wywołanie spawn_thread / send_message wątku: karta na osi czasu nadawcy śledzi turę docelową.
+message BusDelivery {
+  // AgentBusCall.call_id.
+  string call_id = 1;
+  string target_thread_id = 2;
+  // Tura docelowa; pusta, dopóki steer nie wszedł do tury.
+  string target_turn_id = 3;
+  // queue | steer (tak, jak wiadomość faktycznie poszła: steer bez tury w toku idzie do kolejki).
+  string delivery = 4;
+  // Status tury docelowej (queued | running | completed | interrupted | failed | cancelled) albo steering (steer w drodze).
+  string status = 5;
 }
 
 message Turn {
@@ -284,6 +315,9 @@ message Turn {
   repeated openagents.worker.v1.Mention mentions = 140;
   // Numery od 150: cytaty z wiadomości (SendMessage.quotes). Ich treść i komentarze są w platform_note.
   repeated Quote quotes = 150;
+
+  // Numery od 210: nadawca-agent (source_kind task | message | report): wątek, jego dostawca i model.
+  AgentSender sender = 210;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -504,6 +538,8 @@ message ThreadSnapshot {
   repeated Steer steers = 40;
   // Bieżący cel albo ostatni zakończony (brak = wątek nigdy nie miał celu).
   Goal goal = 60;
+  // Numery od 210: dokąd dotarły wywołania spawn_thread / send_message tego wątku (status tur docelowych).
+  repeated BusDelivery bus_deliveries = 210;
 }
 
 message ThreadEventUpdate {
@@ -521,6 +557,8 @@ message ThreadUpdate {
     Schedule schedule = 6;
     Steer steer = 40;
     Goal goal = 60;
+    // Zmiana statusu tury, do której trafiło wywołanie szyny tego wątku.
+    BusDelivery bus_delivery = 210;
   }
 }
 
@@ -754,6 +792,8 @@ message Steer {
   repeated openagents.worker.v1.Mention mentions = 140;
   // Numery od 150: cytaty wiadomości (SendMessage.quotes); text to sama treść użytkownika.
   repeated Quote quotes = 150;
+  // Numery od 210: steer agenta (send_message): wątek nadawcy, jego dostawca i model.
+  AgentSender sender = 210;
 }
 
 // Katalog modeli jednego workera (z ostatniego raportu workera).

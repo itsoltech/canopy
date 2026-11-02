@@ -1,7 +1,18 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@open-agents/contracts";
-import { SPAWN_PERMISSION_MODES, type AgentBusArgs, type BusFacts, type InteractionFacts, type ScheduleFacts, type SpawnPermissionMode, type ThreadNode } from "@open-agents/domain";
+import {
+  agentKey,
+  fuzzyRank,
+  SPAWN_PERMISSION_MODES,
+  type AgentBusArgs,
+  type BusFacts,
+  type InteractionFacts,
+  type ScheduleFacts,
+  type SpawnPermissionMode,
+  type SpawnTarget,
+  type ThreadNode,
+} from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";
@@ -41,6 +52,11 @@ export interface ThreadSummary {
   readonly kind: "main" | "side";
   readonly parent_thread_id: string | null;
   readonly status: string;
+  /** Provider instance it runs on (as list_agents names it, e.g. "codex/native"). */
+  readonly provider: string;
+  /** Where it lives: shown for threads outside the caller's tree (list_threads scope all, cross-tree reads). */
+  readonly project: string;
+  readonly worker: string;
   /** Settled = nothing running or queued: the thread waits for new input. */
   readonly settled: boolean;
   readonly queued_turns: number;
@@ -120,6 +136,26 @@ export function inputJson(input: TurnInput): string {
   return JSON.stringify({ text: input.message ? `${input.note}\n\n${input.message}` : input.note, note: input.note, message: input.message });
 }
 
+/** Where a thread's spawn_thread / send_message call went (ui.BusDelivery) and which thread hears about it. */
+export interface DeliveryRow {
+  call_id: string;
+  source_thread_id: string;
+  target_thread_id: string;
+  target_turn_id: string | null;
+  delivery: "queue" | "steer";
+  status: string;
+}
+
+export function toUiDelivery(row: DeliveryRow): ui.BusDelivery {
+  return create(ui.BusDeliverySchema, {
+    callId: row.call_id,
+    targetThreadId: row.target_thread_id,
+    targetTurnId: row.target_turn_id ?? "",
+    delivery: row.delivery,
+    status: row.status,
+  });
+}
+
 export interface ForwardedInteraction {
   readonly parentThreadId: string;
   readonly turn: TurnRow;
@@ -133,6 +169,8 @@ export class AgentBusStore extends Context.Service<
     facts(input: {
       source: CallSource;
       targetIds: readonly string[];
+      /** spawn_thread: where the new thread runs (resolveSpawnTarget), for the fork rule. */
+      spawnTarget?: SpawnTarget;
       interactionId?: string;
       scheduleId?: string;
       /** schedule_*: the thread whose active schedules count against the limit. */
@@ -144,6 +182,8 @@ export class AgentBusStore extends Context.Service<
       source: CallSource;
       caller: ThreadRow;
       args: AgentBusArgs["spawn_thread"];
+      /** Provider instance, model and effort of the new thread (resolveSpawnTarget). */
+      target: SpawnTarget;
       hops: number;
     }): Fx<{ thread: ThreadRow; turn: TurnRow; result: JsonValue }>;
     /**
@@ -157,8 +197,11 @@ export class AgentBusStore extends Context.Service<
       hops: number;
     }): Fx<{ turn: TurnRow; result: JsonValue; steerId?: undefined } | { turn?: undefined; steerId: string; result: JsonValue }>;
     summary(threadId: string): Fx<ThreadSummary>;
-    /** Threads of the caller's tree: its children, or the whole tree (without the caller). */
-    listThreads(caller: ThreadRow, scope: "children" | "tree"): Fx<ThreadSummary[]>;
+    /**
+     * Threads of the caller's tree: its children, or the whole tree (without the caller); or (all) any thread of the
+     * caller's owner, by title (fuzzy) when `query` is given, the most recent activity first.
+     */
+    listThreads(caller: ThreadRow, scope: "children" | "tree" | "all", options?: { query?: string; limit?: number }): Fx<ThreadSummary[]>;
     readThread(input: { threadId: string; afterSeq: number; limit: number; view: "messages" | "items" }): Fx<{ entries: JsonValue[]; nextSeq: number }>;
     /** The thread could not be created: its queued turns fail (so callers waiting on them hear back). */
     failQueuedTurns(threadId: string, reason: string): Fx<ReadonlyArray<string>>;
@@ -185,6 +228,11 @@ export class AgentBusStore extends Context.Service<
     fireSchedule(input: { schedule: ScheduleRow; input: TurnInput; run: boolean; nextRunAt: Date | undefined }): Fx<{ threadId: string; turn?: TurnRow }>;
     /** Pending interactions routed to the caller (from its side threads). */
     parentInteractions(callerId: string): Fx<ReadonlyArray<{ request_id: string; thread_id: string; kind: string; tool_name: string; request: JsonValue }>>;
+    /**
+     * Deliveries of spawn_thread / send_message calls: the latest of a calling thread (its snapshot), those that reached
+     * a turn (its status changed) or the one behind an agent's steer.
+     */
+    deliveries(by: { sourceThreadId: string } | { turnId: string } | { steerId: string }): Fx<ReadonlyArray<DeliveryRow>>;
     /** Notifications due because `turnId` finished. */
     dueNotifications(turnId: string): Fx<Notification[]>;
     /** Queues the notification turn in the calling thread (or cancels it when that thread is gone). */
@@ -210,7 +258,9 @@ export class AgentBusStore extends Context.Service<
         rootId: row.root_thread_id,
         depth: row.depth,
         ancestorIds: row.parent_thread_id ? [row.parent_thread_id, ...(row.root_thread_id !== row.parent_thread_id ? [row.root_thread_id] : [])] : [],
+        ownerId: row.owner_user_id,
         provider: row.provider,
+        instance: row.provider_profile_id || "native",
         archived: row.archived_at != null,
       });
       const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -227,10 +277,13 @@ export class AgentBusStore extends Context.Service<
       const summary = (threadId: string): Fx<ThreadSummary> =>
         Effect.gen(function* () {
           const rows = yield* sql<{
-            id: string; title: string; kind: "main" | "side"; parent_thread_id: string | null; status: string;
+            id: string; title: string; kind: "main" | "side"; parent_thread_id: string | null; status: string; provider: string;
+            provider_profile_id: string | null; project: string | null; worker: string | null;
             settings: ThreadRow["settings"]; running: number; queued: number; for_parent: number; for_user: number;
           }>`
-            SELECT t.id, t.title, t.kind, t.parent_thread_id, t.status, t.settings,
+            SELECT t.id, t.title, t.kind, t.parent_thread_id, t.status, t.settings, t.provider, t.provider_profile_id,
+                   (SELECT p.name FROM projects p WHERE p.id = t.project_id) AS project,
+                   (SELECT w.name FROM workers w WHERE w.id = t.worker_id) AS worker,
                    (SELECT count(*)::int FROM turns u WHERE u.thread_id = t.id AND u.status = 'running') AS running,
                    (SELECT count(*)::int FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued') AS queued,
                    (SELECT count(*)::int FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND i.routed_to = 'parent') AS for_parent,
@@ -253,6 +306,9 @@ export class AgentBusStore extends Context.Service<
             kind: row.kind,
             parent_thread_id: row.parent_thread_id,
             status: row.status,
+            provider: agentKey({ harness: row.provider === "claude" ? "claude" : "codex", instance: row.provider_profile_id ?? "" }),
+            project: row.project ?? "",
+            worker: row.worker ?? "",
             settled: row.running === 0 && row.queued === 0 && row.status !== "creating",
             queued_turns: row.queued,
             waiting_for_parent: row.for_parent,
@@ -313,7 +369,7 @@ export class AgentBusStore extends Context.Service<
             ? sql<BusCallRow>`SELECT * FROM agent_bus_calls WHERE id = ${callId}::uuid`.pipe(Effect.map((rows) => rows[0]))
             : Effect.succeed(undefined),
 
-        facts: ({ source, targetIds, interactionId, scheduleId, scheduleThreadId }) =>
+        facts: ({ source, targetIds, spawnTarget, interactionId, scheduleId, scheduleThreadId }) =>
           Effect.gen(function* () {
             const caller = yield* thread(source.threadId);
             const hopsRows = yield* sql<{ hops: number }>`SELECT hops FROM turns WHERE id = ${turnRef(source)}`;
@@ -321,16 +377,7 @@ export class AgentBusStore extends Context.Service<
             for (const id of new Set(targetIds)) {
               if (!isUuid(id)) continue;
               const rows = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${id}::uuid`;
-              const row = rows[0];
-              if (!row) continue;
-              // A thread the user mentioned in the caller's messages is readable from it (docs/ui-api.md, "Wzmianki").
-              const mention = JSON.stringify([{ kind: "MENTION_KIND_THREAD", name: id }]);
-              const mentioned =
-                row.owner_user_id === caller.owner_user_id &&
-                (yield* sql<{ mentioned: boolean }>`
-                  SELECT EXISTS (SELECT 1 FROM turns WHERE thread_id = ${caller.id}::uuid AND input->'mentions' @> ${mention}::jsonb)
-                      OR EXISTS (SELECT 1 FROM turn_steers WHERE thread_id = ${caller.id}::uuid AND input->'mentions' @> ${mention}::jsonb) AS mentioned`)[0]?.mentioned === true;
-              targets.set(id, mentioned ? { ...node(row), mentioned } : node(row));
+              if (rows[0]) targets.set(id, node(rows[0]));
             }
             const counts = yield* sql<{ children: number; active: number }>`
               SELECT (SELECT count(*)::int FROM threads c WHERE c.parent_thread_id = ${caller.id}::uuid AND c.archived_at IS NULL) AS children,
@@ -369,8 +416,8 @@ export class AgentBusStore extends Context.Service<
               targets,
               callerChildren: counts[0]?.children ?? 0,
               activeInTree: counts[0]?.active ?? 0,
-              spawnProvider: caller.provider,
               callerPermissionMode: yield* callerMode(source, caller),
+              ...(spawnTarget && { spawnProvider: spawnTarget.harness, spawnInstance: spawnTarget.instance || "native" }),
               ...(interaction && { interaction }),
               ...(schedule && { schedule }),
               ...(scheduleCount !== undefined && { targetSchedules: scheduleCount }),
@@ -393,21 +440,22 @@ export class AgentBusStore extends Context.Service<
             Effect.asVoid,
           ),
 
-        spawn: ({ source, caller, args, hops }) =>
+        spawn: ({ source, caller, args, target, hops }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const notify = args.notify ?? true;
               yield* insertCall({ source, tool: "spawn_thread", args, status: "completed", hops, notify });
               const id = Bun.randomUUIDv7();
-              // Same place, provider and account as the caller (threads_before_insert enforces the placement); its
-              // settings unless the call narrows them (authorizeBusCall: permissions never broader, the gateway checked
-              // the model against the catalog). A role adds to the caller's instructions.
+              // Same place as the caller (threads_before_insert enforces the placement), on the provider instance, model
+              // and effort the gateway resolved (the caller's unless the call chose others from list_agents); its
+              // permissions unless the call narrows them (authorizeBusCall: never broader). A role adds to the caller's
+              // instructions.
               const settings: ThreadRow["settings"] = {
                 ...caller.settings,
                 // The calling turn's mode, not the thread's default (never broader than the caller right now).
                 permissionMode: (yield* callerMode(source, caller)).toUpperCase(),
-                ...(args.model !== undefined && { model: args.model }),
-                ...(args.effort !== undefined && { effort: args.effort }),
+                model: target.model,
+                effort: target.effort,
                 ...(args.permission_mode !== undefined && { permissionMode: args.permission_mode.toUpperCase() }),
                 ...(args.instructions !== undefined && {
                   instructions: [caller.settings.instructions, args.instructions].filter(Boolean).join("\n\n"),
@@ -419,7 +467,8 @@ export class AgentBusStore extends Context.Service<
                                      fork_source_thread_id, settings, status, title)
                 VALUES (${id}::uuid, ${caller.project_id}::uuid, ${caller.owner_user_id}::uuid, 'side', ${caller.id}::uuid,
                         ${caller.root_thread_id}::uuid, ${caller.depth + 1}, 'agent', ${source.callId}::uuid,
-                        ${args.interactions ?? "parent"}, 'worker', ${caller.provider}, ${caller.provider_profile_id},
+                        ${args.interactions ?? "parent"}, 'worker', ${target.harness},
+                        ${target.instance && target.instance !== "native" ? target.instance : null},
                         ${caller.worker_id}::uuid, ${caller.workspace_id}::uuid, ${caller.cwd},
                         ${args.fork ? caller.id : null}::uuid, ${JSON.stringify(settings)}::jsonb, 'creating', ${args.title.trim()})`;
               const input: TurnInput = {
@@ -433,6 +482,7 @@ export class AgentBusStore extends Context.Service<
               const result = {
                 thread_id: id,
                 turn_id: turn.id,
+                provider: agentKey(target),
                 model: settings.model ?? "",
                 effort: settings.effort ?? "",
                 permission_mode: busPermissionMode(settings.permissionMode),
@@ -452,7 +502,17 @@ export class AgentBusStore extends Context.Service<
             Effect.gen(function* () {
               const notify = args.notify ?? true;
               yield* insertCall({ source, tool: "send_message", args, status: "completed", hops, notify });
-              const input: TurnInput = { note: `[open-agents] Message from the thread "${caller.title}" (thread_id: ${caller.id}):`, message: args.prompt };
+              // From another tree (any thread of the same owner, like the user writing there): the target learns who wrote.
+              const target = yield* thread(args.thread_id);
+              const outside = target.root_thread_id !== caller.root_thread_id;
+              const input: TurnInput = {
+                note:
+                  `[open-agents] Message from the thread "${caller.title}" (thread_id: ${caller.id})` +
+                  (outside ? ", an agent outside your thread tree" : "") +
+                  (notify ? ". Your final message of this turn is reported back to it." : "") +
+                  ":",
+                message: args.prompt,
+              };
               const running =
                 args.delivery === "steer"
                   ? (yield* sql<{ id: string }>`SELECT id FROM turns WHERE thread_id = ${args.thread_id}::uuid AND status = 'running' LIMIT 1`)[0]
@@ -490,8 +550,19 @@ export class AgentBusStore extends Context.Service<
 
         summary,
 
-        listThreads: (caller, scope) =>
+        listThreads: (caller, scope, options) =>
           Effect.gen(function* () {
+            if (scope === "all") {
+              const owned = yield* sql<{ id: string; title: string }>`
+                SELECT t.id, t.title FROM threads t
+                 WHERE t.owner_user_id = ${caller.owner_user_id}::uuid AND t.id <> ${caller.id}::uuid AND t.archived_at IS NULL
+                 ORDER BY greatest(t.created_at, (SELECT max(coalesce(u.completed_at, u.started_at, u.queued_at)) FROM turns u WHERE u.thread_id = t.id)) DESC
+                 LIMIT 500`;
+              const limit = options?.limit ?? 20;
+              const query = options?.query?.trim() ?? "";
+              const picked = query ? fuzzyRank(query, owned, (t) => [t.title || "Untitled"], limit).map((r) => r.item) : owned.slice(0, limit);
+              return yield* Effect.forEach(picked, (r) => summary(r.id));
+            }
             const rows =
               scope === "children"
                 ? yield* sql<{ id: string }>`SELECT id FROM threads WHERE parent_thread_id = ${caller.id}::uuid AND archived_at IS NULL ORDER BY created_at`
@@ -649,6 +720,24 @@ export class AgentBusStore extends Context.Service<
               JOIN threads t ON t.id = i.thread_id
              WHERE t.parent_thread_id = ${callerId}::uuid AND i.status = 'pending' AND i.routed_to = 'parent'
              ORDER BY i.created_at`,
+
+        deliveries: (by) => {
+          // A steer that fell back is a queued message; one on its way has no turn of its own yet.
+          const select = `
+            SELECT c.id AS call_id, c.source_thread_id, c.target_thread_id, coalesce(c.target_turn_id, st.queued_turn_id) AS target_turn_id,
+                   CASE WHEN st.id IS NOT NULL AND st.status <> 'queued' THEN 'steer' ELSE 'queue' END AS delivery,
+                   coalesce(CASE WHEN st.status IN ('pending', 'accepted', 'dropped') THEN 'steering' WHEN st.status = 'failed' THEN 'failed' END,
+                            u.status, 'queued') AS status
+              FROM agent_bus_calls c
+              LEFT JOIN turn_steers st ON st.agent_call_id = c.id
+              LEFT JOIN turns u ON u.id = coalesce(c.target_turn_id, st.queued_turn_id)
+             WHERE c.tool IN ('spawn_thread', 'send_message') AND c.status = 'completed' AND c.target_thread_id IS NOT NULL`;
+          return "sourceThreadId" in by
+            ? sql.unsafe<DeliveryRow>(`${select} AND c.source_thread_id = $1::uuid ORDER BY c.created_at DESC LIMIT 200`, [by.sourceThreadId])
+            : "turnId" in by
+              ? sql.unsafe<DeliveryRow>(`${select} AND (c.target_turn_id = $1::uuid OR st.queued_turn_id = $1::uuid)`, [by.turnId])
+              : sql.unsafe<DeliveryRow>(`${select} AND st.id = $1::uuid`, [by.steerId]);
+        },
 
         dueNotifications: (turnId) =>
           Effect.gen(function* () {
