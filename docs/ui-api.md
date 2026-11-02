@@ -76,6 +76,33 @@ flowchart LR
 
 UI składa itemy na żywo tym samym reducerem co gateway (`reduceItem` z `@open-agents/domain`).
 
+### Harmonogramy tworzące nowe wątki
+
+`CreateScheduleRequest.target` to `thread` (także pusty, zgodność wsteczna) albo `new_thread`.
+Istniejący cel wymaga `thread_id`. Nowy cel wymaga `new_thread: NewThreadSchedule` i pustego `thread_id`:
+`project_id`, `placement` (`any`, `least_busy`, `round_robin`, `specific`), `workspace_id` tylko dla
+`specific`, `provider`, `provider_profile_id` (pusty = `native`), `model`, `effort` (pusty dozwolony,
+modele bez wysiłku działają), `permission_mode` (domyślnie `ASK`), opcjonalny `title`.
+Wiadomość pozostaje w `prompt`; opcjonalne `name` nazywa harmonogram (bez niego pierwsze 60 znaków wiadomości).
+`concurrency` to `skip_if_running` (domyślne) albo `allow`. Obowiązują dotychczasowe `run_at`/`cron`,
+strefy czasowe, minimalny odstęp 5 minut, `until`, `max_runs` i `missed_policy`.
+
+`Schedule` zwraca te ustawienia oraz `recent_runs` — pięć ostatnich wystąpień z `scheduled_for`,
+numerem udanego uruchomienia, `thread_id`, `turn_id`, `worker_id`, `workspace_id`, `outcome`, `created_at`.
+Pominięcie ma numer 0 i puste odnośniki do wątku/tury. `Thread.schedule_id`, `schedule_name`,
+`schedule_run` opisują pochodzenie wątku; UI pokazuje „Started by schedule ‹name› · run N” i ikonę zegara.
+Nowe pola istniejących wiadomości zajmują numery 290–309. Nowe harmonogramy są tylko dla użytkownika;
+narzędzia agentów nadal planują wyłącznie tury istniejących wątków.
+
+Settings → Scheduled tasks pozwala wybrać cel również bez istniejących wątków. Formularz nowego wątku
+używa wspólnych pickerów modelu/instancji, wysiłku i uprawnień, ogranicza wybór workera do workspace projektu
+i podaje aktualnie kwalifikujące się workery. Z panelu wątku domyślnie wybiera „In this thread”.
+Lista pokazuje projekt, politykę, model i historię z linkiem do wątku i nazwą workera. Zmiany harmonogramów
+nowych wątków przychodzą w `OverviewUpdate.schedule`; istniejących również w `ThreadUpdate.schedule`.
+Przy braku workera puli ponawianie trwa co 5 s; po 2 minutach `skip` pomija, `run_once` zachowuje
+jedno zaległe wykonanie (do `until`, jeśli ustawione). `specific` może utworzyć wątek na offline workerze,
+korzystając z jego ostatniej dostępności instancji. Szczegóły: [agent-bus.md, sekcja 5](agent-bus.md#5-harmonogram).
+
 Cele i praca w tle w modelu UI (pola od 60, osobno od innych zmian kontraktu):
 - `Thread.goal_status` (status otwartego celu albo pusty) i `Thread.background_tasks` (zadania w tle w toku) — także w `WatchOverview`, np. na plakietki w pasku bocznym,
 - `Goal`: `objective`, `status` (`active | paused | blocked | budget_limited | usage_limited | achieved | cancelled`), `created_by` (`user | provider`), `token_budget`, `tokens_used`, `time_used_seconds`, `iterations` (Codex: tury kontynuacji, Claude: oceny ewaluatora), `last_reason` (werdykt ewaluatora), `native_status`, czasy,

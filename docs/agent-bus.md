@@ -212,6 +212,43 @@ Harmonogram jest funkcją platformy, nie dostawcy: trwały (`schedules`), widocz
 - Po przestoju `missed_policy` decyduje: jedna tura nadrabiająca (`run_once`, domyślnie) albo pominięcie (`skip`).
 - Agent może ustawić harmonogram dla siebie albo dla swoich potomków. Harmonogram agenta zawsze ma koniec (jednorazowy, `until` albo `max_runs`) i wydłuża łańcuch przeskoków. Agent, który w kółko planuje sam siebie, zatrzyma się na limicie. Użytkownik może tworzyć harmonogramy bez końca.
 
+### Nowy wątek przy każdym uruchomieniu
+
+Użytkownik może wybrać `target = new_thread` zamiast domyślnego `thread`. Harmonogram zapisuje projekt,
+politykę wyboru workspace, instancję dostawcy, model, opcjonalny effort, uprawnienia, opcjonalny tytuł i wiadomość.
+Każde wykonane uruchomienie tworzy osobny wątek główny (`origin = schedule`) oraz pierwszą turę
+`trigger = schedule`, `hops = 0`. Pusty tytuł uruchamia istniejące generowanie z pierwszej wiadomości
+([thread-titles.md](thread-titles.md)); jawny tytuł pozostaje tytułem użytkownika.
+Narzędzia agent-bus **pozostają wyłącznie dla istniejących wątków**. Tworzenie harmonogramów nowych wątków jest na razie dostępne tylko użytkownikowi przez UI API.
+
+| Polityka | Wybór workspace |
+|---|---|
+| `specific` | Jeden wskazany aktywny workspace projektu. Gdy worker jest offline, używany jest jego ostatni raport dostępności i aktualne włączenie instancji; wątek i tura powstają od razu, komenda utworzenia czeka w outboxie na powrót workera. |
+| `any` (domyślna) | Pierwszy kwalifikujący się workspace w stabilnej kolejności UUID. |
+| `least_busy` | Najmniej tur `queued` lub `running` na całym workerze; remisy rozstrzyga UUID workspace. |
+| `round_robin` | Kolejny kwalifikujący się workspace po zapisanym `placement_cursor`, z zawinięciem. Kursor jest zapisany w tej samej transakcji co uruchomienie i przeżywa restart. |
+
+Worker puli musi być online, mieć aktywny workspace projektu oraz włączoną i dostępną instancję wybranego
+dostawcy i dostępny harness. Wybór odbywa się przy uruchomieniu, nie przy zapisaniu harmonogramu.
+Gdy nikogo nie ma, scheduler zachowuje pierwotny termin i ponawia wybór przy kolejnych tickach (co 5 s).
+Okno terminowego wykonania wynosi 2 minuty. Po jego przekroczeniu `skip` zapisuje pominięcie,
+a `run_once` nadal czeka na jednego kwalifikującego się workera i nadrabia dokładnie raz; kolejne terminy
+cronu liczy od chwili wykonania. `until` kończy oczekiwanie. Wyłączona lub niedostępna instancja
+również wymaga oczekiwania, także przy `specific`. Jak dotąd, `skip` stosuje się też po przestoju gateway dłuższym niż 2 minuty.
+
+W harmonogramach nowych wątków `concurrency = skip_if_running` jest domyślne: poprzednia tura
+w kolejce lub w toku albo zadanie w tle w toku powoduje pominięcie następnego terminu. `allow` pozwala
+tworzyć kolejne wątki równolegle. Pominięcia nie zwiększają `runs` ani nie zużywają `max_runs`.
+Nie są nadrabiane po zakończeniu poprzedniej pracy.
+
+`schedule_runs` zapisuje każde obsłużone wystąpienie z kluczem `(schedule_id, scheduled_for)`, numerem
+wykonania, wynikiem, workerem, workspace oraz odnośnikami do wątku i tury. Dzierżawa jest ponownie
+sprawdzana pod blokadą wiersza; stary właściciel nie może zatwierdzić przejętego wystąpienia.
+Utworzenie wątku, tury, komendy w outboxie, wpisu historii i przesunięcie harmonogramu to jedna
+transakcja. Restart przed zatwierdzeniem pozwala ponowić termin, a po zatwierdzeniu odtwarza komendę
+z outboxa bez tworzenia drugiego wątku. Komenda utworzenia nowego wątku ma ważność 365 dni.
+Historia UI pokazuje pięć ostatnich wystąpień, w tym pominięcia; pełna historia pozostaje w bazie.
+
 ## 6. Reguły dostępu i limity
 
 Czysta funkcja `authorizeBusCall` (`packages/domain`), wywoływana przez gateway w tej samej transakcji co zapis.

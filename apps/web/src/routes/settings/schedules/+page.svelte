@@ -50,7 +50,7 @@
       <h2 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Scheduled tasks</h2>
       <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Messages that start a turn on their own at a set time. You and your agents create them.</p>
     </div>
-    <Button variant="primary" size="sm" icon="plus" onclick={() => (creating = true)} disabled={threads.length === 0}>New task</Button>
+    <Button variant="primary" size="sm" icon="plus" onclick={() => (creating = true)}>New task</Button>
   </div>
 
   <div role="radiogroup" aria-label="Show" class="flex w-fit gap-0.5 rounded-lg bg-zinc-950/5 p-0.5 dark:bg-white/5">

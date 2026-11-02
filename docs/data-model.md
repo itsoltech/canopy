@@ -145,7 +145,8 @@ Pozostałe tabele:
 | `worker_commands` | outbox komend (protobuf `Command` w `payload`), `status`, `expires_at`, `client_request_id` |
 | `interaction_requests` | zgody, pytania i formularze MCP; z tury, subagenta albo zadania w tle (`turn_id` może być pusty); `routed_to` i autor odpowiedzi: użytkownik albo agent rodzica |
 | `goals` | cele harnessu ([goals.md](goals.md)): objective, status, budżet i zużycie według harnessu, iteracje, ostatni werdykt, autor (`user` z UI albo `provider`), ostatni raport (`native_status`, `native_state`), błąd ostatniej komendy celu (`error`, `error_at`); najwyżej jeden otwarty cel na wątek |
-| `schedules` | harmonogram platformy (jednorazowy / cron): następne uruchomienie, limity, autor (użytkownik albo wywołanie szyny), `hops`, dzierżawa |
+| `schedules` | harmonogram platformy (jednorazowy / cron): cel `thread` albo `new_thread`, projekt, konfiguracja nowego wątku (`new_thread`), współbieżność, trwały kursor round robin, następne uruchomienie, limity, autor, `hops`, dzierżawa (`0027_schedules_new_thread`) |
+| `schedule_runs` | trwała historia wystąpień harmonogramu: klucz `(schedule_id, scheduled_for)`, numer wykonanego uruchomienia, wątek, tura, workspace, worker i wynik (`started`, `missed`, `running` — pominięcie przez współbieżność, `expired`) |
 | `agent_bus_calls` | szyna agentów: każde wywołanie narzędzia (`spawn_thread`, `send_message`, `wait_threads`, ...), argumenty, wynik, uruchomiony wątek/tura, `hops`, powiadomienie zwrotne (outbox) |
 | `blobs` | duże treści (output, diff, obraz), adresowane sha256, inline albo w magazynie obiektów |
 | `attachments` | pliki użytkownika do wiadomości: właściciel, blob (sha256) i miniatura WebP obrazu, nazwa (bez katalogów i znaków sterujących), typ rozpoznany z treści, `kind` (`image` / `file`), rozmiar, wymiary; po wysłaniu wątek i tura (raz, razem) |
@@ -169,6 +170,7 @@ W SQL (CHECK, FK, indeksy częściowe):
 - jedna tura `running` na wątek; `client_request_id` unikalny w wątku; kolejność kolejki to `ordinal` (zmiana kolejności permutuje ordinale tur kolejki, `0021`); tura wyjęta z kolejki przez użytkownika ma `withdrawn` (`deleted` | `steered`) i jest `cancelled`; `revision` rośnie z każdą edycją wejścia tury w kolejce; steer z kolejki wskazuje swoją turę (`turn_steers.from_turn_id`); wyzwalacz ma swoje powiązanie (`agent_call_id`, `schedule_id`, `interaction_request_id`, `resumes_turn_id`); `hops` = 0 dla człowieka i dostawcy, > 0 dla szyny,
 - cel ustawiony przez harness jest zapisywany tak, jak go zgłosił (bez akceptacji i budżetu, `0010`); autor to `user` (z `created_by_user_id`) albo `provider`; silnika celów platformy nie ma (`0011` usuwa jego kolumny i stan `proposed`); najwyżej jeden otwarty cel na wątek,
 - harmonogram agenta zawsze ma koniec i `hops > 0`; dokładnie jeden autor (użytkownik albo wywołanie szyny); decyzja w interakcji ma dokładnie jednego autora,
+- harmonogram `thread` ma `thread_id`, a `new_thread` ma konfigurację i autora użytkownika, bez `thread_id`; oba mają `project_id`. Nowy wątek ma `origin = schedule`, `schedule_id`, zapisany `schedule_name` i dodatni `schedule_run`; para harmonogram/numer jest unikalna. Historia i outbox powstają razem z wątkiem i jego pierwszą turą w jednej transakcji. Pochodzenie nie znika po anulowaniu harmonogramu,
 - zdarzenie wskazuje turę tego samego wątku.
 
 W triggerach:

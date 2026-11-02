@@ -71,3 +71,9 @@ export function upsertSchedule(list: readonly ui.Schedule[], schedule: ui.Schedu
   const index = list.findIndex((s) => s.id === schedule.id);
   return index >= 0 ? list.with(index, schedule) : [...list, schedule];
 }
+export const placementLabels: Record<string, string> = {
+  any: "Any available",
+  least_busy: "Least busy",
+  round_robin: "Round robin",
+  specific: "Specific worker",
+};

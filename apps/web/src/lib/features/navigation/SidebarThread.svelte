@@ -10,6 +10,7 @@
   import ThreadStatusText from "#lib/features/threads/ThreadStatusText.svelte";
   import SidebarThreadLink from "./SidebarThreadLink.svelte";
   import SwapText from "#lib/shared/ui/SwapText.svelte";
+  import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
 
   /**
    * One thread in the inbox (T3 layout): project and status, title, then where it runs with its marks
@@ -44,6 +45,7 @@
     <span class="min-w-0 flex-1 truncate">{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{basename(thread.cwd)}</span>
     <span class="flex shrink-0 items-center gap-2">
       <ThreadGoalMark {thread} />
+      <ScheduleOrigin {thread} compact />
       {#if sides > 0}<span class="flex items-center gap-0.5" title="{sides} side {sides === 1 ? 'thread' : 'threads'}"><Icon name="arrows-right-left" class="size-3.5" />{sides}</span>{/if}
       {#if thread.spawnedByAgent}<Icon name="sparkles" class="size-3.5 fill-violet-500 dark:fill-violet-400" label="Started by an agent" />{/if}
       {#if provider}<span class="flex" title={thread.providerProfileId ? `${providerName} · ${thread.providerProfileId}` : providerName}><ProviderIcon {provider} label={providerName} class="size-3.5 opacity-70" /></span>{/if}

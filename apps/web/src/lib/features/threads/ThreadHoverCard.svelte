@@ -19,6 +19,7 @@
   import { isSide, sideMark } from "./thread-tree.ts";
   import SummaryRow from "./components/SummaryRow.svelte";
   import ThreadStatusText from "./ThreadStatusText.svelte";
+  import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
 
   /**
    * A thread's summary next to its row in lists (T3's hover card): title, project, worker, folder, agent
@@ -46,6 +47,7 @@
   {@const sides = isSide(thread) ? [] : [...overview.threads.values()].filter((t) => isSide(t) && t.parentThreadId === thread.id).sort(byActivity)}
   <div class="grid gap-3 text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-400">
     <p class="text-base/6 font-semibold text-pretty text-zinc-950 sm:text-sm/5 dark:text-white">{thread.title}</p>
+    <ScheduleOrigin {thread} />
     <ul role="list" class="grid gap-1.5">
       <SummaryRow>
         {#snippet mark()}<ProjectAvatar name={project?.name ?? "?"} class="size-4" />{/snippet}
