@@ -87,6 +87,10 @@ import { Scheduler } from "./scheduler.ts";
 import { scheduleConfiguration } from "./schedule-configuration.ts";
 import { PLACEMENTS, scheduleWorkerEligible } from "@open-agents/domain";
 import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt } from "./thread-titles.ts";
+import { BotsRuntime } from "../bots/runtime.ts";
+import { BotStore } from "../bots/store.ts";
+import type { BotModel, BotTurn, StoredCall } from "../bots/types.ts";
+import { botPlatform, describeBotTool } from "../bots/platform.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -102,7 +106,7 @@ import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt 
  */
 
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | BackgroundTaskStore,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | BackgroundTaskStore | BotStore,
   unknown
 >;
 
@@ -117,6 +121,7 @@ export interface GatewayCoreOptions {
   readonly attachmentLimits?: AttachmentLimits;
   /** How long a Claude task that completed by itself waits for Claude's own wake-up turn (core/background-tasks.ts). */
   readonly backgroundGraceMs?: number;
+  readonly botModel?: BotModel;
 }
 
 /** Bytes per BlobChunk on the worker link (attachments down, previews up). */
@@ -153,6 +158,7 @@ const HARNESS_ERROR_CODES: ReadonlySet<string> = new Set(["HARNESS_ERROR"]);
 const MAX_OBJECTIVE = 4000;
 
 export class GatewayCore {
+  readonly bots: BotsRuntime;
   readonly link: WorkerLink;
   readonly hub = new Hub();
   readonly bus: AgentBus;
@@ -171,6 +177,11 @@ export class GatewayCore {
 
   constructor(options: GatewayCoreOptions) {
     this.#options = options;
+    this.bots = new BotsRuntime({ runtime: options.runtime, userId: options.userId,
+      ...(options.botModel && { model: options.botModel }), ...(options.log && { log: options.log }),
+      platform: (turn, call) => botPlatform(this, options, turn, call),
+      describeTool: (tool, args) => describeBotTool(this, tool, args),
+    });
     this.link = createWorkerLink({
       authenticate: (credential) => this.#run((s) => s.authenticateWorker(credential)),
       welcome: async (workerId, hello) => {
@@ -816,6 +827,82 @@ export class GatewayCore {
     if (goal !== undefined) await this.setGoal(create(ui.SetGoalRequestSchema, { threadId: row.id, action: "set", objective: goal }));
     else this.#autoTitle(row.id, titleContext({ text: request.initialMessage, mentions, attachments: files?.input(row.id, request.initialMessage).attachments }));
     return this.#uiThread(row);
+  }
+
+  /** Bot actions use the UI's validation, with creation, worker outbox, watch and result in one transaction. */
+  async startBotThread(turn: BotTurn, call: StoredCall, request: ui.CreateThreadRequest): Promise<unknown> {
+    await this.#checkProvider(request);
+    await this.#checkModel({ workspaceId: request.workspaceId, provider: request.provider, profileId: request.providerProfileId }, request.model, request.effort);
+    const userId = this.#options.userId;
+    const result = await this.#options.runtime.runPromise(BotStore.use((bots) => bots.action(turn, call, Effect.gen(function* () {
+      const store = yield* GatewayStore;
+      const row = yield* store.createThread(userId, request);
+      const target = (yield* store.turnsOf(row.id))[0]!;
+      yield* bots.watchThread(turn, call, row.id, target.id);
+      yield* store.enqueueCommand({ workerId: row.worker_id!, threadId: row.id, ttlSeconds: TTL.createThread,
+        command: { kind: { case: "createThread", value: { thread: store.threadSpec(row) } } } });
+      return { thread_id: row.id, turn_id: target.id, worker_id: row.worker_id! };
+    }))));
+    await this.#redeliver(result.worker_id);
+    await this.#broadcastThread(result.thread_id);
+    return result;
+  }
+
+  /** Publishes and dispatches a bot's atomically queued message after its commit. */
+  async botThreadQueued(threadId: string): Promise<void> {
+    await this.#broadcastThread(threadId);
+    await this.pump(threadId);
+  }
+
+  async sendBotThreadMessage(turn: BotTurn, call: StoredCall, threadId: string, text: string, delivery: string): Promise<unknown> {
+    if (delivery !== "queue" && delivery !== "steer") throw new InvalidError("delivery must be queue or steer");
+    const user = this.#options.userId;
+    const result = await this.#options.runtime.runPromise(BotStore.use((bots) => bots.action(turn, call, Effect.gen(function* () {
+      const store = yield* GatewayStore;
+      const row = yield* store.thread(threadId);
+      if (row.owner_user_id !== user || row.archived_at || !row.worker_id) return yield* Effect.fail(new InvalidError("thread not found or unavailable"));
+      const running = delivery === "steer" ? yield* store.runningTurn(threadId) : undefined;
+      if (running) {
+        const steer = yield* SteerStore.use((s) => s.create({ threadId, turnId: running.id, text, userId: user, clientRequestId: call.id, model: "", effort: "", permissionMode: "" }));
+        yield* bots.watchSteer(turn, call, threadId, steer.id);
+        yield* store.enqueueCommand({ workerId: row.worker_id, threadId, ttlSeconds: TTL.steerTurn,
+          command: { commandId: steer.id, kind: { case: "steerTurn", value: { threadId, turnId: running.id, inputId: steer.id, input: { text } } } } });
+        return { thread_id: threadId, turn_id: running.id, steer_id: steer.id, delivery: "steer", worker_id: row.worker_id };
+      }
+      const target = yield* store.enqueueTurn({ threadId, text, userId: user, clientRequestId: call.id });
+      yield* bots.watchThread(turn, call, threadId, target.id);
+      return { thread_id: threadId, turn_id: target.id, steer_id: "", delivery: "queue", worker_id: row.worker_id };
+    }))));
+    if (result.delivery === "steer") { await this.#redeliver(result.worker_id); await this.#publishSteer(result.steer_id); }
+    else await this.botThreadQueued(threadId);
+    return result;
+  }
+
+  async updateBotThread(turn: BotTurn, call: StoredCall, request: ui.UpdateThreadRequest): Promise<unknown> {
+    const thread = await this.#run((s) => s.thread(request.threadId));
+    if (thread.owner_user_id !== this.#options.userId || thread.archived_at) throw new InvalidError("thread not found");
+    const title = request.title?.trim();
+    if (title !== undefined && (!title || title.length > 200 || /[\r\n\p{Cc}]/u.test(title))) throw new InvalidError("title must be one line with 1–200 characters");
+    if (request.model !== undefined) await this.#checkModel({ thread }, request.model, request.effort ?? "");
+    const effort = request.model === undefined ? undefined : turnEffort((await this.#profileModels({ thread })).models, request.model, request.effort ?? "");
+    const result = await this.#options.runtime.runPromise(BotStore.use((bots) => bots.action(turn, call, GatewayStore.use((store) => Effect.gen(function* () {
+      if (title !== undefined) yield* store.renameThread(thread.id, title);
+      if (request.model !== undefined) yield* store.updateThreadSettings(thread.id, { model: request.model, ...(effort !== undefined && { effort }) });
+      return { thread_id: thread.id, title: title ?? thread.title, model: request.model ?? thread.settings.model ?? "", effort: effort ?? thread.settings.effort ?? "" };
+    })))));
+    await this.#broadcastThread(thread.id);
+    return result;
+  }
+
+  async archiveBotThread(turn: BotTurn, call: StoredCall, threadId: string): Promise<unknown> {
+    const user = this.#options.userId;
+    const result = await this.#options.runtime.runPromise(BotStore.use((bots) => bots.action(turn, call, GatewayStore.use((store) => Effect.gen(function* () {
+      const changed = yield* store.setThreadArchived(user, threadId, true);
+      return { thread_id: threadId, archived: true, ids: changed.ids, workers: changed.commands.map((c) => c.workerId) };
+    })))));
+    for (const worker of result.workers) await this.#redeliver(worker);
+    for (const id of result.ids) await this.#broadcastThread(id);
+    return { thread_id: threadId, archived: true };
   }
 
   // ------------------------------------------------------------------ attachments
@@ -1704,7 +1791,7 @@ export class GatewayCore {
   /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
   async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
     if (request.sidebar) {
-      const ids = [...request.sidebar.projectIds, ...request.sidebar.pinnedThreadIds];
+      const ids = [...request.sidebar.projectIds, ...request.sidebar.pinnedThreadIds, ...request.sidebar.pinnedBotIds];
       if (ids.length > 1000 || ids.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) throw new InvalidError("invalid sidebar ids");
     }
     if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults);
@@ -1724,7 +1811,7 @@ export class GatewayCore {
         ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),
         ...(request.composer && { composer: request.composer }),
         ...(request.textGeneration && { textGeneration: request.textGeneration }),
-        ...(request.sidebar && { sidebar: { ...request.sidebar, projectIds: [...new Set(request.sidebar.projectIds)], pinnedThreadIds: [...new Set(request.sidebar.pinnedThreadIds)] } }),
+        ...(request.sidebar && { sidebar: { ...request.sidebar, projectIds: [...new Set(request.sidebar.projectIds)], pinnedThreadIds: [...new Set(request.sidebar.pinnedThreadIds)], pinnedBotIds: [...new Set(request.sidebar.pinnedBotIds)] } }),
         expectedVersion: request.expectedVersion,
       }),
     );

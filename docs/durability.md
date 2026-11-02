@@ -1,5 +1,10 @@
 # Trwałość, graceful shutdown i aktualizacje w trakcie działania
 
+Boty mają odrębną kolejkę `bot_turns` i checkpoint pętli narzędzi w PostgreSQL.
+Lease z tokenem blokuje zapis starego wykonawcy; platformowe efekty i wyniki są
+atomowe. MCP przerwane awarią wraca jako `interrupted`, bez ponowienia.
+Szczegóły implementacji i testów: [bots.md](bots.md#3-wykonanie-i-odtwarzanie).
+
 Status: **projekt, w części zaimplementowany** (2026-11-01). Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
 
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).

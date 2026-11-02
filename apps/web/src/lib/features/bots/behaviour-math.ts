@@ -3,6 +3,16 @@ import type { MascotShape, MascotShapeId } from "./mascot.ts";
 export type MascotState = "idle" | "working" | "typing" | "waiting" | "done" | "error";
 export interface EyeOffset { x: number; y: number }
 
+/** Adapter for bots-core's existing human-readable status; explicit state props take precedence. */
+export function stateForStatus(status: string): MascotState {
+  if (!status.trim()) return "idle";
+  if (/^typing/i.test(status)) return "typing";
+  if (/^waiting/i.test(status)) return "waiting";
+  if (/^(error|failed|could not)/i.test(status)) return "error";
+  if (/^(done|completed)/i.test(status)) return "done";
+  return "working";
+}
+
 /** Conservative face space in the shared 40×40 viewBox, including the full eye outline. */
 const limits: Partial<Record<MascotShapeId, EyeOffset>> = {
   spark: { x: 0.6, y: 0.35 },

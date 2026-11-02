@@ -1,5 +1,9 @@
 # API dla UI i architektura frontendu
 
+Sekcja Bots korzysta z tego samego `GatewayService` i uwierzytelnienia BFF. Osobny
+kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdalne MCP.
+`SidebarSettings.pinned_bot_ids` ma numer 350. Pełny zakres: [bots.md](bots.md).
+
 ## Pasek boczny i cykl życia wątku
 
 `UserSettings.sidebar` przechowuje filtr projektów (`project_ids`, puste = wszystkie), przypięcia

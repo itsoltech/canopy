@@ -4,7 +4,7 @@
 
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { mascotFor, type BotAppearance } from "../mascot.ts";
+  import { mascotFor, mascotShapes, type BotAppearance } from "../mascot.ts";
   import type { ParticipantView } from "../model.ts";
   import AvatarBadge from "./AvatarBadge.svelte";
   import MascotFace from "./MascotFace.svelte";
@@ -26,12 +26,14 @@
     state = "idle",
     event,
     class: className,
-  }: { participant: Pick<ParticipantView, "id" | "kind" | "name" | "imageUrl">; size?: AvatarSize; badge?: "pinned" | "online" | undefined; label?: string | undefined; appearance?: BotAppearance; alive?: boolean; state?: MascotState; event?: unknown; class?: ClassValue } = $props();
+  }: { participant: Pick<ParticipantView, "id" | "kind" | "name" | "imageUrl" | "shape" | "color">; size?: AvatarSize; badge?: "pinned" | "online" | undefined; label?: string | undefined; appearance?: BotAppearance; alive?: boolean; state?: MascotState; event?: unknown; class?: ClassValue } = $props();
 
   const box: Record<AvatarSize, string> = { xs: "size-5", sm: "size-7", md: "size-10", lg: "size-14", xl: "size-18" };
   const initialsText: Record<AvatarSize, string> = { xs: "text-[0.5625rem]", sm: "text-[0.6875rem]", md: "text-sm", lg: "text-lg", xl: "text-xl" };
 
-  const mascot = $derived(mascotFor(participant.id));
+  const mascot = $derived(mascotFor(participant.id, participant.shape));
+  const configuredShape = $derived(mascotShapes.find((s) => s.id === participant.shape)?.id);
+  const chosenAppearance = $derived(appearance ?? (configuredShape && participant.color ? { shape: configuredShape, color: participant.color } : undefined));
   const initials = $derived(
     participant.name
       .split(/\s+/)
@@ -47,10 +49,10 @@
     <img src={participant.imageUrl} alt="" class="size-full rounded-full object-cover outline-1 -outline-offset-1 outline-black/5 dark:outline-white/10" />
   {:else if participant.kind === "user"}
     <span class={["grid size-full place-items-center rounded-full bg-zinc-200 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200", initialsText[size]]}>{initials}</span>
-  {:else if appearance}
-    <span class="grid size-full place-items-center rounded-full bg-zinc-950/5 dark:bg-white/10"><MascotFace {...appearance} alive={alive && size !== "xs"} {state} {event} class="size-full" /></span>
+  {:else if chosenAppearance}
+    <span class="grid size-full place-items-center rounded-full bg-zinc-950/5 dark:bg-white/10"><MascotFace {...chosenAppearance} alive={alive && size !== "xs"} {state} {event} class="size-full" /></span>
   {:else}
-    <MascotFace legacy={mascot} alive={alive && size !== "xs"} {state} {event} class={["size-full rounded-full", mascot.tone.background]} />
+    <MascotFace legacy={mascot} color={participant.color} alive={alive && size !== "xs"} {state} {event} class={["size-full rounded-full", mascot.tone.background]} />
   {/if}
 
   {#if badge}<AvatarBadge kind={badge} {size} />{/if}

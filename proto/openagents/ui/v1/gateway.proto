@@ -7,8 +7,24 @@ package openagents.ui.v1;
 
 import "google/protobuf/timestamp.proto";
 import "openagents/worker/v1/worker_link.proto";
+import "openagents/ui/v1/bots.proto";
 
 service GatewayService {
+  // Boty działające wyłącznie w gateway (docs/bots.md).
+  rpc CreateBot(CreateBotRequest) returns (GetBotResponse);
+  rpc UpdateBot(UpdateBotRequest) returns (GetBotResponse);
+  rpc DeleteBot(DeleteBotRequest) returns (DeleteBotResponse);
+  rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
+  rpc GetBot(GetBotRequest) returns (GetBotResponse);
+  rpc SendBotMessage(SendBotMessageRequest) returns (SendBotMessageResponse);
+  rpc WatchBotConversation(WatchBotConversationRequest) returns (stream BotConversation);
+  rpc ReadBotExchange(ReadBotExchangeRequest) returns (ReadBotExchangeResponse);
+  rpc AnswerBotApproval(AnswerBotApprovalRequest) returns (AnswerBotApprovalResponse);
+  rpc InterruptBot(InterruptBotRequest) returns (InterruptBotResponse);
+  rpc SaveBotMcpServer(SaveBotMcpServerRequest) returns (SaveBotMcpServerResponse);
+  rpc ListBotMcpServers(ListBotMcpServersRequest) returns (ListBotMcpServersResponse);
+  rpc DeleteBotMcpServer(DeleteBotMcpServerRequest) returns (DeleteBotMcpServerResponse);
+  rpc TestBotMcpServer(TestBotMcpServerRequest) returns (TestBotMcpServerResponse);
   // Workery, projekty z workspace'ami i agenci: to, czego UI potrzebuje na start.
   rpc GetOverview(GetOverviewRequest) returns (GetOverviewResponse);
   // Na żywo: zmiany workerów (online, konfiguracja) i wątków (status, oczekujące interakcje).
@@ -813,6 +829,7 @@ message UserSettings {
 }
 
 message SidebarSettings {
+  repeated string pinned_bot_ids = 350;
   repeated string project_ids = 1;
   repeated string pinned_thread_ids = 2;
   bool archived = 3 [deprecated = true]; // dawny widok; ignorowany przez nowy sidebar

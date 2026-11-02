@@ -44,12 +44,14 @@ core.scheduler.start();
 core.startSweep();
 // Notes about ended background tasks that still wait (Claude's grace, a restart in between): delivered every few seconds.
 core.backgroundTasks.start();
+core.bots.start();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {
     await core.scheduler.stop();
     core.stopSweep();
     core.backgroundTasks.stop();
+    await core.bots.stop();
     await core.link.shutdown();
     await server.close();
     await runtime.dispose();

@@ -2,6 +2,11 @@
 
 Komponenty w `apps/web/src/lib/features/bots/wizard` są prezentacyjne. Integracja z backendem należy do wywołującego; wizard nie tworzy bota przez własne API i nie wymaga workera. Pickery modelu i effortu pochodzą z `features/models` i korzystają z kontekstu standardowej powłoki aplikacji (m.in. ulubione modele).
 
+Produkcyjna sekcja `/bots` podłącza `CreateBotWizard` do `CreateBot` przez BFF.
+Adapter instancji i modeli jest w `features/bots/live.ts`; szczegóły runtime'u i API:
+[bots.md](bots.md). Gateway wymaga konkretnego ID modelu, więc adapter nie oferuje pustej
+opcji domyślnego modelu harnessu.
+
 ## API
 
 ```svelte

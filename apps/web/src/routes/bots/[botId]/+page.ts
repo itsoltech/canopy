@@ -1,5 +1,10 @@
 import { error } from "@sveltejs/kit";
+import { bots } from "@open-agents/contracts";
+import { decode } from "#lib/shared/wire.ts";
 import type { PageLoad } from "./$types";
 
-/** No bot exists yet: every bot chat is a 404 until the gateway has bots. */
-export const load: PageLoad = () => error(404, "This bot does not exist");
+export const load: PageLoad = async ({ fetch, params }) => {
+  const response = await fetch(`/api/bots/${params.botId}`);
+  if (!response.ok) error(response.status, "Could not load this bot");
+  return { bot: decode(bots.GetBotResponseSchema, await response.json()).bot! };
+};

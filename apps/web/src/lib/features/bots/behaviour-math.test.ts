@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { canAnimate, clampEyes, eyeLimits, eyeOffset, idleBounds, idleDelay } from "./behaviour-math.ts";
+import { canAnimate, clampEyes, eyeLimits, eyeOffset, idleBounds, idleDelay, stateForStatus } from "./behaviour-math.ts";
 import { mascotFor, mascotShapes } from "./mascot.ts";
 
 describe("mascot eye movement", () => {
@@ -51,4 +51,13 @@ test("all motion is gated by reduced motion, preference, visibility and actual s
     expect(canAnimate({ size: 160, ...state })).toBe(false);
   }
   expect(canAnimate({ reduced: true, alive: true })).toBe(false);
+});
+
+test("existing bots-core status lines drive expressions without an API migration", () => {
+  expect(stateForStatus("Typing…")).toBe("typing");
+  expect(stateForStatus("Checking Notion")).toBe("working");
+  expect(stateForStatus("Waiting for your answer")).toBe("waiting");
+  expect(stateForStatus("Failed to contact provider")).toBe("error");
+  expect(stateForStatus("Done")).toBe("done");
+  expect(stateForStatus("")).toBe("idle");
 });
