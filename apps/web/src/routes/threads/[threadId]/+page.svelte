@@ -18,6 +18,7 @@
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
+  import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState, type TimelineEntry } from "#lib/features/threads/thread-state.svelte.ts";
@@ -219,6 +220,9 @@
             {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
           {/snippet}
           {#snippet top()}
+            {#if thread?.spawnedByAgent && thread.parentThreadId}
+              <SubagentOrigin parentThreadId={thread.parentThreadId} parentTitle={parent?.title} class="mt-4" />
+            {/if}
             {#if view.loaded && rows.length === 0}
               <EmptyState
                 icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}

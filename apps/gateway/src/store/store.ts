@@ -75,7 +75,12 @@ export interface ThreadRow {
   /** Joined: status of the open goal, running background tasks. */
   goal_status?: string | null;
   background_tasks?: bigint | number;
+  /** Joined for side threads: the start of the last agent message (a subagent's result). */
+  last_message?: string | null;
 }
+
+/** Characters of a side thread's last message in ui.Thread (the subagent card in the parent's timeline). */
+const LAST_MESSAGE_PREVIEW = 600;
 
 export interface TurnRow {
   id: string;
@@ -264,7 +269,10 @@ export class GatewayStore extends Context.Service<
                  greatest(t.created_at, (SELECT max(greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at)))
                                            FROM turns u WHERE u.thread_id = t.id)) AS last_activity_at,
                  (SELECT g.status FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled') LIMIT 1) AS goal_status,
-                 (SELECT count(*) FROM thread_items b WHERE b.thread_id = t.id AND b.type = 'background_task' AND b.status = 'in_progress') AS background_tasks
+                 (SELECT count(*) FROM thread_items b WHERE b.thread_id = t.id AND b.type = 'background_task' AND b.status = 'in_progress') AS background_tasks,
+                 CASE WHEN t.kind = 'side' THEN
+                   (SELECT left(m.content->'agentMessage'->>'text', ${LAST_MESSAGE_PREVIEW}) FROM thread_items m
+                     WHERE m.thread_id = t.id AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1) END AS last_message
             FROM threads t ${where}`;
 
         const store: GatewayStore["Service"] = {
@@ -818,6 +826,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     goalStatus: row.goal_status ?? "",
     backgroundTasks: Number(row.background_tasks ?? 0),
     runtime: row.runtime,
+    lastMessage: row.last_message ?? "",
   });
 }
 

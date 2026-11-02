@@ -60,6 +60,10 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     const sideTurns = await eventually(() => turns(sideId), (t) => t[0]?.status === "completed");
     expect(sideTurns[0]).toMatchObject({ trigger: "agent_bus", hops: 1 });
     expect(sideTurns[0]?.text).toContain("Review the diff");
+    // The UI's subagent card reads the result from the thread; main threads carry none.
+    const listed = (await gw.api.listThreads({ projectId: side.projectId })).threads;
+    expect(listed.find((t) => t.id === sideId)?.lastMessage).toStartWith("Echo: [open-agents] Task from");
+    expect(listed.find((t) => t.id === mainId)?.lastMessage).toBe("");
     // ...and the orchestrator got a notification turn with the side thread's last message, and ran it.
     const mainTurns = await eventually(() => turns(mainId), (t) => t.length === 2 && t[1]?.status === "completed");
     expect(mainTurns[1]).toMatchObject({ trigger: "agent_bus", hops: 2 });
@@ -297,5 +301,36 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(scheduled?.scheduleId).not.toBe("");
     expect(scheduled?.sourceThreadId).toBe(mainId); // an agent schedule: created by this thread's agent
     expect(scheduled?.messageText).toBe("Check CI");
+  });
+
+  test("spawn options: role, model, effort and narrower permissions; never broader than the caller; result with its outcome", async () => {
+    const spawned = await gw.worker.callTool({
+      threadId: mainId,
+      tool: "spawn_thread",
+      args: { title: "Strict reviewer", prompt: "Review", instructions: "You are a strict reviewer.", model: "gpt-5.5", effort: "low", permission_mode: "read_only", notify: false },
+    });
+    expect([spawned.isError, spawned.content]).toEqual([false, expect.any(String)]);
+    const result = json(spawned) as { thread_id: string; model: string; effort: string; permission_mode: string };
+    expect([result.model, result.effort, result.permission_mode]).toEqual(["gpt-5.5", "low", "read_only"]);
+    expect(gw.worker.created.find((c) => c.threadId === result.thread_id)).toMatchObject({
+      model: "gpt-5.5",
+      instructions: "You are a strict reviewer.",
+      permissionMode: PermissionMode.READ_ONLY,
+    });
+    // Only models and efforts of the caller's provider account.
+    const unknown = await gw.worker.callTool({ threadId: mainId, tool: "spawn_thread", args: { title: "x", prompt: "y", model: "gpt-test" } });
+    expect([unknown.isError, unknown.content]).toEqual([true, 'Codex on profile "native" does not offer the model "gpt-test"']);
+    // The orchestrator runs in ASK: a subagent cannot get more.
+    const broader = await gw.worker.callTool({ threadId: mainId, tool: "spawn_thread", args: { title: "x", prompt: "y", permission_mode: "full_auto" } });
+    expect([broader.isError, broader.content]).toEqual([true, "permission_mode full_auto is broader than yours (ask); a subagent cannot get more permissions than you"]);
+
+    const waited = json(await gw.worker.callTool({ threadId: mainId, tool: "wait_threads", args: { thread_ids: [result.thread_id], timeout_seconds: 30 } })) as {
+      done: boolean;
+      threads: { last_turn?: { status: string }; last_message: string; permission_mode: string }[];
+    };
+    expect(waited.done).toBe(true);
+    expect(waited.threads[0]).toMatchObject({ last_turn: { status: "completed" }, permission_mode: "read_only" });
+    expect(waited.threads[0]?.last_message).toContain("Review");
+    await gw.worker.callTool({ threadId: mainId, tool: "close_thread", args: { thread_id: result.thread_id } });
   });
 });

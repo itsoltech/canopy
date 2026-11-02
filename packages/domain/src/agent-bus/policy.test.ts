@@ -32,6 +32,26 @@ const reason = (call: AgentBusCall, f: BusFacts) => {
   return d.allowed ? "allowed" : d.reason;
 };
 
+describe("subagent permissions", () => {
+  const spawn = (permission_mode?: "read_only" | "ask" | "accept_edits" | "full_auto"): AgentBusCall => ({
+    tool: "spawn_thread",
+    args: permission_mode === undefined ? { title: "t", prompt: "p" } : { title: "t", prompt: "p", permission_mode },
+  });
+
+  test("a subagent may get the caller's permissions or narrower ones, never broader", () => {
+    expect(reason(spawn("accept_edits"), facts(root, { callerPermissionMode: "accept_edits" }))).toBe("allowed");
+    expect(reason(spawn("read_only"), facts(root, { callerPermissionMode: "accept_edits" }))).toBe("allowed");
+    expect(reason(spawn("full_auto"), facts(root, { callerPermissionMode: "accept_edits" }))).toContain("broader than yours");
+    expect(reason(spawn("ask"), facts(root, { callerPermissionMode: "read_only" }))).toContain("broader than yours");
+    expect(reason(spawn("full_auto"), facts(root, { callerPermissionMode: "full_auto" }))).toBe("allowed");
+  });
+
+  test("without a known caller mode the ceiling is ask; omitted mode inherits", () => {
+    expect(reason(spawn("accept_edits"), facts(root))).toContain("broader than yours");
+    expect(reason(spawn(), facts(root, { callerPermissionMode: "read_only" }))).toBe("allowed");
+  });
+});
+
 describe("two levels: main thread orchestrates, side threads work", () => {
   test("only the main thread can spawn; side threads are told to ask their parent", () => {
     const spawn: AgentBusCall = { tool: "spawn_thread", args: { title: "t", prompt: "p" } };

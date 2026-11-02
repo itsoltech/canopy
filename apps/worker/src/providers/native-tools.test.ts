@@ -26,7 +26,10 @@ describe("native provider tools", () => {
       "-c", "features.in_app_local_automation=false",
       "-c", "features.sleep_tool=false",
       "-c", "features.apps=false",
+      "-c", "agents.enabled=false",
     ]);
+    // Opting back in to native subagents must not keep the catalog override that removes them.
+    expect(codexNativeToolOverrides({ ...DEFAULT_NATIVE_TOOL_POLICY, nativeSubagents: true })).not.toContain("agents.enabled=false");
   });
 
   // --print-startup-config does not reject unknown feature keys, so check the effective state instead:

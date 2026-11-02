@@ -22,6 +22,15 @@ export const CLAUDE_SCHEDULING_TOOLS = ["ScheduleWakeup", "CronCreate", "CronDel
 
 /** Codex features that expose subagent tools (spawn_agent, wait, ...). */
 export const CODEX_SUBAGENT_FEATURES = ["multi_agent", "multi_agent_v2"] as const;
+/**
+ * The features alone do not remove the collaboration tools: a model whose catalog entry declares
+ * `multi_agent_version: "v2"` (e.g. gpt-6.1-sol) still gets spawn_agent, send_message, wait_agent, ...
+ * Codex 0.164 resolves the version as `features.multi_agent_v2` (on = v2) > `agents.enabled = false`
+ * (= disabled) > the model catalog > `features.multi_agent` (core/src/config/mod.rs,
+ * `multi_agent_version_override`). Only `agents.enabled = false` overrides the catalog, also for threads
+ * that already recorded v2 (`Session::resolve_multi_agent_version_for_model`).
+ */
+export const CODEX_AGENTS_ENABLED_KEY = "agents.enabled";
 /** Codex features that schedule or delay work outside the platform. */
 export const CODEX_SCHEDULING_FEATURES = ["in_app_local_automation", "sleep_tool"] as const;
 /** Codex features that connect the device owner's ChatGPT account apps (built-in `codex_apps` MCP server). */
@@ -53,5 +62,8 @@ export function codexNativeToolOverrides(policy: NativeToolPolicy): string[] {
     ...CODEX_SCHEDULING_FEATURES.map((f): [string, boolean] => [f, policy.nativeScheduling]),
     ...CODEX_CONNECTOR_FEATURES.map((f): [string, boolean] => [f, policy.nativeConnectors ?? false]),
   ];
-  return features.flatMap(([feature, enabled]) => ["-c", `features.${feature}=${String(enabled)}`]);
+  return [
+    ...features.flatMap(([feature, enabled]) => ["-c", `features.${feature}=${String(enabled)}`]),
+    ...(policy.nativeSubagents ? [] : ["-c", `${CODEX_AGENTS_ENABLED_KEY}=false`]),
+  ];
 }

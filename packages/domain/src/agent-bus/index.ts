@@ -1,6 +1,7 @@
 export {
   authorizeBusCall,
   DEFAULT_BUS_LIMITS,
+  permissionRank,
   type BusDecision,
   type BusFacts,
   type BusLimits,
@@ -14,8 +15,10 @@ export {
   agentBusToolsFor,
   decodeAgentBusCall,
   isAgentBusTool,
+  SPAWN_PERMISSION_MODES,
   type AgentBusArgs,
   type AgentBusCall,
   type AgentBusToolName,
+  type SpawnPermissionMode,
   type ToolJsonSpec,
 } from "./tools.ts";
