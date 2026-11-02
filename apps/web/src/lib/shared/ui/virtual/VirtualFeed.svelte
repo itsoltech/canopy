@@ -323,8 +323,12 @@
   }
 
   function onscrollend() {
+    const wasSmooth = smoothUntil > 0;
     smoothUntil = 0;
-    if (!stuck) capture();
+    // Only a completed smooth navigation needs a new anchor. Our integer scrollTop
+    // corrections also fire scrollend: recapturing those would accumulate rounding error
+    // on each streamed paragraph instead of holding the original fractional offset.
+    if (wasSmooth && !stuck) capture();
     settle();
   }
 
