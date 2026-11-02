@@ -11,9 +11,7 @@
   import ProjectPicker from "#lib/features/projects/ProjectPicker.svelte";
   import WorkerPicker from "#lib/features/projects/WorkerPicker.svelte";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
-  import AttachButton from "#lib/features/attachments/AttachButton.svelte";
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
-  import DraftTray from "#lib/features/attachments/DraftTray.svelte";
   import ComposerNotice from "#lib/features/threads/components/ComposerNotice.svelte";
   import { findOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
@@ -151,12 +149,9 @@
             canSend={!blocker && !draft.blocker}
             autofocus
             label="Task for the agent"
-            onfiles={(files) => draft.add(files)}
-            hasFiles={draft.files.length > 0}
+            {draft}
           >
-            {#snippet tray()}<DraftTray {draft} />{/snippet}
             {#snippet controls()}
-              <AttachButton onfiles={(files) => draft.add(files)} />
               {#if workspace && selected}
                 <ModelControls {options} bind:option={() => selected, (option) => (picked = option)} bind:effort {workerId} class="flex-1 justify-end" />
               {:else if worker?.online}

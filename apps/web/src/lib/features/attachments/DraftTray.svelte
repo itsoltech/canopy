@@ -4,18 +4,20 @@
   import { pop, reorder } from "#lib/shared/ui/motion.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
+  import type { ClassValue } from "svelte/elements";
   import type { AttachmentDraft } from "./draft.svelte.ts";
+  import FileChip from "./FileChip.svelte";
 
   /**
    * The files a message will carry, inside the composer above the text: images as thumbnails, other files as
    * chips with name and size. Each shows its upload (a bar that fills), a failure in red with the reason, and a
    * remove button. Chips pop in as they are added and the others glide aside when one goes.
    */
-  let { draft }: { draft: AttachmentDraft } = $props();
+  let { draft, class: className }: { draft: AttachmentDraft; class?: ClassValue } = $props();
 </script>
 
 {#if draft.files.length > 0 || draft.notice}
-  <div class="grid gap-2 px-3 pt-3">
+  <div class={["grid gap-2", className]}>
     {#if draft.files.length > 0}
       <ul role="list" class="flex flex-wrap gap-2" aria-label="Attachments">
         {#each draft.files as file (file.key)}
@@ -23,7 +25,7 @@
             class={[
               "group relative isolate flex min-w-0 overflow-hidden rounded-xl bg-zinc-50 ring-1 ring-inset dark:bg-white/5",
               file.status === "failed" ? "ring-rose-600/30 dark:ring-rose-400/30" : "ring-zinc-950/10 dark:ring-white/10",
-              file.image ? "size-16" : "h-16 max-w-60 items-center gap-2.5 py-2 pr-9 pl-2.5",
+              file.image ? "size-16" : "h-16 max-w-60 items-center py-2 pr-9 pl-2.5",
             ]}
             in:pop
             out:pop={{}}
@@ -33,13 +35,11 @@
             {#if file.image && file.localUrl}
               <img src={file.localUrl} alt={file.name} class={["size-full object-cover", file.status === "uploading" && "opacity-60"]} />
             {:else}
-              <Icon name={file.status === "failed" ? "exclamation-circle" : "document-text"} class={["shrink-0", file.status === "failed" ? "fill-rose-600 dark:fill-rose-400" : "fill-zinc-400 dark:fill-zinc-500"]} />
-              <div class="min-w-0">
-                <p class="truncate text-sm/5 font-medium text-zinc-950 sm:text-xs/5 dark:text-white">{file.name}</p>
-                <p class={["truncate text-sm/5 tabular-nums sm:text-xs/5", file.status === "failed" ? "text-rose-700 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400"]}>
-                  {file.status === "failed" ? (file.error ?? "Upload failed") : file.attachment ? `${formatSize(file.size)} · ${file.attachment.mimeType}` : formatSize(file.size)}
-                </p>
-              </div>
+              <FileChip
+                name={file.name}
+                failed={file.status === "failed"}
+                detail={file.status === "failed" ? (file.error ?? "Upload failed") : file.attachment ? `${formatSize(file.size)} · ${file.attachment.mimeType}` : formatSize(file.size)}
+              />
             {/if}
             {#if file.image && file.status === "failed"}
               <span class="absolute inset-0 grid place-items-center bg-rose-50/80 dark:bg-rose-950/70"><Icon name="exclamation-circle" class="fill-rose-600 dark:fill-rose-400" /></span>

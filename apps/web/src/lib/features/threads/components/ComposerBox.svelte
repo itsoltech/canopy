@@ -9,7 +9,9 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
-  import { filesOf } from "#lib/features/attachments/draft.svelte.ts";
+  import AttachButton from "#lib/features/attachments/AttachButton.svelte";
+  import { filesOf, type AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
+  import DraftTray from "#lib/features/attachments/DraftTray.svelte";
   import SteerSendButton from "./SteerSendButton.svelte";
 
   /**
@@ -20,8 +22,8 @@
    * turn (Enter, the "Steer" button), `onqueue` keeps it for the next turn (Mod+Enter, the button's menu).
    * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
    * The send slot eases to the width of what it holds (send, stop, steer), so the pills glide aside.
-   * Attachments: `onfiles` takes files dropped on the box or pasted into it (screenshots from the clipboard),
-   * `tray` renders them above the text, `hasFiles` lets a message go without text.
+   * Attachments (`draft`): a paperclip first in the bottom row, files dropped on the box or pasted into it
+   * (screenshots from the clipboard), their tray above the text; with files a message may go without text.
    */
   let {
     value = $bindable(""),
@@ -37,9 +39,7 @@
     onqueue,
     controls,
     meta,
-    tray,
-    onfiles,
-    hasFiles = false,
+    draft,
     class: className,
   }: {
     value?: string;
@@ -55,14 +55,14 @@
     onqueue?: (() => void) | undefined;
     controls?: Snippet;
     meta?: Snippet;
-    tray?: Snippet | undefined;
-    onfiles?: ((files: File[]) => void) | undefined;
-    hasFiles?: boolean;
+    draft?: AttachmentDraft | undefined;
     class?: ClassValue;
   } = $props();
 
   const id = $props.id();
+  const hasFiles = $derived((draft?.files.length ?? 0) > 0);
   const hasContent = $derived(Boolean(value.trim()) || hasFiles);
+  const onfiles = $derived(draft ? (files: File[]) => draft.add(files) : undefined);
   const stopMode = $derived(Boolean(onstop) && !hasContent);
   // Files go with the next turn: a message with them is never steered.
   const steerMode = $derived(Boolean(onqueue) && !stopMode && Boolean(value.trim()) && !hasFiles);
@@ -115,7 +115,7 @@
     }}
     {ondrop}
   >
-    {@render tray?.()}
+    {#if draft}<DraftTray {draft} class="px-3 pt-3" />{/if}
     <label for="{id}-input" class="sr-only">{label}</label>
     <textarea
       id="{id}-input"
@@ -137,6 +137,7 @@
           <Kbd hotkey="Enter" />steer<Kbd hotkey="Mod+Enter" class="ml-1" />queue
         </p>
       {/if}
+      {#if onfiles}<AttachButton {onfiles} {disabled} />{/if}
       {@render controls?.()}
       <ResizeSlot>
         {#if steerMode && onqueue}

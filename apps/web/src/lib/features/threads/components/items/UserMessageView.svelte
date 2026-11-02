@@ -58,7 +58,7 @@
     </p>
   {/if}
   {#if files.length > 0}
-    <div class={["flex flex-col items-end gap-2", pending && "opacity-70"]}><MessageAttachments attachments={files} /></div>
+    <MessageAttachments attachments={files} class={[pending && "opacity-70"]} />
   {/if}
   {#if message.text.trim() || details}
     <div

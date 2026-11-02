@@ -2,9 +2,7 @@
   import type { ui } from "@open-agents/contracts";
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import AttachButton from "#lib/features/attachments/AttachButton.svelte";
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
-  import DraftTray from "#lib/features/attachments/DraftTray.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { turnOverride, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
@@ -131,12 +129,9 @@
     {stopping}
     onstop={running ? interrupt : undefined}
     onqueue={running ? () => void send("queue") : undefined}
-    onfiles={(files) => draft.add(files)}
-    hasFiles={draft.files.length > 0}
+    {draft}
   >
-    {#snippet tray()}<DraftTray {draft} />{/snippet}
     {#snippet controls()}
-      <AttachButton onfiles={(files) => draft.add(files)} {disabled} />
       {@render leading?.()}
       {#if option}
         <ModelControls
