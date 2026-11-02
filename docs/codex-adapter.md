@@ -81,6 +81,13 @@ Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną hist
 - Wbudowane `view_image` Codexa → item `imageView` → `image` (`source = native`), podgląd z pliku (`path`). Wygenerowane obrazy (`imageGeneration`, `savedPath`) → `source = generated`.
 - Obrazy w wynikach narzędzi MCP (`result.content[].type = image`) → `ToolCall.images`.
 
+## Wzmianki
+
+- **Katalog** (`codex/catalog.ts`, `ListMentionCatalog`): `skills/list { cwds: [folder wątku], forceReload }` → skille (`enabled`; `interface.displayName`, `shortDescription`, `iconSmall` jako data URI do 24 KB, `brandColor`; zakres `repo` jako `project`), `plugin/list` → zainstalowane i włączone pluginy (`plugin://<id>`), `app/list` → dostępne i włączone aplikacje (`app://<id>`), tylko gdy worker włączył konektory. Komend Codex nie ma (jego `/komendy` to TUI).
+- **Wejście** (`codex/input.ts`): tekst z `text_elements` (zakres bajtów UTF-8 + znacznik, jak zapisuje je kompozytor Codexa), itemy `skill`, `mention` i `localImage` (wspomniany plik obrazu). Plik zostaje jako `@ścieżka` w tekście.
+- **Ustalenie (2026-11-02):** mimo izolowanego `CODEX_HOME` Codex czyta skille użytkownika z `~/.agents/skills` właściciela urządzenia (zakres `user`), a do `$CODEX_HOME/skills/.system` instaluje swoje skille systemowe. Skille to instrukcje, nie narzędzia ani dostęp do kont, więc zostają widoczne; katalog pokazuje ich źródło.
+- Potwierdzone na żywo (`tests/integration/mentions.live.test.ts`, `gpt-6.1-sol` przez CLIProxyAPI): skill repozytorium jako item `skill` i wzmianka pliku w jednej turze (marker skilla i treść pliku w odpowiedzi).
+
 ## Tryb kodu (code mode)
 
 **Czym jest:** zamiast osobnych narzędzi model dostaje jedno narzędzie `exec` (custom tool), któremu podaje skrypt JavaScript. Skrypt działa w izolacie V8 i woła narzędzia Codexa przez `tools.*` (`tools.exec_command`, `tools.apply_patch`, MCP, ...), także równolegle. Wynik skryptu (`text(...)`, `notify(...)`) wraca do modelu jako `custom_tool_call_output`. Długi skrypt może oddać sterowanie (`Script running with cell ID ...`), a model wraca do niego narzędziem `wait`.

@@ -1,4 +1,4 @@
-import { Provider, type ProviderProfile, type ui } from "@open-agents/contracts";
+import { Provider, type ui } from "@open-agents/contracts";
 
 /** Providers a thread can run on, as sent by forms (enum key). */
 export const providerKeys = ["CLAUDE", "CODEX"] as const;
@@ -12,20 +12,28 @@ function availableProviders(worker: ui.Worker | undefined): ProviderKey[] {
   return providerKeys.filter((key) => worker?.providers.some((p) => p.provider === Provider[key] && p.available));
 }
 
-/** The worker's available profiles that can serve the provider. */
-export function profilesFor(worker: ui.Worker | undefined, key: ProviderKey): ProviderProfile[] {
-  return worker?.profiles.filter((p) => p.available && p.providers.includes(Provider[key])) ?? [];
+/**
+ * The provider instances a new thread can use on the worker (global provider instances, docs/worker-config.md,
+ * section 9): those of the provider turned on there and reported available, in the gateway's order (native first).
+ */
+export function instancesFor(worker: ui.Worker | undefined, key: ProviderKey): ui.WorkerInstance[] {
+  return worker?.providerInstances.filter((i) => i.harness === Provider[key] && i.enabled && i.available) ?? [];
+}
+
+/** A thread's instance on its worker, also when it is turned off or unavailable there (it keeps it for life). */
+export function instanceOf(worker: ui.Worker | undefined, key: ProviderKey, profileId: string): ui.WorkerInstance | undefined {
+  return worker?.providerInstances.find((i) => i.harness === Provider[key] && i.id === (profileId || "native"));
 }
 
 /**
- * Form value of a profile id as the worker reports it (settings store it so): the native profile is the
- * empty id (the worker's default login).
+ * Form value of an instance id (settings store it so): the native instance is the empty id (the worker's
+ * default login).
  */
 export const profileIdValue = (id: string): string => (id === "native" ? "" : id);
-export const profileValue = (profile: ProviderProfile): string => profileIdValue(profile.id);
+export const instanceValue = (instance: Pick<ui.WorkerInstance, "id">): string => profileIdValue(instance.id);
 
-/** The name the user gave the profile, else its id ("Device login" for the built-in one). */
-export const profileDisplayName = (profile: ProviderProfile): string => profile.displayName || (profile.id === "native" ? "Device login" : profile.id);
+/** The label the user gave the instance, else its id ("Device login" for the built-in one). */
+export const instanceLabel = (instance: Pick<ui.WorkerInstance, "label" | "id">): string => instance.label || (instance.id === "native" ? "Device login" : instance.id);
 
 /** One provider + profile choice of the new-thread "agent" pill. */
 export interface AgentChoice {
@@ -39,11 +47,11 @@ export interface AgentChoice {
 export function agentChoices(worker: ui.Worker | undefined): { provider: ProviderKey; choices: AgentChoice[] }[] {
   return availableProviders(worker).map((provider) => ({
     provider,
-    choices: profilesFor(worker, provider).map((profile) => ({
-      value: `${provider}:${profileValue(profile)}`,
+    choices: instancesFor(worker, provider).map((instance) => ({
+      value: `${provider}:${instanceValue(instance)}`,
       provider,
-      profileId: profileValue(profile),
-      label: `${provider === "CLAUDE" ? "Claude" : "Codex"} · ${profileDisplayName(profile)}`,
+      profileId: instanceValue(instance),
+      label: `${provider === "CLAUDE" ? "Claude" : "Codex"} · ${instanceLabel(instance)}`,
     })),
   }));
 }

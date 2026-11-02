@@ -27,6 +27,7 @@ import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle } from
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { toUiAttachment, type StoredAttachment } from "./attachments.ts";
 import { toUiQuote, type StoredQuote } from "./quotes.ts";
+import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -95,7 +96,7 @@ export interface TurnRow {
    * attachments or quotes: the note lists them); attachments = the files of the message, with their paths on the
    * worker; quotes = the passages of the thread it quotes (shown to the model in the note).
    */
-  input: { text?: string; note?: string; message?: string; attachments?: StoredAttachment[]; quotes?: StoredQuote[] };
+  input: { text?: string; note?: string; message?: string; attachments?: StoredAttachment[]; quotes?: StoredQuote[] } & StoredMentions;
   /** The message's override while queued; the values sent to the worker once started ('' = default). */
   model?: string;
   effort?: string;
@@ -353,7 +354,7 @@ export class GatewayStore extends Context.Service<
                 };
                 for (const profile of document.profiles ?? []) {
                   if (profile.apiKey) return yield* Effect.fail(new Invalid(`profile ${profile.id}: pass API keys as secret references`));
-                  // Secret variables only through the profile settings (ProfileStore), which stores them encrypted.
+                  // Secret variables only through the provider instances (InstanceStore), which store them encrypted.
                   if (profile.env?.some((v) => v.secret && v.value)) return yield* Effect.fail(new Invalid(`profile ${profile.id}: secret variables go through the profile settings`));
                   const ref = profile.id ? secretRefs[profile.id] : undefined;
                   if (ref) profile.apiKey = { secretRef: ref };
@@ -925,6 +926,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     permissionMode: permissionModeOf(row.permission_mode),
     goalId: row.goal_id ?? "",
     attachments: (row.input?.attachments ?? []).map(toUiAttachment),
+    mentions: mentionsFromJson(row.input?.mentions),
     quotes: (row.input?.quotes ?? []).map(toUiQuote),
   });
 }

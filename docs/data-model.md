@@ -75,7 +75,7 @@ erDiagram
         int agent_revision
         text runtime "worker | gateway"
         text provider
-        text provider_profile_id "worker profile, null = native"
+        text provider_profile_id "provider instance id (with provider), null = native"
         uuid worker_id FK
         uuid workspace_id FK
         text cwd
@@ -146,7 +146,8 @@ Pozostałe tabele:
 | `thread_blobs` | bloby, które pokazuje transkrypt wątku (podglądy obrazów od workera): przez nie UI czyta blob (właściciel, drzewo wątku) |
 | `worker_journal_cursors` | potwierdzone `journal_seq` per worker, dziennik i wątek (kursory `Welcome`) |
 | `worker_configs`, `worker_config_history`, `secrets`, `worker_config_secrets` | zdalna konfiguracja workerów (migracja `0002`) — [worker-config.md](worker-config.md#7-schemat-0002_worker_config) |
-| `provider_model_selections` | które modele katalogu profilu widać w pickerach (migracja `0015`) — [worker-config.md](worker-config.md#8-profile-dostawców) |
+| `provider_instances` | globalne instancje dostawców (harness + id): połączenie, sekrety jako odwołania, środowisko uruchomienia, kolor, modele w pickerach (ulubione, ukryte, pokazane, własne), `all_workers` (migracja `0018`) — [worker-config.md](worker-config.md#9-globalne-instancje-dostawców) |
+| `provider_instance_workers` | instancja na workerze: `enabled` (`NULL` = `all_workers`) i nadpisania (ścieżki, argumenty, zmienne, endpoint, klucz); efektywny wynik trafia do `worker_configs.config.profiles` (migracja `0018`; `provider_model_selections` z `0015` usunięta, dane przeniesione) |
 | `audit_log` | komendy, decyzje, zmiany konfiguracji |
 
 ## Niezmienniki

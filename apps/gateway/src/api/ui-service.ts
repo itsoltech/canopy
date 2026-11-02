@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 import { ui } from "@open-agents/contracts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
-import { Invalid, NotFound, ProfileConflict, SettingsConflict } from "../store/index.ts";
+import { Invalid, NotFound, InstanceConflict, SettingsConflict } from "../store/index.ts";
 
 /** GatewayService for the UI (docs/ui-api.md). Thin: validation and state live in the core and the store. */
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
@@ -51,19 +51,25 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
           await core.stopBackgroundTask(request);
           return create(ui.StopBackgroundTaskResponseSchema, {});
         }),
-      listProviderProfiles: (request) => guard(() => core.listProviderProfiles(request.workerId)),
-      saveProviderProfile: (request) => guard(() => core.saveProviderProfile(request)),
-      deleteProviderProfile: (request) =>
-        guard(async () => create(ui.DeleteProviderProfileResponseSchema, { configVersion: await core.deleteProviderProfile(request) })),
-      setModelSelection: (request) =>
+      listProviderInstances: () => guard(async () => create(ui.ListProviderInstancesResponseSchema, { instances: await core.listProviderInstances() })),
+      saveProviderInstance: (request) => guard(async () => create(ui.SaveProviderInstanceResponseSchema, { instance: await core.saveProviderInstance(request) })),
+      deleteProviderInstance: (request) =>
         guard(async () => {
-          const selection = await core.setModelSelection(request);
-          return create(ui.SetModelSelectionResponseSchema, selection ? { selection } : {});
+          await core.deleteProviderInstance(request);
+          return create(ui.DeleteProviderInstanceResponseSchema, {});
         }),
+      setInstanceWorkers: (request) => guard(async () => create(ui.SetInstanceWorkersResponseSchema, { instance: await core.setInstanceWorkers(request) })),
+      setInstanceWorker: (request) => guard(async () => create(ui.SetInstanceWorkerResponseSchema, { instance: await core.setInstanceWorker(request) })),
+      setInstanceModels: (request) => guard(async () => create(ui.SetInstanceModelsResponseSchema, { instance: await core.setInstanceModels(request) })),
+      refreshProviders: (request) => guard(() => core.refreshProviders(request)),
+      startProviderLogin: (request) => guard(() => core.startProviderLogin(request)),
       uploadAttachment: (request) =>
         guard(async () => create(ui.UploadAttachmentResponseSchema, { attachment: await core.uploadAttachment(request.name, request.data) })),
       getAttachment: (request) => guard(() => core.getAttachment(request.attachmentId, request.thumbnail)),
       getThreadBlob: (request) => guard(() => core.getThreadBlob(request.threadId, request.sha256)),
+      listMentionCatalog: (request) => guard(() => core.listMentionCatalog(request)),
+      searchFiles: (request) => guard(() => core.searchFiles(request)),
+      searchThreads: (request) => guard(() => core.searchThreads(request)),
     });
 }
 
@@ -82,7 +88,7 @@ export function toConnectError(error: unknown): ConnectError {
   if (cause instanceof NotFound) return new ConnectError(cause.message, Code.NotFound);
   if (cause instanceof Invalid || cause instanceof InvalidError) return new ConnectError(cause.message, Code.InvalidArgument);
   if (cause instanceof UnavailableError) return new ConnectError(cause.message, Code.Unavailable);
-  if (cause instanceof SettingsConflict || cause instanceof ProfileConflict) return new ConnectError(cause.message, Code.FailedPrecondition);
+  if (cause instanceof SettingsConflict || cause instanceof InstanceConflict) return new ConnectError(cause.message, Code.FailedPrecondition);
   const constraint = constraintOf(cause);
   if (constraint) return new ConnectError(`rejected by ${constraint}`, Code.FailedPrecondition);
   console.error(error);

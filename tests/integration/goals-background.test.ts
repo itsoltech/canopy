@@ -38,7 +38,7 @@ describe.skipIf(!dockerAvailable)("harness goals and background work (gateway)",
     codexWorkspace = (await api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/a" })).workspace!.id;
     claudeWorkspace = (await api.createWorkspace({ projectId, workerId: studio.workerId, rootPath: "/studio/b" })).workspace!.id;
     // Both workers have applied their configuration before threads are checked against it.
-    await eventually(() => api.getOverview({}), (o) => o.workers.every((w) => w.appliedVersion === 1n));
+    await eventually(() => api.getOverview({}), (o) => o.workers.every((w) => w.appliedVersion === 2n));
   }, 60_000);
 
   afterAll(async () => {

@@ -321,7 +321,16 @@ export class AgentBusStore extends Context.Service<
             for (const id of new Set(targetIds)) {
               if (!isUuid(id)) continue;
               const rows = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${id}::uuid`;
-              if (rows[0]) targets.set(id, node(rows[0]));
+              const row = rows[0];
+              if (!row) continue;
+              // A thread the user mentioned in the caller's messages is readable from it (docs/ui-api.md, "Wzmianki").
+              const mention = JSON.stringify([{ kind: "MENTION_KIND_THREAD", name: id }]);
+              const mentioned =
+                row.owner_user_id === caller.owner_user_id &&
+                (yield* sql<{ mentioned: boolean }>`
+                  SELECT EXISTS (SELECT 1 FROM turns WHERE thread_id = ${caller.id}::uuid AND input->'mentions' @> ${mention}::jsonb)
+                      OR EXISTS (SELECT 1 FROM turn_steers WHERE thread_id = ${caller.id}::uuid AND input->'mentions' @> ${mention}::jsonb) AS mentioned`)[0]?.mentioned === true;
+              targets.set(id, mentioned ? { ...node(row), mentioned } : node(row));
             }
             const counts = yield* sql<{ children: number; active: number }>`
               SELECT (SELECT count(*)::int FROM threads c WHERE c.parent_thread_id = ${caller.id}::uuid AND c.archived_at IS NULL) AS children,

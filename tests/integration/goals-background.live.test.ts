@@ -70,7 +70,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("harness go
     };
     projectId = (await gw.api.createProject({ name: "Live goals" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId, rootPath: repo })).workspace!.id;
-    await until("condition", () => gw.api.getOverview({}), (o) => o.workers.find((w) => w.id === workerId)?.appliedVersion === 1n, 30_000);
+    await until("condition", () => gw.api.getOverview({}), (o) => o.workers.find((w) => w.id === workerId)?.appliedVersion === 2n, 30_000);
   }, 2 * MINUTE);
 
   afterAll(async () => {

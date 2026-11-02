@@ -31,11 +31,11 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
 
   test("overview: the worker is online and has applied its configuration", async () => {
     let overview = await api.getOverview({});
-    for (let i = 0; i < 50 && overview.workers[0]?.appliedVersion !== 1n; i++) {
+    for (let i = 0; i < 50 && overview.workers[0]?.appliedVersion !== 2n; i++) {
       await Bun.sleep(50);
       overview = await api.getOverview({});
     }
-    expect(overview.workers.map((w) => [w.name, w.online, w.configVersion, w.appliedVersion, w.allowedRoots])).toEqual([["laptop", true, 1n, 1n, ["/repo"]]]);
+    expect(overview.workers.map((w) => [w.name, w.online, w.configVersion, w.appliedVersion, w.allowedRoots])).toEqual([["laptop", true, 2n, 2n, ["/repo"]]]);
   });
 
   test("project, workspace and directory browsing through the worker", async () => {
@@ -337,7 +337,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
   test("CreateThread checks the provider and profile against the worker's report, and forks keep the provider", async () => {
     expect(await failure(api.createThread({ projectId, workspaceId, title: "x", provider: Provider.CLAUDE }))).toContain("Claude is not available on laptop: claude CLI not found");
     expect(await failure(api.createThread({ projectId, workspaceId, title: "x", provider: Provider.CODEX, providerProfileId: "nope" }))).toContain(
-      'profile "nope" is not configured on laptop',
+      'Codex has no provider instance "nope"',
     );
     // "native" and "" both name the native profile.
     const parent = (await api.createThread({ projectId, workspaceId, title: "Codex parent", provider: Provider.CODEX, providerProfileId: "native" })).thread!;

@@ -31,7 +31,6 @@
   const origin = $derived(turnOrigin(turn));
   // The platform's note (where the input comes from) and the delivered content, kept apart by the gateway.
   const parts = $derived({ note: turn.platformNote, message: turn.messageText });
-  const noted = $derived((turn.attachments.length > 0 || turn.quotes.length > 0) && Boolean(parts.note));
   const tone = $derived(origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet");
   const icons: Record<string, IconName> = { task: "sparkles", message: "chat-bubble-left-right", report: "document-text", question: "hand-raised", schedule: "clock" };
   const triggerLabels: Record<string, string> = { agent_bus: "From an agent", interaction: "A side thread is waiting", schedule: "Scheduled", goal: "Goal" };
@@ -45,15 +44,16 @@
 </script>
 
 {#if origin.kind === "user"}
-  <!-- With attachments or quotes the agent got a platform note (the files' paths, the quoted passages): the message
-       shows the files and quotes, the full text folds. -->
+  <!-- With attachments, mentions or quotes the agent got a platform note (file paths, threads, the quoted passages) or a
+       reordered command: the message shows as written, with its files, chips and quotes, and the full text folds. -->
+  {@const rich = turn.attachments.length > 0 || turn.mentions.length > 0 || turn.quotes.length > 0}
   <UserMessageView
-    message={{ text: noted ? parts.message : text, authorAgentId: "", attachments: [...attachments] }}
+    message={{ text: rich ? parts.message : text, authorAgentId: "", attachments: [...attachments], mentions: turn.mentions }}
     files={turn.attachments}
     quotes={turn.quotes}
     note={queuedNote(queued, fallback)}
     pending={queued}
-    details={noted ? fullText : undefined}
+    details={rich && text !== parts.message ? fullText : undefined}
   />
 {:else}
   <div class="flex flex-col items-end gap-1">
@@ -113,7 +113,7 @@
           </button>
         {/if}
       {:else}
-        <p class="whitespace-pre-wrap">{parts.message}</p>
+        <Markdown text={parts.message} breaks class="text-inherit dark:text-inherit" />
       {/if}
       {#if parts.note}
         <Disclosure remember="full-text" class="mt-2" summaryClass="text-sm/6 opacity-80 sm:text-xs/6">

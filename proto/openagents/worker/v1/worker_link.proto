@@ -140,6 +140,13 @@ message ProviderProfile {
   string detail = 6; // powód niedostępności, np. brak klucza
   // Nazwa nadana przez użytkownika (docs/worker-config.md, "Profile dostawców"); pusta = id.
   string display_name = 7;
+  // Globalne instancje dostawców (docs/worker-config.md, sekcja 9): wersja CLI tej instancji (jej pliku
+  // wykonywalnego) i sposób uwierzytelnienia, bez sekretów.
+  string version = 8;
+  // Np. "ChatGPT", "API key", "endpoint key", "device login"; pusty = nieznany.
+  string auth = 9;
+  // Instancja ma poświadczenia (logowanie, klucz); false + detail mówi, czego brakuje.
+  bool authenticated = 10;
 }
 
 message ProviderInfo {
@@ -209,6 +216,22 @@ message ProviderProfileConfig {
   repeated ProfileEnvVar env = 7;
   // Wyłączony przez użytkownika: niedostępny dla nowych tur (raport: available = false, detail "disabled").
   bool disabled = 8;
+
+  // Globalne instancje dostawców (docs/worker-config.md, sekcja 9). Profil z jednym dostawcą jest instancją
+  // (dostawca + id); to samo id może mieć osobny profil dla drugiego dostawcy.
+  // Plik wykonywalny harnessu tej instancji; pusty = ProviderConfig.executable_path albo PATH.
+  string executable_path = 9;
+  // Katalog domowy właściciela urządzenia, z którego worker dowiązuje logowanie CLI (CODEX_HOME / CLAUDE_CONFIG_DIR);
+  // pusty = środowisko procesu workera, inaczej ~/.codex / ~/.claude.
+  string home_path = 10;
+  // Izolowany katalog domowy, z którym działa harness (stan, sesje, logowanie); pusty = <data_dir>/codex-home
+  // albo claude-home (wspólny dla instancji bez własnych ustawień uruchomienia).
+  string shadow_home_path = 11;
+  // Dodatkowe argumenty uruchomienia harnessu (Codex: po `app-server`, Claude: flagi Claude Code).
+  repeated string launch_args = 12;
+  // Własne logowanie instancji w jej izolowanym katalogu (np. ChatGPT przez StartLogin), bez dowiązania
+  // logowania właściciela urządzenia.
+  bool own_login = 13;
 }
 
 message ProfileEnvVar {
@@ -280,6 +303,12 @@ message Command {
     SetGoal set_goal = 18;
     // Modele, effort i steer (sekcja na końcu pliku).
     ListModels list_models = 40;
+    // Globalne instancje dostawców (sekcja na końcu pliku).
+    ProbeProviders probe_providers = 41;
+    StartLogin start_login = 42;
+    // Wzmianki w kompozytorze (sekcja na końcu pliku).
+    ListMentionCatalog list_mention_catalog = 140;
+    SearchFiles search_files = 141;
   }
 }
 
@@ -364,6 +393,10 @@ message UserInput {
   // Pliki dołączone do wiadomości. Tekst zawiera już notatkę platformy z ich ścieżkami; worker zapisuje
   // każdy plik pod path (pobiera bajty przez FetchBlob, sprawdza sha256) przed przekazaniem tury dostawcy.
   repeated InputAttachment attachments = 4;
+  // Wzmianki w tekście (numery od 140, docs/protocol.md#wzmianki): komendy, skille, pluginy, pliki, wątki.
+  // Zakresy dotyczą tego tekstu (już z notatką platformy i przepisaniem dla dostawcy, które zrobił gateway).
+  // Codex dostaje z nich text_elements oraz itemy skill / mention / localImage; Claude sam tekst.
+  repeated Mention mentions = 140;
 }
 
 message InputAttachment {
@@ -460,6 +493,11 @@ message CommandResult {
   repeated DirectoryEntry entries = 5;
   // Wynik ListModels.
   repeated ProfileModels models = 40;
+  // Wynik StartLogin.
+  LoginStarted login = 41;
+  // Wynik ListMentionCatalog i SearchFiles.
+  MentionCatalog mention_catalog = 140;
+  FileSearchResult file_search = 141;
 }
 
 message DirectoryEntry {
@@ -718,6 +756,8 @@ message UserMessage {
   // Identyfikator wejścia po stronie platformy: turn_id dla wejścia tury, SteerTurn.input_id dla wiadomości
   // dołączonej do tury w toku (UI łączy ją z jej SendMessage). Pusty, gdy dostawca go nie zna.
   string client_id = 40;
+  // Wzmianki w tekście wiadomości (zakresy w text), żeby UI pokazało je jako chipy.
+  repeated Mention mentions = 140;
 }
 
 message AgentMessage {
@@ -1015,4 +1055,129 @@ message ListModels {
   // Puste = wszyscy dostawcy i profile.
   Provider provider = 1;
   string profile_id = 2;
+}
+
+// ---------- Globalne instancje dostawców ----------
+// docs/worker-config.md, sekcja 9.
+
+// Ponowne sprawdzenie dostawców i instancji bieżącej konfiguracji (wersje CLI, dostępność, logowanie), bez nowej
+// wersji. Worker wysyła ConfigApplied z tą samą wersją i nowym raportem, potem odpowiada CommandResult
+// (capability "probe_providers").
+message ProbeProviders {}
+
+// Logowanie instancji z own_login przez API harnessu (capability "codex_device_login": Codex app-server
+// account/login/start z kodem urządzenia). Worker czeka w tle na zakończenie i wysyła wtedy ConfigApplied.
+message StartLogin {
+  Provider provider = 1;
+  string profile_id = 2;
+}
+
+message LoginStarted {
+  // Adres, pod którym użytkownik potwierdza logowanie (w dowolnej przeglądarce), i jednorazowy kod.
+  string verification_url = 1;
+  string user_code = 2;
+  string login_id = 3;
+}
+
+// ---------- Wzmianki w kompozytorze (docs/protocol.md#wzmianki) ----------
+// Komendy (/), skille i pluginy ($), pliki (@) i inne wątki (#) wstawione w tekst wiadomości jako chipy.
+
+enum MentionKind {
+  MENTION_KIND_UNSPECIFIED = 0;
+  // Komenda harnessu (Claude: /nazwa na początku wejścia) albo platformy (source = platform, np. /goal).
+  MENTION_KIND_COMMAND = 1;
+  // Skill: Codex item skill (name, path do SKILL.md); Claude /nazwa albo narzędzie Skill.
+  MENTION_KIND_SKILL = 2;
+  // Plugin albo aplikacja (konektor): Codex item mention z path app://<id> albo plugin://<nazwa>@<marketplace>.
+  MENTION_KIND_PLUGIN = 3;
+  // Plik albo katalog workspace'u wątku.
+  MENTION_KIND_FILE = 4;
+  // Inny wątek platformy tego użytkownika: notatka platformy z thread_id, agent czyta go read_thread / get_thread.
+  MENTION_KIND_THREAD = 5;
+}
+
+// Jedna wzmianka: fragment tekstu [start, end) (jednostki UTF-16, jak string w JS i w protobuf-es) zajmuje jej
+// znacznik, np. "/review", "$transitions-dev", "@docs/notatka.md", "#Tytuł wątku". Tekst bez wzmianek nadal czyta się
+// jak zwykła wiadomość.
+message Mention {
+  MentionKind kind = 1;
+  // command, skill, plugin: nazwa w harnessie; file: ścieżka względem katalogu wątku (separator "/"); thread: id wątku.
+  string name = 2;
+  // To, co pokazuje chip: nazwa wyświetlana skilla albo pluginu, nazwa pliku, tytuł wątku. Pusty = name.
+  string label = 3;
+  uint32 start = 4;
+  uint32 end = 5;
+  // skill: SKILL.md; plugin: cel wzmianki (app://…, plugin://…); file: ścieżka absolutna na workerze (ustawia gateway).
+  string path = 6;
+  // Skąd pochodzi pozycja katalogu: built-in | user | project | plugin | system | admin | mcp | platform.
+  string source = 7;
+  // file: katalog, nie plik.
+  bool is_dir = 8;
+}
+
+// Pozycja katalogu wzmianek (to, co popup kompozytora pokazuje do wyboru).
+message MentionCatalogEntry {
+  MentionKind kind = 1;
+  // Mention.name.
+  string name = 2;
+  // Nazwa wyświetlana (Codex interface.displayName); pusta = name.
+  string label = 3;
+  string description = 4;
+  // Podpowiedź argumentów komendy (Claude argumentHint, np. "<file>").
+  string argument_hint = 5;
+  string source = 6;
+  // Mention.path.
+  string path = 7;
+  // Ikona: data: URI (mała, z pliku skilla albo pluginu) albo https://; pusta = ikona rodzaju.
+  string icon = 8;
+  repeated string aliases = 9;
+  // Plugin, z którego pochodzi skill albo komenda.
+  string plugin = 10;
+  // Kolor marki (Codex brandColor), np. "#0a84ff".
+  string color = 11;
+}
+
+// Katalog wzmianek jednej pary dostawca + profil w katalogu wątku.
+message MentionCatalog {
+  Provider provider = 1;
+  string profile_id = 2;
+  string cwd = 3;
+  repeated MentionCatalogEntry entries = 4;
+  // Czego brakuje i dlaczego, np. "plugins: Claude Code in platform threads loads none (isolated config dir)".
+  repeated string notes = 5;
+  google.protobuf.Timestamp listed_at = 6;
+}
+
+// Komendy, skille i pluginy dostawcy w katalogu (bez wywołania modelu). Wynik: CommandResult.mention_catalog.
+message ListMentionCatalog {
+  Provider provider = 1;
+  string profile_id = 2;
+  // Katalog wątku (musi leżeć w allowed_roots): skille i komendy projektu.
+  string cwd = 3;
+  // Bez pamięci podręcznej workera.
+  bool refresh = 4;
+}
+
+// Wyszukiwanie plików w katalogu wątku (fuzzy, tylko w nim, z .gitignore). Wynik: CommandResult.file_search.
+message SearchFiles {
+  string cwd = 1;
+  string query = 2;
+  // 0 = 50; najwyżej 200.
+  uint32 limit = 3;
+}
+
+message FileMatch {
+  // Względem cwd, separator "/".
+  string path = 1;
+  bool is_dir = 2;
+  // Pozycje dopasowanych znaków w path (podświetlenie).
+  repeated uint32 indices = 3;
+}
+
+message FileSearchResult {
+  repeated FileMatch matches = 1;
+  // Lista plików niepełna (limit przeglądania dużego katalogu bez gita).
+  bool truncated = 2;
+  // git (git ls-files: śledzone i nieśledzone bez ignorowanych) | walk (przeglądanie katalogu bez gita).
+  string source = 3;
 }

@@ -3,7 +3,7 @@
   import { PermissionMode, Provider, ui } from "@open-agents/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { permissionLabel, permissionModes, providerLabel } from "#lib/features/threads/labels.ts";
-  import { isProviderKey, profilesFor, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
+  import { isProviderKey, instancesFor, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
   import ModelIdField from "#lib/features/models/ModelIdField.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
@@ -30,7 +30,7 @@
   const overview = useOverview();
   const provider = $derived(providerKeyOf(value.provider));
   // Profiles any worker offers for the provider (the thread's worker decides when it starts).
-  const profiles = $derived(provider ? [...new Set(overview.workers.flatMap((w) => profilesFor(w, provider).map((p) => p.id)))] : []);
+  const profiles = $derived(provider ? [...new Set(overview.workers.flatMap((w) => instancesFor(w, provider).map((p) => p.id)))] : []);
   const inheritedAgent = $derived(inherited && inherited.provider !== Provider.UNSPECIFIED ? providerLabel(inherited.provider) : "any available");
 
   const set = (change: Partial<Omit<ui.ThreadDefaults, "$typeName">>) => onchange(create(ui.ThreadDefaultsSchema, { ...value, ...change }));

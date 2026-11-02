@@ -79,7 +79,7 @@ describe.skipIf(!dockerAvailable)("durable threads (gateway + scripted worker)",
     worker = await gw.connect(edge.workerId, edge.credential);
     projectId = (await gw.api.createProject({ name: "Durable" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: edge.workerId, rootPath: "/edge/app" })).workspace!.id;
-    await eventually(() => gw.api.getOverview({}), (o) => o.workers.every((w) => w.appliedVersion === 1n));
+    await eventually(() => gw.api.getOverview({}), (o) => o.workers.every((w) => w.appliedVersion === 2n));
   }, 60_000);
 
   afterAll(async () => {

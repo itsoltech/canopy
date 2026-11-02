@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { create } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ModelInfoSchema, ProfileModelsSchema, Provider, ProviderProfileSchema, ProviderInfoSchema, ui } from "@open-agents/contracts";
 import { effectiveEffort, findOption, modelOptions, shortModelName, threadModelOptions, turnOverride } from "../src/lib/features/models/catalog.ts";
 
@@ -10,6 +10,12 @@ const worker = create(ui.WorkerSchema, {
   profiles: [
     create(ProviderProfileSchema, { id: "native", available: true, providers: [Provider.CLAUDE, Provider.CODEX] }),
     create(ProviderProfileSchema, { id: "proxy", available: true, providers: [Provider.CODEX] }),
+  ],
+  // Global provider instances on this worker (what the pickers read).
+  providerInstances: [
+    { harness: Provider.CLAUDE, id: "native", enabled: true, available: true },
+    { harness: Provider.CODEX, id: "native", enabled: true, available: true },
+    { harness: Provider.CODEX, id: "proxy", label: "Proxy", enabled: true, available: true },
   ],
 });
 
@@ -39,6 +45,35 @@ const catalog = create(ui.WorkerModelsSchema, {
       ],
     }),
   ],
+});
+
+describe("pickers per worker (global provider instances)", () => {
+  const onWorker = (instances: MessageInitShape<typeof ui.WorkerInstanceSchema>[]) =>
+    create(ui.WorkerSchema, { ...worker, providerInstances: instances.map((i) => create(ui.WorkerInstanceSchema, i)) });
+
+  test("only instances turned on and available on the worker are offered, with accent and favorites", () => {
+    const a = onWorker([
+      { harness: Provider.CODEX, id: "native", enabled: true, available: true },
+      { harness: Provider.CODEX, id: "proxy", label: "Proxy", accentColor: "#7c3aed", enabled: true, available: true, favorites: ["grok-4.7"] },
+    ]);
+    const b = onWorker([
+      { harness: Provider.CODEX, id: "native", enabled: true, available: true },
+      { harness: Provider.CODEX, id: "proxy", label: "Proxy", enabled: false, available: false, detail: "disabled" },
+      { harness: Provider.CLAUDE, id: "native", enabled: true, available: false, detail: "no Claude login on this device" },
+    ]);
+    const onA = modelOptions({ worker: a, catalog, threads: [] });
+    expect(onA.map((o) => o.key)).toEqual(["CODEX::gpt-6.1-sol", "CODEX:proxy:grok-4.7"]);
+    expect(onA.find((o) => o.profileId === "proxy")).toMatchObject({ profileName: "Proxy", accent: "#7c3aed", favoriteIndex: 0 });
+    expect(modelOptions({ worker: b, catalog, threads: [] }).map((o) => o.key)).toEqual(["CODEX::gpt-6.1-sol"]);
+  });
+
+  test("a thread keeps its instance where it is turned off", () => {
+    const off = onWorker([{ harness: Provider.CODEX, id: "proxy", label: "Proxy", enabled: false, available: false }]);
+    const thread = create(ui.ThreadSchema, { id: "t", workerId: "w1", provider: Provider.CODEX, providerProfileId: "proxy", model: "grok-4.7" });
+    const { options, current } = threadModelOptions(thread, { worker: off, catalog, threads: [] });
+    expect(options.map((o) => o.key)).toEqual(["CODEX:proxy:grok-4.7"]);
+    expect(current?.profileName).toBe("Proxy");
+  });
 });
 
 describe("modelOptions", () => {

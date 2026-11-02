@@ -21,6 +21,7 @@ Gateway czyta konfigurację tymczasowo ze zmiennych środowiskowych, do czasu po
 | `ping_interval_seconds` (utrzymanie mapowania NAT) | natywne narzędzia (subagenci, harmonogram) |
 | | limity (tury, zadania w tle, drain, zwalnianie) |
 | | Codex: dowiązanie logowania urządzenia do izolowanego `CODEX_HOME` (`device_login`) |
+| | instancje dostawców: efektywny wynik globalnych definicji i nadpisań workera (sekcja 9) |
 
 ## 2. Plik lokalny
 
@@ -107,7 +108,9 @@ Zdalne `allowed_roots` oznaczają, że kto kontroluje gateway, ten wskazuje work
 
 ## 8. Profile dostawców
 
-Status: **zaimplementowane** (kontrakt: `ProviderProfileConfig.display_name/env/disabled`, `ProfileEnvVar`, `ProviderProfile.display_name`; UI: `ListProviderProfiles`, `SaveProviderProfile`, `DeleteProviderProfile`, `SetModelSelection`, `ListModelsRequest.unfiltered`; gateway `store/profiles.ts`; worker `providers/profiles.ts`, `runtime/host.ts`; migracja `0015_provider_profiles`; ekran Settings → Workers → worker).
+> Od migracji `0018_global_providers` profile nie są definiowane per worker: są **globalnymi instancjami dostawców** (sekcja 9), a `WorkerConfig.profiles` workera to ich efektywny wynik. Reguły zmiennych (8.1) obowiązują dalej; wybór modeli (8.2) zastąpiły wybory instancji (9.3). Opis poniżej zostaje jako historia tej wersji.
+
+Status: **zastąpione przez sekcję 9** (kontrakt: `ProviderProfileConfig.display_name/env/disabled`, `ProfileEnvVar`, `ProviderProfile.display_name`; UI: `ListProviderProfiles`, `SaveProviderProfile`, `DeleteProviderProfile`, `SetModelSelection`, `ListModelsRequest.unfiltered`; gateway `store/profiles.ts`; worker `providers/profiles.ts`, `runtime/host.ts`; migracja `0015_provider_profiles`; ekran Settings → Workers → worker).
 
 **Model.** Profil to część konfiguracji workera (`WorkerConfig.profiles`, wersjonowana, z historią):
 
@@ -156,3 +159,69 @@ Per worker, profil i dostawca użytkownik wybiera, które modele katalogu (`work
 - brak wiersza = katalog taki, jak przysłał worker (z jego własnym `hidden`, np. Codex),
 - wiersz: `shown` (widoczne), `known` (katalog w chwili zapisu), `show_new`; model jest widoczny, gdy jest w `shown` albo nie ma go w `known` i `show_new` = true. Model ukryty przez dostawcę można tak pokazać,
 - gateway nie usuwa modeli, tylko ustawia `ModelInfo.hidden` w `ListModels` i `OverviewUpdate.models` (`applyModelSelections` w `store/models.ts`); `ListModelsRequest.unfiltered` zwraca pełny katalog (ekran wyboru). Walidacja modelu wątku i wiadomości (`modelProblem`, `turnEffort`) używa pełnego katalogu, więc wątek na ukrytym modelu działa dalej (na żywo: tura na ukrytym `gpt-6-astra`), a picker wątku zna nazwę i wysiłki modelu.
+
+## 9. Globalne instancje dostawców
+
+Status: **zaimplementowane** (migracja `0018_global_providers`; gateway `store/instances.ts`, `store/instance-config.ts`; kontrakt UI: `ListProviderInstances`, `SaveProviderInstance`, `DeleteProviderInstance`, `SetInstanceWorkers`, `SetInstanceWorker`, `SetInstanceModels`, `RefreshProviders`, `StartProviderLogin`, `Worker.provider_instances`; kontrakt workera: `ProviderProfileConfig.executable_path/home_path/shadow_home_path/launch_args/own_login`, `ProviderProfile.version/auth/authenticated`, komendy `ProbeProviders`, `StartLogin`; worker `config/remote.ts`, `runtime/host.ts`, `providers/codex/login.ts`; UI Settings → Providers).
+
+### 9.1. Model
+
+**Instancja** = harness (Claude Code albo Codex) + `id`, zdefiniowana **raz w gateway** i włączana na wybranych workerach. Klucz to para (harness, id), bo wątki zapisują dostawcę i profil osobno (`threads.provider`, `threads.provider_profile_id`): ten sam `id` może mieć instancja Claude i instancja Codexa (np. `native`, `cliproxyapi`).
+
+| Globalnie (`provider_instances`) | Per worker (`provider_instance_workers`) |
+|---|---|
+| `label`, `accent_color` (kropka w pickerze) | `enabled`: `NULL` = jak `all_workers`, inaczej wybór dla tego workera |
+| `kind`: `native` (logowanie harnessu) albo `endpoint` (URL + klucz, CLIProxyAPI) | `overrides.baseUrl`, `overrides.apiKey` (inna sieć, inny klucz) |
+| `base_url`, `api_key` (sekret) | `overrides.binaryPath`, `homePath`, `shadowHomePath`, `launchArgs` (ścieżki zależne od systemu) |
+| `env` (jawne i sekrety) | `overrides.env`: dodane albo zastąpione po nazwie (bez wielkości liter) |
+| `runtime`: `binaryPath`, `homePath`, `shadowHomePath`, `launchArgs`, `ownLogin` | |
+| `favorites` (kolejność), `hidden_models`, `shown_models`, `custom_models` | |
+| `all_workers` (także workery zarejestrowane później), `built_in`, `revision` | |
+
+Wbudowane instancje `claude/native` i `codex/native` (logowanie CLI na urządzeniu) istnieją zawsze, na wszystkich workerach; można im nadać nazwę, zmienne i ścieżki, wyłączyć na wybranym workerze, ale nie usunąć ani zmienić rodzaju połączenia.
+
+### 9.2. Synchronizacja
+
+```mermaid
+sequenceDiagram
+    participant UI
+    participant GW as Gateway
+    participant DB as PostgreSQL
+    participant W as Worker
+    UI->>GW: SaveProviderInstance / SetInstanceWorkers / SetInstanceWorker
+    GW->>DB: provider_instances, provider_instance_workers (sekrety zaszyfrowane)
+    GW->>DB: sync: efektywne profile każdego workera → worker_configs (version + 1, historia), gdy się różnią
+    GW-->>W: WorkerConfig (tylko workery, których konfiguracja się zmieniła, online)
+    W->>GW: ConfigApplied (per instancja: available, detail, version, auth)
+    GW-->>UI: OverviewUpdate.worker (provider_instances)
+```
+
+- **Efektywna konfiguracja** = definicja ⊕ nadpisania workera (`effectiveProfile`): jeden `ProviderProfileConfig` na instancję, z jednym dostawcą w `providers`, w kolejności dostawca, `native`, id. Porównanie z zapisaną konfiguracją ignoruje kolejność kluczy (jsonb), więc niezmieniony worker nie dostaje nowej wersji.
+- **Wyłączona instancja jest na workerze nieobecna**: nie dostaje ani definicji, ani sekretów. Wyjątki: wbudowane `native` (inaczej worker dodałby je sam) i instancja, której używają wątki tego workera — dostają zaślepkę bez sekretów `disabled: true`, więc ich tury kończą się czytelnym `provider profile "<id>" is unavailable: disabled`.
+- Gateway synchronizuje wszystkie workery przy starcie (`syncProviderInstances`, np. zaraz po migracji) i po każdej zmianie; CLI (`worker add --cliproxy-url`) zakłada instancje `cliproxyapi` obu dostawców (albo nadpisania istniejących) i synchronizuje nowego workera.
+- **Sekrety**: klucz i zmienne-sekrety w `secrets` (nazwa `instance-<uuid>`), w definicji, nadpisaniach i konfiguracjach tylko `{"secretRef"}`. Sekrety `instance-*` i `profile-*`, do których nie odwołuje się żadna definicja, nadpisanie ani konfiguracja, są usuwane po każdej zmianie. Do UI wracają tylko flagi (`api_key_set`, zmienna-sekret z pustą wartością); sekret bez nowej wartości zostaje (po nazwie).
+- **Współbieżność**: `expected_revision` w `SaveProviderInstanceRequest` / `DeleteProviderInstanceRequest`; inna = `FailedPrecondition` (BFF 409).
+- Instancji, której używają wątki, nie da się usunąć ani zmienić jej rodzaju połączenia (`FailedPrecondition`); można ją wyłączyć.
+
+### 9.3. Modele w pickerach
+
+Wybór modeli jest globalny dla instancji i nie zmienia wersji konfiguracji: model jest widoczny, gdy jest w `shown_models` albo dostawca go nie ukrywa i nie ma go w `hidden_models`; `custom_models` dochodzą do listy (bez danych o wysiłku, walidacja je przyjmuje); ulubione idą pierwsze, w kolejności użytkownika (`applyInstanceModels`). Gateway oznacza modele jako `hidden`, nie usuwa ich (wątek na ukrytym modelu działa dalej). `ListModelsRequest.unfiltered` daje pełny katalog (ekran ustawień). Gwiazdka w pickerze zmienia ulubione instancji (`SetInstanceModelsRequest.favorites_only`); dotychczasowe ulubione z ustawień użytkownika (`UserSettings.model_favorites`) przeniosła migracja.
+
+Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `enabled && available` z `Worker.provider_instances` (z kolorem akcentu i ulubionymi); zmiana workera zmienia listę, a wątek zostaje przy swojej instancji (także wyłączonej). `CreateThread` odrzuca instancję wyłączoną na workerze (`… is turned off on <worker>`) albo niedostępną.
+
+### 9.4. Na workerze
+
+- Profile są identyfikowane parą (dostawca, id): duplikat tej pary jest błędem krytycznym; `native` worker dodaje sam tylko dla dostawców, których konfiguracja nie wymienia. Wyłączona zaślepka nie jest dalej walidowana.
+- **Środowisko uruchomienia instancji** (`hasOwnRuntime`): własny plik wykonywalny, `home_path` (katalog CLI właściciela urządzenia, z którego dowiązywane jest logowanie), `shadow_home_path` (izolowany katalog harnessu; dotąd zawsze `<data_dir>/codex-home` / `claude-home`), argumenty uruchomienia, `own_login`. Instancja z `home_path` albo `own_login` bez `shadow_home_path` dostaje własny katalog `<data_dir>/homes/<harness>-<id>` (dwa logowania nie dzielą katalogu).
+  - Codex: instancja z własnym środowiskiem (albo zmiennymi) ma własny `codex app-server`: `<binary> app-server … <launch_args>`, `CODEX_HOME` = jej katalog. Wątki instancji z własnym katalogiem żyją w nim (zmiana katalogu instancji z wątkami = ich sesje zostają w starym).
+  - Claude: per zapytanie `pathToClaudeCodeExecutable`, `CLAUDE_CONFIG_DIR` w `env` i `extraArgs` (z `--flag wartość`); pomocnicze funkcje SDK (`forkSession`, `getSessionMessages`) czytają katalog z procesu, więc wywołania idą po kolei z ustawionym `CLAUDE_CONFIG_DIR` katalogu instancji.
+- **Raport per instancja** (`ConfigApplied.profiles`): `version` (wersja jej pliku wykonywalnego albo dostawcy), `auth` i `authenticated`: endpoint — „endpoint key”; native — login w katalogu (Codex `auth.json`: „ChatGPT” albo „OpenAI API key”, czytany tylko kształt; Claude `.credentials.json`: „Claude account”; na macOS Claude trzyma login w pęku kluczy: nieznane), albo klucz w zmiennych (`ANTHROPIC_API_KEY` itd.). Native bez logowania, brak CLI albo plik wykonywalny, który się nie uruchamia, robią instancję niedostępną z powodem (`not signed in`, `no Codex login on this device`, `… not found or not runnable`) — bez wpisu w `issues`.
+- **`ProbeProviders`** (UI: Refresh): worker stosuje bieżącą konfigurację jeszcze raz (sprawdza wersje i logowania), wysyła `ConfigApplied` z tą samą wersją i katalog modeli, potem odpowiada. Capability `probe_providers`.
+
+### 9.5. Logowanie z aplikacji
+
+Codex ma logowanie w API app-servera: `account/login/start` z `chatgptDeviceCode` zwraca adres i jednorazowy kod. `StartProviderLogin` (instancja Codexa `native` z `own_login`, worker z capability `codex_device_login`) uruchamia krótko żyjący `codex app-server` z `CODEX_HOME` = katalog instancji; UI pokazuje kod i link („Continue with ChatGPT”), użytkownik potwierdza w dowolnej przeglądarce, Codex zapisuje `auth.json` w katalogu instancji, worker po `account/login/completed` (najwyżej 15 min) wysyła nowy `ConfigApplied` („Authenticated · ChatGPT”). Tokeny nie opuszczają katalogu Codexa. Claude Code nie ma logowania w API SDK: instancja Claude używa logowania urządzenia (`claude login` w swoim katalogu CLI), klucza w zmiennych albo endpointu.
+
+### 9.6. Migracja z profili per worker (`0018`)
+
+Każdy profil każdego workera staje się instancją każdego dostawcy, którego obsługiwał, **z tym samym id** (wątki dalej się rozwiązują). Pierwszy worker (po id) definiuje instancję; późniejszy worker z innym adresem, kluczem albo zmiennymi dostaje je jako swoje nadpisania; profil o tym samym id, ale innym rodzaju połączenia, dostaje instancję `<id>-<n>`, a wątki tego workera przechodzą na nią. `disabled` → wyłączona na tym workerze. Wybór modeli (`provider_model_selections`) → `hidden_models` / `shown_models` instancji (najnowszy), ulubione z ustawień użytkownika → `favorites`; tabela `provider_model_selections` jest usunięta. Na żywym stosie: `cliproxyapi` (oba dostawcy, CLI) i niejawne `native` → `claude/cliproxyapi`, `codex/cliproxyapi`, `claude/native`, `codex/native`; gateway po starcie zapisuje workerowi nową wersję z profilami per dostawca (test: `packages/db/test/global-providers.test.ts`).

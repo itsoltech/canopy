@@ -10,8 +10,11 @@ import { join } from "node:path";
 
 export interface ProviderHome {
   readonly path: string;
-  /** "linked" (shared token refresh), "copied" (symlinks not permitted, e.g. Windows without privilege), or none. */
-  readonly login: "linked" | "copied" | "none";
+  /**
+   * "linked" (shared token refresh), "copied" (symlinks not permitted, e.g. Windows without privilege), "own" (the
+   * instance's own login, kept in this home), or none.
+   */
+  readonly login: "linked" | "copied" | "own" | "none";
   readonly problem?: string;
 }
 
@@ -23,6 +26,8 @@ export interface ProviderHomeOptions {
   /** The device owner's home of the same CLI. */
   readonly deviceHome: string;
   readonly linkDeviceLogin: boolean;
+  /** The home keeps its own login (e.g. signed in from the app): a link left from before goes, its own file stays. */
+  readonly ownLogin?: boolean;
   /** Shown when the device has no login file. */
   readonly missingLogin: string;
 }
@@ -32,6 +37,10 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
   mkdirSync(path, { recursive: true, mode: 0o700 });
   const target = join(path, options.loginFile);
 
+  if (options.ownLogin) {
+    if (isSymlink(target)) removeIfPresent(target);
+    return { path, login: existsSync(target) ? "own" : "none" };
+  }
   if (!options.linkDeviceLogin) {
     removeIfPresent(target);
     return { path, login: "none" };
@@ -49,6 +58,14 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
   } catch {
     copyFileSync(source, target);
     return { path, login: "copied", problem: "symlinks not permitted; login copied, token refresh is not shared with the device CLI" };
+  }
+}
+
+function isSymlink(path: string): boolean {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
   }
 }
 

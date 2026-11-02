@@ -2,6 +2,8 @@ import { ui } from "@open-agents/contracts";
 import type { PermissionModeKey } from "./labels.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
+import type { Mention } from "@open-agents/contracts";
+import { mentionsToWire } from "#lib/features/mentions/wire.ts";
 import type { WireQuote } from "#lib/features/quotes/quote.ts";
 
 /** Browser-side calls to the BFF (same origin, JSON). */
@@ -23,6 +25,7 @@ export async function sendMessage(
   turn: { model?: string; effort?: string; permissionMode?: PermissionModeKey } = {},
   delivery: Delivery = "queue",
   attachmentIds: readonly string[] = [],
+  mentions: readonly Mention[] = [],
   quotes: readonly WireQuote[] = [],
 ): Promise<ui.SendMessageResponse> {
   return decode(
@@ -33,6 +36,7 @@ export async function sendMessage(
       ...turn,
       delivery,
       ...(attachmentIds.length > 0 && { attachmentIds }),
+      ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }),
       ...(quotes.length > 0 && { quotes }),
     }),
   );

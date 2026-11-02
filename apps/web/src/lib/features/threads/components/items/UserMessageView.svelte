@@ -11,10 +11,13 @@
 </script>
 
 <script lang="ts">
+  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import type { Snippet } from "svelte";
   import type { UserMessage, ui } from "@open-agents/contracts";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
   import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
+  import { withoutPlatformNote } from "#lib/features/mentions/editor.ts";
+  import MentionChip from "#lib/features/mentions/MentionChip.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
@@ -34,7 +37,7 @@
     quotes = [],
     details,
   }: {
-    message: Pick<UserMessage, "text" | "authorAgentId" | "attachments">;
+    message: Pick<UserMessage, "text" | "authorAgentId" | "attachments"> & { mentions?: UserMessage["mentions"] };
     note?: MessageNote | undefined;
     pending?: boolean;
     files?: readonly ui.Attachment[];
@@ -42,6 +45,8 @@
     details?: Snippet | undefined;
   } = $props();
   const fromAgent = $derived(Boolean(message.authorAgentId));
+  // With mentions the chips render; the platform's note in front (threads, files) is the agent's, not shown here.
+  const shown = $derived(message.mentions?.length ? withoutPlatformNote({ text: message.text, mentions: [...message.mentions] }) : undefined);
 </script>
 
 <div class="flex flex-col items-end gap-1">
@@ -73,7 +78,9 @@
       ]}
     >
       {#if quotes.length > 0}<MessageQuotes {quotes} class={[message.text.trim() && "mb-2"]} />{/if}
-      {#if message.text.trim()}<p class="whitespace-pre-wrap">{message.text}</p>{/if}
+      {#if message.text.trim()}
+        <Markdown text={shown?.text ?? message.text} breaks elements={shown && { ranges: shown.mentions, render: chip }} class="text-inherit dark:text-inherit" />
+      {/if}
       {@render details?.()}
     </div>
   {/if}
@@ -83,3 +90,8 @@
     </p>
   {/if}
 </div>
+
+{#snippet chip(index: number)}
+  {@const mention = shown?.mentions[index]}
+  {#if mention}<MentionChip {mention} />{/if}
+{/snippet}

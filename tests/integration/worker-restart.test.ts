@@ -59,7 +59,7 @@ describe.skipIf(!dockerAvailable)("worker restart and lost turns (gateway + scri
     worker = await gw.connect(edge.workerId, edge.credential);
     projectId = (await gw.api.createProject({ name: "Restart" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: edge.workerId, rootPath: "/edge/app" })).workspace!.id;
-    await eventually(() => gw.api.getOverview({}), (o) => o.workers.every((w) => w.appliedVersion === 1n));
+    await eventually(() => gw.api.getOverview({}), (o) => o.workers.every((w) => w.appliedVersion === 2n));
   }, 60_000);
 
   afterAll(async () => {
@@ -183,7 +183,7 @@ describe.skipIf(!dockerAvailable)("worker restart and lost turns (gateway + scri
     const studio = await gw.addWorker("studio", ["/studio"]);
     const claude = await gw.connect(studio.workerId, studio.credential, undefined, { claude: true });
     const claudeWorkspace = (await gw.api.createWorkspace({ projectId, workerId: studio.workerId, rootPath: "/studio/b" })).workspace!.id;
-    await eventually(() => gw.api.getOverview({}), (o) => o.workers.every((w) => w.appliedVersion === 1n));
+    await eventually(() => gw.api.getOverview({}), (o) => o.workers.every((w) => w.appliedVersion === 2n));
     const thread = (
       await gw.api.createThread({ projectId, workspaceId: claudeWorkspace, title: "cg", provider: Provider.CLAUDE, permissionMode: PermissionMode.ASK, clientRequestId: "c-cg" })
     ).thread!;

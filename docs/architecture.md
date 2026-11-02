@@ -289,7 +289,7 @@ type ProviderProfileConfig =
 | Wybór | per wątek | `thread/start { modelProvider: "openagents_<id>" }`; jeden proces obsługuje wątki natywne i przez proxy |
 | Model | `options.model` z agenta | `thread/start { model }` z agenta |
 
-Profile tworzy i zmienia użytkownik (Settings → Workers → worker); zmienne środowiskowe, lista zakazanych nazw i wybór modeli: [worker-config.md](worker-config.md#8-profile-dostawców).
+Profile to globalne instancje dostawców, które użytkownik definiuje raz (Settings → Providers) i włącza na wybranych workerach; zmienne środowiskowe i lista zakazanych nazw: [worker-config.md](worker-config.md#81-zmienne-środowiskowe-profilu), instancje, synchronizacja i modele: [worker-config.md](worker-config.md#9-globalne-instancje-dostawców).
 
 Zasady, które z tego wynikają (`apps/worker/src/providers`):
 

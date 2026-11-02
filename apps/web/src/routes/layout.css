@@ -150,6 +150,53 @@
   summary::-webkit-details-marker {
     display: none;
   }
+  /*
+   * Scrollbars: thin, no track, no arrows, a soft zinc thumb that darkens on hover and while held.
+   * Chrome and Safari draw them from the WebKit pseudo-elements (the transparent border keeps the thumb
+   * inset and rounded); the standard properties are only for Firefox, since in Chrome they would win and
+   * bring back the native arrows.
+   */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: --alpha(var(--color-zinc-950) / 18%) transparent;
+    }
+    .dark * {
+      scrollbar-color: --alpha(var(--color-white) / 18%) transparent;
+    }
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: padding-box;
+    background-color: --alpha(var(--color-zinc-950) / 18%);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: --alpha(var(--color-zinc-950) / 32%);
+  }
+  ::-webkit-scrollbar-thumb:active {
+    background-color: --alpha(var(--color-zinc-950) / 45%);
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: --alpha(var(--color-white) / 18%);
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: --alpha(var(--color-white) / 32%);
+  }
+  .dark ::-webkit-scrollbar-thumb:active {
+    background-color: --alpha(var(--color-white) / 45%);
+  }
 }
 
 /* Focus ring shared by every custom control. */
