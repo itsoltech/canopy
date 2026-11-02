@@ -69,6 +69,7 @@ export class GrokThreads {
       if (bus && !info.agentCapabilities?.mcpCapabilities?.http) throw new Error("Installed Grok lacks HTTP MCP support");
       const servers = bus ? [bus.server] : [];
       const session = sessionId ? await client.loadSession(sessionId, spec.cwd, servers) : await client.newSession(spec.cwd, servers);
+      if (chosen.model && session.models && session.models.currentModelId !== chosen.model) await client.setModel(session.sessionId, chosen.model);
       entry = { client, session, dispose, turnId: "", mode: chosen.permissionMode, interrupted: false, settings: key, toolUses: new Map(), approvals: new Set() };
       this.#entries.set(spec.threadId, entry);
       return entry;

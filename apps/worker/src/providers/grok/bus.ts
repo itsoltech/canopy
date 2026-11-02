@@ -33,9 +33,14 @@ export function grokBus(options: { threadId: string; depth: number; agentBus?: b
       } });
       try {
         if (rpc.params?.name === VIEW_IMAGE_TOOL && options.viewImage) {
-          const image = await options.viewImage((rpc.params.arguments as { path?: string } | undefined)?.path ?? "");
-          return reply(image.ok ? { content: [{ type: "image", data: image.base64, mimeType: image.mimeType }, { type: "text", text: image.summary }] }
-            : { content: [{ type: "text", text: image.message }], isError: true });
+          const path = (rpc.params.arguments as { path?: string } | undefined)?.path ?? "";
+          const image = await options.viewImage(path);
+          const result = image.ok ? { content: [{ type: "image", data: image.base64, mimeType: image.mimeType }, { type: "text", text: image.summary }] }
+            : { content: [{ type: "text", text: image.message }], isError: true };
+          await options.record?.({ turnId, rawJson: JSON.stringify({ result }), body: { case: "itemCompleted", value: { item: {
+            itemId, status: image.ok ? ItemStatus.COMPLETED : ItemStatus.FAILED, content: { case: "image", value: { path, source: VIEW_IMAGE_TOOL } },
+          } } } });
+          return reply(result);
         }
         await record(ItemStatus.IN_PROGRESS);
         const result = await options.callTool(create(AgentToolCallSchema, { callId: toolCallId(options.threadId, itemId), threadId: options.threadId,
