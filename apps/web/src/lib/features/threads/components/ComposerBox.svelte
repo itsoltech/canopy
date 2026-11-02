@@ -57,6 +57,8 @@
     sources,
     elements,
     elementCount = 0,
+    allowEmpty = false,
+    sendLabel = "Send",
     class: className,
   }: {
     value?: string;
@@ -81,6 +83,8 @@
     sources?: MentionSources | undefined;
     elements?: Snippet;
     elementCount?: number;
+    allowEmpty?: boolean;
+    sendLabel?: string;
     class?: ClassValue;
   } = $props();
   const triggers: ReadonlySet<TriggerChar> = new Set(["/", "$", "@", "#"]);
@@ -88,7 +92,7 @@
 
   const id = $props.id();
   const hasFiles = $derived((draft?.files.length ?? 0) > 0);
-  const hasContent = $derived(Boolean(value.trim()) || hasFiles || elementCount > 0);
+  const hasContent = $derived(Boolean(value.trim()) || hasFiles || elementCount > 0 || allowEmpty);
   const onfiles = $derived(draft ? (files: File[]) => draft.add(files) : undefined);
   const stopMode = $derived(Boolean(onstop) && !hasContent);
   // Files go with the next turn: a message with them is never steered.
@@ -197,11 +201,11 @@
           <button
             type="submit"
             class="relative grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-white focus-ring not-disabled:hover:bg-brand-500 disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
-            aria-label="Send"
-            {@attach tooltip("Send", { hotkey: "Enter" })}
+            aria-label={sendLabel}
+            {@attach tooltip(sendLabel, { hotkey: "Enter" })}
             disabled={disabled || !canSend || sending || !hasContent}
           >
-            {#if sending}<Spinner class="size-3.5" />{:else}<Icon name="arrow-up" />{/if}
+            {#if sending}<Spinner class="size-3.5" />{:else}<Icon name={sendLabel === "Submit" ? "check" : "arrow-up"} />{/if}
             <TouchTarget />
           </button>
         {/if}

@@ -5,7 +5,7 @@
   import { isEmptyNode, structureJson } from "#lib/shared/structure.ts";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";
   import PermissionRequest from "../interactions/PermissionRequest.svelte";
-  import { parseQuestions } from "../interactions/questions.ts";
+  import { answerText, parseQuestions } from "../interactions/questions.ts";
   import ItemFrame from "./ItemFrame.svelte";
   import ThreadLink from "./ThreadLink.svelte";
   import RawToggle from "./tools/RawToggle.svelte";
@@ -27,17 +27,7 @@
   );
   const questions = $derived(prompt.kind === InteractionKind.QUESTION ? parseQuestions(prompt.requestJson) : []);
   // Answers to questions arrive keyed by question id (`{ id: { answers: [...] } }`), possibly under `answers`.
-  const answers = $derived.by(() => {
-    const response = parseObject(prompt.responseJson);
-    const map = (response["answers"] && typeof response["answers"] === "object" ? response["answers"] : response) as Record<string, unknown>;
-    const text = (value: unknown): string => {
-      if (typeof value === "string") return value;
-      if (Array.isArray(value)) return value.map(text).filter(Boolean).join(", ");
-      if (value && typeof value === "object") return text((value as Record<string, unknown>)["answers"]);
-      return "";
-    };
-    return Object.fromEntries(Object.entries(map).map(([id, value]) => [id, text(value)]));
-  });
+  const answers = $derived(Object.fromEntries(questions.map((q) => [q.id, answerText(prompt.responseJson, q)])));
   // A permission's answer is its outcome (the badge); only a message given with it adds something.
   const response = $derived(
     prompt.kind === InteractionKind.PERMISSION ? structureJson(JSON.stringify({ message: parseObject(prompt.responseJson)["message"] ?? null })) : structureJson(prompt.responseJson),
@@ -52,6 +42,8 @@
       {#if subject}<span class="truncate font-medium text-zinc-950 dark:text-white">{subject}</span>{/if}
       {#if prompt.answeredByThreadId}
         <span class="text-zinc-500 dark:text-zinc-400">answered by</span><ThreadLink threadId={prompt.answeredByThreadId} fallback="Parent agent" />
+      {:else if prompt.answeredByUserId}
+        <span class="text-zinc-500 dark:text-zinc-400">answered by you</span>
       {:else if prompt.routedTo === "parent" && !prompt.outcome}
         <span class="text-violet-700 dark:text-violet-400">for the parent agent</span>
       {/if}
@@ -68,7 +60,7 @@
         <div class="grid gap-0.5">
           <dt class="font-medium text-zinc-900 dark:text-zinc-100">{question.question || question.header || "Question"}</dt>
           <dd class="text-zinc-600 dark:text-zinc-400">
-            {#if answers[question.id]}{question.secret ? "Answered (hidden)" : answers[question.id]}{:else if question.options.length > 0}<span class="text-zinc-500 italic dark:text-zinc-400">Options: {question.options.map((o) => o.label).join(", ")}</span>{/if}
+            {#if answers[question.id]}{question.secret ? "Answered (hidden)" : answers[question.id]}{:else if prompt.outcome === "cancelled"}Dismissed{:else if question.options.length > 0}<span class="text-zinc-500 italic dark:text-zinc-400">Options: {question.options.map((o) => o.label).join(", ")}</span>{/if}
           </dd>
         </div>
       {/each}

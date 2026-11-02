@@ -1,62 +1,77 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Field from "#lib/shared/ui/Field.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
-  import { answersJson, parseQuestions } from "./questions.ts";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
+  import Alert from "#lib/shared/ui/Alert.svelte";
+  import QuestionOption from "./QuestionOption.svelte";
+  import type { QuestionSession } from "./question-session.svelte.ts";
 
-  /** The agent asks one or more questions; options are radio choices, free text where allowed. */
-  let { requestJson, busy, submit }: { requestJson: string; busy: boolean; submit: (answer: { answerJson?: string; cancelled?: boolean }) => void } = $props();
-  const questions = $derived(parseQuestions(requestJson));
-  let answers = $state<Record<string, string>>({});
-  const complete = $derived(questions.every((q) => (answers[q.id] ?? "").trim()));
+  let { session, more = 0, class: className }: { session: QuestionSession; more?: number; class?: ClassValue } = $props();
+  const question = $derived(session.question);
   const id = $props.id();
+  let panel = $state<HTMLElement>();
+
+  function keyboard(event: KeyboardEvent) {
+    if (session.collapsed || session.messaging || session.busy || event.isComposing || event.altKey || event.metaKey || event.ctrlKey || !panel?.contains(event.target as Node)) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, textarea, [contenteditable="true"], input[type="text"], input[type="password"]')) return;
+    const inputs = [...panel.querySelectorAll<HTMLInputElement>('input[type="radio"], input[type="checkbox"]')];
+    const index = inputs.indexOf(target as HTMLInputElement);
+    const number = /^[1-9]$/.test(event.key) ? Number(event.key) - 1 : -1;
+    if (number >= 0 && question.options[number]) {
+      event.preventDefault(); session.select(question.options[number]!.label); inputs[number]?.focus();
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault(); inputs[(index + (event.key === "ArrowDown" ? 1 : inputs.length - 1)) % inputs.length]?.focus();
+    } else if (event.key === "Enter") {
+      event.preventDefault(); void session.submit();
+    }
+  }
 </script>
 
-<form
-  class="grid gap-4"
-  onsubmit={(event) => {
-    event.preventDefault();
-    submit({ answerJson: answersJson(answers) });
-  }}
->
-  {#each questions as question, index (question.id)}
-    <fieldset class="grid gap-2">
-      <legend class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">
-        {#if question.header}<span class="mr-1 text-zinc-500 dark:text-zinc-400">{question.header}:</span>{/if}{question.question || `Question ${index + 1}`}
-      </legend>
-      {#if question.options.length > 0}
-        <div class="grid gap-1.5">
-          {#each question.options as option, optionIndex (optionIndex)}
-            <label class="flex cursor-pointer gap-3 rounded-lg p-2.5 ring-1 ring-zinc-950/10 has-checked:bg-zinc-950/2.5 has-checked:ring-zinc-950/40 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 dark:ring-white/10 dark:has-checked:bg-white/5 dark:has-checked:ring-white/40">
-              <span class="flex h-lh items-center text-base/6 sm:text-sm/6">
-                <span class="group inline-grid size-5 grid-cols-1 sm:size-4">
-                  <input
-                    type="radio"
-                    name="{id}-{question.id}"
-                    value={option.label}
-                    bind:group={answers[question.id]}
-                    class="col-start-1 row-start-1 appearance-none rounded-full border border-zinc-300 bg-white checked:border-zinc-950 checked:bg-zinc-950 focus-visible:outline-none dark:border-white/10 dark:bg-white/5 dark:checked:border-white dark:checked:bg-white forced-colors:appearance-auto"
-                  />
-                  <span class="pointer-events-none col-start-1 row-start-1 size-[round(down,40%,1px)] self-center justify-self-center rounded-full bg-white group-not-has-checked:opacity-0 dark:bg-zinc-950"></span>
-                </span>
-              </span>
-              <span class="text-base/6 sm:text-sm/6">
-                <span class="font-medium text-zinc-950 dark:text-white">{option.label}</span>
-                {#if option.description}<span class="block text-zinc-500 dark:text-zinc-400">{option.description}</span>{/if}
-              </span>
-            </label>
-          {/each}
-        </div>
-      {/if}
-      {#if question.other}
-        <Field label={question.options.length > 0 ? "Or answer in your own words" : "Your answer"}>
-          <Input name="{id}-{question.id}-text" type={question.secret ? "password" : "text"} autocomplete="off" bind:value={answers[question.id]} />
-        </Field>
-      {/if}
-    </fieldset>
-  {/each}
-  <div class="flex flex-wrap gap-2">
-    <Button type="submit" variant="primary" icon="paper-airplane" disabled={!complete} loading={busy}>Send answer</Button>
-    <Button disabled={busy} onclick={() => submit({ cancelled: true })}>Skip</Button>
+<svelte:window onkeydown={keyboard} />
+
+<section bind:this={panel} class={["min-w-0 px-3 py-2.5 sm:px-4", className]} aria-label="Questions from the agent">
+  <div class="flex min-w-0 items-center gap-2">
+    <button type="button" class="relative flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-left text-sm/5 focus-ring" aria-expanded={!session.collapsed} aria-controls="{id}-body" onclick={() => (session.collapsed = !session.collapsed)}>
+      <Icon name="question-mark-circle" class="fill-amber-600 dark:fill-amber-400" />
+      <span class="truncate rounded-md bg-zinc-950/5 px-2 py-0.5 font-medium text-zinc-950 dark:bg-white/8 dark:text-white">{question.header || "Question"}</span>
+      <span class="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400" aria-live="polite">{session.step + 1} of {session.questions.length}</span>
+      {#if more}<span class="text-zinc-500 dark:text-zinc-400">+{more} pending</span>{/if}
+      <Icon name="chevron-down" class={["t-acc-chevron ml-auto", !session.collapsed && "rotate-180"]} />
+      <TouchTarget />
+    </button>
   </div>
-</form>
+  <div id="{id}-body" class="t-acc-panel" data-open={!session.collapsed || undefined} inert={session.collapsed}>
+    <div>
+      <div class="grid gap-2 pt-2">
+        {#if session.interaction.routedTo === "parent"}<p class="text-sm/5 text-violet-700 dark:text-violet-400">The parent agent can answer. You can step in.</p>{/if}
+        <p class="text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">
+          {session.interaction.asynchronous ? "The agent keeps working — answer any time." : "The agent is waiting for your answers."}
+        </p>
+        <fieldset disabled={session.busy} class="min-w-0">
+          <legend class="w-full wrap-anywhere text-pretty text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">{question.question}</legend>
+          {#if question.options.length}
+            <ol role="list" class="grid max-h-[min(32dvh,22rem)] gap-0.5 overflow-y-auto overscroll-contain pt-2">
+              {#each question.options as option, index (index)}
+                <li><QuestionOption {option} {index} multiple={question.kind === "multiple_choice"} name="{id}-{question.id}" checked={session.labels.includes(option.label)} recommended={question.recommended === option.label} disabled={session.busy} onselect={() => session.select(option.label)} /></li>
+              {/each}
+            </ol>
+          {/if}
+        </fieldset>
+        <div class="flex flex-wrap items-center justify-between gap-1 pt-1 text-sm/5">
+          <div class="flex items-center gap-1">
+            <Button size="sm" variant="ghost" disabled={session.busy || session.step === 0} onclick={() => session.step--}>Back</Button>
+            <Button size="sm" variant="ghost" disabled={session.busy} onclick={() => void session.submit(true)}>Skip</Button>
+            <Button size="sm" variant="ghost" disabled={session.busy} onclick={() => void session.finish(true)}>Skip all</Button>
+            {#if !session.interaction.asynchronous}<Button size="sm" variant="ghost" disabled={session.busy} onclick={() => void session.finish(false, true)}>Dismiss</Button>{/if}
+          </div>
+          {#if session.interaction.asynchronous}
+            <Button size="sm" variant="ghost" aria-pressed={session.messaging} disabled={session.busy} onclick={() => (session.messaging = !session.messaging)}>{session.messaging ? "Answer questions" : "Send a message"}</Button>
+          {/if}
+        </div>
+        {#if session.error}<Alert tone="error">{session.error}</Alert>{/if}
+      </div>
+    </div>
+  </div>
+</section>
