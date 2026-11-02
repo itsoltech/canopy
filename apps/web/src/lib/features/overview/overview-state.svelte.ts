@@ -64,7 +64,11 @@ export class OverviewState {
   #replace(overview: ui.GetOverviewResponse, threads: readonly ui.Thread[]): void {
     this.workers = overview.workers;
     this.projects = overview.projects;
-    this.threads = new Map(threads.map((t) => [t.id, t]));
+    const visible = new Map(threads.filter((t) => !t.deletedAt).map((t) => [t.id, t]));
+    // Reconcile deletions and restores that happened while the overview stream was disconnected.
+    for (const id of this.threads.keys()) if (!visible.has(id)) this.#deleted.add(id);
+    for (const id of visible.keys()) this.#deleted.delete(id);
+    this.threads = visible;
     this.#synced = true;
   }
 

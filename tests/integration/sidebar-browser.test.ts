@@ -89,8 +89,10 @@ describe.skipIf(Bun.env["OA_BROWSER_TESTS"] !== "1")("sidebar browser acceptance
     const filter = page.getByRole("dialog", { name: "Filter threads", exact: true });
     await filter.getByRole("searchbox", { name: "Search projects" }).fill("Alpha");
     await filter.getByRole("checkbox", { name: "Alpha", exact: true }).check();
-    await screenshot(page, "desktop-light-filter");
     await nav.locator(`a[href="/threads/${other.id}"]`).waitFor({ state: "hidden" });
+    await row().waitFor();
+    await page.waitForTimeout(600); // Let the sidebar's stagger and FLIP finish before recording its layout.
+    await screenshot(page, "desktop-light-filter");
     await filter.getByRole("searchbox", { name: "Search projects" }).fill("");
     await filter.getByRole("checkbox", { name: "Beta", exact: true }).check();
     await nav.locator(`a[href="/threads/${other.id}"]`).waitFor();
