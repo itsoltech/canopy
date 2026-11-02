@@ -8,7 +8,7 @@ import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
  * (dynamicTools) from the generated JSON Schema, and the gateway decodes calls with the same schemas.
  *
  * Design rules:
- * - spawn/send return immediately (ids); completion arrives as a notification turn or via wait,
+ * - spawn/send return immediately (ids); completion arrives as a platform steer (or a turn) or via wait,
  * - wait is bounded and safe to repeat (provider tool timeouts, worker restarts),
  * - results carry ids, never other threads' full transcripts unless asked (read_thread),
  * - two levels only: a main thread (level 0) orchestrates side threads (level 1); side threads

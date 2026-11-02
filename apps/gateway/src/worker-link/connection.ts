@@ -15,6 +15,7 @@ type KindInit = NonNullable<MessageInitShape<typeof CommandSchema>["kind"]>;
 export type CommandInit = Exclude<KindInit, { case: undefined }>;
 
 interface PendingCommand {
+  promise: Promise<CommandResult>;
   resolve(result: CommandResult): void;
   reject(error: unknown): void;
   timer: Timer;
@@ -52,23 +53,24 @@ export class WorkerConnection {
     }
   }
 
-  /** Sends a command and waits for the matching CommandResult. */
-  sendCommand(command: CommandInit, timeoutMs = 10_000): Promise<CommandResult> {
-    const commandId = Bun.randomUUIDv7();
-    return new Promise<CommandResult>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.#pending.delete(commandId);
-        reject(new ConnectError(`command ${commandId} timed out`, Code.DeadlineExceeded));
-      }, timeoutMs);
-      this.#pending.set(commandId, { resolve, reject, timer });
-      try {
-        this.send({ case: "command", value: create(CommandSchema, { commandId, kind: command }) });
-      } catch (error) {
-        clearTimeout(timer);
-        this.#pending.delete(commandId);
-        reject(error);
-      }
-    });
+  /** Sends a command, preserving its durable outbox id on retries. Concurrent retries share the acknowledgement. */
+  sendCommand(command: CommandInit, timeoutMs = 10_000, commandId = Bun.randomUUIDv7()): Promise<CommandResult> {
+    const existing = this.#pending.get(commandId);
+    if (existing) return existing.promise;
+    const { promise, resolve, reject } = Promise.withResolvers<CommandResult>();
+    const timer = setTimeout(() => {
+      this.#pending.delete(commandId);
+      reject(new ConnectError(`command ${commandId} timed out`, Code.DeadlineExceeded));
+    }, timeoutMs);
+    this.#pending.set(commandId, { promise, resolve, reject, timer });
+    try {
+      this.send({ case: "command", value: create(CommandSchema, { commandId, kind: command }) });
+    } catch (error) {
+      clearTimeout(timer);
+      this.#pending.delete(commandId);
+      reject(error);
+    }
+    return promise;
   }
 
   /** Ends the stream from the gateway side (e.g. credential revoked, replaced by a newer connection). */
