@@ -358,13 +358,17 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
-    this.secrets.close();
     this.#closing = true;
-    for (const generation of this.#generations.keys()) generation.abort();
-    await Promise.allSettled(this.#generations.values());
-    for (const group of [...this.#codex.keys()]) await this.#stopCodex(group);
-    await this.#closeCodexOrphans();
-    await this.#stopClaude();
+    try {
+      for (const generation of this.#generations.keys()) generation.abort();
+      await Promise.allSettled(this.#generations.values());
+      for (const group of [...this.#codex.keys()]) await this.#stopCodex(group);
+      await this.#closeCodexOrphans();
+      await this.#stopClaude();
+    } finally {
+      // Keep masking late provider output until its processes have stopped.
+      this.secrets.close();
+    }
   }
 
   /**
