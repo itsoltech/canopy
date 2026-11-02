@@ -248,8 +248,10 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
       Effect.gen(function* () {
         const store = yield* GatewayStore;
         const userId = yield* store.ensureUser("other@localhost", "Other");
+        const worker = yield* store.addWorker({ name: "Other owner's worker", ownerUserId: userId });
+        yield* store.setWorkerConfig(worker.workerId, { allowedRoots: ["/repo/theirs"], codex: { enabled: true } }, userId);
         const project = yield* store.createProject(userId, "Theirs");
-        const workspace = yield* store.createWorkspace({ projectId: project.id, workerId: gw.workerId, rootPath: "/repo/theirs", label: "" });
+        const workspace = yield* store.createWorkspace({ projectId: project.id, workerId: worker.workerId, rootPath: "/repo/theirs", label: "" });
         return yield* store.createThread(userId, create(ui.CreateThreadRequestSchema, { projectId: project.id, workspaceId: workspace.id, title: "Their thread", provider: Provider.CODEX }));
       }),
     );
