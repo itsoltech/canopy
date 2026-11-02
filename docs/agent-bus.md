@@ -245,10 +245,10 @@ Ustalone (2026-11-01):
 1. Odpowiadanie na interakcje jest konfigurowalne per wątek. Wątki agentów domyślnie trafiają do rodzica-agenta, a użytkownik zawsze może odpowiedzieć i pisać w każdym wątku.
 2. Harmonogram dostawców jest wyłączony; zastępuje go harmonogram platformy dla obu dostawców.
 3. Wiadomości do rodzeństwa są dozwolone.
-6. (2026-11-02) Subagent może działać na dowolnej instancji dostawcy workera; fork zachowuje instancję. `send_message` i odczyty sięgają każdego wątku właściciela; sterowanie i `wait_threads` zostają w drzewie, przeskoki liczą się między drzewami.
 4. Dwa poziomy: wątki boczne nie tworzą kolejnych.
 
 5. Szyna nie ma narzędzi celów: cele należą do harnessu (model używa jego narzędzi), platforma je śledzi ([goals.md](goals.md)).
+6. (2026-11-02) Subagent może działać na dowolnej instancji dostawcy workera; fork zachowuje instancję. `send_message` i odczyty sięgają każdego wątku właściciela; sterowanie i `wait_threads` zostają w drzewie, przeskoki liczą się między drzewami.
 
 Otwarte:
 
