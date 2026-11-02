@@ -16,8 +16,9 @@
     queue,
     delivery,
     ondelivery,
+    embedded = false,
     class: className,
-  }: { queue: QueueState; delivery: "steer" | "queue"; ondelivery: (delivery: "steer" | "queue") => void; class?: ClassValue } = $props();
+  }: { queue: QueueState; delivery: "steer" | "queue"; ondelivery: (delivery: "steer" | "queue") => void; embedded?: boolean; class?: ClassValue } = $props();
 
   let list = $state<HTMLOListElement>();
   const drag = new QueueDrag({
@@ -34,7 +35,7 @@
     held ? { duration: 0 } : reorder(node, positions);
 </script>
 
-<section aria-label="Queued messages" class={["rounded-t-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10", className]}>
+<section aria-label="Queued messages" class={[!embedded && "rounded-t-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10", className]}>
   <ol bind:this={list} role="list" class="relative grid grid-cols-1 p-1">
     {#each queue.rows as turn, index (turn.id)}
       <li data-queue-row class="relative" animate:glide={{ held: drag.id === turn.id }} transition:expand>

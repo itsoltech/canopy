@@ -39,7 +39,7 @@ const turns = (threadId: string) =>
     threadId,
   );
 const items = (threadId: string) =>
-  query<{ item_id: string; status: string }>("SELECT item_id, status FROM thread_items WHERE thread_id = $1::uuid ORDER BY first_seq", threadId);
+  query<{ item_id: string; status: string }>("SELECT item_id, status FROM thread_items WHERE thread_id = $1::uuid AND type <> 'interaction_prompt' ORDER BY first_seq", threadId);
 const threadStatus = async (threadId: string) => (await query<{ status: string }>("SELECT status FROM threads WHERE id = $1::uuid", threadId))[0]?.status;
 const snapshotOf = async (threadId: string) => {
   const updates = await watchUntil(gw.api, threadId, (u) => u.some((x) => x.change.case === "snapshot"));
@@ -118,13 +118,14 @@ describe.skipIf(!dockerAvailable)("durable threads (gateway + scripted worker)",
     expect(await threadStatus(threadId)).toBe("idle");
     // The audit trail of what the gateway closed.
     const audit = await query<{ item_id: string; reason: string }>(
-      "SELECT item_id, raw->>'reason' AS reason FROM thread_events WHERE thread_id = $1::uuid AND origin = 'gateway' ORDER BY seq",
+      "SELECT item_id, raw->>'reason' AS reason FROM thread_events WHERE thread_id = $1::uuid AND origin = 'gateway' AND raw->>'reason' IS NOT NULL ORDER BY seq",
       threadId,
     );
     expect(audit.map((a) => a.item_id).sort()).toEqual(["agent-1", "cmd-1", "rs-1", "tool-1"]);
     expect(audit[0]?.reason).toContain("worker restarted");
     // The output the command showed is kept.
     const snapshot = await snapshotOf(threadId);
+    expect(snapshot.items.find((i) => i.item?.content.case === "interactionPrompt")?.item?.content).toMatchObject({ case: "interactionPrompt", value: { outcome: "expired" } });
     const command = snapshot.items.find((i) => i.item?.itemId === "cmd-1")?.item;
     expect(command?.content).toMatchObject({ case: "commandExecution", value: { output: "partial output" } });
     expect(snapshot.turns[0]).toMatchObject({ status: "interrupted", interruptSource: "system", interruptReason: "worker restarted" });
@@ -212,7 +213,7 @@ describe.skipIf(!dockerAvailable)("durable threads (gateway + scripted worker)",
     expect((await items(threadId)).find((i) => i.item_id === "stale-cmd")?.status).toBe("interrupted");
     expect(await threadStatus(threadId)).toBe("idle");
     expect((await query<{ n: number }>("SELECT count(*)::int AS n FROM interaction_requests WHERE thread_id = $1::uuid AND status = 'pending'", threadId))[0]?.n).toBe(0);
-    const [audit] = await query<{ reason: string }>("SELECT raw->>'reason' AS reason FROM thread_events WHERE thread_id = $1::uuid AND origin = 'gateway'", threadId);
+    const [audit] = await query<{ reason: string }>("SELECT raw->>'reason' AS reason FROM thread_events WHERE thread_id = $1::uuid AND origin = 'gateway' AND raw->>'reason' LIKE '%sweep%'", threadId);
     expect(audit?.reason).toContain("sweep");
     expect(await gw.core.sweep()).not.toContain(threadId);
     await usable(threadId, "after sweep");

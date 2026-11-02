@@ -1,4 +1,5 @@
 import { Result, Schema } from "effect";
+import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
 import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 
 /**
@@ -189,6 +190,7 @@ interface ToolDefinition<S extends Schema.Top> {
 const define = <S extends Schema.Top>(tool: ToolDefinition<S>) => tool;
 
 export const AGENT_BUS_TOOLS = {
+  ...QUESTION_TOOLS,
   list_agents: define({
     name: "list_agents",
     description:
@@ -342,6 +344,10 @@ export function decodeAgentBusCall(name: string, argumentsJson: string): Result.
   const decoded = Schema.decodeUnknownResult(AGENT_BUS_TOOLS[name].args as Schema.Codec<unknown>)(raw, {
     onExcessProperty: "error",
   });
+  if (Result.isSuccess(decoded) && name === "ask_user") {
+    const problem = questionsProblem((decoded.success as AgentBusArgs["ask_user"]).questions);
+    if (problem) return Result.fail(`ask_user: ${problem}`);
+  }
   return Result.isSuccess(decoded)
     ? Result.succeed({ tool: name, args: decoded.success } as AgentBusCall)
     : Result.fail(`${name}: ${decoded.failure.message}`);

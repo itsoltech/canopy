@@ -43,6 +43,7 @@ Subagenci i harmonogramy dostawców działają poza kontrolą platformy: są ulo
 - Agent może włączyć każdą kategorię z powrotem (`ThreadSpec.native_subagents`, `native_scheduling`). Dla Codexa przełącznik działa per proces app-server; per wątek do sprawdzenia w spike'u.
 - **Cele zostają włączone celowo:** to cele harnessów (Codex `goals`, Claude `/goal`), które platforma śledzi i którymi użytkownik steruje z UI — [goals.md](goals.md).
 - Bez zmian zostają zadania w tle, które nie są agentami (background Bash, procesy Codexa) — [execution.md](execution.md#4-zadania-w-tle).
+- **Natywne pytania zostają włączone:** Claude `AskUserQuestion` i Codex `request_user_input`. Platformowe `ask_user` zapewnia wspólny kontrakt i trwałość, lecz synchroniczny wait MCP trzeba odnawiać. Nie ma więc równoważnej gwarancji jednego bezterminowo otwartego wywołania w obu harnessach. Wszystkie trzy źródła pytań korzystają z tego samego panelu nad kompozytorem; różnią się adapterem odpowiedzi i zachowaniem po restarcie (sekcja 3 poniżej i [execution.md §6](execution.md#6-interakcje-z-użytkownikiem)).
 
 ## 2. Model: dwa poziomy
 
@@ -80,6 +81,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `get_thread` / `read_thread` / `list_threads` | ✓ | ✓ | status (z dostawcą, modelem, wysiłkiem, uprawnieniami, `last_turn`, projektem i workerem), transkrypt, lista (`children`, `tree`, `all` z `query` i `limit`) |
 | `interrupt_thread` / `close_thread` | ✓ | | sterowanie potomkami |
 | `list_interactions` / `answer_interaction` | ✓ | | pytania i prośby o zgodę od wątków bocznych |
+| `ask_user` / `get_answers` | ✓ | ✓ | trwały zestaw 1–4 pytań do człowieka albo rodzica; `wait: true` czeka, `false` pozwala pracować dalej; odczyt odpowiedzi tylko we własnym wątku |
 | `schedule_wakeup` | ✓ | ✓ | jednorazowo później (`delay_seconds` albo `at`, do 7 dni) |
 | `schedule_recurring` | ✓ | ✓ | cron (min. 5 min), wymagane `until` (do 30 dni) albo `max_runs` |
 | `list_schedules` / `cancel_schedule` | ✓ | ✓ | własne harmonogramy i harmonogramy potomków |
@@ -163,6 +165,30 @@ Na żywo: `tests/integration/platform-subagents.live.test.ts` — Codex (`gpt-6.
 
 - `spawn_thread` i `send_message` nie blokują. Wynik przychodzi jako **powiadomienie** (`notify`, domyślnie włączone): gdy tura docelowa się kończy, gateway zaczyna w wątku wywołującym nową turę z wynikiem. Jeśli wywołujący ma turę w toku, powiadomienie czeka w kolejce.
 - `wait_threads` jest dla orkiestracji synchronicznej i jest **ograniczone w czasie oraz ponawialne**. Claude SDK ma twardy limit czasu wywołania narzędzia MCP, a limit narzędzi dynamicznych Codexa nie jest udokumentowany. `wait_threads` zwraca też wcześniej, gdy wątek boczny czeka na odpowiedź rodzica.
+
+### Pytania platformy: ask_user i get_answers
+
+Osobna definicja `packages/domain/src/agent-bus/questions.ts` jest źródłem schematów i opisów obu harnessów (Claude `mcp__openagents__ask_user`, Codex dynamiczne `ask_user`). `questions` zawiera 1–4 pytania: unikalne `id`, krótki `header` (do 32 znaków), `question`, `kind` (`single_choice`, `multiple_choice`, `text`), opcjonalne `options` (1–9, `label` i opcjonalne `description`) oraz `recommended` (etykieta jednej opcji). Rekomendacja nie zaznacza opcji za użytkownika. Własny tekst jest dozwolony przy każdym rodzaju pytania.
+
+`ask_user({questions, wait: false})` od razu zwraca `question_set_id` i `status: pending`. `get_answers({question_set_id, wait?})` odczytuje stan. Odpowiedź zawiera `status: answered | dismissed` i uporządkowaną listę `answers`; każdy element ma `id` i jedną z postaci:
+
+```json
+{"id":"auth","kind":"choice","labels":["OAuth"]}
+{"id":"notes","kind":"text","text":"Wymagane SSO"}
+{"id":"extras","kind":"skipped"}
+```
+
+To trzy osobne przykłady elementów tablicy. `dismissed` oznacza odrzucenie całego zestawu (`answers: []`); „Skip all” daje jawne `skipped` dla każdego pytania. Gateway waliduje kompletność, etykiety, jedno/wiele zaznaczeń i brak duplikatów. Rodzic używa `answer_interaction` z `answer_json: "{\"answers\":[...]}"`; użytkownik może odpowiedzieć zamiast niego. Odpowiadający, treść i pominięcia zostają w `interaction_prompt`.
+
+**Synchronicznie:** `wait: true` trzyma wywołanie najwyżej 120 s. Przy `pending` opis narzędzia i wynik nakazują ponawiać `get_answers({question_set_id, wait: true})` bez wykonywania dalszej pracy. Zestaw nie wygasa po tych 120 s, zakończeniu tury ani restarcie. Jest to odnawialny wait, jak `wait_threads`; po zwróceniu `pending` platforma nie blokuje technicznie innych narzędzi modelu. Po awarii odpowiedź wznawia pracę jako nowa tura, jeśli nie ma już oczekującego wywołania.
+
+**Dowody wyboru (2026-11-02):** przypięty Claude Agent SDK **0.3.316**, `createSdkMcpServer.timeout` (`sdk.d.ts`), opisuje twardy limit wall-clock, którego progress nie przedłuża. Produkcyjny serwer szyny ma 330000 ms. `apps/worker/src/providers/claude/tool-timeout.live.test.ts` potwierdził przez CLIProxyAPI, że limit 1000 ms przerywa odpowiedź handlera trwającego 2500 ms. W przypiętym Codex **0.164.0** [`request_dynamic_tool`](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/dynamic.rs) czeka na `rx_response.or_cancel(...)` bez lokalnego timera. Test live Codexa z `OA_ASK_LONG_WAIT=1` podał odpowiedź po 123 s: model odnowił wait przez `get_answers` i wykorzystał odpowiedź. Nie zakładamy bezterminowości pozostałych warstw transportu.
+
+**Asynchronicznie:** zapis odpowiedzi tworzy trwały outbox. Gdy trwa tura, gateway zapisuje `turn_steers` i komendę workera w jednej transakcji. Odmowa lub upuszczenie steera uruchamia istniejący fallback kolejki. Gdy tury już nie ma, odpowiedź zaczyna nową turę `agent_bus`. W obu przypadkach `hops` = `hops` tury pytającej + 1; odpowiedź człowieka nie zeruje tego łańcucha.
+
+Migracja **0025** rozszerza `interaction_requests` o powiązanie z wywołaniem szyny, tryb oczekiwania i stan dostarczenia (`pending`, `consumed`, `delivered`, `cancelled`). Ponowione `call_id` dołącza do tego samego zestawu. Zapis odpowiedzi i rekordu osi czasu jest atomowy. Po przerwaniu/awarii tury synchronicznej również odpowiedź oznaczona jako `consumed` zostaje dostarczona w nowej turze: transport wyniku nie ma osobnego potwierdzenia, więc w tym wąskim wyścigu dopuszczamy powtórne dostarczenie zamiast utraty. Po poprawnym zakończeniu tury nie ma powtórzenia.
+
+Weryfikacja: `questions.test.ts` domeny i UI, `tests/integration/ask-user.test.ts` (sync/async, skip, dismiss, replay, restart, fallback i rodzic), `ask-user.live.test.ts` (sync i async ze steerem w tej samej turze dla Codexa i Claude). Sekrety live pochodzą wyłącznie ze środowiska testów.
 
 ## 4. Interakcje w wątkach bocznych
 
