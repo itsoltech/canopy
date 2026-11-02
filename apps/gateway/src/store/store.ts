@@ -74,6 +74,7 @@ export interface ThreadRow {
   title: string;
   title_source: "provisional" | "generated" | "user";
   title_revision: bigint;
+  title_requested: boolean;
   title_context: string;
   last_seq: bigint;
   created_at: Date;
