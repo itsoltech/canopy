@@ -2,6 +2,7 @@ import { ui } from "@open-agents/contracts";
 import type { PermissionModeKey } from "./labels.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
+import type { WireQuote } from "#lib/features/quotes/quote.ts";
 
 /** Browser-side calls to the BFF (same origin, JSON). */
 const post = (path: string, body: unknown) => requestJson("POST", path, body);
@@ -13,7 +14,7 @@ export type Delivery = "queue" | "steer";
 /**
  * A message: `turn` when it became a turn (queued, also a steer without a running turn), `steer` when it
  * joins the running turn. `model` / `effort` / `permissionMode`: this turn only (unset = the thread's defaults; a
- * steer runs in the mode of the turn it joins).
+ * steer runs in the mode of the turn it joins). `quotes`: passages of the thread it quotes (quote drafts), steer too.
  */
 export async function sendMessage(
   threadId: string,
@@ -22,10 +23,18 @@ export async function sendMessage(
   turn: { model?: string; effort?: string; permissionMode?: PermissionModeKey } = {},
   delivery: Delivery = "queue",
   attachmentIds: readonly string[] = [],
+  quotes: readonly WireQuote[] = [],
 ): Promise<ui.SendMessageResponse> {
   return decode(
     ui.SendMessageResponseSchema,
-    await post(`${threadPath(threadId)}/messages`, { text, clientRequestId, ...turn, delivery, ...(attachmentIds.length > 0 && { attachmentIds }) }),
+    await post(`${threadPath(threadId)}/messages`, {
+      text,
+      clientRequestId,
+      ...turn,
+      delivery,
+      ...(attachmentIds.length > 0 && { attachmentIds }),
+      ...(quotes.length > 0 && { quotes }),
+    }),
   );
 }
 

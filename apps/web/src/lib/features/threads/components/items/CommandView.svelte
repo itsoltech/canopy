@@ -19,8 +19,8 @@
     {#if command.exitCode !== undefined}<Badge tone={command.exitCode === 0 ? "emerald" : "rose"}>exit {command.exitCode}</Badge>{/if}
   {/snippet}
   {#if command.command.includes("\n")}
-    <pre class="code-surface rounded-lg bg-zinc-950/2.5 p-3 text-zinc-950 dark:bg-white/5 dark:text-white">{command.command}</pre>
+    <pre data-quote-kind="code" data-quote-lang="sh" class="code-surface rounded-lg bg-zinc-950/2.5 p-3 text-zinc-950 dark:bg-white/5 dark:text-white">{command.command}</pre>
   {/if}
   {#if command.cwd}<p class="truncate font-mono text-xs/5 text-zinc-500 dark:text-zinc-400" title={command.cwd}>in {command.cwd}</p>{/if}
-  <OutputBlock output={command.output} blob={command.outputBlob} label="Output of {command.command.split('\n')[0]}" empty={status === ItemStatus.IN_PROGRESS ? "Waiting for output…" : "No output."} {streaming} />
+  <OutputBlock quoteKind="command_output" output={command.output} blob={command.outputBlob} label="Output of {command.command.split('\n')[0]}" empty={status === ItemStatus.IN_PROGRESS ? "Waiting for output…" : "No output."} {streaming} />
 </ItemFrame>

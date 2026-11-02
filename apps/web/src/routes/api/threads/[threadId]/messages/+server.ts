@@ -19,15 +19,29 @@ const Body = Schema.Struct({
   delivery: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
   // Uploaded attachments (api/attachments); a message with attachments is always queued.
   attachmentIds: Schema.optionalKey(Schema.Array(Schema.String.check(Schema.isUUID())).check(Schema.isMaxLength(50))),
+  // Passages of the thread the message quotes, each with an optional comment (the gateway checks the limits).
+  quotes: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        text: Schema.String.check(Schema.isMaxLength(20_000)),
+        comment: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(4_000))),
+        sourceItemId: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
+        sourceThreadId: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
+        sourceKind: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
+        language: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
+      }),
+    ).check(Schema.isMaxLength(20)),
+  ),
 });
 
 export const POST: RequestHandler = async ({ request, params }) => {
-  const { delivery, permissionMode, attachmentIds, ...body } = await readBody(request, Body);
+  const { delivery, permissionMode, attachmentIds, quotes, ...body } = await readBody(request, Body);
   const response = await call((api) =>
     api.sendMessage({
       threadId: params.threadId,
       ...body,
       attachmentIds: [...(attachmentIds ?? [])],
+      quotes: (quotes ?? []).map((quote) => ({ ...quote })),
       ...(permissionMode && { permissionMode: PermissionMode[permissionMode] }),
       delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
     }),

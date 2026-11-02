@@ -14,6 +14,7 @@
   import type { Snippet } from "svelte";
   import type { UserMessage, ui } from "@open-agents/contracts";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
+  import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
@@ -21,20 +22,23 @@
   /**
    * A message you (or another agent, over the agent bus) wrote: the input of a turn, or one steered into
    * it while it ran. `note` says what happens to it; `pending` dims it until it reaches the agent. `files`: the
-   * message's attachments (images and file chips under the text); `details` goes inside the bubble (e.g. the full
-   * text the agent received with the platform note).
+   * message's attachments (images and file chips under the text); `quotes`: passages of the thread it quotes, in
+   * the bubble above the text; `details` goes inside the bubble (e.g. the full text the agent received with the
+   * platform note).
    */
   let {
     message,
     note,
     pending = false,
     files = [],
+    quotes = [],
     details,
   }: {
     message: Pick<UserMessage, "text" | "authorAgentId" | "attachments">;
     note?: MessageNote | undefined;
     pending?: boolean;
     files?: readonly ui.Attachment[];
+    quotes?: readonly ui.Quote[];
     details?: Snippet | undefined;
   } = $props();
   const fromAgent = $derived(Boolean(message.authorAgentId));
@@ -60,7 +64,7 @@
   {#if files.length > 0}
     <MessageAttachments attachments={files} class={[pending && "opacity-70"]} />
   {/if}
-  {#if message.text.trim() || details}
+  {#if message.text.trim() || details || quotes.length > 0}
     <div
       class={[
         "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md px-4 py-2.5 text-base/6 break-words sm:text-sm/6",
@@ -68,6 +72,7 @@
         pending && "opacity-70",
       ]}
     >
+      {#if quotes.length > 0}<MessageQuotes {quotes} class={[message.text.trim() && "mb-2"]} />{/if}
       {#if message.text.trim()}<p class="whitespace-pre-wrap">{message.text}</p>{/if}
       {@render details?.()}
     </div>

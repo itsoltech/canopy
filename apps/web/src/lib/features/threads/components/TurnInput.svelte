@@ -31,6 +31,7 @@
   const origin = $derived(turnOrigin(turn));
   // The platform's note (where the input comes from) and the delivered content, kept apart by the gateway.
   const parts = $derived({ note: turn.platformNote, message: turn.messageText });
+  const noted = $derived((turn.attachments.length > 0 || turn.quotes.length > 0) && Boolean(parts.note));
   const tone = $derived(origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet");
   const icons: Record<string, IconName> = { task: "sparkles", message: "chat-bubble-left-right", report: "document-text", question: "hand-raised", schedule: "clock" };
   const triggerLabels: Record<string, string> = { agent_bus: "From an agent", interaction: "A side thread is waiting", schedule: "Scheduled", goal: "Goal" };
@@ -44,13 +45,15 @@
 </script>
 
 {#if origin.kind === "user"}
-  <!-- With attachments the agent got a platform note listing their paths: the message shows the files, the full text folds. -->
+  <!-- With attachments or quotes the agent got a platform note (the files' paths, the quoted passages): the message
+       shows the files and quotes, the full text folds. -->
   <UserMessageView
-    message={{ text: turn.attachments.length > 0 && parts.note ? parts.message : text, authorAgentId: "", attachments: [...attachments] }}
+    message={{ text: noted ? parts.message : text, authorAgentId: "", attachments: [...attachments] }}
     files={turn.attachments}
+    quotes={turn.quotes}
     note={queuedNote(queued, fallback)}
     pending={queued}
-    details={turn.attachments.length > 0 && parts.note ? fullText : undefined}
+    details={noted ? fullText : undefined}
   />
 {:else}
   <div class="flex flex-col items-end gap-1">

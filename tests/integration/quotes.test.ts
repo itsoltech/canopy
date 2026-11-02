@@ -82,7 +82,7 @@ describe.skipIf(!dockerAvailable)("quotes (gateway + scripted worker)", () => {
 
   test("quotes are checked: count, empty text, unknown source kind", async () => {
     const thread = await newThread("checked");
-    const send = (quotes: Partial<ui.Quote>[], id: string) => gw.api.sendMessage({ threadId: thread.id, text: "x", clientRequestId: id, quotes });
+    const send = (quotes: { text: string; sourceKind?: string }[], id: string) => gw.api.sendMessage({ threadId: thread.id, text: "x", clientRequestId: id, quotes });
     expect(await failure(send([{ text: "  " }], "c-1"))).toContain("quote 1 is empty");
     expect(await failure(send([{ text: "a", sourceKind: "image" }], "c-2"))).toContain('unknown source kind "image"');
     expect(await failure(send(Array.from({ length: 21 }, () => ({ text: "a" })), "c-3"))).toContain("up to 20 quotes");

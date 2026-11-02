@@ -64,7 +64,7 @@
 {:else if row.kind === "working"}
   <p class="pb-3 text-base/6 sm:text-sm/6"><span class="shimmer inline-block py-1 font-medium">Working…</span></p>
 {:else if row.kind === "steer"}
-  <div class="pb-3"><UserMessageView message={{ text: row.steer.text, authorAgentId: row.steer.sourceThreadId, attachments: [] }} note={steeringNote(row.steer)} pending /></div>
+  <div class="pb-3"><UserMessageView message={{ text: row.steer.text, authorAgentId: row.steer.sourceThreadId, attachments: [] }} quotes={row.steer.quotes} note={steeringNote(row.steer)} pending /></div>
 {:else}
   <div class="pb-3"><TurnInput turn={row.turn} text={row.turn.inputText} queued fallback={row.fallback} /></div>
 {/if}
