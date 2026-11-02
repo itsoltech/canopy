@@ -12,6 +12,8 @@
   import WorkerPicker from "#lib/features/projects/WorkerPicker.svelte";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
+  import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
+  import type { Mention } from "@open-agents/contracts";
   import ComposerNotice from "#lib/features/threads/components/ComposerNotice.svelte";
   import { findOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
@@ -83,6 +85,11 @@
   const permissionMode = $derived(permission ?? permissionKey(defaults.permissionMode));
 
   let message = $state("");
+  let mentions = $state<Mention[]>([]);
+  // Mentions of the first message: commands, skills and files of the chosen worker, folder and agent.
+  const sources = new MentionSources(() =>
+    workspace && selected ? { workspaceId: workspace.id, provider: Provider[selected.provider], providerProfileId: selected.profileId } : undefined,
+  );
   // Files of the first message (uploaded as added; their ids go with the form).
   const draft = new AttachmentDraft(() => limitsOf(settings.attachmentLimits));
   let busy = $state(false);
@@ -145,6 +152,8 @@
           {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
           <ComposerBox
             bind:value={message}
+            bind:mentions
+            {sources}
             sending={busy}
             canSend={!blocker && !draft.blocker}
             autofocus

@@ -14,6 +14,8 @@
   import type { Snippet } from "svelte";
   import type { UserMessage, ui } from "@open-agents/contracts";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
+  import { withoutPlatformNote } from "#lib/features/mentions/editor.ts";
+  import MentionText from "#lib/features/mentions/MentionText.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
@@ -31,13 +33,15 @@
     files = [],
     details,
   }: {
-    message: Pick<UserMessage, "text" | "authorAgentId" | "attachments">;
+    message: Pick<UserMessage, "text" | "authorAgentId" | "attachments"> & { mentions?: UserMessage["mentions"] };
     note?: MessageNote | undefined;
     pending?: boolean;
     files?: readonly ui.Attachment[];
     details?: Snippet | undefined;
   } = $props();
   const fromAgent = $derived(Boolean(message.authorAgentId));
+  // With mentions the chips render; the platform's note in front (threads, files) is the agent's, not shown here.
+  const shown = $derived(message.mentions?.length ? withoutPlatformNote({ text: message.text, mentions: [...message.mentions] }) : undefined);
 </script>
 
 <div class="flex flex-col items-end gap-1">
@@ -68,7 +72,7 @@
         pending && "opacity-70",
       ]}
     >
-      {#if message.text.trim()}<p class="whitespace-pre-wrap">{message.text}</p>{/if}
+      {#if shown}<MentionText text={shown.text} mentions={shown.mentions} />{:else if message.text.trim()}<p class="whitespace-pre-wrap">{message.text}</p>{/if}
       {@render details?.()}
     </div>
   {/if}

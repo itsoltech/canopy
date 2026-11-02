@@ -1,0 +1,111 @@
+<script lang="ts">
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import { kindLook, safeIcon } from "./kinds.ts";
+  import type { MentionOption } from "./sources.svelte.ts";
+
+  /**
+   * The mention popup's list (WAI-ARIA listbox driven from the editor: focus stays in the text, arrows move
+   * `active`, Enter or Tab chooses). Grouped by kind with sticky headings; each row has the kind's icon (or the
+   * plugin's), the name with the typed characters highlighted, and a line about it. Touch: a tap chooses.
+   */
+  let {
+    id,
+    label,
+    options,
+    active,
+    loading,
+    error,
+    empty,
+    onchoose,
+    onactive,
+  }: {
+    id: string;
+    label: string;
+    options: readonly MentionOption[];
+    active: number;
+    loading: boolean;
+    error: string | undefined;
+    /** Shown when nothing matches (says what this trigger lists). */
+    empty: string;
+    onchoose: (option: MentionOption) => void;
+    onactive: (index: number) => void;
+  } = $props();
+
+  const groups = $derived.by(() => {
+    const out: { label: string; entries: { option: MentionOption; index: number }[] }[] = [];
+    options.forEach((option, index) => {
+      const last = out.at(-1);
+      if (last?.label === option.group) last.entries.push({ option, index });
+      else out.push({ label: option.group, entries: [{ option, index }] });
+    });
+    return out;
+  });
+
+  $effect(() => {
+    if (active < 0) return;
+    if (active === 0) document.getElementById(`${id}-list`)?.scrollTo({ top: 0 });
+    else document.getElementById(`${id}-option-${active}`)?.scrollIntoView({ block: "nearest" });
+  });
+
+  /** The title split into plain and matched runs. */
+  function runs(title: string, indices: readonly number[]): { text: string; hit: boolean }[] {
+    const hits = new Set(indices);
+    const out: { text: string; hit: boolean }[] = [];
+    [...title].forEach((ch, i) => {
+      const hit = hits.has(i);
+      const last = out.at(-1);
+      if (last && last.hit === hit) last.text += ch;
+      else out.push({ text: ch, hit });
+    });
+    return out;
+  }
+</script>
+
+<ul id="{id}-list" role="listbox" aria-label={label} class="grid grid-cols-1 content-start p-1">
+  {#each groups as group (group.label)}
+    <li role="presentation" class="sticky top-0 z-10 -mx-1 bg-white px-3.5 pt-2 pb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:bg-zinc-900 dark:text-zinc-400">
+      <div class="truncate">{group.label}</div>
+    </li>
+    {#each group.entries as { option, index } (option.key)}
+      {@const icon = safeIcon(option.data.icon)}
+      <!-- Keys reach options through the editor (aria-activedescendant); a tap or click picks with the pointer. -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <li
+        id="{id}-option-{index}"
+        role="option"
+        aria-selected={index === active}
+        data-active={index === active || undefined}
+        class="flex cursor-default scroll-mt-9 items-start gap-2.5 rounded-lg px-2.5 py-2 text-base/6 text-zinc-800 select-none data-active:bg-zinc-950/5 data-active:text-zinc-950 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:data-active:bg-white/8 dark:data-active:text-white"
+        onpointerdown={(event) => event.preventDefault()}
+        onpointermove={() => onactive(index)}
+        onclick={() => onchoose(option)}
+      >
+        <div class="flex h-lh shrink-0 items-center">
+          {#if icon}
+            <img src={icon} alt="" class="size-4 rounded-sm object-contain" />
+          {:else}
+            <Icon name={kindLook(option.data).icon} class="fill-brand-600 dark:fill-brand-400" />
+          {/if}
+        </div>
+        <div class="grid min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
+          <p class="truncate font-medium sm:shrink-0 sm:basis-auto sm:max-w-1/2">
+            {#each runs(option.title, option.indices) as run, r (r)}{#if run.hit}<mark class="bg-transparent text-brand-700 dark:text-brand-300">{run.text}</mark>{:else}{run.text}{/if}{/each}
+          </p>
+          {#if option.detail}
+            <p class="min-w-0 truncate text-sm/5 text-zinc-500 sm:flex-1 sm:text-xs/4 dark:text-zinc-400" title={option.detail}>{option.detail}</p>
+          {/if}
+        </div>
+      </li>
+    {/each}
+  {/each}
+</ul>
+{#if loading && options.length === 0}
+  <p class="flex items-center gap-2 px-4 py-3 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status"><Spinner class="size-3.5" />Loading…</p>
+{:else if error}
+  <p class="flex items-start gap-2 px-4 py-3 text-sm/5 text-zinc-600 dark:text-zinc-300" role="status">
+    <span class="flex h-lh shrink-0 items-center"><Icon name="signal-slash" class="fill-zinc-400 dark:fill-zinc-500" /></span>{error}
+  </p>
+{:else if options.length === 0}
+  <p class="px-4 py-3 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">{empty}</p>
+{/if}

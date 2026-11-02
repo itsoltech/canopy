@@ -1,6 +1,7 @@
 import { fail, redirect } from "@sveltejs/kit";
 import { PermissionMode, Provider, type ui } from "@open-agents/contracts";
 import { attempt, failed } from "#lib/server/gateway.ts";
+import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { isProviderKey, providerKeyOf } from "../providers.ts";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
@@ -26,6 +27,12 @@ export async function createThreadFromForm(form: FormData, action: string, targe
   const profileId = text(form, "profileId");
   const initialMessage = text(form, "message");
   if (parent && !initialMessage) return fail(400, { action, error: "Tell the side thread what to do" });
+  let initialMentions;
+  try {
+    initialMentions = mentionsFromWire(form.get("mentions"));
+  } catch {
+    return fail(400, { action, error: "The message's mentions could not be read" });
+  }
 
   const result = await attempt(action, (api) =>
     api.createThread({
@@ -42,6 +49,7 @@ export async function createThreadFromForm(form: FormData, action: string, targe
       fork: Boolean(parent) && form.get("fork") === "on",
       clientRequestId: text(form, "clientRequestId") || crypto.randomUUID(),
       initialAttachmentIds: form.getAll("attachmentId").map(String).filter(Boolean),
+      initialMentions,
     }),
   );
   if (failed(result)) return result;
