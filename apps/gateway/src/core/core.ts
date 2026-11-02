@@ -95,6 +95,7 @@ import type { BotModel, BotTurn, StoredCall } from "../bots/types.ts";
 import { botPlatform, describeBotTool, prepareBotTool } from "../bots/platform.ts";
 import { ThreadSecrets } from "./thread-secrets.ts";
 import { ActionContext } from "./action-context.ts";
+import { ConnectorsRuntime } from "../connectors/runtime.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -162,6 +163,7 @@ const HARNESS_ERROR_CODES: ReadonlySet<string> = new Set(["HARNESS_ERROR"]);
 const MAX_OBJECTIVE = 4000;
 
 export class GatewayCore {
+  readonly connectors: ConnectorsRuntime;
   readonly secrets: ThreadSecrets;
   readonly bots: BotsRuntime;
   readonly link: WorkerLink;
@@ -185,7 +187,10 @@ export class GatewayCore {
     this.#options = options;
     this.#actions = new ActionContext(options.runtime);
     this.hub = new Hub((action) => this.#actions.defer(action));
+    this.connectors = new ConnectorsRuntime({ runtime: options.runtime, userId: options.userId,
+      interaction: (interaction) => this.#publishInteraction(interaction) });
     this.bots = new BotsRuntime({ runtime: options.runtime, userId: options.userId,
+      connectors: this.connectors,
       ...(options.botClock && { now: options.botClock }),
       ...(options.botModel && { model: options.botModel }), ...(options.log && { log: options.log }),
       platform: (turn, call) => botPlatform(this, options, turn, call),
@@ -314,7 +319,7 @@ export class GatewayCore {
           case "agentToolCall": {
             const call = message.payload.value;
             // Concurrent: wait_threads may take minutes and must not hold up the stream.
-            void this.bus.handle(call, workerId).then(
+            void (call.connectorAccountId ? this.connectors.handle(call, workerId) : this.bus.handle(call, workerId)).then(
               (result) => {
                 try {
                   connection.send({ case: "agentToolResult", value: result });
@@ -354,6 +359,7 @@ export class GatewayCore {
     // Later events of a thread that failed would land out of order: skip them (unacked) until the resend.
     const events = blocked ? incoming.filter((e) => !blocked.has(e.threadId)) : incoming;
     if (events.length === 0) return;
+    await this.connectors.enrich(events);
     const result = await this.#options.runtime.runPromise(Ingest.use((i) => i.ingest(connection.workerId, journalId, events)));
     for (const [threadId, ackSeq] of result.acks) connection.send({ case: "eventAck", value: { threadId, ackSeq } });
     for (const unknown of result.unknownThreads) this.#log(`events for unknown thread ${unknown} kept on worker ${connection.workerId}`);
@@ -442,6 +448,11 @@ export class GatewayCore {
     if (!connection?.isOpen || !command.kind.case) return;
     let result: CommandResult;
     try {
+      const body = command.kind.value;
+      if ((command.kind.case === "createThread" || command.kind.case === "startTurn") && "thread" in body && body.thread) {
+        const thread = await this.#run((s) => s.thread(body.thread!.threadId));
+        body.thread.connectorTools = await this.connectors.tools(thread.owner_user_id, { workerId });
+      }
       result = await connection.sendCommand(command.kind as CommandInit, this.#options.commandTimeoutMs ?? 60_000, command.commandId);
     } catch {
       return; // disconnected or timed out: stays in the outbox, redelivered on reconnect (the worker deduplicates)
@@ -562,6 +573,7 @@ export class GatewayCore {
   }
 
   stopSweep(): void {
+    this.connectors.stop();
     this.secrets.stop();
     if (this.#sweepTimer) clearInterval(this.#sweepTimer);
     this.#sweepTimer = undefined;

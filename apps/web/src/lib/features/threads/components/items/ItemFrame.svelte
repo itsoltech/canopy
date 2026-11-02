@@ -14,6 +14,7 @@
    */
   let {
     icon,
+    lead,
     status,
     tone = "neutral",
     title,
@@ -21,6 +22,7 @@
     children,
   }: {
     icon: IconName;
+    lead?: Snippet;
     status: ItemStatus;
     tone?: "neutral" | "violet" | "rose";
     title: Snippet;
@@ -38,7 +40,7 @@
 
 {#snippet row()}
   <span class="flex min-w-0 items-start gap-2">
-    <span class="flex h-lh items-center"><Icon name={icon} class={iconClass} /></span>
+    <span class="flex h-lh items-center">{#if lead}{@render lead()}{:else}<Icon name={icon} class={iconClass} />{/if}</span>
     <span class="min-w-0 flex-1 overflow-hidden text-zinc-700 dark:text-zinc-300">{@render title()}</span>
     <span class="flex shrink-0 items-center gap-2 text-sm/6 text-zinc-500 tabular-nums sm:text-xs/6 dark:text-zinc-400">
       {@render aside?.()}

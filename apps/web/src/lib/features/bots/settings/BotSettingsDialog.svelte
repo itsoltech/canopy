@@ -20,9 +20,9 @@
   import BotConnections from "./BotConnections.svelte";
   import SettingsSection from "./SettingsSection.svelte";
 
-  let { open = $bindable(false), bot, providers, instances, servers = $bindable([]), onarchive, ondelete, class: className }: {
+  let { open = $bindable(false), bot, providers, instances, onarchive, ondelete, class: className }: {
     open?: boolean; bot: bots.Bot; providers: readonly ui.ProviderInstance[]; instances: readonly BotProviderInstance[];
-    servers?: bots.BotMcpServer[]; onarchive: () => Promise<void>; ondelete: () => void; class?: ClassValue;
+    onarchive: () => Promise<void>; ondelete: () => void; class?: ClassValue;
   } = $props();
   let appearance = $state<BotAppearanceDraft>({ name: '', shape: 'round', color: '#f97316' });
   let originalName = $state('');
@@ -32,7 +32,6 @@
   let effort = $state<string>();
   let modelChanged = $state(false);
   let policy = $state('safe');
-  let selected = $state<string[]>([]);
   let busy = $state(false);
   let error = $state('');
   let wasOpen = false;
@@ -49,7 +48,6 @@
       option = instances.find((i) => i.id === instanceId)?.models.find((m) => m.model === c.model);
       effort = c.effort || undefined;
       policy = c.approvalPolicy || 'safe';
-      selected = [...c.mcpServerIds];
       error = '';
       session++;
     });
@@ -66,7 +64,7 @@
     const provider = providers.find((p) => instanceKeyOf(p) === instanceId);
     const configuration = create(bots.BotConfigurationSchema, {
       ...bot.configuration!, ...appearance, color: normalizeColor(appearance.color)!, instructions,
-      approvalPolicy: policy, mcpServerIds: selected,
+      approvalPolicy: policy,
       ...(modelChanged && provider && option && { provider: provider.harness, providerInstance: provider.id, model: option.model, effort: effort ?? '' }),
     });
     busy = true;
@@ -104,8 +102,8 @@
             { value: 'full_auto', label: 'Never (full auto)', description: 'Every action runs right away, including changes, external writes and its own settings. Questions to you still appear.' },
           ]} /></Field>
         </SettingsSection>
-        <SettingsSection title="Connections" description="Attach remote MCP servers from your registry. Connection changes apply from the next turn.">
-          <BotConnections bind:servers bind:selected disabled={busy} />
+        <SettingsSection title="Connections" description="Connector accounts granted to this bot. Available tools follow the approval policy above.">
+          <BotConnections botId={bot.id} />
         </SettingsSection>
         <SettingsSection title="Danger zone" description="Archive to keep the conversation and settings. Delete removes this bot and its conversation from Canopy.">
           <div class="flex flex-wrap gap-2">

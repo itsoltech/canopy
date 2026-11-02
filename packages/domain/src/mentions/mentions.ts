@@ -15,11 +15,11 @@ import { MentionKind, MentionSchema, Provider, type Mention } from "@open-agents
  */
 
 /** The character that starts each kind's placeholder (and opens its popup in the composer). */
-export const MENTION_TRIGGERS = { command: "/", skill: "$", plugin: "$", file: "@", thread: "#", bot: "@" } as const;
+export const MENTION_TRIGGERS = { command: "/", skill: "$", plugin: "$", file: "@", thread: "#", bot: "@", connector: "@" } as const;
 
 export const MAX_MENTIONS = 50;
 
-export type MentionKindName = "command" | "skill" | "plugin" | "file" | "thread" | "bot";
+export type MentionKindName = "command" | "skill" | "plugin" | "file" | "thread" | "bot" | "connector";
 
 export function mentionKindName(kind: MentionKind): MentionKindName | undefined {
   switch (kind) {
@@ -35,6 +35,8 @@ export function mentionKindName(kind: MentionKind): MentionKindName | undefined 
       return "thread";
     case MentionKind.BOT:
       return "bot";
+    case MentionKind.CONNECTOR:
+      return "connector";
     default:
       return undefined;
   }
@@ -44,7 +46,7 @@ export function mentionKindName(kind: MentionKind): MentionKindName | undefined 
 export function mentionPlaceholder(mention: Pick<Mention, "kind" | "name" | "label">): string {
   const kind = mentionKindName(mention.kind);
   if (!kind) return "";
-  return `${MENTION_TRIGGERS[kind]}${kind === "thread" || kind === "bot" ? mention.label || mention.name : mention.name}`;
+  return `${MENTION_TRIGGERS[kind]}${kind === "thread" || kind === "bot" || kind === "connector" ? mention.label || mention.name : mention.name}`;
 }
 
 /** What a chip shows: the display name, a file's last path segment, a thread's title. */
@@ -87,6 +89,7 @@ export function checkMentions(text: string, mentions: readonly Mention[]): Menti
     if (kind === "file" && !isWorkspaceRelative(m.name)) throw new MentionError(`"${m.name}" is not a path inside the thread's folder`);
     if (kind === "thread" && !UUID.test(m.name)) throw new MentionError(`"${m.name}" is not a thread id`);
     if (kind === "bot" && !UUID.test(m.name)) throw new MentionError(`"${m.name}" is not a bot id`);
+    if (kind === "connector" && !UUID.test(m.name)) throw new MentionError("invalid connector account id");
     end = m.end;
   }
   return sorted;

@@ -2,6 +2,10 @@
   import type { ClassValue } from "svelte/elements";
   import { create } from "@bufbuild/protobuf";
   import { MentionKind, ui, type Mention } from "@open-agents/contracts";
+  import { fuzzyRank } from "@open-agents/domain";
+  import { connectorLabel } from "#lib/features/connectors/api.ts";
+  import { useConnectorAccounts } from "#lib/features/connectors/accounts.svelte.ts";
+  import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
   import MentionEditor from "#lib/features/mentions/MentionEditor.svelte";
   import { trimValue, type TriggerChar } from "#lib/features/mentions/editor.ts";
   import { kindLook, safeIcon } from "#lib/features/mentions/kinds.ts";
@@ -51,7 +55,11 @@
   const id = $props.id();
   let box = $state<HTMLDivElement>();
   let editor = $state<{ insertTrigger(char: TriggerChar): void; focus(): void }>();
-  const sources = new BotMentionSources(() => botList.list, () => botId);
+  const connectorCatalog = useConnectorAccounts(() => ({ botId }));
+  const sources = new BotMentionSources(() => botList.list, () => botId, [{ search: (query) => fuzzyRank(query, connectorCatalog.accounts.filter((a) => a.status === 'connected'), (a) => [connectorLabel(a, connectorCatalog.types)], 40).map(({ item, match }) => ({
+    key: `connector:${item.id}`, data: { kind: MentionKind.CONNECTOR, name: item.id, label: connectorLabel(item, connectorCatalog.types), source: item.connectorType, path: '', isDir: false },
+    title: connectorLabel(item, connectorCatalog.types), detail: 'Use this connector account', group: 'Connectors', indices: match.indices,
+  })) }]);
   const quoteDrafts = useQuoteDrafts();
   const quotes = $derived(quoteDrafts.list(quoteKey));
   const ready = $derived(!disabled && !sending && (value.trim().length > 0 || quotes.length > 0));
@@ -119,6 +127,8 @@
     {#snippet optionIcon(option)}
       {#if option.data.kind === MentionKind.BOT}
         <BotAvatar participant={sources.participant(option.data.name, option.title)} size="xs" />
+      {:else if option.data.kind === MentionKind.CONNECTOR}
+        <ConnectorIcon type={option.data.source} />
       {:else if safeIcon(option.data.icon)}
         <img src={safeIcon(option.data.icon)} alt="" class="size-4 rounded-sm object-contain" />
       {:else}

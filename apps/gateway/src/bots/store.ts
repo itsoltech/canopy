@@ -1,10 +1,12 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { bots, MentionKind, MentionSchema, ProfileModelsSchema, Provider, type Mention, type ProfileModels, type ui } from "@open-agents/contracts";
+import { bots, connectors, MentionKind, MentionSchema, ProfileModelsSchema, Provider, type Mention, type ProfileModels, type ui } from "@open-agents/contracts";
+import { ConnectorFailure, connectorStore } from "../connectors/store.ts";
+import { connectorType } from "../connectors/catalog.ts";
 import { checkMentions, mentionPlaceholder } from "@open-agents/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
-import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "../store/secrets.ts";
+import { decryptSecret } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import type { InstanceRow } from "../store/instance-config.ts";
 import { checkedQuotes } from "../core/quotes.ts";
@@ -29,10 +31,6 @@ interface ApprovalRow {
   status: string; answer: string; created_at: Date; options?: unknown;
   proposed_bot: JsonValue | null;
   routine_title?: string;
-}
-interface ServerRow {
-  id: string; owner_user_id: string; name: string; url: string; transport: string;
-  enabled: boolean; headers: Record<string, { secretRef: string }>;
 }
 export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration as JsonValue);
 export const botView = (row: BotRow) => create(bots.BotSchema, {
@@ -73,6 +71,7 @@ export function remoteUrl(raw: string): string {
 }
 
 function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
+  const connections = connectorStore(sql, key);
   const owned = (user: string, id: string, lock = false) => sql.unsafe<BotRow>(
     `SELECT b.*, (SELECT count(*) FROM bot_messages m WHERE m.bot_id = b.id AND m.seq > b.last_read_seq AND m.sender_id = b.id::text AND m.recipient_id = 'user' AND m.kind = 'message') AS unread_count
       FROM bots b WHERE b.id = $1::uuid AND b.owner_user_id = $2::uuid AND b.deleted_at IS NULL${lock ? " FOR UPDATE OF b" : ""}`, [id, user],
@@ -98,19 +97,21 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   });
   const secret = (user: string, id: string) => sql<{ ciphertext: Uint8Array }>`SELECT ciphertext FROM secrets WHERE id = ${id}::uuid AND (owner_user_id = ${user}::uuid OR owner_user_id IS NULL)`
     .pipe(Effect.flatMap((r) => r[0] ? Effect.succeed(decryptSecret(key, r[0].ciphertext)) : Effect.fail(new NotFound("secret not found"))));
-  const server = (user: string, id: string) => sql<ServerRow>`SELECT * FROM bot_mcp_servers WHERE id = ${id}::uuid AND owner_user_id = ${user}::uuid`
-    .pipe(Effect.flatMap((r) => r[0] ? Effect.succeed(r[0]) : Effect.fail(new NotFound("MCP server not found"))));
+  const server = (user: string, id: string) => connections.owned(user, id);
   const resolvedServer = (user: string, id: string) => Effect.gen(function* () {
     const row = yield* server(user, id);
-    const headers: Record<string, string> = {};
-    for (const [name, ref] of Object.entries(row.headers)) headers[name] = yield* secret(user, ref.secretRef);
-    return { ...row, headers } satisfies McpConnection;
+    const value = yield* connections.credentials(row);
+    return { ...row, enabled: row.status === "connected", headers: value.headers ?? {} } satisfies McpConnection;
   });
   const servers = (user: string) => Effect.gen(function* () {
-    const rows = yield* sql<ServerRow>`SELECT * FROM bot_mcp_servers WHERE owner_user_id = ${user}::uuid ORDER BY name, id`;
-    const links = yield* sql<{ server_id: string; bot_id: string }>`SELECT c.* FROM bot_mcp_connections c JOIN bots b ON b.id = c.bot_id WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL`;
-    return rows.map((r) => create(bots.BotMcpServerSchema, { id: r.id, name: r.name, url: r.url, transport: r.transport, enabled: r.enabled,
-      headerNames: Object.keys(r.headers), botIds: links.filter((l) => l.server_id === r.id).map((l) => l.bot_id) }));
+    const rows = yield* connections.list(user);
+    const result: bots.BotMcpServer[] = [];
+    for (const row of rows.filter((r) => r.connector_type === "custom")) {
+      const account = yield* connections.view(row);
+      result.push(create(bots.BotMcpServerSchema, { id: row.id, name: row.name, url: row.url, transport: row.transport,
+        enabled: row.status === "connected", headerNames: account.headerNames, botIds: account.botIds }));
+    }
+    return result;
   });
   const validate = (user: string, config: bots.BotConfiguration, requireCatalog = false) => Effect.gen(function* () {
     if (!config.name.trim() || config.name.length > 80 || /[\x00-\x1f\x7f]/.test(config.name) || !["round", "cloud", "diamond", "spark", "clover", "blob", "flower", "droplet", "pill", "triangle", "square", "star", "hexagon", "pumpkin"].includes(config.shape) || !/^#[0-9a-f]{6}$/i.test(config.color)) return yield* Effect.fail(new Invalid("a name, known mascot shape and #rrggbb color are required"));
@@ -137,7 +138,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     return apiModel(config.model, yield* catalogs(config), instance?.custom_models ?? []);
   });
   const save = (user: string, config: bots.BotConfiguration, options: { id?: string; requestId?: string }) => sql.withTransaction(Effect.gen(function* () {
-    if (options.id) yield* owned(user, options.id, true);
+    const before = options.id ? botConfiguration(yield* owned(user, options.id, true)) : undefined;
     // Serialize names per owner, including concurrent create/update/self-edit requests.
     yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${user}, 0))`;
     // Idempotent creates must keep succeeding even when the owner has since reached the cap.
@@ -170,8 +171,11 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     }
     // A repeated create returns the original definition rather than modifying its connections.
     const active = botConfiguration(row);
-    yield* sql`DELETE FROM bot_mcp_connections WHERE bot_id = ${row.id}::uuid`;
-    for (const serverId of active.mcpServerIds) yield* sql`INSERT INTO bot_mcp_connections(bot_id, server_id) VALUES (${row.id}::uuid, ${serverId}::uuid)`;
+    // Unrelated bot settings saves never reset grants configured on connector accounts.
+    if (!before && row.id === id || before && JSON.stringify(before.mcpServerIds) !== JSON.stringify(active.mcpServerIds)) {
+      yield* sql`DELETE FROM connector_bot_grants WHERE bot_id=${row.id}::uuid AND account_id IN (SELECT id FROM connector_accounts WHERE connector_type='custom' AND NOT all_bots)`;
+      for (const serverId of active.mcpServerIds) yield* sql`INSERT INTO connector_bot_grants(bot_id,account_id) VALUES (${row.id}::uuid,${serverId}::uuid) ON CONFLICT DO NOTHING`;
+    }
     return botView(row);
   }));
   const creationHop = (hops: number) => Effect.try({ try: () => nextHop(hops), catch: () => new Invalid("Bot hop limit reached; a new user message is required") });
@@ -186,7 +190,15 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     const mentions = yield* Effect.try({ try: () => checkMentions(input, options.mentions ?? []), catch: (error) => new Invalid(error instanceof Error ? error.message : "invalid mentions") });
     const checked: Mention[] = [];
     for (const mention of mentions) {
-      if (mention.kind !== MentionKind.BOT || mention.name === botId || input.slice(mention.start, mention.end) !== mentionPlaceholder(mention)) return yield* Effect.fail(new Invalid("only other bots can be mentioned, with a matching @name range"));
+      if (input.slice(mention.start, mention.end) !== mentionPlaceholder(mention)) return yield* Effect.fail(new Invalid("mention must have a matching @name range"));
+      if (mention.kind === MentionKind.CONNECTOR) {
+        const account = yield* connections.authorize({ userId: user, botId, accountId: mention.name }).pipe(
+          Effect.mapError((error) => error instanceof ConnectorFailure ? new Invalid("Connector access denied") : error),
+        );
+        checked.push(create(MentionSchema, { kind: MentionKind.CONNECTOR, name: account.id, source: account.connector_type, label: `${connectorType(account.connector_type)?.name} · ${account.name}`, start: mention.start, end: mention.end }));
+        continue;
+      }
+      if (mention.kind !== MentionKind.BOT || mention.name === botId) return yield* Effect.fail(new Invalid("only other bots or granted connectors can be mentioned"));
       const target = yield* active(user, mention.name);
       // Labels/paths from the client are never authority. Snapshot the owner's bot name for model context.
       checked.push(create(MentionSchema, { kind: MentionKind.BOT, name: target.id, label: botConfiguration(target).name, start: mention.start, end: mention.end }));
@@ -464,33 +476,24 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     }),
     connected: (user: string, botId: string) => Effect.gen(function* () {
       yield* owned(user, botId);
-      const links = yield* sql<{ server_id: string }>`SELECT c.server_id FROM bot_mcp_connections c JOIN bot_mcp_servers s ON s.id = c.server_id WHERE c.bot_id = ${botId}::uuid AND s.owner_user_id = ${user}::uuid AND s.enabled`;
+      const links = (yield* connections.list(user, { botId })).filter((r) => r.status === "connected");
       const result: McpConnection[] = [];
-      for (const l of links) result.push(yield* resolvedServer(user, l.server_id));
+      for (const l of links) result.push(yield* resolvedServer(user, l.id));
       return result;
     }),
     saveServer: (user: string, request: bots.SaveBotMcpServerRequest) => sql.withTransaction(Effect.gen(function* () {
-      const id = request.id || uuid();
-      const old = request.id ? yield* server(user, id) : undefined;
-      if (!request.name.trim() || request.name.length > 80 || !["http", "sse"].includes(request.transport)) return yield* Effect.fail(new Invalid("name and remote MCP transport (http or sse) are required"));
-      const url = remoteUrl(request.url);
-      if (Object.keys(request.headers).length > 32) return yield* Effect.fail(new Invalid("too many MCP headers"));
-      const headers = request.clearHeaders || Object.keys(request.headers).length ? {} as ServerRow["headers"] : old?.headers ?? {};
-      for (const [name, value] of Object.entries(request.headers)) {
-        if (!/^[a-zA-Z0-9_-]{1,100}$/.test(name) || /^(host|content-length|connection|accept|content-type|mcp-session-id)$/i.test(name) || /[\r\n]/.test(value) || value.length > 32_000) return yield* Effect.fail(new Invalid("invalid MCP header"));
-        const secretId = uuid();
-        yield* sql`INSERT INTO secrets(id, owner_user_id, name, ciphertext, key_id, created_by) VALUES (${secretId}::uuid, ${user}::uuid, ${`bot-mcp-${secretId}`}, ${encryptSecret(key, value)}, ${SECRETS_KEY_ID}, ${user}::uuid)`;
-        headers[name] = { secretRef: secretId };
-      }
-      yield* sql`INSERT INTO bot_mcp_servers(id, owner_user_id, name, url, transport, enabled, headers)
-        VALUES (${id}::uuid, ${user}::uuid, ${request.name.trim()}, ${url}, ${request.transport}, ${request.enabled}, ${JSON.stringify(headers)}::jsonb)
-        ON CONFLICT(id) DO UPDATE SET name = EXCLUDED.name, url = EXCLUDED.url, transport = EXCLUDED.transport, enabled = EXCLUDED.enabled, headers = EXCLUDED.headers`;
-      yield* sql`UPDATE bots SET revision = revision + 1 WHERE id IN (SELECT bot_id FROM bot_mcp_connections WHERE server_id = ${id}::uuid)`;
+      const old = request.id ? yield* server(user, request.id) : undefined;
+      const account = yield* connections.save(user, create(connectors.SaveConnectorAccountRequestSchema, { id: request.id, connectorType: "custom", name: request.name,
+        url: request.url, transport: request.transport, authKind: "headers", headers: request.headers, replaceCredentials: request.clearHeaders,
+        expectedRevision: old ? BigInt(old.revision) : 0n }));
+      const id = account.id;
+      if (!request.enabled) yield* connections.status(yield* server(user, id), "disconnected");
       return (yield* servers(user)).find((s) => s.id === id)!;
     })),
     deleteServer: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
       yield* server(user, id);
-      yield* sql`DELETE FROM bot_mcp_servers WHERE id = ${id}::uuid`;
+      yield* connections.disconnect(user, id);
+      yield* sql`DELETE FROM connector_bot_grants WHERE account_id=${id}::uuid`;
       // Keep public configuration consistent with the normalized connection relation.
       yield* sql`UPDATE bots SET configuration = jsonb_set(configuration, '{mcpServerIds}', coalesce((SELECT jsonb_agg(v) FROM jsonb_array_elements_text(coalesce(configuration -> 'mcpServerIds', '[]')) v WHERE v <> ${id}), '[]')), revision = revision + 1 WHERE owner_user_id = ${user}::uuid`;
     })),

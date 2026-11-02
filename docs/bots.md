@@ -408,11 +408,11 @@ UI pokazuje spokojną linię, np. „Main bot changed its name to Kropka”, i *
 przed/po, bez JSON. Maskotka reaguje istniejącą animacją. Instrukcje są trwałą częścią system
 promptu i obowiązują od następnej tury; linia zmiany nie wchodzi do historii wysyłanej modelowi.
 
-Rejestr odrzuca protokoły lokalne, dane logowania i tokeny w URL, niepoprawne nagłówki
-oraz nagłówki transportowe. Nagłówki są AES-256-GCM w istniejącym `secrets`, z odwołaniami
-w rejestrze; do UI wracają tylko nazwy. Klient MCP odrzuca przekierowania i zmianę origin
-przez endpoint SSE, żeby nie przekazać nagłówków do innego hosta. Rejestr jest jawną
-konfiguracją użytkownika; może wskazywać dostępne mu prywatne usługi sieciowe.
+Rejestr zastępują konta [Connectors](connectors.md), z grantami konkretnych botów.
+Migracja 0038 zachowuje serwery i przypięcia jako Custom MCP server. Nowe poświadczenia
+OAuth/nagłówki są AES-256-GCM w koncie; stare odwołania do `secrets` pozostają czytelne.
+Do UI wracają tylko nazwy nagłówków. Zdalny klient odrzuca redirecty i zmianę origin SSE.
+Nie ma transportu stdio; HTTP jest dozwolone tylko na loopback, pozostałe URL wymagają HTTPS.
 
 Statusy nie pokazują nazw funkcji ani ich JSON: `Typing…`, `Searching Notion`,
 `Checking Notion`, `Checking threads`, `Starting a thread in a project`, `Waiting for you`.
@@ -573,9 +573,10 @@ JSON i składanych logów pracy.
   dotknięcie wybiera bez utraty fokusu. Desktop ma popover, telefon/wskaźnik coarse panel
   nad edytorem wewnątrz composera. Brak plików, skillsów oraz wyzwalaczy `/`, `$`, `#`.
   `MentionSourceSet` oddziela edytor od źródeł. Typowany `BotMentionRegistry` ma grupy
-  `bots` i `connectors`; druga jest dziś pusta i nie ma UI zastępczego. Źródła implementują
-  `search(query) → MentionOption[]`; przyszłe konektory z MCP podłączą się do `@`
-  przez rejestr, bez zmian edytora. `botAvatarHtml` współdzieli wygląd awatara xs z `BotChip`.
+  `bots` i `connectors`; druga pobiera połączone konta z grantów bieżącego bota.
+  Źródła implementują `search(query) → MentionOption[]`. Chip np. „GitHub · work”
+  wskazuje konto modelowi; gateway waliduje ID/grant i zapisuje kanoniczną etykietę.
+  `botAvatarHtml` współdzieli wygląd awatara xs z `BotChip`.
 - **Przewijanie**: czat podąża za nową treścią (wiadomości, karty, status) tylko gdy jesteś
   na dole (ResizeObserver); przewinięty w górę pokazuje przycisk „Jump to the latest message”.
   Etykiety `sr-only` są pozycjonowane względem przewijanego logu — wcześniej wydłużały
@@ -601,8 +602,8 @@ JSON i składanych logów pracy.
   Instructions, Model (endpoint, model API, effort), Permissions, Connections i Danger zone.
   Zapis `UpdateBot` optymistycznie aktualizuje wspólną listę, nagłówek i awatar; błąd cofa
   podgląd i zostaje przy formularzu. Niedostępny katalog nie zmienia modelu przy edycji wyglądu.
-  MCP można przyłączyć/odłączyć, dodać HTTP/SSE z nagłówkami przechowywanymi jako sekrety
-  i przetestować z listą narzędzi. Dodanie od razu zapisuje rejestr; podłączenie wymaga Save.
+  Connections pokazuje konta dostępne dla bota i link do Settings → Connectors.
+  Granty, OAuth/tokeny, test i reconnect ustawia się przy koncie; zmiana grantu działa od razu.
 - **Archiwum**: główna akcja usuwania z listy, dostępna z obu menu i ustawień, z toastem
   **Undo**. Sekcja **Archived bots · N** jest zwijana. Otwarta rozmowa jest tylko do odczytu:
   zamiast composera ma „‹Bot› is archived” i **Unarchive**; nie oferuje odpowiedzi ani ponawiania.
@@ -669,6 +670,5 @@ i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozy
   surowego markdownu, Cite z komentarzem i usuwaniem, pogrubienie/kursywa/kod/blok kodu,
   wzrost do limitu, stylowane przewijanie i brak przepełnienia dokumentu.
 
-Dalej: rotacja nagłówków istniejących serwerów MCP w UI,
-reakcje i odpowiedzi w API, liczniki nieprzeczytanych, załączniki, harmonogramy cykliczne
+Dalej: reakcje i odpowiedzi w API, liczniki nieprzeczytanych, załączniki, harmonogramy cykliczne
 botów, kompakcja kontekstu, stronicowanie i wirtualizacja długich rozmów.

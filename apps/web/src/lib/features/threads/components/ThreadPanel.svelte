@@ -1,5 +1,6 @@
 <script lang="ts">
   import ThreadSecretRow from "./secrets/ThreadSecretRow.svelte";
+  import ThreadConnectors from "#lib/features/connectors/ThreadConnectors.svelte";
   import { timestampMs } from "@bufbuild/protobuf/wkt";
   import { terminalCwd } from "#lib/shared/ui/terminal.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
@@ -87,6 +88,7 @@
 
 <div class={["grid grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white py-1.5 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10", className]}>
   <ThreadTitleActions {thread} />
+  <ThreadConnectors threadId={thread.id} />
   <section aria-label="Placement" class="grid grid-cols-1 px-1.5 pb-1.5">
     <PanelRow icon="computer-desktop">
       {worker?.name ?? "Unknown worker"}
