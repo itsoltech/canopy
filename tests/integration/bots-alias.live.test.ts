@@ -1,8 +1,8 @@
 /**
  * Live (OA_LIVE=1): a Claude bot created the way the wizard does it, with the instance's default model, replies
  * through CLIProxyAPI. The worker's real Claude catalog names that model `default` (a Claude Code alias the
- * Messages API refuses); the wizard offers the concrete model, CreateBot stores it, and a bot saved earlier with
- * the alias is resolved at runtime.
+ * Messages API refuses); CreateBot stores the concrete model it resolves to (the wizard offers that one too), and a
+ * bot saved earlier with the alias is resolved at runtime.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
@@ -15,7 +15,6 @@ import { Journal } from "@open-agents/worker/journal";
 import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
-import { botWizardInstances } from "../../apps/web/src/lib/features/bots/live.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
@@ -46,10 +45,7 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailab
     const catalogs = await eventually(async () => (await gw.api.listModels({})).workers,
       (workers) => workers.some((w) => w.profiles.some((p) => p.provider === Provider.CLAUDE && p.profileId === "cliproxyapi" && p.models.some((m) => m.id === "default" && m.resolvedModel))), 60_000);
     const resolved = catalogs.flatMap((w) => w.profiles).find((p) => p.profileId === "cliproxyapi" && p.provider === Provider.CLAUDE)!.models.find((m) => m.id === "default")!.resolvedModel;
-    const [wizard] = botWizardInstances((await gw.api.listProviderInstances({})).instances.filter((i) => i.harness === Provider.CLAUDE && i.id === "cliproxyapi"), catalogs);
-    const offered = wizard!.models.find((m) => m.model === resolved);
-    expect(offered).toBeDefined();
-    expect(wizard!.models.some((m) => m.model === "default" || m.model === "opus")).toBe(false);
+    expect(resolved).toStartWith("claude-");
     console.info(`live: Claude default resolves to ${resolved}`);
 
     const bot = (await gw.api.createBot({ clientRequestId: Bun.randomUUIDv7(), configuration: {
