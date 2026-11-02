@@ -35,7 +35,7 @@
   text={(w) => `${nameOf(w)} ${w.rootPath}`}
   {value}
   {onselect}
-  link={{ href: `/settings/projects/${project.id}`, label: project.workspaces.length === 0 ? "Add it to a worker" : "Configure workers" }}
+  link={project.kind === "scratch" ? { href: "/settings/workers", label: "Manage workers" } : { href: `/settings/projects/${project.id}`, label: project.workspaces.length === 0 ? "Add it to a worker" : "Configure workers" }}
 >
   {#snippet trigger(props)}
     <PillButton
@@ -53,11 +53,11 @@
     </PillButton>
   {/snippet}
   {#snippet option(ws, state)}
-    <PickerRow title={nameOf(ws)} detail={ws.rootPath} detailClass="font-mono" status={workerStatus(overview.worker(ws.workerId))} selected={state.selected}>
+    <PickerRow title={nameOf(ws)} detail={project.kind === "scratch" ? `${ws.rootPath}/<thread-id>` : ws.rootPath} detailClass="font-mono" status={workerStatus(overview.worker(ws.workerId))} selected={state.selected}>
       {#snippet leading()}<StatusDot tone={online(ws) ? "emerald" : "neutral"} />{/snippet}
     </PickerRow>
   {/snippet}
   {#snippet empty(query)}
-    {#if query}No workers match “{query}”.{:else}{project.name} is not on any worker yet.{/if}
+    {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Configure a worker with an allowed directory first.{:else}{project.name} is not on any worker yet.{/if}
   {/snippet}
 </SearchPicker>

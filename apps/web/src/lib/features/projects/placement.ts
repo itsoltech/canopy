@@ -14,7 +14,7 @@ function recentThreads(threads: Iterable<ui.Thread>): ui.Thread[] {
 
 /**
  * Project of a new thread: the requested one (`?project=`), the project of your default workspace, the
- * project you last started a thread in, the first project that lives on a worker, the first project.
+ * project you last started a thread in, No project, the first project that lives on a worker, the first project.
  */
 export function defaultProject(input: {
   projects: readonly ui.Project[];
@@ -31,6 +31,7 @@ export function defaultProject(input: {
     recentThreads(input.threads)
       .map((t) => byId(t.projectId))
       .find((p) => p !== undefined) ??
+    projects.find((p) => p.kind === "scratch") ??
     projects.find((p) => p.workspaces.length > 0) ??
     projects[0]
   );

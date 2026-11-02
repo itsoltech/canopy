@@ -1,5 +1,37 @@
 # API dla UI i architektura frontendu
 
+## No project i katalogi scratch
+
+`GetOverview.projects` zawiera projekt systemowy właściciela o `Project.kind = "scratch"`
+(nowe pole **410**); zwykłe projekty mają `kind = "project"`. Jest pierwszy w odpowiedzi.
+Klient ukrywa go w zarządzaniu projektami, ale pokazuje w pickerze nowego wątku, filtrze
+sidebaru, domyślnym wyborze workspace'u i harmonogramach. Workspace'y scratch są provisionowane
+automatycznie na dostępnych dla właściciela workerach z allowed roots. Zmiany workerów publikują
+również aktualny projekt scratch przez `WatchOverview.project`.
+
+`CreateThread` zachowuje istniejący kontrakt: `project_id` i `workspace_id` wskazują systemowe
+zasoby wybrane z overview. Dla nowego głównego wątku scratch `cwd` musi być pusty: gateway nadaje
+`<workspace.root_path>/<thread.id>`. Wymuszenie własnego cwd daje `InvalidArgument`.
+Fork i wątek boczny dziedziczą katalog źródła. Komenda workera ma `ThreadSpec.scratch = true`
+(nowe pole **410**): worker tworzy katalog przed uruchomieniem harnessu i sprawdza allowed roots.
+Błąd utworzenia/walidacji to `SCRATCH_NOT_ALLOWED`; zwykłe wątki nie tworzą brakujących katalogów.
+
+`Thread.cwd` pokazuje pełną ścieżkę. `ListThreads`, wyszukiwanie, wzmianki, archiwum i szyna
+zachowują dotychczasowe reguły właściciela oraz drzewa. `sidebar.project_ids` może wskazywać
+systemowy projekt, a `ThreadDefaults.workspace_id` — jego workspace. `NewThreadSchedule`
+używa jego `project_id` i wybranego `workspace_id` z `placement = "specific"`; każdy run ma nowy cwd.
+Botowy `list_projects` zwraca także `kind = "scratch"`; `start_thread` z identyfikatorem
+projektu systemowego i workspace'em wybranego workera korzysta z tego samego nadawania cwd.
+`CreateWorkspace`, `UpdateWorkspace`, `RemoveWorkspace`
+i `UpdateProjectSettings` nie pozwalają ręcznie modyfikować zasobów systemowych.
+
+Scratch powstaje dopiero przy `CreateThread`. `SearchFiles` w scope nowego wątku scratch
+zwraca pustą listę; `ListMentionCatalog` pobiera komendy i umiejętności z pierwszego allowed root.
+Scope istniejącego wątku używa jego cwd. Pliki są zachowywane bez automatycznego cleanupu,
+także po archiwizacji lub soft delete; panel szczegółów opisuje ręczne sprzątanie.
+
+## Bots
+
 Sekcja Bots korzysta z tego samego `GatewayService` i uwierzytelnienia BFF. Osobny
 kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdalne MCP.
 `SidebarSettings.pinned_bot_ids` ma numer 350. Pełny zakres: [bots.md](bots.md).
@@ -180,7 +212,6 @@ Panel subagentów filtruje wyłącznie pracujących i oczekujących na odpowied�
 
 Przy nawigacji TurnRail rezerwa do wyrównania ostatniego wiersza jest liczona razem z wysokością nakładki (`footerHeight + alignmentSpace`). `scrollend` odświeża kotwicę tylko po nawigacji smooth; własne korekty całkowitoliczbowego `scrollTop` zachowują pierwotny offset ułamkowy, aby streaming nie kumulował błędu zaokrągleń.
 
-Weryfikacja przeglądarkowa: `OA_COMPOSER_BROWSER=1 bun test tests/integration/composer-compact.browser.test.ts`, po zbudowaniu web. Test uruchamia własny gateway/PostgreSQL/workera i web na porcie 5297; screenshoty trafiają do `artifacts/composer-compact/`. Porównania paneli przed/po i ograniczenia opisuje [raport](composer-compact-verification.md).
 
 ### Pytania nad kompozytorem
 
@@ -194,7 +225,6 @@ Opcje to semantyczne inputy radio/checkbox ze wspólnego `Input`, z własną gra
 
 Odpowiedź nadal idzie przez `AnswerInteraction` / `POST api/interactions/[id]`. Dla `ask_user`: `{answerJson: JSON.stringify({answers: [{id, kind: "choice", labels: [...]}, {id, kind: "text", text: "..."}, {id, kind: "skipped"}]})}`; kompletna lista odpowiada zestawowi pytań. Dismiss: `{cancelled: true}`. Adaptery zachowują natywne formaty Claude i Codexa. `interaction_prompt` zostaje na osi czasu jako skrót tematu i odpowiedzi z autorem; rozwinięcie pokazuje cały zestaw i jawnie pominięte pytania.
 
-Fixture do sprawdzenia w przeglądarce: `OA_ASK_BROWSER=1 bun test tests/integration/ask-user.browser.test.ts` uruchamia izolowany gateway ze skryptowanym workerem i Vite na **5293**. Drukuje adresy sync/async i ścieżkę pliku `stop`; utworzenie tego pliku zamyka stos i usuwa katalogi przez `@open-agents/testing`. Nie korzysta z istniejącego stosu developerskiego.
 
 ### Załączniki
 

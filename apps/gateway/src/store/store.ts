@@ -25,7 +25,7 @@ import { Context, Effect, Layer, Result } from "effect";
 import { decodeUserAnswers, type UserQuestion } from "@open-agents/domain";
 import { writeInteractionTimeline } from "./interaction-timeline.ts";
 import { SqlClient, type SqlError } from "effect/sql";
-import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle } from "./paths.ts";
+import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle, scratchBase, scratchCwd } from "./paths.ts";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { toUiAttachment, type StoredAttachment } from "./attachments.ts";
 import { toUiQuote, type StoredQuote } from "./quotes.ts";
@@ -51,6 +51,7 @@ type Fx<A> = Effect.Effect<A, Sql | NotFound | Invalid>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ThreadRow {
+  project_kind?: string;
   id: string;
   project_id: string;
   owner_user_id: string;
@@ -324,13 +325,13 @@ export class GatewayStore extends Context.Service<
             return yield* one(
               yield* sql<{ project_id: string; worker_id: string; root_path: string; label: string }>`
                 SELECT w.project_id, w.worker_id, w.root_path, w.label FROM project_workspaces w JOIN projects p ON p.id = w.project_id
-                 WHERE w.id = ${workspaceId}::uuid AND p.owner_user_id = ${ownerUserId}::uuid AND w.archived_at IS NULL AND p.archived_at IS NULL`,
+                 WHERE w.id = ${workspaceId}::uuid AND p.owner_user_id = ${ownerUserId}::uuid AND w.archived_at IS NULL AND p.archived_at IS NULL AND p.kind <> 'scratch'`,
               "workspace",
             );
           });
 
         const threadSelect = (where: string, extraColumns = "") => `
-          SELECT t.*, ${extraColumns} (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND i.question_wait IS DISTINCT FROM false) AS pending_interactions,
+          SELECT t.*, (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind, ${extraColumns} (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND i.question_wait IS DISTINCT FROM false) AS pending_interactions,
                  greatest(t.created_at, (SELECT max(greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at)))
                                            FROM turns u WHERE u.thread_id = t.id)) AS last_activity_at,
                  (SELECT g.status FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled') LIMIT 1) AS goal_status,
@@ -533,11 +534,13 @@ export class GatewayStore extends Context.Service<
               const id = Bun.randomUUIDv7();
               const slug = `${slugify(trimmed)}-${id.slice(-6)}`;
               yield* sql`INSERT INTO projects (id, owner_user_id, name, slug) VALUES (${id}::uuid, ${ownerUserId}::uuid, ${trimmed}, ${slug})`;
-              return create(ui.ProjectSchema, { id, name: trimmed, slug, workspaces: [] });
+              return create(ui.ProjectSchema, { id, name: trimmed, slug, kind: "project", workspaces: [] });
             }),
 
           createWorkspace: ({ projectId, workerId, rootPath, label }) =>
             Effect.gen(function* () {
+              const project = yield* one(yield* sql<{ kind: string }>`SELECT kind FROM projects WHERE id = ${projectId}::uuid AND archived_at IS NULL`, "project");
+              if (project.kind === "scratch") return yield* Effect.fail(new Invalid("scratch workspaces are managed automatically"));
               const root = yield* workspaceRoot({ projectId, workerId, rootPath });
               const id = Bun.randomUUIDv7();
               yield* sql`
@@ -572,13 +575,39 @@ export class GatewayStore extends Context.Service<
             }),
 
           listProjects: (ownerUserId) =>
-            Effect.gen(function* () {
-              const projects = yield* sql<{ id: string; name: string; slug: string }>`
-                SELECT id, name, slug FROM projects WHERE owner_user_id = ${ownerUserId}::uuid AND archived_at IS NULL ORDER BY created_at`;
+            sql.withTransaction(Effect.gen(function* () {
+              // Provision lazily for existing users too. The owner index and project lock serialize
+              // concurrent overview requests; no worker directory is created until CreateThread.
+              yield* sql`INSERT INTO projects (id, owner_user_id, name, slug, kind)
+                VALUES (${Bun.randomUUIDv7()}::uuid, ${ownerUserId}::uuid, 'No project', 'system-scratch', 'scratch')
+                ON CONFLICT (owner_user_id) WHERE kind = 'scratch' DO NOTHING`;
+              const scratch = (yield* sql<{ id: string }>`SELECT id FROM projects WHERE owner_user_id = ${ownerUserId}::uuid AND kind = 'scratch' FOR UPDATE`)[0]!;
+              const workers = yield* sql<{ id: string; os: string; config: { allowedRoots?: string[] } }>`
+                SELECT w.id, w.os, c.config FROM workers w JOIN worker_configs c ON c.worker_id = w.id
+                WHERE (w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
+                  AND w.archived_at IS NULL AND w.revoked_at IS NULL`;
+              for (const worker of workers) {
+                const root = worker.config.allowedRoots?.[0];
+                if (!root) continue;
+                const style = pathStyle(worker.os, root);
+                if (!isAbsolutePath(root, style)) continue;
+                const base = scratchBase(root, ownerUserId, style);
+                const current = (yield* sql<{ id: string; root_path: string }>`SELECT id, root_path FROM project_workspaces
+                  WHERE project_id = ${scratch.id}::uuid AND worker_id = ${worker.id}::uuid AND archived_at IS NULL`)[0];
+                if (!current) yield* sql`INSERT INTO project_workspaces (id, project_id, worker_id, root_path)
+                  VALUES (${Bun.randomUUIDv7()}::uuid, ${scratch.id}::uuid, ${worker.id}::uuid, ${base})`;
+                else if (current.root_path !== base) yield* sql`UPDATE project_workspaces SET root_path = ${base} WHERE id = ${current.id}::uuid`;
+              }
+              const projects = yield* sql<{ id: string; name: string; slug: string; kind: string }>`
+                SELECT id, name, slug, kind FROM projects WHERE owner_user_id = ${ownerUserId}::uuid AND archived_at IS NULL ORDER BY (kind = 'scratch') DESC, created_at`;
               const workspaces = yield* sql<{ id: string; project_id: string; worker_id: string; root_path: string; label: string }>`
                 SELECT w.id, w.project_id, w.worker_id, w.root_path, w.label FROM project_workspaces w
-                  JOIN projects p ON p.id = w.project_id
-                 WHERE p.owner_user_id = ${ownerUserId}::uuid AND w.archived_at IS NULL ORDER BY w.created_at`;
+                  JOIN projects p ON p.id = w.project_id JOIN workers host ON host.id = w.worker_id
+                 WHERE p.owner_user_id = ${ownerUserId}::uuid AND w.archived_at IS NULL
+                   AND (p.kind <> 'scratch' OR (host.archived_at IS NULL AND host.revoked_at IS NULL
+                     AND (host.owner_user_id IS NULL OR host.owner_user_id = ${ownerUserId}::uuid)
+                     AND EXISTS (SELECT 1 FROM worker_configs c WHERE c.worker_id = host.id AND jsonb_array_length(coalesce(c.config->'allowedRoots', '[]'::jsonb)) > 0)))
+                 ORDER BY w.created_at`;
               return projects.map((p) =>
                 create(ui.ProjectSchema, {
                   ...p,
@@ -587,16 +616,19 @@ export class GatewayStore extends Context.Service<
                     .map((w) => ({ id: w.id, projectId: w.project_id, workerId: w.worker_id, rootPath: w.root_path, label: w.label })),
                 }),
               );
-            }),
+            })),
 
           createThread: (ownerUserId, request) =>
             sql.withTransaction(
               Effect.gen(function* () {
                 const workspace = yield* one(
-                  yield* sql<{ id: string; project_id: string; worker_id: string; root_path: string; os: string }>`
-                    SELECT pw.id, pw.project_id, pw.worker_id, pw.root_path, w.os
-                      FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id
+                  yield* sql<{ id: string; project_id: string; worker_id: string; root_path: string; os: string; project_kind: string }>`
+                    SELECT pw.id, pw.project_id, pw.worker_id, pw.root_path, w.os, p.kind AS project_kind
+                      FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id JOIN projects p ON p.id = pw.project_id
                      WHERE pw.id = ${request.workspaceId}::uuid AND pw.project_id = ${request.projectId}::uuid
+                       AND p.owner_user_id = ${ownerUserId}::uuid AND p.archived_at IS NULL
+                       AND (p.kind <> 'scratch' OR ((w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
+                         AND w.archived_at IS NULL AND w.revoked_at IS NULL))
                        AND (pw.archived_at IS NULL OR ${request.parentThreadId !== "" || request.forkAtTurnId !== ""}::boolean)`,
                   "workspace",
                 );
@@ -622,11 +654,15 @@ export class GatewayStore extends Context.Service<
                 }
                 // A thread may start below the workspace root, never outside it (paths follow the worker's OS).
                 const style = pathStyle(workspace.os, workspace.root_path);
+                const inherited = parent ?? (workspace.project_kind === "scratch" && forkSource ? yield* store.thread(forkSource) : undefined);
+                if (workspace.project_kind === "scratch" && !inherited && request.cwd) {
+                  return yield* Effect.fail(new Invalid("a new no-project thread gets its own scratch directory"));
+                }
                 const requested = request.cwd ? normalizePath(request.cwd, style) : undefined;
-                if (requested && (!isAbsolutePath(request.cwd, style) || !isWithinRoots(requested, [workspace.root_path], style, workspace.os))) {
+                if ((workspace.project_kind !== "scratch" || !inherited) && requested && (!isAbsolutePath(request.cwd, style) || !isWithinRoots(requested, [workspace.root_path], style, workspace.os))) {
                   return yield* Effect.fail(new Invalid(`${request.cwd} is outside the workspace ${workspace.root_path}`));
                 }
-                const cwd = parent?.cwd ?? requested ?? workspace.root_path;
+                const cwd = inherited?.cwd ?? (workspace.project_kind === "scratch" ? scratchCwd(workspace.root_path, id, style) : requested ?? workspace.root_path);
                 const settings = JSON.stringify({
                   model: request.model,
                   effort: request.effort,
@@ -709,6 +745,7 @@ export class GatewayStore extends Context.Service<
               provider: row.provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
               providerProfileId: row.provider_profile_id ?? "",
               cwd: row.cwd ?? "",
+              scratch: row.project_kind === "scratch",
               model: row.settings.model ?? "",
               instructions: row.settings.instructions ?? "",
               permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),

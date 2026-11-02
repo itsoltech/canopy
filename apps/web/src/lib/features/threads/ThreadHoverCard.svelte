@@ -10,7 +10,7 @@
   import { basename } from "#lib/shared/format.ts";
   import HoverCard, { type HoverTriggerProps } from "#lib/shared/ui/HoverCard.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
+  import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { dotTones, textTones } from "#lib/shared/ui/tone.ts";
   import { byActivity, workState } from "./activity.ts";
@@ -50,7 +50,7 @@
     <ScheduleOrigin {thread} />
     <ul role="list" class="grid gap-1.5">
       <SummaryRow>
-        {#snippet mark()}<ProjectAvatar name={project?.name ?? "?"} class="size-4" />{/snippet}
+        {#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} class="size-4" />{/snippet}
         <span class="truncate">{project?.name ?? "Unknown project"}</span>
       </SummaryRow>
       <SummaryRow>
@@ -60,7 +60,7 @@
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}<Icon name="folder" class={muted} />{/snippet}
-        <code class="truncate font-mono" title={thread.cwd}>{basename(thread.cwd)}</code>
+        <code class="truncate font-mono" title={thread.cwd}>{project?.kind === "scratch" ? thread.cwd : basename(thread.cwd)}</code>
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}{#if provider}<ProviderIcon {provider} class="size-4 opacity-70" />{:else}<Icon name="cpu-chip" class={muted} />{/if}{/snippet}

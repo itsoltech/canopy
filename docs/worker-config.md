@@ -89,6 +89,17 @@ Zmiana względem wcześniejszego założenia „poświadczenia LLM nie opuszczaj
 
 ## 5. Bezpieczeństwo
 
+### Katalogi No project
+
+Scratch używa istniejącego `allowed_roots[0]`, bez dodawania nowych uprawnień ani pola konfiguracji.
+Gateway zapewnia workspace `<root>/.open-agents/scratch/<user-id>`, a `CreateThread` z
+`ThreadSpec.scratch` tworzy jego podkatalog UUID wątku na workerze. Worker waliduje rzeczywistą
+ścieżkę rootu i każdy nowy składnik; symlink w poddrzewie scratch jest błędem. Root może być
+symlinkiem już rozwiązanym podczas stosowania konfiguracji. Pusty allowed root lub brak praw zapisu
+uniemożliwia start. Na POSIX nowe katalogi mają `0700`. Zmiana pierwszego rootu dotyczy przyszłych
+nowych rozmów; istniejące wątki i forki zachowują cwd, nadal podlegając aktualnym allowed roots.
+Pliki nie są usuwane automatycznie. Ich pełną ścieżkę i zasady ręcznego usuwania pokazuje panel wątku.
+
 Zdalne `allowed_roots` oznaczają, że kto kontroluje gateway, ten wskazuje workerowi katalogi. Tak czy inaczej gateway zleca agentom pracę z shellem na urządzeniu, więc zaufanie do gateway już jest pełne w granicach uprawnień użytkownika systemowego workera. Środki:
 
 - worker działa jako **dedykowany użytkownik systemowy** z dostępem tylko do potrzebnych katalogów (to jest właściwa granica bezpieczeństwa na urządzeniu),

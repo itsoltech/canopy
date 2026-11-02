@@ -54,7 +54,7 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(spawned.isError).toBe(false);
     const { thread_id: sideId } = json(spawned) as { thread_id: string };
 
-    const side = (await gw.api.listThreads({ projectId: (await gw.api.getOverview({})).projects[0]!.id })).threads.find((t) => t.id === sideId)!;
+    const side = (await gw.api.listThreads({ projectId })).threads.find((t) => t.id === sideId)!;
     expect([side.kind, side.parentThreadId, side.spawnedByAgent, side.cwd]).toEqual([2, mainId, true, "/repo/app"]);
     expect(gw.worker.created.find((c) => c.threadId === sideId)).toMatchObject({ depth: 1, enableAgentBus: true });
 
@@ -154,8 +154,6 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
   });
 
   test("a user-created side thread keeps its questions for the user", async () => {
-    const projectId = (await gw.api.getOverview({})).projects[0]!.id;
-    const workspaceId = (await gw.api.getOverview({})).projects[0]!.workspaces[0]!.id;
     const side = (await gw.api.createThread({ projectId, workspaceId, parentThreadId: mainId, title: "Mine", provider: Provider.CODEX })).thread!;
     await eventually(() => query<{ status: string }>("SELECT status FROM threads WHERE id = $1::uuid", side.id), (r) => r[0]?.status === "idle");
     const requestId = Bun.randomUUIDv7();

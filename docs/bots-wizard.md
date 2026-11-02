@@ -71,9 +71,4 @@ Każda siatka radiowa ma jeden tab stop. Lewo/prawo przechodzi po opcjach, góra
 
 `/dev/bots` zawiera tworzenie, edycję, scenariusz błędu zapisu, instancję bez modeli i pustą listę providerów. Mocki zapisują dane tylko w pamięci galerii. Trasa jest nadal dostępna wyłącznie w development.
 
-```sh
-bun test apps/web/src/lib/features/bots/mascot.test.ts apps/web/src/lib/features/bots/wizard/draft.test.ts
-OA_BOTS_WIZARD_BROWSER=1 bun test tests/integration/bots-wizard.browser.test.ts
-```
-
-Test przeglądarkowy uruchamia własny `vite dev` na **5197**, używa `/usr/bin/chromium` oraz mockuje API powłoki i SSE. Nie uruchamia gateway, workera ani bazy. Sprawdza wyłącznie warstwę UI; zapis backendowy i wyścig unikalności należą do integracji botów. Zrzuty trafiają do ignorowanego `artifacts/bots-wizard/`: 1440 i 390 px, light/dark, każdy również z własnym kolorem `#a3e635`.
+Testy UI nie są utrzymywane w repozytorium (zasada: testy tylko dla integracji gateway↔worker i krytycznej logiki); widok sprawdza się w przeglądarce podczas pracy nad nim.

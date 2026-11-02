@@ -284,7 +284,8 @@ export class AgentBusStore extends Context.Service<
       const sql = yield* SqlClient.SqlClient;
 
       const thread = (id: string) =>
-        sql<ThreadRow>`SELECT * FROM threads WHERE id = ${id}::uuid AND deleted_at IS NULL`.pipe(
+        sql<ThreadRow>`SELECT t.*, (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind
+          FROM threads t WHERE t.id = ${id}::uuid AND t.deleted_at IS NULL`.pipe(
           Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("thread not found")))),
         );
       const node = (row: ThreadRow & { archived_at?: Date | null }): ThreadNode => ({

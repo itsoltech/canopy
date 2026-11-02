@@ -22,6 +22,7 @@
   import GallerySection from "./GallerySection.svelte";
   import WizardGallery from "./WizardGallery.svelte";
   import Segmented from "./Segmented.svelte";
+  import BehaviourGallery from "./BehaviourGallery.svelte";
   import type { ClassValue } from "svelte/elements";
 
   /**
@@ -101,6 +102,7 @@
         </p>
       </div>
 
+      <BehaviourGallery />
       <WizardGallery />
 
       <GallerySection title="Avatars" description="Mascot shape, colour and eyes come from the bot id. A picture replaces the mascot; you get initials. Badges mark pinned and online.">

@@ -2,7 +2,7 @@
   import type { ui } from "@open-agents/contracts";
   import { basename } from "#lib/shared/format.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
+  import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import ThreadActivityMark from "#lib/features/threads/ThreadActivityMark.svelte";
@@ -34,7 +34,7 @@
 <SidebarThreadLink {thread} {current} class="grid gap-0.5 rounded-xl px-3 py-2.5">
   <span class="flex min-w-0 items-center gap-2">
     <ThreadActivityMark {thread}>
-      {#snippet idle()}<ProjectAvatar name={project?.name ?? "?"} />{/snippet}
+      {#snippet idle()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}
     </ThreadActivityMark>
     <span class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5 dark:text-zinc-400">{project?.name ?? "Unknown project"}</span>
     <ThreadStatusText {thread} icons={false} class="group-data-calm:opacity-60 pointer-fine:group-hover/row:invisible pointer-fine:group-focus-within/row:invisible" />

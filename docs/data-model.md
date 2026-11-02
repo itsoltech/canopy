@@ -1,5 +1,33 @@
 # Model danych (PostgreSQL)
 
+## Wątki bez projektu (scratch)
+
+Migracja `0032_scratch_projects` dodaje `projects.kind`: `project` (domyślnie, także dla
+istniejących danych) albo `scratch`. Numer wybrano jako ówczesną ostatnią migrację main (`0029`) + 3;
+po scaleniu main poprzedzają go również `0030_bus_notify_delivery` i `0031_bots`.
+
+Każdy użytkownik ma dokładnie jeden automatycznie provisionowany projekt systemowy „No project”.
+Unikalny indeks po właścicielu zabezpiecza współbieżne pierwsze odczyty. Tożsamość, właściciel,
+nazwa i aktywność projektu systemowego są niezmienne. `GetOverview` ujawnia jego `kind`,
+ale UI ukrywa go w zarządzaniu projektami; korzystają z niego pickery, filtr i domyślne ustawienia wątków.
+
+Gateway automatycznie zapewnia workspace na każdym aktywnym, nieunieważnionym workerze
+użytkownika lub współdzielonym, który ma dozwolony katalog. Root workspace'u wynosi
+`<allowed_roots[0]>/.open-agents/scratch/<owner-user-id>` (separatory według OS workera).
+Nowy główny wątek ma `cwd = <workspace-root>/<thread-id>`; tytuł nie uczestniczy w nazwie ścieżki.
+Zmiana pierwszego allowed root aktualizuje workspace dla przyszłych rozmów, bez przenoszenia plików
+ani zmiany cwd istniejących wątków. Wątki boczne, `spawn_thread` i forki dzielą cwd źródła.
+Pusty zestaw allowed roots usuwa worker z dostępnych pozycji scratch.
+
+Wszystkie FK, reguły właściciela i drzewa, historia forków, szyna agentów oraz harmonogramy
+korzystają z dotychczasowego modelu: `threads.project_id` i `workspace_id` pozostają wymagane.
+Harmonogram `new_thread` wskazuje projekt systemowy i workspace; każde wykonanie dostaje
+osobny katalog nowego wątku. Publiczne operacje tworzenia, zmiany i usuwania workspace'ów
+oraz ustawień projektu nie modyfikują zasobów systemowych. Archiwizacja i soft delete wątku
+nie usuwają plików scratch. Nie ma automatycznego czyszczenia.
+
+## Rozmowy botów
+
 Migracja `0031_bots` dodaje osobne rozmowy Bots, ich tury/checkpointy, wiadomości,
 wywołania narzędzi, zgody, rejestr zdalnych MCP i outboxy pobudek/wyników workerów.
 `turns.trigger='bot'` i `bot_call_id` zachowują pochodzenie oraz hops przy delegowaniu.

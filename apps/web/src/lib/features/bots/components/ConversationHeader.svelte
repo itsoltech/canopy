@@ -8,14 +8,16 @@
   import { conversationTitle, type ConversationView } from "../model.ts";
   import AvatarStack from "./AvatarStack.svelte";
   import BotAvatar from "./BotAvatar.svelte";
+  import type { MascotState } from "../behaviour.ts";
 
   /**
    * Top bar of a bot chat, left-aligned like a messenger: the bot's avatar and name (1:1), the group's
    * avatars and name, or both bots with ⇄ between them (a bot ⇄ bot chat). `subtitle` is one quiet line
    * under the name (e.g. the model). What the bot is doing is not here: it shows under its last message.
-   * The menu button opens the navigation on small screens; `actions` go on the right.
+   * The menu button opens the navigation on small screens; `actions` go on the right. `state` and `event`
+   * drive the living mascots (what the bot is doing, a new message).
    */
-  let { conversation, subtitle, actions, class: className }: { conversation: ConversationView; subtitle?: string | undefined; actions?: Snippet; class?: ClassValue } = $props();
+  let { conversation, subtitle, actions, state = "idle", event, class: className }: { conversation: ConversationView; subtitle?: string | undefined; actions?: Snippet; state?: MascotState; event?: unknown; class?: ClassValue } = $props();
   const shell = useShell();
   const title = $derived(conversationTitle(conversation));
 </script>
@@ -26,13 +28,13 @@
   <div class="flex min-w-0 flex-1 items-center gap-2.5 pl-1">
     {#if conversation.kind === "watch" && conversation.bots.length === 2}
       <span class="flex shrink-0 -space-x-1.5 [--avatar-ring:var(--color-white)] dark:[--avatar-ring:var(--color-black)]">
-        <BotAvatar participant={conversation.bots[0]!} size="sm" class="rounded-full ring-2 ring-(--avatar-ring)" />
-        <BotAvatar participant={conversation.bots[1]!} size="sm" class="rounded-full ring-2 ring-(--avatar-ring)" />
+        <BotAvatar participant={conversation.bots[0]!} size="sm" {state} {event} class="rounded-full ring-2 ring-(--avatar-ring)" />
+        <BotAvatar participant={conversation.bots[1]!} size="sm" {state} {event} class="rounded-full ring-2 ring-(--avatar-ring)" />
       </span>
     {:else if conversation.kind === "direct" && conversation.bots[0]}
-      <BotAvatar participant={conversation.bots[0]} size="sm" />
+      <BotAvatar participant={conversation.bots[0]} size="sm" {state} {event} />
     {:else}
-      <AvatarStack participants={conversation.bots} class="[--avatar-ring:var(--color-white)] dark:[--avatar-ring:var(--color-black)]" />
+      <AvatarStack participants={conversation.bots} {state} {event} class="[--avatar-ring:var(--color-white)] dark:[--avatar-ring:var(--color-black)]" />
     {/if}
     <div class="min-w-0">
       <h1 class="flex min-w-0 items-center gap-1.5 text-base/5 font-semibold text-zinc-950 sm:text-sm/5 dark:text-white">

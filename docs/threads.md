@@ -1,5 +1,34 @@
 # Projekty, wątki i wątki boczne
 
+## No project — rozmowy na maszynie
+
+Pierwsza pozycja pickera projektu na ekranie „What should we work on?” to **No project**
+z przerywaną kwadratową ikoną. Wystarczy wybrać worker oraz zwykłe ustawienia agenta, modelu,
+wysiłku i uprawnień. Można zacząć bez żadnego zwykłego projektu. Worker musi mieć co najmniej
+jeden dozwolony katalog; worker offline pozostaje widoczny, ale kompozytor czeka na jego połączenie.
+
+Przy `CreateThread` worker tworzy katalog
+`<pierwszy allowed root>/.open-agents/scratch/<user-id>/<thread-id>` i uruchamia w nim agenta.
+UUID zapewnia stałą, bezpieczną nazwę: zmiana tytułu nie zmienia katalogu. Nowe katalogi na POSIX
+mają uprawnienia `0700`. Worker sprawdza rzeczywiste ścieżki oraz odrzuca symlinki w zarządzanym
+poddrzewie scratch, zanim utworzy ich dzieci. Nie rozszerza allowed roots.
+
+Wątki boczne, także `spawn_thread`, oraz forki zachowują cwd rodzica lub źródła. Nowe niezależne
+rozmowy i kolejne wykonania harmonogramu dostają osobne katalogi. Pełną ścieżkę pokazuje panel
+szczegółów; można ją skopiować z menu. Archiwizacja, usunięcie w UI i zakończenie pracy nie usuwają
+plików. **Brak automatycznego czyszczenia**: użytkownik usuwa katalog ręcznie dopiero wtedy,
+gdy żaden fork ani wątek boczny nie potrzebuje plików.
+
+Sidebar, filtr projektów, hover card i paleta poleceń pokazują „No project” oraz tę samą ikonę.
+Settings → Threads → „Project and worker” pozwala wybrać worker w grupie „No project”.
+Systemowy projekt nie występuje w Settings → Projects. Harmonogram nowego wątku pozwala
+wybrać „No project” i konkretny worker. Boty również mogą wskazać tę pozycję i workspace
+workera przez `list_projects` oraz `start_thread`.
+
+Przed wysłaniem pierwszej wiadomości katalog scratch jeszcze nie istnieje, więc lista plików
+we wzmiankach jest pusta. Katalog komend i umiejętności pochodzi wtedy z pierwszego allowed root
+workera; po utworzeniu wątku katalog i wyszukiwanie plików używają jego dokładnego cwd.
+
 ## Filtr, menu i archiwum
 
 Przycisk obok „Search threads” otwiera wyszukiwanie projektów i wybór wielu projektów.

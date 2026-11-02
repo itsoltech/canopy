@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { swap } from "#lib/shared/ui/motion.ts";
+  import { stateForStatus } from "../behaviour-math.ts";
   import type { ParticipantView } from "../model.ts";
   import BotAvatar from "./BotAvatar.svelte";
 
@@ -13,7 +14,7 @@
 </script>
 
 <div role="status" class={["flex items-center gap-2", className]}>
-  <span class="w-7 shrink-0"><BotAvatar participant={bot} size="sm" /></span>
+  <span class="w-7 shrink-0"><BotAvatar participant={bot} size="sm" state={waiting ? "waiting" : stateForStatus(text)} /></span>
   <p class="min-w-0 px-1 text-base/6 sm:text-sm/6">
     <span class="sr-only">{bot.name}: </span>
     {#key text}

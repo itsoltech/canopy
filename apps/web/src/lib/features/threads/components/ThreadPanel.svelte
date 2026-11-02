@@ -21,6 +21,7 @@
   import type { Item } from "@open-agents/contracts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import ThreadTitleActions from "./ThreadTitleActions.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   /**
    * Context of a thread (T3's right panel): where it runs, which agent, who answers its approvals,
@@ -60,6 +61,8 @@
     class?: ClassValue;
   } = $props();
   const providerKey = $derived(providerKeyOf(thread.provider));
+  const overview = useOverview();
+  const scratch = $derived(overview.project(thread.projectId)?.kind === "scratch");
 
   const lookup = (id: string) => (tree.main.id === id ? tree.main : tree.sides.find((s) => s.id === id));
   const directory = useThreadDirectory();
@@ -82,7 +85,8 @@
         </span>
       {/snippet}
     </PanelRow>
-    <PanelRow icon="folder"><code class="font-mono text-[0.8125rem]" title={thread.cwd}>{thread.cwd}</code></PanelRow>
+    <PanelRow icon="folder" wrap><code class="font-mono text-[0.8125rem] break-all" title={thread.cwd}>{thread.cwd}</code></PanelRow>
+    {#if scratch}<p class="px-2 py-1 text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">Scratch files are kept after this thread ends. Remove them manually when no related thread needs them.</p>{/if}
   </section>
 
   <section aria-label="Agent" class="grid grid-cols-1 p-1.5">

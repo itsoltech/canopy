@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { tick, type Snippet } from "svelte";
+  import { tick, untrack, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { rise } from "#lib/shared/ui/motion.ts";
   import type { ExchangeSegment } from "../chat-timeline.ts";
   import type { BotStatusView, ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
+  import type { MascotState } from "../behaviour.ts";
+  import { stateForStatus } from "../behaviour-math.ts";
   import type { ApprovalAnswer, ApprovalPolicy } from "./ApprovalCard.svelte";
   import BotComposer from "./BotComposer.svelte";
   import ChatTimeline from "./ChatTimeline.svelte";
@@ -75,6 +77,25 @@
   let content = $state<HTMLElement>();
   let composer = $state<ReturnType<typeof BotComposer>>();
   let following = $state(true);
+  // Living mascots: the header's bot reacts to a new message (`event`) and shows what it is doing.
+  let messageEvent = $state(0);
+  let previousMessage: string | undefined;
+  let previousConversation: string | undefined;
+  $effect(() => {
+    const id = conversation.id;
+    const found = entries.findLast((entry) => entry.kind === "message");
+    const latest = found?.kind === "message" ? found.message.id : undefined;
+    if (previousConversation === id && latest && latest !== previousMessage) untrack(() => messageEvent++);
+    previousConversation = id;
+    previousMessage = latest;
+  });
+  const mascotState = $derived.by((): MascotState => {
+    if (status) return status.waiting ? "waiting" : stateForStatus(status.text);
+    const last = entries.at(-1);
+    if (last?.kind === "error") return "error";
+    if (sending) return "working";
+    return last?.kind === "message" && conversation.bots.some((bot) => bot.id === last.message.senderId) ? "done" : "idle";
+  });
   const toEnd = (behavior: ScrollBehavior = "instant") => log?.scrollTo({ top: log.scrollHeight, behavior });
 
   // Whatever grows the conversation (a message, a card, the status line, a long answer) keeps the end in
@@ -110,8 +131,8 @@
   }
 </script>
 
-<div class={["flex h-full min-h-0 flex-col", className]}>
-  <ConversationHeader {conversation} {subtitle} {actions} />
+<div data-mascot-chat class={["flex h-full min-h-0 flex-col", className]}>
+  <ConversationHeader {conversation} {subtitle} {actions} state={mascotState} event={messageEvent} />
   <div class="relative flex min-h-0 flex-1 flex-col">
     <!-- `relative`: screen-reader labels positioned inside messages stay inside the scroller. -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->

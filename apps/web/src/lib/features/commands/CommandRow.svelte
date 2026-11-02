@@ -5,7 +5,7 @@
   import HighlightedText from "#lib/shared/ui/HighlightedText.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
-  import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
+  import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import type { PaletteEntry } from "./palette.ts";
 
@@ -32,7 +32,7 @@
 
 {#snippet body()}
   {#if command.projectName}
-    <ProjectAvatar name={command.projectName} />
+    <ProjectMark name={command.projectName} kind={command.projectKind} />
   {:else if command.icon}
     <Icon name={command.icon} class="fill-zinc-500 group-aria-disabled/row:fill-zinc-300 group-data-active/row:fill-zinc-700 dark:fill-zinc-400 dark:group-aria-disabled/row:fill-zinc-700 dark:group-data-active/row:fill-zinc-200" />
   {:else if !thread}
@@ -44,7 +44,7 @@
     </span>
     {#if thread}
       <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
-        <ProjectAvatar name={thread.projectName} class="size-3.5 text-[0.5rem]/none" />
+        <ProjectMark name={thread.projectName} kind={thread.projectKind} class="size-3.5 text-[0.5rem]/none" />
         <span class="min-w-0 truncate">{thread.projectName}<span class="text-zinc-400 dark:text-zinc-500">{" · "}</span>{thread.workerName}</span>
         {#if thread.provider}<ProviderIcon provider={thread.provider} class="size-3 opacity-70" />{/if}
       </span>

@@ -47,7 +47,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
       href: `/threads/${thread.id}`,
       keywords: [project?.name, worker?.name, basename(thread.cwd)].filter(Boolean).join(" "),
       suggested,
-      thread: { projectName: project?.name ?? "Unknown project", workerName: worker?.name ?? "Unknown worker", provider: providerKeyOf(thread.provider), activityAt: activityOf(thread) },
+      thread: { projectName: project?.name ?? "Unknown project", projectKind: project?.kind, workerName: worker?.name ?? "Unknown worker", provider: providerKeyOf(thread.provider), activityAt: activityOf(thread) },
     };
   };
 
@@ -81,7 +81,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
         rank: -9,
         when: () => overview.projects.length > 1,
         children: () =>
-          overview.projects.map((project) => ({ id: project.id, title: project.name, group: "actions", projectName: project.name, href: newThreadHref(project), checked: project.id === current?.id })),
+          overview.projects.map((project) => ({ id: project.id, title: project.name, group: "actions", projectName: project.name, projectKind: project.kind, href: newThreadHref(project), checked: project.id === current?.id })),
       },
       {
         id: "toggle-sidebar",
@@ -168,12 +168,13 @@ export function appCommands(context: AppCommandContext): CommandSource {
       title: project.name,
       group: "projects",
       projectName: project.name,
+      projectKind: project.kind,
       keywords: "project",
       suggested: false,
       placeholder: `Search ${project.name}…`,
       children: () => [
         { id: "new-thread", title: `New thread in ${project.name}`, group: "actions", icon: "pencil-square", href: newThreadHref(project) },
-        { id: "settings", title: "Project settings", group: "actions", icon: "cog-6-tooth", href: `/settings/projects/${project.id}` },
+        { id: "settings", title: project.kind === "scratch" ? "Thread defaults" : "Project settings", group: "actions", icon: "cog-6-tooth", href: project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}` },
         ...threads.filter((t) => t.projectId === project.id).map((t) => threadCommand(t, true)),
       ],
     }));

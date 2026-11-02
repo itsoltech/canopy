@@ -14,6 +14,7 @@
     href,
     onclick,
     current = false,
+    wrap = false,
     class: className,
     children,
     aside,
@@ -24,6 +25,7 @@
     href?: string | undefined;
     onclick?: (() => void) | undefined;
     current?: boolean;
+    wrap?: boolean;
     class?: ClassValue;
     children: Snippet;
     aside?: Snippet;
@@ -40,7 +42,7 @@
 
 {#snippet content()}
   {#if lead}{@render lead()}{:else}<Icon name={icon} class={iconClass ?? "fill-zinc-400 dark:fill-zinc-500"} />{/if}
-  <span class="min-w-0 flex-1 truncate">{@render children()}</span>
+  <span class={["min-w-0 flex-1", wrap ? "break-words whitespace-normal" : "truncate"]}>{@render children()}</span>
   {@render aside?.()}
 {/snippet}
 

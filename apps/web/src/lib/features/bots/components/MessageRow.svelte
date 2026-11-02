@@ -4,6 +4,7 @@
   import { botTextTone } from "../mascot.ts";
   import type { ParticipantView } from "../model.ts";
   import BotAvatar from "./BotAvatar.svelte";
+  import type { MascotState } from "../behaviour.ts";
 
   /**
    * Layout of one entry from a participant: a gutter with the sender's avatar (only beside the last
@@ -16,15 +17,17 @@
     mine = false,
     showAvatar = true,
     showName = false,
+    state = "idle",
+    event,
     children,
     class: className,
-  }: { sender: ParticipantView | undefined; side?: "start" | "end"; mine?: boolean; showAvatar?: boolean; showName?: boolean; children: Snippet; class?: ClassValue } = $props();
+  }: { sender: ParticipantView | undefined; side?: "start" | "end"; mine?: boolean; showAvatar?: boolean; showName?: boolean; state?: MascotState; event?: unknown; children: Snippet; class?: ClassValue } = $props();
 </script>
 
 <div class={["flex items-end gap-2", side === "end" && "flex-row-reverse", className]}>
   {#if !mine}
     <span class="w-7 shrink-0">
-      {#if showAvatar && sender}<BotAvatar participant={sender} size="sm" />{/if}
+      {#if showAvatar && sender}<BotAvatar participant={sender} size="sm" {state} {event} />{/if}
     </span>
   {/if}
   <div class={["flex min-w-0 flex-1 flex-col gap-1", side === "end" ? "items-end" : "items-start"]}>
