@@ -59,8 +59,10 @@ import type { SteerError } from "../providers/turn-input.ts";
  *   answered (the gateway answers a re-sent call from its stored result).
  * - Model catalog: listed after every applied config (no model turn), sent as ModelCatalog and
  *   re-sent after a reconnect; ListModels lists again on request.
- * - Background tasks die with their provider process: after a crash (recover) or a runtime restart, the
- *   ones the journal still has open are closed as interrupted. Turns of the previous process too (recover).
+ * - Background tasks die with their provider process: after a crash (recover: worker_lost) or a runtime restart
+ *   (worker_restart), the ones the journal still has open are closed as interrupted, with their end time. A graceful
+ *   stop (shutdown) closes them as worker_shutdown while the link is still up and waits for the gateway's ack (flush),
+ *   so the agent hears why (docs/execution.md, "Pobudka"). Turns of the previous process are settled too (recover).
  * - Running turns are reported in Hello (runningTurns): the gateway ends the ones it believes run here but
  *   do not; an interrupt for a turn that does not run here fails with TURN_NOT_RUNNING.
  * - Attachments (docs/protocol.md, "Załączniki"): a turn's files are fetched from the gateway (FetchBlob) into
@@ -132,6 +134,8 @@ export class WorkerHost {
   readonly #codex = new Map<string, ProviderRuntimeHandle<CodexThreads>>();
   #claude: ProviderRuntimeHandle<ClaudeThreads> | undefined;
   #rebuildWanted = false;
+  /** The worker is stopping (shutdown): runtimes stay down, tasks they kill end as worker_shutdown. */
+  #shuttingDown = false;
   readonly #codexRestart = new Map<string, Promise<void>>();
   readonly #running = new Set<string>();
   readonly #interactions = new Map<string, { request: InteractionRequest; resolve: (r: InteractionResponse) => void }>();
@@ -343,6 +347,29 @@ export class WorkerHost {
   }
 
   /**
+   * Graceful stop (SIGTERM: restart, deploy): the provider runtimes stop and the background tasks they ran end as
+   * interrupted with stop_reason worker_shutdown and their end time, journaled and sent while the link is up.
+   * Commands after this find no runtime (not final: they wait for the next process). Returns how many tasks ended.
+   */
+  async shutdown(): Promise<number> {
+    this.#shuttingDown = true;
+    const before = (await this.#options.runtime.runPromise(Journal.use((j) => j.openBackgroundTasks()))).length;
+    await this.close();
+    return before;
+  }
+
+  /** Waits until the gateway acked every journaled event (or the time is up); true when nothing is left. */
+  async flush(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const left = await this.#options.runtime.runPromise(Journal.use((j) => j.cursors()));
+      if (left.length === 0) return true;
+      if (Date.now() >= deadline || !this.#link) return false;
+      await Bun.sleep(100);
+    }
+  }
+
+  /**
    * At startup: turns and background tasks of the previous process are gone (docs/durability.md, 3.4;
    * docs/execution.md, "Trwałość"). Each open turn is settled from its harness's transcript (providers/reconcile.ts):
    * what the harness recorded but the previous process never forwarded is journaled, open items get their real end,
@@ -357,7 +384,8 @@ export class WorkerHost {
       if (record) fromTranscript++;
       for (const event of events) this.#sendEvent(event);
     }
-    return { turns: open.length, tasks: await this.#closeOrphans(() => true, "worker_restart"), fromTranscript };
+    // A graceful stop closed its tasks (worker_shutdown); whatever is still open died without a record: a crash.
+    return { turns: open.length, tasks: await this.#closeOrphans(() => true, "worker_lost"), fromTranscript };
   }
 
   /** Turns this process runs now (Hello.running_turns). */
@@ -613,6 +641,7 @@ export class WorkerHost {
     const codexChanged =
       codexGroups.size !== this.#codex.size || [...codexGroups].some(([name, group]) => this.#codex.get(name)?.key !== group.key);
     if (!codexChanged && claudeKey === this.#claude?.key) return;
+    if (this.#shuttingDown) return;
     if (this.#running.size > 0) {
       this.#rebuildWanted = true;
       this.#log(`provider settings changed; restart deferred until ${this.#running.size} running turn(s) finish`);
@@ -681,6 +710,7 @@ export class WorkerHost {
       attachmentsDir: (threadId) => this.#files.threadDir(threadId),
       viewImage: (threadId, cwd, path) => this.#viewImage(threadId, cwd, path),
       enrich: (init) => this.#previews.enrich(init),
+      closingReason: () => this.#stopReason(),
     });
     const scope = await Effect.runPromise(Scope.make());
     const context = await this.#options.runtime.runPromise(Layer.buildWithScope(layer, scope));
@@ -693,7 +723,7 @@ export class WorkerHost {
     if (!claude) return;
     this.#claude = undefined;
     await Effect.runPromise(Scope.close(claude.scope, Exit.void));
-    await this.#closeOrphans((_, item) => kindOf(item) !== BackgroundTaskKind.PROCESS, "worker_restart");
+    await this.#closeOrphans((_, item) => kindOf(item) !== BackgroundTaskKind.PROCESS, this.#stopReason());
     this.#log("claude runtime stopped");
   }
 
@@ -741,7 +771,12 @@ export class WorkerHost {
   async #closeCodexOrphans(): Promise<void> {
     const held = (threadId: string, item: Item) =>
       [...this.#codex.values()].some((codex) => Context.get(codex.context, CodexThreads).backgroundTasks().get(threadId)?.includes(taskOf(item) ?? ""));
-    await this.#closeOrphans((threadId, item) => kindOf(item) === BackgroundTaskKind.PROCESS && !held(threadId, item), "worker_restart");
+    await this.#closeOrphans((threadId, item) => kindOf(item) === BackgroundTaskKind.PROCESS && !held(threadId, item), this.#stopReason());
+  }
+
+  /** Why tasks of a stopping provider runtime end: the worker stops, or only the runtime restarts. */
+  #stopReason(): string {
+    return this.#shuttingDown ? "worker_shutdown" : "worker_restart";
   }
 
   /** Ends background tasks the journal has open but no provider process runs any more. */
@@ -752,7 +787,11 @@ export class WorkerHost {
       if (!match(threadId, item) || item.content.case !== "backgroundTask") continue;
       const ended = clone(ItemSchema, item);
       ended.status = ItemStatus.INTERRUPTED;
-      if (ended.content.case === "backgroundTask") ended.content.value.stopReason = stopReason;
+      if (ended.content.case === "backgroundTask") {
+        ended.content.value.stopReason = stopReason;
+        // Now: when its end is recorded (for a crash, when the worker found it dead).
+        ended.content.value.endedAt = timestampNow();
+      }
       const event = await this.#options.runtime.runPromise(
         Journal.use((j) => j.append(threadId, { body: { case: "itemCompleted", value: { item: ended } } })),
       );

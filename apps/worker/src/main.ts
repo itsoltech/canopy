@@ -9,6 +9,8 @@ import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
 
 const WORKER_VERSION = "0.0.0";
+/** How long a graceful stop waits for the gateway to ack what it recorded (stopped background tasks). */
+const SHUTDOWN_FLUSH_MS = 3_000;
 
 // Local config is only how to reach the gateway; everything else arrives as WorkerConfig.
 const configPath = defaultConfigPath(Bun.env, process.platform);
@@ -46,13 +48,24 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       return;
     }
     stopping.abort();
-    try {
-      currentLink?.send({ case: "heartbeat", value: { runningTurns: 0, state: WorkerState.DRAINING } });
-      currentLink?.close();
-    } catch {
-      // Link already closed; nothing to drain.
-    }
-    if (!currentLink) shutdown.abort();
+    void (async () => {
+      try {
+        currentLink?.send({ case: "heartbeat", value: { runningTurns: 0, state: WorkerState.DRAINING } });
+      } catch {
+        // Link already closed.
+      }
+      // Background tasks die with the provider runtimes: recorded as stopped by the shutdown (with their end time) and
+      // reported while the link is up, so the gateway can tell their agents (docs/execution.md, "Pobudka").
+      const tasks = await host.shutdown().catch((error: unknown) => (console.warn(`shutdown: ${error instanceof Error ? error.message : String(error)}`), 0));
+      if (currentLink && !(await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false))) console.warn("shutdown: not every event reached the gateway; sent after the next start");
+      if (tasks > 0) console.info(`stopped ${tasks} background task(s) for the shutdown`);
+      try {
+        currentLink?.close();
+      } catch {
+        // Link already closed; nothing to drain.
+      }
+      if (!currentLink) shutdown.abort();
+    })();
   });
 }
 

@@ -1,4 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { timestampNow } from "@bufbuild/protobuf/wkt";
 import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@open-agents/codex-protocol";
 import {
   BackgroundTaskKind,
@@ -272,6 +273,7 @@ export class CodexEventMapper {
                   output: command.output,
                   startedInTurnId: turnId,
                   sourceItemId: itemId,
+                  startedAt: timestampNow(),
                 },
               },
             },
@@ -311,6 +313,8 @@ export class CodexEventMapper {
                   description: running.command,
                   startedInTurnId: this.#ctx.turnId(running.codexTurnId) ?? "",
                   sourceItemId: item.id,
+                  endedAt: timestampNow(),
+                  ...(item.exitCode !== null && { exitCode: item.exitCode }),
                   ...(stopped ? { stopReason: "stopped_by_user" } : failed ? { stopReason: "error" } : {}),
                 },
               },
