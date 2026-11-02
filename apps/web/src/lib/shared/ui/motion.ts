@@ -143,6 +143,20 @@ export function pageSlide(_node: HTMLElement, { step = 1 }: { step?: number } = 
   };
 }
 
+/**
+ * Page side-by-side (08), entering half: a level of a list that replaced the previous one in place (a
+ * submenu opened or left) slides in from --distance-base on the side it comes from (`from` 1 = deeper,
+ * from the right; -1 = back, from the left) with a fade and cross-blur on --duration-fast. The old level
+ * goes at once, so the two never overlap. With reduced motion it only fades.
+ */
+export function pageIn(_node: HTMLElement, { from = 1 }: { from?: number } = {}): TransitionConfig {
+  const ms = duration("fast");
+  if (prefersReducedMotion.current) return { duration: ms, css: (t) => `opacity: ${t}` };
+  const distance = length("--distance-base", 8) * from;
+  const blur = length("--blur-medium", 3);
+  return { duration: ms, easing: smoothOut, css: (t, u) => `opacity: ${t}; translate: ${u * distance}px 0; filter: blur(${u * blur}px)` };
+}
+
 /** Icon swap (09), entering half: a status icon that changed grows in from a quarter with a blur. */
 export function iconSwap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}): TransitionConfig {
   const ms = duration("fast");

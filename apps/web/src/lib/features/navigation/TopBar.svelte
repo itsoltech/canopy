@@ -1,12 +1,18 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { PALETTE_HOTKEY, usePalette } from "#lib/features/commands/commands.svelte.ts";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { useShell } from "./shell.ts";
   import SidebarToggle from "./SidebarToggle.svelte";
 
-  /** Page top bar: menu button on small screens (sidebar toggle on desktop), breadcrumb, actions on the right (T3-style, no border). */
+  /**
+   * Page top bar: menu button on small screens (sidebar toggle on desktop), breadcrumb, actions on the right
+   * (T3-style, no border). The search button opens the command palette where there is no Mod+K to press
+   * (narrow or touch screens).
+   */
   let { children, actions }: { children: Snippet; actions?: Snippet } = $props();
   const shell = useShell();
+  const palette = usePalette();
 </script>
 
 <div class="flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4">
@@ -17,5 +23,12 @@
       {@render children()}
     </ol>
   </nav>
-  {#if actions}<div class="flex shrink-0 items-center gap-1">{@render actions()}</div>{/if}
+  {#if palette || actions}
+    <div class="flex shrink-0 items-center gap-1">
+      {#if palette}
+        <IconButton icon="magnifying-glass" label="Search and commands" aria-haspopup="dialog" tooltipOptions={{ hotkey: PALETTE_HOTKEY }} class="lg:pointer-fine:hidden" onclick={() => palette.show()} />
+      {/if}
+      {@render actions?.()}
+    </div>
+  {/if}
 </div>

@@ -2,6 +2,7 @@
   import { ui } from "@open-agents/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
+  import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
   import SetGoalPill from "#lib/features/goals/SetGoalPill.svelte";
@@ -11,6 +12,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
+  import { interruptThread } from "#lib/features/threads/api.ts";
   import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
   import Composer from "#lib/features/threads/components/Composer.svelte";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
@@ -189,6 +191,32 @@
       toast("Copied");
     } catch {
       toast("Copying is not allowed here", { tone: "error" });
+    }
+  }
+
+  // The thread's actions in the command palette (the same as its menu, plus Interrupt while it works).
+  contributeCommands(() => {
+    if (!thread) return [];
+    const current = thread;
+    return [
+      { id: "thread:interrupt", title: "Interrupt", group: "actions", icon: "stop", keywords: "stop cancel turn", rank: -8, when: () => working, run: stop },
+      { id: "thread:side", title: "Side thread…", group: "actions", icon: "arrows-right-left", keywords: "new side branch fork", rank: -7, when: () => canBranch, run: openSide },
+      { id: "thread:schedule", title: "Schedule a task…", group: "actions", icon: "clock", keywords: "schedule later cron recurring", rank: -7, when: () => canSchedule, run: openSchedule },
+      { id: "thread:model", title: "Model and effort…", group: "actions", icon: "cpu-chip", keywords: "model reasoning effort", rank: -7, when: () => !closed, run: () => (modelOpen = true) },
+      { id: "thread:permissions", title: "Permissions…", group: "actions", icon: "shield-check", keywords: "permission mode approvals sandbox", rank: -7, when: () => !closed, run: () => (permissionsOpen = true) },
+      { id: "thread:goal", title: openGoal ? "Replace the goal…" : "Set a goal…", group: "actions", icon: "flag", keywords: "goal objective", rank: -7, when: () => goalsHere, disabled: !canGoal, run: setGoalLater },
+      { id: "thread:details", title: "Toggle thread details", group: "actions", icon: "view-columns", keywords: "panel context sidebar", rank: -6, run: togglePanel },
+      { id: "thread:copy-link", title: "Copy thread link", group: "actions", icon: "link", keywords: "url share", rank: -6, run: () => copy(page.url.href) },
+      { id: "thread:copy-id", title: "Copy thread id", group: "actions", icon: "document-duplicate", keywords: "identifier", rank: -6, run: () => copy(current.id) },
+      { id: "thread:copy-cwd", title: "Copy working directory", group: "actions", icon: "folder", keywords: "path cwd", rank: -6, suggested: false, run: () => copy(current.cwd) },
+    ];
+  });
+  async function stop() {
+    if (!thread) return;
+    try {
+      await interruptThread(thread.id);
+    } catch (cause) {
+      toast(`Could not interrupt: ${cause instanceof Error ? cause.message : "unknown error"}`, { tone: "error" });
     }
   }
   const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${view.pending.length > 0 ? `, ${view.pending.length} waiting for you` : ""}` : "");
