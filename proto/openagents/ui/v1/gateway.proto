@@ -406,6 +406,8 @@ message SendMessageResponse {
   Turn turn = 1;
   // Wiadomość dołączona do tury w toku (delivery = STEER).
   Steer steer = 40;
+  // Wiadomość z komendą platformy /goal: ustawiony cel (Claude: także jego tura w turn; Codex: bez tury).
+  Goal goal = 140;
 }
 
 message InterruptThreadRequest {
