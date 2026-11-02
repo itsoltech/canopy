@@ -201,8 +201,9 @@
       </div>
     </div>
     {#if !following}
-      <div class="absolute left-1/2 z-20 -translate-x-1/2" style:bottom="{composerHeight + 12}px" transition:rise>
-        <span class="flex rounded-full bg-white shadow-md ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10">
+      <!-- Centred by flex, not translate: rise animates `translate` and would cancel a -translate-x-1/2. -->
+      <div class="pointer-events-none absolute inset-x-0 z-20 flex justify-center" style:bottom="{composerHeight + 12}px" transition:rise>
+        <span class="pointer-events-auto flex rounded-full bg-white shadow-md ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10">
           <RoundButton icon="arrow-down" label="Jump to the latest message" variant="secondary" onclick={() => { following = true; toEnd("smooth"); }} />
         </span>
       </div>
