@@ -382,6 +382,10 @@ export class WorkerHost {
         this.#checkCwd(config, spec.cwd);
         this.#cwds.set(spec.threadId, spec.cwd);
         const fork = kind.value.fork;
+        // A fork point without its provider ref would make both harnesses copy the whole history instead.
+        if (fork?.afterTurnId && !fork.afterProviderTurnRef) {
+          throw new CommandError("FORK_POINT_UNKNOWN", `turn ${fork.afterTurnId} has no fork point at the provider`, true);
+        }
         if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.create(spec, fork));
         else await this.#runCodex(spec.provider, (threads) => threads.create(spec, fork), this.#codexGroupOf(spec.providerProfileId));
         return {};

@@ -699,7 +699,8 @@ export class GatewayCore {
     return this.getThread(threadId);
   }
 
-  async createThread(request: ui.CreateThreadRequest): Promise<ui.Thread> {
+  async createThread(input: ui.CreateThreadRequest): Promise<ui.Thread> {
+    const request = input.forkAtTurnId && !input.parentThreadId ? await this.#forkRequest(input) : input;
     await this.#checkProvider(request);
     const where = { workspaceId: request.workspaceId, provider: request.provider, profileId: request.providerProfileId };
     await this.#checkModel(where, request.model, request.effort);
@@ -1009,6 +1010,33 @@ export class GatewayCore {
     if (!profile.available) throw new InvalidError(`${name} · ${instance.label || profileId} is not available on ${worker.name}${profile.detail ? `: ${profile.detail}` : ""}`);
   }
 
+  /**
+   * "Fork from here" (fork_at_turn_id without a parent): a new main thread placed and set up like the thread it
+   * forks from (same project, workspace, directory, provider instance, model, effort, mode and instructions).
+   * The store checks the turn (store.createThread).
+   */
+  async #forkRequest(request: ui.CreateThreadRequest): Promise<ui.CreateThreadRequest> {
+    if (!request.forkThreadId) throw new InvalidError("fork_at_turn_id needs the thread to fork from (fork_thread_id)");
+    const from = await this.#run((s) => s.thread(request.forkThreadId));
+    if (from.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
+    if (from.runtime !== "worker" || !from.workspace_id) throw new InvalidError("only threads on a worker can be forked");
+    const source = toUiThread(from);
+    return create(ui.CreateThreadRequestSchema, {
+      ...request,
+      projectId: from.project_id,
+      workspaceId: from.workspace_id,
+      cwd: from.cwd ?? "",
+      provider: source.provider,
+      providerProfileId: source.providerProfileId,
+      model: source.model,
+      effort: source.effort,
+      permissionMode: source.permissionMode,
+      instructions: from.settings.instructions ?? "",
+      fork: false,
+      title: request.title.trim() || `Fork of ${from.title}`,
+    });
+  }
+
   /** CreateThread to the worker (with the fork point of a forked thread), then announce the thread. */
   async #startThread(row: ThreadRow): Promise<void> {
     const spec = await this.#run((s) => Effect.succeed(s.threadSpec(row)));
@@ -1016,7 +1044,8 @@ export class GatewayCore {
     if (row.fork_source_thread_id) {
       const source = await this.#run((s) => s.thread(row.fork_source_thread_id ?? ""));
       const turns = await this.#run((s) => s.turnsOf(source.id));
-      const last = [...turns].reverse().find((t) => t.status === "completed");
+      // The fork point the database pinned at insert (a chosen turn, or the latest completed one then).
+      const last = turns.find((t) => t.id === row.fork_after_turn_id);
       fork = {
         sourceThreadId: source.id,
         sourceProviderThreadId: source.provider_thread_id ?? "",

@@ -151,6 +151,10 @@ describe.skipIf(!dockerAvailable)("managing the queue (gateway + scripted worker
 
     await gw.api.deleteQueuedTurn({ turnId: b });
     expect(await drain(thread.id, runningId, 2)).toEqual(["A", "C"]);
+    // A fork at C names it as the timeline numbers it: the deleted B before it does not count.
+    const c = queued[2]!;
+    const fork = (await gw.api.createThread({ forkThreadId: thread.id, forkAtTurnId: c.id })).thread!;
+    expect([c.ordinal, fork.forkAfterTurnOrdinal]).toEqual([4, 3]);
     // A deleted turn stays out of the snapshot's timeline as withdrawn.
     const snapshot = (await watchUntil(gw.api, thread.id, (u) => u.length >= 1))[0]!;
     const view = snapshot.change.case === "snapshot" ? snapshot.change.value : undefined;

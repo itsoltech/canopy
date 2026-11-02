@@ -66,6 +66,8 @@ export interface ThreadRow {
   provider_thread_id: string | null;
   fork_source_thread_id: string | null;
   fork_after_turn_id: string | null;
+  /** Joined: the fork point's number in the thread it belongs to (fork_source_thread_id). */
+  fork_after_turn_ordinal?: number | null;
   settings: { model?: string; effort?: string; permissionMode?: string; instructions?: string };
   status: string;
   status_detail: string | null;
@@ -305,8 +307,39 @@ export class GatewayStore extends Context.Service<
                    ORDER BY u.last_seq DESC LIMIT 1) AS unseen_result,
                  CASE WHEN t.kind = 'side' THEN
                    (SELECT left(m.content->'agentMessage'->>'text', ${LAST_MESSAGE_PREVIEW}) FROM thread_items m
-                     WHERE m.thread_id = t.id AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1) END AS last_message
+                     WHERE m.thread_id = t.id AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1) END AS last_message,
+                 (SELECT (ft.ordinal - (SELECT count(*) FROM turns w WHERE w.thread_id = ft.thread_id AND w.withdrawn IS NOT NULL AND w.ordinal < ft.ordinal))::int
+                    FROM turns ft WHERE ft.id = t.fork_after_turn_id) AS fork_after_turn_ordinal
             FROM threads t ${where}`;
+
+        /**
+         * The turn a fork starts after (CreateThreadRequest.fork_at_turn_id): in the visible history of the thread
+         * forked from (its own turns or those it inherits, up to its fork point), ended, and with a fork point at
+         * the provider. A turn without one (it ended before the provider started it) cannot be forked at: the
+         * adapters would copy the whole history instead.
+         */
+        const forkPoint = (ownerUserId: string, request: ui.CreateThreadRequest) =>
+          Effect.gen(function* () {
+            const from = request.forkThreadId || request.parentThreadId;
+            if (!from) return yield* Effect.fail(new Invalid("fork_at_turn_id needs the thread to fork from (fork_thread_id)"));
+            if (request.parentThreadId && !request.fork) return yield* Effect.fail(new Invalid("fork_at_turn_id with a parent needs fork"));
+            const rows = yield* sql<TurnRow & { provider: string; provider_thread_id: string | null }>`
+              SELECT u.*, s.provider, s.provider_thread_id FROM turns u
+                JOIN thread_fork_chain(${from}::uuid) c ON c.thread_id = u.thread_id
+                JOIN threads s ON s.id = u.thread_id
+                JOIN threads f ON f.id = ${from}::uuid
+               WHERE u.id = ${request.forkAtTurnId}::uuid AND f.owner_user_id = ${ownerUserId}::uuid
+                 AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)`;
+            const point = rows[0];
+            if (!point) return yield* Effect.fail(new Invalid("the turn is not in this thread's history"));
+            if (!["completed", "failed", "interrupted"].includes(point.status)) {
+              return yield* Effect.fail(new Invalid(`turn ${point.ordinal} is ${point.status}: a fork starts after an ended turn`));
+            }
+            if (!point.provider_turn_ref || !point.provider_thread_id) {
+              return yield* Effect.fail(new Invalid(`turn ${point.ordinal} never reached ${point.provider === "claude" ? "Claude" : "Codex"}, so there is no point to fork at; fork from an earlier turn`));
+            }
+            return point;
+          });
 
         const store: GatewayStore["Service"] = {
           ensureUser: (email, displayName) =>
@@ -525,7 +558,7 @@ export class GatewayStore extends Context.Service<
                     SELECT pw.id, pw.project_id, pw.worker_id, pw.root_path, w.os
                       FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id
                      WHERE pw.id = ${request.workspaceId}::uuid AND pw.project_id = ${request.projectId}::uuid
-                       AND (pw.archived_at IS NULL OR ${request.parentThreadId !== ""}::boolean)`,
+                       AND (pw.archived_at IS NULL OR ${request.parentThreadId !== "" || request.forkAtTurnId !== ""}::boolean)`,
                   "workspace",
                 );
                 const provider = request.provider === Provider.CLAUDE ? "claude" : "codex";
@@ -536,6 +569,16 @@ export class GatewayStore extends Context.Service<
                 }
                 if (parent && request.fork && parent.provider !== provider) {
                   return yield* Effect.fail(new Invalid(`a fork keeps its parent's provider (${parent.provider})`));
+                }
+                // Fork source and point: the parent's latest completed turn (pinned by the database), or a chosen turn.
+                let forkSource = parent && request.fork ? parent.id : null;
+                let forkAfterTurn: string | null = null;
+                if (request.forkAtTurnId) {
+                  const point = yield* forkPoint(ownerUserId, request);
+                  if (point.provider !== provider) return yield* Effect.fail(new Invalid(`a fork keeps its source's provider (${point.provider})`));
+                  if (parent && point.thread_id !== parent.id) return yield* Effect.fail(new Invalid("a side thread forks at a turn of its parent"));
+                  forkSource = point.thread_id;
+                  forkAfterTurn = point.id;
                 }
                 // A thread may start below the workspace root, never outside it (paths follow the worker's OS).
                 const style = pathStyle(workspace.os, workspace.root_path);
@@ -552,11 +595,11 @@ export class GatewayStore extends Context.Service<
                 });
                 yield* sql`
                   INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, runtime, provider,
-                                       provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, settings, status, title)
+                                       provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title)
                   VALUES (${id}::uuid, ${workspace.project_id}::uuid, ${ownerUserId}::uuid, ${parent ? "side" : "main"},
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
                           ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${cwd},
-                          ${parent && request.fork ? parent.id : null}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || "New thread"})`;
+                          ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || "New thread"})`;
                 if (request.initialMessage.trim()) {
                   yield* sql`
                     INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input)
@@ -720,7 +763,7 @@ export class GatewayStore extends Context.Service<
               const inheritedTurns = yield* sql<TurnRow>`
                 SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
-                 WHERE c.level > 0 AND u.status <> 'queued' AND u.withdrawn IS NULL AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
+                 WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
                  ORDER BY c.level DESC, u.ordinal`;
               const turns = yield* store.turnsOf(threadId);
               const itemRows = yield* sql<{ thread_id: string; content: JsonValue; turn_id: string | null; first_seq: bigint; last_seq: bigint; inherited: boolean }>`
@@ -908,6 +951,8 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     createdAt: timestampFromDate(new Date(row.created_at)),
     pendingInteractions: Number(row.pending_interactions ?? 0),
     forkSourceThreadId: row.fork_source_thread_id ?? "",
+    forkAfterTurnId: row.fork_after_turn_id ?? "",
+    forkAfterTurnOrdinal: row.fork_after_turn_ordinal ?? 0,
     rootThreadId: row.root_thread_id,
     interactionRoute: row.interaction_route,
     ...(row.last_activity_at && { lastActivityAt: timestampFromDate(new Date(row.last_activity_at)) }),

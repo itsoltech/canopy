@@ -160,7 +160,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     pg = await startPostgres();
     runtime = ManagedRuntime.make(pg.layer);
     const applied = await runtime.runPromise(migrate);
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode", "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "21_queue_manage"]);
+    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode", "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage"]);
   }, 60_000);
 
   afterAll(async () => {
@@ -300,7 +300,41 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       const foreignTurn = await completedTurn(w, other, ["x"]);
       await completedTurn(w, main, ["a"]);
       const bad = insertSide(w, { parent: main, root: main, forkSource: main, forkAfterTurn: foreignTurn });
-      expect(await failure(bad.sql, bad.params)).toMatch(/completed turn of the source|foreign key/);
+      expect(await failure(bad.sql, bad.params)).toMatch(/ended turn of the source|foreign key/);
+    });
+
+    test("fork from a turn: a main thread in its own tree, at any ended turn, never a running one", async () => {
+      const w = await world();
+      const main = await mainThread(w);
+      const t1 = await completedTurn(w, main, ["m1"]);
+      const t2 = await completedTurn(w, main, ["m2"]);
+      await completedTurn(w, main, ["m3"]);
+      await query(`UPDATE turns SET status = 'failed' WHERE id = $1`, [t2]);
+      const insertMainFork = (afterTurn: string, worker = w.worker) => {
+        const thread = id();
+        return {
+          thread,
+          sql: `INSERT INTO threads (id, project_id, owner_user_id, kind, root_thread_id, runtime, provider, worker_id, workspace_id, cwd,
+                                     fork_source_thread_id, fork_after_turn_id, status)
+                VALUES ($1, $2, $3, 'main', $1, 'worker', 'claude', $4, $5, '/repo', $6, $7, 'idle')`,
+          params: [thread, w.project, w.user, worker, w.workspace, main, afterTurn],
+        };
+      };
+
+      const atFailed = insertMainFork(t2);
+      await query(atFailed.sql, atFailed.params);
+      expect(await timeline(atFailed.thread)).toEqual(["^m1", "^m2"]);
+
+      const running = id();
+      await query(
+        `INSERT INTO turns (id, thread_id, ordinal, status, trigger, author_user_id, input) VALUES ($1, $2, 4, 'running', 'user', $3, '{}')`,
+        [running, main, w.user],
+      );
+      const atRunning = insertMainFork(running);
+      expect(await failure(atRunning.sql, atRunning.params)).toContain("ended turn of the source");
+
+      const elsewhere = insertMainFork(t1, w.otherWorker);
+      expect(await failure(elsewhere.sql, elsewhere.params)).toMatch(/share project, owner and worker|workspace/);
     });
 
     test("thread_timeline: inherited prefix (recursively) + own events, unaffected by later source events", async () => {

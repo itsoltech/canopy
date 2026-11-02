@@ -19,6 +19,7 @@
   import BackgroundTasksSection from "./BackgroundTasksSection.svelte";
   import type { BackgroundEntry } from "../background-tasks.ts";
   import type { Item } from "@open-agents/contracts";
+  import { useThreadDirectory } from "../thread-directory.ts";
 
   /**
    * Context of a thread (T3's right panel): where it runs, which agent, who answers its approvals,
@@ -60,7 +61,9 @@
   const providerKey = $derived(providerKeyOf(thread.provider));
 
   const lookup = (id: string) => (tree.main.id === id ? tree.main : tree.sides.find((s) => s.id === id));
-  const source = $derived(thread.forkSourceThreadId ? lookup(thread.forkSourceThreadId) : undefined);
+  const directory = useThreadDirectory();
+  // A forked main thread ("Fork from here") is in its own tree: its source is found among the project's threads.
+  const source = $derived(thread.forkSourceThreadId ? (lookup(thread.forkSourceThreadId) ?? directory.thread(thread.forkSourceThreadId)) : undefined);
   const parent = $derived(thread.parentThreadId ? lookup(thread.parentThreadId) : undefined);
   const hasUsage = $derived(totals.inputTokens > 0n || totals.outputTokens > 0n);
 </script>
@@ -153,7 +156,11 @@
     <section aria-label="Fork" class="grid grid-cols-1 p-1.5">
       <PanelRow icon="square-2-stack" href="/threads/{thread.forkSourceThreadId}">
         Forked from {source?.title ?? "another thread"}
-        {#snippet aside()}<Icon name="arrow-top-right-on-square" class="size-3.5 fill-zinc-400 dark:fill-zinc-500" />{/snippet}
+        {#snippet aside()}
+          <!-- The fork point stays readable when a long title truncates. -->
+          {#if thread.forkAfterTurnOrdinal}<span class="shrink-0 text-zinc-500 tabular-nums dark:text-zinc-400">Turn {thread.forkAfterTurnOrdinal}</span>{/if}
+          <Icon name="arrow-top-right-on-square" class="size-3.5 fill-zinc-400 dark:fill-zinc-500" />
+        {/snippet}
       </PanelRow>
     </section>
   {/if}
