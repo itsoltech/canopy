@@ -37,7 +37,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
       WHERE thread_id = ANY(${ids}::uuid[]) AND status = 'pending'`;
     yield* sql`UPDATE interaction_requests SET answer_delivery = 'cancelled'
       WHERE thread_id = ANY(${ids}::uuid[]) AND answer_delivery IN ('pending', 'consumed')`;
-    yield* sql`UPDATE background_task_notes SET status = 'cancelled', reason = 'thread closed', updated_at = now()
+    yield* sql`UPDATE background_task_notes SET status = 'cancelled', steer_id = NULL, reason = 'thread closed', updated_at = now()
       WHERE thread_id = ANY(${ids}::uuid[]) AND status IN ('waiting', 'steering')`;
     return commands;
   });

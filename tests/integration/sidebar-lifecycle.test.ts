@@ -3,6 +3,8 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { MentionKind, PermissionMode, Provider, TurnOutcome } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayStore } from "@open-agents/gateway/store";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("sidebar settings and thread lifecycle", () => {
@@ -66,6 +68,49 @@ describe.skipIf(!dockerAvailable)("sidebar settings and thread lifecycle", () =>
     expect((await gw.api.listThreads({ includeArchived: true })).threads.some((t) => t.id === child.id)).toBe(true);
     await gw.api.setThreadArchived({ threadId: child.id, archived: false });
     expect((await gw.api.getThread({ threadId: child.id })).thread?.archivedBy).toBe("");
+  });
+
+  test("archive and delete cancel durable answers and background notes; restoring does not replay them", async () => {
+    for (const operation of ["archive", "delete"] as const) {
+      const thread = await createThread(`Pending deliveries: ${operation}`);
+      gw.worker.holdTurns = true;
+      const turn = (await gw.api.sendMessage({ threadId: thread.id, text: "ask", clientRequestId: operation })).turn!;
+      await eventually(() => turns(thread.id), (rows) => rows[0]?.status === "running");
+      const result = await gw.worker.callTool({ threadId: thread.id, turnId: turn.id, tool: "ask_user", args: {
+        questions: [{ id: "next", header: "Next", question: "Continue?", kind: "single_choice", options: [{ label: "Yes" }, { label: "No" }] }], wait: false,
+      } });
+      expect(result.isError).toBe(false);
+      const questionId = (JSON.parse(result.content) as { question_set_id: string }).question_set_id;
+      // Crash boundary: a consumed answer has not reached the agent; a background note awaits steer delivery.
+      await gw.runtime.runPromise(Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const steerId = Bun.randomUUIDv7();
+        yield* sql`UPDATE interaction_requests SET status = 'answered', answered_at = now(), answered_by = ${gw.userId}::uuid, answer_delivery = 'consumed'
+          WHERE id = ${questionId}::uuid`;
+        yield* sql`INSERT INTO turn_steers (id, thread_id, turn_id, input, background_note, hops)
+          VALUES (${steerId}::uuid, ${thread.id}::uuid, ${turn.id}::uuid, '{}'::jsonb, true, 1)`;
+        yield* sql`INSERT INTO thread_items (thread_id, item_id, type, status, content, first_seq, last_seq)
+          VALUES (${thread.id}::uuid, 'bg:pending', 'background_task', 'completed', '{}'::jsonb, 0, 0)`;
+        yield* sql`INSERT INTO background_task_notes (thread_id, item_id, status, wake, ended_at, hops, steer_id)
+          VALUES (${thread.id}::uuid, 'bg:pending', 'steering', true, now(), 1, ${steerId}::uuid)`;
+      }));
+      if (operation === "archive") await gw.api.setThreadArchived({ threadId: thread.id, archived: true });
+      else await gw.api.deleteThread({ threadId: thread.id });
+      await eventually(() => turns(thread.id), (rows) => rows[0]?.status === "interrupted");
+      expect(await gw.runtime.runPromise(Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        return {
+          answers: yield* sql`SELECT answer_delivery FROM interaction_requests WHERE id = ${questionId}::uuid`,
+          notes: yield* sql`SELECT status, steer_id FROM background_task_notes WHERE thread_id = ${thread.id}::uuid`,
+        };
+      }))).toEqual({ answers: [{ answer_delivery: "cancelled" }], notes: [{ status: "cancelled", steer_id: null }] });
+      if (operation === "archive") await gw.api.setThreadArchived({ threadId: thread.id, archived: false });
+      else await gw.api.restoreThread({ threadId: thread.id });
+      await gw.core.bus.deliverAnswers();
+      await gw.core.backgroundTasks.tick();
+      expect(await turns(thread.id)).toHaveLength(1);
+      gw.worker.holdTurns = false;
+    }
   });
 
   test("delete interrupts the tree, cancels its work, hides every discovery path, and Undo restores only its batch", async () => {
