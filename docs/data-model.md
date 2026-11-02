@@ -142,6 +142,8 @@ Pozostałe tabele:
 | `schedules` | harmonogram platformy (jednorazowy / cron): następne uruchomienie, limity, autor (użytkownik albo wywołanie szyny), `hops`, dzierżawa |
 | `agent_bus_calls` | szyna agentów: każde wywołanie narzędzia (`spawn_thread`, `send_message`, `wait_threads`, ...), argumenty, wynik, uruchomiony wątek/tura, `hops`, powiadomienie zwrotne (outbox) |
 | `blobs` | duże treści (output, diff, obraz), adresowane sha256, inline albo w magazynie obiektów |
+| `attachments` | pliki użytkownika do wiadomości: właściciel, blob (sha256) i miniatura WebP obrazu, nazwa (bez katalogów i znaków sterujących), typ rozpoznany z treści, `kind` (`image` / `file`), rozmiar, wymiary; po wysłaniu wątek i tura (raz, razem) |
+| `thread_blobs` | bloby, które pokazuje transkrypt wątku (podglądy obrazów od workera): przez nie UI czyta blob (właściciel, drzewo wątku) |
 | `worker_journal_cursors` | potwierdzone `journal_seq` per worker, dziennik i wątek (kursory `Welcome`) |
 | `worker_configs`, `worker_config_history`, `secrets`, `worker_config_secrets` | zdalna konfiguracja workerów (migracja `0002`) — [worker-config.md](worker-config.md#7-schemat-0002_worker_config) |
 | `provider_model_selections` | które modele katalogu profilu widać w pickerach (migracja `0015`) — [worker-config.md](worker-config.md#8-profile-dostawców) |

@@ -188,6 +188,19 @@ sequenceDiagram
 - Zestaw zależy od poziomu wątku (`ThreadSpec.depth`). Model wątku bocznego nie widzi `spawn_thread` ani narzędzi sterowania.
 - Worker tylko przekazuje wywołania (`AgentToolCall`) do gateway i niczego nie wykonuje lokalnie.
 
+### view_image
+
+Narzędzie platformy, które worker wykonuje sam (nie jest wywołaniem szyny, nie trafia do gateway ani do `agent_bus_calls`). Dostaje je każdy wątek workera, także bez szyny:
+
+- **Claude:** `mcp__openagents__view_image` w tym samym serwerze MCP co szyna, w `allowedTools` (każdy tryb uprawnień).
+- **Codex:** narzędzie dynamiczne w przestrzeni nazw `openagents` (`view_image`), bo Codex ma wbudowane narzędzie o tej nazwie. Jak szyna: tylko w `thread/start`, więc wątki utworzone przed tą zmianą go nie mają (mają natywne `view_image` Codexa). Na żywo model wywołał je przez tryb kodu (`tools.view_image(...)`).
+- Argument `path`: ścieżka absolutna albo względna do `cwd` wątku. Ścieżka jest rozwiązywana (`realpath`, także dowiązania) i musi leżeć w `cwd` wątku albo w jego katalogu załączników; plik najwyżej 50 MB.
+- Wynik: obraz (Claude: treść MCP `image`; Codex: `inputImage` z adresem `data:`) i linijka z wymiarami. Obraz jest obrócony według EXIF, bez metadanych, zmniejszony do 2000 px dłuższego boku i do ~3,75 MB (PNG dla przezroczystości, inaczej JPEG; mniejsze rozmiary, aż się zmieści), więc działa dla każdego modelu niezależnie od jego limitów. Czyta PNG, JPEG, GIF (pierwsza klatka), WebP, AVIF, TIFF; HEIC tylko tam, gdzie libvips go dekoduje.
+- Błąd (poza katalogami, brak pliku, nie obraz) wraca do modelu jako błąd narzędzia z powodem.
+- Na osi czasu: item `image` (`source = view_image`, `path`, `width`/`height` tego, co zobaczył model, `original_width`/`original_height`, przy błędzie `detail`) z podglądem (`Image.blob`) — dokładnie bajty, które dostał model.
+
+Natywne odczyty obrazów też mają podgląd: Codex `imageView` (`source = native`; worker czyta plik i robi podgląd WebP), wygenerowane obrazy (`source = generated`), obrazy w wynikach narzędzi (Claude `Read` na pliku obrazu, obrazy z MCP) jako `ToolCall.images`.
+
 ## 10. Ustalenia i otwarte punkty
 
 Ustalone (2026-11-01):
