@@ -22,5 +22,5 @@
   $effect(() => () => clearTimeout(timer));
 </script>
 
-<IconButton icon={copied ? "check" : "document-duplicate"} label={copied ? "Copied" : label} size="sm" class={className} onclick={copy} />
+<IconButton icon={copied ? "copied" : "copy"} label={copied ? "Copied" : label} size="sm" class={className} onclick={copy} />
 <span class="sr-only" aria-live="polite">{copied ? "Copied" : ""}</span>

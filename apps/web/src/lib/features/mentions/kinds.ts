@@ -1,6 +1,6 @@
 import { MentionKind, type Mention } from "@open-agents/contracts";
 import { mentionLabel } from "@open-agents/domain";
-import { icons, type IconName } from "#lib/shared/ui/icons.ts";
+import { icons, lineIcons, type IconName, type SolidIconName } from "#lib/shared/ui/icons.ts";
 
 /**
  * Inline elements of the composer (docs/ui-api.md, "Wzmianki"): how each kind looks as a chip, in the editor
@@ -48,7 +48,11 @@ export const CHIP_IMAGE_CLASS = "size-4 shrink-0 self-center rounded-sm object-c
 const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function iconSvg(name: IconName): string {
-  const paths = icons[name].map((p) => `<path d="${p.d}"${"evenodd" in p ? ' fill-rule="evenodd" clip-rule="evenodd"' : ""}/>`).join("");
+  if (name in lineIcons) {
+    const paths = lineIcons[name as keyof typeof lineIcons].map((d) => `<path d="${d}"/>`).join("");
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
+  }
+  const paths = icons[name as SolidIconName].map((p) => `<path d="${p.d}"${"evenodd" in p ? ' fill-rule="evenodd" clip-rule="evenodd"' : ""}/>`).join("");
   return `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
 }
 
