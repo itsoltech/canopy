@@ -20,6 +20,7 @@ for await (const line of createInterface({ input: process.stdin })) {
     updates("fake-session", { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Zażółć" } });
     send({ id: m.id, result: { stopReason: "end_turn" } });
   } else if (m.id === "permission") {
+    if (m.result.outcome.outcome === "cancelled") continue; // session/cancel, not a late callback, owns the prompt response
     updates("fake-session", { sessionUpdate: "agent_message_chunk", content: { type: "text", text: m.result.outcome.optionId } });
     send({ id: promptId, result: { stopReason: "end_turn" } });
   } else if (m.method === "session/cancel" && !ignoreCancel) send({ id: promptId, result: { stopReason: "cancelled" } });
