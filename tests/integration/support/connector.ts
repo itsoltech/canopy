@@ -13,6 +13,7 @@ export function fakeConnector() {
   let registrations = 0;
   let rejectRefresh = false;
   let failCatalog = false;
+  let readOnlyTools = ['read_marker'];
   let duration = 3600;
   let url = '';
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: async (request) => {
@@ -65,7 +66,7 @@ export function fakeConnector() {
     if (body.method === 'tools/list') {
       if (failCatalog) return new Response(null, { status: 503 });
       result = { tools: ['read_marker', 'write_marker'].map((name) => ({ name, description: `Return a verification marker (${name}).`,
-        inputSchema: { type: 'object', properties: { marker: { type: 'string' } }, required: ['marker'], additionalProperties: false }, annotations: { readOnlyHint: name === 'read_marker' } })) };
+        inputSchema: { type: 'object', properties: { marker: { type: 'string' } }, required: ['marker'], additionalProperties: false }, annotations: { readOnlyHint: readOnlyTools.includes(name) } })) };
     }
     if (body.method === 'tools/call') { calls.push({ name: body.params!.name, args: body.params!.arguments }); result = { content: [{ type: 'text', text: JSON.stringify({ marker: (body.params!.arguments as { marker: string }).marker, credentialEcho: token }) }] }; }
     return Response.json({ jsonrpc: '2.0', id: body.id, result });
@@ -74,6 +75,7 @@ export function fakeConnector() {
   return { url: `${url}/mcp`, issuer: url, secret, calls, revoked,
     get tokens() { return [...access, ...refresh]; }, get refreshes() { return refreshes; }, get registrations() { return registrations; },
     set duration(seconds: number) { duration = seconds; }, set rejectRefresh(value: boolean) { rejectRefresh = value; }, set failCatalog(value: boolean) { failCatalog = value; },
+    set readOnlyTools(value: string[]) { readOnlyTools = value; },
     registeredApp(redirect: string) { const clientId = crypto.randomUUID(), clientSecret = crypto.randomUUID(); clients.set(clientId, { redirect, secret: clientSecret }); return { clientId, clientSecret }; },
     close: () => server.stop(true),
   };

@@ -58,7 +58,10 @@ wymagać nowej sesji (Codex utrwala dynamic tools przy `thread/start`).
 
 Boty dostają katalog kont ze swoich grantów i wykonują MCP w gateway. Istniejąca
 polityka `safe` przepuszcza tylko `readOnlyHint=true`, bez `destructiveHint=true`;
-pozostałe wywołania mają kartę zgody. `always` zachowuje dotychczasowe zachowanie.
+pozostałe wywołania mają kartę zgody. `always` pyta także o odczyty,
+`full_auto` przepuszcza narzędzia bez kart; pytania do użytkownika pozostają.
+Zmiana adnotacji zdalnego narzędzia na zapis nadal wymaga zgody w `safe`,
+natomiast jawne `full_auto` pozwala na zapis. Żaden tryb nie zastępuje grantu.
 Rutyny w tle używają grantów i polityki tego samego bota; uruchomienie rutyny
 nie nadaje dodatkowych uprawnień do kont.
 Wątki: `READ_ONLY` odmawia zapisów, `ASK` i `ACCEPT_EDITS` wymagają istniejącej

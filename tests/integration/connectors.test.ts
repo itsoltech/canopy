@@ -15,6 +15,7 @@ describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker 
   let projectId = '', workspaceId = '', deniedWorkspace = '';
   let deniedWorker: ScriptedWorker;
   const seen: ModelInput[] = [];
+  let automaticTool = '';
   const query = <A extends object>(text: string, ...params: unknown[]) => gw.runtime.runPromise(Effect.gen(function* () { const sql = yield* SqlClient.SqlClient; return yield* sql.unsafe<A>(text, params); }));
   const save = async (name: string, authKind = 'headers') => (await gw.api.saveConnectorAccount({ connectorType: 'custom', name, url: fake.url, authKind, token: authKind === 'headers' ? fake.secret : '' })).account!;
   const grant = async (account: connectors.ConnectorAccount, botIds: string[] = []) => (await gw.api.setConnectorAccess({ accountId: account.id, expectedRevision: account.revision, workerIds: [gw.workerId], botIds })).account!;
@@ -25,7 +26,11 @@ describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker 
   };
   const call = (t: { id: string; turnId: string }, accountId: string, tool: string, callId?: string, marker = 'CANOPY_CONNECTOR_OK') => gw.worker.callTool({ threadId: t.id, turnId: t.turnId, connectorAccountId: accountId, tool, args: { marker }, ...(callId && { callId }) });
   beforeAll(async () => {
-    fake = fakeConnector(); gw = await startTestGateway({ botModel: async (input) => { seen.push(input); return { text: 'Ready', calls: [] }; } }); gw.worker.holdTurns = true; gw.core.bots.start();
+    fake = fakeConnector(); gw = await startTestGateway({ botModel: async (input) => {
+      seen.push(input);
+      if (automaticTool && input.configuration.name === 'Automatic connector bot' && input.messages.at(-1)?.role === 'user') return { text: '', calls: [{ id: 'automatic-write', name: automaticTool, arguments: { marker: 'AUTOMATIC_WRITE' } }] };
+      return { text: 'Ready', calls: [] };
+    } }); gw.worker.holdTurns = true; gw.core.bots.start();
     await gw.api.saveProviderInstance({ harness: Provider.CODEX, id: 'connector-test', label: 'Fixture', create: true, kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: 'http://127.0.0.1:1', apiKey: 'fixture', allWorkers: true });
     await eventually(() => gw.core.bots.run((s) => s.apiModels(Provider.CODEX, 'connector-test')), (models) => models.some((m) => m.id === 'gpt-6.1-sol'));
     projectId = (await gw.api.createProject({ name: 'Connectors' })).project!.id;
@@ -128,6 +133,21 @@ describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker 
     expect((await call(t, account.id, tools[0]!.name)).isError).toBe(true);
     expect((await query<{ credentials: unknown }>('SELECT credentials FROM connector_accounts WHERE id=$1::uuid', account.id))[0]!.credentials).toBeNull();
   }, 60_000);
+
+  test('full_auto bot writes despite stale read-only hints without an approval card', async () => {
+    const bot = (await gw.api.createBot({ clientRequestId: Bun.randomUUIDv7(), configuration: { name: 'Automatic connector bot', shape: 'round', color: '#22aaff', provider: Provider.CODEX, providerInstance: 'connector-test', model: 'gpt-6.1-sol', approvalPolicy: 'full_auto' } })).bot!;
+    const account = await grant(await save('automatic'), [bot.id]);
+    fake.readOnlyTools = ['read_marker', 'write_marker'];
+    try {
+      automaticTool = (await gw.api.testConnector({ accountId: account.id })).tools.find((t) => t.remoteName === 'write_marker')!.name;
+      fake.readOnlyTools = ['read_marker'];
+      const before = fake.calls.length;
+      await gw.api.sendBotMessage({ botId: bot.id, clientRequestId: Bun.randomUUIDv7(), text: 'Run the connector action' });
+      const done = await eventually(() => gw.core.bots.run((s) => s.conversation(gw.userId, bot.id)), (c) => !c.working);
+      expect(done.approvals).toHaveLength(0);
+      expect(fake.calls.slice(before)).toEqual([{ name: 'write_marker', args: { marker: 'AUTOMATIC_WRITE' } }]);
+    } finally { automaticTool = ''; fake.readOnlyTools = ['read_marker']; }
+  }, 15_000);
 
   test('pre-registered confidential app uses its issuer and client secret only in the gateway', async () => {
     const redirectUri = 'http://127.0.0.1:19111/api/connectors/oauth/callback';

@@ -135,7 +135,7 @@ export class BotsRuntime {
                   await this.run((s) => s.status(turn, phrase));
                   if (tool.source === "mcp") {
                       await this.run((s) => s.remoteStarted(turn, call));
-                      try { result = await this.#options.connectors.call({ userId: this.#options.userId, botId: turn.bot_id, accountId: tool.serverId!, readOnlyOnly: tool.readOnly === true && currentConfig.approvalPolicy !== "always" }, call.id, tool.name, requested.arguments, abort.signal); }
+                      try { result = await this.#options.connectors.call({ userId: this.#options.userId, botId: turn.bot_id, accountId: tool.serverId!, readOnlyOnly: tool.readOnly === true && !["always", "full_auto"].includes(currentConfig.approvalPolicy) }, call.id, tool.name, requested.arguments, abort.signal); }
                       catch { abort.signal.throwIfAborted(); result = { error: "Remote MCP call failed; outcome may be unknown. Do not automatically retry writes." }; }
                   } else result = await this.#options.platform(turn, call);
                 }
