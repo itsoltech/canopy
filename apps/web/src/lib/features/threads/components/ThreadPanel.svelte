@@ -16,6 +16,9 @@
   import { isSide, type ThreadTree } from "../thread-tree.ts";
   import ThreadStatusText from "../ThreadStatusText.svelte";
   import PanelRow from "./PanelRow.svelte";
+  import BackgroundTasksSection from "./BackgroundTasksSection.svelte";
+  import type { BackgroundEntry } from "../background-tasks.ts";
+  import type { Item } from "@open-agents/contracts";
 
   /**
    * Context of a thread (T3's right panel): where it runs, which agent, who answers its approvals,
@@ -29,6 +32,9 @@
     usage,
     totals,
     schedules,
+    backgroundTasks = [],
+    items = new Map(),
+    onbackground,
     onschedule,
     onschedulechange,
     onnewside,
@@ -43,6 +49,9 @@
     totals: UsageTotals;
     /** Active and paused schedules of the thread. */
     schedules: readonly ui.Schedule[];
+    backgroundTasks?: readonly BackgroundEntry[];
+    items?: ReadonlyMap<string, Item>;
+    onbackground?: ((id: string) => void) | undefined;
     onschedule?: (() => void) | undefined;
     onschedulechange?: ((schedule: ui.Schedule) => void) | undefined;
     onnewside?: (() => void) | undefined;
@@ -101,6 +110,8 @@
       </PanelRow>
     {/if}
   </section>
+
+  {#if onbackground}<BackgroundTasksSection tasks={backgroundTasks} threadId={thread.id} {items} onopen={onbackground} />{/if}
 
   {#if schedules.length > 0 || onschedule}
     <section aria-labelledby="schedules-title" class="grid grid-cols-1 p-1.5">

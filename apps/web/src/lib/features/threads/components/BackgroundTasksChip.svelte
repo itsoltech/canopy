@@ -10,8 +10,7 @@
   import type { TimelineEntry } from "../thread-state.svelte.ts";
 
   /**
-   * "N running in background" above the composer: jumps to the task in the timeline (one), or lists them
-   * to pick one (several). `onjump` scrolls to the task's row.
+   * "N running in background" above the composer: opens output (one), or lists tasks to pick (several).
    */
   let { tasks, onjump, class: className }: { tasks: readonly TimelineEntry[]; onjump: (task: TimelineEntry) => void; class?: ClassValue } = $props();
 
@@ -35,7 +34,7 @@
 
 {#if tasks.length === 1 && tasks[0]}
   {@const task = tasks[0]}
-  {@render chip("arrow-up", { onclick: () => onjump(task), "aria-label": `${label}: ${name(task)}. Show it` })}
+  {@render chip("command-line", { onclick: () => onjump(task), "aria-label": `${label}: ${name(task)}. Open output` })}
 {:else if tasks.length > 1}
   <DropdownMenu label="Background tasks" placement="top-start" class="max-w-80">
     {#snippet trigger(props)}{@render chip("chevron-up-down", props)}{/snippet}

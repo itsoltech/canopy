@@ -29,13 +29,40 @@ let $: {
   flushSync: () => void;
 };
 let LineReveal: Reveal["LineReveal"];
+let ThreadState: typeof import("../src/lib/features/threads/thread-state.svelte.ts")["ThreadState"];
 beforeAll(async () => {
   const client = Bun.resolveSync("svelte/internal/client", import.meta.dir);
   $ = { ...(await import(client)), flushSync: (await import(client.replace(/internal\/client\/index\.js$/, "index-client.js"))).flushSync };
   ({ LineReveal } = await import("../src/lib/shared/ui/streaming/line-reveal.svelte.ts"));
+  ({ ThreadState } = await import("../src/lib/features/threads/thread-state.svelte.ts"));
 });
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+describe("background task stream metadata", () => {
+  test("completion without a turn stays with its task and preserves observed times on reconnect", () => {
+    const state = new ThreadState();
+    const task = create(ItemSchema, { itemId: "bg", status: ItemStatus.IN_PROGRESS, content: { case: "backgroundTask", value: { taskId: "shell" } } });
+    state.apply(create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: 1n, event: { turnId: "turn", occurredAt: { seconds: 10n }, body: { case: "itemStarted", value: { item: task } } } } } }));
+    state.apply(create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: 2n, event: { occurredAt: { seconds: 20n }, body: { case: "itemCompleted", value: { item: { ...task, status: ItemStatus.COMPLETED } } } } } } }));
+    expect(state.entries[0]?.turnId).toBe("turn");
+    expect(state.entries[0]?.startedAt).toBe(10_000);
+    expect(state.entries[0]?.completedAt).toBe(20_000);
+    state.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: { items: [{ item: state.entries[0]!.item, turnId: "turn", firstSeq: 1n }] } } }));
+    expect(state.entries[0]?.startedAt).toBe(10_000);
+    expect(state.entries[0]?.completedAt).toBe(20_000);
+  });
+
+  test("tasks first created between turns are kept; snapshots do not invent timestamps", () => {
+    const state = new ThreadState();
+    const task = create(ItemSchema, { itemId: "late", status: ItemStatus.IN_PROGRESS, content: { case: "backgroundTask", value: { taskId: "terminal" } } });
+    state.apply(create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: 5n, event: { occurredAt: { seconds: 30n }, body: { case: "itemStarted", value: { item: task } } } } } }));
+    expect(state.backgroundTasks.map((entry) => entry.id)).toEqual(["late"]);
+    expect(state.entries[0]?.turnId).toBe("");
+    const fresh = new ThreadState(undefined, create(ui.ThreadSnapshotSchema, { items: [{ item: task, firstSeq: 5n }] }));
+    expect(fresh.entries[0]?.startedAt).toBeUndefined();
+  });
+});
 
 describe("line cut while streaming", () => {
   test("shows up to the last line break, never less than what was revealed", () => {
