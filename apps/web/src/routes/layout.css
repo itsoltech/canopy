@@ -5,6 +5,11 @@
 /* Dark mode by class (set before first paint in app.html from the Appearance setting; default: system). */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Native macOS traffic lights occupy the sidebar's existing header row. */
+html[data-canopy-platform="darwin"] .canopy-sidebar-header { padding-left: 88px; -webkit-app-region: drag; }
+html[data-canopy-platform="darwin"] .canopy-sidebar-header a,
+html[data-canopy-platform="darwin"] .canopy-sidebar-header button { -webkit-app-region: no-drag; }
+
 /*
  * Design tokens. Neutrals are zinc; colour carries meaning only:
  * sky = running / links, brand (default blue, see Appearance) = actions and focus, amber = waiting for a person, emerald = done / online,

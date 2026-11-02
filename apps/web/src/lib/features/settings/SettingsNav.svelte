@@ -1,7 +1,12 @@
 <script lang="ts">
   import Icon from "#lib/shared/ui/Icon.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
-  import { settingsGroups, settingsSections } from "./sections.ts";
+  import { settingsGroups, settingsSections as sharedSections } from "./sections.ts";
+  import { onMount } from "svelte";
+  import type { SettingsSection } from "@open-agents/ui/settings";
+  let desktop = $state(false);
+  onMount(() => { desktop = Boolean(window.canopyDesktop); });
+  const settingsSections = $derived<readonly SettingsSection[]>(desktop ? [...sharedSections, { href: "/settings/desktop", label: "Desktop", icon: "server", group: "Connections", keywords: "desktop local remote worker computer" }] : sharedSections);
   import { useSettingsRoute } from "./settings-route.ts";
 
   /** Settings sections with a search filter (T3 style); a scrolling row on narrow screens. */
