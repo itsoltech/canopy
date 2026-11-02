@@ -68,8 +68,15 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending'`;
     yield* sql`UPDATE bot_thread_watches SET delivered = true WHERE bot_id = ${id}::uuid AND NOT delivered`;
   });
-  const fenced = (turn: BotTurn) => sql<BotTurn>`SELECT * FROM bot_turns WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid
-    AND status = 'running' AND lease_until > now() FOR UPDATE`.pipe(Effect.flatMap((r) => r[0] ? Effect.succeed(r[0]) : Effect.fail(new Invalid("bot lease lost"))));
+  const fenced = (turn: BotTurn) => Effect.gen(function* () {
+    // Lifecycle operations and claim() lock bot -> turn. Writers must use that order too,
+    // so an archive cannot deadlock with a checkpoint, self-edit or finishing response.
+    const bot = yield* sql`SELECT id FROM bots WHERE id = ${turn.bot_id}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`;
+    if (!bot.length) return yield* Effect.fail(new Invalid("bot lease lost"));
+    const rows = yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid
+      AND status = 'running' AND lease_until > now() FOR UPDATE`;
+    return rows[0] ?? (yield* Effect.fail(new Invalid("bot lease lost")));
+  });
   const secret = (user: string, id: string) => sql<{ ciphertext: Uint8Array }>`SELECT ciphertext FROM secrets WHERE id = ${id}::uuid AND (owner_user_id = ${user}::uuid OR owner_user_id IS NULL)`
     .pipe(Effect.flatMap((r) => r[0] ? Effect.succeed(decryptSecret(key, r[0].ciphertext)) : Effect.fail(new NotFound("secret not found"))));
   const server = (user: string, id: string) => sql<ServerRow>`SELECT * FROM bot_mcp_servers WHERE id = ${id}::uuid AND owner_user_id = ${user}::uuid`
@@ -110,6 +117,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     return apiModel(config.model, yield* catalogs(config), instance?.custom_models ?? []);
   });
   const save = (user: string, config: bots.BotConfiguration, options: { id?: string; requestId?: string }) => sql.withTransaction(Effect.gen(function* () {
+    if (options.id) yield* owned(user, options.id, true);
     // Serialize names per owner, including concurrent create/update/self-edit requests.
     yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${user}, 0))`;
     const checked = yield* validate(user, config);
@@ -169,6 +177,17 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   }));
   return {
     owned, active, save, enqueue, finish, changed, fenced, servers, resolvedServer, resolveModel,
+    apiModels: (provider: Provider, instanceId: string) => Effect.gen(function* () {
+      const instance = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${instanceId} AND kind = 'endpoint'`)[0];
+      if (!instance) return yield* Effect.fail(new Invalid("choose a gateway-accessible endpoint provider instance"));
+      const profiles = yield* catalogs(create(bots.BotConfigurationSchema, { provider, providerInstance: instanceId }));
+      const models = profiles.flatMap((p) => p.models).filter((m) => !m.hidden).flatMap((m) => {
+        const resolved = apiModel(m.id, profiles, instance.custom_models);
+        return "problem" in resolved ? [] : [{ id: resolved.model, name: m.displayName || resolved.model, default: m.isDefault, efforts: m.efforts, default_effort: m.defaultEffort }];
+      });
+      for (const id of instance.custom_models) if (!models.some((m) => m.id === id)) models.push({ id, name: id, default: false, efforts: [], default_effort: "" });
+      return [...new Map(models.map((m) => [m.id, m])).values()];
+    }),
     archive: (user: string, id: string, archived: boolean) => sql.withTransaction(Effect.gen(function* () {
       yield* owned(user, id, true);
       const row = (yield* sql<BotRow>`UPDATE bots SET archived_at = ${archived ? new Date() : null}, status_line = '', revision = revision + 1, updated_at = now() WHERE id = ${id}::uuid RETURNING *`)[0]!;
@@ -185,7 +204,6 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         const approved = yield* sql`SELECT id FROM bot_approvals WHERE id = ${call.id}::uuid AND bot_id = ${turn.bot_id}::uuid AND turn_id = ${turn.id}::uuid AND status = 'approved'`;
         if (!approved.length) return yield* Effect.fail(new Invalid("changing model, effort or approval policy requires user approval"));
       }
-      yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${user}, 0))`;
       const row = yield* owned(user, turn.bot_id, true);
       const before = botConfiguration(row);
       const next = create(bots.BotConfigurationSchema, { ...before });
@@ -309,6 +327,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     answer: (user: string, request: bots.AnswerBotApprovalRequest) => sql.withTransaction(Effect.gen(function* () {
       const candidates = yield* sql<ApprovalRow>`SELECT a.* FROM bot_approvals a JOIN bots b ON b.id = a.bot_id WHERE a.id = ${request.approvalId}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL`;
       if (!candidates[0]) return yield* Effect.fail(new NotFound("approval not found"));
+      yield* owned(user, candidates[0].bot_id, true);
       // Same turn -> approval lock order as wait().
       yield* sql`SELECT id FROM bot_turns WHERE id = ${candidates[0].turn_id}::uuid FOR UPDATE`;
       const row = (yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${request.approvalId}::uuid FOR UPDATE`)[0]!;
@@ -408,11 +427,13 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     wakeups: (botId: string) => sql`SELECT id, prompt, run_at, cancelled, delivered FROM bot_wakeups WHERE bot_id = ${botId}::uuid ORDER BY run_at`,
     cancelWakeup: (botId: string, id: string) => sql`UPDATE bot_wakeups SET cancelled = true WHERE id = ${id}::uuid AND bot_id = ${botId}::uuid RETURNING id`.pipe(Effect.map((r) => ({ cancelled: r.length > 0 }))),
     deliver: () => sql.withTransaction(Effect.gen(function* () {
-      yield* sql`UPDATE bot_thread_watches w SET target_turn_id = CASE WHEN s.status = 'delivered' THEN s.turn_id ELSE s.queued_turn_id END FROM turn_steers s
-        WHERE w.target_steer_id = s.id AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued')`;
+      const steers = yield* sql<{ call_id: string; target_turn_id: string }>`SELECT w.call_id, CASE WHEN s.status = 'delivered' THEN s.turn_id ELSE s.queued_turn_id END AS target_turn_id
+        FROM bot_thread_watches w JOIN turn_steers s ON w.target_steer_id = s.id JOIN bots b ON b.id = w.bot_id
+        WHERE NOT w.delivered AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued') AND b.deleted_at IS NULL AND b.archived_at IS NULL FOR UPDATE OF b, w SKIP LOCKED`;
+      for (const steer of steers) yield* sql`UPDATE bot_thread_watches SET target_turn_id = ${steer.target_turn_id}::uuid WHERE call_id = ${steer.call_id}::uuid`;
       const watches = yield* sql<{ call_id: string; bot_id: string; target_thread_id: string; target_turn_id: string; hops: number; owner_user_id: string; status: string; title: string }>`SELECT w.*, b.owner_user_id, t.status, th.title FROM bot_thread_watches w
         JOIN bots b ON b.id = w.bot_id JOIN turns t ON t.id = w.target_turn_id JOIN threads th ON th.id = t.thread_id
-        WHERE NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') FOR UPDATE OF w SKIP LOCKED`;
+        WHERE NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') FOR UPDATE OF b, w SKIP LOCKED`;
       for (const watch of watches) {
         const items = yield* sql<{ content: { agentMessage?: { text?: string } } }>`SELECT content FROM thread_items WHERE thread_id = ${watch.target_thread_id}::uuid AND turn_id = ${watch.target_turn_id}::uuid ORDER BY first_seq`;
         const text = items.map((i) => i.content.agentMessage?.text ?? "").filter(Boolean).join("\n").slice(0, 80_000);
@@ -420,7 +441,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         yield* sql`UPDATE bot_thread_watches SET delivered = true WHERE call_id = ${watch.call_id}::uuid`;
       }
       const wakeups = yield* sql<{ id: string; bot_id: string; prompt: string; hops: number; owner_user_id: string }>`SELECT w.*, b.owner_user_id FROM bot_wakeups w JOIN bots b ON b.id = w.bot_id
-        WHERE NOT w.delivered AND NOT w.cancelled AND w.run_at <= now() AND b.deleted_at IS NULL AND b.archived_at IS NULL FOR UPDATE OF w SKIP LOCKED`;
+        WHERE NOT w.delivered AND NOT w.cancelled AND w.run_at <= now() AND b.deleted_at IS NULL AND b.archived_at IS NULL FOR UPDATE OF b, w SKIP LOCKED`;
       for (const wake of wakeups) {
         yield* enqueue(wake.owner_user_id, wake.bot_id, wake.prompt, `wakeup:${wake.id}`, { hops: wake.hops, sender: "system", event: true });
         yield* sql`UPDATE bot_wakeups SET delivered = true WHERE id = ${wake.id}::uuid`;

@@ -94,6 +94,12 @@ describe.skipIf(!dockerAvailable)('bot settings and archive through gateway', ()
 
   test('model, effort and policy changes always wait for approval, persist after approval, discard runs nothing', async () => {
     const bot = await add('Approval settings');
+    await gw.api.setInstanceModels({ harness: Provider.CODEX, id: 'settings-test', models: { custom: ['gpt-custom'], hidden: [], favorites: [] } });
+    model = async (i) => i.messages.at(-1)?.role === 'tool' ? reply(i.messages.at(-1)!.text) : { text: '', calls: [{ id: 'models', name: 'list_models', arguments: {} }] };
+    await send(bot.id, 'which API models can you use?');
+    const offered = JSON.parse((await settled(bot.id)).messages.at(-1)!.text) as { id: string; efforts: string[] }[];
+    expect(offered.map((m) => m.id)).toEqual(expect.arrayContaining(['gpt-custom', 'gpt-next', 'gpt-settings']));
+    expect(offered.find((m) => m.id === 'gpt-next')?.efforts).toEqual(['low']);
     for (const [patch, approve] of [[{ model: 'gpt-next', effort: 'low' }, false], [{ model: 'made-up' }, true], [{ model: 'gpt-next', effort: 'low' }, true], [{ effort: '' }, true], [{ approval_policy: 'always' }, true], [{ approval_policy: 'safe' }, true]] as const) {
       useEdit(patch);
       const before = (await core.bots.get(bot.id)).configuration!;
@@ -116,6 +122,17 @@ describe.skipIf(!dockerAvailable)('bot settings and archive through gateway', ()
     model = async (i) => i.messages.at(-1)?.role === 'tool' ? reply('Scheduled') : { text: '', calls: [{ id: 'wake', name: 'schedule_wakeup', arguments: { run_at: new Date(Date.now() + 60_000).toISOString(), prompt: 'Resumed reminder' } }] };
     await send(bot.id, 'schedule a reminder');
     await settled(bot.id);
+    const project = (await gw.api.createProject({ name: 'Archive notification project' })).project!;
+    const workspace = (await gw.api.createWorkspace({ projectId: project.id, workerId: gw.workerId, rootPath: '/repo' })).workspace!;
+    gw.worker.holdTurns = true;
+    const thread = (await gw.api.createThread({ projectId: project.id, workspaceId: workspace.id, provider: Provider.CODEX, model: 'gpt-6.1-sol', initialMessage: 'held notification' })).thread!;
+    await eventually(() => gw.api.getThread({ threadId: thread.id }), (r) => r.thread?.status === 'running');
+    await gw.runtime.runPromise(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`INSERT INTO bot_thread_watches(call_id, bot_id, target_thread_id, target_turn_id, hops)
+        SELECT c.id, ${bot.id}::uuid, ${thread.id}::uuid, (SELECT id FROM turns WHERE thread_id = ${thread.id}::uuid ORDER BY created_at DESC LIMIT 1), 1
+        FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE t.bot_id = ${bot.id}::uuid LIMIT 1`;
+    }));
     const entered = Promise.withResolvers<void>();
     const stopped = Promise.withResolvers<void>();
     model = async (i) => { entered.resolve(); await new Promise<void>((resolve) => i.signal.addEventListener('abort', () => { stopped.resolve(); resolve(); }, { once: true })); i.signal.throwIfAborted(); return reply('Stale'); };
@@ -128,6 +145,17 @@ describe.skipIf(!dockerAvailable)('bot settings and archive through gateway', ()
     expect((await gw.api.getSettings({})).user?.sidebar?.pinnedBotIds).not.toContain(bot.id);
     expect((await gw.api.listBots({})).bots.some((b) => b.id === bot.id)).toBe(false);
     expect((await gw.api.listBots({ includeArchived: true })).bots.some((b) => b.id === bot.id && b.archived)).toBe(true);
+    const dropped = await gw.runtime.runPromise(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      return yield* sql<{ delivered: boolean }>`SELECT delivered FROM bot_thread_watches WHERE bot_id = ${bot.id}::uuid`;
+    }));
+    expect(dropped.map((w) => w.delivered)).toEqual([true]);
+    gw.worker.holdTurns = false;
+    const turn = await gw.runtime.runPromise(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      return (yield* sql<{ id: string }>`SELECT id FROM turns WHERE thread_id = ${thread.id}::uuid AND status = 'running'`)[0]!;
+    }));
+    gw.worker.finish(thread.id, turn.id, 'Finished while bot archived');
     await expect(send(bot.id, 'blocked')).rejects.toThrow(/archived/);
     await gw.runtime.runPromise(Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -146,6 +174,7 @@ describe.skipIf(!dockerAvailable)('bot settings and archive through gateway', ()
     expect(resumed.bot?.archived).toBe(false);
     expect(resumed.messages.filter((m) => m.text === 'Resumed reminder')).toHaveLength(1);
     expect(resumed.messages.some((m) => m.text === 'Stale')).toBe(false);
+    expect(resumed.messages.some((m) => m.text.includes('Finished while bot archived') || m.text.startsWith('Thread '))).toBe(false);
     await gw.api.archiveBot({ botId: bot.id });
     await gw.api.deleteBot({ botId: bot.id });
     await expect(core.bots.get(bot.id)).rejects.toThrow();

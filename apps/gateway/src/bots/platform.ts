@@ -38,6 +38,12 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
       case "list_workers": return (await core.overview()).workers.map((w) => ({ id: w.id, name: w.name, online: w.online }));
       case "list_provider_instances": return (await core.listProviderInstances()).map((i) => ({ id: i.id, label: i.label, provider: Provider[i.harness], kind: i.kind }));
       case "list_models": {
+        const requested = optional("provider");
+        if (requested && !["claude", "codex"].includes(requested)) throw new Invalid("unknown provider");
+        if (!optional("worker_id")) {
+          const config = (await core.bots.get(turn.bot_id)).configuration!;
+          return await core.bots.run((s) => s.apiModels(requested ? requested === "claude" ? Provider.CLAUDE : Provider.CODEX : config.provider, optional("provider_instance") || config.providerInstance));
+        }
         const provider = string("provider") === "claude" ? Provider.CLAUDE : Provider.CODEX;
         return (await botModels(core, string("worker_id"), provider, string("provider_instance"))).map((m) => ({ id: m.id, name: m.displayName || m.id, default: m.isDefault, efforts: m.efforts, default_effort: m.defaultEffort }));
       }
