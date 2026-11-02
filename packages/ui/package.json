@@ -8,7 +8,8 @@
     "./icons": "./src/icons.ts",
     "./provider-icons": "./src/provider-icons.ts",
     "./mascot": "./src/mascot.ts",
-    "./settings": "./src/settings.ts"
+    "./settings": "./src/settings.ts",
+    "./desktop": "./src/desktop.ts"
   },
   "scripts": {
     "gen": "bun scripts/palette.ts",

@@ -9,6 +9,7 @@ import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "
 import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
 import { enrollWorker, workerServiceSnippet } from "./enroll.ts";
+import { desktopStatus } from "./desktop-status.ts";
 
 const cliArgs = Bun.argv.slice(2);
 const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";
@@ -79,6 +80,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       return;
     }
     stopping.abort();
+    desktopStatus("offline");
     void (async () => {
       try {
         currentLink?.send({ case: "heartbeat", value: { runningTurns: 0, state: WorkerState.DRAINING } });
@@ -104,6 +106,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 // A Drain from the gateway replaces the backoff with the delay it asks for.
 let backoffMs = 1_000;
 while (!stopping.signal.aborted) {
+  desktopStatus("connecting");
   let drainDelayMs: number | undefined;
   try {
     const link = await openGatewayLink({
@@ -129,11 +132,12 @@ while (!stopping.signal.aborted) {
       },
     });
     currentLink = link;
+    desktopStatus("online");
     backoffMs = 1_000;
     const resent = await runtime.runPromise(resendPending(link, (event) => host.sendPreviews(link, event)));
     console.info(`connected to ${local.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`);
     const heartbeat = setInterval(
-      () => link.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: WorkerState.ACTIVE } }),
+      () => { desktopStatus("online"); link.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: WorkerState.ACTIVE } }); },
       link.welcome.heartbeatIntervalSeconds * 1_000,
     );
     try {
@@ -141,6 +145,7 @@ while (!stopping.signal.aborted) {
     } finally {
       clearInterval(heartbeat);
       currentLink = undefined;
+      desktopStatus("offline");
     }
   } catch (error) {
     if (shutdown.signal.aborted) break;

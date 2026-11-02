@@ -43,6 +43,15 @@ const server = await startGrpcServer({
   ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
 });
 console.info(`gateway listening on ${server.url}`);
+// Desktop: keep the BFF/API listener on loopback and optionally expose only worker RPCs
+// on an explicitly selected private interface. Existing server deployments are unchanged.
+const workerServer = env["OA_WORKER_HOST"] && env["OA_WORKER_PORT"] ? await startGrpcServer({
+  routes: (router) => { core.link.routes(router); core.workers.routes(router); },
+  host: env["OA_WORKER_HOST"],
+  port: Number(env["OA_WORKER_PORT"]),
+  ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
+}) : undefined;
+if (workerServer) console.info(`worker-only listener on ${workerServer.url}`);
 const mobileServer = env["OA_MOBILE_PORT"] ? await startConnectHttpServer({
   // WorkerLink remains on HTTP/2. Phones only need unary + server-streaming UI RPCs.
   routes: (router) => { core.mobile.routes(router); uiRoutes(core)(router); },
@@ -66,6 +75,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     await core.bots.stop();
     await core.link.shutdown();
     await mobileServer?.close();
+    await workerServer?.close();
     await server.close();
     await runtime.dispose();
     process.exit(0);
