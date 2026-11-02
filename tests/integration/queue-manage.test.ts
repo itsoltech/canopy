@@ -5,7 +5,8 @@
  * the scheduler starts only the head it read, with the input it read.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
+import { MentionKind, PermissionMode, Provider, ui } from "@open-agents/contracts";
+import { quotesNote } from "@open-agents/domain";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -108,6 +109,31 @@ describe.skipIf(!dockerAvailable)("managing the queue (gateway + scripted worker
     const [, ran] = await turns(thread.id);
     expect([ran?.effort, ran?.permission_mode]).toEqual(["high", "READ_ONLY"]);
     expect(await failure(gw.api.editQueuedTurn({ turnId: sent.id, text: "late", expectedRevision: 1 }))).toContain("no longer queued");
+  });
+
+  test("edit keeps the message's quotes and composes its mentions again; steer now carries them", async () => {
+    const { thread, runningId } = await busyThread("edit-rich", []);
+    const quote = { text: "FAIL src/a.test.ts", sourceItemId: "item-b", sourceKind: "command_output" };
+    const skill = (start: number) => ({ kind: MentionKind.SKILL, name: "review", start, end: start + 7 });
+    const sent = (await gw.api.sendMessage({ threadId: thread.id, text: "use $review", clientRequestId: "rich-1", quotes: [quote], mentions: [skill(4)] })).turn!;
+    expect(sent.mentions.map((m) => [m.start, m.end])).toEqual([[4, 11]]);
+
+    const edited = (await gw.api.editQueuedTurn({ turnId: sent.id, text: "please use $review now", expectedRevision: 0, mentions: [skill(11)] })).turn!;
+    expect([edited.messageText, edited.mentions.map((m) => [m.name, m.start, m.end])]).toEqual(["please use $review now", [["review", 11, 18]]]);
+    expect(edited.quotes.map((q) => q.sourceItemId)).toEqual(["item-b"]);
+    expect(edited.platformNote).toContain(quotesNote([quote]));
+    expect(edited.inputText.endsWith("please use $review now")).toBe(true);
+    expect(await failure(gw.api.editQueuedTurn({ turnId: sent.id, text: "x", expectedRevision: 1, mentions: [skill(4)] }))).toContain("outside the text");
+    // Quotes alone may stay: the text can go.
+    expect((await gw.api.editQueuedTurn({ turnId: sent.id, text: "", expectedRevision: 1 })).turn?.inputText).toBe(quotesNote([quote]));
+    await gw.api.editQueuedTurn({ turnId: sent.id, text: "please use $review now", expectedRevision: 2, mentions: [skill(11)] });
+
+    gw.worker.steerMode = "accept";
+    const steered = await gw.api.steerQueuedTurn({ turnId: sent.id });
+    expect([steered.steer?.mentions.map((m) => m.name), steered.steer?.quotes.map((q) => q.sourceItemId)]).toEqual([["review"], ["item-b"]]);
+    await eventually(() => steers(thread.id), (x) => x[0]?.status === "delivered");
+    expect(gw.worker.steered.get(steered.steer!.id)).toContain(quotesNote([quote]));
+    expect(await drain(thread.id, runningId, 0)).toEqual([]);
   });
 
   test("delete and undo: the turn leaves the queue (hidden, cancelled) and comes back at its place", async () => {

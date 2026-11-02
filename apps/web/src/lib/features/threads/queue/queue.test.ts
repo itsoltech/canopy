@@ -23,7 +23,7 @@ describe("queue panel", () => {
   test("overrides name what the message runs with; text without the platform note on one line", () => {
     const files = [create(ui.AttachmentSchema, { id: "f1" }), create(ui.AttachmentSchema, { id: "f2" })];
     const queued = turn("a", { model: "gpt-5.5", effort: "high", permissionMode: PermissionMode.READ_ONLY, attachments: files, inputText: "[note]\n\nfix it", messageText: "fix\n it" });
-    expect(overrides(queued)).toEqual(["GPT-5.5", "High effort", "Read only", "2 files"]);
+    expect(overrides(queued)).toEqual(["GPT-5.5", "High effort", "Read only", "2 files"]); // no quotes
     expect(overrides(turn("b"))).toEqual([]);
     expect(queuedText(queued)).toBe("fix it");
     expect([steerable(queued), steerable(turn("c")), steerable(turn("d", { trigger: "agent_bus" }))]).toEqual([false, true, false]);

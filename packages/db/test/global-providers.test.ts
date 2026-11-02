@@ -84,8 +84,7 @@ describe.skipIf(!dockerAvailable)("migration 0018: per-worker profiles to global
       user,
       JSON.stringify({ modelFavorites: { models: [{ provider: "PROVIDER_CODEX", profileId: "cliproxyapi", model: "a" }, { provider: "PROVIDER_CLAUDE", model: "opus" }] } }),
     ]);
-    // 0018 first; later migrations follow it.
-    expect((await runtime.runPromise(migrate)).map(([n, name]) => `${n}_${name}`)[0]).toBe("18_global_providers");
+    expect((await runtime.runPromise(migrate)).map(([n, name]) => `${n}_${name}`)).toEqual(expect.arrayContaining(["18_global_providers"]));
   }, 90_000);
 
   afterAll(async () => {

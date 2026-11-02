@@ -2,9 +2,24 @@
   import type { Mention } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
   import Popover from "#lib/shared/ui/Popover.svelte";
-  import { caretAfter, caretAtPoint, chipBeforeCaret, ensureCaret, selectBackFromCaret, selectNode, textBeforeCaret } from "./caret.ts";
-  import { activeTrigger, iconKey, serialize, toHtml, type ActiveTrigger, type TriggerChar } from "./editor.ts";
+  import {
+    blockBesideCaret,
+    caretAfter,
+    caretAtPoint,
+    caretBesideBlock,
+    caretNextToBlock,
+    chipBeforeCaret,
+    ensureCaret,
+    fenceLineAtCaret,
+    selectBackFromCaret,
+    selectNode,
+    textBeforeCaret,
+  } from "./caret.ts";
+  import { CodeBlocks } from "./code-blocks.ts";
+  import { activeTrigger, blockOf, iconKey, serialize, toHtml, type ActiveTrigger, type TriggerChar } from "./editor.ts";
+  import { formatInlineCode, markTicks } from "./inline-code.ts";
   import { INLINE_RENDERERS, type MentionData } from "./kinds.ts";
+  import { blockHtml, findFences, openingFence } from "./markdown.ts";
   import MentionList from "./MentionList.svelte";
   import type { MentionOption, MentionSources } from "./sources.svelte.ts";
 
@@ -14,6 +29,13 @@
    * opens the popup above the composer: "/" commands, "$" skills and plugins (Codex's convention), "@" files of
    * the thread's folder, "#" other threads. ↑↓ move, Enter or Tab insert the chip, Escape closes; a tap inserts too.
    * A chip is one unit: Backspace next to it removes it whole (and Undo brings it back).
+   *
+   * Live markdown (markdown.ts): a backtick span turns into inline code as its closing backtick is typed (the
+   * backticks stay, muted), and an opening fence line (`` ``` `` or `` ```ts ``) with Enter turns into a code block
+   * (CodeBlockField: language pill, highlighting, its own keys); a pasted or restored complete fence is a block too.
+   * Both are formatting of the same text: `value` holds the backticks and fences exactly. Backspace at the start of
+   * the line after a block, Delete at the end of the line before it and ArrowUp / ArrowDown next to it go into the
+   * block instead of deleting or skipping it. Copy and cut put the text (fences, mention markers) on the clipboard.
    *
    * Why contenteditable and not an editor library: chips are the only rich content, so a small model over the
    * browser's own editing keeps undo, IME, spellcheck and mobile keyboards native at a few kB (ProseMirror or
@@ -76,12 +98,29 @@
 
   const mentionsKey = (list: readonly Mention[]) => list.map((m) => `${m.kind}:${m.name}:${m.start}-${m.end}`).join("|");
 
+  const blocks = new CodeBlocks({
+    changed: () => sync(false),
+    exit(block, side) {
+      const prev = block.previousSibling;
+      if (!root || (side === "before" && (!prev || (prev instanceof HTMLElement && blockOf(prev))))) return false;
+      root.focus({ preventScroll: true });
+      caretBesideBlock(block, side);
+      sync(false);
+      return true;
+    },
+    remove: removeBlock,
+  });
+  $effect(() => () => blocks.clear());
+
   // An outside change (cleared after sending, a restored draft): render it.
   $effect(() => {
     const text = value;
     const key = mentionsKey(mentions);
     if (!root || (text === shown.text && key === shown.key)) return;
+    blocks.clear();
     root.innerHTML = toHtml({ text, mentions }, icons);
+    blocks.refresh(root);
+    markTicks(root);
     shown = { text, key };
     trigger = undefined;
   });
@@ -115,9 +154,23 @@
     if (active >= options.length) active = Math.max(0, options.length - 1);
   });
 
-  /** Reads the model back from the DOM after the browser changed it. */
-  function sync() {
-    if (!root || composing) return;
+  /** While inline code is written again (its own input events come back here). */
+  let formatting = false;
+
+  /** Reads the model back from the DOM after the browser changed it; `format`: live markdown follows the edit. */
+  function sync(format = true) {
+    if (!root || composing || formatting) return;
+    if (format) {
+      formatting = true;
+      try {
+        formatInlineCode(root);
+      } finally {
+        formatting = false;
+      }
+    }
+    const fresh = blocks.refresh(root);
+    markTicks(root);
+    if (fresh) blocks.focus(fresh, "start");
     const next = serialize(root);
     shown = { text: next.text, key: mentionsKey(next.mentions) };
     value = next.text;
@@ -127,7 +180,9 @@
 
   function detectTrigger() {
     if (!sources) return;
-    const before = root ? textBeforeCaret(root) : undefined;
+    // Not inside inline code.
+    const inCode = getSelection()?.anchorNode?.parentElement?.closest("code") != null;
+    const before = root && !inCode ? textBeforeCaret(root) : undefined;
     const found = before === undefined ? undefined : activeTrigger(before, triggers);
     // Escape closed it: stays closed until the query changes.
     if (!found || dismissed === `${found.char}${found.query}`) {
@@ -163,9 +218,15 @@
     sync();
   }
 
-  /** Plain text at the caret: lines as text and line breaks (no markup from the clipboard). */
+  /** Plain text at the caret: lines as text and line breaks (no markup from the clipboard); complete fences as blocks. */
   function insertPlain(text: string) {
-    const lines = text.replace(/\r\n?/g, "\n").split("\n");
+    const normalized = text.replace(/\r\n?/g, "\n");
+    if (findFences(normalized).length > 0) {
+      document.execCommand("insertHTML", false, toHtml({ text: normalized.replace(/\n$/, ""), mentions: [] }));
+      sync();
+      return;
+    }
+    const lines = normalized.split("\n");
     lines.forEach((line, i) => {
       if (i > 0) document.execCommand("insertLineBreak");
       if (line) document.execCommand("insertText", false, line);
@@ -173,8 +234,53 @@
     sync();
   }
 
+  /** The fence line the caret is on becomes an empty code block (one undoable edit), the caret in it. */
+  function openBlock(): boolean {
+    const fence = root && fenceLineAtCaret(root);
+    const opening = fence && openingFence(fence.line);
+    if (!fence || !opening || !selectBackFromCaret(fence.line.length)) return false;
+    // The line break that ended the line goes too: the block is its own lines.
+    const range = getSelection()!.getRangeAt(0).cloneRange();
+    if (fence.lineBreak instanceof Node) range.setEndAfter(fence.lineBreak);
+    else if (fence.lineBreak) range.setEnd(fence.lineBreak.node, fence.lineBreak.offset);
+    getSelection()!.removeAllRanges();
+    getSelection()!.addRange(range);
+    // A last block brings the line after it along (in the same edit, so Undo and Redo keep it): the caret has
+    // somewhere to go below it.
+    const end = range.endContainer;
+    const last = end.nodeType === Node.TEXT_NODE ? range.endOffset === (end.textContent?.length ?? 0) && !end.nextSibling : !end.childNodes[range.endOffset];
+    document.execCommand("insertHTML", false, blockHtml({ lang: opening.lang, code: "", fence: opening.fence }, true) + (last ? "<br>" : ""));
+    sync(false);
+    return true;
+  }
+
+  /** Takes a block out (one undoable edit); the lines around it stay apart. */
+  function removeBlock(block: HTMLElement) {
+    if (!root) return;
+    const prev = block.previousSibling;
+    const next = block.nextSibling;
+    const endsLine = (node: Node | null) =>
+      !node || node.nodeName === "BR" || (node instanceof HTMLElement && blockOf(node) !== undefined) || (node.nodeType === Node.TEXT_NODE && !node.textContent?.replace(/\u200b/g, ""));
+    const joins =
+      !endsLine(prev) && !endsLine(next) && !(prev?.textContent ?? "").endsWith("\n") && !(next?.textContent ?? "").startsWith("\n");
+    root.focus({ preventScroll: true });
+    selectNode(block);
+    document.execCommand(joins ? "insertLineBreak" : "delete");
+    sync();
+  }
+
+  /** The block's own textarea (its events reach the editor, they are not the editor's). */
+  const inBlock = (target: EventTarget | null) => target instanceof HTMLTextAreaElement && root?.contains(target) === true;
+  /** Anywhere in a block (its textarea, the language search). */
+  const inBlockArea = (target: EventTarget | null) => target instanceof Element && target.closest('[data-block="code"]') !== null;
+
   function onkeydown(event: KeyboardEvent) {
     if (event.isComposing || composing) return;
+    if (event.target !== root) {
+      // In a block only Mod+Enter (send, queue) is the composer's; its language search keeps its keys.
+      if (inBlock(event.target) && event.key === "Enter" && (event.metaKey || event.ctrlKey)) forward?.(event);
+      return;
+    }
     if (trigger && popupOpen) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -192,6 +298,28 @@
         popupOpen = false;
         return;
       }
+    }
+    const plainKey = !event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey;
+    if (root && plainKey && (event.key === "Backspace" || event.key === "ArrowUp")) {
+      // The line after a block: Backspace or ArrowUp goes into it (the browser would delete it whole or skip it).
+      const block = blockBesideCaret(root, "before", event.key === "ArrowUp");
+      if (block && (event.key === "Backspace" || caretNextToBlock(block, "before"))) {
+        event.preventDefault();
+        blocks.focus(block, "end");
+        return;
+      }
+    }
+    if (root && plainKey && (event.key === "Delete" || event.key === "ArrowDown")) {
+      const block = blockBesideCaret(root, "after", event.key === "ArrowDown");
+      if (block && (event.key === "Delete" || caretNextToBlock(block, "after"))) {
+        event.preventDefault();
+        blocks.focus(block, "start");
+        return;
+      }
+    }
+    if (event.key === "Enter" && !event.altKey && !event.metaKey && !event.ctrlKey && openBlock()) {
+      event.preventDefault();
+      return;
     }
     if (event.key === "Backspace" && !event.altKey && !event.metaKey && !event.ctrlKey) {
       // A chip goes whole (one undoable delete).
@@ -214,6 +342,7 @@
   }
 
   function onbeforeinput(event: InputEvent) {
+    if (inBlockArea(event.target)) return;
     // Mobile keyboards' return and formatting shortcuts: a line break, never a paragraph or bold text.
     if (event.inputType === "insertParagraph") {
       event.preventDefault();
@@ -226,14 +355,29 @@
 
   function onpaste(event: ClipboardEvent) {
     pasteFirst?.(event);
-    if (event.defaultPrevented) return;
+    // A block's textarea pastes verbatim on its own.
+    if (event.defaultPrevented || inBlockArea(event.target)) return;
     const text = event.clipboardData?.getData("text/plain");
     event.preventDefault();
     if (text) insertPlain(text);
   }
 
+  /** Copy and cut from the text: what the message would say (fences of blocks, markers of chips), not their looks. */
+  function oncopy(event: ClipboardEvent) {
+    const current = getSelection();
+    if (inBlockArea(event.target) || !root || !current || current.isCollapsed || current.rangeCount === 0 || !event.clipboardData) return;
+    const range = current.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return;
+    event.preventDefault();
+    event.clipboardData.setData("text/plain", serialize(range.cloneContents()).text);
+    if (event.type === "cut") {
+      document.execCommand("delete");
+      sync();
+    }
+  }
+
   function ondrop(event: DragEvent) {
-    if (event.defaultPrevented || event.dataTransfer?.types.includes("Files")) return;
+    if (event.defaultPrevented || event.dataTransfer?.types.includes("Files") || inBlockArea(event.target)) return;
     const text = event.dataTransfer?.getData("text/plain");
     event.preventDefault();
     if (!text) return;
@@ -282,11 +426,15 @@
     spellcheck="true"
     tabindex={disabled ? -1 : 0}
     class={["col-start-1 row-start-1 max-h-72 min-h-16 overflow-y-auto break-words whitespace-pre-wrap text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px", className]}
-    oninput={sync}
+    oninput={(event) => {
+      if (!inBlockArea(event.target) || inBlock(event.target)) sync(!(event instanceof InputEvent && event.inputType.startsWith("history")));
+    }}
     {onkeydown}
     {onbeforeinput}
     {onpaste}
     {ondrop}
+    {oncopy}
+    oncut={oncopy}
     onkeyup={(event) => {
       if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") detectTrigger();
     }}
@@ -316,3 +464,13 @@
     />
   </Popover>
 {/if}
+
+<style>
+  /* The backticks around inline code (inline-code.ts `markTicks`). */
+  :global(::highlight(composer-code-tick)) {
+    color: var(--color-zinc-400);
+  }
+  :global(.dark ::highlight(composer-code-tick)) {
+    color: var(--color-zinc-500);
+  }
+</style>

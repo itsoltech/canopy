@@ -140,7 +140,8 @@ export class QueueStore extends Context.Service<
             Effect.gen(function* () {
               const turn = yield* lockUserMessage(turnId, ownerUserId);
               if (turn.revision !== expectedRevision) return yield* Effect.fail(new QueueConflict("this message was changed elsewhere; edit the new version"));
-              if (!(input.message ?? input.text ?? "").trim() && (turn.input.attachments ?? []).length === 0) return yield* Effect.fail(new Invalid("message is empty"));
+              const carries = (turn.input.attachments ?? []).length > 0 || (input.quotes ?? []).length > 0;
+              if (!(input.message ?? input.text ?? "").trim() && !carries) return yield* Effect.fail(new Invalid("message is empty"));
               // The files stay the turn's (they are bound to it).
               const next = { ...input, ...(turn.input.attachments && { attachments: turn.input.attachments }) };
               yield* sql`UPDATE turns SET input = ${JSON.stringify(next)}::jsonb, revision = revision + 1 WHERE id = ${turnId}::uuid`;

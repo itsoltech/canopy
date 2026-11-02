@@ -465,6 +465,22 @@
   }
 }
 
+/* --- Inline code forming: as its closing backtick is typed, the code's wash fades in under text already in place
+ * (no movement, no change of layout). ---------------------------------------------------------------------- */
+.t-code-form {
+  animation: t-code-form var(--duration-quick) var(--ease-in-out);
+}
+@keyframes t-code-form {
+  from {
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-code-form {
+    animation: none !important;
+  }
+}
+
 /* --- Entrances on mount ---------------------------------------------------------------------------------
  * t-swap: text states swap (04), a status label that changed rises in (put it in a {#key}).
  * t-rise: a new row in a list or the timeline (transform only: layout and measuring are untouched).
@@ -544,5 +560,26 @@
 @media (prefers-reduced-motion: reduce) {
   .t-pulse {
     animation: none !important;
+  }
+}
+
+/* --- Emphasis: the item a quote came from, after "show where it was quoted from" (data-flash). A tint and a
+ * ring outside the box (box-shadow: nothing moves) hold for a moment and fade out over three --duration-very-slow.
+ * With reduced motion the tint shows without fading and goes when the attribute does. */
+[data-flash] {
+  animation: t-flash calc(var(--duration-very-slow) * 3) var(--ease-in-out) both;
+}
+@keyframes t-flash {
+  0%,
+  40% {
+    background-color: color-mix(in oklab, var(--color-amber-400) 18%, transparent);
+    box-shadow: 0 0 0 --spacing(1.5) color-mix(in oklab, var(--color-amber-400) 18%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-flash] {
+    animation: none !important;
+    background-color: color-mix(in oklab, var(--color-amber-400) 18%, transparent);
+    box-shadow: 0 0 0 --spacing(1.5) color-mix(in oklab, var(--color-amber-400) 18%, transparent);
   }
 }

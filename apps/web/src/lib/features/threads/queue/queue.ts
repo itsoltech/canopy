@@ -57,12 +57,16 @@ export function relocateMentions(before: string, mentions: readonly Mention[], a
     });
 }
 
-/** What the message runs with instead of the thread's defaults ("GPT-5.5", "High effort", "Read only", "2 files"). */
+/** The message carries more than its text (files, quotes): it may be sent, and edited, without any. */
+export const carriesMore = (turn: ui.Turn): boolean => turn.attachments.length > 0 || turn.quotes.length > 0;
+
+/** What the message runs with instead of the thread's defaults, and what it carries ("GPT-5.5", "High effort", "Read only", "2 files", "1 quote"). */
 export function overrides(turn: ui.Turn): string[] {
   const hints: string[] = [];
   if (turn.model) hints.push(modelDisplayName(turn.model));
   if (turn.effort) hints.push(`${effortLevel(turn.effort).label} effort`);
   if (turn.permissionMode !== PermissionMode.UNSPECIFIED) hints.push(permissionLabel(turn.permissionMode));
   if (turn.attachments.length > 0) hints.push(turn.attachments.length === 1 ? "1 file" : `${turn.attachments.length} files`);
+  if (turn.quotes.length > 0) hints.push(turn.quotes.length === 1 ? "1 quote" : `${turn.quotes.length} quotes`);
   return hints;
 }

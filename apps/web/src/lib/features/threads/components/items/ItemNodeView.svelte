@@ -6,7 +6,10 @@
   import ItemNodeView from "./ItemNodeView.svelte";
   import ItemView from "./ItemView.svelte";
 
-  /** An item and, nested inside it, the items that name it as parent (subagent work). */
+  /**
+   * An item and, nested inside it, the items that name it as parent (subagent work). The wrapper names the item
+   * for quotes (selection.ts: `data-quote-item`, its thread) and is what a quote's "show source" highlights.
+   */
   let { node }: { node: ItemNode } = $props();
   const directory = useThreadDirectory();
   provideItemAwaiting(() => directory.awaiting(node.entry.id));
@@ -18,4 +21,6 @@
   {#each node.children as child (child.entry.id)}<ItemNodeView node={child} />{/each}
 {/snippet}
 
-<ItemView item={node.entry.item} nested={node.children.length > 0 ? nested : undefined} turnEnded={directory.turnEnded?.(node.entry.turnId) ?? false} />
+<div class="min-w-0 rounded-lg" data-quote-item={node.entry.id} data-quote-thread={node.entry.fromThreadId || directory.currentId}>
+  <ItemView item={node.entry.item} nested={node.children.length > 0 ? nested : undefined} turnEnded={directory.turnEnded?.(node.entry.turnId) ?? false} />
+</div>

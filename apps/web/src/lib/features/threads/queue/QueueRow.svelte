@@ -6,7 +6,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { messageOf, overrides, ownMessage, queuedText, steerable } from "./queue.ts";
+  import { carriesMore, messageOf, overrides, ownMessage, queuedText, steerable } from "./queue.ts";
   import QueueEditor from "./QueueEditor.svelte";
   import QueueHandle from "./QueueHandle.svelte";
   import QueueRowMenu from "./QueueRowMenu.svelte";
@@ -92,12 +92,12 @@
   {onkeydown}
 >
   {#if editing}
-    <QueueEditor text={messageOf(turn)} {onsave} {oncancel} />
+    <QueueEditor text={messageOf(turn)} allowEmpty={carriesMore(turn)} {onsave} {oncancel} />
   {:else}
     <div class="flex items-center gap-1 py-0.5 pr-0.5 pl-0.5">
       <QueueHandle label={text} bind:element={handle} {ondragstart} />
       <p class="min-w-0 flex-1 truncate text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300" title={text}>
-        {text || "(only files)"}
+        {text || (turn.attachments.length > 0 ? "(only files)" : "(only quotes)")}
       </p>
       {#if fallback}
         <span class="flex shrink-0" {@attach tooltip(`Could not join the running turn${fallback.reason ? ` (${fallback.reason})` : ""}; it runs at its place in the queue.`)}>

@@ -5,6 +5,8 @@
   import type { Mention } from "@open-agents/contracts";
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { trimValue } from "#lib/features/mentions/editor.ts";
+  import { toWire, useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
+  import QuoteTray from "#lib/features/quotes/QuoteTray.svelte";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { turnOverride, type ModelOption } from "#lib/features/models/catalog.ts";
@@ -32,6 +34,8 @@
    * runs as the next turn (its files reach the worker before the turn starts).
    * Mentions ("/", "$", "@", "#"; docs/ui-api.md "Wzmianki") come from the thread's worker and folder; "/goal" is
    * the platform's command: the rest of the message becomes the thread's goal.
+   * Quotes (Cite on the agent's output; docs/ui-api.md "Cytaty") wait as chips above the text, in the thread's quote
+   * drafts, and go with the message (steered too); a message may be quotes alone.
    */
   let {
     thread,
@@ -78,6 +82,8 @@
   );
   const settings = useSettings();
   const draft = new AttachmentDraft(() => limitsOf(settings?.attachmentLimits));
+  const quoteDrafts = useQuoteDrafts();
+  const quotes = $derived(quoteDrafts.list(thread.id));
   let sending = $state(false);
   let stopping = $state(false);
   let error = $state<string | undefined>(undefined);
@@ -95,17 +101,28 @@
 
   async function send(delivery: Delivery) {
     const { text: message, mentions: sentMentions } = trimValue({ text, mentions });
-    if ((!message && draft.files.length === 0) || sending || disabled) return;
+    if ((!message && draft.files.length === 0 && quotes.length === 0) || sending || disabled) return;
     if (draft.blocker) {
       error = draft.blocker;
       return;
     }
     const attachmentIds = draft.ids;
+    const threadId = thread.id;
+    const sentQuotes = quotes;
     sending = true;
     error = undefined;
     outcome = undefined;
     try {
-      const response = await sendMessage(thread.id, message, requestId, override, attachmentIds.length > 0 ? "queue" : delivery, attachmentIds, sentMentions);
+      const response = await sendMessage(
+        threadId,
+        message,
+        requestId,
+        override,
+        attachmentIds.length > 0 ? "queue" : delivery,
+        attachmentIds,
+        sentMentions,
+        sentQuotes.map(toWire),
+      );
       onsent?.(response);
       if (response.goal) outcome = `Goal set: ${response.goal.objective}`;
       // Steered while the turn was ending: the gateway queued it as the next turn.
@@ -113,6 +130,8 @@
       text = "";
       mentions = [];
       draft.clear();
+      // Only the quotes that went: one cited while the message was on its way stays for the next.
+      for (const quote of sentQuotes) quoteDrafts.remove(threadId, quote.id);
       requestId = crypto.randomUUID();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -149,7 +168,9 @@
     {primary}
     onalternate={running ? () => void send("steer") : undefined}
     {draft}
+    elementCount={quotes.length}
   >
+    {#snippet elements()}<QuoteTray threadId={thread.id} class="px-3 pt-3" />{/snippet}
     {#snippet controls()}
       {@render leading?.()}
       {#if option}

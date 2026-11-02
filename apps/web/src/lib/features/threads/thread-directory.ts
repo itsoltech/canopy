@@ -12,6 +12,10 @@ export interface ThreadDirectory {
   goal(id: string): ui.Goal | undefined;
   /** The turn with this id is over (completed, failed, interrupted): its items stop streaming. */
   turnEnded?(turnId: string): boolean;
+  /** The thread's steer with this id (a message steered into a turn: its text and quotes). */
+  steer?(id: string): ui.Steer | undefined;
+  /** Scrolls to the item a quote came from and highlights it; false when it is not in this thread any more. */
+  revealQuote?(quote: ui.Quote): Promise<boolean>;
 }
 
 const KEY = Symbol("thread-directory");

@@ -54,7 +54,7 @@
         {/if}
       </div>
       {#if entry.diff}
-        <Diff diff={entry.diff} label="Diff of {entry.path}" lang={languageOfPath(entry.movePath || entry.path)} />
+        <Diff data-quote-kind="diff" diff={entry.diff} label="Diff of {entry.path}" lang={languageOfPath(entry.movePath || entry.path)} />
       {:else if entry.diffBlob}
         <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Diff ({formatBytes(entry.diffBlob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.</p>
       {/if}

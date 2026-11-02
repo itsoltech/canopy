@@ -76,6 +76,8 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       listMentionCatalog: (request) => guard(() => core.listMentionCatalog(request)),
       searchFiles: (request) => guard(() => core.searchFiles(request)),
       searchThreads: (request) => guard(() => core.searchThreads(request)),
+      markThreadSeen: (request) =>
+        guard(async () => create(ui.MarkThreadSeenResponseSchema, { thread: await core.markThreadSeen(request.threadId, request.upToSeq) })),
     });
 }
 

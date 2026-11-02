@@ -33,7 +33,8 @@
    * Mentions (`sources`, docs/ui-api.md "Wzmianki"): the text field takes "/", "$", "@" and "#" chips
    * (MentionEditor); `mentions` are their ranges in `value`. The "+" menu offers the same triggers.
    * In a form, `name` submits the trimmed text and `mentions` (protobuf JSON) for a plain form post.
-   * Block-level elements of the draft (attachments; quotes later) render above the text: `elements` goes there.
+   * Block-level elements of the draft (attachments; quotes) render above the text: `elements` goes there, and
+   * `elementCount` says how many it holds — with any, a message may go without text (and steer).
    */
   let {
     value = $bindable(""),
@@ -55,6 +56,7 @@
     draft,
     sources,
     elements,
+    elementCount = 0,
     class: className,
   }: {
     value?: string;
@@ -78,6 +80,7 @@
     draft?: AttachmentDraft | undefined;
     sources?: MentionSources | undefined;
     elements?: Snippet;
+    elementCount?: number;
     class?: ClassValue;
   } = $props();
   const triggers: ReadonlySet<TriggerChar> = new Set(["/", "$", "@", "#"]);
@@ -85,11 +88,11 @@
 
   const id = $props.id();
   const hasFiles = $derived((draft?.files.length ?? 0) > 0);
-  const hasContent = $derived(Boolean(value.trim()) || hasFiles);
+  const hasContent = $derived(Boolean(value.trim()) || hasFiles || elementCount > 0);
   const onfiles = $derived(draft ? (files: File[]) => draft.add(files) : undefined);
   const stopMode = $derived(Boolean(onstop) && !hasContent);
   // Files go with the next turn: a message with them is never steered.
-  const steerMode = $derived(Boolean(onqueue) && !stopMode && Boolean(value.trim()) && !hasFiles);
+  const steerMode = $derived(Boolean(onqueue) && !stopMode && (Boolean(value.trim()) || elementCount > 0) && !hasFiles);
   let dragging = $state(false);
   const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
   function ondrop(event: DragEvent) {
@@ -155,7 +158,7 @@
       anchor={box}
       {onkeydown}
       {onpaste}
-      class={["px-4 pt-3.5 text-base/6", disabled && "cursor-not-allowed"]}
+      class={["px-4 pt-3.5 text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
     />
     <input type="hidden" {name} value={trimmed.text} />
     {#if trimmed.mentions.length > 0}<input type="hidden" name="mentions" value={JSON.stringify(mentionsToWire(trimmed.mentions))} />{/if}

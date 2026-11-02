@@ -7,14 +7,15 @@
   /**
    * Inline edit of a queued message (it keeps its place, overrides and files): the text grows with its
    * content, Enter saves, Shift+Enter adds a line, Escape cancels. `onsave` answers with an error to show, if any
-   * (e.g. the message started meanwhile).
+   * (e.g. the message started meanwhile). `allowEmpty`: the message carries files or quotes, the text may go.
    */
   let {
     text,
     onsave,
     oncancel,
+    allowEmpty = false,
     class: className,
-  }: { text: string; onsave: (text: string) => Promise<string | undefined>; oncancel: () => void; class?: ClassValue } = $props();
+  }: { text: string; onsave: (text: string) => Promise<string | undefined>; oncancel: () => void; allowEmpty?: boolean; class?: ClassValue } = $props();
 
   // svelte-ignore state_referenced_locally
   let value = $state(text);
@@ -63,6 +64,6 @@
   <div class="flex items-center justify-end gap-2">
     {#if error}<p id="{id}-error" class="min-w-0 flex-1 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">{error}</p>{/if}
     <Button variant="ghost" size="sm" onclick={oncancel}>Cancel</Button>
-    <Button type="submit" size="sm" loading={saving} disabled={!value.trim()}>Save</Button>
+    <Button type="submit" size="sm" loading={saving} disabled={!allowEmpty && !value.trim()}>Save</Button>
   </div>
 </form>

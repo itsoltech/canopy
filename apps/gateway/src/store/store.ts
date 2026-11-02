@@ -26,6 +26,7 @@ import { SqlClient, type SqlError } from "effect/sql";
 import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle } from "./paths.ts";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { toUiAttachment, type StoredAttachment } from "./attachments.ts";
+import { toUiQuote, type StoredQuote } from "./quotes.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 
 /**
@@ -79,6 +80,7 @@ export interface ThreadRow {
   background_tasks?: bigint | number;
   /** Joined for side threads: the start of the last agent message (a subagent's result). */
   last_message?: string | null;
+  unseen_result?: string | null;
 }
 
 /** Characters of a side thread's last message in ui.Thread (the subagent card in the parent's timeline). */
@@ -92,9 +94,10 @@ export interface TurnRow {
   trigger: string;
   /**
    * text = what the model got; note + message = the same split for the UI (platform-queued turns, a message with
-   * attachments: the note lists them); attachments = the files of the message, with their paths on the worker.
+   * attachments or quotes: the note lists them); attachments = the files of the message, with their paths on the
+   * worker; quotes = the passages of the thread it quotes (shown to the model in the note).
    */
-  input: { text?: string; note?: string; message?: string; attachments?: StoredAttachment[] } & StoredMentions;
+  input: { text?: string; note?: string; message?: string; attachments?: StoredAttachment[]; quotes?: StoredQuote[] } & StoredMentions;
   /** The message's override while queued; the values sent to the worker once started ('' = default). */
   model?: string;
   effort?: string;
@@ -172,6 +175,8 @@ export class GatewayStore extends Context.Service<
     // threads and turns
     createThread(ownerUserId: string, request: ui.CreateThreadRequest): Fx<ThreadRow>;
     thread(threadId: string): Fx<ThreadRow>;
+    /** The owner saw the thread up to `upToSeq` (capped at its last event; the marker only grows). False when nothing changed. */
+    markThreadSeen(ownerUserId: string, threadId: string, upToSeq: bigint): Fx<boolean>;
     /** Threads of a project, or of every project the user owns when projectId is empty. */
     listThreads(ownerUserId: string, projectId: string): Fx<ReadonlyArray<ThreadRow>>;
     threadSpec(row: ThreadRow): ThreadSpec;
@@ -294,6 +299,10 @@ export class GatewayStore extends Context.Service<
                                            FROM turns u WHERE u.thread_id = t.id)) AS last_activity_at,
                  (SELECT g.status FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled') LIMIT 1) AS goal_status,
                  (SELECT count(*) FROM thread_items b WHERE b.thread_id = t.id AND b.type = 'background_task' AND b.status = 'in_progress') AS background_tasks,
+                 (SELECT u.status FROM turns u
+                   WHERE u.thread_id = t.id AND u.status IN ('completed', 'failed', 'interrupted')
+                     AND u.last_seq > coalesce((SELECT r.seen_seq FROM thread_reads r WHERE r.user_id = t.owner_user_id AND r.thread_id = t.id), 0)
+                   ORDER BY u.last_seq DESC LIMIT 1) AS unseen_result,
                  CASE WHEN t.kind = 'side' THEN
                    (SELECT left(m.content->'agentMessage'->>'text', ${LAST_MESSAGE_PREVIEW}) FROM thread_items m
                      WHERE m.thread_id = t.id AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1) END AS last_message
@@ -561,6 +570,20 @@ export class GatewayStore extends Context.Service<
           thread: (threadId) =>
             sql.unsafe<ThreadRow>(threadSelect("WHERE t.id = $1::uuid"), [threadId]).pipe(Effect.flatMap((rows) => one(rows, "thread"))),
 
+          markThreadSeen: (ownerUserId, threadId, upToSeq) =>
+            Effect.gen(function* () {
+              const rows = yield* sql<{ seen_seq: string }>`
+                INSERT INTO thread_reads (user_id, thread_id, seen_seq)
+                SELECT t.owner_user_id, t.id, least(${upToSeq.toString()}::bigint, t.last_seq) FROM threads t
+                 WHERE t.id = ${threadId}::uuid AND t.owner_user_id = ${ownerUserId}::uuid
+                ON CONFLICT (user_id, thread_id) DO UPDATE SET seen_seq = EXCLUDED.seen_seq, seen_at = now()
+                 WHERE thread_reads.seen_seq < EXCLUDED.seen_seq
+                RETURNING seen_seq`;
+              if (rows.length > 0) return true;
+              yield* one(yield* sql<{ id: string }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid`, "thread");
+              return false;
+            }),
+
           listThreads: (ownerUserId, projectId) =>
             projectId
               ? sql.unsafe<ThreadRow>(threadSelect("WHERE t.project_id = $1::uuid AND t.archived_at IS NULL ORDER BY t.created_at"), [projectId])
@@ -593,7 +616,7 @@ export class GatewayStore extends Context.Service<
             sql.withTransaction(
               Effect.gen(function* () {
                 const attachments = input?.attachments ?? [];
-                if (!text.trim() && attachments.length === 0) return yield* Effect.fail(new Invalid("message is empty"));
+                if (!text.trim() && attachments.length === 0 && !input?.quotes?.length) return yield* Effect.fail(new Invalid("message is empty"));
                 const id = Bun.randomUUIDv7();
                 const rows = yield* sql<TurnRow>`
                   INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort, permission_mode)
@@ -892,6 +915,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     backgroundTasks: Number(row.background_tasks ?? 0),
     runtime: row.runtime,
     lastMessage: row.last_message ?? "",
+    unseenResult: row.unseen_result ?? "",
   });
 }
 
@@ -931,6 +955,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     withdrawn: row.withdrawn ?? "",
     revision: row.revision ?? 0,
     mentions: mentionsFromJson(row.input?.mentions),
+    quotes: (row.input?.quotes ?? []).map(toUiQuote),
   });
 }
 
