@@ -18,4 +18,4 @@
   {#each node.children as child (child.entry.id)}<ItemNodeView node={child} />{/each}
 {/snippet}
 
-<ItemView item={node.entry.item} nested={node.children.length > 0 ? nested : undefined} />
+<ItemView item={node.entry.item} nested={node.children.length > 0 ? nested : undefined} turnEnded={directory.turnEnded?.(node.entry.turnId) ?? false} />

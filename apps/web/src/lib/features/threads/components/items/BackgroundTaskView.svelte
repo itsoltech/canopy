@@ -70,5 +70,5 @@
   {#if task.command}<pre class="code-surface rounded-lg bg-zinc-950/2.5 p-3 text-zinc-950 dark:bg-white/5 dark:text-white">{task.command}</pre>{/if}
   {#if task.stopReason}<p class="text-sm/5 text-orange-700 sm:text-xs/5 dark:text-orange-400">{stopReasons[task.stopReason] ?? task.stopReason}</p>{/if}
   {#if task.progress?.summary}<p class="text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-400">{task.progress.summary}</p>{/if}
-  <OutputBlock output={task.output} blob={task.outputBlob} label="Output of {name}" tail={12} empty={running ? "Waiting for output…" : "No output."} />
+  <OutputBlock output={task.output} blob={task.outputBlob} label="Output of {name}" tail={12} empty={running ? "Waiting for output…" : "No output."} streaming={running} />
 </ItemFrame>

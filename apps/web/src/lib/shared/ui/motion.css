@@ -419,7 +419,9 @@
  * t-swap: text states swap (04), a status label that changed rises in (put it in a {#key}).
  * t-rise: a new row in a list or the timeline (transform only: layout and measuring are untouched).
  * t-reveal: skeleton reveal (14), loaded content resolves in where its skeleton was.
- * t-stream: streaming text (30), each new block of a streaming message resolves in.
+ * t-stream: streaming text (30) at line granularity: text is revealed a line at a time, and each new
+ *   block, list item, table row and code line (`t-stream-line`) resolves in once, when it mounts; text
+ *   added to a line already on screen does not animate (no per-token motion).
  * t-unfold: accordion (21) for rows of a virtual list: the rows a fold opened drop in from just above
  *   (transform only, so measuring and scroll anchoring are untouched), staggered by --t-delay. */
 .t-swap {
@@ -451,7 +453,10 @@
     filter: blur(var(--blur-small));
   }
 }
-.t-stream > * {
+.t-stream > *,
+.t-stream li,
+.t-stream tr,
+.t-stream .t-stream-line {
   animation: t-reveal var(--duration-medium) var(--ease-smooth-out);
 }
 .t-unfold {
@@ -469,6 +474,9 @@
   .t-rise,
   .t-reveal,
   .t-stream > *,
+  .t-stream li,
+  .t-stream tr,
+  .t-stream .t-stream-line,
   .t-unfold {
     animation: none !important;
   }

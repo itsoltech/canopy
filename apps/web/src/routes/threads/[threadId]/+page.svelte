@@ -24,7 +24,7 @@
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState, type TimelineEntry } from "#lib/features/threads/thread-state.svelte.ts";
   import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
-  import { topLevelEntry } from "#lib/features/threads/timeline.ts";
+  import { isTerminal, topLevelEntry } from "#lib/features/threads/timeline.ts";
   import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
   import { FeedBuilder, feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -80,6 +80,10 @@
     thread: (id) => threads.find((t) => t.id === id) ?? overview.threads.get(id),
     awaiting: (itemId) => view.pending.some((i) => i.itemId === itemId),
     goal: (id) => (view.goal?.id === id ? view.goal : undefined),
+    turnEnded: (turnId) => {
+      const turn = view.turns.find((t) => t.id === turnId);
+      return turn !== undefined && isTerminal(turn.status);
+    },
   });
 
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
