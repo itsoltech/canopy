@@ -2,6 +2,12 @@
 
 Gałąź: `feat/no-project-threads`. Zmiany zapisane lokalnie, bez push i PR.
 
+Aktualizacja `feat/workers-any-directory`: bieżąca baza nowych rozmów to
+`<data_dir>/scratch/<owner-user-id>/<thread-id>`, zgłaszana w `Hello.scratch_root`.
+Roots nie są już konfigurowane ani sprawdzane. Istniejące katalogi ze starej lokalizacji
+zachowują zapisane cwd. Poniższy zapis weryfikacji opisuje wcześniejsze wdrożenie;
+aktualne wyniki i zasady są w [workers-any-directory-verification.md](workers-any-directory-verification.md).
+
 ## Decyzje
 
 Każdy właściciel ma jeden systemowy projekt `kind = scratch`, ukryty w ustawieniach

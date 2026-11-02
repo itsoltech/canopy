@@ -4,14 +4,15 @@
 
 Pierwsza pozycja pickera projektu na ekranie „What should we work on?” to **No project**
 z przerywaną kwadratową ikoną. Wystarczy wybrać worker oraz zwykłe ustawienia agenta, modelu,
-wysiłku i uprawnień. Można zacząć bez żadnego zwykłego projektu. Worker musi mieć co najmniej
-jeden dozwolony katalog; worker offline pozostaje widoczny, ale kompozytor czeka na jego połączenie.
+wysiłku i uprawnień. Można zacząć bez żadnego zwykłego projektu i bez konfigurowania katalogów
+workera. Worker offline pozostaje widoczny, ale kompozytor czeka na jego połączenie.
 
 Przy `CreateThread` worker tworzy katalog
-`<pierwszy allowed root>/.open-agents/scratch/<user-id>/<thread-id>` i uruchamia w nim agenta.
+`<data_dir>/scratch/<user-id>/<thread-id>` i uruchamia w nim agenta.
 UUID zapewnia stałą, bezpieczną nazwę: zmiana tytułu nie zmienia katalogu. Nowe katalogi na POSIX
 mają uprawnienia `0700`. Worker sprawdza rzeczywiste ścieżki oraz odrzuca symlinki w zarządzanym
-poddrzewie scratch, zanim utworzy ich dzieci. Nie rozszerza allowed roots.
+poddrzewie scratch, zanim utworzy ich dzieci. Istniejące stare katalogi scratch pozostają użyteczne
+pod zapisanym cwd; zmiana bazy nie przenosi plików.
 
 Wątki boczne, także `spawn_thread`, oraz forki zachowują cwd rodzica lub źródła. Nowe niezależne
 rozmowy i kolejne wykonania harmonogramu dostają osobne katalogi. Pełną ścieżkę pokazuje panel
@@ -26,7 +27,7 @@ wybrać „No project” i konkretny worker. Boty również mogą wskazać tę p
 workera przez `list_projects` oraz `start_thread`.
 
 Przed wysłaniem pierwszej wiadomości katalog scratch jeszcze nie istnieje, więc lista plików
-we wzmiankach jest pusta. Katalog komend i umiejętności pochodzi wtedy z pierwszego allowed root
+we wzmiankach jest pusta. Katalog komend i umiejętności pochodzi wtedy z katalogu domowego
 workera; po utworzeniu wątku katalog i wyszukiwanie plików używają jego dokładnego cwd.
 
 ## Filtr, menu i archiwum
@@ -137,8 +138,8 @@ Przeniesienie pracy na inną maszynę to nowy wątek w innym workspace tego same
 
 Projekt nie jest przypięty do maszyny. Ma dowolnie wiele workspace'ów, każdy to para (worker, katalog), np. to samo repozytorium na serwerze Linux, na Macu i na Windows. Wątek wybiera jeden workspace i zostaje na nim do końca.
 
-- **Ścieżki według systemu workera**, nie gateway (`apps/gateway/src/store/paths.ts`). Styl wynika z `os` zgłoszonego przez workera, a przed pierwszym połączeniem z jego dozwolonych katalogów. Gateway zapisuje ścieżkę w postaci kanonicznej (separatory systemu, bez końcowego separatora, rozwiązane `..`).
-- **Sprawdzenia w gateway** (leksykalne): workspace leży w dozwolonych katalogach workera; ten sam katalog nie jest dwa razy workspace'em projektu na tym workerze (bez rozróżniania wielkości liter na Windows i macOS); `cwd` wątku leży w jego workspace; wątek boczny jest w workspace rodzica. Worker i tak sprawdza ścieżki rzeczywiste (dowiązania) przy starcie wątku.
+- **Ścieżki według systemu workera**, nie gateway (`apps/gateway/src/store/paths.ts`). Styl wynika z `os` zgłoszonego przez workera, a gdy jest nieznany — z samej ścieżki. Gateway zapisuje ścieżkę w postaci kanonicznej (separatory systemu, bez końcowego separatora, rozwiązane `..`).
+- **Sprawdzenia workspace'u:** dowolna ścieżka bezwzględna, bez duplikatu w projekcie na tym workerze (bez rozróżniania wielkości liter na Windows i macOS). Dodanie i zmiana katalogu wymagają połączonego workera, który sprawdza istnienie katalogu. `cwd` wątku leży w jego workspace; wątek boczny jest w workspace rodzica. Worker ponownie sprawdza ścieżki rzeczywiste przy starcie wątku. Dostęp ograniczają uprawnienia użytkownika OS oraz tryb uprawnień i sandbox danego wątku.
 - **Worker offline:** wątek i wiadomości są przyjmowane, a komendy czekają w outboxie do ponownego połączenia tego workera. Komendy nigdy nie trafiają do innego workera projektu.
 - Synchronizacja kodu między kopiami projektu (git push/pull) jest poza platformą: workspace'y to niezależne katalogi.
 - **Na których workerach żyje projekt:** na tych, na których ma workspace (wszystkich albo tylko niektórych, jak skonfiguruje użytkownik). Nowy wątek wybiera projekt, a potem worker spośród jego workspace'ów. `UpdateWorkspace` zmienia katalog (te same sprawdzenia co przy dodaniu); istniejące wątki zostają w swoim `cwd`. `RemoveWorkspace` zdejmuje projekt z workera (archiwizacja workspace'u): nowe wątki główne nie mogą go wybrać, istniejące działają dalej, a ich wątki boczne i forki powstają w tym samym workspace'ie.
@@ -244,7 +245,7 @@ Szczegóły: [agent-bus.md](agent-bus.md). Wywołanie agenta poza bieżącym drz
 Cel: równoległa praca kilku wątków nad jednym repozytorium bez wspólnego katalogu, każdy na własnej gałęzi. Rozwiązuje też konflikt zapisu z decyzji 1 bez dzierżawy.
 
 - **Worktree to workspace pochodny:** `project_workspaces.kind = 'worktree'`, `base_workspace_id` (repozytorium na tym samym workerze), `branch`, `base_ref`. Wątek wskazuje go jak każdy workspace, więc reszta modelu (placement, wznowienie, fork u dostawcy) się nie zmienia.
-- **Tworzy go worker** (komenda `CreateWorktree`: `git worktree add` w katalogu danych workera albo w podanym miejscu w dozwolonych katalogach), bo tylko on ma repozytorium. Gateway zapisuje workspace po potwierdzeniu, idempotentnie po `command_id`.
+- **Tworzy go worker** (komenda `CreateWorktree`: `git worktree add` w katalogu danych workera albo w podanym dostępnym katalogu), bo tylko on ma repozytorium. Gateway zapisuje workspace po potwierdzeniu, idempotentnie po `command_id`.
 - **Wątki boczne:** opcja izolacji przy tworzeniu (`shared` = katalog rodzica, jak dziś; `worktree` = nowy worktree z gałęzi rodzica). Fork historii działa w obu, ale w trybie `worktree` to świadome odejście od reguły „ten sam katalog”, więc dostawca musi przyjąć fork w innym `cwd` (do sprawdzenia: Codex `thread/fork` z nowym `cwd`, Claude `forkSession` przypięty do katalogu projektu).
 - **Szyna agentów:** `spawn` z `isolation: worktree`; wynik pracy wraca jako gałąź (diff, commit), a scalenie jest osobną, jawną akcją (użytkownik albo orkiestrator).
 - **Sprzątanie:** archiwizacja workspace'u usuwa worktree (`git worktree remove`), gałąź zostaje. Worker zgłasza osierocone worktree (`git worktree prune`) w raporcie.
