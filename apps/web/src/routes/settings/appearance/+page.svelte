@@ -1,5 +1,18 @@
 <script lang="ts">
-  import { accentNames, accentOf, chatWidthNames, chatWidthOf, schemeNames, schemeOf, type AccentName, type ChatWidthName, type SchemeName } from "#lib/features/settings/appearance.ts";
+  import {
+    accentLabels,
+    accentNames,
+    accentOf,
+    chatWidthLabels,
+    chatWidthNames,
+    chatWidthOf,
+    schemeLabels,
+    schemeNames,
+    schemeOf,
+    type AccentName,
+    type ChatWidthName,
+    type SchemeName,
+  } from "#lib/features/settings/appearance.ts";
   import SchemePreview from "#lib/features/settings/SchemePreview.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import Select from "#lib/shared/ui/Select.svelte";
@@ -12,19 +25,15 @@
   const accent = $derived(accentOf(settings.appearance));
   const chatWidth = $derived(chatWidthOf(settings.appearance));
 
-  const schemes: { value: SchemeName; label: string }[] = [
-    { value: "system", label: "System" },
-    { value: "light", label: "Light" },
-    { value: "dark", label: "Dark" },
-  ];
+  const schemes = (["system", "light", "dark"] as const).map((value: SchemeName) => ({ value, label: schemeLabels[value] }));
   // Each theme: its accent, shown as a light and a dark orb.
   const accents: { value: AccentName; label: string; light: string; dark: string }[] = [
-    { value: "default", label: "Default", light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-blue-100)_45%,var(--color-blue-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-blue-400),var(--color-zinc-900)_60%,black)]" },
-    { value: "grove", label: "Grove", light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-emerald-100)_45%,var(--color-emerald-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-emerald-400),var(--color-emerald-900)_60%,black)]" },
-    { value: "ocean", label: "Ocean", light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-sky-100)_45%,var(--color-sky-400))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-sky-400),var(--color-sky-900)_60%,black)]" },
-    { value: "ember", label: "Ember", light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-orange-100)_45%,var(--color-orange-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-orange-400),var(--color-orange-900)_60%,black)]" },
-    { value: "iris", label: "Iris", light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-violet-100)_45%,var(--color-violet-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-violet-400),var(--color-violet-900)_60%,black)]" },
-    { value: "rose", label: "Rose", light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-pink-100)_45%,var(--color-pink-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-pink-400),var(--color-pink-900)_60%,black)]" },
+    { value: "default", label: accentLabels.default, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-blue-100)_45%,var(--color-blue-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-blue-400),var(--color-zinc-900)_60%,black)]" },
+    { value: "grove", label: accentLabels.grove, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-emerald-100)_45%,var(--color-emerald-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-emerald-400),var(--color-emerald-900)_60%,black)]" },
+    { value: "ocean", label: accentLabels.ocean, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-sky-100)_45%,var(--color-sky-400))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-sky-400),var(--color-sky-900)_60%,black)]" },
+    { value: "ember", label: accentLabels.ember, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-orange-100)_45%,var(--color-orange-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-orange-400),var(--color-orange-900)_60%,black)]" },
+    { value: "iris", label: accentLabels.iris, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-violet-100)_45%,var(--color-violet-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-violet-400),var(--color-violet-900)_60%,black)]" },
+    { value: "rose", label: accentLabels.rose, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-pink-100)_45%,var(--color-pink-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-pink-400),var(--color-pink-900)_60%,black)]" },
   ];
   const cardClass =
     "group relative grid cursor-pointer gap-2 rounded-2xl p-2 ring-1 ring-zinc-950/10 hover:ring-zinc-950/20 has-checked:ring-2 has-checked:ring-brand-500 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-brand-500 dark:ring-white/10 dark:hover:ring-white/20 dark:has-checked:ring-brand-500";
@@ -83,9 +92,7 @@
         onchange={(event) => settings.updateAppearance({ chatWidth: chatWidthNames[(event.currentTarget as HTMLSelectElement).value as ChatWidthName] })}
         class="w-40"
       >
-        <option value="comfortable">Comfortable</option>
-        <option value="wide">Wide</option>
-        <option value="full">Full width</option>
+        {#each Object.entries(chatWidthLabels) as [value, label] (value)}<option {value}>{label}</option>{/each}
       </Select>
     {/snippet}
   </SettingsRow>
