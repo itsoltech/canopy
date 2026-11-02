@@ -163,8 +163,21 @@ Na żywo: `tests/integration/platform-subagents.live.test.ts` — Codex (`gpt-6.
 
 ### Asynchroniczność
 
-- `spawn_thread` i `send_message` nie blokują. Wynik przychodzi jako **powiadomienie** (`notify`, domyślnie włączone): gdy tura docelowa się kończy, gateway zaczyna w wątku wywołującym nową turę z wynikiem. Jeśli wywołujący ma turę w toku, powiadomienie czeka w kolejce.
+- `spawn_thread` i `send_message` nie blokują. Wynik przychodzi jako **powiadomienie** (`notify`, domyślnie włączone): po zakończeniu wskazanej tury docelowej gateway wstrzykuje raport do trwającej tury wywołującego jako steer platformy z oznaczeniem nadawcy (wątku docelowego). Korzysta ze ścieżki `SteerTurn` i fallbacku notatek platformy opisanej w [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania). Bez trwającej tury albo gdy steer nie wejdzie (odmowa dostawcy, tura skończyła się wcześniej), powstaje tura `trigger = agent_bus`. Raport zawiera status i ostatnią wiadomość **tej tury docelowej**, a nie późniejszej tury tego wątku. Przeskoki pozostają takie same: `hops` wywołania + 1 (zarówno steer, jak i jego fallback).
 - `wait_threads` jest dla orkiestracji synchronicznej i jest **ograniczone w czasie oraz ponawialne**. Claude SDK ma twardy limit czasu wywołania narzędzia MCP, a limit narzędzi dynamicznych Codexa nie jest udokumentowany. `wait_threads` zwraca też wcześniej, gdy wątek boczny czeka na odpowiedź rodzica.
+
+#### Kiedy wynik został już odebrany
+
+Zapis pomyślnego wywołania odczytu zużywa niedostarczone powiadomienia **tego samego wywołującego i dokładnie odczytanej tury docelowej**. Samo sprawdzenie aktywnego wątku nie wystarcza. Stany końcowe to `completed`, `interrupted`, `failed`, `cancelled`.
+
+1. `get_thread`: zwrócone `last_turn.turn_id` wskazuje zakończoną turę, a `last_message` zawiera jej wynik (skrót do 4000 znaków; pusty tekst, gdy tura nie miała wiadomości). Nowa tura w toku nie zmienia przypisania wyniku do `last_turn`. Status powiadomienia: `consumed_by_read`.
+2. `wait_threads`: ta sama reguła dla każdego faktycznie zwróconego podsumowania, także przy `any`, timeout lub `done: false`. Nie zużywa raportu aktywnej tury tylko dlatego, że wątek czeka na rodzica. Status: `consumed_by_wait`.
+3. `read_thread`, oba widoki (`messages`, `items`): zwrócona strona musi zawierać ostatni item `agent_message` zakończonej tury docelowej, czyli jej wynik lub jego skrót. Strona ze starszą wiadomością, samymi narzędziami, z zakresem `after_seq` za wynikiem lub pustym zakresem nie wystarcza. Tury bez wiadomości można odebrać przez podsumowanie. Status: `consumed_by_read`.
+4. `interrupt_thread` i `close_thread`: zanim gateway przerwie cel, wygasza oczekujące raporty wywołującego o tym celu jako `superseded`, także gdy cel jeszcze działa. `list_threads` ani odczyt przez UI nie zużywa raportów.
+
+Zużycie obejmuje `pending`, steer jeszcze bez potwierdzonego wejścia do transkryptu (`steering`) oraz raport już zapisany jako tura oczekująca, jeśli nie wysłano jeszcze jej `StartTurn`. Taka tura jest anulowana. Raz dostarczonego wejścia nie da się wycofać: raport, który już wszedł do tury, pozostaje w jej historii. Komenda steera wysłana przed odczytem może jeszcze dotrzeć, lecz jej spóźniona odmowa lub upuszczenie nie tworzy dodatkowej tury.
+
+Panel kolejki nad kompozytorem pokazuje wyłącznie wiadomości użytkownika (`trigger = user`, bez źródła platformowego). Oczekujące raporty, ich fallbacki i inne wejścia platformy nie są w nim wiadomościami do edycji lub wysłania. Dostarczony raport ma nadawcę w historii wątku.
 
 ### Pytania platformy: ask_user i get_answers
 
@@ -323,8 +336,13 @@ sequenceDiagram
 ## 8. Trwałość
 
 - **Idempotencja:** `agent_bus_calls.id = call_id`. Ponowione `AgentToolCall` zwraca zapisany wynik, nie tworzy drugiego wątku ani harmonogramu.
-- **Powiadomienia** to outbox (`notify_status`). Harmonogramy żyją w bazie. Jedno i drugie przeżywa restart gateway.
-- **Restart w trakcie `wait_threads`:** czekanie to tylko odczyt. Przerwana tura wywołującego po wznowieniu zawoła ponownie albo dostanie powiadomienie.
+- **Powiadomienia** to outbox (`notify_status`, migracja `0030`). Wybór dostarczenia blokuje wiersz wątku wywołującego i wywołania: `pending` → `steering` → `delivered` albo `pending` → `delivered` z `notified_turn_id`. Steer ma osobne, unikalne `notification_call_id` i powiązanie zwrotne `agent_bus_calls.notified_steer_id` (nie zmienia `target_turn_id` pierwotnego wywołania). Baza wymaga wskazania steera dla `steering` i steera lub tury dla `delivered`. Steer i komenda workera zapisują się w jednej transakcji. Fallback zapisuje turę, `notified_turn_id` i stan steera w jednej transakcji; powtórzony callback niczego nie tworzy. Ponowne wysłanie komendy zachowuje jej ID dla trwałej deduplikacji w dzienniku workera.
+- **Restart gateway:** początkowy i okresowy `sweep` wznawia zaległe raporty zakończonych tur i fallbacki, także po awarii pomiędzy zapisem odmowy komendy a utworzeniem tury raportu. Outbox wznawia niewysłane komendy po połączeniu workera. Zużycie raportu i zapis wyniku odczytu są jedną transakcją; zużyty raport nie wraca po restarcie. Harmonogramy także żyją w bazie.
+- **Restart w trakcie `wait_threads`:** niezakończone czekanie nie zużywa raportu. Po wznowieniu agent ponawia odczyt albo dostaje powiadomienie, jeśli nie odebrał wcześniej wyniku.
+
+Regresje: `tests/integration/agent-bus-notify.test.ts` (skryptowany worker, wynik podczas `ask_user`, odczyty, fallback i nowa instancja gateway na tej samej bazie), `apps/gateway/src/store/notification-observation.test.ts` (reguły odczytów), `apps/web/src/lib/features/threads/queue/queue.test.ts` (kolejka bez powiadomień) oraz opt-in `agent-bus-notify.live.test.ts` (Codex przez CLIProxyAPI: `spawn_thread` z `notify` → `wait_threads` → `close_thread`, jedna tura rodzica).
+
+Potwierdzone na żywo 2026-11-02 (`agent-bus-notify.live.test.ts`, Codex `gpt-6.1-sol` przez CLIProxyAPI): rodzic uruchomił dziecko z `notify = true`, `wait_threads` zwróciło jego wynik `391`, rodzic zamknął dziecko i odpowiedział `RESULT: 391`. Raport wszedł steerem do trwającej tury (`notify_status = delivered`); po zakończeniu rodzica i ponownym `sweep` w bazie pozostała dokładnie jedna tura rodzica (`trigger = user`, `completed`), bez dodatkowej tury `agent_bus`. Próba po scaleniu aktualnego `main` również przeszła. Sekrety i adres proxy pozostają poza repozytorium.
 
 ## 9. Udostępnienie narzędzi dostawcom
 

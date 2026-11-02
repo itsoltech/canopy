@@ -256,6 +256,9 @@ export class Ingest extends Context.Service<
               UPDATE background_task_notes SET status = 'delivered', updated_at = now()
                WHERE thread_id = ${threadId}::uuid AND steer_id = ${steerId}::uuid AND status = 'steering'
             `;
+            yield* sql`UPDATE agent_bus_calls c SET notify_status = 'delivered'
+              FROM turn_steers s WHERE s.id = ${steerId}::uuid AND s.thread_id = ${threadId}::uuid
+                AND s.status = 'delivered' AND s.notification_call_id = c.id AND c.notify_status = 'steering'`;
           } else if (body.case === "notice" && body.value.code === "steer_dropped") {
             steerId = (JSON.parse(body.value.dataJson || "{}") as { input_id?: unknown }).input_id as string | undefined;
             if (typeof steerId !== "string" || !isUuid(steerId)) return;

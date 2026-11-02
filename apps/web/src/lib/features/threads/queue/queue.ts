@@ -21,6 +21,7 @@ export function moveTo(ids: readonly string[], id: string, index: number): strin
  * meanwhile) follow in the gateway's order, turns that left the queue drop out.
  */
 export function ordered(turns: readonly ui.Turn[], order: readonly string[] | undefined): ui.Turn[] {
+  turns = turns.filter(ownMessage);
   if (!order) return [...turns];
   const byId = new Map(turns.map((t) => [t.id, t]));
   const known = order.flatMap((id) => byId.get(id) ?? []);
@@ -28,8 +29,8 @@ export function ordered(turns: readonly ui.Turn[], order: readonly string[] | un
   return [...known, ...turns.filter((t) => !listed.has(t.id))];
 }
 
-/** Only the user's own messages are edited, deleted or steered; every queued turn can be moved. */
-export const ownMessage = (turn: ui.Turn): boolean => turn.trigger === "user";
+/** The composer queue contains only user messages, never platform input or an agent's report. */
+export const ownMessage = (turn: ui.Turn): boolean => turn.trigger === "user" && !turn.sourceKind && !turn.sourceThreadId;
 
 /** A message steered from the queue takes no files: a message with attachments runs as its own turn. */
 export const steerable = (turn: ui.Turn): boolean => ownMessage(turn) && turn.attachments.length === 0;
