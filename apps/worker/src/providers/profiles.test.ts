@@ -137,3 +137,52 @@ describe("codexAppServerLaunch", () => {
     expect(result.exitCode).toBe(0);
   });
 });
+
+describe("custom profiles and their environment", () => {
+  const PROBE = { name: "OA_PROFILE", value: "x" };
+
+  test("a profile's variables reach Claude over the base env; auth of an endpoint profile still wins", () => {
+    const [, proxy, custom] = resolved([
+      { ...PROXY, env: [{ name: "HTTPS_PROXY", value: "http://corp:3128" }, { name: "MY_TOKEN", value: "s3cret", secret: true }] },
+      { kind: "native", id: "bedrock", providers: ["claude"], env: [{ name: "CLAUDE_CODE_USE_BEDROCK", value: "1" }] },
+    ]);
+    expect(claudeProfileOptions(proxy!, ENV).env).toMatchObject({ HTTPS_PROXY: "http://corp:3128", MY_TOKEN: "s3cret", ANTHROPIC_AUTH_TOKEN: "sk-proxy" });
+    expect(claudeProfileOptions(custom!, ENV).env).toMatchObject({ ...ENV, CLAUDE_CODE_USE_BEDROCK: "1" });
+  });
+
+  test("a native-kind custom profile serves only the providers it lists", () => {
+    const statuses = resolveProfiles([{ kind: "native", id: "bedrock", providers: ["claude"] }]);
+    expect(selectProfile(statuses, "bedrock", "claude").id).toBe("bedrock");
+    expect(() => selectProfile(statuses, "bedrock", "codex")).toThrow("not enabled for codex");
+  });
+
+  test("a variable the worker controls makes only that profile unavailable, naming the variable but not its value", () => {
+    const [, bad] = resolveProfiles([{ ...PROXY, env: [{ name: "CODEX_HOME", value: "/tmp/elsewhere", secret: true }] }]);
+    expect(bad?.resolved).toBeUndefined();
+    expect(bad?.problem).toContain("CODEX_HOME");
+    expect(bad?.problem).not.toContain("/tmp/elsewhere");
+    expect(resolveProfiles([{ ...PROXY, env: [PROBE] }])[1]?.problem).toContain("reserved");
+    expect(resolveProfiles([{ ...PROXY, env: [{ name: "ANTHROPIC_BASE_URL", value: "http://x" }] }])[1]?.problem).toContain("endpoint");
+  });
+
+  test("a disabled profile is unavailable and reported so", () => {
+    const [, disabled] = resolveProfiles([{ ...PROXY, disabled: true }]);
+    expect(disabled?.resolved).toBeUndefined();
+    expect(toProfileReport(disabled!)).toMatchObject({ available: false, detail: "disabled" });
+  });
+
+  test("the report carries the display name, never key or variable values", () => {
+    const [, proxy] = resolveProfiles([{ ...PROXY, displayName: "Team proxy", env: [{ name: "MY_TOKEN", value: "s3cret-value", secret: true }] }]);
+    const report = toProfileReport(proxy!);
+    expect(report.displayName).toBe("Team proxy");
+    expect(JSON.stringify(report)).not.toContain("s3cret-value");
+    expect(JSON.stringify(report)).not.toContain("sk-proxy");
+  });
+
+  test("Codex: the profile's variables go into the process env, not argv", () => {
+    const [, proxy] = resolved([{ ...PROXY, env: [{ name: "PROFILE_PROBE", value: "probe-1" }] }]);
+    const launch = codexAppServerLaunch([proxy!], ENV, "codex", undefined, "/data/codex-home", proxy!.env);
+    expect(launch.env).toMatchObject({ PROFILE_PROBE: "probe-1", CODEX_HOME: "/data/codex-home", OPENAGENTS_CLIPROXY_API_KEY: "sk-proxy" });
+    expect(launch.command.join(" ")).not.toContain("probe-1");
+  });
+});

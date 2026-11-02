@@ -39,8 +39,10 @@ import type { SteerError } from "../providers/turn-input.ts";
  * Everything the worker does between the gateway link and the provider runtimes
  * (docs/worker-config.md, docs/codex-adapter.md). Used by main.ts and by integration tests.
  *
- * - Remote config: validated, applied; the Codex runtime is rebuilt when its settings change,
- *   but never under a running turn (deferred until the worker is idle).
+ * - Remote config: validated, applied; provider runtimes are rebuilt when their settings change,
+ *   but never under a running turn (deferred until the worker is idle). Codex runs one shared app-server for
+ *   the profiles without environment variables and one per profile with its own variables (they belong to the
+ *   process); only the processes whose settings changed restart.
  * - Commands: answered once; final results are remembered in the journal for redelivery.
  * - Events: journal first (inside the runtimes), then sent when the link is up.
  * - Interactions and agent bus tool calls: forwarded to the gateway, re-sent after reconnect until
@@ -99,10 +101,11 @@ export class WorkerHost {
   readonly #options: WorkerHostOptions;
   #config: AppliedConfig | undefined;
   #link: GatewayLink | undefined;
-  #codex: ProviderRuntimeHandle<CodexThreads> | undefined;
+  /** Codex runtimes by group (SHARED_CODEX, or one per profile with its own variables). */
+  readonly #codex = new Map<string, ProviderRuntimeHandle<CodexThreads>>();
   #claude: ProviderRuntimeHandle<ClaudeThreads> | undefined;
   #rebuildWanted = false;
-  #codexRestart: Promise<void> | undefined;
+  readonly #codexRestart = new Map<string, Promise<void>>();
   readonly #running = new Set<string>();
   readonly #interactions = new Map<string, { request: InteractionRequest; resolve: (r: InteractionResponse) => void }>();
   readonly #toolCalls = new Map<string, { call: AgentToolCall; resolve: (r: AgentToolResult) => void }>();
@@ -161,7 +164,7 @@ export class WorkerHost {
       const resolved = status.resolved;
       if (!resolved || (profileId && resolved.id !== profileId)) continue;
       if (this.#claude && usableBy(resolved, "claude") && (!provider || provider === Provider.CLAUDE)) pairs.push({ provider: Provider.CLAUDE, profile: resolved.id });
-      if (this.#codex && usableBy(resolved, "codex") && (!provider || provider === Provider.CODEX)) pairs.push({ provider: Provider.CODEX, profile: resolved.id });
+      if (this.#codex.size > 0 && usableBy(resolved, "codex") && (!provider || provider === Provider.CODEX)) pairs.push({ provider: Provider.CODEX, profile: resolved.id });
     }
     return Promise.all(
       pairs.map(async ({ provider: p, profile }): Promise<ProfileModelsInit> => {
@@ -169,7 +172,7 @@ export class WorkerHost {
           const listed: { models: ProfileModelsInit["models"]; detail?: string } =
             p === Provider.CLAUDE
               ? await this.#runClaude((threads) => threads.listModels(profile))
-              : await this.#runCodex(Provider.CODEX, (threads) => threads.listModels(profile));
+              : await this.#runCodex(Provider.CODEX, (threads) => threads.listModels(profile), this.#codexGroupOf(profile));
           return { provider: p, profileId: profile, models: listed.models ?? [], ...(listed.detail && { detail: listed.detail }), listedAt: timestampNow() };
         } catch (error) {
           return { provider: p, profileId: profile, models: [], detail: error instanceof Error ? error.message : String(error), listedAt: timestampNow() };
@@ -215,7 +218,8 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
-    await this.#stopCodex();
+    for (const group of [...this.#codex.keys()]) await this.#stopCodex(group);
+    await this.#closeCodexOrphans();
     await this.#stopClaude();
   }
 
@@ -259,7 +263,7 @@ export class WorkerHost {
         this.#checkCwd(config, spec.cwd);
         const fork = kind.value.fork;
         if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.create(spec, fork));
-        else await this.#runCodex(spec.provider, (threads) => threads.create(spec, fork));
+        else await this.#runCodex(spec.provider, (threads) => threads.create(spec, fork), this.#codexGroupOf(spec.providerProfileId));
         return {};
       }
       case "startTurn": {
@@ -267,7 +271,7 @@ export class WorkerHost {
         if (!spec || !input) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
         const settings = { model, effort };
         if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.startTurn(spec, turnId, input, settings));
-        else await this.#runCodex(spec.provider, (threads) => threads.startTurn(spec, turnId, input, settings));
+        else await this.#runCodex(spec.provider, (threads) => threads.startTurn(spec, turnId, input, settings), this.#codexGroupOf(spec.providerProfileId));
         return {};
       }
       case "steerTurn": {
@@ -279,8 +283,8 @@ export class WorkerHost {
           effect.pipe(Effect.catchTag("SteerError", (error) => Effect.die(new CommandError(error.code, error.message, true))));
         if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
           await this.#runClaude((threads) => steer(threads.steer(threadId, turnId, inputId, input)));
-        } else if (this.#codex) {
-          await this.#runCodex(Provider.CODEX, (threads) => steer(threads.steer(threadId, turnId, inputId, input)));
+        } else if (this.#codex.size > 0) {
+          await this.#runCodex(Provider.CODEX, (threads) => steer(threads.steer(threadId, turnId, inputId, input)), this.#codexGroupWith(threadId));
         } else {
           throw new CommandError("STEER_NOT_RUNNING", "the turn is not running on this worker", true);
         }
@@ -299,7 +303,7 @@ export class WorkerHost {
         if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
           await this.#runClaude((threads) => threads.interrupt(threadId, turnId));
         } else {
-          await this.#runCodex(Provider.CODEX, (threads) => threads.interrupt(threadId, turnId));
+          await this.#runCodex(Provider.CODEX, (threads) => threads.interrupt(threadId, turnId), this.#codexGroupWith(threadId));
         }
         return {};
       }
@@ -308,47 +312,65 @@ export class WorkerHost {
         if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
         // Claude goals are /goal turns in the input stream (docs/goals.md); the gateway queues them as turns.
         if (spec.provider === Provider.CLAUDE) throw new CommandError("UNSUPPORTED", "Claude goals are set with /goal turns", true);
-        await this.#runCodex(spec.provider, (threads) => threads.setGoal(spec, directive, objective, nativeTokenBudget));
+        await this.#runCodex(spec.provider, (threads) => threads.setGoal(spec, directive, objective, nativeTokenBudget), this.#codexGroupOf(spec.providerProfileId));
         return {};
       }
       case "stopTask": {
         const { threadId, taskId } = kind.value;
         const claude = this.#claude && Context.get(this.#claude.context, ClaudeThreads);
-        const codex = this.#codex && Context.get(this.#codex.context, CodexThreads);
+        const codexGroup = [...this.#codex].find(([, codex]) => Context.get(codex.context, CodexThreads).backgroundTasks().get(threadId)?.includes(taskId))?.[0];
         if (claude?.backgroundTasks().get(threadId)?.includes(taskId)) await this.#runClaude((threads) => threads.stopTask(threadId, taskId));
-        else if (codex?.backgroundTasks().get(threadId)?.includes(taskId)) await this.#runCodex(Provider.CODEX, (threads) => threads.stopTask(threadId, taskId));
+        else if (codexGroup !== undefined) await this.#runCodex(Provider.CODEX, (threads) => threads.stopTask(threadId, taskId), codexGroup);
         // No process runs it: if the journal still has it open, its process is gone, so it ends here.
         else await this.#closeOrphans((threadOf, item) => threadOf === threadId && taskOf(item) === taskId, "stopped_by_user");
         return {};
       }
       case "unloadThread":
-        return {}; // nothing to free yet: Codex threads share one app-server process, Claude turns end with their query
+        return {}; // nothing to free yet: Codex threads share their group's app-server process, Claude turns end with their query
       default:
         throw new CommandError("UNIMPLEMENTED", `${kind.case ?? "empty"} is not supported by this worker yet`, true);
     }
   }
 
-  async #runCodex<A, E>(provider: Provider, use: (threads: CodexThreads["Service"]) => Effect.Effect<A, E>): Promise<A> {
+  async #runCodex<A, E>(provider: Provider, use: (threads: CodexThreads["Service"]) => Effect.Effect<A, E>, group: string): Promise<A> {
     if (provider !== Provider.CODEX) throw new CommandError("PROVIDER_UNAVAILABLE", `${Provider[provider]} is not supported by this worker yet`, true);
-    await this.#restartFailedCodex();
-    if (!this.#codex) throw new CommandError("PROVIDER_UNAVAILABLE", this.#config?.codex.problem ?? "codex is disabled", false);
-    return this.#runIn(Effect.provide(CodexThreads.use(use), this.#codex.context));
+    await this.#restartFailedCodex(group);
+    const codex = this.#codex.get(group);
+    if (!codex) throw new CommandError("PROVIDER_UNAVAILABLE", this.#config?.codex.problem ?? "codex is disabled", false);
+    return this.#runIn(Effect.provide(CodexThreads.use(use), codex.context));
+  }
+
+  /** The Codex process for a profile: its own when it has variables, else the shared one. */
+  #codexGroupOf(profileId: string): string {
+    const group = codexProfileGroup(profileId || "native");
+    return this.#codex.has(group) ? group : SHARED_CODEX;
+  }
+
+  /** The Codex process that has the thread loaded (it runs the thread's turn), else the shared one. */
+  #codexGroupWith(threadId: string): string {
+    return [...this.#codex].find(([, codex]) => Context.get(codex.context, CodexThreads).has(threadId))?.[0] ?? SHARED_CODEX;
   }
 
   /**
    * The app-server exited on its own (its turns are already settled from their rollouts): the next command gets a
    * new one. Threads resume in it (thread/resume), so they stay usable.
    */
-  async #restartFailedCodex(): Promise<void> {
-    const codex = this.#codex;
+  async #restartFailedCodex(group: string): Promise<void> {
+    const codex = this.#codex.get(group);
     const failure = codex && Context.get(codex.context, CodexThreads).failure();
     if (!failure) return;
-    this.#codexRestart ??= (async () => {
-      this.#log(`${failure}; starting a new one`);
-      const config = this.#config;
-      await this.#reconcileCodex(config, config ? this.#codexKey(config) : undefined);
-    })().finally(() => (this.#codexRestart = undefined));
-    await this.#codexRestart;
+    let restart = this.#codexRestart.get(group);
+    if (!restart) {
+      restart = (async () => {
+        this.#log(`${failure}; starting a new one`);
+        await this.#stopCodex(group);
+        await this.#closeCodexOrphans();
+        const wanted = this.#config ? this.#codexGroups(this.#config).get(group) : undefined;
+        if (wanted) await this.#startCodex(group, wanted);
+      })().finally(() => this.#codexRestart.delete(group));
+      this.#codexRestart.set(group, restart);
+    }
+    await restart;
   }
 
   async #runClaude<A, E>(use: (threads: ClaudeThreads["Service"]) => Effect.Effect<A, E>): Promise<A> {
@@ -403,29 +425,49 @@ export class WorkerHost {
 
   // ------------------------------------------------------------------ Codex runtime lifecycle
 
-  #codexKey(config: AppliedConfig): string | undefined {
-    if (!config.codex.enabled || !config.codex.executable) return undefined;
-    return JSON.stringify({
-      executable: config.codex.executable,
-      linkDeviceLogin: config.codex.linkDeviceLogin,
-      nativeTools: config.nativeTools,
-      profiles: config.profiles.map((p) => p.resolved ?? null),
+  /** Wanted Codex processes: the shared one, and one per usable profile with its own variables. */
+  #codexGroups(config: AppliedConfig): Map<string, CodexGroup> {
+    const groups = new Map<string, CodexGroup>();
+    if (!config.codex.enabled || !config.codex.executable) return groups;
+    const usable = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "codex") ? [p.resolved] : []));
+    const group = (profiles: ResolvedProfile[], env: Readonly<Record<string, string>>): CodexGroup => ({
+      profiles,
+      env,
+      key: JSON.stringify({
+        executable: config.codex.executable,
+        linkDeviceLogin: config.codex.linkDeviceLogin,
+        nativeTools: config.nativeTools,
+        profiles,
+      }),
     });
+    // The shared process always runs: threads of an unknown or unavailable profile get its error from it.
+    groups.set(SHARED_CODEX, group(usable.filter((p) => !hasEnv(p)), {}));
+    for (const profile of usable.filter(hasEnv)) groups.set(codexProfileGroup(profile.id), group([profile], profile.env));
+    return groups;
   }
 
   /** Provider runtimes follow the configuration, but are never rebuilt under a running turn. */
   async #reconcileRuntimes(): Promise<void> {
     const config = this.#config;
-    const codexKey = config ? this.#codexKey(config) : undefined;
+    const codexGroups = config ? this.#codexGroups(config) : new Map<string, CodexGroup>();
     const claudeKey = config ? this.#claudeKey(config) : undefined;
-    if (codexKey === this.#codex?.key && claudeKey === this.#claude?.key) return;
+    const codexChanged =
+      codexGroups.size !== this.#codex.size || [...codexGroups].some(([name, group]) => this.#codex.get(name)?.key !== group.key);
+    if (!codexChanged && claudeKey === this.#claude?.key) return;
     if (this.#running.size > 0) {
       this.#rebuildWanted = true;
       this.#log(`provider settings changed; restart deferred until ${this.#running.size} running turn(s) finish`);
       return;
     }
     this.#rebuildWanted = false;
-    if (codexKey !== this.#codex?.key) await this.#reconcileCodex(config, codexKey);
+    if (codexChanged) {
+      // Only the processes whose settings changed restart; their threads resume in the new ones.
+      for (const name of [...this.#codex.keys()]) {
+        if (this.#codex.get(name)?.key !== codexGroups.get(name)?.key) await this.#stopCodex(name);
+      }
+      await this.#closeCodexOrphans();
+      for (const [name, group] of codexGroups) if (!this.#codex.has(name)) await this.#startCodex(name, group);
+    }
     if (claudeKey !== this.#claude?.key) await this.#reconcileClaude(config, claudeKey);
   }
 
@@ -471,14 +513,14 @@ export class WorkerHost {
     this.#log("claude runtime stopped");
   }
 
-  async #reconcileCodex(config: AppliedConfig | undefined, key: string | undefined): Promise<void> {
-    await this.#stopCodex();
-    if (!config || !key) return;
+  async #startCodex(name: string, group: CodexGroup): Promise<void> {
+    const config = this.#config;
+    if (!config) return;
     const home = prepareCodexHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.codex.linkDeviceLogin, deviceCodexHome: this.#deviceHomes.codex });
     if (home.problem) this.#log(`codex home: ${home.problem}`);
-    const profiles = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "codex") ? [p.resolved] : []));
+    const { profiles } = group;
     const layer = CodexThreads.layer({
-      launch: codexAppServerLaunch(profiles, process.env, config.codex.executable, config.nativeTools, home.path),
+      launch: codexAppServerLaunch(profiles, process.env, config.codex.executable, config.nativeTools, home.path, group.env),
       clientVersion: this.#options.clientVersion,
       configuredEffort: () => readCodexConfiguredEffort(this.#deviceHomes.codex),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
@@ -488,17 +530,23 @@ export class WorkerHost {
     });
     const scope = await Effect.runPromise(Scope.make());
     const context = await this.#options.runtime.runPromise(Layer.buildWithScope(layer, scope));
-    this.#codex = { key, scope, context };
-    this.#log("codex runtime started");
+    this.#codex.set(name, { key: group.key, scope, context });
+    this.#log(`codex runtime started${name === SHARED_CODEX ? "" : ` (${name})`}`);
   }
 
-  async #stopCodex(): Promise<void> {
-    const codex = this.#codex;
+  async #stopCodex(name: string): Promise<void> {
+    const codex = this.#codex.get(name);
     if (!codex) return;
-    this.#codex = undefined;
+    this.#codex.delete(name);
     await Effect.runPromise(Scope.close(codex.scope, Exit.void));
-    await this.#closeOrphans((_, item) => kindOf(item) === BackgroundTaskKind.PROCESS, "worker_restart");
-    this.#log("codex runtime stopped");
+    this.#log(`codex runtime stopped${name === SHARED_CODEX ? "" : ` (${name})`}`);
+  }
+
+  /** Codex background processes the journal has open that no running Codex process holds any more. */
+  async #closeCodexOrphans(): Promise<void> {
+    const held = (threadId: string, item: Item) =>
+      [...this.#codex.values()].some((codex) => Context.get(codex.context, CodexThreads).backgroundTasks().get(threadId)?.includes(taskOf(item) ?? ""));
+    await this.#closeOrphans((threadId, item) => kindOf(item) === BackgroundTaskKind.PROCESS && !held(threadId, item), "worker_restart");
   }
 
   /** Ends background tasks the journal has open but no provider process runs any more. */
@@ -573,7 +621,26 @@ function taskOf(item: Item): string | undefined {
   return item.content.case === "backgroundTask" ? item.content.value.taskId : undefined;
 }
 
-/** A CLIProxyAPI profile serves the providers it lists (both by default); native profiles serve their own CLI. */
+/** A profile serves the providers it lists (both by default). */
 function usableBy(profile: ResolvedProfile, provider: "claude" | "codex"): boolean {
-  return profile.kind !== "cliproxyapi" || profile.providers.includes(provider);
+  return profile.providers.includes(provider);
+}
+
+/** The Codex process for profiles without their own variables. */
+const SHARED_CODEX = "shared";
+
+interface CodexGroup {
+  /** Settings of the process: a change restarts it. */
+  readonly key: string;
+  readonly profiles: ResolvedProfile[];
+  /** Variables of the process (a profile's own). */
+  readonly env: Readonly<Record<string, string>>;
+}
+
+function codexProfileGroup(profileId: string): string {
+  return `profile:${profileId}`;
+}
+
+function hasEnv(profile: ResolvedProfile): boolean {
+  return Object.keys(profile.env).length > 0;
 }

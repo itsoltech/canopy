@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 import { ui } from "@open-agents/contracts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
-import { Invalid, NotFound, SettingsConflict } from "../store/index.ts";
+import { Invalid, NotFound, ProfileConflict, SettingsConflict } from "../store/index.ts";
 
 /** GatewayService for the UI (docs/ui-api.md). Thin: validation and state live in the core and the store. */
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
@@ -51,6 +51,15 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
           await core.stopBackgroundTask(request);
           return create(ui.StopBackgroundTaskResponseSchema, {});
         }),
+      listProviderProfiles: (request) => guard(() => core.listProviderProfiles(request.workerId)),
+      saveProviderProfile: (request) => guard(() => core.saveProviderProfile(request)),
+      deleteProviderProfile: (request) =>
+        guard(async () => create(ui.DeleteProviderProfileResponseSchema, { configVersion: await core.deleteProviderProfile(request) })),
+      setModelSelection: (request) =>
+        guard(async () => {
+          const selection = await core.setModelSelection(request);
+          return create(ui.SetModelSelectionResponseSchema, selection ? { selection } : {});
+        }),
     });
 }
 
@@ -69,7 +78,7 @@ export function toConnectError(error: unknown): ConnectError {
   if (cause instanceof NotFound) return new ConnectError(cause.message, Code.NotFound);
   if (cause instanceof Invalid || cause instanceof InvalidError) return new ConnectError(cause.message, Code.InvalidArgument);
   if (cause instanceof UnavailableError) return new ConnectError(cause.message, Code.Unavailable);
-  if (cause instanceof SettingsConflict) return new ConnectError(cause.message, Code.FailedPrecondition);
+  if (cause instanceof SettingsConflict || cause instanceof ProfileConflict) return new ConnectError(cause.message, Code.FailedPrecondition);
   const constraint = constraintOf(cause);
   if (constraint) return new ConnectError(`rejected by ${constraint}`, Code.FailedPrecondition);
   console.error(error);

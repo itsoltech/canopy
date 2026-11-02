@@ -5,6 +5,8 @@ import { codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_POLICY, type NativeToolPo
  * Codex runs as one long-lived `codex app-server` per worker (JSON-RPC over stdio).
  * CLIProxyAPI profiles become extra model providers via `-c` overrides at spawn time;
  * each thread then picks one with `thread/start { modelProvider }`.
+ * A profile with its own environment variables gets its own app-server (same CODEX_HOME), started with them:
+ * the variables belong to the process, so one process cannot carry two profiles' sets (runtime/host.ts).
  * The device owner's ~/.codex/config.toml is never modified.
  */
 export interface CodexAppServerLaunch {
@@ -22,9 +24,11 @@ export function codexAppServerLaunch(
    * ~/.codex: their config, MCP servers, plugins and hooks apply to platform threads too.
    */
   codexHome?: string,
+  /** The profile's own variables (a process that serves one profile with variables). */
+  profileEnv: Readonly<Record<string, string>> = {},
 ): CodexAppServerLaunch {
   const command = [codexBin, "app-server", ...codexNativeToolOverrides(nativeTools)];
-  const env: Record<string, string | undefined> = { ...baseEnv, ...(codexHome !== undefined && { CODEX_HOME: codexHome }) };
+  const env: Record<string, string | undefined> = { ...baseEnv, ...profileEnv, ...(codexHome !== undefined && { CODEX_HOME: codexHome }) };
   for (const profile of profiles) {
     if (profile.kind !== "cliproxyapi" || !profile.providers.includes("codex")) continue;
     const provider = codexModelProviderId(profile);

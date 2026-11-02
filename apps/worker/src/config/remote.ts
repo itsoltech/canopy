@@ -112,7 +112,8 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
     issue("profiles", error instanceof ProfileError ? error.message : String(error), true);
   }
   for (const status of profiles) {
-    if (status.problem) issue(`profiles[${status.config.id}]`, status.problem);
+    // Turned off on purpose: reported with the profile, not as a configuration issue.
+    if (status.problem && !status.config.disabled) issue(`profiles[${status.config.id}]`, status.problem);
   }
 
   const limits = config.limits;
@@ -193,19 +194,20 @@ function profileConfig(
   index: number,
   issue: (path: string, message: string, fatal?: boolean) => void,
 ): ProviderProfileConfig | undefined {
+  const common = {
+    id: profile.id,
+    ...(profile.providers.length > 0 && {
+      providers: profile.providers.map((p) => (p === Provider.CLAUDE ? ("claude" as const) : ("codex" as const))),
+    }),
+    ...(profile.displayName && { displayName: profile.displayName }),
+    ...(profile.env.length > 0 && { env: profile.env.map((v) => ({ name: v.name, value: v.value, secret: v.secret })) }),
+    ...(profile.disabled && { disabled: true }),
+  };
   switch (profile.kind) {
     case ProviderProfileKind.NATIVE:
-      return { kind: "native", id: profile.id };
+      return { kind: "native", ...common };
     case ProviderProfileKind.CLIPROXYAPI:
-      return {
-        kind: "cliproxyapi",
-        id: profile.id,
-        baseUrl: profile.baseUrl,
-        apiKey: profile.apiKey,
-        ...(profile.providers.length > 0 && {
-          providers: profile.providers.map((p) => (p === Provider.CLAUDE ? ("claude" as const) : ("codex" as const))),
-        }),
-      };
+      return { kind: "cliproxyapi", ...common, baseUrl: profile.baseUrl, apiKey: profile.apiKey };
     default:
       issue(`profiles[${index}].kind`, `unsupported profile kind for "${profile.id}"`);
       return undefined;

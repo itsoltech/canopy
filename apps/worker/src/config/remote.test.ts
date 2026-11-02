@@ -104,3 +104,27 @@ describe("applyWorkerConfig", () => {
     expect(isAllowedPath(applied, base)).toBe(false);
   });
 });
+
+describe("applyWorkerConfig: custom profiles", () => {
+  test("carries names, variables and the disabled flag; a bad variable is an issue of that profile only", () => {
+    const result = applyWorkerConfig(
+      config({
+        profiles: [
+          { id: "team", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "k", displayName: "Team", env: [{ name: "PROBE", value: "1" }, { name: "TOKEN", value: "hidden-value", secret: true }] },
+          { id: "off", kind: ProviderProfileKind.NATIVE, disabled: true },
+          { id: "bad", kind: ProviderProfileKind.NATIVE, env: [{ name: "PATH", value: "/evil-path" }] },
+        ],
+      }),
+      probe,
+    );
+    if (!result.applied) throw new Error("expected applied");
+    const byId = new Map(result.config.profiles.map((p) => [p.config.id, p]));
+    expect(byId.get("team")?.resolved?.env).toEqual({ PROBE: "1", TOKEN: "hidden-value" });
+    expect(byId.get("off")?.problem).toBe("disabled");
+    expect(byId.get("bad")?.resolved).toBeUndefined();
+    expect(result.report.issues?.map((i) => i.path)).toEqual(["profiles[bad]"]);
+    expect(result.report.profiles?.find((p) => p.id === "team")?.displayName).toBe("Team");
+    expect(JSON.stringify(result.report, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("hidden-value");
+    expect(JSON.stringify(result.report, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("/evil-path");
+  });
+});
