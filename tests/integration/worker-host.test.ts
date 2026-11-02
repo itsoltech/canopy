@@ -202,6 +202,39 @@ const task = (itemId: string, taskId: string) => ({
 });
 
 describe("graceful shutdown", () => {
+  for (const kind of [BackgroundTaskKind.SHELL, BackgroundTaskKind.PROCESS]) {
+    test(`a ${BackgroundTaskKind[kind]} terminal notification during teardown cannot win over worker_shutdown`, async () => {
+      const journal = ManagedRuntime.make(Journal.layer(join(dir, `shutdown-order-${kind}.db`)));
+      const item = { ...task("bg:shutdown-order", "42"), content: { case: "backgroundTask" as const, value: { ...task("", "").content.value, taskId: "42", kind } } };
+      // Emulate the provider finalizer: Claude emits task_notification stopped; Codex can emit a failed
+      // process exit as the app-server closes. Both reach the journal before the host closes orphan tasks.
+      class TeardownHost extends WorkerHost {
+        override async close() {
+          await journal.runPromise(Journal.use((j) => j.append("shutdown-order", {
+            body: { case: "itemCompleted", value: { item: {
+              ...item,
+              status: kind === BackgroundTaskKind.SHELL ? ItemStatus.INTERRUPTED : ItemStatus.FAILED,
+              content: { case: "backgroundTask", value: { ...item.content.value, stopReason: "stopped" } },
+            } } },
+          })));
+          await super.close();
+        }
+      }
+      const stopping = new TeardownHost({ runtime: journal, dataDir: join(dir, `shutdown-order-${kind}`), clientVersion: "test" });
+      try {
+        await journal.runPromise(Journal.use((j) => j.append("shutdown-order", { body: { case: "itemStarted", value: { item } } })));
+        expect(await stopping.shutdown()).toBe(1);
+        const ends = (await journal.runPromise(Journal.use((j) => j.pending(new Map())))).filter((e) => e.body.case === "itemCompleted");
+        expect(ends[0]?.body).toMatchObject({ case: "itemCompleted", value: { item: {
+          status: ItemStatus.INTERRUPTED, content: { case: "backgroundTask", value: { stopReason: "worker_shutdown", endedAt: expect.anything() } },
+        } } });
+        expect(await journal.runPromise(Journal.use((j) => j.openBackgroundTasks()))).toEqual([]);
+      } finally {
+        await journal.dispose();
+      }
+    });
+  }
+
   test("running background tasks end as worker_shutdown with their end time, reported over the link before it closes", async () => {
     // A worker of its own (its own journal and link), with a task the (provider-less) runtime ran: the journal has it open.
     const journal = ManagedRuntime.make(Journal.layer(join(dir, "shutdown.db")));

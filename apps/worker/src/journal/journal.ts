@@ -98,6 +98,8 @@ export class Journal extends Context.Service<
     purgeCommands(maxAgeMs: number): Effect.Effect<number, JournalError>;
     /** Background tasks whose start is journaled and whose end is not (e.g. the worker crashed meanwhile). */
     openBackgroundTasks(): Effect.Effect<ReadonlyArray<OpenBackgroundTask>, JournalError>;
+    /** Before killing any provider: terminal task events in this process belong to the worker shutdown. Returns the open count. */
+    beginShutdown(): Effect.Effect<number, JournalError>;
     /** Turns whose turn_started is journaled and whose turn_finished is not, with their harness record and items. */
     openTurns(): Effect.Effect<ReadonlyArray<OpenTurn>, JournalError>;
     /** Records (or updates) where the turn's harness keeps its record; dropped with the turn's end. */
@@ -181,6 +183,7 @@ function open(path: string): Database {
 }
 
 function makeJournal(db: Database): Journal["Service"] {
+  let shuttingDown = false;
   const attempt = <A>(operation: string, run: () => A) =>
     Effect.try({ try: run, catch: (cause) => new JournalError({ operation, cause }) });
 
@@ -264,6 +267,17 @@ function makeJournal(db: Database): Journal["Service"] {
       occurredAt: event.occurredAt ?? timestampNow(),
     } as MessageInitShape<typeof ThreadEventSchema>;
     const full = create(ThreadEventSchema, init);
+    // Providers can report stopped/failed (or even a successful exit) while their runtime is being torn down.
+    // Normalize BEFORE the first durable end, not in publish() or the later orphan sweep: the gateway's first
+    // end wins and may already have queued the agent's note. This covers Claude and Codex alike.
+    if (shuttingDown && full.body.case === "itemCompleted") {
+      const item = full.body.value.item;
+      if (item?.content.case === "backgroundTask" && item.status !== ItemStatus.IN_PROGRESS) {
+        item.status = ItemStatus.INTERRUPTED;
+        item.content.value.stopReason = "worker_shutdown";
+        item.content.value.endedAt ??= full.occurredAt;
+      }
+    }
     insertEvent.run({ thread: threadId, seq: Number(seq), id: full.eventId, payload: toBinary(ThreadEventSchema, full), at: Date.now() });
     trackBackground(threadId, full.body);
     trackTurn(threadId, full.turnId, full.body);
@@ -324,6 +338,12 @@ function makeJournal(db: Database): Journal["Service"] {
     ),
     openBackgroundTasks: Effect.fn("Journal.openBackgroundTasks")(() =>
       attempt("openBackgroundTasks", () => selectBackground.all().map((r) => ({ threadId: r.thread_id, item: fromBinary(ItemSchema, r.item) }))),
+    ),
+    beginShutdown: Effect.fn("Journal.beginShutdown")(() =>
+      attempt("beginShutdown", () => {
+        shuttingDown = true;
+        return selectBackground.all().length;
+      }),
     ),
     openTurns: Effect.fn("Journal.openTurns")(() =>
       attempt("openTurns", () =>
