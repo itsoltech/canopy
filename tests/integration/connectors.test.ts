@@ -27,6 +27,7 @@ describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker 
   beforeAll(async () => {
     fake = fakeConnector(); gw = await startTestGateway({ botModel: async (input) => { seen.push(input); return { text: 'Ready', calls: [] }; } }); gw.worker.holdTurns = true; gw.core.bots.start();
     await gw.api.saveProviderInstance({ harness: Provider.CODEX, id: 'connector-test', label: 'Fixture', create: true, kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: 'http://127.0.0.1:1', apiKey: 'fixture', allWorkers: true });
+    await eventually(() => gw.core.bots.run((s) => s.apiModels(Provider.CODEX, 'connector-test')), (models) => models.some((m) => m.id === 'gpt-6.1-sol'));
     projectId = (await gw.api.createProject({ name: 'Connectors' })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: '/repo' })).workspace!.id;
     const other = await gw.addWorker('denied', ['/repo']); deniedWorker = await gw.connect(other.workerId, other.credential); deniedWorker.holdTurns = true;
@@ -91,6 +92,10 @@ describe.skipIf(!dockerAvailable)('connectors: OAuth, gateway grants and worker 
     const conversation = await gw.core.bots.run((s) => s.conversation(gw.userId,bot.id));
     expect(conversation.messages[0]!.mentions[0]).toMatchObject({ kind: MentionKind.CONNECTOR, name: account.id, label, source: 'custom' });
     expect(JSON.stringify(seen.at(-1))).toContain(account.id); expect(JSON.stringify(seen.at(-1))).not.toContain(fake.secret);
+    account = (await gw.api.saveConnectorAccount({ id: account.id, expectedRevision: account.revision, name: 'renamed' })).account!;
+    const renamed = (await gw.core.connectors.botTools(bot.id)).find((t) => t.name === tool.name)!;
+    expect(renamed.description).toContain('Custom MCP server · renamed');
+    expect(renamed.description).not.toContain('Custom MCP server · personal');
   }, 15_000);
 
   test('OAuth DCR + state/browser binding + S256, refresh rotation, reconnect and revoke', async () => {
