@@ -43,6 +43,9 @@
   import { isTerminal, topLevelEntry } from "#lib/features/threads/timeline.ts";
   import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
   import { FeedBuilder, feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
+  import TurnRail from "#lib/features/threads/rail/TurnRail.svelte";
+  import { railTurns } from "#lib/features/threads/rail/turn-rail.ts";
+  import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
@@ -164,6 +167,8 @@
     void threadId;
     historyOpen = false;
   });
+  const turnsOnRail = $derived(railTurns(rows));
+  let feedViewport = $state<FeedViewport>({ start: 0, end: 0, height: 0 });
 
 
   // Queued messages above the composer (reorder, edit, delete, steer now); confirmed changes go into the
@@ -236,7 +241,10 @@
   provideBackgroundOutput(openOutput);
   $effect(() => { void threadId; outputOpen = false; outputId = undefined; });
 
-  let feed = $state<FoldReader & { reveal: (key: string) => Promise<boolean> }>();
+  let feed = $state<FoldReader & {
+    reveal: (key: string) => Promise<boolean>;
+    scrollToRow: (index: number, options: { align: "start"; smooth?: boolean }) => Promise<boolean>;
+  }>();
 
   // A quote in a message shows where it came from: its item (in folded work or the inherited history: opened
   // first) scrolls into view and flashes (motion.css `data-flash`).
@@ -355,9 +363,14 @@
       <Alert tone="info" banner>{view.failure ?? "Reconnecting to live updates…"}</Alert>
     {/if}
 
-    <div class="min-h-0 flex-1" bind:this={feedRegion}>
+    <div class={["relative min-h-0 flex-1", turnsOnRail.length >= 3 && "md:pl-9"]} bind:this={feedRegion}>
       {#key threadId}
-        <VirtualFeed bind:this={feed} bind:atEnd {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working} onreaderscroll={readerScroll} onlatest={expandComposer}>
+        {#if turnsOnRail.length >= 3}
+          <div class="absolute inset-y-6 left-1 z-20 w-8 max-md:hidden">
+            <TurnRail turns={turnsOnRail} viewport={feedViewport} onjump={(row) => { void feed?.scrollToRow(row, { align: "start", smooth: true }); }} />
+          </div>
+        {/if}
+        <VirtualFeed bind:this={feed} bind:atEnd {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working} onreaderscroll={readerScroll} onlatest={expandComposer} onviewport={(viewport) => { feedViewport = viewport; }}>
           {#snippet placeholder()}
             {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
           {/snippet}
