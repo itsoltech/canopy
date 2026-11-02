@@ -6,6 +6,7 @@ import { areaTool, areaTools } from "./tools/index.ts";
 export function needsApproval(tool: ToolSpec, policy: string, args: Record<string, unknown> = {}): boolean {
   if (tool.source === "platform" && tool.name === "ask_user") return true;
   if (tool.source === "platform" && tool.name === "create_bot") return true;
+  if (tool.source === "platform" && ["create_routine", "update_routine", "delete_routine", "message_user"].includes(tool.name)) return false;
   if (tool.source === "platform" && tool.name === "update_self" && ["model", "effort", "provider", "provider_instance", "approval_policy"].some((key) => Object.hasOwn(args, key))) return true;
   if (tool.source === "platform" && tool.readOnly === true) return false;
   return policy === "always" || tool.dangerous === true || (tool.source === "mcp" && tool.readOnly !== true);

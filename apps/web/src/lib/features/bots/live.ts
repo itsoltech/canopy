@@ -10,7 +10,7 @@ export function botParticipant(bot: bots.Bot): BotView {
 }
 export function botConversation(bot: bots.Bot, pinnedIds: readonly string[] = []): ConversationView {
   const last = bot.lastMessage;
-  return { id: bot.id, kind: "direct", bots: [botParticipant(bot)], unread: 0, archived: bot.archived, pinned: !bot.archived && pinnedIds.includes(bot.id), pinOrder: pinnedIds.indexOf(bot.id),
+  return { id: bot.id, kind: "direct", bots: [botParticipant(bot)], unread: bot.unreadCount, archived: bot.archived, pinned: !bot.archived && pinnedIds.includes(bot.id), pinOrder: pinnedIds.indexOf(bot.id),
     ...(last && { lastMessage: { senderId: last.senderId === "user" ? "me" : last.senderId, text: displayText(last), at: dateOf(last.createdAt), failed: last.failed } }),
   };
 }
@@ -52,7 +52,7 @@ function questionView(a: bots.BotApproval): QuestionView {
   const options = a.options.map((label, index) => ({ id: `option:${index}`, label }));
   const chosen = options.find((o) => o.label === a.answer);
   return {
-    id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, prompt: a.prompt, options, freeText: true,
+    id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, prompt: a.prompt, options, freeText: true, routineTitle: a.routineTitle || undefined,
     ...(a.status !== "pending" && { answer: { optionId: chosen?.id ?? "", at: dateOf(a.createdAt), text: a.answer, skipped: a.status === "discarded" } }),
   };
 }
@@ -66,7 +66,7 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
   });
   const status = a.status === "approved" ? "approved" : a.status === "discarded" ? (a.answer ? "edited" : "discarded") : "pending";
   const proposal = a.proposedBot;
-  return { id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, action: heading.replace(/^Needs approval · /, "") || "Use a tool", fields, status,
+  return { id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, action: heading.replace(/^Needs approval · /, "") || "Use a tool", fields, status, routineTitle: a.routineTitle || undefined,
     botProposal: proposal ? { name: proposal.name, shape: proposal.shape, color: proposal.color, model: proposal.model, effort: proposal.effort,
       provider: proposal.provider === Provider.CLAUDE ? "Claude" : "Codex", instance: proposal.providerInstance, approvalPolicy: proposal.approvalPolicy, instructions: proposal.instructions } : undefined,
   };

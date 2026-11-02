@@ -585,7 +585,10 @@
     <div bind:this={footerElement} class="pointer-events-auto relative pb-[max(--spacing(3),env(safe-area-inset-bottom))]" onfocusin={() => scrollIntent.reset()} onbeforeinput={() => scrollIntent.reset()}>
       {#if !stuck}
         <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2" transition:rise>
-          <Button size="sm" icon="arrow-down" class="shadow-md dark:shadow-none" onclick={jump}>Jump to latest</Button>
+          <!-- The secondary button is translucent in dark mode; an opaque backing keeps it legible over text. -->
+          <span class="flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50">
+            <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
+          </span>
         </div>
       {/if}
       {@render footer?.()}

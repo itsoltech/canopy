@@ -25,6 +25,10 @@ service GatewayService {
   rpc AnswerBotApproval(AnswerBotApprovalRequest) returns (AnswerBotApprovalResponse);
   rpc InterruptBot(InterruptBotRequest) returns (InterruptBotResponse);
   rpc RetryBot(RetryBotRequest) returns (RetryBotResponse);
+  rpc SetBotRoutineEnabled(SetBotRoutineEnabledRequest) returns (BotRoutineResponse);
+  rpc DeleteBotRoutine(DeleteBotRoutineRequest) returns (DeleteBotRoutineResponse);
+  rpc CancelBotReminder(CancelBotReminderRequest) returns (CancelBotReminderResponse);
+  rpc MarkBotRead(MarkBotReadRequest) returns (GetBotResponse);
   rpc SaveBotMcpServer(SaveBotMcpServerRequest) returns (SaveBotMcpServerResponse);
   rpc ListBotMcpServers(ListBotMcpServersRequest) returns (ListBotMcpServersResponse);
   rpc DeleteBotMcpServer(DeleteBotMcpServerRequest) returns (DeleteBotMcpServerResponse);
