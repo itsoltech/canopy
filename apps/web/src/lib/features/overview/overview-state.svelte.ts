@@ -7,14 +7,14 @@ import { liveSource } from "#lib/shared/live-source.ts";
 export type OverviewConnection = "live" | "reconnecting" | "unavailable";
 
 /**
- * Workers, projects and every thread for the whole app, kept live by the overview SSE stream.
+ * Workers, projects and the active thread index, kept live by the overview SSE stream.
  * Shared with pages through context (one subscription per tab). The stream carries changes only,
  * so every reconnect reloads the full overview and thread index to pick up what happened in between.
  */
 export class OverviewState {
   workers = $state.raw<ui.Worker[]>([]);
   projects = $state.raw<ui.Project[]>([]);
-  /** Every thread by id (seeded from the server, status changes and new threads arrive live). */
+  /** Active threads and Previous agents, plus archived rows observed live or fetched on demand. */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
   #deleted = new Set<string>();
   connection = $state<OverviewConnection>("reconnecting");
@@ -33,6 +33,16 @@ export class OverviewState {
 
   project(id: string): ui.Project | undefined {
     return this.projects.find((p) => p.id === id);
+  }
+
+  /** Cache just the archive pages the user loaded; keep newer stream values over an HTTP snapshot. */
+  remember(threads: readonly ui.Thread[], before: ReadonlyMap<string, ui.Thread>): void {
+    const next = new Map(this.threads);
+    for (const thread of threads) {
+      if (this.#deleted.has(thread.id) || thread.deletedAt || this.threads.get(thread.id) !== before.get(thread.id)) continue;
+      next.set(thread.id, thread);
+    }
+    this.threads = next;
   }
 
   /** A project's threads with live changes laid over them, plus threads created since `list` was loaded. */
@@ -66,7 +76,7 @@ export class OverviewState {
     this.projects = overview.projects;
     const visible = new Map(threads.filter((t) => !t.deletedAt).map((t) => [t.id, t]));
     // Reconcile deletions and restores that happened while the overview stream was disconnected.
-    for (const id of this.threads.keys()) if (!visible.has(id)) this.#deleted.add(id);
+    for (const [id, thread] of this.threads) if (!visible.has(id) && thread.status !== "archived") this.#deleted.add(id);
     for (const id of visible.keys()) this.#deleted.delete(id);
     this.threads = visible;
     this.#synced = true;

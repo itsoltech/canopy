@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@open-agents/contracts";
-import { sidebarThreads } from "./sidebar-threads.ts";
+import { collapsedArchivedThread, sidebarThreads } from "./sidebar-threads.ts";
 import { groupSideThreads } from "../threads/thread-tree.ts";
 import { threadActions } from "../threads/thread-actions.ts";
 
@@ -27,10 +27,30 @@ describe("sidebar visibility and ordering", () => {
     expect(sidebarThreads(all, settings({ projectIds: ["b"], pinnedThreadIds: ["side"] }), "", names).roots).toEqual([]);
   });
 
-  test("archive view, deleted rows and active orphan children", () => {
+  test("archived trees never leak sides into active roots, even when pinned or waiting for cascade events", () => {
     const all = [thread("archived", { status: "archived" }), thread("side", { parentThreadId: "archived" }), thread("deleted", { deletedAt: { seconds: 5n } })];
-    expect(sidebarThreads(all, settings(), "", names).roots.map((t) => t.id)).toEqual(["side"]);
-    expect(sidebarThreads(all, settings({ archived: true }), "", names).roots.map((t) => t.id)).toEqual(["archived"]);
+    expect(sidebarThreads(all, settings(), "", names).roots).toEqual([]);
+    expect(sidebarThreads(all, settings({ pinnedThreadIds: ["side"] }), "", names).roots).toEqual([]);
+    expect(sidebarThreads([thread("orphan", { parentThreadId: "unloaded" })], settings(), "", names).roots.map((t) => t.id)).toEqual(["orphan"]);
+    expect(sidebarThreads(all, settings({ archived: true }), "", names).roots).toEqual([]); // old view setting is ignored
+  });
+
+  test("collapsed current archive respects project/search, expansion and Previous agents grouping", () => {
+    const parent = thread("parent");
+    const archived = thread("archived", { status: "archived" });
+    const side = thread("side", { parentThreadId: parent.id, status: "archived" });
+    const all = new Map([parent, archived, side].map((t) => [t.id, t]));
+    const show = (current: ui.Thread | undefined, expanded = false, projects: string[] = [], q = "") => collapsedArchivedThread(current, expanded, all, projects, q, names);
+    expect(show(archived)?.id).toBe("archived");
+    expect(show(archived, true)).toBeUndefined();
+    expect(show(parent)).toBeUndefined();
+    expect(show(undefined)).toBeUndefined();
+    expect(show(side)).toBeUndefined();
+    expect(show(archived, false, ["b"])).toBeUndefined();
+    expect(show(archived, false, [], "Beta")).toBeUndefined();
+    expect(show(archived, false, [], "Alpha")?.id).toBe("archived");
+    all.set("parent", { ...parent, status: "archived" });
+    expect(show(side)?.id).toBe("side");
   });
 
   test("Previous agents contains archived children only, newest archive first", () => {

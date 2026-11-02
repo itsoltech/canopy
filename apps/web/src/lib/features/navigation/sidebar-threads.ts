@@ -14,9 +14,11 @@ export function sidebarThreads(threads: readonly ui.Thread[], settings: ui.Sideb
   const q = query.trim().toLowerCase();
   const matches = (t: ui.Thread) => !q || t.title.toLowerCase().includes(q) || projectName(t.projectId).toLowerCase().includes(q);
   const roots = eligible.filter((t) => {
-    if ((t.status === "archived") !== settings.archived) return false;
-    if (settings.archived || pins.has(t.id)) return matches(t) || (sides.get(t.id) ?? []).some(matches);
-    return !(isSide(t) && ids.has(t.parentThreadId) && eligible.some((p) => p.id === t.parentThreadId && p.status !== "archived"))
+    if (t.status === "archived") return false;
+    // Parent events arrive before their cascade children; never flash those children as active roots.
+    if (isSide(t) && threads.some((parent) => parent.id === t.parentThreadId && parent.status === "archived")) return false;
+    if (pins.has(t.id)) return matches(t) || (sides.get(t.id) ?? []).some(matches);
+    return !(isSide(t) && ids.has(t.parentThreadId))
       && (matches(t) || (sides.get(t.id) ?? []).some(matches));
   });
   roots.sort((a, b) => {
@@ -25,4 +27,15 @@ export function sidebarThreads(threads: readonly ui.Thread[], settings: ui.Sideb
     return Number(pins.has(b.id)) - Number(pins.has(a.id)) || Number(bTree.some(needsYou)) - Number(aTree.some(needsYou)) || Number(treeActivity(bTree) - treeActivity(aTree));
   });
   return { roots, sides, pins };
+}
+
+/** An archived side under an active main belongs to Previous agents, including when it is current. */
+export function collapsedArchivedThread(current: ui.Thread | undefined, expanded: boolean, threads: ReadonlyMap<string, ui.Thread>, projectIds: readonly string[], query: string, projectName: (id: string) => string): ui.Thread | undefined {
+  if (expanded || !current || current.deletedAt || current.status !== "archived") return;
+  if (projectIds.length && !projectIds.includes(current.projectId)) return;
+  const q = query.trim().toLowerCase();
+  if (q && !current.title.toLowerCase().includes(q) && !projectName(current.projectId).toLowerCase().includes(q)) return;
+  const parent = threads.get(current.parentThreadId);
+  if (isSide(current) && parent && !parent.deletedAt && parent.status !== "archived") return;
+  return current;
 }

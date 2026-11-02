@@ -118,13 +118,10 @@ describe.skipIf(Bun.env["OA_BROWSER_TESTS"] !== "1")("sidebar browser acceptance
     expect(await page.locator('form textarea, form [contenteditable="true"]').count()).toBe(0);
     expect(await page.locator("[data-thread-composer-slot]").evaluate((node) => node.getBoundingClientRect().height)).toBe(composerHeight);
     await screenshot(page, "desktop-light-archived");
-    await page.getByRole("button", { name: /Filter projects/ }).click();
-    await filter.getByRole("checkbox", { name: "Archived threads", exact: true }).check();
+    await nav.getByRole("button", { name: /Archived ·/ }).click();
     await row().waitFor();
-    await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Unarchive", exact: true }).click();
     await page.getByRole("region", { name: "Archived thread", exact: true }).waitFor({ state: "hidden" });
-    await page.getByRole("button", { name: "Clear filters", exact: true }).click();
     await row().waitFor();
     await row().click({ button: "right" });
     await menu.getByRole("menuitem", { name: "Delete…", exact: true }).click();
