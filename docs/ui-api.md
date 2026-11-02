@@ -3,22 +3,37 @@
 ## Pasek boczny i cykl życia wątku
 
 `UserSettings.sidebar` przechowuje filtr projektów (`project_ids`, puste = wszystkie), przypięcia
-(`pinned_thread_ids`) i widok archiwum (`archived`). `UpdateUserSettings.sidebar` zastępuje sekcję
+(`pinned_thread_ids`) i rozwinięcie sekcji Archived (`archived_expanded`, pole 310). Dawne `archived`
+pozostaje w kontrakcie jako przestarzałe i nie steruje listą. `UpdateUserSettings.sidebar` zastępuje sekcję
 z kontrolą `expected_version`; `WatchOverview.user_settings` dostarcza zmiany innym urządzeniom.
 Wyszukiwanie i przypięcia respektują filtr. Przypięte wątki boczne są samodzielnie dostępne w „Pinned”.
 
-`ListThreads.include_archived` (270) dołącza archiwum do indeksu klienta, grup „Previous agents”
-i widoku „Archived threads”. Domyślna lista, wyszukiwanie wzmianek i szyna pokazują aktywne wątki.
+`ListThreads.sidebar_only` (310) zwraca aktywne wątki oraz archiwalnych bocznych pod aktywnym rodzicem
+do „Previous agents”. Wyklucza boczne pod zarchiwizowanym rodzicem, także w danych sprzed kaskady.
+BFF `GET /api/threads` używa tego indeksu. `include_archived` (270) zachowuje znaczenie dla starszych
+klientów; nie jest używane do pobierania całego archiwum przez sidebar.
+
+`ListArchivedThreads` przyjmuje `project_ids` (puste = wszystkie), `query` (fragment tytułu głównego,
+bocznego albo nazwy projektu, bez rozróżniania wielkości liter), `page_size` (domyślnie 20, maks. 100),
+`page_token` i `count_only`. Zwraca `threads`, `side_threads` tylko rodziców na tej stronie,
+`next_page_token` i `total_count` głównych wierszy. Boczne nie są osobnymi pozycjami ani nie zwiększają
+licznika. Porządek: `archived_at DESC, id DESC`. Kursor zachowuje mikrosekundy PostgreSQL i jest
+związany z właścicielem i filtrami; zmiana filtra wymaga pierwszej strony. `%` i `_` są zwykłym tekstem.
+BFF `GET /api/threads/archived?q=…&projectId=…&pageToken=…&countOnly=true` ustala strony po 20.
+Zwinięta sekcja pobiera wyłącznie licznik, a bieżący wątek przez istniejące `GetThread`.
+Zmiana live lub reconnect odświeża licznik i już załadowane strony z nowymi kursorami.
 
 | Metoda | Działanie |
 |---|---|
-| `SetThreadArchived` | `{thread_id, archived}`: archiwizacja albo przywrócenie. Archiwizacja przerywa turę i anuluje kolejkę oraz harmonogramy; przywrócenie nie wznawia pracy. `Thread.archived_at`, `archived_by` (`user` / `agent`), `archived_by_thread_id`, `archived_by_thread_title` opisują czas i autora. `close_thread` zapisuje wątek zamykającego agenta. |
+| `SetThreadArchived` | `{thread_id, archived}`: główny wątek archiwizuje też aktywne boczne w tej samej transakcji (`archived_by=cascade`, `archived_by_thread_id=rodzic`). Przywraca tylko te boczne; wcześniejsze `user` / `agent` pozostają archiwalne. Boczne można niezależnie archiwizować; przywrócenie wymaga aktywnego rodzica. Każdy objęty wątek przerywa turę, anuluje kolejkę i harmonogramy oraz otrzymuje aktualizację live. Przywrócenie nie wznawia pracy. `Thread.archived_at`, `archived_by`, `archived_by_thread_id`, `archived_by_thread_title` opisują czas i autora. `close_thread` zapisuje wątek zamykającego agenta. |
 | `SetThreadRead` | `{thread_id, unread}`: jawny stan `Thread.marked_unread`; znacznik zdarzeń z migracji 0019 pozostaje monotoniczny. `MarkThreadSeen` usuwa też jawne nieprzeczytanie. |
 | `DeleteThread` | `{thread_id}` → `thread_ids`: soft delete wątku i nieusuniętych wcześniej dzieci. Trwały outbox zapisuje przerwania przed ukryciem; kolejka i harmonogramy są anulowane, interakcje wygaszane. `deleted_at` ukrywa wątki w API, listach, wyszukiwaniu, wzmiankach i szynie. Zmiana live z `Thread.deleted_at` usuwa wpis z indeksu klienta. |
 | `RestoreThread` | `{thread_id}` → przywrócone `threads`: cofa tylko tę partię usunięcia i zachowuje wcześniejsze archiwum. Dzieci usunięte wcześniej pozostają usunięte. Najpierw trzeba przywrócić rodzica. Anulowana praca nie wraca do kolejki. |
 
-Nowe pola istniejących wiadomości zajmują numery 270–289. Migracja `0026_sidebar_threads` dodaje
-metadane cyklu życia i znacznik nieprzeczytania; filtr i przypięcia korzystają z JSON ustawień.
+Pola cyklu życia zajmują numery 270–289, a nowe pola indeksu i ustawień archiwum 310–329.
+Migracja `0026_sidebar_threads` dodaje metadane cyklu życia i znacznik nieprzeczytania;
+`0028_archive_cascade` rozszerza autora o `cascade` i dodaje indeks archiwum. Filtr, przypięcia
+i rozwinięcie sekcji korzystają z JSON ustawień, bez osobnej tabeli.
 BFF: `POST /api/threads/:id/lifecycle`, `action`: `archive`, `unarchive`, `delete`, `restore`, `read`,
 `unread`. UI potwierdza usunięcie i oferuje toast „Undo” przez sześć sekund.
 

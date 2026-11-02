@@ -21,7 +21,8 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
           await core.removeWorkspace(request.workspaceId);
           return create(ui.RemoveWorkspaceResponseSchema, {});
         }),
-      listThreads: (request) => guard(async () => create(ui.ListThreadsResponseSchema, { threads: await core.listThreads(request.projectId, request.includeArchived) })),
+      listThreads: (request) => guard(async () => create(ui.ListThreadsResponseSchema, { threads: await core.listThreads(request.projectId, request.includeArchived, request.sidebarOnly) })),
+      listArchivedThreads: (request) => guard(() => core.listArchivedThreads(request)),
       getThread: (request) => guard(async () => create(ui.GetThreadResponseSchema, { thread: await core.getThread(request.threadId) })),
       createThread: (request) => guard(async () => create(ui.CreateThreadResponseSchema, { thread: await core.createThread(request) })),
       sendMessage: (request) => guard(async () => create(ui.SendMessageResponseSchema, await core.sendMessage(request))),

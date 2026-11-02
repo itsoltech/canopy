@@ -721,8 +721,13 @@ export class GatewayCore {
     if (project) this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
   }
 
-  async listThreads(projectId: string, includeArchived = false): Promise<ui.Thread[]> {
-    return (await this.#run((s) => s.listThreads(this.#options.userId, projectId, includeArchived))).map((row) => this.#uiThread(row));
+  async listThreads(projectId: string, includeArchived = false, sidebarOnly = false): Promise<ui.Thread[]> {
+    return (await this.#run((s) => s.listThreads(this.#options.userId, projectId, includeArchived, sidebarOnly))).map((row) => this.#uiThread(row));
+  }
+
+  async listArchivedThreads(request: ui.ListArchivedThreadsRequest): Promise<ui.ListArchivedThreadsResponse> {
+    const result = await this.#run((s) => s.listArchivedThreads(this.#options.userId, request));
+    return create(ui.ListArchivedThreadsResponseSchema, { ...result, threads: result.threads.map((row) => this.#uiThread(row)), sideThreads: result.sideThreads.map((row) => this.#uiThread(row)) });
   }
 
   async getThread(threadId: string): Promise<ui.Thread> {
@@ -738,10 +743,12 @@ export class GatewayCore {
   }
 
   async setThreadArchived(threadId: string, archived: boolean): Promise<ui.Thread> {
-    const commands = await this.#run((s) => s.setThreadArchived(this.#options.userId, threadId, archived));
+    const { ids, commands } = await this.#run((s) => s.setThreadArchived(this.#options.userId, threadId, archived));
     for (const entry of commands) void this.#deliver(entry.workerId, entry.command);
-    await this.#broadcastThread(threadId);
-    for (const schedule of await this.listSchedules(create(ui.ListSchedulesRequestSchema, { threadId, includeFinished: true }))) this.#announceSchedule(schedule);
+    for (const id of ids) {
+      await this.#broadcastThread(id);
+      for (const schedule of await this.listSchedules(create(ui.ListSchedulesRequestSchema, { threadId: id, includeFinished: true }))) this.#announceSchedule(schedule);
+    }
     return this.getThread(threadId);
   }
 

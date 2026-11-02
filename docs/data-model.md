@@ -6,6 +6,13 @@ identyfikator partii pozwala cofnąć tylko tę operację. Triggery blokują now
 i forków po usunięciu. `thread_reads.marked_unread` jest jawnym znacznikiem obok monotonicznego
 `seen_seq`. Przypięcia i filtr projektów są sekcją `sidebar` w JSON tabeli `user_settings`.
 
+Migracja `0028_archive_cascade` rozszerza `archived_by` o `cascade`: boczny zarchiwizowany razem
+z głównym ma `archived_by_thread_id = parent_thread_id`. Przywrócenie głównego odtwarza tylko te dzieci,
+bez wcześniejszych niezależnych archiwizacji. Operacja blokuje rodzica i objęte dzieci, zapisuje
+przerwania w outboxie i anuluje ich pracę w tej samej transakcji. Indeks częściowy
+`threads_archived_owner(owner_user_id, archived_at DESC, id DESC)` obsługuje kursorowe strony archiwum.
+Ustawienie `sidebar.archived_expanded` przechowuje rozwinięcie sekcji; nie wymaga migracji danych JSON.
+
 Status: **zaimplementowany jako migracje `0001_init` i `0002_worker_config`** (`packages/db/src/migrations`). Niezmienniki są sprawdzane w testach na prawdziwym PostgreSQL (`packages/db/test/schema.test.ts`). Pojęcia i cykl życia wątków: [threads.md](threads.md).
 
 Konwencje:
