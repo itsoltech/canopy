@@ -11,10 +11,11 @@
   import BackgroundNoteRow from "./BackgroundNoteRow.svelte";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
+  import AgentSenderLabel from "./AgentSenderLabel.svelte";
 
   /**
    * The input of a turn with where it came from (the turn's source): you (a plain message), another
-   * agent (a task or a message), a report from a thread it follows, a side thread's question, or a
+   * agent (a task or a message, violet, naming the sender's thread and what it runs on: AgentSenderLabel), a report from a thread it follows, a side thread's question, or a
    * schedule (yours or one an agent set). `hops` (agent-to-agent steps since a person wrote) shows when
    * an agent chain started the turn. Queued turns are not shown here: the queue panel has them.
    */
@@ -62,11 +63,11 @@
     >
       <Icon name={icons[origin.kind] ?? "sparkles"} class="size-3.5" />
       {#if origin.kind === "task"}
-        Task from <ThreadLink threadId={origin.threadId} fallback="another thread" />
+        <AgentSenderLabel verb="Task from" threadId={origin.threadId} sender={turn.sender} />
       {:else if origin.kind === "message"}
-        Message from <ThreadLink threadId={origin.threadId} fallback="another thread" />
+        <AgentSenderLabel verb="Message from" threadId={origin.threadId} sender={turn.sender} />
       {:else if origin.kind === "report"}
-        Report from <ThreadLink threadId={origin.threadId} fallback="a thread it follows" />
+        <AgentSenderLabel verb="Report from" threadId={origin.threadId} sender={turn.sender} fallback="a thread it follows" />
       {:else if origin.kind === "question"}
         <ThreadLink threadId={origin.threadId} fallback="A side thread" /> is waiting for an answer
       {:else if origin.kind === "schedule"}

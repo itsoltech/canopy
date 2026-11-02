@@ -41,6 +41,7 @@ import {
   storedSidebarWidth,
   withAttachmentsNote,
   type AttachmentLimits,
+  type SpawnInstance,
 } from "@open-agents/domain";
 import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
 import { isPlatformCommand, mentionsFromJson, mentionsToJson, PLATFORM_COMMANDS, workerPath } from "./mentions.ts";
@@ -64,6 +65,7 @@ import {
   withCustomModels,
   SettingsStore,
   SteerStore,
+  toUiDelivery,
   toUiGoal,
   toUiSchedule,
   toUiSteer,
@@ -81,6 +83,7 @@ import { AgentBus } from "./agent-bus.ts";
 import { BackgroundTasks } from "./background-tasks.ts";
 import { Hub } from "./hub.ts";
 import { Scheduler } from "./scheduler.ts";
+import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt } from "./thread-titles.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -187,10 +190,7 @@ export class GatewayCore {
       answer: (by, request) => this.#answer(by, request),
       broadcastThread: (threadId) => this.#broadcastThread(threadId),
       scheduleChanged: (scheduleId) => this.#publishSchedule(scheduleId),
-      modelProblem: async (thread, model, effort) => {
-        const { models, provider, profile } = await this.#profileModels({ thread });
-        return modelProblem(models, provider, profile, model, effort);
-      },
+      spawnInstances: (thread) => this.#spawnInstances(thread),
       backgroundTask: (call, callerId) => this.backgroundTasks.tool(call, callerId),
     });
     this.backgroundTasks = new BackgroundTasks(
@@ -269,7 +269,7 @@ export class GatewayCore {
           case "agentToolCall": {
             const call = message.payload.value;
             // Concurrent: wait_threads may take minutes and must not hold up the stream.
-            void this.bus.handle(call).then(
+            void this.bus.handle(call, workerId).then(
               (result) => {
                 try {
                   connection.send({ case: "agentToolResult", value: result });
@@ -732,6 +732,7 @@ export class GatewayCore {
     if (request.initialAttachmentIds.length === 0 && request.initialMentions.length === 0) {
       const row = await this.#run((s) => s.createThread(this.#options.userId, effort === request.effort ? request : { ...request, effort }));
       await this.#startThread(row);
+      if (request.initialMessage.trim()) this.#autoTitle(row.id, titleContext({ text: request.initialMessage }));
       return toUiThread(row);
     }
     // With attachments or mentions: checked first (no thread for a message that cannot go), then the first message as a turn.
@@ -757,6 +758,7 @@ export class GatewayCore {
     await this.#startThread(row);
     // A /goal first message: the new thread's goal (Claude: its /goal turn; Codex: thread/goal/set after the thread).
     if (goal !== undefined) await this.setGoal(create(ui.SetGoalRequestSchema, { threadId: row.id, action: "set", objective: goal }));
+    else this.#autoTitle(row.id, titleContext({ text: request.initialMessage, mentions, attachments: files?.input(row.id, request.initialMessage).attachments }));
     return toUiThread(row);
   }
 
@@ -1147,6 +1149,7 @@ export class GatewayCore {
     const update = toUiTurn(turn);
     this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: update } }));
     await this.pump(threadId);
+    if (turn.ordinal === 1) this.#autoTitle(threadId, titleContext({ text: request.text, mentions, quotes, attachments: input?.attachments }));
     return { turn: update };
   }
 
@@ -1154,14 +1157,20 @@ export class GatewayCore {
   async updateThread(request: ui.UpdateThreadRequest): Promise<ui.Thread> {
     const thread = await this.#run((s) => s.thread(request.threadId));
     if (thread.owner_user_id !== this.#options.userId || thread.archived_at) throw new InvalidError("thread not found");
+    const title = request.title?.trim();
+    if (title !== undefined && (!title || title.length > 200 || /[\r\n\p{Cc}]/u.test(title))) throw new InvalidError("title must be one line with 1–200 characters");
     const model = request.model ?? thread.settings.model ?? "";
     // The requested effort is judged; the current default follows a new model (none without efforts, else the
     // model's default when it does not offer it).
-    await this.#checkModel({ thread }, model, request.effort ?? "");
     const current = thread.settings.effort ?? "";
-    const effort = turnEffort((await this.#profileModels({ thread })).models, model, request.effort ?? current);
+    let effort = current;
+    if (request.model !== undefined || request.effort !== undefined) {
+      await this.#checkModel({ thread }, model, request.effort ?? "");
+      effort = turnEffort((await this.#profileModels({ thread })).models, model, request.effort ?? current);
+    }
     // Only the owner (UI) changes the mode; agents have no bus tool for it (docs/ui-api.md, FULL_AUTO only deliberately).
     const permissionMode = request.permissionMode === undefined ? "" : checkedPermissionMode(request.permissionMode);
+    if (title !== undefined) await this.#run((s) => s.renameThread(thread.id, title));
     const row = await this.#run((s) =>
       s.updateThreadSettings(request.threadId, {
         ...(request.model !== undefined && { model: request.model }),
@@ -1171,6 +1180,68 @@ export class GatewayCore {
     );
     await this.#broadcastThread(row.id);
     return toUiThread(row);
+  }
+
+  /** Shared hook for the thread panel, command palette and future sidebar context menu. */
+  async regenerateTitle(threadId: string): Promise<void> {
+    const thread = await this.#run((s) => s.thread(threadId));
+    if (thread.owner_user_id !== this.#options.userId || thread.archived_at) throw new InvalidError("thread not found");
+    const first = thread.title_context ? undefined : await this.#run((s) => s.titleInput(threadId));
+    const goal = !thread.title_context && !first ? await this.#goals((s) => s.latest(threadId)) : undefined;
+    const context = thread.title_context || (first && titleContext({
+      text: first.input.message ?? first.input.text ?? "", attachments: first.input.attachments, quotes: first.input.quotes,
+    })) || (goal && titleContext({ text: goal.objective }));
+    if (!context) throw new InvalidError("send a message before generating a title");
+    if (this.#titleJobs.has(threadId) || this.#titlePreparing.has(threadId)) throw new UnavailableError("title generation is already running");
+    this.#titlePreparing.add(threadId);
+    try {
+      const row = await this.#run((s) => s.beginTitle(threadId, false, context));
+      if (row) this.#launchTitle(row);
+    } finally {
+      this.#titlePreparing.delete(threadId);
+    }
+  }
+
+  readonly #titleJobs = new Map<string, Promise<void>>();
+  readonly #titlePreparing = new Set<string>();
+
+  #autoTitle(threadId: string, context: string): void {
+    // One atomic claim across duplicate requests and gateway processes. No outbox or reconnect retries.
+    void this.#run((s) => s.beginTitle(threadId, true, context, provisionalTitle(context)))
+      .then(async (row) => {
+        if (!row) return;
+        await this.#broadcastThread(threadId);
+        this.#launchTitle(row);
+      }).catch(() => this.#log(`thread title ${threadId}: could not prepare generation`));
+  }
+
+  #launchTitle(thread: ThreadRow): void {
+    const job = this.#generateTitle(thread).catch(() => {
+      // SDK/provider failures can contain auth or endpoints. Only a safe, bounded diagnostic is logged.
+      this.#log(`thread title ${thread.id}: generation unavailable, failed or timed out; title retained`);
+    }).finally(() => { if (this.#titleJobs.get(thread.id) === job) this.#titleJobs.delete(thread.id); });
+    this.#titleJobs.set(thread.id, job);
+  }
+
+  async #generateTitle(thread: ThreadRow): Promise<void> {
+    const settings = (await this.#settings((s) => s.user(thread.owner_user_id))).textGeneration;
+    const explicit = !!settings?.model;
+    const provider = explicit ? settings!.provider : thread.provider === "claude" ? Provider.CLAUDE : Provider.CODEX;
+    const profileId = (explicit ? settings!.profileId : thread.provider_profile_id) || "native";
+    const workers = (await this.#workers()).filter((w) => this.online.has(w.id) && w.providerInstances.some((i) => i.harness === provider && i.id === profileId && i.enabled && i.available));
+    const worker = workers.find((w) => w.id === thread.worker_id) ?? workers[0];
+    const connection = worker && this.link.connections.get(worker.id);
+    if (!connection) throw new UnavailableError("no worker for text generation");
+    const catalog = (await this.#forPickers(await this.#models((s) => s.catalogs([worker.id]))))[0];
+    const listed = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profileId);
+    const choice = explicit ? { model: settings!.model, effort: turnEffort(listed, settings!.model, settings!.effort) } : titleModel(listed, thread.settings.model ?? "");
+    const result = await connection.sendCommand({ case: "generateText", value: {
+      provider, profileId, ...choice, prompt: titlePrompt(thread.title_context, settings?.threadTitleInstructions),
+    } }, 32_000);
+    if (!result.ok) throw new Error("text generation failed");
+    const title = sanitizeTitle(result.generatedText);
+    if (!title) throw new Error("text generation returned an empty title");
+    if (await this.#run((s) => s.finishTitle(thread.id, thread.title_revision, title))) await this.#broadcastThread(thread.id);
   }
 
   // ------------------------------------------------------------------ models and steers
@@ -1404,7 +1475,56 @@ export class GatewayCore {
 
   async #publishSteer(steerId: string): Promise<void> {
     const steer = await this.#steers((s) => s.steer(steerId)).catch(() => undefined);
-    if (steer) this.hub.publishThread(steer.thread_id, create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }));
+    if (!steer) return;
+    this.hub.publishThread(steer.thread_id, create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }));
+    // An agent's steer: the sender's card follows it (on its way, joined, or queued instead).
+    if (steer.agent_call_id) await this.#publishDeliveries({ steerId });
+  }
+
+  /** The calling threads of the bus calls that reached this turn or steer hear its new status (their timeline cards). */
+  async #publishDeliveries(by: { turnId: string } | { steerId: string }): Promise<void> {
+    for (const row of await this.#bus((s) => s.deliveries(by))) {
+      this.hub.publishThread(row.source_thread_id, create(ui.ThreadUpdateSchema, { change: { case: "busDelivery", value: toUiDelivery(row) } }));
+    }
+  }
+
+  /**
+   * What a subagent of the thread can run on (docs/agent-bus.md): the provider instances enabled on its worker, as
+   * the new-thread pickers offer them (available = harness and instance reported available), with the pickers' model
+   * catalogs (hidden, custom and favorite models applied). Undefined until the worker reported its configuration.
+   */
+  async #spawnInstances(thread: ThreadRow): Promise<SpawnInstance[] | undefined> {
+    const worker = (await this.#workers()).find((w) => w.id === thread.worker_id);
+    if (!worker || worker.appliedVersion === 0n) return undefined;
+    const catalog = (await this.#forPickers(await this.#models((s) => s.catalogs([worker.id])))).at(0);
+    return worker.providerInstances
+      .filter((i) => i.enabled && (i.harness === Provider.CLAUDE || i.harness === Provider.CODEX))
+      .map((instance): SpawnInstance => {
+        const harness = instance.harness === Provider.CLAUDE ? "claude" : "codex";
+        const provider = worker.providers.find((p) => p.provider === instance.harness);
+        const profile = worker.profiles.find((p) => p.id === instance.id && p.providers.includes(instance.harness));
+        const models = catalog?.profiles.find((p) => p.provider === instance.harness && p.profileId === instance.id);
+        const detail = !provider?.available ? provider?.detail || `${harness} is not installed` : !profile ? "not applied on the worker yet" : profile.detail || instance.detail;
+        return {
+          harness,
+          id: instance.id,
+          label: instance.label,
+          available: Boolean(provider?.available && profile?.available && instance.available),
+          ...(detail && { detail }),
+          ...(models && {
+            models: models.models.map((m) => ({
+              id: m.id,
+              resolvedModel: m.resolvedModel,
+              label: m.displayName,
+              efforts: m.efforts,
+              defaultEffort: m.defaultEffort,
+              isDefault: m.isDefault,
+              hidden: m.hidden,
+            })),
+          }),
+          complete: Boolean(models && !models.detail),
+        };
+      });
   }
 
   #models<A, E>(use: (store: ModelStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
@@ -1459,6 +1579,7 @@ export class GatewayCore {
             notices: snapshot.notices,
             schedules: (await this.#bus((s) => s.schedulesFor({ ownerUserId: this.#options.userId, threadId, includeFinished: false }))).map(toUiSchedule),
             steers: (await this.#steers((s) => s.ofThread(threadId))).map(toUiSteer),
+            busDeliveries: (await this.#bus((s) => s.deliveries({ sourceThreadId: threadId }))).map(toUiDelivery),
             ...(await this.#goals((s) => s.latest(threadId)).then((goal) => goal && { goal: toUiGoal(goal) })),
             lastSeq: snapshot.lastSeq,
           },
@@ -1503,6 +1624,12 @@ export class GatewayCore {
     if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults);
     if (request.modelFavorites) checkFavorites(request.modelFavorites);
     if (request.composer && !(request.composer.runningDelivery in ui.MessageDelivery)) throw new InvalidError("unknown message delivery");
+    if (request.textGeneration) {
+      const t = request.textGeneration;
+      if (t.threadTitleInstructions.length > 4_000 || t.profileId.length > 100 || t.model.length > 200 || t.effort.length > 40) throw new InvalidError("text generation setting is too long");
+      if (t.model && t.provider !== Provider.CLAUDE && t.provider !== Provider.CODEX) throw new InvalidError("text generation needs a provider instance");
+      if (t.effort && !/^[a-z][a-z0-9_-]*$/.test(t.effort)) throw new InvalidError("invalid text generation effort");
+    }
     const settings = await this.#settings((s) =>
       s.updateUser({
         userId: this.#options.userId,
@@ -1510,6 +1637,7 @@ export class GatewayCore {
         ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
         ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),
         ...(request.composer && { composer: request.composer }),
+        ...(request.textGeneration && { textGeneration: request.textGeneration }),
         expectedVersion: request.expectedVersion,
       }),
     );
@@ -1717,6 +1845,7 @@ export class GatewayCore {
     const update = toUiGoal(goal);
     this.hub.publishThread(thread.id, create(ui.ThreadUpdateSchema, { change: { case: "goal", value: update } }));
     await this.#broadcastThread(thread.id);
+    if (request.action === "set") this.#autoTitle(thread.id, titleContext({ text: request.objective }));
     return update;
   }
 
@@ -1812,7 +1941,10 @@ export class GatewayCore {
 
   async #broadcastTurn(threadId: string, turnId: string): Promise<void> {
     const turn = (await this.#run((s) => s.turnsOf(threadId))).find((t) => t.id === turnId);
-    if (turn) this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }));
+    if (!turn) return;
+    this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }));
+    // Started by another thread's agent (spawn_thread, send_message): its card follows this turn.
+    if (turn.agent_call_id) await this.#publishDeliveries({ turnId });
   }
 
   async #broadcastWorkers(): Promise<void> {

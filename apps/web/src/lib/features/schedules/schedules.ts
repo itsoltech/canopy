@@ -1,6 +1,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { ui } from "@open-agents/contracts";
 import { formatDateTime } from "#lib/shared/format.ts";
+import { humanizeEnum } from "#lib/shared/humanize.ts";
 import type { Tone } from "#lib/shared/ui/tone.ts";
 
 /** A schedule that will not run again (it ran out or was cancelled). */
@@ -17,7 +18,7 @@ export function scheduleStatusLook(status: string): { label: string; tone: Tone 
     case "cancelled":
       return { label: "Cancelled", tone: "neutral" };
     default:
-      return { label: status, tone: "neutral" };
+      return { label: humanizeEnum(status) || "Unknown", tone: "neutral" };
   }
 }
 

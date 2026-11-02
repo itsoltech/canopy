@@ -39,6 +39,8 @@ import { claudeConfiguredEffort, readClaudeUserSettings, readCodexConfiguredEffo
 import { hasOwnRuntime, providersOf, type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/profiles.ts";
 import { reconcileTurn, WORKER_RESTARTED } from "../providers/reconcile.ts";
 import { claudeCatalogStamp } from "../providers/claude/catalog.ts";
+import { generateClaudeText, generateCodexText } from "../providers/generate-text.ts";
+import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { searchFiles } from "../files/search.ts";
 import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentError, AttachmentFiles } from "../attachments/files.ts";
@@ -76,6 +78,7 @@ type ConfigAppliedInit = MessageInitShape<typeof ConfigAppliedSchema>;
 type DirectoryEntryInit = MessageInitShape<typeof DirectoryEntrySchema>;
 type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 interface CommandOutput {
+  readonly generatedText?: string;
   readonly entries?: DirectoryEntryInit[];
   readonly models?: ProfileModelsInit[];
   readonly login?: { verificationUrl: string; userCode: string; loginId: string };
@@ -84,7 +87,7 @@ interface CommandOutput {
 }
 
 /** Read-only queries: answered again on redelivery instead of being remembered in the journal. */
-const QUERIES: ReadonlySet<Command["kind"]["case"]> = new Set(["listMentionCatalog", "searchFiles"]);
+const QUERIES: ReadonlySet<Command["kind"]["case"]> = new Set(["listMentionCatalog", "searchFiles", "generateText"]);
 
 export interface WorkerHostOptions {
   readonly runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
@@ -123,6 +126,8 @@ class CommandError extends Error {
 }
 
 export class WorkerHost {
+  readonly #generations = new Map<AbortController, Promise<void>>();
+  #closing = false;
   readonly #options: WorkerHostOptions;
   #config: AppliedConfig | undefined;
   /** The configuration as received: checked again on ProbeProviders and after a login from the app. */
@@ -333,6 +338,7 @@ export class WorkerHost {
         ...(output.login && { login: output.login }),
         ...(output.mentionCatalog && { mentionCatalog: output.mentionCatalog }),
         ...(output.fileSearch && { fileSearch: output.fileSearch }),
+        ...(output.generatedText !== undefined && { generatedText: output.generatedText }),
       };
       if (!QUERIES.has(command.kind.case)) await this.#remember(result);
       return result;
@@ -348,6 +354,9 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
+    this.#closing = true;
+    for (const generation of this.#generations.keys()) generation.abort();
+    await Promise.allSettled(this.#generations.values());
     for (const group of [...this.#codex.keys()]) await this.#stopCodex(group);
     await this.#closeCodexOrphans();
     await this.#stopClaude();
@@ -455,6 +464,46 @@ export class WorkerHost {
       }
       case "listModels":
         return { models: await this.#listModels(kind.value.provider, kind.value.profileId) };
+      case "generateText": {
+        if (this.#closing) throw new CommandError("SHUTTING_DOWN", "worker is shutting down", false);
+        if (this.#generations.size >= 4) throw new CommandError("BUSY", "text generation capacity reached", false);
+        const input = kind.value;
+        if (!input.prompt || input.prompt.length > 20_000) throw new CommandError("INVALID_PROMPT", "prompt must contain 1–20000 characters", true);
+        const provider = input.provider === Provider.CLAUDE ? "claude" : input.provider === Provider.CODEX ? "codex" : undefined;
+        const profile = config.profiles.find((p) => p.resolved?.id === (input.profileId || "native") && provider && usableBy(p.resolved, provider))?.resolved;
+        if (!provider || !profile || !usableBy(profile, provider) || !config[provider].enabled) throw new CommandError("PROVIDER_UNAVAILABLE", "text generation instance is unavailable", false);
+        const abort = new AbortController();
+        const completed = Promise.withResolvers<void>();
+        this.#generations.set(abort, completed.promise);
+        const timer = setTimeout(() => abort.abort(), 30_000);
+        try {
+          const runtime = profile.runtime ?? {};
+          const sourceHome = instanceShadowHome(this.#options.dataDir, provider, profile.id, runtime)
+            ?? join(this.#options.dataDir, `${provider}-home`);
+          const executable = runtime.executablePath || config[provider].executable;
+          const catalog = this.#catalog?.profiles.find((p) => p.provider === input.provider && p.profileId === (input.profileId || "native"));
+          const model = input.model || catalog?.models?.find((m) => m.isDefault)?.id || "";
+          const chosen = { ...input, model };
+          const text = provider === "claude"
+            ? await generateClaudeText(chosen, {
+                cwd: sourceHome,
+                ...claudeProfileOptions(profile, { ...process.env, CLAUDE_CONFIG_DIR: sourceHome }),
+                ...(executable && { pathToClaudeCodeExecutable: executable }),
+              }, abort.signal)
+            : await generateCodexText(chosen, {
+                dataDir: this.#options.dataDir, profile, clientVersion: this.#options.clientVersion,
+                launch: codexAppServerLaunch([profile], process.env, executable, undefined, sourceHome, profile.env, runtime.launchArgs),
+              }, abort.signal);
+          return { generatedText: text };
+        } catch {
+          // Harness errors may contain an endpoint or auth env; do not forward them to logs or the gateway.
+          throw new CommandError(abort.signal.aborted ? "TEXT_GENERATION_CANCELLED" : "TEXT_GENERATION_FAILED", "text generation failed or exceeded 30 seconds", false);
+        } finally {
+          clearTimeout(timer);
+          this.#generations.delete(abort);
+          completed.resolve();
+        }
+      }
       case "probeProviders":
         await this.#probe();
         return {};

@@ -53,7 +53,7 @@ ALTER TABLE turn_steers ADD CONSTRAINT turn_steers_author CHECK (
        ELSE (author_user_id IS NULL) <> (agent_call_id IS NULL) END
 );
 
--- The turn's source for the UI: the tasks its note is about.
+-- The turn's source for the UI: the tasks its note is about (0023's view, with background_item_ids at the end).
 CREATE OR REPLACE VIEW turn_sources AS
 SELECT u.id AS turn_id,
        CASE
@@ -67,6 +67,12 @@ SELECT u.id AS turn_id,
        rt.status AS source_status,
        ir.kind AS question_kind,
        ir.tool_name AS question_tool,
+       st.title AS source_title,
+       st.provider AS source_provider,
+       st.provider_profile_id AS source_profile_id,
+       coalesce(nullif(su.model, ''), st.settings ->> 'model', '') AS source_model,
+       st.project_id AS source_project_id,
+       st.worker_id AS source_worker_id,
        CASE WHEN u.trigger = 'background_task'
             THEN ARRAY(SELECT n.item_id FROM background_task_notes n WHERE n.turn_id = u.id ORDER BY n.ended_at, n.item_id)
        END AS background_item_ids
@@ -76,7 +82,9 @@ SELECT u.id AS turn_id,
   LEFT JOIN turns rt ON rt.id = nc.target_turn_id
   LEFT JOIN interaction_requests ir ON ir.id = u.interaction_request_id
   LEFT JOIN schedules s ON s.id = u.schedule_id
-  LEFT JOIN agent_bus_calls sc ON sc.id = s.created_by_call_id;
+  LEFT JOIN agent_bus_calls sc ON sc.id = s.created_by_call_id
+  LEFT JOIN threads st ON st.id = coalesce(tc.source_thread_id, nc.target_thread_id, ir.thread_id, sc.source_thread_id)
+  LEFT JOIN turns su ON su.id = tc.source_turn_id;
 
 -- The agent's tools for its background tasks (docs/agent-bus.md, "Zadania w tle"). New rows only, like 0011.
 ALTER TABLE agent_bus_calls DROP CONSTRAINT agent_bus_calls_tool_check;

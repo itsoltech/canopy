@@ -7,13 +7,14 @@ import { agentBusToolsFor, SPAWN_PERMISSION_MODES, type AgentBusCall, type Spawn
  *
  * - Two levels: the main thread (depth 0) orchestrates; side threads (depth 1) cannot spawn
  *   or control other threads, and are not offered those tools at all.
- * - The communication domain is one thread tree: read, wait for and message any other
- *   thread of the tree (children, parent, siblings).
+ * - The communication domain is one thread tree: wait for any other thread of the tree (children, parent, siblings).
+ *   Messages and reads reach any thread of the same owner, like the user writing there (other trees, projects,
+ *   workers); threads of other owners look like missing ones.
  * - Control (interrupt, close, answering interactions, schedules of others) only over own descendants.
  * - A side thread never gets broader permissions than the thread that spawned it.
  * - Every turn started through the bus (messages, notifications, agent-created schedules)
  *   carries hops = hops of the causing turn + 1; human input and provider wake-ups start at 0.
- *   This stops agent ping-pong without a human.
+ *   This stops agent ping-pong without a human, across trees too.
  */
 
 export interface ThreadNode {
@@ -22,13 +23,12 @@ export interface ThreadNode {
   readonly depth: number;
   /** Parent first, root last. Empty for the root. */
   readonly ancestorIds: readonly string[];
+  /** The user the thread belongs to. */
+  readonly ownerId: string;
   readonly provider: string;
+  /** Provider instance (threads.provider_profile_id, "native" for the device login). */
+  readonly instance?: string;
   readonly archived: boolean;
-  /**
-   * The user mentioned this thread in the caller's messages (a thread mention, docs/ui-api.md "Wzmianki"): the caller
-   * may read it (get_thread, read_thread) even outside its tree. Only threads of the same owner are marked.
-   */
-  readonly mentioned?: boolean;
 }
 
 export interface InteractionFacts {
@@ -73,8 +73,9 @@ export interface BusFacts {
   /** spawn_thread: non-archived children of the caller and busy threads in the tree. */
   readonly callerChildren: number;
   readonly activeInTree: number;
-  /** spawn_thread: provider of the agent that will run the new thread. */
+  /** spawn_thread: provider and instance the new thread will run on (resolved from its arguments). */
   readonly spawnProvider?: string;
+  readonly spawnInstance?: string;
   /** spawn_thread: the caller's own permission mode, the ceiling for the new thread. */
   readonly callerPermissionMode?: SpawnPermissionMode;
   /** answer_interaction: the referenced interaction. */
@@ -123,6 +124,9 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
       if (call.args.fork && facts.spawnProvider !== undefined && facts.spawnProvider !== caller.provider) {
         return deny(`fork keeps the provider: ${caller.provider} cannot fork into ${facts.spawnProvider}`);
       }
+      if (call.args.fork && facts.spawnInstance !== undefined && facts.spawnInstance !== (caller.instance ?? "native")) {
+        return deny(`fork keeps the provider: ${caller.provider}/${caller.instance ?? "native"} cannot fork into ${caller.provider}/${facts.spawnInstance}`);
+      }
       const wanted = call.args.permission_mode;
       const ceiling = facts.callerPermissionMode ?? "ask";
       if (wanted !== undefined && permissionRank(wanted) > permissionRank(ceiling)) {
@@ -132,7 +136,7 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
     }
 
     case "send_message": {
-      const target = inTree(facts, call.args.thread_id);
+      const target = sameOwner(facts, call.args.thread_id);
       if (typeof target === "string") return deny(target);
       if (target.archived) return deny("target thread is archived");
       return withHops(call.args.notify);
@@ -148,9 +152,7 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
 
     case "get_thread":
     case "read_thread": {
-      const mentioned = facts.targets.get(call.args.thread_id);
-      if (mentioned?.mentioned && mentioned.id !== caller.id) return allow;
-      const target = inTree(facts, call.args.thread_id);
+      const target = sameOwner(facts, call.args.thread_id);
       return typeof target === "string" ? deny(target) : allow;
     }
 
@@ -209,12 +211,12 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
       return withHops(false);
     }
 
-    // The thread's own background tasks; another thread's like get_thread (read) and interrupt_thread (stop).
+    // The thread's own background tasks; another thread's like get_thread (read: same owner) and interrupt_thread (stop: descendants).
     case "list_background_tasks":
     case "get_background_task": {
       const id = call.args.thread_id;
-      if (id === undefined || id === caller.id || facts.targets.get(id)?.mentioned) return allow;
-      const target = inTree(facts, id);
+      if (id === undefined || id === caller.id) return allow;
+      const target = sameOwner(facts, id);
       return typeof target === "string" ? deny(target) : allow;
     }
 
@@ -245,6 +247,14 @@ function inTree(facts: BusFacts, id: string): ThreadNode | string {
   if (id === facts.caller.id) return "a thread cannot address itself";
   const target = facts.targets.get(id);
   if (!target || target.rootId !== facts.caller.rootId) return `thread ${id} not found in your thread tree`;
+  return target;
+}
+
+/** Any thread of the caller's owner (the user writes to any of them; so may their agents), or the reason why not. */
+function sameOwner(facts: BusFacts, id: string): ThreadNode | string {
+  if (id === facts.caller.id) return "a thread cannot address itself";
+  const target = facts.targets.get(id);
+  if (!target || target.ownerId !== facts.caller.ownerId) return `thread ${id} not found`;
   return target;
 }
 

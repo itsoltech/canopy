@@ -6,6 +6,7 @@
   import ThreadGoalMark from "#lib/features/threads/ThreadGoalMark.svelte";
   import ThreadStatusText from "#lib/features/threads/ThreadStatusText.svelte";
   import SidebarThreadLink from "./SidebarThreadLink.svelte";
+  import SwapText from "#lib/shared/ui/SwapText.svelte";
 
   /**
    * A side thread nested under its main thread in the inbox. Agent-started ones carry a violet mark, forks a
@@ -22,7 +23,7 @@
       <Icon name={mark.icon} class={["size-3.5", mark.iconClass]} />
     {/snippet}
   </ThreadActivityMark>
-  <span class="min-w-0 flex-1 truncate text-base/6 text-zinc-700 group-data-calm:opacity-60 group-data-result:text-zinc-950 group-aria-[current=page]:text-zinc-950 sm:text-sm/6 dark:text-zinc-300 dark:group-data-result:text-white dark:group-aria-[current=page]:text-white">{thread.title}</span>
+  <SwapText text={thread.title} class="h-6 min-w-0 flex-1 overflow-hidden text-base/6 text-zinc-700 group-data-calm:opacity-60 group-data-result:text-zinc-950 group-aria-[current=page]:text-zinc-950 sm:text-sm/6 dark:text-zinc-300 dark:group-data-result:text-white dark:group-aria-[current=page]:text-white" />
   {#if thread.spawnedByAgent}<span class="sr-only">(started by an agent)</span>{/if}
   {#if thread.forkSourceThreadId}<span class="sr-only">(fork)</span>{/if}
   <ThreadGoalMark {thread} />

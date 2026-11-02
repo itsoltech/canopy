@@ -4,6 +4,8 @@ Status: **projekt**, schemat zaimplementowany (`packages/db/src/migrations/0001_
 
 Powiązane: [data-model.md](data-model.md), [protocol.md](protocol.md), [durability.md](durability.md).
 
+Tytuły generowane przez SDK na workerze, ustawienia i zasady rename/regeneracji: [thread-titles.md](thread-titles.md).
+
 ## 1. Pojęcia
 
 ```mermaid

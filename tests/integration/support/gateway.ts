@@ -67,6 +67,8 @@ export type CommandHandler = (value: NonNullable<CommandKind["value"]>, reply: (
 export interface ScriptedWorkerOptions {
   /** Report Claude as available (default: only Codex). */
   readonly claude?: boolean;
+  /** Its model catalog (default SCRIPTED_MODELS: Codex only). */
+  readonly models?: MessageInitShape<typeof ProfileModelsSchema>[];
   /** More Hello fields (e.g. capabilities and running_turns of a restarted worker). */
   readonly hello?: Pick<MessageInitShape<typeof HelloSchema>, "capabilities" | "runningTurns" | "attachmentsRoot">;
 }
@@ -81,6 +83,7 @@ export class ScriptedWorker {
   /** Threads this worker was asked to create, with their cwd. */
   readonly created: {
     threadId: string; cwd: string; enableAgentBus: boolean; depth: number; model: string; instructions: string; permissionMode: number;
+    provider: Provider; providerProfileId: string;
   }[] = [];
   /** Inputs of the turns this worker ran, per thread. */
   readonly inputs = new Map<string, string[]>();
@@ -99,7 +102,7 @@ export class ScriptedWorker {
   /** What a SteerTurn does: join the turn, find it over, or be taken and then dropped (Claude, turn ended first). */
   steerMode: "accept" | "not_running" | "drop" = "accept";
   /** Models listed by ListModels (and in the catalog after a config); other Codex profiles list the same ones. */
-  models = SCRIPTED_MODELS;
+  models: MessageInitShape<typeof ProfileModelsSchema>[];
   /** Every configuration the gateway sent, in order (with its secrets, as a real worker gets them). */
   readonly configs: WorkerConfig[] = [];
   #profiles: string[] = [];
@@ -111,6 +114,7 @@ export class ScriptedWorker {
     readonly link: GatewayLink,
     readonly options: ScriptedWorkerOptions = {},
   ) {
+    this.models = options.models ?? SCRIPTED_MODELS;
     void this.#loop();
   }
 
@@ -236,6 +240,7 @@ export class ScriptedWorker {
           this.created.push({
             threadId: spec.threadId, cwd: spec.cwd, enableAgentBus: spec.enableAgentBus, depth: spec.depth,
             model: spec.model, instructions: spec.instructions, permissionMode: spec.permissionMode,
+            provider: spec.provider, providerProfileId: spec.providerProfileId,
           });
           reply(true);
           this.emit(spec.threadId, "", { case: "threadReady", value: { providerThreadId: `codex-${spec.threadId.slice(-4)}` } });

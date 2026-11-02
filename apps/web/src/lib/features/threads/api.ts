@@ -45,9 +45,14 @@ export async function sendMessage(
 /** The thread's default model, effort and permission mode: unset = unchanged, "" = the profile's default. */
 export async function updateThread(
   threadId: string,
-  change: { model?: string; effort?: string; permissionMode?: PermissionModeKey },
+  change: { model?: string; effort?: string; permissionMode?: PermissionModeKey; title?: string },
 ): Promise<ui.Thread | undefined> {
   return decode(ui.UpdateThreadResponseSchema, await post(`${threadPath(threadId)}/settings`, change)).thread;
+}
+
+/** Shared by panel, palette and the future sidebar context menu. The title arrives on the live streams. */
+export async function regenerateTitle(threadId: string): Promise<void> {
+  await post(`${threadPath(threadId)}/regenerate-title`, {});
 }
 
 /** A new main thread with the history of `threadId` up to and including the ended turn `turnId` ("Fork from here"). */

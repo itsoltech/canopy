@@ -9,6 +9,7 @@ const node = (id: string, ancestorIds: string[], extra: Partial<ThreadNode> = {}
   depth: ancestorIds.length,
   ancestorIds,
   provider: "codex",
+  ownerId: "owner",
   archived: false,
   ...extra,
 });
@@ -20,6 +21,7 @@ const root = node(ROOT, []);
 const child = node(CHILD, [ROOT]);
 const sibling = node(SIBLING, [ROOT]);
 const foreign = { ...node(FOREIGN, []), rootId: "other" };
+const stranger = { ...node(FOREIGN, []), rootId: "other", ownerId: "someone-else" };
 const facts = (caller: ThreadNode, targets: ThreadNode[] = [root, child, sibling, foreign]): BusFacts => ({
   caller,
   callerHops: 7,
@@ -52,10 +54,11 @@ describe("background task tools", () => {
     expect(decision({ tool: "get_background_task", args: { task_id: "4242", thread_id: CHILD } }, facts(child))).toBe("allowed");
   });
 
-  test("another thread: read within the tree or when mentioned; stop only a descendant's", () => {
+  test("another thread: read any of the owner's; stop only a descendant's", () => {
     expect(decision({ tool: "get_background_task", args: { task_id: "1", thread_id: SIBLING } }, facts(child))).toBe("allowed");
-    expect(decision({ tool: "list_background_tasks", args: { thread_id: FOREIGN } }, facts(child))).toContain("not found in your thread tree");
-    expect(decision({ tool: "list_background_tasks", args: { thread_id: FOREIGN } }, facts(child, [{ ...foreign, mentioned: true }]))).toBe("allowed");
+    // Reads reach any thread of the same owner (like get_thread); other owners' threads look missing.
+    expect(decision({ tool: "list_background_tasks", args: { thread_id: FOREIGN } }, facts(child))).toBe("allowed");
+    expect(decision({ tool: "list_background_tasks", args: { thread_id: FOREIGN } }, facts(child, [stranger]))).toContain("not found");
     expect(decision({ tool: "stop_background_task", args: { task_id: "1", thread_id: CHILD } }, facts(root))).toBe("allowed");
     expect(decision({ tool: "stop_background_task", args: { task_id: "1", thread_id: SIBLING } }, facts(child))).toContain("only control threads you spawned");
   });

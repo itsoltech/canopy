@@ -12,7 +12,7 @@
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { permissionLabel, permissionLook, providerLabel } from "../labels.ts";
   import type { UsageTotals } from "../thread-state.svelte.ts";
-  import { providerKeyOf } from "../providers.ts";
+  import { instanceLabel, instanceOf, providerKeyOf } from "../providers.ts";
   import { isSide, type ThreadTree } from "../thread-tree.ts";
   import ThreadStatusText from "../ThreadStatusText.svelte";
   import PanelRow from "./PanelRow.svelte";
@@ -20,6 +20,7 @@
   import type { BackgroundEntry } from "../background-tasks.ts";
   import type { Item } from "@open-agents/contracts";
   import { useThreadDirectory } from "../thread-directory.ts";
+  import ThreadTitleActions from "./ThreadTitleActions.svelte";
 
   /**
    * Context of a thread (T3's right panel): where it runs, which agent, who answers its approvals,
@@ -69,6 +70,7 @@
 </script>
 
 <div class={["grid grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white py-1.5 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10", className]}>
+  <ThreadTitleActions {thread} />
   <section aria-label="Placement" class="grid grid-cols-1 px-1.5 pb-1.5">
     <PanelRow icon="computer-desktop">
       {worker?.name ?? "Unknown worker"}
@@ -85,7 +87,7 @@
     <PanelRow icon="cpu-chip">
       {#snippet lead()}{#if providerKey}<ProviderIcon provider={providerKey} />{:else}<Icon name="cpu-chip" class="fill-zinc-400 dark:fill-zinc-500" />{/if}{/snippet}
       {providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}
-      {#snippet aside()}{#if thread.providerProfileId}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5">{thread.providerProfileId}</span>{/if}{/snippet}
+      {#snippet aside()}{#if thread.providerProfileId}{@const instance = providerKey ? instanceOf(worker, providerKey, thread.providerProfileId) : undefined}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5">{instance ? instanceLabel(instance) : thread.providerProfileId}</span>{/if}{/snippet}
     </PanelRow>
     <PanelRow icon={permissionLook(thread.permissionMode).icon} iconClass={permissionLook(thread.permissionMode).iconClass}>{permissionLabel(thread.permissionMode)}</PanelRow>
     {#if isSide(thread)}

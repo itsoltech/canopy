@@ -309,6 +309,8 @@ message Command {
     // Wzmianki w kompozytorze (sekcja na końcu pliku).
     ListMentionCatalog list_mention_catalog = 140;
     SearchFiles search_files = 141;
+    // Nietrwałe zapytanie: bez wątku platformy, outboxa ani journala.
+    GenerateText generate_text = 200;
   }
 }
 
@@ -498,6 +500,15 @@ message CommandResult {
   // Wynik ListMentionCatalog i SearchFiles.
   MentionCatalog mention_catalog = 140;
   FileSearchResult file_search = 141;
+  string generated_text = 200;
+}
+
+message GenerateText {
+  Provider provider = 1;
+  string profile_id = 2;
+  string model = 3;
+  string effort = 4;
+  string prompt = 5;
 }
 
 message DirectoryEntry {

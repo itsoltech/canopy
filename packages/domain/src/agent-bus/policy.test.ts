@@ -2,20 +2,24 @@ import { describe, expect, test } from "bun:test";
 import { authorizeBusCall, DEFAULT_BUS_LIMITS, type BusFacts, type ThreadNode } from "./policy.ts";
 import type { AgentBusCall } from "./tools.ts";
 
-// Tree: root (level 0) -> a, b (level 1). Another tree: x.
-const node = (id: string, ancestorIds: string[], provider = "claude", rootId = "root"): ThreadNode => ({
+// Tree: root (level 0) -> a, b (level 1). Another tree of the same user: x (-> y). Another user's thread: z.
+const node = (id: string, ancestorIds: string[], provider = "claude", rootId = "root", ownerId = "me"): ThreadNode => ({
   id,
   rootId,
   depth: ancestorIds.length,
   ancestorIds,
+  ownerId,
   provider,
+  instance: "native",
   archived: false,
 });
 const root = node("root", []);
 const a = node("a", ["root"]);
 const b = node("b", ["root"], "codex");
 const x = node("x", [], "claude", "x");
-const all = new Map([root, a, b, x].map((n) => [n.id, n]));
+const y = node("y", ["x"], "codex", "x");
+const z = node("z", [], "codex", "z", "someone-else");
+const all = new Map([root, a, b, x, y, z].map((n) => [n.id, n]));
 const NOW = new Date("2026-11-01T12:00:00Z");
 
 const facts = (caller: ThreadNode, extra: Partial<BusFacts> = {}): BusFacts => ({
@@ -79,30 +83,54 @@ describe("two levels: main thread orchestrates, side threads work", () => {
     expect(reason(spawn(), facts(root, { activeInTree: DEFAULT_BUS_LIMITS.maxActiveThreadsPerTree }))).toContain("too many active");
     expect(reason(spawn(true), facts(root, { spawnProvider: "codex" }))).toContain("fork keeps the provider");
     expect(reason(spawn(false), facts(root, { spawnProvider: "codex" }))).toBe("allowed");
+    // The instance too: its history lives in the instance's home.
+    expect(reason(spawn(true), facts(root, { spawnProvider: "claude", spawnInstance: "cliproxyapi" }))).toContain("cannot fork into claude/cliproxyapi");
+    expect(reason(spawn(true), facts(root, { spawnProvider: "claude", spawnInstance: "native" }))).toBe("allowed");
   });
 });
 
-describe("communication inside the tree", () => {
+describe("communication: the tree, and any thread of the same owner like a human", () => {
   const send = (to: string): AgentBusCall => ({ tool: "send_message", args: { thread_id: to, prompt: "hi" } });
 
-  test("parent, children and siblings are reachable; other trees and self are not", () => {
+  test("parent, children and siblings are reachable; self is not", () => {
     expect(reason(send("a"), facts(root))).toBe("allowed"); // child
     expect(reason(send("root"), facts(a))).toBe("allowed"); // parent
     expect(reason(send("b"), facts(a))).toBe("allowed"); // sibling
-    expect(reason(send("x"), facts(a))).toContain("not found in your thread tree");
     expect(reason(send("a"), facts(a))).toContain("itself");
-    expect(reason({ tool: "wait_threads", args: { thread_ids: ["a", "x"] } }, facts(root))).toContain("not found");
     expect(reason({ tool: "read_thread", args: { thread_id: "b" } }, facts(a))).toBe("allowed");
   });
 
-  test("a thread the user mentioned is readable from another tree, nothing else", () => {
-    const mentioned = new Map([...all, ["x", { ...x, mentioned: true }]]);
-    const read = (tool: "read_thread" | "get_thread"): AgentBusCall => (tool === "read_thread" ? { tool, args: { thread_id: "x" } } : { tool, args: { thread_id: "x" } });
-    expect(reason(read("read_thread"), facts(a, { targets: mentioned }))).toBe("allowed");
-    expect(reason(read("get_thread"), facts(a, { targets: mentioned }))).toBe("allowed");
-    expect(reason(send("x"), facts(a, { targets: mentioned }))).toContain("not found in your thread tree");
-    expect(reason({ tool: "interrupt_thread", args: { thread_id: "x" } }, facts(root, { targets: mentioned }))).toContain("not found");
-    expect(reason(read("read_thread"), facts(a))).toContain("not found in your thread tree");
+  test("messages and reads reach the owner's threads in other trees (main and side threads), from either level", () => {
+    expect(authorizeBusCall(send("x"), facts(root))).toEqual({ allowed: true, hops: 1 });
+    expect(reason(send("y"), facts(a))).toBe("allowed");
+    expect(reason({ tool: "get_thread", args: { thread_id: "y" } }, facts(root))).toBe("allowed");
+    expect(reason({ tool: "read_thread", args: { thread_id: "x" } }, facts(b))).toBe("allowed");
+  });
+
+  test("another owner's thread looks like a missing one, for every tool", () => {
+    expect(reason(send("z"), facts(root))).toBe("thread z not found");
+    expect(reason(send("missing"), facts(root))).toBe("thread missing not found");
+    expect(reason({ tool: "get_thread", args: { thread_id: "z" } }, facts(root))).toBe("thread z not found");
+    expect(reason({ tool: "read_thread", args: { thread_id: "z" } }, facts(a))).toBe("thread z not found");
+    expect(reason({ tool: "wait_threads", args: { thread_ids: ["z"] } }, facts(root))).toContain("not found");
+    expect(reason({ tool: "interrupt_thread", args: { thread_id: "z" } }, facts(root))).toContain("not found");
+  });
+
+  test("control and waiting stay inside the tree: other trees of the same owner are not descendants", () => {
+    expect(reason({ tool: "wait_threads", args: { thread_ids: ["a", "x"] } }, facts(root))).toContain("not found in your thread tree");
+    expect(reason({ tool: "interrupt_thread", args: { thread_id: "x" } }, facts(root))).toContain("not found");
+    expect(reason({ tool: "close_thread", args: { thread_id: "y" } }, facts(root))).toContain("not found");
+    expect(reason({ tool: "schedule_wakeup", args: { prompt: "p", delay_seconds: 600, thread_id: "x" } }, facts(root))).toContain("not found");
+    const foreign = { id: "i1", threadId: "y", kind: "permission", routedTo: "parent", status: "pending" } as const;
+    expect(reason({ tool: "answer_interaction", args: { request_id: "i1", response: "allow" } }, facts(root, { interaction: foreign }))).toContain("not found");
+    expect(reason({ tool: "cancel_schedule", args: { schedule_id: "s1" } }, facts(root, { schedule: { id: "s1", threadId: "x" } }))).toContain("not found");
+  });
+
+  test("hops apply across trees: a message to another tree carries the chain on", () => {
+    const limit = DEFAULT_BUS_LIMITS.maxHops;
+    expect(authorizeBusCall(send("x"), facts(root, { callerHops: 3 }))).toEqual({ allowed: true, hops: 4 });
+    expect(reason(send("x"), facts(root, { callerHops: limit - 1 }))).toContain("chain limit");
+    expect(reason({ tool: "send_message", args: { thread_id: "x", prompt: "p", notify: false } }, facts(root, { callerHops: limit }))).toContain("chain limit");
   });
 
   test("hops stop agent ping-pong without human input", () => {

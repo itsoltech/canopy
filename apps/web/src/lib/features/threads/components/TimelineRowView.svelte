@@ -30,7 +30,13 @@
   <BackgroundNoteRow itemIds={steer.backgroundItemIds} />
 {:else if row.kind === "item" && row.steer && row.node.entry.item.content.case === "userMessage"}
   {@const message = row.node.entry.item.content.value}
-  <UserMessageView message={steer?.quotes.length ? { ...message, text: steer.text } : message} quotes={steer?.quotes ?? []} note={STEERED} />
+  <!-- An agent's steer: its own text (the agent got it after a platform note naming the sender) and who sent it. -->
+  <UserMessageView
+    message={steer?.quotes.length || steer?.sender ? { ...message, text: steer.text } : message}
+    quotes={steer?.quotes ?? []}
+    note={STEERED}
+    sender={steer?.sender}
+  />
 {:else if row.kind === "item"}
   <ItemNodeView node={row.node} />
 {:else if row.kind === "notice"}
