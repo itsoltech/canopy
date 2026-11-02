@@ -52,8 +52,9 @@ describe.skipIf(Bun.env["OA_TIMELINE_BROWSER"] !== "1")("timeline folding browse
   const region = (page: Page) => page.getByRole("region", { name: "Timeline", exact: true });
   async function showFold(page: Page) {
     await region(page).focus();
-    await region(page).press("Home");
-    await eventually(() => region(page).evaluate((node) => node.scrollTop), (top) => top < 2);
+    await region(page).hover({ position: { x: 100, y: 100 } });
+    await page.mouse.wheel(0, -100000);
+    expect(await eventually(() => region(page).evaluate((node) => node.scrollTop), (top) => top < 2)).toBeLessThan(2);
     await page.getByRole("button", { name: /Working for/ }).waitFor();
   }
   async function latest(page: Page) {
@@ -68,6 +69,8 @@ describe.skipIf(Bun.env["OA_TIMELINE_BROWSER"] !== "1")("timeline folding browse
       context.setDefaultTimeout(10000);
       const page = await context.newPage();
       page.on("pageerror", (error) => problems.push(error.message));
+      page.on("requestfailed", (request) => console.info("REQUEST FAILED", request.url(), request.failure()?.errorText));
+      page.on("response", (response) => { if (response.status() >= 400) console.info("HTTP FAILURE", response.status(), response.url()); });
       const prefix = `${width}-${theme}`;
       try {
         const settings = (await gw.api.getSettings({})).user!;
