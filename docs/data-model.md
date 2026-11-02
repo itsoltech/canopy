@@ -158,7 +158,7 @@ W SQL (CHECK, FK, indeksy częściowe):
 - wątek `worker` ma worker, workspace i `cwd`; wątek `gateway` nie ma żadnego z nich ani profilu,
 - workspace wątku należy do tego samego projektu i workera (złożony FK),
 - projekt żyje na workerach, na których ma aktywny workspace (`archived_at IS NULL`); zmiana katalogu (`UpdateWorkspace`) nie przenosi istniejących wątków (ich `cwd` jest własny), a zarchiwizowany workspace (`RemoveWorkspace`) przyjmuje już tylko wątki boczne istniejących wątków,
-- `main` ⇔ brak rodzica ⇔ `root_thread_id = id` ⇔ `depth = 0`; najwyżej jeden poziom wątków bocznych (`depth <= 1`); fork tylko dla wątków bocznych; `interaction_route = parent` tylko dla wątków bocznych,
+- `main` ⇔ brak rodzica ⇔ `root_thread_id = id` ⇔ `depth = 0`; najwyżej jeden poziom wątków bocznych (`depth <= 1`); fork dla wątków bocznych i (od migracji 0021, „Fork from here”) głównych; `interaction_route = parent` tylko dla wątków bocznych,
 - punkt forka to tura **wątku źródłowego** (złożony FK `(fork_after_turn_id, fork_source_thread_id)`),
 - jedna tura `running` na wątek; `client_request_id` unikalny w wątku; wyzwalacz ma swoje powiązanie (`agent_call_id`, `schedule_id`, `interaction_request_id`, `resumes_turn_id`); `hops` = 0 dla człowieka i dostawcy, > 0 dla szyny,
 - cel ustawiony przez harness jest zapisywany tak, jak go zgłosił (bez akceptacji i budżetu, `0010`); autor to `user` (z `created_by_user_id`) albo `provider`; silnika celów platformy nie ma (`0011` usuwa jego kolumny i stan `proposed`); najwyżej jeden otwarty cel na wątek,
@@ -167,7 +167,7 @@ W SQL (CHECK, FK, indeksy częściowe):
 
 W triggerach:
 
-- `threads_before_insert`: wątek boczny dzieli projekt, właściciela, drzewo, worker, workspace i katalog z rodzicem, a `depth = rodzic + 1`; źródło forka jest w tym samym drzewie i ma tego samego dostawcę; punkt forka to zakończona tura; brak punktu ⇒ przypięcie do ostatniej zakończonej tury,
+- `threads_before_insert`: wątek boczny dzieli projekt, właściciela, drzewo, worker, workspace i katalog z rodzicem, a `depth = rodzic + 1`; źródło forka wątku bocznego jest w tym samym drzewie, a forkowanego wątku głównego w tym samym projekcie, u tego samego właściciela i na tym samym workerze; źródło ma tego samego dostawcę; punkt forka to zakończona tura (`completed`, `failed`, `interrupted`); brak punktu ⇒ przypięcie do ostatniej tury `completed`,
 - `threads_before_update`: placement i pochodzenie są niezmienne; `provider_thread_id` ustawia się raz, a podmienić (nie wyczyścić) można go tylko, dopóki żadna tura wątku nie wystartowała (`0012_worker_restart`: Codex bez rolloutu po restarcie workera).
 
 - zdarzenie itemu ma `item_id`, inne nie; `event_id` unikalny w wątku (deduplikacja ponowień).
