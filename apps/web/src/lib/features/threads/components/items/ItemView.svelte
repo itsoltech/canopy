@@ -17,10 +17,14 @@
   import UserMessageView from "./UserMessageView.svelte";
   import WebSearchView from "./WebSearchView.svelte";
 
-  /** One transcript item (docs/transcript.md); every type has a view. `nested` = its child items. */
-  let { item, nested }: { item: Item; nested?: Snippet | undefined } = $props();
+  /**
+   * One transcript item (docs/transcript.md); every type has a view. `nested` = its child items.
+   * `turnEnded`: its turn is over, so text or output still marked in progress stops streaming (shows in
+   * full, no caret).
+   */
+  let { item, nested, turnEnded = false }: { item: Item; nested?: Snippet | undefined; turnEnded?: boolean } = $props();
   const content = $derived(item.content);
-  const streaming = $derived(item.status === ItemStatus.IN_PROGRESS);
+  const streaming = $derived(item.status === ItemStatus.IN_PROGRESS && !turnEnded);
 </script>
 
 {#if content.case === "userMessage"}
@@ -30,11 +34,11 @@
 {:else if content.case === "reasoning"}
   <ReasoningView reasoning={content.value} {streaming} />
 {:else if content.case === "commandExecution"}
-  <CommandView command={content.value} status={item.status} />
+  <CommandView command={content.value} status={item.status} {streaming} />
 {:else if content.case === "fileChange"}
   <FileChangeView change={content.value} status={item.status} />
 {:else if content.case === "toolCall"}
-  <ToolCallView call={content.value} status={item.status} />
+  <ToolCallView call={content.value} status={item.status} {streaming} />
 {:else if content.case === "webSearch"}
   <WebSearchView search={content.value} status={item.status} />
 {:else if content.case === "plan"}

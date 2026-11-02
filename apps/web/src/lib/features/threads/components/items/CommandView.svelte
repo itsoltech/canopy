@@ -6,7 +6,7 @@
   import OutputBlock from "./OutputBlock.svelte";
 
   /** Shell command: command line, exit code, duration; output streams in while it runs. */
-  let { command, status }: { command: CommandExecution; status: ItemStatus } = $props();
+  let { command, status, streaming = false }: { command: CommandExecution; status: ItemStatus; streaming?: boolean } = $props();
   const failed = $derived((command.exitCode !== undefined && command.exitCode !== 0) || status === ItemStatus.FAILED);
 </script>
 
@@ -22,5 +22,5 @@
     <pre class="code-surface rounded-lg bg-zinc-950/2.5 p-3 text-zinc-950 dark:bg-white/5 dark:text-white">{command.command}</pre>
   {/if}
   {#if command.cwd}<p class="truncate font-mono text-xs/5 text-zinc-500 dark:text-zinc-400" title={command.cwd}>in {command.cwd}</p>{/if}
-  <OutputBlock output={command.output} blob={command.outputBlob} label="Output of {command.command.split('\n')[0]}" empty={status === ItemStatus.IN_PROGRESS ? "Waiting for output…" : "No output."} />
+  <OutputBlock output={command.output} blob={command.outputBlob} label="Output of {command.command.split('\n')[0]}" empty={status === ItemStatus.IN_PROGRESS ? "Waiting for output…" : "No output."} {streaming} />
 </ItemFrame>

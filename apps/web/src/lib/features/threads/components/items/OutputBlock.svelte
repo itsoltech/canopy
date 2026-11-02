@@ -3,10 +3,12 @@
   import { formatBytes } from "#lib/shared/format.ts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import { useRemembered } from "#lib/shared/ui/memory.ts";
+  import { LineReveal } from "#lib/shared/ui/streaming/line-reveal.svelte.ts";
 
   /**
    * Output of a command, tool or task; large output lives in a blob on the gateway. With `tail`, long
-   * output shows only its last lines (live output of background work) until you expand it.
+   * output shows only its last lines (live output of background work) until you expand it. While
+   * `streaming`, output shows line by line (`LineReveal`).
    */
   let {
     output,
@@ -14,18 +16,24 @@
     label,
     empty = "No output.",
     tail,
-  }: { output: string; blob?: BlobRef | undefined; label: string; empty?: string; tail?: number | undefined } = $props();
+    streaming = false,
+  }: { output: string; blob?: BlobRef | undefined; label: string; empty?: string; tail?: number | undefined; streaming?: boolean } = $props();
 
-  const lines = $derived(output.replace(/\n$/, "").split("\n"));
+  const reveal = new LineReveal(
+    () => output,
+    () => streaming,
+  );
+  const text = $derived(reveal.text);
+  const lines = $derived(text.replace(/\n$/, "").split("\n"));
   const cut = $derived(tail !== undefined && lines.length > tail);
   // Remembered while the row is scrolled out of a virtual list.
   const memory = useRemembered<boolean>("output-all");
   let all = $state(memory?.get() ?? false);
   $effect(() => memory?.set(all));
-  const shown = $derived(cut && !all ? lines.slice(-(tail ?? 0)).join("\n") : output);
+  const shown = $derived(cut && !all ? lines.slice(-(tail ?? 0)).join("\n") : text);
 </script>
 
-{#if output}
+{#if text}
   <div class="grid gap-1">
     {#if cut}
       <p class="flex items-center justify-between gap-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
@@ -42,6 +50,6 @@
   <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
     Full output ({formatBytes(blob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.
   </p>
-{:else if !output}
+{:else if !text}
   <p class="text-sm/5 text-zinc-500 italic sm:text-xs/5 dark:text-zinc-400">{empty}</p>
 {/if}

@@ -53,8 +53,8 @@
   const hasUsage = $derived(totals.inputTokens > 0n || totals.outputTokens > 0n);
 </script>
 
-<div class={["grid grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10", className]}>
-  <section aria-label="Placement" class="grid grid-cols-1 pb-1.5">
+<div class={["grid grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white py-1.5 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10", className]}>
+  <section aria-label="Placement" class="grid grid-cols-1 px-1.5 pb-1.5">
     <PanelRow icon="computer-desktop">
       {worker?.name ?? "Unknown worker"}
       {#snippet aside()}
@@ -66,7 +66,7 @@
     <PanelRow icon="folder"><code class="font-mono text-[0.8125rem]" title={thread.cwd}>{thread.cwd}</code></PanelRow>
   </section>
 
-  <section aria-label="Agent" class="grid grid-cols-1 py-1.5">
+  <section aria-label="Agent" class="grid grid-cols-1 p-1.5">
     <PanelRow icon="cpu-chip">
       {providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}
       {#snippet aside()}{#if thread.providerProfileId}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5">{thread.providerProfileId}</span>{/if}{/snippet}
@@ -99,7 +99,7 @@
   </section>
 
   {#if schedules.length > 0 || onschedule}
-    <section aria-labelledby="schedules-title" class="grid grid-cols-1 py-1.5">
+    <section aria-labelledby="schedules-title" class="grid grid-cols-1 p-1.5">
       <h2 id="schedules-title" class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Scheduled tasks</h2>
       {#if schedules.length > 0}
         <ul role="list" class="grid grid-cols-1 gap-0.5">
@@ -135,7 +135,7 @@
   {/if}
 
   {#if thread.forkSourceThreadId}
-    <section aria-label="Fork" class="grid grid-cols-1 py-1.5">
+    <section aria-label="Fork" class="grid grid-cols-1 p-1.5">
       <PanelRow icon="square-2-stack" href="/threads/{thread.forkSourceThreadId}">
         Forked from {source?.title ?? "another thread"}
         {#snippet aside()}<Icon name="arrow-top-right-on-square" class="size-3.5 fill-zinc-400 dark:fill-zinc-500" />{/snippet}
@@ -143,7 +143,7 @@
     </section>
   {/if}
 
-  <section aria-labelledby="lineage-title" class="grid grid-cols-1 pt-1.5">
+  <section aria-labelledby="lineage-title" class="grid grid-cols-1 px-1.5 pt-1.5">
     <h2 id="lineage-title" class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Lineage</h2>
     <ul role="list" class="grid grid-cols-1 gap-0.5">
       <li>

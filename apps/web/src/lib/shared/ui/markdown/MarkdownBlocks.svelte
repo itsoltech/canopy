@@ -1,9 +1,11 @@
 <script lang="ts">
   import type { Token, Tokens } from "marked";
+  import CodeLines from "./CodeLines.svelte";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
   import MarkdownInline from "./MarkdownInline.svelte";
 
-  let { tokens }: { tokens: Token[] } = $props();
+  /** `streaming`: the text is still arriving (code blocks reveal per line, `CodeLines`). */
+  let { tokens, streaming = false }: { tokens: Token[]; streaming?: boolean } = $props();
 
   const headingSize: Record<number, string> = {
     1: "text-lg/7 sm:text-base/7",
@@ -28,7 +30,7 @@
     <div class="overflow-hidden rounded-lg bg-zinc-950/2.5 ring-1 ring-zinc-950/5 dark:bg-white/5 dark:ring-white/10">
       {#if code.lang}<div class="border-b border-zinc-950/5 px-3 py-1 font-mono text-xs/5 text-zinc-500 dark:border-white/10 dark:text-zinc-400">{code.lang}</div>{/if}
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-      <pre class="code-surface max-h-[32rem] p-3 text-zinc-800 focus-ring dark:text-zinc-200" tabindex="0">{code.text}</pre>
+      <pre class="code-surface max-h-[32rem] p-3 text-zinc-800 focus-ring dark:text-zinc-200" tabindex="0"><CodeLines text={code.text} {streaming} /></pre>
     </div>
   {:else if token.type === "list"}
     {@const list = token as Tokens.List}
@@ -40,13 +42,13 @@
           {/if}
           <div class="grid min-w-0 gap-2">
             {#if item.loose}
-              <MarkdownBlocks tokens={item.tokens} />
+              <MarkdownBlocks tokens={item.tokens} {streaming} />
             {:else}
               {#each item.tokens as child, childIndex (childIndex)}
                 {#if child.type === "text"}
                   <div><MarkdownInline tokens={inline(child as Tokens.Text)} /></div>
                 {:else}
-                  <MarkdownBlocks tokens={[child]} />
+                  <MarkdownBlocks tokens={[child]} {streaming} />
                 {/if}
               {/each}
             {/if}
@@ -56,7 +58,7 @@
     </svelte:element>
   {:else if token.type === "blockquote"}
     <blockquote class="grid gap-2 border-l-2 border-zinc-950/10 pl-3 text-zinc-600 dark:border-white/15 dark:text-zinc-400">
-      <MarkdownBlocks tokens={(token as Tokens.Blockquote).tokens} />
+      <MarkdownBlocks tokens={(token as Tokens.Blockquote).tokens} {streaming} />
     </blockquote>
   {:else if token.type === "table"}
     {@const table = token as Tokens.Table}
