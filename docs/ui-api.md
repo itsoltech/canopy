@@ -1,5 +1,33 @@
 # API dla UI i architektura frontendu
 
+## No project i katalogi scratch
+
+`GetOverview.projects` zawiera projekt systemowy właściciela o `Project.kind = "scratch"`
+(nowe pole **410**); zwykłe projekty mają `kind = "project"`. Jest pierwszy w odpowiedzi.
+Klient ukrywa go w zarządzaniu projektami, ale pokazuje w pickerze nowego wątku, filtrze
+sidebaru, domyślnym wyborze workspace'u i harmonogramach. Workspace'y scratch są provisionowane
+automatycznie na dostępnych dla właściciela workerach z allowed roots. Zmiany workerów publikują
+również aktualny projekt scratch przez `WatchOverview.project`.
+
+`CreateThread` zachowuje istniejący kontrakt: `project_id` i `workspace_id` wskazują systemowe
+zasoby wybrane z overview. Dla nowego głównego wątku scratch `cwd` musi być pusty: gateway nadaje
+`<workspace.root_path>/<thread.id>`. Wymuszenie własnego cwd daje `InvalidArgument`.
+Fork i wątek boczny dziedziczą katalog źródła. Komenda workera ma `ThreadSpec.scratch = true`
+(nowe pole **410**): worker tworzy katalog przed uruchomieniem harnessu i sprawdza allowed roots.
+Błąd utworzenia/walidacji to `SCRATCH_NOT_ALLOWED`; zwykłe wątki nie tworzą brakujących katalogów.
+
+`Thread.cwd` pokazuje pełną ścieżkę. `ListThreads`, wyszukiwanie, wzmianki, archiwum i szyna
+zachowują dotychczasowe reguły właściciela oraz drzewa. `sidebar.project_ids` może wskazywać
+systemowy projekt, a `ThreadDefaults.workspace_id` — jego workspace. `NewThreadSchedule`
+używa jego `project_id` i wybranego `workspace_id` z `placement = "specific"`; każdy run ma nowy cwd.
+Nie dodano zależności od API botów. `CreateWorkspace`, `UpdateWorkspace`, `RemoveWorkspace`
+i `UpdateProjectSettings` nie pozwalają ręcznie modyfikować zasobów systemowych.
+
+Scratch powstaje dopiero przy `CreateThread`. `SearchFiles` w scope nowego wątku scratch
+zwraca pustą listę; `ListMentionCatalog` pobiera komendy i umiejętności z pierwszego allowed root.
+Scope istniejącego wątku używa jego cwd. Pliki są zachowywane bez automatycznego cleanupu,
+także po archiwizacji lub soft delete; panel szczegółów opisuje ręczne sprzątanie.
+
 ## Pasek boczny i cykl życia wątku
 
 `UserSettings.sidebar` przechowuje filtr projektów (`project_ids`, puste = wszystkie), przypięcia

@@ -12,6 +12,17 @@ const thread = (id: string, projectId: string, workspaceId: string, ms: number, 
   create(ui.ThreadSchema, { id, projectId, workspaceId, createdAt: timestampFromMs(ms), ...extra });
 
 describe("new thread placement", () => {
+  test("No project works without a regular project, and preserves explicit/default/recent choices", () => {
+    const scratch = create(ui.ProjectSchema, { id: "scratch", name: "No project", kind: "scratch", workspaces: [ws("s1", "scratch", "laptop"), ws("s2", "scratch", "server")] });
+    const projects = [scratch, alpha];
+    expect(defaultProject({ projects, threads: [] })).toBe(scratch);
+    expect(defaultProject({ projects: [scratch], threads: [] })).toBe(scratch);
+    expect(defaultProject({ projects, threads: [], requested: alpha.id })).toBe(alpha);
+    expect(defaultProject({ projects, threads: [], defaultWorkspaceId: "s2" })).toBe(scratch);
+    expect(defaultProject({ projects, threads: [thread("t", "scratch", "s2", 10)] })).toBe(scratch);
+    expect(defaultWorkspace({ project: scratch, threads: [], defaultWorkspaceId: "s2", online: () => false })?.workerId).toBe("server");
+    expect(defaultWorkspace({ project: scratch, threads: [], online: (id) => id === "server" })?.id).toBe("s2");
+  });
   test("project: requested, then your default workspace's, then last used, then the first with a worker", () => {
     const projects = [empty, alpha, beta];
     const threads = [thread("t1", "alpha", "a1", 1), thread("t2", "beta", "b1", 2)];

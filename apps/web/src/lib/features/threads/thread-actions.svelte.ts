@@ -43,7 +43,7 @@ export class ThreadActions {
         case "regenerate": await requestTitleRegeneration(thread.id); break;
         case "read": await this.lifecycle(thread.id, thread.markedUnread || thread.unseenResult ? "read" : "unread"); break;
         case "filter": await this.settings.updateSidebar({ projectIds: [thread.projectId], ...(thread.status === "archived" && { archivedExpanded: true }) }); break;
-        case "settings": await goto(`/settings/projects/${thread.projectId}`); break;
+        case "settings": await goto(this.overview.project(thread.projectId)?.kind === "scratch" ? "/settings/threads" : `/settings/projects/${thread.projectId}`); break;
         case "archive": await this.lifecycle(thread.status === "archived" && thread.archivedBy === "cascade" ? thread.parentThreadId : thread.id, thread.status === "archived" ? "unarchive" : "archive"); break;
       }
     } catch (cause) { this.error(cause); }

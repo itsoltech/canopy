@@ -20,7 +20,7 @@
   const catalog = useModelCatalog();
   const initial = untrack(() => value);
   let projectId = $state(initial?.projectId ?? overview.projects[0]?.id ?? "");
-  let placement = $state(initial?.placement || "any");
+  let placement = $state(initial?.placement || untrack(() => overview.project(projectId)?.kind === "scratch" ? "specific" : "any"));
   let workspaceId = $state(initial?.workspaceId ?? "");
   const initialWorker = untrack(() => {
     const candidates = overview.workers.filter((w) => overview.project(projectId)?.workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId)));
@@ -42,6 +42,7 @@
   const eligible = $derived(value ? workers.filter((w) => scheduleWorkerEligible(w, value!)) : []);
   $effect(() => {
     if (!workspaces.some((w) => w.id === workspaceId)) workspaceId = workspaces[0]?.id ?? "";
+    if (project?.kind === "scratch") placement = "specific";
   });
   $effect(() => {
     // Keep custom model ids while their instance is still offered in this placement.
@@ -64,17 +65,18 @@
     <Field label="Project">
       <Select name="projectId" bind:value={projectId} options={overview.projects.length ? overview.projects.map((project) => ({ value: project.id, label: project.name })) : [{ value: "", label: "No projects yet" }]} />
     </Field>
-    <Field label="Placement">
+    {#if project?.kind !== "scratch"}<Field label="Placement">
       <Select name="placement" bind:value={placement} options={Object.entries(placementLabels).map(([value, label]) => ({ value, label }))} />
-    </Field>
+    </Field>{/if}
     {#if placement === "specific"}
       <Field label="Worker" class="sm:col-span-2">
         <Select name="workspaceId" bind:value={workspaceId} options={workspaces.length ? workspaces.map((workspace) => ({ value: workspace.id,
-          label: `${overview.worker(workspace.workerId)?.name ?? "Unknown worker"} · ${workspace.label || workspace.rootPath}${overview.worker(workspace.workerId)?.online ? "" : " · Offline"}`,
+          label: `${overview.worker(workspace.workerId)?.name ?? "Unknown worker"}${project?.kind === "scratch" ? "" : ` · ${workspace.label || workspace.rootPath}`}${overview.worker(workspace.workerId)?.online ? "" : " · Offline"}`,
         })) : [{ value: "", label: "No workers have this project" }]} />
       </Field>
     {/if}
   </div>
+  {#if project?.kind === "scratch"}<p class="text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">Each run gets its own scratch directory on this worker. Files are kept until you remove them manually.</p>{/if}
   <fieldset class="grid min-w-0 gap-2">
     <legend class="mb-2 text-base/6 font-medium sm:text-sm/6">Agent and permissions</legend>
     <div class="flex min-w-0 flex-wrap items-center gap-2">

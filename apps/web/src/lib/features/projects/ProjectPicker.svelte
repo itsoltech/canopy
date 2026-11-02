@@ -4,7 +4,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import PickerRow from "#lib/shared/ui/PickerRow.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
-  import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
+  import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import SearchPicker from "#lib/shared/ui/SearchPicker.svelte";
 
   /**
@@ -18,7 +18,7 @@
   const workersOf = (project: ui.Project) => [...new Set(project.workspaces.map((w) => overview.worker(w.workerId)?.name ?? "Unknown worker"))];
   const detailOf = (project: ui.Project) => {
     const names = workersOf(project);
-    return names.length === 0 ? "Not on any worker yet" : `On ${names.join(", ")}`;
+    return project.kind === "scratch" ? "A private scratch directory on your worker" : names.length === 0 ? "Not on any worker yet" : `On ${names.join(", ")}`;
   };
 </script>
 
@@ -35,13 +35,13 @@
 >
   {#snippet trigger(props)}
     <PillButton {...props} class={["pl-1.5", className]} aria-label="Project: {selected?.name ?? 'none'}">
-      <ProjectAvatar name={selected?.name ?? "?"} />
+      <ProjectMark name={selected?.name ?? "?"} kind={selected?.kind} />
       <span class="truncate text-zinc-800 dark:text-zinc-200">{selected?.name ?? "Choose a project"}</span>
     </PillButton>
   {/snippet}
   {#snippet option(project, state)}
     <PickerRow title={project.name} detail={detailOf(project)} selected={state.selected}>
-      {#snippet leading()}<ProjectAvatar name={project.name} />{/snippet}
+      {#snippet leading()}<ProjectMark name={project.name} kind={project.kind} />{/snippet}
     </PickerRow>
   {/snippet}
   {#snippet empty(query)}{query ? `No projects match “${query}”.` : "No projects yet."}{/snippet}

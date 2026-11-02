@@ -51,7 +51,7 @@
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
-  import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
+  import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import { duration, rise } from "#lib/shared/ui/motion.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
@@ -315,7 +315,7 @@
   <div class="flex min-w-0 flex-1 flex-col">
     <TopBar>
       {#if thread}
-        <Crumb href={project ? `/settings/projects/${project.id}` : undefined}><ProjectAvatar name={project?.name ?? "?"} /><span class="truncate">{project?.name ?? "Project"}</span></Crumb>
+        <Crumb href={project ? project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}` : undefined}><ProjectMark name={project?.name ?? "?"} kind={project?.kind} /><span class="truncate">{project?.name ?? "Project"}</span></Crumb>
         {#if tree && isSide(thread) && tree.main.id !== thread.id}
           <Crumb href="/threads/{tree.main.id}"><span class="truncate max-sm:hidden">{tree.main.title}</span><span class="sm:hidden">…</span></Crumb>
         {/if}
