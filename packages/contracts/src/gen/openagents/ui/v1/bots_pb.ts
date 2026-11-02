@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file openagents/ui/v1/bots.proto.
  */
 export const file_openagents_ui_v1_bots: GenFile = /*@__PURE__*/
-  fileDesc("ChtvcGVuYWdlbnRzL3VpL3YxL2JvdHMucHJvdG8SEG9wZW5hZ2VudHMudWkudjEi8QEKEEJvdENvbmZpZ3VyYXRpb24SDAoEbmFtZRgBIAEoCRINCgVzaGFwZRgCIAEoCRINCgVjb2xvchgDIAEoCRIwCghwcm92aWRlchgEIAEoDjIeLm9wZW5hZ2VudHMud29ya2VyLnYxLlByb3ZpZGVyEhkKEXByb3ZpZGVyX2luc3RhbmNlGAUgASgJEg0KBW1vZGVsGAYgASgJEg4KBmVmZm9ydBgHIAEoCRIUCgxpbnN0cnVjdGlvbnMYCCABKAkSFgoObWNwX3NlcnZlcl9pZHMYCSADKAkSFwoPYXBwcm92YWxfcG9saWN5GAogASgJIuEBCgNCb3QSCgoCaWQYASABKAkSOQoNY29uZmlndXJhdGlvbhgCIAEoCzIiLm9wZW5hZ2VudHMudWkudjEuQm90Q29uZmlndXJhdGlvbhIuCgpjcmVhdGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIzCgxsYXN0X21lc3NhZ2UY3gIgASgLMhwub3BlbmFnZW50cy51aS52MS5Cb3RNZXNzYWdlIr8BCgpCb3RNZXNzYWdlEgoKAmlkGAEgASgJEgsKA3NlcRgCIAEoBBIOCgZib3RfaWQYAyABKAkSEQoJc2VuZGVyX2lkGAQgASgJEhQKDHJlY2lwaWVudF9pZBgFIAEoCRIMCgRraW5kGAYgASgJEgwKBHRleHQYByABKAkSEwoLZXhjaGFuZ2VfaWQYCCABKAkSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiqAEKC0JvdEFwcHJvdmFsEgoKAmlkGAEgASgJEg4KBmJvdF9pZBgCIAEoCRIPCgd0dXJuX2lkGAMgASgJEgwKBGtpbmQYBCABKAkSDgoGcHJvbXB0GAUgASgJEg4KBnN0YXR1cxgGIAEoCRIOCgZhbnN3ZXIYByABKAkSLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAizwEKD0JvdENvbnZlcnNhdGlvbhIiCgNib3QYASABKAsyFS5vcGVuYWdlbnRzLnVpLnYxLkJvdBIuCghtZXNzYWdlcxgCIAMoCzIcLm9wZW5hZ2VudHMudWkudjEuQm90TWVzc2FnZRIwCglhcHByb3ZhbHMYAyADKAsyHS5vcGVuYWdlbnRzLnVpLnYxLkJvdEFwcHJvdmFsEhMKC3N0YXR1c19saW5lGAQgASgJEg8KB3dvcmtpbmcYBSABKAgSEAoIcmV2aXNpb24YBiABKAQiaAoQQ3JlYXRlQm90UmVxdWVzdBI5Cg1jb25maWd1cmF0aW9uGAEgASgLMiIub3BlbmFnZW50cy51aS52MS5Cb3RDb25maWd1cmF0aW9uEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJIl0KEFVwZGF0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJEjkKDWNvbmZpZ3VyYXRpb24YAiABKAsyIi5vcGVuYWdlbnRzLnVpLnYxLkJvdENvbmZpZ3VyYXRpb24iHwoNR2V0Qm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkiNAoOR2V0Qm90UmVzcG9uc2USIgoDYm90GAEgASgLMhUub3BlbmFnZW50cy51aS52MS5Cb3QiEQoPTGlzdEJvdHNSZXF1ZXN0IjcKEExpc3RCb3RzUmVzcG9uc2USIwoEYm90cxgBIAMoCzIVLm9wZW5hZ2VudHMudWkudjEuQm90IiIKEERlbGV0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhMKEURlbGV0ZUJvdFJlc3BvbnNlIlAKFVNlbmRCb3RNZXNzYWdlUmVxdWVzdBIOCgZib3RfaWQYASABKAkSDAoEdGV4dBgCIAEoCRIZChFjbGllbnRfcmVxdWVzdF9pZBgDIAEoCSIpChZTZW5kQm90TWVzc2FnZVJlc3BvbnNlEg8KB3R1cm5faWQYASABKAkiLQobV2F0Y2hCb3RDb252ZXJzYXRpb25SZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSItChZSZWFkQm90RXhjaGFuZ2VSZXF1ZXN0EhMKC2V4Y2hhbmdlX2lkGAEgASgJIkkKF1JlYWRCb3RFeGNoYW5nZVJlc3BvbnNlEi4KCG1lc3NhZ2VzGAEgAygLMhwub3BlbmFnZW50cy51aS52MS5Cb3RNZXNzYWdlIlAKGEFuc3dlckJvdEFwcHJvdmFsUmVxdWVzdBITCgthcHByb3ZhbF9pZBgBIAEoCRIPCgdhcHByb3ZlGAIgASgIEg4KBmFuc3dlchgDIAEoCSJMChlBbnN3ZXJCb3RBcHByb3ZhbFJlc3BvbnNlEi8KCGFwcHJvdmFsGAEgASgLMh0ub3BlbmFnZW50cy51aS52MS5Cb3RBcHByb3ZhbCIlChNJbnRlcnJ1cHRCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIWChRJbnRlcnJ1cHRCb3RSZXNwb25zZSKAAQoMQm90TWNwU2VydmVyEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSCwoDdXJsGAMgASgJEhEKCXRyYW5zcG9ydBgEIAEoCRIPCgdlbmFibGVkGAUgASgIEhQKDGhlYWRlcl9uYW1lcxgGIAMoCRIPCgdib3RfaWRzGAcgAygJIvQBChdTYXZlQm90TWNwU2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkSDwoHZW5hYmxlZBgFIAEoCBJHCgdoZWFkZXJzGAYgAygLMjYub3BlbmFnZW50cy51aS52MS5TYXZlQm90TWNwU2VydmVyUmVxdWVzdC5IZWFkZXJzRW50cnkSFQoNY2xlYXJfaGVhZGVycxgHIAEoCBouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJKChhTYXZlQm90TWNwU2VydmVyUmVzcG9uc2USLgoGc2VydmVyGAEgASgLMh4ub3BlbmFnZW50cy51aS52MS5Cb3RNY3BTZXJ2ZXIiGgoYTGlzdEJvdE1jcFNlcnZlcnNSZXF1ZXN0IkwKGUxpc3RCb3RNY3BTZXJ2ZXJzUmVzcG9uc2USLwoHc2VydmVycxgBIAMoCzIeLm9wZW5hZ2VudHMudWkudjEuQm90TWNwU2VydmVyIi4KGURlbGV0ZUJvdE1jcFNlcnZlclJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIhwKGkRlbGV0ZUJvdE1jcFNlcnZlclJlc3BvbnNlIiwKF1Rlc3RCb3RNY3BTZXJ2ZXJSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJCCgpCb3RNY3BUb29sEgwKBG5hbWUYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSEQoJcmVhZF9vbmx5GAMgASgIIkcKGFRlc3RCb3RNY3BTZXJ2ZXJSZXNwb25zZRIrCgV0b29scxgBIAMoCzIcLm9wZW5hZ2VudHMudWkudjEuQm90TWNwVG9vbGIGcHJvdG8z", [file_google_protobuf_timestamp, file_openagents_worker_v1_worker_link]);
+  fileDesc("ChtvcGVuYWdlbnRzL3VpL3YxL2JvdHMucHJvdG8SEG9wZW5hZ2VudHMudWkudjEi8QEKEEJvdENvbmZpZ3VyYXRpb24SDAoEbmFtZRgBIAEoCRINCgVzaGFwZRgCIAEoCRINCgVjb2xvchgDIAEoCRIwCghwcm92aWRlchgEIAEoDjIeLm9wZW5hZ2VudHMud29ya2VyLnYxLlByb3ZpZGVyEhkKEXByb3ZpZGVyX2luc3RhbmNlGAUgASgJEg0KBW1vZGVsGAYgASgJEg4KBmVmZm9ydBgHIAEoCRIUCgxpbnN0cnVjdGlvbnMYCCABKAkSFgoObWNwX3NlcnZlcl9pZHMYCSADKAkSFwoPYXBwcm92YWxfcG9saWN5GAogASgJIuEBCgNCb3QSCgoCaWQYASABKAkSOQoNY29uZmlndXJhdGlvbhgCIAEoCzIiLm9wZW5hZ2VudHMudWkudjEuQm90Q29uZmlndXJhdGlvbhIuCgpjcmVhdGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIzCgxsYXN0X21lc3NhZ2UY3gIgASgLMhwub3BlbmFnZW50cy51aS52MS5Cb3RNZXNzYWdlIs8BCgpCb3RNZXNzYWdlEgoKAmlkGAEgASgJEgsKA3NlcRgCIAEoBBIOCgZib3RfaWQYAyABKAkSEQoJc2VuZGVyX2lkGAQgASgJEhQKDHJlY2lwaWVudF9pZBgFIAEoCRIMCgRraW5kGAYgASgJEgwKBHRleHQYByABKAkSEwoLZXhjaGFuZ2VfaWQYCCABKAkSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGZmFpbGVkGAogASgIIrkBCgtCb3RBcHByb3ZhbBIKCgJpZBgBIAEoCRIOCgZib3RfaWQYAiABKAkSDwoHdHVybl9pZBgDIAEoCRIMCgRraW5kGAQgASgJEg4KBnByb21wdBgFIAEoCRIOCgZzdGF0dXMYBiABKAkSDgoGYW5zd2VyGAcgASgJEi4KCmNyZWF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB29wdGlvbnMYCSADKAkizwEKD0JvdENvbnZlcnNhdGlvbhIiCgNib3QYASABKAsyFS5vcGVuYWdlbnRzLnVpLnYxLkJvdBIuCghtZXNzYWdlcxgCIAMoCzIcLm9wZW5hZ2VudHMudWkudjEuQm90TWVzc2FnZRIwCglhcHByb3ZhbHMYAyADKAsyHS5vcGVuYWdlbnRzLnVpLnYxLkJvdEFwcHJvdmFsEhMKC3N0YXR1c19saW5lGAQgASgJEg8KB3dvcmtpbmcYBSABKAgSEAoIcmV2aXNpb24YBiABKAQiaAoQQ3JlYXRlQm90UmVxdWVzdBI5Cg1jb25maWd1cmF0aW9uGAEgASgLMiIub3BlbmFnZW50cy51aS52MS5Cb3RDb25maWd1cmF0aW9uEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJIl0KEFVwZGF0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJEjkKDWNvbmZpZ3VyYXRpb24YAiABKAsyIi5vcGVuYWdlbnRzLnVpLnYxLkJvdENvbmZpZ3VyYXRpb24iHwoNR2V0Qm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkiNAoOR2V0Qm90UmVzcG9uc2USIgoDYm90GAEgASgLMhUub3BlbmFnZW50cy51aS52MS5Cb3QiEQoPTGlzdEJvdHNSZXF1ZXN0IjcKEExpc3RCb3RzUmVzcG9uc2USIwoEYm90cxgBIAMoCzIVLm9wZW5hZ2VudHMudWkudjEuQm90IiIKEERlbGV0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhMKEURlbGV0ZUJvdFJlc3BvbnNlIlAKFVNlbmRCb3RNZXNzYWdlUmVxdWVzdBIOCgZib3RfaWQYASABKAkSDAoEdGV4dBgCIAEoCRIZChFjbGllbnRfcmVxdWVzdF9pZBgDIAEoCSIpChZTZW5kQm90TWVzc2FnZVJlc3BvbnNlEg8KB3R1cm5faWQYASABKAkiLQobV2F0Y2hCb3RDb252ZXJzYXRpb25SZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSItChZSZWFkQm90RXhjaGFuZ2VSZXF1ZXN0EhMKC2V4Y2hhbmdlX2lkGAEgASgJIkkKF1JlYWRCb3RFeGNoYW5nZVJlc3BvbnNlEi4KCG1lc3NhZ2VzGAEgAygLMhwub3BlbmFnZW50cy51aS52MS5Cb3RNZXNzYWdlIlAKGEFuc3dlckJvdEFwcHJvdmFsUmVxdWVzdBITCgthcHByb3ZhbF9pZBgBIAEoCRIPCgdhcHByb3ZlGAIgASgIEg4KBmFuc3dlchgDIAEoCSJMChlBbnN3ZXJCb3RBcHByb3ZhbFJlc3BvbnNlEi8KCGFwcHJvdmFsGAEgASgLMh0ub3BlbmFnZW50cy51aS52MS5Cb3RBcHByb3ZhbCIlChNJbnRlcnJ1cHRCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIWChRJbnRlcnJ1cHRCb3RSZXNwb25zZSIhCg9SZXRyeUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhIKEFJldHJ5Qm90UmVzcG9uc2UigAEKDEJvdE1jcFNlcnZlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkSDwoHZW5hYmxlZBgFIAEoCBIUCgxoZWFkZXJfbmFtZXMYBiADKAkSDwoHYm90X2lkcxgHIAMoCSL0AQoXU2F2ZUJvdE1jcFNlcnZlclJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRILCgN1cmwYAyABKAkSEQoJdHJhbnNwb3J0GAQgASgJEg8KB2VuYWJsZWQYBSABKAgSRwoHaGVhZGVycxgGIAMoCzI2Lm9wZW5hZ2VudHMudWkudjEuU2F2ZUJvdE1jcFNlcnZlclJlcXVlc3QuSGVhZGVyc0VudHJ5EhUKDWNsZWFyX2hlYWRlcnMYByABKAgaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiSgoYU2F2ZUJvdE1jcFNlcnZlclJlc3BvbnNlEi4KBnNlcnZlchgBIAEoCzIeLm9wZW5hZ2VudHMudWkudjEuQm90TWNwU2VydmVyIhoKGExpc3RCb3RNY3BTZXJ2ZXJzUmVxdWVzdCJMChlMaXN0Qm90TWNwU2VydmVyc1Jlc3BvbnNlEi8KB3NlcnZlcnMYASADKAsyHi5vcGVuYWdlbnRzLnVpLnYxLkJvdE1jcFNlcnZlciIuChlEZWxldGVCb3RNY3BTZXJ2ZXJSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSIcChpEZWxldGVCb3RNY3BTZXJ2ZXJSZXNwb25zZSIsChdUZXN0Qm90TWNwU2VydmVyUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiQgoKQm90TWNwVG9vbBIMCgRuYW1lGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEhEKCXJlYWRfb25seRgDIAEoCCJHChhUZXN0Qm90TWNwU2VydmVyUmVzcG9uc2USKwoFdG9vbHMYASADKAsyHC5vcGVuYWdlbnRzLnVpLnYxLkJvdE1jcFRvb2xiBnByb3RvMw", [file_google_protobuf_timestamp, file_openagents_worker_v1_worker_link]);
 
 /**
  * @generated from message openagents.ui.v1.BotConfiguration
@@ -171,6 +171,13 @@ export type BotMessage = Message<"openagents.ui.v1.BotMessage"> & {
    * @generated from field: google.protobuf.Timestamp created_at = 9;
    */
   createdAt?: Timestamp | undefined;
+
+  /**
+   * Bot nie mógł odpowiedzieć (tura zakończona błędem); text to szczegół techniczny, nie treść rozmowy.
+   *
+   * @generated from field: bool failed = 10;
+   */
+  failed: boolean;
 };
 
 /**
@@ -227,6 +234,13 @@ export type BotApproval = Message<"openagents.ui.v1.BotApproval"> & {
    * @generated from field: google.protobuf.Timestamp created_at = 8;
    */
   createdAt?: Timestamp | undefined;
+
+  /**
+   * Pytanie: proponowane odpowiedzi (do 6); użytkownik może też odpowiedzieć własnymi słowami.
+   *
+   * @generated from field: repeated string options = 9;
+   */
+  options: string[];
 };
 
 /**
@@ -586,6 +600,38 @@ export const InterruptBotResponseSchema: GenMessage<InterruptBotResponse> = /*@_
   messageDesc(file_openagents_ui_v1_bots, 21);
 
 /**
+ * Ponawia ostatnią turę, jeśli zakończyła się błędem: ta sama wiadomość użytkownika, bez nowego wpisu w czacie.
+ *
+ * @generated from message openagents.ui.v1.RetryBotRequest
+ */
+export type RetryBotRequest = Message<"openagents.ui.v1.RetryBotRequest"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+};
+
+/**
+ * Describes the message openagents.ui.v1.RetryBotRequest.
+ * Use `create(RetryBotRequestSchema)` to create a new message.
+ */
+export const RetryBotRequestSchema: GenMessage<RetryBotRequest> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 22);
+
+/**
+ * @generated from message openagents.ui.v1.RetryBotResponse
+ */
+export type RetryBotResponse = Message<"openagents.ui.v1.RetryBotResponse"> & {
+};
+
+/**
+ * Describes the message openagents.ui.v1.RetryBotResponse.
+ * Use `create(RetryBotResponseSchema)` to create a new message.
+ */
+export const RetryBotResponseSchema: GenMessage<RetryBotResponse> = /*@__PURE__*/
+  messageDesc(file_openagents_ui_v1_bots, 23);
+
+/**
  * @generated from message openagents.ui.v1.BotMcpServer
  */
 export type BotMcpServer = Message<"openagents.ui.v1.BotMcpServer"> & {
@@ -634,7 +680,7 @@ export type BotMcpServer = Message<"openagents.ui.v1.BotMcpServer"> & {
  * Use `create(BotMcpServerSchema)` to create a new message.
  */
 export const BotMcpServerSchema: GenMessage<BotMcpServer> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 22);
+  messageDesc(file_openagents_ui_v1_bots, 24);
 
 /**
  * @generated from message openagents.ui.v1.SaveBotMcpServerRequest
@@ -685,7 +731,7 @@ export type SaveBotMcpServerRequest = Message<"openagents.ui.v1.SaveBotMcpServer
  * Use `create(SaveBotMcpServerRequestSchema)` to create a new message.
  */
 export const SaveBotMcpServerRequestSchema: GenMessage<SaveBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 23);
+  messageDesc(file_openagents_ui_v1_bots, 25);
 
 /**
  * @generated from message openagents.ui.v1.SaveBotMcpServerResponse
@@ -702,7 +748,7 @@ export type SaveBotMcpServerResponse = Message<"openagents.ui.v1.SaveBotMcpServe
  * Use `create(SaveBotMcpServerResponseSchema)` to create a new message.
  */
 export const SaveBotMcpServerResponseSchema: GenMessage<SaveBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 24);
+  messageDesc(file_openagents_ui_v1_bots, 26);
 
 /**
  * @generated from message openagents.ui.v1.ListBotMcpServersRequest
@@ -715,7 +761,7 @@ export type ListBotMcpServersRequest = Message<"openagents.ui.v1.ListBotMcpServe
  * Use `create(ListBotMcpServersRequestSchema)` to create a new message.
  */
 export const ListBotMcpServersRequestSchema: GenMessage<ListBotMcpServersRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 25);
+  messageDesc(file_openagents_ui_v1_bots, 27);
 
 /**
  * @generated from message openagents.ui.v1.ListBotMcpServersResponse
@@ -732,7 +778,7 @@ export type ListBotMcpServersResponse = Message<"openagents.ui.v1.ListBotMcpServ
  * Use `create(ListBotMcpServersResponseSchema)` to create a new message.
  */
 export const ListBotMcpServersResponseSchema: GenMessage<ListBotMcpServersResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 26);
+  messageDesc(file_openagents_ui_v1_bots, 28);
 
 /**
  * @generated from message openagents.ui.v1.DeleteBotMcpServerRequest
@@ -749,7 +795,7 @@ export type DeleteBotMcpServerRequest = Message<"openagents.ui.v1.DeleteBotMcpSe
  * Use `create(DeleteBotMcpServerRequestSchema)` to create a new message.
  */
 export const DeleteBotMcpServerRequestSchema: GenMessage<DeleteBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 27);
+  messageDesc(file_openagents_ui_v1_bots, 29);
 
 /**
  * @generated from message openagents.ui.v1.DeleteBotMcpServerResponse
@@ -762,7 +808,7 @@ export type DeleteBotMcpServerResponse = Message<"openagents.ui.v1.DeleteBotMcpS
  * Use `create(DeleteBotMcpServerResponseSchema)` to create a new message.
  */
 export const DeleteBotMcpServerResponseSchema: GenMessage<DeleteBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 28);
+  messageDesc(file_openagents_ui_v1_bots, 30);
 
 /**
  * @generated from message openagents.ui.v1.TestBotMcpServerRequest
@@ -779,7 +825,7 @@ export type TestBotMcpServerRequest = Message<"openagents.ui.v1.TestBotMcpServer
  * Use `create(TestBotMcpServerRequestSchema)` to create a new message.
  */
 export const TestBotMcpServerRequestSchema: GenMessage<TestBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 29);
+  messageDesc(file_openagents_ui_v1_bots, 31);
 
 /**
  * @generated from message openagents.ui.v1.BotMcpTool
@@ -806,7 +852,7 @@ export type BotMcpTool = Message<"openagents.ui.v1.BotMcpTool"> & {
  * Use `create(BotMcpToolSchema)` to create a new message.
  */
 export const BotMcpToolSchema: GenMessage<BotMcpTool> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 30);
+  messageDesc(file_openagents_ui_v1_bots, 32);
 
 /**
  * @generated from message openagents.ui.v1.TestBotMcpServerResponse
@@ -823,5 +869,5 @@ export type TestBotMcpServerResponse = Message<"openagents.ui.v1.TestBotMcpServe
  * Use `create(TestBotMcpServerResponseSchema)` to create a new message.
  */
 export const TestBotMcpServerResponseSchema: GenMessage<TestBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_openagents_ui_v1_bots, 31);
+  messageDesc(file_openagents_ui_v1_bots, 33);
 

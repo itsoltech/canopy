@@ -4,8 +4,9 @@ Komponenty w `apps/web/src/lib/features/bots/wizard` są prezentacyjne. Integrac
 
 Produkcyjna sekcja `/bots` podłącza `CreateBotWizard` do `CreateBot` przez BFF.
 Adapter instancji i modeli jest w `features/bots/live.ts`; szczegóły runtime'u i API:
-[bots.md](bots.md). Gateway wymaga konkretnego ID modelu, więc adapter nie oferuje pustej
-opcji domyślnego modelu harnessu.
+[bots.md](bots.md). Gateway wymaga konkretnego ID modelu API, więc adapter nie oferuje pustej
+opcji domyślnego modelu harnessu, a alias z katalogu (`default`, `opus`…) pokazuje jako model,
+na który się rozwiązuje (`resolved_model`). Aliasy bez rozwiązania są pomijane.
 
 ## API
 

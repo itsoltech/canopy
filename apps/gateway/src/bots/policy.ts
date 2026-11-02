@@ -79,5 +79,7 @@ export const PLATFORM_TOOLS: ToolSpec[] = [
   tool("list_schedules", "List your own one-shot reminders."),
   tool("cancel_schedule", "Cancel one of your reminders.", { schedule_id: str }, ["schedule_id"], true),
   tool("archive_thread", "Archive a thread after the user approves.", { thread_id: str }, ["thread_id"], true),
-  tool("ask_user", "Ask the user a question and wait durably for their answer.", { question: str }, ["question"]),
+  tool("ask_user", "Ask the user a question and wait durably for their answer. Offer up to 6 short options when the answer is a choice; the user can still answer in their own words.", {
+    question: str, options: { type: "array", items: str, maxItems: 6 },
+  }, ["question"]),
 ];

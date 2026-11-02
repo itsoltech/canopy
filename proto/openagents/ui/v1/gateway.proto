@@ -21,6 +21,7 @@ service GatewayService {
   rpc ReadBotExchange(ReadBotExchangeRequest) returns (ReadBotExchangeResponse);
   rpc AnswerBotApproval(AnswerBotApprovalRequest) returns (AnswerBotApprovalResponse);
   rpc InterruptBot(InterruptBotRequest) returns (InterruptBotResponse);
+  rpc RetryBot(RetryBotRequest) returns (RetryBotResponse);
   rpc SaveBotMcpServer(SaveBotMcpServerRequest) returns (SaveBotMcpServerResponse);
   rpc ListBotMcpServers(ListBotMcpServersRequest) returns (ListBotMcpServersResponse);
   rpc DeleteBotMcpServer(DeleteBotMcpServerRequest) returns (DeleteBotMcpServerResponse);

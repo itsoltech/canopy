@@ -1,97 +1,126 @@
 <script lang="ts">
   import { tick, untrack, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import type { ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
+  import { rise } from "#lib/shared/ui/motion.ts";
+  import type { ExchangeSegment } from "../chat-timeline.ts";
+  import type { BotStatusView, ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
+  import type { MascotState } from "../behaviour.ts";
+  import { stateForStatus } from "../behaviour-math.ts";
+  import type { ApprovalAnswer, ApprovalPolicy } from "./ApprovalCard.svelte";
   import BotComposer from "./BotComposer.svelte";
   import ChatTimeline from "./ChatTimeline.svelte";
   import ConversationHeader from "./ConversationHeader.svelte";
+  import RoundButton from "./RoundButton.svelte";
   import WatchBar from "./WatchBar.svelte";
-  import BotActivity, { type BotActivityView } from "./BotActivity.svelte";
-  import { stateForStatus, type MascotState } from "../behaviour-math.ts";
 
   /**
-   * A whole bot chat: header, the scrolling conversation (opens at the "New" divider, else at the
-   * end) and the composer, or the read-only bar with "Close chat" in a watched bot ⇄ bot chat.
+   * A whole bot chat: header, the scrolling conversation (opens at the "New" divider, else at the end) and
+   * the composer, or the bar with "Close chat" in a bot ⇄ bot chat you only read. The conversation follows
+   * new messages (and what the bot is doing) only while you are at the bottom; scrolled up, a button takes
+   * you back down. Reply puts a quote of the message into the composer.
    */
   let {
     conversation,
     entries,
     me,
+    directory = [],
+    subtitle,
     firstUnreadId,
+    status,
     answering,
+    retrying = false,
+    policy,
     sending = false,
-    statusLine = "",
     composerDisabledReason,
+    exchangeHref,
     onsend,
     onanswer,
+    onapprove,
+    onpolicy,
+    onretry,
+    onchangemodel,
     onreact,
-    onreply,
     onclose,
     onattach,
-    onrecord,
     actions,
-    botActivity,
     class: className,
   }: {
     conversation: ConversationView;
     entries: readonly ChatEntry[];
     me: ParticipantView;
+    directory?: readonly ParticipantView[];
+    subtitle?: string | undefined;
     firstUnreadId?: string | undefined;
+    status?: BotStatusView | undefined;
     answering?: Readonly<Record<string, string>>;
+    retrying?: boolean;
+    policy?: ApprovalPolicy | undefined;
     sending?: boolean;
-    statusLine?: string;
     /** Set when you cannot write right now (e.g. the bot is unavailable); shown in the box. */
     composerDisabledReason?: string | undefined;
+    exchangeHref?: ((segment: ExchangeSegment) => string) | undefined;
     onsend: (text: string) => void;
     onanswer?: ((questionId: string, optionId: string) => void) | undefined;
+    onapprove?: ((approvalId: string, answer: ApprovalAnswer) => void) | undefined;
+    onpolicy?: ((policy: ApprovalPolicy) => void) | undefined;
+    onretry?: (() => void) | undefined;
+    onchangemodel?: (() => void) | undefined;
     onreact?: ((message: ChatMessageView) => void) | undefined;
-    onreply?: ((message: ChatMessageView) => void) | undefined;
     onclose?: (() => void) | undefined;
     onattach?: (() => void) | undefined;
-    onrecord?: (() => void) | undefined;
     actions?: Snippet;
-    /** Optional live state from bots-core; absent callers retain the presentational API. */
-    botActivity?: readonly BotActivityView[];
     class?: ClassValue;
   } = $props();
 
   let draft = $state("");
   let log = $state<HTMLElement>();
+  let content = $state<HTMLElement>();
+  let composer = $state<ReturnType<typeof BotComposer>>();
+  let following = $state(true);
+  // Living mascots: the header's bot reacts to a new message (`event`) and shows what it is doing.
   let messageEvent = $state(0);
   let previousMessage: string | undefined;
   let previousConversation: string | undefined;
   $effect(() => {
     const id = conversation.id;
-    const messages = entries.filter((entry) => entry.kind === "message");
-    const latest = messages.at(-1)?.message.id;
-    if (previousConversation === id && latest && latest !== previousMessage) {
-      untrack(() => messageEvent++);
-    }
+    const found = entries.findLast((entry) => entry.kind === "message");
+    const latest = found?.kind === "message" ? found.message.id : undefined;
+    if (previousConversation === id && latest && latest !== previousMessage) untrack(() => messageEvent++);
     previousConversation = id;
     previousMessage = latest;
   });
   const mascotState = $derived.by((): MascotState => {
-    if (botActivity?.[0]) return botActivity[0].state;
-    if (statusLine) return stateForStatus(statusLine);
-    const question = entries.findLast((entry) => entry.kind === "question" && !entry.question.answer);
-    if (question) return "waiting";
+    if (status) return status.waiting ? "waiting" : stateForStatus(status.text);
+    const last = entries.at(-1);
+    if (last?.kind === "error") return "error";
     if (sending) return "working";
-    const latest = entries.findLast((entry) => entry.kind === "message");
-    return latest?.kind === "message" && conversation.bots.some((bot) => bot.id === latest.message.senderId) ? "done" : "idle";
+    return last?.kind === "message" && conversation.bots.some((bot) => bot.id === last.message.senderId) ? "done" : "idle";
   });
-  let following = $state(true);
+  const toEnd = (behavior: ScrollBehavior = "instant") => log?.scrollTo({ top: log.scrollHeight, behavior });
 
+  // Whatever grows the conversation (a message, a card, the status line, a long answer) keeps the end in
+  // view while you are there.
   $effect(() => {
-    entries.length;
-    const node = log;
-    if (node && untrack(() => following)) void tick().then(() => node.scrollTo({ top: node.scrollHeight }));
+    const node = content;
+    if (!node) return;
+    const observer = new ResizeObserver(() => {
+      if (following) toEnd();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
   });
 
   // Your own message goes to the end of the conversation: follow it there.
   function send(text: string) {
     following = true;
     onsend(text);
-    void tick().then(() => log?.scrollTo({ top: log.scrollHeight }));
+    void tick().then(() => toEnd());
+  }
+
+  function reply(message: ChatMessageView) {
+    const quote = message.text.trim().split("\n").slice(0, 3).map((line) => `> ${line}`).join("\n");
+    draft = `${quote}\n\n${draft}`;
+    void tick().then(() => composer?.focus());
   }
 
   function openAtUnread(node: HTMLElement) {
@@ -103,32 +132,66 @@
 </script>
 
 <div data-mascot-chat class={["flex h-full min-h-0 flex-col", className]}>
-  <ConversationHeader {conversation} {actions} {statusLine} state={mascotState} event={messageEvent} />
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="min-h-0 flex-1 overflow-y-auto focus:outline-none" role="log" aria-label="Conversation" tabindex="0" bind:this={log} onscroll={() => { if (log) following = log.scrollHeight - log.scrollTop - log.clientHeight < 80; }} {@attach openAtUnread}>
-    <ChatTimeline
-      {conversation}
-      {entries}
-      {me}
-      {firstUnreadId}
-      {answering}
-      {onanswer}
-      {onreact}
-      {onreply}
-      class="mx-auto w-full max-w-(--chat-width) px-3 py-4 sm:px-6"
-    />
-    {#each botActivity ?? [] as activity (activity.botId)}
-      {@const bot = conversation.bots.find((bot) => bot.id === activity.botId)}
-      {#if bot}
-        <BotActivity {bot} state={activity.state} label={activity.label} event={messageEvent} class="mx-auto w-full max-w-(--chat-width) px-3 pb-4 sm:px-6" />
-      {/if}
-    {/each}
+  <ConversationHeader {conversation} {subtitle} {actions} state={mascotState} event={messageEvent} />
+  <div class="relative flex min-h-0 flex-1 flex-col">
+    <!-- `relative`: screen-reader labels positioned inside messages stay inside the scroller. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div
+      class="relative min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-none"
+      role="log"
+      aria-label="Conversation"
+      tabindex="0"
+      bind:this={log}
+      onscroll={() => {
+        if (log) following = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+      }}
+      {@attach openAtUnread}
+    >
+      <div bind:this={content}>
+        <ChatTimeline
+          {conversation}
+          {entries}
+          {me}
+          {directory}
+          {firstUnreadId}
+          {status}
+          {answering}
+          {retrying}
+          {policy}
+          {exchangeHref}
+          {onanswer}
+          {onapprove}
+          {onpolicy}
+          {onretry}
+          {onchangemodel}
+          {onreact}
+          onreply={conversation.kind === "watch" ? undefined : reply}
+          class="mx-auto w-full max-w-(--chat-width) px-3 pt-4 pb-6 sm:px-6"
+        />
+      </div>
+    </div>
+    {#if !following}
+      <div class="absolute bottom-3 left-1/2 -translate-x-1/2" transition:rise>
+        <span class="flex rounded-full bg-white shadow-md ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10">
+          <RoundButton icon="arrow-down" label="Jump to the latest message" variant="secondary" onclick={() => { following = true; toEnd("smooth"); }} />
+        </span>
+      </div>
+    {/if}
   </div>
-  <div class="mx-auto w-full max-w-(--chat-width) shrink-0 px-3 pt-2 pb-3 sm:px-6 sm:pb-4">
+  <div class="mx-auto w-full max-w-(--chat-width) shrink-0 px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
     {#if conversation.kind === "watch"}
       <WatchBar bots={conversation.bots} {onclose} />
     {:else}
-      <BotComposer bind:value={draft} {sending} disabled={Boolean(composerDisabledReason)} disabledReason={composerDisabledReason} onsend={send} {onattach} {onrecord} />
+      <BotComposer
+        bind:this={composer}
+        bind:value={draft}
+        placeholder={conversation.bots.length === 1 ? `Message ${conversation.bots[0]!.name}` : "Message"}
+        {sending}
+        disabled={Boolean(composerDisabledReason)}
+        disabledReason={composerDisabledReason}
+        onsend={send}
+        {onattach}
+      />
     {/if}
   </div>
 </div>

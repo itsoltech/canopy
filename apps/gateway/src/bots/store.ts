@@ -1,21 +1,23 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { bots, Provider } from "@open-agents/contracts";
+import { bots, ProfileModelsSchema, Provider, type ProfileModels } from "@open-agents/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import type { InstanceRow } from "../store/instance-config.ts";
+import { apiModel } from "./model.ts";
 import { nextHop } from "./policy.ts";
 import type { BotRow, BotTurn, McpConnection, ModelMessage, StoredCall, ToolSpec } from "./types.ts";
 
 interface MessageRow {
   id: string; seq: bigint; bot_id: string; sender_id: string; recipient_id: string;
   kind: string; text: string; exchange_id: string | null; created_at: Date;
+  message_key?: string; turn_status?: string;
 }
 interface ApprovalRow {
   id: string; bot_id: string; turn_id: string; kind: string; prompt: string;
-  status: string; answer: string; created_at: Date;
+  status: string; answer: string; created_at: Date; options?: unknown;
 }
 interface ServerRow {
   id: string; owner_user_id: string; name: string; url: string; transport: string;
@@ -28,10 +30,12 @@ export const botView = (row: BotRow) => create(bots.BotSchema, {
 const messageView = (row: MessageRow) => create(bots.BotMessageSchema, {
   id: row.id, seq: BigInt(row.seq), botId: row.bot_id, senderId: row.sender_id, recipientId: row.recipient_id,
   kind: row.kind, text: row.text, exchangeId: row.exchange_id ?? "", createdAt: timestampFromDate(new Date(row.created_at)),
+  failed: row.kind === "event" && row.message_key === "answer" && row.turn_status === "failed",
 });
 const approvalView = (row: ApprovalRow) => create(bots.BotApprovalSchema, {
   id: row.id, botId: row.bot_id, turnId: row.turn_id, kind: row.kind, prompt: row.prompt,
   status: row.status, answer: row.answer, createdAt: timestampFromDate(new Date(row.created_at)),
+  options: Array.isArray(row.options) ? row.options.filter((o): o is string => typeof o === "string" && o.trim() !== "").slice(0, 6).map((o) => o.slice(0, 200)) : [],
 });
 const uuid = () => Bun.randomUUIDv7();
 export function requiredString(args: Record<string, unknown>, key: string, max = 100_000): string {
@@ -77,7 +81,18 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     const instances = yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${config.provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${config.providerInstance} AND kind = 'endpoint'`;
     if (!instances[0]) return yield* Effect.fail(new Invalid("bots require a gateway-accessible endpoint provider instance; native CLI login is not supported"));
     for (const id of config.mcpServerIds) yield* server(user, id);
-    return create(bots.BotConfigurationSchema, { ...config, name: config.name.trim(), color: config.color.toLowerCase(), approvalPolicy: config.approvalPolicy || "safe" });
+    const model = apiModel(config.model, yield* catalogs(config), instances[0].custom_models);
+    if ("problem" in model) return yield* Effect.fail(new Invalid(model.problem));
+    return create(bots.BotConfigurationSchema, { ...config, model: model.model, name: config.name.trim(), color: config.color.toLowerCase(), approvalPolicy: config.approvalPolicy || "safe" });
+  });
+  /** What the workers last reported for the bot's instance (aliases and their concrete models). */
+  const catalogs = (config: bots.BotConfiguration) => sql<{ profiles: JsonValue[] }>`SELECT profiles FROM worker_model_catalogs`.pipe(Effect.map((rows): ProfileModels[] =>
+    rows.flatMap((r) => r.profiles.map((p) => fromJson(ProfileModelsSchema, p, { ignoreUnknownFields: true })))
+      .filter((p) => p.provider === config.provider && p.profileId === config.providerInstance)));
+  /** The concrete API model of a saved bot; bots saved before validation may still name an alias. */
+  const resolveModel = (config: bots.BotConfiguration) => Effect.gen(function* () {
+    const instance = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${config.provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${config.providerInstance} AND kind = 'endpoint'`)[0];
+    return apiModel(config.model, yield* catalogs(config), instance?.custom_models ?? []);
   });
   const save = (user: string, config: bots.BotConfiguration, options: { id?: string; requestId?: string }) => sql.withTransaction(Effect.gen(function* () {
     const checked = yield* validate(user, config);
@@ -132,10 +147,10 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     }
   }));
   return {
-    owned, save, enqueue, finish, changed, fenced, servers, resolvedServer,
+    owned, save, enqueue, finish, changed, fenced, servers, resolvedServer, resolveModel,
     list: (user: string) => Effect.gen(function* () {
       const rows = yield* sql<BotRow>`SELECT * FROM bots WHERE owner_user_id = ${user}::uuid AND deleted_at IS NULL ORDER BY created_at, id`;
-      const latest = yield* sql<MessageRow>`SELECT DISTINCT ON(m.bot_id) m.* FROM bot_messages m JOIN bots b ON b.id = m.bot_id
+      const latest = yield* sql<MessageRow>`SELECT DISTINCT ON(m.bot_id) m.*, t.status AS turn_status FROM bot_messages m JOIN bots b ON b.id = m.bot_id JOIN bot_turns t ON t.id = m.turn_id
         WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL ORDER BY m.bot_id, m.seq DESC`;
       const byBot = new Map(latest.map((m) => [m.bot_id, messageView(m)]));
       return rows.map((r) => create(bots.BotSchema, { ...botView(r), lastMessage: byBot.get(r.id) }));
@@ -150,8 +165,10 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     conversation: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
       // Taking the bot lock synchronizes snapshot revisions with all conversation writers.
       const bot = yield* owned(user, id, true);
-      const messages = yield* sql<MessageRow>`SELECT * FROM bot_messages WHERE bot_id = ${id}::uuid ORDER BY seq`;
-      const approvals = yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE bot_id = ${id}::uuid ORDER BY created_at, id`;
+      const messages = yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id WHERE m.bot_id = ${id}::uuid ORDER BY m.seq`;
+      // A question's options are the arguments of its ask_user call (the approval id is the call id).
+      const approvals = yield* sql<ApprovalRow>`SELECT a.*, CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options
+        FROM bot_approvals a LEFT JOIN bot_tool_calls c ON c.id = a.id WHERE a.bot_id = ${id}::uuid ORDER BY a.created_at, a.id`;
       const active = yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('queued','running','waiting') LIMIT 1`;
       return create(bots.BotConversationSchema, { bot: create(bots.BotSchema, { ...botView(bot), lastMessage: messages.length ? messageView(messages.at(-1)!) : undefined }), messages: messages.map(messageView), approvals: approvals.map(approvalView),
         statusLine: bot.status_line, working: active.length > 0, revision: BigInt(bot.revision) });
@@ -245,6 +262,15 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       yield* sql`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = (SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('running','waiting','queued') ORDER BY created_at, id LIMIT 1)`;
       yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending' AND turn_id IN (SELECT id FROM bot_turns WHERE status = 'interrupted')`;
       yield* sql`UPDATE bots SET status_line = '', revision = revision + 1 WHERE id = ${id}::uuid`;
+    })),
+    retry: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
+      yield* owned(user, id, true);
+      const last = (yield* sql<{ id: string; status: string }>`SELECT id, status FROM bot_turns WHERE bot_id = ${id}::uuid ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
+      if (last?.status !== "failed") return yield* Effect.fail(new Invalid("only a failed last reply can be retried"));
+      // The failure note goes; the same input runs again from its checkpoint.
+      yield* sql`DELETE FROM bot_messages WHERE turn_id = ${last.id}::uuid AND message_key = 'answer' AND kind = 'event'`;
+      yield* sql`UPDATE bot_turns SET status = 'queued', finished_at = NULL, lease_token = NULL, lease_until = NULL WHERE id = ${last.id}::uuid`;
+      yield* changed(id);
     })),
     release: (turn: BotTurn) => sql`UPDATE bot_turns SET lease_until = now(), lease_token = NULL WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid`,
     provider: (user: string, config: bots.BotConfiguration) => Effect.gen(function* () {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { bots, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
+import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
+import { bots, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { GatewayCore } from "@open-agents/gateway/core";
 import { GatewayStore } from "@open-agents/gateway/store";
@@ -357,9 +357,10 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
 
   test("questions persist and approvals resume after a gateway restart; interrupt and delete work", async () => {
     const bot = await add("Questions");
-    model = async (i) => i.messages.at(-1)?.role === "tool" ? reply(i.messages.at(-1)!.text) : tool("ask_user", { question: "Which project?" });
+    model = async (i) => i.messages.at(-1)?.role === "tool" ? reply(i.messages.at(-1)!.text) : tool("ask_user", { question: "Which project?", options: ["CRM", "Docs"] });
     await send(bot.id, "question");
     const pending = await eventually(() => read(bot.id), (s) => s.approvals.some((a) => a.status === "pending"));
+    expect(pending.approvals[0]!.options).toEqual(["CRM", "Docs"]);
     await restart();
     await current.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: pending.approvals[0]!.id, approve: true, answer: "CRM" }));
     expect((await settled(bot.id)).messages.at(-1)?.text).toContain("CRM");
@@ -370,4 +371,51 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     await current.bots.remove(bot.id);
     expect((await current.bots.list()).some((b) => b.id === bot.id)).toBe(false);
   }, 20_000);
+  test("harness aliases resolve to API models on save and at runtime; failed replies are marked and can be retried", async () => {
+    await gw.api.saveProviderInstance({ harness: Provider.CLAUDE, id: "bots-claude", label: "Claude proxy", create: true, kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:1", apiKey: "fixture", allWorkers: true });
+    const catalog = create(ProfileModelsSchema, { provider: Provider.CLAUDE, profileId: "bots-claude", models: [{ id: "default", resolvedModel: "claude-opus-5-5", isDefault: true }, { id: "claude-sonnet-5-5" }] });
+    await gw.runtime.runPromise(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      // A worker of its own: the connected scripted worker replaces its catalog on every config push.
+      const workerId = Bun.randomUUIDv7();
+      yield* sql`INSERT INTO workers (id, name, credential_hash) VALUES (${workerId}::uuid, 'catalog only', 'unused')`;
+      yield* sql`INSERT INTO worker_model_catalogs (worker_id, config_version, profiles) VALUES (${workerId}::uuid, 1, ${JSON.stringify([toJson(ProfileModelsSchema, catalog)])}::jsonb)`;
+    }));
+    const claude = { provider: Provider.CLAUDE, providerInstance: "bots-claude" };
+    const saved = await add("Aliased", { ...claude, model: "default" });
+    expect(saved.configuration?.model).toBe("claude-opus-5-5");
+    const create_ = (name: string, model: string) => current.bots.create(create(bots.CreateBotRequestSchema, { configuration: configuration(name, { ...claude, model }), clientRequestId: Bun.randomUUIDv7() }));
+    await expect(create_("Unresolved", "sonnet")).rejects.toThrow(/alias/);
+    await expect(create_("Unknown", "claude-missing")).rejects.toThrow(/does not offer/);
+    expect((await gw.api.updateBot({ botId: saved.id, configuration: configuration("Aliased", { ...claude, model: "default" }) })).bot?.configuration?.model).toBe("claude-opus-5-5");
+
+    // A bot saved before validation still names the alias; the runtime sends the concrete model.
+    await gw.runtime.runPromise(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`UPDATE bots SET configuration = jsonb_set(configuration, '{model}', '"default"') WHERE id = ${saved.id}::uuid`;
+    }));
+    const models: string[] = [];
+    let fail = true;
+    model = async (i) => { models.push(i.configuration.model); if (fail) throw new Error("Model endpoint returned HTTP 400"); return reply("Back again"); };
+    await send(saved.id, "hello alias");
+    const failed = await settled(saved.id);
+    expect(models).toEqual(["claude-opus-5-5"]);
+    expect(failed.messages.at(-1)).toMatchObject({ failed: true, text: "Model endpoint returned HTTP 400" });
+    expect((await current.bots.list()).find((b) => b.id === saved.id)?.lastMessage?.failed).toBe(true);
+    fail = false;
+    await gw.api.retryBot({ botId: saved.id });
+    const retried = await eventually(() => read(saved.id), (s) => s.messages.at(-1)?.text === "Back again", 10_000);
+    expect(retried.messages.map((m) => [m.text, m.failed])).toEqual([["hello alias", false], ["Back again", false]]);
+    await expect(current.bots.retry(saved.id)).rejects.toThrow(/failed/);
+  }, 20_000);
+  test("an edited approval card runs nothing and hands the user's version back to the model", async () => {
+    const bot = await add("Editor");
+    model = async (i) => i.messages.at(-1)?.role === "tool" ? reply(i.messages.at(-1)!.text) : tool("archive_thread", { thread_id: Bun.randomUUIDv7() });
+    await send(bot.id, "archive it");
+    const pending = await eventually(() => read(bot.id), (s) => s.approvals.some((a) => a.status === "pending"));
+    expect(pending.approvals[0]!.prompt).toStartWith("Needs approval");
+    await current.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: pending.approvals[0]!.id, approve: false, answer: "Archive the other thread instead" }));
+    const result = JSON.parse((await settled(bot.id)).messages.at(-1)!.text) as { status: string; edited: string };
+    expect(result).toMatchObject({ status: "changes_requested", edited: "Archive the other thread instead" });
+  }, 15_000);
 });

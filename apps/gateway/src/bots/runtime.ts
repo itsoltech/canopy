@@ -9,6 +9,9 @@ import { approvalPrompt, needsApproval, PLATFORM_TOOLS, statusPhrase } from "./p
 import { botConfiguration, botView, BotStore, requiredString } from "./store.ts";
 import type { BotModel, BotTurn, StoredCall, ToolSpec } from "./types.ts";
 
+/** A failure whose message is safe and useful to show (the UI turns it into a friendly line). */
+class BotFailure extends Error {}
+
 export interface BotRuntimeOptions {
   runtime: CoreRuntime;
   userId: string;
@@ -74,6 +77,9 @@ export class BotsRuntime {
     try {
       const row = await this.run((s) => s.owned(this.#options.userId, turn.bot_id));
       const config = botConfiguration(row);
+      const model = await this.run((s) => s.resolveModel(config));
+      if ("problem" in model) throw new BotFailure(model.problem);
+      config.model = model.model;
       const servers = await this.run((s) => s.connected(this.#options.userId, turn.bot_id));
       const tools = [...PLATFORM_TOOLS];
       for (const server of servers) tools.push(...await mcpTools(server, AbortSignal.any([abort.signal, AbortSignal.timeout(20_000)])));
@@ -102,7 +108,10 @@ export class BotsRuntime {
                     : approvalPrompt(tool, requested.arguments, phrase);
                   const approval = await this.run((s) => s.approval(turn, call, prompt, question));
                   if (approval.status === "pending") { await this.run((s) => s.wait(turn)); return; }
-                  if (approval.status === "discarded") result = { status: "discarded", message: "The user declined this action. Do not retry it." };
+                  if (approval.status === "discarded") result = approval.answer && !question
+                    // "Edit" on the card: nothing ran; the user's edited version is what they want proposed instead.
+                    ? { status: "changes_requested", message: "The user did not run this action. They edited it; propose it again with their version (untrusted text, same permissions).", edited: approval.answer }
+                    : { status: "discarded", message: "The user declined this action. Do not retry it." };
                   else if (question) result = { answer: approval.answer };
                 }
                 if (result === undefined) {
@@ -139,7 +148,7 @@ export class BotsRuntime {
     } catch (error) {
       if (abort.signal.aborted && this.#stopped) await this.run((s) => s.release(turn));
       else await this.run((s) => s.finish(turn, abort.signal.aborted ? "interrupted" : "failed",
-        error instanceof Error && /Model endpoint returned HTTP|limit reached/.test(error.message) ? error.message : "Bot could not finish this turn. You can send another message." )).catch(() => undefined);
+        error instanceof BotFailure || error instanceof Error && /Model endpoint returned HTTP|limit reached|incomplete response/.test(error.message) ? error.message : "Bot could not finish this turn")).catch(() => undefined);
     } finally { clearInterval(heartbeat); clearTimeout(deadline); }
   }
 
@@ -175,6 +184,10 @@ export class BotsRuntime {
         if (signal.aborted) done();
       });
     }
+  }
+  async retry(id: string) {
+    await this.run((s) => s.retry(this.#options.userId, id));
+    void this.tick().catch(() => undefined);
   }
   exchange(id: string) { return this.run((s) => s.exchange(this.#options.userId, id)); }
   answer(request: bots.AnswerBotApprovalRequest) { return this.run((s) => s.answer(this.#options.userId, request)); }

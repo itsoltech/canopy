@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { bots, Provider } from "@open-agents/contracts";
-import { anthropicRequest, directModel, openaiRequest } from "./model.ts";
+import { bots, ProfileModelsSchema, Provider } from "@open-agents/contracts";
+import { anthropicRequest, apiModel, directModel, openaiRequest } from "./model.ts";
 import { PLATFORM_TOOLS } from "./policy.ts";
 import type { ModelInput } from "./types.ts";
 
@@ -33,4 +33,22 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) test(`${Provider[provi
     expect(wire.some((t) => /shell|exec|patch|browser|web_search/.test(t.name))).toBe(false);
     expect(wire.some((t) => t.type && t.type !== "function")).toBe(false);
   } finally { await server.stop(true); }
+});
+
+test("harness aliases resolve to the concrete API model; unknown and unresolved ones are refused", () => {
+  const catalog = create(ProfileModelsSchema, { provider: Provider.CLAUDE, profileId: "proxy", models: [
+    { id: "default", resolvedModel: "claude-opus-5-5", isDefault: true }, { id: "opus", resolvedModel: "claude-opus-5-5" }, { id: "claude-sonnet-5-5" },
+  ] });
+  expect(apiModel("default", [catalog])).toEqual({ model: "claude-opus-5-5" });
+  expect(apiModel("opus", [catalog])).toEqual({ model: "claude-opus-5-5" });
+  expect(apiModel("claude-sonnet-5-5", [catalog])).toEqual({ model: "claude-sonnet-5-5" });
+  expect(apiModel("claude-opus-5-5", [catalog])).toEqual({ model: "claude-opus-5-5" });
+  expect(apiModel("sonnet", [catalog])).toHaveProperty("problem");
+  expect(apiModel("default", [])).toHaveProperty("problem");
+  expect(apiModel("claude-unknown", [catalog])).toHaveProperty("problem");
+  // Custom ids of the instance and any id without a catalog are left to the endpoint.
+  expect(apiModel("claude-unknown", [catalog], ["claude-unknown"])).toEqual({ model: "claude-unknown" });
+  expect(apiModel("claude-unknown", [])).toEqual({ model: "claude-unknown" });
+  expect(apiModel("claude-unknown", [create(ProfileModelsSchema, { ...catalog, detail: "proxy did not answer" })])).toEqual({ model: "claude-unknown" });
+  expect(apiModel("", [catalog])).toHaveProperty("problem");
 });
