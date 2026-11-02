@@ -20,7 +20,8 @@ describe.skipIf(Bun.env["OA_SCHEDULE_BROWSER"] !== "1")("scheduled tasks browser
   let mobile: BrowserContext;
   let scheduledThreadId: string;
   const problems: string[] = [];
-  const base = "http://127.0.0.1:5299";
+  const port = Bun.env["OA_SCHEDULE_BROWSER_PORT"] ?? "5299";
+  const base = `http://127.0.0.1:${port}`;
   const screenshot = (page: Page, name: string) => page.screenshot({ path: resolve(shots, `${name}.png`), animations: "disabled" });
   beforeAll(async () => {
     mkdirSync(shots, { recursive: true });
@@ -43,8 +44,9 @@ describe.skipIf(Bun.env["OA_SCHEDULE_BROWSER"] !== "1")("scheduled tasks browser
     const settings = (await gw.api.getSettings({})).user!;
     await gw.api.updateUserSettings({ expectedVersion: settings.version, appearance: { ...settings.appearance!, threadPanelCollapsed: false } });
     web = Bun.spawn(["bun", "build/index.js"], { cwd: resolve(import.meta.dir, "../../apps/web"),
-      env: { ...Bun.env, HOST: "127.0.0.1", PORT: "5299", GATEWAY_URL: gw.grpcUrl, GATEWAY_SERVICE_TOKEN: SERVICE_TOKEN, ORIGIN: base }, stdout: "ignore", stderr: "inherit" });
+      env: { ...Bun.env, HOST: "127.0.0.1", PORT: port, SHUTDOWN_TIMEOUT: "1", GATEWAY_URL: gw.grpcUrl, GATEWAY_SERVICE_TOKEN: SERVICE_TOKEN, ORIGIN: base }, stdout: "ignore", stderr: "inherit" });
     expect(await eventually(async () => fetch(`${base}/api/settings`).then((r) => r.ok).catch(() => false), Boolean, 20_000)).toBe(true);
+    expect(web.exitCode).toBeNull();
     const { chromium } = createRequire(import.meta.url)("playwright-core") as typeof import("playwright-core");
     const options = { executablePath: "/usr/bin/chromium", headless: true, args: ["--no-sandbox"] };
     desktop = await chromium.launchPersistentContext(makeTemp("oa-schedules-desktop-"), { ...options, viewport: { width: 1440, height: 1000 } });
@@ -68,7 +70,8 @@ describe.skipIf(Bun.env["OA_SCHEDULE_BROWSER"] !== "1")("scheduled tasks browser
         await screenshot(page, `${size}-${theme}-list`);
         await page.getByRole("button", { name: "New task", exact: true }).click();
         const dialog = page.getByRole("dialog", { name: "Schedule a task", exact: true });
-        await dialog.locator('select[name="target"]').selectOption("new_thread");
+        await dialog.getByRole("combobox", { name: "Run the task", exact: true }).click();
+        await page.getByRole("option", { name: "Start a new thread each run", exact: true }).click();
         await dialog.getByText("Eligible now: Build server.", { exact: true }).waitFor();
         expect(await dialog.getByRole("button", { name: /effort/i }).count()).toBe(0);
         expect(await page.locator("body").evaluate((node) => node.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
@@ -82,7 +85,8 @@ describe.skipIf(Bun.env["OA_SCHEDULE_BROWSER"] !== "1")("scheduled tasks browser
     await page.goto(`${base}/settings/schedules`);
     await page.getByRole("button", { name: "New task", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Schedule a task", exact: true });
-    await dialog.locator('select[name="target"]').selectOption("new_thread");
+    await dialog.getByRole("combobox", { name: "Run the task", exact: true }).click();
+    await page.getByRole("option", { name: "Start a new thread each run", exact: true }).click();
     await dialog.getByRole("button", { name: /^Model:/ }).click();
     const search = page.locator('[popover]:popover-open input');
     await search.fill("custom-scheduled-model");
@@ -91,12 +95,13 @@ describe.skipIf(Bun.env["OA_SCHEDULE_BROWSER"] !== "1")("scheduled tasks browser
     await dialog.getByRole("button", { name: /^Model:/ }).click();
     await search.fill("gpt-6.1-sol");
     await search.press("Enter");
-    await dialog.locator('select[name="placement"]').selectOption("specific");
-    const workers = dialog.locator('select[name="workspaceId"]');
-    expect(await workers.locator("option").count()).toBe(2);
-    await workers.selectOption({ label: "laptop · /repo" });
+    await dialog.getByRole("combobox", { name: "Placement", exact: true }).click();
+    await page.getByRole("option", { name: "Specific worker", exact: true }).click();
+    await dialog.getByRole("combobox", { name: "Worker", exact: true }).click();
+    expect(await page.getByRole("option").count()).toBe(2);
+    await page.getByRole("option", { name: "laptop · /repo", exact: true }).click();
     await dialog.locator('label:has(input[name="kind"][value="recurring"])').click();
-    expect(await dialog.locator('select[name="concurrency"]').inputValue()).toBe("skip_if_running");
+    expect(await dialog.locator('input[type="hidden"][name="concurrency"]').inputValue()).toBe("skip_if_running");
     await dialog.locator('textarea[name="prompt"]').fill("Check release status and report the result.");
     await dialog.locator('input[name="scheduleName"]').fill("Browser verified schedule");
     await dialog.getByRole("button", { name: "Schedule", exact: true }).click();
@@ -110,7 +115,7 @@ describe.skipIf(Bun.env["OA_SCHEDULE_BROWSER"] !== "1")("scheduled tasks browser
     expect(await row.locator('[title="Started by schedule Morning build check · run 1"]').count()).toBe(1);
     await screenshot(page, "desktop-origin");
     await page.getByRole("button", { name: "Schedule a task", exact: true }).click();
-    expect(await dialog.locator('select[name="target"]').inputValue()).toBe("thread");
+    expect(await dialog.locator('input[type="hidden"][name="target"]').inputValue()).toBe("thread");
     expect(problems).toEqual([]);
     await page.close();
   }, 90_000);

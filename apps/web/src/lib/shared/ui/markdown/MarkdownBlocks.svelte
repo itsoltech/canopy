@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ChoiceControl from "../ChoiceControl.svelte";
   import type { Token, Tokens } from "marked";
   import CodeFence from "../code/CodeFence.svelte";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
@@ -36,7 +37,7 @@
       {#each list.items as item, itemIndex (itemIndex)}
         <li class={["pl-1", item.task && "list-none -ml-5 flex gap-2"]}>
           {#if item.task}
-            <input type="checkbox" checked={item.checked} disabled class="mt-1.5 size-3.5 shrink-0 accent-zinc-700" aria-label={item.checked ? "Done" : "Not done"} />
+            <div class="flex h-lh shrink-0 items-center"><ChoiceControl name="markdown-task" checked={item.checked} disabled aria-label={item.checked ? "Done" : "Not done"} /></div>
           {/if}
           <div class="grid min-w-0 gap-2">
             {#if item.loose}

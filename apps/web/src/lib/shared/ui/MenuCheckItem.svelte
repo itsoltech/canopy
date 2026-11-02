@@ -4,6 +4,7 @@
   import Icon from "./Icon.svelte";
   import { hoverFocus, menuRowClasses, useMenu } from "./menu.ts";
   import MenuItemText from "./MenuItemText.svelte";
+  import TouchTarget from "./TouchTarget.svelte";
 
   /**
    * A choice in a `DropdownMenu` with a check mark: `type="radio"` (one of a group, closes the menu)
@@ -53,4 +54,5 @@
 >
   <MenuItemText {description}>{@render children()}</MenuItemText>
   <Icon name="check" class={["h-lh fill-brand-600 dark:fill-brand-400", !checked && "invisible"]} />
+  <TouchTarget />
 </button>
