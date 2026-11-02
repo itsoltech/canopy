@@ -7,7 +7,8 @@
    * `label` when the icon is the only content. Colour: solid ones from `fill-*` classes, line ones from the text
    * colour (`stroke` attribute); both default to the current text colour, as attributes so any class wins.
    */
-  let { name, label, class: className }: { name: IconName; label?: string; class?: ClassValue } = $props();
+  let { name, label, size = "md", class: className }: { name: IconName; label?: string; size?: "xs" | "sm" | "md"; class?: ClassValue } = $props();
+  const dimensions = $derived(size === "xs" ? "size-3" : size === "sm" ? "size-3.5" : "size-4");
 </script>
 
 {#if name in lineIcons}
@@ -18,7 +19,7 @@
     stroke-width="1.75"
     stroke-linecap="round"
     stroke-linejoin="round"
-    class={["size-4 shrink-0", className]}
+    class={["shrink-0", dimensions, className]}
     aria-hidden={label ? undefined : "true"}
     role={label ? "img" : undefined}
     aria-label={label}
@@ -29,7 +30,7 @@
   <svg
     viewBox="0 0 16 16"
     fill="currentColor"
-    class={["size-4 shrink-0", className]}
+    class={["shrink-0", dimensions, className]}
     aria-hidden={label ? undefined : "true"}
     role={label ? "img" : undefined}
     aria-label={label}

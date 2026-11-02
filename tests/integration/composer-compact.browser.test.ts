@@ -167,6 +167,10 @@ describe.skipIf(Bun.env["OA_COMPOSER_BROWSER"] !== "1")("compact composer browse
         expect(await input.evaluate((n) => n === n.ownerDocument.activeElement)).toBe(true);
         expect(await composer.getAttribute("data-compact")).toBeNull();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      } catch (error) {
+        console.info("BROWSER FAILURE", await page.locator("body").innerText());
+        await page.screenshot({ path: resolve(shots, `${width}-${theme}-failure.png`) });
+        throw error;
       } finally { await context.close(); }
     }, 45000);
   }
@@ -240,9 +244,25 @@ describe.skipIf(Bun.env["OA_COMPOSER_BROWSER"] !== "1")("compact composer browse
         await composer.getByRole("button", { name: /1 subagent/ }).click();
         await page.getByRole("region", { name: "Timeline", exact: true }).focus();
         await page.waitForTimeout(600);
+        if (Bun.env["OA_COMPOSER_DENSITY_PHASE"] !== "before") {
+          const header = composer.getByRole("button", { name: /1 subagent/ });
+          expect((await header.boundingBox())!.height).toBeLessThanOrEqual(36);
+          expect((await header.boundingBox())!.height).toBeGreaterThanOrEqual(32);
+          expect((await composer.getByRole("link", { name: /Review accessibility/ }).boundingBox())!.height).toBeLessThanOrEqual(40);
+          expect(await header.locator("svg").last().evaluate((n) => n.getBoundingClientRect().width)).toBe(12);
+          if (width === 390) {
+            const targets = await composer.locator('span[class*="pointer-fine:hidden"]').evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect()).filter((r) => r.height > 0).map((r) => Math.min(r.width, r.height)));
+            expect(Math.min(...targets)).toBeGreaterThanOrEqual(40);
+          }
+        }
         await page.screenshot({ path: resolve(shots, `${width}-${theme}-panels-${Bun.env["OA_COMPOSER_DENSITY_PHASE"] ?? "after"}.png`) });
         await composer.getByRole("button", { name: "Dismiss", exact: true }).click();
         await answer;
+        await composer.getByRole("textbox", { name: "Message", exact: true }).waitFor();
+      } catch (error) {
+        console.info("DENSITY FAILURE", await page.locator("body").innerText());
+        await page.screenshot({ path: resolve(shots, `${width}-${theme}-density-failure.png`) });
+        throw error;
       } finally { await context.close(); }
     }
   }, 45000);

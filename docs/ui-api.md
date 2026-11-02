@@ -141,7 +141,9 @@ Wąski widok pozostawia pierwszą linię tego samego edytora i przycisk wysyłan
 
 `ComposerCompaction` obsługuje stan niezależnie od DOM. `VirtualFeed.onreaderscroll` przekazuje tylko przewijanie po gestach użytkownika; streaming i korekty kotwicy nie sterują zwijaniem. Zwolniona wysokość stopki zostaje jako przestrzeń pod historią podczas czytania, aby wysoka kolejka nie zmieniła pozycji czytanego wiersza. Gradient i „Jump to latest” podążają za rzeczywistą wysokością stopki. `ComposerFold` współdzieli przejścia wysokości/przezroczystości na tokenach `--duration-slow` przy otwieraniu i `--duration-medium` przy zamykaniu; reduced motion przełącza natychmiast. Ustawienia i protokół pozostają bez nowego przełącznika.
 
-Weryfikacja przeglądarkowa: `OA_COMPOSER_BROWSER=1 bun test tests/integration/composer-compact.browser.test.ts`, po zbudowaniu web. Test uruchamia własny gateway/PostgreSQL/workera i web na porcie 5297; screenshoty trafiają do `artifacts/composer-compact/`.
+Panele są gęstsze również przy rozwiniętym kompozytorze: `ComposerPanelHeader` współdzieli nagłówki subagentów i pytań (32 px desktop / 36 px telefon), kolejka ma wiersze 36 px, a subagent z podglądem ostatniej wiadomości 40 px. Tytuły mają 14 px na telefonie / 13 px na desktopie, tekst pomocniczy 13/12 px, ikony dostawców 14 px, chevrony 12 px. `Icon`/`ProviderIcon` mają jawny `size`, a `TouchTarget size="sm"` zachowuje co najmniej 40 px obszaru dotyku bez powiększania wizualnej wysokości nagłówków i opcji.
+
+Weryfikacja przeglądarkowa: `OA_COMPOSER_BROWSER=1 bun test tests/integration/composer-compact.browser.test.ts`, po zbudowaniu web. Test uruchamia własny gateway/PostgreSQL/workera i web na porcie 5297; screenshoty trafiają do `artifacts/composer-compact/`. Porównania paneli przed/po i ograniczenia opisuje [raport](composer-compact-verification.md).
 
 ### Pytania nad kompozytorem
 

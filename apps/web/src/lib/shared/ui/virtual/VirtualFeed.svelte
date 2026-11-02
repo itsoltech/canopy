@@ -297,6 +297,9 @@
       if (distance <= FEED_END_THRESHOLD) stuck = true;
       else if (top < lastTop - 0.5) stuck = false;
       if (performance.now() < readerUntil && performance.now() >= smoothUntil) {
+        // Keep touch/trackpad inertia attributable to the reader until it settles. A subsequent
+        // edit clears this lease before the browser can scroll to reveal its caret.
+        readerUntil = performance.now() + 250;
         onreaderscroll?.({ distance, up: lastTop - top });
       }
     }
@@ -461,7 +464,7 @@
       </div>
     </div>
     <div aria-hidden="true" style:height="{stuck ? 0 : Math.max(0, reservedFooter - footerHeight)}px" class="shrink-0"></div>
-    <div bind:this={footerElement} class="sticky bottom-0 z-10 pb-[max(--spacing(3),env(safe-area-inset-bottom))]" onfocusin={() => { readerUntil = 0; }}>
+    <div bind:this={footerElement} class="sticky bottom-0 z-10 pb-[max(--spacing(3),env(safe-area-inset-bottom))]" onfocusin={() => { readerUntil = 0; }} onbeforeinput={() => { readerUntil = 0; }}>
       {#if !stuck}
         <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2" transition:rise>
           <Button size="sm" icon="arrow-down" class="shadow-md dark:shadow-none" onclick={jump}>Jump to latest</Button>
