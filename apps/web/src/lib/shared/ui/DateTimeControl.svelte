@@ -71,9 +71,9 @@
 
 <div class={className}>
   <input {...rest} bind:this={hidden} type="hidden" {name} {form} {disabled} value={wire} {onchange} {oninput} />
-  <input bind:this={validation} type="text" class="sr-only" tabindex="-1" aria-label={label} value={wire} {required} {form} {disabled}
+  <input bind:this={validation} type="text" class="sr-only" tabindex="-1" aria-hidden="true" value={wire} {required} {form} {disabled}
     oninvalid={(event) => { event.preventDefault(); button?.focus(); }} />
-  <Popover bind:open label="Choose {label}" sheet class="w-96 max-w-[calc(100vw-1rem)]">
+  <Popover bind:open label="Choose {label}" sheet maxHeight="min(var(--float-available-height,40rem),40rem)" class="w-96 max-w-[calc(100vw-1rem)]">
     {#snippet trigger(props)}
       <PickerTrigger {...props} bind:element={button} {id} aria-haspopup="dialog" aria-readonly={readonly || undefined} {form} disabled={disabled || readonly}
         aria-label={rest["aria-label"]} aria-describedby={rest["aria-describedby"] ?? field?.describedBy}

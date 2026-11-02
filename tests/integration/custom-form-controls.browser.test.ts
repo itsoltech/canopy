@@ -17,7 +17,6 @@ describe.skipIf(Bun.env["OA_FORM_BROWSER"] !== "1")("custom form controls browse
   let browser: Browser;
   let threadId: string;
   let turnId: string;
-  const problems: string[] = [];
   beforeAll(async () => {
     mkdirSync(shots, { recursive: true });
     gw = await startTestGateway();
@@ -62,7 +61,15 @@ describe.skipIf(Bun.env["OA_FORM_BROWSER"] !== "1")("custom form controls browse
     test(`${width}px ${theme}: forms, bindings, keyboard, locale and sheets`, async () => {
       const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 1000 }, isMobile: width === 390, hasTouch: width === 390, locale: "en-GB", timezoneId: "Europe/Warsaw" });
       context.setDefaultTimeout(8000);
-      context.on("page", (page) => page.on("pageerror", (error) => problems.push(error.message)));
+      const problems: string[] = [];
+      await context.addInitScript(() => window.addEventListener("vite:preloadError", (event) => console.error("preloadError", (event as Event & { payload?: Error }).payload)));
+      context.on("page", (page) => page.on("pageerror", (error) => {
+        problems.push(error.stack || error.message);
+        console.error(error.stack || error.message);
+      }));
+      context.on("page", (page) => page.on("console", (message) => {
+        if (message.type() === "error" && message.text().startsWith("preloadError")) console.error(message.text());
+      }));
       const page = await context.newPage();
       const prefix = `${width}-${theme}`;
       try {
@@ -107,6 +114,7 @@ describe.skipIf(Bun.env["OA_FORM_BROWSER"] !== "1")("custom form controls browse
         const day = picker.locator('[role="grid"] button[tabindex="0"]');
         await day.focus(); await day.press("ArrowRight"); await page.keyboard.press("ArrowDown");
         await page.keyboard.press("Home"); await page.keyboard.press("End"); await page.keyboard.press("PageDown"); await page.keyboard.press("Enter");
+        expect(await picker.evaluate((node) => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
         await shot(page, `${prefix}-calendar`);
         await picker.getByRole("button", { name: "Apply", exact: true }).click();
         expect(await schedule.locator('input[type="hidden"][name="runAt"]').inputValue()).toMatch(/^\d{4}-\d{2}-\d{2}T09:00$/);

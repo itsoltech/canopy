@@ -85,7 +85,7 @@
         if (wasOpen) { event.preventDefault(); event.stopPropagation(); open = false; }
         return;
       case "Tab":
-        if (wasOpen) choose(active);
+        if (wasOpen) { choose(active); open = false; }
         return;
     }
     if (event.key.length === 1 && !event.altKey) {
@@ -99,7 +99,7 @@
 <div class={className}>
   <input type="hidden" {name} {form} {disabled} value={value == null ? "" : String(value)} />
   {#if required}
-    <input class="sr-only" type="text" tabindex="-1" aria-label={rest["aria-label"] ?? name ?? "Selection"} value={selected?.value ?? ""} required {disabled} {form}
+    <input class="sr-only" type="text" tabindex="-1" aria-hidden="true" value={selected?.value ?? ""} required {disabled} {form}
       oninvalid={(event) => { event.preventDefault(); button?.focus(); }} />
   {/if}
   <Popover bind:open label={rest["aria-label"] ?? name ?? "Options"} role="none" sheet focusOnOpen={false}

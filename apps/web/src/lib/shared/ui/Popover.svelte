@@ -51,6 +51,7 @@
     role = "dialog",
     anchor: anchorElement,
     sheet = false,
+    maxHeight,
     focusOnOpen = true,
     initialFocus,
     triggerKeydown,
@@ -71,6 +72,8 @@
     anchor?: HTMLElement | undefined;
     /** Bottom sheet below `sm` (pickers with long lists). */
     sheet?: boolean;
+    /** Override the anchored panel's height cap; mobile sheets retain their viewport cap. */
+    maxHeight?: string | undefined;
     focusOnOpen?: boolean;
     /** Custom first focus (menus focus their first item); return false to fall back to the default. */
     initialFocus?: ((panel: HTMLElement) => boolean | void) | undefined;
@@ -222,6 +225,7 @@
   data-sheet={narrow || undefined}
   data-menu-panel={role === "menu" || undefined}
   inert={closing || undefined}
+  style:max-height={!narrow ? maxHeight : undefined}
   {onkeydown}
   {onfocusout}
   onfocusin={() => (focusInside = true)}
