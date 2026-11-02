@@ -377,9 +377,10 @@ const make = (options: ClaudeThreadsOptions) =>
       // Leaving FULL_AUTO: stop auto-allowing first; entering it: only once the sandbox is on.
       if (!next.autoAllow) session.autoAllow = false;
       if (Boolean(next.options.sandbox) !== Boolean(current.options.sandbox)) {
-        // Options.sandbox and the settings' sandbox are the same object (the SDK merges the option into this layer).
+        // Options.sandbox is the settings' sandbox; live, only an explicit `enabled: false` turns it off
+        // (`sandbox: null` leaves the one from the start in place and sandboxed Bash stays auto-allowed).
         type FlagSandbox = NonNullable<Parameters<Query["applyFlagSettings"]>[0]["sandbox"]>;
-        const sandbox = (next.options.sandbox ?? null) as FlagSandbox | null;
+        const sandbox = (next.options.sandbox ?? { enabled: false }) as FlagSandbox;
         await session.query.applyFlagSettings({ sandbox });
       }
       await session.query.setPermissionMode(next.options.permissionMode ?? "default");
