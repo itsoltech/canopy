@@ -5,6 +5,8 @@
   import SeenImage from "#lib/features/attachments/SeenImage.svelte";
   import { useThreadDirectory } from "../../thread-directory.ts";
   import ItemFrame from "./ItemFrame.svelte";
+  import DiffCounts from "./DiffCounts.svelte";
+  import { diffCounts, toolChanges } from "./tools/changes.ts";
   import type { ToolBodyProps } from "./tools/body.ts";
   import EditBody from "./tools/EditBody.svelte";
   import GenericBody from "./tools/GenericBody.svelte";
@@ -47,10 +49,11 @@
   const input = $derived(parseObject(call.inputJson));
   const Body = $derived(bodies[look.body]);
   const failed = $derived(call.isError || status === ItemStatus.FAILED);
+  const counts = $derived(look.body === "edit" || look.body === "patch" ? diffCounts(toolChanges(call.name, input)) : undefined);
   const directory = useThreadDirectory();
 </script>
 
-<ItemFrame icon={look.icon} {status} tone={failed ? "rose" : "neutral"} defaultOpen={failed || call.images.length > 0}>
+<ItemFrame icon={look.icon} {status} tone={failed ? "rose" : "neutral"}>
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
       <span class="shrink-0 font-medium text-zinc-950 dark:text-white">{look.title}</span>
@@ -60,6 +63,7 @@
     </span>
   {/snippet}
   {#snippet aside()}
+    {#if counts}<DiffCounts {...counts} />{/if}
     {#if look.detail}<span class="max-sm:hidden">{look.detail}</span>{/if}
     {#if call.isError && status !== ItemStatus.FAILED}<span class="text-rose-700 dark:text-rose-400">Error</span>{/if}
   {/snippet}

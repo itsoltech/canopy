@@ -165,12 +165,15 @@
       {#each sides.active as side (side.id)}
         <li>
           <PanelRow
-            icon={side.spawnedByAgent ? "sparkles" : side.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
-            iconClass={side.spawnedByAgent ? "fill-violet-500 dark:fill-violet-400" : undefined}
+            icon={side.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
             href="/threads/{side.id}"
             current={side.id === thread.id}
             class="pl-6"
           >
+            {#snippet lead()}
+              {@const provider = providerKeyOf(side.provider)}
+              {#if side.spawnedByAgent && provider}<ProviderIcon {provider} class="size-4 shrink-0" />{:else}<Icon name={side.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"} class="fill-zinc-400 dark:fill-zinc-500" />{/if}
+            {/snippet}
             {side.title}{#if side.spawnedByAgent}<span class="sr-only"> (started by an agent)</span>{/if}{#if side.forkSourceThreadId}<span class="sr-only"> (fork)</span>{/if}
             {#snippet aside()}<ThreadStatusText thread={side} />{/snippet}
           </PanelRow>

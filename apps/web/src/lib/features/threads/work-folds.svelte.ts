@@ -7,17 +7,17 @@ import { readWork } from "./work-groups.ts";
 export interface FoldReader {
   reading(): string[];
   hold(key: string): void;
+  scrollRowToTop(key: string): Promise<boolean>;
 }
 
 /**
- * Which ended turns of a thread have their "Worked for …" fold open. Kept per thread page, not in a
- * row, so it survives rows scrolling out of the virtual feed. A turn that ends folds, unless the reader
- * is in its work right now (scrolled up with one of its rows on screen, or focused in one): then it
- * stays open and the row being read keeps its place, so nothing moves under them. Reading only the
- * turn's input or last message (they stay), or anything above, it folds: the feed keeps those in place.
+ * Per-page choices for live/ended folds and tool groups, surviving virtual unmounts. Completion
+ * preserves the reader's choices and holds any visible work row. Following readers start long final
+ * answers at the top; VirtualFeed leaves short answers and readers who scrolled away alone.
  */
 export class WorkFolds {
   open = $state.raw<ReadonlySet<string>>(new Set());
+  groups = $state.raw<ReadonlySet<string>>(new Set());
   /** Turns seen running: their end is a change the reader may be in the middle of. */
   readonly #running = new Set<string>();
 
@@ -27,6 +27,14 @@ export class WorkFolds {
     if (open) next.add(turnId);
     else next.delete(turnId);
     this.open = next;
+  }
+
+  toggleGroup(key: string, open = !this.groups.has(key)): void {
+    if (open === this.groups.has(key)) return;
+    const next = new Set(this.groups);
+    if (open) next.add(key);
+    else next.delete(key);
+    this.groups = next;
   }
 
   /** The thread's turns changed: call before the feed renders (`$effect.pre`), outside tracking. */
@@ -41,5 +49,7 @@ export class WorkFolds {
       reader.hold(key);
       this.toggle(turnId, true);
     }
+    // VirtualFeed only moves a reader still following the end, and only for an oversized answer.
+    for (const turnId of ended) void reader.scrollRowToTop(`answer:${turnId}`);
   }
 }

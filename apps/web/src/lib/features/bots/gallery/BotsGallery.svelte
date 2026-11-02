@@ -20,6 +20,7 @@
   import WatchBar from "../components/WatchBar.svelte";
   import { bots, conversations, directEntries, groupEntries, me, pictureBot, watchEntries } from "./fixtures.ts";
   import GallerySection from "./GallerySection.svelte";
+  import WizardGallery from "./WizardGallery.svelte";
   import Segmented from "./Segmented.svelte";
   import type { ClassValue } from "svelte/elements";
 
@@ -100,6 +101,8 @@
           <Icon name="information-circle" class="fill-zinc-400 dark:fill-zinc-500" />{log}
         </p>
       </div>
+
+      <WizardGallery />
 
       <GallerySection title="Avatars" description="Mascot shape, colour and eyes come from the bot id. A picture replaces the mascot; you get initials. Badges mark pinned and online.">
         <div class="flex flex-wrap items-end gap-4">
