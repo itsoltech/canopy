@@ -35,6 +35,10 @@ for await (const line of createInterface({ input: process.stdin })) {
       await rpc("tools/list");
       const response = await rpc("tools/call", { name: "list_threads", arguments: {} });
       if (!response.result) throw new Error("MCP tool call failed");
+      if (text.includes("IMAGE")) {
+        const image = await rpc("tools/call", { name: "view_image", arguments: { path: "fixture.png" } });
+        if (!(image.result as { content: { type: string }[] })?.content.some((c) => c.type === "image")) throw new Error("MCP image missing");
+      }
     }
     update(sessionId, { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "Thinking" } });
     update(sessionId, { sessionUpdate: "tool_call", toolCallId: "pwd", title: "run_terminal_command", rawInput: { command: "pwd" }, status: "in_progress" });

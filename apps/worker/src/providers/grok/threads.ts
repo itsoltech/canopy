@@ -119,6 +119,7 @@ export class GrokThreads {
         else if (event.stopReason === "cancelled") { outcome = TurnOutcome.INTERRUPTED; reason = "Grok cancelled the turn"; }
         else if (["max_tokens", "max_turn_requests", "refusal"].includes(event.stopReason)) { outcome = TurnOutcome.FAILED; reason = `Grok stopped: ${event.stopReason}`; }
       }
+      if (entry.interrupted) { outcome = TurnOutcome.INTERRUPTED; reason = "interrupted by the user"; }
     } catch {
       outcome = entry.interrupted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED;
       reason = entry.interrupted ? "interrupted by the user" : "Grok CLI failed; check authentication and provider configuration";

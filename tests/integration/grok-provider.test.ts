@@ -28,6 +28,7 @@ test.skipIf(!dockerAvailable)("Grok: UI API→gateway→worker→fake ACP, appro
     await eventually(async () => (await gw.api.getOverview({})).workers.find((w) => w.id === added.workerId), (w) => !!w?.providerInstances.some((i) => i.harness === Provider.GROK && i.available), 15_000);
   };
   try {
+    await Bun.write(join(repo, "fixture.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
     await connect();
     const snapshot = async (threadId: string) => {
       const updates = await watchUntil(gw.api, threadId, (us) => us.some((u) => u.change.case === "snapshot"));
@@ -53,12 +54,13 @@ test.skipIf(!dockerAvailable)("Grok: UI API→gateway→worker→fake ACP, appro
       }, 15_000);
       return { updates, answered, state: await snapshot(thread.id) };
     };
-    const initial = await turn("MCP");
+    const initial = await turn("MCP_IMAGE");
     expect(initial.state.turns.at(-1)?.status).toBe("completed");
     const items = initial.state.items.map((i) => i.item?.content.case);
     expect(items).toContain("commandExecution"); expect(items).toContain("fileChange"); expect(items).toContain("reasoning"); expect(items).toContain("plan");
     expect(initial.state.items.some((i) => i.item?.content.case === "agentMessage" && i.item.content.value.text === "GROK_OK")).toBe(true);
     expect(initial.state.items.some((i) => i.item?.content.case === "agentBusCall")).toBe(true);
+    expect(initial.state.items.some((i) => i.item?.content.case === "image" && !!i.item.content.value.blob?.sha256)).toBe(true);
     const allowed = await turn("PERMISSION", true);
     expect(allowed.answered.size).toBe(1);
     expect(allowed.state.items.some((i) => i.item?.content.case === "agentMessage" && i.item.content.value.text === "ALLOWED")).toBe(true);
@@ -85,5 +87,10 @@ test.skipIf(!dockerAvailable)("Grok: UI API→gateway→worker→fake ACP, appro
     expect(interrupted.turns.some((t) => t.status === "interrupted")).toBe(true);
     const drained = await eventually(() => snapshot(thread.id), (r) => r.turns.at(-1)?.status === "completed", 5000);
     expect(drained.turns.at(-1)?.status).toBe("completed");
+    const waiting = await gw.api.sendMessage({ threadId: thread.id, text: "PERMISSION", clientRequestId: crypto.randomUUID() });
+    await eventually(() => snapshot(thread.id), (r) => r.interactions.some((i) => i.turnId === waiting.turn?.id && i.status === "pending"), 5000);
+    await gw.api.interruptThread({ threadId: thread.id });
+    const cancelled = await eventually(() => snapshot(thread.id), (r) => r.turns.find((t) => t.id === waiting.turn?.id)?.status === "interrupted", 10000);
+    expect(cancelled.interactions.filter((i) => i.turnId === waiting.turn?.id).every((i) => i.status !== "pending")).toBe(true);
   } finally { await stop(); await proxy.stop(true); await gw.close(); }
 }, 60_000);
