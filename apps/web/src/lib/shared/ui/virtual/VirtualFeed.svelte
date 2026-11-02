@@ -8,6 +8,7 @@
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
   import { FEED_END_THRESHOLD, type ReaderScroll } from "./scroll.ts";
+  import type { FeedViewport } from "./viewport.ts";
 
   /**
    * A chat's scroll area: one scroll container with the rows (`role="feed"`, virtualized) and a sticky
@@ -44,6 +45,7 @@
     atEnd = $bindable(true),
     onreaderscroll,
     onlatest,
+    onviewport,
   }: {
     rows: readonly T[];
     key: (row: T) => string;
@@ -64,6 +66,8 @@
     atEnd?: boolean;
     onreaderscroll?: (scroll: ReaderScroll) => void;
     onlatest?: () => void;
+    /** Measured visible rows (no overscan), published at most once per animation frame. */
+    onviewport?: (viewport: FeedViewport) => void;
   } = $props();
 
   const uid = $props.id();
@@ -124,6 +128,28 @@
   const padTop = $derived.by(() => (void layout, index.offset(range[0])));
   const padBottom = $derived.by(() => (void layout, layout.total - index.offset(range[1])));
   const visible = $derived(rows.slice(range[0], range[1]));
+  $effect(() => {
+    void layout;
+    const top = scrollTop - listTop;
+    const height = Math.max(0, viewport - footerHeight);
+    const callback = onviewport;
+    if (!callback || !viewport) return;
+    const frame = requestAnimationFrame(() => {
+      const [start, end] = index.range(top, top + height);
+      callback({ start, end, height });
+    });
+    return () => cancelAnimationFrame(frame);
+  });
+
+  // A start-aligned last row needs enough space below it to reach the viewport's top.
+  let alignedKey = $state<string>();
+  const alignmentSpace = $derived.by(() => {
+    void layout;
+    const at = alignedKey === undefined ? undefined : positions.get(alignedKey);
+    return at === undefined ? 0 : Math.max(0, viewport - footerHeight - (layout.total - index.offset(at)));
+  });
+  let rowTarget: string | undefined;
+  let rowTimer: ReturnType<typeof setTimeout> | undefined;
 
   // --- New rows ---------------------------------------------------------------------------------------
   /** Keys shown so far (undefined until the first rows); rows that arrive later enter until they mount. */
@@ -152,6 +178,7 @@
     } else if (startedEmpty) for (const rowKey of keys) entering.set(rowKey, { kind: "reveal", order: 0 });
     // What did not mount with this update (scrolled away) is not new any more.
     cancelAnimationFrame(enterFrame);
+    clearTimeout(rowTimer);
     enterFrame = requestAnimationFrame(() => entering.clear());
     known = new Set(keys);
   });
@@ -250,6 +277,20 @@
     // The reader scrolled and its scroll event is still to come: take it in first, or the old anchor
     // would undo the scroll.
     if (Math.abs(scroller.scrollTop - lastTop) >= 1) onscroll();
+    if (rowTarget) {
+      if (performance.now() < smoothUntil) return;
+      const element = elements.get(rowTarget);
+      const at = positions.get(rowTarget);
+      if (at === undefined) rowTarget = undefined;
+      else if (!element) {
+        setTop(listTop + index.offset(at));
+        scrollTop = scroller.scrollTop;
+        return;
+      } else {
+        anchor = { key: rowTarget, element, top: 0 };
+        rowTarget = undefined;
+      }
+    }
     if (stuck) {
       if (performance.now() < smoothUntil) return;
       const end = scroller.scrollHeight - scroller.clientHeight;
@@ -309,6 +350,8 @@
   }
 
   function onwheel(event: WheelEvent) {
+    rowTarget = undefined;
+    smoothUntil = 0;
     readerUntil = performance.now() + 250;
     // Scrolling up during a stream: let go at once, before the next growth pins the end again.
     if (event.deltaY < 0 && scroller && scroller.scrollHeight > scroller.clientHeight + 8) stuck = false;
@@ -321,6 +364,8 @@
 
   function jump() {
     if (!scroller) return;
+    rowTarget = undefined;
+    alignedKey = undefined;
     onlatest?.();
     stuck = true;
     const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
@@ -332,6 +377,32 @@
   }
 
   // --- Keyboard ---------------------------------------------------------------------------------------
+  /** Read-only estimated/measured row offset, relative to the start of the list. */
+  export function rowOffset(at: number): number {
+    void layout;
+    return index.offset(at);
+  }
+
+  /** Jump even to an unmounted row; measurements then keep its start exactly at the top. */
+  export async function scrollToRow(at: number, options: { align: "start"; smooth?: boolean } = { align: "start" }): Promise<boolean> {
+    const rowKey = index.keyAt(at);
+    if (!scroller || rowKey === undefined) return false;
+    stuck = false;
+    anchor = undefined;
+    alignedKey = rowKey;
+    rowTarget = rowKey;
+    clearTimeout(rowTimer);
+    await tick();
+    if (!scroller || rowTarget !== rowKey) return false;
+    const smooth = options.smooth && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    smoothUntil = smooth ? performance.now() + 1000 : 0;
+    scroller.scrollTo({ top: listTop + index.offset(at), behavior: smooth ? "smooth" : "instant" });
+    scrollTop = scroller.scrollTop;
+    // scrollend need not fire if the estimated destination was already the current position.
+    rowTimer = setTimeout(() => { smoothUntil = 0; settle(); }, smooth ? 1050 : 0);
+    return true;
+  }
+
   async function focusRow(at: number) {
     const rowKey = index.keyAt(at);
     if (rowKey === undefined || !scroller) return;
@@ -463,7 +534,7 @@
         {/each}
       </div>
     </div>
-    <div aria-hidden="true" style:height="{stuck ? 0 : Math.max(0, reservedFooter - footerHeight)}px" class="shrink-0"></div>
+    <div aria-hidden="true" style:height="{stuck ? 0 : Math.max(alignmentSpace, reservedFooter - footerHeight)}px" class="shrink-0"></div>
     <div bind:this={footerElement} class="sticky bottom-0 z-10 pb-[max(--spacing(3),env(safe-area-inset-bottom))]" onfocusin={() => { readerUntil = 0; }} onbeforeinput={() => { readerUntil = 0; }}>
       {#if !stuck}
         <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2" transition:rise>
