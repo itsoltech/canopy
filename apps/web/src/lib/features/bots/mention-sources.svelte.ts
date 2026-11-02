@@ -20,7 +20,7 @@ export interface BotMentionRegistry {
 }
 
 export class BotMentionSources implements MentionSourceSet {
-  readonly presentation = { "@": { label: "Bots", empty: "No bots match" } } as const;
+  readonly presentation = { "@": { label: "Bots and connectors", empty: "No bots or connectors match" } } as const;
   readonly registry: BotMentionRegistry;
   #bots: () => readonly bots.Bot[];
   #current: () => string;

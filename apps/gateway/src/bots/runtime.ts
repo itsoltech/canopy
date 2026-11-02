@@ -6,10 +6,10 @@ import { Invalid } from "../store/store.ts";
 import { SettingsStore } from "../store/settings.ts";
 import { directModel } from "./model.ts";
 import { platformError } from "./errors.ts";
-import { mcpCall, mcpTools } from "./mcp.ts";
 import { approvalPrompt, needsApproval, PLATFORM_TOOLS, statusPhrase } from "./policy.ts";
 import { botConfiguration, botView, BotStore, requiredString } from "./store.ts";
 import type { BotModel, BotTurn, StoredCall, ToolSpec } from "./types.ts";
+import type { ConnectorsRuntime } from "../connectors/runtime.ts";
 
 /** A failure whose message is safe and useful to show (the UI turns it into a friendly line). */
 class BotFailure extends Error {}
@@ -17,6 +17,7 @@ class BotFailure extends Error {}
 export interface BotRuntimeOptions {
   runtime: CoreRuntime;
   userId: string;
+  connectors: ConnectorsRuntime;
   model?: BotModel;
   now?: () => Date;
   platform: (turn: BotTurn, call: StoredCall) => Promise<unknown>;
@@ -87,11 +88,10 @@ export class BotsRuntime {
       const model = await this.run((s) => s.resolveModel(config));
       if ("problem" in model) throw new BotFailure(model.problem);
       config.model = model.model;
-      const servers = await this.run((s) => s.connected(this.#options.userId, turn.bot_id));
       const tools = PLATFORM_TOOLS.filter((t) => turn.routine_id
         ? !["create_routine", "update_routine", "delete_routine", "update_self"].includes(t.name)
         : t.name !== "message_user");
-      for (const server of servers) tools.push(...await mcpTools(server, AbortSignal.any([abort.signal, AbortSignal.timeout(20_000)])));
+      tools.push(...await this.#options.connectors.botTools(turn.bot_id));
       let messages = turn.checkpoint.length ? turn.checkpoint : await this.run((s) => s.history(turn));
       for (;;) {
         abort.signal.throwIfAborted();
@@ -134,13 +134,9 @@ export class BotsRuntime {
                 if (result === undefined) {
                   await this.run((s) => s.status(turn, phrase));
                   if (tool.source === "mcp") {
-                    const current = (await this.run((s) => s.connected(this.#options.userId, turn.bot_id))).find((s) => s.id === tool.serverId);
-                    if (!current) result = { error: "MCP server disconnected or disabled" };
-                    else {
                       await this.run((s) => s.remoteStarted(turn, call));
-                      try { result = await mcpCall(current, tool, requested.arguments, abort.signal); }
+                      try { result = await this.#options.connectors.call({ userId: this.#options.userId, botId: turn.bot_id, accountId: tool.serverId!, readOnlyOnly: tool.readOnly === true && !["always", "full_auto"].includes(currentConfig.approvalPolicy) }, call.id, tool.name, requested.arguments, abort.signal); }
                       catch { abort.signal.throwIfAborted(); result = { error: "Remote MCP call failed; outcome may be unknown. Do not automatically retry writes." }; }
-                    }
                   } else result = await this.#options.platform(turn, call);
                 }
                 result = await this.run((s) => s.remoteResult(turn, call, result));
@@ -231,9 +227,6 @@ export class BotsRuntime {
   saveServer(request: bots.SaveBotMcpServerRequest) { return this.run((s) => s.saveServer(this.#options.userId, request)); }
   deleteServer(id: string) { return this.run((s) => s.deleteServer(this.#options.userId, id)); }
   async testServer(id: string) {
-    const server = await this.run((s) => s.resolvedServer(this.#options.userId, id));
-    try {
-      return (await mcpTools(server, AbortSignal.timeout(20_000))).map((t) => create(bots.BotMcpToolSchema, { name: t.remoteName ?? t.name, description: t.description, readOnly: t.readOnly === true }));
-    } catch { throw new Invalid("MCP connection failed; check the remote URL, transport and authentication headers"); }
+    return (await this.#options.connectors.test(id)).tools.map((t) => create(bots.BotMcpToolSchema, { name: t.remoteName, description: t.description, readOnly: t.readOnly }));
   }
 }

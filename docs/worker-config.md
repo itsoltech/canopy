@@ -89,6 +89,11 @@ sequenceDiagram
 
 Zmiana względem wcześniejszego założenia „poświadczenia LLM nie opuszczają urządzenia”: dotyczy ono teraz tylko logowania CLI na urządzeniu (`claude login`, `codex login`). Klucze pośredników zarządzane centralnie przechodzą przez gateway.
 
+Konta [Connectors](connectors.md) mają podobne przypisanie „all / chosen workers”,
+ale ich poświadczenia **nie są synchronizowane**. Worker dostaje jedynie katalog
+narzędzi w `ThreadSpec.connector_tools`; wywołania wracają do gateway linkiem gRPC.
+Konto należy do właściciela wątku. Granty botów są niezależne od grantów workerów.
+
 ## 5. Bezpieczeństwo
 
 ### Katalogi No project

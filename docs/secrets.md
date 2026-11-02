@@ -2,6 +2,12 @@
 
 Grok otrzymuje `request_secret` przez platformowy MCP z tym samym zakresem dostępu co pozostałe harnessy. Klucz instancji CLIProxyAPI jest osobnym sekretem konfiguracji, trafia wyłącznie do env procesu Groka; plik custom-model odwołuje się do nazwy env, bez klucza. [Izolacja adaptera](grok-adapter.md#endpointy-i-izolacja).
 
+Poświadczenia zewnętrznych aplikacji opisuje [Connectors](connectors.md).
+Konta używają tego samego klucza AES-256-GCM gateway, ale ich tokeny/nagłówki
+nie korzystają z dostarczania plików sekretów na worker. Worker i model dostają
+wyłącznie katalog oraz zredagowane wyniki proxy. Migracja dawnych bot MCP
+zachowuje istniejące odwołania do zaszyfrowanych sekretów nagłówków.
+
 ## Badanie T3 Code (2026-11-02)
 
 Źródło: publiczne repozytorium [pingdotgg/t3code](https://github.com/pingdotgg/t3code),

@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
-import { ui, bots } from "@open-agents/contracts";
+import { ui, bots, connectors } from "@open-agents/contracts";
+import { ConnectorFailure } from "../connectors/store.ts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
 import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, SettingsConflict } from "../store/index.ts";
 
@@ -8,6 +9,17 @@ import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, S
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
   return (router) =>
     router.service(ui.GatewayService, {
+      listConnectors: (r) => connectorGuard(() => core.connectors.list(r)),
+      saveConnectorAccount: (r) => connectorGuard(async () => create(connectors.ConnectorAccountResponseSchema, { account: await core.connectors.save(r) })),
+      setConnectorAccess: (r) => connectorGuard(async () => create(connectors.ConnectorAccountResponseSchema, { account: await core.connectors.access(r) })),
+      disconnectConnector: (r) => connectorGuard(async () => create(connectors.ConnectorAccountResponseSchema, { account: await core.connectors.disconnect(r.accountId) })),
+      testConnector: (r) => connectorGuard(async () => create(connectors.TestConnectorResponseSchema, await core.connectors.test(r.accountId))),
+      saveConnectorOAuthApp: (r) => connectorGuard(async () => { await core.connectors.saveApp(r); return create(connectors.SaveConnectorOAuthAppResponseSchema); }),
+      beginConnectorOAuth: (r) => connectorGuard(() => core.connectors.begin(r)),
+      completeConnectorOAuth: async (r) => {
+        try { return create(connectors.CompleteConnectorOAuthResponseSchema, { account: await core.connectors.complete(r) }); }
+        catch { return create(connectors.CompleteConnectorOAuthResponseSchema, { error: 'Authorization expired, was declined or could not finish. Reconnect the account.' }); }
+      },
       createBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.create(r) })),
       updateBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.update(r) })),
       deleteBot: (r) => guard(async () => { await core.bots.remove(r.botId); return create(bots.DeleteBotResponseSchema); }),
@@ -25,10 +37,10 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       deleteBotRoutine: (r) => guard(async () => { await core.bots.deleteRoutine(r); return create(bots.DeleteBotRoutineResponseSchema); }),
       cancelBotReminder: (r) => guard(async () => { await core.bots.cancelReminder(r); return create(bots.CancelBotReminderResponseSchema); }),
       markBotRead: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.markRead(r) })),
-      saveBotMcpServer: (r) => guard(async () => create(bots.SaveBotMcpServerResponseSchema, { server: await core.bots.saveServer(r) })),
-      listBotMcpServers: () => guard(async () => create(bots.ListBotMcpServersResponseSchema, { servers: await core.bots.servers() })),
-      deleteBotMcpServer: (r) => guard(async () => { await core.bots.deleteServer(r.serverId); return create(bots.DeleteBotMcpServerResponseSchema); }),
-      testBotMcpServer: (r) => guard(async () => create(bots.TestBotMcpServerResponseSchema, { tools: await core.bots.testServer(r.serverId) })),
+      saveBotMcpServer: (r) => connectorGuard(async () => create(bots.SaveBotMcpServerResponseSchema, { server: await core.bots.saveServer(r) })),
+      listBotMcpServers: () => connectorGuard(async () => create(bots.ListBotMcpServersResponseSchema, { servers: await core.bots.servers() })),
+      deleteBotMcpServer: (r) => connectorGuard(async () => { await core.bots.deleteServer(r.serverId); return create(bots.DeleteBotMcpServerResponseSchema); }),
+      testBotMcpServer: (r) => connectorGuard(async () => create(bots.TestBotMcpServerResponseSchema, { tools: await core.bots.testServer(r.serverId) })),
       getOverview: () => guard(() => core.overview()),
       watchOverview: (_request, context) => core.watchOverview(context.signal),
       listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),
@@ -125,6 +137,18 @@ async function guard<A>(run: () => Promise<A>): Promise<A> {
     return await run();
   } catch (error) {
     throw toConnectError(error);
+  }
+}
+
+/** Credential boundaries never log raw causes, including SQL bound parameters. */
+async function connectorGuard<A>(run: () => Promise<A>): Promise<A> {
+  try { return await run(); }
+  catch (error) {
+    let current = error;
+    for (let i = 0; i < 6 && current && typeof current === "object"; i++, current = (current as { cause?: unknown }).cause) {
+      if (current instanceof ConnectorFailure) throw new ConnectError(current.message, Code.InvalidArgument);
+    }
+    throw new ConnectError("Connector operation failed. Check the configuration and try again.", Code.InvalidArgument);
   }
 }
 

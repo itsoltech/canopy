@@ -5,6 +5,7 @@ Status: **szkic do dyskusji** (2026-11-01). Zaimplementowany jest tylko kanał g
 Powiązane dokumenty:
 
 - [bots.md](bots.md) — boty gateway: bezpośrednie API, trwałość, zdalne MCP i minimalny UI.
+- [connectors.md](connectors.md) — współdzielone konta zewnętrznych MCP, OAuth w gateway, granty workerów/botów i proxy bez poświadczeń na workerze.
 - [protocol.md](protocol.md) — kanał gRPC gateway ↔ worker
 - [data-model.md](data-model.md) — model danych PostgreSQL i reguły dostępu
 - [worker-config.md](worker-config.md) — zdalna konfiguracja workerów (lokalnie tylko połączenie z gateway)

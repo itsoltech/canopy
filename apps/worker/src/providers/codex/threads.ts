@@ -112,7 +112,9 @@ export function codexAgentBusTools(depth: number): v2.DynamicToolSpec[] {
 
 /** Dynamic tools of a new thread: the agent bus (when enabled) and view_image. */
 function dynamicTools(spec: ThreadSpec, viewImage: boolean): { dynamicTools?: v2.DynamicToolSpec[] } {
-  const tools = [...(spec.enableAgentBus ? codexAgentBusTools(spec.depth) : []), ...(viewImage ? [codexViewImageTool()] : [])];
+  const tools = [...(spec.enableAgentBus ? codexAgentBusTools(spec.depth) : []), ...(viewImage ? [codexViewImageTool()] : []),
+    ...spec.connectorTools.map((t): v2.DynamicToolSpec => ({ type: "function", name: t.name, description: t.description,
+      inputSchema: JSON.parse(t.inputSchemaJson) as v2.DynamicToolFunctionSpec["inputSchema"] }))];
   return tools.length > 0 ? { dynamicTools: tools } : {};
 }
 
@@ -211,6 +213,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     const journal = yield* Journal;
     const byPlatform = new Map<string, Entry>();
     const byCodex = new Map<string, Entry>();
+    const connectorCatalog = new Map<string, ThreadSpec["connectorTools"]>();
 
     const fail = (threadId: string, operation: string) => (error: { message: string }) =>
       new CodexThreadError({ threadId, operation, message: error.message, ...(isAppServerError(error) && { harness: true }) });
@@ -420,6 +423,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
               turnId: entry.codexToPlatform.get(call.turnId) ?? "",
               itemId: call.callId,
               toolName: call.tool,
+              connectorAccountId: connectorCatalog.get(entry.platformId)?.find((t) => t.name === call.tool)?.accountId ?? "",
               argumentsJson: JSON.stringify(call.arguments ?? {}),
             }),
           );
@@ -433,6 +437,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     });
 
     const threadParams = (spec: ThreadSpec) => {
+      connectorCatalog.set(spec.threadId, spec.connectorTools);
       const profile = options.profile(spec.providerProfileId);
       if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);
       return {
@@ -529,6 +534,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       }),
 
       startTurn: Effect.fn("CodexThreads.startTurn")(function* (spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings) {
+        connectorCatalog.set(spec.threadId, spec.connectorTools);
         const entry = yield* ensureLoaded(spec);
         const known = entry.platformToCodex.get(turnId);
         if (known) return known; // redelivered StartTurn: the turn already exists

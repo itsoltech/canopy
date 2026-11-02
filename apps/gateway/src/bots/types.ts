@@ -49,6 +49,7 @@ export interface StoredCall {
   arguments: Record<string, unknown>; status: string; result: unknown;
 }
 export interface McpConnection {
+  namespace?: string;
   id: string; name: string; url: string; transport: string;
   enabled: boolean; headers: Record<string, string>;
 }

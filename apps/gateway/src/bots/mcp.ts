@@ -17,7 +17,7 @@ export async function withMcp<A>(server: McpConnection, signal: AbortSignal, use
   const transport = server.transport === "sse"
     ? new SSEClientTransport(url, { fetch: safeFetch, requestInit: { headers, redirect: "error" }, eventSourceInit: { fetch: safeFetch } })
     : new StreamableHTTPClientTransport(url, { fetch: safeFetch, requestInit: { headers, redirect: "error" }, reconnectionOptions: { maxRetries: 0, maxReconnectionDelay: 1000, initialReconnectionDelay: 1000, reconnectionDelayGrowFactor: 1 } });
-  const client = new Client({ name: "open-agents-bots", version: "1" }, { capabilities: {} });
+  const client = new Client({ name: "Canopy", version: "1" }, { capabilities: {} });
   const abort = () => { void client.close().catch(() => undefined); };
   signal.addEventListener("abort", abort, { once: true });
   try {
@@ -37,7 +37,9 @@ export async function mcpTools(server: McpConnection, signal: AbortSignal): Prom
     do {
       const page = await client.listTools(cursor ? { cursor } : {}, { signal, timeout: 15_000 });
       for (const t of page.tools) {
-        tools.push({ name: `mcp_${createHash("sha256").update(`${server.id}/${t.name}`).digest("hex").slice(0, 24)}`,
+        const remote = t.name.replace(/[^a-zA-Z0-9_]/g, "_");
+        const suffix = remote.length > 22 || remote !== t.name ? `${remote.slice(0, 13)}_${createHash("sha256").update(t.name).digest("hex").slice(0, 8)}` : remote;
+        tools.push({ name: server.namespace ? `${server.namespace.slice(0, 39)}__${suffix}` : `mcp_${createHash("sha256").update(`${server.id}/${t.name}`).digest("hex").slice(0, 24)}`,
           description: `${server.name}: ${t.description ?? t.name}`.slice(0, 8000), parameters: t.inputSchema,
           source: "mcp", serverId: server.id, serverName: server.name, remoteName: t.name,
           readOnly: t.annotations?.readOnlyHint === true && t.annotations?.destructiveHint !== true,

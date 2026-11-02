@@ -357,6 +357,8 @@ enum PermissionMode {
 // Pełny opis wątku. Gateway (baza) jest źródłem prawdy i wysyła go w każdej komendzie,
 // więc worker może odtworzyć wątek nawet po utracie lokalnego stanu (docs/threads.md).
 message ThreadSpec {
+  // Katalog bez poświadczeń. Wykonanie zawsze autoryzuje gateway.
+  repeated ConnectorTool connector_tools = 520;
   // Utwórz zarządzany katalog scratch przed uruchomieniem harnessu.
   bool scratch = 410;
   string thread_id = 1;
@@ -381,6 +383,17 @@ message ThreadSpec {
   bool native_scheduling = 12;
   // Poziom wątku: 0 = główny (orkiestrator), 1 = boczny. Wyznacza zestaw narzędzi szyny (agentBusToolsFor).
   uint32 depth = 13;
+}
+
+message ConnectorTool {
+  string account_id = 1;
+  string connector_type = 2;
+  string account_name = 3;
+  string name = 4;
+  string remote_name = 5;
+  string description = 6;
+  string input_schema_json = 7;
+  bool read_only = 8;
 }
 
 // Dziedziczenie historii (fork) z wątku w tym samym drzewie, na tym samym workerze.
@@ -835,6 +848,9 @@ message FileChangeEntry {
 
 // Narzędzie ogólne: Claude (Read, Grep, Edit, ...), MCP, narzędzia dynamiczne Codexa.
 message ToolCall {
+  string connector_account_id = 520;
+  string connector_type = 521;
+  string connector_account_name = 522;
   string server = 1;   // serwer MCP; pusty dla wbudowanych
   string name = 2;
   string input_json = 3;
@@ -1045,6 +1061,7 @@ message InteractionResponse {
 // Wywołanie narzędzia szyny przez model. Idempotentne po call_id: worker ponawia je po
 // ponownym połączeniu, a gateway zwraca zapisany wynik zamiast wykonywać drugi raz.
 message AgentToolCall {
+  string connector_account_id = 520;
   string call_id = 1;
   string thread_id = 2;
   string turn_id = 3;          // pusty, gdy woła praca w tle po turze
@@ -1147,6 +1164,7 @@ enum MentionKind {
   MENTION_KIND_THREAD = 5;
   // Bot gateway tego użytkownika; name = bot_id, label = nazwa w znaczniku @Nazwa.
   MENTION_KIND_BOT = 6;
+  MENTION_KIND_CONNECTOR = 7;
 }
 
 // Jedna wzmianka: fragment tekstu [start, end) (jednostki UTF-16, jak string w JS i w protobuf-es) zajmuje jej

@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import { MentionKind } from "@open-agents/contracts";
+  import ConnectorChip from "#lib/features/connectors/ConnectorChip.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
@@ -71,7 +73,10 @@
     ...more,
   ]);
   const end = $derived(side === "end");
-  const mentions = $derived(mine ? structuredMentionRanges(message.text, message.mentions ?? [], bots) : mentionRanges(message.text, bots.filter((b) => b.id !== message.senderId)));
+  const mentions = $derived((mine ? [
+    ...structuredMentionRanges(message.text, message.mentions ?? [], bots).map((r) => ({ ...r, connector: undefined })),
+    ...(message.mentions ?? []).filter((m) => m.kind === MentionKind.CONNECTOR && m.start < m.end && m.end <= message.text.length).map((m) => ({ start: m.start, end: m.end, connector: m, bot: undefined })),
+  ] : mentionRanges(message.text, bots.filter((b) => b.id !== message.senderId)).map((r) => ({ ...r, connector: undefined }))).sort((a, b) => a.start - b.start));
   // Concentric with the run: the side facing a neighbour gets the small radius.
   const corners = $derived([
     "rounded-[1.25rem]",
@@ -82,7 +87,7 @@
 
 {#snippet mention(index: number)}
   {@const found = mentions[index]}
-  {#if found}<BotChip bot={found.bot} />{/if}
+  {#if found?.connector}<ConnectorChip mention={found.connector} />{:else if found?.bot}<BotChip bot={found.bot} />{/if}
 {/snippet}
 
 <MessageRow {sender} {side} {mine} showAvatar={last} {showName} {gutter} class={["group/message", className]}>
@@ -112,7 +117,7 @@
             if (matchMedia("(pointer: coarse)").matches) touchMenuOpen = true;
           })}
         >
-          <span class="sr-only" data-quote-skip>{mine ? "You" : (sender?.name ?? "Unknown")}, {timeLabel(message.at)}: </span>{#if message.quotes?.length}<MessageQuotes quotes={message.quotes} inverted={mine} class="pb-2" />{/if}{#if mine}{#each mentions as found, index (found.start)}{message.text.slice(index === 0 ? 0 : mentions[index - 1]!.end, found.start)}<BotChip bot={found.bot} />{/each}{message.text.slice(mentions.at(-1)?.end ?? 0)}{:else}<div data-quote-kind="agent_message"><Markdown
+          <span class="sr-only" data-quote-skip>{mine ? "You" : (sender?.name ?? "Unknown")}, {timeLabel(message.at)}: </span>{#if message.quotes?.length}<MessageQuotes quotes={message.quotes} inverted={mine} class="pb-2" />{/if}{#if mine}{#each mentions as found, index (found.start)}{message.text.slice(index === 0 ? 0 : mentions[index - 1]!.end, found.start)}{@render mention(index)}{/each}{message.text.slice(mentions.at(-1)?.end ?? 0)}{:else}<div data-quote-kind="agent_message"><Markdown
               text={message.text}
               elements={mentions.length > 0 ? { ranges: mentions, render: mention } : undefined}
             /></div>{/if}
