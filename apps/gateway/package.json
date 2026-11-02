@@ -24,6 +24,7 @@
     "@open-agents/db": "workspace:*",
     "@open-agents/domain": "workspace:*",
     "@open-agents/transport": "workspace:*",
+    "cronstrue": "3.38.0",
     "effect": "4.1.1",
     "sharp": "0.35.5"
   }

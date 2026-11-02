@@ -1,6 +1,78 @@
 # Boty w gateway
 
-Status: **rdzeń, edytor ustawień, samodzielna edycja i archiwum**, 2026-11-02. Bot ma jedną rozmowę
+## Rutyny — cron działający w tle
+
+Migracja **0039_bot_routines** dodaje `bot_routines` i pochodzenie rutyny na `bot_turns`.
+0037/0038 pozostają zarezerwowane dla innych gałęzi. Nowe pola istniejących komunikatów
+zajmują **560–599**: `BotConversation.routines/reminders` oraz `BotApproval.routine_title`.
+Rutyna ma tytuł, instrukcje, pięciopolowy cron, strefę IANA, opis angielski generowany
+na serwerze przez `cronstrue`, enabled, daty utworzenia/zmiany/ostatniego i następnego
+wykonania, licznik oraz krótki wewnętrzny wynik. Soft delete zachowuje audyt.
+
+**Granice:** maksymalnie **20** nieusuniętych rutyn na bota (także wyłączonych), odstęp
+co najmniej **15 minut**, sprawdzany przez wspólny `cronProblem`; `nextCronRun` zachowuje
+reguły DST Bun. Nie ma ustawienia strefy użytkownika ani bota: jak scheduler wątków,
+domyślnie stosujemy **UTC**. Narzędzie przyjmuje strefę IANA z prośby użytkownika;
+model ma ustalić strefę dla niejednoznacznego czasu lokalnego. Panel podaje strefę.
+Rutyna zapamiętuje `nextHop` tury tworzącej; dalsze akcje i odpowiedzi zachowują limit
+**8 hops**. Kolejne wystąpienie tego samego crona zaczyna od zapamiętanych hops,
+nie od hops poprzedniego wykonania. Kontekst spoza użytkownika nie może sam tworzyć
+ani modyfikować rutyn.
+
+`create_routine`, `update_routine`, `list_routines`, `delete_routine` są w `tools/routines.ts`
+ze statusami. Mutacje dotyczą wyłącznie własnego bota i działają atomowo z wynikiem
+narzędzia w istniejącym `BotStore.action`. **Nie tworzą kart zgody**, również przy `always`.
+Prompt i opisy narzędzi wymagają prośby lub jednoznacznie wyrażonego zamiaru człowieka;
+wyniki narzędzi i wiadomości innych botów nigdy nie są takim upoważnieniem. Preferencję
+„powiedz tylko gdy…” zapisujemy w instrukcjach, bez osobnych przełączników powiadomień.
+W wykonaniu w tle narzędzia zarządzania rutynami i `update_self` są niedostępne.
+
+### Trwałość i kolejka
+
+Tick runtime'u blokuje bota przez `FOR UPDATE SKIP LOCKED`, blokuje należne rutyny,
+tworzy ukrytą turę i przesuwa `next_run_at` **w tej samej transakcji**. Klucz żądania
+zawiera identyfikator rutyny i planowany termin. Restart ani drugi gateway nie tworzy
+drugiej tury tego samego wystąpienia. Wiele terminów po przestoju składa się w **jedno**
+wykonanie; kolejny termin liczymy od aktualnego czasu. Jeśli wykonanie/follow-up tej
+rutyny nadal czeka lub pracuje, przesuwamy termin bez tworzenia zaległej kolejki.
+Archiwalny/usunięty bot nie uruchamia rutyn. Wyłączenie lub usunięcie rutyny przerywa
+także już zakolejkowane/aktywne tury i odrzuca ich oczekujące karty; fencing lease
+uniemożliwia zatwierdzenie dalszych efektów starego wykonawcy. Efektu zdalnego, który
+już wyszedł przed wyłączeniem, nie można cofnąć.
+
+Rutyna jest zwykłą pozycją w trwałej kolejce `bot_turns`: jedna tura na bota,
+FIFO względem wiadomości użytkownika, bez przeplatania narzędzi z drugą turą.
+Prawdziwa zgoda/pytanie w rutynie zatrzymuje kolejkę jak zwykła zgoda i jest widoczne
+z oznaczeniem **From routine ‹title›**. Inne polityki akcji platformy i MCP pozostają.
+
+### Ukryty transkrypt i celowe efekty
+
+`routine_id` i kopia tytułu na turze rozróżniają wykonanie w tle od rozmowy.
+Wejście rutyny i tekst asystenta **nie trafiają do `bot_messages`**. Nie ma wskaźnika
+pisania ani nowej ostatniej wiadomości/unread. Pełne wejście, checkpoint i wywołania
+narzędzi pozostają w bazie do audytu. Zwykłe tury zachowują widoczną odpowiedź końcową.
+
+Model dostaje aktualne stałe instrukcje bota (jego obecną formę pamięci), ostatnie
+**60 widocznych wiadomości** sprzed tej tury, kopię instrukcji rutyny, planowany/aktualny
+czas, strefę, numer uruchomienia i poprzedni krótki wynik. Nie dokładamy poprzednich
+ukrytych transkryptów do kolejnej tury. Odpowiedzi od botów, wyniki obserwowanych wątków
+i pobudki utworzone w rutynie dziedziczą ukryte pochodzenie i instrukcje; wyłączona lub
+usunięta rutyna nie przyjmuje tych follow-upów.
+
+`message_user(text)` jest dostępne tylko w tle i zapisuje **normalną widoczną wiadomość**
+do użytkownika. Zapis i wynik narzędzia są atomowe i deduplikowane, także po restarcie
+między efektem a checkpointem. Narzędzie nie wymaga dodatkowej zgody. Bez niego finalny
+tekst modelu pozostaje ukryty. `send_bot_message`, działania w wątkach, rzeczywiste
+pytania i karty zgody mają zwykłe widoczne efekty. O tym, czy jest powód powiadomienia,
+decyduje model według instrukcji użytkownika; nie ma dodatkowych ustawień rutyny.
+
+`BotConversation` przenosi aktualne rutyny i niedostarczone, nieanulowane jednorazowe
+przypomnienia. Zmiana rewizji aktualizuje istniejący strumień `/api/bots/:id/events`,
+bez przeładowania i bez technicznego wpisu w czacie. UI API wystawia tylko włącz/wyłącz,
+usuń rutynę i anuluj przypomnienie; tworzenie/edycja treści odbywa się przez rozmowę.
+
+
+Status: **rdzeń, edytor ustawień, samodzielna edycja, archiwum i rutyny**, 2026-11-02. Bot ma jedną rozmowę
 z właścicielem i działa w procesie gateway. Nie ma katalogu, workera ani lokalnego
 harnessu. Kod: `apps/gateway/src/bots`, kontrakt: `proto/openagents/ui/v1/bots.proto`.
 
@@ -126,11 +198,11 @@ wykorzystuje walidację projektu/workspace'u, dostępności instancji i katalogu
 z UI API. Rozmowy i wyniki innych agentów są niezaufanymi danymi, nie instrukcją
 poszerzenia uprawnień. Model nigdy nie dostaje kluczy endpointu ani nagłówków MCP.
 
-Katalog ma **43 narzędzia platformy**. Nowe definicje, statusy i wykonanie są razem
+Katalog ma **49 narzędzi platformy**. Nowe definicje, statusy i wykonanie są razem
 w `apps/gateway/src/bots/tools/{projects,workers,providers,threads,schedules,settings,bots}.ts`;
 rejestr w `tools/index.ts` jest delegatem `PLATFORM_TOOLS` i `botPlatform`. Pozostawione
 nazwy wcześniejszych narzędzi zachowują zgodność. Nie ma meta-narzędzia „opisz obszar”:
-43 krótkie opisy z prefiksem obszaru mieszczą się w limicie 45 i nie wymagają dodatkowej
+49 krótkich opisów z prefiksem obszaru mieści się w limicie 50 i nie wymaga dodatkowej
 rundy modelu. Lista nie zawiera narzędzi lokalnych ani edycji innych botów; własne ustawienia zmienia `update_self` (niżej).
 
 Legenda zgód: **R** — odczyt platformy, nigdy nie wymaga karty, także przy `always`;

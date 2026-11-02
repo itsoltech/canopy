@@ -32,6 +32,15 @@ także po archiwizacji lub soft delete; panel szczegółów opisuje ręczne sprz
 
 ## Bots
 
+Rutyny bota są częścią `BotConversation.routines` (pole 560), jednorazowe pobudki
+`reminders` (561). Ten sam strumień SSE aktualizuje panel bez wpisów technicznych
+w rozmowie. `SetBotRoutineEnabled` / `DeleteBotRoutine` i `CancelBotReminder` sprawdzają
+właściciela i bota. BFF: `PUT|DELETE /api/bots/:botId/routines/:routineId` oraz
+`DELETE /api/bots/:botId/reminders/:reminderId`. Tworzenie/edycja instrukcji i crona
+odbywa się wyłącznie przez narzędzia bota. `Bot.owner_user_id` (560) pozwala zapisać
+lokalną preferencję panelu osobno dla właściciela. `BotApproval.routine_title` (560)
+opisuje pochodzenie widocznej karty. Szczegóły ukrytych tur: [bots.md](bots.md).
+
 `RenameProject` zmienia nazwę zwykłego projektu właściciela. `ArchiveProject` atomowo
 archiwizuje projekt, workspace'y i wątki przez istniejący lifecycle oraz anuluje
 harmonogramy projektu, zachowując historię i pliki workerów. Scratch jest wykluczony.

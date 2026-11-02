@@ -37,6 +37,7 @@ export interface BotTurn {
   id: string; bot_id: string; input: string; hops: number;
   status: string; checkpoint: ModelMessage[]; lease_token: string;
   reply_to_bot_id: string | null; exchange_id: string | null;
+  routine_id: string | null; routine_title: string;
 }
 export interface StoredCall {
   id: string; turn_id: string; call_key: string; tool: ToolSpec;
