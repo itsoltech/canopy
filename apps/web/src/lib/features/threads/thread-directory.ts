@@ -10,6 +10,8 @@ export interface ThreadDirectory {
   awaiting(itemId: string): boolean;
   /** The thread's goal with this id, when it is the one the page knows (its open or last goal). */
   goal(id: string): ui.Goal | undefined;
+  /** The turn with this id is over (completed, failed, interrupted): its items stop streaming. */
+  turnEnded?(turnId: string): boolean;
 }
 
 const KEY = Symbol("thread-directory");

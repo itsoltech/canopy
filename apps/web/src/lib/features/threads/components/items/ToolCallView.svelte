@@ -6,7 +6,7 @@
   import OutputBlock from "./OutputBlock.svelte";
 
   /** Built-in, MCP or dynamic tool: name, a one-line hint of the input, full input and result inside. */
-  let { call, status }: { call: ToolCall; status: ItemStatus } = $props();
+  let { call, status, streaming = false }: { call: ToolCall; status: ItemStatus; streaming?: boolean } = $props();
 
   // The first short string argument usually says what the call is about (path, pattern, query).
   const hint = $derived(Object.values(parseObject(call.inputJson)).find((v): v is string => typeof v === "string" && v.length > 0 && v.length < 200) ?? "");
@@ -28,5 +28,5 @@
   {#if call.inputJson && call.inputJson !== "{}"}
     <CodeBlock text={prettyJson(call.inputJson)} label="Input of {call.name}" />
   {/if}
-  <OutputBlock output={call.output} blob={call.outputBlob} label="Result of {call.name}" empty={status === ItemStatus.IN_PROGRESS ? "Waiting for the result…" : "No result."} />
+  <OutputBlock output={call.output} blob={call.outputBlob} label="Result of {call.name}" empty={status === ItemStatus.IN_PROGRESS ? "Waiting for the result…" : "No result."} {streaming} />
 </ItemFrame>
