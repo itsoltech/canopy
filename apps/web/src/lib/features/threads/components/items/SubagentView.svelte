@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import { ItemStatus, type Subagent } from "@open-agents/contracts";
   import Badge from "#lib/shared/ui/Badge.svelte";
+  import { humanizeToolName } from "#lib/shared/humanize.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import ItemFrame from "./ItemFrame.svelte";
   import TaskProgressText from "./TaskProgressText.svelte";
@@ -13,7 +14,7 @@
 <ItemFrame icon="user-group" {status} defaultOpen={status === ItemStatus.IN_PROGRESS}>
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
-      <span class="shrink-0 font-medium text-zinc-950 dark:text-white">{agent.agentType || "Subagent"}</span>
+      <span class="shrink-0 font-medium text-zinc-950 dark:text-white">{humanizeToolName(agent.agentType) || "Subagent"}</span>
       {#if agent.description}<span class="truncate">{agent.description}</span>{/if}
     </span>
   {/snippet}

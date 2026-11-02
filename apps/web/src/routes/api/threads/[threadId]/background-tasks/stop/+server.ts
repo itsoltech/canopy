@@ -9,6 +9,6 @@ const Body = Schema.Struct({ itemId: Schema.String.check(Schema.isMinLength(1), 
 /** Stops a running background task (StopBackgroundTask); the live stream brings its end. */
 export const POST: RequestHandler = async ({ request, params }) => {
   const { itemId } = await readBody(request, Body);
-  await call((api) => api.stopBackgroundTask({ threadId: params.threadId, itemId }));
+  await call((api) => api.stopBackgroundTask({ threadId: params.threadId, itemId }, { timeoutMs: 70_000 }));
   return json({});
 };

@@ -1,16 +1,6 @@
-import { error, fail } from "@sveltejs/kit";
-import { ui } from "@open-agents/contracts";
-import { attempt, call, failed } from "#lib/server/gateway.ts";
-import { encode } from "#lib/shared/wire.ts";
-import type { Actions, PageServerLoad } from "./$types";
-
-export const load: PageServerLoad = async ({ params, parent }) => {
-  const { overview } = await parent();
-  // Without an overview (gateway down) ListThreads below raises the outage instead of a false 404.
-  if (overview && !(overview as { projects?: { id?: string }[] }).projects?.some((p) => p.id === params.projectId)) error(404, "Project not found");
-  const response = await call((api) => api.listThreads({ projectId: params.projectId }));
-  return { threads: encode(ui.ListThreadsResponseSchema, response) };
-};
+import { fail } from "@sveltejs/kit";
+import { attempt, failed } from "#lib/server/gateway.ts";
+import type { Actions } from "./$types";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 

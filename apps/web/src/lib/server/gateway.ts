@@ -21,7 +21,10 @@ export function gateway(): Client<typeof ui.GatewayService> {
     ui.GatewayService,
     createGrpcTransport({
       baseUrl: GATEWAY_URL,
-      pingIntervalMs: 30_000,
+      defaultTimeoutMs: 3000,
+      connectTimeoutMs: 3000,
+      pingIntervalMs: 10_000,
+      pingTimeoutMs: 3000,
       interceptors: [
         (next) => (request) => {
           request.header.set("authorization", `Bearer ${token}`);

@@ -8,5 +8,5 @@ import type { RequestHandler } from "./$types";
 /** Commands, skills and plugins for the composer's popup (the thread's or a new thread's worker). A read: POST only because the request is a protobuf message. */
 export const POST: RequestHandler = async ({ request }) => {
   const body = await readMessage(request, ui.ListMentionCatalogRequestSchema);
-  return json(encode(ui.ListMentionCatalogResponseSchema, await call((api) => api.listMentionCatalog(body))));
+  return json(encode(ui.ListMentionCatalogResponseSchema, await call((api) => api.listMentionCatalog(body, { timeoutMs: 50_000 }))));
 };

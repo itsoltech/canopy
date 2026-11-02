@@ -31,7 +31,7 @@ Platforma do zarządzania agentami AI dla wielu użytkowników:
 
 | Komponent | Gdzie działa | Odpowiedzialność |
 |---|---|---|
-| **Web UI** | przeglądarka | Lista agentów, czaty, podgląd transkryptów na żywo, akceptacja uprawnień, zarządzanie workerami. |
+| **Web UI** | przeglądarka | SPA Svelte 5 / SvelteKit (`ssr = false`): lista agentów, czaty, transkrypty na żywo, uprawnienia i workery. adapter-node podaje powłokę z wyglądem użytkownika, wersjonowane assety oraz BFF (`/api/*`, SSE i akcje formularzy) do gRPC gateway. |
 | **Gateway** | serwer centralny (Bun) | Jedyny punkt kontaktu UI. Auth, autoryzacja, API, persystencja, routing komend do workerów, runtime agentów czatowych, szyna agent ↔ agent. |
 | **Worker** | edge device: Linux, Omarchy, macOS, Windows (Bun) | Uruchamia wątki agentów SDK w dozwolonych katalogach, wznawia je i forkuje. Normalizuje zdarzenia SDK i strumieniuje je do gateway. |
 | **PostgreSQL** | obok gateway | Użytkownicy, projekty, agenci, workery, wątki, tury, transkrypty, outbox, audyt. |

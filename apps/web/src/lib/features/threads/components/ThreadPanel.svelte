@@ -12,7 +12,7 @@
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { permissionLabel, permissionLook, providerLabel } from "../labels.ts";
   import type { UsageTotals } from "../thread-state.svelte.ts";
-  import { providerKeyOf } from "../providers.ts";
+  import { instanceLabel, instanceOf, providerKeyOf } from "../providers.ts";
   import { isSide, type ThreadTree } from "../thread-tree.ts";
   import ThreadStatusText from "../ThreadStatusText.svelte";
   import PanelRow from "./PanelRow.svelte";
@@ -87,7 +87,7 @@
     <PanelRow icon="cpu-chip">
       {#snippet lead()}{#if providerKey}<ProviderIcon provider={providerKey} />{:else}<Icon name="cpu-chip" class="fill-zinc-400 dark:fill-zinc-500" />{/if}{/snippet}
       {providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}
-      {#snippet aside()}{#if thread.providerProfileId}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5">{thread.providerProfileId}</span>{/if}{/snippet}
+      {#snippet aside()}{#if thread.providerProfileId}{@const instance = providerKey ? instanceOf(worker, providerKey, thread.providerProfileId) : undefined}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5">{instance ? instanceLabel(instance) : thread.providerProfileId}</span>{/if}{/snippet}
     </PanelRow>
     <PanelRow icon={permissionLook(thread.permissionMode).icon} iconClass={permissionLook(thread.permissionMode).iconClass}>{permissionLabel(thread.permissionMode)}</PanelRow>
     {#if isSide(thread)}
