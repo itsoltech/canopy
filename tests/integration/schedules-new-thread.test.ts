@@ -72,11 +72,12 @@ describe.skipIf(!dockerAvailable)("new-thread schedules", () => {
     const s = await schedule("round_robin", { when: { case: "cron", value: "*/5 * * * *" }, maxRuns: 3 });
     const first = await fire(s);
     await eventually(() => gw.runtime.runPromise(GatewayStore.use((store) => store.turnsOf(first.recentRuns[0]!.threadId))), (rows) => rows[0]?.status === "completed");
+    expect((await query<{ placement_cursor: string }>("SELECT placement_cursor FROM schedules WHERE id = $1", [s.id]))[0]?.placement_cursor).toBe(first.recentRuns[0]!.workspaceId);
     // Reproduce a restart after leasing but before commit: a new gateway reclaims the expired lease.
     const now = timestampDate(first.nextRunAt!);
     const claimed = await gw.runtime.runPromise(AgentBusStore.use((store) => store.claimDueSchedules("dead-gateway", now, 1)));
     expect(claimed.some((r) => r.id === s.id)).toBe(true);
-    // A fresh gateway/transport on the same database, with a worker reconnecting to it.
+    // Both workers reconnect to a fresh gateway on the same database, so the cursor decides the next one.
     workerA.link.close(); workerB.link.close();
     const restarted = new GatewayCore({ runtime: gw.runtime, instanceId: "restarted", userId: gw.userId });
     const server = await startGrpcServer({ routes: (router) => restarted.link.routes(router) });
@@ -89,7 +90,7 @@ describe.skipIf(!dockerAvailable)("new-thread schedules", () => {
       await restarted.scheduler.tick(new Date(now.getTime() + 2_000));
       const secondRun = await current(s.id);
       expect(secondRun.runs).toBe(2);
-      expect(secondRun.recentRuns[0]?.workerId).toBe(second.workerId);
+      expect(secondRun.recentRuns[0]?.workerId).toBe(workspaces.find((w) => w.id !== first.recentRuns[0]!.workspaceId)!.workerId);
       expect(secondRun.recentRuns[0]?.workerId).not.toBe(first.recentRuns[0]?.workerId);
       const threadId = secondRun.recentRuns[0]!.threadId;
       expect(await eventually(() => gw.runtime.runPromise(GatewayStore.use((store) => store.turnsOf(threadId))), (rows) => rows[0]?.status === "completed")).toMatchObject([{ status: "completed" }]);

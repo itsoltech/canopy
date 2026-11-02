@@ -52,6 +52,7 @@ export class Scheduler {
 
   start(): void {
     this.#timer ??= setInterval(() => {
+      if (this.#ticking) return;
       this.#running = this.tick().catch((error: unknown) => this.#host.log(`scheduler tick failed: ${error instanceof Error ? error.message : String(error)}`));
     }, this.#tickMs);
   }
