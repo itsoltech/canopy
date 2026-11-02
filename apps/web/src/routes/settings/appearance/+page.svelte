@@ -84,6 +84,11 @@
 </section>
 
 <SettingsGroup title="Interface">
+  <SettingsRow title="Time zone" description={settings.user.timezone ? "Taken from this device. Bots use it for local times and scheduled tasks." : "Bots use it for local times and scheduled tasks."}>
+    {#snippet control()}
+      <p class="text-base/6 wrap-anywhere text-zinc-950 sm:text-sm/6 dark:text-white">{settings.user.timezone || "UTC"}</p>
+    {/snippet}
+  </SettingsRow>
   <AnimatedMascotsSetting />
   <SettingsRow title="Chat width" description="How wide the conversation and the message box are.">
     {#snippet control()}

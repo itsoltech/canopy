@@ -25,6 +25,8 @@ export interface PlatformTool {
   spec: ToolSpec;
   phrase(args: Record<string, unknown>): string;
   execute(context: ToolContext): Promise<unknown>;
+  /** Before any approval card: reject malformed calls (the model gets the error, the user no card) and/or word the card. */
+  prepare?(context: ToolContext): Promise<{ prompt?: string } | undefined>;
 }
 export function define(name: string, description: string, parameters: Record<string, unknown>, phrase: string | PlatformTool["phrase"], execute: PlatformTool["execute"], access: "read" | "change" | "approval" = "change"): PlatformTool {
   return { spec: { name, description, parameters, source: "platform", readOnly: access === "read", dangerous: access === "approval" }, phrase: typeof phrase === "string" ? () => phrase : phrase, execute };

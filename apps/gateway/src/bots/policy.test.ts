@@ -12,6 +12,12 @@ describe("bot capability policy", () => {
     expect(PLATFORM_TOOLS.some((t) => /shell|exec|file|browser|patch/.test(t.name))).toBe(false);
     expect(needsApproval(PLATFORM_TOOLS.find((t) => t.name === "archive_thread")!, "safe")).toBe(true);
     expect(needsApproval(PLATFORM_TOOLS.find((t) => t.name === "ask_user")!, "safe")).toBe(true);
+    // Full auto: no approval cards, even for destructive or remote writes; a question to the user stays a question.
+    expect(needsApproval({ ...remote, dangerous: true }, "full_auto")).toBe(false);
+    expect(needsApproval(PLATFORM_TOOLS.find((t) => t.name === "archive_thread")!, "full_auto")).toBe(false);
+    expect(needsApproval(PLATFORM_TOOLS.find((t) => t.name === "ask_user")!, "full_auto")).toBe(true);
+    // Escalating to full auto from another policy still asks.
+    expect(needsApproval(PLATFORM_TOOLS.find((t) => t.name === "update_self")!, "safe", { approval_policy: "full_auto" })).toBe(true);
   });
   test("human-readable status never exposes raw MCP or function names", () => {
     expect(statusPhrase({ name: "mcp_abcd", source: "mcp", description: "", parameters: {}, remoteName: "notion_search", serverName: "Notion" })).toBe("Searching Notion");

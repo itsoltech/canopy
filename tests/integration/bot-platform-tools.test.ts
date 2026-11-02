@@ -42,11 +42,16 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     expect(conversation.working).toBe(false);
     const result = conversation.messages.find((m) => m.senderId === bot.id && m.kind === "message" && /^[\[{]/.test(m.text));
     expect(result).toBeDefined();
-    return JSON.parse(result!.text) as T;
+    const parsed = JSON.parse(result!.text) as T;
+    // Each invocation uses a disposable bot; keep this broad suite within the owner cap.
+    await gw.core.bots.remove(bot.id);
+    return parsed;
   }
   beforeAll(async () => {
     gw = await startTestGateway({ botModel: model });
     await gw.api.saveProviderInstance({ harness: Provider.CODEX, id: "platform-test", label: "Platform", create: true, kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:1", apiKey: "fixture-private-key", env: [{ name: "PUBLIC_VALUE", value: "also-hidden" }, { name: "PRIVATE_VALUE", value: "fixture-private-env", secret: true }], allWorkers: true });
+    // This suite disables its only worker instance; keep the bot API model explicitly configured.
+    await gw.api.setInstanceModels({ harness: Provider.CODEX, id: "platform-test", models: { custom: ["gpt-6.1-sol"] } });
     await eventually(() => gw.core.overview(), (o) => o.workers.some((w) => w.id === gw.workerId && w.providerInstances.some((i) => i.id === "platform-test" && i.available)));
     gw.core.bots.start();
   }, 30_000);
@@ -144,6 +149,27 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     await invoke("answer_interaction", { thread_id: threadId, request_id: requestId, allow: true }, true);
     await eventually(async () => gw.worker.interactionAnswers.some((a) => a.requestId === requestId), Boolean);
     expect(gw.worker.interactionAnswers).toContainEqual({ requestId, allow: true });
+    // A question: a malformed answer comes back to the bot as an error naming the expected shape, with no card for the user;
+    // a valid one gets a readable card (the question and the chosen label) and reaches the worker.
+    const questionId = Bun.randomUUIDv7();
+    gw.worker.ask({ requestId: questionId, threadId, kind: InteractionKind.QUESTION, toolName: "ask_user",
+      requestJson: JSON.stringify({ questions: [{ id: "topic", header: "Topic", question: "Which riddle?", kind: "single_choice", options: [{ label: "Consciousness" }, { label: "Time" }] }] }) });
+    await eventually(() => gw.runtime.runPromise(GatewayStore.use((s) => s.snapshot(threadId))), (s) => s.interactions.some((i) => i.requestId === questionId));
+    const rejected = await invoke<{ error: string }>("answer_interaction", { thread_id: threadId, request_id: questionId, answers: [{ id: "topic", kind: "choice", labels: ["Space"] }] });
+    expect(rejected.error).toContain('topic (single_choice: "Consciousness", "Time")');
+    const reading = await invoke<{ interactions: { request_id?: string; requestId?: string; answer_with?: string; request?: unknown }[] }>("read_thread", { thread_id: threadId });
+    expect(reading.interactions.find((i) => (i.requestId ?? i.request_id) === questionId)).toMatchObject({ answer_with: expect.stringContaining("labels"), request: { questions: [expect.objectContaining({ id: "topic" })] } });
+    const answerToken = Bun.randomUUIDv7();
+    requested.set(answerToken, { name: "answer_interaction", args: { thread_id: threadId, request_id: questionId, answers: [{ id: "topic", kind: "choice", labels: ["Time"] }] } });
+    const answering = await gw.core.bots.create(create(bots.CreateBotRequestSchema, { configuration: config(), clientRequestId: answerToken }));
+    await gw.core.bots.send(create(bots.SendBotMessageRequestSchema, { botId: answering.id, text: answerToken, clientRequestId: answerToken }));
+    const card = (await eventually(() => read(answering.id), (s) => s.approvals.some((a) => a.status === "pending"))).approvals[0]!;
+    expect(card.prompt).toContain("Which riddle?\nAnswer: Time");
+    expect(card.prompt).not.toContain("{");
+    await gw.core.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: card.id, approve: true }));
+    await eventually(async () => gw.worker.interactionAnswers.some((a) => a.requestId === questionId), Boolean);
+    await eventually(() => read(answering.id), (s) => !s.working);
+    await gw.core.bots.remove(answering.id);
     gw.worker.emit(threadId, "", { case: "itemStarted", value: { item: { itemId: "bot-bg", status: ItemStatus.IN_PROGRESS, content: { case: "backgroundTask", value: { taskId: "native-bg", description: "Long command" } } } } });
     await eventually(() => gw.runtime.runPromise(GatewayStore.use((s) => s.threadItem(threadId, "bot-bg"))), Boolean);
     expect(await invoke("list_background_tasks", { thread_id: threadId })).toMatchObject({ tasks: [expect.objectContaining({ item_id: "bot-bg" })] });
@@ -163,6 +189,10 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     await gw.core.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: waiting.approvals[0]!.id, approve: false }));
     await eventually(() => read(refused.id), (s) => !s.working);
     expect((await gw.api.getThread({ threadId: disposable.id })).thread?.id).toBe(disposable.id);
+    const autoDisposable = (await gw.api.createThread({ projectId, workspaceId, provider: Provider.CODEX, providerProfileId: "platform-test", title: "Auto disposable" })).thread!;
+    // Full auto: the destructive action runs with no card.
+    await invoke("delete_thread", { thread_id: autoDisposable.id }, false, "full_auto");
+    expect((await gw.api.listThreads({ includeArchived: true })).threads.some((t) => t.id === autoDisposable.id)).toBe(false);
     await invoke("delete_thread", { thread_id: disposable.id }, true);
     expect((await gw.api.listThreads({ includeArchived: true })).threads.some((t) => t.id === disposable.id)).toBe(false);
     const project = (await gw.api.createProject({ name: "Archive me" })).project!;

@@ -31,6 +31,7 @@ interface ProjectRow extends Row {
 
 /** Stored JSON: the protobuf JSON of each section. */
 interface Stored {
+  timezone?: string;
   appearance?: JsonValue;
   threadDefaults?: JsonValue;
   modelFavorites?: JsonValue;
@@ -52,6 +53,7 @@ export class SettingsStore extends Context.Service<
       composer?: ui.ComposerSettings;
       textGeneration?: ui.TextGenerationSettings;
       sidebar?: ui.SidebarSettings;
+      timezone?: string;
       expectedVersion: bigint;
     }): Fx<ui.UserSettings>;
     updateProject(input: { userId: string; projectId: string; threadDefaults?: ui.ThreadDefaults; expectedVersion: bigint }): Fx<ui.ProjectSettings>;
@@ -76,6 +78,7 @@ export class SettingsStore extends Context.Service<
       const toUser = (row: Row | undefined) => {
         const stored = (row?.settings ?? {}) as Stored;
         return create(ui.UserSettingsSchema, {
+          timezone: stored.timezone ?? "",
           appearance: appearance(stored),
           threadDefaults: threadDefaults(stored),
           modelFavorites: modelFavorites(stored),
@@ -127,13 +130,14 @@ export class SettingsStore extends Context.Service<
             Effect.map((rows) => rows.map((r) => toProject(r.project_id, r))),
           ),
 
-        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, textGeneration: nextGeneration, sidebar: nextSidebar, expectedVersion }) =>
+        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, textGeneration: nextGeneration, sidebar: nextSidebar, timezone, expectedVersion }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const current = (yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid FOR UPDATE`)[0];
               const stored = (current?.settings ?? {}) as Stored;
               const next: Stored = {
                 ...stored,
+                ...(timezone !== undefined && { timezone }),
                 ...(nextAppearance && { appearance: toJson(ui.AppearanceSettingsSchema, nextAppearance) }),
                 ...(nextDefaults && { threadDefaults: toJson(ui.ThreadDefaultsSchema, nextDefaults) }),
                 ...(nextFavorites && { modelFavorites: toJson(ui.ModelFavoritesSchema, nextFavorites) }),

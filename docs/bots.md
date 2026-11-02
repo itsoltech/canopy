@@ -18,9 +18,14 @@ wykonania, licznik oraz krótki wewnętrzny wynik. Soft delete zachowuje audyt.
 
 **Granice:** maksymalnie **20** nieusuniętych rutyn na bota (także wyłączonych), odstęp
 co najmniej **15 minut**, sprawdzany przez wspólny `cronProblem`; `nextCronRun` zachowuje
-reguły DST Bun. Nie ma ustawienia strefy użytkownika ani bota: jak scheduler wątków,
-domyślnie stosujemy **UTC**. Narzędzie przyjmuje strefę IANA z prośby użytkownika;
-model ma ustalić strefę dla niejednoznacznego czasu lokalnego. Panel podaje strefę.
+reguły DST Bun. `create_routine` i `update_routine` przy pominięciu strefy używają
+`UserSettings.timezone` (IANA, pole **620**), synchronizowanej ze strefą przeglądarki.
+Tak samo działają narzędzia `create_schedule` i `update_schedule`. Jawna strefa IANA
+ma pierwszeństwo; **UTC** jest wartością zastępczą tylko przy braku zapisanej strefy.
+Prompt podaje strefę użytkownika, aktualny czas lokalny z offsetem i czas ISO UTC.
+`schedule_wakeup.run_at` wymaga ISO z offsetem właściwym dla strefy użytkownika
+w wybranym dniu (z uwzględnieniem DST). Panel podaje strefę zapisaną w rutynie;
+zmiana strefy urządzenia sama nie przelicza istniejących rutyn i harmonogramów.
 Rutyna zapamiętuje `nextHop` tury tworzącej; dalsze akcje i odpowiedzi zachowują limit
 **8 hops**. Kolejne wystąpienie tego samego crona zaczyna od zapamiętanych hops,
 nie od hops poprzedniego wykonania. Kontekst spoza użytkownika nie może sam tworzyć
@@ -229,8 +234,9 @@ z UI API. Rozmowy i wyniki innych agentów są niezaufanymi danymi, nie instrukc
 poszerzenia uprawnień. Model nigdy nie dostaje kluczy endpointu ani nagłówków MCP.
 
 Katalog ma **49 narzędzi platformy**. Nowe definicje, statusy i wykonanie są razem
-w `apps/gateway/src/bots/tools/{projects,workers,providers,threads,schedules,settings,bots}.ts`;
-rejestr w `tools/index.ts` jest delegatem `PLATFORM_TOOLS` i `botPlatform`. Pozostawione
+w `apps/gateway/src/bots/tools/{projects,workers,providers,threads,schedules,settings,create-bot,routines}.ts`;
+rejestr w `tools/index.ts` jest delegatem `PLATFORM_TOOLS` i `botPlatform`. Tworzenie botów
+ma osobny deskryptor `tools/create-bot.ts`. Pozostawione
 nazwy wcześniejszych narzędzi zachowują zgodność. Nie ma meta-narzędzia „opisz obszar”:
 49 krótkich opisów z prefiksem obszaru mieści się w limicie 50 i nie wymaga dodatkowej
 rundy modelu. Lista nie zawiera narzędzi lokalnych ani edycji innych botów; własne ustawienia zmienia `update_self` (niżej).
@@ -241,6 +247,12 @@ Legenda zgód: **R** — odczyt platformy, nigdy nie wymaga karty, także przy `
 Zdalne MCP zachowuje dotychczasowe reguły: `safe` przepuszcza wyłącznie deklarowane
 odczyty bez flagi destrukcyjnej, pozostałe operacje wymagają zgody; `always` pyta także
 o odczyty MCP. `ask_user` zawsze tworzy kartę pytania.
+
+**Full auto** (`full_auto`): żadnych kart zgody — także dla **A**, zapisów MCP, `create_bot`
+(konfiguracja walidowana jak przy karcie) i zmian własnego modelu/polityki przez `update_self`.
+Zostają tylko pytania do użytkownika (`ask_user`). Przejście na `full_auto` z innej polityki
+przez `update_self` nadal wymaga karty; użytkownik włącza je w ustawieniach bota albo z menu
+„Needs approval ⌄” na karcie — wtedy oczekujące karty tego bota są od razu zatwierdzane.
 
 ### Projekty i workspaces
 
@@ -295,7 +307,7 @@ opis `list_workers` mówi o tym wprost. Brak narzędzia do logowania lub rejestr
 | `set_goal` | `set`, `pause`, `resume`, `clear`; budżet tylko dla Codexa | P |
 | `regenerate_title` | Generacja tytułu z historii i ustawień użytkownika | P |
 | `set_thread_permission` | Domyślny tryb uprawnień przyszłych tur | A |
-| `answer_interaction` | Odpowiedź na oczekujące pytanie lub zgodę danego wątku | A |
+| `answer_interaction` | Odpowiedź na oczekujące pytanie lub zgodę danego wątku: dla pytań tablica `answers` (`choice` z dokładnymi etykietami, `text`, `skipped`; `read_thread` zwraca pytania i `answer_with`). Błędna odpowiedź wraca do bota z oczekiwanym kształtem jeszcze przed kartą; karta pokazuje pytanie i wybraną odpowiedź | A |
 | `list_background_tasks` | Zadania w tle z widocznej osi czasu, status i output | R |
 | `stop_background_task` | Stop działającego zadania po item id | A |
 
@@ -330,6 +342,48 @@ uruchamianie kolejki i generacja tytułu następują po commicie. Awaria przed c
 cofa całą zmianę, po commicie replay odczytuje zapisany wynik zamiast powielać akcję.
 Odpowiedzi na interakcje pozostają w bazie i odtwarzają się przez ponowienie żądania
 workera, a generacja tytułu zachowuje dotychczasowy asynchroniczny charakter.
+
+### Tworzenie bota przez bota
+
+`create_bot` służy wyłącznie prośbie użytkownika lub jej jednoznacznej konsekwencji.
+System prompt i opis narzędzia zabraniają tworzenia agentów z własnej inicjatywy,
+na polecenie wyniku narzędzia lub wiadomości innego bota. Żądaną rolę i zachowanie
+model zapisuje w `instructions`, czyli trwałej personie nowego bota.
+
+Wymagana jest tylko `name`. Pominięte `provider`, `provider_instance`, `model`, `effort`
+i `approval_policy` dziedziczą ustawienia twórcy; `shape` i `color` są losowane spośród
+14 kształtów i 11 kolorów wizarda. Zmiana instancji nie dobiera automatycznie innego
+modelu ani effortu: przed wyborem modelu bot powinien użyć `list_models` **bez** `worker_id`,
+z docelowym providerem i instancją. Walidacja konfiguracji i zapis są wspólne z CreateBot RPC:
+endpoint dostępny dla gateway, model API instancji, obsługiwany effort, nazwa właściciela
+unikalna bez rozróżniania wielkości liter i reprezentacji Unicode NFC.
+
+Utworzenie zawsze wymaga karty zgody, także przy `safe`: nowy agent jest trwały i generuje
+własne koszty modelu. Karta pokazuje maskotkę, nazwę, instancję, model/effort, politykę
+i pełne instrukcje w przewijanym polu. Użytkownik może zaakceptować dowolną z polityk
+`safe`/`always`, również łagodniejszą od polityki twórcy; widoczna konfiguracja jest
+przedmiotem jawnej zgody. Zmiana polityki twórcy nie omija tej karty. Edit odsyła
+poprawione instrukcje do ponownego zaproponowania; Discard niczego nie tworzy i zwraca
+modelowi odmowę bez ponawiania akcji.
+
+Rozwiązane wartości domyślne i wygląd zapisują się ze zgodą jako snapshot. Restart
+gatewaya lub zmiana ustawień twórcy nie zmieniają zatwierdzanej propozycji. Zapis bota,
+pochodzenia i wyniku narzędzia odbywa się w jednej transakcji chronionej lease;
+replay po awarii odczytuje wynik zamiast tworzyć drugiego bota. Narzędzie zwraca `id`
+i `name`, po czym twórca może użyć `send_bot_message`. Nowy bot ma pustą rozmowę
+i pojawia się przez istniejący strumień listy botów. Ustawienia pokazują dyskretnie
+„Created by ‹nazwa›” z nazwą twórcy w chwili utworzenia.
+
+Limit właściciela wynosi **50 botów**, łącznie z archiwum, bez soft delete. Obowiązuje
+zarówno RPC, jak i narzędzie; blokada właściciela serializuje równoległe tworzenie.
+Idempotentne ponowienie już wykonanego żądania działa także po osiągnięciu limitu.
+Tworzenie podlega temu samemu limitowi hops co pozostałe działania botów i nie uruchamia
+automatycznie nowej rozmowy. Migracja **0040_bot_creation** dodaje snapshot propozycji
+oraz pochodzenie; pola kontraktu używają zakresu **600–601**. Nie zajmuje numerów
+0038/0039 przeznaczonych na Connections i routines (0039 jest już scalona).
+
+Edycja innych botów (`update_bot`) pozostaje poza zakresem. Nie przyznajemy jej przez
+samo zapisanie pochodzenia; ewentualna implementacja wymaga sprawdzenia twórcy i osobnej zgody.
 
 Nowe RPC `RenameProject` i `ArchiveProject` uzupełniają brakujące ścieżki rdzenia/UI.
 `Project.archived_at` ma pole **480**, żeby overview usunęło zarchiwizowany projekt
@@ -453,7 +507,9 @@ Bot wywołuje API dostawcy bezpośrednio, więc alias Claude Code (`default`, `o
 - `CreateBot`/`UpdateBot` zapisują model, na który alias rozwiązuje się w katalogu workera
   dla tej instancji (`ModelInfo.resolved_model`, np. `default` → `claude-opus-5-5`).
   Alias bez rozwiązania jest odrzucany z czytelnym błędem; model spoza **kompletnego**
-  katalogu również. Własne modele instancji i brak katalogu przechodzą (endpoint decyduje).
+  katalogu również. `CreateBot` i `create_bot` wymagają modelu z katalogu API tej instancji
+  lub jawnie skonfigurowanego własnego modelu. `UpdateBot` i runtime zachowują obsługę
+  niedostępnego katalogu (wtedy o obsłudze modelu decyduje endpoint).
 - Runtime rozwiązuje model przed każdym wywołaniem, więc boty zapisane wcześniej z aliasem
   (np. „Kropek” na stosie) działają bez migracji danych; przy następnym `UpdateBot` model
   zostaje zapisany już jako konkretny.

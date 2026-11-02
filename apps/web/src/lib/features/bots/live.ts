@@ -65,7 +65,11 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
     return colon > 0 && colon < 60 ? { label: line.slice(0, colon), value: line.slice(colon + 2) } : { label: "", value: line };
   });
   const status = a.status === "approved" ? "approved" : a.status === "discarded" ? (a.answer ? "edited" : "discarded") : "pending";
-  return { id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, action: heading.replace(/^Needs approval · /, "") || "Use a tool", fields, status, routineTitle: a.routineTitle || undefined };
+  const proposal = a.proposedBot;
+  return { id: a.id, at: dateOf(a.createdAt), askedBy: a.botId, action: heading.replace(/^Needs approval · /, "") || "Use a tool", fields, status, routineTitle: a.routineTitle || undefined,
+    botProposal: proposal ? { name: proposal.name, shape: proposal.shape, color: proposal.color, model: proposal.model, effort: proposal.effort,
+      provider: proposal.provider === Provider.CLAUDE ? "Claude" : "Codex", instance: proposal.providerInstance, approvalPolicy: proposal.approvalPolicy, instructions: proposal.instructions } : undefined,
+  };
 }
 
 /** Messages of one bot ⇄ bot exchange, each from the bot that wrote it. */

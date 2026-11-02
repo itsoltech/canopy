@@ -60,7 +60,7 @@
   const status = $derived(
     snapshot.working ? { bot: botParticipant(bot), text: snapshot.statusLine || (waiting ? "Waiting for you" : "Typing…"), waiting } : undefined,
   );
-  const policy = $derived<ApprovalPolicy>(config.approvalPolicy === "always" ? "always" : "safe");
+  const policy = $derived<ApprovalPolicy>(config.approvalPolicy === "always" || config.approvalPolicy === "full_auto" ? config.approvalPolicy : "safe");
   const modelInstances = $derived(botWizardInstances(instances, [...catalogs.workers.values()]));
 
   $effect(() => botList.use());
@@ -143,7 +143,9 @@
   }
   async function setPolicy(next: ApprovalPolicy) {
     try { await save(create(bots.BotConfigurationSchema, { ...config, approvalPolicy: next })); }
-    catch { connection = "Could not change when this bot asks"; }
+    catch { connection = "Could not change when this bot asks"; return; }
+    // Switching to full auto from a card means "stop asking": the actions already waiting go ahead too.
+    if (next === "full_auto") for (const a of snapshot.approvals) if (a.status === "pending" && a.kind === "approval") approve(a.id, { approve: true });
   }
   async function changeModel(choice: BotModelChoice) {
     const instance = instances.find((i) => instanceKeyOf(i) === choice.providerInstanceId);

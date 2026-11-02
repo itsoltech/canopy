@@ -81,7 +81,7 @@
       <div class="relative flex text-lg/7 font-medium text-brand-600 dark:text-brand-400">
         <SwapText text={label} {rank} distance="base" />
         {#if isDefault}
-          <div class="absolute top-1/2 left-full ml-1.5 -translate-y-1/2 text-xs/4 font-normal whitespace-nowrap text-zinc-400 dark:text-zinc-500" in:swap>Default</div>
+          <div class="absolute inset-y-0 left-full ml-1.5 flex items-center text-xs/4 font-normal whitespace-nowrap text-zinc-400 dark:text-zinc-500" in:swap>Default</div>
         {/if}
       </div>
       <button

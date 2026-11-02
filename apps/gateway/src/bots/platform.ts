@@ -1,9 +1,9 @@
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { Effect } from "effect";
-import { InvalidError, UnavailableError, type GatewayCore, type GatewayCoreOptions } from "../core/core.ts";
+import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
 import { GatewayStore, Invalid, NotFound } from "../store/store.ts";
-import { SettingsConflict, InstanceConflict, ScheduleConflict } from "../store/index.ts";
+import { platformError } from "./errors.ts";
 import { BotStore, requiredString } from "./store.ts";
 import { statusPhrase } from "./policy.ts";
 import type { BotTurn, StoredCall, ToolSpec } from "./types.ts";
@@ -25,6 +25,14 @@ export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: R
     if (tool.name === "send_bot_message" && typeof args["bot_id"] === "string") return statusPhrase(tool, { ...args, bot_name: (await core.bots.get(args["bot_id"])).configuration?.name });
   } catch { /* A missing label must not bypass validation of the actual action. */ }
   return statusPhrase(tool, args);
+}
+
+/** A tool's own pre-approval check (see PlatformTool.prepare); throws errors the model can act on. */
+export async function prepareBotTool(core: GatewayCore, options: GatewayCoreOptions, turn: BotTurn, call: StoredCall): Promise<{ prompt?: string } | undefined> {
+  const registered = call.tool.source === "platform" ? areaTool.get(call.tool.name) : undefined;
+  if (!registered?.prepare) return undefined;
+  validate(registered.spec.parameters, call.arguments);
+  return registered.prepare(context(core, options, turn, call));
 }
 
 export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions, turn: BotTurn, call: StoredCall): Promise<unknown> {
@@ -107,10 +115,7 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
   } catch (error) {
     // Never echo SQL/transport diagnostics, credentials or internal URLs to the model or UI.
     // Validation messages (bad model, offline worker, unknown thread) go back so the bot can correct itself.
-    for (let cause = error, i = 0; cause && typeof cause === "object" && i < 8; i++, cause = (cause as { cause?: unknown }).cause) {
-      if (cause instanceof Invalid || cause instanceof InvalidError || cause instanceof UnavailableError || cause instanceof NotFound || cause instanceof SettingsConflict || cause instanceof InstanceConflict || cause instanceof ScheduleConflict) return { error: cause.message };
-    }
-    return { error: "Platform action rejected or unavailable" };
+    return platformError(error);
   }
 }
 
