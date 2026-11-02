@@ -39,6 +39,10 @@ export interface SteerRow {
   from_turn_id?: string | null;
   /** Joined: the calling thread of an agent's steer, and who it is (AgentSender). */
   source_thread_id?: string | null;
+  /** The platform's note about background tasks that ended (no author; background_task_notes.steer_id). */
+  background_note?: boolean;
+  /** Joined: the tasks of such a note (item ids). */
+  background_item_ids?: string[] | null;
 }
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound>;
@@ -79,7 +83,8 @@ export class SteerStore extends Context.Service<
       const select = `
         SELECT s.*, c.source_thread_id, st.title AS source_title, st.provider AS source_provider, st.provider_profile_id AS source_profile_id,
                coalesce(nullif(su.model, ''), st.settings ->> 'model', '') AS source_model, st.project_id AS source_project_id,
-               st.worker_id AS source_worker_id
+               st.worker_id AS source_worker_id,
+               CASE WHEN s.background_note THEN ARRAY(SELECT n.item_id FROM background_task_notes n WHERE n.steer_id = s.id ORDER BY n.ended_at, n.item_id) END AS background_item_ids
           FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = s.agent_call_id
           LEFT JOIN threads st ON st.id = c.source_thread_id LEFT JOIN turns su ON su.id = c.source_turn_id`;
       const one = (id: string) =>
@@ -176,6 +181,7 @@ export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
     fromTurnId: row.from_turn_id ?? "",
     quotes: (row.input.quotes ?? []).map(toUiQuote),
     mentions: mentionsFromJson(row.input.mentions),
+    backgroundItemIds: row.background_item_ids ?? [],
     ...(sender && { sender }),
   });
 }

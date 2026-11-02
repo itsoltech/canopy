@@ -96,6 +96,7 @@
       return turn !== undefined && isTerminal(turn.status);
     },
     steer: (id) => view.steers.find((s) => s.id === id),
+    item: (id) => view.ownEntries.find((e) => e.id === id)?.item,
     delivery: (callId) => view.deliveries.get(callId),
     get canFork() {
       return canFork;

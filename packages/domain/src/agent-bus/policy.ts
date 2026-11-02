@@ -211,6 +211,22 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
       return withHops(false);
     }
 
+    // The thread's own background tasks; another thread's like get_thread (read: same owner) and interrupt_thread (stop: descendants).
+    case "list_background_tasks":
+    case "get_background_task": {
+      const id = call.args.thread_id;
+      if (id === undefined || id === caller.id) return allow;
+      const target = sameOwner(facts, id);
+      return typeof target === "string" ? deny(target) : allow;
+    }
+
+    case "stop_background_task": {
+      const id = call.args.thread_id;
+      if (id === undefined || id === caller.id) return allow;
+      const target = descendant(facts, id);
+      return typeof target === "string" ? deny(target) : allow;
+    }
+
     case "cancel_schedule": {
       const schedule = facts.schedule;
       if (!schedule || schedule.id !== call.args.schedule_id) return deny(`schedule ${call.args.schedule_id} not found`);

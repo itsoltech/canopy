@@ -62,7 +62,7 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !doc
       // Read-only queries never record prompt/result (or an error) in the command journal.
       const commandId = Bun.randomUUIDv7();
       const invalid = await host.handleCommand(create(CommandSchema, { commandId, kind: { case: "generateText", value: { ...request, prompt: "" } } }));
-      expect(invalid.ok).toBe(false);
+      expect(invalid?.ok).toBe(false);
       expect(await runtime.runPromise(Journal.use((j) => j.commandResult(commandId)))).toBeUndefined();
     }, 45_000);
   }

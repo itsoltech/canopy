@@ -139,6 +139,8 @@ export interface TurnRow {
   source_status?: string | null;
   question_kind?: string | null;
   question_tool?: string | null;
+  /** Joined from turn_sources: a background_task turn's tasks (item ids). */
+  background_item_ids?: string[] | null;
   /** Taken out of the queue by the user (cancelled): deleted | steered (docs/ui-api.md, "Kolejka"). */
   withdrawn?: string | null;
   /** Grows with every edit of the queued input. */
@@ -1060,6 +1062,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     sourceStatus: row.source_status ?? "",
     questionKind: row.question_kind ?? "",
     questionTool: row.question_tool ?? "",
+    backgroundItemIds: row.background_item_ids ?? [],
     sourceKind: row.source_kind ?? "",
     sourceThreadId: row.source_thread_id ?? "",
     scheduleId: row.schedule_id ?? "",

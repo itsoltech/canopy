@@ -1,5 +1,5 @@
 import { getContext, setContext } from "svelte";
-import type { ui } from "@open-agents/contracts";
+import type { Item, ui } from "@open-agents/contracts";
 
 /** Lets timeline items name and link other threads of the project (agent bus targets, parents). */
 export interface ThreadDirectory {
@@ -14,6 +14,8 @@ export interface ThreadDirectory {
   turnEnded?(turnId: string): boolean;
   /** The thread's steer with this id (a message steered into a turn: its text and quotes). */
   steer?(id: string): ui.Steer | undefined;
+  /** The thread's own timeline item with this id (e.g. the background task a platform note is about). */
+  item?(id: string): Item | undefined;
   /** Where the thread's spawn_thread / send_message call with this id went: the target turn and its live status. */
   delivery?(callId: string): ui.BusDelivery | undefined;
   /** Its turns can be forked from ("Fork from here"): a thread on a worker that started at its provider. */
