@@ -11,11 +11,13 @@
 </script>
 
 {#if name in lineIcons}
+  <!-- Lucide draws edge to edge; a 2-unit margin (28-unit view) sets it at the optical size of the micro set,
+       the stroke widened so its weight stays at ~1.7 px. -->
   <svg
-    viewBox="0 0 24 24"
+    viewBox="-2 -2 28 28"
     fill="none"
     stroke="currentColor"
-    stroke-width="1.75"
+    stroke-width="2"
     stroke-linecap="round"
     stroke-linejoin="round"
     class={["size-4 shrink-0", className]}
