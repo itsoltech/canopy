@@ -1,5 +1,6 @@
 import { IncrementalHighlight, type HighlightedLine, type LineTokenizer } from "./incremental.ts";
 import type { LanguageId } from "./languages.ts";
+import { updateNotice } from "#lib/shared/updates.svelte.ts";
 
 /** Main-thread time one slice of highlighting may take before it yields (ms). */
 const SLICE_MS = 6;
@@ -46,7 +47,8 @@ export class Highlight {
         let tokenize: LineTokenizer;
         try {
           tokenize = await (await import("./highlighter.ts")).tokenizer(id);
-        } catch {
+        } catch (cause) {
+          updateNotice.detect(false, cause);
           return; // The chunk did not load (offline, a new deploy): the block stays plain.
         }
         while (!stopped) {
