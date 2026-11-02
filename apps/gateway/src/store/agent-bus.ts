@@ -294,6 +294,19 @@ export class AgentBusStore extends Context.Service<
         SELECT s.*, t.project_id, c.source_thread_id AS created_by_thread_id
           FROM schedules s JOIN threads t ON t.id = s.thread_id LEFT JOIN agent_bus_calls c ON c.id = s.created_by_call_id`;
 
+      /**
+       * The caller's effective permission mode: the mode its calling turn runs with (a message may override the
+       * thread's default for one turn), else its running turn's, else the thread's default. The ceiling of
+       * spawn_thread and the mode a subagent gets when it asks for none.
+       */
+      const callerMode = (source: CallSource, caller: ThreadRow) =>
+        sql<{ permission_mode: string }>`
+          SELECT permission_mode FROM turns
+           WHERE permission_mode <> '' AND (id = ${turnRef(source)} OR (thread_id = ${caller.id}::uuid AND status = 'running'))
+           ORDER BY (id = ${turnRef(source)}) DESC NULLS LAST LIMIT 1`.pipe(
+          Effect.map((rows) => busPermissionMode(rows[0]?.permission_mode || caller.settings.permissionMode)),
+        );
+
       const store: AgentBusStore["Service"] = {
         storedCall: (callId) =>
           isUuid(callId)
@@ -348,7 +361,7 @@ export class AgentBusStore extends Context.Service<
               callerChildren: counts[0]?.children ?? 0,
               activeInTree: counts[0]?.active ?? 0,
               spawnProvider: caller.provider,
-              callerPermissionMode: busPermissionMode(caller.settings.permissionMode),
+              callerPermissionMode: yield* callerMode(source, caller),
               ...(interaction && { interaction }),
               ...(schedule && { schedule }),
               ...(scheduleCount !== undefined && { targetSchedules: scheduleCount }),
@@ -382,6 +395,8 @@ export class AgentBusStore extends Context.Service<
               // the model against the catalog). A role adds to the caller's instructions.
               const settings: ThreadRow["settings"] = {
                 ...caller.settings,
+                // The calling turn's mode, not the thread's default (never broader than the caller right now).
+                permissionMode: (yield* callerMode(source, caller)).toUpperCase(),
                 ...(args.model !== undefined && { model: args.model }),
                 ...(args.effort !== undefined && { effort: args.effort }),
                 ...(args.permission_mode !== undefined && { permissionMode: args.permission_mode.toUpperCase() }),

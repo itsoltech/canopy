@@ -9,7 +9,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
-  import { permissionLabel, providerLabel } from "../labels.ts";
+  import { permissionLabel, permissionLook, providerLabel } from "../labels.ts";
   import type { UsageTotals } from "../thread-state.svelte.ts";
   import { isSide, type ThreadTree } from "../thread-tree.ts";
   import ThreadStatusText from "../ThreadStatusText.svelte";
@@ -71,7 +71,7 @@
       {providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}
       {#snippet aside()}{#if thread.providerProfileId}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5">{thread.providerProfileId}</span>{/if}{/snippet}
     </PanelRow>
-    <PanelRow icon="shield-check">{permissionLabel(thread.permissionMode)}</PanelRow>
+    <PanelRow icon={permissionLook(thread.permissionMode).icon} iconClass={permissionLook(thread.permissionMode).iconClass}>{permissionLabel(thread.permissionMode)}</PanelRow>
     {#if isSide(thread)}
       <PanelRow icon="hand-raised" iconClass={thread.interactionRoute === "parent" ? "fill-violet-500 dark:fill-violet-400" : undefined}>
         {#if thread.interactionRoute === "parent"}

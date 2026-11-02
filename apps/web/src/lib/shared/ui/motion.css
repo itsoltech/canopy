@@ -419,7 +419,9 @@
  * t-swap: text states swap (04), a status label that changed rises in (put it in a {#key}).
  * t-rise: a new row in a list or the timeline (transform only: layout and measuring are untouched).
  * t-reveal: skeleton reveal (14), loaded content resolves in where its skeleton was.
- * t-stream: streaming text (30), each new block of a streaming message resolves in. */
+ * t-stream: streaming text (30), each new block of a streaming message resolves in.
+ * t-unfold: accordion (21) for rows of a virtual list: the rows a fold opened drop in from just above
+ *   (transform only, so measuring and scroll anchoring are untouched), staggered by --t-delay. */
 .t-swap {
   animation: t-swap var(--duration-quick) var(--ease-in-out);
 }
@@ -452,11 +454,22 @@
 .t-stream > * {
   animation: t-reveal var(--duration-medium) var(--ease-smooth-out);
 }
+.t-unfold {
+  animation: t-unfold var(--duration-fast) var(--ease-smooth-out) var(--t-delay, 0ms) backwards;
+}
+@keyframes t-unfold {
+  from {
+    opacity: 0;
+    translate: 0 calc(var(--distance-micro) * -1);
+    filter: blur(var(--blur-small));
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .t-swap,
   .t-rise,
   .t-reveal,
-  .t-stream > * {
+  .t-stream > *,
+  .t-unfold {
     animation: none !important;
   }
 }

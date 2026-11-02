@@ -6,6 +6,7 @@ import {
   GoalDirective,
   InteractionResponseSchema,
   ItemStatus,
+  PermissionMode,
   Provider,
   ui,
   type Command,
@@ -39,6 +40,8 @@ import {
   NotFound,
   ModelStore,
   modelProblem,
+  permissionModeName,
+  permissionModeOf,
   SettingsStore,
   SteerStore,
   toUiGoal,
@@ -480,7 +483,11 @@ export class GatewayCore {
     // (turnEffort). Recorded on the turn as what it ran with.
     const model = turn.model || thread.settings.model || "";
     const effort = turnEffort((await this.#profileModels({ thread })).models, model, turn.effort || thread.settings.effort || "");
-    if (model !== (turn.model ?? "") || effort !== (turn.effort ?? "")) await this.#run((s) => s.setTurnModel(turn.id, model, effort));
+    // The permission mode the same way: the message's override, else the thread's default (always explicit).
+    const permissionMode = turn.permission_mode || permissionModeName(permissionModeOf(thread.settings.permissionMode)) || "ASK";
+    if (model !== (turn.model ?? "") || effort !== (turn.effort ?? "") || permissionMode !== (turn.permission_mode ?? "")) {
+      await this.#run((s) => s.setTurnSettings(turn.id, { model, effort, permissionMode }));
+    }
     try {
       await this.#dispatch(
         thread.worker_id,
@@ -505,6 +512,7 @@ export class GatewayCore {
               },
               model,
               effort,
+              permissionMode: permissionModeOf(permissionMode),
             },
           },
         },
@@ -787,6 +795,7 @@ export class GatewayCore {
     if (!request.text.trim() && !files) throw new InvalidError("message is empty");
     // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
     await this.#checkModel({ thread }, request.model || thread.settings.model || "", request.effort);
+    const permissionMode = checkedPermissionMode(request.permissionMode);
     // A message with attachments is always the next turn: its files go to the worker before the turn starts.
     if (request.delivery === ui.MessageDelivery.STEER && !files) {
       const running = await this.#run((s) => s.runningTurn(threadId));
@@ -800,6 +809,7 @@ export class GatewayCore {
             clientRequestId,
             model: request.model,
             effort: request.effort,
+            permissionMode,
           }),
         );
         await this.#sendSteer(steer.id);
@@ -814,6 +824,7 @@ export class GatewayCore {
         clientRequestId,
         model: request.model,
         effort: request.effort,
+        permissionMode,
         ...(files && { input: files.input(threadId, request.text) }),
       }),
     );
@@ -823,7 +834,7 @@ export class GatewayCore {
     return { turn: update };
   }
 
-  /** The thread's default model and effort for turns without an override. */
+  /** The thread's default model, effort and permission mode for turns without an override. */
   async updateThread(request: ui.UpdateThreadRequest): Promise<ui.Thread> {
     const thread = await this.#run((s) => s.thread(request.threadId));
     if (thread.owner_user_id !== this.#options.userId || thread.archived_at) throw new InvalidError("thread not found");
@@ -833,10 +844,13 @@ export class GatewayCore {
     await this.#checkModel({ thread }, model, request.effort ?? "");
     const current = thread.settings.effort ?? "";
     const effort = turnEffort((await this.#profileModels({ thread })).models, model, request.effort ?? current);
+    // Only the owner (UI) changes the mode; agents have no bus tool for it (docs/ui-api.md, FULL_AUTO only deliberately).
+    const permissionMode = request.permissionMode === undefined ? "" : checkedPermissionMode(request.permissionMode);
     const row = await this.#run((s) =>
       s.updateThreadSettings(request.threadId, {
         ...(request.model !== undefined && { model: request.model }),
         ...((request.effort !== undefined || effort !== current) && { effort }),
+        ...(permissionMode && { permissionMode }),
       }),
     );
     await this.#broadcastThread(row.id);
@@ -1379,6 +1393,16 @@ function steerOf(event: ThreadEvent): string | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * A requested permission mode as stored ('' = UNSPECIFIED: no override / unchanged). Any mode is the user's to
+ * choose for their thread (FULL_AUTO too: still sandboxed to the workspace by both harnesses); agents cannot
+ * set one, the agent bus has no tool for it.
+ */
+function checkedPermissionMode(mode: PermissionMode): string {
+  if (mode !== PermissionMode.UNSPECIFIED && PermissionMode[mode] === undefined) throw new InvalidError(`unknown permission mode ${mode}`);
+  return permissionModeName(mode);
 }
 
 /** Whether a database constraint caused the error (driver errors carry it somewhere in the cause chain). */

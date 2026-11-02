@@ -314,12 +314,13 @@ export class WorkerHost {
         return {};
       }
       case "startTurn": {
-        const { thread: spec, turnId, input, model, effort } = kind.value;
+        const { thread: spec, turnId, input, model, effort, permissionMode } = kind.value;
         if (!spec || !input) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
         this.#cwds.set(spec.threadId, spec.cwd);
         // The files first: the input already names their paths.
         if (input.attachments.length > 0) await this.#ensureAttachments(spec.threadId, input.attachments);
-        const settings = { model, effort };
+        // UNSPECIFIED (an older gateway): the thread's mode.
+        const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode };
         if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.startTurn(spec, turnId, input, settings));
         else await this.#runCodex(spec.provider, (threads) => threads.startTurn(spec, turnId, input, settings));
         return {};

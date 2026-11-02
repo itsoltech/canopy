@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ui } from "@open-agents/contracts";
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import { page } from "$app/state";
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
@@ -17,6 +17,7 @@
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
+  import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
@@ -24,7 +25,8 @@
   import { ThreadState, type TimelineEntry } from "#lib/features/threads/thread-state.svelte.ts";
   import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
   import { topLevelEntry } from "#lib/features/threads/timeline.ts";
-  import { FeedBuilder, feedEstimate, feedGroup, type FeedRow } from "#lib/features/threads/feed.ts";
+  import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
+  import { FeedBuilder, feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
@@ -88,6 +90,8 @@
   // The feed: inherited history (folded), the thread's own timeline, the working indicator, queued
   // inputs. One builder per thread keeps unchanged rows identical, so a delta re-renders one row.
   let historyOpen = $state(false);
+  // Ended turns fold their work into "Worked for …"; which folds are open, per thread.
+  const folds = $derived((void threadId, new WorkFolds()));
   const builder = $derived((void threadId, new FeedBuilder()));
   const rows = $derived(
     builder.build({
@@ -103,12 +107,14 @@
       inheritedEntries: view.inheritedEntries,
       inheritedTurns: view.inheritedTurns,
       historyOpen,
+      openWork: folds.open,
     }),
   );
   $effect(() => {
     void threadId;
     historyOpen = false;
   });
+
 
   const composerNote = $derived.by(() => {
     if (!thread) return undefined;
@@ -141,6 +147,7 @@
     scheduling = true;
   };
   let modelOpen = $state(false);
+  let permissionsOpen = $state(false);
 
   // Goal: the bar above the composer (an open goal, or an achieved one until dismissed in this tab), set
   // or replaced from the thread's actions or the composer.
@@ -157,8 +164,21 @@
   };
 
   // "N running in background" jumps to the task's row (a nested task: the row of the item it is under).
-  let feed = $state<{ reveal: (key: string) => Promise<boolean> }>();
-  const jumpTo = (task: TimelineEntry) => void feed?.reveal(`item:${topLevelEntry(view.ownEntries, task).id}`);
+  let feed = $state<FoldReader & { reveal: (key: string) => Promise<boolean> }>();
+  // A task under a turn's folded work opens the fold first.
+  const jumpTo = async (task: TimelineEntry) => {
+    const top = topLevelEntry(view.ownEntries, task);
+    if (top.turnId && !folds.open.has(top.turnId)) {
+      folds.toggle(top.turnId, true);
+      await tick();
+    }
+    void feed?.reveal(`item:${top.id}`);
+  };
+
+  $effect.pre(() => {
+    const turns = view.ownTurns;
+    untrack(() => folds.update(turns, view.ownEntries, view.notices, feed));
+  });
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -191,6 +211,7 @@
             <MenuItem icon="arrows-right-left" disabled={!canBranch} onselect={openSide}>New side thread</MenuItem>
             <MenuItem icon="clock" disabled={!canSchedule} onselect={openSchedule}>Schedule a task</MenuItem>
             <MenuItem icon="cpu-chip" disabled={closed} onselect={() => (modelOpen = true)}>Model and effort…</MenuItem>
+            <MenuItem icon="shield-check" disabled={closed} onselect={() => (permissionsOpen = true)}>Permissions…</MenuItem>
             {#if goalsHere}
               <MenuItem icon="flag" disabled={!canGoal} onselect={setGoalLater}>{openGoal ? "Replace the goal…" : "Set a goal…"}</MenuItem>
             {/if}
@@ -215,7 +236,7 @@
 
     <div class="min-h-0 flex-1">
       {#key threadId}
-        <VirtualFeed bind:this={feed} {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} label="Timeline" busy={working}>
+        <VirtualFeed bind:this={feed} {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working}>
           {#snippet placeholder()}
             {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
           {/snippet}
@@ -233,7 +254,7 @@
             {/if}
           {/snippet}
           {#snippet row(row: FeedRow)}
-            <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} />
+            <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} onwork={(turnId) => folds.toggle(turnId)} />
           {/snippet}
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
@@ -329,6 +350,7 @@
   </Dialog>
   <SideThreadDialog bind:open={sideOpen} main={tree.main} {worker} />
   <ThreadModelDialog bind:open={modelOpen} {thread} {worker} />
+  <ThreadPermissionsDialog bind:open={permissionsOpen} {thread} />
   <GoalDialog bind:open={goalDialog} threadId={thread.id} provider={thread.provider} current={view.goal} onset={(goal) => view.upsertGoal(goal)} />
   <ScheduleDialog bind:open={scheduling} threadId={thread.id} oncreated={(schedule) => view.upsertSchedule(schedule)} />
 {/if}

@@ -21,7 +21,9 @@
    * - `placeholder` stands where the rows will be while there are none (a skeleton, bottom-aligned
    *   above the footer like the end of the feed); the first rows after it resolve in. Rows added at the
    *   end later rise in once, when they first mount (`VirtualRow` `enter`); rows mounted by scrolling,
-   *   prepended history and server-rendered rows do not. "Jump to latest" rises in and out.
+   *   prepended history and server-rendered rows do not. Rows inserted between shown ones enter only
+   *   as `inserted` says (e.g. a fold that opened: its rows unfold, staggered). "Jump to latest" rises
+   *   in and out.
    * - Keyboard: the scroll area is focusable (Page Up/Down, Home/End scroll it); inside a row, Page
    *   Up/Down move to the previous/next row (WAI-ARIA feed), Ctrl+End to the composer, Ctrl+Home back
    *   to the scroll area. A focused row stays mounted.
@@ -37,6 +39,7 @@
     placeholder,
     row,
     footer,
+    inserted,
   }: {
     rows: readonly T[];
     key: (row: T) => string;
@@ -51,6 +54,8 @@
     placeholder?: Snippet;
     row: Snippet<[T, number]>;
     footer?: Snippet;
+    /** How a row inserted between shown rows enters (none by default: e.g. older history above). */
+    inserted?: (row: T) => "unfold" | "reveal" | undefined;
   } = $props();
 
   const uid = $props.id();
@@ -111,7 +116,7 @@
   let known: Set<string> | undefined;
   /** The feed started empty (client navigation): its first rows replace the placeholder. */
   const startedEmpty = untrack(() => rows.length === 0);
-  const entering = new Map<string, "rise" | "reveal">();
+  const entering = new Map<string, { kind: "rise" | "reveal" | "unfold"; order: number }>();
   let enterFrame = 0;
   $effect.pre(() => {
     const keys = sized.map((r) => r.key);
@@ -121,8 +126,16 @@
       keys.forEach((rowKey, at) => {
         if (known?.has(rowKey)) last = at;
       });
-      for (const rowKey of keys.slice(last + 1)) entering.set(rowKey, "rise");
-    } else if (startedEmpty) for (const rowKey of keys) entering.set(rowKey, "reveal");
+      let order = 0;
+      keys.forEach((rowKey, at) => {
+        if (known?.has(rowKey)) return;
+        if (at > last) entering.set(rowKey, { kind: "rise", order: 0 });
+        else {
+          const kind = inserted?.(rows[at] as T);
+          if (kind) entering.set(rowKey, { kind, order: order++ });
+        }
+      });
+    } else if (startedEmpty) for (const rowKey of keys) entering.set(rowKey, { kind: "reveal", order: 0 });
     // What did not mount with this update (scrolled away) is not new any more.
     cancelAnimationFrame(enterFrame);
     enterFrame = requestAnimationFrame(() => entering.clear());
@@ -310,6 +323,32 @@
     scrollTop = scroller.scrollTop;
     await focusRow(at);
     return true;
+  }
+
+  /**
+   * The rows the reader is on: the focused one and, while they are not following the end (scrolled up),
+   * the rows on screen above the footer. Empty while following the end with nothing focused.
+   */
+  export function reading(): string[] {
+    const keys = focusedKey === undefined ? [] : [focusedKey];
+    if (stuck || !scroller) return keys;
+    const box = scroller.getBoundingClientRect();
+    const bottom = box.bottom - footerHeight;
+    for (const [rowKey, element] of elements) {
+      const rect = element.getBoundingClientRect();
+      if (rect.bottom > box.top && rect.top < bottom && rowKey !== focusedKey) keys.push(rowKey);
+    }
+    return keys;
+  }
+
+  /**
+   * Makes this row (mounted, on screen) the one that keeps its place while the reader is scrolled up,
+   * e.g. before rows are inserted above it that would otherwise push it down.
+   */
+  export function hold(rowKey: string): void {
+    const element = elements.get(rowKey);
+    if (stuck || !scroller || !element) return;
+    anchor = { key: rowKey, element, top: element.getBoundingClientRect().top - scroller.getBoundingClientRect().top };
   }
 
   function onkeydown(event: KeyboardEvent) {

@@ -25,6 +25,8 @@ export interface SteerRow {
   client_request_id: string | null;
   model: string;
   effort: string;
+  /** Override for the fallback turn only ('' = the thread's default); a steer that joins keeps the turn's mode. */
+  permission_mode: string;
   status: "pending" | "accepted" | "delivered" | "dropped" | "queued" | "failed";
   reason: string | null;
   queued_turn_id: string | null;
@@ -47,6 +49,7 @@ export class SteerStore extends Context.Service<
       clientRequestId: string;
       model: string;
       effort: string;
+      permissionMode: string;
     }): Fx<SteerRow>;
     byClientRequest(threadId: string, clientRequestId: string): Fx<SteerRow | undefined>;
     steer(id: string): Fx<SteerRow>;
@@ -72,13 +75,13 @@ export class SteerStore extends Context.Service<
         );
 
       const store: SteerStore["Service"] = {
-        create: ({ threadId, turnId, text, userId, clientRequestId, model, effort }) =>
+        create: ({ threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode }) =>
           Effect.gen(function* () {
             const id = Bun.randomUUIDv7();
             const rows = yield* sql<{ id: string }>`
-              INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort)
+              INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort, permission_mode)
               VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify({ text })}::jsonb, ${userId}::uuid,
-                      ${clientRequestId || null}, ${model}, ${effort})
+                      ${clientRequestId || null}, ${model}, ${effort}, ${permissionMode})
               ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
               RETURNING id`;
             if (rows[0]) return yield* one(rows[0].id);
@@ -117,10 +120,10 @@ export class SteerStore extends Context.Service<
               // Like the message would have been queued: a user's turn, or the agent's (same call, same hops).
               const agent = steer.agent_call_id !== null;
               const rows = yield* sql<TurnRow>`
-                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, hops, input, model, effort)
+                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, hops, input, model, effort, permission_mode)
                 SELECT ${Bun.randomUUIDv7()}::uuid, ${steer.thread_id}::uuid, coalesce(max(ordinal), 0) + 1, ${agent ? "agent_bus" : "user"},
                        ${steer.author_user_id}::uuid, ${steer.agent_call_id}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
-                       ${steer.model}, ${steer.effort}
+                       ${steer.model}, ${steer.effort}, ${steer.permission_mode}
                   FROM turns WHERE thread_id = ${steer.thread_id}::uuid
                 RETURNING *`;
               const turn = rows[0]!;

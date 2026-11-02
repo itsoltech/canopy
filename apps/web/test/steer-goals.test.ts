@@ -61,6 +61,7 @@ describe("feed rows for steers", () => {
     inheritedEntries: [],
     inheritedTurns: [],
     historyOpen: false,
+    openWork: new Set(),
     ...over,
   });
 

@@ -99,7 +99,7 @@ Każdy subagent to prawdziwy wątek platformy: widoczny w drzewie i na osi czasu
 
 Reguły (`authorizeBusCall` i gateway):
 - głębokość: dwa poziomy (subagent nie tworzy kolejnych), limity jak w sekcji 6,
-- uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto`; subagent dostaje uprawnienia wywołującego albo węższe, nigdy szersze,
+- uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto`; subagent dostaje uprawnienia wywołującego albo węższe, nigdy szersze. „Uprawnienia wywołującego” to tryb tury, w której padło wywołanie (`turns.permission_mode`: wiadomość może nadpisać domyślny wątku na jedną turę), a bez niego tryb tury w toku, potem domyślny wątku; ten sam tryb dostaje subagent bez `permission_mode`,
 - model i wysiłek: tylko z katalogu profilu wywołującego (gdy worker go zgłosił); fork zachowuje dostawcę,
 - rola (`instructions`) dopisuje się do instrukcji wywołującego.
 

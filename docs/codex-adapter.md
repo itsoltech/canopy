@@ -48,6 +48,8 @@ Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway k
   | `READ_ONLY` | `never` | `read-only` |
   | `FULL_AUTO` | `never` | `workspace-write`, nigdy `danger-full-access` domyślnie |
 
+  Ta sama tabela idzie w każdym `turn/start` jako `approvalPolicy` + `sandboxPolicy` (tryb tury ze `StartTurn.permission_mode`), bo Codex trzyma nadpisanie dla kolejnych tur ([protocol.md](protocol.md#modele-effort-i-steer)).
+
 - **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
 
 Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną historią, „restart workera” (nowy proces z tym samym `CODEX_HOME` i dziennikiem), wznowienie i tura w wznowionym wątku.

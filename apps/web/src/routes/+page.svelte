@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { page } from "$app/state";
-  import { PermissionMode, Provider, type ui } from "@open-agents/contracts";
+  import { Provider, type ui } from "@open-agents/contracts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -15,11 +15,9 @@
   import { findOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
-  import { permissionModes } from "#lib/features/threads/labels.ts";
+  import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
+  import { permissionKey, type PermissionModeKey } from "#lib/features/threads/labels.ts";
   import { profileIdValue, providerKeyOf } from "#lib/features/threads/providers.ts";
-  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
-  import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
-  import PillButton from "#lib/shared/ui/PillButton.svelte";
   import PillText from "#lib/shared/ui/PillText.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
@@ -80,10 +78,8 @@
   let effort = $state<string>();
   // Only an effort the model takes (switching the workspace can change the model).
   const sentEffort = $derived(effort && selected?.efforts.some((e) => e.id === effort) ? effort : "");
-  let permission = $state<string>();
-  const permissionMode = $derived(permission ?? (defaults.permissionMode !== PermissionMode.UNSPECIFIED ? PermissionMode[defaults.permissionMode] : "ASK"));
-
-  const permissionLabelOf = (value: string) => permissionModes.find((m) => m.value === value)?.label ?? value;
+  let permission = $state<PermissionModeKey>();
+  const permissionMode = $derived(permission ?? permissionKey(defaults.permissionMode));
 
   let message = $state("");
   let busy = $state(false);
@@ -155,17 +151,7 @@
                 <ProjectPicker projects={overview.projects} value={project.id} onselect={pickProject} class="max-w-48 sm:max-w-56" />
                 <WorkerPicker {project} value={workspace?.id} onselect={pickWorkspace} />
               </span>
-              <DropdownMenu label="Permissions" placement="bottom-end" class="w-72">
-                {#snippet trigger(props)}
-                  <PillButton {...props} class="-mr-1.5 shrink-0 pl-1.5" aria-label="Permissions: {permissionLabelOf(permissionMode)}">
-                    <Icon name="shield-check" class="size-3.5" />
-                    <span class="max-sm:sr-only">{permissionLabelOf(permissionMode)}</span>
-                  </PillButton>
-                {/snippet}
-                {#each permissionModes as option (option.value)}
-                  <MenuCheckItem checked={option.value === permissionMode} description={option.description} onselect={() => (permission = option.value)}>{option.label}</MenuCheckItem>
-                {/each}
-              </DropdownMenu>
+              <PermissionPicker value={permissionMode} onselect={(mode) => (permission = mode)} class="-mr-1.5" />
             {/snippet}
           </ComposerBox>
           {#if blocker === "no-worker"}
