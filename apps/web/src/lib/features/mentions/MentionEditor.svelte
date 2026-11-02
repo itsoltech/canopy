@@ -2,7 +2,8 @@
   import type { Mention } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
   import Popover from "#lib/shared/ui/Popover.svelte";
-  import { activeTrigger, elementOf, iconKey, serialize, toHtml, type ActiveTrigger, type TriggerChar } from "./editor.ts";
+  import { caretAfter, caretAtPoint, chipBeforeCaret, ensureCaret, selectBackFromCaret, selectNode, textBeforeCaret } from "./caret.ts";
+  import { activeTrigger, iconKey, serialize, toHtml, type ActiveTrigger, type TriggerChar } from "./editor.ts";
   import { INLINE_RENDERERS, type MentionData } from "./kinds.ts";
   import MentionList from "./MentionList.svelte";
   import type { MentionOption, MentionSources } from "./sources.svelte.ts";
@@ -124,20 +125,9 @@
     detectTrigger();
   }
 
-  /** Text before the caret in the run of text nodes it sits in (a chip or a line break ends the run). */
-  function textBeforeCaret(): string | undefined {
-    const selection = getSelection();
-    if (!root || !selection || !selection.isCollapsed || selection.rangeCount === 0) return undefined;
-    const node = selection.anchorNode;
-    if (!node || !root.contains(node) || node.nodeType !== Node.TEXT_NODE) return undefined;
-    let before = (node.textContent ?? "").slice(0, selection.anchorOffset);
-    for (let prev = node.previousSibling; prev && prev.nodeType === Node.TEXT_NODE; prev = prev.previousSibling) before = (prev.textContent ?? "") + before;
-    return before;
-  }
-
   function detectTrigger() {
     if (!sources) return;
-    const before = textBeforeCaret();
+    const before = root ? textBeforeCaret(root) : undefined;
     const found = before === undefined ? undefined : activeTrigger(before, triggers);
     // Escape closed it: stays closed until the query changes.
     if (!found || dismissed === `${found.char}${found.query}`) {
@@ -153,23 +143,8 @@
 
   /** Replaces the trigger and its query with the chip (and a space after it), as one undoable edit. */
   function choose(option: MentionOption) {
-    const selection = getSelection();
-    const current = trigger;
-    if (!root || !selection || !current || selection.rangeCount === 0) return;
-    const range = selection.getRangeAt(0).cloneRange();
-    // Walk back over the text nodes of the run to the trigger character.
-    let node: Node | null = range.startContainer;
-    let offset = range.startOffset;
-    let left = current.length;
-    while (node && left > offset) {
-      left -= offset;
-      node = node.previousSibling;
-      offset = node?.textContent?.length ?? 0;
-    }
-    if (!node) return;
-    range.setStart(node, offset - left);
-    selection.removeAllRanges();
-    selection.addRange(range);
+    // The trigger character and its query become the chip.
+    if (!root || !trigger || !selectBackFromCaret(trigger.length)) return;
     if (option.data.icon) icons.set(iconKey(option.data), option.data.icon);
     insertChip(option.data);
     trigger = undefined;
@@ -183,13 +158,7 @@
     const chip = root?.querySelector("[data-inserted]");
     if (chip) {
       chip.removeAttribute("data-inserted");
-      const after = chip.nextSibling;
-      const range = document.createRange();
-      if (after?.nodeType === Node.TEXT_NODE) range.setStart(after, Math.min(1, after.textContent?.length ?? 0));
-      else range.setStartAfter(chip);
-      range.collapse(true);
-      getSelection()?.removeAllRanges();
-      getSelection()?.addRange(range);
+      caretAfter(chip);
     }
     sync();
   }
@@ -202,22 +171,6 @@
       if (line) document.execCommand("insertText", false, line);
     });
     sync();
-  }
-
-  /** The chip right before a collapsed caret, if any (Backspace removes it whole). */
-  function chipBeforeCaret(): Element | undefined {
-    const selection = getSelection();
-    if (!root || !selection?.isCollapsed || selection.rangeCount === 0) return undefined;
-    let node = selection.anchorNode;
-    let offset = selection.anchorOffset;
-    if (!node || !root.contains(node)) return undefined;
-    if (node.nodeType === Node.TEXT_NODE) {
-      if (offset > 0) return undefined;
-      const prev = node.previousSibling;
-      return prev instanceof Element && elementOf(prev as HTMLElement) ? prev : undefined;
-    }
-    const prev = node.childNodes[offset - 1];
-    return prev instanceof Element && elementOf(prev as HTMLElement) ? prev : undefined;
   }
 
   function onkeydown(event: KeyboardEvent) {
@@ -241,14 +194,11 @@
       }
     }
     if (event.key === "Backspace" && !event.altKey && !event.metaKey && !event.ctrlKey) {
-      const chip = chipBeforeCaret();
+      // A chip goes whole (one undoable delete).
+      const chip = root && chipBeforeCaret(root);
       if (chip) {
         event.preventDefault();
-        const range = document.createRange();
-        range.selectNode(chip);
-        const selection = getSelection();
-        selection?.removeAllRanges();
-        selection?.addRange(range);
+        selectNode(chip);
         document.execCommand("delete");
         sync();
         return;
@@ -287,15 +237,9 @@
     const text = event.dataTransfer?.getData("text/plain");
     event.preventDefault();
     if (!text) return;
-    const doc = document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null };
-    const point = doc.caretPositionFromPoint?.(event.clientX, event.clientY);
-    if (point && root?.contains(point.offsetNode)) {
-      const range = document.createRange();
-      range.setStart(point.offsetNode, point.offset);
-      getSelection()?.removeAllRanges();
-      getSelection()?.addRange(range);
-    }
-    root?.focus();
+    if (!root) return;
+    caretAtPoint(root, event.clientX, event.clientY);
+    root.focus();
     insertPlain(text);
   }
 
@@ -304,17 +248,9 @@
     insertTrigger(char: TriggerChar) {
       if (!root) return;
       root.focus();
-      const selection = getSelection();
-      if (!selection || selection.rangeCount === 0 || !root.contains(selection.anchorNode)) {
-        // No caret yet: at the end.
-        const range = document.createRange();
-        range.selectNodeContents(root);
-        range.collapse(false);
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-      }
+      ensureCaret(root);
       const before = serialize(root).text;
-      const needsSpace = before.length > 0 && !/\s$/.test(textBeforeCaret() ?? before);
+      const needsSpace = before.length > 0 && !/\s$/.test(textBeforeCaret(root) ?? before);
       dismissed = undefined;
       document.execCommand("insertText", false, `${needsSpace ? " " : ""}${char}`);
       sync();

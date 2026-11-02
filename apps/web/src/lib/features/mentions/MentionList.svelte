@@ -1,5 +1,7 @@
 <script lang="ts">
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import type { ClassValue } from "svelte/elements";
+  import { listboxHeadingClasses, listboxOptionClasses } from "#lib/shared/ui/listbox.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { kindLook, safeIcon } from "./kinds.ts";
   import type { MentionOption } from "./sources.svelte.ts";
@@ -19,6 +21,7 @@
     empty,
     onchoose,
     onactive,
+    class: className,
   }: {
     id: string;
     label: string;
@@ -30,6 +33,7 @@
     empty: string;
     onchoose: (option: MentionOption) => void;
     onactive: (index: number) => void;
+    class?: ClassValue;
   } = $props();
 
   const groups = $derived.by(() => {
@@ -62,9 +66,10 @@
   }
 </script>
 
+<div class={className}>
 <ul id="{id}-list" role="listbox" aria-label={label} class="grid grid-cols-1 content-start p-1">
   {#each groups as group (group.label)}
-    <li role="presentation" class="sticky top-0 z-10 -mx-1 bg-white px-3.5 pt-2 pb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:bg-zinc-900 dark:text-zinc-400">
+    <li role="presentation" class={[listboxHeadingClasses, "-mx-1 px-3.5"]}>
       <div class="truncate">{group.label}</div>
     </li>
     {#each group.entries as { option, index } (option.key)}
@@ -76,7 +81,7 @@
         role="option"
         aria-selected={index === active}
         data-active={index === active || undefined}
-        class="flex cursor-default scroll-mt-9 items-start gap-2.5 rounded-lg px-2.5 py-2 text-base/6 text-zinc-800 select-none data-active:bg-zinc-950/5 data-active:text-zinc-950 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:data-active:bg-white/8 dark:data-active:text-white"
+        class={["flex items-start gap-2.5", listboxOptionClasses]}
         onpointerdown={(event) => event.preventDefault()}
         onpointermove={() => onactive(index)}
         onclick={() => onchoose(option)}
@@ -109,3 +114,4 @@
 {:else if options.length === 0}
   <p class="px-4 py-3 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">{empty}</p>
 {/if}
+</div>
