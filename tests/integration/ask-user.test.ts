@@ -81,6 +81,8 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
     await eventually(() => turns(source.threadId), (r) => r[0]?.status === "completed");
     await gw.core.sweep();
     expect((await pending(source.threadId))[0]?.status).toBe("pending");
+    // The agent stopped: its open async question now waits for the user (Input required).
+    expect((await gw.api.getThread({ threadId: source.threadId })).thread?.pendingInteractions).toBe(1);
     gw.worker.holdTurns = false;
     await gw.api.answerInteraction({ requestId: result.question_set_id, answerJson: JSON.stringify({ answers: [{ id: "auth", kind: "skipped" }] }) });
     const next = await eventually(() => turns(source.threadId), (r) => r.length === 2 && r[1]?.status === "completed");
