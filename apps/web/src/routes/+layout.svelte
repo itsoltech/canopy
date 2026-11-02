@@ -11,11 +11,14 @@
   import { SettingsState, provideSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { sectionMemory } from "#lib/features/navigation/sections.svelte.ts";
   import { provideShell } from "#lib/features/navigation/shell.ts";
+  import SidebarColumn from "#lib/features/navigation/SidebarColumn.svelte";
+  import { SIDEBAR_HOTKEY, SidebarLayout } from "#lib/features/navigation/sidebar-layout.svelte.ts";
   import { OverviewState, provideOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { ModelCatalogState, provideModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
+  import { hotkeys } from "#lib/shared/ui/hotkeys.ts";
   import Toaster from "#lib/shared/ui/Toaster.svelte";
   import { decode } from "#lib/shared/wire.ts";
   import type { LayoutProps } from "./$types";
@@ -55,8 +58,12 @@
     return () => query.removeEventListener("change", follow);
   });
 
+  // Desktop sidebar: width and collapse from the appearance settings, rendered by the server (no jump).
+  const sidebar = new SidebarLayout(settings);
+  $effect(() => () => sidebar.flush());
+
   let menuOpen = $state(false);
-  provideShell({ openMenu: () => (menuOpen = true) });
+  provideShell({ openMenu: () => (menuOpen = true), sidebar });
   afterNavigate(({ to }) => {
     menuOpen = false;
     if (to) sectionMemory.visit(to.url);
@@ -70,10 +77,15 @@
   <title>Open Agents</title>
 </svelte:head>
 
-<div class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white">
-  <aside class="w-72 shrink-0 border-r border-zinc-950/5 bg-zinc-50 max-lg:hidden dark:border-white/8 dark:bg-zinc-950">
+<svelte:window bind:innerWidth={sidebar.viewport} />
+
+<div
+  class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white"
+  {@attach hotkeys({ [SIDEBAR_HOTKEY]: () => matchMedia("(min-width: 64rem)").matches && !document.querySelector("dialog:modal") && sidebar.toggle() }, { global: true })}
+>
+  <SidebarColumn {sidebar}>
     <AppSidebar currentThreadId={page.params.threadId} />
-  </aside>
+  </SidebarColumn>
   <Drawer bind:open={menuOpen} label="Navigation">
     <AppSidebar currentThreadId={page.params.threadId} />
   </Drawer>

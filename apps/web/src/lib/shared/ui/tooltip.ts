@@ -17,6 +17,8 @@ export interface TooltipOptions {
   readonly hotkey?: string | undefined;
   /** Hover delay, ms. */
   readonly delay?: number;
+  /** The element expands a region that is no menu (a sidebar): `aria-expanded` does not hide the tooltip. */
+  readonly region?: boolean;
 }
 
 let lastHidden = 0;
@@ -32,7 +34,7 @@ function trackModality() {
 const WARM_MS = 400;
 let counter = 0;
 
-export function tooltip(text: string | undefined, { placement = "top", hotkey, delay = 500 }: TooltipOptions = {}): Attachment<HTMLElement> {
+export function tooltip(text: string | undefined, { placement = "top", hotkey, delay = 500, region = false }: TooltipOptions = {}): Attachment<HTMLElement> {
   return (node) => {
     if (!text) return;
     const tip = document.createElement("div");
@@ -56,7 +58,7 @@ export function tooltip(text: string | undefined, { placement = "top", hotkey, d
     const show = () => {
       clearTimeout(timer);
       // Not over its own open menu or popover.
-      if (!node.isConnected || node.getAttribute("aria-expanded") === "true") return;
+      if (!node.isConnected || (!region && node.getAttribute("aria-expanded") === "true")) return;
       if (!tip.matches(":popover-open")) {
         tip.toggleAttribute("data-warm", Date.now() - lastHidden < WARM_MS);
         tip.showPopover();

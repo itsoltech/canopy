@@ -248,6 +248,30 @@
   }
 }
 
+/* --- Panel reveal (07) for the app sidebar: the column (`t-sidebar`) eases its width to the panel's or to
+ * 0, opening on --duration-slow and closing faster on --duration-medium; the panel inside (`t-sidebar-panel`)
+ * keeps its own width, rides on the column's edge and fades, so its text never re-wraps. Only a toggle, a
+ * reset or a snap animates (`data-settling`); a drag and a window resize move it directly. */
+.t-sidebar[data-settling] {
+  transition: width var(--duration-slow) var(--ease-smooth-out);
+}
+.t-sidebar[data-settling][data-collapsed] {
+  transition-duration: var(--duration-medium);
+}
+.t-sidebar-panel {
+  transition: opacity var(--duration-slow) var(--ease-smooth-out);
+}
+.t-sidebar[data-collapsed] .t-sidebar-panel {
+  opacity: 0;
+  transition-duration: var(--duration-medium);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-sidebar,
+  .t-sidebar-panel {
+    transition: none !important;
+  }
+}
+
 /* --- Accordion (21): the disclosure arrow turns with its panel (the panel itself: motion.ts `expand`);
  * a closing <details> keeps painting its content while that shrinks out. */
 .t-acc::details-content {
