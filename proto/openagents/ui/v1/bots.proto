@@ -48,6 +48,8 @@ message BotApproval {
   string status = 6; // pending | approved | discarded
   string answer = 7;
   google.protobuf.Timestamp created_at = 8;
+  // Pytanie: proponowane odpowiedzi (do 6); użytkownik może też odpowiedzieć własnymi słowami.
+  repeated string options = 9;
 }
 message BotConversation {
   Bot bot = 1;

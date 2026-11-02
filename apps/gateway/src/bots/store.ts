@@ -17,7 +17,7 @@ interface MessageRow {
 }
 interface ApprovalRow {
   id: string; bot_id: string; turn_id: string; kind: string; prompt: string;
-  status: string; answer: string; created_at: Date;
+  status: string; answer: string; created_at: Date; options?: unknown;
 }
 interface ServerRow {
   id: string; owner_user_id: string; name: string; url: string; transport: string;
@@ -35,6 +35,7 @@ const messageView = (row: MessageRow) => create(bots.BotMessageSchema, {
 const approvalView = (row: ApprovalRow) => create(bots.BotApprovalSchema, {
   id: row.id, botId: row.bot_id, turnId: row.turn_id, kind: row.kind, prompt: row.prompt,
   status: row.status, answer: row.answer, createdAt: timestampFromDate(new Date(row.created_at)),
+  options: Array.isArray(row.options) ? row.options.filter((o): o is string => typeof o === "string" && o.trim() !== "").slice(0, 6).map((o) => o.slice(0, 200)) : [],
 });
 const uuid = () => Bun.randomUUIDv7();
 export function requiredString(args: Record<string, unknown>, key: string, max = 100_000): string {
@@ -165,7 +166,9 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       // Taking the bot lock synchronizes snapshot revisions with all conversation writers.
       const bot = yield* owned(user, id, true);
       const messages = yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id WHERE m.bot_id = ${id}::uuid ORDER BY m.seq`;
-      const approvals = yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE bot_id = ${id}::uuid ORDER BY created_at, id`;
+      // A question's options are the arguments of its ask_user call (the approval id is the call id).
+      const approvals = yield* sql<ApprovalRow>`SELECT a.*, CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options
+        FROM bot_approvals a LEFT JOIN bot_tool_calls c ON c.id = a.id WHERE a.bot_id = ${id}::uuid ORDER BY a.created_at, a.id`;
       const active = yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('queued','running','waiting') LIMIT 1`;
       return create(bots.BotConversationSchema, { bot: create(bots.BotSchema, { ...botView(bot), lastMessage: messages.length ? messageView(messages.at(-1)!) : undefined }), messages: messages.map(messageView), approvals: approvals.map(approvalView),
         statusLine: bot.status_line, working: active.length > 0, revision: BigInt(bot.revision) });

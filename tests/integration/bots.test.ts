@@ -331,9 +331,10 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
 
   test("questions persist and approvals resume after a gateway restart; interrupt and delete work", async () => {
     const bot = await add("Questions");
-    model = async (i) => i.messages.at(-1)?.role === "tool" ? reply(i.messages.at(-1)!.text) : tool("ask_user", { question: "Which project?" });
+    model = async (i) => i.messages.at(-1)?.role === "tool" ? reply(i.messages.at(-1)!.text) : tool("ask_user", { question: "Which project?", options: ["CRM", "Docs"] });
     await send(bot.id, "question");
     const pending = await eventually(() => read(bot.id), (s) => s.approvals.some((a) => a.status === "pending"));
+    expect(pending.approvals[0]!.options).toEqual(["CRM", "Docs"]);
     await restart();
     await current.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: pending.approvals[0]!.id, approve: true, answer: "CRM" }));
     expect((await settled(bot.id)).messages.at(-1)?.text).toContain("CRM");
