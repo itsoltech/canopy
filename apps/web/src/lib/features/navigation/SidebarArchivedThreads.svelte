@@ -65,6 +65,8 @@
   }
 </script>
 
+<!-- Nothing archived (and the open thread is not): no section at all, an empty "Archived · 0" only takes room. -->
+{#if pageState.totalCount !== 0 || sticky || pageState.error}
 <section aria-label="Archived" data-archived-section data-sticky={sticky ? "true" : undefined}
   class={["pt-2", sticky && "sticky bottom-0 z-10 bg-zinc-50 pb-1 max-lg:bg-white dark:bg-zinc-950", className]}>
   <h2>
@@ -106,3 +108,4 @@
     <div class="px-3 py-2 text-sm/6 text-zinc-500 dark:text-zinc-400"><p role="status">Could not load archived threads.</p><Button variant="ghost" size="sm" onclick={retry}>Retry</Button></div>
   {/if}
 </section>
+{/if}

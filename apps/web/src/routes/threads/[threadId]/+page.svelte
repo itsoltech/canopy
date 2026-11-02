@@ -365,7 +365,7 @@
               <EmptyState
                 icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
                 title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
-                description={thread?.status === "creating" ? `Setting up the agent on ${worker?.name ?? "the worker"}.` : "Send the first message below to start a turn."}
+                description={thread?.status === "creating" ? `Setting up the agent on ${worker?.name ?? "the worker"}.` : closed ? "Nothing was said in this thread before it closed." : "Send the first message below to start a turn."}
                 class="mt-8"
               />
             {/if}
