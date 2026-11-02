@@ -4,7 +4,8 @@
   import type { ConversationView } from "../model.ts";
   import PinnedTile from "./PinnedTile.svelte";
 
-  /** Pinned bots and groups as a grid of large avatars (four per line, wrapping), in pin order. */
+  /** Pinned bots and groups as a grid of large avatars, in pin order: tiles at least 5 rem wide (the avatar and a
+   * short name fit), as many per line as the sidebar allows. */
   let {
     conversations,
     hrefOf,
@@ -18,7 +19,7 @@
 <section aria-labelledby="{id}-title" class={className}>
   <h2 id="{id}-title" class="sr-only">Pinned</h2>
   <p id="{id}-hint" class="sr-only">Press Shift+F10 or long-press a pinned chat for its actions.</p>
-  <ul role="list" class="grid grid-cols-4 gap-1">
+  <ul role="list" class="grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-1">
     {#each conversations as conversation (conversation.id)}
       <li class="min-w-0">
         <PinnedTile {conversation} href={hrefOf(conversation)} current={conversation.id === currentId} hint="{id}-hint" class="w-full" {...handlers} />
