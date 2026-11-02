@@ -178,7 +178,6 @@
     } else if (startedEmpty) for (const rowKey of keys) entering.set(rowKey, { kind: "reveal", order: 0 });
     // What did not mount with this update (scrolled away) is not new any more.
     cancelAnimationFrame(enterFrame);
-    clearTimeout(rowTimer);
     enterFrame = requestAnimationFrame(() => entering.clear());
     known = new Set(keys);
   });
@@ -249,6 +248,7 @@
     observer?.disconnect();
     cancelAnimationFrame(commitFrame);
     cancelAnimationFrame(enterFrame);
+    clearTimeout(rowTimer);
   });
   // After every DOM change of the window: keep the reader's place (or the end).
   $effect(() => {
@@ -335,7 +335,7 @@
     }
     if (!ours) {
       const distance = scroller.scrollHeight - top - scroller.clientHeight;
-      if (distance <= FEED_END_THRESHOLD) stuck = true;
+      if (!rowTarget && distance <= FEED_END_THRESHOLD) stuck = true;
       else if (top < lastTop - 0.5) stuck = false;
       if (performance.now() < readerUntil && performance.now() >= smoothUntil) {
         // Keep touch/trackpad inertia attributable to the reader until it settles. A subsequent
@@ -351,6 +351,7 @@
 
   function onwheel(event: WheelEvent) {
     rowTarget = undefined;
+    clearTimeout(rowTimer);
     smoothUntil = 0;
     readerUntil = performance.now() + 250;
     // Scrolling up during a stream: let go at once, before the next growth pins the end again.
@@ -365,6 +366,7 @@
   function jump() {
     if (!scroller) return;
     rowTarget = undefined;
+    clearTimeout(rowTimer);
     alignedKey = undefined;
     onlatest?.();
     stuck = true;
@@ -421,6 +423,10 @@
   export async function reveal(rowKey: string): Promise<boolean> {
     const at = positions.get(rowKey);
     if (at === undefined || !scroller) return false;
+    rowTarget = undefined;
+    alignedKey = undefined;
+    smoothUntil = 0;
+    clearTimeout(rowTimer);
     stuck = false;
     anchor = undefined;
     // Near its estimated place first, so the window mounts it; then exactly onto it.

@@ -20,6 +20,7 @@
   let timer: ReturnType<typeof setTimeout> | undefined;
   let lastClosed = 0;
   let hasOpened = false;
+  const previewId = $props.id();
   const current = $derived(currentTurns(turns, viewport));
   const ticks = $derived(railTicks(turns.length, height));
   const preview = $derived(turns[Math.min(selected, turns.length - 1)]);
@@ -81,6 +82,7 @@
         <li class="min-h-0 flex-1">
           <button type="button" class="group relative flex size-full cursor-pointer items-center rounded-sm focus-visible:outline-2 focus-visible:outline-blue-500" tabindex={index === Math.min(tab, turns.length - 1) ? 0 : -1}
             aria-label={`Turn ${turn.number}: ${turn.title}`} aria-current={index >= current[0] && index < current[1] ? "location" : undefined}
+            aria-describedby={open && selected === index ? previewId : undefined}
             data-turn-id={turn.id} data-turn-index={index}
             onpointerenter={(event) => { if (event.pointerType === "mouse") show(index); }}
             onpointerleave={leave}
@@ -96,7 +98,7 @@
     {/key}
   </div>
   <Popover bind:open {anchor} label="Turn preview" placement="right-start" focusOnOpen={false} class="t-rail-preview">
-    <div role="presentation" onpointerenter={() => clearTimeout(timer)} onpointerleave={leave}>
+    <div id={previewId} role="presentation" onpointerenter={() => clearTimeout(timer)} onpointerleave={leave}>
       {#if preview}<TurnPreview turn={preview} />{/if}
     </div>
   </Popover>

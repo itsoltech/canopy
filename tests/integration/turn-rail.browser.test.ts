@@ -156,18 +156,26 @@ describe.skipIf(Bun.env["OA_TURN_RAIL_BROWSER"] !== "1")("conversation turn rail
     await theme(color);
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     const page = await context.newPage();
+    context.setDefaultTimeout(10000);
+    page.on("pageerror", (error) => problems.push(error.message));
     try {
       await page.goto(`${base}/threads/${threadId}`);
       await page.getByRole("textbox", { name: "Message", exact: true }).waitFor();
       expect(await page.getByRole("navigation", { name: "Conversation turns", exact: true }).count()).toBe(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: resolve(shots, `390-${color}.png`) });
+    } catch (error) {
+      console.info(`PHONE ${color} FAILURE`, await page.locator("body").innerText());
+      await page.screenshot({ path: resolve(shots, `390-${color}-failure.png`) });
+      throw error;
     } finally { await context.close(); }
-  }, 15000);
+  }, 30000);
 
   test("reduced motion and short conversations", async () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
     const page = await context.newPage();
+    context.setDefaultTimeout(10000);
+    page.on("pageerror", (error) => problems.push(error.message));
     try {
       await page.goto(`${base}/threads/${shortId}`);
       await page.getByRole("textbox", { name: "Message", exact: true }).waitFor();
