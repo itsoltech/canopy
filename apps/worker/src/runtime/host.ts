@@ -315,9 +315,14 @@ export class WorkerHost {
     pending.resolve(result);
   }
 
-  async handleCommand(command: Command): Promise<CommandResultInit> {
+  /**
+   * The command's result; undefined while the worker stops (shutdown): no answer, so the command stays in the
+   * gateway's outbox and the next process gets it (an error would end e.g. a turn the next process can run).
+   */
+  async handleCommand(command: Command): Promise<CommandResultInit | undefined> {
     const known = await this.#options.runtime.runPromise(Journal.use((j) => j.commandResult(command.commandId)));
     if (known) return known;
+    if (this.#shuttingDown) return undefined;
     try {
       const output = await this.#execute(command);
       const result: CommandResultInit = {
@@ -332,6 +337,8 @@ export class WorkerHost {
       if (!QUERIES.has(command.kind.case)) await this.#remember(result);
       return result;
     } catch (error) {
+      // The runtimes went down under it: the next process runs it.
+      if (this.#shuttingDown) return undefined;
       const failure =
         error instanceof CommandError ? error : new CommandError("THREAD_ERROR", error instanceof Error ? error.message : String(error), true);
       const result: CommandResultInit = { commandId: command.commandId, ok: false, errorCode: failure.code, errorMessage: failure.message };

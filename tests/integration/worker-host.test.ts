@@ -5,7 +5,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { BackgroundTaskKind, ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
+import { create } from "@bufbuild/protobuf";
+import { BackgroundTaskKind, CommandSchema, ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
 import type { WorkerConnection } from "@open-agents/gateway/worker-link";
 import { tempDir } from "@open-agents/testing";
 import { journalHello } from "@open-agents/worker/gateway-link";
@@ -226,6 +227,8 @@ describe("graceful shutdown", () => {
     expect(ended?.content.case === "backgroundTask" && ended.content.value.endedAt).toBeTruthy();
     // Acked: nothing is left for the next process, which finds no task to close.
     expect(await stopping.flush(5_000)).toBe(true);
+    // Commands after the stop get no answer: they stay in the gateway's outbox for the next process.
+    expect(await stopping.handleCommand(create(CommandSchema, { commandId: Bun.randomUUIDv7(), kind: { case: "listDirectory", value: { path: "" } } }))).toBeUndefined();
     expect(await journal.runPromise(Journal.use((j) => j.openBackgroundTasks()))).toEqual([]);
     expect(await new WorkerHost({ runtime: journal, dataDir: join(dir, "data-after-shutdown"), clientVersion: "test" }).recover()).toMatchObject({ tasks: 0 });
     link.close();
