@@ -45,7 +45,7 @@ export function goalActions(status: string): { pause: boolean; resume: boolean; 
 }
 
 /** Goals are the harness's: a gateway thread (a chat agent in the gateway) has none. */
-export const takesGoals = (thread: ui.Thread): boolean => thread.runtime !== "gateway";
+export const takesGoals = (thread: ui.Thread): boolean => thread.runtime !== "gateway" && thread.provider !== Provider.GROK;
 
 /** Only Codex takes a token budget (Claude Code's `/goal` has none; the gateway rejects it). */
 export const takesTokenBudget = (provider: Provider): boolean => provider === Provider.CODEX;

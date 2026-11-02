@@ -150,7 +150,7 @@ export class InstanceStore extends Context.Service<
         const threadUse = () =>
           sql<{ worker_id: string; harness: Harness; id: string; count: bigint | number }>`
             SELECT worker_id, provider AS harness, coalesce(nullif(provider_profile_id, ''), 'native') AS id, count(*) AS count
-              FROM threads WHERE archived_at IS NULL AND worker_id IS NOT NULL AND provider IN ('claude', 'codex') GROUP BY 1, 2, 3`;
+              FROM threads WHERE archived_at IS NULL AND worker_id IS NOT NULL AND provider IN ('claude', 'codex', 'grok') GROUP BY 1, 2, 3`;
 
         const lockInstance = (harness: Harness, id: string) =>
           Effect.gen(function* () {
@@ -443,7 +443,7 @@ export class InstanceStore extends Context.Service<
                   );
                 }
                 const scheduled = yield* sql`SELECT 1 FROM schedules WHERE target = 'new_thread' AND status IN ('active', 'paused')
-                  AND new_thread->>'provider' = ${harness === "claude" ? "PROVIDER_CLAUDE" : "PROVIDER_CODEX"}
+                  AND new_thread->>'provider' = ${harness === "claude" ? "PROVIDER_CLAUDE" : harness === "grok" ? "PROVIDER_GROK" : "PROVIDER_CODEX"}
                   AND coalesce(nullif(new_thread->>'providerProfileId', ''), 'native') = ${row.id} LIMIT 1`;
                 if (scheduled.length) return yield* Effect.fail(new InstanceConflict("a scheduled task uses this instance; cancel it or turn the instance off instead"));
                 yield* sql`DELETE FROM provider_instances WHERE harness = ${harness} AND id = ${row.id}`;
@@ -559,7 +559,7 @@ export class InstanceStore extends Context.Service<
               Effect.gen(function* () {
                 const problem = checkBaseUrl(baseUrl);
                 if (problem) return yield* Effect.fail(new Invalid(problem));
-                for (const harness of ["claude", "codex"] as const) {
+                for (const harness of ["claude", "codex", "grok"] as const) {
                   const found = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harness} AND id = 'cliproxyapi' FOR UPDATE`)[0];
                   let overrides: StoredOverrides = {};
                   if (!found) {

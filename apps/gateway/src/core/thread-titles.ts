@@ -5,6 +5,7 @@ export function titleModel(catalog: ProfileModels | undefined, fallback: string)
   const tier = (m: ModelInfo): number => {
     const name = `${m.id} ${m.resolvedModel} ${m.displayName}`.toLowerCase();
     if (catalog?.provider === Provider.CLAUDE) return /haiku/.test(name) ? 0 : Infinity;
+    if (catalog?.provider === Provider.GROK) return /^grok-3-mini(?:-fast)?$/.test(m.id) ? 0 : Infinity;
     return /\bnano\b/.test(name) ? 0 : /\b(mini|luna)\b/.test(name) ? 1 : /\b(spark|flash|lite)\b/.test(name) ? 2 : Infinity;
   };
   const small = catalog?.models.filter((m) => !m.hidden && Number.isFinite(tier(m)))

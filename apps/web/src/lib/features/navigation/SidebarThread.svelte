@@ -28,7 +28,7 @@
   }: { thread: ui.Thread; project: ui.Project | undefined; worker: ui.Worker | undefined; sides?: number; current?: boolean } = $props();
 
   const provider = $derived(providerKeyOf(thread.provider));
-  const providerName = $derived(provider === "CLAUDE" ? "Claude" : "Codex");
+  const providerName = $derived(provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex");
 </script>
 
 <SidebarThreadLink {thread} {current} class="grid gap-0.5 rounded-xl px-3 py-2.5">

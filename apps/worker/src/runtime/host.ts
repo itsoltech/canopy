@@ -20,6 +20,7 @@ import {
   ConfigAppliedSchema,
   type InteractionRequest,
   type InteractionResponse,
+  InteractionResponseSchema,
   type Item,
   type ProfileModelsSchema,
   type MentionCatalogSchema,
@@ -38,6 +39,8 @@ import { deviceCodexHome, prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { startCodexDeviceLogin } from "../providers/codex/login.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
+import { GrokThreads } from "../providers/grok/threads.ts";
+import { generateGrokText } from "../providers/grok/generate-text.ts";
 import { claudeConfiguredEffort, readClaudeUserSettings, readCodexConfiguredEffort } from "../providers/default-effort.ts";
 import { hasOwnRuntime, providersOf, type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/profiles.ts";
 import { reconcileTurn, WORKER_RESTARTED } from "../providers/reconcile.ts";
@@ -143,6 +146,7 @@ export class WorkerHost {
   /** Codex runtimes by group (SHARED_CODEX, or one per profile with its own variables). */
   readonly #codex = new Map<string, ProviderRuntimeHandle<CodexThreads>>();
   #claude: ProviderRuntimeHandle<ClaudeThreads> | undefined;
+  #grok: { key: string; runtime: GrokThreads } | undefined;
   #rebuildWanted = false;
   /** The worker is stopping (shutdown): runtimes stay down, tasks they kill end as worker_shutdown. */
   #shuttingDown = false;
@@ -233,7 +237,7 @@ export class WorkerHost {
 
   /** Where instances live on this device (shadow homes, the device owner's logins). */
   #homes(): DeviceHomes {
-    return { dataDir: this.#options.dataDir, claude: this.#deviceHomes.claude, codex: this.#deviceHomes.codex, env: process.env };
+    return { dataDir: this.#options.dataDir, claude: this.#deviceHomes.claude, codex: this.#deviceHomes.codex, grok: process.env["GROK_HOME"] || join(homedir(), ".grok"), env: process.env };
   }
 
   /**
@@ -296,12 +300,13 @@ export class WorkerHost {
       if (!resolved || (profileId && resolved.id !== profileId)) continue;
       if (this.#claude && usableBy(resolved, "claude") && (!provider || provider === Provider.CLAUDE)) pairs.push({ provider: Provider.CLAUDE, profile: resolved.id });
       if (this.#codex.size > 0 && usableBy(resolved, "codex") && (!provider || provider === Provider.CODEX)) pairs.push({ provider: Provider.CODEX, profile: resolved.id });
+      if (this.#grok && usableBy(resolved, "grok") && (!provider || provider === Provider.GROK)) pairs.push({ provider: Provider.GROK, profile: resolved.id });
     }
     return Promise.all(
       pairs.map(async ({ provider: p, profile }): Promise<ProfileModelsInit> => {
         try {
           const listed: { models: ProfileModelsInit["models"]; detail?: string } =
-            p === Provider.CLAUDE
+            p === Provider.GROK ? await this.#grok!.runtime.listModels(profile) : p === Provider.CLAUDE
               ? await this.#runClaude((threads) => threads.listModels(profile))
               : await this.#runCodex(Provider.CODEX, (threads) => threads.listModels(profile), this.#codexGroupOf(profile));
           return { provider: p, profileId: profile, models: listed.models ?? [], ...(listed.detail && { detail: listed.detail }), listedAt: timestampNow() };
@@ -368,6 +373,8 @@ export class WorkerHost {
       for (const group of [...this.#codex.keys()]) await this.#stopCodex(group);
       await this.#closeCodexOrphans();
       await this.#stopClaude();
+      await this.#grok?.runtime.close();
+      this.#grok = undefined;
     } finally {
       // Keep masking late provider output until its processes have stopped.
       this.secrets.close();
@@ -446,7 +453,8 @@ export class WorkerHost {
         if (fork?.afterTurnId && !fork.afterProviderTurnRef) {
           throw new CommandError("FORK_POINT_UNKNOWN", `turn ${fork.afterTurnId} has no fork point at the provider`, true);
         }
-        if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.create(spec, fork));
+        if (spec.provider === Provider.GROK) await this.#runGrok((threads) => threads.create(spec, fork));
+        else if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.create(spec, fork));
         else await this.#runCodex(spec.provider, (threads) => threads.create(spec, fork), this.#codexGroupOf(spec.providerProfileId));
         return {};
       }
@@ -459,7 +467,8 @@ export class WorkerHost {
         if (input.attachments.length > 0) await this.#ensureAttachments(spec.threadId, input.attachments);
         // UNSPECIFIED (an older gateway): the thread's mode.
         const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode };
-        if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.startTurn(spec, turnId, input, settings));
+        if (spec.provider === Provider.GROK) await this.#runGrok((threads) => threads.startTurn(spec, turnId, input, settings));
+        else if (spec.provider === Provider.CLAUDE) await this.#runClaude((threads) => threads.startTurn(spec, turnId, input, settings));
         else await this.#runCodex(spec.provider, (threads) => threads.startTurn(spec, turnId, input, settings), this.#codexGroupOf(spec.providerProfileId));
         return {};
       }
@@ -470,7 +479,9 @@ export class WorkerHost {
         const claude = this.#claude;
         const steer = (effect: Effect.Effect<void, SteerError>) =>
           effect.pipe(Effect.catchTag("SteerError", (error) => Effect.die(new CommandError(error.code, error.message, true))));
-        if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
+        if (this.#grok?.runtime.running(threadId)) {
+          throw new CommandError("STEER_REJECTED", "Grok ACP does not support mid-turn input; queue this message", true);
+        } else if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
           await this.#runClaude((threads) => steer(threads.steer(threadId, turnId, inputId, input)));
         } else if (this.#codex.size > 0) {
           await this.#runCodex(Provider.CODEX, (threads) => steer(threads.steer(threadId, turnId, inputId, input)), this.#codexGroupWith(threadId));
@@ -486,7 +497,7 @@ export class WorkerHost {
         if (this.#generations.size >= 4) throw new CommandError("BUSY", "text generation capacity reached", false);
         const input = kind.value;
         if (!input.prompt || input.prompt.length > 20_000) throw new CommandError("INVALID_PROMPT", "prompt must contain 1–20000 characters", true);
-        const provider = input.provider === Provider.CLAUDE ? "claude" : input.provider === Provider.CODEX ? "codex" : undefined;
+        const provider = input.provider === Provider.CLAUDE ? "claude" : input.provider === Provider.CODEX ? "codex" : input.provider === Provider.GROK ? "grok" : undefined;
         const profile = config.profiles.find((p) => p.resolved?.id === (input.profileId || "native") && provider && usableBy(p.resolved, provider))?.resolved;
         if (!provider || !profile || !usableBy(profile, provider) || !config[provider].enabled) throw new CommandError("PROVIDER_UNAVAILABLE", "text generation instance is unavailable", false);
         const abort = new AbortController();
@@ -501,7 +512,7 @@ export class WorkerHost {
           const catalog = this.#catalog?.profiles.find((p) => p.provider === input.provider && p.profileId === (input.profileId || "native"));
           const model = input.model || catalog?.models?.find((m) => m.isDefault)?.id || "";
           const chosen = { ...input, model };
-          const text = provider === "claude"
+          const text = provider === "grok" ? await generateGrokText(chosen, profile, abort.signal) : provider === "claude"
             ? await generateClaudeText(chosen, {
                 cwd: sourceHome,
                 ...claudeProfileOptions(profile, { ...process.env, CLAUDE_CONFIG_DIR: sourceHome }),
@@ -533,7 +544,7 @@ export class WorkerHost {
         this.#checkCwd(cwd);
         const folder = realpathSync(cwd);
         const listed =
-          provider === Provider.CLAUDE
+          provider === Provider.GROK ? { entries: [], notes: ["Grok ACP does not expose a mention catalog"] } : provider === Provider.CLAUDE
             ? await this.#catalogs.get(
                 `claude|${profileId}|${folder}`,
                 claudeCatalogStamp(folder, this.#claudeHome),
@@ -557,7 +568,9 @@ export class WorkerHost {
         await this.#options.runtime.runPromise(Journal.use((j) => j.noteInterrupt(threadId, turnId)));
         // The command does not name the provider: the runtime with the running turn takes it.
         const claude = this.#claude;
-        if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
+        if (this.#grok?.runtime.running(threadId)) {
+          await this.#runGrok((threads) => threads.interrupt(threadId, turnId));
+        } else if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
           await this.#runClaude((threads) => threads.interrupt(threadId, turnId));
         } else {
           await this.#runCodex(Provider.CODEX, (threads) => threads.interrupt(threadId, turnId), this.#codexGroupWith(threadId));
@@ -583,10 +596,16 @@ export class WorkerHost {
         return {};
       }
       case "unloadThread":
+        await this.#grok?.runtime.unload(kind.value.threadId);
         return {}; // nothing to free yet: Codex threads share their group's app-server process, Claude turns end with their query
       default:
         throw new CommandError("UNIMPLEMENTED", `${kind.case ?? "empty"} is not supported by this worker yet`, true);
     }
+  }
+
+  async #runGrok<A>(use: (threads: GrokThreads) => Promise<A>): Promise<A> {
+    if (!this.#grok) throw new CommandError("PROVIDER_UNAVAILABLE", this.#config?.grok.problem ?? "Grok is disabled", false);
+    return use(this.#grok.runtime);
   }
 
   async #runCodex<A, E>(provider: Provider, use: (threads: CodexThreads["Service"]) => Effect.Effect<A, E>, group: string): Promise<A> {
@@ -715,9 +734,10 @@ export class WorkerHost {
     const config = this.#config;
     const codexGroups = config ? this.#codexGroups(config) : new Map<string, CodexGroup>();
     const claudeKey = config ? this.#claudeKey(config) : undefined;
+    const grokKey = config?.grok.enabled && config.grok.executable ? JSON.stringify({ grok: config.grok, profiles: config.profiles }) : undefined;
     const codexChanged =
       codexGroups.size !== this.#codex.size || [...codexGroups].some(([name, group]) => this.#codex.get(name)?.key !== group.key);
-    if (!codexChanged && claudeKey === this.#claude?.key) return;
+    if (!codexChanged && claudeKey === this.#claude?.key && grokKey === this.#grok?.key) return;
     if (this.#shuttingDown) return;
     if (this.#running.size > 0) {
       this.#rebuildWanted = true;
@@ -734,6 +754,22 @@ export class WorkerHost {
       for (const [name, group] of codexGroups) if (!this.#codex.has(name)) await this.#startCodex(name, group);
     }
     if (claudeKey !== this.#claude?.key) await this.#reconcileClaude(config, claudeKey);
+    if (grokKey !== this.#grok?.key) {
+      await this.#grok?.runtime.close();
+      this.#grok = undefined;
+      if (grokKey && config?.grok.executable) this.#grok = { key: grokKey, runtime: new GrokThreads({
+        dataDir: this.#options.dataDir, executable: config.grok.executable, linkDeviceLogin: config.grok.linkDeviceLogin,
+        idleUnloadMs: config.limits.idleUnloadSeconds * 1000,
+        profile: (id) => this.#config?.profiles.find((p) => p.resolved?.id === (id || "native") && usableBy(p.resolved, "grok"))?.resolved,
+        record: async (threadId, init) => {
+          const enriched = await this.#previews.enrich(init);
+          const event = await this.#options.runtime.runPromise(Journal.use((j) => j.append(threadId, enriched)));
+          this.#publish(event); return event;
+        },
+        interact: (request, signal) => this.#interact(request, signal), callTool: (call) => this.#callTool(call),
+        viewImage: (threadId, cwd, path) => this.#viewImage(threadId, cwd, path),
+      }) };
+    }
   }
 
   #claudeKey(config: AppliedConfig): string | undefined {
@@ -954,9 +990,12 @@ export class WorkerHost {
     }
   }
 
-  #interact(request: InteractionRequest): Promise<InteractionResponse> {
+  #interact(request: InteractionRequest, signal?: AbortSignal): Promise<InteractionResponse> {
     return new Promise((resolve) => {
-      this.#interactions.set(request.requestId, { request, resolve });
+      const abort = () => { this.#interactions.delete(request.requestId); resolve(create(InteractionResponseSchema, { requestId: request.requestId, cancelled: true })); };
+      if (signal?.aborted) { abort(); return; }
+      signal?.addEventListener("abort", abort, { once: true });
+      this.#interactions.set(request.requestId, { request, resolve: (response) => { signal?.removeEventListener("abort", abort); resolve(response); } });
       this.#send({ case: "interactionRequest", value: request });
     });
   }
@@ -997,7 +1036,7 @@ function taskOf(item: Item): string | undefined {
 }
 
 /** A profile serves the providers it lists (both by default). */
-function usableBy(profile: ResolvedProfile, provider: "claude" | "codex"): boolean {
+function usableBy(profile: ResolvedProfile, provider: "claude" | "codex" | "grok"): boolean {
   return profile.providers.includes(provider);
 }
 

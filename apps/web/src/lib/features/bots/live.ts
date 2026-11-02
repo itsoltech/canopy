@@ -82,8 +82,8 @@ const HARNESS_ALIAS = /^(default|best|opus|sonnet|haiku|fable|opusplan)(\[1m\])?
 
 /** Gateway bots use endpoint instances, independently of availability on any worker. */
 export function botWizardInstances(instances: readonly ui.ProviderInstance[], catalogs: readonly ui.WorkerModels[]): BotProviderInstance[] {
-  return instances.filter((i) => i.kind === ProviderProfileKind.CLIPROXYAPI && [Provider.CLAUDE, Provider.CODEX].includes(i.harness)).map((instance) => {
-    const provider = instance.harness === Provider.CLAUDE ? "CLAUDE" : "CODEX";
+  return instances.filter((i) => i.kind === ProviderProfileKind.CLIPROXYAPI && [Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(i.harness)).map((instance) => {
+    const provider = instance.harness === Provider.CLAUDE ? "CLAUDE" : instance.harness === Provider.GROK ? "GROK" : "CODEX";
     const name = instance.label || instance.id;
     const models = new Map<string, ModelOption>();
     for (const catalog of catalogs) {

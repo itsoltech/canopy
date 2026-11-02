@@ -29,11 +29,9 @@
     {#snippet control()}<StatusBadge status={worker.online ? "online" : "offline"} />{/snippet}
   </SettingsRow>
   <SettingsRow title="Agents" description="Agent CLIs found on the machine.">
-    {#snippet control()}
-      <div class="flex flex-wrap justify-end gap-1.5">
-        {#each worker.providers as provider (provider.provider)}<Badge tone={provider.available ? "emerald" : "neutral"}>{providerSummary(provider)}</Badge>{:else}<span class="text-sm/6 text-zinc-500">None</span>{/each}
-      </div>
-    {/snippet}
+    <div class="mt-2 flex flex-wrap gap-1.5">
+      {#each worker.providers as provider (provider.provider)}<Badge tone={provider.available ? "emerald" : "neutral"}>{providerSummary(provider)}</Badge>{:else}<span class="text-sm/6 text-zinc-500">None</span>{/each}
+    </div>
   </SettingsRow>
   <SettingsRow title="Providers" description="Provider instances turned on for this worker." href="/settings/providers">
     {#snippet control()}

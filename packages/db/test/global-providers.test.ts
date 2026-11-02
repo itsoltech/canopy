@@ -103,10 +103,12 @@ describe.skipIf(!dockerAvailable)("migration 0018: per-worker profiles to global
       "codex/native:native:",
       "codex/work:native:",
       "codex/work-2:endpoint:http://w:1",
+      "grok/native:native:",
     ]);
     expect(rows.filter((r) => r.built_in).map((r) => [r.id, r.all_workers, r.label])).toEqual([
       ["native", true, "Device"],
       ["native", true, "Device"],
+      ["native", true, ""],
     ]);
   });
 

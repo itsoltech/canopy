@@ -5,7 +5,7 @@
  * list_agents alike.
  */
 
-export type Harness = "claude" | "codex";
+export type Harness = "claude" | "codex" | "grok";
 
 export interface SpawnModel {
   readonly id: string;
@@ -49,7 +49,7 @@ export type SpawnResolution = { readonly ok: true; readonly target: SpawnTarget 
 /** The id a model passes as spawn_thread.provider: "<harness>/<instance id>", e.g. "codex/native". */
 export const agentKey = (target: Pick<SpawnTarget, "harness" | "instance">): string => `${target.harness}/${target.instance || "native"}`;
 
-const HARNESSES: readonly Harness[] = ["claude", "codex"];
+const HARNESSES: readonly Harness[] = ["claude", "codex", "grok"];
 const isHarness = (value: string): value is Harness => (HARNESSES as readonly string[]).includes(value);
 
 /**
@@ -139,7 +139,7 @@ function modelProblem(instance: SpawnInstance, model: string, effort: string): s
 /** list_agents: what spawn_thread can start, compact enough for a model to choose from. */
 export function agentCatalog(caller: SpawnTarget, instances: readonly SpawnInstance[] | undefined) {
   const you = agentKey({ harness: caller.harness, instance: caller.instance });
-  const harnessName = (h: Harness) => (h === "claude" ? "Claude" : "Codex");
+  const harnessName = (h: Harness) => (h === "claude" ? "Claude" : h === "grok" ? "Grok" : "Codex");
   const agents = (instances ?? [])
     .filter((i) => i.available)
     .map((i) => {

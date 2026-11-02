@@ -85,7 +85,7 @@ export function modelProblem(
   if (model.length > 200 || effort.length > 40) return "model or effort is too long";
   if (effort && !/^[a-z][a-z0-9_-]*$/.test(effort)) return `invalid reasoning effort "${effort}"`;
   if (!catalog || catalog.detail || catalog.models.length === 0) return undefined;
-  const name = provider === Provider.CLAUDE ? "Claude" : "Codex";
+  const name = provider === Provider.CLAUDE ? "Claude" : provider === Provider.GROK ? "Grok" : "Codex";
   const info = findModel(catalog, model);
   if (model && !info) return `${name} on profile "${profileId || "native"}" does not offer the model "${model}"`;
   if (effort && info && info.efforts.length > 0 && !info.efforts.includes(effort)) {

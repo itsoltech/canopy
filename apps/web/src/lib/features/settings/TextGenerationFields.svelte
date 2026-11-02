@@ -53,7 +53,7 @@
             workerId={worker?.id}
             allowCustom={false}
           />
-          {#if option}<p class="min-w-0 truncate text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{option.provider === "CLAUDE" ? "Claude" : "Codex"} · {option.profileName}</p>{/if}
+          {#if option}<p class="min-w-0 truncate text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}</p>{/if}
         </div>
         {#if !value.model}
           <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Automatic: a small, fast model from the thread’s provider instance at low effort when supported. Falls back to the thread’s model.</p>

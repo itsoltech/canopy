@@ -1,5 +1,7 @@
 # Generowanie tytułów wątków
 
+Grok może generować tytuły przez API instancji CLIProxyAPI wyłącznie modelami `grok-3-mini` / `grok-3-mini-fast`, z limitem 120 tokenów i bez narzędzi. Natywny login i drogie modele Groka nie są używane do tej funkcji. [Adapter Grok](grok-adapter.md).
+
 Tytuł powstaje asynchronicznie po pierwszej wiadomości użytkownika albo pierwszym celu nowego wątku. Gateway wysyła nietrwałą komendę `GenerateText` do połączonego workera z wybraną instancją dostawcy; preferuje worker wątku. Zwykła tura nie czeka na odpowiedź modelu. Wynik aktualizuje istniejące strumienie wątku i overview.
 
 ## Ustawienia i model domyślny

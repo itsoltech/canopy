@@ -1,7 +1,7 @@
 import { PermissionMode, Provider } from "@open-agents/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 
-export const providerLabel = (provider: Provider): string => (provider === Provider.CLAUDE ? "Claude" : provider === Provider.CODEX ? "Codex" : "Agent");
+export const providerLabel = (provider: Provider): string => (provider === Provider.CLAUDE ? "Claude" : provider === Provider.CODEX ? "Codex" : provider === Provider.GROK ? "Grok" : "Agent");
 
 /** Permission modes offered when creating a thread (value = enum key, sent to the form action). */
 export const permissionModes = [

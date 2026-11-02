@@ -27,7 +27,7 @@
     return candidates.find((w) => initial && scheduleWorkerEligible(w, initial, false)) ?? candidates[0];
   });
   const initialProfile = initial?.providerProfileId === "native" ? "" : initial?.providerProfileId || "";
-  let option = $state<ModelOption | undefined>(initial ? modelOption(initial.provider === Provider.CLAUDE ? "CLAUDE" : "CODEX", initialProfile,
+  let option = $state<ModelOption | undefined>(initial ? modelOption(initial.provider === Provider.CLAUDE ? "CLAUDE" : initial.provider === Provider.GROK ? "GROK" : "CODEX", initialProfile,
     initialWorker?.providerInstances.find((i) => i.harness === initial.provider && i.id === (initialProfile || "native"))?.label || initialProfile || "Native", initial.model, initialWorker ? catalog.of(initialWorker.id) : undefined) : undefined);
   let effort = $state<string | undefined>(initial?.effort || undefined);
   let permission = $state<PermissionModeKey>(initial ? PermissionMode[initial.permissionMode] as PermissionModeKey : "ASK");
@@ -83,7 +83,7 @@
       <ModelControls {options} bind:option bind:effort workerId={modelWorker?.id} />
       <PermissionPicker value={permission} onselect={(next) => (permission = next)} />
     </div>
-    {#if option}<p class="text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">{option.provider === "CLAUDE" ? "Claude" : "Codex"} · {option.profileName}</p>{/if}
+    {#if option}<p class="text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">{option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}</p>{/if}
     <p aria-live="polite" class="text-base/6 text-pretty text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
       {#if eligible.length}Eligible now: {eligible.map((w) => w.name).join(", ")}.
       {:else if placement === "specific"}No eligible worker online. The thread will wait for this worker.

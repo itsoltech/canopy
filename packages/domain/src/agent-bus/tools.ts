@@ -56,7 +56,7 @@ export const SpawnThread = Schema.Struct({
   provider: Schema.optionalKey(
     Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(120)).annotate({
       description:
-        'Where the subagent runs: a provider from list_agents, e.g. "claude/native" or "codex/cliproxyapi" (or just "claude" / "codex"). ' +
+        'Where the subagent runs: a provider from list_agents, e.g. "claude/native", "codex/cliproxyapi" or "grok/native" (or just "claude" / "codex" / "grok"). ' +
         "Any of them, also another harness than yours. Defaults to yours.",
     }),
   ),
@@ -212,7 +212,7 @@ export const AGENT_BUS_TOOLS = {
   list_agents: define({
     name: "list_agents",
     description:
-      "List what you can start as a subagent with spawn_thread: the providers on this worker (Claude and Codex instances) with their " +
+      "List what you can start as a subagent with spawn_thread: the providers on this worker (Claude, Codex and Grok instances) with their " +
       "models and reasoning efforts. A subagent may run on any of them, not only on yours.",
     args: ListAgents,
     mutates: false,
@@ -221,7 +221,7 @@ export const AGENT_BUS_TOOLS = {
     name: "spawn_thread",
     description:
       "Start a subagent: delegate a task to a new side thread in the same working directory. By default a copy of you; it can run on " +
-      "another provider, model and effort (any from list_agents: Claude from Codex and the other way round), with its own instructions " +
+      "another provider, model and effort (any Claude, Codex or Grok instance from list_agents), with its own instructions " +
       "and permissions. Use this whenever you want to delegate, parallelize or get a second opinion; it is the subagent tool here " +
       "(there is no spawn_agent or Task tool). The user sees the thread and can steer it. Returns at once with thread_id and turn_id; " +
       "its final message comes back to you as a new message when it finishes, or call wait_threads to block for it.",

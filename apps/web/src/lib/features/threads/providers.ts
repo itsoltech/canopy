@@ -1,11 +1,11 @@
 import { Provider, type ui } from "@open-agents/contracts";
 
 /** Providers a thread can run on, as sent by forms (enum key). */
-export const providerKeys = ["CLAUDE", "CODEX"] as const;
+export const providerKeys = ["CLAUDE", "CODEX", "GROK"] as const;
 export type ProviderKey = (typeof providerKeys)[number];
 
 export const isProviderKey = (value: string): value is ProviderKey => (providerKeys as readonly string[]).includes(value);
-export const providerKeyOf = (provider: Provider): ProviderKey | undefined => (provider === Provider.CLAUDE ? "CLAUDE" : provider === Provider.CODEX ? "CODEX" : undefined);
+export const providerKeyOf = (provider: Provider): ProviderKey | undefined => (provider === Provider.CLAUDE ? "CLAUDE" : provider === Provider.CODEX ? "CODEX" : provider === Provider.GROK ? "GROK" : undefined);
 
 /** Providers whose CLI the worker reports as available (installed, logged in). */
 function availableProviders(worker: ui.Worker | undefined): ProviderKey[] {
@@ -51,7 +51,7 @@ export function agentChoices(worker: ui.Worker | undefined): { provider: Provide
       value: `${provider}:${instanceValue(instance)}`,
       provider,
       profileId: instanceValue(instance),
-      label: `${provider === "CLAUDE" ? "Claude" : "Codex"} · ${instanceLabel(instance)}`,
+      label: `${provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex"} · ${instanceLabel(instance)}`,
     })),
   }));
 }

@@ -1,5 +1,7 @@
 # Sekrety wątków
 
+Grok otrzymuje `request_secret` przez platformowy MCP z tym samym zakresem dostępu co pozostałe harnessy. Klucz instancji CLIProxyAPI jest osobnym sekretem konfiguracji, trafia wyłącznie do env procesu Groka; plik custom-model odwołuje się do nazwy env, bez klucza. [Izolacja adaptera](grok-adapter.md#endpointy-i-izolacja).
+
 Poświadczenia zewnętrznych aplikacji opisuje [Connectors](connectors.md).
 Konta używają tego samego klucza AES-256-GCM gateway, ale ich tokeny/nagłówki
 nie korzystają z dostarczania plików sekretów na worker. Worker i model dostają

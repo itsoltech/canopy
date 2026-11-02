@@ -23,7 +23,7 @@ export async function createThreadFromForm(form: FormData, action: string, targe
   if (!(mode in PermissionMode)) return fail(400, { action, error: "Unknown permission mode" });
   const requested = text(form, "provider");
   const provider = parent ? providerKeyOf(parent.provider) : isProviderKey(requested) ? requested : undefined;
-  if (!provider) return fail(400, { action, error: "Choose Claude or Codex" });
+  if (!provider) return fail(400, { action, error: "Choose Claude, Codex or Grok" });
   const profileId = text(form, "profileId");
   const initialMessage = text(form, "message");
   if (parent && !initialMessage) return fail(400, { action, error: "Tell the side thread what to do" });

@@ -12,7 +12,7 @@ export type ProviderProfileConfig = NativeProfileConfig | CliProxyApiProfileConf
 interface ProfileConfigBase {
   readonly id: string;
   /** Defaults to both providers. */
-  readonly providers?: readonly ("claude" | "codex")[];
+  readonly providers?: readonly ("claude" | "codex" | "grok")[];
   /** Shown in the UI; empty = id. */
   readonly displayName?: string;
   /** Environment of the profile's harness process (docs/worker-config.md); values may be secrets. */
@@ -60,7 +60,7 @@ export type Env = Readonly<Record<string, string | undefined>>;
 
 interface ResolvedBase {
   readonly id: string;
-  readonly providers: readonly ("claude" | "codex")[];
+  readonly providers: readonly ("claude" | "codex" | "grok")[];
   /** The profile's own variables, applied over the worker's environment (validated, may hold secrets). */
   readonly env: Readonly<Record<string, string>>;
   readonly runtime: ProfileRuntimeConfig;
@@ -74,7 +74,9 @@ export type ResolvedProfile =
 export const NATIVE_PROFILE: NativeProfileConfig = { kind: "native", id: "native" };
 
 const PROFILE_ID = /^[a-z0-9][a-z0-9_-]{0,62}$/;
+// Legacy profiles without an explicit provider list keep their original meaning.
 const BOTH = ["claude", "codex"] as const;
+const ALL = [...BOTH, "grok"] as const;
 
 export class ProfileError extends Error {
   override readonly name = "ProfileError";
@@ -96,7 +98,7 @@ export function hasOwnRuntime(runtime: ProfileRuntimeConfig): boolean {
   return Boolean(runtime.executablePath || runtime.homePath || runtime.shadowHomePath || runtime.launchArgs?.length || runtime.ownLogin);
 }
 
-export const providersOf = (config: Pick<ProviderProfileConfig, "providers">): readonly ("claude" | "codex")[] => (config.providers?.length ? config.providers : BOTH);
+export const providersOf = (config: Pick<ProviderProfileConfig, "providers">): readonly ("claude" | "codex" | "grok")[] => (config.providers?.length ? config.providers : BOTH);
 
 /**
  * Validates configs. Invalid ids and endpoints throw (fatal); a missing key, a variable the worker controls or
@@ -104,8 +106,8 @@ export const providersOf = (config: Pick<ProviderProfileConfig, "providers">): r
  */
 export function resolveProfiles(configs: readonly ProviderProfileConfig[]): ProfileStatus[] {
   // The built-in native profile for every provider the configuration gives none (an instance per provider, or both).
-  const nativeFor = BOTH.filter((provider) => !configs.some((c) => c.id === NATIVE_PROFILE.id && providersOf(c).includes(provider)));
-  const all = nativeFor.length === 0 ? configs : [{ ...NATIVE_PROFILE, ...(nativeFor.length < 2 && { providers: nativeFor }) }, ...configs];
+  const nativeFor = ALL.filter((provider) => !configs.some((c) => c.id === NATIVE_PROFILE.id && providersOf(c).includes(provider)));
+  const all = nativeFor.length === 0 ? configs : [{ ...NATIVE_PROFILE, providers: nativeFor }, ...configs];
   const seen = new Set<string>();
   return all.map((config): ProfileStatus => {
     if (!PROFILE_ID.test(config.id)) throw new ProfileError(`invalid profile id "${config.id}"`);
@@ -150,7 +152,7 @@ export function toProfileReport(status: ProfileStatus): MessageInitShape<typeof 
   return {
     id: config.id,
     kind: config.kind === "native" ? ProviderProfileKind.NATIVE : ProviderProfileKind.CLIPROXYAPI,
-    providers: providersOf(config).map((p) => (p === "claude" ? Provider.CLAUDE : Provider.CODEX)),
+    providers: providersOf(config).map((p) => (p === "claude" ? Provider.CLAUDE : p === "grok" ? Provider.GROK : Provider.CODEX)),
     ...(config.kind === "cliproxyapi" && URL.canParse(config.baseUrl) && { endpoint: new URL(config.baseUrl).origin }),
     available: status.resolved !== undefined,
     ...(status.problem !== undefined && { detail: status.problem }),
@@ -165,7 +167,7 @@ export function toProfileReport(status: ProfileStatus): MessageInitShape<typeof 
 export function selectProfile(
   statuses: readonly ProfileStatus[],
   profileId: string,
-  provider: "claude" | "codex",
+  provider: "claude" | "codex" | "grok",
 ): ResolvedProfile {
   const id = profileId || NATIVE_PROFILE.id;
   const ofId = statuses.filter((s) => s.config.id === id);

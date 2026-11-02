@@ -8,7 +8,7 @@ import type { BotTurn, StoredCall, ToolSpec } from "../types.ts";
 export const str = { type: "string" };
 export const bool = { type: "boolean" };
 export const strings = { type: "array", items: str, maxItems: 200 };
-export const providerSchema = { type: "string", enum: ["claude", "codex"] };
+export const providerSchema = { type: "string", enum: ["claude", "codex", "grok"] };
 export const permissionSchema = { type: "string", enum: ["ask", "read_only", "accept_edits", "full_auto"] };
 export const object = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
 export interface ToolContext {
@@ -35,8 +35,8 @@ export function label(value: unknown, fallback: string): string {
   return typeof value === "string" && value ? value.replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 80) : fallback;
 }
 export function provider(value: unknown): Provider {
-  if (value !== "claude" && value !== "codex") throw new Invalid("provider must be claude or codex");
-  return value === "claude" ? Provider.CLAUDE : Provider.CODEX;
+  if (value !== "claude" && value !== "codex" && value !== "grok") throw new Invalid("provider must be claude, codex or grok");
+  return value === "claude" ? Provider.CLAUDE : value === "grok" ? Provider.GROK : Provider.CODEX;
 }
 export function permission(value: unknown): PermissionMode {
   const modes: Record<string, PermissionMode> = { ask: PermissionMode.ASK, read_only: PermissionMode.READ_ONLY, accept_edits: PermissionMode.ACCEPT_EDITS, full_auto: PermissionMode.FULL_AUTO };

@@ -185,6 +185,9 @@ export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
     }
   };
   const r = raw as Record<string, unknown>;
+  // Grok: the owned HTTP MCP handler records the result before returning it to the CLI.
+  const direct = r["result"] as { content?: unknown } | undefined;
+  if (Array.isArray(direct?.content)) for (const block of direct.content) fromBlock(block);
   // Claude: a user message with tool results.
   const message = r["message"] as { content?: unknown } | undefined;
   if (r["type"] === "user" && Array.isArray(message?.content)) {

@@ -8,7 +8,7 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { decryptSecret } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
-import type { InstanceRow } from "../store/instance-config.ts";
+import { harnessOf, providerOf, type InstanceRow } from "../store/instance-config.ts";
 import { checkedQuotes } from "../core/quotes.ts";
 import { toUiQuote, type StoredQuote } from "../store/quotes.ts";
 import { apiModel } from "./model.ts";
@@ -115,9 +115,9 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   });
   const validate = (user: string, config: bots.BotConfiguration, requireCatalog = false) => Effect.gen(function* () {
     if (!config.name.trim() || config.name.length > 80 || /[\x00-\x1f\x7f]/.test(config.name) || !["round", "cloud", "diamond", "spark", "clover", "blob", "flower", "droplet", "pill", "triangle", "square", "star", "hexagon", "pumpkin"].includes(config.shape) || !/^#[0-9a-f]{6}$/i.test(config.color)) return yield* Effect.fail(new Invalid("a name, known mascot shape and #rrggbb color are required"));
-    if (![Provider.CLAUDE, Provider.CODEX].includes(config.provider) || !config.model || config.model.length > 200 || config.effort.length > 40 || config.instructions.length > 32_000) return yield* Effect.fail(new Invalid("invalid bot model configuration"));
+    if (!harnessOf(config.provider) || !config.model || config.model.length > 200 || config.effort.length > 40 || config.instructions.length > 32_000) return yield* Effect.fail(new Invalid("invalid bot model configuration"));
     if (!["safe", "always", "full_auto", ""].includes(config.approvalPolicy) || config.mcpServerIds.length > 32 || new Set(config.mcpServerIds).size !== config.mcpServerIds.length) return yield* Effect.fail(new Invalid("invalid approval policy or MCP connections"));
-    const instances = yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${config.provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${config.providerInstance} AND kind = 'endpoint'`;
+    const instances = yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance} AND kind = 'endpoint'`;
     if (!instances[0]) return yield* Effect.fail(new Invalid("bots require a gateway-accessible endpoint provider instance; native CLI login is not supported"));
     for (const id of config.mcpServerIds) yield* server(user, id);
     const catalog = yield* catalogs(config);
@@ -134,7 +134,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       .filter((p) => p.provider === config.provider && p.profileId === config.providerInstance)));
   /** The concrete API model of a saved bot; bots saved before validation may still name an alias. */
   const resolveModel = (config: bots.BotConfiguration) => Effect.gen(function* () {
-    const instance = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${config.provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${config.providerInstance} AND kind = 'endpoint'`)[0];
+    const instance = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance} AND kind = 'endpoint'`)[0];
     return apiModel(config.model, yield* catalogs(config), instance?.custom_models ?? []);
   });
   const save = (user: string, config: bots.BotConfiguration, options: { id?: string; requestId?: string }) => sql.withTransaction(Effect.gen(function* () {
@@ -157,7 +157,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     if (options.id) {
       yield* owned(user, id, true);
       const rows = yield* sql<BotRow>`UPDATE bots SET configuration = ${JSON.stringify(toJson(bots.BotConfigurationSchema, checked))}::jsonb,
-        provider = ${checked.provider === Provider.CLAUDE ? "claude" : "codex"}, provider_instance = ${checked.providerInstance}, updated_at = now(), revision = revision + 1 WHERE id = ${id}::uuid RETURNING *`;
+        provider = ${harnessOf(checked.provider)}, provider_instance = ${checked.providerInstance}, updated_at = now(), revision = revision + 1 WHERE id = ${id}::uuid RETURNING *`;
       row = rows[0]!;
     } else {
       if (!options.requestId || options.requestId.length > 200) return yield* Effect.fail(new Invalid("client_request_id is required"));
@@ -165,7 +165,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       if (count >= MAX_BOTS_PER_USER) return yield* Effect.fail(new Invalid(`bot limit reached (${MAX_BOTS_PER_USER} per user, including archived bots); delete a bot before creating another`));
       yield* sql`INSERT INTO bots(id, owner_user_id, client_request_id, configuration, provider, provider_instance)
         VALUES (${id}::uuid, ${user}::uuid, ${options.requestId}, ${JSON.stringify(toJson(bots.BotConfigurationSchema, checked))}::jsonb,
-          ${checked.provider === Provider.CLAUDE ? "claude" : "codex"}, ${checked.providerInstance}) ON CONFLICT(owner_user_id, client_request_id) DO NOTHING`;
+          ${harnessOf(checked.provider)}, ${checked.providerInstance}) ON CONFLICT(owner_user_id, client_request_id) DO NOTHING`;
       row = (yield* sql<BotRow>`SELECT * FROM bots WHERE owner_user_id = ${user}::uuid AND client_request_id = ${options.requestId} AND deleted_at IS NULL`)[0]!;
       if (!row) return yield* Effect.fail(new Invalid("create request refers to a deleted bot"));
     }
@@ -262,7 +262,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       return { delivered: true };
     }),
     apiModels: (provider: Provider, instanceId: string) => Effect.gen(function* () {
-      const instance = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${instanceId} AND kind = 'endpoint'`)[0];
+      const instance = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(provider)} AND id = ${instanceId} AND kind = 'endpoint'`)[0];
       if (!instance) return yield* Effect.fail(new Invalid("choose a gateway-accessible endpoint provider instance"));
       const profiles = yield* catalogs(create(bots.BotConfigurationSchema, { provider, providerInstance: instanceId }));
       const models = profiles.flatMap((p) => p.models).filter((m) => !m.hidden).flatMap((m) => {
@@ -293,8 +293,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       const next = create(bots.BotConfigurationSchema, { ...before });
       for (const [arg, field] of Object.entries(fields)) if (Object.hasOwn(args, arg)) next[field as typeof fields[keyof typeof fields]] = args[arg] as string;
       if (Object.hasOwn(args, "provider")) {
-        if (!["claude", "codex"].includes(args["provider"] as string)) return yield* Effect.fail(new Invalid("unknown provider"));
-        next.provider = args["provider"] === "claude" ? Provider.CLAUDE : Provider.CODEX;
+        if (!["claude", "codex", "grok"].includes(args["provider"] as string)) return yield* Effect.fail(new Invalid("unknown provider"));
+        next.provider = providerOf(args["provider"] as string);
       }
       if (Object.hasOwn(args, "append_instructions")) next.instructions = [before.instructions, args["append_instructions"]].filter(Boolean).join("\n");
       const saved = (yield* save(user, next, { id: turn.bot_id })).configuration!;
@@ -470,7 +470,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     })),
     release: (turn: BotTurn) => sql`UPDATE bot_turns SET lease_until = now(), lease_token = NULL WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid`,
     provider: (user: string, config: bots.BotConfiguration) => Effect.gen(function* () {
-      const instance = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${config.provider === Provider.CLAUDE ? "claude" : "codex"} AND id = ${config.providerInstance} AND kind = 'endpoint'`)[0];
+      const instance = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance} AND kind = 'endpoint'`)[0];
       if (!instance) return yield* Effect.fail(new Invalid("provider endpoint unavailable"));
       return { url: instance.base_url, key: instance.api_key ? yield* secret(user, instance.api_key.secretRef) : "" };
     }),

@@ -191,7 +191,7 @@
               {worker?.name ?? "This worker"} is offline. Start it or choose another worker to send.
             </ComposerNotice>
           {:else if blocker === "no-agent"}
-            <ComposerNotice tone="warning">{worker?.name} reports neither Claude nor Codex as available. Check the worker in Settings.</ComposerNotice>
+            <ComposerNotice tone="warning">{worker?.name} reports no available agents. Check the worker in Settings.</ComposerNotice>
           {/if}
           {#if project.kind === "scratch" && workspace && !blocker}
             <ComposerNotice>A dedicated scratch directory is created when you send. Files are kept until you remove them manually.</ComposerNotice>

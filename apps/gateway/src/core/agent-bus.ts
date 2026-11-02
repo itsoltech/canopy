@@ -352,7 +352,7 @@ export class AgentBus {
 /** What the calling thread runs on: a subagent's default. */
 function callerTarget(thread: ThreadRow): SpawnTarget {
   return {
-    harness: thread.provider === "claude" ? "claude" : "codex",
+    harness: thread.provider === "claude" ? "claude" : thread.provider === "grok" ? "grok" : "codex",
     instance: thread.provider_profile_id || "native",
     model: thread.settings.model ?? "",
     effort: thread.settings.effort ?? "",

@@ -36,18 +36,35 @@ export function directModel(resolve: (input: ModelInput) => Promise<Endpoint>): 
     const endpoint = await resolve(input);
     const base = endpoint.url.replace(/\/+$/, "").replace(/\/v1$/, "");
     const claude = input.configuration.provider === Provider.CLAUDE;
+    const grok = input.configuration.provider === Provider.GROK;
     const headers = claude
       ? { "content-type": "application/json", "x-api-key": endpoint.key, authorization: `Bearer ${endpoint.key}`, "anthropic-version": "2023-06-01" }
       : { "content-type": "application/json", authorization: `Bearer ${endpoint.key}` };
-    const response = await fetch(`${base}/v1/${claude ? "messages" : "responses"}`, {
+    const response = await fetch(`${base}/v1/${claude ? "messages" : grok ? "chat/completions" : "responses"}`, {
       method: "POST", headers, signal: input.signal, redirect: "error",
-      body: JSON.stringify(claude ? anthropicRequest(input) : openaiRequest(input)),
+      body: JSON.stringify(claude ? anthropicRequest(input) : grok ? grokRequest(input) : openaiRequest(input)),
     });
     // Provider errors can echo credentials or input; persist only the status.
     if (!response.ok) { await response.body?.cancel(); throw new Error(`Model endpoint returned HTTP ${response.status}`); }
     const data = await response.json() as Record<string, unknown>;
-    return claude ? anthropicReply(data) : openaiReply(data);
+    return claude ? anthropicReply(data) : grok ? grokReply(data) : openaiReply(data);
   };
+}
+
+export function grokRequest(input: ModelInput) {
+  return { model: input.configuration.model, stream: false, max_tokens: 4096,
+    messages: [{ role: "system", content: input.instructions }, ...input.messages.map((m) => m.role === "tool"
+      ? { role: "tool", tool_call_id: m.callId, content: m.text }
+      : { role: m.role, content: m.text || null, ...(m.calls?.length && { tool_calls: m.calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: JSON.stringify(c.arguments) } })) }) })],
+    tools: input.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } })),
+    ...(input.configuration.effort && { reasoning_effort: input.configuration.effort }),
+  };
+}
+function grokReply(data: Record<string, unknown>): ModelReply {
+  const choices = data["choices"] as { finish_reason?: string; message?: { content?: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] | undefined;
+  const choice = choices?.[0];
+  if (!choice?.message || !["stop", "tool_calls"].includes(choice.finish_reason ?? "")) throw new Error("Model returned an incomplete response");
+  return { text: choice.message.content ?? "", calls: (choice.message.tool_calls ?? []).map((c) => ({ id: c.id, name: c.function.name, arguments: argumentsOf(c.function.arguments) })) };
 }
 
 export function anthropicRequest(input: ModelInput) {

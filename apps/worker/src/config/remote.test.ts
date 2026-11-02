@@ -48,6 +48,7 @@ describe("applyWorkerConfig", () => {
     expect(result.report.providers?.map((p) => [p.provider, p.available, p.version])).toEqual([
       [Provider.CLAUDE, true, "2.3.1"],
       [Provider.CODEX, true, "0.164.0"],
+      [Provider.GROK, false, ""],
     ]);
     expect(JSON.stringify(result.report, (_, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("sk-secret");
   });

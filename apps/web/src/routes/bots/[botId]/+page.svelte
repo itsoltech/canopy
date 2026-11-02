@@ -182,7 +182,7 @@
       {entries}
       me={{ id: "me", kind: "user", name: "You" }}
       {directory}
-      subtitle={config.model ? `${modelDisplayName(config.model)}${config.provider === Provider.CODEX ? " · Codex" : " · Claude"}` : undefined}
+      subtitle={config.model ? `${modelDisplayName(config.model)}${config.provider === Provider.CODEX ? " · Codex" : config.provider === Provider.GROK ? " · Grok" : " · Claude"}` : undefined}
       {status}
       {sending}
       {answering}

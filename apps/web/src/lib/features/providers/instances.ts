@@ -15,7 +15,7 @@ import { decode, encode } from "#lib/shared/wire.ts";
  */
 
 export const instanceKeyOf = (instance: Pick<ui.ProviderInstance, "harness" | "id">): string => `${Provider[instance.harness]}:${instance.id}`;
-export const harnessName = (harness: Provider): string => (harness === Provider.CLAUDE ? "Claude" : "Codex");
+export const harnessName = (harness: Provider): string => (harness === Provider.CLAUDE ? "Claude" : harness === Provider.GROK ? "Grok" : "Codex");
 export const harnessKey = (harness: Provider): ProviderKey => providerKeyOf(harness) ?? "CODEX";
 /** The label, else the harness's name for the built-in device login (T3: "Codex", "Claude"), else the id. */
 export const instanceName = (instance: Pick<ui.ProviderInstance, "label" | "id" | "builtIn" | "harness">): string =>

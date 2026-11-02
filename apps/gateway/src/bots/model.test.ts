@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { bots, ProfileModelsSchema, Provider } from "@open-agents/contracts";
-import { anthropicRequest, apiModel, directModel, openaiRequest } from "./model.ts";
+import { anthropicRequest, apiModel, directModel, grokRequest, openaiRequest } from "./model.ts";
 import { PLATFORM_TOOLS } from "./policy.ts";
 import type { ModelInput } from "./types.ts";
 
@@ -12,14 +12,17 @@ test("both wire protocols send only function tools and carry durable tool result
   expect(anthropicRequest(input).tools.every((t) => !Object.hasOwn(t, "type"))).toBe(true);
   expect(JSON.stringify(openaiRequest(input))).toContain("function_call_output");
   expect(JSON.stringify(anthropicRequest(input))).toContain("tool_result");
+  expect(JSON.stringify(grokRequest(input))).toContain('"tool_call_id":"call1"');
+  expect(grokRequest(input).tools.every((t) => t.type === "function")).toBe(true);
 });
 
-for (const provider of [Provider.CLAUDE, Provider.CODEX]) test(`${Provider[provider]}: direct API receives no tools that execute ls, and never dispatches a hosted tool`, async () => {
+for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) test(`${Provider[provider]}: direct API receives no tools that execute ls, and never dispatches a hosted tool`, async () => {
   let captured: Record<string, unknown> = {};
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: async (request) => {
     captured = await request.json() as Record<string, unknown>;
     return Response.json(provider === Provider.CLAUDE
       ? { content: [{ type: "text", text: "I have no shell." }], stop_reason: "end_turn" }
+      : provider === Provider.GROK ? { choices: [{ finish_reason: "stop", message: { content: "I have no shell." } }] }
       : { status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: "I have no shell." }] }] });
   } });
   try {
@@ -28,7 +31,8 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) test(`${Provider[provi
       messages: [{ role: "user", text: "Run ls in your working directory" }], instructions: "No local tools", tools: PLATFORM_TOOLS, signal: new AbortController().signal,
     });
     expect(result.text).toContain("no shell");
-    const wire = captured["tools"] as { name: string; type?: string }[];
+    const raw = captured["tools"] as { name: string; type?: string; function?: { name: string } }[];
+    const wire = raw.map((t) => ({ ...t, name: t.function?.name ?? t.name }));
     expect(wire.map((t) => t.name)).toEqual(PLATFORM_TOOLS.map((t) => t.name));
     expect(wire.some((t) => /shell|exec|patch|browser|web_search/.test(t.name))).toBe(false);
     expect(wire.some((t) => t.type && t.type !== "function")).toBe(false);

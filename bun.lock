@@ -65,6 +65,7 @@
         "@open-agents/codex-protocol": "workspace:*",
         "@open-agents/contracts": "workspace:*",
         "@open-agents/domain": "workspace:*",
+        "@open-agents/grok-acp": "workspace:*",
         "@open-agents/transport": "workspace:*",
         "effect": "4.1.1",
         "sharp": "0.35.5",
@@ -105,6 +106,10 @@
         "@open-agents/contracts": "workspace:*",
         "effect": "4.1.1",
       },
+    },
+    "packages/grok-acp": {
+      "name": "@open-agents/grok-acp",
+      "version": "0.0.0",
     },
     "packages/testing": {
       "name": "@open-agents/testing",
@@ -276,6 +281,8 @@
     "@open-agents/domain": ["@open-agents/domain@workspace:packages/domain"],
 
     "@open-agents/gateway": ["@open-agents/gateway@workspace:apps/gateway"],
+
+    "@open-agents/grok-acp": ["@open-agents/grok-acp@workspace:packages/grok-acp"],
 
     "@open-agents/integration-tests": ["@open-agents/integration-tests@workspace:tests/integration"],
 

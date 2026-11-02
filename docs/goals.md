@@ -1,5 +1,7 @@
 # Cele (goals)
 
+Grok ACP nie ma w tym adapterze mapowania natywnych goals. Gateway odrzuca operacje celów dla Groka, UI ukrywa kontrolki. Zwykłe tury, kolejka i platformowe harmonogramy pozostają dostępne. [Szczegóły](grok-adapter.md).
+
 Status: **zaimplementowane** (2026-11-01):
 - worker: Codex `thread/goal/*` (`apps/worker/src/providers/codex`), Claude `/goal` (`apps/worker/src/providers/claude`),
 - gateway: stan celu z raportów harnessu (`apps/gateway/src/store/goals.ts`, w transakcji ingestu), `SetGoal` w UI API,
