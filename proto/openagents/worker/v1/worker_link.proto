@@ -57,6 +57,7 @@ message WorkerMessage {
     FetchBlob fetch_blob = 18;
     // Modele, effort i steer (sekcja na końcu pliku).
     ModelCatalog model_catalog = 40;
+    ThreadSecretReceipt thread_secret_receipt = 500;
   }
 }
 
@@ -74,7 +75,27 @@ message GatewayMessage {
     WorkerConfig config = 16;
     // Odpowiedź na FetchBlob: fragmenty bajtów (request_id) albo błąd.
     BlobChunk blob_chunk = 17;
+    // Poufne: wyłącznie transport TLS, nigdy journal/outbox/logi.
+    ThreadSecretDelivery thread_secret_delivery = 500;
   }
+}
+
+message ThreadSecretDelivery {
+  string request_id = 1;
+  string thread_id = 2;
+  uint32 revision = 3;
+  string value = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  bool remove = 6;
+  string cwd = 7;
+}
+
+message ThreadSecretReceipt {
+  string request_id = 1;
+  string thread_id = 2;
+  uint32 revision = 3;
+  string file = 4;
+  bool applied = 5;
 }
 
 // ---------- Handshake ----------

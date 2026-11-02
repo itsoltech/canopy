@@ -21,6 +21,9 @@ export async function serveLink(
   try {
     for await (const message of link.messages) {
       switch (message.payload.case) {
+        case "threadSecretDelivery":
+          link.send({ case: "threadSecretReceipt", value: host.secrets.apply(message.payload.value) });
+          break;
         case "config": {
           const report = await host.applyConfig(message.payload.value);
           link.send({ case: "configApplied", value: report });

@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { ensureScratchDirectory } from "./scratch.ts";
+import { ThreadSecretFiles } from "./thread-secrets.ts";
 import { join } from "node:path";
 import { clone, create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
@@ -127,6 +128,7 @@ class CommandError extends Error {
 }
 
 export class WorkerHost {
+  readonly secrets: ThreadSecretFiles;
   readonly #generations = new Map<AbortController, Promise<void>>();
   #closing = false;
   readonly #options: WorkerHostOptions;
@@ -164,6 +166,7 @@ export class WorkerHost {
 
   constructor(options: WorkerHostOptions) {
     this.#options = options;
+    this.secrets = new ThreadSecretFiles(options.dataDir);
     this.#deviceHomes = options.deviceHomes ?? { claude: deviceClaudeHome(process.env), codex: deviceCodexHome(process.env) };
     this.#files = new AttachmentFiles(options.dataDir);
     this.#previews = new PreviewStore(options.dataDir);
@@ -355,6 +358,7 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
+    this.secrets.close();
     this.#closing = true;
     for (const generation of this.#generations.keys()) generation.abort();
     await Promise.allSettled(this.#generations.values());
@@ -769,6 +773,7 @@ export class WorkerHost {
       interact: (request) => this.#interact(request),
       callTool: (call) => this.#callTool(call),
       attachmentsDir: (threadId) => this.#files.threadDir(threadId),
+      secretsDir: (threadId) => this.secrets.threadDir(threadId),
       viewImage: (threadId, cwd, path) => this.#viewImage(threadId, cwd, path),
       enrich: (init) => this.#previews.enrich(init),
       closingReason: () => this.#stopReason(),

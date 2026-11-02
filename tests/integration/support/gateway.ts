@@ -35,6 +35,7 @@ import type { AttachmentLimits } from "@open-agents/domain";
 import { startGrpcServer } from "@open-agents/transport";
 import { applyWorkerConfig } from "@open-agents/worker/config";
 import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
+import { ThreadSecretFiles } from "@open-agents/worker/runtime";
 import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
 import { BotStore } from "../../../apps/gateway/src/bots/store.ts";
@@ -67,6 +68,7 @@ type CommandKind = Command["kind"];
 export type CommandHandler = (value: NonNullable<CommandKind["value"]>, reply: (ok: boolean, extra?: Record<string, unknown>) => void) => void;
 
 export interface ScriptedWorkerOptions {
+  readonly secretsDataDir?: string;
   /** Report Claude as available (default: only Codex). */
   readonly claude?: boolean;
   /** Its model catalog (default SCRIPTED_MODELS: Codex only). */
@@ -77,6 +79,7 @@ export interface ScriptedWorkerOptions {
 
 /** Plays a worker: answers commands and emits the events a real provider would. */
 export class ScriptedWorker {
+  readonly secrets: ThreadSecretFiles | undefined;
   /** Every command received, in order. */
   readonly commands: CommandKind[] = [];
   /** Custom behaviour per command kind (e.g. a turn that keeps running); the default answers otherwise. */
@@ -117,6 +120,7 @@ export class ScriptedWorker {
     readonly options: ScriptedWorkerOptions = {},
   ) {
     this.models = options.models ?? SCRIPTED_MODELS;
+    this.secrets = options.secretsDataDir ? new ThreadSecretFiles(options.secretsDataDir) : undefined;
     void this.#loop();
   }
 
@@ -178,6 +182,10 @@ export class ScriptedWorker {
   async #loop(): Promise<void> {
     for await (const message of this.link.messages) {
       const payload = message.payload;
+      if (payload.case === "threadSecretDelivery" && this.secrets) {
+        this.link.send({ case: "threadSecretReceipt", value: this.secrets.apply(payload.value) });
+        continue;
+      }
       if (payload.case === "config") {
         this.configs.push(payload.value);
         // Profiles as the real worker validates and reports them (no CLI probing: the device runs nothing).
@@ -323,7 +331,7 @@ export interface TestGateway {
 }
 
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
-export async function startTestGateway(options: { attachmentLimits?: AttachmentLimits; backgroundGraceMs?: number; botModel?: BotModel } = {}): Promise<TestGateway> {
+export async function startTestGateway(options: { attachmentLimits?: AttachmentLimits; backgroundGraceMs?: number; botModel?: BotModel; worker?: ScriptedWorkerOptions; secretTtlMs?: number } = {}): Promise<TestGateway> {
   const pg = await startPostgres();
   const secretsKey = randomBytes(32);
   const runtime: TestRuntime = ManagedRuntime.make(
@@ -351,7 +359,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
     await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [added.workerId])));
     return added;
   };
-  const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.botModel && { botModel: options.botModel }), ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
+  const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }), ...(options.botModel && { botModel: options.botModel }), ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
   const grpc = await startGrpcServer({
     routes: (router) => {
       core.link.routes(router);
@@ -372,7 +380,8 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
       await openGatewayLink({
         baseUrl: grpc.url,
         credential,
-        hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, attachmentsRoot: SCRIPTED_ATTACHMENTS_ROOT, ...(os && { host: { os } }), ...options?.hello },
+        hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, attachmentsRoot: SCRIPTED_ATTACHMENTS_ROOT, ...(os && { host: { os } }), ...options?.hello,
+          ...(options?.secretsDataDir && { capabilities: [...(options.hello?.capabilities ?? []), "thread_secrets"] }) },
       }),
       options,
     );
@@ -380,7 +389,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
     return worker;
   };
   const laptop = await addWorker("laptop", ["/repo"]);
-  const worker = await connect(laptop.workerId, laptop.credential);
+  const worker = await connect(laptop.workerId, laptop.credential, undefined, options.worker);
   return {
     pg,
     runtime,
@@ -394,8 +403,9 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
     addWorker,
     connect,
     close: async () => {
+      core.stopSweep();
       await core.bots.stop();
-      for (const w of workers) w.link.close();
+      for (const w of workers) { w.link.close(); w.secrets?.close(); }
       await core.link.shutdown();
       await grpc.close();
       await runtime.dispose();

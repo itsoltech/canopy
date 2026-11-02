@@ -48,6 +48,12 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
         }),
       answerInteraction: (request) =>
         guard(async () => create(ui.AnswerInteractionResponseSchema, { interaction: await core.answerInteraction(request) })),
+      // Never log, echo or attach the request/cause to errors from the secret boundary.
+      answerThreadSecret: async (request) => {
+        try { return create(ui.ThreadSecretResponseSchema, { secret: await core.secrets.answer(request) }); }
+        catch { throw new ConnectError("Could not save the secret. Try again.", Code.InvalidArgument); }
+      },
+      revokeThreadSecret: (request) => guard(async () => create(ui.ThreadSecretResponseSchema, { secret: await core.secrets.revoke(request.requestId) })),
       watchThread: (request, context) => core.watchThread(request.threadId, context.signal),
       listSchedules: (request) => guard(async () => create(ui.ListSchedulesResponseSchema, { schedules: await core.listSchedules(request) })),
       createSchedule: (request) => guard(async () => create(ui.CreateScheduleResponseSchema, { schedule: await core.createSchedule(request) })),
