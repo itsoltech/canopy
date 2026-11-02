@@ -342,6 +342,8 @@ sequenceDiagram
 
 Regresje: `tests/integration/agent-bus-notify.test.ts` (skryptowany worker, wynik podczas `ask_user`, odczyty, fallback i nowa instancja gateway na tej samej bazie), `apps/gateway/src/store/notification-observation.test.ts` (reguły odczytów), `apps/web/src/lib/features/threads/queue/queue.test.ts` (kolejka bez powiadomień) oraz opt-in `agent-bus-notify.live.test.ts` (Codex przez CLIProxyAPI: `spawn_thread` z `notify` → `wait_threads` → `close_thread`, jedna tura rodzica).
 
+Potwierdzone na żywo 2026-11-02 (`agent-bus-notify.live.test.ts`, Codex `gpt-6.1-sol` przez CLIProxyAPI): rodzic uruchomił dziecko z `notify = true`, `wait_threads` zwróciło jego wynik `391`, rodzic zamknął dziecko i odpowiedział `RESULT: 391`. Raport wszedł steerem do trwającej tury (`notify_status = delivered`); po zakończeniu rodzica i ponownym `sweep` w bazie pozostała dokładnie jedna tura rodzica (`trigger = user`, `completed`), bez dodatkowej tury `agent_bus`. Próba po scaleniu aktualnego `main` również przeszła. Sekrety i adres proxy pozostają poza repozytorium.
+
 ## 9. Udostępnienie narzędzi dostawcom
 
 - **Claude:** serwer MCP w procesie workera (`createSdkMcpServer`, nazwy `mcp__openagents__*`) z `timeout` większym niż maksymalne `wait_threads`.

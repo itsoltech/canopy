@@ -220,6 +220,8 @@ Co jest na zrzucie?
 
 ### Kolejka
 
+Panel nad kompozytorem pokazuje wyłącznie wiadomości użytkownika (`trigger = user`, puste `source_kind` i `source_thread_id`). Raporty szyny agentów, fallbacki steerów platformy, notatki zadań w tle i inne wyzwalacze platformowe są z niego wykluczone, także przy lokalnym przestawianiu kolejności. Nie wyglądają jak wiadomości użytkownika oczekujące na wysłanie. Reguły dostarczenia i wygaszania raportów: [agent-bus.md](agent-bus.md#asynchroniczność). API kolejki zachowuje możliwość przestawiania tur platformy przez innych klientów.
+
 Wiadomości czekające za turą w toku (tury `queued`) użytkownik układa jak w aplikacji Codex. Kolejność kolejki to `Turn.ordinal` (gateway startuje najniższą). Operacje działają tylko na turach `queued`, których gateway jeszcze nie wystartował (jego `StartTurn` nie jest w outboxie); taka tura, albo tura, która już wyszła z kolejki, daje `FailedPrecondition` z powodem („this message already started running”, „this message is no longer in the queue”). Każda zmiana idzie do wszystkich klientów jako `ThreadUpdate.turn`.
 
 | Metoda | Co robi |
