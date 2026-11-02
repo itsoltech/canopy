@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { ModelInfoSchema, ProfileModelsSchema, Provider, ProviderProfileSchema, ProviderInfoSchema, ui } from "@open-agents/contracts";
-import { effectiveEffort, findOption, modelOptions, threadModelOptions, turnOverride } from "../src/lib/features/models/catalog.ts";
+import { effectiveEffort, findOption, modelOptions, shortModelName, threadModelOptions, turnOverride } from "../src/lib/features/models/catalog.ts";
 
 const worker = create(ui.WorkerSchema, {
   id: "w1",
@@ -105,5 +105,16 @@ describe("turnOverride", () => {
   test("another model goes as the override", () => {
     const custom = threadModelOptions(create(ui.ThreadSchema, { workerId: "w1", provider: Provider.CODEX, model: "secret" }), { worker, catalog, threads: [] }).current;
     expect(turnOverride(custom, current, undefined, "")).toEqual({ model: "secret" });
+  });
+});
+
+describe("shortModelName", () => {
+  test("drops the family prefix, keeps other names", () => {
+    expect(shortModelName("GPT-6.1-Sol")).toBe("6.1 Sol");
+    expect(shortModelName("GPT-5.5 Codex")).toBe("5.5 Codex");
+    expect(shortModelName("Claude Opus 5.5")).toBe("Opus 5.5");
+    expect(shortModelName("Default (recommended)")).toBe("Default (recommended)");
+    expect(shortModelName("gpt-oss")).toBe("gpt-oss");
+    expect(shortModelName("Opus")).toBe("Opus");
   });
 });
