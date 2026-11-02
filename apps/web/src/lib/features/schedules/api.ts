@@ -15,6 +15,15 @@ export async function createSchedule(request: ui.CreateScheduleRequest): Promise
   return decode(ui.CreateScheduleResponseSchema, await requestJson("POST", "/api/schedules", encode(ui.CreateScheduleRequestSchema, request))).schedule;
 }
 
+export async function updateSchedule(request: ui.UpdateScheduleRequest): Promise<ui.Schedule | undefined> {
+  const response = await requestJson("PUT", `/api/schedules/${encodeURIComponent(request.scheduleId)}`, encode(ui.UpdateScheduleRequestSchema, request));
+  return decode(ui.UpdateScheduleResponseSchema, response).schedule;
+}
+
+export async function previewSchedule(cron: string, timezone: string): Promise<ui.PreviewScheduleResponse> {
+  return decode(ui.PreviewScheduleResponseSchema, await requestJson("POST", "/api/schedules/preview", { cron, timezone, count: 3 }));
+}
+
 export type ScheduleStatusChange = "active" | "paused" | "cancelled";
 
 export async function setScheduleStatus(scheduleId: string, status: ScheduleStatusChange): Promise<ui.Schedule | undefined> {
