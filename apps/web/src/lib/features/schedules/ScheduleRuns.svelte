@@ -11,7 +11,7 @@
 <div class={["grid gap-2 text-base/6 sm:text-sm/5", className]}>
   <p class="font-medium text-zinc-600 dark:text-zinc-300">Recent runs</p>
   <ul role="list" class="grid gap-1.5 text-zinc-500 dark:text-zinc-400">
-    {#each runs as run (run.scheduledFor?.seconds)}
+    {#each runs as run (`${run.scheduledFor?.seconds}:${run.scheduledFor?.nanos}`)}
       <li class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 tabular-nums">
         {#if run.threadId}
           <a href="/threads/{run.threadId}" class="min-w-0 truncate font-medium text-zinc-700 underline decoration-zinc-950/15 underline-offset-2 hover:text-zinc-950 focus-ring dark:text-zinc-300 dark:decoration-white/20 dark:hover:text-white">Run {run.number} · {overview.threads.get(run.threadId)?.title ?? "Open thread"}</a>

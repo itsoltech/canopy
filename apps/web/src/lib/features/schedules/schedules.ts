@@ -7,6 +7,13 @@ import type { Tone } from "#lib/shared/ui/tone.ts";
 /** A schedule that will not run again (it ran out or was cancelled). */
 export const isFinished = (schedule: ui.Schedule): boolean => schedule.status === "completed" || schedule.status === "cancelled";
 
+/** Terminal (and unknown) states never offer mutating actions. Shared by both row variants. */
+export function scheduleActions(status: string): readonly ("edit" | "pause" | "resume" | "cancel")[] {
+  if (status === "active") return ["edit", "pause", "cancel"];
+  if (status === "paused") return ["edit", "resume", "cancel"];
+  return [];
+}
+
 export function scheduleStatusLook(status: string): { label: string; tone: Tone } {
   switch (status) {
     case "active":
@@ -69,6 +76,8 @@ export function sortSchedules(schedules: Iterable<ui.Schedule>): ui.Schedule[] {
 
 export function upsertSchedule(list: readonly ui.Schedule[], schedule: ui.Schedule): ui.Schedule[] {
   const index = list.findIndex((s) => s.id === schedule.id);
+  // A save response can arrive after the stream already announced a later edit or execution.
+  if (index >= 0 && list[index]!.version > schedule.version) return [...list];
   return index >= 0 ? list.with(index, schedule) : [...list, schedule];
 }
 export const placementLabels: Record<string, string> = {

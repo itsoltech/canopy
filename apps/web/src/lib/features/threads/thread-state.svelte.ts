@@ -186,7 +186,9 @@ export class ThreadState {
 
   /** A schedule created or changed here (also before the stream reports it). */
   upsertSchedule(schedule: ui.Schedule): void {
+    if ((this.schedules.find((s) => s.id === schedule.id)?.version ?? 0) > schedule.version) return;
     if (schedule.threadId === this.thread?.id) this.schedules = upsertSchedule(this.schedules, schedule);
+    else this.schedules = this.schedules.filter((s) => s.id !== schedule.id);
   }
 
   /** A steer sent here or changed (pending → accepted → delivered or queued). */

@@ -1,5 +1,5 @@
 export { SettingsConflict, SettingsStore } from "./settings.ts";
-export { AgentBusStore, toUiDelivery, toUiSchedule, truncate, type BusCallRow, type CallSource, type DeliveryRow, type NewSchedule, type ScheduleRow, type ThreadSummary } from "./agent-bus.ts";
+export { AgentBusStore, ScheduleConflict, toUiDelivery, toUiSchedule, truncate, type BusCallRow, type CallSource, type DeliveryRow, type NewSchedule, type ScheduleRow, type ThreadSummary } from "./agent-bus.ts";
 export { Ingest, type IngestResult, type StoredEvent } from "./ingest.ts";
 export { applyGoalState, GoalStore, toUiGoal, type GoalRow } from "./goals.ts";
 export { GatewayStore, Invalid, NotFound, permissionModeName, permissionModeOf, toUiThread, toUiTurn, type ThreadRow, type TurnRow } from "./store.ts";

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { create } from "@bufbuild/protobuf";
-  import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+  import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
   import { ui } from "@open-agents/contracts";
   import { untrack } from "svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -11,10 +11,13 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
-  import { createSchedule } from "./api.ts";
+  import { createSchedule, updateSchedule } from "./api.ts";
   import { describeCron } from "./schedules.ts";
   import NewThreadScheduleFields from "./NewThreadScheduleFields.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
+  import SchedulePreview from "./SchedulePreview.svelte";
+  import DialogActions from "#lib/shared/ui/DialogActions.svelte";
+  import type { ClassValue } from "svelte/elements";
 
   /**
    * New scheduled task: what to tell the agent, once at a time or repeatedly (a preset or a cron) in a
@@ -25,12 +28,16 @@
     open = $bindable(false),
     threadId: fixedThreadId,
     threads = [],
+    schedule: editing,
     oncreated,
+    class: className,
   }: {
     open?: boolean;
     threadId?: string | undefined;
     threads?: readonly ui.Thread[];
+    schedule?: ui.Schedule | undefined;
     oncreated?: ((schedule: ui.Schedule) => void) | undefined;
+    class?: ClassValue;
   } = $props();
 
   const overview = useOverview();
@@ -48,10 +55,10 @@
     return date;
   };
   const ownZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const zones = (() => {
+  const zones = $derived.by(() => {
     const all = Intl.supportedValuesOf("timeZone");
-    return all.includes(ownZone) ? all : [ownZone, ...all];
-  })();
+    return [...new Set([ownZone, timezone, ...all])];
+  });
   const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   let threadId = $state("");
@@ -74,23 +81,31 @@
   let missedPolicy = $state<"run_once" | "skip">("run_once");
   let busy = $state(false);
   let error = $state<string>();
+  let expectedVersion = $state(0);
 
   // Every opening starts from a fresh form.
   $effect(() => {
     if (!open) return;
     untrack(() => {
-      threadId = fixedThreadId ?? groups[0]?.threads[0]?.id ?? "";
-      target = fixedThreadId || groups.length ? "thread" : "new_thread";
-      newThread = undefined;
-      concurrency = "skip_if_running";
-      name = "";
-      missedPolicy = "run_once";
-      prompt = "";
-      kind = "once";
-      runAt = local(nextHour());
-      frequency = "daily";
-      ends = "never";
-      until = local(new Date(Date.now() + 7 * 86_400_000));
+      expectedVersion = editing?.version ?? 0;
+      threadId = editing?.threadId || fixedThreadId || groups[0]?.threads[0]?.id || "";
+      target = editing ? editing.target === "new_thread" ? "new_thread" : "thread" : fixedThreadId || groups.length ? "thread" : "new_thread";
+      newThread = editing?.newThread ? create(ui.NewThreadScheduleSchema, editing.newThread) : undefined;
+      concurrency = editing?.concurrency || "skip_if_running";
+      name = editing?.configuredName ?? "";
+      missedPolicy = editing?.missedPolicy === "skip" ? "skip" : "run_once";
+      prompt = editing?.prompt ?? "";
+      kind = editing?.kind === "recurring" ? "recurring" : "once";
+      runAt = local(editing?.runAt ? timestampDate(editing.runAt) : nextHour());
+      frequency = editing?.kind === "recurring" ? "custom" : "daily";
+      customCron = editing?.cron ?? "";
+      timezone = editing?.timezone || ownZone;
+      time = "09:00";
+      minute = 0;
+      weekday = "1";
+      ends = editing?.until ? "until" : editing?.maxRuns ? "count" : "never";
+      until = local(editing?.until ? timestampDate(editing.until) : new Date(Date.now() + 7 * 86_400_000));
+      maxRuns = editing?.maxRuns || 5;
       error = undefined;
     });
   });
@@ -117,13 +132,13 @@
     const destination = { target, threadId: target === "thread" ? threadId : "", ...(target === "new_thread" && newThread && { newThread }), concurrency, name };
     if (!prompt.trim()) return "Tell the agent what to do.";
     if (kind === "once") {
-      const date = new Date(runAt);
+      const date = editing?.runAt && runAt === local(timestampDate(editing.runAt)) ? timestampDate(editing.runAt) : new Date(runAt);
       if (Number.isNaN(date.getTime())) return "Choose when to run it.";
-      if (date.getTime() < Date.now()) return "Choose a time in the future.";
+      if (date.getTime() < Date.now() - 60_000) return "Choose a time in the future.";
       return create(ui.CreateScheduleRequestSchema, { ...destination, prompt: prompt.trim(), when: { case: "runAt", value: timestampFromDate(date) }, missedPolicy });
     }
     if (cron.split(" ").length !== 5) return "A cron has five fields: minute, hour, day of month, month, day of week.";
-    const end = ends === "until" ? new Date(until) : undefined;
+    const end = ends === "until" ? editing?.until && until === local(timestampDate(editing.until)) ? timestampDate(editing.until) : new Date(until) : undefined;
     if (end && (Number.isNaN(end.getTime()) || end.getTime() < Date.now())) return "The end date must be in the future.";
     if (ends === "count" && !(maxRuns >= 1)) return "Run it at least once.";
     return create(ui.CreateScheduleRequestSchema, {
@@ -147,11 +162,13 @@
     busy = true;
     error = undefined;
     try {
-      const schedule = await createSchedule(built);
+      const schedule = editing
+        ? await updateSchedule(create(ui.UpdateScheduleRequestSchema, { scheduleId: editing.id, expectedVersion, configuration: built }))
+        : await createSchedule(built);
       if (schedule) oncreated?.(schedule);
       open = false;
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Could not create the schedule";
+      error = cause instanceof Error ? cause.message : "Could not save the schedule";
     } finally {
       busy = false;
     }
@@ -161,7 +178,7 @@
     "flex flex-1 cursor-pointer items-center justify-center rounded-md px-3 py-1.5 text-base/6 font-medium text-zinc-600 has-checked:bg-white has-checked:text-zinc-950 has-checked:shadow-xs has-checked:ring-1 has-checked:ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1 sm:text-sm/6 dark:text-zinc-400 dark:has-checked:bg-white/10 dark:has-checked:text-white dark:has-checked:shadow-none dark:has-checked:ring-white/10";
 </script>
 
-<Dialog bind:open title="Schedule a task" description="Send a message at a set time, in an existing thread or a fresh thread for each run." size="lg">
+<Dialog bind:open title={editing ? "Edit scheduled task" : "Schedule a task"} description={editing ? "Changes apply to work that has not started. Editing keeps this task’s status and run history." : "Send a message at a set time, in an existing thread or a fresh thread for each run."} size="lg" class={className}>
   <form class="grid gap-5" onsubmit={submit} novalidate>
     <Field label="Run the task">
       <Select name="target" bind:value={target}>
@@ -171,6 +188,8 @@
     </Field>
     {#if target === "new_thread"}
       <GrowIn><NewThreadScheduleFields bind:value={newThread} /></GrowIn>
+    {:else if editing?.target === "thread"}
+      <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">In {overview.threads.get(editing.threadId)?.title || "the original thread"}. To use another existing thread, create a separate task.</p>
     {:else if !fixedThreadId}
       <Field label="Thread">
         <Select name="threadId" bind:value={threadId}>
@@ -251,8 +270,8 @@
               <Input type="datetime-local" name="until" bind:value={until} min={local(new Date())} />
             </Field>
           {:else if ends === "count"}
-            <Field label="Runs">
-              <Input type="number" name="maxRuns" min="1" bind:value={maxRuns} />
+            <Field label="Runs" description={editing?.runs ? `${editing.runs} runs already completed. This is the total limit.` : undefined}>
+              <Input type="number" name="maxRuns" min={(editing?.runs ?? 0) + 1} bind:value={maxRuns} />
             </Field>
           {/if}
         </div>
@@ -260,6 +279,7 @@
           <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
             {describeCron(cron)}{describeCron(cron) === cron ? "" : ` · ${cron}`} in {timezone}. Runs at least 5 minutes apart.
           </p>
+          <SchedulePreview {cron} {timezone} />
         {/if}
       {/if}
     </fieldset>
@@ -280,9 +300,9 @@
     </Field>
 
     {#if error}<Alert tone="error">{error}</Alert>{/if}
-    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+    <DialogActions>
       <Button onclick={() => (open = false)}>Cancel</Button>
-      <Button type="submit" variant="primary" icon="clock" loading={busy}>Schedule</Button>
-    </div>
+      <Button type="submit" variant="primary" icon={editing ? "check" : "clock"} loading={busy}>{editing ? "Save changes" : "Schedule"}</Button>
+    </DialogActions>
   </form>
 </Dialog>
