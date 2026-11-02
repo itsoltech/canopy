@@ -145,6 +145,8 @@ Czysta funkcja `authorizeBusCall` (`packages/domain`), wywoływana przez gateway
 - **Fork** wymaga tego samego dostawcy. Dziedziczy historię do ostatniej zakończonej tury.
 - Zawsze w imieniu właściciela projektu.
 
+**Wspomniane wątki.** Wątek, który użytkownik wspomniał w wiadomościach danego wątku (wzmianka `#`, [ui-api.md](ui-api.md#wzmianki)), ten wątek może czytać (`get_thread`, `read_thread`) także spoza swojego drzewa; tylko wątki tego samego właściciela, tylko odczyt (wysyłanie i sterowanie nadal w obrębie drzewa). Gateway ustala to przy każdym wywołaniu z `turns.input->'mentions'` i `turn_steers.input->'mentions'` wątku wołającego (`ThreadNode.mentioned`).
+
 ## 7. Przepływ: spawn z powiadomieniem
 
 ```mermaid

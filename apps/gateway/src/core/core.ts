@@ -5,6 +5,11 @@ import {
   ForkSpecSchema,
   GoalDirective,
   InteractionResponseSchema,
+  MentionCatalogSchema,
+  MentionKind,
+  MentionSchema,
+  type Mention,
+  type MentionCatalog,
   ItemStatus,
   PermissionMode,
   Provider,
@@ -26,12 +31,17 @@ import {
   DEFAULT_ATTACHMENT_LIMITS,
   DEFAULT_BUS_LIMITS,
   formatSize,
+  checkMentions,
+  composeMessage,
+  fuzzyRank,
   isFinished,
+  MentionError,
   storedSidebarWidth,
   withAttachmentsNote,
   type AttachmentLimits,
 } from "@open-agents/domain";
 import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
+import { isPlatformCommand, mentionsFromJson, mentionsToJson, PLATFORM_COMMANDS, workerPath } from "./mentions.ts";
 import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
 import {
   AgentBusStore,
@@ -102,6 +112,9 @@ const PREVIEW_TYPES: ReadonlySet<string> = new Set(["image/png", "image/jpeg", "
 
 type TurnInputJson = TurnRow["input"];
 
+/** How long the gateway reuses a worker's mention catalog (refresh skips it; the worker keeps its own). */
+const CATALOG_TTL_MS = 30_000;
+
 /** Where a model is chosen: an existing thread, or a new one (workspace, provider, profile). */
 type ModelScope = { thread: ThreadRow } | { workspaceId: string; provider: Provider; profileId: string };
 
@@ -133,6 +146,8 @@ export class GatewayCore {
   readonly #journalIds = new Map<string, string>();
   /** Threads whose events failed to store on a connection: skipped until the worker reconnects and resends. */
   readonly #blocked = new WeakMap<WorkerConnection, Set<string>>();
+  /** Mention catalogs by worker + provider + profile + folder (the composer asks on every popup). */
+  readonly #catalogs = new Map<string, { at: number; catalog: MentionCatalog }>();
   /** Previews a worker is uploading (BlobChunk), by sha256, until their last chunk. */
   readonly #uploads = new WeakMap<WorkerConnection, Map<string, { chunks: Uint8Array[]; size: number; mimeType: string }>>();
   #sweepTimer: ReturnType<typeof setInterval> | undefined;
@@ -505,6 +520,7 @@ export class GatewayCore {
               input: {
                 text: turn.input.text ?? "",
                 authorUserId: this.#options.userId,
+                mentions: mentionsFromJson(turn.input.delivered),
                 attachments: (turn.input.attachments ?? []).map((a) => ({
                   attachmentId: a.id,
                   sha256: a.sha256,
@@ -596,26 +612,34 @@ export class GatewayCore {
     await this.#checkModel(where, request.model, request.effort);
     // A model without efforts keeps none as the thread's default.
     const effort = turnEffort((await this.#profileModels(where)).models, request.model, request.effort);
-    if (request.initialAttachmentIds.length === 0) {
+    if (request.initialAttachmentIds.length === 0 && request.initialMentions.length === 0) {
       const row = await this.#run((s) => s.createThread(this.#options.userId, effort === request.effort ? request : { ...request, effort }));
       await this.#startThread(row);
       return toUiThread(row);
     }
-    // With attachments: checked first (no thread for a message that cannot go), then the first message as a turn.
+    // With attachments or mentions: checked first (no thread for a message that cannot go), then the first message as a turn.
     const projects = await this.#run((s) => s.listProjects(this.#options.userId));
-    const workerId = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId)?.workerId ?? "";
-    const files = await this.#messageAttachments(request.initialAttachmentIds, workerId);
+    const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId);
+    const files = request.initialAttachmentIds.length > 0 ? await this.#messageAttachments(request.initialAttachmentIds, workspace?.workerId ?? "") : undefined;
+    const { mentions, goal } = await this.#messageMentions({ cwd: request.cwd || workspace?.rootPath || "" }, request.initialMessage, request.initialMentions);
+    if (goal !== undefined && files) throw new InvalidError("a /goal message cannot carry attachments");
     const row = await this.#run((s) => s.createThread(this.#options.userId, { ...request, effort, initialMessage: "" }));
-    await this.#run((s) =>
-      s.enqueueTurn({
-        threadId: row.id,
-        text: request.initialMessage,
-        userId: this.#options.userId,
-        clientRequestId: request.clientRequestId,
-        input: files.input(row.id, request.initialMessage),
-      }),
-    );
+    if (goal === undefined) {
+      const provider = request.provider === Provider.CLAUDE ? "claude" : "codex";
+      const input = this.#composeInput(provider, request.initialMessage, mentions, files?.input(row.id, request.initialMessage));
+      await this.#run((s) =>
+        s.enqueueTurn({
+          threadId: row.id,
+          text: request.initialMessage,
+          userId: this.#options.userId,
+          clientRequestId: request.clientRequestId,
+          ...(input && { input }),
+        }),
+      );
+    }
     await this.#startThread(row);
+    // A /goal first message: the new thread's goal (Claude: its /goal turn; Codex: thread/goal/set after the thread).
+    if (goal !== undefined) await this.setGoal(create(ui.SetGoalRequestSchema, { threadId: row.id, action: "set", objective: goal }));
     return toUiThread(row);
   }
 
@@ -741,6 +765,125 @@ export class GatewayCore {
     return this.#options.runtime.runPromise(AttachmentStore.use(use));
   }
 
+  // ------------------------------------------------------------------ mentions (docs/ui-api.md, "Wzmianki")
+
+  /** Commands, skills and plugins of the scope's provider (worker, cached CATALOG_TTL_MS), the platform's commands first. */
+  async listMentionCatalog(request: ui.ListMentionCatalogRequest): Promise<ui.ListMentionCatalogResponse> {
+    const scope = await this.#mentionScope(request.scope);
+    const key = `${scope.workerId}|${scope.provider}|${scope.profileId}|${scope.cwd}`;
+    const cached = this.#catalogs.get(key);
+    let catalog = !request.refresh && cached && Date.now() - cached.at < CATALOG_TTL_MS ? cached.catalog : undefined;
+    if (!catalog) {
+      const result = await this.#workerQuery(
+        scope.workerId,
+        { case: "listMentionCatalog", value: { provider: scope.provider, profileId: scope.profileId, cwd: scope.cwd, refresh: request.refresh } },
+        45_000,
+      );
+      catalog = result.mentionCatalog ?? create(MentionCatalogSchema, { provider: scope.provider, profileId: scope.profileId, cwd: scope.cwd });
+      this.#catalogs.set(key, { at: Date.now(), catalog });
+      if (this.#catalogs.size > 200) this.#catalogs.delete(this.#catalogs.keys().next().value ?? "");
+    }
+    // Goals need a worker thread of either provider; the platform runs /goal itself (SetGoal).
+    const entries = [...PLATFORM_COMMANDS, ...catalog.entries.filter((e) => !PLATFORM_COMMANDS.some((p) => p.kind === e.kind && p.name === e.name))];
+    return create(ui.ListMentionCatalogResponseSchema, { catalog: { ...catalog, entries } });
+  }
+
+  /** Fuzzy file search in the scope's folder on its worker. */
+  async searchFiles(request: ui.SearchFilesRequest): Promise<ui.SearchFilesResponse> {
+    const scope = await this.#mentionScope(request.scope);
+    const result = await this.#workerQuery(scope.workerId, { case: "searchFiles", value: { cwd: scope.cwd, query: request.query, limit: request.limit } }, 20_000);
+    return create(ui.SearchFilesResponseSchema, { ...(result.fileSearch && { result: result.fileSearch }) });
+  }
+
+  /** The user's threads by title (fuzzy), best match first, the most recent activity first among equals. */
+  async searchThreads(request: ui.SearchThreadsRequest): Promise<ui.SearchThreadsResponse> {
+    const limit = Math.min(request.limit || 20, 50);
+    const activity = (t: ui.Thread) => (t.lastActivityAt ? timestampDate(t.lastActivityAt).getTime() : 0);
+    const threads = (await this.#run((s) => s.listThreads(this.#options.userId, "")))
+      .map(toUiThread)
+      .filter((t) => t.id !== request.excludeThreadId)
+      .sort((a, b) => activity(b) - activity(a));
+    const ranked = fuzzyRank(request.query, threads, (t) => [t.title || "Untitled"], limit);
+    return create(ui.SearchThreadsResponseSchema, { threads: ranked.map((r) => r.item) });
+  }
+
+  /** Worker, provider, profile and folder of a thread, or of a new thread in a workspace. */
+  async #mentionScope(scope: ui.MentionScope | undefined): Promise<{ workerId: string; provider: Provider; profileId: string; cwd: string }> {
+    if (scope?.threadId) {
+      const thread = await this.#run((s) => s.thread(scope.threadId));
+      if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
+      if (!thread.worker_id || thread.runtime !== "worker") throw new InvalidError("this thread has no worker");
+      return {
+        workerId: thread.worker_id,
+        provider: thread.provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
+        profileId: thread.provider_profile_id || "native",
+        cwd: thread.cwd ?? "",
+      };
+    }
+    const projects = await this.#run((s) => s.listProjects(this.#options.userId));
+    const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === scope?.workspaceId);
+    if (!workspace) throw new InvalidError("workspace not found");
+    return {
+      workerId: workspace.workerId,
+      provider: scope?.provider || Provider.CODEX,
+      profileId: scope?.providerProfileId || "native",
+      cwd: scope?.cwd || workspace.rootPath,
+    };
+  }
+
+  /** A read-only command to an online worker; offline = Unavailable with a message the popup shows. */
+  async #workerQuery(workerId: string, kind: CommandInit, timeoutMs: number): Promise<CommandResult> {
+    const connection = this.link.connections.get(workerId);
+    if (!connection?.isOpen) {
+      const worker = (await this.#run((s) => s.listWorkers(this.online))).find((w) => w.id === workerId);
+      throw new UnavailableError(`${worker?.name || "the worker"} is offline`);
+    }
+    const result = await connection.sendCommand(kind, timeoutMs);
+    if (!result.ok) throw new InvalidError(result.errorMessage || result.errorCode);
+    return result;
+  }
+
+  /**
+   * A user's message with mentions: checked against the text, files resolved to their path on the worker, threads
+   * to the user's own (their title as the label). A platform command (/goal) is returned apart: the rest of the text
+   * is its argument.
+   */
+  async #messageMentions(thread: { id?: string; cwd: string }, text: string, mentions: readonly Mention[]): Promise<{ mentions: Mention[]; goal?: string }> {
+    if (mentions.length === 0) return { mentions: [] };
+    let checked: Mention[];
+    try {
+      checked = checkMentions(text, mentions);
+    } catch (error) {
+      if (error instanceof MentionError) throw new InvalidError(error.message);
+      throw error;
+    }
+    const command = checked.find(isPlatformCommand);
+    if (command) {
+      if (command.name !== "goal") throw new InvalidError(`unknown platform command /${command.name}`);
+      return { mentions: [], goal: `${text.slice(0, command.start)}${text.slice(command.end)}`.replace(/\s+/g, " ").trim() };
+    }
+    const resolved: Mention[] = [];
+    for (const m of checked) {
+      if (m.kind === MentionKind.FILE) {
+        resolved.push(create(MentionSchema, { ...m, path: workerPath(thread.cwd, m.name) }));
+      } else if (m.kind === MentionKind.THREAD) {
+        const target = await this.#run((s) => s.thread(m.name)).catch(() => undefined);
+        if (!target || target.owner_user_id !== this.#options.userId || target.id === thread.id) throw new InvalidError("a mentioned thread was not found");
+        resolved.push(create(MentionSchema, { ...m, label: target.title || "Untitled" }));
+      } else {
+        resolved.push(m);
+      }
+    }
+    return { mentions: resolved };
+  }
+
+  /** The turn (or steer) input of a message with mentions: composed for the provider after the other notes. */
+  #composeInput(provider: string, message: string, mentions: readonly Mention[], base: TurnInputJson | undefined): TurnInputJson | undefined {
+    if (mentions.length === 0) return base;
+    const composed = composeMessage(provider === "claude" ? Provider.CLAUDE : Provider.CODEX, message, mentions, base?.note ? [base.note] : []);
+    return { ...base, text: composed.text, note: composed.note, message, mentions: mentionsToJson(mentions), delivered: mentionsToJson(composed.mentions) };
+  }
+
   /**
    * The worker's last report (ConfigApplied) must offer the provider and the profile for it. A worker that
    * has not reported yet is not judged: the thread waits for it like for an offline worker.
@@ -790,7 +933,7 @@ export class GatewayCore {
    * A message: the next turn (queue), or into the running turn (steer; without one it is queued too).
    * Idempotent by client_request_id across both.
    */
-  async sendMessage(request: ui.SendMessageRequest): Promise<{ turn?: ui.Turn; steer?: ui.Steer }> {
+  async sendMessage(request: ui.SendMessageRequest): Promise<{ turn?: ui.Turn; steer?: ui.Steer; goal?: ui.Goal }> {
     const { threadId, clientRequestId } = request;
     const thread = await this.#run((s) => s.thread(threadId));
     if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
@@ -800,6 +943,12 @@ export class GatewayCore {
     if (existingTurn) return { turn: toUiTurn(existingTurn) };
     const files = request.attachmentIds.length > 0 ? await this.#messageAttachments(request.attachmentIds, thread.worker_id ?? "") : undefined;
     if (!request.text.trim() && !files) throw new InvalidError("message is empty");
+    const { mentions, goal } = await this.#messageMentions({ id: thread.id, cwd: thread.cwd ?? "" }, request.text, request.mentions);
+    if (goal !== undefined) {
+      // The platform's /goal: the rest of the message is the objective (docs/goals.md).
+      if (files) throw new InvalidError("a /goal message cannot carry attachments");
+      return { goal: await this.setGoal(create(ui.SetGoalRequestSchema, { threadId, action: "set", objective: goal })) };
+    }
     // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
     await this.#checkModel({ thread }, request.model || thread.settings.model || "", request.effort);
     const permissionMode = checkedPermissionMode(request.permissionMode);
@@ -807,6 +956,7 @@ export class GatewayCore {
     if (request.delivery === ui.MessageDelivery.STEER && !files) {
       const running = await this.#run((s) => s.runningTurn(threadId));
       if (running && thread.worker_id) {
+        const steerInput = this.#composeInput(thread.provider, request.text, mentions, undefined);
         const steer = await this.#steers((s) =>
           s.create({
             threadId,
@@ -817,12 +967,14 @@ export class GatewayCore {
             model: request.model,
             effort: request.effort,
             permissionMode,
+            ...(steerInput && { input: { ...steerInput, text: steerInput.text ?? request.text } }),
           }),
         );
         await this.#sendSteer(steer.id);
         return { steer: toUiSteer(await this.#steers((s) => s.steer(steer.id))) };
       }
     }
+    const input = this.#composeInput(thread.provider, request.text, mentions, files?.input(threadId, request.text));
     const turn = await this.#run((s) =>
       s.enqueueTurn({
         threadId,
@@ -832,7 +984,7 @@ export class GatewayCore {
         model: request.model,
         effort: request.effort,
         permissionMode,
-        ...(files && { input: files.input(threadId, request.text) }),
+        ...(input && { input }),
       }),
     );
     const update = toUiTurn(turn);
@@ -1052,7 +1204,12 @@ export class GatewayCore {
             threadId: steer.thread_id,
             turnId: steer.turn_id,
             inputId: steer.id,
-            input: { text: steer.input.text, authorUserId: steer.author_user_id ?? "", authorAgentId: steer.source_thread_id ?? "" },
+            input: {
+              text: steer.input.text,
+              authorUserId: steer.author_user_id ?? "",
+              authorAgentId: steer.source_thread_id ?? "",
+              mentions: mentionsFromJson(steer.input.delivered),
+            },
           },
         },
       },

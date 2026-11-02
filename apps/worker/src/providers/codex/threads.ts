@@ -12,6 +12,7 @@ import {
   type ForkSpec,
   type InteractionRequest,
   type InteractionResponse,
+  type Mention,
   type ThreadEvent,
   type ThreadSpec,
   type UserInput,
@@ -27,7 +28,10 @@ import { SteerError, type TurnSettings } from "../turn-input.ts";
 import { toolCallId } from "../tool-call-id.ts";
 import { CodexAppServer, type ServerRequestHandler } from "./app-server.ts";
 import { codexThreadProvider, type CodexAppServerLaunch } from "./launch.ts";
+import { codexUserInput } from "./input.ts";
 import { CodexEventMapper } from "./mapping.ts";
+import type { MentionEntryInit } from "../../mentions/catalog.ts";
+import { codexAppEntries, codexPluginEntries, codexSkillEntries } from "./catalog.ts";
 import { codexPermissions, codexTurnPermissions } from "./permissions.ts";
 import { RolloutTail } from "./rollout.ts";
 import { RpcError } from "./rpc.ts";
@@ -70,6 +74,8 @@ export interface CodexThreadsOptions {
   viewImage?(threadId: string, path: string): Promise<ViewImageResult>;
   /** Adds what the transcript shows of an event (image previews) before it is journaled. */
   enrich?(init: ThreadEventInit): Promise<ThreadEventInit>;
+  /** Account connectors (Codex apps) are on for this worker (NativeToolsConfig.connectors): list them for mentions. */
+  readonly connectors?: boolean;
 }
 
 /**
@@ -126,6 +132,8 @@ export class CodexThreads extends Context.Service<
     steer(threadId: string, turnId: string, inputId: string, input: UserInput): Effect.Effect<void, SteerError>;
     /** Models a profile offers (model/list, plus the proxy's models for a CLIProxyAPI profile). */
     listModels(profileId: string): Effect.Effect<{ models: ModelInit[]; detail?: string }, CodexThreadError>;
+    /** Skills, plugins and apps for the composer in a folder (codex/catalog.ts); refresh = re-scan skills. */
+    listMentionCatalog(cwd: string, refresh: boolean): Effect.Effect<{ entries: MentionEntryInit[]; notes: string[] }, CodexThreadError>;
     /** Sets, pauses, resumes, completes or clears the thread's Codex goal (docs/goals.md). */
     setGoal(spec: ThreadSpec, directive: GoalDirective, objective: string, tokenBudget: bigint): Effect.Effect<void, CodexThreadError>;
     /** Terminates a background process (task id = Codex process id). */
@@ -170,9 +178,28 @@ interface Entry {
   readonly finishedTurns: Set<string>;
   /** Steered inputs (SteerTurn.input_id) accepted by Codex. */
   readonly steered: Set<string>;
+  /** Mentions of the platform's inputs by client id (turn id, steer input id), put on Codex's userMessage echo. */
+  readonly mentions: Map<string, readonly Mention[]>;
   /** Codex turns the platform asked to interrupt (their interruption is the user's). */
   readonly interrupting: Set<string>;
   readonly rolloutPath: string | null;
+}
+
+/**
+ * Codex echoes the input as a userMessage item with the platform's client id; the transcript keeps its mentions so the
+ * UI shows them as chips (the echo's text is the input text the ranges point into).
+ */
+export function withUserMentions(init: ThreadEventInit, mentions: ReadonlyMap<string, readonly Mention[]>): ThreadEventInit {
+  const body = init.body;
+  if (body?.case !== "itemStarted" && body?.case !== "itemCompleted") return init;
+  const content = body.value?.item?.content;
+  if (content?.case !== "userMessage" || !content.value?.clientId) return init;
+  const found = mentions.get(content.value.clientId);
+  if (!found) return init;
+  return {
+    ...init,
+    body: { ...body, value: { ...body.value, item: { ...body.value?.item, content: { ...content, value: { ...content.value, mentions: [...found] } } } } },
+  } as ThreadEventInit;
 }
 
 /** thread/resume of a thread without a rollout file (it never had a turn): "no rollout found for thread id …". */
@@ -230,6 +257,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         rollout,
         finishedTurns: new Set(),
         steered: new Set(),
+        mentions: new Map(),
         interrupting,
         rolloutPath,
       };
@@ -284,7 +312,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
               .pipe(Effect.ignore);
           }
         }
-        return yield* Effect.forEach(inits, (init) =>
+        return yield* Effect.forEach(inits.map((init) => withUserMentions(init, entry.mentions)), (init) =>
           (options.enrich ? Effect.promise(() => options.enrich!(init)) : Effect.succeed(init)).pipe(
             Effect.flatMap((enriched) => journal.append(entry.platformId, enriched)),
             Effect.tap((event) => Effect.sync(() => options.publish(event))),
@@ -506,11 +534,12 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         if (known) return known; // redelivered StartTurn: the turn already exists
         const chosen = yield* turnSettings(spec, settings);
         entry.pendingTurns.push(turnId);
+        if (input.mentions.length > 0) entry.mentions.set(turnId, input.mentions);
         const response = yield* codex
           .request("turn/start", {
             threadId: entry.codexId,
             clientUserMessageId: turnId,
-            input: [{ type: "text", text: input.text, text_elements: [] }],
+            input: codexUserInput(input),
             ...chosen,
           })
           .pipe(
@@ -543,13 +572,14 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         if (!entry || !codexTurn || entry.finishedTurns.has(codexTurn)) {
           return yield* new SteerError({ code: "STEER_NOT_RUNNING", message: "the turn is not running on this worker" });
         }
+        if (input.mentions.length > 0) entry.mentions.set(inputId, input.mentions);
         // expectedTurnId: Codex refuses when another turn (or none) is active by now.
         yield* codex
           .request("turn/steer", {
             threadId: entry.codexId,
             expectedTurnId: codexTurn,
             clientUserMessageId: inputId,
-            input: [{ type: "text", text: input.text, text_elements: [] }],
+            input: codexUserInput(input),
           })
           .pipe(
             Effect.mapError((error) =>
@@ -573,6 +603,24 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           Effect.map((served) => ({ models: codexProxyModels(models, served) })),
           Effect.catch((error) => Effect.succeed({ models, detail: `the proxy's models are unknown: ${error instanceof Error ? error.message : String(error)}` })),
         );
+      }),
+      listMentionCatalog: Effect.fn("CodexThreads.listMentionCatalog")(function* (cwd: string, refresh: boolean) {
+        const skills = codexSkillEntries(yield* codex.request("skills/list", { cwds: [cwd], forceReload: refresh }).pipe(Effect.mapError(fail("", "skills/list"))));
+        const notes = [...skills.notes, "commands: Codex runs no slash commands from turn input (its /commands belong to the Codex TUI)"];
+        const plugins = yield* codex.request("plugin/list", { cwds: [cwd] }).pipe(
+          Effect.map(codexPluginEntries),
+          Effect.catch((error) => Effect.sync(() => (notes.push(`plugins: ${error.message}`), []))),
+        );
+        let apps: MentionEntryInit[] = [];
+        if (options.connectors) {
+          apps = yield* codex.request("app/list", { forceRefetch: refresh }).pipe(
+            Effect.map(codexAppEntries),
+            Effect.catch((error) => Effect.sync(() => (notes.push(`apps: ${error.message}`), []))),
+          );
+        } else {
+          notes.push("apps: account connectors are off on this worker");
+        }
+        return { entries: [...skills.entries, ...plugins, ...apps], notes };
       }),
       setGoal: Effect.fn("CodexThreads.setGoal")(function* (spec: ThreadSpec, directive: GoalDirective, objective: string, tokenBudget: bigint) {
         const entry = yield* ensureLoaded(spec);

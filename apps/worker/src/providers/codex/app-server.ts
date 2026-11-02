@@ -31,6 +31,9 @@ export interface CodexMethods {
   "thread/backgroundTerminals/list": { params: v2.ThreadBackgroundTerminalsListParams; result: v2.ThreadBackgroundTerminalsListResponse };
   "thread/backgroundTerminals/terminate": { params: v2.ThreadBackgroundTerminalsTerminateParams; result: v2.ThreadBackgroundTerminalsTerminateResponse };
   "account/login/start": { params: v2.LoginAccountParams; result: v2.LoginAccountResponse };
+  "skills/list": { params: v2.SkillsListParams; result: v2.SkillsListResponse };
+  "plugin/list": { params: v2.PluginListParams; result: v2.PluginListResponse };
+  "app/list": { params: v2.AppsListParams; result: v2.AppsListResponse };
 }
 
 /** Answers a server request (approval, user input, dynamic tool call). Throw RpcError to answer with an error. */

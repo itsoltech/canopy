@@ -2,6 +2,8 @@ import { ui } from "@open-agents/contracts";
 import type { PermissionModeKey } from "./labels.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
+import type { Mention } from "@open-agents/contracts";
+import { mentionsToWire } from "#lib/features/mentions/wire.ts";
 
 /** Browser-side calls to the BFF (same origin, JSON). */
 const post = (path: string, body: unknown) => requestJson("POST", path, body);
@@ -22,10 +24,18 @@ export async function sendMessage(
   turn: { model?: string; effort?: string; permissionMode?: PermissionModeKey } = {},
   delivery: Delivery = "queue",
   attachmentIds: readonly string[] = [],
+  mentions: readonly Mention[] = [],
 ): Promise<ui.SendMessageResponse> {
   return decode(
     ui.SendMessageResponseSchema,
-    await post(`${threadPath(threadId)}/messages`, { text, clientRequestId, ...turn, delivery, ...(attachmentIds.length > 0 && { attachmentIds }) }),
+    await post(`${threadPath(threadId)}/messages`, {
+      text,
+      clientRequestId,
+      ...turn,
+      delivery,
+      ...(attachmentIds.length > 0 && { attachmentIds }),
+      ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }),
+    }),
   );
 }
 

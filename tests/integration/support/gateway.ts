@@ -21,6 +21,7 @@ import {
   type AgentToolResult,
   type Command,
   type InputAttachment,
+  type UserInput,
   type InteractionRequest,
   type ProfileModelsSchema,
   type WorkerConfig,
@@ -83,6 +84,8 @@ export class ScriptedWorker {
   }[] = [];
   /** Inputs of the turns this worker ran, per thread. */
   readonly inputs = new Map<string, string[]>();
+  /** The whole input of each started turn (and steer), by turn id (steer: input id). */
+  readonly started = new Map<string, UserInput>();
   /** Attachments of each started turn, by turn id. */
   readonly attachments = new Map<string, InputAttachment[]>();
   /** Model and effort each turn was started with, by turn id. */
@@ -248,6 +251,7 @@ export class ScriptedWorker {
             break;
           }
           this.steered.set(inputId, input!.text);
+          this.started.set(inputId, input!);
           reply(true);
           if (this.steerMode === "drop") {
             this.emit(threadId, turnId, {
@@ -267,6 +271,7 @@ export class ScriptedWorker {
           const threadId = thread!.threadId;
           this.inputs.set(threadId, [...(this.inputs.get(threadId) ?? []), input!.text]);
           this.attachments.set(turnId, input!.attachments);
+          this.started.set(turnId, input!);
           this.turnSettings.set(turnId, { model, effort });
           this.turnModes.set(turnId, { turn: permissionMode, thread: thread!.permissionMode });
           reply(true);

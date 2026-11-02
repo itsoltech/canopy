@@ -4,6 +4,7 @@
   import { useField } from "./field.ts";
   import Icon from "./Icon.svelte";
   import Input from "./Input.svelte";
+  import { listboxHeadingClasses, listboxOptionClasses } from "./listbox.ts";
   import Popover from "./Popover.svelte";
   import Spinner from "./Spinner.svelte";
 
@@ -181,7 +182,7 @@
              inside: a grid row of an overflow-hidden item may shrink to nothing in the scrolling list. -->
         <li
           role="presentation"
-          class={["sticky top-0 z-10 bg-white pt-2 pb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:bg-zinc-900 dark:text-zinc-400", inline ? "-mx-1.5 px-4" : "-mx-1 px-3.5"]}
+          class={[listboxHeadingClasses, inline ? "-mx-1.5 px-4" : "-mx-1 px-3.5"]}
         >
           <div class="truncate">{group.label}</div>
         </li>
@@ -196,7 +197,7 @@
           role="option"
           aria-selected={selected}
           data-active={isActive || undefined}
-          class="group/option relative cursor-default scroll-mt-9 rounded-lg px-2.5 py-2 text-base/6 text-zinc-800 select-none data-active:bg-zinc-950/5 data-active:text-zinc-950 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:data-active:bg-white/8 dark:data-active:text-white"
+          class={["group/option relative", listboxOptionClasses]}
           onpointerdown={(event) => event.preventDefault()}
           onpointermove={() => (activeKey = key(item))}
           onclick={() => choose(item)}
