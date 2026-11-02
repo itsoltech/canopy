@@ -369,7 +369,7 @@ export class WorkerHost {
    */
   async shutdown(): Promise<number> {
     this.#shuttingDown = true;
-    const before = (await this.#options.runtime.runPromise(Journal.use((j) => j.openBackgroundTasks()))).length;
+    const before = await this.#options.runtime.runPromise(Journal.use((j) => j.beginShutdown()));
     await this.close();
     return before;
   }

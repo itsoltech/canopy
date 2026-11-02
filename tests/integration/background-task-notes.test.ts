@@ -6,6 +6,7 @@
  * the agent's tools (list_background_tasks, get_background_task, stop_background_task).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { BackgroundTaskKind, ItemStatus, PermissionMode, Provider, ThreadEventSchema, TurnOrigin, TurnOutcome, ui } from "@open-agents/contracts";
@@ -13,6 +14,7 @@ import { dockerAvailable } from "@open-agents/db/testing";
 import { SqlClient } from "effect/sql";
 import { Effect } from "effect";
 import { eventually, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
+import { ClaudeEventMapper, startsTurn } from "../../apps/worker/src/providers/claude/mapping.ts";
 
 const GRACE_MS = 1_500;
 
@@ -181,6 +183,42 @@ describe.skipIf(!dockerAvailable)("background task notes (gateway)", () => {
     await Bun.sleep(300);
     expect(await noteTurns(threadId)).toHaveLength(1);
     expect(claudeWorker.commands.filter((c) => c.case === "startTurn" && c.value.thread?.threadId === threadId)).toHaveLength(1);
+  }, 30_000);
+
+  test("Claude resume: a task-notification acknowledgement before the note's answer keeps one note turn", async () => {
+    const threadId = await newThread(Provider.CLAUDE);
+    await startTask(claudeWorker, threadId, "bg:old-task", "old-task");
+    const messages = readFileSync(new URL("../../apps/worker/src/providers/claude/fixtures/background-resume-ack.jsonl", import.meta.url), "utf8")
+      .trim().split("\n").map((line) => JSON.parse(line) as Parameters<ClaudeEventMapper["map"]>[0]);
+    claudeWorker.handlers.set("startTurn", (value, reply) => {
+      const { turnId } = value as { turnId: string };
+      reply(true);
+      claudeWorker.emit(threadId, turnId, { case: "turnStarted", value: { origin: TurnOrigin.COMMAND } });
+      const mapper = new ClaudeEventMapper(turnId);
+      // The real resumed-session order, through the same mapper and turn-start classification as the adapter.
+      for (const message of messages) {
+        if (!mapper.turnId && startsTurn(message)) {
+          const providerTurn = Bun.randomUUIDv7();
+          mapper.beginTurn(providerTurn);
+          claudeWorker.emit(threadId, providerTurn, { case: "turnStarted", value: { origin: TurnOrigin.PROVIDER } });
+        }
+        for (const init of mapper.map(message)) claudeWorker.emit(threadId, init.turnId ?? "", init.body, init.rawJson);
+      }
+    });
+    try {
+      claudeWorker.emit(threadId, "", { case: "itemCompleted", value: { item: ended("bg:old-task", "old-task", ItemStatus.INTERRUPTED, { kind: BackgroundTaskKind.SHELL, stopReason: "worker_shutdown" }) } });
+      const state = await eventually(() => snapshot(threadId), (s) => s.items.some((i) => i.item?.content.case === "agentMessage") && s.turns.every((t) => t.status === "completed"));
+      const note = state.turns.find((t) => t.trigger === "background_task")!;
+      expect(note.status).toBe("completed");
+      expect(state.items.filter((i) => i.turnId === note.id && i.item?.content.case === "agentMessage").map((i) => i.item?.content.value)).toEqual([
+        expect.objectContaining({ text: expect.stringContaining("worker shut down for a restart or deploy") }),
+      ]);
+      expect(state.turns.map((t) => t.trigger)).toEqual(["user", "background_task"]);
+      await gw.core.backgroundTasks.tick();
+      expect(await noteTurns(threadId)).toHaveLength(1);
+    } finally {
+      claudeWorker.handlers.delete("startTurn");
+    }
   }, 30_000);
 
   test("Claude: a completion Claude wakes up for itself gets no second turn; without its wake-up the note comes after the grace", async () => {

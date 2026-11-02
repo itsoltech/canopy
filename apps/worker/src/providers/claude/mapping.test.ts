@@ -49,6 +49,33 @@ const summary = (items: Item[]) =>
   });
 
 describe("Claude event mapping on recorded turns", () => {
+  test("a resumed session's zero-turn task-notification result does not finish the pending input", () => {
+    const { events } = replay(fixture("background-resume-ack"));
+    const finishes = events.filter((e) => e.body.case === "turnFinished");
+    expect(finishes).toHaveLength(1);
+    expect(finishes[0]?.turnId).toBe("turn-1");
+    expect(events.find((e) => e.body.case === "itemCompleted")?.turnId).toBe("turn-1");
+  });
+
+  test("a late task-notification acknowledgement by itself does not start a provider turn", () => {
+    const { events, turns } = replaySession([
+      ...fixture("text-turn"),
+      fixture("background-resume-ack")[2]!,
+    ]);
+    expect(events.filter((e) => e.body.case === "turnFinished")).toHaveLength(1);
+    expect(turns).toBe(1);
+  });
+
+  test("zero-turn commands, notification errors and real notification answers still finish their turns", () => {
+    const ack = fixture("background-resume-ack")[2]!;
+    for (const patch of [{ origin: undefined }, { is_error: true }, { num_turns: 1 }]) {
+      const mapper = new ClaudeEventMapper("pending");
+      const message = { ...ack, ...patch } as SDKMessage;
+      expect(startsTurn(message)).toBe(true);
+      expect(mapper.map(message)[0]).toMatchObject({ turnId: "pending", body: { case: "turnFinished" } });
+    }
+  });
+
   test("text turn: streamed message, completed once, usage and outcome on turn_finished", () => {
     const messages = fixture("text-turn");
     const { events, items, mapper } = replay(messages);

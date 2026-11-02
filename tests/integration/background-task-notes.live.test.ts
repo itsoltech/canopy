@@ -135,7 +135,13 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("background
     expect(note.status).toBe("completed");
     expect(note.backgroundItemIds).toEqual([task.itemId]);
     expect(note.inputText).toContain("shut down for a restart or deploy");
-    console.info(`[live] note turn answer: ${lastMessage(noted, note.id).slice(0, 400)}`);
+    expect(lastMessage(noted, note.id)).toMatch(/restart|deploy|shut ?down|shutdown/i);
+    // Observe beyond the old split (~0.5 s) and the adapter's idle grace (3 s), before sending more input.
+    // A predicate that returns as soon as the note completes would miss the following provider turn.
+    await Bun.sleep(4_000);
+    const settled = await snapshot(threadId);
+    expect(settled.turns.map((t) => t.trigger)).toEqual(["user", "background_task"]);
+    expect(lastMessage(settled, note.id)).toBeTruthy();
 
     // The user asks; the agent can tell (and check with its tool).
     await gw.api.sendMessage({
@@ -177,4 +183,24 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("background
         "Do not wait for it or check its output. It is a throwaway demo: if it is interrupted later, do not start it again. Reply with the single word STARTED.",
     );
   }, 15 * MINUTE);
+
+  test("Claude: natural completion wakes the harness once, without a second platform note turn", async () => {
+    const threadId = await newThread(Provider.CLAUDE, "claude natural completion");
+    await gw.api.sendMessage({
+      threadId,
+      clientRequestId: `${threadId}-natural`,
+      text: "Use Bash with run_in_background true to run exactly: sleep 12; echo NATURAL_DONE\n" +
+        "Do not wait or check its output. Reply STARTED. When the background task finishes, acknowledge its completion in one sentence.",
+    });
+    await until("natural task running after its turn", () => gw.api.getThread({ threadId }), (r) => r.thread?.backgroundTasks === 1 && r.thread.status === "idle", 3 * MINUTE);
+    const completed = await until("Claude's completion answer", () => snapshot(threadId), (s) =>
+      background(s)?.status === ItemStatus.COMPLETED && s.turns.some((t) => t.trigger === "provider" && t.status === "completed" && lastMessage(s, t.id).length > 0),
+    3 * MINUTE);
+    const wake = completed.turns.find((t) => t.trigger === "provider")!;
+    expect(lastMessage(completed, wake.id)).toBeTruthy();
+    // The platform fallback runs after 15 s: observe its entire window, not just Claude's fast reply.
+    await Bun.sleep(17_000);
+    await gw.core.backgroundTasks.tick();
+    expect((await snapshot(threadId)).turns.map((t) => t.trigger)).toEqual(["user", "provider"]);
+  }, 6 * MINUTE);
 });

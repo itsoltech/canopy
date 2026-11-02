@@ -179,6 +179,9 @@ export class ClaudeEventMapper {
         return atLeastOne(this.#toolResults(content as unknown as Block[]), event);
       }
       case "result": {
+        // On resume Claude acknowledges an old stopped task without calling the model, before it consumes
+        // the new input. This result belongs to the notification, not to the pending platform turn.
+        if (isTaskNotificationAck(message)) return [{ rawJson }];
         const finished = event(this.#result(message));
         this.#turnId = undefined; // what follows (background tasks) is outside the turn until the next one begins
         return [finished];
@@ -414,9 +417,16 @@ export class ClaudeEventMapper {
   }
 }
 
-/** Messages that only come within a turn: one arriving between turns means Claude started a turn. */
-export function startsTurn(message: { type: string; subtype?: string }): boolean {
-  return (message.type === "system" && message.subtype === "init") || message.type === "assistant" || message.type === "stream_event" || message.type === "result";
+/** A notification consumed without a model turn (notably an old task's stop notice on resume). */
+type TurnMessage = { type: string; subtype?: string; is_error?: boolean; num_turns?: number; origin?: { kind: string } };
+
+export function isTaskNotificationAck(message: TurnMessage): boolean {
+  return message.type === "result" && message.subtype === "success" && !message.is_error && message.num_turns === 0 && message.origin?.kind === "task-notification";
+}
+
+/** Messages starting a provider turn. init must reserve the turn before a slow model's first output arrives. */
+export function startsTurn(message: TurnMessage): boolean {
+  return !isTaskNotificationAck(message) && ((message.type === "system" && message.subtype === "init") || message.type === "assistant" || message.type === "stream_event" || message.type === "result");
 }
 
 function backgroundKind(taskType: string): BackgroundTaskKind {
