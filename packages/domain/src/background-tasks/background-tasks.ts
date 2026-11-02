@@ -60,6 +60,16 @@ export function backgroundStopLabel(stopReason: string): string {
   return LABELS[stopReason] ?? stopReason;
 }
 
+/** One line for the UI: "Background task finished · exit 0", "Background task stopped: worker restarted for a deploy". */
+export function backgroundHeadline(outcome: BackgroundOutcome, stopReason: string, exitCode?: number): string {
+  const exit = exitCode === undefined ? "" : ` · exit ${exitCode}`;
+  if (outcome === "running") return "Background task running";
+  if (outcome === "completed") return `Background task finished${exit}`;
+  if (outcome === "failed" && (!stopReason || stopReason === "error")) return `Background task failed${exit}`;
+  const label = backgroundStopLabel(stopReason || "stopped");
+  return `Background task ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+}
+
 /** Whether the stop was the user's (no wake-up turn for it: the note goes with the next turn). */
 export function stoppedByUser(stopReason: string): boolean {
   return stopReason === "stopped_by_user";

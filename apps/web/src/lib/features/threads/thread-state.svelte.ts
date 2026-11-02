@@ -86,11 +86,12 @@ export class ThreadState {
   readonly backgroundTasks = $derived(this.ownEntries.filter((e) => e.item.content.case === "backgroundTask" && e.item.status === ItemStatus.IN_PROGRESS));
   /**
    * Steers on their way into the running turn: sent or accepted and not yet in the transcript (a
-   * delivered one is a user_message item with `client_id` = its id; a queued one is a queued turn).
+   * delivered one is a user_message item with `client_id` = its id; a queued one is a queued turn). The platform's
+   * notes about background tasks are not messages: they show once they are in the turn.
    */
   readonly steering = $derived.by(() => {
     const echoed = new Set(this.ownEntries.flatMap((e) => (e.item.content.case === "userMessage" && e.item.content.value.clientId ? [e.item.content.value.clientId] : [])));
-    return this.steers.filter((s) => (s.status === "pending" || s.status === "accepted") && !echoed.has(s.id));
+    return this.steers.filter((s) => (s.status === "pending" || s.status === "accepted") && !echoed.has(s.id) && s.backgroundItemIds.length === 0);
   });
   /** Usage of the thread's own turns (from the snapshot, so it survives a reload). */
   readonly totals = $derived(

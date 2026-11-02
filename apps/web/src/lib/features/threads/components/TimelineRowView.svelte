@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useThreadDirectory } from "../thread-directory.ts";
   import type { TimelineRow } from "../timeline.ts";
+  import BackgroundNoteRow from "./BackgroundNoteRow.svelte";
   import ItemNodeView from "./items/ItemNodeView.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
   import { STEERED } from "./message-notes.ts";
@@ -25,6 +26,8 @@
   <TurnInput turn={row.turn} text={row.turn.inputText} />
 {:else if row.kind === "item" && row.inputOf && row.node.entry.item.content.case === "userMessage"}
   <TurnInput turn={row.inputOf} text={row.node.entry.item.content.value.text} attachments={row.node.entry.item.content.value.attachments} />
+{:else if row.kind === "item" && row.steer && steer?.backgroundItemIds.length}
+  <BackgroundNoteRow itemIds={steer.backgroundItemIds} />
 {:else if row.kind === "item" && row.steer && row.node.entry.item.content.case === "userMessage"}
   {@const message = row.node.entry.item.content.value}
   <UserMessageView message={steer?.quotes.length ? { ...message, text: steer.text } : message} quotes={steer?.quotes ?? []} note={STEERED} />

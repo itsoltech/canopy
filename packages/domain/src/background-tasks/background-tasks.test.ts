@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { backgroundEndReason, backgroundOutcome, backgroundStopLabel, backgroundTaskNote, formatDuration, outputTail } from "./background-tasks.ts";
+import { backgroundEndReason, backgroundHeadline, backgroundOutcome, backgroundStopLabel, backgroundTaskNote, formatDuration, outputTail } from "./background-tasks.ts";
 
 describe("how a background task ended, in words", () => {
   test("outcome from stored and protobuf statuses", () => {
@@ -21,6 +21,10 @@ describe("how a background task ended, in words", () => {
     expect(backgroundEndReason("running", "")).toBe("still running");
     expect(backgroundStopLabel("worker_shutdown")).toBe("Stopped: worker restarted for a deploy");
     expect(backgroundStopLabel("unknown")).toBe("unknown");
+    expect(backgroundHeadline("interrupted", "worker_shutdown")).toBe("Background task stopped: worker restarted for a deploy");
+    expect(backgroundHeadline("interrupted", "stopped_by_user")).toBe("Background task stopped by you");
+    expect(backgroundHeadline("completed", "", 0)).toBe("Background task finished · exit 0");
+    expect(backgroundHeadline("failed", "error", 1)).toBe("Background task failed · exit 1");
   });
 
   test("durations and output tails are bounded", () => {

@@ -1,5 +1,6 @@
 export {
   backgroundEndReason,
+  backgroundHeadline,
   backgroundOutcome,
   backgroundStopLabel,
   backgroundTaskNote,
