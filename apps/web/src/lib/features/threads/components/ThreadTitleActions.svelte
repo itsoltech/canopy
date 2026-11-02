@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { ui } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
-  import Button from "#lib/shared/ui/Button.svelte";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import SwapText from "#lib/shared/ui/SwapText.svelte";
   import { useThreadActions } from "../thread-actions.svelte.ts";
   import { requestTitleRegeneration } from "../title-actions.ts";
@@ -30,10 +31,12 @@
 
 </script>
 
-<section aria-label="Thread title" class={["grid min-w-0 gap-2 p-3", className]}>
-    <div class="flex min-w-0 items-center gap-2 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">
-      <SwapText text={thread.title || "New thread"} class={["min-w-0 flex-1 overflow-hidden", generating && "shimmer"]} />
-      <IconButton icon="pencil-square" size="sm" label="Rename thread" disabled={closed} onclick={() => void actions.run("rename", thread)} />
-    </div>
-    <div><Button size="sm" icon="arrow-path" loading={generating} disabled={closed || generating} onclick={regenerate}>{generating ? "Generating title…" : "Regenerate title"}</Button></div>
+<section aria-label="Thread title" class={["flex min-w-0 items-center gap-2 p-3 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white", className]}>
+  <SwapText text={thread.title || "New thread"} class={["min-w-0 flex-1 overflow-hidden", generating && "shimmer"]} />
+  <!-- Rename and regenerate are occasional: behind "more", so the panel opens on the title alone. -->
+  <DropdownMenu label="Title actions" placement="bottom-end">
+    {#snippet trigger(props)}<IconButton {...props} icon="ellipsis-horizontal" size="sm" label="Title actions" disabled={closed} />{/snippet}
+    <MenuItem icon="pencil-square" onselect={() => void actions.run("rename", thread)}>Rename…</MenuItem>
+    <MenuItem icon="arrow-path" disabled={generating} onselect={regenerate}>{generating ? "Generating title…" : "Regenerate title"}</MenuItem>
+  </DropdownMenu>
 </section>
