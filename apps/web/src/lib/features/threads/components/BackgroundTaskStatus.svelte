@@ -19,5 +19,5 @@
 
 <span class={["flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]}>
   <StatusDot tone={running ? "sky" : entry.item.status === ItemStatus.FAILED ? "rose" : entry.item.status === ItemStatus.COMPLETED ? "emerald" : "neutral"} class={running ? "t-pulse" : undefined} />
-  <span>{backgroundStatus(entry, exitCode)}</span><span aria-hidden="true">·</span><span class="tabular-nums">{elapsed}</span>
+  <span>{backgroundStatus(entry, exitCode).replace(/^Done/, "Completed")}</span><span aria-hidden="true">·</span><span class="tabular-nums">{elapsed}</span>
 </span>
