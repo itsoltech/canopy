@@ -102,3 +102,26 @@ export function languageOfPath(path: string): LanguageId | undefined {
   const dot = name.lastIndexOf(".");
   return languageOf(dot > 0 ? name.slice(dot + 1) : name.replace(/^\./, ""));
 }
+
+/** How each language is called in a picker. */
+export const LANGUAGE_NAMES: Record<LanguageId, string> = {
+  c: "C", cpp: "C++", csharp: "C#", css: "CSS", dart: "Dart", diff: "Diff", docker: "Dockerfile", dotenv: ".env", elixir: "Elixir",
+  go: "Go", graphql: "GraphQL", haskell: "Haskell", hcl: "HCL", html: "HTML", ini: "INI", java: "Java", javascript: "JavaScript",
+  json: "JSON", jsonc: "JSON with comments", jsx: "JSX", kotlin: "Kotlin", lua: "Lua", make: "Makefile", markdown: "Markdown", nix: "Nix",
+  php: "PHP", powershell: "PowerShell", proto: "Protocol Buffers", python: "Python", r: "R", ruby: "Ruby", rust: "Rust", scala: "Scala",
+  scss: "SCSS", shellscript: "Shell", sql: "SQL", svelte: "Svelte", swift: "Swift", terraform: "Terraform", toml: "TOML", tsx: "TSX",
+  typescript: "TypeScript", vue: "Vue", xml: "XML", yaml: "YAML", zig: "Zig",
+};
+
+/** The word a fence gets when a language is picked: the short tag people type, else the grammar's id. */
+const FENCE_TAGS: Partial<Record<LanguageId, string>> = {
+  csharp: "cs", docker: "dockerfile", dotenv: "env", javascript: "js", markdown: "md", powershell: "ps1", python: "py",
+  ruby: "rb", rust: "rs", shellscript: "sh", typescript: "ts", yaml: "yml",
+};
+
+export const fenceTag = (id: LanguageId): string => FENCE_TAGS[id] ?? id;
+
+/** Every language with the other words that name it (to search a picker by `py` or `golang`). */
+export const LANGUAGES: ReadonlyArray<{ readonly id: LanguageId; readonly name: string; readonly words: readonly string[] }> = (Object.keys(grammars) as LanguageId[])
+  .map((id) => ({ id, name: LANGUAGE_NAMES[id], words: [id, ...Object.keys(aliases).filter((word) => aliases[word] === id)] }))
+  .sort((a, b) => a.name.localeCompare(b.name));

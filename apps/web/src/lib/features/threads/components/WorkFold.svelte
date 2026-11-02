@@ -28,8 +28,9 @@
       <span class="shrink-0 font-medium">{label}{#if summary.spanMs !== undefined}&nbsp;<span class="tabular-nums">{formatSpan(summary.spanMs)}</span>{/if}</span>
       {#if summary.counts}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500">{summary.counts}</span>{/if}
       {#if summary.running > 0}
-        <span class="flex shrink-0 items-center gap-1.5 text-sky-700 tabular-nums dark:text-sky-400">
-          <span class="size-1.5 shrink-0 t-pulse rounded-full bg-current" aria-hidden="true"></span>{summary.running} still running
+        <!-- Baseline-aligned with the label (the dot is centred on its own, so it does not set the baseline). -->
+        <span class="flex shrink-0 items-baseline gap-1.5 text-sky-700 tabular-nums dark:text-sky-400">
+          <span class="size-1.5 shrink-0 self-center t-pulse rounded-full bg-current" aria-hidden="true"></span>{summary.running} still running
         </span>
       {/if}
     </span>

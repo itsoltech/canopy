@@ -84,6 +84,9 @@ service GatewayService {
   rpc ListMentionCatalog(ListMentionCatalogRequest) returns (ListMentionCatalogResponse);
   rpc SearchFiles(SearchFilesRequest) returns (SearchFilesResponse);
   rpc SearchThreads(SearchThreadsRequest) returns (SearchThreadsResponse);
+  // Stan przeczytania (sekcja na końcu pliku): użytkownik widział wątek do zdarzenia up_to_seq (ostatnia wiadomość
+  // agenta była na ekranie); Thread.unseen_result gaśnie na wszystkich urządzeniach (OverviewUpdate.thread).
+  rpc MarkThreadSeen(MarkThreadSeenRequest) returns (MarkThreadSeenResponse);
 }
 
 // ---------- Model ----------
@@ -182,6 +185,10 @@ message Thread {
   // Numery od 95: subagenci platformy (docs/agent-bus.md).
   // Wątki boczne: początek ostatniej wiadomości agenta (wynik subagenta) do karty w wątku rodzica. Główne: pusty.
   string last_message = 95;
+
+  // Numery od 180: stan przeczytania. Wynik ostatniej zakończonej tury, której użytkownik jeszcze nie widział
+  // (completed | failed | interrupted); pusty, gdy widział wszystko (MarkThreadSeen).
+  string unseen_result = 180;
 }
 
 message Turn {
@@ -252,6 +259,8 @@ message Turn {
   repeated Attachment attachments = 110;
   // Wzmianki w message_text (numery od 140): chipy wiadomości użytkownika.
   repeated openagents.worker.v1.Mention mentions = 140;
+  // Numery od 150: cytaty z wiadomości (SendMessage.quotes). Ich treść i komentarze są w platform_note.
+  repeated Quote quotes = 150;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -410,6 +419,10 @@ message SendMessageRequest {
   repeated string attachment_ids = 110;
   // Wzmianki w text (zakresy w nim). Gateway sprawdza je i dopisuje to, czego dostawca potrzebuje (docs/ui-api.md).
   repeated openagents.worker.v1.Mention mentions = 140;
+  // Numery od 150: fragmenty tego, co agent wytworzył, cytowane przez użytkownika (z opcjonalnym komentarzem).
+  // Gateway podaje je agentowi przed treścią wiadomości (docs/ui-api.md, "Cytaty"); działa też ze steer.
+  // Wiadomość może składać się z samych cytatów (pusty text).
+  repeated Quote quotes = 150;
 }
 
 message SendMessageResponse {
@@ -695,6 +708,8 @@ message Steer {
   string source_thread_id = 9;
   // Wzmianki w text.
   repeated openagents.worker.v1.Mention mentions = 140;
+  // Numery od 150: cytaty wiadomości (SendMessage.quotes); text to sama treść użytkownika.
+  repeated Quote quotes = 150;
 }
 
 // Katalog modeli jednego workera (z ostatniego raportu workera).
@@ -1050,6 +1065,25 @@ message StartProviderLoginResponse {
   string user_code = 2;
 }
 
+// ---------- Cytaty (docs/ui-api.md, "Cytaty") ----------
+
+// Fragment tego, co agent wytworzył w wątku (odpowiedź, rozumowanie, wynik polecenia, wywołanie narzędzia,
+// kod, diff), zacytowany przez użytkownika w wiadomości.
+message Quote {
+  // Dokładnie zaznaczony tekst, tak jak go widać (bez znaczników markdown), z podziałami linii.
+  string text = 1;
+  // Komentarz użytkownika do cytatu (opcjonalny).
+  string comment = 2;
+  // Item, z którego pochodzi cytat (Item.item_id), i wątek tego itemu (także odziedziczona historia forka).
+  string source_item_id = 3;
+  string source_thread_id = 4;
+  // agent_message | reasoning | command_output | tool_call | code | diff; pusty = nieznany (tekst).
+  // command_output, tool_call, code i diff trafiają do agenta jako blok kodu.
+  string source_kind = 5;
+  // Język bloku kodu (np. "ts"), gdy cytat pochodzi z bloku kodu z językiem; inaczej pusty.
+  string language = 6;
+}
+
 // ---------- Załączniki (docs/ui-api.md) ----------
 
 // Plik dołączony do wiadomości. Gateway sam rozpoznaje typ po treści (nie po nazwie ani typie z przeglądarki).
@@ -1152,4 +1186,16 @@ message SearchThreadsRequest {
 message SearchThreadsResponse {
   // Najpierw najlepiej pasujące, przy równym dopasowaniu najnowsza aktywność.
   repeated Thread threads = 1;
+}
+
+// ---------- Stan przeczytania ----------
+
+message MarkThreadSeenRequest {
+  string thread_id = 1;
+  // Ostatnie zdarzenie wątku na ekranie użytkownika (ThreadEvent.seq); znacznik tylko rośnie, najwyżej do Thread.last_seq.
+  uint64 up_to_seq = 2;
+}
+
+message MarkThreadSeenResponse {
+  Thread thread = 1;
 }

@@ -1,5 +1,5 @@
-import { afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { clearFileSearchCache, MAX_LIMIT, MAX_WALK, searchFiles } from "./search.ts";
@@ -13,10 +13,21 @@ const make = (root: string, files: string[]) => {
 
 afterEach(() => clearFileSearchCache());
 
+// Every folder a test makes goes away afterwards: /tmp is a tmpfs, and the huge folder alone is 21 000 files.
+const made: string[] = [];
+const tempDir = (prefix: string) => {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  made.push(dir);
+  return dir;
+};
+afterAll(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true });
+});
+
 describe("git work tree", () => {
   let repo = "";
   beforeAll(async () => {
-    repo = mkdtempSync(join(tmpdir(), "oa-files-git-"));
+    repo = tempDir("oa-files-git-");
     make(repo, ["src/runtime/host.ts", "src/runtime/session.ts", "docs/hosting.md", "notatka-z-lekcji.md", "dist/host.js", "node_modules/x/host.ts", "new/untracked-host.ts"]);
     writeFileSync(join(repo, ".gitignore"), "dist/\nnode_modules/\n");
     await Bun.$`git init -q && git add src docs notatka-z-lekcji.md .gitignore && git -c user.email=t@t -c user.name=t commit -qm init`.cwd(repo);
@@ -56,8 +67,8 @@ describe("git work tree", () => {
 
 describe("folder without git", () => {
   test("walks without hidden, dependency or symlinked folders", async () => {
-    const root = mkdtempSync(join(tmpdir(), "oa-files-walk-"));
-    const outside = mkdtempSync(join(tmpdir(), "oa-files-outside-"));
+    const root = tempDir("oa-files-walk-");
+    const outside = tempDir("oa-files-outside-");
     make(root, ["a/plan.md", ".git2/secret-plan.md", "node_modules/plan.md"]);
     make(outside, ["plan-outside.md"]);
     symlinkSync(outside, join(root, "link"));
@@ -67,7 +78,7 @@ describe("folder without git", () => {
   });
 
   test("a huge folder is cut off and says so", async () => {
-    const root = mkdtempSync(join(tmpdir(), "oa-files-big-"));
+    const root = tempDir("oa-files-big-");
     for (let d = 0; d < 21; d++) {
       mkdirSync(join(root, `d${d}`));
       for (let f = 0; f < 1000; f++) writeFileSync(join(root, `d${d}`, `f${f}`), "");

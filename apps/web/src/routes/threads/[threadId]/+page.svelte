@@ -6,6 +6,7 @@
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
   import SetGoalPill from "#lib/features/goals/SetGoalPill.svelte";
+  import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
   import { isFinishedGoal, showsGoal, takesGoals } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
@@ -39,10 +40,11 @@
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
-  import { rise } from "#lib/shared/ui/motion.ts";
+  import { duration, rise } from "#lib/shared/ui/motion.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
+  import { trackSeen } from "#lib/features/threads/seen.svelte.ts";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
@@ -86,6 +88,15 @@
       const turn = view.turns.find((t) => t.id === turnId);
       return turn !== undefined && isTerminal(turn.status);
     },
+    steer: (id) => view.steers.find((s) => s.id === id),
+    revealQuote: (quote) => revealQuote(quote.sourceItemId),
+  });
+
+  // Its latest result counts as seen once it has been on screen (the sidebar's "Completed" goes out everywhere).
+  let atEnd = $state(true);
+  trackSeen(() => {
+    const live = overview.threads.get(threadId) ?? thread;
+    return { threadId, unseen: Boolean(live?.unseenResult), lastSeq: live?.lastSeq ?? 0n, atEnd };
   });
 
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
@@ -181,6 +192,32 @@
     void feed?.reveal(`item:${top.id}`);
   };
 
+  // A quote in a message shows where it came from: its item (in folded work or the inherited history: opened
+  // first) scrolls into view and flashes (motion.css `data-flash`).
+  let feedRegion = $state<HTMLElement>();
+  // The sticky part at the feed's bottom (waiting cards, goal, composer): the Cite button keeps clear of it.
+  let feedFooter = $state<HTMLElement>();
+  async function revealQuote(itemId: string): Promise<boolean> {
+    const own = view.ownEntries.find((e) => e.id === itemId);
+    const inherited = own ? undefined : view.inheritedEntries.find((e) => e.id === itemId);
+    const entry = own ?? inherited;
+    if (!entry) return false;
+    const top = topLevelEntry(own ? view.ownEntries : view.inheritedEntries, entry);
+    if (inherited && !historyOpen) historyOpen = true;
+    if (own && top.turnId && !folds.open.has(top.turnId)) folds.toggle(top.turnId, true);
+    await tick();
+    if (!(await feed?.reveal(`item:${top.id}`))) return false;
+    await tick();
+    const element = feedRegion?.querySelector<HTMLElement>(`[data-quote-item="${CSS.escape(entry.id)}"]`);
+    if (!element) return true;
+    element.scrollIntoView({ block: "nearest" });
+    element.removeAttribute("data-flash");
+    void element.offsetWidth; // replay when it is still flashing
+    element.setAttribute("data-flash", "");
+    setTimeout(() => element.removeAttribute("data-flash"), duration("very-slow") * 3);
+    return true;
+  }
+
   $effect.pre(() => {
     const turns = view.ownTurns;
     untrack(() => folds.update(turns, view.ownEntries, view.notices, feed));
@@ -224,9 +261,9 @@
 
 <svelte:head><title>{thread?.title ?? "Thread"} · Open Agents</title></svelte:head>
 
-<!-- With the panel open its column is reserved by the container (which arrives first), so the
-     composer does not move when the browser paints before it has parsed the panel at the end. -->
-<div class={["flex h-full", panelOpen && "xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-1"]}>
+<!-- On xl the container reserves the details panel's column (it arrives before the panel, so nothing moves while
+     the page loads) and eases it open or shut (motion.css `t-panel-column`). -->
+<div class="t-panel-column flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1" style:--panel-width={panelOpen ? "20rem" : "0rem"} data-collapsed={!panelOpen || undefined}>
   <div class="flex min-w-0 flex-1 flex-col">
     <TopBar>
       {#if thread}
@@ -268,9 +305,9 @@
       <Alert tone="info" banner>{view.failure ?? "Reconnecting to live updates…"}</Alert>
     {/if}
 
-    <div class="min-h-0 flex-1">
+    <div class="min-h-0 flex-1" bind:this={feedRegion}>
       {#key threadId}
-        <VirtualFeed bind:this={feed} {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working}>
+        <VirtualFeed bind:this={feed} bind:atEnd {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working}>
           {#snippet placeholder()}
             {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
           {/snippet}
@@ -292,7 +329,7 @@
           {/snippet}
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
-            <div class="grid grid-cols-1 pt-2">
+            <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
               {#if view.pending.length > 0}
                 <GrowIn class="pb-3">
                   <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
@@ -346,8 +383,10 @@
     </div>
   </div>
 
-  {#if panelOpen}
-    <aside class="w-80 shrink-0 overflow-y-auto py-3 pr-3 pl-1 max-xl:hidden" aria-label="Thread details">
+  <!-- Mounted while closed too, so it can ease out: the panel keeps its width on the column's left edge and fades, so
+       its content never re-wraps; a closed panel is inert. -->
+  <aside class="relative min-w-0 overflow-hidden max-xl:hidden" aria-label="Thread details" inert={!panelOpen} data-collapsed={!panelOpen || undefined}>
+    <div class="t-panel absolute inset-y-0 left-0 w-80 overflow-y-auto py-3 pr-3 pl-1">
       {#if thread && tree}
         <ThreadPanel
           {thread}
@@ -363,8 +402,8 @@
       {:else}
         <Skeleton class="h-72 rounded-2xl" />
       {/if}
-    </aside>
-  {/if}
+    </div>
+  </aside>
 </div>
 
 {#if thread && tree}
@@ -390,3 +429,4 @@
 {/if}
 
 <p class="sr-only" role="status">{announcement}</p>
+<CiteLayer {threadId} root={feedRegion} avoid={feedFooter} />

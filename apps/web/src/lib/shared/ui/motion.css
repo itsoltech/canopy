@@ -206,6 +206,27 @@
   }
 }
 
+/* --- Quiet details (tooltip 17 timing): metadata that waits at opacity 0 in the space it keeps, so showing
+ * it moves nothing (a thread's turn details, revealed by `data-shown` on an ancestor or on itself). It fades
+ * in on --duration-quick after an intent delay (--duration-micro: a pointer sweeping down the feed does not
+ * flash every turn it crosses) and out on --duration-quick at once. `t-quiet-touch`: shown where nothing
+ * hovers (touch screens), e.g. the button that reveals the rest. Opacity only, so it stays as it is with
+ * reduced motion. */
+.t-quiet {
+  opacity: 0;
+  transition: opacity var(--duration-quick) var(--ease-out);
+}
+[data-shown] .t-quiet,
+.t-quiet[data-shown] {
+  opacity: 1;
+  transition-delay: var(--duration-micro);
+}
+@media (hover: none) {
+  .t-quiet.t-quiet-touch {
+    opacity: 1;
+  }
+}
+
 /* --- Sliding tabs (16): the raised pill of a segmented control travels between segments ----------------- */
 .t-tabs-pill {
   transition: translate var(--duration-fast) var(--ease-smooth-out);
@@ -273,6 +294,29 @@
 @media (prefers-reduced-motion: reduce) {
   .t-sidebar,
   .t-sidebar-panel {
+    transition: none !important;
+  }
+}
+
+/* --- Panel reveal (07) for the thread's details panel, like the app sidebar: the page's grid eases the panel's
+ * column (`t-panel-column`, its --panel-width) open on --duration-slow and shut faster on --duration-medium; the
+ * panel inside (`t-panel`) keeps its width on the column's left edge and fades, so its text never re-wraps. */
+.t-panel-column {
+  transition: grid-template-columns var(--duration-slow) var(--ease-smooth-out);
+}
+.t-panel-column[data-collapsed] {
+  transition-duration: var(--duration-medium);
+}
+.t-panel {
+  transition: opacity var(--duration-slow) var(--ease-smooth-out);
+}
+[data-collapsed] > .t-panel {
+  opacity: 0;
+  transition-duration: var(--duration-medium);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-panel-column,
+  .t-panel {
     transition: none !important;
   }
 }
@@ -444,6 +488,22 @@
   }
 }
 
+/* --- Inline code forming: as its closing backtick is typed, the code's wash fades in under text already in place
+ * (no movement, no change of layout). ---------------------------------------------------------------------- */
+.t-code-form {
+  animation: t-code-form var(--duration-quick) var(--ease-in-out);
+}
+@keyframes t-code-form {
+  from {
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-code-form {
+    animation: none !important;
+  }
+}
+
 /* --- Entrances on mount ---------------------------------------------------------------------------------
  * t-swap: text states swap (04), a status label that changed rises in (put it in a {#key}).
  * t-rise: a new row in a list or the timeline (transform only: layout and measuring are untouched).
@@ -523,5 +583,26 @@
 @media (prefers-reduced-motion: reduce) {
   .t-pulse {
     animation: none !important;
+  }
+}
+
+/* --- Emphasis: the item a quote came from, after "show where it was quoted from" (data-flash). A tint and a
+ * ring outside the box (box-shadow: nothing moves) hold for a moment and fade out over three --duration-very-slow.
+ * With reduced motion the tint shows without fading and goes when the attribute does. */
+[data-flash] {
+  animation: t-flash calc(var(--duration-very-slow) * 3) var(--ease-in-out) both;
+}
+@keyframes t-flash {
+  0%,
+  40% {
+    background-color: color-mix(in oklab, var(--color-amber-400) 18%, transparent);
+    box-shadow: 0 0 0 --spacing(1.5) color-mix(in oklab, var(--color-amber-400) 18%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-flash] {
+    animation: none !important;
+    background-color: color-mix(in oklab, var(--color-amber-400) 18%, transparent);
+    box-shadow: 0 0 0 --spacing(1.5) color-mix(in oklab, var(--color-amber-400) 18%, transparent);
   }
 }

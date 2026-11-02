@@ -88,7 +88,8 @@
       >
         <div class="flex h-lh shrink-0 items-center">
           {#if icon}
-            <img src={icon} alt="" class="size-4 rounded-sm object-contain" />
+            <!-- Harness icons are often dark glyphs on transparency: in dark mode they sit on a light tile to stay visible. -->
+            <img src={icon} alt="" class="size-4 rounded-sm object-contain dark:bg-zinc-200 dark:p-px" />
           {:else}
             <Icon name={kindLook(option.data).icon} class="fill-brand-600 dark:fill-brand-400" />
           {/if}

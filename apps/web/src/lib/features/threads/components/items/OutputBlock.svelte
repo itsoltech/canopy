@@ -8,7 +8,8 @@
   /**
    * Output of a command, tool or task; large output lives in a blob on the gateway. With `tail`, long
    * output shows only its last lines (live output of background work) until you expand it. While
-   * `streaming`, output shows line by line (`LineReveal`).
+   * `streaming`, output shows line by line (`LineReveal`). `quoteKind`: the output can be quoted as this kind of
+   * source (selection.ts).
    */
   let {
     output,
@@ -17,7 +18,8 @@
     empty = "No output.",
     tail,
     streaming = false,
-  }: { output: string; blob?: BlobRef | undefined; label: string; empty?: string; tail?: number | undefined; streaming?: boolean } = $props();
+    quoteKind,
+  }: { output: string; blob?: BlobRef | undefined; label: string; empty?: string; tail?: number | undefined; streaming?: boolean; quoteKind?: "command_output" | "tool_call" | undefined } = $props();
 
   const reveal = new LineReveal(
     () => output,
@@ -36,14 +38,14 @@
 {#if text}
   <div class="grid gap-1">
     {#if cut}
-      <p class="flex items-center justify-between gap-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      <p data-quote-skip class="flex items-center justify-between gap-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         <span class="tabular-nums">{all ? `${lines.length} lines` : `Last ${tail} of ${lines.length} lines`}</span>
         <button type="button" class="rounded-md font-medium text-zinc-700 hover:text-zinc-950 focus-ring dark:text-zinc-300 dark:hover:text-white" aria-expanded={all} onclick={() => (all = !all)}>
           {all ? "Show the end only" : "Show all output"}
         </button>
       </p>
     {/if}
-    <CodeBlock text={shown} {label} />
+    <CodeBlock text={shown} {label} data-quote-kind={quoteKind} />
   </div>
 {/if}
 {#if blob}

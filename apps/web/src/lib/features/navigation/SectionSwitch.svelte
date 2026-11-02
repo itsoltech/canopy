@@ -1,14 +1,20 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { segmentedLabel, segmentedPill, segmentedTrack } from "#lib/shared/ui/segmented.ts";
+  import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { sectionMemory, sections, type Section } from "./sections.svelte.ts";
 
   /**
    * Segmented "Threads | Bots" switch at the top of the sidebar. Each segment links to the last page
-   * of its section; `attention` puts a dot on a segment you are not in when something there needs you.
-   * The raised pill slides to the active segment (sliding tabs, motion.css `t-tabs-pill`).
+   * of its section; `attention` puts a dot on a segment you are not in: amber when something there needs
+   * you, emerald when something there finished and you have not seen it. The raised pill slides to the
+   * active segment (sliding tabs, motion.css `t-tabs-pill`).
    */
-  let { active, attention = {}, class: className }: { active: Section; attention?: Partial<Record<Section, boolean>>; class?: ClassValue } = $props();
+  let {
+    active,
+    attention = {},
+    class: className,
+  }: { active: Section; attention?: Partial<Record<Section, "needs" | "unseen" | undefined>>; class?: ClassValue } = $props();
   const at = $derived(sections.findIndex((section) => section.id === active));
 </script>
 
@@ -24,7 +30,11 @@
       <li>
         <a href={sectionMemory.href(section.id)} aria-current={current ? "true" : undefined} data-active={current || undefined} class={segmentedLabel}>
           {section.label}
-          {#if dot}<span class="size-1.5 shrink-0 rounded-full bg-amber-500 dark:bg-amber-400" aria-hidden="true"></span><span class="sr-only">, needs you</span>{/if}
+          {#if dot === "needs"}
+            <StatusDot tone="amber" /><span class="sr-only">, needs you</span>
+          {:else if dot === "unseen"}
+            <StatusDot tone="emerald" /><span class="sr-only">, new results</span>
+          {/if}
         </a>
       </li>
     {/each}

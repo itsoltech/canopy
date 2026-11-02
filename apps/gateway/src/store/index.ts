@@ -9,3 +9,4 @@ export { applyInstanceModels, harnessOf, withCustomModels, type InstanceModelsRu
 export { InstanceConflict, InstanceStore } from "./instances.ts";
 export { SteerStore, toUiSteer, type SteerRow } from "./steers.ts";
 export { AttachmentStore, toUiAttachment, type AttachmentRow, type StoredAttachment } from "./attachments.ts";
+export { toUiQuote, type StoredQuote } from "./quotes.ts";

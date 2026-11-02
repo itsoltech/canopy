@@ -2,11 +2,13 @@ import { create } from "@bufbuild/protobuf";
 import { MentionKind, MentionSchema, type Mention } from "@open-agents/contracts";
 import { mentionLabel, mentionPlaceholder } from "@open-agents/domain";
 import { INLINE_RENDERERS, type InlineElement, type MentionData } from "./kinds.ts";
+import { blockHtml, fenceText, findFences, inlineHtml, type CodeBlockData } from "./markdown.ts";
 
 /**
  * The composer's text model and its DOM (MentionEditor.svelte, a contenteditable). The model is the message text
  * plus inline elements with their ranges (Mention: [start, end) in UTF-16 units over the placeholder text); the
- * DOM holds text nodes, `<br>` for line breaks and one non-editable chip per inline element. Every edit goes through
+ * DOM holds text nodes, `<br>` for line breaks, one non-editable chip per inline element, `<code>` around inline code
+ * spans (the backticks stay text) and one non-editable block per fenced code block (markdown.ts). Every edit goes through
  * the browser (typing, IME, `insertText` / `insertHTML`), so undo, spellcheck and mobile keyboards work natively;
  * the model is read back from the DOM after each input.
  */
@@ -40,9 +42,16 @@ export function elementOf(node: EditorNode): InlineElement | undefined {
   }
 }
 
+/** The fenced code block an editor block element stands for, from its data attributes. */
+export function blockOf(node: EditorNode): CodeBlockData | undefined {
+  if (node.dataset?.["block"] !== "code") return undefined;
+  return { lang: node.dataset["lang"] ?? "", code: node.dataset["code"] ?? "", fence: Number(node.dataset["fence"]) || 3 };
+}
+
 /**
  * The editor's text and mentions. A `<br>` is a line break, except the browser's last `<br>` that only keeps an empty
- * last line visible; a block (pasted or typed by a browser that wraps lines in `<div>`) starts a new line.
+ * last line visible; a block (pasted or typed by a browser that wraps lines in `<div>`) starts a new line. A code
+ * block is its fence's lines.
  */
 export function serialize(root: EditorNode): EditorValue {
   let text = "";
@@ -64,6 +73,14 @@ export function serialize(root: EditorNode): EditorValue {
         continue;
       }
       if (child.nodeType !== ELEMENT_NODE) continue;
+      const block = blockOf(child);
+      if (block) {
+        if (!pendingBreak && text && !text.endsWith("\n")) text += "\n";
+        flush();
+        text += fenceText(block);
+        pendingBreak = true;
+        continue;
+      }
       const element = elementOf(child);
       if (element) {
         flush();
@@ -102,21 +119,41 @@ function withoutIcon(m: MentionData): Omit<MentionData, "icon"> {
 
 const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** HTML for a model (setting the editor's content from outside: a cleared or restored draft). */
+/**
+ * HTML for a model (setting the editor's content from outside: a cleared or restored draft, a paste with fences).
+ * Complete fences without mentions in them become blocks; the text around them renders by lines, with its inline
+ * code. A block is its own lines, so the line break before and after it is the block's edge: a run of text that ends
+ * with an empty line before a block, or after the last one, needs one more `<br>` to show it (as at the end).
+ */
 export function toHtml(value: EditorValue, icons: ReadonlyMap<string, string> = new Map()): string {
+  const fences = findFences(value.text).filter((f) => !value.mentions.some((m) => m.start < f.end && m.end > f.start));
+  if (fences.length === 0) return value.text ? runHtml(value, 0, value.text.length, icons) : "";
   let html = "";
   let at = 0;
-  const text = (s: string) => s.split("\n").map(escape).join("<br>");
+  for (const fence of fences) {
+    // The text before the fence, without the line break that ends it.
+    if (fence.start > at) html += runHtml(value, at, fence.start - 1, icons);
+    html += blockHtml(fence);
+    at = fence.end + 1;
+  }
+  if (at <= value.text.length) html += runHtml(value, at, value.text.length, icons);
+  return html;
+}
+
+/** Text `[from, to)` with its mentions as chips and its inline code; an empty last line gets its extra `<br>`. */
+function runHtml(value: EditorValue, from: number, to: number, icons: ReadonlyMap<string, string>): string {
+  let html = "";
+  let at = from;
   for (const m of [...value.mentions].sort((a, b) => a.start - b.start)) {
-    if (m.start < at || m.end > value.text.length) continue;
-    html += text(value.text.slice(at, m.start));
+    if (m.start < at || m.end > to) continue;
+    html += inlineHtml(value.text.slice(at, m.start));
     const icon = icons.get(iconKey(m));
     html += INLINE_RENDERERS.mention.html({ type: "mention", mention: { ...m, ...(icon && { icon }) } });
     at = m.end;
   }
-  html += text(value.text.slice(at));
-  // A trailing line break needs one more <br> to show its empty line.
-  if (value.text.endsWith("\n")) html += "<br>";
+  html += inlineHtml(value.text.slice(at, to));
+  const run = value.text.slice(from, to);
+  if (run === "" || run.endsWith("\n")) html += "<br>";
   return html;
 }
 
