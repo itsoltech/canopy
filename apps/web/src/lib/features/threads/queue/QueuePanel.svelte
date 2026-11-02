@@ -5,6 +5,9 @@
   import { QueueDrag } from "./queue-drag.svelte.ts";
   import type { QueueState } from "./queue-state.svelte.ts";
   import QueueRow from "./QueueRow.svelte";
+  import ComposerPanelHeader from "../components/ComposerPanelHeader.svelte";
+  import ComposerPanelBody from "../components/ComposerPanelBody.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
 
   /**
    * The queued messages, attached above the composer like in the Codex app: the composer's surface with only its
@@ -17,8 +20,13 @@
     delivery,
     ondelivery,
     embedded = false,
+    compact = false,
     class: className,
-  }: { queue: QueueState; delivery: "steer" | "queue"; ondelivery: (delivery: "steer" | "queue") => void; embedded?: boolean; class?: ClassValue } = $props();
+  }: { queue: QueueState; delivery: "steer" | "queue"; ondelivery: (delivery: "steer" | "queue") => void; embedded?: boolean; compact?: boolean; class?: ClassValue } = $props();
+
+  const id = $props.id();
+  let open = $state(true);
+  const expanded = $derived(open && !compact);
 
   let list = $state<HTMLOListElement>();
   const drag = new QueueDrag({
@@ -35,7 +43,13 @@
     held ? { duration: 0 } : reorder(node, positions);
 </script>
 
+{#if queue.rows.length > 0}
 <section aria-label="Queued messages" class={[!embedded && "rounded-t-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10", className]}>
+  <ComposerPanelHeader {expanded} controls="{id}-queue" onclick={(wasExpanded) => (open = !wasExpanded)}>
+    <Icon name="queue-list" size="sm" />
+    <p class="min-w-0 flex-1 truncate text-zinc-700 tabular-nums dark:text-zinc-300">{queue.rows.length} queued</p>
+  </ComposerPanelHeader>
+  <ComposerPanelBody id="{id}-queue" open={expanded}>
   <ol bind:this={list} role="list" class="relative grid grid-cols-1 py-1">
     {#each queue.rows as turn, index (turn.id)}
       <li data-queue-row class="relative" animate:glide={{ held: drag.id === turn.id }} transition:expand>
@@ -61,5 +75,7 @@
       </li>
     {/each}
   </ol>
+  </ComposerPanelBody>
   <p class="sr-only" role="status">{queue.announcement}</p>
 </section>
+{/if}
