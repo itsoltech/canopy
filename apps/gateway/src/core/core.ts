@@ -196,6 +196,10 @@ export class GatewayCore {
       scheduleChanged: (scheduleId) => this.#publishSchedule(scheduleId),
       spawnInstances: (thread) => this.#spawnInstances(thread),
       backgroundTask: (call, callerId) => this.backgroundTasks.tool(call, callerId),
+      fallbackSteer: async (steerId) => {
+        await this.#queueSteer(steerId, "the notification could not join its turn");
+        await this.pump((await this.#steers((s) => s.steer(steerId))).thread_id);
+      },
     });
     this.backgroundTasks = new BackgroundTasks(
       {
@@ -408,7 +412,7 @@ export class GatewayCore {
     if (!connection?.isOpen || !command.kind.case) return;
     let result: CommandResult;
     try {
-      result = await connection.sendCommand(command.kind as CommandInit, this.#options.commandTimeoutMs ?? 60_000);
+      result = await connection.sendCommand(command.kind as CommandInit, this.#options.commandTimeoutMs ?? 60_000, command.commandId);
     } catch {
       return; // disconnected or timed out: stays in the outbox, redelivered on reconnect (the worker deduplicates)
     }
@@ -507,6 +511,7 @@ export class GatewayCore {
    */
   async sweep(): Promise<string[]> {
     await this.bus.deliverAnswers();
+    await this.bus.deliverNotifications();
     const threads = await this.#options.runtime.runPromise(Ingest.use((i) => i.unsettledThreads(SWEEP_STALE_SECONDS)));
     const changed: string[] = [];
     for (const threadId of threads) {
@@ -1492,6 +1497,7 @@ export class GatewayCore {
   /** SteerTurn to the worker (outbox); the result decides between accepted and the queue. */
   async #sendSteer(steerId: string): Promise<void> {
     const steer = await this.#steers((s) => s.steer(steerId));
+    if (steer.status !== "pending") return;
     const thread = await this.#run((s) => s.thread(steer.thread_id));
     await this.#publishSteer(steerId);
     if (!thread.worker_id) return void (await this.#queueSteer(steerId, "the thread has no worker"));
