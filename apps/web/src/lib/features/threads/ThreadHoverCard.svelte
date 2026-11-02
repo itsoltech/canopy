@@ -60,7 +60,7 @@
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}<Icon name="folder" class={muted} />{/snippet}
-        <code class="truncate font-mono" title={thread.cwd}>{project?.kind === "scratch" ? thread.cwd : basename(thread.cwd)}</code>
+        {#if project?.kind === "scratch"}<span class="truncate" title={thread.cwd}>Scratch folder</span>{:else}<code class="truncate font-mono" title={thread.cwd}>{basename(thread.cwd)}</code>{/if}
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}{#if provider}<ProviderIcon {provider} class="size-4 opacity-70" />{:else}<Icon name="cpu-chip" class={muted} />{/if}{/snippet}

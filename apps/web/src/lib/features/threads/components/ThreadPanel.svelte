@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { terminalCwd } from "#lib/shared/ui/terminal.ts";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
+  import CopyButton from "#lib/shared/ui/CopyButton.svelte";
   import type { ui, Usage } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
@@ -85,8 +88,15 @@
         </span>
       {/snippet}
     </PanelRow>
-    <PanelRow icon="folder" wrap><code class="font-mono text-[0.8125rem] break-all" title={thread.cwd}>{thread.cwd}</code></PanelRow>
-    {#if scratch}<p class="px-2 py-1 text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">Scratch files are kept after this thread ends. Remove them manually when no related thread needs them.</p>{/if}
+    <!-- One line: the path shortened in the middle (home as ~), all of it in the tooltip and one click from the clipboard. -->
+    <PanelRow icon="folder">
+      {#if scratch}
+        <span {@attach tooltip(`${thread.cwd} — kept after the thread ends; remove it by hand when no thread needs it`)}>Scratch folder</span>
+      {:else}
+        <code class="font-mono text-xs/6" {@attach tooltip(thread.cwd)}>{terminalCwd(thread.cwd, 34)}</code>
+      {/if}
+      {#snippet aside()}<CopyButton text={thread.cwd} label="Copy working directory" class="-my-1" />{/snippet}
+    </PanelRow>
   </section>
 
   <section aria-label="Agent" class="grid grid-cols-1 p-1.5">
