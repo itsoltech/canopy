@@ -7,6 +7,7 @@
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import type { ApprovalView } from "../model.ts";
   import ChatCard from "./ChatCard.svelte";
+  import CreateBotPreview from "./CreateBotPreview.svelte";
 
   /**
    * A bot asks before it acts. The card shows what it wants to do and the details as labelled fields; the
@@ -44,14 +45,14 @@
   const outcome: Record<Exclude<ApprovalView["status"], "pending">, string> = { approved: "Approved", discarded: "Discarded", edited: "Sent back with your edits" };
 
   function edit() {
-    draft = preview?.value ?? approval.fields.map((f) => (f.label ? `${f.label}: ${f.value}` : f.value)).join("\n");
+    draft = approval.botProposal?.instructions ?? preview?.value ?? approval.fields.map((f) => (f.label ? `${f.label}: ${f.value}` : f.value)).join("\n");
     editing = true;
   }
 </script>
 
 <ChatCard labelledby="{id}-title" class={className}>
   <header class="flex items-center justify-between gap-3 px-4 pt-3">
-    {#if onpolicy && policy}
+    {#if onpolicy && policy && !approval.botProposal}
       <DropdownMenu label="When this bot asks">
         {#snippet trigger(props)}
           <button type="button" {...props} class="relative -ml-1.5 flex items-center gap-1 rounded-md py-0.5 pr-1 pl-1.5 text-sm/5 font-medium text-amber-700 hover:bg-amber-500/10 focus-ring sm:text-xs/5 dark:text-amber-400">
@@ -68,7 +69,9 @@
   {#if approval.routineTitle}<p class="px-4 pt-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">From routine ‹{approval.routineTitle}›</p>{/if}
   <h3 id="{id}-title" class="px-4 pt-1 text-base/6 font-medium text-pretty text-zinc-950 sm:text-sm/6 dark:text-white">{approval.action}</h3>
 
-  {#if details.length > 0}
+  {#if approval.botProposal}
+    <CreateBotPreview proposal={approval.botProposal} class="px-4 pt-3" />
+  {:else if details.length > 0}
     <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-4 pt-2 text-base/6 sm:text-sm/6">
       {#each details as field, index (index)}
         <dt class="text-zinc-500 dark:text-zinc-400">{field.label || "Detail"}</dt>
@@ -88,7 +91,7 @@
       </div>
     </form>
   {:else}
-    {#if preview}
+    {#if preview && !approval.botProposal}
       <div class="px-4 pt-3">
         <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{preview.label || "Preview"}</p>
         <p class="mt-1 max-h-60 overflow-y-auto rounded-xl bg-zinc-950/3 px-3 py-2 text-base/6 whitespace-pre-wrap text-zinc-800 wrap-anywhere sm:text-sm/6 dark:bg-white/5 dark:text-zinc-200">{preview.value}</p>
