@@ -37,13 +37,14 @@
   let open = $state(false);
   let active = $state(-1);
   let button = $state<HTMLButtonElement>();
-  const typeahead = selectTypeahead();
+  let typeahead = selectTypeahead();
   const optionId = (index: number) => `${uid}-option-${index}`;
 
   $effect(() => {
     if (!open || !options[active] || options[active]?.disabled) active = selectedIndex(options, value);
   });
   $effect(() => { if (disabled) open = false; });
+  $effect(() => { if (!open) typeahead = selectTypeahead(); });
   $effect(() => {
     if (open && active >= 0) document.getElementById(optionId(active))?.scrollIntoView({ block: "nearest" });
   });

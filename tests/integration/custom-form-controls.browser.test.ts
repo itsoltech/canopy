@@ -85,6 +85,11 @@ describe.skipIf(Bun.env["OA_FORM_BROWSER"] !== "1")("custom form controls browse
         await permissions.press("End"); await permissions.press("Home"); await permissions.press("r");
         await permissions.press("Escape"); expect(await permissions.getAttribute("aria-expanded")).toBe("false");
         expect(await permissions.evaluate((node) => node === document.activeElement)).toBe(true);
+        // A closed popup starts a fresh typeahead session, even within its 700 ms timeout.
+        await permissions.press("f");
+        const activeOption = await permissions.getAttribute("aria-activedescendant");
+        expect(await page.locator(`[id="${activeOption}"]`).getAttribute("aria-label")).toBe("Full auto");
+        await permissions.press("Escape");
         await permissions.press("Enter"); await permissions.press("Home"); await permissions.press("ArrowDown"); await permissions.press("Enter");
         await noOverflow(page);
 
