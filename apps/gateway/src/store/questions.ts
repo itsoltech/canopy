@@ -1,6 +1,6 @@
 import { create, toBinary, type JsonValue } from "@bufbuild/protobuf";
 import { CommandSchema, type ui } from "@open-agents/contracts";
-import { questionResult, type AgentBusArgs } from "@open-agents/domain";
+import { questionAnswerInput, questionResult, type AgentBusArgs, type UserQuestion } from "@open-agents/domain";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import { Invalid, NotFound, toInteraction, type InteractionRow, type TurnRow } from "./store.ts";
@@ -77,8 +77,8 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
           // The active sync tool receives the answer itself. If its turn ends without consuming it,
           // onTurnFinished / restart reconciliation / the sweep delivers it here as a new turn.
           if (row.question_wait && row.asking_status === "running") return undefined;
-          const result = questionResult(row.id, row.status, row.response as { answerJson?: string } | null);
-          const input = { text: `[open-agents] Answers to your questions (question_set_id: ${row.id}).\n${JSON.stringify(result)}` };
+          const input = questionAnswerInput(row.id, row.status, row.response as { answerJson?: string } | null,
+            (row.request as unknown as { questions: UserQuestion[] }).questions);
           const running = yield* sql<{ id: string }>`SELECT id FROM turns WHERE thread_id = ${row.thread_id}::uuid AND status = 'running' LIMIT 1`;
           if (!row.question_wait && running[0] && threads[0]?.worker_id) {
             const steerId = Bun.randomUUIDv7();

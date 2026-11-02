@@ -84,3 +84,15 @@ export function questionResult(id: string, status: string, response: { answerJso
     ...(status === "pending" && { next: "Still waiting. For synchronous questions call get_answers with wait=true; do not continue until answered or dismissed." }),
   };
 }
+
+/** Structured data for the model, readable answers for the timeline's turn/steer bubble. */
+export function questionAnswerInput(id: string, status: string, response: { answerJson?: string } | null, questions: readonly UserQuestion[]) {
+  const result = questionResult(id, status, response);
+  const message = result.status === "dismissed" ? "Questions dismissed." : result.answers.map((answer) => {
+    const header = questions.find((q) => q.id === answer.id)?.header ?? answer.id;
+    const value = answer.kind === "choice" ? answer.labels.join(", ") : answer.kind === "text" ? answer.text : "Skipped";
+    return `${header}: ${value}`;
+  }).join("\n");
+  const note = `[open-agents] Answers to your questions (question_set_id: ${id}).\n${JSON.stringify(result)}`;
+  return { text: `${note}\n\n${message}`, note, message };
+}

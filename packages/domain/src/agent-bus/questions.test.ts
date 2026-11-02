@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Result } from "effect";
 import { agentBusToolSpecs, agentBusToolsFor, decodeAgentBusCall } from "./tools.ts";
-import { decodeUserAnswers, questionResult, type UserQuestion } from "./questions.ts";
+import { decodeUserAnswers, questionAnswerInput, questionResult, type UserQuestion } from "./questions.ts";
 
 const question: UserQuestion = { id: "auth", header: "Auth method", question: "Which authentication method?", kind: "single_choice", options: [{ label: "OAuth" }, { label: "Password", description: "Local accounts" }], recommended: "OAuth" };
 describe("platform question contract", () => {
@@ -30,5 +30,12 @@ describe("platform question contract", () => {
     const response = { answerJson: JSON.stringify({ answers: [{ id: "auth", kind: "skipped" }] }) };
     expect(questionResult("set", "answered", response)).toEqual({ question_set_id: "set", status: "answered", answers: [{ id: "auth", kind: "skipped" }] });
     expect(questionResult("set", "cancelled", null)).toEqual({ question_set_id: "set", status: "dismissed", answers: [] });
+  });
+  test("answer delivery keeps structured data for the agent and readable text for the timeline", () => {
+    const input = questionAnswerInput("set", "answered", { answerJson: JSON.stringify({ answers: [{ id: "auth", kind: "choice", labels: ["OAuth"] }] }) }, [question]);
+    expect(input.message).toBe("Auth method: OAuth");
+    expect(input.note).toContain('"labels":["OAuth"]');
+    expect(input.text).toBe(`${input.note}\n\n${input.message}`);
+    expect(questionAnswerInput("set", "cancelled", null, [question]).message).toBe("Questions dismissed.");
   });
 });

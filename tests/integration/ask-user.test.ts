@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { Provider, TurnOutcome, type AgentToolResult } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { Effect } from "effect";
@@ -182,15 +182,30 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
     const running = await eventually(() => turns(thread.id), (r) => r[0]?.status === "running");
     const turnId = running[0]!.id;
     const callId = Bun.randomUUIDv7();
-    const waiting = worker.callTool({ threadId: thread.id, turnId, callId, tool: "ask_user", args: { questions, wait: true } });
-    void waiting.catch(() => {});
-    await eventually(() => pending(thread.id), (r) => r.length === 1);
-    worker.link.close();
-    await gw.connect(added.workerId, added.credential, undefined, { hello: { capabilities: ["running_turns"], runningTurns: [] } });
-    await eventually(() => turns(thread.id), (r) => r[0]?.status === "interrupted");
-    expect((await pending(thread.id))[0]?.requestId).toBe(callId);
-    await gw.api.answerInteraction({ requestId: callId, answerJson });
-    const resumed = await eventually(() => turns(thread.id), (r) => r.length === 2 && r[1]?.status === "completed");
-    expect(resumed[1]).toMatchObject({ trigger: "agent_bus", hops: 1, text: expect.stringContaining('"labels":["OAuth"]') });
+    // The old connection cannot receive its tool result. Await the gateway handler itself before
+    // disposing its runtime, and prove that restart reconciliation releases the original wait.
+    const original = gw.core.bus.handle.bind(gw.core.bus);
+    let handling: Promise<AgentToolResult> | undefined;
+    const spy = spyOn(gw.core.bus, "handle").mockImplementation((...args) => {
+      const result = original(...args);
+      if (args[0].callId === callId) handling = result;
+      return result;
+    });
+    try {
+      const waiting = worker.callTool({ threadId: thread.id, turnId, callId, tool: "ask_user", args: { questions, wait: true } });
+      void waiting.catch(() => {});
+      await eventually(() => pending(thread.id), (r) => r.length === 1);
+      worker.link.close();
+      await gw.connect(added.workerId, added.credential, undefined, { hello: { capabilities: ["running_turns"], runningTurns: [] } });
+      await eventually(() => turns(thread.id), (r) => r[0]?.status === "interrupted");
+      expect((await pending(thread.id))[0]?.requestId).toBe(callId);
+      await gw.api.answerInteraction({ requestId: callId, answerJson });
+      const resumed = await eventually(() => turns(thread.id), (r) => r.length === 2 && r[1]?.status === "completed");
+      expect(resumed[1]).toMatchObject({ trigger: "agent_bus", hops: 1, text: expect.stringContaining('"labels":["OAuth"]') });
+      expect((await handling)?.isError).toBe(false);
+    } finally {
+      spy.mockRestore();
+      if (handling) await handling;
+    }
   });
 });

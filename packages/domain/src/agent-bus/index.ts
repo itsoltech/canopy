@@ -32,4 +32,4 @@ export {
   type SpawnPermissionMode,
   type ToolJsonSpec,
 } from "./tools.ts";
-export { decodeUserAnswers, questionResult, questionsProblem, type UserQuestion, type UserAnswer } from "./questions.ts";
+export { decodeUserAnswers, questionAnswerInput, questionResult, questionsProblem, type UserQuestion, type UserAnswer } from "./questions.ts";
