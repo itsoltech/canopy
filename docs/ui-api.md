@@ -81,7 +81,7 @@ Pliki dołączone do wiadomości (obrazy, zrzuty ekranu, tekst, kod, PDF, archiw
 
 Limity (gateway, zmienne środowiskowe): `OA_ATTACHMENT_MAX_FILE_MB` (domyślnie 20), `OA_ATTACHMENT_MAX_MESSAGE_MB` (50), `OA_ATTACHMENT_MAX_FILES` (10). Kompozytor sprawdza je przed wysłaniem pliku; ostatnie słowo ma gateway.
 
-**Notatka platformy.** Gateway składa wejście tury przy przyjęciu wiadomości: `input_text` = notatka + pusta linia + wiadomość (sama notatka, gdy tekstu nie ma), `platform_note` = notatka, `message_text` = wiadomość. Notatka nie ma pustych linii (UI oddziela ją po pierwszej pustej linii):
+**Notatka platformy.** Gateway składa wejście tury przy przyjęciu wiadomości: `input_text` = notatka + pusta linia + wiadomość (sama notatka, gdy tekstu nie ma), `platform_note` = notatka, `message_text` = wiadomość. UI bierze notatkę i wiadomość osobno (`platform_note`, `message_text`); z cytatami notatka ma też ich blok (niżej, „Cytaty”):
 
 ```text
 [open-agents] The user attached 2 files to this message, saved on this machine. Read them as needed; view_image shows you an image:
@@ -138,6 +138,40 @@ Wątek wspomniany przez użytkownika agent może czytać (`get_thread`, `read_th
 - Codex: `skills/list` dla folderu wątku: `repo` (`.agents/skills` repozytorium, w UI `project`), `user` (`$CODEX_HOME/skills` oraz `~/.agents/skills` właściciela urządzenia: Codex czyta je mimo izolowanego `CODEX_HOME`), `system` (wbudowane, z ikonami i nazwami wyświetlanymi); `plugin/list` (zainstalowane i włączone; w izolowanym domu brak), `app/list` (konektory konta, tylko gdy worker je włączył, `NativeToolsConfig.connectors`). Komend brak.
 - Claude: `Query.supportedCommands()` procesu uruchomionego jak tura (folder wątku, izolowany `CLAUDE_CONFIG_DIR`, `settingSources` project + local), bez promptu. Skillem jest wiersz, którego nazwa to folder `.claude/skills/<nazwa>/SKILL.md` w folderze wątku lub wyżej albo w `skills/` katalogu konfiguracji; reszta to komendy (wbudowane, `.claude/commands` projektu, MCP). Wbudowane komendy terminala, sesji i ustawień, które trzyma platforma (`model`, `effort`, `clear`, `config`, …), subagentów i harmonogramu (gdy wyłączone) oraz natywny `/goal` (zastępuje go `/goal` platformy) są pominięte. Pluginów brak. Skille właściciela urządzenia (`~/.claude/skills`) nie są widoczne (izolacja), skille projektu tak.
 
+### Cytaty
+
+Użytkownik cytuje fragment tego, co agent wytworzył w wątku (odpowiedź, wcześniejsze wiadomości, rozumowanie, wejście i wynik narzędzia, wynik polecenia, blok kodu, diff) i odsyła go z wiadomością, z opcjonalnym komentarzem do każdego cytatu.
+
+| Pole | Co robi |
+|---|---|
+| `Quote` | `text` (dokładnie zaznaczony tekst, tak jak widać: bez znaczników markdown, z podziałami linii), `comment` (opcjonalny), `source_item_id`, `source_thread_id` (item i jego wątek, także odziedziczona historia forka), `source_kind` (`agent_message` \| `reasoning` \| `command_output` \| `tool_call` \| `code` \| `diff`, pusty = tekst), `language` (blok kodu z językiem) |
+| `SendMessage.quotes` (150) | cytaty wiadomości, do 20; tekst cytatu niepusty i do 20 000 znaków, komentarz do 4 000 (`QUOTE_LIMITS`, `packages/domain`). Wiadomość może mieć same cytaty. Działa z `delivery = STEER` (cytaty są w tekście, więc steer ich nie kolejkuje) |
+| `Turn.quotes`, `Steer.quotes` (150) | cytaty wiadomości dla bańki użytkownika; `message_text` / `Steer.text` to sama treść użytkownika. Steer, który nie wszedł do tury, staje się turą z tymi samymi cytatami |
+
+`CreateThread` nie ma cytatów: cytuje się w wątku, w którym jest źródło.
+
+Ze wzmiankami notatka cytatów idzie do `composeMessage` razem z notatką załączników, więc zakresy wzmianek w dostarczonym tekście przesuwają się także o nią.
+
+**Format dla agenta.** Cytaty to notatka platformy przed treścią (`quotesNote`, `packages/domain/src/quotes`): po notatce załączników (jeśli są), oddzielone pustą linią, potem pusta linia i wiadomość. Proza jako blockquote (każda linia z `> `), wynik polecenia, wywołanie narzędzia, kod i diff jako blok kodu z płotkiem dłuższym niż najdłuższy ciąg backticków w tekście (język bloku kodu, `diff`, inaczej `text`). Komentarz po cytacie jako `Comment: …`:
+
+````text
+[open-agents] The user quoted 2 passages of this conversation. Each quote is the exact text they selected, followed by their comment on it when they wrote one; their message comes after the quotes.
+
+Quote 1, from your message:
+> Dostępność i ruch: pełna obsługa.
+
+Comment: Skróć to.
+
+Quote 2, from command output:
+```text
+FAIL src/a.test.ts
+```
+
+Popraw oba miejsca.
+````
+
+Źródła cytatu (`your message`, `your reasoning`, `command output`, `a tool call`, `a code block`, `a diff`, `this conversation`) mówią agentowi, skąd fragment pochodzi; identyfikatory itemów zostają tylko dla UI (przejście do źródła).
+
 ## 3. Rdzeń gateway (`GatewayCore`)
 
 - **Workery:**
@@ -193,6 +227,8 @@ Trasy:
 Strumieniowany tekst (wiadomość agenta, rozumowanie, wyjście komendy, narzędzia i zadania w tle) pojawia się linia po linii (`lib/shared/ui/streaming`: `LineReveal`, reguły w `line-buffer.ts`): stan trzyma pełny tekst, a widok pokazuje go do ostatniego końca linii; niepełna linia dochodzi po 300 ms od ostatniego odsłonięcia (do ostatniego pełnego słowa), a całość od razu, gdy item się kończy albo kończy się jego tura (`ThreadDirectory.turnEnded`). Nagłówek tabeli czeka na wiersz separatora, niepełny płot kodu i wiersz tabeli nie są pokazywane jako surowy markdown, otwarty płot renderuje się jako kod. Markdown jest parsowany tylko przy zmianie widocznego tekstu, a niezmienione bloki, punkty list i wiersze tabel zachowują obiekty tokenów (`shareTokens`), więc renderuje się tylko blok, który urósł. Każdy nowy blok, punkt listy, wiersz tabeli i linia kodu (`code/CodeLines`) wchodzi raz przez `t-stream` (wyostrzenie z przenikaniem, `--duration-medium`); przy `prefers-reduced-motion` od razu.
 
 Podświetlanie składni (`lib/shared/ui/code`): Shiki (gramatyki TextMate) na silniku wyrażeń regularnych JavaScript (bez WASM), z `@shikijs/primitive` (bez hast/HTML). Język z tagu płotu albo ścieżki pliku (`languages.ts`: aliasy jak `ts`, `py`, `sh`, `yml`, `Dockerfile`); nieznany albo brak → zwykły tekst, kod inline zawsze zwykły. Highlighter (`highlighter.ts`) i każda gramatyka to osobne chunki ładowane przy pierwszym bloku, który ich potrzebuje. Motyw (`theme.ts`) mapuje zakresy gramatyk na role `--code-*` (wartości dla jasnego i ciemnego schematu w `syntax.css`), więc zmiana schematu nie tokenizuje ponownie; bez pogrubień i kursyw, by kolorowanie nie zmieniało szerokości. `Highlight` (`highlight.svelte.ts`) tokenizuje w kawałkach po ~6 ms między klatkami; linia bez kolorów renderuje się jako zwykły tekst w tym samym miejscu. `IncrementalHighlight` trzyma stan gramatyki po każdej linii: rosnący (strumieniowany) blok kontynuuje od ostatniej niezmienionej linii, a niezmienione linie zachowują obiekty i DOM. Diff (`DiffLines`, `diff.ts`) podświetla kod w języku pliku, osobno stronę nową (kontekst + dodane) i starą (kontekst + usunięte); płot ```` ```diff ```` renderuje się jako diff. Wyjście komend i narzędzi zostaje zwykłe.
+
+**Cytaty na osi czasu (Cite).** Zaznaczenie tekstu wytworzonego przez agenta (odpowiedź, wcześniejsze wiadomości, rozumowanie, wejście i wynik narzędzia, wynik polecenia, blok kodu, diff) pokazuje mały przycisk „Cite” przy końcu zaznaczenia: z myszą po puszczeniu przycisku (nie w trakcie przeciągania), z klawiatury po ustaleniu się zaznaczenia, na ekranach dotykowych pod uchwytami zaznaczenia (systemowe menu zostaje nad nim). Przycisk jest w top layer (`features/quotes/CiteLayer.svelte`), więc transkrypt się nie przesuwa; `Alt+Q` cytuje bieżące zaznaczenie z klawiatury (Ctrl+Shift+C otwiera narzędzia deweloperskie przeglądarki). Cite otwiera popover „Add an optional comment…” (Enter zapisuje, Shift+Enter nowa linia, Esc anuluje, Tab krąży w środku; ten sam popover posłuży do edycji z chipa). Zapisany cytat trafia do szkicu cytatów wątku (`useQuoteDrafts()`, `quote-drafts.svelte.ts`: `list/add/edit/remove/clear/wire`, w pamięci karty) i pojawia się w kompozytorze jako chip nad tekstem, obok zasobnika załączników (`QuoteTray` w slocie `elements` `ComposerBox`): ikona cytatu, początek fragmentu, ołówek (ponownie otwiera popover komentarza; z komentarzem w kolorze marki) i usunięcie (×, także Delete/Backspace na przycisku chipa; fokus przechodzi na sąsiada). Chipy wskakują i znikają jak chipy plików (`pop`, `reorder`). Wiadomość idzie z cytatami w `SendMessage.quotes` (także steer), może składać się z samych cytatów (`elementCount` w `ComposerBox` odblokowuje wysyłanie); po udanym wysłaniu znikają tylko wysłane cytaty. Przycisk Cite trzyma się między górą feedu a górą jego lepkiej stopki (kompozytor, karty), więc przy zaznaczeniu tuż nad kompozytorem staje nad zaznaczeniem. Reguły zaznaczenia (`selection.ts`): cytat to tekst, jaki widać (wyrenderowany markdown bez `**`, kod i diff z podziałami linii i wcięciami, bez przycisków, etykiet języka i kontrolek), jedno zaznaczenie = jeden cytat i tylko wewnątrz jednego obszaru jednego itemu (`data-quote-item` na `ItemNodeView`, `data-quote-kind` na obszarach widoków); zaznaczenie przez kilka itemów, we własnych wiadomościach albo w interfejsie dookoła nie pokazuje Cite. Bańka wiadomości pokazuje cytaty (początek fragmentu na linii z lewej i komentarz pod nim); kliknięcie przewija do źródła (otwiera zwinięte „Worked for …” albo odziedziczoną historię) i na chwilę je podświetla (`data-flash`), a gdy źródła już nie ma, mówi o tym.
 
 **Załączniki w kompozytorze i na osi czasu.** Oba kompozytory (nowy wątek i wątek) przyjmują pliki spinaczem (na telefonie systemowy wybór z aparatem, galerią i plikami), upuszczeniem na pole (obwódka w kolorze marki podczas przeciągania) i wklejeniem (zrzut ekranu ze schowka; wklejenie samego obrazu nie wkleja tekstu). Pliki wysyłają się od razu po dodaniu, z paskiem postępu; błąd (limit, program, odrzucenie przez gateway) stoi przy pliku i pod polem, a wysłanie czeka, aż wszystkie pliki są gotowe albo usunięte. Wiadomość może mieć same pliki. Z plikami wiadomość jest zawsze następną turą (w trakcie tury przycisk wysyłania nie steeruje). Wiadomość użytkownika na osi czasu pokazuje obrazy jako miniatury (dotknięcie: pełny obraz w lightboxie z pobieraniem) i pliki jako chipy (nazwa, rozmiar, typ, pobranie) zamiast ścieżek; pełny tekst z notatką platformy jest zwinięty pod „Full text the agent received”. Item `image` pokazuje podgląd tego, co zobaczył model („Viewed image” dla `view_image`, „Image” dla natywnego odczytu, „Generated image”), z wymiarami oryginału, gdy obraz był zmniejszony; nieudany `view_image` pokazuje powód. Item narzędzia z obrazami w wyniku (np. `Read` Claude) pokazuje je pod wejściem.
 

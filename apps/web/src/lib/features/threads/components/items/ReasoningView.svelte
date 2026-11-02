@@ -24,7 +24,7 @@
         {#if preview}<span class="truncate text-zinc-500 dark:text-zinc-400">{preview}</span>{/if}
       </span>
     {/snippet}
-    <div class="mt-1 mb-2 grid gap-3 border-l-2 border-zinc-950/5 pl-4 dark:border-white/10">
+    <div data-quote-kind="reasoning" class="mt-1 mb-2 grid gap-3 border-l-2 border-zinc-950/5 pl-4 dark:border-white/10">
       {#if reasoning.summary.trim()}<Markdown text={reasoning.summary} {streaming} class="text-zinc-600 dark:text-zinc-400" />{/if}
       {#if reasoning.text.trim() && reasoning.text !== reasoning.summary}<Markdown text={reasoning.text} {streaming} class="text-zinc-500 dark:text-zinc-400" />{/if}
     </div>

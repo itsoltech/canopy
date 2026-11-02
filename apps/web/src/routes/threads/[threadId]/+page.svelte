@@ -6,6 +6,7 @@
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
   import SetGoalPill from "#lib/features/goals/SetGoalPill.svelte";
+  import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
   import { isFinishedGoal, showsGoal, takesGoals } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
@@ -39,7 +40,7 @@
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
-  import { rise } from "#lib/shared/ui/motion.ts";
+  import { duration, rise } from "#lib/shared/ui/motion.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
@@ -87,6 +88,8 @@
       const turn = view.turns.find((t) => t.id === turnId);
       return turn !== undefined && isTerminal(turn.status);
     },
+    steer: (id) => view.steers.find((s) => s.id === id),
+    revealQuote: (quote) => revealQuote(quote.sourceItemId),
   });
 
   // Its latest result counts as seen once it has been on screen (the sidebar's "Completed" goes out everywhere).
@@ -189,6 +192,32 @@
     void feed?.reveal(`item:${top.id}`);
   };
 
+  // A quote in a message shows where it came from: its item (in folded work or the inherited history: opened
+  // first) scrolls into view and flashes (motion.css `data-flash`).
+  let feedRegion = $state<HTMLElement>();
+  // The sticky part at the feed's bottom (waiting cards, goal, composer): the Cite button keeps clear of it.
+  let feedFooter = $state<HTMLElement>();
+  async function revealQuote(itemId: string): Promise<boolean> {
+    const own = view.ownEntries.find((e) => e.id === itemId);
+    const inherited = own ? undefined : view.inheritedEntries.find((e) => e.id === itemId);
+    const entry = own ?? inherited;
+    if (!entry) return false;
+    const top = topLevelEntry(own ? view.ownEntries : view.inheritedEntries, entry);
+    if (inherited && !historyOpen) historyOpen = true;
+    if (own && top.turnId && !folds.open.has(top.turnId)) folds.toggle(top.turnId, true);
+    await tick();
+    if (!(await feed?.reveal(`item:${top.id}`))) return false;
+    await tick();
+    const element = feedRegion?.querySelector<HTMLElement>(`[data-quote-item="${CSS.escape(entry.id)}"]`);
+    if (!element) return true;
+    element.scrollIntoView({ block: "nearest" });
+    element.removeAttribute("data-flash");
+    void element.offsetWidth; // replay when it is still flashing
+    element.setAttribute("data-flash", "");
+    setTimeout(() => element.removeAttribute("data-flash"), duration("very-slow") * 3);
+    return true;
+  }
+
   $effect.pre(() => {
     const turns = view.ownTurns;
     untrack(() => folds.update(turns, view.ownEntries, view.notices, feed));
@@ -276,7 +305,7 @@
       <Alert tone="info" banner>{view.failure ?? "Reconnecting to live updates…"}</Alert>
     {/if}
 
-    <div class="min-h-0 flex-1">
+    <div class="min-h-0 flex-1" bind:this={feedRegion}>
       {#key threadId}
         <VirtualFeed bind:this={feed} bind:atEnd {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working}>
           {#snippet placeholder()}
@@ -300,7 +329,7 @@
           {/snippet}
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
-            <div class="grid grid-cols-1 pt-2">
+            <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
               {#if view.pending.length > 0}
                 <GrowIn class="pb-3">
                   <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
@@ -398,3 +427,4 @@
 {/if}
 
 <p class="sr-only" role="status">{announcement}</p>
+<CiteLayer {threadId} root={feedRegion} avoid={feedFooter} />

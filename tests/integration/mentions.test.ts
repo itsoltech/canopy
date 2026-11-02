@@ -9,7 +9,7 @@ import { create } from "@bufbuild/protobuf";
 import type { Client } from "@connectrpc/connect";
 import { MentionKind, MentionSchema, Provider, ui, type Mention } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
-import { mentionPlaceholder } from "@open-agents/domain";
+import { mentionPlaceholder, quotesNote } from "@open-agents/domain";
 import { eventually, failure, startTestGateway, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;
@@ -150,6 +150,20 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
       expect(slices(turn!.messageText, turn!.mentions)).toEqual(["$imagegen", "@docs/notatka.md", "#stary tytuł"]);
       expect(turn!.mentions[2]?.label).toBe("Plan sprintu");
       expect(turn!.platformNote).toContain(other.id);
+    });
+
+    test("with quotes: the quotes' note joins the mention notes, the ranges shift past both, the turn keeps both", async () => {
+      const other = await newThread("Notatki");
+      const thread = await newThread("Mentions and quotes");
+      const { text, mentions } = message("Porównaj z ", { kind: MentionKind.THREAD, name: other.id, label: "Notatki" }, ".");
+      const quote = { text: "FAIL a.test.ts", comment: "Dlaczego?", sourceItemId: "item-q", sourceKind: "command_output" };
+      const { turn } = await api.sendMessage({ threadId: thread.id, text, mentions, clientRequestId: "mq1", quotes: [quote] });
+      await eventually(async () => worker.started.get(turn!.id), (input) => input !== undefined);
+      const input = worker.started.get(turn!.id)!;
+      expect(input.text).toContain(quotesNote([quote]));
+      expect(input.text.endsWith(`\n\n${text}`)).toBe(true);
+      expect(slices(input.text, input.mentions)).toEqual(["#Notatki"]);
+      expect([turn!.messageText, turn!.quotes.map((q) => q.comment), slices(turn!.messageText, turn!.mentions)]).toEqual([text, ["Dlaczego?"], ["#Notatki"]]);
     });
 
     test("Claude: a command in the middle runs first; skills and files get notes", async () => {

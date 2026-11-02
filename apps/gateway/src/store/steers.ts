@@ -3,6 +3,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@open-agents/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
+import { toUiQuote, type StoredQuote } from "./quotes.ts";
 import { NotFound, type TurnRow } from "./store.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 
@@ -19,7 +20,8 @@ export interface SteerRow {
   id: string;
   thread_id: string;
   turn_id: string;
-  input: { text: string; note?: string; message?: string } & StoredMentions;
+  /** text = what the model gets; with quotes, note (the quotes) + message (the user's text) for the UI. */
+  input: { text: string; note?: string; message?: string; quotes?: StoredQuote[] } & StoredMentions;
   author_user_id: string | null;
   agent_call_id: string | null;
   hops: number;
@@ -51,7 +53,7 @@ export class SteerStore extends Context.Service<
       model: string;
       effort: string;
       permissionMode: string;
-      /** Prepared input (mentions: the composed text, the message and both sets of ranges); default { text }. */
+      /** Prepared input (mentions: the composed text, the message and both sets of ranges; quotes); default { text }. */
       input?: SteerRow["input"];
     }): Fx<SteerRow>;
     byClientRequest(threadId: string, clientRequestId: string): Fx<SteerRow | undefined>;
@@ -155,6 +157,7 @@ export function toUiSteer(row: SteerRow): ui.Steer {
     queuedTurnId: row.queued_turn_id ?? "",
     createdAt: timestampFromDate(new Date(row.created_at)),
     sourceThreadId: row.source_thread_id ?? "",
+    quotes: (row.input.quotes ?? []).map(toUiQuote),
     mentions: mentionsFromJson(row.input.mentions),
   });
 }

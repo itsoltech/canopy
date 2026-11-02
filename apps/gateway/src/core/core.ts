@@ -35,7 +35,9 @@ import {
   composeMessage,
   fuzzyRank,
   isFinished,
+  joinNotes,
   MentionError,
+  quotesNote,
   storedSidebarWidth,
   withAttachmentsNote,
   type AttachmentLimits,
@@ -43,6 +45,7 @@ import {
 import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
 import { isPlatformCommand, mentionsFromJson, mentionsToJson, PLATFORM_COMMANDS, workerPath } from "./mentions.ts";
 import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
+import type { StoredQuote } from "../store/quotes.ts";
 import {
   AgentBusStore,
   applyInstanceModels,
@@ -71,6 +74,7 @@ import {
   type TurnRow,
 } from "../store/index.ts";
 import { cronProblem, nextCronRun } from "./cron.ts";
+import { checkedQuotes, withQuotes } from "./quotes.ts";
 import { AgentBus } from "./agent-bus.ts";
 import { Hub } from "./hub.ts";
 import { Scheduler } from "./scheduler.ts";
@@ -884,10 +888,20 @@ export class GatewayCore {
   }
 
   /** The turn (or steer) input of a message with mentions: composed for the provider after the other notes. */
-  #composeInput(provider: string, message: string, mentions: readonly Mention[], base: TurnInputJson | undefined): TurnInputJson | undefined {
-    if (mentions.length === 0) return base;
-    const composed = composeMessage(provider === "claude" ? Provider.CLAUDE : Provider.CODEX, message, mentions, base?.note ? [base.note] : []);
-    return { ...base, text: composed.text, note: composed.note, message, mentions: mentionsToJson(mentions), delivered: mentionsToJson(composed.mentions) };
+  #composeInput(provider: string, message: string, mentions: readonly Mention[], base: TurnInputJson | undefined, quotes: readonly StoredQuote[] = []): TurnInputJson | undefined {
+    if (mentions.length === 0) return quotes.length > 0 ? withQuotes(base ?? { text: message, message }, quotes) : base;
+    // The quotes' note joins the other notes before the message, so the mentions' ranges shift past it too.
+    const note = joinNotes(base?.note ?? "", quotesNote(quotes));
+    const composed = composeMessage(provider === "claude" ? Provider.CLAUDE : Provider.CODEX, message, mentions, note ? [note] : []);
+    return {
+      ...base,
+      text: composed.text,
+      note: composed.note,
+      message,
+      mentions: mentionsToJson(mentions),
+      delivered: mentionsToJson(composed.mentions),
+      ...(quotes.length > 0 && { quotes: [...quotes] }),
+    };
   }
 
   /**
@@ -948,21 +962,23 @@ export class GatewayCore {
     const existingTurn = await this.#run((s) => s.turnByClientRequest(threadId, clientRequestId));
     if (existingTurn) return { turn: toUiTurn(existingTurn) };
     const files = request.attachmentIds.length > 0 ? await this.#messageAttachments(request.attachmentIds, thread.worker_id ?? "") : undefined;
-    if (!request.text.trim() && !files) throw new InvalidError("message is empty");
+    const quotes = checkedQuotes(request.quotes, (message) => new InvalidError(message));
+    if (!request.text.trim() && !files && quotes.length === 0) throw new InvalidError("message is empty");
     const { mentions, goal } = await this.#messageMentions({ id: thread.id, cwd: thread.cwd ?? "" }, request.text, request.mentions);
     if (goal !== undefined) {
       // The platform's /goal: the rest of the message is the objective (docs/goals.md).
-      if (files) throw new InvalidError("a /goal message cannot carry attachments");
+      if (files || quotes.length > 0) throw new InvalidError("a /goal message cannot carry attachments or quotes");
       return { goal: await this.setGoal(create(ui.SetGoalRequestSchema, { threadId, action: "set", objective: goal })) };
     }
     // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
     await this.#checkModel({ thread }, request.model || thread.settings.model || "", request.effort);
     const permissionMode = checkedPermissionMode(request.permissionMode);
     // A message with attachments is always the next turn: its files go to the worker before the turn starts.
+    // Quotes travel in the text (their note), so a message with quotes steers like any other.
     if (request.delivery === ui.MessageDelivery.STEER && !files) {
       const running = await this.#run((s) => s.runningTurn(threadId));
       if (running && thread.worker_id) {
-        const steerInput = this.#composeInput(thread.provider, request.text, mentions, undefined);
+        const steerInput = this.#composeInput(thread.provider, request.text, mentions, undefined, quotes);
         const steer = await this.#steers((s) =>
           s.create({
             threadId,
@@ -980,7 +996,7 @@ export class GatewayCore {
         return { steer: toUiSteer(await this.#steers((s) => s.steer(steer.id))) };
       }
     }
-    const input = this.#composeInput(thread.provider, request.text, mentions, files?.input(threadId, request.text));
+    const input = this.#composeInput(thread.provider, request.text, mentions, files?.input(threadId, request.text), quotes);
     const turn = await this.#run((s) =>
       s.enqueueTurn({
         threadId,

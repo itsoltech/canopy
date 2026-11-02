@@ -29,11 +29,11 @@
     {#if call.isError && status !== ItemStatus.FAILED}<span class="text-rose-700 dark:text-rose-400">Error</span>{/if}
   {/snippet}
   {#if call.inputJson && call.inputJson !== "{}"}
-    <CodeBlock text={prettyJson(call.inputJson)} label="Input of {call.name}" />
+    <CodeBlock text={prettyJson(call.inputJson)} label="Input of {call.name}" data-quote-kind="tool_call" data-quote-lang="json" />
   {/if}
   <!-- Images in the result (e.g. Read on an image file): what the model saw. -->
   {#each call.images as image (image.sha256)}
     <SeenImage threadId={directory.currentId} blob={image} name={hint.split(/[/\\]/).pop() || `${call.name} image`} />
   {/each}
-  <OutputBlock output={call.output} blob={call.outputBlob} label="Result of {call.name}" empty={status === ItemStatus.IN_PROGRESS ? "Waiting for the result…" : "No result."} {streaming} />
+  <OutputBlock quoteKind="tool_call" output={call.output} blob={call.outputBlob} label="Result of {call.name}" empty={status === ItemStatus.IN_PROGRESS ? "Waiting for the result…" : "No result."} {streaming} />
 </ItemFrame>
