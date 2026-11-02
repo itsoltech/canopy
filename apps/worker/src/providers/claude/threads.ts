@@ -29,7 +29,7 @@ import { SteerError, type TurnSettings } from "../turn-input.ts";
 import type { Env, ResolvedProfile } from "../profiles.ts";
 import type { ViewImageResult } from "../../images/index.ts";
 import { CLAUDE_VIEW_IMAGE_TOOL, claudeBusServer, claudeBusToolNames } from "./bus.ts";
-import { BUS_SERVER, ClaudeEventMapper, startsTurn, type GoalVerdict } from "./mapping.ts";
+import { BUS_SERVER, ClaudeEventMapper, isTaskNotificationAck, startsTurn, type GoalVerdict } from "./mapping.ts";
 import { CLAUDE_CATALOG_NOTES, claudeCatalogEntries, claudeSkillsOnDisk } from "./catalog.ts";
 import type { MentionEntryInit } from "../../mentions/catalog.ts";
 import { claudePermissions } from "./permissions.ts";
@@ -547,6 +547,13 @@ const make = (options: ClaudeThreadsOptions) =>
           }
           if (!next || next.done) break;
           const message = next.value;
+          // A resumed process first drains old task notifications. Their empty result is not the answer to
+          // StartTurn (nor to a queued steer), and must not release or close the waiting input's turn.
+          if (isTaskNotificationAck(message)) {
+            await record(threadId, { rawJson: JSON.stringify(message) });
+            closeWhenIdle(session);
+            continue;
+          }
           if (deferredResult && session.turn) mapper.continueTurn(session.turn.turnId);
           deferredResult = undefined;
           const lifecycle = message as unknown as { type: string; command_uuid?: string; state?: string };

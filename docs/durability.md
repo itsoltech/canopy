@@ -73,7 +73,7 @@ sequenceDiagram
 
 - `drain_timeout` jest konfigurowalny. Aktualizacja workera domyślnie czeka na brak aktywnych tur („update when idle”) z maksymalnym terminem.
 - Jeśli gateway jest niedostępny w trakcie drain, zdarzenia zostają w dzienniku i zostaną dosłane po starcie. Drain się nie blokuje.
-- **Zaimplementowane dziś** (bez czekania na tury): `DRAINING`, zatrzymanie runtime'ów dostawców przy działającym łączu (`WorkerHost.shutdown`); ich zadania w tle kończą się w dzienniku jako `worker_shutdown` z czasem końca, są wysyłane i potwierdzane (`flush`, do 3 s), dopiero potem łącze się zamyka. Komendy, które przyjdą w tym czasie, zostają bez odpowiedzi (gateway trzyma je w outboxie dla następnego procesu, np. turę notatki o zatrzymanych zadaniach; [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania)).
+- **Zaimplementowane dziś** (bez czekania na tury): `DRAINING`, oznaczenie dziennika `beginShutdown`, następnie zatrzymanie runtime'ów dostawców przy działającym łączu (`WorkerHost.shutdown`). Od oznaczenia dziennika każdy końcowy raport zadania w tle (także wysłany przez harness w trakcie zamykania) jest normalizowany **przed zapisem** do `interrupted`, `worker_shutdown` z czasem końca. Raporty nie mogą wygrać z późniejszym przeglądem otwartych zadań i nadać notatce ogólnego powodu `stopped`. Zdarzenia są wysyłane i potwierdzane (`flush`, do 3 s), dopiero potem łącze się zamyka. Komendy, które przyjdą w tym czasie, zostają bez odpowiedzi (gateway trzyma je w outboxie dla następnego procesu, np. turę notatki o zatrzymanych zadaniach; [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania)).
 
 ### 3.4 Start po awarii
 
