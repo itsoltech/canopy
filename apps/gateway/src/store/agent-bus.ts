@@ -508,8 +508,7 @@ export class AgentBusStore extends Context.Service<
               const input: TurnInput = {
                 note:
                   `[open-agents] Message from the thread "${caller.title}" (thread_id: ${caller.id})` +
-                  (outside ? ", an agent outside your thread tree" : "") +
-                  (notify ? ". Your final message of this turn is reported back to it." : "") +
+                  (outside ? `, an agent outside your thread tree${notify ? "; your final message of this turn is reported back to it" : ""}` : "") +
                   ":",
                 message: args.prompt,
               };
