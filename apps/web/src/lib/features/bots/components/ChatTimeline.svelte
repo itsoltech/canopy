@@ -99,7 +99,7 @@
       </li>
     {:else if row.kind === "question"}
       <li class="pt-3" in:enter>
-        <MessageRow sender={row.sender} showName={conversation.kind !== "direct"} state={row.question.answer ? "done" : "waiting"}>
+        <MessageRow sender={row.sender} showName={conversation.kind !== "direct"} gutter={conversation.kind !== "direct"} state={row.question.answer ? "done" : "waiting"}>
           <QuestionCard
             question={row.question}
             answering={answering[row.question.id]}
@@ -109,7 +109,7 @@
       </li>
     {:else if row.kind === "approval"}
       <li class="pt-3" in:enter>
-        <MessageRow sender={row.sender} showName={conversation.kind !== "direct"} state={row.approval.status === "pending" ? "waiting" : "done"}>
+        <MessageRow sender={row.sender} showName={conversation.kind !== "direct"} gutter={conversation.kind !== "direct"} state={row.approval.status === "pending" ? "waiting" : "done"}>
           <ApprovalCard
             approval={row.approval}
             answering={approvalAnswering(answering[row.approval.id])}
@@ -130,6 +130,7 @@
           first={row.first}
           last={row.last}
           showName={row.showName}
+          gutter={conversation.kind !== "direct"}
           {bots}
           replyToName={row.message.replyTo ? nameOf(row.message.replyTo.senderId) : undefined}
           onreact={watching ? undefined : onreact}
