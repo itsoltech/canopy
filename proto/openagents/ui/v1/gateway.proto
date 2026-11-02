@@ -48,6 +48,7 @@ service GatewayService {
   rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
   // Domyślny model i wysiłek wątku (kolejne tury bez nadpisania w wiadomości).
   rpc UpdateThread(UpdateThreadRequest) returns (UpdateThreadResponse);
+  rpc RegenerateTitle(RegenerateTitleRequest) returns (RegenerateTitleResponse);
   // Cel harnessu w wątku (docs/goals.md): ustawienie, pauza, wznowienie, usunięcie.
   rpc SetGoal(SetGoalRequest) returns (SetGoalResponse);
   // Zatrzymanie zadania w tle (proces Codexa, background Bash Claude; docs/execution.md).
@@ -203,6 +204,8 @@ message Thread {
   // (Turn.withdrawn). Puste / 0, gdy to nie fork.
   string fork_after_turn_id = 190;
   uint32 fork_after_turn_ordinal = 191;
+  // provisional | generated | user (jawny tytuł, fork lub ręczna zmiana).
+  string title_source = 200;
 
   // Numery od 210: subagenci dowolnego dostawcy i wiadomości między wątkami (docs/agent-bus.md).
   // Jak skończyła się ostatnia zakończona tura (completed | failed | interrupted); pusty przed pierwszą.
@@ -707,6 +710,16 @@ message UserSettings {
   // Nieużywane od globalnych instancji dostawców: ulubione są w InstanceModels.favorites (migracja 0018 je przeniosła).
   ModelFavorites model_favorites = 40;
   ComposerSettings composer = 160;
+  TextGenerationSettings text_generation = 200;
+}
+
+// Globalne ustawienie użytkownika. Pusty model = automatyczny wybór z instancji wątku.
+message TextGenerationSettings {
+  openagents.worker.v1.Provider provider = 1;
+  string profile_id = 2;
+  string model = 3;
+  string effort = 4;
+  string thread_title_instructions = 5;
 }
 
 // Kompozytor wątku (numery od 160).
@@ -741,6 +754,7 @@ message UpdateUserSettingsRequest {
   uint64 expected_version = 3;
   ModelFavorites model_favorites = 40;
   ComposerSettings composer = 160;
+  TextGenerationSettings text_generation = 200;
 }
 
 message UpdateUserSettingsResponse {
@@ -825,7 +839,14 @@ message UpdateThreadRequest {
   optional string effort = 3;
   // Domyślny tryb uprawnień wątku (tury bez nadpisania). Nieustawione albo UNSPECIFIED = bez zmian.
   optional openagents.worker.v1.PermissionMode permission_mode = 90;
+  optional string title = 200;
 }
+
+message RegenerateTitleRequest {
+  string thread_id = 1;
+}
+// Zlecenie przyjęte; nowy tytuł przychodzi przez WatchThread / WatchOverview.
+message RegenerateTitleResponse {}
 
 message UpdateThreadResponse {
   Thread thread = 1;

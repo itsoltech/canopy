@@ -10,13 +10,14 @@ export interface SettingsNotice {
   readonly text: string;
 }
 
-type UserSection = "appearance" | "threadDefaults" | "modelFavorites" | "composer";
+type UserSection = "appearance" | "threadDefaults" | "modelFavorites" | "composer" | "textGeneration";
 
 const userSchemas = {
   appearance: ui.AppearanceSettingsSchema,
   threadDefaults: ui.ThreadDefaultsSchema,
   modelFavorites: ui.ModelFavoritesSchema,
   composer: ui.ComposerSettingsSchema,
+  textGeneration: ui.TextGenerationSettingsSchema,
 } as const;
 
 /**
@@ -50,6 +51,14 @@ export class SettingsState {
 
   get threadDefaults(): ui.ThreadDefaults {
     return this.user.threadDefaults ?? create(ui.ThreadDefaultsSchema);
+  }
+
+  get textGeneration(): ui.TextGenerationSettings {
+    return this.user.textGeneration ?? create(ui.TextGenerationSettingsSchema);
+  }
+
+  updateTextGeneration(change: Partial<Omit<ui.TextGenerationSettings, "$typeName">>): Promise<void> {
+    return this.#writeUser("textGeneration", (current) => ({ ...current, ...change }));
   }
 
   get modelFavorites(): readonly ui.FavoriteModel[] {

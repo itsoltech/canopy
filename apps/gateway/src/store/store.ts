@@ -72,6 +72,10 @@ export interface ThreadRow {
   status: string;
   status_detail: string | null;
   title: string;
+  title_source: "provisional" | "generated" | "user";
+  title_revision: bigint;
+  title_requested: boolean;
+  title_context: string;
   last_seq: bigint;
   created_at: Date;
   archived_at?: Date | null;
@@ -210,12 +214,17 @@ export class GatewayStore extends Context.Service<
     turnByClientRequest(threadId: string, clientRequestId: string): Fx<TurnRow | undefined>;
     /** The thread's default model, effort and permission mode (unset = unchanged). */
     updateThreadSettings(threadId: string, settings: { model?: string; effort?: string; permissionMode?: string }): Fx<ThreadRow>;
+    renameThread(threadId: string, title: string): Fx<ThreadRow>;
+    beginTitle(threadId: string, automatic: boolean, context?: string, provisional?: string): Fx<ThreadRow | undefined>;
+    finishTitle(threadId: string, revision: bigint, title: string): Fx<boolean>;
     /** Records the model, effort and permission mode a turn is started with. */
     setTurnSettings(turnId: string, settings: { model: string; effort: string; permissionMode: string }): Fx<void>;
     /** Oldest queued user turn of an idle, ready thread with no StartTurn in the outbox yet. */
     nextTurn(threadId: string): Fx<TurnRow | undefined>;
     runningTurn(threadId: string): Fx<TurnRow | undefined>;
     turnsOf(threadId: string): Fx<ReadonlyArray<TurnRow>>;
+    /** First task in the visible history, including the fork's inherited prefix. */
+    titleInput(threadId: string): Fx<TurnRow | undefined>;
     /** A queued or running turn fails here (e.g. it could not start): the error, where it came from, its code. */
     failTurn(turnId: string, error: string, source: "platform" | "harness", code?: string): Fx<void>;
     /** Pending interactions of the thread's finished turns expire (nothing can answer them any more). */
@@ -606,11 +615,11 @@ export class GatewayStore extends Context.Service<
                 });
                 yield* sql`
                   INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, runtime, provider,
-                                       provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title)
+                                       provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title, title_source)
                   VALUES (${id}::uuid, ${workspace.project_id}::uuid, ${ownerUserId}::uuid, ${parent ? "side" : "main"},
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
                           ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${cwd},
-                          ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || "New thread"})`;
+                          ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"})`;
                 if (request.initialMessage.trim()) {
                   yield* sql`
                     INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input)
@@ -705,6 +714,23 @@ export class GatewayStore extends Context.Service<
               Effect.andThen(store.thread(threadId)),
             ),
 
+          renameThread: (threadId, title) =>
+            sql`UPDATE threads SET title = ${title}, title_source = 'user', title_revision = title_revision + 1
+                 WHERE id = ${threadId}::uuid AND archived_at IS NULL`.pipe(Effect.andThen(store.thread(threadId))),
+
+          beginTitle: (threadId, automatic, context, provisional) =>
+            sql<ThreadRow>`UPDATE threads SET title_revision = title_revision + 1, title_requested = true,
+                  title_context = CASE WHEN title_context = '' THEN ${context ?? ""} ELSE title_context END,
+                  title = CASE WHEN ${automatic} THEN ${provisional ?? "New thread"} ELSE title END
+                WHERE id = ${threadId}::uuid AND archived_at IS NULL
+                  AND (NOT ${automatic} OR (title_source = 'provisional' AND NOT title_requested))
+                RETURNING *`.pipe(Effect.map((rows) => rows[0])),
+
+          finishTitle: (threadId, revision, title) =>
+            sql`UPDATE threads SET title = ${title}, title_source = 'generated'
+                 WHERE id = ${threadId}::uuid AND title_revision = ${revision} AND archived_at IS NULL
+                 RETURNING id`.pipe(Effect.map((rows) => rows.length > 0)),
+
           setTurnSettings: (turnId, { model, effort, permissionMode }) =>
             sql`UPDATE turns SET model = ${model}, effort = ${effort}, permission_mode = ${permissionMode} WHERE id = ${turnId}::uuid`.pipe(Effect.asVoid),
 
@@ -723,6 +749,13 @@ export class GatewayStore extends Context.Service<
           turnsOf: (threadId) => sql<TurnRow>`
             SELECT u.*, s.* FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
              WHERE u.thread_id = ${threadId}::uuid ORDER BY u.ordinal`,
+
+          titleInput: (threadId) => sql<TurnRow>`
+            SELECT u.* FROM thread_fork_chain(${threadId}::uuid) c JOIN turns u ON u.thread_id = c.thread_id
+             WHERE u.trigger IN ('user', 'goal', 'agent_bus')
+               AND COALESCE(u.input->>'message', u.input->>'text', '') <> ''
+               AND (c.level = 0 OR (u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)))
+             ORDER BY c.level DESC, u.ordinal LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
 
           failTurn: (turnId, error, source, code) =>
             sql`
@@ -946,6 +979,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     kind: row.kind === "side" ? ui.ThreadKind.SIDE : ui.ThreadKind.MAIN,
     parentThreadId: row.parent_thread_id ?? "",
     title: row.title,
+    titleSource: row.title_source,
     provider: row.provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
     providerProfileId: row.provider_profile_id ?? "",
     model: row.settings.model ?? "",
