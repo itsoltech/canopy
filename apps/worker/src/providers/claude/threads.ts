@@ -100,6 +100,7 @@ export interface ClaudeThreadsOptions {
   callTool(call: AgentToolCall): Promise<AgentToolResult>;
   /** The thread's attachments directory: readable without a prompt (additionalDirectories). */
   attachmentsDir?(threadId: string): string;
+  secretsDir?(threadId: string): string;
   /** The platform's view_image (worker-side; docs/agent-bus.md). */
   viewImage?(threadId: string, cwd: string, path: string): Promise<ViewImageResult>;
   /** Adds what the transcript shows of an event (image previews) before it is journaled. */
@@ -381,10 +382,11 @@ const make = (options: ClaudeThreadsOptions) =>
       const turnId = () => session?.turn?.turnId ?? "";
       const busTools = [...(spec.enableAgentBus ? claudeBusToolNames(spec.depth) : []), ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : [])];
       const attachments = options.attachmentsDir?.(spec.threadId);
+      const secrets = options.secretsDir?.(spec.threadId);
       const queryOptions: Options = {
         cwd: spec.cwd,
         // The thread's attachments live outside the workspace (docs/protocol.md, "Załączniki").
-        ...(attachments && { additionalDirectories: [attachments] }),
+        ...((attachments || secrets) && { additionalDirectories: [attachments, secrets].filter((p): p is string => !!p) }),
         ...(model && { model }),
         ...(effort && { effort }),
         ...queryRuntime(profile, runtime),

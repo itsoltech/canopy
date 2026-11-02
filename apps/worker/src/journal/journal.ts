@@ -11,6 +11,7 @@ import {
   type ThreadEvent,
 } from "@open-agents/contracts";
 import { Context, Effect, Layer, Schema } from "effect";
+import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 
 /**
  * Local durable outbox of the worker (docs/durability.md, 3.1).
@@ -183,6 +184,7 @@ function open(path: string): Database {
 }
 
 function makeJournal(db: Database): Journal["Service"] {
+  const redact = secretEventRedactor();
   let shuttingDown = false;
   const attempt = <A>(operation: string, run: () => A) =>
     Effect.try({ try: run, catch: (cause) => new JournalError({ operation, cause }) });
@@ -312,7 +314,7 @@ function makeJournal(db: Database): Journal["Service"] {
   return Journal.of({
     journalId,
     append: Effect.fn("Journal.append")((threadId: string, event: ThreadEventInit) =>
-      attempt("append", () => appendTx(threadId, event)),
+      attempt("append", () => appendTx(threadId, redact(threadId, event))),
     ),
     ack: Effect.fn("Journal.ack")((threadId: string, ackSeq: bigint) =>
       attempt("ack", () => deleteUpTo.run({ thread: threadId, seq: Number(ackSeq) }).changes),

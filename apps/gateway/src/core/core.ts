@@ -92,6 +92,7 @@ import { BotsRuntime } from "../bots/runtime.ts";
 import { BotStore } from "../bots/store.ts";
 import type { BotModel, BotTurn, StoredCall } from "../bots/types.ts";
 import { botPlatform, describeBotTool } from "../bots/platform.ts";
+import { ThreadSecrets } from "./thread-secrets.ts";
 import { ActionContext } from "./action-context.ts";
 
 /**
@@ -122,6 +123,7 @@ export interface GatewayCoreOptions {
   /** How long a Claude task that completed by itself waits for Claude's own wake-up turn (core/background-tasks.ts). */
   readonly backgroundGraceMs?: number;
   readonly botModel?: BotModel;
+  readonly secretTtlMs?: number;
 }
 
 /** Bytes per BlobChunk on the worker link (attachments down, previews up). */
@@ -158,6 +160,7 @@ const HARNESS_ERROR_CODES: ReadonlySet<string> = new Set(["HARNESS_ERROR"]);
 const MAX_OBJECTIVE = 4000;
 
 export class GatewayCore {
+  readonly secrets: ThreadSecrets;
   readonly bots: BotsRuntime;
   readonly link: WorkerLink;
   readonly #actions: ActionContext;
@@ -195,6 +198,9 @@ export class GatewayCore {
       config: async (workerId) => (await this.#run((s) => s.workerConfig(workerId))) ?? undefined,
       onConnected: (connection) => void this.#serve(connection),
     });
+    this.secrets = new ThreadSecrets({ runtime: options.runtime, link: this.link, hub: this.hub, userId: options.userId,
+      ...(options.secretTtlMs !== undefined && { ttlMs: options.secretTtlMs }) });
+    this.secrets.start();
     this.bus = new AgentBus({
       run: (effect) => this.#options.runtime.runPromise(effect),
       startThread: (row) => this.#startThread(row),
@@ -204,6 +210,7 @@ export class GatewayCore {
       },
       steered: (steerId) => this.#sendSteer(steerId),
       interaction: (interaction) => this.#publishInteraction(interaction),
+      requestSecret: (source, args) => this.secrets.request(source, args),
       interrupt: (threadId) => this.interrupt(threadId),
       answer: (by, request) => this.#answer(by, request),
       broadcastThread: (threadId) => this.#broadcastThread(threadId),
@@ -261,6 +268,7 @@ export class GatewayCore {
     await this.#run((s) => s.workerConnected(workerId, this.#options.instanceId, connection.hello));
     this.#log(`worker ${workerId} connected`);
     await this.#broadcastWorkers();
+    await this.secrets.sync(workerId, true);
     // The outbox is read first: the turns started below (queued behind a lost one) are delivered once.
     await this.#redeliver(workerId).catch((error: unknown) => this.#log(`outbox of worker ${workerId} not redelivered: ${describeError(error)}`));
     // Turns it does not run (e.g. its process restarted) end here; the list is complete only with this capability.
@@ -272,6 +280,9 @@ export class GatewayCore {
     try {
       for await (const message of connection.messages) {
         switch (message.payload.case) {
+          case "threadSecretReceipt":
+            await this.secrets.receipt(workerId, message.payload.value);
+            break;
           case "threadEvent":
             await this.#ingest(connection, [message.payload.value]);
             break;
@@ -547,6 +558,7 @@ export class GatewayCore {
   }
 
   stopSweep(): void {
+    this.secrets.stop();
     if (this.#sweepTimer) clearInterval(this.#sweepTimer);
     this.#sweepTimer = undefined;
   }
@@ -1777,6 +1789,7 @@ export class GatewayCore {
             turns: snapshot.turns.map(toUiTurn),
             items: snapshot.items,
             interactions: snapshot.interactions,
+            secrets: await this.#run((s) => s.threadSecrets(this.#options.userId, threadId)),
             notices: snapshot.notices,
             schedules: (await this.#bus((s) => s.schedulesFor({ ownerUserId: this.#options.userId, threadId, includeFinished: false }))).map(toUiSchedule),
             steers: (await this.#steers((s) => s.ofThread(threadId))).map(toUiSteer),

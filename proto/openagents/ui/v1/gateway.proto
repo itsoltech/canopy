@@ -49,6 +49,8 @@ service GatewayService {
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
   rpc InterruptThread(InterruptThreadRequest) returns (InterruptThreadResponse);
   rpc AnswerInteraction(AnswerInteractionRequest) returns (AnswerInteractionResponse);
+  rpc AnswerThreadSecret(AnswerThreadSecretRequest) returns (ThreadSecretResponse);
+  rpc RevokeThreadSecret(RevokeThreadSecretRequest) returns (ThreadSecretResponse);
 
   // Najpierw snapshot (wątek, tury, itemy, interakcje), potem zmiany na żywo od snapshot.last_seq.
   rpc WatchThread(WatchThreadRequest) returns (stream ThreadUpdate);
@@ -611,6 +613,7 @@ message WatchThreadRequest {
 }
 
 message ThreadSnapshot {
+  repeated ThreadSecret secrets = 500;
   Thread thread = 1;
   repeated Turn turns = 2;
   repeated TimelineItem items = 3;
@@ -646,8 +649,30 @@ message ThreadUpdate {
     Goal goal = 60;
     // Zmiana statusu tury, do której trafiło wywołanie szyny tego wątku.
     BusDelivery bus_delivery = 210;
+    ThreadSecret secret = 500;
   }
 }
+
+// Metadane bez wartości; osobny kontrakt nie pozwala echo sekretu w interakcji.
+message ThreadSecret {
+  string request_id = 1;
+  string thread_id = 2;
+  string label = 3;
+  string description = 4;
+  string placeholder = 5;
+  string name = 6;
+  // pending | saved | declined | revoked | expired
+  string status = 7;
+  google.protobuf.Timestamp expires_at = 8;
+}
+message AnswerThreadSecretRequest {
+  string request_id = 1;
+  // Poufne: bez logowania i bez zwracania w odpowiedzi/błędzie.
+  string value = 2;
+  bool decline = 3;
+}
+message RevokeThreadSecretRequest { string request_id = 1; }
+message ThreadSecretResponse { ThreadSecret secret = 1; }
 
 // ---------- Harmonogram ----------
 

@@ -82,6 +82,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `interrupt_thread` / `close_thread` | ✓ | | sterowanie potomkami |
 | `list_interactions` / `answer_interaction` | ✓ | | pytania i prośby o zgodę od wątków bocznych |
 | `ask_user` / `get_answers` | ✓ | ✓ | trwały zestaw 1–4 pytań do człowieka albo rodzica; `wait: true` czeka, `false` pozwala pracować dalej; odczyt odpowiedzi tylko we własnym wątku |
+| `request_secret` | ✓ | ✓ | prywatna prośba do człowieka: `label`, `description`, opcjonalne `placeholder`, `name`; odnawialne oczekiwanie przez `request_id`; wynik zawiera wyłącznie status, ścieżkę pliku workera i termin ważności, nigdy wartość ([sekrety](secrets.md)) |
 | `schedule_wakeup` | ✓ | ✓ | jednorazowo później (`delay_seconds` albo `at`, do 7 dni) |
 | `schedule_recurring` | ✓ | ✓ | cron (min. 5 min), wymagane `until` (do 30 dni) albo `max_runs` |
 | `list_schedules` / `cancel_schedule` | ✓ | ✓ | własne harmonogramy i harmonogramy potomków |

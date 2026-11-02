@@ -8,6 +8,7 @@ import {
   isAgentBusTool,
   resolveSpawnTarget,
   type AgentBusCall,
+  type AgentBusArgs,
   type SpawnInstance,
   type SpawnResolution,
   type SpawnTarget,
@@ -42,6 +43,7 @@ export interface BusHost {
   broadcastThread(threadId: string): Promise<void>;
   /** An agent created or cancelled a schedule: announce it. */
   scheduleChanged(scheduleId: string): Promise<void>;
+  requestSecret(source: CallSource, args: AgentBusArgs["request_secret"]): Promise<JsonValue>;
   /**
    * The provider instances of the thread's worker a subagent can run on (enabled there, with their availability and
    * the pickers' model catalogs); undefined before the worker reported its configuration.
@@ -67,7 +69,7 @@ export class AgentBus {
     const source: CallSource = { callId: request.callId, threadId: request.threadId, turnId: request.turnId, itemId: request.itemId };
     const stored = await this.#host.run(AgentBusStore.use((s) => s.storedCall(request.callId)));
     // A synchronous ask is persisted before waiting; reconnecting attaches to that same question set.
-    if (stored && stored.status !== "requested" && !(stored.tool === "ask_user" && stored.status === "completed")) {
+    if (stored && stored.status !== "requested" && !(["ask_user", "request_secret"].includes(stored.tool) && stored.status === "completed")) {
       return stored.status === "completed" ? ok(request.callId, stored.result ?? {}) : failure(request.callId, stored.error ?? "failed");
     }
     const decoded = decodeAgentBusCall(request.toolName, request.argumentsJson);
@@ -196,6 +198,8 @@ export class AgentBus {
   async #execute(call: AgentBusCall, source: CallSource, caller: ThreadRow, hops: number, target: SpawnTarget): Promise<JsonValue> {
     const store = <A, E>(use: (s: AgentBusStore["Service"]) => Effect.Effect<A, E>) => this.#host.run(AgentBusStore.use(use));
     switch (call.tool) {
+      case "request_secret":
+        return this.#host.requestSecret(source, call.args);
       case "ask_user": {
         const interaction = await store((s) => s.askUser(source, call.args, hops));
         await this.#host.interaction(interaction);

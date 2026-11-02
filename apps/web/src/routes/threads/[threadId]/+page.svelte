@@ -26,6 +26,7 @@
   import type { ReaderScroll } from "#lib/shared/ui/virtual/scroll.ts";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
+  import ThreadSecretsPanel from "#lib/features/threads/components/secrets/ThreadSecretsPanel.svelte";
   import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
@@ -395,6 +396,9 @@
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
             <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
+              {#if view.secrets.length > 0}
+                <GrowIn class="pb-3"><ThreadSecretsPanel secrets={view.secrets} onchange={(secret) => view.upsertSecret(secret)} /></GrowIn>
+              {/if}
               {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
                 <GrowIn class="pb-3">
                   <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">

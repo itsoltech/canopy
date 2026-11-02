@@ -106,6 +106,8 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
       : { allowed: true, hops: nextHops };
 
   switch (call.tool) {
+    case "request_secret":
+      return caller.archived ? deny("this thread is archived") : allow;
     case "ask_user":
       if (caller.archived) return deny("this thread is archived");
       return withHops(false);

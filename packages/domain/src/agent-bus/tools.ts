@@ -31,6 +31,14 @@ const Notify = Schema.Boolean.annotate({
 
 export const ListAgents = Schema.Struct({});
 
+export const RequestSecret = Schema.Struct({
+  label: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)),
+  description: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000)),
+  placeholder: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
+  name: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/))),
+  request_id: Schema.optionalKey(Schema.String.check(Schema.isUUID())),
+});
+
 /** Permission modes a side thread may ask for, narrowest first; never broader than the caller's (authorizeBusCall). */
 export const SPAWN_PERMISSION_MODES = ["read_only", "ask", "accept_edits", "full_auto"] as const;
 export type SpawnPermissionMode = (typeof SPAWN_PERMISSION_MODES)[number];
@@ -191,6 +199,16 @@ const define = <S extends Schema.Top>(tool: ToolDefinition<S>) => tool;
 
 export const AGENT_BUS_TOOLS = {
   ...QUESTION_TOOLS,
+  request_secret: define({
+    name: "request_secret",
+    description: "Ask the user for a secret in a private card and wait (renewable, durable). Never ask for secrets in chat. " +
+      "Returns only a private file path on this thread's worker, never the value. Read it inside a command, e.g. " +
+      "TOKEN=\"$(cat '<file>')\" program; never print, echo, log or read the value into model context. " +
+      "Available for 24 hours unless revoked. name is an optional env name hint, not an exported variable. " +
+      "If pending, call again with the returned request_id and the same metadata. Secrets are per thread; children must ask separately.",
+    args: RequestSecret,
+    mutates: true,
+  }),
   list_agents: define({
     name: "list_agents",
     description:

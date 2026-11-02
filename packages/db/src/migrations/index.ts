@@ -34,6 +34,7 @@ import bots from "./0031_bots.sql" with { type: "text" };
 import scratchProjects from "./0032_scratch_projects.sql" with { type: "text" };
 import botMentions from "./0033_bot_mentions.sql" with { type: "text" };
 import botArchive from "./0034_bot_archive.sql" with { type: "text" };
+import threadSecrets from "./0036_thread_secrets.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -84,6 +85,7 @@ export const migrations = Migrator.fromRecord({
   "0032_scratch_projects": sqlFile(scratchProjects),
   "0033_bot_mentions": sqlFile(botMentions),
   "0034_bot_archive": sqlFile(botArchive),
+  "0036_thread_secrets": sqlFile(threadSecrets),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
