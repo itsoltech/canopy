@@ -19,6 +19,8 @@ import {
   type InteractionResponse,
   type Item,
   type ProfileModelsSchema,
+  type MentionCatalogSchema,
+  type FileSearchResultSchema,
   type ThreadEvent,
   type WorkerConfig,
   TurnOutcome,
@@ -35,6 +37,9 @@ import { CodexThreads } from "../providers/codex/threads.ts";
 import { claudeConfiguredEffort, readClaudeUserSettings, readCodexConfiguredEffort } from "../providers/default-effort.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
 import { reconcileTurn, WORKER_RESTARTED } from "../providers/reconcile.ts";
+import { claudeCatalogStamp } from "../providers/claude/catalog.ts";
+import { searchFiles } from "../files/search.ts";
+import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentError, AttachmentFiles } from "../attachments/files.ts";
 import { ImageError, PreviewStore, viewImage, type ViewImageResult } from "../images/index.ts";
 import type { SteerError } from "../providers/turn-input.ts";
@@ -70,7 +75,12 @@ type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 interface CommandOutput {
   readonly entries?: DirectoryEntryInit[];
   readonly models?: ProfileModelsInit[];
+  readonly mentionCatalog?: MessageInitShape<typeof MentionCatalogSchema>;
+  readonly fileSearch?: MessageInitShape<typeof FileSearchResultSchema>;
 }
+
+/** Read-only queries: answered again on redelivery instead of being remembered in the journal. */
+const QUERIES: ReadonlySet<Command["kind"]["case"]> = new Set(["listMentionCatalog", "searchFiles"]);
 
 export interface WorkerHostOptions {
   readonly runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
@@ -125,6 +135,10 @@ export class WorkerHost {
   #catalogRun = 0;
   /** Taken at start: the Claude runtime points this process's CLAUDE_CONFIG_DIR at the isolated home. */
   readonly #deviceHomes: { readonly claude: string; readonly codex: string };
+  /** Claude's mention catalogs (a listing starts Claude Code); Codex answers skills/list from its own cache. */
+  readonly #catalogs = new CatalogCache();
+  /** The isolated Claude config dir of the running Claude runtime (its skills and commands). */
+  #claudeHome = "";
   readonly #files: AttachmentFiles;
   readonly #previews: PreviewStore;
   /** Working directory per thread (from the commands' ThreadSpec): view_image's scope. */
@@ -255,14 +269,16 @@ export class WorkerHost {
         ok: true,
         ...(output.entries && { entries: output.entries }),
         ...(output.models && { models: output.models }),
+        ...(output.mentionCatalog && { mentionCatalog: output.mentionCatalog }),
+        ...(output.fileSearch && { fileSearch: output.fileSearch }),
       };
-      await this.#remember(result);
+      if (!QUERIES.has(command.kind.case)) await this.#remember(result);
       return result;
     } catch (error) {
       const failure =
         error instanceof CommandError ? error : new CommandError("THREAD_ERROR", error instanceof Error ? error.message : String(error), true);
       const result: CommandResultInit = { commandId: command.commandId, ok: false, errorCode: failure.code, errorMessage: failure.message };
-      if (failure.final) await this.#remember(result);
+      if (failure.final && !QUERIES.has(command.kind.case)) await this.#remember(result);
       return result;
     }
   }
@@ -347,6 +363,28 @@ export class WorkerHost {
       }
       case "listModels":
         return { models: await this.#listModels(kind.value.provider, kind.value.profileId) };
+      case "listMentionCatalog": {
+        const { provider, cwd, refresh } = kind.value;
+        const profileId = kind.value.profileId || "native";
+        this.#checkCwd(config, cwd);
+        const folder = realpathSync(cwd);
+        const listed =
+          provider === Provider.CLAUDE
+            ? await this.#catalogs.get(
+                `claude|${profileId}|${folder}`,
+                claudeCatalogStamp(folder, this.#claudeHome),
+                () => this.#runClaude((threads) => threads.listMentionCatalog(profileId, folder)),
+                refresh,
+              )
+            : await this.#runCodex(provider, (threads) => threads.listMentionCatalog(folder, refresh), this.#codexGroupOf(profileId));
+        return { mentionCatalog: { provider, profileId, cwd: folder, entries: listed.entries, notes: listed.notes, listedAt: timestampNow() } };
+      }
+      case "searchFiles": {
+        const { cwd, query, limit } = kind.value;
+        this.#checkCwd(config, cwd);
+        const found = await searchFiles(cwd, query, limit);
+        return { fileSearch: { ...found, matches: found.matches.map((m) => ({ ...m, indices: [...m.indices] })) } };
+      }
       case "interruptTurn": {
         const { threadId, turnId } = kind.value;
         // E.g. the turn died with the previous process: the gateway ends it on its side.
@@ -541,6 +579,8 @@ export class WorkerHost {
     if (!config || !key) return;
     const home = prepareClaudeHome({ dataDir: this.#options.dataDir, linkDeviceLogin: config.claude.linkDeviceLogin, deviceClaudeHome: this.#deviceHomes.claude });
     if (home.problem) this.#log(`claude home: ${home.problem}`);
+    this.#claudeHome = home.path;
+    this.#catalogs.clear();
     const profiles = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "claude") ? [p.resolved] : []));
     const layer = ClaudeThreads.layer({
       home: home.path,
@@ -587,6 +627,7 @@ export class WorkerHost {
       callTool: (call) => this.#callTool(call),
       viewImage: (threadId, path) => this.#viewImage(threadId, this.#cwds.get(threadId) ?? "", path),
       enrich: (init) => this.#previews.enrich(init),
+      connectors: config.nativeTools.nativeConnectors === true,
     });
     const scope = await Effect.runPromise(Scope.make());
     const context = await this.#options.runtime.runPromise(Layer.buildWithScope(layer, scope));

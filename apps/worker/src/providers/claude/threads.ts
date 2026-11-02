@@ -14,6 +14,7 @@ import {
   type ForkSpec,
   type InteractionRequest,
   type InteractionResponse,
+  type Mention,
   type PermissionMode,
   type ThreadEvent,
   type ThreadSpec,
@@ -29,6 +30,8 @@ import type { Env, ResolvedProfile } from "../profiles.ts";
 import type { ViewImageResult } from "../../images/index.ts";
 import { CLAUDE_VIEW_IMAGE_TOOL, claudeBusServer, claudeBusToolNames } from "./bus.ts";
 import { BUS_SERVER, ClaudeEventMapper, startsTurn, type GoalVerdict } from "./mapping.ts";
+import { CLAUDE_CATALOG_NOTES, claudeCatalogEntries, claudeSkillsOnDisk } from "./catalog.ts";
+import type { MentionEntryInit } from "../../mentions/catalog.ts";
 import { claudePermissions } from "./permissions.ts";
 import { claudeProfileOptions } from "./profile.ts";
 import { transcriptPath } from "./transcript.ts";
@@ -110,6 +113,8 @@ export class ClaudeThreads extends Context.Service<
     backgroundTasks(): ReadonlyMap<string, readonly string[]>;
     /** Models a profile offers (Query.supportedModels() without a prompt; no model turn). */
     listModels(profileId: string): Effect.Effect<{ models: ModelInit[] }, ClaudeThreadError>;
+    /** Commands and skills for the composer in a folder (Query.supportedCommands() without a prompt; claude/catalog.ts). */
+    listMentionCatalog(profileId: string, cwd: string): Effect.Effect<{ entries: MentionEntryInit[]; notes: string[] }, ClaudeThreadError>;
   }
 >()("open-agents/worker/ClaudeThreads") {
   static readonly layer = (options: ClaudeThreadsOptions) => Layer.effect(ClaudeThreads, make(options));
@@ -148,7 +153,7 @@ interface Session {
 interface SessionTurn {
   readonly turnId: string;
   /** Steered inputs by input id; started once Claude Code took them into the turn (command_lifecycle). */
-  readonly steers: Map<string, { readonly text: string; readonly authorUserId: string; started: boolean }>;
+  readonly steers: Map<string, { readonly text: string; readonly authorUserId: string; readonly mentions: readonly Mention[]; started: boolean }>;
   /** The turn is finishing (result seen, or interrupted): no more steers. */
   ended: boolean;
   interrupting: boolean;
@@ -488,7 +493,7 @@ const make = (options: ClaudeThreadsOptions) =>
           const steer = lifecycle.type === "command_lifecycle" && lifecycle.state === "started" && lifecycle.command_uuid ? session.turn?.steers.get(lifecycle.command_uuid) : undefined;
           if (steer && !steer.started && session.turn) {
             steer.started = true;
-            await record(threadId, userItem(session.turn.turnId, `user:${lifecycle.command_uuid}`, lifecycle.command_uuid ?? "", steer.text, steer.authorUserId));
+            await record(threadId, userItem(session.turn.turnId, `user:${lifecycle.command_uuid}`, lifecycle.command_uuid ?? "", steer.text, steer.authorUserId, steer.mentions));
           }
           if (message.type === "assistant") {
             for (const block of message.message.content) {
@@ -609,7 +614,7 @@ const make = (options: ClaudeThreadsOptions) =>
               if (mode !== session.mode) await switchMode(session, mode);
             }
             await beginTurn(session, turnId, TurnOrigin.COMMAND, model);
-            await record(spec.threadId, userItem(turnId, `user:${turnId}`, turnId, input.text, input.authorUserId));
+            await record(spec.threadId, userItem(turnId, `user:${turnId}`, turnId, input.text, input.authorUserId, input.mentions));
             session.input.push(userMessage(input.text));
           },
           catch: fail(spec.threadId, "turn"),
@@ -639,7 +644,7 @@ const make = (options: ClaudeThreadsOptions) =>
         if (!session.input.push(userMessage(input.text, { uuid: inputId as SDKUserMessage["uuid"] & string, priority: "next" }))) {
           return yield* new SteerError({ code: "STEER_NOT_RUNNING", message: "the turn's input is closed" });
         }
-        turn.steers.set(inputId, { text: input.text, authorUserId: input.authorUserId, started: false });
+        turn.steers.set(inputId, { text: input.text, authorUserId: input.authorUserId, mentions: input.mentions, started: false });
       }),
 
       running: (threadId) => sessions.get(threadId)?.turn !== undefined,
@@ -653,6 +658,40 @@ const make = (options: ClaudeThreadsOptions) =>
       backgroundTasks: () =>
         new Map([...sessions.values()].flatMap((s) => (s.mapper.backgroundTasks.length > 0 ? [[s.threadId, s.mapper.backgroundTasks] as const] : []))),
 
+      listMentionCatalog: Effect.fn("ClaudeThreads.listMentionCatalog")(function* (profileId: string, cwd: string) {
+        const profile = options.profile(profileId);
+        if (!profile) return yield* new ClaudeThreadError({ threadId: "", operation: "commands", message: `provider profile "${profileId || "native"}" is not available` });
+        // Started like a turn's process (folder, config dir, setting sources), so it lists what a turn would have.
+        const prompt = new AsyncChannel<SDKUserMessage>();
+        const abort = new AbortController();
+        const commands = yield* Effect.tryPromise({
+          try: async () => {
+            const q = query({
+              prompt,
+              options: {
+                cwd,
+                ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: options.home }),
+                ...(options.executable && { pathToClaudeCodeExecutable: options.executable }),
+                persistSession: false,
+                strictMcpConfig: true,
+                mcpServers: {},
+                abortController: abort,
+              },
+            });
+            try {
+              return await Promise.race([
+                q.supportedCommands(),
+                Bun.sleep(30_000).then(() => Promise.reject(new Error("Claude Code did not list its commands within 30 s"))),
+              ]);
+            } finally {
+              prompt.close();
+              abort.abort();
+            }
+          },
+          catch: fail("", "commands"),
+        });
+        return { entries: claudeCatalogEntries(commands, claudeSkillsOnDisk(cwd, options.home), options.nativeTools), notes: [...CLAUDE_CATALOG_NOTES] };
+      }),
       listModels: Effect.fn("ClaudeThreads.listModels")(function* (profileId: string) {
         const profile = options.profile(profileId);
         if (!profile) return yield* new ClaudeThreadError({ threadId: "", operation: "models", message: `provider profile "${profileId || "native"}" is not available` });
@@ -753,9 +792,12 @@ function callKey(tool: string, args: unknown): string {
   return `${tool} ${JSON.stringify(sorted(args))}`;
 }
 
-function userItem(turnId: string, itemId: string, clientId: string, text: string, authorUserId: string): ThreadEventInit {
+function userItem(turnId: string, itemId: string, clientId: string, text: string, authorUserId: string, mentions: readonly Mention[] = []): ThreadEventInit {
   return {
     turnId,
-    body: { case: "itemCompleted", value: { item: { itemId, status: ItemStatus.COMPLETED, content: { case: "userMessage", value: { text, authorUserId, clientId } } } } },
+    body: {
+      case: "itemCompleted",
+      value: { item: { itemId, status: ItemStatus.COMPLETED, content: { case: "userMessage", value: { text, authorUserId, clientId, mentions: [...mentions] } } } },
+    },
   };
 }
