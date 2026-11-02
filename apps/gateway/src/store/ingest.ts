@@ -10,7 +10,7 @@ import {
   type Item,
   type ThreadEvent,
 } from "@open-agents/contracts";
-import { eventItemId, eventKind, itemStatus, itemType, reduceItem } from "@open-agents/domain";
+import { eventItemId, eventKind, itemStatus, itemType, previewRefs, reduceItem } from "@open-agents/domain";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
@@ -139,7 +139,7 @@ export class Ingest extends Context.Service<
                   parent_item_id = EXCLUDED.parent_item_id, last_seq = EXCLUDED.last_seq
           `;
           // Previews the item shows (the worker sent them before the event): readable through this thread.
-          for (const sha256 of blobsOf(next)) {
+          for (const { sha256 } of previewRefs(next)) {
             yield* sql`INSERT INTO thread_blobs (thread_id, sha256) VALUES (${threadId}::uuid, ${sha256}) ON CONFLICT DO NOTHING`;
           }
         });
@@ -421,9 +421,3 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-/** Blobs an item points to that the UI may show: image previews (Image.blob, ToolCall.images). */
-export function blobsOf(item: Item): string[] {
-  const refs =
-    item.content.case === "image" ? [item.content.value.blob] : item.content.case === "toolCall" ? item.content.value.images : [];
-  return refs.flatMap((ref) => (ref && /^[0-9a-f]{64}$/.test(ref.sha256) ? [ref.sha256] : []));
-}

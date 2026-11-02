@@ -1,5 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { EventAck, HelloSchema } from "@open-agents/contracts";
+import type { EventAck, HelloSchema, ThreadEvent } from "@open-agents/contracts";
 import { Effect } from "effect";
 import { Journal } from "../journal/index.ts";
 import type { GatewayLink } from "./link.ts";
@@ -20,12 +20,18 @@ export const journalHello = Effect.fn("delivery.journalHello")(function* () {
   } satisfies Pick<MessageInitShape<typeof HelloSchema>, "journalId" | "threads">;
 });
 
-/** After Welcome: drop what the gateway already has, resend the rest in order. Returns how many were sent. */
-export const resendPending = Effect.fn("delivery.resendPending")(function* (link: GatewayLink) {
+/**
+ * After Welcome: drop what the gateway already has, resend the rest in order. Returns how many were sent.
+ * `before` sends what an event needs first (its image previews, WorkerHost.sendPreviews).
+ */
+export const resendPending = Effect.fn("delivery.resendPending")(function* (link: GatewayLink, before?: (event: ThreadEvent) => void) {
   const journal = yield* Journal;
   const persisted = new Map(link.welcome.persisted.map((c) => [c.threadId, c.lastSeq] as const));
   const events = yield* journal.pending(persisted);
-  for (const event of events) link.send({ case: "threadEvent", value: event });
+  for (const event of events) {
+    before?.(event);
+    link.send({ case: "threadEvent", value: event });
+  }
   return events.length;
 });
 

@@ -73,7 +73,9 @@ while (!stopping.signal.aborted) {
         host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: WORKER_VERSION },
         state: WorkerState.ACTIVE,
         // running_turns: the list below is complete, the gateway ends its other running turns of this worker.
-        capabilities: ["running_turns"],
+        // attachments: turns may carry files (fetched with FetchBlob into attachments_root).
+        capabilities: ["running_turns", "attachments"],
+        attachmentsRoot: host.attachmentsRoot,
         runningTurns: host.runningTurns(),
         configVersion: host.config?.version ?? 0n,
         ...(await runtime.runPromise(journalHello())),
@@ -81,7 +83,7 @@ while (!stopping.signal.aborted) {
     });
     currentLink = link;
     backoffMs = 1_000;
-    const resent = await runtime.runPromise(resendPending(link));
+    const resent = await runtime.runPromise(resendPending(link, (event) => host.sendPreviews(link, event)));
     console.info(`connected to ${local.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`);
     const heartbeat = setInterval(
       () => link.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: WorkerState.ACTIVE } }),

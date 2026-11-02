@@ -3,6 +3,7 @@ import {
   ItemDeltaField,
   ItemSchema,
   ItemStatus,
+  type BlobRef,
   type Item,
   type ItemDelta,
   type ThreadEvent,
@@ -129,4 +130,13 @@ function keepAccumulated(previous: Item, next: Item): void {
 
 function snake(camel: string): string {
   return camel.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+}
+
+/**
+ * Image previews an item shows (Image.blob, ToolCall.images): the worker uploads them before the event, the gateway
+ * lets the thread's owner read them through the thread (thread_blobs).
+ */
+export function previewRefs(item: Item): BlobRef[] {
+  const refs = item.content.case === "image" ? [item.content.value.blob] : item.content.case === "toolCall" ? item.content.value.images : [];
+  return refs.filter((ref): ref is BlobRef => ref !== undefined && /^[0-9a-f]{64}$/.test(ref.sha256));
 }
