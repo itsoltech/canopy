@@ -7,11 +7,13 @@ import { useLiveProxy } from "./support/live.ts";
 
 const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
 const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
 describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailable)("bot creation through live CLIProxyAPI", () => {
   let gw: TestGateway;
   beforeAll(async () => {
     gw = await startTestGateway();
     await useLiveProxy(gw, gw.workerId, { url: url!, key: key!, allowedRoots: ["/repo"], harnesses: [Provider.CODEX] });
+    await eventually(() => gw.core.bots.run((s) => s.apiModels(Provider.CODEX, "cliproxyapi")), (models) => models.some((m) => m.id === model));
     gw.core.bots.start();
   }, 30_000);
   afterAll(async () => { await gw?.core.bots.stop(); await gw?.close(); });
@@ -20,7 +22,7 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailab
     const name = `Haiku-${Bun.randomUUIDv7().slice(-6)}`;
     const parent = (await gw.api.createBot({ clientRequestId: Bun.randomUUIDv7(), configuration: {
       name: "Live creator", shape: "round", color: "#f97316", provider: Provider.CODEX, providerInstance: "cliproxyapi",
-      model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol", effort: "low", approvalPolicy: "safe",
+      model, effort: "low", approvalPolicy: "safe",
     } })).bot!;
     const read = (id: string) => gw.core.bots.run((s) => s.conversation(gw.userId, id));
     await gw.api.sendBotMessage({ botId: parent.id, clientRequestId: Bun.randomUUIDv7(), text: `Create a bot named ${name} that answers only in haiku. Put that behaviour in its standing instructions. Use your current provider instance, model and effort. Check list_models first, then propose create_bot. Do not message the new bot yet.` });

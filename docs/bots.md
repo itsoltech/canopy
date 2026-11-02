@@ -494,7 +494,9 @@ Bot wywołuje API dostawcy bezpośrednio, więc alias Claude Code (`default`, `o
 - `CreateBot`/`UpdateBot` zapisują model, na który alias rozwiązuje się w katalogu workera
   dla tej instancji (`ModelInfo.resolved_model`, np. `default` → `claude-opus-5-5`).
   Alias bez rozwiązania jest odrzucany z czytelnym błędem; model spoza **kompletnego**
-  katalogu również. Własne modele instancji i brak katalogu przechodzą (endpoint decyduje).
+  katalogu również. `CreateBot` i `create_bot` wymagają modelu z katalogu API tej instancji
+  lub jawnie skonfigurowanego własnego modelu. `UpdateBot` i runtime zachowują obsługę
+  niedostępnego katalogu (wtedy o obsłudze modelu decyduje endpoint).
 - Runtime rozwiązuje model przed każdym wywołaniem, więc boty zapisane wcześniej z aliasem
   (np. „Kropek” na stosie) działają bez migracji danych; przy następnym `UpdateBot` model
   zostaje zapisany już jako konkretny.
