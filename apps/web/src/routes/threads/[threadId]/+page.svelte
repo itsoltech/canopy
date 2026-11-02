@@ -321,7 +321,7 @@
   const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${blockingQuestions > 0 ? `, ${blockingQuestions} waiting for you` : ""}` : "");
 </script>
 
-<svelte:head><title>{thread?.title ?? "Thread"} · Open Agents</title></svelte:head>
+<svelte:head><title>{thread?.title ?? "Thread"} · Canopy</title></svelte:head>
 
 <!-- On xl the container reserves the details panel's column (it arrives before the panel, so nothing moves while
      the page loads) and eases it open or shut (motion.css `t-panel-column`). -->

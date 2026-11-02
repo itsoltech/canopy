@@ -40,7 +40,7 @@
     "group relative grid cursor-pointer gap-2 rounded-2xl p-2 ring-1 ring-zinc-950/10 hover:ring-zinc-950/20 has-checked:ring-2 has-checked:ring-brand-500 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-brand-500 dark:ring-white/10 dark:hover:ring-white/20 dark:has-checked:ring-brand-500";
 </script>
 
-<svelte:head><title>Appearance · Settings · Open Agents</title></svelte:head>
+<svelte:head><title>Appearance · Settings · Canopy</title></svelte:head>
 
 <section aria-labelledby="scheme-title">
   <h2 id="scheme-title" class="mb-3 px-1 text-base/7 font-semibold">Color scheme</h2>

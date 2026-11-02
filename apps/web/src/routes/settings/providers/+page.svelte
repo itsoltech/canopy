@@ -90,7 +90,7 @@
   }
 </script>
 
-<svelte:head><title>Providers · Settings · Open Agents</title></svelte:head>
+<svelte:head><title>Providers · Settings · Canopy</title></svelte:head>
 
 <SettingsHeading title="Providers" description="Agent harnesses and how they reach their models. Defined once, synced to the workers you choose.">
   {#snippet actions()}

@@ -106,7 +106,7 @@
   });
 </script>
 
-<svelte:head><title>New thread · Open Agents</title></svelte:head>
+<svelte:head><title>New thread · Canopy</title></svelte:head>
 
 <div class="flex h-full flex-col">
   <TopBar>

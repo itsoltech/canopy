@@ -90,7 +90,7 @@ export function codexViewImageTool(): v2.DynamicToolSpec {
   return {
     type: "namespace",
     name: CODEX_VIEW_IMAGE_NAMESPACE,
-    description: "Open Agents platform tools.",
+    description: "Canopy platform tools.",
     tools: [{ type: "function", name: CODEX_VIEW_IMAGE_TOOL, description: spec.description, inputSchema: spec.inputSchema as v2.DynamicToolFunctionSpec["inputSchema"] }],
   };
 }

@@ -48,7 +48,7 @@
   }
 </script>
 
-<svelte:head><title>Bots · Open Agents</title></svelte:head>
+<svelte:head><title>Bots · Canopy</title></svelte:head>
 
 <div class="flex h-full flex-col">
   <TopBar><Crumb>Bots</Crumb></TopBar>

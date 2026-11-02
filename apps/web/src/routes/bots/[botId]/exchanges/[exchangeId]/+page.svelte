@@ -17,6 +17,6 @@
   const close = () => goto(`/bots/${params.botId}`);
 </script>
 
-<svelte:head><title>{pair.map((b) => b.name).join(" ⇄ ")} · Open Agents</title></svelte:head>
+<svelte:head><title>{pair.map((b) => b.name).join(" ⇄ ")} · Canopy</title></svelte:head>
 <svelte:window onkeydown={(event) => { if (event.key === "Escape" && !event.defaultPrevented && !(event.target instanceof Element && event.target.closest("[popover], dialog"))) void close(); }} />
 <ChatView {conversation} {entries} me={{ id: "me", kind: "user", name: "You" }} {directory} subtitle="Bot conversation" onsend={() => {}} onclose={close} class="h-full" />

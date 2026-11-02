@@ -117,7 +117,7 @@ export class MentionSources {
         data: { kind: item.kind, name: item.name, label: item.label, path: item.path, source: item.source, isDir: false, ...(item.icon && { icon: item.icon }) },
         title: char === "/" ? `/${item.name}` : item.label || item.name,
         detail: [item.argumentHint, item.description].filter(Boolean).join(" · "),
-        group: item.source === "platform" ? "Open Agents" : item.kind === MentionKind.PLUGIN ? "Plugins" : char === "/" ? "Commands" : "Skills",
+        group: item.source === "platform" ? "Canopy" : item.kind === MentionKind.PLUGIN ? "Plugins" : char === "/" ? "Commands" : "Skills",
         indices: char === "/" || !item.label ? match.indices.map((i) => i + (char === "/" ? 1 : 0)) : match.indices,
       }));
   }

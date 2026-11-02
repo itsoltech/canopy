@@ -99,7 +99,7 @@
 
 <svelte:head>
   <link rel="icon" href={favicon} />
-  <title>Open Agents</title>
+  <title>Canopy</title>
 </svelte:head>
 
 <svelte:window bind:innerWidth={sidebar.viewport} />

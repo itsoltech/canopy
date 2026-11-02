@@ -1,4 +1,4 @@
-# Open Agents — architektura
+# Canopy — architektura
 
 Status: **szkic do dyskusji** (2026-11-01). Zaimplementowany jest tylko kanał gateway ↔ worker (gRPC po HTTP/2) z testami.
 

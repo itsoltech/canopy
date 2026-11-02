@@ -12,7 +12,7 @@
   const worker = $derived(overview.worker(route.params.workerId ?? ""));
 </script>
 
-<svelte:head><title>{worker?.name ?? "Worker"} · Settings · Open Agents</title></svelte:head>
+<svelte:head><title>{worker?.name ?? "Worker"} · Settings · Canopy</title></svelte:head>
 
 <SettingsHeading title={worker?.name ?? "Worker"}>
   {#snippet actions()}{#if worker}<StatusBadge status={worker.online ? "online" : "offline"} />{/if}{/snippet}

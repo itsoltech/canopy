@@ -139,7 +139,7 @@
   }
 </script>
 
-<svelte:head><title>{config.name || "Bot"} · Open Agents</title></svelte:head>
+<svelte:head><title>{config.name || "Bot"} · Canopy</title></svelte:head>
 <div class="flex h-full min-h-0 flex-col">
   {#key data.bot.id}
     <ChatView

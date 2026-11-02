@@ -27,7 +27,7 @@
   });
 </script>
 
-<svelte:head><title>{page.status} · Open Agents</title></svelte:head>
+<svelte:head><title>{page.status} · Canopy</title></svelte:head>
 
 <div class="flex h-full flex-col">
   <TopBar><Crumb>{page.status === 404 ? "Not found" : "Error"}</Crumb></TopBar>

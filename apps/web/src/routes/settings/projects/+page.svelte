@@ -16,7 +16,7 @@
   };
 </script>
 
-<svelte:head><title>Projects · Settings · Open Agents</title></svelte:head>
+<svelte:head><title>Projects · Settings · Canopy</title></svelte:head>
 
 <SettingsGroup title="Projects" description="Choose a project to manage its workspaces and threads.">
   {#each overview.projects.filter((p) => p.kind !== "scratch") as project (project.id)}

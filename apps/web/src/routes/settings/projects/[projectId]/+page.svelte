@@ -24,7 +24,7 @@
   const threads = $derived(overview.liveThreads(projectId, decode(ui.ListThreadsResponseSchema, data.threads).threads));
 </script>
 
-<svelte:head><title>{project?.name ?? "Project"} · Settings · Open Agents</title></svelte:head>
+<svelte:head><title>{project?.name ?? "Project"} · Settings · Canopy</title></svelte:head>
 
 <SettingsHeading title={project?.name ?? "Project"}>
   {#snippet leading()}<ProjectAvatar name={project?.name ?? "?"} class="size-8 rounded-md text-xs/none" />{/snippet}

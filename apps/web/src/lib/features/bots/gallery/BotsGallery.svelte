@@ -86,7 +86,7 @@
   let composerValue = $state("");
 </script>
 
-<svelte:head><title>Bots gallery · Open Agents</title></svelte:head>
+<svelte:head><title>Bots gallery · Canopy</title></svelte:head>
 
 <div class={["flex h-full flex-col", className]}>
   <TopBar><Crumb>Dev</Crumb><Crumb>Bots gallery</Crumb></TopBar>

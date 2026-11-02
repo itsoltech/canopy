@@ -75,7 +75,7 @@
   }
 </script>
 
-<svelte:head><title>Long thread benchmark · Open Agents</title></svelte:head>
+<svelte:head><title>Long thread benchmark · Canopy</title></svelte:head>
 
 <div class="flex h-full min-w-0 flex-col">
   <TopBar>

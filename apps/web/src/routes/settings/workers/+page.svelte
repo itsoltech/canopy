@@ -8,7 +8,7 @@
   const online = $derived(overview.workers.filter((w) => w.online).length);
 </script>
 
-<svelte:head><title>Workers · Settings · Open Agents</title></svelte:head>
+<svelte:head><title>Workers · Settings · Canopy</title></svelte:head>
 
 <div class="px-1">
   <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Workers</h1>

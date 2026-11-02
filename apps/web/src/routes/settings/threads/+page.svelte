@@ -12,7 +12,7 @@
   const workspaces = $derived(overview.projects.map((project) => ({ project, workspaces: project.workspaces })));
 </script>
 
-<svelte:head><title>Threads · Settings · Open Agents</title></svelte:head>
+<svelte:head><title>Threads · Settings · Canopy</title></svelte:head>
 
 <SettingsGroup title="New threads" description="Starting values of the new-thread composer on every device. A project's own defaults take precedence.">
   {#snippet actions()}

@@ -135,9 +135,9 @@ export function humanizeToolName(name: string): string {
   return phrase(words(name));
 }
 
-/** An MCP server's name: `github` → "GitHub", `chrome-devtools` → "Chrome devtools", `openagents` → "Open Agents". */
+/** An MCP server's name: `github` → "GitHub", `chrome-devtools` → "Chrome devtools", `openagents` → "Canopy". */
 export function humanizeServer(server: string): string {
-  if (server === "openagents") return "Open Agents";
+  if (server === "openagents") return "Canopy";
   return phrase(words(server));
 }
 

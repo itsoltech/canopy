@@ -1,6 +1,6 @@
-# Open Agents
+# Canopy
 
-Platforma do zarządzania agentami AI dla wielu użytkowników.
+Platforma do zarządzania agentami AI dla wielu użytkowników. W kodzie (pakiety `@open-agents/*`, zmienne `OA_*`, pakiet proto `openagents`) zostaje robocza nazwa „open-agents”.
 
 - **Gateway** — centralny serwer (Bun + TypeScript). Jedyny punkt kontaktu UI z agentami. Uruchamia też agentów czatowych.
 - **Worker** — usługa instalowana na edge device (Linux, macOS, Windows). Uruchamia agentów przez Claude Agent SDK i Codex app-server w wielu katalogach. Opcjonalnie przez [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI).
