@@ -10,6 +10,12 @@
     readonly onfocus: (event: FocusEvent) => void;
     readonly onblur: () => void;
   }
+
+  // Like tooltips: while one card is open, or just after it closed, the next opens without the delay
+  // (hovering down a list moves the preview from row to row) and the previous closes at once.
+  const WARM_MS = 400;
+  let shown: { close: () => void } | undefined;
+  let lastClosed = 0;
 </script>
 
 <script lang="ts">
@@ -21,7 +27,8 @@
   import Popover, { anchorOnly } from "./Popover.svelte";
 
   /**
-   * Preview card for a trigger: opens after hovering it (`openDelay`) or on keyboard focus, stays while
+   * Preview card for a trigger: opens after hovering it (`openDelay`, none while another card is open or just
+   * closed) or on keyboard focus, stays while
    * the pointer is over the card, closes shortly after leaving both. Touch screens have no hover, so a
    * tap toggles it (the trigger is a button) or, with `touch="press"`, a tap-and-hold opens it and a tap
    * keeps doing what the trigger does (a link navigates; it gets no popup semantics). Escape and a click
@@ -60,13 +67,33 @@
     clearTimeout(timer);
     timer = setTimeout(() => (open = value), ms);
   };
+  const self = {
+    close: () => {
+      clearTimeout(timer);
+      open = false;
+    },
+  };
+  $effect(() => {
+    if (open) {
+      if (shown !== self) shown?.close();
+      shown = self;
+    } else if (shown === self) {
+      shown = undefined;
+      lastClosed = Date.now();
+    }
+  });
   const enter = (event: PointerEvent) => {
-    if (event.pointerType === "mouse") after(open ? 0 : openDelay, true);
+    if (event.pointerType !== "mouse") return;
+    const warm = open || (shown !== undefined && shown !== self) || Date.now() - lastClosed < WARM_MS;
+    after(warm ? 0 : openDelay, true);
   };
   const leave = (event: PointerEvent) => {
     if (event.pointerType === "mouse") after(closeDelay, false);
   };
-  $effect(() => () => clearTimeout(timer));
+  $effect(() => () => {
+    clearTimeout(timer);
+    if (shown === self) shown = undefined;
+  });
   const pressKey = createAttachmentKey();
   const press = longPress(() => after(0, true));
 </script>
