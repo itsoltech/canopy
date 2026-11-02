@@ -196,7 +196,9 @@
 
 <svelte:head><title>{thread?.title ?? "Thread"} · Open Agents</title></svelte:head>
 
-<div class="flex h-full">
+<!-- With the panel open its column is reserved by the container (which arrives first), so the
+     composer does not move when the browser paints before it has parsed the panel at the end. -->
+<div class={["flex h-full", panelOpen && "xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-1"]}>
   <div class="flex min-w-0 flex-1 flex-col">
     <TopBar>
       {#if thread}
