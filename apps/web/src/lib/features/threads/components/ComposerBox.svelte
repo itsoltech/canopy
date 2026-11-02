@@ -19,6 +19,9 @@
   import type { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { mentionsToWire } from "#lib/features/mentions/wire.ts";
   import SteerSendButton from "./SteerSendButton.svelte";
+  import ComposerFold from "./ComposerFold.svelte";
+  import ComposerPanelBadge from "./ComposerPanelBadge.svelte";
+  import type { ComposerActivity } from "./composer-compaction.ts";
 
   /**
    * T3-style message box: a growing text field and a bottom row with `controls` (pills) and a round
@@ -61,6 +64,9 @@
     allowEmpty = false,
     sendLabel = "Send",
     secret = false,
+    compact = false,
+    panelsLabel,
+    onexpand,
     class: className,
   }: {
     value?: string;
@@ -88,6 +94,9 @@
     allowEmpty?: boolean;
     sendLabel?: string;
     secret?: boolean;
+    compact?: boolean;
+    panelsLabel?: string | undefined;
+    onexpand?: ((activity?: ComposerActivity) => void) | undefined;
     class?: ClassValue;
   } = $props();
   const triggers: ReadonlySet<TriggerChar> = new Set(["/", "$", "@", "#"]);
@@ -106,9 +115,11 @@
     dragging = false;
     if (!onfiles || !carriesFiles(event)) return;
     event.preventDefault();
+    onexpand?.("drop");
     onfiles(filesOf(event.dataTransfer));
   }
   function onpaste(event: ClipboardEvent) {
+    onexpand?.("paste");
     const files = filesOf(event.clipboardData);
     if (!onfiles || files.length === 0) return;
     // A screenshot comes without text: nothing else to paste. Text with files (an office copy) pastes as well.
@@ -116,6 +127,7 @@
     onfiles(files);
   }
   let box = $state<HTMLDivElement>();
+  let sendWidth = $state(36);
   let editor = $state<{ insertTrigger(char: TriggerChar): void; focus(): void }>();
   const submit = () => box?.closest("form")?.requestSubmit();
 
@@ -129,28 +141,36 @@
   }
 </script>
 
-<div class={["grid grid-cols-1 gap-2", className]}>
+<div class={["grid grid-cols-1", className]}>
   <div
     class={[
-      "rounded-2xl bg-white shadow-sm ring-1 has-focus-visible:ring-zinc-950/25 dark:bg-zinc-950 dark:shadow-none dark:has-focus-visible:ring-white/20",
+      "relative rounded-2xl bg-white shadow-sm ring-1 has-focus-visible:ring-zinc-950/25 dark:bg-zinc-950 dark:shadow-none dark:has-focus-visible:ring-white/20",
       disabled && "opacity-70",
       dragging ? "ring-2 ring-brand-600 dark:ring-brand-500" : "ring-zinc-950/10 dark:ring-white/10",
     ]}
     bind:this={box}
+    onbeforeinput={() => onexpand?.("typing")}
+    data-compact={compact || undefined}
+    data-panels={Boolean(panelsLabel) || undefined}
+    style:--composer-send-width="{sendWidth}px"
     role="group"
     aria-label={onfiles ? `${label}, drop files to attach` : undefined}
     ondragover={(event) => {
       if (!onfiles || !carriesFiles(event)) return;
       event.preventDefault();
       dragging = true;
+      onexpand?.("drop");
     }}
     ondragleave={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dragging = false;
     }}
     {ondrop}
   >
-    {#if draft}<DraftTray {draft} class="px-3 pt-3" />{/if}
-    {@render elements?.()}
+    <ComposerFold open={!compact}>
+      {#if draft}<DraftTray {draft} class="px-3 pt-3" />{/if}
+      {@render elements?.()}
+    </ComposerFold>
+    <div class={secret ? undefined : "t-composer-editor"}>
     {#if secret}
       <label for="{id}-secret" class="sr-only">{label}</label>
       <Input id="{id}-secret" type="password" bare bind:value {placeholder} {disabled} {onkeydown} autocomplete="off" class="px-4 pt-3.5 pb-4 text-base/6 sm:text-sm/6" />
@@ -169,12 +189,15 @@
       anchor={box}
       {onkeydown}
       {onpaste}
-      class={["px-4 pt-3.5 text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
+      singleLine={compact}
+      class={["text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
     />
     {/if}
+    </div>
     <input type="hidden" {name} value={trimmed.text} />
     {#if trimmed.mentions.length > 0}<input type="hidden" name="mentions" value={JSON.stringify(mentionsToWire(trimmed.mentions))} />{/if}
-    <div class="flex items-center justify-end gap-2 p-2.5 pl-3">
+    <ComposerFold open={!compact}>
+    <div class="flex min-h-13 items-center justify-end gap-2 p-2.5 pr-[calc(var(--composer-send-width)+--spacing(5))] pl-3">
       {#if steerMode}
         <p class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden pointer-coarse:hidden dark:text-zinc-400" aria-hidden="true" in:rise>
           <Kbd hotkey="Enter" />{primary}<Kbd hotkey="Mod+Enter" class="ml-1" />{primary === "queue" ? "steer" : "queue"}
@@ -184,6 +207,12 @@
         <ComposerPlusMenu {onfiles} {triggers} {disabled} ontrigger={sources ? (char) => editor?.insertTrigger(char) : undefined} />
       {/if}
       {@render controls?.()}
+    </div>
+    </ComposerFold>
+    {#if compact && panelsLabel}
+      <ComposerPanelBadge label={panelsLabel} class="absolute right-[calc(var(--composer-send-width)+--spacing(5))] bottom-3" onexpand={() => { onexpand?.("menu"); editor?.focus(); }} />
+    {/if}
+    <div class="absolute right-2.5 bottom-2.5" bind:clientWidth={sendWidth}>
       <ResizeSlot>
         {#if steerMode && onqueue}
           <SteerSendButton
@@ -221,6 +250,8 @@
     </div>
   </div>
   {#if meta}
-    <div class="flex min-w-0 items-center justify-between gap-3 px-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{@render meta()}</div>
+    <ComposerFold open={!compact}>
+      <div class="flex min-w-0 items-center justify-between gap-3 px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{@render meta()}</div>
+    </ComposerFold>
   {/if}
 </div>

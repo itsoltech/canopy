@@ -53,6 +53,7 @@
     placeholder = "",
     disabled = false,
     autofocus = false,
+    singleLine = false,
     sources,
     triggers = new Set<TriggerChar>(["/", "$", "@", "#"]),
     anchor,
@@ -68,6 +69,8 @@
     placeholder?: string;
     disabled?: boolean;
     autofocus?: boolean;
+    /** Clip an unfocused draft to its first line without remounting the editor or losing undo. */
+    singleLine?: boolean;
     /** Where options come from; without it the field is plain text with line breaks. */
     sources?: MentionSources | undefined;
     triggers?: ReadonlySet<TriggerChar>;
@@ -81,6 +84,7 @@
   } = $props();
 
   let root = $state<HTMLDivElement>();
+  $effect(() => { if (singleLine && root) root.scrollTop = 0; });
   let composing = $state(false);
   /** What the DOM holds now (to tell outside changes of value/mentions from our own). */
   let shown = { text: "", key: "" };
@@ -388,10 +392,10 @@
   }
 
   editor = {
-    focus: () => root?.focus(),
+    focus: () => root?.focus({ preventScroll: true }),
     insertTrigger(char: TriggerChar) {
       if (!root) return;
-      root.focus();
+      root.focus({ preventScroll: true });
       ensureCaret(root);
       const before = serialize(root).text;
       const needsSpace = before.length > 0 && !/\s$/.test(textBeforeCaret(root) ?? before);
@@ -407,7 +411,7 @@
 </script>
 
 <!-- The placeholder shares the text's grid cell and padding (`class`), so it sits exactly where typing starts. -->
-<div class="grid grid-cols-1">
+<div class="grid min-w-0 grid-cols-1">
   {#if !value && !composing && placeholder}
     <p aria-hidden="true" class={["pointer-events-none col-start-1 row-start-1 truncate text-zinc-400 select-none dark:text-zinc-500", className]}>{placeholder}</p>
   {/if}
@@ -425,7 +429,14 @@
     contenteditable={disabled ? "false" : "true"}
     spellcheck="true"
     tabindex={disabled ? -1 : 0}
-    class={["col-start-1 row-start-1 max-h-72 min-h-16 overflow-y-auto break-words whitespace-pre-wrap text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px", className]}
+    class={["t-composer-input col-start-1 row-start-1 min-w-0 break-words whitespace-pre-wrap text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px", className]}
+    data-single-line={singleLine || undefined}
+    onpointerdown={(event) => {
+      // A sticky footer's normal-flow position is at the end of the thread. Native focus would
+      // scroll there before expanding; focus synchronously (also opens iOS's keyboard) without
+      // scrolling, then let the pointer's default action place the caret normally.
+      if (!disabled && !(event.target as Element).closest("button, input, textarea")) root?.focus({ preventScroll: true });
+    }}
     oninput={(event) => {
       if (!inBlockArea(event.target) || inBlock(event.target)) sync(!(event instanceof InputEvent && event.inputType.startsWith("history")));
     }}
