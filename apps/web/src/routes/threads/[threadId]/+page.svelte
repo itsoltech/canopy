@@ -317,7 +317,7 @@
   </div>
 
   {#if panelOpen}
-    <aside class="w-80 shrink-0 overflow-y-auto py-3 pr-3 max-xl:hidden" aria-label="Thread details">
+    <aside class="w-80 shrink-0 overflow-y-auto py-3 pr-3 pl-1 max-xl:hidden" aria-label="Thread details">
       {#if thread && tree}
         <ThreadPanel
           {thread}
