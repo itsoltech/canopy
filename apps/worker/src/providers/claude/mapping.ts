@@ -424,9 +424,9 @@ export function isTaskNotificationAck(message: TurnMessage): boolean {
   return message.type === "result" && message.subtype === "success" && !message.is_error && message.num_turns === 0 && message.origin?.kind === "task-notification";
 }
 
-/** Evidence of a real turn. init alone can precede a zero-turn notification acknowledgement. */
+/** Messages starting a provider turn. init must reserve the turn before a slow model's first output arrives. */
 export function startsTurn(message: TurnMessage): boolean {
-  return !isTaskNotificationAck(message) && (message.type === "assistant" || message.type === "stream_event" || message.type === "result");
+  return !isTaskNotificationAck(message) && ((message.type === "system" && message.subtype === "init") || message.type === "assistant" || message.type === "stream_event" || message.type === "result");
 }
 
 function backgroundKind(taskType: string): BackgroundTaskKind {
