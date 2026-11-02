@@ -45,6 +45,8 @@ Nie ma sprawdzonego mid-turn steer w bazowym ACP: worker odrzuca go `STEER_REJEC
 
 CLI 1.0.70 raportuje `loadSession`, obraz i embedded context, MCP HTTP/SSE oraz rozszerzenia x.ai. `session/new` nie zwrócił listy `modes`; `session/set_mode` z `default` i `session/set_model` z wybranym modelem zakończyły się sukcesem. Nie traktujemy braku listy trybów jako zgody na zgadywanie identyfikatorów ani jako dowodu wymuszania polityki. Metody są dostępne w SDK, a adapter uprawnienia realizuje przez własne callbacki i konfigurację procesu. Narzędzia prawdziwego CLI mogą nie mieć `kind`; w smoke komendy miały `title=run_terminal_command`, a MCP było wykonywane przez `search_tool` / `use_tool`.
 
+Handshake ogłosił metodę auth `grok.com` („Sign in with Grok”), `image=true`, `audio=false`, `embeddedContext=true` i rozszerzenia sesji list/resume/close. SDK udostępnia bazowe `session/load`; nie opiera trwałości na nieprzenośnych rozszerzeniach resume. Klient nie ogłasza obsługi fs/terminal w adapterze workera: CLI wykonuje własne narzędzia, a SDK potrafi przekazać te callbacki aplikacji, która je implementuje. Alternatywny headless tryb CLI (`grok -p`, formaty `plain`, `json`, `streaming-json`, `streaming-messages-json`, flaga `--include-partial-messages`) nie jest transportem adaptera — interaktywne zgody i MCP idą przez ACP.
+
 ## Uprawnienia i narzędzia platformy
 
 | Canopy | Grok |
@@ -58,13 +60,15 @@ Grok automatycznie dopuszcza część bezpiecznych komend (także mkdir/touch) p
 
 `grokBus` udostępnia lokalny Streamable HTTP MCP, na loopback z losowym bearerem per wątek, przekazany przez ACP `mcpServers`. Używa tych samych `agentBusToolSpecs/agentBusToolsFor` co Claude MCP i Codex dynamicTools. Gateway nadal autoryzuje ask_user, request_secret, spawn_thread, harmonogramy i inne narzędzia. `view_image` korzysta z istniejącego workera, normalizacji obrazów i ograniczeń ścieżek cwd/załączników. Uprawnienia i błędy narzędzi wracają do modelu. Serwer jest zamykany razem z CLI.
 
+Ten sam serwer wystawia platformowe connectory z `ThreadSpec.connectorTools`. Wywołanie zawiera identyfikator konta, a item zachowuje nazwę konta i typ connectora; gateway nadal sprawdza grant workera. Zmiana katalogu narzędzi powoduje restart/load sesji z aktualnym MCP. Test `bus.test.ts` pokrywa bearer, zakres dostępnych narzędzi, konto i metadane transkryptu. Wyłączenie zewnętrznych MCP poniżej dotyczy konfiguracji urządzenia, nie connectorów Canopy.
+
 Załączniki obrazowe są wysyłane jako ACP image tylko po zadeklarowaniu capability; pozostałe jako ścieżki. Zewnętrzne MCP z konfiguracji Claude/Cursor i managed MCP są wyłączone w tym procesie. Klucze modelu są wykluczone ze środowiska shella. Natywne subagenty, workflows i goals Groka są wyłączone; delegowanie odbywa się przez platformowe `spawn_thread`.
 
 ## Katalog, UI, boty i tytuły
 
 Native pobiera modele/efforts z `_meta.modelState` odpowiedzi initialize, bez płatnej tury. Proxy pobiera `/v1/models`, filtruje modele nieagentowe i uzupełnia efforts tylko dla modeli znanych z metadanych CLI. Dla innych modeli lista efforts jest pusta (nie oznacza to dowodu braku rozumowania). W smoke Grok 4.6 raportował low/medium/high/xhigh, Grok 4.5 low/medium/high. UI, harmonogramy i domyślne ustawienia używają wspólnego katalogu. Hello/config-applied pokazuje wersję Groka na liście Agents.
 
-Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synchronizację na workery co pozostałe harnessy. Enum `PROVIDER_GROK=3`, `WorkerConfig.grok=640`, migracja `0042_grok_provider.sql`. Picker, sidebar, ustawienia providerów i karty subagentów mają markę Groka (LobeHub icons, MIT: https://github.com/lobehub/lobe-icons).
+Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synchronizację na workery co pozostałe harnessy. Enum `PROVIDER_GROK=3`, `WorkerConfig.grok=640`, migracja `0042_grok_provider.sql`. Picker, sidebar, ustawienia providerów i karty subagentów mają markę Groka ([LobeHub icons, MIT i notice](third-party-notices.md#lobehub-icons--znak-xaigrok)).
 
 `spawn_thread` obsługuje `grok/<instance>` w obu kierunkach z Claude/Codex. Botowe `start_thread` przyjmuje `provider: grok`. Boty mogą też działać bez CLI przez endpoint chat completions; live `grok-3-mini-fast` potwierdził function calling i odczyt wyniku narzędzia w następnej turze. Generowanie tytułów przez Groka jest dozwolone wyłącznie dla proxy `grok-3-mini` / `grok-3-mini-fast` (max 120 tokenów, bez tools/workspace); native i drogie modele pozostają wyłączone dla tej funkcji.
 
@@ -72,11 +76,25 @@ Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synch
 
 1. Zbuduj/zaktualizuj gateway i worker z tej gałęzi, wykonaj migrację 0042. Na urządzeniu workera zainstaluj `grok`, sprawdź `grok --version`. Nie wykonano wdrożenia w ramach implementacji.
 2. W zdalnym WorkerConfig włącz `grok: { enabled: true, executablePath: "/home/nix/.local/bin/grok" }`. Przy natywnym loginie zostaw `deviceLogin` domyślne; dla wyłącznie proxy ustaw `deviceLogin: NONE`. Istniejący worker potrzebuje jawnego włączenia tego harnessu. Nowy `worker add` włącza już wszystkie trzy.
-3. Native: wykonaj `grok login` jako użytkownik OS workera; domyślnie czytane jest `~/.grok/auth.json`. Alternatywnie instancja native może mieć sekretny `XAI_API_KEY`. Przy innym koncie ustaw Home path albo Own login + Shadow home. Nie kopiuj tokenów do repo.
+3. Native: wykonaj `grok login` jako użytkownik OS workera; domyślnie czytane jest `~/.grok/auth.json`. Alternatywnie instancja native może mieć sekretny `XAI_API_KEY`. Przy innym koncie ustaw Home path na katalog tego loginu. Logowanie Groka odbywa się w CLI, bez formularza OAuth w Canopy. Nie kopiuj tokenów do repo.
 4. Proxy: Settings → Providers → Add → Grok → CLIProxyAPI. Wpisz istniejący prywatny URL i klucz w pola instancji, wybierz worker. URL może być bazowy lub kończyć się `/v1`; wrapper normalizuje go do `/v1`. Model wybierz z katalogu, np. sprawdzony `grok-4.7-build-fast`. Worker sam ustawia prywatny home, custom model, `OPENAGENTS_GROK_API_KEY` i `XAI_API_KEY`; nie wymaga dodatkowych env dla proxy.
 5. Zaczekaj na Agents → Grok 1.0.70 oraz dostępność instancji. Utwórz wątek z Grokiem i wybranym modelem. Dla tanich tytułów wybierz osobno mini w Text generation; bot może używać tej samej instancji proxy i mini-fast.
 
 Przy ręcznej rejestracji nowego workera istniejące polecenie `worker add --cliproxy-url <URL> --cliproxy-key-env <NAZWA_ENV>` rejestruje też instancję Groka. Wartości są pobierane z prywatnego środowiska; nie umieszczaj ich w skryptach repo ani logach. Na istniejącym workerze użyj instancji i zdalnego configu; nie rejestruj kolejnego workera tylko po to, aby dodać Groka.
+
+Fragment zdalnego WorkerConfig dla wyłącznie proxy (zachowaj pozostałe pola configu, szczególnie allowedRoots i limits):
+
+```json
+{
+  "grok": {
+    "enabled": true,
+    "executablePath": "/home/nix/.local/bin/grok",
+    "deviceLogin": "DEVICE_LOGIN_NONE"
+  }
+}
+```
+
+Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi widzieć binarkę i katalog loginu użytkownika OS; dla niestandardowej lokalizacji ustaw Home path instancji lub `GROK_HOME` środowiska workera. Proxy nie wymaga ręcznego ustawiania `XAI_API_KEY`, `OPENAGENTS_GROK_API_KEY` ani `GROK_HOME` workera — wrapper ustawia je tylko w potomnym procesie z zaszyfrowanej konfiguracji instancji.
 
 ## Weryfikacja i granice
 
@@ -85,4 +103,4 @@ Przy ręcznej rejestracji nowego workera istniejące polecenie `worker add --cli
 - Opt-in `OA_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`, `apps/gateway/src/bots/grok.live.test.ts`. Env testowe: `OA_LIVE_CLIPROXYAPI_URL`, `OA_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `OA_LIVE_GROK_MODEL`, `OA_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
 - Odbiór Chromium opisuje [grok-verification.md](grok-verification.md). Nie dodano web UI testów.
 
-Ograniczenia: brak ACP fork i goals (odrzucane w gatewayu, kontrolki ukryte), brak native background-task lifecycle/stopTask i automatycznego settlement z transkryptu Groka po awarii; przerwana tura po restarcie korzysta ze wspólnego fallbacku workera, sesja jest nadal wznawialna. Nie odtwarzamy niezgłoszonych tokenów input/output ani nie zgadujemy usage z context occupancy. Natywny płatny smoke pominięto z powodu braku loginu. Live nie obejmował obrazów, rzeczywistych diffów CLI, wszystkich trybów uprawnień ani mieszanego spawn Claude/Codex↔Grok; te kontrakty są pokryte odpowiednio fake integracją i testem resolvera, nie należy deklarować pełnego live parytetu.
+Ograniczenia: brak ACP fork i goals (odrzucane w gatewayu, kontrolki ukryte), brak native background-task lifecycle/stopTask i automatycznego settlement z transkryptu Groka po awarii; przerwana tura po restarcie korzysta ze wspólnego fallbacku workera, sesja jest nadal wznawialna. Nie odtwarzamy niezgłoszonych tokenów input/output ani nie zgadujemy usage z context occupancy. Natywny płatny smoke pominięto z powodu braku loginu. Live nie obejmował obrazów, rzeczywistych diffów CLI ani mieszanego spawn Claude/Codex↔Grok; obrazy/diffy mają fake integrację, a wybór spawn test resolvera. ASK ma fake round-trip zgody/odmowy/anulowania; live proxy pracował w FULL_AUTO, bez pełnej macierzy READ_ONLY/ACCEPT_EDITS/FULL_AUTO. Nie należy deklarować pełnego live parytetu.
