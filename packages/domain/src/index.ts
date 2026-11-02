@@ -2,3 +2,4 @@ export { emptyItem, eventItemId, eventKind, itemStatus, itemType, reduceItem } f
 export * from "./agent-bus/index.ts";
 export * from "./goals/index.ts";
 export * from "./profiles/index.ts";
+export * from "./appearance/index.ts";

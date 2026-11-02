@@ -309,15 +309,27 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     ).toContain("one model per provider");
     expect(await failure(api.updateUserSettings({ threadDefaults: { workspaceId: Bun.randomUUIDv7() }, expectedVersion: 2n }))).toContain("workspace not found");
 
+    // The sidebar width is held within its limits (220…560 px, @open-agents/domain); 0 stays "default".
+    const look = { colorScheme: ui.ColorScheme.DARK, accent: ui.AccentTheme.GROVE, chatWidth: ui.ChatWidth.WIDE };
+    const narrow = (await api.updateUserSettings({ appearance: { ...look, sidebarWidth: 40 }, expectedVersion: 2n })).settings!;
+    expect([narrow.appearance?.sidebarWidth, narrow.appearance?.accent]).toEqual([220, ui.AccentTheme.GROVE]);
+    const wide = (await api.updateUserSettings({ appearance: { ...look, sidebarWidth: 9000 }, expectedVersion: 3n })).settings!;
+    expect(wide.appearance?.sidebarWidth).toBe(560);
+    // Collapsing keeps the width for the way back.
+    const collapsed = (await api.updateUserSettings({ appearance: { ...look, sidebarWidth: 560, sidebarCollapsed: true }, expectedVersion: 4n })).settings!;
+    expect([collapsed.appearance?.sidebarCollapsed, collapsed.appearance?.sidebarWidth]).toEqual([true, 560]);
+    const reset = (await api.updateUserSettings({ appearance: { ...look, sidebarWidth: 0 }, expectedVersion: 5n })).settings!;
+    expect([reset.version, reset.appearance?.sidebarWidth, reset.appearance?.sidebarCollapsed, (await api.getSettings({})).user?.appearance?.sidebarWidth]).toEqual([6n, 0, false, 0]);
+
     // Project settings override the user's defaults in that project.
     const project = (
       await api.updateProjectSettings({ projectId, threadDefaults: { workspaceId, models: [{ provider: Provider.CODEX, model: "gpt-6.1-sol" }] }, expectedVersion: 0n })
     ).settings!;
     expect([project.version, project.threadDefaults?.models[0]?.model]).toEqual([1n, "gpt-6.1-sol"]);
     const all = await api.getSettings({});
-    expect([all.user?.version, all.projects.map((p) => p.projectId)]).toEqual([2n, [projectId]]);
+    expect([all.user?.version, all.projects.map((p) => p.projectId)]).toEqual([6n, [projectId]]);
 
-    await eventually(async () => seen, (u) => u.filter((x) => x.change.case === "userSettings").length === 2 && u.some((x) => x.change.case === "projectSettings"));
+    await eventually(async () => seen, (u) => u.filter((x) => x.change.case === "userSettings").length === 6 && u.some((x) => x.change.case === "projectSettings"));
     controller.abort();
     await watching;
   });

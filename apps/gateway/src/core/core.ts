@@ -17,7 +17,7 @@ import {
 import { Effect, type ManagedRuntime } from "effect";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { claudeGoalCommand, DEFAULT_BUS_LIMITS, isFinished } from "@open-agents/domain";
+import { claudeGoalCommand, DEFAULT_BUS_LIMITS, isFinished, storedSidebarWidth } from "@open-agents/domain";
 import {
   AgentBusStore,
   applyModelSelections,
@@ -919,13 +919,14 @@ export class GatewayCore {
     return create(ui.GetSettingsResponseSchema, { user, projects });
   }
 
+  /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
   async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
     if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults);
     if (request.modelFavorites) checkFavorites(request.modelFavorites);
     const settings = await this.#settings((s) =>
       s.updateUser({
         userId: this.#options.userId,
-        ...(request.appearance && { appearance: request.appearance }),
+        ...(request.appearance && { appearance: { ...request.appearance, sidebarWidth: storedSidebarWidth(request.appearance.sidebarWidth) } }),
         ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
         ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),
         expectedVersion: request.expectedVersion,
