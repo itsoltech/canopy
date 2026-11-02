@@ -23,14 +23,16 @@ import {
   type InputAttachment,
   type InteractionRequest,
   type ProfileModelsSchema,
+  type WorkerConfig,
 } from "@open-agents/contracts";
 import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
 import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, ModelStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
+import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, ModelStore, ProfileStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
 import type { AttachmentLimits } from "@open-agents/domain";
 import { startGrpcServer } from "@open-agents/transport";
+import { applyWorkerConfig } from "@open-agents/worker/config";
 import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
 import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -38,7 +40,7 @@ import type { SqlClient } from "effect/sql";
 export const SERVICE_TOKEN = "t".repeat(48);
 
 export type TestRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | AttachmentStore | SqlClient.SqlClient,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | ProfileStore | AttachmentStore | SqlClient.SqlClient,
   unknown
 >;
 
@@ -93,8 +95,11 @@ export class ScriptedWorker {
   holdTurns = false;
   /** What a SteerTurn does: join the turn, find it over, or be taken and then dropped (Claude, turn ended first). */
   steerMode: "accept" | "not_running" | "drop" = "accept";
-  /** Models listed by ListModels (and in the catalog after a config). */
+  /** Models listed by ListModels (and in the catalog after a config); other Codex profiles list the same ones. */
   models = SCRIPTED_MODELS;
+  /** Every configuration the gateway sent, in order (with its secrets, as a real worker gets them). */
+  readonly configs: WorkerConfig[] = [];
+  #profiles: string[] = [];
   readonly #running = new Map<string, string>();
   readonly #seq = new Map<string, bigint>();
   readonly #toolResults = new Map<string, (result: AgentToolResult) => void>();
@@ -155,11 +160,22 @@ export class ScriptedWorker {
     this.link.send({ case: "interactionRequest", value: request as InteractionRequest });
   }
 
+  /** The models of every Codex profile the last configuration made available. */
+  #catalog(): MessageInitShape<typeof ProfileModelsSchema>[] {
+    const native = this.models.filter((p) => p.provider === Provider.CODEX && p.profileId === "native");
+    return [...this.models, ...this.#profiles.flatMap((profileId) => native.map((p) => ({ ...p, profileId })))];
+  }
+
   async #loop(): Promise<void> {
     for await (const message of this.link.messages) {
       const payload = message.payload;
       if (payload.case === "config") {
-        // Like a real worker: what this device offers (here Codex and a native profile; Claude missing).
+        this.configs.push(payload.value);
+        // Profiles as the real worker validates and reports them (no CLI probing: the device runs nothing).
+        const applied = applyWorkerConfig(payload.value, { which: () => null, version: () => undefined, realDirectory: (path) => path });
+        const profiles = applied.report.profiles?.length ? applied.report.profiles : [{ id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CLAUDE, Provider.CODEX], available: true }];
+        this.#profiles = profiles.filter((p) => p.available && p.id !== "native" && p.providers?.includes(Provider.CODEX)).map((p) => p.id ?? "");
+        // Like a real worker: what this device offers (here Codex and its profiles; Claude missing).
         this.link.send({
           case: "configApplied",
           value: {
@@ -171,10 +187,10 @@ export class ScriptedWorker {
                 ? { provider: Provider.CLAUDE, available: true, version: "2.1.316" }
                 : { provider: Provider.CLAUDE, available: false, detail: "claude CLI not found" },
             ],
-            profiles: [{ id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CLAUDE, Provider.CODEX], available: true }],
+            profiles,
           },
         });
-        this.link.send({ case: "modelCatalog", value: { configVersion: payload.value.version, profiles: this.models } });
+        this.link.send({ case: "modelCatalog", value: { configVersion: payload.value.version, profiles: this.#catalog() } });
       }
       if (payload.case === "blobChunk") {
         const fetch = this.#fetches.get(payload.value.requestId);
@@ -219,7 +235,7 @@ export class ScriptedWorker {
           break;
         }
         case "listModels":
-          reply(true, { models: this.models });
+          reply(true, { models: this.#catalog() });
           break;
         case "steerTurn": {
           const { threadId, turnId, inputId, input } = kind.value;
@@ -291,15 +307,17 @@ export interface TestGateway {
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
 export async function startTestGateway(options: { attachmentLimits?: AttachmentLimits } = {}): Promise<TestGateway> {
   const pg = await startPostgres();
+  const secretsKey = randomBytes(32);
   const runtime: TestRuntime = ManagedRuntime.make(
     Layer.mergeAll(
-      GatewayStore.layer(randomBytes(32)),
+      GatewayStore.layer(secretsKey),
       Ingest.layer,
       AgentBusStore.layer,
       SettingsStore.layer,
       ModelStore.layer,
       SteerStore.layer,
       GoalStore.layer,
+      ProfileStore.layer(secretsKey),
       AttachmentStore.layer,
     ).pipe(Layer.provideMerge(pg.layer)),
   );

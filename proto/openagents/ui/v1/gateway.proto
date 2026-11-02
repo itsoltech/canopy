@@ -57,6 +57,15 @@ service GatewayService {
   rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (UpdateWorkspaceResponse);
   rpc RemoveWorkspace(RemoveWorkspaceRequest) returns (RemoveWorkspaceResponse);
 
+  // Profile dostawców workera (sekcja na końcu pliku): własne profile, zmienne środowiskowe, wybór modeli.
+  rpc ListProviderProfiles(ListProviderProfilesRequest) returns (ListProviderProfilesResponse);
+  // Nowy albo zmieniony profil: nowa wersja konfiguracji workera, wysłana do niego od razu, gdy jest online.
+  rpc SaveProviderProfile(SaveProviderProfileRequest) returns (SaveProviderProfileResponse);
+  // Usunięcie profilu, którego nie używa żaden wątek (używany: FailedPrecondition, można go wyłączyć).
+  rpc DeleteProviderProfile(DeleteProviderProfileRequest) returns (DeleteProviderProfileResponse);
+  // Które modele katalogu profilu widać w pickerach (gateway filtruje ListModels i OverviewUpdate.models).
+  rpc SetModelSelection(SetModelSelectionRequest) returns (SetModelSelectionResponse);
+
   // Załączniki (sekcja na końcu pliku): plik użytkownika do wiadomości, jego bajty i podglądy obrazów z transkryptu.
   rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse);
   rpc GetAttachment(GetAttachmentRequest) returns (GetAttachmentResponse);
@@ -670,6 +679,8 @@ message ListModelsRequest {
   string worker_id = 1;
   // Lista od nowa z workera (musi być online); bez tego ostatni zapisany raport.
   bool refresh = 2;
+  // Pełny katalog bez wyboru modeli profilu (ekran ustawień). Domyślnie modele odznaczone w wyborze mają hidden.
+  bool unfiltered = 100;
 }
 
 message ListModelsResponse {
@@ -777,6 +788,114 @@ message RemoveWorkspaceRequest {
 }
 
 message RemoveWorkspaceResponse {}
+
+// ---------- Profile dostawców ----------
+// Profil = jak harness (Claude Code, Codex) łączy się z modelem na danym workerze (docs/worker-config.md,
+// "Profile dostawców"). Profil "native" jest wbudowany: zawsze istnieje, nie da się go usunąć ani wyłączyć.
+// Sekrety (klucz API, zmienne oznaczone jako sekret) nigdy nie wracają do UI: jest tylko informacja, że są ustawione.
+
+message ProviderProfileSettings {
+  string worker_id = 1;
+  string id = 2;
+  string display_name = 3;
+  openagents.worker.v1.ProviderProfileKind kind = 4;
+  // Dostawcy, którzy mogą użyć profilu.
+  repeated openagents.worker.v1.Provider providers = 5;
+  // CLIPROXYAPI: adres endpointu.
+  string base_url = 6;
+  bool api_key_set = 7;
+  repeated ProfileEnvVarSettings env = 8;
+  bool enabled = 9;
+  bool built_in = 10;
+  // Ostatni raport workera (ConfigApplied) dla tego profilu.
+  bool available = 11;
+  string detail = 12;
+  // Wątki (niezarchiwizowane), które używają profilu.
+  uint32 thread_count = 13;
+  repeated ModelSelection model_selections = 14;
+}
+
+message ProfileEnvVarSettings {
+  string name = 1;
+  bool secret = 2;
+  // Tylko dla zmiennych jawnych; sekret ma zawsze pustą wartość.
+  string value = 3;
+}
+
+message ModelSelection {
+  openagents.worker.v1.Provider provider = 1;
+  // Modele widoczne w pickerach.
+  repeated string shown = 2;
+  // Modele katalogu w chwili zapisu: model spoza tej listy jest nowy i decyduje o nim show_new.
+  repeated string known = 3;
+  bool show_new = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message ListProviderProfilesRequest {
+  string worker_id = 1;
+}
+
+message ListProviderProfilesResponse {
+  repeated ProviderProfileSettings profiles = 1;
+  // Wersja konfiguracji workera, z której pochodzą profile (do expected_config_version).
+  uint64 config_version = 2;
+}
+
+message ProfileEnvVarInput {
+  string name = 1;
+  bool secret = 2;
+  // Jawna: wartość (nieustawiona = pusta). Sekret: nieustawiona = bez zmian (zmienna o tej nazwie musi już być sekretem).
+  optional string value = 3;
+}
+
+message SaveProviderProfileRequest {
+  string worker_id = 1;
+  // Pusty = nowy profil (id powstaje z nazwy).
+  string profile_id = 2;
+  string display_name = 3;
+  openagents.worker.v1.ProviderProfileKind kind = 4;
+  repeated openagents.worker.v1.Provider providers = 5;
+  string base_url = 6;
+  // Nieustawiony = bez zmian, pusty = usunięcie, inaczej nowy klucz.
+  optional string api_key = 7;
+  // Pełna lista: zastępuje dotychczasową.
+  repeated ProfileEnvVarInput env = 8;
+  bool enabled = 9;
+  // Wersja konfiguracji, którą widział klient; inna = FailedPrecondition (BFF: 409). 0 = bez sprawdzania.
+  uint64 expected_config_version = 10;
+}
+
+message SaveProviderProfileResponse {
+  ProviderProfileSettings profile = 1;
+  uint64 config_version = 2;
+}
+
+message DeleteProviderProfileRequest {
+  string worker_id = 1;
+  string profile_id = 2;
+  uint64 expected_config_version = 3;
+}
+
+message DeleteProviderProfileResponse {
+  uint64 config_version = 1;
+}
+
+message SetModelSelectionRequest {
+  string worker_id = 1;
+  string profile_id = 2;
+  openagents.worker.v1.Provider provider = 3;
+  // true = wszystkie modele katalogu (jak bez wyboru); shown, known i show_new są wtedy pomijane.
+  bool show_all = 4;
+  repeated string shown = 5;
+  repeated string known = 6;
+  bool show_new = 7;
+}
+
+message SetModelSelectionResponse {
+  // Brak = wszystkie modele.
+  ModelSelection selection = 1;
+}
 
 // ---------- Załączniki (docs/ui-api.md) ----------
 

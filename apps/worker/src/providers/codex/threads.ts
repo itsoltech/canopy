@@ -134,6 +134,8 @@ export class CodexThreads extends Context.Service<
     backgroundTasks(): ReadonlyMap<string, readonly string[]>;
     /** Why this runtime cannot serve any more (its app-server process exited), else undefined. */
     failure(): string | undefined;
+    /** The platform thread is loaded in this process (started or resumed here). */
+    has(threadId: string): boolean;
   }
 >()("open-agents/worker/CodexThreads") {
   static readonly layer = (options: CodexThreadsOptions) => {
@@ -610,6 +612,8 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         new Map([...byPlatform.values()].flatMap((entry) => (entry.mapper.backgroundTasks.length > 0 ? [[entry.platformId, entry.mapper.backgroundTasks] as const] : []))),
 
       failure: () => failure,
+
+      has: (threadId) => byPlatform.has(threadId),
     });
   });
 

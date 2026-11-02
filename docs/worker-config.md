@@ -17,7 +17,7 @@ Gateway czyta konfigurację tymczasowo ze zmiennych środowiskowych, do czasu po
 |---|---|
 | `gateway_url`, `worker_id`, `credential` | dozwolone katalogi (`allowed_roots`) |
 | `ca_file` (prywatny certyfikat gateway) | dostawcy: włączony, ścieżka CLI, wymagana wersja |
-| `data_dir` (dziennik, bloby w drodze) | profile dostawców (CLIProxyAPI) z kluczami |
+| `data_dir` (dziennik, bloby w drodze) | profile dostawców (wbudowany `native` i własne) z kluczami i zmiennymi środowiskowymi |
 | `ping_interval_seconds` (utrzymanie mapowania NAT) | natywne narzędzia (subagenci, harmonogram) |
 | | limity (tury, zadania w tle, drain, zwalnianie) |
 | | Codex: dowiązanie logowania urządzenia do izolowanego `CODEX_HOME` (`device_login`) |
@@ -75,7 +75,7 @@ sequenceDiagram
 
 ## 4. Sekrety
 
-- Klucze (np. CLIProxyAPI) są w tabeli `secrets`, zaszyfrowane przez gateway (szyfrowanie kopertowe, `key_id` do rotacji). `worker_configs.config` ma tylko odwołania `{"secretRef": "<id>"}`.
+- Klucze (np. CLIProxyAPI) i zmienne profilu oznaczone jako sekret są w tabeli `secrets`, zaszyfrowane przez gateway (szyfrowanie kopertowe, `key_id` do rotacji). `worker_configs.config` (i historia) ma tylko odwołania `{"secretRef": "<id>"}` w `profiles[].apiKey` i `profiles[].env[].value`.
 - Gateway rozwiązuje odwołania przy wysyłce. Konfiguracja idzie jednym strumieniem gRPC po TLS do tego jednego workera.
 - Worker trzyma klucze **tylko w pamięci**: nie zapisuje ich na dysk, do argv ani do logów. Po restarcie procesu `Hello.config_version = 0`, więc gateway wysyła konfigurację ponownie.
 - Rotacja: `worker_config_secrets` wskazuje workery, którym trzeba wysłać nową wersję.
@@ -93,7 +93,8 @@ Zdalne `allowed_roots` oznaczają, że kto kontroluje gateway, ten wskazuje work
 ## 6. Zmiana na żywo
 
 - Katalogi, limity i domyślne narzędzia natywne obowiązują od następnej tury.
-- Zmiana profili albo ustawień Codexa wymaga restartu `codex app-server`. Worker robi to, gdy nie ma tur Codexa w toku (nowe tury czekają). Do zaimplementowania z adapterami.
+- Zmiana profili albo ustawień Codexa wymaga restartu `codex app-server`. Worker robi to, gdy nie ma żadnej tury w toku (zmiana czeka do końca ostatniej). Restartują się tylko procesy, których ustawienia się zmieniły (osobny app-server profilu ze zmiennymi, sekcja 8.1); ich wątki wznawiają się w nowym procesie (`thread/resume`), a procesy w tle zamkniętego procesu kończą się jako przerwane.
+- Claude Code dostaje środowisko profilu przy każdej turze (`query()` per tura), więc zmiana obowiązuje od następnej tury po zastosowaniu konfiguracji.
 
 ## 7. Schemat (`0002_worker_config`)
 
@@ -103,3 +104,55 @@ Zdalne `allowed_roots` oznaczają, że kto kontroluje gateway, ten wskazuje work
 | `worker_config_history` | każda wysłana wersja (trigger), audyt i powrót |
 | `secrets` | zaszyfrowane sekrety, unikalna nazwa per właściciel (także globalne) |
 | `worker_config_secrets` | które sekrety są używane; blokuje usunięcie używanego sekretu |
+
+## 8. Profile dostawców
+
+Status: **zaimplementowane** (kontrakt: `ProviderProfileConfig.display_name/env/disabled`, `ProfileEnvVar`, `ProviderProfile.display_name`; UI: `ListProviderProfiles`, `SaveProviderProfile`, `DeleteProviderProfile`, `SetModelSelection`, `ListModelsRequest.unfiltered`; gateway `store/profiles.ts`; worker `providers/profiles.ts`, `runtime/host.ts`; migracja `0015_provider_profiles`; ekran Settings → Workers → worker).
+
+**Model.** Profil to część konfiguracji workera (`WorkerConfig.profiles`, wersjonowana, z historią):
+
+| Pole | Znaczenie |
+|---|---|
+| `id` | stały (wątki go zapisują, `threads.provider_profile_id`); dla nowego profilu powstaje z nazwy (`team-proxy`, przy kolizji `-2`…) |
+| `display_name` | nazwa w UI i pickerach; zmiana nazwy nie zmienia `id` |
+| `kind` | `NATIVE` (logowanie CLI na urządzeniu) albo `CLIPROXYAPI` = endpoint zgodny z API Anthropic/OpenAI pod jednym adresem (Claude `<base>/v1/messages`, Codex `<base>/v1/responses`; np. CLIProxyAPI) z kluczem |
+| `providers` | Claude, Codex albo oba (puste = oba) |
+| `base_url`, `api_key` | tylko endpoint; klucz jako sekret |
+| `env` | zmienne środowiskowe procesu harnessu, każda jawna albo sekret |
+| `disabled` | wyłączony przez użytkownika |
+
+Wbudowany profil `native` zawsze istnieje (worker dodaje go, gdy konfiguracja go nie wymienia). Można mu nadać nazwę i zmienne, nie można zmienić połączenia, wyłączyć ani usunąć.
+
+**Usunięcie i wyłączenie.** Profilu, którego używa jakiś (niezarchiwizowany) wątek, nie da się usunąć (`FailedPrecondition`, w UI propozycja wyłączenia): wątek straciłby informację, jak dotrzeć do modelu. Wyłączony profil worker raportuje jako `available = false`, `detail = "disabled"` (bez wpisu w `issues`); gateway odrzuca na nim nowe wątki, a tura istniejącego wątku kończy się błędem `provider profile "<id>" is unavailable: disabled`, więc wątek mówi, dlaczego nie działa. Po włączeniu działa dalej. Usunięcie nieużywanego profilu usuwa też jego wybór modeli i sekrety.
+
+**Sekrety.** Gateway szyfruje klucz i wartości zmiennych `secret` przy zapisie (`secrets`, nazwa `profile-<uuid>`), w konfiguracji zostają odwołania; sekrety `profile-*`, do których nic się już nie odwołuje, są usuwane przy każdej zmianie. Do UI (odpowiedzi, `ListProviderProfiles`, overview) wracają tylko flagi: `api_key_set`, a zmienna-sekret z pustą wartością. Zapis bez wartości sekretu (`ProfileEnvVarInput.value` nieustawione, `api_key` nieustawiony) zostawia zapisany sekret; `api_key = ""` go usuwa. Zachowanie sekretu działa po nazwie, więc zmiana nazwy zmiennej-sekretu wymaga ponownego podania wartości. Worker trzyma sekrety tylko w pamięci, a w raportach i błędach podaje wyłącznie nazwy zmiennych (testy: `tests/integration/provider-profiles.test.ts`, `worker-profile-env.test.ts`).
+
+**Współbieżność.** `expected_config_version` w `SaveProviderProfileRequest` i `DeleteProviderProfileRequest`: inna wersja = `FailedPrecondition` (BFF 409), UI pobiera profile od nowa.
+
+### 8.1. Zmienne środowiskowe profilu
+
+Reguły są wspólne dla UI, gateway (odrzuca zapis) i workera (wyłącza profil z powodem): `@open-agents/domain`, `profiles/env.ts`.
+
+- Nazwa: `[A-Za-z_][A-Za-z0-9_]*`, do 128 znaków, bez powtórzeń (bez rozróżniania wielkości liter); wartość do 32 KiB, bez NUL; najwyżej 64 zmienne.
+- **Zakazane zawsze** (ustawia je worker; porównanie bez wielkości liter): `HOME`, `USERPROFILE`, `PATH`, `PWD`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `CLAUDE_CODE_ENTRYPOINT` oraz prefiks `OPENAGENTS_*` (klucze endpointów dla Codexa, `OPENAGENTS_<ID>_API_KEY`).
+- **Zakazane dla endpointu** (ustawia je profil): `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`. Profil `NATIVE` może je ustawić (np. `ANTHROPIC_API_KEY` zamiast logowania, `CLAUDE_CODE_USE_BEDROCK` + dane AWS).
+- Zmienne workera `OA_*` nie są zakazane: czyta je tylko proces workera, harness nie.
+
+Gdzie trafiają:
+
+| Harness | Jak |
+|---|---|
+| Claude Code | `options.env` każdej tury: środowisko workera, potem zmienne profilu, potem zmienne auth endpointu |
+| Codex | zmienne należą do procesu, więc profil ze zmiennymi ma **własny `codex app-server`** (ten sam izolowany `CODEX_HOME`, więc wątki przechodzą między procesami przez `thread/resume`); profile bez zmiennych dzielą jeden proces. Komendy idą do procesu profilu wątku, a steer, przerwanie i zatrzymanie zadania w tle do procesu, który ma wątek załadowany |
+
+Kiedy obowiązują: Claude od następnej tury po zastosowaniu konfiguracji; Codex po restarcie procesu profilu, który worker robi, gdy nie ma tur w toku (sekcja 6). Polecenia, które agent uruchamia, dziedziczą środowisko harnessu (Codex domyślnie pomija w nich zmienne z `KEY`, `SECRET`, `TOKEN` w nazwie — `shell_environment_policy`).
+
+Potwierdzone na żywo (2026-11-02, profil endpointu na CLIProxyAPI): Codex (`gpt-6.1-sol`, osobny app-server profilu) i Claude (`sonnet`) uruchomiły `printf` i zwróciły jawną zmienną profilu oraz informację, że zmienna-sekret jest ustawiona; klucz i wartość sekretu nie pojawiły się w odpowiedziach dla UI ani w logach gateway, workera i BFF.
+
+### 8.2. Wybór modeli
+
+Per worker, profil i dostawca użytkownik wybiera, które modele katalogu (`worker_model_catalogs`) widać w pickerach (`provider_model_selections`, poza konfiguracją workera: nie zmienia wersji ani nie restartuje harnessu):
+
+- brak wiersza = katalog taki, jak przysłał worker (z jego własnym `hidden`, np. Codex),
+- wiersz: `shown` (widoczne), `known` (katalog w chwili zapisu), `show_new`; model jest widoczny, gdy jest w `shown` albo nie ma go w `known` i `show_new` = true. Model ukryty przez dostawcę można tak pokazać,
+- gateway nie usuwa modeli, tylko ustawia `ModelInfo.hidden` w `ListModels` i `OverviewUpdate.models` (`applyModelSelections` w `store/models.ts`); `ListModelsRequest.unfiltered` zwraca pełny katalog (ekran wyboru). Walidacja modelu wątku i wiadomości (`modelProblem`, `turnEffort`) używa pełnego katalogu, więc wątek na ukrytym modelu działa dalej (na żywo: tura na ukrytym `gpt-6-astra`), a picker wątku zna nazwę i wysiłki modelu.

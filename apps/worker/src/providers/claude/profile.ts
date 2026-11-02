@@ -9,13 +9,14 @@ const AUTH_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_U
  *
  * - `env` replaces the subprocess environment (the SDK does not merge it with process.env),
  *   so the base env is copied and auth variables are swapped per thread. No global mutation,
- *   threads with different profiles can run side by side.
+ *   threads with different profiles can run side by side. The profile's own variables go over the base env
+ *   (the worker's variables they may not touch are refused earlier, @open-agents/domain env rules).
  * - User settings (~/.claude/settings.json) are not loaded: they may set their own `env`
  *   (ANTHROPIC_BASE_URL) or `permissions.defaultMode`, which must not leak into platform agents.
  *   Project and local settings stay on so CLAUDE.md and repo conventions apply.
  */
 export function claudeProfileOptions(profile: ResolvedProfile, baseEnv: Env): Pick<Options, "env" | "settingSources"> {
-  const env: Record<string, string | undefined> = { ...baseEnv };
+  const env: Record<string, string | undefined> = { ...baseEnv, ...profile.env };
   if (profile.kind === "cliproxyapi") {
     for (const name of AUTH_ENV) delete env[name];
     env["ANTHROPIC_BASE_URL"] = stripTrailingSlash(profile.baseUrl.href);

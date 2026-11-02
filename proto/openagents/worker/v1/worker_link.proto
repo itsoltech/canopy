@@ -123,7 +123,8 @@ enum ProviderProfileKind {
   PROVIDER_PROFILE_KIND_UNSPECIFIED = 0;
   // Logowanie CLI na urządzeniu (Claude Code / Codex), bez pośrednika.
   PROVIDER_PROFILE_KIND_NATIVE = 1;
-  // Ruch przez CLIProxyAPI (https://github.com/router-for-me/CLIProxyAPI).
+  // Endpoint zgodny z API Anthropic/OpenAI pod jednym adresem: Claude <base>/v1/messages,
+  // Codex <base>/v1/responses (np. CLIProxyAPI, https://github.com/router-for-me/CLIProxyAPI).
   PROVIDER_PROFILE_KIND_CLIPROXYAPI = 2;
 }
 
@@ -137,6 +138,8 @@ message ProviderProfile {
   string endpoint = 4;
   bool available = 5;
   string detail = 6; // powód niedostępności, np. brak klucza
+  // Nazwa nadana przez użytkownika (docs/worker-config.md, "Profile dostawców"); pusta = id.
+  string display_name = 7;
 }
 
 message ProviderInfo {
@@ -199,6 +202,20 @@ message ProviderProfileConfig {
   string base_url = 4;
   // Sekret. Worker trzyma go tylko w pamięci (nigdy w pamięci podręcznej na dysku ani w logach).
   string api_key = 5;
+  // Nazwa nadana przez użytkownika, tylko do wyświetlania.
+  string display_name = 6;
+  // Zmienne środowiskowe procesu harnessu tego profilu (Claude Code per tura, Codex: osobny app-server).
+  // Nazwy z listy zakazanych (docs/worker-config.md) wyłączają profil.
+  repeated ProfileEnvVar env = 7;
+  // Wyłączony przez użytkownika: niedostępny dla nowych tur (raport: available = false, detail "disabled").
+  bool disabled = 8;
+}
+
+message ProfileEnvVar {
+  string name = 1;
+  // Sekret (secret = true): tylko w pamięci workera, nigdy w logach ani raportach.
+  string value = 2;
+  bool secret = 3;
 }
 
 message NativeToolsConfig {

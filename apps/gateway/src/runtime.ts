@@ -2,17 +2,26 @@ import { PgClient } from "@effect/sql-pg";
 import { migrate } from "@open-agents/db";
 import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@open-agents/domain";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
-import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, loadSecretsKey, ModelStore, SettingsStore, SteerStore } from "./store/index.ts";
+import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, loadSecretsKey, ModelStore, ProfileStore, SettingsStore, SteerStore } from "./store/index.ts";
 
 /** Database-backed services of the gateway, shared by main.ts and cli.ts. */
 export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>) {
   const url = env["OA_DATABASE_URL"];
   if (!url) throw new Error("OA_DATABASE_URL is not set, e.g. postgres://open_agents:...@127.0.0.1:5432/open_agents");
   const database = PgClient.layer({ url: Redacted.make(url), applicationName: "open-agents-gateway" });
+  const secretsKey = loadSecretsKey(env);
   return ManagedRuntime.make(
-    Layer.mergeAll(GatewayStore.layer(loadSecretsKey(env)), Ingest.layer, AgentBusStore.layer, SettingsStore.layer, ModelStore.layer, SteerStore.layer, GoalStore.layer, AttachmentStore.layer).pipe(
-      Layer.provideMerge(database),
-    ),
+    Layer.mergeAll(
+      GatewayStore.layer(secretsKey),
+      Ingest.layer,
+      AgentBusStore.layer,
+      SettingsStore.layer,
+      ModelStore.layer,
+      SteerStore.layer,
+      GoalStore.layer,
+      ProfileStore.layer(secretsKey),
+      AttachmentStore.layer,
+    ).pipe(Layer.provideMerge(database)),
   );
 }
 

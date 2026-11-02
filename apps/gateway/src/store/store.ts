@@ -347,10 +347,12 @@ export class GatewayStore extends Context.Service<
                 const rows = yield* sql<{ version: bigint }>`SELECT version FROM worker_configs WHERE worker_id = ${workerId}::uuid FOR UPDATE`;
                 const version = (rows[0] ? BigInt(rows[0].version) : 0n) + 1n;
                 const document = toJson(WorkerConfigSchema, create(WorkerConfigSchema, { ...config, version })) as {
-                  profiles?: { id?: string; apiKey?: unknown }[];
+                  profiles?: { id?: string; apiKey?: unknown; env?: { secret?: boolean; value?: unknown }[] }[];
                 };
                 for (const profile of document.profiles ?? []) {
                   if (profile.apiKey) return yield* Effect.fail(new Invalid(`profile ${profile.id}: pass API keys as secret references`));
+                  // Secret variables only through the profile settings (ProfileStore), which stores them encrypted.
+                  if (profile.env?.some((v) => v.secret && v.value)) return yield* Effect.fail(new Invalid(`profile ${profile.id}: secret variables go through the profile settings`));
                   const ref = profile.id ? secretRefs[profile.id] : undefined;
                   if (ref) profile.apiKey = { secretRef: ref };
                 }
@@ -377,16 +379,21 @@ export class GatewayStore extends Context.Service<
 
           workerConfig: (workerId) =>
             Effect.gen(function* () {
-              const rows = yield* sql<{ config: { profiles?: { apiKey?: unknown }[] } & Record<string, unknown> }>`
+              const rows = yield* sql<{ config: { profiles?: { apiKey?: unknown; env?: { value?: unknown }[] }[] } & Record<string, unknown> }>`
                 SELECT config FROM worker_configs WHERE worker_id = ${workerId}::uuid`;
               const config = rows[0]?.config;
               if (!config) return undefined;
               // Resolve {"secretRef": id} placeholders right before sending; plaintext never touches the table.
+              const resolve = (value: unknown) =>
+                Effect.gen(function* () {
+                  const ref = (value as { secretRef?: string } | undefined)?.secretRef;
+                  if (!ref) return value;
+                  const secret = yield* sql<{ ciphertext: Uint8Array }>`SELECT ciphertext FROM secrets WHERE id = ${ref}::uuid`;
+                  return secret[0] ? decryptSecret(secretsKey, secret[0].ciphertext) : "";
+                });
               for (const profile of config.profiles ?? []) {
-                const ref = (profile.apiKey as { secretRef?: string } | undefined)?.secretRef;
-                if (!ref) continue;
-                const secret = yield* sql<{ ciphertext: Uint8Array }>`SELECT ciphertext FROM secrets WHERE id = ${ref}::uuid`;
-                profile.apiKey = secret[0] ? decryptSecret(secretsKey, secret[0].ciphertext) : "";
+                if (profile.apiKey) profile.apiKey = yield* resolve(profile.apiKey);
+                for (const variable of profile.env ?? []) variable.value = yield* resolve(variable.value);
               }
               return fromJson(WorkerConfigSchema, config as JsonValue);
             }),
@@ -408,8 +415,13 @@ export class GatewayStore extends Context.Service<
                   FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
                  WHERE w.archived_at IS NULL AND w.revoked_at IS NULL ORDER BY w.name`;
               return rows.map((r) => {
-                const report = r.apply_report ? fromJson(ConfigAppliedSchema, r.apply_report) : undefined;
-                const roots = (r.config as { allowedRoots?: string[] } | null)?.allowedRoots ?? [];
+                const report = r.apply_report ? fromJson(ConfigAppliedSchema, r.apply_report, { ignoreUnknownFields: true }) : undefined;
+                const config = r.config as { allowedRoots?: string[]; profiles?: { id?: string; displayName?: string }[] } | null;
+                const roots = config?.allowedRoots ?? [];
+                // Names the user gave: the configuration knows them before the worker reports (older workers never do).
+                for (const profile of report?.profiles ?? []) {
+                  profile.displayName ||= config?.profiles?.find((p) => p.id === profile.id)?.displayName ?? "";
+                }
                 return create(ui.WorkerSchema, {
                   id: r.id,
                   name: r.name,

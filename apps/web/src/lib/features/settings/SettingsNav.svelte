@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import SearchField from "#lib/shared/ui/SearchField.svelte";
   import { settingsGroups, settingsSections } from "./sections.ts";
 
   /** Settings sections with a search filter (T3 style); a scrolling row on narrow screens. */
@@ -14,19 +15,7 @@
 </script>
 
 <nav aria-label="Settings" class="grid grid-cols-1 gap-3">
-  <label class="flex items-center gap-2 rounded-lg px-2.5 py-2 ring-1 ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 max-lg:hidden sm:py-1.5 dark:ring-white/10">
-    <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
-    <span class="sr-only">Search settings</span>
-    <input
-      type="search"
-      name="settings-search"
-      data-autofocus
-      bind:value={query}
-      placeholder="Search"
-      autocomplete="off"
-      class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400"
-    />
-  </label>
+  <SearchField label="Search settings" name="settings-search" data-autofocus bind:value={query} placeholder="Search" class="max-lg:hidden" />
 
   <ul role="list" class="flex gap-1 overflow-x-auto lg:hidden">
     {#each settingsSections as section (section.href)}

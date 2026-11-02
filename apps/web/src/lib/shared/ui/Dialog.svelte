@@ -10,14 +10,16 @@
    * Opens and closes with the bindable `open`; a bottom sheet on phones (drag its handle down to close),
    * centred from `sm`. Scales in and out (motion.css `t-modal`); content stays, inert, until the exit ends.
    * Focus starts on the first `[data-autofocus]` element inside, else on the close button.
+   * `size="lg"`: wider from `sm`, for forms with lists (e.g. a provider profile's variables).
    */
   let {
     open = $bindable(false),
     title,
     description,
+    size = "md",
     class: className,
     children,
-  }: { open?: boolean; title: string; description?: string; class?: ClassValue; children: Snippet } = $props();
+  }: { open?: boolean; title: string; description?: string; size?: "md" | "lg"; class?: ClassValue; children: Snippet } = $props();
 
   let dialog = $state<HTMLDialogElement>();
   const id = $props.id();
@@ -62,7 +64,8 @@
   data-sheet
   inert={closing || undefined}
   class={[
-    "t-modal m-0 mt-auto max-h-[90dvh] w-full max-w-none overflow-y-auto rounded-t-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 backdrop:bg-zinc-950/40 sm:m-auto sm:max-w-lg sm:rounded-2xl dark:bg-zinc-950 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/60",
+    "t-modal m-0 mt-auto max-h-[90dvh] w-full max-w-none overflow-y-auto rounded-t-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 backdrop:bg-zinc-950/40 sm:m-auto sm:rounded-2xl dark:bg-zinc-950 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/60",
+    size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg",
     className,
   ]}
 >

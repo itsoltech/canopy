@@ -1,7 +1,11 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
 
-  /** Checkbox with a label and an optional description, aligned with the first line of the label. */
+  /**
+   * Checkbox with a label and an optional description, aligned with the first line of the label. `aside`
+   * follows the label on its line (e.g. badges).
+   */
   let {
     name,
     label,
@@ -10,7 +14,17 @@
     disabled = false,
     value = "on",
     class: className,
-  }: { name: string; label: string; description?: string; checked?: boolean; disabled?: boolean; value?: string; class?: ClassValue } = $props();
+    aside,
+  }: {
+    name: string;
+    label: string;
+    description?: string | undefined;
+    checked?: boolean;
+    disabled?: boolean;
+    value?: string;
+    class?: ClassValue;
+    aside?: Snippet;
+  } = $props();
   const id = $props.id();
 </script>
 
@@ -32,8 +46,15 @@
       </svg>
     </span>
   </div>
-  <div class="text-base/6 sm:text-sm/6">
-    <label for={id} class="font-medium text-zinc-950 dark:text-white">{label}</label>
+  <div class="min-w-0 text-base/6 sm:text-sm/6">
+    {#if aside}
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <label for={id} class="font-medium text-zinc-950 dark:text-white">{label}</label>
+        {@render aside()}
+      </div>
+    {:else}
+      <label for={id} class="font-medium text-zinc-950 dark:text-white">{label}</label>
+    {/if}
     {#if description}<p id="{id}-description" class="text-zinc-500 dark:text-zinc-400">{description}</p>{/if}
   </div>
 </div>

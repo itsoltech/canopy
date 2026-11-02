@@ -1,6 +1,6 @@
 import { Provider, type ModelInfo, type ProfileModels, type ui } from "@open-agents/contracts";
 import { modelFor } from "#lib/features/settings/thread-defaults.ts";
-import { knownModels, profileIdValue, profilesFor, profileValue, type ProviderKey, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
+import { knownModels, profileDisplayName, profileIdValue, profilesFor, profileValue, type ProviderKey, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
 
 /**
  * Model options for the pickers: one entry per provider + profile + model, with what the UI shows and
@@ -202,7 +202,7 @@ export function modelOptions(sources: ModelSources): ModelOption[] {
     if (!available && !sources.only) return [];
     const profiles = profilesFor(sources.worker, provider).filter((p) => !sources.only || profileValue(p) === sources.only.profileId);
     // A thread's profile stays offered even when the worker is offline or no longer reports it.
-    const named = profiles.length > 0 ? profiles.map((p) => ({ id: profileValue(p), name: p.id })) : sources.only ? [{ id: sources.only.profileId, name: sources.only.profileId || "native" }] : [];
+    const named = profiles.length > 0 ? profiles.map((p) => ({ id: profileValue(p), name: profileDisplayName(p) })) : sources.only ? [{ id: sources.only.profileId, name: sources.only.profileId || "native" }] : [];
     return named.flatMap((profile) => profileModels(provider, profile.id, profile.name, sources));
   });
 }
