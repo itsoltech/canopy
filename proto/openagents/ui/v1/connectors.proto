@@ -56,6 +56,7 @@ message SetConnectorAccessRequest {
   uint64 expected_revision = 6;
 }
 message ConnectorAccountRequest { string account_id = 1; }
+message DeleteConnectorAccountResponse {}
 message TestConnectorResponse { repeated openagents.worker.v1.ConnectorTool tools = 1; ConnectorAccount account = 2; }
 message SaveConnectorOAuthAppRequest { string connector_type = 1; string client_id = 2; string client_secret = 3; string issuer = 4; }
 message SaveConnectorOAuthAppResponse {}

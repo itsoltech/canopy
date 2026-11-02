@@ -179,6 +179,14 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
       yield* audit({ userId: user, accountId: id }, "disconnect", "disconnected");
       return { row, value, account: yield* view(yield* owned(user, id)) };
     })),
+    /** After disconnect: drop the account, its grants and replay records; audit rows stay, unlinked. */
+    remove: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
+      yield* owned(user, id, true);
+      yield* sql`UPDATE connector_audit SET account_id = NULL WHERE account_id=${id}::uuid`;
+      yield* sql`DELETE FROM connector_executions WHERE account_id=${id}::uuid`;
+      yield* sql`DELETE FROM connector_accounts WHERE id=${id}::uuid`;
+      yield* sql`INSERT INTO connector_audit(owner_user_id,tool,outcome) VALUES (${user}::uuid,'delete','deleted')`;
+    })),
     execution: (id: string) => sql<{ fingerprint: string; status: string; result: JsonValue | null }>`SELECT fingerprint,status,result FROM connector_executions WHERE id=${id}::uuid`.pipe(Effect.map((r) => r[0])),
     claimExecution: (id: string, source: ExecutionSource, tool: string, fingerprint: string) => sql`INSERT INTO connector_executions(id,account_id,owner_user_id,thread_id,bot_id,tool,fingerprint,status)
       VALUES (${id}::uuid,${source.accountId}::uuid,${source.userId}::uuid,${source.threadId ?? null}::uuid,${source.botId ?? null}::uuid,${tool},${fingerprint},'running') ON CONFLICT(id) DO NOTHING RETURNING id`.pipe(Effect.map((r) => r.length > 0)),

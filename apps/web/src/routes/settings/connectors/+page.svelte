@@ -26,6 +26,11 @@
     accounts = accounts.some((a) => a.id === account.id) ? accounts.map((a) => a.id === account.id ? account : a) : [...accounts, account];
     window.dispatchEvent(new Event('connectors-changed'));
   }
+  function remove(id: string) {
+    notice = null;
+    accounts = accounts.filter((a) => a.id !== id);
+    window.dispatchEvent(new Event('connectors-changed'));
+  }
 </script>
 <div class="grid min-w-0 gap-7">
   <SettingsHeading title="Connectors" description="Connect your apps once. Choose which workers and bots can use each account." />
@@ -42,7 +47,7 @@
     <h2 class="text-lg font-semibold text-balance">Your accounts</h2>
     {#each accounts as account (account.id)}
       {@const entry = catalog.types.find((t) => t.id === account.connectorType)}
-      {#if entry}<div in:rise><AccountDetail {account} type={entry} workers={overview.workers} {bots} onupdate={update} /></div>{/if}
+      {#if entry}<div in:rise><AccountDetail {account} type={entry} workers={overview.workers} {bots} onupdate={update} onremove={remove} /></div>{/if}
     {:else}<p class="py-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">No accounts connected yet. Pick an app above to connect one.</p>{/each}
   </section>
 </div>

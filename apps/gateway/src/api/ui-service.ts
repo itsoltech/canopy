@@ -12,6 +12,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       listConnectors: (r) => connectorGuard(() => core.connectors.list(r)),
       saveConnectorAccount: (r) => connectorGuard(async () => create(connectors.ConnectorAccountResponseSchema, { account: await core.connectors.save(r) })),
       setConnectorAccess: (r) => connectorGuard(async () => create(connectors.ConnectorAccountResponseSchema, { account: await core.connectors.access(r) })),
+      deleteConnectorAccount: (r) => connectorGuard(async () => { await core.connectors.remove(r.accountId); return create(connectors.DeleteConnectorAccountResponseSchema, {}); }),
       disconnectConnector: (r) => connectorGuard(async () => create(connectors.ConnectorAccountResponseSchema, { account: await core.connectors.disconnect(r.accountId) })),
       testConnector: (r) => connectorGuard(async () => create(connectors.TestConnectorResponseSchema, await core.connectors.test(r.accountId))),
       saveConnectorOAuthApp: (r) => connectorGuard(async () => { await core.connectors.saveApp(r); return create(connectors.SaveConnectorOAuthAppResponseSchema); }),

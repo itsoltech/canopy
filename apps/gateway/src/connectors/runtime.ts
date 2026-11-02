@@ -155,6 +155,11 @@ export class ConnectorsRuntime {
     await this.run((s) => s.audit({ userId: this.options.userId, accountId: id }, "revoke", revoked ? "revoked" : "local_only"));
     return account;
   }
+  async remove(id: string) {
+    const account = await this.run((s) => s.owned(this.options.userId, id));
+    if (account.status !== "disconnected") await this.disconnect(id);
+    await this.run((s) => s.remove(this.options.userId, id));
+  }
   async call(source: ExecutionSource, callId: string, toolName: string, args: Record<string, unknown>, signal: AbortSignal): Promise<JsonValue> {
     // Authorization precedes even replay lookup, so a revoked account cannot disclose old results.
     await this.run((s) => s.authorize(source));
