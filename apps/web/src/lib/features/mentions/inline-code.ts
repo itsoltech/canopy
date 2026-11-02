@@ -1,5 +1,5 @@
 import { blockOf, elementOf } from "./editor.ts";
-import { codeSpans, inlineHtml } from "./markdown.ts";
+import { inlineSpans, inlineHtml } from "./markdown.ts";
 
 /**
  * Live inline code in the editor's DOM (markdown.ts has the rules). After an edit, each run of text (between chips,
@@ -9,7 +9,13 @@ import { codeSpans, inlineHtml } from "./markdown.ts";
  * backticks stay. Undo and redo themselves are never reformatted (the editor skips this for `history*` input).
  */
 
-const isCode = (node: Node): node is HTMLElement => node instanceof HTMLElement && node.nodeName === "CODE" && node.dataset["md"] === "code";
+const markdownMask = (node: Node): number | undefined => {
+  if (!(node instanceof HTMLElement)) return undefined;
+  if (node.nodeName === "CODE" && node.dataset["md"] === "code") return 1;
+  if (node.nodeName === "STRONG" && node.dataset["md"] === "strong") return 2;
+  if (node.nodeName === "EM" && node.dataset["md"] === "em") return 4;
+  return undefined;
+};
 /** Elements a run never crosses: chips, blocks, line breaks and line blocks. */
 const isBoundary = (node: Node) =>
   node instanceof HTMLElement && (node.nodeName === "BR" || node.nodeName === "DIV" || node.nodeName === "P" || node.nodeName === "LI" || elementOf(node) !== undefined || blockOf(node) !== undefined);
@@ -38,22 +44,27 @@ function runsOf(container: Node, out: Run[] = []): Run[] {
   return out;
 }
 
-/** Per character of the run: inside code (1), plain (0), or in markup that has to go (2: a foreign element). */
+/** Per character: code/emphasis bits, plain (0), or foreign markup (128). */
 function actualMask(run: Run): Uint8Array {
   const mask = new Uint8Array(run.text.length);
   let at = 0;
-  for (const node of run.nodes) {
-    const length = node.textContent?.length ?? 0;
-    const clean = node.nodeType === Node.TEXT_NODE || (isCode(node) && node.childNodes.length === 1 && node.firstChild?.nodeType === Node.TEXT_NODE);
-    if (!clean || isCode(node)) mask.fill(clean ? 1 : 2, at, at + length);
-    at += length;
-  }
+  const walk = (node: Node, inherited: number) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const length = node.textContent?.length ?? 0;
+      mask.fill(inherited, at, at + length);
+      at += length;
+    } else {
+      const style = markdownMask(node);
+      for (const child of node.childNodes) walk(child, inherited | (style ?? 128));
+    }
+  };
+  for (const node of run.nodes) walk(node, 0);
   return mask;
 }
 
 function desiredMask(text: string): Uint8Array {
   const mask = new Uint8Array(text.length);
-  for (const [start, end] of codeSpans(text)) mask.fill(1, start, end);
+  for (const { start, end, mask: style } of inlineSpans(text)) for (let i = start; i < end; i++) mask[i] = mask[i]! | style;
   return mask;
 }
 
@@ -63,9 +74,15 @@ function positionIn(run: Run, offset: number): { node: Node; offset: number } | 
   for (const node of run.nodes) {
     const length = node.textContent?.length ?? 0;
     if (offset < at + length || (offset === at + length && node.nodeType === Node.TEXT_NODE)) {
-      const text = node.nodeType === Node.TEXT_NODE ? node : node.firstChild;
-      if (!text || text.nodeType !== Node.TEXT_NODE) return undefined;
-      return { node: text, offset: offset - at };
+      if (node.nodeType === Node.TEXT_NODE) return { node, offset: offset - at };
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      let relative = offset - at;
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        const size = text.textContent?.length ?? 0;
+        if (relative <= size) return { node: text, offset: relative };
+        relative -= size;
+      }
+      return undefined;
     }
     at += length;
   }
@@ -141,7 +158,7 @@ export function formatInlineCode(root: HTMLElement): boolean {
     }
     if (first < 0) continue;
     // Whole lines of the run, so neither edge falls inside a span or a <code>; markup that has to go, the whole run.
-    const foreign = actual.includes(2);
+    const foreign = actual.some((v) => (v & 128) !== 0);
     const from = foreign ? 0 : run.text.lastIndexOf("\n", first) + 1;
     const lineEnd = run.text.indexOf("\n", last);
     const to = foreign || lineEnd < 0 ? run.text.length : lineEnd;

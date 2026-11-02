@@ -9,6 +9,7 @@
   import AvatarBadge from "./AvatarBadge.svelte";
   import MascotFace from "./MascotFace.svelte";
   import type { MascotState } from "../behaviour.ts";
+  import { botAvatarHtml } from "../mention-chip.ts";
 
   /**
    * Round avatar of a participant: the picture when there is one, otherwise a bot's generated mascot
@@ -49,6 +50,8 @@
     <img src={participant.imageUrl} alt="" class="size-full rounded-full object-cover outline-1 -outline-offset-1 outline-black/5 dark:outline-white/10" />
   {:else if participant.kind === "user"}
     <span class={["grid size-full place-items-center rounded-full bg-zinc-200 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200", initialsText[size]]}>{initials}</span>
+  {:else if participant.kind === "bot" && size === "xs" && !appearance}
+    {@html botAvatarHtml(participant)}
   {:else if chosenAppearance}
     <span class="grid size-full place-items-center rounded-full bg-zinc-950/5 dark:bg-white/10"><MascotFace {...chosenAppearance} alive={alive && size !== "xs"} {state} {event} class="size-full" /></span>
   {:else}

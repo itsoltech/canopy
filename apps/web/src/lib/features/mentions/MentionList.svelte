@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { ClassValue } from "svelte/elements";
+  import type { Snippet } from "svelte";
   import { listboxHeadingClasses, listboxOptionClasses } from "#lib/shared/ui/listbox.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { kindLook, safeIcon } from "./kinds.ts";
@@ -21,6 +22,7 @@
     empty,
     onchoose,
     onactive,
+    optionIcon,
     class: className,
   }: {
     id: string;
@@ -33,6 +35,7 @@
     empty: string;
     onchoose: (option: MentionOption) => void;
     onactive: (index: number) => void;
+    optionIcon?: Snippet<[MentionOption]>;
     class?: ClassValue;
   } = $props();
 
@@ -104,7 +107,9 @@
         onclick={(event) => { if (event.detail === 0) onchoose(option); }}
       >
         <div class="flex h-lh shrink-0 items-center">
-          {#if icon}
+          {#if optionIcon}
+            {@render optionIcon(option)}
+          {:else if icon}
             <!-- Harness icons are often dark glyphs on transparency: in dark mode they sit on a light tile to stay visible. -->
             <img src={icon} alt="" class="size-4 rounded-sm object-contain dark:bg-zinc-200 dark:p-px" />
           {:else}

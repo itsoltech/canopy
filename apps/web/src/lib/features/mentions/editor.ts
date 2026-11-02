@@ -125,30 +125,31 @@ const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&l
  * code. A block is its own lines, so the line break before and after it is the block's edge: a run of text that ends
  * with an empty line before a block, or after the last one, needs one more `<br>` to show it (as at the end).
  */
-export function toHtml(value: EditorValue, icons: ReadonlyMap<string, string> = new Map()): string {
+export function toHtml(value: EditorValue, icons: ReadonlyMap<string, string> = new Map(), renderMention?: (mention: MentionData) => string): string {
   const fences = findFences(value.text).filter((f) => !value.mentions.some((m) => m.start < f.end && m.end > f.start));
-  if (fences.length === 0) return value.text ? runHtml(value, 0, value.text.length, icons) : "";
+  if (fences.length === 0) return value.text ? runHtml(value, 0, value.text.length, icons, renderMention) : "";
   let html = "";
   let at = 0;
   for (const fence of fences) {
     // The text before the fence, without the line break that ends it.
-    if (fence.start > at) html += runHtml(value, at, fence.start - 1, icons);
+    if (fence.start > at) html += runHtml(value, at, fence.start - 1, icons, renderMention);
     html += blockHtml(fence);
     at = fence.end + 1;
   }
-  if (at <= value.text.length) html += runHtml(value, at, value.text.length, icons);
+  if (at <= value.text.length) html += runHtml(value, at, value.text.length, icons, renderMention);
   return html;
 }
 
 /** Text `[from, to)` with its mentions as chips and its inline code; an empty last line gets its extra `<br>`. */
-function runHtml(value: EditorValue, from: number, to: number, icons: ReadonlyMap<string, string>): string {
+function runHtml(value: EditorValue, from: number, to: number, icons: ReadonlyMap<string, string>, renderMention?: (mention: MentionData) => string): string {
   let html = "";
   let at = from;
   for (const m of [...value.mentions].sort((a, b) => a.start - b.start)) {
     if (m.start < at || m.end > to) continue;
     html += inlineHtml(value.text.slice(at, m.start));
     const icon = icons.get(iconKey(m));
-    html += INLINE_RENDERERS.mention.html({ type: "mention", mention: { ...m, ...(icon && { icon }) } });
+    const mention = { ...m, ...(icon && { icon }) };
+    html += renderMention ? renderMention(mention) : INLINE_RENDERERS.mention.html({ type: "mention", mention });
     at = m.end;
   }
   html += inlineHtml(value.text.slice(at, to));

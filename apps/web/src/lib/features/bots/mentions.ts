@@ -1,4 +1,13 @@
 import type { ParticipantView } from "./model.ts";
+import { MentionKind, type Mention } from "@open-agents/contracts";
+
+/** Explicit ids/ranges for user messages, including bots renamed or removed since sending. */
+export function structuredMentionRanges(text: string, mentions: readonly Mention[], bots: readonly ParticipantView[]): { start: number; end: number; bot: ParticipantView }[] {
+  return mentions.filter((m) => m.kind === MentionKind.BOT && m.start < m.end && m.end <= text.length).sort((a, b) => a.start - b.start).map((m) => ({
+    start: m.start, end: m.end,
+    bot: bots.find((b) => b.id === m.name) ?? { id: m.name, kind: "bot", name: m.label || text.slice(m.start + 1, m.end) },
+  }));
+}
 
 /**
  * Where other bots are named in a message (whole words, longest name first, not inside another match), for

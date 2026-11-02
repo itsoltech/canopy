@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { bots, Provider, ui } from "@open-agents/contracts";
+  import { bots, Provider, ui, type Mention } from "@open-agents/contracts";
+  import { mentionsToWire } from "#lib/features/mentions/wire.ts";
   import { create } from "@bufbuild/protobuf";
   import { modelDisplayName } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
@@ -26,7 +27,7 @@
   let retrying = $state(false);
   let answering = $state<Record<string, string>>({});
   /** Your messages until the conversation has them; a failed one keeps its request id for Retry. */
-  let pending = $state<{ id: string; text: string; at: Date; baseline: number; failed: boolean }[]>([]);
+  let pending = $state<{ id: string; text: string; mentions: Mention[]; quotes: ui.Quote[]; at: Date; baseline: number; failed: boolean }[]>([]);
   let instances = $state.raw<ui.ProviderInstance[]>([]);
   let changingModel = $state(false);
 
@@ -35,10 +36,12 @@
   const conversation = $derived(botConversation(bot, settings.sidebar.pinnedBotIds));
   const directory = $derived(botList.list.filter((b) => b.id !== bot.id).map(botParticipant));
   const yours = $derived(snapshot.messages.filter((m) => m.senderId === "user"));
-  const visiblePending = $derived(pending.filter((p) => !yours.slice(p.baseline).some((m) => m.text === p.text)));
+  const visiblePending = $derived(pending.filter((p) => !yours.slice(p.baseline).some((m) => m.text === p.text
+    && JSON.stringify(m.quotes.map((q) => encode(ui.QuoteSchema, q))) === JSON.stringify(p.quotes.map((q) => encode(ui.QuoteSchema, q)))
+    && m.mentions.length === p.mentions.length && m.mentions.every((mention, index) => mention.name === p.mentions[index]?.name && mention.start === p.mentions[index]?.start && mention.end === p.mentions[index]?.end))));
   const entries = $derived<ChatEntry[]>([
     ...botEntries(snapshot),
-    ...visiblePending.map((p): ChatEntry => ({ kind: "message", message: { id: p.id, senderId: "me", at: p.at, text: p.text, delivery: p.failed ? "failed" : "sending" } })),
+    ...visiblePending.map((p): ChatEntry => ({ kind: "message", message: { id: p.id, senderId: "me", at: p.at, text: p.text, mentions: p.mentions, quotes: p.quotes, delivery: p.failed ? "failed" : "sending" } })),
   ]);
   const waiting = $derived(snapshot.approvals.some((a) => a.status === "pending"));
   const status = $derived(
@@ -61,18 +64,18 @@
     });
   });
 
-  async function deliver(item: { id: string; text: string }) {
+  async function deliver(item: { id: string; text: string; mentions: Mention[]; quotes: ui.Quote[] }) {
     sending = true;
     try {
-      await requestJson("POST", `/api/bots/${data.bot.id}/messages`, { text: item.text, clientRequestId: item.id });
+      await requestJson("POST", `/api/bots/${data.bot.id}/messages`, { text: item.text, mentions: mentionsToWire(item.mentions), quotes: item.quotes.map((q) => encode(ui.QuoteSchema, q)), clientRequestId: item.id });
     } catch {
       pending = pending.map((p) => (p.id === item.id ? { ...p, failed: true } : p));
     } finally {
       sending = false;
     }
   }
-  function send(text: string) {
-    const item = { id: crypto.randomUUID(), text, at: new Date(), baseline: yours.length, failed: false };
+  function send(text: string, mentions: Mention[], quotes: ui.Quote[]) {
+    const item = { id: crypto.randomUUID(), text, mentions, quotes, at: new Date(), baseline: yours.length, failed: false };
     pending = [...pending, item];
     void deliver(item);
   }
