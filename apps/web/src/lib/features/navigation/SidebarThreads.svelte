@@ -7,7 +7,6 @@
   import PreviousAgents from "#lib/features/threads/components/PreviousAgents.svelte";
   import { expand, reorder, rise, stagger } from "#lib/shared/ui/motion.ts";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import SidebarSideThread from "./SidebarSideThread.svelte";
   import SidebarThread from "./SidebarThread.svelte";
   import { sidebarThreads } from "./sidebar-threads.ts";
@@ -52,7 +51,6 @@
             {@const sides = groupSideThreads((filtered.sides.get(thread.id) ?? []).filter((t) => !rootIds.has(t.id)))}
             <div class="relative">
               <SidebarThread {thread} project={overview.project(thread.projectId)} worker={overview.worker(thread.workerId)} sides={openTree === thread.id ? 0 : sides.active.length} current={thread.id === currentThreadId} />
-              {#if filtered.pins.has(thread.id)}<Icon name="star" label="Pinned" class="pointer-events-none absolute top-3 left-1 size-2.5 fill-brand-500" />{/if}
             </div>
             {#if !settings.sidebar.archived && openTree === thread.id && (sides.active.length || sides.previous.length)}
               <div class="mt-0.5 mb-1 ml-5 border-l border-zinc-950/10 pl-1.5 dark:border-white/10" transition:expand>

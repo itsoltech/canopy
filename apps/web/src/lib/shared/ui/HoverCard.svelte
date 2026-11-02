@@ -85,8 +85,10 @@
       lastClosed = Date.now();
     }
   });
+  // An open menu (a row's context menu) owns the pointer's attention: no preview pops up over it.
+  const menuOpen = () => document.querySelector(':popover-open[role="menu"], :popover-open [role="menu"]') !== null;
   const enter = (event: PointerEvent) => {
-    if (event.pointerType !== "mouse") return;
+    if (event.pointerType !== "mouse" || menuOpen()) return;
     const warm = open || (shown !== undefined && shown !== self) || Date.now() - lastClosed < WARM_MS;
     after(warm ? 0 : openDelay, true);
   };
