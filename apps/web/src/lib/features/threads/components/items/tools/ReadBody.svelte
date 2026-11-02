@@ -12,7 +12,7 @@
   const file = $derived(call.isError ? undefined : parseNumberedLines(call.output));
 </script>
 
-<p class="truncate font-mono text-[0.8125rem]/5 text-zinc-500 dark:text-zinc-400" title={path}>{path}</p>
+<p class="truncate font-mono text-xs/5 text-zinc-500 dark:text-zinc-400" title={path}>{path}</p>
 {#if file}
   <CodeView code={file.lines.join("\n")} start={file.start} lang={languageOfPath(path)} label="Lines of {path}" quoteKind="tool_call" />
 {:else if call.images.length === 0}

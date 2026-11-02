@@ -24,7 +24,7 @@
 
 <ItemFrame icon="globe-alt" {status}>
   {#snippet title()}
-    <span class="flex min-w-0 gap-1.5"><span class="shrink-0">Searched the web</span><span class="truncate font-medium text-zinc-950 dark:text-white">{search.query}</span></span>
+    <span class="flex min-w-0 gap-1.5"><span class="shrink-0">Searched the web</span><span class="truncate text-zinc-800 dark:text-zinc-200">{search.query}</span></span>
   {/snippet}
   {#if results.length > 0}
     <ul role="list" class="grid gap-1">

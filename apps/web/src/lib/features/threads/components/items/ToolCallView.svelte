@@ -56,9 +56,9 @@
 <ItemFrame icon={look.icon} {status} tone={failed ? "rose" : "neutral"}>
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
-      <span class="shrink-0 font-medium text-zinc-950 dark:text-white">{look.title}</span>
+      <span class="shrink-0 text-zinc-800 dark:text-zinc-200">{look.title}</span>
       {#if look.subject}
-        <span class={["truncate text-zinc-500 dark:text-zinc-400", look.mono && "font-mono text-[0.8125rem]"]} title={look.subjectTitle}>{look.subject}</span>
+        <span class={["truncate text-zinc-500 dark:text-zinc-400", look.mono && "font-mono text-xs"]} title={look.subjectTitle}>{look.subject}</span>
       {/if}
     </span>
   {/snippet}

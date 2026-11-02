@@ -35,7 +35,7 @@
 
 {#if base || filters.length > 0}
   <div class="flex min-w-0 flex-wrap items-center gap-1.5 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    {#if base}<span class="shrink-0">in</span><code class="min-w-0 truncate font-mono text-[0.8125rem] text-zinc-700 dark:text-zinc-300" title={base}>{base}</code>{/if}
+    {#if base}<span class="shrink-0">in</span><code class="min-w-0 truncate font-mono text-xs text-zinc-700 dark:text-zinc-300" title={base}>{base}</code>{/if}
     {#each filters as filter (filter)}<Badge>{filter}</Badge>{/each}
   </div>
 {/if}
@@ -46,7 +46,7 @@
     {#each shownFiles as file (file.path)}
       <div class="grid min-w-0 gap-0.5">
         <p class="flex min-w-0 items-baseline justify-between gap-3 text-sm/5">
-          <span class="truncate font-mono text-[0.8125rem] font-medium text-zinc-900 dark:text-zinc-100" title={file.path}>{prefix && file.path.startsWith(prefix) ? file.path.slice(prefix.length) : file.path}</span>
+          <span class="truncate font-mono text-xs font-medium text-zinc-900 dark:text-zinc-100" title={file.path}>{prefix && file.path.startsWith(prefix) ? file.path.slice(prefix.length) : file.path}</span>
           <span class="shrink-0 text-xs/5 text-zinc-500 tabular-nums dark:text-zinc-400">{file.count}</span>
         </p>
         <!-- svelte-ignore a11y_no_noninteractive_tabindex -->

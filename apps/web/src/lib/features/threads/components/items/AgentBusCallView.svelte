@@ -70,7 +70,7 @@
 
 {#snippet title()}
   <span class="flex min-w-0 items-center gap-1.5">
-    <span class="shrink-0 font-medium text-violet-800 dark:text-violet-300">{look.title}</span>
+    <span class="shrink-0 text-violet-800 dark:text-violet-300">{look.title}</span>
     {#if titled.has(tool) && target}
       <ThreadLink threadId={target} fallback={str(args["title"]) || "Side thread"} />
     {:else if tool === "wait_threads"}

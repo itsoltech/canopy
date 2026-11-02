@@ -11,7 +11,7 @@
 
 <ItemFrame icon="command-line" {status}>
   {#snippet title()}
-    <code class="block truncate font-mono text-[0.8125rem] text-zinc-950 dark:text-white" title={command.command}>{command.command.split("\n")[0]}</code>
+    <code class="block truncate font-mono text-xs text-zinc-800 dark:text-zinc-200" title={command.command}>{command.command.split("\n")[0]}</code>
   {/snippet}
   {#snippet aside()}
     {#if command.durationMs > 0n}<span>{formatDuration(command.durationMs)}</span>{/if}

@@ -14,7 +14,7 @@
 <ItemFrame icon="user-group" {status}>
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
-      <span class="shrink-0 font-medium text-zinc-950 dark:text-white">{humanizeToolName(agent.agentType) || "Subagent"}</span>
+      <span class="shrink-0 text-zinc-800 dark:text-zinc-200">{humanizeToolName(agent.agentType) || "Subagent"}</span>
       {#if agent.description}<span class="truncate">{agent.description}</span>{/if}
     </span>
   {/snippet}

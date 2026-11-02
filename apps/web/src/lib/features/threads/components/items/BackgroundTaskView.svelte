@@ -47,7 +47,7 @@
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
       <span class="shrink-0">Background</span>
-      <span class="truncate font-medium text-zinc-950 dark:text-white">{name}</span>
+      <span class="truncate text-zinc-800 dark:text-zinc-200">{name}</span>
     </span>
   {/snippet}
   {#snippet aside()}
