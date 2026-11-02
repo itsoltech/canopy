@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Mention } from "@open-agents/contracts";
   import type { ClassValue } from "svelte/elements";
-  import Popover from "#lib/shared/ui/Popover.svelte";
   import {
     blockBesideCaret,
     caretAfter,
@@ -18,9 +17,11 @@
   import { CodeBlocks } from "./code-blocks.ts";
   import { activeTrigger, blockOf, iconKey, serialize, toHtml, type ActiveTrigger, type TriggerChar } from "./editor.ts";
   import { formatInlineCode, markTicks } from "./inline-code.ts";
+  import { InputSession } from "./input-session.ts";
   import { INLINE_RENDERERS, type MentionData } from "./kinds.ts";
   import { blockHtml, findFences, openingFence } from "./markdown.ts";
   import MentionList from "./MentionList.svelte";
+  import MentionSuggestions from "./MentionSuggestions.svelte";
   import type { MentionOption, MentionSources } from "./sources.svelte.ts";
 
   /**
@@ -86,6 +87,10 @@
   let root = $state<HTMLDivElement>();
   $effect(() => { if (singleLine && root) root.scrollTop = 0; });
   let composing = $state(false);
+  const inputSession = new InputSession((format) => {
+    composing = inputSession.composing;
+    sync(format);
+  });
   /** What the DOM holds now (to tell outside changes of value/mentions from our own). */
   let shown = { text: "", key: "" };
   /** Icons of chips inserted from the catalog, kept when the content is re-rendered. */
@@ -163,8 +168,10 @@
 
   /** Reads the model back from the DOM after the browser changed it; `format`: live markdown follows the edit. */
   function sync(format = true) {
-    if (!root || composing || formatting) return;
-    if (format) {
+    if (!root || formatting) return;
+    // Always read/query native input, including iOS insertCompositionText/replacements.
+    // Keep the IME's DOM and selection untouched until it commits.
+    if (format && !inputSession.composing) {
       formatting = true;
       try {
         formatInlineCode(root);
@@ -172,9 +179,11 @@
         formatting = false;
       }
     }
-    const fresh = blocks.refresh(root);
-    markTicks(root);
-    if (fresh) blocks.focus(fresh, "start");
+    if (!inputSession.composing) {
+      const fresh = blocks.refresh(root);
+      markTicks(root);
+      if (fresh) blocks.focus(fresh, "start");
+    }
     const next = serialize(root);
     shown = { text: next.text, key: mentionsKey(next.mentions) };
     value = next.text;
@@ -216,6 +225,9 @@
     // Chrome leaves the caret before inserted non-editable content: put it after the chip and its space.
     const chip = root?.querySelector("[data-inserted]");
     if (chip) {
+      // WebKit's insertHTML can strip contenteditable=false. Restore the chip's atomic
+      // boundary before placing the caret, otherwise Backspace edits its label instead.
+      chip.setAttribute("contenteditable", "false");
       chip.removeAttribute("data-inserted");
       caretAfter(chip);
     }
@@ -411,6 +423,21 @@
 </script>
 
 <!-- The placeholder shares the text's grid cell and padding (`class`), so it sits exactly where typing starts. -->
+{#if sources}
+  <MentionSuggestions bind:open={popupOpen} {anchor} label="{label}: suggestions">
+    <MentionList
+      id="{id}-popup"
+      label={lastChar === "@" ? "Files" : lastChar === "#" ? "Threads" : lastChar === "/" ? "Commands" : "Skills and plugins"}
+      {options}
+      {active}
+      {loading}
+      {error}
+      empty={emptyText}
+      onchoose={choose}
+      onactive={(index) => (active = index)}
+    />
+  </MentionSuggestions>
+{/if}
 <div class="grid min-w-0 grid-cols-1">
   {#if !value && !composing && placeholder}
     <p aria-hidden="true" class={["pointer-events-none col-start-1 row-start-1 truncate text-zinc-400 select-none dark:text-zinc-500", className]}>{placeholder}</p>
@@ -438,7 +465,9 @@
       if (!disabled && !(event.target as Element).closest("button, input, textarea")) root?.focus({ preventScroll: true });
     }}
     oninput={(event) => {
-      if (!inBlockArea(event.target) || inBlock(event.target)) sync(!(event instanceof InputEvent && event.inputType.startsWith("history")));
+      if (!inBlockArea(event.target) || inBlock(event.target)) {
+        inputSession.input(event instanceof InputEvent ? event : { isComposing: false, inputType: "" });
+      }
     }}
     {onkeydown}
     {onbeforeinput}
@@ -450,31 +479,17 @@
       if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") detectTrigger();
     }}
     onclick={detectTrigger}
-    oncompositionstart={() => (composing = true)}
-    oncompositionend={() => {
+    oncompositionstart={() => { inputSession.start(); composing = true; }}
+    oncompositionend={() => inputSession.end()}
+    onfocus={() => { inputSession.reset(); composing = false; }}
+    onblur={() => {
+      inputSession.reset();
       composing = false;
-      sync();
+      popupOpen = false;
     }}
-    onblur={() => (popupOpen = false)}
     {@attach focusOnMount}
   ></div>
 </div>
-
-{#if sources && anchor}
-  <Popover bind:open={popupOpen} label="{label}: suggestions" {anchor} role="none" focusOnOpen={false} placement="top-start" class="w-(--float-anchor-width) max-w-[calc(100vw-1rem)]">
-    <MentionList
-      id="{id}-popup"
-      label={lastChar === "@" ? "Files" : lastChar === "#" ? "Threads" : lastChar === "/" ? "Commands" : "Skills and plugins"}
-      {options}
-      {active}
-      {loading}
-      {error}
-      empty={emptyText}
-      onchoose={choose}
-      onactive={(index) => (active = index)}
-    />
-  </Popover>
-{/if}
 
 <style>
   /* The backticks around inline code (inline-code.ts `markTicks`). */
