@@ -10,7 +10,7 @@ const pending = new Map<string, { id: number; sessionId: string }>();
 let hanging: { id: number; sessionId: string } | undefined;
 for await (const line of createInterface({ input: process.stdin })) {
   const m = JSON.parse(line);
-  if (m.method === "initialize") send({ id: m.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true, mcpCapabilities: { http: true } }, _meta: { modelState: { currentModelId: "fake-grok", availableModels: [{ modelId: "fake-grok", name: "Fake Grok", _meta: { reasoningEfforts: [{ id: "low", default: true }, { id: "high" }] } }] } } } });
+  if (m.method === "initialize") send({ id: m.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true, mcpCapabilities: { http: true } }, _meta: { modelState: { currentModelId: "fake-grok", availableModels: [{ modelId: "fake-grok", name: "Fake Grok", _meta: { reasoningEfforts: [{ id: "high" }, { id: "low", default: true }] } }] } } } });
   else if (m.method === "session/new" || m.method === "session/load") {
     if (process.env["OPENAGENTS_GROK_API_KEY"] && (!process.env["XAI_API_KEY"] || (await Bun.file(join(process.env["GROK_HOME"]!, "config.toml")).text()).includes(process.env["OPENAGENTS_GROK_API_KEY"]!))) throw new Error("Proxy credentials were not isolated");
     const sessionId = m.params.sessionId ?? crypto.randomUUID();

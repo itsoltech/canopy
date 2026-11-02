@@ -53,11 +53,12 @@ describe.skipIf(!dockerAvailable)("global provider instances (gateway + two scri
     await gw?.close();
   });
 
-  test("the built-in device logins exist for both harnesses on every worker", async () => {
+  test("the built-in device logins exist for every harness on every worker", async () => {
     const listed = await instances();
     expect(listed.map((i) => [Provider[i.harness], i.id, i.builtIn, i.allWorkers])).toEqual([
       ["CLAUDE", "native", true, true],
       ["CODEX", "native", true, true],
+      ["GROK", "native", true, true],
     ]);
     // Claude is not installed on the scripted workers: only Codex is pickable.
     expect(await pickable(gw.workerId)).toEqual(["CODEX/native"]);
@@ -197,6 +198,6 @@ describe.skipIf(!dockerAvailable)("global provider instances (gateway + two scri
     await gw.api.deleteProviderInstance({ harness: Provider.CLAUDE, id: "spare", expectedRevision: spare.instance!.revision });
     expect(await count()).toBe(before - 1);
     await eventually(async () => workerB.configs.at(-1)!, (c) => !c.profiles.some((p) => p.id === "spare"));
-    expect((await instances()).map((i) => `${Provider[i.harness]}/${i.id}`)).toEqual(["CLAUDE/native", "CODEX/native", "CODEX/team"]);
+    expect((await instances()).map((i) => `${Provider[i.harness]}/${i.id}`)).toEqual(["CLAUDE/native", "CODEX/native", "CODEX/team", "GROK/native"]);
   });
 });

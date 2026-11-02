@@ -30,6 +30,9 @@ interface Entry {
   idleTimer?: ReturnType<typeof setTimeout>;
 }
 
+// ACP metadata from Grok lists the highest effort first; composers expect lowest first.
+const effortRank: Readonly<Record<string, number>> = { none: 0, minimal: 1, low: 2, medium: 3, high: 4, xhigh: 5, max: 6, ultra: 7 };
+
 /** Worker registry with the same lifecycle operations as ClaudeThreads/CodexThreads; one ACP process per thread. */
 export class GrokThreads {
   readonly #entries = new Map<string, Entry>();
@@ -155,7 +158,8 @@ export class GrokThreads {
       const state = (info as unknown as { _meta?: { modelState?: SessionResult["models"] } })._meta?.modelState;
       const known: ModelInit[] = (state?.availableModels ?? []).map((m) => {
         const meta = (m as unknown as { _meta?: { reasoningEfforts?: { id: string; default?: boolean }[] } })._meta;
-        return { id: m.modelId, displayName: m.name, description: m.description ?? "", isDefault: m.modelId === state?.currentModelId, efforts: meta?.reasoningEfforts?.map((e) => e.id) ?? [], defaultEffort: meta?.reasoningEfforts?.find((e) => e.default)?.id ?? "" };
+        const efforts = (meta?.reasoningEfforts?.map((e) => e.id) ?? []).sort((a, b) => (effortRank[a] ?? 100) - (effortRank[b] ?? 100));
+        return { id: m.modelId, displayName: m.name, description: m.description ?? "", isDefault: m.modelId === state?.currentModelId, efforts, defaultEffort: meta?.reasoningEfforts?.find((e) => e.default)?.id ?? "" };
       });
       if (profile.kind !== "cliproxyapi") return { models: known };
       const models = (await proxyModels(profile)).filter((m) => /grok/i.test(m.id) && isAgentModel([m.id], m));

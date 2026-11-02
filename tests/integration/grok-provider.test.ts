@@ -30,6 +30,10 @@ test.skipIf(!dockerAvailable)("Grok: UI API→gateway→worker→fake ACP, appro
   try {
     await Bun.write(join(repo, "fixture.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
     await connect();
+    const catalogModel = await eventually(async () => (await gw.api.listModels({ workerId: added.workerId })).workers
+      .find((w) => w.workerId === added.workerId)?.profiles.find((p) => p.provider === Provider.GROK && p.profileId === "native")?.models.find((m) => m.id === "fake-grok"),
+    (model) => !!model, 15_000);
+    expect(catalogModel).toMatchObject({ efforts: ["low", "high"], defaultEffort: "low" });
     const snapshot = async (threadId: string) => {
       const updates = await watchUntil(gw.api, threadId, (us) => us.some((u) => u.change.case === "snapshot"));
       const change = updates.find((u) => u.change.case === "snapshot")!.change;
