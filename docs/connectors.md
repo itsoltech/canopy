@@ -12,7 +12,7 @@ współdzielony worker nadal widzi wyłącznie konta właściciela konkretnego w
 Wybrane workery i boty są niezależnymi zbiorami. Konta nie dziedziczą uprawnień
 innych kont tego samego typu.
 
-Migracja **0038_connectors** przenosi stare `bot_mcp_servers` do kont typu
+Migracja **0041_connectors** przenosi stare `bot_mcp_servers` do kont typu
 `custom`, zachowując ID, nazwy, transport i odwołania do zaszyfrowanych nagłówków.
 `bot_mcp_connections` stają się grantami wybranych botów. Nie powstają granty
 workerów. Stare RPC pozostają adapterem zgodności; nowa konfiguracja korzysta
