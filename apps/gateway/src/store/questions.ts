@@ -54,7 +54,11 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
     })),
 
     deliverAnswers: () => Effect.gen(function* () {
-      const due = yield* sql<{ id: string; thread_id: string }>`SELECT id, thread_id FROM interaction_requests WHERE answer_delivery = 'pending' ORDER BY created_at`;
+      // No transport acknowledgement exists for a tool result. A crashed sync turn may have died
+      // after DB consumption and before receiving it; redeliver on interruption/failure as well.
+      const due = yield* sql<{ id: string; thread_id: string }>`
+        SELECT q.id, q.thread_id FROM interaction_requests q LEFT JOIN turns u ON u.id = q.turn_id
+        WHERE q.answer_delivery = 'pending' OR (q.answer_delivery = 'consumed' AND u.status IN ('interrupted', 'failed')) ORDER BY q.created_at`;
       const delivered: QuestionDelivery[] = [];
       for (const candidate of due) {
         const delivery = yield* sql.withTransaction(Effect.gen(function* () {
@@ -62,7 +66,8 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
           const rows = yield* sql<InteractionRow & { hops: number; asking_status: string }>`
             SELECT q.*, c.hops, u.status AS asking_status FROM interaction_requests q
               JOIN agent_bus_calls c ON c.id = q.question_call_id LEFT JOIN turns u ON u.id = q.turn_id
-             WHERE q.id = ${candidate.id}::uuid AND q.answer_delivery = 'pending' FOR UPDATE OF q`;
+             WHERE q.id = ${candidate.id}::uuid AND (q.answer_delivery = 'pending' OR
+               (q.answer_delivery = 'consumed' AND u.status IN ('interrupted', 'failed'))) FOR UPDATE OF q`;
           const row = rows[0];
           if (!row) return undefined;
           if (threads[0]?.archived_at) {

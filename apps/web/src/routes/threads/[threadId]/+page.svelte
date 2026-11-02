@@ -282,7 +282,8 @@
       toast(`Could not interrupt: ${cause instanceof Error ? cause.message : "unknown error"}`, { tone: "error" });
     }
   }
-  const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${view.pending.length > 0 ? `, ${view.pending.length} waiting for you` : ""}` : "");
+  const blockingQuestions = $derived(view.pending.filter((interaction) => !interaction.asynchronous).length);
+  const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${blockingQuestions > 0 ? `, ${blockingQuestions} waiting for you` : ""}` : "");
 </script>
 
 <svelte:head><title>{thread?.title ?? "Thread"} · Open Agents</title></svelte:head>

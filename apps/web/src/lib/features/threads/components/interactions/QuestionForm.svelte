@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import { tick, untrack } from "svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
@@ -11,6 +12,14 @@
   const question = $derived(session.question);
   const id = $props.id();
   let panel = $state<HTMLElement>();
+  $effect(() => {
+    session.step;
+    untrack(() => {
+      if (panel?.contains(document.activeElement)) {
+        void tick().then(() => panel?.querySelector<HTMLElement>('input, legend')?.focus());
+      }
+    });
+  });
 
   function keyboard(event: KeyboardEvent) {
     if (session.collapsed || session.messaging || session.busy || event.isComposing || event.altKey || event.metaKey || event.ctrlKey || !panel?.contains(event.target as Node)) return;
@@ -50,7 +59,7 @@
           {session.interaction.asynchronous ? "The agent keeps working — answer any time." : "The agent is waiting for your answers."}
         </p>
         <fieldset disabled={session.busy} class="min-w-0">
-          <legend class="w-full wrap-anywhere text-pretty text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">{question.question}</legend>
+          <legend tabindex="-1" class="w-full wrap-anywhere text-pretty text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">{question.question}</legend>
           {#if question.options.length}
             <ol role="list" class="grid max-h-[min(32dvh,22rem)] gap-0.5 overflow-y-auto overscroll-contain pt-2">
               {#each question.options as option, index (index)}

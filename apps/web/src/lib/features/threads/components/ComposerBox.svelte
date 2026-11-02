@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Input from "#lib/shared/ui/Input.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
   import { rise } from "#lib/shared/ui/motion.ts";
   import ResizeSlot from "#lib/shared/ui/ResizeSlot.svelte";
@@ -59,6 +60,7 @@
     elementCount = 0,
     allowEmpty = false,
     sendLabel = "Send",
+    secret = false,
     class: className,
   }: {
     value?: string;
@@ -85,6 +87,7 @@
     elementCount?: number;
     allowEmpty?: boolean;
     sendLabel?: string;
+    secret?: boolean;
     class?: ClassValue;
   } = $props();
   const triggers: ReadonlySet<TriggerChar> = new Set(["/", "$", "@", "#"]);
@@ -148,6 +151,10 @@
   >
     {#if draft}<DraftTray {draft} class="px-3 pt-3" />{/if}
     {@render elements?.()}
+    {#if secret}
+      <label for="{id}-secret" class="sr-only">{label}</label>
+      <Input id="{id}-secret" type="password" bare bind:value {placeholder} {disabled} {onkeydown} autocomplete="off" class="px-4 pt-3.5 pb-4 text-base/6 sm:text-sm/6" />
+    {:else}
     <MentionEditor
       id="{id}-input"
       {label}
@@ -164,6 +171,7 @@
       {onpaste}
       class={["px-4 pt-3.5 text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
     />
+    {/if}
     <input type="hidden" {name} value={trimmed.text} />
     {#if trimmed.mentions.length > 0}<input type="hidden" name="mentions" value={JSON.stringify(mentionsToWire(trimmed.mentions))} />{/if}
     <div class="flex items-center justify-end gap-2 p-2.5 pl-3">

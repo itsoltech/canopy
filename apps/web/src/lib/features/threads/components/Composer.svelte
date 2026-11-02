@@ -16,7 +16,18 @@
   } = $props();
   const pending = $derived(questions.filter((q) => q.kind === InteractionKind.QUESTION && q.status === "pending"));
   const active = $derived(pending.find((q) => !q.asynchronous) ?? pending[0]);
-  const session = $derived(active ? new QuestionSession(active) : undefined);
+  // A synchronous set can preempt an asynchronous draft; switching back restores that draft.
+  const sessions = new Map<string, QuestionSession>();
+  const session = $derived.by(() => {
+    if (!active) return undefined;
+    let value = sessions.get(active.requestId);
+    if (!value) { value = new QuestionSession(active); sessions.set(active.requestId, value); }
+    return value;
+  });
+  $effect(() => {
+    const ids = new Set(pending.map((q) => q.requestId));
+    for (const id of sessions.keys()) if (!ids.has(id)) sessions.delete(id);
+  });
   const answering = $derived(session && !session.done && !session.messaging);
 </script>
 
@@ -44,6 +55,7 @@
         canSend={Boolean(session.answer)}
         allowEmpty={Boolean(session.labels.length)}
         sendLabel="Submit"
+        secret={session.question.secret}
       >
         {#snippet controls()}<p class="flex-1 text-sm/5 text-zinc-500 dark:text-zinc-400">{session.step + 1 < session.questions.length ? "Submit to continue" : "Submit answers"}</p>{/snippet}
       </ComposerBox>

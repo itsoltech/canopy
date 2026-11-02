@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Provider, type AgentToolResult } from "@open-agents/contracts";
+import { Provider, TurnOutcome, type AgentToolResult } from "@open-agents/contracts";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -100,6 +100,43 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
     gw.worker.holdTurns = false;
     gw.worker.finish(source.threadId, source.turnId);
     await eventually(() => turns(source.threadId), (r) => r.every((t) => t.status === "completed"));
+  });
+
+  test("an accepted async steer dropped by the harness is delivered as a new turn", async () => {
+    const source = await start();
+    gw.worker.steerMode = "drop";
+    const result = json(await gw.worker.callTool({ ...source, tool: "ask_user", args: { questions, wait: false } }));
+    await gw.api.answerInteraction({ requestId: result.question_set_id, answerJson });
+    const next = await eventually(() => turns(source.threadId), (r) => r.length === 2);
+    expect(next[1]).toMatchObject({ status: "queued", trigger: "agent_bus", hops: 1, text: expect.stringContaining('"labels":["OAuth"]') });
+    gw.worker.steerMode = "accept";
+    gw.worker.holdTurns = false;
+    gw.worker.finish(source.threadId, source.turnId);
+    await eventually(() => turns(source.threadId), (r) => r.every((t) => t.status === "completed"));
+  });
+
+  test("sync answers remain deliverable after the asking turn ends, including a crash during result delivery", async () => {
+    for (const consumed of [false, true]) {
+      const source = await start();
+      const callId = Bun.randomUUIDv7();
+      const waiting = gw.worker.callTool({ ...source, callId, tool: "ask_user", args: { questions, wait: true } });
+      await eventually(() => pending(source.threadId), (r) => r.length === 1);
+      if (consumed) {
+        await gw.api.answerInteraction({ requestId: callId, answerJson });
+        expect(json(await waiting).status).toBe("answered");
+      }
+      gw.worker.emit(source.threadId, source.turnId, { case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED } });
+      await eventually(() => turns(source.threadId), (r) => r[0]?.status === "interrupted");
+      if (!consumed) await gw.api.answerInteraction({ requestId: callId, answerJson });
+      await gw.core.bus.deliverAnswers();
+      const next = await eventually(() => turns(source.threadId), (r) => r.length === 2);
+      expect(next[1]).toMatchObject({ trigger: "agent_bus", hops: 1, text: expect.stringContaining('"labels":["OAuth"]') });
+      await gw.core.bus.deliverAnswers();
+      expect(await turns(source.threadId)).toHaveLength(2);
+      gw.worker.holdTurns = false;
+      gw.worker.finish(source.threadId, next[1]!.id);
+      await waiting;
+    }
   });
 
   test("sync dismissal returns dismissed; async get_answers cannot read another thread's question", async () => {

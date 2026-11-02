@@ -39,6 +39,13 @@
   {#snippet title()}
     <span class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
       <span class="shrink-0">{kind}</span>
+      {#if prompt.kind === InteractionKind.QUESTION && questions[0]}
+        <span class="min-w-0 truncate text-zinc-600 dark:text-zinc-400">
+          {questions[0].header || questions[0].question}
+          {#if answers[questions[0].id]} → {questions[0].secret ? "Answered (hidden)" : answers[questions[0].id]}{:else if prompt.outcome === "cancelled"} → Dismissed{/if}
+          {#if questions.length > 1} · +{questions.length - 1}{/if}
+        </span>
+      {/if}
       {#if subject}<span class="truncate font-medium text-zinc-950 dark:text-white">{subject}</span>{/if}
       {#if prompt.answeredByThreadId}
         <span class="text-zinc-500 dark:text-zinc-400">answered by</span><ThreadLink threadId={prompt.answeredByThreadId} fallback="Parent agent" />
