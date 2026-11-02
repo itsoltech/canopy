@@ -20,7 +20,6 @@
   import { mentionsToWire } from "#lib/features/mentions/wire.ts";
   import SteerSendButton from "./SteerSendButton.svelte";
   import ComposerFold from "./ComposerFold.svelte";
-  import ComposerPanelBadge from "./ComposerPanelBadge.svelte";
   import type { ComposerActivity } from "./composer-compaction.ts";
 
   /**
@@ -150,8 +149,8 @@
     ]}
     bind:this={box}
     onbeforeinput={() => onexpand?.("typing")}
+    onpointerdown={() => onexpand?.("pointer")}
     data-compact={compact || undefined}
-    data-panels={Boolean(panelsLabel) || undefined}
     style:--composer-send-width="{sendWidth}px"
     role="group"
     aria-label={onfiles ? `${label}, drop files to attach` : undefined}
@@ -209,9 +208,6 @@
       {@render controls?.()}
     </div>
     </ComposerFold>
-    {#if compact && panelsLabel}
-      <ComposerPanelBadge label={panelsLabel} class="absolute right-[calc(var(--composer-send-width)+--spacing(5))] bottom-3" onexpand={() => { onexpand?.("menu"); editor?.focus(); }} />
-    {/if}
     <div class="absolute right-2.5 bottom-2.5" bind:clientWidth={sendWidth}>
       <ResizeSlot>
         {#if steerMode && onqueue}

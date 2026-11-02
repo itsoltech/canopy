@@ -379,7 +379,13 @@
   padding-bottom: --spacing(3.5);
   transition-duration: var(--duration-medium);
 }
-[data-compact][data-panels] > .t-composer-editor { padding-right: calc(var(--composer-send-width) + --spacing(16)); }
+/* Summary strips stay visible; only their disclosure bodies fold. Keep the ring outside
+   ComposerFold's clipping box and retain the existing top snippet/stack API. */
+[data-composer][data-compact] .t-composer-panel-header {
+  min-height: --spacing(7);
+  padding-block: --spacing(1);
+  font-size: 0.8125rem;
+}
 .t-composer-input {
   min-height: --spacing(16);
   max-height: --spacing(72);

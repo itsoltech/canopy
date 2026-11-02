@@ -403,8 +403,8 @@
                 </GrowIn>
               {/if}
               {#snippet composerPanels()}
-                {#if subagents.length > 0}<SubagentsPanel {subagents} embedded />{/if}
-                <QueuePanel {queue} embedded delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} />
+                {#if subagents.length > 0}<SubagentsPanel {subagents} {compact} embedded />{/if}
+                <QueuePanel {queue} {compact} embedded delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} />
               {/snippet}
               {#if thread}
                 <ThreadComposerSlot {thread} {parent} {compact}>

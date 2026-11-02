@@ -8,7 +8,8 @@
   import type { QuestionSession } from "./question-session.svelte.ts";
   import ComposerPanelHeader from "../ComposerPanelHeader.svelte";
 
-  let { session, more = 0, class: className }: { session: QuestionSession; more?: number; class?: ClassValue } = $props();
+  let { session, more = 0, compact = false, class: className }: { session: QuestionSession; more?: number; compact?: boolean; class?: ClassValue } = $props();
+  const expanded = $derived(!session.collapsed && !compact);
   const question = $derived(session.question);
   const id = $props.id();
   let panel = $state<HTMLElement>();
@@ -41,13 +42,13 @@
 <svelte:window onkeydown={keyboard} />
 
 <section bind:this={panel} class={["min-w-0", className]} aria-label="Questions from the agent">
-    <ComposerPanelHeader expanded={!session.collapsed} controls="{id}-body" onclick={() => (session.collapsed = !session.collapsed)}>
+    <ComposerPanelHeader {expanded} controls="{id}-body" onclick={() => (session.collapsed = expanded)}>
       <Icon name="question-mark-circle" size="sm" class="fill-amber-600 dark:fill-amber-400" />
       <span class="truncate font-medium text-zinc-950 dark:text-white">{question.header || "Question"}</span>
       <span class="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400" aria-live="polite">{session.step + 1} of {session.questions.length}</span>
       {#if more}<span class="text-zinc-500 dark:text-zinc-400">+{more} pending</span>{/if}
     </ComposerPanelHeader>
-  <div id="{id}-body" class="t-acc-panel" data-open={!session.collapsed || undefined} inert={session.collapsed}>
+  <div id="{id}-body" class="t-acc-panel" data-open={expanded || undefined} inert={!expanded}>
     <div>
       <div class="grid gap-1.5 px-4 pt-1 pb-2">
         {#if session.interaction.routedTo === "parent"}<p class="text-[0.8125rem]/5 text-violet-700 sm:text-xs/5 dark:text-violet-400">The parent agent can answer. You can step in.</p>{/if}
