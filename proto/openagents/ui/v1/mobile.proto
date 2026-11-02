@@ -1,0 +1,51 @@
+syntax = "proto3";
+package openagents.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Public, rate-limited exchange. No service token is ever sent to a phone.
+service MobilePairingService {
+  rpc ExchangeMobilePairing(ExchangeMobilePairingRequest) returns (ExchangeMobilePairingResponse);
+}
+
+message MobileDevice {
+  string id = 1;
+  string name = 2;
+  string platform = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp last_seen_at = 5;
+  google.protobuf.Timestamp revoked_at = 6;
+}
+message MobilePairing {
+  string id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  google.protobuf.Timestamp used_at = 3;
+  google.protobuf.Timestamp revoked_at = 4;
+  string device_id = 5;
+}
+message GetMobileDevicesRequest {}
+message GetMobileDevicesResponse {
+  string gateway_url = 1;
+  repeated MobileDevice devices = 2;
+  repeated MobilePairing pairings = 3;
+}
+message CreateMobilePairingRequest {}
+message CreateMobilePairingResponse {
+  MobilePairing pairing = 1;
+  // Shown once. Never persisted as plaintext. Valid for ten minutes.
+  string code = 2;
+  string gateway_url = 3;
+}
+message MobileIdRequest { string id = 1; }
+message MobileOperationResponse {}
+message UnpairMobileDeviceRequest {}
+message ExchangeMobilePairingRequest {
+  string code = 1;
+  string name = 2;
+  // ios | android.
+  string platform = 3;
+}
+message ExchangeMobilePairingResponse {
+  MobileDevice device = 1;
+  string device_token = 2;
+}

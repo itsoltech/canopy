@@ -10,8 +10,15 @@ import "openagents/worker/v1/worker_link.proto";
 import "openagents/ui/v1/bots.proto";
 import "openagents/ui/v1/quotes.proto";
 import "openagents/ui/v1/connectors.proto";
+import "openagents/ui/v1/mobile.proto";
 
 service GatewayService {
+  // Device administration is restricted to the web BFF service token.
+  rpc GetMobileDevices(GetMobileDevicesRequest) returns (GetMobileDevicesResponse);
+  rpc CreateMobilePairing(CreateMobilePairingRequest) returns (CreateMobilePairingResponse);
+  rpc RevokeMobilePairing(MobileIdRequest) returns (MobileOperationResponse);
+  rpc RevokeMobileDevice(MobileIdRequest) returns (MobileOperationResponse);
+  rpc UnpairMobileDevice(UnpairMobileDeviceRequest) returns (MobileOperationResponse);
   rpc GetWorkerSetup(GetWorkerSetupRequest) returns (GetWorkerSetupResponse);
   rpc CreateWorkerEnrollment(CreateWorkerEnrollmentRequest) returns (CreateWorkerEnrollmentResponse);
   rpc RevokeWorkerEnrollment(RevokeWorkerEnrollmentRequest) returns (WorkerOperationResponse);
@@ -472,10 +479,21 @@ message GetOverviewResponse {
   repeated Agent agents = 3;
 }
 
-message WatchOverviewRequest {}
+message WatchOverviewRequest {
+  // Mobile reconnects need a fresh overview + threads before consuming live changes.
+  bool include_snapshot = 762;
+}
+
+message MobileOverviewSnapshot {
+  GetOverviewResponse overview = 1;
+  repeated Thread threads = 2;
+}
 
 message OverviewUpdate {
   oneof change {
+    MobileDevice mobile_device = 760;
+    MobilePairing mobile_pairing = 761;
+    MobileOverviewSnapshot mobile_snapshot = 763;
     string worker_removed = 700;
     WorkerEnrollment enrollment = 701;
     Worker worker = 1;

@@ -98,6 +98,7 @@ import { ActionContext } from "./action-context.ts";
 import { providerOf } from "../store/instance-config.ts";
 import { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { WorkerAdministration, checkWorkerGatewayUrl } from "./worker-administration.ts";
+import { MobileDevices } from "./mobile-devices.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -116,6 +117,7 @@ export type CoreServices = GatewayStore | Ingest | AgentBusStore | SettingsStore
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<CoreServices, unknown>;
 
 export interface GatewayCoreOptions {
+  readonly mobileGatewayUrl?: string;
   readonly publicGatewayUrl?: string;
   readonly runtime: CoreRuntime;
   readonly instanceId: string;
@@ -166,6 +168,7 @@ const HARNESS_ERROR_CODES: ReadonlySet<string> = new Set(["HARNESS_ERROR"]);
 const MAX_OBJECTIVE = 4000;
 
 export class GatewayCore {
+  readonly mobile: MobileDevices;
   readonly workers: WorkerAdministration;
   readonly connectors: ConnectorsRuntime;
   readonly secrets: ThreadSecrets;
@@ -191,6 +194,8 @@ export class GatewayCore {
     this.#options = options;
     this.#actions = new ActionContext(options.runtime);
     this.hub = new Hub((action) => this.#actions.defer(action));
+    this.mobile = new MobileDevices({ runtime: options.runtime, userId: options.userId,
+      ...(options.mobileGatewayUrl && { gatewayUrl: options.mobileGatewayUrl }), publish: (update) => this.hub.publishOverview(update) });
     this.connectors = new ConnectorsRuntime({ runtime: options.runtime, userId: options.userId,
       interaction: (interaction) => this.#publishInteraction(interaction) });
     this.bots = new BotsRuntime({ runtime: options.runtime, userId: options.userId,
@@ -1855,10 +1860,14 @@ export class GatewayCore {
     }
   }
 
-  async *watchOverview(signal: AbortSignal): AsyncGenerator<ui.OverviewUpdate> {
+  async *watchOverview(signal: AbortSignal, includeSnapshot = false): AsyncGenerator<ui.OverviewUpdate> {
     const subscription = this.hub.subscribeOverview();
     signal.addEventListener("abort", () => subscription.close(), { once: true });
     try {
+      if (includeSnapshot) {
+        const [overview, threads] = await Promise.all([this.overview(), this.listThreads("", false, false)]);
+        yield create(ui.OverviewUpdateSchema, { change: { case: "mobileSnapshot", value: { overview, threads } } });
+      }
       yield* subscription.updates;
     } finally {
       subscription.close();

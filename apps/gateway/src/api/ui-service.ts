@@ -5,11 +5,22 @@ import { ConnectorFailure } from "../connectors/store.ts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
 import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, SettingsConflict } from "../store/index.ts";
 import { workerGuard } from "../core/worker-administration.ts";
+import { mobileGuard, mobileIdentity } from "../core/mobile-devices.ts";
 
 /** GatewayService for the UI (docs/ui-api.md). Thin: validation and state live in the core and the store. */
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
   return (router) =>
     router.service(ui.GatewayService, {
+      getMobileDevices: () => mobileGuard(() => core.mobile.list()),
+      createMobilePairing: () => mobileGuard(() => core.mobile.create()),
+      revokeMobilePairing: (r) => mobileGuard(async () => { await core.mobile.revoke(r.id, "pairing"); return create(ui.MobileOperationResponseSchema); }),
+      revokeMobileDevice: (r) => mobileGuard(async () => { await core.mobile.revoke(r.id, "device"); return create(ui.MobileOperationResponseSchema); }),
+      unpairMobileDevice: (_r, context) => mobileGuard(async () => {
+        const identity = context.values.get(mobileIdentity);
+        if (!identity) throw new ConnectError("Device token required", Code.Unauthenticated);
+        await core.mobile.revoke(identity.deviceId, "device");
+        return create(ui.MobileOperationResponseSchema);
+      }),
       getWorkerSetup: () => workerGuard(() => core.workers.setup()),
       createWorkerEnrollment: (r) => workerGuard(() => core.workers.create(r.name)),
       revokeWorkerEnrollment: (r) => workerGuard(async () => { await core.workers.revokeEnrollment(r.id); return create(ui.WorkerOperationResponseSchema); }),
@@ -51,7 +62,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       deleteBotMcpServer: (r) => connectorGuard(async () => { await core.bots.deleteServer(r.serverId); return create(bots.DeleteBotMcpServerResponseSchema); }),
       testBotMcpServer: (r) => connectorGuard(async () => create(bots.TestBotMcpServerResponseSchema, { tools: await core.bots.testServer(r.serverId) })),
       getOverview: () => guard(() => core.overview()),
-      watchOverview: (_request, context) => core.watchOverview(context.signal),
+      watchOverview: (request, context) => core.watchOverview(context.signal, request.includeSnapshot),
       listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),
       createProject: (request) => guard(async () => create(ui.CreateProjectResponseSchema, { project: await core.createProject(request.name) })),
       renameProject: (request) => guard(async () => create(ui.CreateProjectResponseSchema, { project: await core.renameProject(request.projectId, request.name) })),
