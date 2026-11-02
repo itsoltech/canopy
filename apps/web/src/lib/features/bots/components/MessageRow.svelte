@@ -9,7 +9,8 @@
   /**
    * Layout of one entry from a participant: a gutter with the sender's avatar (only beside the last
    * entry of a run, so the column stays aligned), the sender's name in their colour above the first
-   * one, and the content. `end` puts it on the right; your own entries have no avatar.
+   * one, and the content. `end` puts it on the right; your own entries have no avatar. Without `gutter` (a 1:1
+   * chat: who speaks is never in doubt) there is no avatar column at all.
    */
   let {
     sender,
@@ -17,15 +18,16 @@
     mine = false,
     showAvatar = true,
     showName = false,
+    gutter = true,
     state = "idle",
     event,
     children,
     class: className,
-  }: { sender: ParticipantView | undefined; side?: "start" | "end"; mine?: boolean; showAvatar?: boolean; showName?: boolean; state?: MascotState; event?: unknown; children: Snippet; class?: ClassValue } = $props();
+  }: { sender: ParticipantView | undefined; side?: "start" | "end"; mine?: boolean; showAvatar?: boolean; showName?: boolean; gutter?: boolean; state?: MascotState; event?: unknown; children: Snippet; class?: ClassValue } = $props();
 </script>
 
 <div class={["flex items-end gap-2", side === "end" && "flex-row-reverse", className]}>
-  {#if !mine}
+  {#if !mine && gutter}
     <span class="w-7 shrink-0">
       {#if showAvatar && sender}<BotAvatar participant={sender} size="sm" {state} {event} />{/if}
     </span>
