@@ -36,6 +36,7 @@ import botMentions from "./0033_bot_mentions.sql" with { type: "text" };
 import botArchive from "./0034_bot_archive.sql" with { type: "text" };
 import threadSecrets from "./0036_thread_secrets.sql" with { type: "text" };
 import botRoutines from "./0039_bot_routines.sql" with { type: "text" };
+import botCreation from "./0040_bot_creation.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -88,6 +89,7 @@ export const migrations = Migrator.fromRecord({
   "0034_bot_archive": sqlFile(botArchive),
   "0036_thread_secrets": sqlFile(threadSecrets),
   "0039_bot_routines": sqlFile(botRoutines),
+  "0040_bot_creation": sqlFile(botCreation),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

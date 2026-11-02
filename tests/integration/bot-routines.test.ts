@@ -46,6 +46,7 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
   beforeAll(async () => {
     gw = await startTestGateway();
     await gw.api.saveProviderInstance({ harness: Provider.CODEX, id: "routines-test", label: "Routines test", create: true, kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:1", apiKey: "fixture", allWorkers: true });
+    await eventually(() => gw.core.bots.run((s) => s.apiModels(Provider.CODEX, "routines-test")), (models) => models.some((m) => m.id === "gpt-6.1-sol"));
   }, 30_000);
   beforeEach(() => { clock = new Date("2030-01-07T08:01:00Z"); core = fresh(); ids = []; model = async () => reply(); });
   afterEach(async () => { await core.bots.stop(); for (const id of ids) await gw.api.deleteBot({ botId: id }); });

@@ -122,6 +122,10 @@ export interface ApprovalView {
   action: string;
   routineTitle?: string | undefined;
   fields: { label: string; value: string }[];
+  botProposal?: {
+    name: string; shape: string; color: string; model: string; effort: string;
+    provider: string; instance: string; approvalPolicy: string; instructions: string;
+  } | undefined;
   /** pending until you answer; `edited` = you sent your own version back instead of approving. */
   status: "pending" | "approved" | "discarded" | "edited";
 }
