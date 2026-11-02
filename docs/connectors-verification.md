@@ -31,9 +31,10 @@ Badanie dostawców i decyzje projektowe: [connectors.md](connectors.md).
 | `bun run gen:check` | OK, wygenerowane kontrakty zgodne z repo |
 | `bun run --filter @open-agents/web build` | OK; Vite zgłasza ostrzeżenie wielkości chunków |
 | `bun run check:tmp` | 589 pass, 134 skip, 0 fail, 3038 asercji / 116 plików; bez pozostawionych katalogów testów. Baza `main`: `8b8e3ad` |
-| `bun run check:tmp tests/integration/connectors.test.ts` | Końcowa wersja: 4 pass, 0 fail, 62 asercje; bez pozostawionych katalogów testowych |
+| `tests/integration/connectors.test.ts` w końcowym zestawie | 5 pass, 0 fail, 64 asercje; także zapis `full_auto` przy zmienionej adnotacji narzędzia |
 | `check:tmp` po merge tworzenia botów, 9 plików | 92 pass, 0 fail, 790 asercji; konektory, boty, ustawienia, rutyny, tworzenie botów, platform tools, migracja, schema i policy; bez pozostawionych katalogów testowych |
-| `bun run check:tmp tests/integration/connectors.test.ts tests/integration/bots.test.ts tests/integration/bot-platform-tools.test.ts` po ostatnim merge | 28 pass, 0 fail, 413 asercji; bez pozostawionych katalogów testowych |
+| `bun run check:tmp tests/integration/connectors.test.ts tests/integration/bots.test.ts tests/integration/bot-platform-tools.test.ts` po merge odpowiedzi strukturalnych | 28 pass, 0 fail, 413 asercji; bez pozostawionych katalogów testowych |
+| `check:tmp` po merge `full_auto` i stref czasowych, 6 plików | 50 pass, 0 fail, 643 asercje; konektory, boty, platform tools, rutyny, tworzenie botów i policy; bez pozostawionych katalogów testowych |
 | `bun test tests/integration/bots.test.ts --test-name-pattern 'remote MCP registry'` | 1 pass, 0 fail po skierowaniu adaptera przez runtime konektorów |
 | Live: `OA_LIVE=1 bun test tests/integration/connectors.live.test.ts` | 2 pass, 0 fail, 25 asercji; rzeczywisty Codex i Claude przez CLIProxyAPI |
 
@@ -120,9 +121,12 @@ z kitu i wrapperów; nie dodano natywnych select/multi-select.
 | `d486dcf` | Regresja odmowy wzmianki na granicy API gateway, niezależna od zawieszenia testowego h2c |
 | `e252d69` | Nowa nazwa konta w opisie narzędzia po rename, stabilny namespace; fixture oczekuje katalogu API |
 | `c641433` | Claude READ_ONLY ma dozwolone narzędzia SDK MCP; gateway egzekwuje granty i odmowę zapisów; live potwierdza odczyt |
+| `7f0b7e3` | Dokumentacja decyzji, badanie dostawców, raport i dziewięć zrzutów Chromium |
+| `2e009a8` | Polityka botów full_auto z aktualnego main; integracyjna regresja zmienionych adnotacji i zapisu bez karty |
 
-Scalono zmiany `main`: `fcfb7e8`, `01f07bb`, `1449f40`, `14fee9e`, `b80d2bb`, `ab495be`
-(main `36dc1b6`, rutyny, tworzenie botów, strukturalne odpowiedzi i poprawki UI).
+Scalono zmiany `main`: `fcfb7e8`, `01f07bb`, `1449f40`, `14fee9e`, `b80d2bb`,
+`ab495be`, `fecbfd3`, `92b744f` (main `4475c82`: rutyny, tworzenie botów,
+strukturalne odpowiedzi, full_auto, strefa czasowa i poprawki UI).
 Po merge tworzenia botów ponowiono
 typecheck, generowanie kontraktów, build, live obu harnessów oraz testy integracyjne
 botów/konektorów/tworzenia/rutyn/platformy i migracji. Po zmianie odpowiedzi platformy
@@ -136,5 +140,9 @@ Claude otrzymuje nazwy narzędzi kont również w `allowedTools`, ponieważ `don
 odmawia narzędzi spoza listy przed callbackiem. Każde wykonanie nadal przechodzi
 przez grant i permission mode gateway; READ_ONLY odmawia zapisów. Końcowy live
 sprawdza odczyt Claude w READ_ONLY.
+Po scaleniu full_auto/stref czasowych ponowiono install, typecheck, gen:check,
+build i sześć plików testów. Jawne full_auto bota pozwala na zapis mimo zmiany
+starej adnotacji read-only; safe zachowuje wymóg nowej zgody. Kosmetyczną zmianę
+wiersza strefy czasowej sprawdzono buildem web.
 Końcowy commit uzupełnia dowody i ten raport.
 Bez push i bez PR.
