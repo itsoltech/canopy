@@ -364,6 +364,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
   const grpc = await startGrpcServer({
     routes: (router) => {
       core.link.routes(router);
+      core.workers.routes(router);
       uiRoutes(core)(router);
     },
     interceptors: [serviceTokenAuth(SERVICE_TOKEN)],

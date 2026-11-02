@@ -14,7 +14,7 @@ modeli. Pytany o swoją tożsamość bot ma podawać obecną konfigurację, tak�
 z Codexa na Groka; historia rozmowy nie określa tożsamości aktualnego wykonawcy.
 
 Migracja **0045_bot_handoffs** dodaje ukryty rodzaj tury i `bot_handoff_notes`.
-Numer **0044** pozostaje zarezerwowany dla kreatora workerów. Nie dodajemy pól do
+Numer **0044** zajmuje scalony z main kreator workerów. Nie dodajemy pól do
 kontraktu ani elementów UI (zakres **740–759** pozostaje wolny).
 
 Zmiana dostawcy, instancji, modelu lub effort przez `UpdateBot` albo zatwierdzone

@@ -7,7 +7,7 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";
-  import { instanceLabel } from "#lib/features/threads/providers.ts";
+  import WorkerInstanceBadge from "#lib/features/workers/WorkerInstanceBadge.svelte";
   import { configPending, osLabel, providerSummary } from "./workers.ts";
 
   /**
@@ -34,13 +34,11 @@
     </div>
   </SettingsRow>
   <SettingsRow title="Providers" description="Provider instances turned on for this worker." href="/settings/providers">
-    {#snippet control()}
-      <div class="flex flex-wrap justify-end gap-1.5 max-sm:hidden">
+      <div class="mt-2 flex flex-wrap gap-1.5">
         {#each instances as instance (`${instance.harness}:${instance.id}`)}
-          <Badge tone={instance.available ? "neutral" : "rose"}>{instanceLabel(instance)}{instance.available ? "" : " (unavailable)"}</Badge>
+          <WorkerInstanceBadge {instance} />
         {:else}<span class="text-sm/6 text-zinc-500">None</span>{/each}
       </div>
-    {/snippet}
   </SettingsRow>
   <SettingsRow title="Configuration" description="Sent by the gateway, applied by the worker.">
     {#snippet control()}

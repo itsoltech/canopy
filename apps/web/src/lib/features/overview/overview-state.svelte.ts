@@ -68,6 +68,7 @@ export class OverviewState {
     for (const listener of this.#listeners) listener(update);
     const change = update.change;
     if (change.case === "worker") this.workers = upsert(this.workers, change.value, (w) => w.id);
+    if (change.case === "workerRemoved") this.workers = this.workers.filter((w) => w.id !== change.value);
     if (change.case === "project") this.projects = change.value.archivedAt
       ? this.projects.filter((p) => p.id !== change.value.id)
       : upsert(this.projects, change.value, (p) => p.id);

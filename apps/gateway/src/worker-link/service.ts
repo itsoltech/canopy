@@ -33,6 +33,8 @@ export interface WorkerLink {
   readonly connections: ReadonlyMap<string, WorkerConnection>;
   /** Pushes a changed configuration to a connected worker. False when the worker is offline (it gets it on connect). */
   pushConfig(workerId: string, config: MessageInitShape<typeof WorkerConfigSchema>): boolean;
+  /** Invalidates in-flight handshakes and closes the current stream after a credential change. */
+  disconnect(workerId: string): void;
   /**
    * Sends Drain to every worker, then ends their streams cleanly.
    * Workers reconnect after `reconnectAfterMs` plus a per-worker random jitter,
@@ -49,9 +51,11 @@ export interface DrainOptions {
 
 export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
   const connections = new Map<string, WorkerConnection>();
+  let credentialEpoch = 0;
   const helloTimeoutMs = options.helloTimeoutMs ?? 10_000;
 
   async function* connect(requests: AsyncIterable<WorkerMessage>, ctx: HandlerContext): AsyncIterable<GatewayMessage> {
+    const epoch = credentialEpoch;
     const credential = bearerToken(ctx.requestHeader.get("authorization"));
     if (!credential) throw new ConnectError("missing worker credential", Code.Unauthenticated);
     const workerId = await options.authenticate(credential);
@@ -74,6 +78,8 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
       outbound.push(gatewayMessage({ case: "config", value: config }));
     }
 
+    // No await between this check and registration: a rotation/revoke cannot leave a stale handshake live.
+    if (epoch !== credentialEpoch) throw new ConnectError("worker credentials changed; reconnect", Code.Unauthenticated);
     const connection = new WorkerConnection(workerId, hello, outbound);
     connections.get(workerId)?.close();
     connections.set(workerId, connection);
@@ -101,6 +107,11 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
   return {
     routes: (router) => router.service(WorkerLinkService, { connect }),
     connections,
+    disconnect: (workerId) => {
+      credentialEpoch++;
+      connections.get(workerId)?.close();
+      connections.delete(workerId);
+    },
     pushConfig: (workerId, config) => {
       const connection = connections.get(workerId);
       if (!connection?.isOpen) return false;
