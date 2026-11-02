@@ -132,4 +132,21 @@ describe.skipIf(!dockerAvailable)("no-project threads", () => {
     const denied = await gw.runtime.runPromiseExit(GatewayStore.use((s) => s.createThread(other, create(ui.CreateThreadRequestSchema, { projectId: project.id, workspaceId: workspace.id, provider: Provider.CODEX }))));
     expect(denied._tag).toBe("Failure");
   });
+
+  test("changing roots moves only future scratch threads and an empty allowlist removes the placement", async () => {
+    const worker = await gw.addWorker("movable scratch", ["/before"]);
+    await gw.connect(worker.workerId, worker.credential);
+    let placement = (await gw.api.getOverview({})).projects.find((p) => p.id === project.id)!.workspaces.find((w) => w.workerId === worker.workerId)!;
+    const parent = await createThread("Before root change", { workspaceId: placement.id, initialMessage: "save history" });
+    await gw.runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(worker.workerId, { allowedRoots: ["/after", "/before"], codex: { enabled: true } }, gw.userId)));
+    placement = (await gw.api.getOverview({})).projects.find((p) => p.id === project.id)!.workspaces.find((w) => w.workerId === worker.workerId)!;
+    const next = await createThread("After root change", { workspaceId: placement.id });
+    expect(next.cwd).toBe(`/after/.open-agents/scratch/${gw.userId}/${next.id}`);
+    expect((await gw.api.getThread({ threadId: parent.id })).thread?.cwd).toBe(parent.cwd);
+    const turns = await gw.runtime.runPromise(GatewayStore.use((s) => s.turnsOf(parent.id)));
+    const fork = (await gw.api.createThread({ forkThreadId: parent.id, forkAtTurnId: turns[0]!.id })).thread!;
+    expect(fork.cwd).toBe(parent.cwd);
+    await gw.runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(worker.workerId, { allowedRoots: [], codex: { enabled: true } }, gw.userId)));
+    expect((await gw.api.getOverview({})).projects.find((p) => p.id === project.id)!.workspaces.some((w) => w.workerId === worker.workerId)).toBe(false);
+  });
 });

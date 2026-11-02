@@ -627,8 +627,8 @@ export class GatewayStore extends Context.Service<
                       FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id JOIN projects p ON p.id = pw.project_id
                      WHERE pw.id = ${request.workspaceId}::uuid AND pw.project_id = ${request.projectId}::uuid
                        AND p.owner_user_id = ${ownerUserId}::uuid AND p.archived_at IS NULL
-                       AND (w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
-                       AND w.archived_at IS NULL AND w.revoked_at IS NULL
+                       AND (p.kind <> 'scratch' OR ((w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
+                         AND w.archived_at IS NULL AND w.revoked_at IS NULL))
                        AND (pw.archived_at IS NULL OR ${request.parentThreadId !== "" || request.forkAtTurnId !== ""}::boolean)`,
                   "workspace",
                 );

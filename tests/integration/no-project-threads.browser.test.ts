@@ -60,7 +60,8 @@ describe.skipIf(Bun.env["OA_SCRATCH_BROWSER"] !== "1")("No project browser", () 
       page.on("pageerror", (error) => errors.push(error.message));
       const prefix = `${width}-${theme}`;
       try {
-        await page.goto(base);
+        await page.goto(`${base}/?project=${project.id}`);
+        expect(await eventually(() => page.locator("html").evaluate((el) => el.classList.contains("dark")), (dark) => dark === (theme === "dark"))).toBe(theme === "dark");
         await page.getByRole("button", { name: "Project: No project", exact: true }).click();
         const picker = page.getByRole("dialog", { name: "Choose a project", exact: true });
         expect(await picker.getByRole("option").first().innerText()).toContain("No project");
@@ -98,7 +99,8 @@ describe.skipIf(Bun.env["OA_SCRATCH_BROWSER"] !== "1")("No project browser", () 
         }
         await page.getByRole("button", { name: "Filter projects", exact: true }).click();
         const filter = page.getByRole("dialog", { name: "Filter threads", exact: true });
-        await filter.getByRole("checkbox", { name: "No project", exact: true }).click();
+        await filter.locator("label").filter({ hasText: /^No project$/ }).click();
+        expect(await filter.getByRole("checkbox", { name: "No project", exact: true }).isChecked()).toBe(true);
         expect(await filter.locator(".border-dashed").count()).toBe(1);
         await shot(page, `${prefix}-filter`);
         await page.keyboard.press("Escape");
@@ -122,6 +124,9 @@ describe.skipIf(Bun.env["OA_SCRATCH_BROWSER"] !== "1")("No project browser", () 
         await overflow(page);
         await shot(page, `${prefix}-schedule`);
         expect(errors).toEqual([]);
+      } catch (error) {
+        await shot(page, `${prefix}-failure`);
+        throw error;
       } finally { await context.close(); }
     }, 120_000);
   }
