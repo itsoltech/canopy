@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@open-agents/contracts";
 import { Effect } from "effect";
-import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
+import { InvalidError, UnavailableError, type GatewayCore, type GatewayCoreOptions } from "../core/core.ts";
 import { GatewayStore, Invalid, NotFound } from "../store/store.ts";
 import { BotStore, requiredString } from "./store.ts";
 import { statusPhrase } from "./policy.ts";
@@ -37,6 +37,10 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
       case "list_projects": return (await core.overview()).projects.map((p) => ({ id: p.id, name: p.name, kind: p.kind, workspaces: p.workspaces.map((w) => ({ id: w.id, worker_id: w.workerId, label: w.label })) }));
       case "list_workers": return (await core.overview()).workers.map((w) => ({ id: w.id, name: w.name, online: w.online }));
       case "list_provider_instances": return (await core.listProviderInstances()).map((i) => ({ id: i.id, label: i.label, provider: Provider[i.harness], kind: i.kind }));
+      case "list_models": {
+        const provider = string("provider") === "claude" ? Provider.CLAUDE : Provider.CODEX;
+        return (await botModels(core, string("worker_id"), provider, string("provider_instance"))).map((m) => ({ id: m.id, name: m.displayName || m.id, default: m.isDefault, efforts: m.efforts, default_effort: m.defaultEffort }));
+      }
       case "list_bots": return (await core.bots.list()).map((b) => ({ id: b.id, name: b.configuration?.name }));
       case "list_threads": return (await core.listThreads(string("project_id"))).map((t) => ({ id: t.id, title: t.title, status: t.status }));
       case "get_thread": { const t = await core.getThread(string("thread_id")); return { id: t.id, title: t.title, status: t.status }; }
@@ -52,9 +56,19 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
         const permissions: Record<string, PermissionMode> = { ask: PermissionMode.ASK, read_only: PermissionMode.READ_ONLY, accept_edits: PermissionMode.ACCEPT_EDITS, full_auto: PermissionMode.FULL_AUTO };
         const permission = permissions[optional("permission") || "ask"];
         if (!permission || !["claude", "codex"].includes(string("provider"))) throw new Invalid("unknown provider or permission");
+        const provider = string("provider") === "claude" ? Provider.CLAUDE : Provider.CODEX;
+        // Without a model: the instance's default on the workspace's worker (bots must not guess model names).
+        let model = optional("model");
+        if (!model) {
+          const workerId = (await core.overview()).projects.flatMap((p) => p.workspaces).find((w) => w.id === string("workspace_id"))?.workerId;
+          if (!workerId) throw new Invalid("workspace not found; use list_projects");
+          const models = await botModels(core, workerId, provider, string("provider_instance"));
+          model = (models.find((m) => m.isDefault) ?? models[0])?.id ?? "";
+          if (!model) throw new Invalid("this provider instance reports no models on that worker; use list_models or another instance");
+        }
         return await core.startBotThread(turn, call, create(ui.CreateThreadRequestSchema, {
-          projectId: string("project_id"), workspaceId: string("workspace_id"), provider: string("provider") === "claude" ? Provider.CLAUDE : Provider.CODEX,
-          providerProfileId: string("provider_instance"), model: string("model", 200), effort: optional("effort"), permissionMode: permission,
+          projectId: string("project_id"), workspaceId: string("workspace_id"), provider,
+          providerProfileId: string("provider_instance"), model: model.slice(0, 200), effort: optional("effort"), permissionMode: permission,
           initialMessage: string("prompt"), title: optional("title"), clientRequestId: call.id,
         }));
       }
@@ -72,6 +86,16 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
     }
   } catch (error) {
     // Never echo SQL/transport diagnostics, credentials or internal URLs to the model or UI.
-    return { error: error instanceof Invalid ? error.message : "Platform action rejected or unavailable" };
+    // Validation messages (bad model, offline worker, unknown thread) go back so the bot can correct itself.
+    const said = error instanceof Invalid || error instanceof InvalidError || error instanceof UnavailableError || error instanceof NotFound;
+    return { error: said ? (error as Error).message : "Platform action rejected or unavailable" };
   }
+}
+
+/** Visible models of one provider instance on a worker, from its last catalog report. */
+async function botModels(core: GatewayCore, workerId: string, provider: Provider, instance: string) {
+  const catalogs = await core.listModels(create(ui.ListModelsRequestSchema, { workerId }));
+  const profile = catalogs.flatMap((c) => c.profiles).find((p) => p.provider === provider && p.profileId === instance);
+  if (!profile) throw new Invalid(`provider instance ${instance} is not available on that worker; use list_provider_instances and list_workers`);
+  return profile.models.filter((m) => !m.hidden);
 }
