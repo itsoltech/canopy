@@ -83,7 +83,7 @@
 <Dialog bind:open title="Bot settings" size="lg" bare dismissible={!busy} class={className}>
   <form onsubmit={save} aria-busy={busy || undefined}>
     <div class="flex items-start justify-between gap-4 px-5 pt-6 pb-5 sm:px-6">
-      <div class="grid min-w-0 gap-1"><h2 class="text-xl font-semibold text-balance">Bot settings</h2><p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">A familiar face, your way.</p></div>
+      <div class="grid min-w-0 gap-1"><h2 class="text-xl font-semibold text-balance">Bot settings</h2><p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{bot.createdByBotName ? `Created by ${bot.createdByBotName}` : "A familiar face, your way."}</p></div>
       <IconButton icon="x-mark" label="Close settings" size="sm" disabled={busy} onclick={() => (open = false)} />
     </div>
     <div class="px-5 sm:px-6">

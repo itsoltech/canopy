@@ -38,7 +38,7 @@
 </script>
 
 <ChatCard labelledby="{id}-prompt" class={["p-1", className]} {onkeydown}>
-  {#if question.routineTitle}<p class="px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">From routine ‹{question.routineTitle}›</p>{/if}
+  {#if question.routineTitle}<p class="px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">From routine “{question.routineTitle}”</p>{/if}
   <div class="flex items-start gap-2 px-3 pt-2.5 pb-2 text-base/6 sm:text-sm/6">
     <Icon name="question-mark-circle" class="h-lh shrink-0 fill-sky-500 dark:fill-sky-400" />
     <h3 id="{id}-prompt" class="font-medium text-pretty text-zinc-950 dark:text-white">{question.prompt}</h3>

@@ -14,6 +14,7 @@ import { toUiQuote, type StoredQuote } from "../store/quotes.ts";
 import { apiModel } from "./model.ts";
 import { modelInput, storedMentions } from "./mentions.ts";
 import { nextHop } from "./policy.ts";
+import { proposedBot } from "./creation.ts";
 import { originOf, routineStore, type RoutineOrigin } from "./routines.ts";
 import type { BotRow, BotTurn, McpConnection, ModelMessage, StoredCall, ToolSpec } from "./types.ts";
 
@@ -28,12 +29,14 @@ interface MessageRow {
 interface ApprovalRow {
   id: string; bot_id: string; turn_id: string; kind: string; prompt: string;
   status: string; answer: string; created_at: Date; options?: unknown;
+  proposed_bot: JsonValue | null;
   routine_title?: string;
 }
 export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration as JsonValue);
 export const botView = (row: BotRow) => create(bots.BotSchema, {
   id: row.id, configuration: botConfiguration(row), createdAt: timestampFromDate(new Date(row.created_at)), updatedAt: timestampFromDate(new Date(row.updated_at)),
   archived: Boolean(row.archived_at),
+  createdByBotId: row.created_by_bot_id ?? "", createdByBotName: row.created_by_bot_name,
   ownerUserId: row.owner_user_id,
   lastReadSeq: BigInt(row.last_read_seq), unreadCount: Number(row.unread_count ?? 0),
 });
@@ -49,9 +52,11 @@ const approvalView = (row: ApprovalRow) => create(bots.BotApprovalSchema, {
   id: row.id, botId: row.bot_id, turnId: row.turn_id, kind: row.kind, prompt: row.prompt,
   status: row.status, answer: row.answer, createdAt: timestampFromDate(new Date(row.created_at)),
   options: Array.isArray(row.options) ? row.options.filter((o): o is string => typeof o === "string" && o.trim() !== "").slice(0, 6).map((o) => o.slice(0, 200)) : [],
+  proposedBot: row.proposed_bot ? fromJson(bots.BotConfigurationSchema, row.proposed_bot) : undefined,
   routineTitle: row.routine_title ?? "",
 });
 const uuid = () => Bun.randomUUIDv7();
+export const MAX_BOTS_PER_USER = 50;
 export function requiredString(args: Record<string, unknown>, key: string, max = 100_000): string {
   const value = args[key];
   if (typeof value !== "string" || !value.trim() || value.length > max) throw new Invalid(`${key} is required (at most ${max} characters)`);
@@ -108,7 +113,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     }
     return result;
   });
-  const validate = (user: string, config: bots.BotConfiguration) => Effect.gen(function* () {
+  const validate = (user: string, config: bots.BotConfiguration, requireCatalog = false) => Effect.gen(function* () {
     if (!config.name.trim() || config.name.length > 80 || /[\x00-\x1f\x7f]/.test(config.name) || !["round", "cloud", "diamond", "spark", "clover", "blob", "flower", "droplet", "pill", "triangle", "square", "star", "hexagon", "pumpkin"].includes(config.shape) || !/^#[0-9a-f]{6}$/i.test(config.color)) return yield* Effect.fail(new Invalid("a name, known mascot shape and #rrggbb color are required"));
     if (![Provider.CLAUDE, Provider.CODEX].includes(config.provider) || !config.model || config.model.length > 200 || config.effort.length > 40 || config.instructions.length > 32_000) return yield* Effect.fail(new Invalid("invalid bot model configuration"));
     if (!["safe", "always", ""].includes(config.approvalPolicy) || config.mcpServerIds.length > 32 || new Set(config.mcpServerIds).size !== config.mcpServerIds.length) return yield* Effect.fail(new Invalid("invalid approval policy or MCP connections"));
@@ -118,6 +123,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     const catalog = yield* catalogs(config);
     const model = apiModel(config.model, catalog, instances[0].custom_models);
     if ("problem" in model) return yield* Effect.fail(new Invalid(model.problem));
+    if (requireCatalog && !instances[0].custom_models.includes(model.model) && !catalog.some((p) => p.models.some((m) => m.id === model.model || m.resolvedModel === model.model))) return yield* Effect.fail(new Invalid("this provider instance has no matching API model in its catalog; use list_models or configure a custom model in Settings"));
     const efforts = catalog.flatMap((p) => p.models).filter((m) => m.id === config.model || m.id === model.model || m.resolvedModel === model.model).flatMap((m) => m.efforts);
     if (config.effort && efforts.length && !efforts.includes(config.effort)) return yield* Effect.fail(new Invalid("this model does not offer that effort"));
     return create(bots.BotConfigurationSchema, { ...config, model: model.model, name: config.name.trim().normalize("NFC"), color: config.color.toLowerCase(), approvalPolicy: config.approvalPolicy || "safe" });
@@ -135,11 +141,17 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     const before = options.id ? botConfiguration(yield* owned(user, options.id, true)) : undefined;
     // Serialize names per owner, including concurrent create/update/self-edit requests.
     yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${user}, 0))`;
-    const checked = yield* validate(user, config);
-    const duplicate = yield* sql`SELECT id FROM bots WHERE owner_user_id = ${user}::uuid AND deleted_at IS NULL
-      AND lower(configuration ->> 'name') = lower(${checked.name}) AND id <> ${options.id ?? "00000000-0000-0000-0000-000000000000"}::uuid
+    // Idempotent creates must keep succeeding even when the owner has since reached the cap.
+    if (!options.id && options.requestId) {
+      const previous = (yield* sql<BotRow>`SELECT * FROM bots WHERE owner_user_id = ${user}::uuid AND client_request_id = ${options.requestId}`)[0];
+      if (previous) return previous.deleted_at ? yield* Effect.fail(new Invalid("create request refers to a deleted bot")) : botView(previous);
+    }
+    const checked = yield* validate(user, config, !options.id);
+    const existing = yield* sql<{ name: string }>`SELECT configuration ->> 'name' AS name FROM bots WHERE owner_user_id = ${user}::uuid AND deleted_at IS NULL
+      AND id <> ${options.id ?? "00000000-0000-0000-0000-000000000000"}::uuid
       AND (${options.requestId ?? null}::text IS NULL OR client_request_id <> ${options.requestId ?? null})`;
-    if (duplicate.length) return yield* Effect.fail(new Invalid("another bot already has that name"));
+    // Use the wizard's exact Unicode/case comparison, independent of the database locale.
+    if (existing.some((row) => row.name.trim().normalize("NFC").toLowerCase() === checked.name.toLowerCase())) return yield* Effect.fail(new Invalid("another bot already has that name"));
     const id = options.id ?? uuid();
     let row: BotRow;
     if (options.id) {
@@ -149,6 +161,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       row = rows[0]!;
     } else {
       if (!options.requestId || options.requestId.length > 200) return yield* Effect.fail(new Invalid("client_request_id is required"));
+      const count = (yield* sql<{ count: number }>`SELECT count(*)::int AS count FROM bots WHERE owner_user_id = ${user}::uuid AND deleted_at IS NULL`)[0]!.count;
+      if (count >= MAX_BOTS_PER_USER) return yield* Effect.fail(new Invalid(`bot limit reached (${MAX_BOTS_PER_USER} per user, including archived bots); delete a bot before creating another`));
       yield* sql`INSERT INTO bots(id, owner_user_id, client_request_id, configuration, provider, provider_instance)
         VALUES (${id}::uuid, ${user}::uuid, ${options.requestId}, ${JSON.stringify(toJson(bots.BotConfigurationSchema, checked))}::jsonb,
           ${checked.provider === Provider.CLAUDE ? "claude" : "codex"}, ${checked.providerInstance}) ON CONFLICT(owner_user_id, client_request_id) DO NOTHING`;
@@ -164,6 +178,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     }
     return botView(row);
   }));
+  const creationHop = (hops: number) => Effect.try({ try: () => nextHop(hops), catch: () => new Invalid("Bot hop limit reached; a new user message is required") });
   const enqueue = (user: string, botId: string, input: string, requestId: string, options: RoutineOrigin & { hops?: number; sender?: string; replyTo?: string; exchangeId?: string; event?: boolean; mentions?: readonly Mention[]; quotes?: readonly ui.Quote[] } = {}) => sql.withTransaction(Effect.gen(function* () {
     yield* active(user, botId, true);
     if (input.length > 100_000 || !requestId || requestId.length > 200) return yield* Effect.fail(new Invalid("valid text and client_request_id are required"));
@@ -295,6 +310,15 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         ON CONFLICT(turn_id, message_key) DO NOTHING`;
       return { updated: true, changes };
     }),
+    createFromBot: (user: string, turn: BotTurn, call: StoredCall) => Effect.gen(function* () {
+      yield* creationHop(turn.hops);
+      const creator = yield* active(user, turn.bot_id);
+      const approved = (yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid AND bot_id = ${turn.bot_id}::uuid AND turn_id = ${turn.id}::uuid AND status = 'approved'`)[0];
+      if (!approved?.proposed_bot) return yield* Effect.fail(new Invalid("creating a bot requires user approval of its configuration"));
+      const saved = yield* save(user, fromJson(bots.BotConfigurationSchema, approved.proposed_bot), { requestId: call.id });
+      yield* sql`UPDATE bots SET created_by_bot_id = ${creator.id}::uuid, created_by_bot_name = ${botConfiguration(creator).name} WHERE id = ${saved.id}::uuid`;
+      return { id: saved.id, name: saved.configuration!.name };
+    }),
     list: (user: string, includeArchived = false) => Effect.gen(function* () {
       const rows = yield* sql<BotRow>`SELECT b.*, (SELECT count(*) FROM bot_messages m WHERE m.bot_id = b.id AND m.seq > b.last_read_seq AND m.sender_id = b.id::text AND m.recipient_id = 'user' AND m.kind = 'message') AS unread_count
         FROM bots b WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND (${includeArchived} OR b.archived_at IS NULL) ORDER BY b.created_at, b.id`;
@@ -387,7 +411,19 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     })),
     approval: (turn: BotTurn, call: StoredCall, prompt: string, question: boolean) => sql.withTransaction(Effect.gen(function* () {
       yield* fenced(turn);
-      yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt) VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}) ON CONFLICT(id) DO NOTHING`;
+      const previous = (yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid`)[0];
+      if (previous) return approvalView(previous);
+      let proposal: JsonValue | null = null;
+      if (call.tool.source === "platform" && call.tool.name === "create_bot") {
+        yield* creationHop(turn.hops);
+        const creator = (yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.bot_id}::uuid`)[0]!;
+        const draft = yield* Effect.try({ try: () => proposedBot(call.arguments, botConfiguration(creator)), catch: (error) => error instanceof Invalid ? error : new Invalid("invalid bot configuration") });
+        const config = yield* validate(creator.owner_user_id, draft, true);
+        proposal = toJson(bots.BotConfigurationSchema, config);
+        // Keep a prose fallback for clients predating the structured preview.
+        prompt = [`Needs approval · Creating bot “${config.name}”`, `Name: ${config.name}`, `Model: ${config.model}`, `Effort: ${config.effort || "Model default"}`, `Instance: ${config.provider === Provider.CLAUDE ? "Claude" : "Codex"} · ${config.providerInstance}`, `Approval policy: ${config.approvalPolicy}`, `Instructions: ${config.instructions || "No additional instructions."}`].join("\n");
+      }
+      yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot) VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}, ${JSON.stringify(proposal)}::jsonb) ON CONFLICT(id) DO NOTHING`;
       return approvalView((yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid`)[0]!);
     })),
     wait: (turn: BotTurn) => sql.withTransaction(Effect.gen(function* () {
