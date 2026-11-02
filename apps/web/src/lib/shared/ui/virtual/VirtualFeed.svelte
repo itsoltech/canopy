@@ -584,9 +584,10 @@
   <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
     <div bind:this={footerElement} class="pointer-events-auto relative pb-[max(--spacing(3),env(safe-area-inset-bottom))]" onfocusin={() => scrollIntent.reset()} onbeforeinput={() => scrollIntent.reset()}>
       {#if !stuck}
-        <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2" transition:rise>
+        <!-- Centred by flex, not translate: rise animates `translate` and would cancel a -translate-x-1/2. -->
+        <div class="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center" transition:rise>
           <!-- The secondary button is translucent in dark mode; an opaque backing keeps it legible over text. -->
-          <span class="flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50">
+          <span class="pointer-events-auto flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50">
             <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
           </span>
         </div>
