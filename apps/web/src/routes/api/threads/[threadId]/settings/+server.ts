@@ -10,6 +10,7 @@ import type { RequestHandler } from "./$types";
 const Body = Schema.Struct({
   model: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   effort: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
+  title: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   // Enum key; missing = unchanged.
   permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO"])),
 });
