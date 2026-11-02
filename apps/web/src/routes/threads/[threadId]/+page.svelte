@@ -261,9 +261,9 @@
 
 <svelte:head><title>{thread?.title ?? "Thread"} · Open Agents</title></svelte:head>
 
-<!-- With the panel open its column is reserved by the container (which arrives first), so the
-     composer does not move when the browser paints before it has parsed the panel at the end. -->
-<div class={["flex h-full", panelOpen && "xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-1"]}>
+<!-- On xl the container reserves the details panel's column (it arrives before the panel, so nothing moves while
+     the page loads) and eases it open or shut (motion.css `t-panel-column`). -->
+<div class="t-panel-column flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1" style:--panel-width={panelOpen ? "20rem" : "0rem"} data-collapsed={!panelOpen || undefined}>
   <div class="flex min-w-0 flex-1 flex-col">
     <TopBar>
       {#if thread}
@@ -383,8 +383,10 @@
     </div>
   </div>
 
-  {#if panelOpen}
-    <aside class="w-80 shrink-0 overflow-y-auto py-3 pr-3 pl-1 max-xl:hidden" aria-label="Thread details">
+  <!-- Mounted while closed too, so it can ease out: the panel keeps its width on the column's left edge and fades, so
+       its content never re-wraps; a closed panel is inert. -->
+  <aside class="relative min-w-0 overflow-hidden max-xl:hidden" aria-label="Thread details" inert={!panelOpen} data-collapsed={!panelOpen || undefined}>
+    <div class="t-panel absolute inset-y-0 left-0 w-80 overflow-y-auto py-3 pr-3 pl-1">
       {#if thread && tree}
         <ThreadPanel
           {thread}
@@ -400,8 +402,8 @@
       {:else}
         <Skeleton class="h-72 rounded-2xl" />
       {/if}
-    </aside>
-  {/if}
+    </div>
+  </aside>
 </div>
 
 {#if thread && tree}
