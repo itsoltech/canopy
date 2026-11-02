@@ -126,6 +126,8 @@ export interface TurnRow {
   source_status?: string | null;
   question_kind?: string | null;
   question_tool?: string | null;
+  /** Joined from turn_sources: a background_task turn's tasks (item ids). */
+  background_item_ids?: string[] | null;
   /** Taken out of the queue by the user (cancelled): deleted | steered (docs/ui-api.md, "Kolejka"). */
   withdrawn?: string | null;
   /** Grows with every edit of the queued input. */
@@ -710,7 +712,7 @@ export class GatewayStore extends Context.Service<
             sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
 
           turnsOf: (threadId) => sql<TurnRow>`
-            SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
+            SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool, s.background_item_ids FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
              WHERE u.thread_id = ${threadId}::uuid ORDER BY u.ordinal`,
 
           failTurn: (turnId, error, source, code) =>
@@ -761,7 +763,7 @@ export class GatewayStore extends Context.Service<
               const thread = yield* store.thread(threadId);
               // A fork shows the history it inherits (thread_items_view / thread_fork_chain), marked as inherited.
               const inheritedTurns = yield* sql<TurnRow>`
-                SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool FROM thread_fork_chain(${threadId}::uuid) c
+                SELECT u.*, s.source_kind, s.source_thread_id, s.source_status, s.question_kind, s.question_tool, s.background_item_ids FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
                  WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
                  ORDER BY c.level DESC, u.ordinal`;
@@ -988,6 +990,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     sourceStatus: row.source_status ?? "",
     questionKind: row.question_kind ?? "",
     questionTool: row.question_tool ?? "",
+    backgroundItemIds: row.background_item_ids ?? [],
     sourceKind: row.source_kind ?? "",
     sourceThreadId: row.source_thread_id ?? "",
     scheduleId: row.schedule_id ?? "",

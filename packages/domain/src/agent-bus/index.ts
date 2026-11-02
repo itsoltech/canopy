@@ -22,3 +22,4 @@ export {
   type SpawnPermissionMode,
   type ToolJsonSpec,
 } from "./tools.ts";
+export { BACKGROUND_TASK_TOOLS, isBackgroundTaskTool, type BackgroundTaskToolName } from "./background-tasks.ts";

@@ -39,6 +39,10 @@ export interface SteerRow {
   from_turn_id?: string | null;
   /** Joined: the calling thread of an agent's steer. */
   source_thread_id?: string | null;
+  /** The platform's note about background tasks that ended (no author; background_task_notes.steer_id). */
+  background_note?: boolean;
+  /** Joined: the tasks of such a note (item ids). */
+  background_item_ids?: string[] | null;
 }
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound>;
@@ -76,7 +80,9 @@ export class SteerStore extends Context.Service<
     SteerStore,
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      const select = `SELECT s.*, c.source_thread_id FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = s.agent_call_id`;
+      const select = `SELECT s.*, c.source_thread_id,
+                             CASE WHEN s.background_note THEN ARRAY(SELECT n.item_id FROM background_task_notes n WHERE n.steer_id = s.id ORDER BY n.ended_at, n.item_id) END AS background_item_ids
+                        FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = s.agent_call_id`;
       const one = (id: string) =>
         sql.unsafe<SteerRow>(`${select} WHERE s.id = $1::uuid`, [id]).pipe(
           Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("steer not found")))),
@@ -170,5 +176,6 @@ export function toUiSteer(row: SteerRow): ui.Steer {
     fromTurnId: row.from_turn_id ?? "",
     quotes: (row.input.quotes ?? []).map(toUiQuote),
     mentions: mentionsFromJson(row.input.mentions),
+    backgroundItemIds: row.background_item_ids ?? [],
   });
 }

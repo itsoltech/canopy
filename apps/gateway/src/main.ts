@@ -42,11 +42,14 @@ console.info(`gateway listening on ${server.url}`);
 core.scheduler.start();
 // Open items of finished turns, threads stuck in a busy or failed look: fixed now and every few minutes.
 core.startSweep();
+// Notes about ended background tasks that still wait (Claude's grace, a restart in between): delivered every few seconds.
+core.backgroundTasks.start();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {
     await core.scheduler.stop();
     core.stopSweep();
+    core.backgroundTasks.stop();
     await core.link.shutdown();
     await server.close();
     await runtime.dispose();
