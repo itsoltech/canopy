@@ -7,9 +7,16 @@
    * rows' own bottom spacing. `connecting` says so while the stream is not open yet.
    */
   let { connecting = false }: { connecting?: boolean } = $props();
+  // Only a slow load shows it: a snapshot that arrives within 300 ms replaces an empty space instead of
+  // a skeleton whose shapes never match the real rows.
+  let shown = $state(false);
+  $effect(() => {
+    const timer = setTimeout(() => (shown = true), 300);
+    return () => clearTimeout(timer);
+  });
 </script>
 
-<div class="grid grid-cols-1" role="status" aria-label="Loading the timeline">
+<div class={["grid grid-cols-1", !shown && "invisible"]} role="status" aria-label="Loading the timeline">
   <div class="flex justify-end pb-3"><Skeleton class="h-11 w-2/3 rounded-2xl rounded-br-md" /></div>
   <div class="grid gap-2 pb-3">
     <Skeleton class="h-4 w-full" />

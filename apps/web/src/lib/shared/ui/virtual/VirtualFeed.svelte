@@ -155,8 +155,6 @@
   // --- New rows ---------------------------------------------------------------------------------------
   /** Keys shown so far (undefined until the first rows); rows that arrive later enter until they mount. */
   let known: Set<string> | undefined;
-  /** The feed started empty (client navigation): its first rows replace the placeholder. */
-  const startedEmpty = untrack(() => rows.length === 0);
   const entering = new Map<string, { kind: "rise" | "reveal" | "unfold"; order: number }>();
   let enterFrame = 0;
   $effect.pre(() => {
@@ -176,7 +174,8 @@
           if (kind) entering.set(rowKey, { kind, order: order++ });
         }
       });
-    } else if (startedEmpty) for (const rowKey of keys) entering.set(rowKey, { kind: "reveal", order: 0 });
+    }
+    // The first rows (a thread just opened) appear as they are: no entrance, they replace the placeholder at once.
     // What did not mount with this update (scrolled away) is not new any more.
     cancelAnimationFrame(enterFrame);
     enterFrame = requestAnimationFrame(() => entering.clear());
