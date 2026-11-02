@@ -62,3 +62,35 @@ Safari/Firefox and a physical screen reader are outside this task's verification
 The `componentize` pass keeps the rail interaction, preview content and pure model in separate files,
 reuses `Popover`/`MarkdownSnippet`, and preserves Svelte's class merging at each component boundary.
 Motion follows the existing tokens and the tooltip travel recipe from `transitions-dev`.
+
+## Verified result (2026-11-02)
+
+Latest merged `main`: `f0a2361`. `bun install` completed without dependency changes.
+The final `componentize`/self-review pass confirmed the three-file boundary, class merging,
+kit-owned positioning/padding, keyboard descriptions, gesture cancellation and reduced motion.
+
+| Check | Observed result |
+| --- | --- |
+| Repository typecheck | All workspaces passed; Svelte: 0 errors, 0 warnings. |
+| Web build | Passed; the existing warning about chunks over 500kB remains. |
+| Full `bun run check:tmp` after the timeline-folding merge | 841 passed, 161 skipped, 0 failed; nothing left in its private temp directory. |
+| `bun run check:tmp apps/web` after the latest `main` merge | 307 passed, 0 failed; nothing left in its private temp directory. |
+| Chromium acceptance on the final build | 6 passed, 81 assertions, 0 browser exceptions; input alignment drift at most 0.5625px (limit 2px). |
+
+Snapshots: `artifacts/turn-rail/1440-{light,dark}-preview.png`,
+`1440-{light,dark}-last-aligned.png`, `1440-{light,dark}-compressed.png`,
+`390-{light,dark}.png`, and `1440-reduced-motion.png`. Phone snapshots wait for the actual input row
+and finish finite entrance animations before capturing. Browser/build/test logs live beside them.
+
+Implementation commits (excluding merges from `main`):
+
+| Commit | Scope |
+| --- | --- |
+| `2283d96` | Turn index, visible-range API, measured/estimated virtual-row navigation, initial unit tests. |
+| `5362f42` | Rail, moving Markdown preview, keyboard access and motion. |
+| `571826b`, `c17e09e` | Private long-thread browser stack and loaded phone screenshots. |
+| `b21938f`, `0aed3b4` | Streaming jump lifetime, accessible descriptions, answer slots and original user message previews. |
+| `0f47ea3` | Isolated immutable assets for Docker host network changes; final screenshot capture. |
+
+The timeline-folding conflict was resolved in `10aa4ec`, retaining its completion-only
+`scrollRowToTop` behavior and sharing reader gesture cancellation with rail navigation.
