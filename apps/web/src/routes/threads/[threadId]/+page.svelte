@@ -63,13 +63,11 @@
   const settings = useSettings();
 
   // A new ThreadState per thread id: navigating between threads of a tree starts clean, seeded with the
-  // thread from GetThread so the header and composer render before the stream's snapshot (and, on a full
-  // page load, with the end of the timeline, so the server renders the latest messages).
+  // thread from GetThread so the header and composer render before the stream's snapshot.
   // Only the thread id recreates it: a later `data` refresh (form actions invalidate) must not reconnect.
   const view = $derived.by(() => {
     const seed = untrack(() => (data.thread ? decode(ui.ThreadSchema, data.thread) : undefined));
-    const tail = untrack(() => (data.tail ? decode(ui.ThreadSnapshotSchema, data.tail) : undefined));
-    return seed?.id === threadId ? new ThreadState(seed, tail?.thread?.id === threadId ? tail : undefined) : new ThreadState();
+    return seed?.id === threadId ? new ThreadState(seed) : new ThreadState();
   });
   $effect(() => view.connect(threadId));
 
@@ -427,7 +425,7 @@
        its content never re-wraps; a closed panel is inert. -->
   <aside class="relative min-w-0 overflow-hidden max-xl:hidden" aria-label="Thread details" inert={!panelOpen} data-collapsed={!panelOpen || undefined}>
     <div class="t-panel absolute inset-y-0 left-0 w-80 overflow-y-auto py-3 pr-3 pl-1">
-      {#if thread && tree}
+      {#if thread && tree && view.loaded}
         <ThreadPanel
           {thread}
           {tree}

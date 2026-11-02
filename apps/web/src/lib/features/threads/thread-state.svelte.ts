@@ -112,13 +112,12 @@ export class ThreadState {
   );
 
   /**
-   * Seeds the thread before the stream connects (server load), so the page renders it at once; with
-   * `tail` (the end of the snapshot) the server renders the latest messages too. The stream's snapshot
-   * replaces both.
+   * Seeds the header from the client route load before the stream connects. A supplied snapshot (e.g.
+   * in a fixture) renders immediately; the stream's first snapshot replaces it.
    */
-  constructor(thread?: ui.Thread | undefined, tail?: ui.ThreadSnapshot | undefined) {
+  constructor(thread?: ui.Thread | undefined, snapshot?: ui.ThreadSnapshot | undefined) {
     this.thread = thread;
-    if (tail) this.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: tail } }));
+    if (snapshot) this.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } }));
   }
 
   apply(update: ui.ThreadUpdate): void {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { InteractionKind, type Item, type ui } from "@open-agents/contracts";
+  import { humanizeToolName } from "#lib/shared/humanize.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -25,7 +26,7 @@
     if (interaction.toolName === "shell") return "Run this command?";
     if (interaction.toolName === "apply_patch") return "Apply this change?";
     if (interaction.toolName === "permissions") return "Grant extra permissions?";
-    return `Allow ${interaction.toolName}?`;
+    return `Allow ${humanizeToolName(interaction.toolName)}?`;
   });
 
   async function respond(answer: Parameters<typeof answerInteraction>[1]) {

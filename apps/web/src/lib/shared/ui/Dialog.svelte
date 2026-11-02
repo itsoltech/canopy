@@ -19,10 +19,11 @@
     description,
     size = "md",
     fullscreen = false,
+    bare = false,
     onkeydown,
     class: className,
     children,
-  }: { open?: boolean; title: string; description?: string; size?: "md" | "lg" | "output"; fullscreen?: boolean; onkeydown?: ((event: KeyboardEvent) => void) | undefined; class?: ClassValue; children: Snippet } = $props();
+  }: { open?: boolean; title: string; description?: string; size?: "md" | "lg" | "output"; fullscreen?: boolean; bare?: boolean; onkeydown?: ((event: KeyboardEvent) => void) | undefined; class?: ClassValue; children: Snippet } = $props();
 
   let dialog = $state<HTMLDialogElement>();
   const id = $props.id();
@@ -75,6 +76,10 @@
   ]}
 >
   <SheetHandle onclose={() => (open = false)} class="absolute inset-x-0 top-0 sm:hidden" />
+  {#if bare}
+    <h2 id="{id}-title" class="sr-only">{title}</h2>
+    {#if open || closing}{@render children()}{/if}
+  {:else}
   <div class="p-5 pb-[max(--spacing(5),env(safe-area-inset-bottom))] sm:p-6">
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">
@@ -87,4 +92,5 @@
       {#if open || closing}{@render children()}{/if}
     </div>
   </div>
+  {/if}
 </dialog>

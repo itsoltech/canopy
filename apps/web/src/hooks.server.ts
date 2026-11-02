@@ -1,7 +1,7 @@
 import { building } from "$app/env";
 import type { Handle, ServerInit } from "@sveltejs/kit/hooks";
 import { documentAttributes } from "#lib/features/settings/appearance.ts";
-import { loadSettings } from "#lib/features/settings/server/settings.ts";
+import { shellAppearance } from "#lib/server/shell-appearance.ts";
 import { requireServiceToken } from "#lib/server/gateway.ts";
 
 export const init: ServerInit = () => {
@@ -9,17 +9,15 @@ export const init: ServerInit = () => {
 };
 
 /**
- * Pages are rendered with the user's appearance (scheme, accent, chat width) on `<html>`, so there is
- * no flash before the app starts; the root layout reuses the settings loaded here.
+ * The SPA shell carries the gateway's appearance on <html>; client components seed from it before
+ * their first paint. The short cached lookup has a deadline, including when the gateway is down.
  */
 export const handle: Handle = async ({ event, resolve }) => {
   const page = !event.isDataRequest && !event.url.pathname.startsWith("/api/");
-  // Started here, awaited by the root layout load alongside the overview.
-  const settings = page ? loadSettings() : undefined;
-  if (settings) event.locals.settings = settings;
+  const appearance = page ? shellAppearance() : undefined;
   return resolve(event, {
     transformPageChunk: async ({ html }) => {
-      const attributes = documentAttributes((await settings)?.user?.appearance);
+      const attributes = documentAttributes(await appearance);
       return html.replace(/%oa\.\w+%/g, (placeholder) => attributes[placeholder] ?? "");
     },
   });
