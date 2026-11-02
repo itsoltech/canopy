@@ -144,6 +144,7 @@ Pozostałe tabele:
 | `blobs` | duże treści (output, diff, obraz), adresowane sha256, inline albo w magazynie obiektów |
 | `worker_journal_cursors` | potwierdzone `journal_seq` per worker, dziennik i wątek (kursory `Welcome`) |
 | `worker_configs`, `worker_config_history`, `secrets`, `worker_config_secrets` | zdalna konfiguracja workerów (migracja `0002`) — [worker-config.md](worker-config.md#7-schemat-0002_worker_config) |
+| `provider_model_selections` | które modele katalogu profilu widać w pickerach (migracja `0015`) — [worker-config.md](worker-config.md#8-profile-dostawców) |
 | `audit_log` | komendy, decyzje, zmiany konfiguracji |
 
 ## Niezmienniki

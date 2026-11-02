@@ -93,3 +93,36 @@ export function modelProblem(
   }
   return undefined;
 }
+
+/** Which models a profile shows in pickers (provider_model_selections); see applyModelSelections. */
+export interface ModelSelectionRule {
+  readonly profile_id: string;
+  readonly provider: "claude" | "codex";
+  readonly shown: readonly string[];
+  readonly known: readonly string[];
+  readonly show_new: boolean;
+}
+
+/**
+ * The catalog as pickers see it (docs/protocol.md#modele-effort-i-steer, "Wybór modeli"): a profile with a selection
+ * shows the models it lists, and a model the catalog did not have when the selection was saved only with show_new.
+ * Models are marked hidden, never removed, so a thread on a hidden model still finds its name and efforts, and
+ * the gateway's checks still accept it. Without a selection the catalog is unchanged (the provider's own hidden).
+ */
+export function applyModelSelections(catalog: ui.WorkerModels, rules: readonly ModelSelectionRule[]): ui.WorkerModels {
+  if (rules.length === 0) return catalog;
+  return create(ui.WorkerModelsSchema, {
+    ...catalog,
+    profiles: catalog.profiles.map((profile) => {
+      const provider = profile.provider === Provider.CLAUDE ? "claude" : "codex";
+      const rule = rules.find((r) => r.profile_id === (profile.profileId || "native") && r.provider === provider);
+      if (!rule) return profile;
+      const shown = new Set(rule.shown);
+      const known = new Set(rule.known);
+      return create(ProfileModelsSchema, {
+        ...profile,
+        models: profile.models.map((model) => ({ ...model, hidden: !(shown.has(model.id) || (!known.has(model.id) && rule.show_new)) })),
+      });
+    }),
+  });
+}

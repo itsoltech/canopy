@@ -9,6 +9,7 @@ export {
   type CliProxyApiProfileConfig,
   type Env,
   type NativeProfileConfig,
+  type ProfileEnvVarConfig,
   type ProfileStatus,
   type ProviderProfileConfig,
   type ResolvedProfile,

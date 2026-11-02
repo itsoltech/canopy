@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { provideField } from "./field.ts";
+  import FieldError from "./FieldError.svelte";
   import { shake } from "./motion.ts";
 
   /**
@@ -36,5 +37,5 @@
   </label>
   <div class="grid gap-1.5" {@attach shake(error)}>{@render children()}</div>
   {#if description}<p id="{id}-description" class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">{description}</p>{/if}
-  {#if error}<p id="{id}-error" class="text-sm/5 text-rose-700 dark:text-rose-400" role="alert">{error}</p>{/if}
+  <FieldError id="{id}-error" message={error} />
 </div>

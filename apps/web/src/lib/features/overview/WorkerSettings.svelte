@@ -7,10 +7,14 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";
+  import { profileDisplayName } from "#lib/features/threads/providers.ts";
   import { configPending, osLabel, providerSummary } from "./workers.ts";
 
-  /** A worker as a settings card: where it runs, what it can run, and whether its configuration applied. */
-  let { worker }: { worker: ui.Worker } = $props();
+  /**
+   * A worker as a settings card: where it runs, what it can run, and whether its configuration applied. In the
+   * workers list its profiles row leads to the worker's page (profiles, variables, models).
+   */
+  let { worker, title, showProfiles = true }: { worker: ui.Worker; title?: string; showProfiles?: boolean } = $props();
   const where = $derived(
     [worker.hostname, osLabel(worker.os), worker.version && `v${worker.version}`, !worker.online && worker.lastSeenAt && `seen ${formatRelative(worker.lastSeenAt)}`]
       .filter(Boolean)
@@ -18,7 +22,7 @@
   );
 </script>
 
-<SettingsGroup>
+<SettingsGroup {title}>
   <SettingsRow title={worker.name} description={where}>
     {#snippet leading()}<Icon name="computer-desktop" class="fill-zinc-400 dark:fill-zinc-500" />{/snippet}
     {#snippet control()}<StatusBadge status={worker.online ? "online" : "offline"} />{/snippet}
@@ -37,13 +41,17 @@
       </div>
     {/snippet}
   </SettingsRow>
-  <SettingsRow title="Profiles" description="How the agents reach their models.">
-    {#snippet control()}
-      <div class="flex flex-wrap justify-end gap-1.5">
-        {#each worker.profiles as profile (profile.id)}<Badge tone={profile.available ? "neutral" : "rose"}>{profile.id}{profile.available ? "" : " (unavailable)"}</Badge>{:else}<span class="text-sm/6 text-zinc-500">None</span>{/each}
-      </div>
-    {/snippet}
-  </SettingsRow>
+  {#if showProfiles}
+    <SettingsRow title="Provider profiles" description="How the agents reach their models: profiles, variables, models." href="/settings/workers/{worker.id}">
+      {#snippet control()}
+        <div class="flex flex-wrap justify-end gap-1.5 max-sm:hidden">
+          {#each worker.profiles as profile (profile.id)}
+            <Badge tone={profile.available ? "neutral" : "rose"}>{profileDisplayName(profile)}{profile.available ? "" : " (unavailable)"}</Badge>
+          {:else}<span class="text-sm/6 text-zinc-500">None</span>{/each}
+        </div>
+      {/snippet}
+    </SettingsRow>
+  {/if}
   <SettingsRow title="Configuration" description="Sent by the gateway, applied by the worker.">
     {#snippet control()}
       <span class="text-sm/6 text-zinc-600 tabular-nums dark:text-zinc-400">

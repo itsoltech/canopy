@@ -20,6 +20,7 @@ import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { claudeGoalCommand, DEFAULT_BUS_LIMITS, isFinished } from "@open-agents/domain";
 import {
   AgentBusStore,
+  applyModelSelections,
   GatewayStore,
   GoalStore,
   Ingest,
@@ -27,6 +28,7 @@ import {
   modelProblem,
   permissionModeName,
   permissionModeOf,
+  ProfileStore,
   SettingsStore,
   SteerStore,
   toUiGoal,
@@ -57,7 +59,10 @@ import { Scheduler } from "./scheduler.ts";
  * - UI operations and live fan-out through the hub.
  */
 
-export type CoreRuntime = ManagedRuntime.ManagedRuntime<GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore, unknown>;
+export type CoreRuntime = ManagedRuntime.ManagedRuntime<
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | ProfileStore,
+  unknown
+>;
 
 export interface GatewayCoreOptions {
   readonly runtime: CoreRuntime;
@@ -683,12 +688,68 @@ export class GatewayCore {
         }),
       );
     }
-    return this.#models((s) => s.catalogs(workers.map((w) => w.id)));
+    const catalogs = await this.#models((s) => s.catalogs(workers.map((w) => w.id)));
+    return request.unfiltered ? catalogs : this.#forPickers(catalogs);
   }
 
   async #saveModels(workerId: string, configVersion: bigint, profiles: ui.WorkerModels["profiles"]): Promise<void> {
     const models = await this.#models((s) => s.save({ workerId, configVersion, profiles }));
-    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "models", value: models } }));
+    await this.#publishModels([models]);
+  }
+
+  /** Live catalogs are what pickers show: with the profiles' model selections applied. */
+  async #publishModels(catalogs: ui.WorkerModels[]): Promise<void> {
+    for (const models of await this.#forPickers(catalogs)) {
+      this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "models", value: models } }));
+    }
+  }
+
+  /** Models a profile's selection leaves out are marked hidden (store/models.ts, applyModelSelections). */
+  async #forPickers(catalogs: ui.WorkerModels[]): Promise<ui.WorkerModels[]> {
+    if (catalogs.length === 0) return catalogs;
+    const rules = await this.#profiles((s) => s.selections(catalogs.map((c) => c.workerId)));
+    return catalogs.map((catalog) => applyModelSelections(catalog, rules.filter((r) => r.worker_id === catalog.workerId)));
+  }
+
+  // ------------------------------------------------------------------ provider profiles
+
+  /** A worker's profiles for the settings screen: no secret values, only whether they are set. */
+  async listProviderProfiles(workerId: string): Promise<ui.ListProviderProfilesResponse> {
+    return create(ui.ListProviderProfilesResponseSchema, await this.#profiles((s) => s.profiles(workerId)));
+  }
+
+  /** New or changed profile: a new configuration version, sent to the worker now when it is online. */
+  async saveProviderProfile(request: ui.SaveProviderProfileRequest): Promise<ui.SaveProviderProfileResponse> {
+    const { configVersion, profileId } = await this.#profiles((s) => s.save({ userId: this.#options.userId, request }));
+    await this.#configChanged(request.workerId);
+    const { profiles } = await this.#profiles((s) => s.profiles(request.workerId));
+    return create(ui.SaveProviderProfileResponseSchema, { configVersion, ...(profiles.find((p) => p.id === profileId) && { profile: profiles.find((p) => p.id === profileId) }) });
+  }
+
+  async deleteProviderProfile(request: ui.DeleteProviderProfileRequest): Promise<bigint> {
+    const version = await this.#profiles((s) =>
+      s.remove({ userId: this.#options.userId, workerId: request.workerId, profileId: request.profileId, expectedVersion: request.expectedConfigVersion }),
+    );
+    await this.#configChanged(request.workerId);
+    return version;
+  }
+
+  /** Which models pickers show for a profile; the worker's catalog itself is unchanged. */
+  async setModelSelection(request: ui.SetModelSelectionRequest): Promise<ui.ModelSelection | undefined> {
+    const selection = await this.#profiles((s) => s.setSelection({ userId: this.#options.userId, request }));
+    await this.#publishModels(await this.#models((s) => s.catalogs([request.workerId])));
+    return selection;
+  }
+
+  /** The stored configuration goes to the worker (it answers ConfigApplied and a new model catalog). */
+  async #configChanged(workerId: string): Promise<void> {
+    const config = await this.#run((s) => s.workerConfig(workerId));
+    if (config) this.link.pushConfig(workerId, config);
+    await this.#broadcastWorkers();
+  }
+
+  #profiles<A, E>(use: (store: ProfileStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
+    return this.#options.runtime.runPromise(ProfileStore.use(use));
   }
 
   /**
