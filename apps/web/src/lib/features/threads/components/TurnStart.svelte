@@ -11,9 +11,9 @@
   /**
    * Boundary before a turn: space, and a pill with the day where a new day starts (`newDay`). What
    * matters stays visible: a mark when it worked on a goal (with the objective, when it is the goal the
-   * page knows) and, for turns without an input (provider wake-up, recovery), what started it. The turn's
-   * number and when it started (or was queued) wait at the right, over its input, until the turn is
-   * hovered or focused (turn-reveal); they are only faded, so screen readers still read them. `number` counts
+   * page knows) and, for turns without an input (provider wake-up, recovery), what started it. When it
+   * started (or was queued) waits at the right, over its input, until the turn is hovered or focused
+   * (turn-reveal); the turn's number is there for screen readers only. `number` counts
    * the shown turns (turns taken out of the queue are not; default: the ordinal).
    */
   let { turn, newDay, number = turn.ordinal }: { turn: ui.Turn; newDay: boolean; number?: number } = $props();
@@ -38,7 +38,7 @@
     {/if}
     {#if label}<span class="truncate">{label}</span>{/if}
     <span class="ml-auto shrink-0 t-quiet tabular-nums">
-      Turn {number}{#if at}<span aria-hidden="true">{" · "}<time datetime={isoDateTime(at)} title={formatDateTime(at)}>{formatTime(at)}</time></span><span class="sr-only">, {formatDateTime(at)}</span>{/if}
+      <span class="sr-only">Turn {number}{#if at}, {formatDateTime(at)}{/if}</span>{#if at}<time aria-hidden="true" datetime={isoDateTime(at)} title={formatDateTime(at)}>{formatTime(at)}</time>{/if}
     </span>
   </div>
 </div>
