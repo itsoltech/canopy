@@ -62,13 +62,16 @@ describe.skipIf(!dockerAvailable)("thread titles through the worker link", () =>
     await requested(count + 1);
     expect(requests.at(-1)).toMatchObject({ model: "gpt-5.5", effort: "low", profileId: "native" });
     expect(requests.at(-1)?.prompt).toEndWith("Use three words");
+    // While the worker generates, the thread says so (the UI shows it on the title).
+    expect((await current(thread.id)).titleGenerating).toBe(true);
     answer?.(true, { generatedText: "Better login flow" });
-    expect((await eventually(() => current(thread.id), (t) => t.titleSource === "generated")).title).toBe("Better login flow");
+    const done = await eventually(() => current(thread.id), (t) => t.titleSource === "generated" && !t.titleGenerating);
+    expect(done.title).toBe("Better login flow");
     count = requests.length;
     const failed = await createThread("Provisional on failure");
     await requested(count + 1);
     answer?.(false, { errorCode: "TEXT_GENERATION_FAILED" });
-    const kept = await current(failed.id);
+    const kept = await eventually(() => current(failed.id), (t) => !t.titleGenerating);
     expect([kept.title, kept.titleSource]).toEqual(["Provisional on failure", "provisional"]);
     await gw.api.sendMessage({ threadId: failed.id, text: "No retry storm", clientRequestId: "second" });
     expect(requests.length).toBe(count + 1);

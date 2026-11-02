@@ -28,6 +28,8 @@ Migracja `0022_thread_titles` dodaje `title_source`, `title_revision`, `title_re
 
 Stare niepuste tytuły migracja zachowuje jako `user`, ponieważ ich pochodzenia nie da się bezpiecznie ustalić. Wyłącznie puste tytuły i `New thread` stają się `provisional`.
 
+**W toku.** `Thread.title_generating` jest prawdą od przyjęcia żądania do końca generacji (sukces, błąd albo timeout). Gateway wysyła wątek na starcie i na końcu zadania; nowy tytuł przychodzi razem z końcem stanu „w toku”. Stan żyje w pamięci gatewaya (jeden gateway), po jego restarcie znika razem z przerwaną generacją. UI pokazuje go na samym tytule (shimmer w sidebarze, nagłówku i panelu, spinner na przycisku), więc sukces nie potrzebuje toastu; toast dostaje tylko błąd żądania.
+
 Atomowy claim w bazie chroni automatyczną próbę przed duplikatami. Zapis wyniku wymaga zgodnej rewizji: rename podczas generacji zawsze wygrywa. Jawne `RegenerateTitle` może zastąpić również tytuł użytkownika; zachowuje dotychczasowy tytuł do sukcesu. Panel wątku umożliwia rename i regenerację, a Cmd+K zawiera regenerację. `features/threads/title-actions.ts` jest wspólnym hookiem dla przyszłego menu sidebara.
 
 Brak workera, błąd lub timeout pozostawia dotychczasowy tytuł i zapisuje ogólną diagnostykę. Nie ma outboxa, automatycznych ponowień ani generacji po kolejnych wiadomościach. Ręczna regeneracja pozwala spróbować ponownie.
