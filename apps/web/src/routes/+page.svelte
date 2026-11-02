@@ -11,6 +11,7 @@
   import ProjectPicker from "#lib/features/projects/ProjectPicker.svelte";
   import WorkerPicker from "#lib/features/projects/WorkerPicker.svelte";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
+  import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import ComposerNotice from "#lib/features/threads/components/ComposerNotice.svelte";
   import { findOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
@@ -82,9 +83,11 @@
   const permissionMode = $derived(permission ?? permissionKey(defaults.permissionMode));
 
   let message = $state("");
+  // Files of the first message (uploaded as added; their ids go with the form).
+  const draft = new AttachmentDraft(() => limitsOf(settings.attachmentLimits));
   let busy = $state(false);
   // Thread title: the first line of the task (the gateway falls back to "New thread").
-  const title = $derived(message.trim().split("\n")[0]?.slice(0, 80) ?? "");
+  const title = $derived(message.trim().split("\n")[0]?.slice(0, 80) || draft.files[0]?.name || "");
   const clientRequestId = crypto.randomUUID();
 
   // Why the message cannot go yet (the send button is disabled and this says why).
@@ -120,7 +123,8 @@
           method="POST"
           action="?/createThread"
           class="grid gap-3"
-          use:enhance={() => {
+          use:enhance={({ cancel }) => {
+            if (draft.blocker) return cancel();
             busy = true;
             return async ({ update }) => {
               await update({ reset: false });
@@ -137,8 +141,16 @@
           <input type="hidden" name="effort" value={sentEffort} />
           <input type="hidden" name="workspaceId" value={workspace?.id ?? ""} />
           <input type="hidden" name="permissionMode" value={permissionMode} />
+          {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
           {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
-          <ComposerBox bind:value={message} sending={busy} canSend={!blocker} autofocus label="Task for the agent">
+          <ComposerBox
+            bind:value={message}
+            sending={busy}
+            canSend={!blocker && !draft.blocker}
+            autofocus
+            label="Task for the agent"
+            {draft}
+          >
             {#snippet controls()}
               {#if workspace && selected}
                 <ModelControls {options} bind:option={() => selected, (option) => (picked = option)} bind:effort {workerId} class="flex-1 justify-end" />
@@ -154,6 +166,9 @@
               <PermissionPicker value={permissionMode} onselect={(mode) => (permission = mode)} class="-mr-1.5" />
             {/snippet}
           </ComposerBox>
+          {#if draft.blocker && !blocker}
+            <ComposerNotice>{draft.blocker}</ComposerNotice>
+          {/if}
           {#if blocker === "no-worker"}
             <ComposerNotice>
               {project.name} is not on any worker yet, so there is nowhere to run the thread.

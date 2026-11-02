@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
-import { AgentMessageSchema, CommandExecutionSchema, FileChangeSchema, ItemSchema, ItemStatus, UserMessageSchema, ui, type Item } from "@open-agents/contracts";
+import { AgentMessageSchema, CommandExecutionSchema, FileChangeSchema, ItemSchema, ItemStatus, ReasoningSchema, UserMessageSchema, ui, type Item } from "@open-agents/contracts";
 import { FeedBuilder, feedInserted, type FeedInput } from "../src/lib/features/threads/feed.ts";
 import type { TimelineEntry } from "../src/lib/features/threads/thread-state.svelte.ts";
 import { buildTimeline } from "../src/lib/features/threads/timeline.ts";
@@ -75,6 +75,18 @@ describe("folding an ended turn's work", () => {
 
   test("a failed turn ending on a message keeps that message", () => {
     expect(shape(fold([input("in", "t1"), ran("c1", "t1"), said("m1", "t1")], [turn("t1", "failed")]))).toEqual(["turn-start", "in", "work", "m1", "turn-end"]);
+  });
+
+  test("empty reasoning (Codex's encrypted-only reasoning) neither makes a fold nor renders", () => {
+    const start = input("in", "t1");
+    const blank = entry("r1", "t1", { case: "reasoning", value: create(ReasoningSchema, {}) });
+    expect(shape(fold([start, blank, said("final", "t1")], [turn("t1", "completed")]))).toEqual(["turn-start", "in", "final", "turn-end"]);
+  });
+
+  test("empty reasoning is shown while the turn runs (its text may still stream in)", () => {
+    const start = input("in", "t1");
+    const blank = entry("r1", "t1", { case: "reasoning", value: create(ReasoningSchema, {}) });
+    expect(shape(fold([start, blank], [turn("t1", "running")]))).toEqual(["turn-start", "in", "r1"]);
   });
 
   test("nothing besides the final message: no fold", () => {

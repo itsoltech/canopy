@@ -45,6 +45,9 @@ export async function serveLink(
         case "agentToolResult":
           host.handleAgentToolResult(message.payload.value);
           break;
+        case "blobChunk":
+          host.handleBlobChunk(message.payload.value);
+          break;
         case "eventAck":
           await runtime.runPromise(applyAck(message.payload.value));
           break;

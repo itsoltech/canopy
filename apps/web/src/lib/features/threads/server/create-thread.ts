@@ -41,6 +41,7 @@ export async function createThreadFromForm(form: FormData, action: string, targe
       parentThreadId: parent?.id ?? "",
       fork: Boolean(parent) && form.get("fork") === "on",
       clientRequestId: text(form, "clientRequestId") || crypto.randomUUID(),
+      initialAttachmentIds: form.getAll("attachmentId").map(String).filter(Boolean),
     }),
   );
   if (failed(result)) return result;

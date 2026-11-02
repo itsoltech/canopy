@@ -160,7 +160,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     pg = await startPostgres();
     runtime = ManagedRuntime.make(pg.layer);
     const applied = await runtime.runPromise(migrate);
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode", "15_provider_profiles", "18_global_providers"]);
+    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual(["1_init", "2_worker_config", "3_gateway_runtime", "4_agent_bus_runtime", "5_settings", "6_turn_sources", "7_turn_source_details", "8_one_start_per_turn", "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode", "15_provider_profiles", "16_attachments", "18_global_providers"]);
   }, 60_000);
 
   afterAll(async () => {
@@ -467,6 +467,23 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       await query(insert, [sha, new Uint8Array([1, 2, 3]), null]);
       expect(await failure(insert, ["b".repeat(64), null, null])).toContain("blobs_one_location");
       expect(await failure(insert, ["not-a-hash", new Uint8Array([1]), null])).toContain("blobs_sha256_check");
+    });
+
+    test("attachments: a blob owned by a user, a safe name, bound to a thread and turn together", async () => {
+      const w = await world();
+      const sha = "c".repeat(64);
+      await query(`INSERT INTO blobs (sha256, size_bytes, data) VALUES ($1, 1, $2)`, [sha, new Uint8Array([1])]);
+      const insert = `INSERT INTO attachments (id, owner_user_id, sha256, name, mime_type, kind, size_bytes, thread_id, turn_id)
+                      VALUES ($1, $2, $3, $4, 'text/plain', $5, 1, $6, $7)`;
+      await query(insert, [id(), w.user, sha, "notes.txt", "file", null, null]);
+      expect(await failure(insert, [id(), w.user, "d".repeat(64), "x.txt", "file", null, null])).toContain("attachments_sha256_fkey");
+      expect(await failure(insert, [id(), w.user, sha, "../x.txt", "file", null, null])).toContain("attachments_name_check");
+      expect(await failure(insert, [id(), w.user, sha, "a\\b", "file", null, null])).toContain("attachments_name_check");
+      expect(await failure(insert, [id(), w.user, sha, "..", "file", null, null])).toContain("attachments_name_check");
+      expect(await failure(insert, [id(), w.user, sha, "x.exe", "program", null, null])).toContain("attachments_kind_check");
+      const main = await mainThread(w);
+      expect(await failure(insert, [id(), w.user, sha, "x.txt", "file", main, null])).toContain("attachments_bound_together");
+      expect(await failure(`INSERT INTO thread_blobs (thread_id, sha256) VALUES ($1, 'nope')`, [main])).toContain("thread_blobs_sha256_check");
     });
   });
 

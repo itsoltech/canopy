@@ -8,3 +8,4 @@ export { ModelStore, modelProblem, turnEffort } from "./models.ts";
 export { applyInstanceModels, harnessOf, withCustomModels, type InstanceModelsRule } from "./instance-config.ts";
 export { InstanceConflict, InstanceStore } from "./instances.ts";
 export { SteerStore, toUiSteer, type SteerRow } from "./steers.ts";
+export { AttachmentStore, toUiAttachment, type AttachmentRow, type StoredAttachment } from "./attachments.ts";

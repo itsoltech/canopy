@@ -44,7 +44,14 @@
 </script>
 
 {#if origin.kind === "user"}
-  <UserMessageView message={{ text, authorAgentId: "", attachments: [...attachments] }} note={queuedNote(queued, fallback)} pending={queued} />
+  <!-- With attachments the agent got a platform note listing their paths: the message shows the files, the full text folds. -->
+  <UserMessageView
+    message={{ text: turn.attachments.length > 0 && parts.note ? parts.message : text, authorAgentId: "", attachments: [...attachments] }}
+    files={turn.attachments}
+    note={queuedNote(queued, fallback)}
+    pending={queued}
+    details={turn.attachments.length > 0 && parts.note ? fullText : undefined}
+  />
 {:else}
   <div class="flex flex-col items-end gap-1">
     <p
@@ -114,3 +121,10 @@
     </div>
   </div>
 {/if}
+
+{#snippet fullText()}
+  <Disclosure remember="full-text" class={parts.message.trim() && "mt-2"} summaryClass="text-sm/6 opacity-80 sm:text-xs/6">
+    {#snippet summary()}Full text the agent received{/snippet}
+    <CodeBlock {text} label="Full text the agent received" class="mt-2" />
+  </Disclosure>
+{/snippet}

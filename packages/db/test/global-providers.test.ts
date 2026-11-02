@@ -26,7 +26,7 @@ function query<A extends object = Record<string, unknown>>(text: string, params:
 const before = Migrator.make({})({ loader: Effect.map(migrations, (all) => all.filter(([n]) => n < 18)), table: "schema_migrations" });
 
 const user = id();
-const [w1, w2] = [id(), id()].sort();
+const [w1, w2] = [id(), id()].sort() as [string, string];
 const project = id();
 const threads = { proxyOnW1: id(), proxyOnW2: id(), nativeOnW2: id() };
 

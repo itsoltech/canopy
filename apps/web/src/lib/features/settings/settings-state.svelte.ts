@@ -27,6 +27,8 @@ export class SettingsState {
   user = $state.raw<ui.UserSettings>(create(ui.UserSettingsSchema));
   projects = $state.raw<ReadonlyMap<string, ui.ProjectSettings>>(new Map());
   notice = $state<SettingsNotice | undefined>(undefined);
+  /** The gateway's attachment limits (the composer checks them before uploading); undefined = defaults. */
+  attachmentLimits = $state.raw<ui.AttachmentLimits | undefined>(undefined);
   /** Writes queued or in flight. */
   saving = $state(0);
   #queue: Promise<void> = Promise.resolve();
@@ -169,6 +171,7 @@ export class SettingsState {
   }
 
   #replace(settings: ui.GetSettingsResponse): void {
+    if (settings.attachmentLimits) this.attachmentLimits = settings.attachmentLimits;
     if (settings.user) this.#confirmUser(settings.user);
     this.#server.projects = new Map(settings.projects.map((p) => [p.projectId, p]));
     this.projects = new Map(this.#server.projects);

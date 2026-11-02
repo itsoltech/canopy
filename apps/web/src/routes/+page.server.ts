@@ -8,7 +8,7 @@ export const actions: Actions = {
     const form = await request.formData();
     const projectId = String(form.get("projectId") ?? "");
     if (!projectId) return fail(400, { action: "thread", error: "Choose a project" });
-    if (!String(form.get("message") ?? "").trim()) return fail(400, { action: "thread", error: "Tell the agent what to do" });
+    if (!String(form.get("message") ?? "").trim() && form.getAll("attachmentId").length === 0) return fail(400, { action: "thread", error: "Tell the agent what to do" });
     return createThreadFromForm(form, "thread", { projectId });
   },
 };

@@ -63,6 +63,10 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       setInstanceModels: (request) => guard(async () => create(ui.SetInstanceModelsResponseSchema, { instance: await core.setInstanceModels(request) })),
       refreshProviders: (request) => guard(() => core.refreshProviders(request)),
       startProviderLogin: (request) => guard(() => core.startProviderLogin(request)),
+      uploadAttachment: (request) =>
+        guard(async () => create(ui.UploadAttachmentResponseSchema, { attachment: await core.uploadAttachment(request.name, request.data) })),
+      getAttachment: (request) => guard(() => core.getAttachment(request.attachmentId, request.thumbnail)),
+      getThreadBlob: (request) => guard(() => core.getThreadBlob(request.threadId, request.sha256)),
     });
 }
 

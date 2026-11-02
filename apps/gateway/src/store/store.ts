@@ -25,6 +25,7 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle } from "./paths.ts";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
+import { toUiAttachment, type StoredAttachment } from "./attachments.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -88,8 +89,11 @@ export interface TurnRow {
   ordinal: number;
   status: string;
   trigger: string;
-  /** text = what the model got; note + message = the same split for the UI (platform-queued turns). */
-  input: { text?: string; note?: string; message?: string };
+  /**
+   * text = what the model got; note + message = the same split for the UI (platform-queued turns, a message with
+   * attachments: the note lists them); attachments = the files of the message, with their paths on the worker.
+   */
+  input: { text?: string; note?: string; message?: string; attachments?: StoredAttachment[] };
   /** The message's override while queued; the values sent to the worker once started ('' = default). */
   model?: string;
   effort?: string;
@@ -167,6 +171,10 @@ export class GatewayStore extends Context.Service<
     listThreads(ownerUserId: string, projectId: string): Fx<ReadonlyArray<ThreadRow>>;
     threadSpec(row: ThreadRow): ThreadSpec;
     setThreadStatus(threadId: string, status: string, detail: string | null): Fx<void>;
+    /**
+     * A user's message as the next turn. With attachments: `input` is the prepared input (note + message) and the
+     * attachments are bound to the turn in the same transaction (each only once).
+     */
     enqueueTurn(input: {
       threadId: string;
       text: string;
@@ -175,6 +183,7 @@ export class GatewayStore extends Context.Service<
       model?: string;
       effort?: string;
       permissionMode?: string;
+      input?: TurnRow["input"];
     }): Fx<TurnRow>;
     /** A user turn with this client request id, if any (SendMessage idempotency across queue and steer). */
     turnByClientRequest(threadId: string, clientRequestId: string): Fx<TurnRow | undefined>;
@@ -309,7 +318,11 @@ export class GatewayStore extends Context.Service<
 
           workerConnected: (workerId, instanceId, hello) =>
             Effect.gen(function* () {
-              const capabilities = JSON.stringify({ providers: hello.providers.map((p) => ({ provider: Provider[p.provider], available: p.available, version: p.version })) });
+              const capabilities = JSON.stringify({
+                providers: hello.providers.map((p) => ({ provider: Provider[p.provider], available: p.available, version: p.version })),
+                // Where the worker keeps attachments (paths in the platform note); empty = it cannot take them.
+                attachmentsRoot: hello.attachmentsRoot,
+              });
               yield* sql`
                 UPDATE workers SET os = ${hello.host?.os ?? ""}, arch = ${hello.host?.arch ?? ""}, version = ${hello.host?.workerVersion ?? ""},
                                    capabilities = capabilities || ${capabilities}::jsonb || ${JSON.stringify({ hostname: hello.host?.hostname ?? "" })}::jsonb,
@@ -571,19 +584,33 @@ export class GatewayStore extends Context.Service<
           setThreadStatus: (threadId, status, detail) =>
             sql`UPDATE threads SET status = ${status}, status_detail = ${detail} WHERE id = ${threadId}::uuid`.pipe(Effect.asVoid),
 
-          enqueueTurn: ({ threadId, text, userId, clientRequestId, model = "", effort = "", permissionMode = "" }) =>
-            Effect.gen(function* () {
-              if (!text.trim()) return yield* Effect.fail(new Invalid("message is empty"));
-              const rows = yield* sql<TurnRow>`
-                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort, permission_mode)
-                SELECT ${Bun.randomUUIDv7()}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'user', ${userId}::uuid,
-                       ${clientRequestId || null}, ${JSON.stringify({ text })}::jsonb, ${model}, ${effort}, ${permissionMode}
-                  FROM turns WHERE thread_id = ${threadId}::uuid
-                ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
-                RETURNING *`;
-              if (rows[0]) return rows[0];
-              return yield* one(yield* sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND client_request_id = ${clientRequestId}`, "turn");
-            }),
+          enqueueTurn: ({ threadId, text, userId, clientRequestId, model = "", effort = "", permissionMode = "", input }) =>
+            sql.withTransaction(
+              Effect.gen(function* () {
+                const attachments = input?.attachments ?? [];
+                if (!text.trim() && attachments.length === 0) return yield* Effect.fail(new Invalid("message is empty"));
+                const id = Bun.randomUUIDv7();
+                const rows = yield* sql<TurnRow>`
+                  INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort, permission_mode)
+                  SELECT ${id}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'user', ${userId}::uuid,
+                         ${clientRequestId || null}, ${JSON.stringify(input ?? { text })}::jsonb, ${model}, ${effort}, ${permissionMode}
+                    FROM turns WHERE thread_id = ${threadId}::uuid
+                  ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
+                  RETURNING *`;
+                if (!rows[0]) {
+                  return yield* one(yield* sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND client_request_id = ${clientRequestId}`, "turn");
+                }
+                if (attachments.length > 0) {
+                  // Each attachment goes with one message: a concurrent send of the same file fails here and rolls back.
+                  const bound = yield* sql`
+                    UPDATE attachments SET thread_id = ${threadId}::uuid, turn_id = ${id}::uuid
+                     WHERE id = ANY(${`{${attachments.map((a) => a.id).join(",")}}`}::uuid[]) AND owner_user_id = ${userId}::uuid AND thread_id IS NULL
+                    RETURNING id`;
+                  if (bound.length !== attachments.length) return yield* Effect.fail(new Invalid("an attachment was already sent with another message"));
+                }
+                return rows[0];
+              }),
+            ),
 
           turnByClientRequest: (threadId, clientRequestId) =>
             clientRequestId
@@ -895,6 +922,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     effort: row.effort ?? "",
     permissionMode: permissionModeOf(row.permission_mode),
     goalId: row.goal_id ?? "",
+    attachments: (row.input?.attachments ?? []).map(toUiAttachment),
   });
 }
 

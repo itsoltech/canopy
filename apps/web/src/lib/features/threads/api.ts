@@ -21,8 +21,12 @@ export async function sendMessage(
   clientRequestId: string,
   turn: { model?: string; effort?: string; permissionMode?: PermissionModeKey } = {},
   delivery: Delivery = "queue",
+  attachmentIds: readonly string[] = [],
 ): Promise<ui.SendMessageResponse> {
-  return decode(ui.SendMessageResponseSchema, await post(`${threadPath(threadId)}/messages`, { text, clientRequestId, ...turn, delivery }));
+  return decode(
+    ui.SendMessageResponseSchema,
+    await post(`${threadPath(threadId)}/messages`, { text, clientRequestId, ...turn, delivery, ...(attachmentIds.length > 0 && { attachmentIds }) }),
+  );
 }
 
 /** The thread's default model, effort and permission mode: unset = unchanged, "" = the profile's default. */

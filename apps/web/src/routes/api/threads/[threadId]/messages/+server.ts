@@ -7,7 +7,8 @@ import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
 const Body = Schema.Struct({
-  text: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(100_000)),
+  // Empty only with attachments (the gateway checks).
+  text: Schema.String.check(Schema.isMaxLength(100_000)),
   clientRequestId: Schema.String.check(Schema.isUUID()),
   // This turn only; missing or "" = the thread's defaults.
   model: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
@@ -16,14 +17,17 @@ const Body = Schema.Struct({
   permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO"])),
   // queue (default): the next turn; steer: into the running turn (queued when none runs).
   delivery: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
+  // Uploaded attachments (api/attachments); a message with attachments is always queued.
+  attachmentIds: Schema.optionalKey(Schema.Array(Schema.String.check(Schema.isUUID())).check(Schema.isMaxLength(50))),
 });
 
 export const POST: RequestHandler = async ({ request, params }) => {
-  const { delivery, permissionMode, ...body } = await readBody(request, Body);
+  const { delivery, permissionMode, attachmentIds, ...body } = await readBody(request, Body);
   const response = await call((api) =>
     api.sendMessage({
       threadId: params.threadId,
       ...body,
+      attachmentIds: [...(attachmentIds ?? [])],
       ...(permissionMode && { permissionMode: PermissionMode[permissionMode] }),
       delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
     }),

@@ -101,6 +101,29 @@ export function swap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {})
   };
 }
 
+/**
+ * Text states swap (04) for a value on a scale, both halves at once: the old text leaves and the new one
+ * arrives along the scale's direction (`step` 1 = up the scale: the new text rises in from below, the old
+ * one rises out; -1 the other way), with a fade and cross-blur on --duration-quick. Use the same call as
+ * `in:` and `out:` on the text inside a `{#key}`, both stacked in one grid cell (SwapText.svelte), so
+ * the swap never shifts the layout. With reduced motion it is a cross-fade.
+ */
+export function stepSwap(
+  _node: HTMLElement,
+  { step = 1, distance = "micro" }: { step?: number; distance?: "micro" | "base" } = {},
+  options?: { direction: "in" | "out" | "both" },
+): TransitionConfig {
+  const ms = duration("quick");
+  if (prefersReducedMotion.current) return { duration: ms, css: (t) => `opacity: ${t}` };
+  const offset = length(`--distance-${distance}`, distance === "base" ? 8 : 4) * (options?.direction === "out" ? -step : step);
+  const blur = length("--blur-small", 2);
+  return {
+    duration: ms,
+    easing: inOut,
+    css: (t, u) => `opacity: ${t}; translate: 0 ${u * offset}px; filter: blur(${u * blur}px)`,
+  };
+}
+
 /** Icon swap (09), entering half: a status icon that changed grows in from a quarter with a blur. */
 export function iconSwap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}): TransitionConfig {
   const ms = duration("fast");
@@ -112,6 +135,19 @@ export function iconSwap(_node: HTMLElement, { delay = 0 }: { delay?: number } =
     easing: inOut,
     css: (t, u) => `opacity: ${t}; scale: ${0.25 + 0.75 * t}; filter: blur(${u * blur}px)`,
   };
+}
+
+/**
+ * Pop (menu dropdown 05 on a single item): something the user just added (an attachment chip) grows in from
+ * --scale-medium on --duration-fast and leaves on --duration-quick; neighbours glide aside with `reorder`.
+ */
+export function pop(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}, options?: { direction: "in" | "out" | "both" }): TransitionConfig {
+  const out = options?.direction === "out";
+  const ms = duration(out ? "quick" : "fast");
+  if (prefersReducedMotion.current) return { delay, duration: ms, css: (t) => `opacity: ${t}` };
+  const from = length("--scale-medium", 0.97);
+  const blur = length("--blur-small", 2);
+  return { delay, duration: ms, easing: smoothOut, css: (t, u) => `opacity: ${t}; scale: ${from + (1 - from) * t}; filter: blur(${u * blur}px)` };
 }
 
 /** List reorder (`animate:reorder` in a keyed each): rows glide to their new place (position change). */

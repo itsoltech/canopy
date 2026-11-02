@@ -1,13 +1,13 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import ResizeSlot from "#lib/shared/ui/ResizeSlot.svelte";
-  import { effortLevel, type ModelOption } from "./catalog.ts";
+  import type { ModelOption } from "./catalog.ts";
   import EffortPicker from "./EffortPicker.svelte";
   import { useModelCatalog } from "./model-catalog.svelte.ts";
   import ModelPicker from "./ModelPicker.svelte";
 
   /**
-   * The composer's model and effort pills, wired together: the model pill shows the chosen effort, the
+   * The composer's model and effort pills, wired together: the effort pill names the effort in force, the
    * effort popover's model line opens the model picker. A model without efforts has no effort pill. A
    * chosen effort the new model does not support falls back to that model's default. The chosen option
    * stays listed even when `options` lacks it (a custom model id). The picker refreshes the worker's
@@ -53,7 +53,6 @@
     bind:open={modelOpen}
     options={listed}
     value={option?.key}
-    effort={effort ? effortLevel(effort).label : undefined}
     catalog={workerId ? models.of(workerId) : undefined}
     {allowCustom}
     notice={workerId ? models.errors.get(workerId) : undefined}
