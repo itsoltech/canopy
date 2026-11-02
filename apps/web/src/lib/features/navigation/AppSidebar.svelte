@@ -12,7 +12,6 @@
   import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
   import SidebarThreads from "./SidebarThreads.svelte";
   import SidebarProjectFilter from "./SidebarProjectFilter.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
 
   /**
    * App sidebar: logo and the section's "new" action, the Threads | Bots switch (follows the route;
@@ -60,7 +59,7 @@
     <label class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400">
       <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
       <span class="sr-only">Search {section === "threads" ? "threads" : "bots"}</span>
-      <Input bare
+      <input
         type="search"
         name="q"
         bind:value={queries[section]}
