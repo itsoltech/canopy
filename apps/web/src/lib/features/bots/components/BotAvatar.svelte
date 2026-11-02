@@ -12,7 +12,8 @@
   /**
    * Round avatar of a participant: the picture when there is one, otherwise a bot's generated mascot
    * (shape, colour and eyes from its id) or your initials. `badge` marks a pinned bot (star) or an
-   * online one (dot). Decorative unless `label` is given: the name is usually next to it.
+   * online one (dot). `appearance` renders an explicitly chosen mascot instead of the legacy hash.
+   * Decorative unless `label` is given: the name is usually next to it.
    */
   let {
     participant,

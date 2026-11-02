@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { defaultAppearance, eyeColor, mascotShapes, type MascotShapeId } from "../mascot.ts";
+  import { defaultAppearance, eyeColor, mascotShapes, normalizeColor, type MascotShapeId } from "../mascot.ts";
 
   /** A shared 40×40 drawing, from tiny avatars to the wizard's large preview. */
   let { shape = "round", color = defaultAppearance.color, blink = false, label, class: className }: {
@@ -11,9 +11,10 @@
     class?: ClassValue;
   } = $props();
   const body = $derived(mascotShapes.find((s) => s.id === shape) ?? mascotShapes[0]);
+  const fill = $derived(normalizeColor(color) ?? defaultAppearance.color);
 </script>
 
-<svg viewBox="0 0 40 40" class={["shrink-0", className]} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : "true"} style:--mascot-color={color} style:--eye-color={eyeColor(color)}>
+<svg viewBox="0 0 40 40" class={["shrink-0", className]} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : "true"} style:--mascot-color={fill} style:--eye-color={eyeColor(fill)}>
   <path d={body.body} class="mascot-body fill-(--mascot-color)" />
   <g class:blinking={blink} class="eyes fill-(--eye-color)" style:--eye-y={`${body.eyeY}px`}>
     <ellipse cx="16" cy={body.eyeY} rx="2.1" ry="3.2" />
