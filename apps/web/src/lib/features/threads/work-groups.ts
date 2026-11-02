@@ -3,27 +3,28 @@ import { ItemStatus } from "@open-agents/contracts";
 import type { ui } from "@open-agents/contracts";
 import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
 import { isSteerMessage, isTerminal, type ItemNode, type TimelineRow } from "./timeline.ts";
+import { describeTool } from "./components/items/tools/registry.ts";
 
 /**
- * A timeline with each ended turn's work folded into one "Worked for …" row (like the Codex app):
+ * Each turn's work under a stable "Working for …" / "Worked for …" row:
  * the turn's start, its input, the fold, its final agent message and its footer stay; everything else
  * the turn did — tool and command items, reasoning, intermediate messages, steered messages, background
  * tasks, notices — sits under the fold (`work`), shown after it only while it is open.
  *
- * - A running turn is never folded.
+ * - A running turn has the same fold from the start. Its latest message stays outside only until
+ *   the agent starts more work. The stable answer slot can shrink without removing a virtual row.
  * - The final message is the turn's last agent message. A turn that did not complete (interrupted,
  *   failed) keeps it only when nothing came after it; otherwise its footer (status, reason, Continue)
  *   is the end the reader sees.
- * - Nothing to fold (no work beside the final message): the turn stays as it is.
- * - Items an ended turn left without anything to show (reasoning without text or summary — Codex
- *   keeps encrypted reasoning only —, an agent message without text) are dropped: they neither make a
- *   fold nor sit in one.
- * - Rows of other turns or between turns inside a folded turn's span follow its fold (their order to
- *   each other and to the footer is kept).
+ * - Even message-only turns retain the header and the answer slot at completion.
+ * - Empty reasoning and messages add no visible work. Later text deltas can make them visible.
+ * - Other turns and background work without a turn keep their own order.
  */
 export type FoldedRow =
   | { readonly kind: "row"; readonly row: TimelineRow; readonly work: boolean }
-  | { readonly kind: "work"; readonly key: string; readonly turn: ui.Turn; readonly open: boolean; readonly summary: WorkSummary };
+  | { readonly kind: "work"; readonly key: string; readonly turn: ui.Turn; readonly open: boolean; readonly summary: WorkSummary }
+  | { readonly kind: "work-group"; readonly key: string; readonly turn: ui.Turn; readonly open: boolean; readonly label: string; readonly running: boolean }
+  | { readonly kind: "answer"; readonly key: string; readonly turn: ui.Turn; readonly row: TimelineRow | undefined };
 
 export interface WorkSummary {
   /** Turn start to end, ms; undefined without both timestamps. */
@@ -32,6 +33,8 @@ export interface WorkSummary {
   readonly counts: string;
   /** Items still in progress under the fold (background tasks keep running after the turn). */
   readonly running: number;
+  readonly live: boolean;
+  readonly hint: string;
 }
 
 const turnIdOf = (row: TimelineRow): string =>
@@ -43,7 +46,7 @@ const isBody = (row: TimelineRow): boolean => (row.kind === "item" && !row.input
 const isAgentMessage = (row: TimelineRow): boolean => row.kind === "item" && row.node.entry.item.content.case === "agentMessage";
 
 /** An item with nothing to show, without children. */
-function isEmpty(row: TimelineRow): boolean {
+export function isEmpty(row: TimelineRow): boolean {
   if (row.kind !== "item" || row.node.children.length > 0) return false;
   const content = row.node.entry.item.content;
   if (content.case === "reasoning") return !content.value.text.trim() && !content.value.summary.trim();
@@ -51,7 +54,7 @@ function isEmpty(row: TimelineRow): boolean {
   return false;
 }
 
-export function foldTurns(rows: readonly TimelineRow[], isOpen: (turnId: string) => boolean): FoldedRow[] {
+export function foldTurns(rows: readonly TimelineRow[], isOpen: (turnId: string) => boolean, groupOpen: (key: string) => boolean = () => false): FoldedRow[] {
   // A background task owns its source command's lifecycle after the turn ends. System stops can
   // finish the task without another source-item update; tasks can also arrive outside the turn.
   const tasksBySource = new Map<string, TimelineEntry>();
@@ -61,43 +64,63 @@ export function foldTurns(rows: readonly TimelineRow[], isOpen: (turnId: string)
     node.children.forEach(indexTasks);
   };
   for (const row of rows) if (row.kind === "item") indexTasks(row.node);
-  // Ended turns (they have a footer) and their body rows in order.
-  const ended = new Map<string, ui.Turn>();
-  for (const row of rows) if (row.kind === "turn-end" && isTerminal(row.turn.status)) ended.set(row.turn.id, row.turn);
+  const turns = new Map<string, ui.Turn>();
+  for (const row of rows) if (row.kind === "turn-start" || row.kind === "turn-end") turns.set(row.turn.id, row.turn);
+  const inputs = new Set(rows.filter((r) => r.kind === "input" || r.kind === "item" && r.inputOf).map(turnIdOf));
   const bodies = new Map<string, TimelineRow[]>();
   for (const row of rows) {
     const turnId = turnIdOf(row);
-    if (!ended.has(turnId) || !isBody(row) || isEmpty(row)) continue;
+    if (!turns.has(turnId) || !isBody(row) || isEmpty(row)) continue;
     const list = bodies.get(turnId);
     if (list) list.push(row);
     else bodies.set(turnId, [row]);
   }
   const folds = new Map<string, { turn: ui.Turn; final: TimelineRow | undefined; work: TimelineRow[] }>();
-  for (const [turnId, body] of bodies) {
-    const turn = ended.get(turnId)!;
+  for (const [turnId, turn] of turns) {
+    const body = bodies.get(turnId) ?? [];
     let at = body.findLastIndex(isAgentMessage);
     if (at >= 0 && turn.status !== "completed" && at !== body.length - 1) at = -1;
     const final = at >= 0 ? body[at] : undefined;
     const work = body.filter((row) => row !== final);
-    if (work.length > 0) folds.set(turnId, { turn, final, work });
+    folds.set(turnId, { turn, final, work });
   }
 
   const out: FoldedRow[] = [];
   const placed = new Set<string>();
   for (const row of rows) {
     const turnId = turnIdOf(row);
-    if (ended.has(turnId) && isBody(row) && isEmpty(row)) continue;
+    if (turns.has(turnId) && isBody(row) && isEmpty(row)) continue;
     const fold = folds.get(turnId);
-    if (!fold || !isBody(row)) {
+    // Emit after the input, including a turn with no items yet. The next body/footer row is skipped.
+    if (!fold || row.kind === "turn-start" || row.kind === "input" || (row.kind === "item" && row.inputOf)) {
       out.push({ kind: "row", row, work: false });
-      continue;
+      if (!fold || row.kind === "turn-start" && inputs.has(turnId)) continue;
+    } else if (row.kind === "turn-end") {
+      if (placed.has(turnId)) { out.push({ kind: "row", row, work: false }); continue; }
     }
     if (placed.has(turnId)) continue;
+    if (!fold) continue;
     placed.add(turnId);
     const open = isOpen(turnId);
     out.push({ kind: "work", key: `work:${turnId}`, turn: fold.turn, open, summary: summarize(fold.turn, fold.work, tasksBySource) });
-    if (open) for (const work of fold.work) out.push({ kind: "row", row: work, work: true });
-    if (fold.final) out.push({ kind: "row", row: fold.final, work: false });
+    if (open) {
+      let tools: TimelineRow[] = [];
+      const flush = () => {
+        if (!tools.length) return;
+        const key = `group:${turnId}:${tools[0]!.key}`;
+        const expanded = groupOpen(key);
+        out.push({ kind: "work-group", key, turn: fold.turn, open: expanded, label: groupSummary(tools), running: tools.some((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS) });
+        if (expanded) for (const tool of tools) out.push({ kind: "row", row: tool, work: true });
+        tools = [];
+      };
+      for (const work of fold.work) {
+        if (isToolRow(work)) tools.push(work);
+        else { flush(); out.push({ kind: "row", row: work, work: true }); }
+      }
+      flush();
+    }
+    out.push({ kind: "answer", key: `answer:${turnId}`, turn: fold.turn, row: fold.final });
+    if (row.kind === "turn-end") out.push({ kind: "row", row, work: false });
   }
   return out;
 }
@@ -135,7 +158,60 @@ function summarize(turn: ui.Turn, work: readonly TimelineRow[], tasksBySource: R
       return `${n} ${n === 1 ? one : many}`;
     });
   const spanMs = turn.startedAt && turn.completedAt ? timestampMs(turn.completedAt) - timestampMs(turn.startedAt) : undefined;
-  return { spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined, counts: parts.join(", "), running: running.size };
+  return { spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined, counts: parts.join(", "), running: running.size, live: !isTerminal(turn.status), hint: currentWorkHint(work) };
+}
+
+const isToolRow = (row: TimelineRow): boolean => row.kind === "item" && !["agentMessage", "userMessage", "reasoning"].includes(row.node.entry.item.content.case ?? "");
+
+function activity(row: TimelineRow): string {
+  if (row.kind !== "item") return "";
+  const content = row.node.entry.item.content;
+  if (content.case === "toolCall") {
+    const call = content.value;
+    const body = describeTool({ ...call, running: true }).body;
+    if (body === "read") return "read";
+    if (body === "shell") return "command";
+    if (body === "edit" || body === "patch") return "edit";
+    if (body === "search" || body === "files" || body === "web-search") return "search";
+    return "tool";
+  }
+  return ({ commandExecution: "command", fileChange: "edit", webSearch: "search", agentBusCall: "agent call", subagent: "subagent", backgroundTask: "background task" } as Record<string, string>)[content.case ?? ""] ?? "item";
+}
+
+/** Consecutive tools form one stable group, until a progress message/reasoning/notice separates them. */
+export function groupSummary(rows: readonly TimelineRow[]): string {
+  const counts = new Map<string, number>();
+  for (const row of rows) { const kind = activity(row); counts.set(kind, (counts.get(kind) ?? 0) + 1); }
+  const verbs: Record<string, [string, string, string]> = {
+    read: ["Read", "file", "files"], command: ["Ran", "command", "commands"], edit: ["Made", "edit", "edits"],
+    search: ["Ran", "search", "searches"], tool: ["Made", "tool call", "tool calls"],
+    "agent call": ["Made", "agent call", "agent calls"], subagent: ["Started", "subagent", "subagents"],
+    "background task": ["Started", "background task", "background tasks"], item: ["Updated", "item", "items"],
+  };
+  return [...counts].map(([kind, n], i) => {
+    const [verb, one, many] = verbs[kind]!;
+    return `${i ? verb.toLowerCase() : verb} ${n} ${n === 1 ? one : many}`;
+  }).join(" and ");
+}
+
+/** Only active work supplies a live hint; finished calls never masquerade as still running. */
+export function currentWorkHint(rows: readonly TimelineRow[]): string {
+  const active = rows.filter((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS);
+  const reads = active.filter((r) => activity(r) === "read");
+  if (reads.length > 1) return `Reading ${reads.length} files…`;
+  const row = active.at(-1);
+  if (!row || row.kind !== "item") return "Thinking…";
+  const content = row.node.entry.item.content;
+  if (content.case === "commandExecution") return `Running ${content.value.command.split("\n")[0]}…`;
+  if (content.case === "toolCall") {
+    const look = describeTool({ ...content.value, running: true });
+    return `${look.title}${look.subject ? ` ${look.subject}` : ""}…`;
+  }
+  if (content.case === "fileChange") return `Editing ${content.value.changes.length} files…`;
+  if (content.case === "backgroundTask") return content.value.description || "Running a background task…";
+  if (content.case === "agentBusCall") return `Calling ${content.value.toolName}…`;
+  if (content.case === "subagent") return content.value.description || "Waiting for a subagent…";
+  return "Thinking…";
 }
 
 /**

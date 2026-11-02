@@ -157,6 +157,7 @@
       inheritedTurns: view.inheritedTurns,
       historyOpen,
       openWork: folds.open,
+      openGroups: folds.groups,
     }),
   );
   $effect(() => {
@@ -371,7 +372,7 @@
             {/if}
           {/snippet}
           {#snippet row(row: FeedRow)}
-            <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} onwork={(turnId) => folds.toggle(turnId)} />
+            <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} onwork={(turnId) => folds.toggle(turnId)} ongroup={(key) => folds.toggleGroup(key)} />
           {/snippet}
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
