@@ -29,7 +29,8 @@
   };
 </script>
 
-{#if calls.length > 0}
+<!-- One tool call is already the title; commands are listed whole (the title cuts them). -->
+{#if calls.length > 1 || calls[0]?.command !== undefined}
   <Section label={calls.length === 1 ? "Calls" : `Calls · ${calls.length}`}>
     <ul role="list" class="grid gap-0.5 text-base/6 sm:text-sm/6">
       {#each calls as entry, index (index)}

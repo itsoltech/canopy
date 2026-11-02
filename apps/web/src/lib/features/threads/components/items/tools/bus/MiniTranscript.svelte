@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
   import { withoutIds } from "#lib/shared/humanize.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -10,16 +11,14 @@
    * agent's on the left, other activity as quiet one-line rows. Long messages show their first lines;
    * more than `max` entries show the last ones until "Show all".
    */
-  let { lines, max = 8 }: { lines: readonly TranscriptLine[]; max?: number } = $props();
+  let { lines, max = 8, class: className }: { lines: readonly TranscriptLine[]; max?: number; class?: ClassValue } = $props();
   let all = $state(false);
   const shown = $derived(all || lines.length <= max ? lines : lines.slice(-max));
 </script>
 
-<div class="grid gap-2">
+<div class={["grid gap-2", className]}>
   {#if lines.length > max}
-    <div class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-      <MoreButton expanded={all} onclick={() => (all = !all)}>{all ? `Show the last ${max} only` : `Show ${lines.length - max} earlier`}</MoreButton>
-    </div>
+    <MoreButton expanded={all} onclick={() => (all = !all)}>{all ? `Show the last ${max} only` : `Show ${lines.length - max} earlier`}</MoreButton>
   {/if}
   <ol role="list" class="grid gap-1.5" aria-label="Transcript">
     {#each shown as line (line.key)}

@@ -40,9 +40,6 @@
     <pre data-quote-kind={quoteKind} data-quote-lang={lang} class={["flex-1 py-3 pr-3 text-zinc-800 dark:text-zinc-200", start === undefined && "pl-3"]}><CodeLines text={shown} {lang} /></pre>
   </div>
   {#if cut}
-    <div data-quote-skip class="flex items-center justify-between gap-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-      <p class="tabular-nums">{all ? `${lines.length} lines` : `First ${max} of ${lines.length} lines`}</p>
-      <MoreButton expanded={all} onclick={() => (all = !all)}>{all ? "Show less" : `Show all ${lines.length} lines`}</MoreButton>
-    </div>
+    <MoreButton expanded={all} onclick={() => (all = !all)} note={all ? `${lines.length} lines` : `First ${max} of ${lines.length} lines`}>{all ? "Show less" : `Show all ${lines.length} lines`}</MoreButton>
   {/if}
 </div>

@@ -2,6 +2,7 @@
   import { ItemStatus, type ToolCall } from "@open-agents/contracts";
   import { isEmptyNode, structureJson } from "#lib/shared/structure.ts";
   import OutputBlock from "../OutputBlock.svelte";
+  import ErrorText from "./ErrorText.svelte";
   import { stripReminders, unwrapContent } from "./parse.ts";
   import StructuredView from "./StructuredView.svelte";
 
@@ -15,7 +16,7 @@
 </script>
 
 {#if call.isError && text}
-  <p class="max-h-48 overflow-auto rounded-lg bg-rose-50 p-3 text-base/6 break-words whitespace-pre-wrap text-rose-900 sm:text-sm/6 dark:bg-rose-400/10 dark:text-rose-200">{text}</p>
+  <ErrorText {text} />
 {:else if node && (node.kind === "object" || node.kind === "list") && !isEmptyNode(node)}
   <StructuredView {node} />
 {:else}

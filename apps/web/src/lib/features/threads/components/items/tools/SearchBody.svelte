@@ -4,6 +4,7 @@
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
   import type { ToolBodyProps } from "./body.ts";
   import { parseFileList, parseGrepOutput, type FileMatches } from "./parse.ts";
+  import EmptyNote from "./EmptyNote.svelte";
   import PathList from "./PathList.svelte";
   import ResultText from "./ResultText.svelte";
 
@@ -39,7 +40,7 @@
   </div>
 {/if}
 {#if done && files.length === 0 && !call.isError}
-  <p class="text-base/6 text-zinc-500 italic sm:text-sm/6 dark:text-zinc-400">Nothing found.</p>
+  <EmptyNote>Nothing found.</EmptyNote>
 {:else if content}
   <div class="grid gap-2">
     {#each shownFiles as file (file.path)}
@@ -53,9 +54,7 @@
       </div>
     {/each}
     {#if files.length > 6}
-      <div class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        <MoreButton expanded={all} onclick={() => (all = !all)}>{all ? "Show fewer files" : `Show ${files.length - 6} more files`}</MoreButton>
-      </div>
+      <MoreButton expanded={all} onclick={() => (all = !all)}>{all ? "Show fewer files" : `Show ${files.length - 6} more files`}</MoreButton>
     {/if}
   </div>
 {:else if files.length > 0}

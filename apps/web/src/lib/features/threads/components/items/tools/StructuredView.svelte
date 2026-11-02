@@ -64,9 +64,7 @@
       </ol>
     {/if}
     {#if node.items.length > LIST_HEAD}
-      <div class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        <MoreButton expanded={allItems} onclick={() => (allItems = !allItems)}>{allItems ? "Show fewer" : `Show ${node.items.length - LIST_HEAD} more`}</MoreButton>
-      </div>
+      <MoreButton expanded={allItems} onclick={() => (allItems = !allItems)}>{allItems ? "Show fewer" : `Show ${node.items.length - LIST_HEAD} more`}</MoreButton>
     {/if}
   </div>
 {:else}

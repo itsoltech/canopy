@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import { plural } from "#lib/shared/humanize.ts";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
@@ -10,11 +11,11 @@
    * to the thread, how its last turn ended, what waits for whom, and the start of its last message (the
    * result). Status and title come from the live directory when the page knows the thread.
    */
-  let { threads }: { threads: readonly ThreadSummary[] } = $props();
+  let { threads, class: className }: { threads: readonly ThreadSummary[]; class?: ClassValue } = $props();
   const directory = useThreadDirectory();
 </script>
 
-<ul role="list" class="grid divide-y divide-zinc-950/5 dark:divide-white/10">
+<ul role="list" class={["grid divide-y divide-zinc-950/5 dark:divide-white/10", className]}>
   {#each threads as summary (summary.threadId)}
     {@const live = directory.thread(summary.threadId)}
     {@const look = statusLook(live?.status || summary.status)}

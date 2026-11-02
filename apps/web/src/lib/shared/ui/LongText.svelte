@@ -23,6 +23,6 @@
     {#if markdown}<Markdown {text} />{:else}<p class="break-words whitespace-pre-wrap">{text}</p>{/if}
   </div>
   {#if long}
-    <div data-quote-skip class="text-sm/5 sm:text-xs/5"><MoreButton expanded={all} onclick={() => (all = !all)}>{all ? "Show less" : "Show all"}</MoreButton></div>
+    <MoreButton expanded={all} onclick={() => (all = !all)}>{all ? "Show less" : "Show all"}</MoreButton>
   {/if}
 </div>

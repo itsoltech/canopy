@@ -17,6 +17,8 @@
   import MiniTranscript from "./tools/bus/MiniTranscript.svelte";
   import ScheduleSummary from "./tools/bus/ScheduleSummary.svelte";
   import ThreadSummaryList from "./tools/bus/ThreadSummaryList.svelte";
+  import EmptyNote from "./tools/EmptyNote.svelte";
+  import ErrorText from "./tools/ErrorText.svelte";
   import RawToggle from "./tools/RawToggle.svelte";
   import Section from "./tools/Section.svelte";
   import StructuredView from "./tools/StructuredView.svelte";
@@ -91,7 +93,7 @@
 
 {#snippet body()}
   {#if call.isError}
-    <p class="rounded-lg bg-rose-50 p-3 text-base/6 break-words whitespace-pre-wrap text-rose-900 sm:text-sm/6 dark:bg-rose-400/10 dark:text-rose-200">{busError(call.resultJson, tool) || "The call was refused."}</p>
+    <ErrorText text={busError(call.resultJson, tool) || "The call was refused."} />
   {/if}
   {#if tool === "spawn_thread"}
     {#if str(args["prompt"])}{@render well("Prompt", str(args["prompt"]))}{/if}
@@ -115,7 +117,7 @@
     {#if threads.length > 0}
       <ThreadSummaryList {threads} />
     {:else if !running && !call.isError}
-      <p class="text-base/6 text-zinc-500 italic sm:text-sm/6 dark:text-zinc-400">No subagents yet.</p>
+      <EmptyNote>No subagents yet.</EmptyNote>
     {/if}
   {:else if tool === "read_thread"}
     {@render facts([
@@ -126,7 +128,7 @@
     {#if transcript.length > 0}
       <MiniTranscript lines={transcript} />
     {:else if !running && !call.isError}
-      <p class="text-base/6 text-zinc-500 italic sm:text-sm/6 dark:text-zinc-400">Nothing new in that thread.</p>
+      <EmptyNote>Nothing new in that thread.</EmptyNote>
     {/if}
     {#if target}
       <p class="text-sm/5 sm:text-xs/5">
@@ -136,7 +138,7 @@
   {:else if tool === "list_interactions"}
     {@const interactions = interactionsOf(result)}
     {#if interactions.length === 0 && !running && !call.isError}
-      <p class="text-base/6 text-zinc-500 italic sm:text-sm/6 dark:text-zinc-400">Nothing is waiting for an answer.</p>
+      <EmptyNote>Nothing is waiting for an answer.</EmptyNote>
     {/if}
     <ul role="list" class="grid divide-y divide-zinc-950/5 dark:divide-white/10">
       {#each interactions as interaction, index (index)}
@@ -166,7 +168,7 @@
         {/each}
       </ul>
     {:else if !running && !call.isError}
-      <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">No agents in the catalog yet: a subagent starts as a copy of this agent.</p>
+      <EmptyNote>No agents in the catalog yet: a subagent starts as a copy of this agent.</EmptyNote>
     {/if}
   {:else if tool === "schedule_wakeup" || tool === "schedule_recurring"}
     {@const schedule = scheduleOf(args, result)}
@@ -177,7 +179,7 @@
   {:else if tool === "list_schedules"}
     {@const schedules = schedulesOf(result)}
     {#if schedules.length === 0 && !running && !call.isError}
-      <p class="text-base/6 text-zinc-500 italic sm:text-sm/6 dark:text-zinc-400">No schedules.</p>
+      <EmptyNote>No schedules.</EmptyNote>
     {/if}
     <ul role="list" class="grid divide-y divide-zinc-950/5 dark:divide-white/10">
       {#each schedules as schedule, index (index)}<li class="py-2 first:pt-0 last:pb-0"><ScheduleSummary {schedule} /></li>{/each}

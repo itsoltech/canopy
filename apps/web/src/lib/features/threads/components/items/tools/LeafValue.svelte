@@ -1,7 +1,7 @@
 <script lang="ts">
   import { formatDateTime } from "#lib/shared/format.ts";
   import LongText from "#lib/shared/ui/LongText.svelte";
-  import { safeHref } from "#lib/shared/ui/markdown/safe-url.ts";
+  import ExternalLink from "#lib/shared/ui/ExternalLink.svelte";
   import { timestampFromDate } from "@bufbuild/protobuf/wkt";
   import type { Node } from "#lib/shared/structure.ts";
   import { shortUrl } from "./parse.ts";
@@ -26,12 +26,7 @@
 {:else if node.kind === "id"}
   <IdValue id={node.id} />
 {:else if node.kind === "url"}
-  {@const href = safeHref(node.href)}
-  {#if href}
-    <a {href} target="_blank" rel="noopener noreferrer nofollow" title={node.href} class="break-all text-sky-700 underline decoration-sky-700/30 underline-offset-2 hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-400/30">{shortUrl(node.href)}</a>
-  {:else}
-    <span class="break-all">{node.href}</span>
-  {/if}
+  <ExternalLink href={node.href} title={node.href} class="break-all">{shortUrl(node.href)}</ExternalLink>
 {:else if node.kind === "path"}
   <code class="font-mono break-all text-zinc-800 dark:text-zinc-200" title={node.path}>{node.path}</code>
 {:else if node.kind === "empty"}

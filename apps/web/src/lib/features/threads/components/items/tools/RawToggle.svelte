@@ -18,9 +18,7 @@
 
 {#if shown.length > 0}
   <div data-quote-skip class="grid">
-    <div class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-      <MoreButton expanded={open} onclick={() => (open = !open)}>{open ? "Hide raw" : "Show raw"}</MoreButton>
-    </div>
+    <MoreButton expanded={open} onclick={() => (open = !open)}>{open ? "Hide raw" : "Show raw"}</MoreButton>
     {#if open}
       <div transition:expand class="grid gap-2 pt-2">
         {#each shown as part (part.label)}

@@ -2,6 +2,7 @@
   import type { BlobRef } from "@open-agents/contracts";
   import { formatBytes } from "#lib/shared/format.ts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
+  import MoreButton from "#lib/shared/ui/MoreButton.svelte";
   import { useRemembered } from "#lib/shared/ui/memory.ts";
   import { LineReveal } from "#lib/shared/ui/streaming/line-reveal.svelte.ts";
 
@@ -38,12 +39,7 @@
 {#if text}
   <div class="grid gap-1">
     {#if cut}
-      <p data-quote-skip class="flex items-center justify-between gap-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        <span class="tabular-nums">{all ? `${lines.length} lines` : `Last ${tail} of ${lines.length} lines`}</span>
-        <button type="button" class="rounded-md font-medium text-zinc-700 hover:text-zinc-950 focus-ring dark:text-zinc-300 dark:hover:text-white" aria-expanded={all} onclick={() => (all = !all)}>
-          {all ? "Show the end only" : "Show all output"}
-        </button>
-      </p>
+      <MoreButton expanded={all} onclick={() => (all = !all)} note={all ? `${lines.length} lines` : `Last ${tail} of ${lines.length} lines`}>{all ? "Show the end only" : "Show all output"}</MoreButton>
     {/if}
     <CodeBlock text={shown} {label} data-quote-kind={quoteKind} />
   </div>
