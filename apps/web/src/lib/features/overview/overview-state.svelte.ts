@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import { ui } from "@open-agents/contracts";
 import { decode } from "#lib/shared/wire.ts";
+import { liveSource } from "#lib/shared/live-source.ts";
 
 /** live: stream open and in sync; reconnecting: dropped, retrying; unavailable: the gateway does not answer. */
 export type OverviewConnection = "live" | "reconnecting" | "unavailable";
@@ -79,20 +80,18 @@ export class OverviewState {
   }
 
   connect(): () => void {
-    const source = new EventSource("/api/overview/events");
-    let first = true;
-    source.onopen = () => {
+    return liveSource("/api/overview/events", {
       // The server-rendered overview is fresh on the first open; later opens follow a gap.
-      if (first && this.#synced) this.connection = "live";
-      else void this.#resync();
-      first = false;
-    };
-    source.onerror = () => {
-      if (this.connection === "live") this.connection = "reconnecting";
-    };
-    source.addEventListener("failure", () => (this.connection = "unavailable"));
-    source.onmessage = (message) => this.apply(decode(ui.OverviewUpdateSchema, JSON.parse(message.data)));
-    return () => source.close();
+      onopen: (reconnected) => {
+        if (!reconnected && this.#synced) this.connection = "live";
+        else void this.#resync();
+      },
+      ondrop: () => {
+        if (this.connection === "live") this.connection = "reconnecting";
+      },
+      onfailure: () => (this.connection = "unavailable"),
+      onmessage: (data) => this.apply(decode(ui.OverviewUpdateSchema, JSON.parse(data))),
+    });
   }
 }
 
