@@ -294,7 +294,7 @@ opis `list_workers` mówi o tym wprost. Brak narzędzia do logowania lub rejestr
 | `set_goal` | `set`, `pause`, `resume`, `clear`; budżet tylko dla Codexa | P |
 | `regenerate_title` | Generacja tytułu z historii i ustawień użytkownika | P |
 | `set_thread_permission` | Domyślny tryb uprawnień przyszłych tur | A |
-| `answer_interaction` | Odpowiedź na oczekujące pytanie lub zgodę danego wątku | A |
+| `answer_interaction` | Odpowiedź na oczekujące pytanie lub zgodę danego wątku: dla pytań tablica `answers` (`choice` z dokładnymi etykietami, `text`, `skipped`; `read_thread` zwraca pytania i `answer_with`). Błędna odpowiedź wraca do bota z oczekiwanym kształtem jeszcze przed kartą; karta pokazuje pytanie i wybraną odpowiedź | A |
 | `list_background_tasks` | Zadania w tle z widocznej osi czasu, status i output | R |
 | `stop_background_task` | Stop działającego zadania po item id | A |
 

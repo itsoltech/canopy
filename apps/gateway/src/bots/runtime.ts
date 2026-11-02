@@ -21,6 +21,8 @@ export interface BotRuntimeOptions {
   now?: () => Date;
   platform: (turn: BotTurn, call: StoredCall) => Promise<unknown>;
   describeTool?: (tool: ToolSpec, args: Record<string, unknown>) => Promise<string>;
+  /** Validates a call before an approval card exists; returns the card's wording when the tool has its own. */
+  prepareTool?: (turn: BotTurn, call: StoredCall) => Promise<{ prompt?: string } | undefined>;
   log?: (message: string) => void;
 }
 
@@ -112,10 +114,11 @@ export class BotsRuntime {
                   || (tool.name === "update_settings" && requested.arguments["thread_defaults"] !== undefined)
                   ? { ...tool, dangerous: true } : tool;
                 const currentConfig = botConfiguration(await this.run((s) => s.owned(this.#options.userId, turn.bot_id)));
-                if (needsApproval(policyTool, currentConfig.approvalPolicy, requested.arguments)) {
+                const prepared = await this.#options.prepareTool?.(turn, call).catch((error: unknown) => { result = platformError(error); });
+                if (result === undefined && needsApproval(policyTool, currentConfig.approvalPolicy, requested.arguments)) {
                   const question = tool.name === "ask_user";
                   const prompt = question ? requiredString(requested.arguments, "question", 32_000)
-                    : approvalPrompt(tool, requested.arguments, phrase);
+                    : prepared?.prompt ?? approvalPrompt(tool, requested.arguments, phrase);
                   const approval = await this.run((s) => s.approval(turn, call, prompt, question)).catch((error: unknown) => {
                     result = platformError(error);
                     return undefined;
