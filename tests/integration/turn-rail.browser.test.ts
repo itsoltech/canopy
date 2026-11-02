@@ -161,6 +161,10 @@ describe.skipIf(Bun.env["OA_TURN_RAIL_BROWSER"] !== "1")("conversation turn rail
     try {
       await page.goto(`${base}/threads/${threadId}`);
       await page.getByRole("textbox", { name: "Message", exact: true }).waitFor();
+      const feed = page.getByRole("region", { name: "Timeline", exact: true });
+      await feed.getByText("Working…", { exact: true }).waitFor();
+      expect(await feed.locator("article").count()).toBeGreaterThan(0);
+      expect(await feed.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
       expect(await page.getByRole("navigation", { name: "Conversation turns", exact: true }).count()).toBe(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: resolve(shots, `390-${color}.png`) });
