@@ -207,7 +207,7 @@ export class AgentBusStore extends Context.Service<
     /** The thread could not be created: its queued turns fail (so callers waiting on them hear back). */
     failQueuedTurns(threadId: string, reason: string): Fx<ReadonlyArray<string>>;
     /** Archives a thread, cancels its queued turns, its schedules and pending notifications about it. */
-    close(threadId: string): Fx<void>;
+    close(threadId: string, callerId?: string): Fx<void>;
     /** An agent's schedule (schedule_wakeup / schedule_recurring), stored with its call. */
     createSchedule(input: { source: CallSource; tool: string; args: unknown; schedule: NewSchedule }): Fx<JsonValue>;
     /** Active and paused schedules of the caller and of the threads it spawned. */
@@ -251,7 +251,7 @@ export class AgentBusStore extends Context.Service<
       const sql = yield* SqlClient.SqlClient;
 
       const thread = (id: string) =>
-        sql<ThreadRow>`SELECT * FROM threads WHERE id = ${id}::uuid`.pipe(
+        sql<ThreadRow>`SELECT * FROM threads WHERE id = ${id}::uuid AND deleted_at IS NULL`.pipe(
           Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("thread not found")))),
         );
       const node = (row: ThreadRow & { archived_at?: Date | null }): ThreadNode => ({
@@ -289,7 +289,7 @@ export class AgentBusStore extends Context.Service<
                    (SELECT count(*)::int FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued') AS queued,
                    (SELECT count(*)::int FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND i.routed_to = 'parent') AS for_parent,
                    (SELECT count(*)::int FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND i.routed_to = 'human') AS for_user
-              FROM threads t WHERE t.id = ${threadId}::uuid`;
+              FROM threads t WHERE t.id = ${threadId}::uuid AND t.deleted_at IS NULL`;
           const row = rows[0];
           if (!row) return yield* Effect.fail(new NotFound("thread not found"));
           const ended = (yield* sql<{ id: string; status: string; error: string | null; error_source: string | null; interrupt_reason: string | null; interrupt_source: string | null }>`
@@ -378,12 +378,12 @@ export class AgentBusStore extends Context.Service<
             const targets = new Map<string, ThreadNode>();
             for (const id of new Set(targetIds)) {
               if (!isUuid(id)) continue;
-              const rows = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${id}::uuid`;
+              const rows = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${id}::uuid AND deleted_at IS NULL`;
               if (rows[0]) targets.set(id, node(rows[0]));
             }
             const counts = yield* sql<{ children: number; active: number }>`
-              SELECT (SELECT count(*)::int FROM threads c WHERE c.parent_thread_id = ${caller.id}::uuid AND c.archived_at IS NULL) AS children,
-                     (SELECT count(*)::int FROM threads t WHERE t.root_thread_id = ${caller.root_thread_id}::uuid AND t.archived_at IS NULL
+              SELECT (SELECT count(*)::int FROM threads c WHERE c.parent_thread_id = ${caller.id}::uuid AND c.archived_at IS NULL AND c.deleted_at IS NULL) AS children,
+                     (SELECT count(*)::int FROM threads t WHERE t.root_thread_id = ${caller.root_thread_id}::uuid AND t.archived_at IS NULL AND t.deleted_at IS NULL
                          AND (t.status IN ('creating', 'running', 'waiting_input')
                               OR EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued'))) AS active`;
             let interaction: InteractionFacts | undefined;
@@ -556,7 +556,7 @@ export class AgentBusStore extends Context.Service<
             if (scope === "all") {
               const owned = yield* sql<{ id: string; title: string }>`
                 SELECT t.id, t.title FROM threads t
-                 WHERE t.owner_user_id = ${caller.owner_user_id}::uuid AND t.id <> ${caller.id}::uuid AND t.archived_at IS NULL
+                 WHERE t.owner_user_id = ${caller.owner_user_id}::uuid AND t.id <> ${caller.id}::uuid AND t.archived_at IS NULL AND t.deleted_at IS NULL
                  ORDER BY greatest(t.created_at, (SELECT max(coalesce(u.completed_at, u.started_at, u.queued_at)) FROM turns u WHERE u.thread_id = t.id)) DESC
                  LIMIT 500`;
               const limit = options?.limit ?? 20;
@@ -566,9 +566,9 @@ export class AgentBusStore extends Context.Service<
             }
             const rows =
               scope === "children"
-                ? yield* sql<{ id: string }>`SELECT id FROM threads WHERE parent_thread_id = ${caller.id}::uuid AND archived_at IS NULL ORDER BY created_at`
+                ? yield* sql<{ id: string }>`SELECT id FROM threads WHERE parent_thread_id = ${caller.id}::uuid AND archived_at IS NULL AND deleted_at IS NULL ORDER BY created_at`
                 : yield* sql<{ id: string }>`
-                    SELECT id FROM threads WHERE root_thread_id = ${caller.root_thread_id}::uuid AND id <> ${caller.id}::uuid AND archived_at IS NULL
+                    SELECT id FROM threads WHERE root_thread_id = ${caller.root_thread_id}::uuid AND id <> ${caller.id}::uuid AND archived_at IS NULL AND deleted_at IS NULL
                      ORDER BY depth, created_at`;
             return yield* Effect.forEach(rows, (r) => summary(r.id));
           }),
@@ -592,10 +592,11 @@ export class AgentBusStore extends Context.Service<
             UPDATE turns SET status = 'failed', error = ${reason}, error_source = 'platform', completed_at = now()
              WHERE thread_id = ${threadId}::uuid AND status = 'queued' RETURNING id`.pipe(Effect.map((rows) => rows.map((r) => r.id))),
 
-        close: (threadId) =>
+        close: (threadId, callerId) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              yield* sql`UPDATE threads SET status = 'archived', archived_at = now() WHERE id = ${threadId}::uuid AND archived_at IS NULL`;
+              yield* sql`UPDATE threads SET status = 'archived', archived_at = now(), archived_by = 'agent', archived_by_thread_id = ${callerId ?? null}::uuid
+                WHERE id = ${threadId}::uuid AND archived_at IS NULL AND deleted_at IS NULL`;
               yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE thread_id = ${threadId}::uuid AND status = 'queued'`;
               yield* sql`UPDATE agent_bus_calls SET notify_status = 'cancelled' WHERE target_thread_id = ${threadId}::uuid AND notify_status = 'pending'`;
               yield* sql`
@@ -638,7 +639,7 @@ export class AgentBusStore extends Context.Service<
         schedulesFor: ({ ownerUserId, projectId, threadId, includeFinished }) =>
           sql.unsafe<ScheduleRow>(
             `${scheduleSelect}
-              WHERE t.owner_user_id = $1::uuid
+              WHERE t.owner_user_id = $1::uuid AND t.deleted_at IS NULL
                 AND ($2::uuid IS NULL OR t.project_id = $2::uuid)
                 AND ($3::uuid IS NULL OR s.thread_id = $3::uuid)
                 AND ($4::boolean OR s.status IN ('active', 'paused'))
@@ -687,7 +688,7 @@ export class AgentBusStore extends Context.Service<
           sql.withTransaction(
             Effect.gen(function* () {
               const owner = yield* thread(schedule.thread_id);
-              if (owner.archived_at != null) {
+              if (owner.archived_at != null || owner.deleted_at != null) {
                 yield* sql`
                   UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, updated_at = now()
                    WHERE id = ${schedule.id}::uuid`;
@@ -758,7 +759,7 @@ export class AgentBusStore extends Context.Service<
           sql.withTransaction(
             Effect.gen(function* () {
               const rows = yield* sql<BusCallRow & { source_archived: boolean }>`
-                SELECT c.*, t.archived_at IS NOT NULL AS source_archived FROM agent_bus_calls c JOIN threads t ON t.id = c.source_thread_id
+                SELECT c.*, (t.archived_at IS NOT NULL OR t.deleted_at IS NOT NULL) AS source_archived FROM agent_bus_calls c JOIN threads t ON t.id = c.source_thread_id
                  WHERE c.id = ${callId}::uuid AND c.notify_status = 'pending' FOR UPDATE OF c`;
               const call = rows[0];
               if (!call) return undefined; // delivered meanwhile

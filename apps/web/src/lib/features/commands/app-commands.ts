@@ -10,6 +10,8 @@ import { providerKeyOf } from "#lib/features/threads/providers.ts";
 import { isSide } from "#lib/features/threads/thread-tree.ts";
 import { basename } from "#lib/shared/format.ts";
 import type { Command, CommandSource } from "./registry.ts";
+import { threadActions } from "#lib/features/threads/thread-actions.ts";
+import type { ThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
 
 /** New thread in the current project (Mod+N and Mod+Shift+N belong to the browser: new window, private window). */
 export const NEW_THREAD_HOTKEY = "Mod+Shift+O";
@@ -18,6 +20,7 @@ export interface AppCommandContext {
   readonly overview: OverviewState;
   readonly settings: SettingsState;
   readonly sidebar: SidebarLayout;
+  readonly threadActions: ThreadActions;
   /** Opens the navigation drawer (narrow screens, where the sidebar is not shown). */
   readonly openMenu: () => void;
   /** The project of the page (a thread's, the new-thread page's pick), if any. */
@@ -184,6 +187,11 @@ export function appCommands(context: AppCommandContext): CommandSource {
       href: section.href,
     }));
 
-    return [...actions, ...threadCommands, ...projects, ...sections];
+    const thread = overview.threads.get(currentThreadId ?? "");
+    const currentActions: Command[] = thread ? threadActions(thread, overview.project(thread.projectId)?.name ?? "project", settings.sidebar.pinnedThreadIds.includes(thread.id))
+      .filter((a) => ["pin", "rename", "archive", "delete", "read", "filter"].includes(a.id))
+      .map((a) => ({ id: `thread-action:${a.id}`, title: a.label, icon: a.icon, disabled: a.disabled, group: "actions", run: () => context.threadActions.run(a.id, thread) })) : [];
+    if (thread) currentActions.push({ id: "thread-action:copy-link", title: "Copy thread link", icon: "link", group: "actions", run: () => context.threadActions.copy(context.threadActions.link(thread)) });
+    return [...currentActions, ...actions, ...threadCommands, ...projects, ...sections];
   };
 }

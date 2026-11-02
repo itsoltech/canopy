@@ -45,6 +45,7 @@
     openDelay = 500,
     closeDelay = 200,
     touch = "tap",
+    disabled = false,
     class: className,
     trigger: renderTrigger,
     children,
@@ -54,7 +55,8 @@
     openDelay?: number;
     closeDelay?: number;
     /** tap: the trigger is a button that toggles the card; press: tap-and-hold opens it (links). */
-    touch?: "tap" | "press";
+    touch?: "tap" | "press" | "none";
+    disabled?: boolean;
     class?: ClassValue;
     trigger: Snippet<[HoverTriggerProps]>;
     children: Snippet;
@@ -64,6 +66,7 @@
   let timer: ReturnType<typeof setTimeout> | undefined;
   const after = (ms: number, value: boolean) => {
     clearTimeout(timer);
+    if (disabled && value) return;
     timer = setTimeout(() => (open = value), ms);
   };
   const self = {
@@ -72,6 +75,7 @@
       open = false;
     },
   };
+  $effect(() => { if (disabled) self.close(); });
   $effect(() => {
     if (open) {
       if (shown !== self) shown?.close();
@@ -100,7 +104,7 @@
 <Popover bind:open {label} {placement} focusOnOpen={false} class={["w-72", className]}>
   {#snippet trigger(props)}
     {@render renderTrigger({
-      ...(touch === "press" ? { ...anchorOnly(props), [pressKey]: press } : props),
+      ...(touch === "press" ? { ...anchorOnly(props), [pressKey]: press } : touch === "none" ? anchorOnly(props) : props),
       onpointerenter: enter,
       onpointerleave: leave,
       onfocus: (event: FocusEvent) => {

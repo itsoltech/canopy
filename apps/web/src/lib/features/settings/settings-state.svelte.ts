@@ -10,7 +10,7 @@ export interface SettingsNotice {
   readonly text: string;
 }
 
-type UserSection = "appearance" | "threadDefaults" | "modelFavorites" | "composer" | "textGeneration";
+type UserSection = "appearance" | "threadDefaults" | "modelFavorites" | "composer" | "textGeneration" | "sidebar";
 
 const userSchemas = {
   appearance: ui.AppearanceSettingsSchema,
@@ -18,6 +18,7 @@ const userSchemas = {
   modelFavorites: ui.ModelFavoritesSchema,
   composer: ui.ComposerSettingsSchema,
   textGeneration: ui.TextGenerationSettingsSchema,
+  sidebar: ui.SidebarSettingsSchema,
 } as const;
 
 /**
@@ -55,6 +56,20 @@ export class SettingsState {
 
   get textGeneration(): ui.TextGenerationSettings {
     return this.user.textGeneration ?? create(ui.TextGenerationSettingsSchema);
+  }
+
+  get sidebar(): ui.SidebarSettings {
+    return this.user.sidebar ?? create(ui.SidebarSettingsSchema);
+  }
+
+  updateSidebar(change: Partial<Omit<ui.SidebarSettings, "$typeName">>): Promise<void> {
+    return this.#writeUser("sidebar", (current) => ({ ...current, ...change }));
+  }
+
+  pinThread(threadId: string, pinned: boolean): Promise<void> {
+    return this.#writeUser("sidebar", (current) => ({ ...current,
+      pinnedThreadIds: pinned ? [...new Set([...current.pinnedThreadIds, threadId])] : current.pinnedThreadIds.filter((id) => id !== threadId),
+    }));
   }
 
   updateTextGeneration(change: Partial<Omit<ui.TextGenerationSettings, "$typeName">>): Promise<void> {

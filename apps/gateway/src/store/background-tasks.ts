@@ -208,6 +208,9 @@ export class BackgroundTaskStore extends Context.Service<
         deliver: (threadId, { graceMs, now = new Date() }) =>
           sql.withTransaction(
             Effect.gen(function* () {
+              // Lifecycle changes take the thread lock first, then settle their pending deliveries.
+              const thread = (yield* sql<{ closed: boolean; runtime: string }>`
+                SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed, runtime FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`)[0];
               const notes = yield* sql<NoteRow>`
                 SELECT n.item_id, n.wake, n.harness_wakes, n.ended_at, n.hops, i.turn_id, i.status, i.content, NULL::integer AS turn_ordinal
                   FROM background_task_notes n JOIN thread_items i ON i.thread_id = n.thread_id AND i.item_id = n.item_id
@@ -220,10 +223,8 @@ export class BackgroundTaskStore extends Context.Service<
                   ? Effect.void
                   : sql`UPDATE background_task_notes SET status = ${status}, reason = ${reason}, updated_at = now()
                          WHERE thread_id = ${threadId}::uuid AND item_id = ANY(${itemIds}::text[])`;
-              const thread = (yield* sql<{ archived: boolean; runtime: string }>`
-                SELECT archived_at IS NOT NULL AS archived, runtime FROM threads WHERE id = ${threadId}::uuid`)[0];
-              if (!thread || thread.archived) {
-                yield* settle(notes.map((n) => n.item_id), "cancelled", "the thread is archived");
+              if (!thread || thread.closed) {
+                yield* settle(notes.map((n) => n.item_id), "cancelled", "the thread is archived or deleted");
                 return { settled: notes.length };
               }
               const running = (yield* sql<{ id: string }>`SELECT id FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`)[0];

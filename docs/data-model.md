@@ -1,5 +1,11 @@
 # Model danych (PostgreSQL)
 
+Migracja `0026_sidebar_threads` dodaje do `threads`: `deleted_at`, `deletion_batch_id`,
+`archived_by` (`user` / `agent`) i `archived_by_thread_id`. Soft delete obejmuje rodzica i dzieci;
+identyfikator partii pozwala cofnąć tylko tę operację. Triggery blokują nową pracę oraz tworzenie dzieci
+i forków po usunięciu. `thread_reads.marked_unread` jest jawnym znacznikiem obok monotonicznego
+`seen_seq`. Przypięcia i filtr projektów są sekcją `sidebar` w JSON tabeli `user_settings`.
+
 Status: **zaimplementowany jako migracje `0001_init` i `0002_worker_config`** (`packages/db/src/migrations`). Niezmienniki są sprawdzane w testach na prawdziwym PostgreSQL (`packages/db/test/schema.test.ts`). Pojęcia i cykl życia wątków: [threads.md](threads.md).
 
 Konwencje:

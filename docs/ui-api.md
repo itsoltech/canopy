@@ -1,5 +1,27 @@
 # API dla UI i architektura frontendu
 
+## Pasek boczny i cykl życia wątku
+
+`UserSettings.sidebar` przechowuje filtr projektów (`project_ids`, puste = wszystkie), przypięcia
+(`pinned_thread_ids`) i widok archiwum (`archived`). `UpdateUserSettings.sidebar` zastępuje sekcję
+z kontrolą `expected_version`; `WatchOverview.user_settings` dostarcza zmiany innym urządzeniom.
+Wyszukiwanie i przypięcia respektują filtr. Przypięte wątki boczne są samodzielnie dostępne w „Pinned”.
+
+`ListThreads.include_archived` (270) dołącza archiwum do indeksu klienta, grup „Previous agents”
+i widoku „Archived threads”. Domyślna lista, wyszukiwanie wzmianek i szyna pokazują aktywne wątki.
+
+| Metoda | Działanie |
+|---|---|
+| `SetThreadArchived` | `{thread_id, archived}`: archiwizacja albo przywrócenie. Archiwizacja przerywa turę i anuluje kolejkę oraz harmonogramy; przywrócenie nie wznawia pracy. `Thread.archived_at`, `archived_by` (`user` / `agent`), `archived_by_thread_id`, `archived_by_thread_title` opisują czas i autora. `close_thread` zapisuje wątek zamykającego agenta. |
+| `SetThreadRead` | `{thread_id, unread}`: jawny stan `Thread.marked_unread`; znacznik zdarzeń z migracji 0019 pozostaje monotoniczny. `MarkThreadSeen` usuwa też jawne nieprzeczytanie. |
+| `DeleteThread` | `{thread_id}` → `thread_ids`: soft delete wątku i nieusuniętych wcześniej dzieci. Trwały outbox zapisuje przerwania przed ukryciem; kolejka i harmonogramy są anulowane, interakcje wygaszane. `deleted_at` ukrywa wątki w API, listach, wyszukiwaniu, wzmiankach i szynie. Zmiana live z `Thread.deleted_at` usuwa wpis z indeksu klienta. |
+| `RestoreThread` | `{thread_id}` → przywrócone `threads`: cofa tylko tę partię usunięcia i zachowuje wcześniejsze archiwum. Dzieci usunięte wcześniej pozostają usunięte. Najpierw trzeba przywrócić rodzica. Anulowana praca nie wraca do kolejki. |
+
+Nowe pola istniejących wiadomości zajmują numery 270–289. Migracja `0026_sidebar_threads` dodaje
+metadane cyklu życia i znacznik nieprzeczytania; filtr i przypięcia korzystają z JSON ustawień.
+BFF: `POST /api/threads/:id/lifecycle`, `action`: `archive`, `unarchive`, `delete`, `restore`, `read`,
+`unread`. UI potwierdza usunięcie i oferuje toast „Undo” przez sześć sekund.
+
 `UpdateThread.title` umożliwia rename (`title_source=user`), a `RegenerateTitle` zleca asynchroniczną generację. Globalne ustawienia `textGeneration`, źródła tytułu i aktualizacje live opisuje [thread-titles.md](thread-titles.md).
 
 Status: **zaimplementowane**:

@@ -1,5 +1,35 @@
 # Projekty, wątki i wątki boczne
 
+## Filtr, menu i archiwum
+
+Przycisk obok „Search threads” otwiera wyszukiwanie projektów, wybór wielu projektów, skróty do
+ustawień i „Archived threads”. Filtr oraz przypięcia są wspólne dla urządzeń, zapisane w gateway.
+Wyszukiwanie tytułów wątków głównych i bocznych oraz nazw projektów działa wewnątrz filtra.
+Aktywny filtr ma licznik i szybkie czyszczenie; pusty wynik ma „Clear filters”.
+
+Menu otwiera prawy przycisk myszy, przytrzymanie na ekranie dotykowym, klawisz Menu lub Shift+F10
+na wierszu i przycisk „…” po najechaniu lub ustawieniu fokusu. Dotknięcie przechodzi do wątku.
+Strzałki obsługują menu, Escape zamyka je i oddaje fokus. Telefon używa dolnego arkusza.
+Akcje: nowa karta, nowy wątek w projekcie, przypięcie, rename, generowanie tytułu, stan przeczytania,
+filtr projektu, kopiowanie, ustawienia, archiwizacja i usunięcie. Odpowiednie akcje bieżącego wątku są w Cmd+K.
+
+Archiwum zachowuje czytelną oś czasu. Zamiast kompozytora pokazuje ikonę, czas i autora archiwizacji
+(użytkownik albo agent ze wskazaniem rodzica), „Unarchive” i odnośnik do rodzica subagenta.
+Przywrócenie płynnie przywraca kompozytor. Starsze archiwum pokazuje tylko znane informacje.
+Gateway odrzuca wiadomości do archiwum.
+
+Pasek i Lineage pokazują aktywnych subagentów; archiwalni trafiają do zwijanej grupy „Previous agents · N”
+z ikoną dostawcy, tytułem i czasem. Gdy wszystkie dzieci są archiwalne, pod otwartym rodzicem
+pozostaje ta zwinięta grupa. Lineage podaje liczbę pracujących subagentów. Przypięcia używają FLIP,
+archiwizacja/usunięcie zwija wiersz; menu i grupy respektują wspólne tokeny oraz ograniczenie ruchu.
+
+Usunięcie jest miękkie (`deleted_at`): ukrywa wątek także w wyszukiwaniu, wzmiankach i `list_threads`.
+Razem z rodzicem usuwa dzieci, przerywa ich tury, anuluje harmonogramy i kolejkę. Potwierdzenie podaje
+liczbę dzieci. „Undo” działa przez sześć sekund, przywraca tę partię, zachowuje wcześniejsze archiwum
+i nie wznawia pracy. Nie ma interfejsu trwałego usuwania. Kontrakt: [ui-api.md](ui-api.md#pasek-boczny-i-cykl-życia-wątku).
+Archiwizacja i usunięcie anulują również oczekujące dostarczenie odpowiedzi `ask_user` oraz notatek
+zadań w tle. Przywrócenie nie odtwarza tych powiadomień jako nowych tur.
+
 Status: **projekt**, schemat zaimplementowany (`packages/db/src/migrations/0001_init.sql`, testy na PostgreSQL w `packages/db/test`).
 
 Powiązane: [data-model.md](data-model.md), [protocol.md](protocol.md), [durability.md](durability.md).

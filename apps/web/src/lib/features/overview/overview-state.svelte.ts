@@ -16,6 +16,7 @@ export class OverviewState {
   projects = $state.raw<ui.Project[]>([]);
   /** Every thread by id (seeded from the server, status changes and new threads arrive live). */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
+  #deleted = new Set<string>();
   connection = $state<OverviewConnection>("reconnecting");
   /** Grows with every reload after a gap in the stream: state kept elsewhere (settings, schedules) reloads too. */
   resyncs = $state(0);
@@ -38,7 +39,7 @@ export class OverviewState {
   liveThreads(projectId: string, list: readonly ui.Thread[]): ui.Thread[] {
     const known = new Set(list.map((t) => t.id));
     const added = [...this.threads.values()].filter((t) => t.projectId === projectId && !known.has(t.id));
-    return [...list.map((t) => this.threads.get(t.id) ?? t), ...added];
+    return [...list.map((t) => this.threads.get(t.id) ?? t), ...added].filter((t) => !this.#deleted.has(t.id) && !t.deletedAt);
   }
 
   /** Other changes of the stream (settings, schedules) for whoever keeps that state; returns the unsubscribe. */
@@ -52,13 +53,22 @@ export class OverviewState {
     const change = update.change;
     if (change.case === "worker") this.workers = upsert(this.workers, change.value, (w) => w.id);
     if (change.case === "project") this.projects = upsert(this.projects, change.value, (p) => p.id);
-    if (change.case === "thread") this.threads = new Map(this.threads).set(change.value.id, change.value);
+    if (change.case === "thread") {
+      const next = new Map(this.threads);
+      if (change.value.deletedAt) { this.#deleted.add(change.value.id); next.delete(change.value.id); }
+      else { this.#deleted.delete(change.value.id); next.set(change.value.id, change.value); }
+      this.threads = next;
+    }
   }
 
   #replace(overview: ui.GetOverviewResponse, threads: readonly ui.Thread[]): void {
     this.workers = overview.workers;
     this.projects = overview.projects;
-    this.threads = new Map(threads.map((t) => [t.id, t]));
+    const visible = new Map(threads.filter((t) => !t.deletedAt).map((t) => [t.id, t]));
+    // Reconcile deletions and restores that happened while the overview stream was disconnected.
+    for (const id of this.threads.keys()) if (!visible.has(id)) this.#deleted.add(id);
+    for (const id of visible.keys()) this.#deleted.delete(id);
+    this.threads = visible;
     this.#synced = true;
   }
 

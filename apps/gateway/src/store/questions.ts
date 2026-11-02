@@ -18,7 +18,7 @@ export interface QuestionStore {
 export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
   return {
     askUser: (source, args, hops) => sql.withTransaction(Effect.gen(function* () {
-      const threads = yield* sql<{ interaction_route: string }>`SELECT interaction_route FROM threads WHERE id = ${source.threadId}::uuid FOR UPDATE`;
+      const threads = yield* sql<{ interaction_route: string }>`SELECT interaction_route FROM threads WHERE id = ${source.threadId}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`;
       if (!threads[0]) return yield* Effect.fail(new NotFound("thread not found"));
       const existing = yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE question_call_id = ${source.callId}::uuid`;
       if (existing[0]) return toInteraction(existing[0]);
@@ -62,7 +62,7 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
       const delivered: QuestionDelivery[] = [];
       for (const candidate of due) {
         const delivery = yield* sql.withTransaction(Effect.gen(function* () {
-          const threads = yield* sql<{ archived_at: Date | null; worker_id: string | null }>`SELECT archived_at, worker_id FROM threads WHERE id = ${candidate.thread_id}::uuid FOR UPDATE`;
+          const threads = yield* sql<{ archived_at: Date | null; deleted_at: Date | null; worker_id: string | null }>`SELECT archived_at, deleted_at, worker_id FROM threads WHERE id = ${candidate.thread_id}::uuid FOR UPDATE`;
           const rows = yield* sql<InteractionRow & { hops: number; asking_status: string }>`
             SELECT q.*, c.hops, u.status AS asking_status FROM interaction_requests q
               JOIN agent_bus_calls c ON c.id = q.question_call_id LEFT JOIN turns u ON u.id = q.turn_id
@@ -70,7 +70,7 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
                (q.answer_delivery = 'consumed' AND u.status IN ('interrupted', 'failed'))) FOR UPDATE OF q`;
           const row = rows[0];
           if (!row) return undefined;
-          if (threads[0]?.archived_at) {
+          if (!threads[0] || threads[0].archived_at || threads[0].deleted_at) {
             yield* sql`UPDATE interaction_requests SET answer_delivery = 'cancelled' WHERE id = ${row.id}::uuid`;
             return undefined;
           }

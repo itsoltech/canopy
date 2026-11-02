@@ -96,6 +96,10 @@ service GatewayService {
   // Stan przeczytania (sekcja na końcu pliku): użytkownik widział wątek do zdarzenia up_to_seq (ostatnia wiadomość
   // agenta była na ekranie); Thread.unseen_result gaśnie na wszystkich urządzeniach (OverviewUpdate.thread).
   rpc MarkThreadSeen(MarkThreadSeenRequest) returns (MarkThreadSeenResponse);
+  rpc SetThreadRead(SetThreadReadRequest) returns (MarkThreadSeenResponse);
+  rpc SetThreadArchived(SetThreadArchivedRequest) returns (GetThreadResponse);
+  rpc DeleteThread(DeleteThreadRequest) returns (DeleteThreadResponse);
+  rpc RestoreThread(RestoreThreadRequest) returns (ListThreadsResponse);
 }
 
 // ---------- Model ----------
@@ -212,6 +216,13 @@ message Thread {
   // Numery od 210: subagenci dowolnego dostawcy i wiadomości między wątkami (docs/agent-bus.md).
   // Jak skończyła się ostatnia zakończona tura (completed | failed | interrupted); pusty przed pierwszą.
   string last_turn_status = 210;
+  google.protobuf.Timestamp archived_at = 270;
+  // user | agent; pusty dla archiwizacji sprzed migracji 0026.
+  string archived_by = 271;
+  string archived_by_thread_id = 272;
+  string archived_by_thread_title = 273;
+  google.protobuf.Timestamp deleted_at = 274;
+  bool marked_unread = 275;
 }
 
 // Wątek agenta, od którego przyszło wejście tury albo steer (zadanie, wiadomość, raport): do oznaczenia wiadomości
@@ -427,6 +438,8 @@ message CreateWorkspaceResponse {
 message ListThreadsRequest {
   // Pusty = wątki wszystkich projektów użytkownika.
   string project_id = 1;
+  // Domyślnie lista aktywnych; klient indeksu pobiera również archiwum do grup Previous agents.
+  bool include_archived = 270;
 }
 
 message GetThreadRequest {
@@ -720,6 +733,13 @@ message UserSettings {
   ModelFavorites model_favorites = 40;
   ComposerSettings composer = 160;
   TextGenerationSettings text_generation = 200;
+  SidebarSettings sidebar = 270;
+}
+
+message SidebarSettings {
+  repeated string project_ids = 1;
+  repeated string pinned_thread_ids = 2;
+  bool archived = 3;
 }
 
 // Globalne ustawienie użytkownika. Pusty model = automatyczny wybór z instancji wątku.
@@ -764,6 +784,7 @@ message UpdateUserSettingsRequest {
   ModelFavorites model_favorites = 40;
   ComposerSettings composer = 160;
   TextGenerationSettings text_generation = 200;
+  SidebarSettings sidebar = 270;
 }
 
 message UpdateUserSettingsResponse {
@@ -1379,3 +1400,20 @@ message MarkThreadSeenRequest {
 message MarkThreadSeenResponse {
   Thread thread = 1;
 }
+
+message SetThreadReadRequest {
+  string thread_id = 1;
+  bool unread = 2;
+}
+
+message SetThreadArchivedRequest {
+  string thread_id = 1;
+  bool archived = 2;
+}
+
+message DeleteThreadRequest { string thread_id = 1; }
+message DeleteThreadResponse {
+  // Wątek i nieusunięte wcześniej wątki boczne, usunięte razem z nim.
+  repeated string thread_ids = 1;
+}
+message RestoreThreadRequest { string thread_id = 1; }

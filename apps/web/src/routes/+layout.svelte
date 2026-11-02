@@ -29,6 +29,8 @@
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
   import type { LayoutProps } from "./$types";
+  import { ThreadActions, provideThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
+  import ThreadActionDialogs from "#lib/features/threads/components/ThreadActionDialogs.svelte";
 
   let { children }: LayoutProps = $props();
 
@@ -41,6 +43,8 @@
   // Settings live in the gateway: seeded by the server, changed from other devices through the stream.
   const settings = new SettingsState(create(ui.GetSettingsResponseSchema, { user: { appearance: appearanceFromDocument() } }));
   provideSettings(settings);
+  const threadActions = new ThreadActions(overview, settings, () => page.params.threadId);
+  provideThreadActions(threadActions);
   $effect(() => overview.subscribe((update) => settings.apply(update)));
   // Model catalogs: new ones arrive through the stream; after a gap they reload.
   const models = new ModelCatalogState(undefined);
@@ -78,6 +82,7 @@
       overview,
       settings,
       sidebar,
+      threadActions,
       openMenu: () => (menuOpen = true),
       currentThreadId: () => page.params.threadId,
       currentProjectId: () =>
@@ -98,6 +103,7 @@
 </svelte:head>
 
 <svelte:window bind:innerWidth={sidebar.viewport} />
+<ThreadActionDialogs />
 
 <div class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white">
   <SidebarColumn {sidebar}>

@@ -152,8 +152,8 @@ export class AttachmentStore extends Context.Service<
                  WHERE b.sha256 = ${sha256}
                    AND EXISTS (
                      SELECT 1 FROM thread_blobs tb JOIN threads t ON t.id = tb.thread_id
-                      WHERE tb.sha256 = b.sha256 AND t.owner_user_id = ${ownerUserId}::uuid
-                        AND t.root_thread_id = (SELECT root_thread_id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid))`.pipe(
+                      WHERE tb.sha256 = b.sha256 AND t.owner_user_id = ${ownerUserId}::uuid AND t.deleted_at IS NULL
+                        AND t.root_thread_id = (SELECT root_thread_id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid AND deleted_at IS NULL))`.pipe(
                 Effect.flatMap((rows) => readBlob(rows, "image")),
               )
             : Effect.fail(new NotFound("image not found")),
@@ -164,7 +164,7 @@ export class AttachmentStore extends Context.Service<
                 SELECT b.data, b.mime_type FROM blobs b
                  WHERE b.sha256 = ${sha256}
                    AND EXISTS (SELECT 1 FROM attachments a JOIN threads t ON t.id = a.thread_id
-                                WHERE a.sha256 = b.sha256 AND a.thread_id = ${threadId}::uuid AND t.worker_id = ${workerId}::uuid)`.pipe(
+                                WHERE a.sha256 = b.sha256 AND a.thread_id = ${threadId}::uuid AND t.worker_id = ${workerId}::uuid AND t.deleted_at IS NULL)`.pipe(
                 Effect.flatMap((rows) => readBlob(rows, "attachment")),
                 Effect.map((blob) => blob.data),
               )
