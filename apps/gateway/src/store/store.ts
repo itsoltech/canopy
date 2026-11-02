@@ -26,6 +26,7 @@ import { SqlClient, type SqlError } from "effect/sql";
 import { isAbsolutePath, isWithinRoots, normalizePath, pathKey, pathStyle } from "./paths.ts";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { toUiAttachment, type StoredAttachment } from "./attachments.ts";
+import { toUiQuote, type StoredQuote } from "./quotes.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -91,9 +92,10 @@ export interface TurnRow {
   trigger: string;
   /**
    * text = what the model got; note + message = the same split for the UI (platform-queued turns, a message with
-   * attachments: the note lists them); attachments = the files of the message, with their paths on the worker.
+   * attachments or quotes: the note lists them); attachments = the files of the message, with their paths on the
+   * worker; quotes = the passages of the thread it quotes (shown to the model in the note).
    */
-  input: { text?: string; note?: string; message?: string; attachments?: StoredAttachment[] };
+  input: { text?: string; note?: string; message?: string; attachments?: StoredAttachment[]; quotes?: StoredQuote[] };
   /** The message's override while queued; the values sent to the worker once started ('' = default). */
   model?: string;
   effort?: string;
@@ -588,7 +590,7 @@ export class GatewayStore extends Context.Service<
             sql.withTransaction(
               Effect.gen(function* () {
                 const attachments = input?.attachments ?? [];
-                if (!text.trim() && attachments.length === 0) return yield* Effect.fail(new Invalid("message is empty"));
+                if (!text.trim() && attachments.length === 0 && !input?.quotes?.length) return yield* Effect.fail(new Invalid("message is empty"));
                 const id = Bun.randomUUIDv7();
                 const rows = yield* sql<TurnRow>`
                   INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort, permission_mode)
@@ -923,6 +925,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     permissionMode: permissionModeOf(row.permission_mode),
     goalId: row.goal_id ?? "",
     attachments: (row.input?.attachments ?? []).map(toUiAttachment),
+    quotes: (row.input?.quotes ?? []).map(toUiQuote),
   });
 }
 

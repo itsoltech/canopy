@@ -80,7 +80,7 @@ Pliki dołączone do wiadomości (obrazy, zrzuty ekranu, tekst, kod, PDF, archiw
 
 Limity (gateway, zmienne środowiskowe): `OA_ATTACHMENT_MAX_FILE_MB` (domyślnie 20), `OA_ATTACHMENT_MAX_MESSAGE_MB` (50), `OA_ATTACHMENT_MAX_FILES` (10). Kompozytor sprawdza je przed wysłaniem pliku; ostatnie słowo ma gateway.
 
-**Notatka platformy.** Gateway składa wejście tury przy przyjęciu wiadomości: `input_text` = notatka + pusta linia + wiadomość (sama notatka, gdy tekstu nie ma), `platform_note` = notatka, `message_text` = wiadomość. Notatka nie ma pustych linii (UI oddziela ją po pierwszej pustej linii):
+**Notatka platformy.** Gateway składa wejście tury przy przyjęciu wiadomości: `input_text` = notatka + pusta linia + wiadomość (sama notatka, gdy tekstu nie ma), `platform_note` = notatka, `message_text` = wiadomość. UI bierze notatkę i wiadomość osobno (`platform_note`, `message_text`); z cytatami notatka ma też ich blok (niżej, „Cytaty”):
 
 ```text
 [open-agents] The user attached 2 files to this message, saved on this machine. Read them as needed; view_image shows you an image:
@@ -93,6 +93,38 @@ Co jest na zrzucie?
 Ścieżki liczy gateway z `Hello.attachments_root` workera wątku; worker zapisuje plik dokładnie tam przed turą ([protocol.md](protocol.md#załączniki)).
 
 **Worker offline.** Wiadomość z załącznikami do istniejącego wątku idzie do kolejki jak każda (bajty czekają w gateway, worker pobiera je przy starcie tury). Nowego wątku na workerze offline kompozytor nie wysyła (jak dotąd). Worker, który nigdy nie zgłosił `attachments_root` (starsza wersja), nie przyjmie załączników: `SendMessage` zwraca powód.
+
+### Cytaty
+
+Użytkownik cytuje fragment tego, co agent wytworzył w wątku (odpowiedź, wcześniejsze wiadomości, rozumowanie, wejście i wynik narzędzia, wynik polecenia, blok kodu, diff) i odsyła go z wiadomością, z opcjonalnym komentarzem do każdego cytatu.
+
+| Pole | Co robi |
+|---|---|
+| `Quote` | `text` (dokładnie zaznaczony tekst, tak jak widać: bez znaczników markdown, z podziałami linii), `comment` (opcjonalny), `source_item_id`, `source_thread_id` (item i jego wątek, także odziedziczona historia forka), `source_kind` (`agent_message` \| `reasoning` \| `command_output` \| `tool_call` \| `code` \| `diff`, pusty = tekst), `language` (blok kodu z językiem) |
+| `SendMessage.quotes` (150) | cytaty wiadomości, do 20; tekst cytatu niepusty i do 20 000 znaków, komentarz do 4 000 (`QUOTE_LIMITS`, `packages/domain`). Wiadomość może mieć same cytaty. Działa z `delivery = STEER` (cytaty są w tekście, więc steer ich nie kolejkuje) |
+| `Turn.quotes`, `Steer.quotes` (150) | cytaty wiadomości dla bańki użytkownika; `message_text` / `Steer.text` to sama treść użytkownika. Steer, który nie wszedł do tury, staje się turą z tymi samymi cytatami |
+
+`CreateThread` nie ma cytatów: cytuje się w wątku, w którym jest źródło (wątek boczny z cytatem — gdy kompozytor dostanie cytaty).
+
+**Format dla agenta.** Cytaty to notatka platformy przed treścią (`quotesNote`, `packages/domain/src/quotes`): po notatce załączników (jeśli są), oddzielone pustą linią, potem pusta linia i wiadomość. Proza jako blockquote (każda linia z `> `), wynik polecenia, wywołanie narzędzia, kod i diff jako blok kodu z płotkiem dłuższym niż najdłuższy ciąg backticków w tekście (język bloku kodu, `diff`, inaczej `text`). Komentarz po cytacie jako `Comment: …`:
+
+````text
+[open-agents] The user quoted 2 passages of this conversation. Each quote is the exact text they selected, followed by their comment on it when they wrote one; their message comes after the quotes.
+
+Quote 1, from your message:
+> Dostępność i ruch: pełna obsługa.
+
+Comment: Skróć to.
+
+Quote 2, from command output:
+```text
+FAIL src/a.test.ts
+```
+
+Popraw oba miejsca.
+````
+
+Źródła cytatu (`your message`, `your reasoning`, `command output`, `a tool call`, `a code block`, `a diff`, `this conversation`) mówią agentowi, skąd fragment pochodzi; identyfikatory itemów zostają tylko dla UI (przejście do źródła).
 
 ## 3. Rdzeń gateway (`GatewayCore`)
 

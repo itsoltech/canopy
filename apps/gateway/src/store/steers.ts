@@ -3,6 +3,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@open-agents/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
+import { toUiQuote, type StoredQuote } from "./quotes.ts";
 import { NotFound, type TurnRow } from "./store.ts";
 
 /**
@@ -18,7 +19,8 @@ export interface SteerRow {
   id: string;
   thread_id: string;
   turn_id: string;
-  input: { text: string; note?: string; message?: string };
+  /** text = what the model gets; with quotes, note (the quotes) + message (the user's text) for the UI. */
+  input: { text: string; note?: string; message?: string; quotes?: StoredQuote[] };
   author_user_id: string | null;
   agent_call_id: string | null;
   hops: number;
@@ -50,6 +52,8 @@ export class SteerStore extends Context.Service<
       model: string;
       effort: string;
       permissionMode: string;
+      /** The prepared input (a message with quotes); default { text }. */
+      input?: SteerRow["input"];
     }): Fx<SteerRow>;
     byClientRequest(threadId: string, clientRequestId: string): Fx<SteerRow | undefined>;
     steer(id: string): Fx<SteerRow>;
@@ -75,12 +79,12 @@ export class SteerStore extends Context.Service<
         );
 
       const store: SteerStore["Service"] = {
-        create: ({ threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode }) =>
+        create: ({ threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode, input }) =>
           Effect.gen(function* () {
             const id = Bun.randomUUIDv7();
             const rows = yield* sql<{ id: string }>`
               INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort, permission_mode)
-              VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify({ text })}::jsonb, ${userId}::uuid,
+              VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify(input ?? { text })}::jsonb, ${userId}::uuid,
                       ${clientRequestId || null}, ${model}, ${effort}, ${permissionMode})
               ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
               RETURNING id`;
@@ -152,5 +156,6 @@ export function toUiSteer(row: SteerRow): ui.Steer {
     queuedTurnId: row.queued_turn_id ?? "",
     createdAt: timestampFromDate(new Date(row.created_at)),
     sourceThreadId: row.source_thread_id ?? "",
+    quotes: (row.input.quotes ?? []).map(toUiQuote),
   });
 }

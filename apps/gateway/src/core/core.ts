@@ -59,6 +59,7 @@ import {
   type TurnRow,
 } from "../store/index.ts";
 import { cronProblem, nextCronRun } from "./cron.ts";
+import { checkedQuotes, withQuotes } from "./quotes.ts";
 import { AgentBus } from "./agent-bus.ts";
 import { Hub } from "./hub.ts";
 import { Scheduler } from "./scheduler.ts";
@@ -795,11 +796,13 @@ export class GatewayCore {
     const existingTurn = await this.#run((s) => s.turnByClientRequest(threadId, clientRequestId));
     if (existingTurn) return { turn: toUiTurn(existingTurn) };
     const files = request.attachmentIds.length > 0 ? await this.#messageAttachments(request.attachmentIds, thread.worker_id ?? "") : undefined;
-    if (!request.text.trim() && !files) throw new InvalidError("message is empty");
+    const quotes = checkedQuotes(request.quotes, (message) => new InvalidError(message));
+    if (!request.text.trim() && !files && quotes.length === 0) throw new InvalidError("message is empty");
     // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
     await this.#checkModel({ thread }, request.model || thread.settings.model || "", request.effort);
     const permissionMode = checkedPermissionMode(request.permissionMode);
     // A message with attachments is always the next turn: its files go to the worker before the turn starts.
+    // Quotes travel in the text (their note), so a message with quotes steers like any other.
     if (request.delivery === ui.MessageDelivery.STEER && !files) {
       const running = await this.#run((s) => s.runningTurn(threadId));
       if (running && thread.worker_id) {
@@ -813,6 +816,7 @@ export class GatewayCore {
             model: request.model,
             effort: request.effort,
             permissionMode,
+            ...(quotes.length > 0 && { input: withQuotes({ text: request.text, message: request.text }, quotes) }),
           }),
         );
         await this.#sendSteer(steer.id);
@@ -828,7 +832,7 @@ export class GatewayCore {
         model: request.model,
         effort: request.effort,
         permissionMode,
-        ...(files && { input: files.input(threadId, request.text) }),
+        ...((files || quotes.length > 0) && { input: withQuotes(files?.input(threadId, request.text) ?? { text: request.text, message: request.text }, quotes) }),
       }),
     );
     const update = toUiTurn(turn);
