@@ -1,6 +1,7 @@
+import { create } from "@bufbuild/protobuf";
 import { bots } from "@open-agents/contracts";
 import { requestJson } from "#lib/shared/http.ts";
-import { decode } from "#lib/shared/wire.ts";
+import { decode, encode } from "#lib/shared/wire.ts";
 
 /**
  * Your bots with their last messages, shared by the sidebar and the chats (names, avatars, mentions):
@@ -11,6 +12,7 @@ class BotList {
   loaded = $state(false);
   error = $state("");
   #users = 0;
+  #saving = new Set<string>();
   #stop: (() => void) | undefined;
 
   /** Keeps the list fresh until the returned function is called (use it from an `$effect`). */
@@ -32,12 +34,33 @@ class BotList {
 
   async refresh(): Promise<void> {
     try {
-      this.list = decode(bots.ListBotsResponseSchema, await requestJson("GET", "/api/bots")).bots;
+      this.list = decode(bots.ListBotsResponseSchema, await requestJson("GET", "/api/bots?archived=1")).bots.map((bot) => this.#saving.has(bot.id) ? this.list.find((b) => b.id === bot.id) ?? bot : bot);
       this.error = "";
     } catch {
       this.error = "Could not load bots";
     } finally {
       this.loaded = true;
+    }
+  }
+
+  upsert(bot: bots.Bot): void {
+    if (this.#saving.has(bot.id)) return;
+    this.list = this.list.some((b) => b.id === bot.id) ? this.list.map((b) => b.id === bot.id ? bot : b) : [...this.list, bot];
+  }
+
+  async save(bot: bots.Bot, configuration: bots.BotConfiguration): Promise<void> {
+    if (this.#saving.has(bot.id)) throw new Error("This bot is already being saved. Try again after it finishes.");
+    this.#saving.add(bot.id);
+    this.list = this.list.map((b) => b.id === bot.id ? create(bots.BotSchema, { ...b, configuration }) : b);
+    try {
+      const response = decode(bots.GetBotResponseSchema, await requestJson("PUT", `/api/bots/${bot.id}`, encode(bots.UpdateBotRequestSchema, create(bots.UpdateBotRequestSchema, { botId: bot.id, configuration }))));
+      if (response.bot) this.list = this.list.map((b) => b.id === bot.id ? create(bots.BotSchema, { ...response.bot!, lastMessage: b.lastMessage }) : b);
+    } catch (cause) {
+      this.list = this.list.map((b) => b.id === bot.id ? bot : b);
+      throw cause;
+    } finally {
+      this.#saving.delete(bot.id);
+      window.dispatchEvent(new Event("bots-changed"));
     }
   }
 }

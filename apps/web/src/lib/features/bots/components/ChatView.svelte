@@ -1,5 +1,10 @@
 <script lang="ts">
   import { tick, untrack, type Snippet } from "svelte";
+  import type { Mention, ui } from "@open-agents/contracts";
+  import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
+  import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
+  import { visibleText } from "#lib/features/quotes/selection.ts";
+  import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import type { ClassValue } from "svelte/elements";
   import { rise } from "#lib/shared/ui/motion.ts";
   import type { ExchangeSegment } from "../chat-timeline.ts";
@@ -43,6 +48,7 @@
     onclose,
     onattach,
     actions,
+    archived,
     class: className,
   }: {
     conversation: ConversationView;
@@ -59,7 +65,7 @@
     /** Set when you cannot write right now (e.g. the bot is unavailable); shown in the box. */
     composerDisabledReason?: string | undefined;
     exchangeHref?: ((segment: ExchangeSegment) => string) | undefined;
-    onsend: (text: string) => void;
+    onsend: (text: string, mentions: Mention[], quotes: ui.Quote[]) => void;
     onanswer?: ((questionId: string, optionId: string) => void) | undefined;
     onapprove?: ((approvalId: string, answer: ApprovalAnswer) => void) | undefined;
     onpolicy?: ((policy: ApprovalPolicy) => void) | undefined;
@@ -69,10 +75,15 @@
     onclose?: (() => void) | undefined;
     onattach?: (() => void) | undefined;
     actions?: Snippet;
+    archived?: Snippet;
     class?: ClassValue;
   } = $props();
 
   let draft = $state("");
+  let draftMentions = $state<Mention[]>([]);
+  const quoteDrafts = useQuoteDrafts();
+  const quoteKey = $derived(`bot:${conversation.id}`);
+  let composerRegion = $state<HTMLElement>();
   let log = $state<HTMLElement>();
   let content = $state<HTMLElement>();
   let composer = $state<ReturnType<typeof BotComposer>>();
@@ -83,8 +94,8 @@
   let previousConversation: string | undefined;
   $effect(() => {
     const id = conversation.id;
-    const found = entries.findLast((entry) => entry.kind === "message");
-    const latest = found?.kind === "message" ? found.message.id : undefined;
+    const found = entries.findLast((entry) => entry.kind === "message" || entry.kind === "event" && entry.event.changes?.length);
+    const latest = found?.kind === "message" ? found.message.id : found?.kind === "event" ? found.event.id : undefined;
     if (previousConversation === id && latest && latest !== previousMessage) untrack(() => messageEvent++);
     previousConversation = id;
     previousMessage = latest;
@@ -111,15 +122,17 @@
   });
 
   // Your own message goes to the end of the conversation: follow it there.
-  function send(text: string) {
+  function send(text: string, mentions: Mention[], quotes: ui.Quote[]) {
     following = true;
-    onsend(text);
+    onsend(text, mentions, quotes);
     void tick().then(() => toEnd());
   }
 
   function reply(message: ChatMessageView) {
-    const quote = message.text.trim().split("\n").slice(0, 3).map((line) => `> ${line}`).join("\n");
-    draft = `${quote}\n\n${draft}`;
+    const region = log?.querySelector(`[data-quote-item="${CSS.escape(message.id)}"] [data-quote-kind]`);
+    const text = region ? visibleText(region) : message.text;
+    const added = quoteDrafts.add(quoteKey, { text, source: { itemId: message.id, threadId: conversation.id, kind: "agent_message", language: "" } });
+    if (!added) toast("A message can carry up to 20 quotes", { tone: "error" });
     void tick().then(() => composer?.focus());
   }
 
@@ -168,7 +181,7 @@
           {onretry}
           {onchangemodel}
           {onreact}
-          onreply={conversation.kind === "watch" ? undefined : reply}
+          onreply={conversation.kind === "watch" || conversation.archived ? undefined : reply}
           class="mx-auto w-full max-w-(--chat-width) px-3 pt-4 pb-6 sm:px-6"
         />
       </div>
@@ -181,13 +194,18 @@
       </div>
     {/if}
   </div>
-  <div class="mx-auto w-full max-w-(--chat-width) shrink-0 px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
-    {#if conversation.kind === "watch"}
+  <div bind:this={composerRegion} class="mx-auto w-full max-w-(--chat-width) shrink-0 px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
+    {#if archived && conversation.archived}
+      {@render archived()}
+    {:else if conversation.kind === "watch"}
       <WatchBar bots={conversation.bots} {onclose} />
     {:else}
       <BotComposer
         bind:this={composer}
         bind:value={draft}
+        bind:mentions={draftMentions}
+        botId={conversation.id}
+        {quoteKey}
         placeholder={conversation.bots.length === 1 ? `Message ${conversation.bots[0]!.name}` : "Message"}
         {sending}
         disabled={Boolean(composerDisabledReason)}
@@ -198,3 +216,4 @@
     {/if}
   </div>
 </div>
+{#if conversation.kind !== "watch" && !conversation.archived}<CiteLayer threadId={quoteKey} root={log} avoid={composerRegion} />{/if}

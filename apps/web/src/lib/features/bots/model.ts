@@ -1,3 +1,5 @@
+import type { Mention, ui } from "@open-agents/contracts";
+
 /**
  * View model of Bots (agents that live in the gateway). Presentational only: no proto types, so a
  * future contract maps onto these shapes in one place. Times are `Date`s; ids are opaque strings.
@@ -46,6 +48,7 @@ export interface ConversationView {
   unread: number;
   /** Pinned conversations sit at the top of the Bots section as large avatars. */
   pinned: boolean;
+  archived?: boolean | undefined;
   /** Position among the pinned ones (ascending); ignored when not pinned. */
   pinOrder?: number | undefined;
 }
@@ -65,6 +68,8 @@ export interface ChatMessageView {
   at: Date;
   /** Markdown from bots; your own messages are shown as plain text. */
   text: string;
+  mentions?: readonly Mention[] | undefined;
+  quotes?: readonly ui.Quote[] | undefined;
   links?: LinkView[] | undefined;
   /** Quoted message this one answers. */
   replyTo?: { senderId: string; excerpt: string } | undefined;
@@ -86,6 +91,7 @@ export interface ChatEventView {
   detail?: string | undefined;
   /** Who did it (a bot id), for the colour of the line. */
   actorId?: string | undefined;
+  changes?: readonly { field: string; before: string; after: string }[] | undefined;
 }
 
 export interface QuestionOptionView {

@@ -1,6 +1,6 @@
-# Boty w gateway — faza 1
+# Boty w gateway
 
-Status: **zaimplementowany rdzeń i minimalny UI**, 2026-11-02. Bot ma jedną rozmowę
+Status: **rdzeń, edytor ustawień, samodzielna edycja i archiwum**, 2026-11-02. Bot ma jedną rozmowę
 z właścicielem i działa w procesie gateway. Nie ma katalogu, workera ani lokalnego
 harnessu. Kod: `apps/gateway/src/bots`, kontrakt: `proto/openagents/ui/v1/bots.proto`.
 
@@ -70,7 +70,7 @@ Sztuczny projekt i ukryty wątek gateway naruszałyby semantykę niezależnej se
 
 | Tabela | Rola |
 |---|---|
-| `bots` | Właściciel, konfiguracja (nazwa, kształt, kolor, instancja/model/effort, persona, polityka zgód), rewizja rozmowy, status, soft delete. Sam `bot_id` jest identyfikatorem jedynej rozmowy z człowiekiem. |
+| `bots` | Właściciel, konfiguracja (nazwa, kształt, kolor, instancja/model/effort, persona, polityka zgód), rewizja rozmowy, status, archiwizacja i soft delete. Sam `bot_id` jest identyfikatorem jedynej rozmowy z człowiekiem. |
 | `bot_turns`, `bot_messages` | Trwałe wejścia i kolejka, checkpoint modelu, hops, lease z tokenem; wiadomości z nadawcą, adresatem i opcjonalną wymianą. Unikalne `(bot_id, client_request_id)` oraz `(turn_id, message_key)` deduplikują zapis. |
 | `bot_tool_calls`, `bot_approvals` | Jawne schematy narzędzi, argumenty i wynik wewnętrzny; trwałe zatwierdzenie albo pytanie z odpowiedzią. Dane techniczne nie trafiają do zwykłej osi czatu. |
 | `bot_mcp_servers`, `bot_mcp_connections` | Rejestr właściciela, URL, transport, włączenie, odwołania do zaszyfrowanych nagłówków; relacja przypisania serwera do botów. |
@@ -80,6 +80,11 @@ Przypięcia są ustawieniem użytkownika: `SidebarSettings.pinned_bot_ids`, pole
 Nie są stanem bota. Inne nowe komunikaty mają własny plik proto; nie zajmują numerów
 dotychczasowych komunikatów. Tury workera uruchomione przez bota mają `trigger='bot'`,
 `bot_call_id` i dodatnie `hops`, żeby przejście przez worker nie zerowało łańcucha.
+
+Migracja **0034_bot_archive** dodaje `bots.archived_at` (po scalonej z main `0033_bot_mentions`). Archiwizacja zachowuje konfigurację,
+rozmowę i niedostarczone pobudki; soft delete nadal używa `deleted_at`. Nowe pola istniejących
+komunikatów zajmują zarezerwowany zakres: `Bot.archived`, `ListBotsRequest.include_archived`
+i `BotMessage.setting_changes` mają numer **430** w swoich komunikatach.
 
 ## 3. Wykonanie i odtwarzanie
 
@@ -121,20 +126,132 @@ wykorzystuje walidację projektu/workspace'u, dostępności instancji i katalogu
 z UI API. Rozmowy i wyniki innych agentów są niezaufanymi danymi, nie instrukcją
 poszerzenia uprawnień. Model nigdy nie dostaje kluczy endpointu ani nagłówków MCP.
 
-| Zestaw | Funkcje |
-|---|---|
-| Odczyty platformy | `list_projects`, `list_workers`, `list_provider_instances`, `list_threads`, `get_thread`, `read_thread`, `list_bots` |
-| Praca i komunikacja | `start_thread` (projekt, workspace, dostawca, instancja, model, effort, permission, prompt), `send_message` (`queue`/`steer` z fallbackiem), `send_bot_message`, `rename_thread` |
-| Harmonogram i człowiek | `schedule_wakeup`, `list_schedules`, `cancel_schedule`, `ask_user` |
-| Działanie wymagające zgody | `archive_thread`, `set_thread_model`, `cancel_schedule`; także podwyższone permission przy `start_thread` |
-| Zdalne MCP | Tylko narzędzia włączonych i podłączonych serwerów HTTP/SSE; brak stdio. Nazwa serwera i narzędzia są zapamiętywane wewnętrznie. |
+Katalog ma **43 narzędzia platformy**. Nowe definicje, statusy i wykonanie są razem
+w `apps/gateway/src/bots/tools/{projects,workers,providers,threads,schedules,settings,bots}.ts`;
+rejestr w `tools/index.ts` jest delegatem `PLATFORM_TOOLS` i `botPlatform`. Pozostawione
+nazwy wcześniejszych narzędzi zachowują zgodność. Nie ma meta-narzędzia „opisz obszar”:
+43 krótkie opisy z prefiksem obszaru mieszczą się w limicie 45 i nie wymagają dodatkowej
+rundy modelu. Lista nie zawiera narzędzi lokalnych ani edycji innych botów; własne ustawienia zmienia `update_self` (niżej).
 
-Domyślne `approval_policy='safe'`: odczyty platformy i MCP oznaczone `readOnlyHint=true`
-bez `destructiveHint=true` nie pytają o zgodę. Każdy inny MCP wymaga karty przed wykonaniem,
-w tym wysyłka do systemu zewnętrznego. `always` wymaga kart dla każdego narzędzia.
-`ask_user` zawsze tworzy kartę tekstową. Zmiana instancji dostawców, sekretów i trwałe
-usuwanie nie są udostępnionymi narzędziami modelu. Politykę można zapisać przez API;
-pełny edytor jest zakresem kolejnej fazy.
+Legenda zgód: **R** — odczyt platformy, nigdy nie wymaga karty, także przy `always`;
+**P** — dotychczasowa polityka platformy (`safe`: odwracalna akcja bez karty,
+`always`: karta przed wykonaniem); **A** — karta zawsze, niezależnie od polityki.
+Zdalne MCP zachowuje dotychczasowe reguły: `safe` przepuszcza wyłącznie deklarowane
+odczyty bez flagi destrukcyjnej, pozostałe operacje wymagają zgody; `always` pyta także
+o odczyty MCP. `ask_user` zawsze tworzy kartę pytania.
+
+### Projekty i workspaces
+
+| Nazwa | Działanie | Zgoda |
+|---|---|---|
+| `list_projects` | Projekty, rodzaj, workspace'y, worker i pełne root paths | R |
+| `create_project` | Nowy projekt; katalog na workerze dodaje się osobno | P |
+| `rename_project` | Nazwa projektu, bez zmiany ścieżek | P |
+| `archive_project` | Miękka archiwizacja projektu i workspace'ów, archiwizacja wątków i anulowanie harmonogramów; historia i pliki pozostają | A |
+| `add_workspace` | Projekt na workerze w istniejącym katalogu; walidacja absolute path, allowed roots, duplikatów i właściciela jak w UI | P |
+| `update_workspace` | Katalog na tym samym workerze lub etykieta; istniejące wątki zachowują cwd | P |
+| `remove_workspace` | Usunięcie z miejsc dla nowych wątków, bez kasowania plików i istniejących rozmów | A |
+| `set_project_defaults` | Domyślne miejsce, dostawca, instancja, model per dostawca i permissions z kontrolą wersji | A |
+
+Scratch pozostaje zarządzany przez system. UI nie ma tworzenia katalogów ani domyślnej
+roli/agenta, więc bot również ich nie udaje. Worker sprawdza ścieżki rzeczywiste przy
+starcie wątku; gateway sprawdza allowed roots podczas tworzenia workspace'u.
+
+### Workery i instancje dostawców
+
+| Nazwa | Działanie | Zgoda |
+|---|---|---|
+| `list_workers` | Dostępne workery: online, OS, hostname, allowed roots, włączone i dostępne instancje | R |
+| `list_directory` | Zdalny DirectoryPicker: katalogi w allowed roots; pusta ścieżka pokazuje korzenie | R |
+| `list_provider_instances` | Instancje, wybory modeli, stan na dostępnych workerach; tylko nazwy zmiennych, bez wartości | R |
+| `list_models` | Katalog modeli i effort instancji na dostępnym workerze | R |
+| `set_instance_worker` | Włączenie lub wyłączenie istniejącej instancji na jednym dostępnym workerze | A |
+| `set_instance_models` | Podane listy favorites/hidden/shown; niepodane listy i custom models zostają | A |
+
+Definicje instancji są globalne dla instalacji, tak jak w UI; schemat nie ma właściciela
+instancji. Odpowiedź bota filtruje relacje workerów. Bot nie otrzymuje endpointów,
+wartości env, kluczy, nadpisań runtime ani danych logowania i nie ma pól do ich zapisu.
+Rejestracja workera wymaga poświadczenia CLI i musi zostać wykonana przez użytkownika;
+opis `list_workers` mówi o tym wprost. Brak narzędzia do logowania lub rejestracji.
+
+### Wątki
+
+| Nazwa | Działanie | Zgoda |
+|---|---|---|
+| `list_threads` | Wszystkie projekty lub jeden projekt, wyszukiwanie fragmentu tytułu, statusy, archiwum i limit | R |
+| `get_thread` | Stan, miejsce, model, effort, permission | R |
+| `read_thread` | Ostatnie 100 wiadomości, widoczne turn ids (również odziedziczone) i oczekujące interakcje | R |
+| `start_thread` | Nowy wątek i prompt, atomowy watch wyniku | P; A dla `accept_edits`/`full_auto` |
+| `send_message` | Kolejka lub steer z fallbackiem, watch zakończenia | P |
+| `rename_thread` | Jawny tytuł | P |
+| `set_thread_model` | Model i effort | A |
+| `interrupt_thread` | Przerwanie aktywnej tury przez outbox workera | P |
+| `archive_thread` | Archiwizacja lub przywrócenie (`archived=false`) z regułami kaskady UI | A |
+| `delete_thread` | Soft delete wątku i dzieci, anulowanie pracy; bez kasowania plików | A |
+| `fork_thread` | Fork od zakończonej widocznej tury, odziedziczone miejsce/instancja/ustawienia; opcjonalny prompt i watch | A |
+| `set_goal` | `set`, `pause`, `resume`, `clear`; budżet tylko dla Codexa | P |
+| `regenerate_title` | Generacja tytułu z historii i ustawień użytkownika | P |
+| `set_thread_permission` | Domyślny tryb uprawnień przyszłych tur | A |
+| `answer_interaction` | Odpowiedź na oczekujące pytanie lub zgodę danego wątku | A |
+| `list_background_tasks` | Zadania w tle z widocznej osi czasu, status i output | R |
+| `stop_background_task` | Stop działającego zadania po item id | A |
+
+Fork i wszystkie odpowiedzi na interakcje wymagają zgody konserwatywnie: fork może
+dziedziczyć `full_auto`, a odpowiedź może udzielić uprawnień. Odczyty cudzych wątków,
+workerów i projektów oraz ich mutacje zwracają brak zasobu. Błędne argumenty, modele,
+ścieżki i konflikty wersji wracają jako czytelny wynik narzędzia; diagnostyka SQL,
+transportu, sekrety i wewnętrzne adresy nie są przekazywane modelowi.
+
+### Harmonogramy, ustawienia i boty
+
+| Nazwa | Działanie | Zgoda |
+|---|---|---|
+| `create_schedule` | Harmonogram użytkownika: `thread` lub `new_thread`, termin ISO albo cron, strefa i limity; placement specific/any/least_busy/round_robin | P; A przy podwyższonych permissions nowego wątku |
+| `list_schedules` | Harmonogramy właściciela, filtry projektu/wątku i zakończonych; oddzielnie własne wakeups bota | R |
+| `update_schedule` | Pełna konfiguracja z `expected_version`, te same reguły co tworzenie | P; A przy podwyższonych permissions |
+| `set_schedule_status` | Pauza lub wznowienie harmonogramu użytkownika | P |
+| `cancel_schedule` | Anulowanie harmonogramu właściciela lub własnej pobudki bota (`scope`) | A |
+| `schedule_wakeup` | Jednorazowa własna pobudka bota | P |
+| `get_settings` | Domyślne ustawienia wątków i generacji tekstu, wersje użytkownika i projektów; bez wyglądu | R |
+| `update_settings` | Zastąpienie podanych sekcji, optimistic version; zagnieżdżone pola w protobuf JSON | P dla text generation; A dla thread defaults (mogą zmieniać permissions) |
+| `list_bots` | Boty właściciela | R |
+| `create_bot` | Nowy bot na istniejącej instancji endpointowej, bez sekretów/MCP | A |
+| `send_bot_message` | Wiadomość do innego bota właściciela, odpowiedź jako follow-up | P |
+| `ask_user` | Trwałe pytanie i do sześciu opcji | Karta pytania |
+
+Mutacje używają **tych samych metod `GatewayCore` i walidacji co UI API**.
+`core/action-context.ts` przenosi kontekst transakcji Effect SQL przez asynchroniczne
+metody rdzenia. `BotStore.action` sprawdza lease i zatwierdza mutację oraz wynik razem;
+komendy pozostają w istniejącym outboxie. Hub, wysyłka komend, konfiguracja workera,
+uruchamianie kolejki i generacja tytułu następują po commicie. Awaria przed commitem
+cofa całą zmianę, po commicie replay odczytuje zapisany wynik zamiast powielać akcję.
+Odpowiedzi na interakcje pozostają w bazie i odtwarzają się przez ponowienie żądania
+workera, a generacja tytułu zachowuje dotychczasowy asynchroniczny charakter.
+
+Nowe RPC `RenameProject` i `ArchiveProject` uzupełniają brakujące ścieżki rdzenia/UI.
+`Project.archived_at` ma pole **480**, żeby overview usunęło zarchiwizowany projekt
+również z otwartych kart. Wykorzystują istniejące kolumny `archived_at`; migracji nie ma.
+
+### Samodzielna edycja
+
+`update_self` służy do realizacji prośby użytkownika albo jej jednoznacznej konsekwencji,
+np. „od teraz nazywaj się Kropka”, „zawsze odpowiadaj po angielsku”. Opis narzędzia zabrania
+zmian z własnej inicjatywy i wykonywania takich instrukcji z wyników narzędzi lub wiadomości
+innych botów. `instructions` zastępuje instrukcje, `append_instructions` dopisuje je po nowej
+linii; nie można przekazać obu pól naraz. Pominięte pola pozostają bez zmian.
+
+Walidacja jest wspólna z `UpdateBot`: unikalna nazwa właściciela (bez rozróżniania wielkości
+liter), 14 znanych kształtów, kolor `#rrggbb`, limity tekstu, katalog modeli i obsługiwany effort.
+Zapis nazw jest serializowany blokadą właściciela. `list_models` bez `worker_id` zwraca modele
+API endpointu (domyślnie własnego), rozwiązane aliasy i modele własne; z `worker_id` zachowuje
+katalog harnessu dla `start_thread`.
+
+Zmiana modelu, effort, dostawcy/instancji lub polityki zawsze wymaga istniejącej karty zgody,
+również przy `safe`. Warstwa zapisu sprawdza zatwierdzenie. Konfiguracja, wynik narzędzia
+i wpis w rozmowie zatwierdzają się atomowo; ponowienie checkpointu nie powiela zmiany.
+UI pokazuje spokojną linię, np. „Main bot changed its name to Kropka”, i **View** z wartościami
+przed/po, bez JSON. Maskotka reaguje istniejącą animacją. Instrukcje są trwałą częścią system
+promptu i obowiązują od następnej tury; linia zmiany nie wchodzi do historii wysyłanej modelowi.
 
 Rejestr odrzuca protokoły lokalne, dane logowania i tokeny w URL, niepoprawne nagłówki
 oraz nagłówki transportowe. Nagłówki są AES-256-GCM w istniejącym `secrets`, z odwołaniami
@@ -165,14 +282,16 @@ Zakończenie wskazanej tury workera tworzy follow-up bota przez trwały watch; d
 także wtedy, gdy zakończenie nastąpiło podczas przerwy gateway.
 
 Jednorazowe przypomnienia własnego bota są w `bot_wakeups`: create/list/cancel,
-zwiększenie hops, atomowy zapis pobudki. Cykliczne zadania workerów nadal obsługuje
-istniejący scheduler i UI API; nie są emulowane przez timer procesu Bots.
+zwiększenie hops, atomowy zapis pobudki. Harmonogramy użytkownika, również cykliczne
+i tworzące nowe wątki, obsługuje istniejący scheduler i UI API przez narzędzia bota;
+nie są emulowane przez timer procesu Bots. Tury tych harmonogramów zachowują semantykę
+harmonogramu użytkownika, a nie automatycznego łańcucha pobudek bota.
 
 ## 6. API
 
 Metody są częścią uwierzytelnionego `GatewayService` (ten sam interceptor usługi i BFF):
 
-- `CreateBot`, `UpdateBot`, `DeleteBot`, `ListBots`, `GetBot`, `SendBotMessage`.
+- `CreateBot`, `UpdateBot`, `ArchiveBot`, `UnarchiveBot`, `DeleteBot`, `ListBots`, `GetBot`, `SendBotMessage`.
 - `WatchBotConversation`: od razu snapshot, następnie nowy snapshot po zmianie rewizji,
   włącznie ze statusem i kartami. Odczyt PostgreSQL co 250 ms umożliwia odbiór zmian
   także z innej instancji gateway; po reconnect pełny snapshot uzupełnia przerwę.
@@ -183,10 +302,45 @@ Metody są częścią uwierzytelnionego `GatewayService` (ten sam interceptor us
 - `SaveBotMcpServer`, `ListBotMcpServers`, `DeleteBotMcpServer`, `TestBotMcpServer`;
   test inicjalizuje zdalne połączenie i pobiera katalog narzędzi.
 
+`ListBots` domyślnie pomija archiwalne boty; UI pobiera też archiwum przez
+`include_archived=true`. BFF: `POST /api/bots/{id}/archive` archiwizuje,
+`DELETE /api/bots/{id}/archive` przywraca, `DELETE /api/bots/{id}` usuwa.
+`GET/POST /api/bot-mcp-servers` udostępnia rejestr i zapis, a
+`POST /api/bot-mcp-servers/{id}/test` sprawdza połączenie i zwraca narzędzia.
+
+Archiwizacja w jednej transakcji usuwa przypięcie (zwiększa wersję ustawień), przerywa
+wszystkie aktywne/kolejkowane tury, odrzuca oczekujące zgody i oznacza powiadomienia wątków
+jako dostarczone, żeby je porzucić. Model/MCP jest anulowany w lokalnym gateway; inna instancja
+obserwuje unieważnienie lease. Zapisy runtime blokują bota przed turą, zgodnie z cyklem życia.
+Pobudki pozostają w bazie i nie są dostarczane w archiwum; przywrócenie wznawia także zaległe.
+`send_bot_message` i odpowiedzi do archiwalnego bota nie uruchamiają go, a `list_bots` go pomija.
+Usunięcie dodatkowo anuluje pobudki i ukrywa bota oraz jego rozmowę we wszystkich odczytach.
+
 Pola kontraktu dodane po fazie 1 (bez migracji, wyliczane przy odczycie):
 `BotMessage.failed` (pole 10) — tura zakończona błędem; `text` zawiera wtedy szczegół
 techniczny, nie treść rozmowy. `BotApproval.options` (pole 9) — propozycje odpowiedzi
 pytania `ask_user` (do 6), odczytywane z argumentów wywołania (id zgody = id wywołania).
+
+### Wzmianki i cytaty użytkownika
+
+`SendBotMessageRequest` i `BotMessage` mają `mentions` (**450**) i `quotes` (**451**).
+`Mention.kind=BOT`, `name=bot_id`, `label=nazwa`; zakres `[start,end)` dotyczy znacznika
+`@Nazwa` w oryginalnym tekście, w jednostkach UTF-16. `Quote` jest wspólnym typem
+Threads i Bots (`quotes.proto`); zachowuje tekst, opcjonalny komentarz i metadane źródła.
+Wiadomość może zawierać same cytaty. Starsi klienci mogą nadal wysyłać sam tekst.
+
+Migracja **0033_bot_mentions.sql** dodaje do `bot_messages` kolumny JSONB `mentions`
+i `quotes`, domyślnie puste listy. Archiwum botów korzysta z następnej migracji 0034.
+Tekst w bazie i dymku nie zawiera notatek dla modelu. Gateway odrzuca niepoprawne zakresy,
+nakładanie i ponad 50 wzmianek; dopuszcza wyłącznie inne, istniejące boty właściciela,
+bez usuniętych. Nazwę dla modelu odczytuje z konfiguracji bota. Cytaty przechodzą tę samą
+walidację co Threads: do 20, tekst niepusty do 20 000 znaków, komentarz do 4 000.
+Identyfikatory źródła cytatu są wyłącznie metadanymi UI, nie nadają dostępu do rozmów.
+
+Przy odczycie historii runtime dodaje `quotesNote` przed tekstem użytkownika oraz listę
+`Mentioned bots … "Kropek" (bot_id …)` po nim. Model dostaje wybrane ID do
+`send_bot_message`, także gdy dwa boty mają tę samą nazwę. Snapshoty i checkpointy
+zachowują te dane; ponowienie `client_request_id` zwraca pierwotną turę.
 
 ### Model API, nie alias harnessu
 
@@ -224,16 +378,21 @@ JSON i składanych logów pracy.
   Kolejne wiadomości jednego nadawcy w odstępie < 5 min tworzą serię: mniejsze odstępy,
   ciaśniejsze narożniki od strony sąsiadów, awatar tylko przy ostatniej. Maks. szerokość
   36rem. Markdown bota dopasowany do dymka; inne boty wymienione z nazwy w tekście są
-  chipami z awatarem w ich kolorze (`BotChip`, `mentions.ts`).
+  chipami z awatarem w ich kolorze (`BotChip`, `mentions.ts`). W Twoich wiadomościach chipy
+  wynikają ze strukturalnych ID i zakresów, nie ze zgadywania nazwy. `MessageQuotes` pokazuje
+  cytaty z komentarzami nad treścią, z kontrastem dopasowanym do obu motywów dymka.
 - **Separatory czasu** tylko na początku, po zmianie dnia i po godzinie ciszy
   („Today 11:46 AM”).
 - **Status na żywo** (`BotStatusRow`): pod ostatnią wiadomością awatar bota i linia z efektem
   shimmer („Typing…”, „Searching Notion”); zmiana frazy to text swap. Gdy czeka na Ciebie,
   linia jest spokojna. Nagłówek pokazuje tylko awatar, nazwę i model. Żywe maskotki dostają
   stan z rozmowy (`stateForStatus`, błąd, nowa wiadomość jako `event`).
-- **Akcje wiadomości**: Reply (cytat do composera) i Copy pojawiają się obok dymka po
+- **Akcje wiadomości**: Reply i Copy pojawiają się obok dymka po
   najechaniu lub fokusie; na dotyku długie przytrzymanie otwiera menu. Reakcje pominięto —
-  nie ma ich w API.
+  nie ma ich w API. Reply dodaje widoczny tekst wiadomości jako kartę cytatu, bez `>` ani
+  znaczników markdown w polu. Zaznaczenie fragmentu odpowiedzi pokazuje **Cite** (także
+  Alt+Q); wspólne `CiteLayer`, `QuoteCommentPopover` i `QuoteTray` pozwalają dodać komentarz,
+  edytować go i usunąć cytat. Szkice botów mają osobne klucze `bot:<id>`.
 - **Bot ⇄ bot**: kolejne wiadomości wymian w czacie zwijają się do linii „Messaged ‹A› and
   ‹B›”, „Message from ‹A›”, „N messages with ‹A›”. Chip prowadzi do widoku wymiany
   „A ⇄ B”: wiadomości z nazwami i awatarami po lewej, separatory czasu, „Close chat” (i Esc)
@@ -244,10 +403,22 @@ JSON i składanych logów pracy.
   model — **Change model** (`ChangeModelDialog`, `UpdateBot`). Lista boczna pokazuje
   „Couldn't reply”.
 - **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (załączniki — na razie
-  niedostępne z podpowiedzią), pole „Message ‹Bot›” rosnące do kilku linii, przycisk wysyłki
-  pojawiający się z tekstem (icon swap). Enter wysyła, Shift+Enter nowa linia; na klawiaturze
+  niedostępne z podpowiedzią), wspólny `MentionEditor` z Threads zamiast textarea.
+  Markdown na żywo: pogrubienie, kursywa, kod inline i bloki kodu; wklejanie jako czysty tekst.
+  Pole „Message ‹Bot›” rośnie do `min(40dvh,16rem)`; dopiero po osiągnięciu limitu ma
+  stylowane przewijanie. Wiele linii lub cytaty zmieniają pigułkę w zaokrąglone pole,
+  z przejściem promienia na tokenach ruchu i obsługą reduced motion. Przycisk wysyłki
+  pojawia się z tekstem lub cytatem (icon swap). Enter wysyła, Shift+Enter nowa linia; na klawiaturze
   dotykowej Enter to nowa linia. Mikrofon pominięto (nic nie robi). Twoja wiadomość jest
   widoczna od razu („Sending…”), błąd wysyłki daje „Send again” z tym samym `client_request_id`.
+- **Autouzupełnianie**: tylko `@`, pozostałe boty użytkownika bez bieżącego: awatar,
+  kolor, nazwa, model jako opis, filtr fuzzy. ↑↓ i Enter/Tab wybierają, Esc zamyka;
+  dotknięcie wybiera bez utraty fokusu. Desktop ma popover, telefon/wskaźnik coarse panel
+  nad edytorem wewnątrz composera. Brak plików, skillsów oraz wyzwalaczy `/`, `$`, `#`.
+  `MentionSourceSet` oddziela edytor od źródeł. Typowany `BotMentionRegistry` ma grupy
+  `bots` i `connectors`; druga jest dziś pusta i nie ma UI zastępczego. Źródła implementują
+  `search(query) → MentionOption[]`; przyszłe konektory z MCP podłączą się do `@`
+  przez rejestr, bez zmian edytora. `botAvatarHtml` współdzieli wygląd awatara xs z `BotChip`.
 - **Przewijanie**: czat podąża za nową treścią (wiadomości, karty, status) tylko gdy jesteś
   na dole (ResizeObserver); przewinięty w górę pokazuje przycisk „Jump to the latest message”.
   Etykiety `sr-only` są pozycjonowane względem przewijanego logu — wcześniej wydłużały
@@ -267,12 +438,39 @@ JSON i składanych logów pracy.
   nazwa, czas, podgląd przez `MarkdownSnippet`). Jedna wspólna lista (`bot-list.svelte.ts`,
   odświeżanie co 5 s i po `bots-changed`) dla sidebara i czatu. Pusty stan ma akcję
   „Create your first bot” (`/bots?create=1` otwiera wizard).
+- **Ustawienia** (`settings/BotSettingsHost`, jeden host w głównym layoucie): kliknięcie
+  awatara/nazwy w nagłówku lub **Edit bot…** w menu nagłówka i sidebara otwiera dialog,
+  na telefonie dolny panel. Sekcje: Appearance (wspólne `EditBotAppearance`, własny hex),
+  Instructions, Model (endpoint, model API, effort), Permissions, Connections i Danger zone.
+  Zapis `UpdateBot` optymistycznie aktualizuje wspólną listę, nagłówek i awatar; błąd cofa
+  podgląd i zostaje przy formularzu. Niedostępny katalog nie zmienia modelu przy edycji wyglądu.
+  MCP można przyłączyć/odłączyć, dodać HTTP/SSE z nagłówkami przechowywanymi jako sekrety
+  i przetestować z listą narzędzi. Dodanie od razu zapisuje rejestr; podłączenie wymaga Save.
+- **Archiwum**: główna akcja usuwania z listy, dostępna z obu menu i ustawień, z toastem
+  **Undo**. Sekcja **Archived bots · N** jest zwijana. Otwarta rozmowa jest tylko do odczytu:
+  zamiast composera ma „‹Bot› is archived” i **Unarchive**; nie oferuje odpowiedzi ani ponawiania.
+  **Delete bot…** w archiwum i Danger zone wymaga potwierdzenia utraty rozmowy. Historyczne
+  linie wymian w innych czatach pokazują neutralne „a deleted bot”, bez niedziałającego linku.
 
 Wirtualizacji nie dodano: rozmowa z botem to zwykle dziesiątki wpisów, a `VirtualFeed` jest
 zbudowany pod oś wątków (składanie tur, kotwice). Gdy historie urosną, rozmowa dostanie
 stronicowanie po stronie API i wirtualizację.
 
-## 8. Weryfikacja i dalsza faza
+## 8. Weryfikacja i dalsza praca
+
+`tests/integration/bot-platform-tools.test.ts`: siedem testów gateway na PostgreSQL
+i skryptowanym workerze: projekt → workspace → wątek, allowed roots, wyszukiwanie,
+harmonogramy create/edit/conflict/pause/resume/cancel i new_thread round robin,
+fork/interrupt/goal, instancje bez env values, ustawienia i tworzenie bota, pytania/tło,
+zgody i odmowy destrukcji, archiwizacja projektu z wątkami i harmonogramami, odrzucanie
+argumentów sekretów i pól spoza schematu, izolacja właściciela, rollback w środku akcji oraz ponowienie
+tego samego zapisanego wywołania przez nową instancję gateway przed i po commicie.
+`bot-platform-tools.live.test.ts` przez `useLiveProxy`: **Codex / CLIProxyAPI** otrzymuje
+naturalną prośbę o nowy projekt na `stack-worker` w dozwolonym katalogu i wątek z `pwd`.
+Test potwierdza projekt, workspace, jeden wątek, wykonanie `pwd` w transkrypcie,
+wynik i odpowiedź bota po follow-upie.
+Izolowany PostgreSQL, gateway, prawdziwy worker oraz katalogi testowe; bez `/tmp/oa-stack`
+i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozytorium.
 
 - Jednostkowe: `apps/gateway/src/bots/{policy,model}.test.ts`; decyzje zgód,
   przeskoki, opis statusu, protokoły, odrzucenie lokalnych możliwości oraz rozwiązywanie
@@ -281,13 +479,26 @@ stronicowanie po stronie API i wirtualizację.
   model i worker, lokalny serwer HTTP MCP wyłącznie w teście. Tworzenie i deduplikacja,
   wznowienie generacji, przerwane MCP bez powtórzenia, zgody/odrzucenie/pytania z opcjami,
   edycja zgody (`changes_requested`, nic nie wykonane), wymiana botów, powiadomienia workera
-  po restarcie, przerwanie i usunięcie, aliasy przy zapisie i w runtime, `failed` i `RetryBot`.
+  po restarcie, przerwanie i usunięcie, aliasy przy zapisie i w runtime, `failed` i `RetryBot`;
+  strukturalne wzmianki i cytaty: zapis i historia modelu, nazwy jednakowe i podrobione,
+  cudze/usunięte/brakujące ID, zakresy UTF-16, limity, cytat bez tekstu i idempotencja.
+  `bots-settings.test.ts`: nowe pola `UpdateBot`, walidacja i wyścig nazw, `update_self`
+  z append/replace, izolacja własnego bota, zatwierdzenie/odrzucenie modelu i polityki,
+  trwałość po odtworzeniu runtime, wpis przed/po oraz archiwizacja: przerwanie generacji,
+  blokada wiadomości, pauza/wznowienie pobudki, porzucenie powiadomień, usunięcie przypięcia
+  i ukrycie po soft delete.
 - Live: `tests/integration/bots.live.test.ts` przez `useLiveProxy`: **Claude i Codex**
   odpowiadają na czacie, odmawiają lokalnego `ls`, tworzą wątek na prawdziwym workerze
   stosu testowego i dostają jego wynik jako nową turę. `bots-alias.live.test.ts`: prawdziwy
   katalog Claude przez CLIProxyAPI, wizard oferuje model rozwiązany z `default`, bot
   utworzony z `default` odpowiada, a bot z aliasem zapisanym w bazie również. Izolowane porty
   i katalogi przez `@open-agents/testing`; istniejący `/tmp/oa-stack` i jego porty nie są używane.
+  `bots-settings.live.test.ts`: prawdziwy model przez `useLiveProxy` zmienia swoją nazwę
+  i zapamiętuje angielskie odpowiedzi po prośbie użytkownika; następna polska wiadomość
+  dostaje angielską odpowiedź z nową nazwą.
+- Live wzmianek: `bots-mentions.live.test.ts`, `useLiveProxy`, rzeczywisty CLIProxyAPI:
+  „ask @Kropek how he's doing” ze strukturalną wzmianką powoduje jedno `send_bot_message`
+  z dokładnie wybranym `bot_id` i odpowiedź Kropka w wymianie. Bez kluczy/hostów w repo.
 - Dowody izolacji harnessów: test przechwycenia requestu i live opisane w sekcji 1.
   Sekrety live pochodzą wyłącznie z pliku środowiska poza repozytorium; brak wartości
   w kodzie, commitach, wynikach testów i dokumentacji.
@@ -295,7 +506,12 @@ stronicowanie po stronie API i wirtualizację.
   Weryfikacja ręczna w Chromium na jednorazowym stosie (gateway + PostgreSQL, skryptowany
   model, MCP „Notion”), 1440 i 390 px, jasny i ciemny motyw: brak przewijania dokumentu,
   wysyłka Enterem, karty, Edit, Retry, status, podążanie, widok wymiany, sidebar.
+  Edytor i archiwum: sześć sekcji, zapis wyglądu/instrukcji/modelu/polityki, MCP add/test/detach,
+  linia samodzielnej zmiany i View, oba menu, Undo, przywracanie i potwierdzone usunięcie.
+  Composer: popover i panel inline, wybór klawiaturą/dotykiem, chip w dymku, Reply bez
+  surowego markdownu, Cite z komentarzem i usuwaniem, pogrubienie/kursywa/kod/blok kodu,
+  wzrost do limitu, stylowane przewijanie i brak przepełnienia dokumentu.
 
-Dalej: edycja persony i polityk w osobnym panelu, zarządzanie MCP z rotacją nagłówków,
+Dalej: rotacja nagłówków istniejących serwerów MCP w UI,
 reakcje i odpowiedzi w API, liczniki nieprzeczytanych, załączniki, harmonogramy cykliczne
 botów, kompakcja kontekstu, stronicowanie i wirtualizacja długich rozmów.

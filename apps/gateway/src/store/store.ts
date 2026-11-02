@@ -196,9 +196,12 @@ export class GatewayStore extends Context.Service<
     putSecret(input: { ownerUserId: string | null; name: string; plaintext: string; createdBy: string }): Fx<string>;
     workerConfig(workerId: string): Fx<WorkerConfig | undefined>;
     configApplied(workerId: string, report: ConfigApplied): Fx<void>;
-    listWorkers(online: ReadonlySet<string>): Fx<ui.Worker[]>;
+    listWorkers(online: ReadonlySet<string>, ownerUserId?: string): Fx<ui.Worker[]>;
     // projects
     createProject(ownerUserId: string, name: string): Fx<ui.Project>;
+    lockProject(ownerUserId: string, projectId: string): Fx<void>;
+    renameProject(ownerUserId: string, projectId: string, name: string): Fx<void>;
+    archiveProject(ownerUserId: string, projectId: string): Fx<void>;
     createWorkspace(input: { projectId: string; workerId: string; rootPath: string; label: string }): Fx<ui.Workspace>;
     /** Another directory (same worker) or label; unset = unchanged. Threads keep their own directory. */
     updateWorkspace(ownerUserId: string, input: { workspaceId: string; rootPath?: string | undefined; label?: string | undefined }): Fx<ui.Workspace>;
@@ -495,7 +498,7 @@ export class GatewayStore extends Context.Service<
                                         apply_report = ${JSON.stringify(toJson(ConfigAppliedSchema, report))}::jsonb
                WHERE worker_id = ${workerId}::uuid AND version >= ${report.version}`.pipe(Effect.asVoid),
 
-          listWorkers: (online) =>
+          listWorkers: (online, ownerUserId) =>
             Effect.gen(function* () {
               const rows = yield* sql<{
                 id: string; name: string; os: string; version: string; capabilities: { hostname?: string }; last_seen_at: Date | null;
@@ -504,7 +507,9 @@ export class GatewayStore extends Context.Service<
                 SELECT w.id, w.name, w.os, w.version, w.capabilities, w.last_seen_at,
                        c.config, c.version AS config_version, c.applied_version, c.apply_report
                   FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
-                 WHERE w.archived_at IS NULL AND w.revoked_at IS NULL ORDER BY w.name`;
+                 WHERE w.archived_at IS NULL AND w.revoked_at IS NULL
+                   AND (${ownerUserId ?? null}::uuid IS NULL OR w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId ?? null}::uuid)
+                 ORDER BY w.name`;
               return rows.map((r) => {
                 const report = r.apply_report ? fromJson(ConfigAppliedSchema, r.apply_report, { ignoreUnknownFields: true }) : undefined;
                 const config = r.config as { allowedRoots?: string[]; profiles?: { id?: string; displayName?: string }[] } | null;
@@ -535,15 +540,39 @@ export class GatewayStore extends Context.Service<
             Effect.gen(function* () {
               const trimmed = name.trim();
               if (!trimmed) return yield* Effect.fail(new Invalid("project name is required"));
+              if (trimmed.length > 200 || /[\r\n\p{Cc}]/u.test(trimmed)) return yield* Effect.fail(new Invalid("project name must be one line with 1–200 characters"));
               const id = Bun.randomUUIDv7();
               const slug = `${slugify(trimmed)}-${id.slice(-6)}`;
               yield* sql`INSERT INTO projects (id, owner_user_id, name, slug) VALUES (${id}::uuid, ${ownerUserId}::uuid, ${trimmed}, ${slug})`;
               return create(ui.ProjectSchema, { id, name: trimmed, slug, kind: "project", workspaces: [] });
             }),
 
+          lockProject: (ownerUserId, projectId) => Effect.gen(function* () {
+            const rows = yield* sql`SELECT id FROM projects WHERE id = ${projectId}::uuid
+              AND owner_user_id = ${ownerUserId}::uuid AND kind = 'project' AND archived_at IS NULL FOR UPDATE`;
+            if (!rows.length) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
+          }),
+
+          renameProject: (ownerUserId, projectId, name) => Effect.gen(function* () {
+            const trimmed = name.trim();
+            if (!trimmed || trimmed.length > 200 || /[\r\n\p{Cc}]/u.test(trimmed)) return yield* Effect.fail(new Invalid("project name must be one line with 1–200 characters"));
+            const rows = yield* sql`UPDATE projects SET name = ${trimmed} WHERE id = ${projectId}::uuid
+              AND owner_user_id = ${ownerUserId}::uuid AND kind = 'project' AND archived_at IS NULL RETURNING id`;
+            if (!rows.length) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
+          }),
+
+          archiveProject: (ownerUserId, projectId) => Effect.gen(function* () {
+            const rows = yield* sql`UPDATE projects SET archived_at = now() WHERE id = ${projectId}::uuid
+              AND owner_user_id = ${ownerUserId}::uuid AND kind = 'project' AND archived_at IS NULL RETURNING id`;
+            if (!rows.length) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
+            yield* sql`UPDATE project_workspaces SET archived_at = coalesce(archived_at, now()) WHERE project_id = ${projectId}::uuid`;
+            yield* sql`UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, version = version + 1
+              WHERE project_id = ${projectId}::uuid AND status IN ('active', 'paused')`;
+          }),
+
           createWorkspace: ({ projectId, workerId, rootPath, label }) =>
             Effect.gen(function* () {
-              const project = yield* one(yield* sql<{ kind: string }>`SELECT kind FROM projects WHERE id = ${projectId}::uuid AND archived_at IS NULL`, "project");
+              const project = yield* one(yield* sql<{ kind: string }>`SELECT kind FROM projects WHERE id = ${projectId}::uuid AND archived_at IS NULL FOR SHARE`, "project");
               if (project.kind === "scratch") return yield* Effect.fail(new Invalid("scratch workspaces are managed automatically"));
               const root = yield* workspaceRoot({ projectId, workerId, rootPath });
               const id = Bun.randomUUIDv7();
@@ -631,9 +660,10 @@ export class GatewayStore extends Context.Service<
                       FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id JOIN projects p ON p.id = pw.project_id
                      WHERE pw.id = ${request.workspaceId}::uuid AND pw.project_id = ${request.projectId}::uuid
                        AND p.owner_user_id = ${ownerUserId}::uuid AND p.archived_at IS NULL
-                       AND (p.kind <> 'scratch' OR ((w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
-                         AND w.archived_at IS NULL AND w.revoked_at IS NULL))
-                       AND (pw.archived_at IS NULL OR ${request.parentThreadId !== "" || request.forkAtTurnId !== ""}::boolean)`,
+                       AND (w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
+                       AND w.archived_at IS NULL AND w.revoked_at IS NULL
+                       AND (pw.archived_at IS NULL OR ${request.parentThreadId !== "" || request.forkAtTurnId !== ""}::boolean)
+                     FOR SHARE OF p`,
                   "workspace",
                 );
                 const provider = request.provider === Provider.CLAUDE ? "claude" : "codex";

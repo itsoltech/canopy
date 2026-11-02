@@ -9,8 +9,8 @@
   let { data, params }: PageProps = $props();
   const directory = $derived(data.bots.map(botParticipant));
   const pair = $derived.by((): BotView[] => {
-    const ids = [...new Set([params.botId, ...data.messages.map((m) => m.senderId), ...data.messages.map((m) => m.recipientId)])].filter((id) => directory.some((b) => b.id === id));
-    return ids.slice(0, 2).map((id) => directory.find((b) => b.id === id)!);
+    const ids = [...new Set([params.botId, ...data.messages.map((m) => m.senderId), ...data.messages.map((m) => m.recipientId)])].filter((id) => !['user', 'system', 'self'].includes(id));
+    return ids.slice(0, 2).map((id) => directory.find((b) => b.id === id) ?? { id, kind: 'bot', name: 'Deleted bot', color: '#71717a', shape: 'round' });
   });
   const conversation = $derived<ConversationView>({ id: params.exchangeId, kind: "watch", bots: pair, unread: 0, pinned: false });
   const entries = $derived(exchangeEntries(data.messages));

@@ -122,6 +122,7 @@
     {:else}
       <li class={row.first ? "pt-3" : "pt-0.5"} in:enter>
         <ChatBubble
+          conversationId={conversation.id}
           message={row.message}
           sender={row.sender}
           side={row.side}

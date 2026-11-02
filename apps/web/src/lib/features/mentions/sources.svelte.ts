@@ -29,6 +29,17 @@ export interface MentionResults {
   readonly error: string | undefined;
 }
 
+/** Editor contract, independent of worker catalogs. Each composer supplies only its own sources. */
+export interface MentionSourceSet {
+  readonly results: MentionResults;
+  readonly catalog?: { readonly entries: readonly MentionCatalogEntry[] };
+  readonly catalogState?: { readonly loading: boolean; readonly error: string | undefined };
+  readonly presentation?: Partial<Record<TriggerChar, { readonly label: string; readonly empty: string }>>;
+  readonly renderMention?: (mention: MentionData) => string;
+  query(char: TriggerChar, query: string): void;
+  close(): void;
+}
+
 const DEBOUNCE_MS = 120;
 const LIMIT = 40;
 
@@ -40,7 +51,7 @@ export function problemOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export class MentionSources {
+export class MentionSources implements MentionSourceSet {
   readonly #scope: () => MentionScope | undefined;
   readonly #threadId: () => string;
   #catalogKey = "";

@@ -11,7 +11,9 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       createBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.create(r) })),
       updateBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.update(r) })),
       deleteBot: (r) => guard(async () => { await core.bots.remove(r.botId); return create(bots.DeleteBotResponseSchema); }),
-      listBots: () => guard(async () => create(bots.ListBotsResponseSchema, { bots: await core.bots.list() })),
+      listBots: (r) => guard(async () => create(bots.ListBotsResponseSchema, { bots: await core.bots.list(r.includeArchived) })),
+      archiveBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.archive(r.botId, true) })),
+      unarchiveBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.archive(r.botId, false) })),
       getBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.get(r.botId) })),
       sendBotMessage: (r) => guard(async () => create(bots.SendBotMessageResponseSchema, { turnId: await core.bots.send(r) })),
       watchBotConversation: (r, context) => core.bots.watch(r.botId, context.signal),
@@ -27,6 +29,8 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       watchOverview: (_request, context) => core.watchOverview(context.signal),
       listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),
       createProject: (request) => guard(async () => create(ui.CreateProjectResponseSchema, { project: await core.createProject(request.name) })),
+      renameProject: (request) => guard(async () => create(ui.CreateProjectResponseSchema, { project: await core.renameProject(request.projectId, request.name) })),
+      archiveProject: (request) => guard(async () => { await core.archiveProject(request.projectId); return create(ui.ArchiveProjectResponseSchema); }),
       createWorkspace: (request) =>
         guard(async () => create(ui.CreateWorkspaceResponseSchema, { workspace: await core.createWorkspace(request) })),
       updateWorkspace: (request) =>

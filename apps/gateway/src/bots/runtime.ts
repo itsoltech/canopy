@@ -100,9 +100,13 @@ export class BotsRuntime {
               if (call.status === "completed" || call.status === "interrupted") result = call.result;
               else {
                 const phrase = await this.#options.describeTool?.(tool, requested.arguments) ?? statusPhrase(tool, requested.arguments);
-                const policyTool = tool.name === "start_thread" && ![undefined, "ask", "read_only"].includes(requested.arguments["permission"] as string | undefined)
+                const schedulePermission = (requested.arguments["new_thread"] as Record<string, unknown> | undefined)?.["permission"];
+                const policyTool = (tool.name === "start_thread" && ![undefined, "ask", "read_only"].includes(requested.arguments["permission"] as string | undefined))
+                  || (["create_schedule", "update_schedule"].includes(tool.name) && ![undefined, "ask", "read_only"].includes(schedulePermission as string | undefined))
+                  || (tool.name === "update_settings" && requested.arguments["thread_defaults"] !== undefined)
                   ? { ...tool, dangerous: true } : tool;
-                if (needsApproval(policyTool, config.approvalPolicy)) {
+                const currentConfig = botConfiguration(await this.run((s) => s.owned(this.#options.userId, turn.bot_id)));
+                if (needsApproval(policyTool, currentConfig.approvalPolicy, requested.arguments)) {
                   const question = tool.name === "ask_user";
                   const prompt = question ? requiredString(requested.arguments, "question", 32_000)
                     : approvalPrompt(tool, requested.arguments, phrase);
@@ -160,11 +164,17 @@ export class BotsRuntime {
     if (!request.configuration) throw new Invalid("configuration is required");
     return this.run((s) => s.save(this.#options.userId, request.configuration!, { id: request.botId }));
   }
-  list() { return this.run((s) => s.list(this.#options.userId)); }
+  list(includeArchived = false) { return this.run((s) => s.list(this.#options.userId, includeArchived)); }
   async get(id: string) { return botView(await this.run((s) => s.owned(this.#options.userId, id))); }
-  async remove(id: string) { await this.interrupt(id); return this.run((s) => s.remove(this.#options.userId, id)); }
+  #abortBot(id: string) { for (const task of this.#active.values()) if (task.turn.bot_id === id) task.abort.abort(); }
+  async remove(id: string) { await this.run((s) => s.remove(this.#options.userId, id)); this.#abortBot(id); }
+  async archive(id: string, archived: boolean) {
+    const bot = await this.run((s) => s.archive(this.#options.userId, id, archived));
+    if (archived) this.#abortBot(id);
+    return bot;
+  }
   async send(request: bots.SendBotMessageRequest) {
-    const turnId = await this.run((s) => s.enqueue(this.#options.userId, request.botId, request.text, request.clientRequestId));
+    const turnId = await this.run((s) => s.enqueue(this.#options.userId, request.botId, request.text, request.clientRequestId, { mentions: request.mentions, quotes: request.quotes }));
     void this.tick().catch(() => undefined);
     return turnId;
   }

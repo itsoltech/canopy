@@ -8,12 +8,15 @@ package openagents.ui.v1;
 import "google/protobuf/timestamp.proto";
 import "openagents/worker/v1/worker_link.proto";
 import "openagents/ui/v1/bots.proto";
+import "openagents/ui/v1/quotes.proto";
 
 service GatewayService {
   // Boty działające wyłącznie w gateway (docs/bots.md).
   rpc CreateBot(CreateBotRequest) returns (GetBotResponse);
   rpc UpdateBot(UpdateBotRequest) returns (GetBotResponse);
   rpc DeleteBot(DeleteBotRequest) returns (DeleteBotResponse);
+  rpc ArchiveBot(ArchiveBotRequest) returns (GetBotResponse);
+  rpc UnarchiveBot(UnarchiveBotRequest) returns (GetBotResponse);
   rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
   rpc GetBot(GetBotRequest) returns (GetBotResponse);
   rpc SendBotMessage(SendBotMessageRequest) returns (SendBotMessageResponse);
@@ -35,6 +38,8 @@ service GatewayService {
   rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
 
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc RenameProject(RenameProjectRequest) returns (CreateProjectResponse);
+  rpc ArchiveProject(ArchiveProjectRequest) returns (ArchiveProjectResponse);
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
 
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
@@ -150,6 +155,7 @@ message Project {
   // "scratch": systemowe No project; ukryte w zarządzaniu projektami.
   string kind = 410;
   repeated Workspace workspaces = 4;
+  google.protobuf.Timestamp archived_at = 480;
 }
 
 message Workspace {
@@ -450,6 +456,17 @@ message CreateProjectRequest {
 message CreateProjectResponse {
   Project project = 1;
 }
+
+message RenameProjectRequest {
+  string project_id = 1;
+  string name = 2;
+}
+
+message ArchiveProjectRequest {
+  string project_id = 1;
+}
+
+message ArchiveProjectResponse {}
 
 message CreateWorkspaceRequest {
   string project_id = 1;
@@ -1327,25 +1344,6 @@ message StartProviderLoginRequest {
 message StartProviderLoginResponse {
   string verification_url = 1;
   string user_code = 2;
-}
-
-// ---------- Cytaty (docs/ui-api.md, "Cytaty") ----------
-
-// Fragment tego, co agent wytworzył w wątku (odpowiedź, rozumowanie, wynik polecenia, wywołanie narzędzia,
-// kod, diff), zacytowany przez użytkownika w wiadomości.
-message Quote {
-  // Dokładnie zaznaczony tekst, tak jak go widać (bez znaczników markdown), z podziałami linii.
-  string text = 1;
-  // Komentarz użytkownika do cytatu (opcjonalny).
-  string comment = 2;
-  // Item, z którego pochodzi cytat (Item.item_id), i wątek tego itemu (także odziedziczona historia forka).
-  string source_item_id = 3;
-  string source_thread_id = 4;
-  // agent_message | reasoning | command_output | tool_call | code | diff; pusty = nieznany (tekst).
-  // command_output, tool_call, code i diff trafiają do agenta jako blok kodu.
-  string source_kind = 5;
-  // Język bloku kodu (np. "ts"), gdy cytat pochodzi z bloku kodu z językiem; inaczej pusty.
-  string language = 6;
 }
 
 // ---------- Załączniki (docs/ui-api.md) ----------
