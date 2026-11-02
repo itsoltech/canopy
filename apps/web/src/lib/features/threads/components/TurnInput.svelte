@@ -10,22 +10,18 @@
   import { turnOrigin } from "../turn-origin.ts";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
-  import { queuedNote } from "./message-notes.ts";
 
   /**
    * The input of a turn with where it came from (the turn's source): you (a plain message), another
    * agent (a task or a message), a report from a thread it follows, a side thread's question, or a
    * schedule (yours or one an agent set). `hops` (agent-to-agent steps since a person wrote) shows when
-   * an agent chain started the turn. `queued`: waits for the running turn; `fallback`: a message steered
-   * into that turn that could not join it, so it runs next (with the gateway's reason).
+   * an agent chain started the turn. Queued turns are not shown here: the queue panel has them.
    */
   let {
     turn,
     text,
     attachments = [],
-    queued = false,
-    fallback,
-  }: { turn: ui.Turn; text: string; attachments?: readonly BlobRef[]; queued?: boolean; fallback?: ui.Steer | undefined } = $props();
+  }: { turn: ui.Turn; text: string; attachments?: readonly BlobRef[] } = $props();
 
   const directory = useThreadDirectory();
   const origin = $derived(turnOrigin(turn));
@@ -51,8 +47,6 @@
     message={{ text: rich ? parts.message : text, authorAgentId: "", attachments: [...attachments], mentions: turn.mentions }}
     files={turn.attachments}
     quotes={turn.quotes}
-    note={queuedNote(queued, fallback)}
-    pending={queued}
   />
 {:else}
   <div class="flex flex-col items-end gap-1">
@@ -87,7 +81,6 @@
           · {turn.hops} {turn.hops === 1 ? "hop" : "hops"}
         </span>
       {/if}
-      {#if queued}<span class="text-zinc-500 dark:text-zinc-400">· {fallback ? "could not join the running turn, runs next" : "queued"}</span>{/if}
     </p>
     <div
       class={[
@@ -97,7 +90,6 @@
           : tone === "sky"
             ? "bg-sky-50 text-sky-950 ring-sky-600/15 dark:bg-sky-400/10 dark:text-sky-50 dark:ring-sky-400/20"
             : "bg-violet-50 text-violet-950 ring-violet-600/10 dark:bg-violet-400/10 dark:text-violet-50 dark:ring-violet-400/20",
-        queued && "opacity-70",
       ]}
     >
       {#if origin.kind === "question"}

@@ -25,6 +25,7 @@
    * Enter submits the surrounding form, Shift+Enter adds a line. `meta` renders under the box.
    * With `onqueue` (a turn runs) a typed message has two ways: submitting steers it into the running
    * turn (Enter, the "Steer" button), `onqueue` keeps it for the next turn (Mod+Enter, the button's menu).
+   * With `primary = "queue"` (queueing on) the two swap: Enter queues, Mod+Enter (`onalternate`) steers.
    * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
    * The send slot eases to the width of what it holds (send, stop, steer), so the pills glide aside.
    * Attachments (`draft`): files dropped on the box or pasted into it (screenshots from the clipboard) or picked
@@ -48,6 +49,8 @@
     autofocus = false,
     onstop,
     onqueue,
+    primary = "steer",
+    onalternate,
     controls,
     meta,
     draft,
@@ -68,6 +71,10 @@
     autofocus?: boolean;
     onstop?: (() => void) | undefined;
     onqueue?: (() => void) | undefined;
+    /** What Enter does while a turn runs (submitting the form); Mod+Enter does the other (`onqueue` / `onalternate`). */
+    primary?: "steer" | "queue";
+    /** Queueing on: steer the message (Mod+Enter, the button's menu). */
+    onalternate?: (() => void) | undefined;
     controls?: Snippet;
     meta?: Snippet;
     draft?: AttachmentDraft | undefined;
@@ -109,7 +116,7 @@
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       if (!hasContent || !canSend) return;
-      if (onqueue && matchesHotkey(event, "Mod+Enter")) onqueue();
+      if (onqueue && matchesHotkey(event, "Mod+Enter")) (primary === "queue" ? (onalternate ?? onqueue) : onqueue)();
       else submit();
     }
   }
@@ -158,7 +165,7 @@
     <div class="flex items-center justify-end gap-2 p-2.5 pl-3">
       {#if steerMode}
         <p class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden pointer-coarse:hidden dark:text-zinc-400" aria-hidden="true" in:rise>
-          <Kbd hotkey="Enter" />steer<Kbd hotkey="Mod+Enter" class="ml-1" />queue
+          <Kbd hotkey="Enter" />{primary}<Kbd hotkey="Mod+Enter" class="ml-1" />{primary === "queue" ? "steer" : "queue"}
         </p>
       {/if}
       {#if onfiles || sources}
@@ -167,7 +174,13 @@
       {@render controls?.()}
       <ResizeSlot>
         {#if steerMode && onqueue}
-          <SteerSendButton {sending} disabled={disabled || !canSend || !hasContent} onsteer={submit} {onqueue} />
+          <SteerSendButton
+            {sending}
+            {primary}
+            disabled={disabled || !canSend || !hasContent}
+            onsteer={primary === "queue" ? (onalternate ?? submit) : submit}
+            onqueue={primary === "queue" ? submit : onqueue}
+          />
         {:else if stopMode}
           <button
             type="button"

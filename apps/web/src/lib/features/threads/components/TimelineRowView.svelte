@@ -20,7 +20,7 @@
 </script>
 
 {#if row.kind === "turn-start"}
-  <TurnStart turn={row.turn} newDay={row.newDay} />
+  <TurnStart turn={row.turn} newDay={row.newDay} number={row.number} />
 {:else if row.kind === "input"}
   <TurnInput turn={row.turn} text={row.turn.inputText} />
 {:else if row.kind === "item" && row.inputOf && row.node.entry.item.content.case === "userMessage"}

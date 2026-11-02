@@ -13,9 +13,10 @@
    * matters stays visible: a mark when it worked on a goal (with the objective, when it is the goal the
    * page knows) and, for turns without an input (provider wake-up, recovery), what started it. The turn's
    * number and when it started (or was queued) wait at the right, over its input, until the turn is
-   * hovered or focused (turn-reveal); they are only faded, so screen readers still read them.
+   * hovered or focused (turn-reveal); they are only faded, so screen readers still read them. `number` counts
+   * the shown turns (turns taken out of the queue are not; default: the ordinal).
    */
-  let { turn, newDay }: { turn: ui.Turn; newDay: boolean } = $props();
+  let { turn, newDay, number = turn.ordinal }: { turn: ui.Turn; newDay: boolean; number?: number } = $props();
   const directory = useThreadDirectory();
   const label = $derived(silentTriggerLabel(turn));
   const at = $derived(turn.startedAt ?? turn.queuedAt);
@@ -37,7 +38,7 @@
     {/if}
     {#if label}<span class="truncate">{label}</span>{/if}
     <span class="ml-auto shrink-0 t-quiet tabular-nums">
-      Turn {turn.ordinal}{#if at}<span aria-hidden="true">{" · "}<time datetime={isoDateTime(at)} title={formatDateTime(at)}>{formatTime(at)}</time></span><span class="sr-only">, {formatDateTime(at)}</span>{/if}
+      Turn {number}{#if at}<span aria-hidden="true">{" · "}<time datetime={isoDateTime(at)} title={formatDateTime(at)}>{formatTime(at)}</time></span><span class="sr-only">, {formatDateTime(at)}</span>{/if}
     </span>
   </div>
 </div>

@@ -146,11 +146,9 @@ export class ThreadState {
       case "thread":
         this.thread = change.value;
         break;
-      case "turn": {
-        const index = this.turns.findIndex((t) => t.id === change.value.id);
-        this.turns = index >= 0 ? this.turns.with(index, change.value) : [...this.turns, change.value].sort((a, b) => a.ordinal - b.ordinal);
+      case "turn":
+        this.upsertTurn(change.value);
         break;
-      }
       case "interaction": {
         const index = this.interactions.findIndex((i) => i.requestId === change.value.requestId);
         this.interactions = index >= 0 ? this.interactions.with(index, change.value) : [...this.interactions, change.value];
@@ -168,6 +166,16 @@ export class ThreadState {
       default:
         break;
     }
+  }
+
+  /**
+   * A turn changed here or live. Turns stay in ordinal order: a reordered queue moves its turns
+   * (docs/ui-api.md, "Kolejka").
+   */
+  upsertTurn(turn: ui.Turn): void {
+    const index = this.turns.findIndex((t) => t.id === turn.id);
+    if (index >= 0 && this.turns[index]!.ordinal === turn.ordinal) this.turns = this.turns.with(index, turn);
+    else this.turns = [...this.turns.filter((t) => t.id !== turn.id), turn].sort((a, b) => a.ordinal - b.ordinal);
   }
 
   /** A schedule created or changed here (also before the stream reports it). */

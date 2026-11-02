@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 import { ui } from "@open-agents/contracts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
-import { Invalid, NotFound, InstanceConflict, SettingsConflict } from "../store/index.ts";
+import { Invalid, InstanceConflict, NotFound, QueueConflict, SettingsConflict } from "../store/index.ts";
 
 /** GatewayService for the UI (docs/ui-api.md). Thin: validation and state live in the core and the store. */
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
@@ -67,6 +67,12 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
         guard(async () => create(ui.UploadAttachmentResponseSchema, { attachment: await core.uploadAttachment(request.name, request.data) })),
       getAttachment: (request) => guard(() => core.getAttachment(request.attachmentId, request.thumbnail)),
       getThreadBlob: (request) => guard(() => core.getThreadBlob(request.threadId, request.sha256)),
+      reorderQueuedTurns: (request) =>
+        guard(async () => create(ui.ReorderQueuedTurnsResponseSchema, { turns: await core.reorderQueuedTurns(request) })),
+      editQueuedTurn: (request) => guard(async () => create(ui.EditQueuedTurnResponseSchema, { turn: await core.editQueuedTurn(request) })),
+      deleteQueuedTurn: (request) => guard(async () => create(ui.DeleteQueuedTurnResponseSchema, { turn: await core.deleteQueuedTurn(request.turnId) })),
+      restoreQueuedTurn: (request) => guard(async () => create(ui.RestoreQueuedTurnResponseSchema, { turn: await core.restoreQueuedTurn(request.turnId) })),
+      steerQueuedTurn: (request) => guard(async () => create(ui.SteerQueuedTurnResponseSchema, await core.steerQueuedTurn(request.turnId))),
       listMentionCatalog: (request) => guard(() => core.listMentionCatalog(request)),
       searchFiles: (request) => guard(() => core.searchFiles(request)),
       searchThreads: (request) => guard(() => core.searchThreads(request)),
@@ -90,7 +96,7 @@ export function toConnectError(error: unknown): ConnectError {
   if (cause instanceof NotFound) return new ConnectError(cause.message, Code.NotFound);
   if (cause instanceof Invalid || cause instanceof InvalidError) return new ConnectError(cause.message, Code.InvalidArgument);
   if (cause instanceof UnavailableError) return new ConnectError(cause.message, Code.Unavailable);
-  if (cause instanceof SettingsConflict || cause instanceof InstanceConflict) return new ConnectError(cause.message, Code.FailedPrecondition);
+  if (cause instanceof SettingsConflict || cause instanceof InstanceConflict || cause instanceof QueueConflict) return new ConnectError(cause.message, Code.FailedPrecondition);
   const constraint = constraintOf(cause);
   if (constraint) return new ConnectError(`rejected by ${constraint}`, Code.FailedPrecondition);
   console.error(error);
@@ -106,7 +112,8 @@ function unwrap(error: unknown): unknown {
       current instanceof Invalid ||
       current instanceof InvalidError ||
       current instanceof UnavailableError ||
-      current instanceof SettingsConflict
+      current instanceof SettingsConflict ||
+      current instanceof QueueConflict
     ) {
       return current;
     }

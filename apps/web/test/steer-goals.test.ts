@@ -54,9 +54,7 @@ describe("feed rows for steers", () => {
     turns: [turn("turn-1", 1, "running", "go")],
     notices: [],
     results: new Map(),
-    queued: [],
     steering: [],
-    steers: [],
     working: true,
     inheritedEntries: [],
     inheritedTurns: [],
@@ -65,18 +63,20 @@ describe("feed rows for steers", () => {
     ...over,
   });
 
-  test("steers on their way follow the working indicator, before queued turns", () => {
+  test("steers on their way follow the working indicator; queued turns are not rows (the queue panel has them)", () => {
     const queued = turn("turn-2", 2, "queued", "later");
-    const rows = new FeedBuilder().build(input({ steering: [steer("a", "pending")], queued: [queued] }));
-    expect(rows.slice(-3).map((r) => r.kind)).toEqual(["working", "steer", "queued"]);
+    const rows = new FeedBuilder().build(input({ steering: [steer("a", "pending")], turns: [turn("turn-1", 1, "running", "go"), queued] }));
+    expect(rows.slice(-2).map((r) => r.kind)).toEqual(["working", "steer"]);
+    expect(rows.some((r) => r.key.includes("turn-2"))).toBe(false);
   });
 
-  test("a steer that fell back to the queue names its queued turn", () => {
-    const queued = turn("turn-2", 2, "queued", "steer a");
-    const fallen = steer("a", "queued", { queuedTurnId: "turn-2", reason: "the turn ended before the message could join it" });
-    const rows = new FeedBuilder().build(input({ queued: [queued], steers: [fallen] }));
-    const row = rows.at(-1)!;
-    expect(row.kind === "queued" && row.fallback?.id).toBe("a");
+  test("turns taken out of the queue are not shown, and the turn numbers skip them", () => {
+    const deleted = create(ui.TurnSchema, { id: "turn-2", ordinal: 2, status: "cancelled", withdrawn: "deleted", inputText: "gone", trigger: "user" });
+    const rows = buildTimeline([], [turn("turn-1", 1, "completed", "one"), deleted, turn("turn-3", 3, "completed", "three")], [], new Map());
+    expect(rows.flatMap((r) => (r.kind === "turn-start" ? [[r.turn.id, r.number]] : []))).toEqual([
+      ["turn-1", 1],
+      ["turn-3", 2],
+    ]);
   });
 
   test("unchanged steer rows keep their identity between builds", () => {

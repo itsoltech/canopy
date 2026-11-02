@@ -30,7 +30,7 @@ import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
 import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, ModelStore, InstanceStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
+import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
 import type { AttachmentLimits } from "@open-agents/domain";
 import { startGrpcServer } from "@open-agents/transport";
 import { applyWorkerConfig } from "@open-agents/worker/config";
@@ -41,7 +41,7 @@ import type { SqlClient } from "effect/sql";
 export const SERVICE_TOKEN = "t".repeat(48);
 
 export type TestRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | GoalStore | InstanceStore | AttachmentStore | SqlClient.SqlClient,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | SqlClient.SqlClient,
   unknown
 >;
 
@@ -325,6 +325,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
       SettingsStore.layer,
       ModelStore.layer,
       SteerStore.layer,
+      QueueStore.layer,
       GoalStore.layer,
       InstanceStore.layer(secretsKey),
       AttachmentStore.layer,

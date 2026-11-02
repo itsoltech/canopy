@@ -70,3 +70,40 @@ export async function answerInteraction(
 export async function stopBackgroundTask(threadId: string, itemId: string): Promise<void> {
   await post(`${threadPath(threadId)}/background-tasks/stop`, { itemId });
 }
+
+// ---------- the queue (docs/ui-api.md, "Kolejka"); a message that already started is a 409 with the reason
+
+const queuePath = (threadId: string, turnId?: string) => `${threadPath(threadId)}/queue${turnId ? `/${encodeURIComponent(turnId)}` : ""}`;
+
+/** New order of the queued turns; returns them as the gateway stored them (new ordinals). */
+export async function reorderQueue(threadId: string, turnIds: readonly string[]): Promise<ui.Turn[]> {
+  return decode(ui.ReorderQueuedTurnsResponseSchema, await post(queuePath(threadId), { turnIds })).turns;
+}
+
+/** A queued message's new text with its mentions; `expectedRevision` = the `Turn.revision` the edit started from. */
+export async function editQueued(
+  threadId: string,
+  turnId: string,
+  text: string,
+  expectedRevision: number,
+  mentions: readonly Mention[] = [],
+): Promise<ui.Turn | undefined> {
+  return decode(
+    ui.EditQueuedTurnResponseSchema,
+    await post(queuePath(threadId, turnId), { action: "edit", text, expectedRevision, ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }) }),
+  ).turn;
+}
+
+export async function deleteQueued(threadId: string, turnId: string): Promise<ui.Turn | undefined> {
+  return decode(ui.DeleteQueuedTurnResponseSchema, await post(queuePath(threadId, turnId), { action: "delete" })).turn;
+}
+
+/** Undo of a delete: back in the queue at its place. */
+export async function restoreQueued(threadId: string, turnId: string): Promise<ui.Turn | undefined> {
+  return decode(ui.RestoreQueuedTurnResponseSchema, await post(queuePath(threadId, turnId), { action: "restore" })).turn;
+}
+
+/** The queued message into the running turn now (it leaves the queue; back at its place if it cannot join). */
+export async function steerQueued(threadId: string, turnId: string): Promise<ui.SteerQueuedTurnResponse> {
+  return decode(ui.SteerQueuedTurnResponseSchema, await post(queuePath(threadId, turnId), { action: "steer" }));
+}

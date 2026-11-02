@@ -9,7 +9,7 @@ import { NotFound } from "./store.ts";
 /**
  * User and project settings (docs/ui-api.md): stored by the gateway, the browser only reads and writes
  * them. Stored sections are read leniently (fields dropped from the contract are ignored).
- * Sections (appearance, thread defaults, model favorites) are replaced as a whole; every write bumps the version and
+ * Sections (appearance, thread defaults, model favorites, composer) are replaced as a whole; every write bumps the version and
  * names the version it started from, so two devices never overwrite each other unnoticed.
  */
 
@@ -34,6 +34,7 @@ interface Stored {
   appearance?: JsonValue;
   threadDefaults?: JsonValue;
   modelFavorites?: JsonValue;
+  composer?: JsonValue;
 }
 
 export class SettingsStore extends Context.Service<
@@ -46,6 +47,7 @@ export class SettingsStore extends Context.Service<
       appearance?: ui.AppearanceSettings;
       threadDefaults?: ui.ThreadDefaults;
       modelFavorites?: ui.ModelFavorites;
+      composer?: ui.ComposerSettings;
       expectedVersion: bigint;
     }): Fx<ui.UserSettings>;
     updateProject(input: { userId: string; projectId: string; threadDefaults?: ui.ThreadDefaults; expectedVersion: bigint }): Fx<ui.ProjectSettings>;
@@ -64,12 +66,16 @@ export class SettingsStore extends Context.Service<
       const modelFavorites = (stored: Stored) =>
         stored.modelFavorites ? fromJson(ui.ModelFavoritesSchema, stored.modelFavorites, { ignoreUnknownFields: true }) : create(ui.ModelFavoritesSchema, {});
 
+      const composer = (stored: Stored) =>
+        stored.composer ? fromJson(ui.ComposerSettingsSchema, stored.composer, { ignoreUnknownFields: true }) : create(ui.ComposerSettingsSchema, {});
+
       const toUser = (row: Row | undefined) => {
         const stored = (row?.settings ?? {}) as Stored;
         return create(ui.UserSettingsSchema, {
           appearance: appearance(stored),
           threadDefaults: threadDefaults(stored),
           modelFavorites: modelFavorites(stored),
+          composer: composer(stored),
           version: BigInt(row?.version ?? 0),
           ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
         });
@@ -115,7 +121,7 @@ export class SettingsStore extends Context.Service<
             Effect.map((rows) => rows.map((r) => toProject(r.project_id, r))),
           ),
 
-        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, expectedVersion }) =>
+        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, expectedVersion }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               const current = (yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid FOR UPDATE`)[0];
@@ -125,6 +131,7 @@ export class SettingsStore extends Context.Service<
                 ...(nextAppearance && { appearance: toJson(ui.AppearanceSettingsSchema, nextAppearance) }),
                 ...(nextDefaults && { threadDefaults: toJson(ui.ThreadDefaultsSchema, nextDefaults) }),
                 ...(nextFavorites && { modelFavorites: toJson(ui.ModelFavoritesSchema, nextFavorites) }),
+                ...(nextComposer && { composer: toJson(ui.ComposerSettingsSchema, nextComposer) }),
               };
               const row = yield* write({
                 current,

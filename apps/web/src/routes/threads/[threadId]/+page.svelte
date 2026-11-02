@@ -25,6 +25,8 @@
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
+  import QueuePanel from "#lib/features/threads/queue/QueuePanel.svelte";
+  import { QueueState } from "#lib/features/threads/queue/queue-state.svelte.ts";
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { forkFrom, lastForkPoint } from "#lib/features/threads/fork.svelte.ts";
@@ -111,8 +113,8 @@
   const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived");
   const working = $derived(view.running && thread?.status !== "waiting_input");
 
-  // The feed: inherited history (folded), the thread's own timeline, the working indicator, queued
-  // inputs. One builder per thread keeps unchanged rows identical, so a delta re-renders one row.
+  // The feed: inherited history (folded), the thread's own timeline, the working indicator, steers on
+  // their way (queued inputs are in the queue panel above the composer). One builder per thread keeps unchanged rows identical, so a delta re-renders one row.
   let historyOpen = $state(false);
   // Ended turns fold their work into "Worked for …"; which folds are open, per thread.
   const folds = $derived((void threadId, new WorkFolds()));
@@ -123,9 +125,7 @@
       turns: view.ownTurns,
       notices: view.notices,
       results: view.turnResults,
-      queued: view.queued,
       steering: view.steering,
-      steers: view.steers,
       working,
       forkSourceId: thread?.forkSourceThreadId,
       inheritedEntries: view.inheritedEntries,
@@ -139,6 +139,16 @@
     historyOpen = false;
   });
 
+
+  // Queued messages above the composer (reorder, edit, delete, steer now); confirmed changes go into the
+  // thread's state before the stream repeats them.
+  const queue = $derived.by(() => {
+    const state = view;
+    return new QueueState(() => ({ threadId, turns: state.queued, steers: state.steers, running: state.running }), {
+      turn: (turn) => state.upsertTurn(turn),
+      steer: (steer) => state.upsertSteer(steer),
+    });
+  });
 
   const composerNote = $derived.by(() => {
     if (!thread) return undefined;
@@ -368,8 +378,14 @@
                   <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
                 </GrowIn>
               {/if}
+              {#if thread && queue.rows.length > 0}
+                <GrowIn class="-mb-4 px-2 sm:px-3">
+                  <QueuePanel {queue} delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} class="pb-4" />
+                </GrowIn>
+              {/if}
               {#if thread}
                 <Composer
+                  class="relative"
                   {thread}
                   {worker}
                   running={view.running}

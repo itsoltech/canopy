@@ -126,6 +126,10 @@ export interface TurnRow {
   source_status?: string | null;
   question_kind?: string | null;
   question_tool?: string | null;
+  /** Taken out of the queue by the user (cancelled): deleted | steered (docs/ui-api.md, "Kolejka"). */
+  withdrawn?: string | null;
+  /** Grows with every edit of the queued input. */
+  revision?: number;
 }
 
 export interface OutboxRow {
@@ -304,7 +308,8 @@ export class GatewayStore extends Context.Service<
                  CASE WHEN t.kind = 'side' THEN
                    (SELECT left(m.content->'agentMessage'->>'text', ${LAST_MESSAGE_PREVIEW}) FROM thread_items m
                      WHERE m.thread_id = t.id AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1) END AS last_message,
-                 (SELECT ft.ordinal FROM turns ft WHERE ft.id = t.fork_after_turn_id) AS fork_after_turn_ordinal
+                 (SELECT (ft.ordinal - (SELECT count(*) FROM turns w WHERE w.thread_id = ft.thread_id AND w.withdrawn IS NOT NULL AND w.ordinal < ft.ordinal))::int
+                    FROM turns ft WHERE ft.id = t.fork_after_turn_id) AS fork_after_turn_ordinal
             FROM threads t ${where}`;
 
         /**
@@ -992,6 +997,8 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     permissionMode: permissionModeOf(row.permission_mode),
     goalId: row.goal_id ?? "",
     attachments: (row.input?.attachments ?? []).map(toUiAttachment),
+    withdrawn: row.withdrawn ?? "",
+    revision: row.revision ?? 0,
     mentions: mentionsFromJson(row.input?.mentions),
     quotes: (row.input?.quotes ?? []).map(toUiQuote),
   });
