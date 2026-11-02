@@ -14,6 +14,7 @@
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
   import { interruptThread } from "#lib/features/threads/api.ts";
+  import { requestTitleRegeneration } from "#lib/features/threads/title-actions.ts";
   import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
   import BackgroundTaskDialog from "#lib/features/threads/components/BackgroundTaskDialog.svelte";
   import { backgroundTasks } from "#lib/features/threads/background-tasks.ts";
@@ -261,6 +262,7 @@
       { id: "thread:fork", title: "Fork thread", group: "actions", icon: "arrow-turn-up-right", keywords: "fork branch copy duplicate new chat", rank: -7, when: () => Boolean(forkPoint), run: forkThread },
       { id: "thread:schedule", title: "Schedule a task…", group: "actions", icon: "clock", keywords: "schedule later cron recurring", rank: -7, when: () => canSchedule, run: openSchedule },
       { id: "thread:model", title: "Model and effort…", group: "actions", icon: "cpu-chip", keywords: "model reasoning effort", rank: -7, when: () => !closed, run: () => (modelOpen = true) },
+      { id: "thread:regenerate-title", title: "Regenerate title", group: "actions", icon: "arrow-path", keywords: "thread title generate name", rank: -7, when: () => !closed, run: () => requestTitleRegeneration(current.id) },
       { id: "thread:permissions", title: "Permissions…", group: "actions", icon: "shield-check", keywords: "permission mode approvals sandbox", rank: -7, when: () => !closed, run: () => (permissionsOpen = true) },
       { id: "thread:goal", title: openGoal ? "Replace the goal…" : "Set a goal…", group: "actions", icon: "flag", keywords: "goal objective", rank: -7, when: () => goalsHere, disabled: !canGoal, run: setGoalLater },
       { id: "thread:details", title: "Toggle thread details", group: "actions", icon: "view-columns", keywords: "panel context sidebar", rank: -6, run: togglePanel },

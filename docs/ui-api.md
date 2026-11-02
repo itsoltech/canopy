@@ -1,5 +1,7 @@
 # API dla UI i architektura frontendu
 
+`UpdateThread.title` umożliwia rename (`title_source=user`), a `RegenerateTitle` zleca asynchroniczną generację. Globalne ustawienia `textGeneration`, źródła tytułu i aktualizacje live opisuje [thread-titles.md](thread-titles.md).
+
 Status: **zaimplementowane**:
 - kontrakt: `proto/openagents/ui/v1/gateway.proto`,
 - rdzeń: `apps/gateway/src/core`,
