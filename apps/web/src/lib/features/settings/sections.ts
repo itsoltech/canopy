@@ -18,6 +18,7 @@ export const settingsSections: readonly SettingsSection[] = [
   { href: "/settings/providers", label: "Providers", icon: "cpu-chip", group: "Connections", keywords: "provider instance codex claude cliproxyapi endpoint key login models favorites environment" },
   { href: "/settings/connectors", label: "Connectors", icon: "link", group: "Connections", keywords: "github slack outlook microsoft notion linear google atlassian mcp oauth accounts integrations access" },
   { href: "/settings/workers", label: "Workers", icon: "server", group: "Connections", keywords: "worker machine environment device online config" },
+  { href: "/settings/mobile", label: "Mobile devices", icon: "link", group: "Connections", keywords: "phone iphone android pairing qr tailscale device revoke mobile" },
 ];
 
 export const settingsGroups = ["General", "Code", "Connections"] as const;
