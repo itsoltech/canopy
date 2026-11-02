@@ -159,7 +159,7 @@ export class SettingsStore extends Context.Service<
         updateProject: ({ userId, projectId, threadDefaults: nextDefaults, expectedVersion }) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              const owned = yield* sql`SELECT 1 FROM projects WHERE id = ${projectId}::uuid AND owner_user_id = ${userId}::uuid AND archived_at IS NULL`;
+              const owned = yield* sql`SELECT 1 FROM projects WHERE id = ${projectId}::uuid AND owner_user_id = ${userId}::uuid AND archived_at IS NULL AND kind <> 'scratch'`;
               if (owned.length === 0) return yield* Effect.fail(new NotFound("project not found"));
               const current = (yield* sql<Row>`SELECT settings, version, updated_at FROM project_settings WHERE project_id = ${projectId}::uuid FOR UPDATE`)[0];
               const stored = (current?.settings ?? {}) as Stored;

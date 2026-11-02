@@ -128,6 +128,8 @@ message Project {
   string id = 1;
   string name = 2;
   string slug = 3;
+  // "scratch": systemowe No project; ukryte w zarządzaniu projektami.
+  string kind = 410;
   repeated Workspace workspaces = 4;
 }
 

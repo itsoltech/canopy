@@ -3,7 +3,7 @@
  * No provider processes: Codex and Claude are disabled in the configuration.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { BackgroundTaskKind, CommandSchema, ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
@@ -89,6 +89,18 @@ describe("worker command handling", () => {
     const fork = { sourceThreadId: Bun.randomUUIDv7(), sourceProviderThreadId: "source", afterTurnId: Bun.randomUUIDv7(), afterProviderTurnRef: "" };
     const result = await connection.sendCommand({ case: "createThread", value: { thread: thread(join(root, "project-a")), fork } });
     expect(result).toMatchObject({ ok: false, errorCode: "FORK_POINT_UNKNOWN" });
+  });
+
+  test("CreateThread prepares a scratch cwd before calling the provider, and refuses creation outside allowed roots", async () => {
+    const suffix = join(".open-agents", "scratch", Bun.randomUUIDv7(), Bun.randomUUIDv7());
+    const cwd = join(root, suffix);
+    const result = await connection.sendCommand({ case: "createThread", value: { thread: { ...thread(cwd), scratch: true } } });
+    // Provider is intentionally disabled, but placement has succeeded before that boundary.
+    expect(result.errorCode).toBe("PROVIDER_UNAVAILABLE");
+    expect(existsSync(cwd)).toBe(true);
+    const outside = join(dir, suffix);
+    expect((await connection.sendCommand({ case: "createThread", value: { thread: { ...thread(outside), scratch: true } } })).errorCode).toBe("SCRATCH_NOT_ALLOWED");
+    expect(existsSync(outside)).toBe(false);
   });
 
   test("a redelivered command is answered from the journal, not executed again", async () => {

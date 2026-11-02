@@ -961,6 +961,8 @@ export class GatewayCore {
   /** Fuzzy file search in the scope's folder on its worker. */
   async searchFiles(request: ui.SearchFilesRequest): Promise<ui.SearchFilesResponse> {
     const scope = await this.#mentionScope(request.scope);
+    // The draft's fresh directory has no files and does not exist until CreateThread.
+    if (scope.scratchDraft) return create(ui.SearchFilesResponseSchema, { result: { matches: [], source: "walk" } });
     const result = await this.#workerQuery(scope.workerId, { case: "searchFiles", value: { cwd: scope.cwd, query: request.query, limit: request.limit } }, 20_000);
     return create(ui.SearchFilesResponseSchema, { ...(result.fileSearch && { result: result.fileSearch }) });
   }
@@ -978,7 +980,7 @@ export class GatewayCore {
   }
 
   /** Worker, provider, profile and folder of a thread, or of a new thread in a workspace. */
-  async #mentionScope(scope: ui.MentionScope | undefined): Promise<{ workerId: string; provider: Provider; profileId: string; cwd: string }> {
+  async #mentionScope(scope: ui.MentionScope | undefined): Promise<{ workerId: string; provider: Provider; profileId: string; cwd: string; scratchDraft?: boolean }> {
     if (scope?.threadId) {
       const thread = await this.#run((s) => s.thread(scope.threadId));
       if (thread.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
@@ -993,11 +995,16 @@ export class GatewayCore {
     const projects = await this.#run((s) => s.listProjects(this.#options.userId));
     const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === scope?.workspaceId);
     if (!workspace) throw new InvalidError("workspace not found");
+    const scratchDraft = projects.find((p) => p.id === workspace.projectId)?.kind === "scratch";
+    // Before creation, list the machine's commands/skills from its configured root. File search
+    // remains empty; after creation both catalogs and files use the thread's exact scratch cwd.
+    const root = scratchDraft ? (await this.#workers()).find((w) => w.id === workspace.workerId)?.allowedRoots[0] : undefined;
     return {
       workerId: workspace.workerId,
       provider: scope?.provider || Provider.CODEX,
       profileId: scope?.providerProfileId || "native",
-      cwd: scope?.cwd || workspace.rootPath,
+      cwd: root ?? (scope?.cwd || workspace.rootPath),
+      scratchDraft,
     };
   }
 
@@ -2035,6 +2042,9 @@ export class GatewayCore {
     for (const worker of await this.#workers()) {
       this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "worker", value: worker } }));
     }
+    // A newly configured worker becomes a scratch placement without a page reload.
+    const scratch = (await this.#run((s) => s.listProjects(this.#options.userId))).find((p) => p.kind === "scratch");
+    if (scratch) this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: scratch } }));
   }
 
   #run<A, E>(use: (store: GatewayStore["Service"]) => Effect.Effect<A, E>): Promise<A> {

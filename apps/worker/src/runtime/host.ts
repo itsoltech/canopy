@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { ensureScratchDirectory } from "./scratch.ts";
 import { join } from "node:path";
 import { clone, create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
@@ -423,6 +424,10 @@ export class WorkerHost {
       case "createThread": {
         const spec = kind.value.thread;
         if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
+        if (spec.scratch) {
+          try { ensureScratchDirectory(spec.cwd, config.allowedRoots); }
+          catch (error) { throw new CommandError("SCRATCH_NOT_ALLOWED", error instanceof Error ? error.message : String(error), true); }
+        }
         this.#checkCwd(config, spec.cwd);
         this.#cwds.set(spec.threadId, spec.cwd);
         const fork = kind.value.fork;

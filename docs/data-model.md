@@ -1,5 +1,31 @@
 # Model danych (PostgreSQL)
 
+## Wątki bez projektu (scratch)
+
+Migracja `0032_scratch_projects` dodaje `projects.kind`: `project` (domyślnie, także dla
+istniejących danych) albo `scratch`. Numer to ostatnia migracja main (`0029`) + 3;
+`0030` i `0031` pozostają wolne dla zmian rozwijanych równolegle.
+
+Każdy użytkownik ma dokładnie jeden automatycznie provisionowany projekt systemowy „No project”.
+Unikalny indeks po właścicielu zabezpiecza współbieżne pierwsze odczyty. Tożsamość, właściciel,
+nazwa i aktywność projektu systemowego są niezmienne. `GetOverview` ujawnia jego `kind`,
+ale UI ukrywa go w zarządzaniu projektami; korzystają z niego pickery, filtr i domyślne ustawienia wątków.
+
+Gateway automatycznie zapewnia workspace na każdym aktywnym, nieunieważnionym workerze
+użytkownika lub współdzielonym, który ma dozwolony katalog. Root workspace'u wynosi
+`<allowed_roots[0]>/.open-agents/scratch/<owner-user-id>` (separatory według OS workera).
+Nowy główny wątek ma `cwd = <workspace-root>/<thread-id>`; tytuł nie uczestniczy w nazwie ścieżki.
+Zmiana pierwszego allowed root aktualizuje workspace dla przyszłych rozmów, bez przenoszenia plików
+ani zmiany cwd istniejących wątków. Wątki boczne, `spawn_thread` i forki dzielą cwd źródła.
+Pusty zestaw allowed roots usuwa worker z dostępnych pozycji scratch.
+
+Wszystkie FK, reguły właściciela i drzewa, historia forków, szyna agentów oraz harmonogramy
+korzystają z dotychczasowego modelu: `threads.project_id` i `workspace_id` pozostają wymagane.
+Harmonogram `new_thread` wskazuje projekt systemowy i workspace; każde wykonanie dostaje
+osobny katalog nowego wątku. Publiczne operacje tworzenia, zmiany i usuwania workspace'ów
+oraz ustawień projektu nie modyfikują zasobów systemowych. Archiwizacja i soft delete wątku
+nie usuwają plików scratch. Nie ma automatycznego czyszczenia.
+
 Migracja `0026_sidebar_threads` dodaje do `threads`: `deleted_at`, `deletion_batch_id`,
 `archived_by` (`user` / `agent`) i `archived_by_thread_id`. Soft delete obejmuje rodzica i dzieci;
 identyfikator partii pozwala cofnąć tylko tę operację. Triggery blokują nową pracę oraz tworzenie dzieci

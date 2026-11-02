@@ -331,6 +331,8 @@ enum PermissionMode {
 // Pełny opis wątku. Gateway (baza) jest źródłem prawdy i wysyła go w każdej komendzie,
 // więc worker może odtworzyć wątek nawet po utracie lokalnego stanu (docs/threads.md).
 message ThreadSpec {
+  // Utwórz katalog scratch wewnątrz allowed_roots przed uruchomieniem harnessu.
+  bool scratch = 410;
   string thread_id = 1;
   Provider provider = 2;
   // ProviderProfile.id z Hello. Pusty oznacza profil natywny.
