@@ -85,6 +85,12 @@ describe("worker command handling", () => {
     expect(disabled).toMatchObject({ ok: false, errorCode: "PROVIDER_UNAVAILABLE", errorMessage: "disabled in configuration" });
   });
 
+  test("a fork at a turn without its provider ref is refused, never a copy of the whole history", async () => {
+    const fork = { sourceThreadId: Bun.randomUUIDv7(), sourceProviderThreadId: "source", afterTurnId: Bun.randomUUIDv7(), afterProviderTurnRef: "" };
+    const result = await connection.sendCommand({ case: "createThread", value: { thread: thread(join(root, "project-a")), fork } });
+    expect(result).toMatchObject({ ok: false, errorCode: "FORK_POINT_UNKNOWN" });
+  });
+
   test("a redelivered command is answered from the journal, not executed again", async () => {
     const first = await connection.sendCommand({ case: "createThread", value: { thread: thread(dir) } });
     // Same command id again (what the gateway outbox does after a reconnect).

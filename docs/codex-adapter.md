@@ -52,6 +52,8 @@ Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway k
 
 - **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
 
+**Fork od tury** ([threads.md](threads.md#fork-od-tury-fork-from-here)): `thread/fork { threadId: źródło, lastTurnId: provider_turn_ref tury }` (codex-cli 0.164, schemat v2 `ThreadForkParams.lastTurnId`: tury po niej są pominięte; nie z tury w toku, a tury nieudane i przerwane są dozwolone). `thread/rollback` nie jest potrzebny. Bez `after_provider_turn_ref` przy podanej turze worker odmawia (`FORK_POINT_UNKNOWN`) zamiast forkować całą historię. Na żywo: `fork-from-turn.live.test.ts` (trzy tury, fork od drugiej pamięta drugą jako ostatnią).
+
 Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną historią, „restart workera” (nowy proces z tym samym `CODEX_HOME` i dziennikiem), wznowienie i tura w wznowionym wątku.
 
 ## Mapowanie zdarzeń

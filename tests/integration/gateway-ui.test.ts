@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { create } from "@bufbuild/protobuf";
-import { InteractionKind, NoticeLevel, PermissionMode, Provider, TurnOrigin, ui } from "@open-agents/contracts";
+import { InteractionKind, NoticeLevel, PermissionMode, Provider, TurnOrigin, TurnOutcome, ui } from "@open-agents/contracts";
 import { GatewayStore } from "@open-agents/gateway/store";
 import { dockerAvailable } from "@open-agents/db/testing";
 import { answers, eventually, failure, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
@@ -274,6 +274,61 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     expect(inherited?.items.filter((i) => i.inherited).map((i) => (i.item?.content.case === "agentMessage" ? i.item.content.value.text : ""))).toContain(
       "Echo: remember me",
     );
+  });
+
+  test("fork from a turn: a new main thread up to that turn, lineage with the turn, ended turns only", async () => {
+    const source = (
+      await api.createThread({ projectId, workspaceId, title: "Three turns", provider: Provider.CODEX, model: "gpt-6.1-sol", permissionMode: PermissionMode.ACCEPT_EDITS, initialMessage: "one" })
+    ).thread!;
+    await watchUntil(api, source.id, (u) => answers(u).includes("Echo: one"));
+    await api.sendMessage({ threadId: source.id, text: "two", clientRequestId: "fork-turn-2" });
+    await api.sendMessage({ threadId: source.id, text: "three", clientRequestId: "fork-turn-3" });
+    const turnsOf = async (threadId: string) => {
+      const first = (await watchUntil(api, threadId, (u) => u.length >= 1))[0];
+      return first?.change.case === "snapshot" ? first.change.value.turns : [];
+    };
+    const turns = await eventually(() => turnsOf(source.id), (t) => t.filter((x) => x.status === "completed").length === 3);
+    const [t1, t2, t3] = turns;
+
+    // Only the source and the turn: the fork takes its place and settings from the source.
+    const fork = (await api.createThread({ forkThreadId: source.id, forkAtTurnId: t2!.id })).thread!;
+    expect([fork.kind, fork.rootThreadId, fork.parentThreadId, fork.title]).toEqual([ui.ThreadKind.MAIN, fork.id, "", "Fork of Three turns"]);
+    expect([fork.forkSourceThreadId, fork.forkAfterTurnId, fork.forkAfterTurnOrdinal]).toEqual([source.id, t2!.id, 2]);
+    expect([fork.projectId, fork.workspaceId, fork.cwd, fork.provider, fork.model, fork.permissionMode]).toEqual([
+      projectId, workspaceId, source.cwd, Provider.CODEX, "gpt-6.1-sol", PermissionMode.ACCEPT_EDITS,
+    ]);
+    const command = await eventually(
+      async () => worker.commands.find((c) => c.case === "createThread" && c.value.thread?.threadId === fork.id),
+      (c) => c !== undefined,
+    );
+    const spec = command?.case === "createThread" ? command.value.fork : undefined;
+    expect([spec?.sourceThreadId, spec?.afterTurnId, spec?.afterProviderTurnRef]).toEqual([source.id, t2!.id, `ct-${t2!.id.slice(-4)}`]);
+    const inherited = await eventually(() => turnsOf(fork.id), (t) => t.length === 2);
+    expect(inherited.map((t) => [t.inputText, t.inherited])).toEqual([["one", true], ["two", true]]);
+
+    // A fork of the fork at a turn it inherits forks the thread the turn belongs to.
+    const again = (await api.createThread({ forkThreadId: fork.id, forkAtTurnId: t1!.id, title: "Again" })).thread!;
+    expect([again.forkSourceThreadId, again.forkAfterTurnOrdinal, again.title]).toEqual([source.id, 1, "Again"]);
+    // A turn past the fork point is not in the fork's history.
+    expect(String(await api.createThread({ forkThreadId: fork.id, forkAtTurnId: t3!.id }).catch((e: unknown) => e))).toContain("not in this thread's history");
+
+    // A running turn cannot be forked at; once interrupted it can (history up to that point).
+    worker.holdTurns = true;
+    const running = (await api.sendMessage({ threadId: source.id, text: "four", clientRequestId: "fork-turn-4" })).turn!;
+    await eventually(() => turnsOf(source.id), (t) => t.some((x) => x.id === running.id && x.status === "running"));
+    expect(String(await api.createThread({ forkThreadId: source.id, forkAtTurnId: running.id }).catch((e: unknown) => e))).toContain("a fork starts after an ended turn");
+    worker.holdTurns = false;
+    worker.emit(source.id, running.id, { case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED, providerTurnRef: `ct-${running.id.slice(-4)}` } });
+    await eventually(() => turnsOf(source.id), (t) => t.some((x) => x.id === running.id && x.status === "interrupted"));
+    const atInterrupted = (await api.createThread({ forkThreadId: source.id, forkAtTurnId: running.id })).thread!;
+    expect(atInterrupted.forkAfterTurnOrdinal).toBe(4);
+
+    // A turn the provider never started has no fork point: refused, never the whole history instead.
+    worker.handlers.set("startTurn", (_value, reply) => reply(false, { errorCode: "BUSY", errorMessage: "refused" }));
+    const refused = (await api.sendMessage({ threadId: source.id, text: "five", clientRequestId: "fork-turn-5" })).turn!;
+    await eventually(() => turnsOf(source.id), (t) => t.some((x) => x.id === refused.id && x.status === "failed"));
+    worker.handlers.delete("startTurn");
+    expect(String(await api.createThread({ forkThreadId: source.id, forkAtTurnId: refused.id }).catch((e: unknown) => e))).toContain("never reached Codex");
   });
 
   test("settings live in the gateway: sections, versions across devices, project overrides, live updates", async () => {

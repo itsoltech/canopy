@@ -50,6 +50,11 @@ export async function updateThread(
   return decode(ui.UpdateThreadResponseSchema, await post(`${threadPath(threadId)}/settings`, change)).thread;
 }
 
+/** A new main thread with the history of `threadId` up to and including the ended turn `turnId` ("Fork from here"). */
+export async function forkThread(threadId: string, turnId: string): Promise<ui.Thread | undefined> {
+  return decode(ui.CreateThreadResponseSchema, await post(`${threadPath(threadId)}/fork`, { turnId })).thread;
+}
+
 export async function interruptThread(threadId: string): Promise<void> {
   await post(`${threadPath(threadId)}/interrupt`, {});
 }
