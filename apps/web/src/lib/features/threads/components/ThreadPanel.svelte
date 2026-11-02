@@ -3,8 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import { osLabel } from "#lib/features/overview/workers.ts";
-  import ScheduleActions from "#lib/features/schedules/ScheduleActions.svelte";
-  import { describeWhen } from "#lib/features/schedules/schedules.ts";
+  import ScheduleCompactRow from "#lib/features/schedules/ScheduleCompactRow.svelte";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { formatCount, formatDateTime, formatRelative, isoDateTime } from "#lib/shared/format.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -127,27 +126,7 @@
       {#if schedules.length > 0}
         <ul role="list" class="grid grid-cols-1 gap-0.5">
           {#each schedules as schedule (schedule.id)}
-            <li class="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-lg py-1.5 pr-1.5 pl-3">
-              <div class="flex h-lh items-center text-base/6 sm:text-sm/6">
-                <Icon
-                  name={schedule.createdBy === "agent" ? "sparkles" : schedule.kind === "once" ? "clock" : "arrow-path"}
-                  class={schedule.createdBy === "agent" ? "fill-violet-500 dark:fill-violet-400" : "fill-zinc-400 dark:fill-zinc-500"}
-                />
-              </div>
-              <div class="min-w-36 flex-1">
-                <p class="truncate text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300" title={schedule.prompt}>{schedule.prompt}</p>
-                <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-                  {describeWhen(schedule)}
-                  {#if schedule.status === "paused"}
-                    · <span class="text-amber-700 dark:text-amber-400">Paused</span>
-                  {:else if schedule.nextRunAt}
-                    · <time datetime={isoDateTime(schedule.nextRunAt)} title={formatDateTime(schedule.nextRunAt)}>next {formatRelative(schedule.nextRunAt, clock.now)}</time>
-                  {/if}
-                  {#if schedule.createdBy === "agent"}<span class="sr-only"> (set by an agent)</span>{/if}
-                </p>
-              </div>
-              <ScheduleActions {schedule} compact onchange={onschedulechange} class="ml-auto" />
-            </li>
+            <li><ScheduleCompactRow {schedule} onchange={onschedulechange} /></li>
           {/each}
         </ul>
       {/if}

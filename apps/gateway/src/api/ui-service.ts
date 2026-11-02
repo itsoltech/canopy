@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 import { ui } from "@open-agents/contracts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
-import { Invalid, InstanceConflict, NotFound, QueueConflict, SettingsConflict } from "../store/index.ts";
+import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, SettingsConflict } from "../store/index.ts";
 
 /** GatewayService for the UI (docs/ui-api.md). Thin: validation and state live in the core and the store. */
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
@@ -36,6 +36,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
       watchThread: (request, context) => core.watchThread(request.threadId, context.signal),
       listSchedules: (request) => guard(async () => create(ui.ListSchedulesResponseSchema, { schedules: await core.listSchedules(request) })),
       createSchedule: (request) => guard(async () => create(ui.CreateScheduleResponseSchema, { schedule: await core.createSchedule(request) })),
+      updateSchedule: (request) => guard(async () => create(ui.UpdateScheduleResponseSchema, { schedule: await core.updateSchedule(request) })),
       getSettings: () => guard(() => core.settings()),
       updateUserSettings: (request) =>
         guard(async () => create(ui.UpdateUserSettingsResponseSchema, { settings: await core.updateUserSettings(request) })),
@@ -105,7 +106,7 @@ export function toConnectError(error: unknown): ConnectError {
   if (cause instanceof NotFound) return new ConnectError(cause.message, Code.NotFound);
   if (cause instanceof Invalid || cause instanceof InvalidError) return new ConnectError(cause.message, Code.InvalidArgument);
   if (cause instanceof UnavailableError) return new ConnectError(cause.message, Code.Unavailable);
-  if (cause instanceof SettingsConflict || cause instanceof InstanceConflict || cause instanceof QueueConflict) return new ConnectError(cause.message, Code.FailedPrecondition);
+  if (cause instanceof SettingsConflict || cause instanceof InstanceConflict || cause instanceof QueueConflict || cause instanceof ScheduleConflict) return new ConnectError(cause.message, Code.FailedPrecondition);
   const constraint = constraintOf(cause);
   if (constraint) return new ConnectError(`rejected by ${constraint}`, Code.FailedPrecondition);
   console.error(error);
@@ -122,6 +123,7 @@ function unwrap(error: unknown): unknown {
       current instanceof InvalidError ||
       current instanceof UnavailableError ||
       current instanceof SettingsConflict ||
+      current instanceof ScheduleConflict ||
       current instanceof QueueConflict
     ) {
       return current;
