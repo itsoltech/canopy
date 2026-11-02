@@ -1,6 +1,6 @@
 # Model danych (PostgreSQL)
 
-Migracja `0030_bots` dodaje osobne rozmowy Bots, ich tury/checkpointy, wiadomości,
+Migracja `0031_bots` dodaje osobne rozmowy Bots, ich tury/checkpointy, wiadomości,
 wywołania narzędzi, zgody, rejestr zdalnych MCP i outboxy pobudek/wyników workerów.
 `turns.trigger='bot'` i `bot_call_id` zachowują pochodzenie oraz hops przy delegowaniu.
 Uzasadnienie osobnego modelu i niezmienniki: [bots.md](bots.md).

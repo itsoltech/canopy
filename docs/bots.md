@@ -96,6 +96,8 @@ dotychczasowych komunikatów. Tury workera uruchomione przez bota mają `trigger
    również zatwierdza turę i subskrypcję razem. `steer` obserwuje dostarczenie do aktywnej
    tury lub istniejący fallback do kolejki, zachowując autora bota i hops. Outbox workerów zachowuje własną
    idempotencję komend. Archiwizacja używa istniejącego, idempotentnego cyklu życia.
+   Wynik zatwierdzony w transakcji ma pierwszeństwo przed późniejszym błędem dispatchu
+   lub publikacji; taki błąd nie nadpisuje sukcesu i nie zachęca modelu do powtórzenia akcji.
 5. Przed zdalnym MCP zapisujemy `running`. Gdy lease zostaje przejęty po awarii,
    takie wywołanie staje się `interrupted`, z opisem nieznanego wyniku. Model dostaje
    ten wynik, a nie ponowione żądanie MCP. Dokładnie jednokrotnego wykonania obcego
@@ -142,8 +144,10 @@ konfiguracją użytkownika; może wskazywać dostępne mu prywatne usługi sieci
 
 Statusy nie pokazują nazw funkcji ani ich JSON: `Typing…`, `Searching Notion`,
 `Checking Notion`, `Checking threads`, `Starting a thread in a project`, `Waiting for you`.
-W trakcie aktywnego narzędzia status pochodzi z zaufanego deskryptora i parametrów
-etykiety. Przerwanie anuluje żądanie modelu/MCP i unieważnia lease; kolejne wiadomości
+W trakcie aktywnego narzędzia status pochodzi z zaufanego deskryptora. Nazwy projektów,
+wątków i botów są odczytywane ścieżkami właściciela, np. `Starting a thread in CRM`.
+Karta zgody pokazuje cel i proponowaną treść lub ustawienia jako opisane pola, bez JSON;
+długie wartości są jawnie oznaczone jako skrócony podgląd. Przerwanie anuluje żądanie modelu/MCP i unieważnia lease; kolejne wiadomości
 mogą zacząć nową turę.
 
 ## 5. Bot ↔ bot i powiadomienia
@@ -181,6 +185,8 @@ i `QuestionCard`, bez importowania galerii lub danych fikcyjnych. Lista jest pob
 z API, czat przez SSE BFF; można wysłać wiadomość, odpowiedzieć, zatwierdzić, odrzucić,
 przerwać i przypiąć bota. Awaria wysyłki zachowuje identyfikator żądania przy „Retry message”.
 Kształt i własny kolor są renderowane przez awatar.
+Lista pokazuje rzeczywistą ostatnią wiadomość (`Bot.last_message`, pole 350) i jej czas;
+nie wczytuje całej historii każdej rozmowy do sidebara.
 
 Gałąź `feat/bots-wizard` została scalona z `main` podczas implementacji. Akcja „Create bot”
 w sidebarze otwiera `CreateBotWizard`; `oncreate(CreateBotDraft)` zapisuje `CreateBot`
@@ -207,6 +213,10 @@ oczu komponentu `MascotFace`. API komponentów: [bots-wizard.md](bots-wizard.md)
 - Dowody izolacji harnessów: test przechwycenia requestu i live opisane w sekcji 1.
   Sekrety live pochodzą wyłącznie z pliku środowiska poza repozytorium; brak wartości
   w kodzie, commitach, wynikach testów i dokumentacji.
+
+UI zweryfikowano przez typecheck, build oraz testy adaptera i walidacji wizarda;
+nie uruchamiano przeglądarkowych testów E2E tej integracji. Testy schematu sprawdzają
+również kolejność migracji i ponowne zastosowanie migratora bez zmian.
 
 Faza 2: edycja wyglądu przez istniejący `EditBotAppearance`, ustawienia persony i polityk, zarządzanie MCP
 z połączeniem testowym i rotacją nagłówków, otwieranie i grupowanie wymian bot↔bot,

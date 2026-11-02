@@ -9,7 +9,10 @@ export function botParticipant(bot: bots.Bot): BotView {
   return { id: bot.id, kind: "bot", name: bot.configuration?.name ?? "Bot", shape: bot.configuration?.shape, color: bot.configuration?.color };
 }
 export function botConversation(bot: bots.Bot, pinnedIds: readonly string[] = []): ConversationView {
-  return { id: bot.id, kind: "direct", bots: [botParticipant(bot)], unread: 0, pinned: pinnedIds.includes(bot.id), pinOrder: pinnedIds.indexOf(bot.id) };
+  const last = bot.lastMessage;
+  return { id: bot.id, kind: "direct", bots: [botParticipant(bot)], unread: 0, pinned: pinnedIds.includes(bot.id), pinOrder: pinnedIds.indexOf(bot.id),
+    ...(last && { lastMessage: { senderId: last.senderId, text: last.text, at: last.createdAt ? timestampDate(last.createdAt) : new Date(0) } }),
+  };
 }
 export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
   const messages: ChatEntry[] = snapshot.messages.map((m) => {

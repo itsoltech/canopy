@@ -12,6 +12,22 @@ export function nextHop(hops: number): number {
   return hops + 1;
 }
 
+/** Reviewable cards show the destination and proposed content as prose, never a tool-call JSON block. */
+export function approvalPrompt(tool: ToolSpec, args: Record<string, unknown>, phrase: string): string {
+  const heading = (key: string) => key.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+  const value = (input: unknown, depth = 0): string => {
+    if (typeof input === "string") return input.length > 8000 ? `${input.slice(0, 8000)}… (preview truncated)` : input;
+    if (typeof input === "boolean") return input ? "Yes" : "No";
+    if (input === null || input === undefined) return "None";
+    if (typeof input === "number") return String(input);
+    if (depth >= 2) return "Additional nested details";
+    if (Array.isArray(input)) return input.slice(0, 16).map((v) => value(v, depth + 1)).join(", ");
+    return Object.entries(input as Record<string, unknown>).slice(0, 16).map(([k, v]) => `${heading(k)}: ${value(v, depth + 1)}`).join("; ");
+  };
+  const details = Object.entries(args).slice(0, 16).map(([key, v]) => `${heading(key)}: ${/token|secret|password|authorization/i.test(key) ? "Hidden value" : value(v)}`);
+  return [`Needs approval · ${phrase}`, ...(tool.source === "mcp" ? [`Action: ${heading(tool.remoteName ?? "connected service action")}`] : []), ...details].join("\n").slice(0, 100_000);
+}
+
 export function statusPhrase(tool: ToolSpec, args: Record<string, unknown> = {}): string {
   const label = (value: unknown, fallback: string) => typeof value === "string" ? value.replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 80) : fallback;
   if (tool.source === "mcp") {
@@ -31,9 +47,9 @@ export function statusPhrase(tool: ToolSpec, args: Record<string, unknown> = {})
     case "schedule_wakeup": return "Scheduling a reminder";
     case "list_schedules": return "Checking reminders";
     case "cancel_schedule": return "Cancelling a reminder";
-    case "archive_thread": return "Archiving a thread";
-    case "rename_thread": return "Renaming a thread";
-    case "set_thread_model": return "Updating thread settings";
+    case "archive_thread": return `Archiving ${label(args["thread_name"], "a thread")}`;
+    case "rename_thread": return `Renaming ${label(args["thread_name"], "a thread")}`;
+    case "set_thread_model": return `Updating settings for ${label(args["thread_name"], "a thread")}`;
     case "ask_user": return "Waiting for your answer";
     default: return "Working…";
   }

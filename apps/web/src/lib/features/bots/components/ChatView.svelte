@@ -69,6 +69,7 @@
 
   function openAtUnread(node: HTMLElement) {
     const divider = node.querySelector<HTMLElement>("[role=separator][aria-label='New messages']");
+    following = !divider;
     if (divider) node.scrollTop = divider.offsetTop - node.clientHeight / 3;
     else node.scrollTop = node.scrollHeight;
   }

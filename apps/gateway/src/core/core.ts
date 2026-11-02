@@ -90,7 +90,7 @@ import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt 
 import { BotsRuntime } from "../bots/runtime.ts";
 import { BotStore } from "../bots/store.ts";
 import type { BotModel, BotTurn, StoredCall } from "../bots/types.ts";
-import { botPlatform } from "../bots/platform.ts";
+import { botPlatform, describeBotTool } from "../bots/platform.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -180,6 +180,7 @@ export class GatewayCore {
     this.bots = new BotsRuntime({ runtime: options.runtime, userId: options.userId,
       ...(options.botModel && { model: options.botModel }), ...(options.log && { log: options.log }),
       platform: (turn, call) => botPlatform(this, options, turn, call),
+      describeTool: (tool, args) => describeBotTool(this, tool, args),
     });
     this.link = createWorkerLink({
       authenticate: (credential) => this.#run((s) => s.authenticateWorker(credential)),

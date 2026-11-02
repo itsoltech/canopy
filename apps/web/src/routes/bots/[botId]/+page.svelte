@@ -51,7 +51,7 @@
 <svelte:head><title>{data.bot.configuration?.name ?? "Bot"} · Open Agents</title></svelte:head>
 <div class="flex h-full min-h-0 flex-col">
   {#if error}<div role="alert" class="flex items-center justify-center gap-3 px-4 py-2 text-sm text-red-500">{error}{#if retry}<button class="underline" onclick={() => retry && send(retry.text)}>Retry message</button>{/if}</div>{/if}
-  <ChatView {conversation} {entries} me={{ id: "me", kind: "user", name: "You" }} {sending} {answering} statusLine={snapshot.statusLine} onsend={send} onanswer={answer} class="flex-1">
+  {#key data.bot.id}<ChatView {conversation} {entries} me={{ id: "me", kind: "user", name: "You" }} {sending} {answering} statusLine={snapshot.statusLine} onsend={send} onanswer={answer} class="flex-1">
     {#snippet actions()}{#if snapshot.working}<button onclick={interrupt} class="rounded-lg px-3 py-1 text-sm text-zinc-500 hover:bg-zinc-500/10">Stop</button>{/if}{/snippet}
-  </ChatView>
+  </ChatView>{/key}
 </div>

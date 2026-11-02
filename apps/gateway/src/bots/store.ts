@@ -133,7 +133,13 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   }));
   return {
     owned, save, enqueue, finish, changed, fenced, servers, resolvedServer,
-    list: (user: string) => sql<BotRow>`SELECT * FROM bots WHERE owner_user_id = ${user}::uuid AND deleted_at IS NULL ORDER BY created_at, id`.pipe(Effect.map((r) => r.map(botView))),
+    list: (user: string) => Effect.gen(function* () {
+      const rows = yield* sql<BotRow>`SELECT * FROM bots WHERE owner_user_id = ${user}::uuid AND deleted_at IS NULL ORDER BY created_at, id`;
+      const latest = yield* sql<MessageRow>`SELECT DISTINCT ON(m.bot_id) m.* FROM bot_messages m JOIN bots b ON b.id = m.bot_id
+        WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL ORDER BY m.bot_id, m.seq DESC`;
+      const byBot = new Map(latest.map((m) => [m.bot_id, messageView(m)]));
+      return rows.map((r) => create(bots.BotSchema, { ...botView(r), lastMessage: byBot.get(r.id) }));
+    }),
     remove: (user: string, id: string) => sql.withTransaction(Effect.gen(function* () {
       yield* owned(user, id, true);
       yield* sql`UPDATE bots SET deleted_at = now(), status_line = '', revision = revision + 1 WHERE id = ${id}::uuid`;
@@ -147,7 +153,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       const messages = yield* sql<MessageRow>`SELECT * FROM bot_messages WHERE bot_id = ${id}::uuid ORDER BY seq`;
       const approvals = yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE bot_id = ${id}::uuid ORDER BY created_at, id`;
       const active = yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND status IN ('queued','running','waiting') LIMIT 1`;
-      return create(bots.BotConversationSchema, { bot: botView(bot), messages: messages.map(messageView), approvals: approvals.map(approvalView),
+      return create(bots.BotConversationSchema, { bot: create(bots.BotSchema, { ...botView(bot), lastMessage: messages.length ? messageView(messages.at(-1)!) : undefined }), messages: messages.map(messageView), approvals: approvals.map(approvalView),
         statusLine: bot.status_line, working: active.length > 0, revision: BigInt(bot.revision) });
     })),
     exchange: (user: string, id: string) => sql<MessageRow>`SELECT m.* FROM bot_messages m JOIN bots b ON b.id = m.bot_id JOIN bot_turns t ON t.id = m.turn_id
@@ -204,7 +210,10 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     })),
     remoteResult: (turn: BotTurn, call: StoredCall, result: unknown) => sql.withTransaction(Effect.gen(function* () {
       yield* fenced(turn);
-      yield* sql`UPDATE bot_tool_calls SET status = 'completed', result = ${JSON.stringify(result)}::jsonb WHERE id = ${call.id}::uuid`;
+      // A platform action may have committed before its post-commit dispatch failed.
+      // Its durable result wins over a later transport error or stale executor result.
+      yield* sql`UPDATE bot_tool_calls SET status = 'completed', result = ${JSON.stringify(result)}::jsonb WHERE id = ${call.id}::uuid AND status NOT IN ('completed','interrupted')`;
+      return (yield* sql<StoredCall>`SELECT * FROM bot_tool_calls WHERE id = ${call.id}::uuid`)[0]!.result;
     })),
     approval: (turn: BotTurn, call: StoredCall, prompt: string, question: boolean) => sql.withTransaction(Effect.gen(function* () {
       yield* fenced(turn);

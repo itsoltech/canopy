@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { needsApproval, nextHop, PLATFORM_TOOLS, statusPhrase } from "./policy.ts";
+import { approvalPrompt, needsApproval, nextHop, PLATFORM_TOOLS, statusPhrase } from "./policy.ts";
 import { remoteUrl } from "./store.ts";
 
 describe("bot capability policy", () => {
@@ -22,6 +22,14 @@ describe("bot capability policy", () => {
     expect(nextHop(0)).toBe(1);
     expect(nextHop(7)).toBe(8);
     for (const hops of [8, 9, -1, NaN, 0.5]) expect(() => nextHop(hops)).toThrow();
+  });
+  test("approval cards identify the destination and proposed change without raw JSON or credentials", () => {
+    const prompt = approvalPrompt(PLATFORM_TOOLS.find((t) => t.name === "set_thread_model")!, { thread_id: "destination", model: "chosen-model", effort: "high", token: "do-not-show" }, "Updating settings for CRM");
+    expect(prompt).toContain("CRM");
+    expect(prompt).toContain("Thread id: destination");
+    expect(prompt).toContain("Model: chosen-model");
+    expect(prompt).not.toContain("do-not-show");
+    expect(prompt).not.toContain('{"');
   });
   test("MCP registry cannot launch local transports or put secrets in URLs", () => {
     expect(remoteUrl("https://example.com/mcp")).toBe("https://example.com/mcp");

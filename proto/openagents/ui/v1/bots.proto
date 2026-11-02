@@ -23,6 +23,8 @@ message Bot {
   BotConfiguration configuration = 2;
   google.protobuf.Timestamp created_at = 3;
   google.protobuf.Timestamp updated_at = 4;
+  // Podgląd ostatniej zapisanej wiadomości na liście i w snapshotcie rozmowy.
+  BotMessage last_message = 350;
 }
 message BotMessage {
   string id = 1;

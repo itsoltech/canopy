@@ -5,15 +5,16 @@ import type { CoreRuntime } from "../core/core.ts";
 import { Invalid } from "../store/store.ts";
 import { directModel } from "./model.ts";
 import { mcpCall, mcpTools } from "./mcp.ts";
-import { needsApproval, PLATFORM_TOOLS, statusPhrase } from "./policy.ts";
+import { approvalPrompt, needsApproval, PLATFORM_TOOLS, statusPhrase } from "./policy.ts";
 import { botConfiguration, botView, BotStore, requiredString } from "./store.ts";
-import type { BotModel, BotTurn, StoredCall } from "./types.ts";
+import type { BotModel, BotTurn, StoredCall, ToolSpec } from "./types.ts";
 
 export interface BotRuntimeOptions {
   runtime: CoreRuntime;
   userId: string;
   model?: BotModel;
   platform: (turn: BotTurn, call: StoredCall) => Promise<unknown>;
+  describeTool?: (tool: ToolSpec, args: Record<string, unknown>) => Promise<string>;
   log?: (message: string) => void;
 }
 
@@ -92,19 +93,20 @@ export class BotsRuntime {
               const call = await this.run((s) => s.planCall(turn, requested.id, tool, requested.arguments));
               if (call.status === "completed" || call.status === "interrupted") result = call.result;
               else {
+                const phrase = await this.#options.describeTool?.(tool, requested.arguments) ?? statusPhrase(tool, requested.arguments);
                 const policyTool = tool.name === "start_thread" && ![undefined, "ask", "read_only"].includes(requested.arguments["permission"] as string | undefined)
                   ? { ...tool, dangerous: true } : tool;
                 if (needsApproval(policyTool, config.approvalPolicy)) {
                   const question = tool.name === "ask_user";
                   const prompt = question ? requiredString(requested.arguments, "question", 32_000)
-                    : `Needs approval · ${statusPhrase(tool, requested.arguments)}${typeof requested.arguments["text"] === "string" ? `\n${requested.arguments["text"].slice(0, 8000)}` : typeof requested.arguments["prompt"] === "string" ? `\n${requested.arguments["prompt"].slice(0, 8000)}` : ""}`;
+                    : approvalPrompt(tool, requested.arguments, phrase);
                   const approval = await this.run((s) => s.approval(turn, call, prompt, question));
                   if (approval.status === "pending") { await this.run((s) => s.wait(turn)); return; }
                   if (approval.status === "discarded") result = { status: "discarded", message: "The user declined this action. Do not retry it." };
                   else if (question) result = { answer: approval.answer };
                 }
                 if (result === undefined) {
-                  await this.run((s) => s.status(turn, statusPhrase(tool, requested.arguments)));
+                  await this.run((s) => s.status(turn, phrase));
                   if (tool.source === "mcp") {
                     const current = (await this.run((s) => s.connected(this.#options.userId, turn.bot_id))).find((s) => s.id === tool.serverId);
                     if (!current) result = { error: "MCP server disconnected or disabled" };
@@ -115,7 +117,7 @@ export class BotsRuntime {
                     }
                   } else result = await this.#options.platform(turn, call);
                 }
-                await this.run((s) => s.remoteResult(turn, call, result));
+                result = await this.run((s) => s.remoteResult(turn, call, result));
               }
             }
             messages = [...messages, { role: "tool", callId: requested.id, text: JSON.stringify(result) }];

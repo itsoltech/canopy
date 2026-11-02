@@ -4,7 +4,22 @@ import { Effect } from "effect";
 import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
 import { GatewayStore, Invalid, NotFound } from "../store/store.ts";
 import { BotStore, requiredString } from "./store.ts";
-import type { BotTurn, StoredCall } from "./types.ts";
+import { statusPhrase } from "./policy.ts";
+import type { BotTurn, StoredCall, ToolSpec } from "./types.ts";
+
+/** Resolve display labels through the same owner-scoped paths as the action. */
+export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: Record<string, unknown>): Promise<string> {
+  if (tool.source !== "platform") return statusPhrase(tool, args);
+  try {
+    if (tool.name === "start_thread" && typeof args["project_id"] === "string") {
+      const project = (await core.overview()).projects.find((p) => p.id === args["project_id"]);
+      return statusPhrase(tool, { ...args, project_name: project?.name });
+    }
+    if (typeof args["thread_id"] === "string") return statusPhrase(tool, { ...args, thread_name: (await core.getThread(args["thread_id"])).title });
+    if (tool.name === "send_bot_message" && typeof args["bot_id"] === "string") return statusPhrase(tool, { ...args, bot_name: (await core.bots.get(args["bot_id"])).configuration?.name });
+  } catch { /* A missing label must not bypass validation of the actual action. */ }
+  return statusPhrase(tool);
+}
 
 export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions, turn: BotTurn, call: StoredCall): Promise<unknown> {
   const args = call.arguments;
