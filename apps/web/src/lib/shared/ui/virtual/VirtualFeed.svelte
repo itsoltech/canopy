@@ -7,10 +7,10 @@
   import { UiMemory } from "../memory.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
-  import { FEED_END_THRESHOLD, type ReaderScroll } from "./scroll.ts";
+  import { FEED_END_THRESHOLD, ScrollIntent, type ReaderScroll } from "./scroll.ts";
 
   /**
-   * A chat's scroll area: one scroll container with the rows (`role="feed"`, virtualized) and a sticky
+   * A chat's scroll area: one scroll container with the rows (`role="feed"`, virtualized) and an overlay
    * `footer` (the composer) at the bottom of the chat column, with a fade above it and "Jump to latest".
    *
    * - Only the rows near the viewport are mounted; the others are padding sized from measurements
@@ -81,8 +81,9 @@
   let scrollTop = $state(0);
   let listTop = $state(0);
   let footerHeight = $state(0);
-  // Retain released footer space below the messages while reading. Even a tall queue collapsing
-  // cannot clamp scrollTop or move the reading anchor; the live footer/backdrop still get smaller.
+  // The overlay never participates in row layout. While reading, its reservation only grows:
+  // shrinking cannot clamp scrollTop, including in the middle of a CSS transition. At the end
+  // use its live size, then settle after the reservation is committed, before paint.
   let reservedFooter = $state(0);
   /** Width of the scroller's vertical scrollbar (the backdrop under the composer stops before it). */
   let gutter = $state(0);
@@ -228,21 +229,21 @@
     void padTop;
     void padBottom;
     void visible;
+    void reservedFooter;
     untrack(settle);
   });
 
   // --- Keeping the place ----------------------------------------------------------------------------
-  /** scrollTop we set ourselves (its scroll event is not the reader's). */
-  let expected = Number.NaN;
+  const scrollIntent = new ScrollIntent();
   let lastTop = 0;
   let smoothUntil = 0;
-  let readerUntil = 0;
 
   function setTop(value: number) {
     if (!scroller) return;
     scroller.scrollTop = value;
-    expected = scroller.scrollTop;
-    lastTop = expected;
+    scrollIntent.programmatic(scroller.scrollTop);
+    lastTop = scroller.scrollTop;
+    scrollTop = scroller.scrollTop;
   }
 
   function settle() {
@@ -283,23 +284,15 @@
   function onscroll() {
     if (!scroller) return;
     const top = scroller.scrollTop;
-    const ours = Math.abs(top - expected) < 1;
-    expected = Number.NaN;
-    // Browsers scroll a sticky contenteditable to its normal-flow location when revealing the
-    // caret during typing (even with preventScroll focus). Keep the reading anchor unless there
-    // was an actual scrolling gesture. This also covers keyboard focus into footer controls.
-    if (!ours && !stuck && performance.now() >= readerUntil && footerElement?.contains(document.activeElement)) {
-      setTop(lastTop);
-      return;
-    }
-    if (!ours) {
+    // Multiple observer/effect passes may consume the same pending native scroll event. An
+    // unchanged position is neither fresh reader intent nor a reason to recapture the anchor.
+    if (Math.abs(top - lastTop) < 0.5) return;
+    const origin = scrollIntent.origin(top, smoothUntil);
+    if (origin !== "programmatic") {
       const distance = scroller.scrollHeight - top - scroller.clientHeight;
       if (distance <= FEED_END_THRESHOLD) stuck = true;
       else if (top < lastTop - 0.5) stuck = false;
-      if (performance.now() < readerUntil && performance.now() >= smoothUntil) {
-        // Keep touch/trackpad inertia attributable to the reader until it settles. A subsequent
-        // edit clears this lease before the browser can scroll to reveal its caret.
-        readerUntil = performance.now() + 250;
+      if (origin === "reader") {
         onreaderscroll?.({ distance, up: lastTop - top });
       }
     }
@@ -309,9 +302,14 @@
   }
 
   function onwheel(event: WheelEvent) {
-    readerUntil = performance.now() + 250;
+    scrollIntent.gesture();
     // Scrolling up during a stream: let go at once, before the next growth pins the end again.
-    if (event.deltaY < 0 && scroller && scroller.scrollHeight > scroller.clientHeight + 8) stuck = false;
+    if (event.deltaY < 0 && scroller && scroller.scrollHeight > scroller.clientHeight + FEED_END_THRESHOLD) {
+      // A previous reading anchor may survive a jump to latest. Capture the current end before
+      // releasing it: streaming's observer can settle between the wheel and its scroll event.
+      if (stuck) capture();
+      stuck = false;
+    }
   }
 
   function onscrollend() {
@@ -386,6 +384,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
+    if (event.defaultPrevented) return;
     const target = event.target as HTMLElement;
     if (event.ctrlKey && event.key === "End") {
       event.preventDefault();
@@ -431,12 +430,12 @@
   {onscroll}
   {onscrollend}
   {onwheel}
-  ontouchmove={() => { readerUntil = performance.now() + 250; }}
-  onpointerdown={(event) => { if (event.target === scroller) readerUntil = performance.now() + 250; }}
-  onpointermove={(event) => { if (event.buttons === 1 && event.target === scroller) readerUntil = performance.now() + 250; }}
+  ontouchmove={() => scrollIntent.gesture()}
+  onpointerdown={(event) => { if (event.target === scroller) scrollIntent.gesture(); }}
+  onpointermove={(event) => { if (event.buttons === 1 && event.target === scroller) scrollIntent.gesture(); }}
   onkeydown={(event) => {
     if (event.defaultPrevented || (event.target as Element).closest("textarea, input, select, [contenteditable]")) return;
-    if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerUntil = performance.now() + 250;
+    if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) scrollIntent.gesture();
   }}
 >
   <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">
@@ -463,8 +462,16 @@
         {/each}
       </div>
     </div>
-    <div aria-hidden="true" style:height="{stuck ? 0 : Math.max(0, reservedFooter - footerHeight)}px" class="shrink-0"></div>
-    <div bind:this={footerElement} class="sticky bottom-0 z-10 pb-[max(--spacing(3),env(safe-area-inset-bottom))]" onfocusin={() => { readerUntil = 0; }} onbeforeinput={() => { readerUntil = 0; }}>
+    <div aria-hidden="true" style:height="{reservedFooter}px" class="shrink-0"></div>
+  </div>
+</div>
+<!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,
+     change the virtual window, or make the browser reveal a contenteditable's flow position. -->
+<div class="pointer-events-none absolute bottom-0 left-0 z-10 isolate" style:right="{gutter}px">
+  <div class="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+2rem)] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black" aria-hidden="true"></div>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
+    <div bind:this={footerElement} class="pointer-events-auto relative pb-[max(--spacing(3),env(safe-area-inset-bottom))]" onfocusin={() => scrollIntent.reset()} onbeforeinput={() => scrollIntent.reset()}>
       {#if !stuck}
         <div class="absolute bottom-full left-1/2 mb-3 -translate-x-1/2" transition:rise>
           <Button size="sm" icon="arrow-down" class="shadow-md dark:shadow-none" onclick={jump}>Jump to latest</Button>
@@ -474,16 +481,4 @@
     </div>
   </div>
 </div>
-<!-- Under the composer and its fade, across the whole width of the scroll area (not just the chat column), so
-     content wider than the column (list numbers, wide tables) never shows beside or under the composer. Outside
-     the scroller, it adds no scrollable overflow; it stops before the scrollbar and sits between the rows and the
-     sticky footer (z-10). -->
-{#if footerHeight > 0}
-<div
-  class="pointer-events-none absolute bottom-0 left-0 z-[5] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black"
-  style:right="{gutter}px"
-  style:height="calc({footerHeight}px + 2rem)"
-  aria-hidden="true"
-></div>
-{/if}
 </div>

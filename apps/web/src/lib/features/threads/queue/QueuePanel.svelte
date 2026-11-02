@@ -6,6 +6,7 @@
   import type { QueueState } from "./queue-state.svelte.ts";
   import QueueRow from "./QueueRow.svelte";
   import ComposerPanelHeader from "../components/ComposerPanelHeader.svelte";
+  import ComposerPanelBody from "../components/ComposerPanelBody.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
 
   /**
@@ -44,12 +45,11 @@
 
 {#if queue.rows.length > 0}
 <section aria-label="Queued messages" class={[!embedded && "rounded-t-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10", className]}>
-  <ComposerPanelHeader {expanded} controls="{id}-queue" onclick={() => (open = !expanded)}>
+  <ComposerPanelHeader {expanded} controls="{id}-queue" onclick={(wasExpanded) => (open = !wasExpanded)}>
     <Icon name="queue-list" size="sm" />
     <p class="min-w-0 flex-1 truncate text-zinc-700 tabular-nums dark:text-zinc-300">{queue.rows.length} queued</p>
   </ComposerPanelHeader>
-  <div id="{id}-queue" class="t-acc-panel" data-open={expanded || undefined} inert={!expanded}>
-  <div>
+  <ComposerPanelBody id="{id}-queue" open={expanded}>
   <ol bind:this={list} role="list" class="relative grid grid-cols-1 py-1">
     {#each queue.rows as turn, index (turn.id)}
       <li data-queue-row class="relative" animate:glide={{ held: drag.id === turn.id }} transition:expand>
@@ -75,8 +75,7 @@
       </li>
     {/each}
   </ol>
-  </div>
-  </div>
+  </ComposerPanelBody>
   <p class="sr-only" role="status">{queue.announcement}</p>
 </section>
 {/if}

@@ -5,6 +5,7 @@
   import { swap } from "#lib/shared/ui/motion.ts";
   import { providerKeyOf } from "../providers.ts";
   import ComposerPanelHeader from "../components/ComposerPanelHeader.svelte";
+  import ComposerPanelBody from "../components/ComposerPanelBody.svelte";
   import SubagentRow from "./SubagentRow.svelte";
   import { subagentSummary, type Subagent } from "./subagents.ts";
 
@@ -26,7 +27,7 @@
   <ComposerPanelHeader
     {expanded}
     controls="{id}-list"
-    onclick={() => (open = !expanded)}
+    onclick={(wasExpanded) => (open = !wasExpanded)}
   >
     <Icon name="sparkles" size="sm" class="fill-violet-500 dark:fill-violet-400" />
     <p id="{id}-summary" class="min-w-0 flex-1 truncate text-zinc-700 tabular-nums dark:text-zinc-300">
@@ -36,13 +37,11 @@
       {#each providers as provider (provider)}<ProviderIcon {provider} size="sm" class="opacity-70" />{/each}
     </span>
   </ComposerPanelHeader>
-  <div id="{id}-list" class="t-acc-panel" data-open={expanded || undefined} inert={!expanded}>
-    <div>
+  <ComposerPanelBody id="{id}-list" open={expanded}>
       <ul role="list" class="grid max-h-[30dvh] overflow-y-auto border-t border-zinc-950/5 py-1 dark:border-white/10">
         {#each subagents as subagent (subagent.thread.id)}
           <li><SubagentRow {subagent} /></li>
         {/each}
       </ul>
-    </div>
-  </div>
+  </ComposerPanelBody>
 </section>
