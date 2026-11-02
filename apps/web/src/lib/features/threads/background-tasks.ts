@@ -1,4 +1,6 @@
+import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { ItemStatus, type BackgroundTask } from "@open-agents/contracts";
+import { backgroundStopLabel } from "@open-agents/domain/background-tasks";
 import type { TimelineEntry } from "./thread-state.svelte.ts";
 
 export type BackgroundEntry = TimelineEntry & { readonly item: TimelineEntry["item"] & { content: { case: "backgroundTask"; value: BackgroundTask } } };
@@ -20,12 +22,22 @@ export const backgroundName = (task: BackgroundTask): string => (task.descriptio
 
 export function backgroundStatus(entry: BackgroundEntry, exitCode?: number): string {
   const reason = entry.item.content.value.stopReason;
+  exitCode ??= entry.item.content.value.exitCode;
   if (entry.item.status === ItemStatus.IN_PROGRESS) return "Running";
-  if (reason === "stopped_by_user") return "Stopped by you";
-  if (entry.item.status === ItemStatus.INTERRUPTED || (reason && reason !== "error")) return "Stopped by system";
+  // Who or what stopped it, in words ("Stopped: worker restarted for a deploy", "Lost: the worker crashed").
+  if (entry.item.status === ItemStatus.INTERRUPTED || (reason && reason !== "error")) return reason ? backgroundStopLabel(reason) : "Stopped by system";
   if (entry.item.status === ItemStatus.FAILED || reason === "error") return `Failed${exitCode === undefined ? "" : ` · exit ${exitCode}`}`;
   if (entry.item.status === ItemStatus.COMPLETED) return exitCode === undefined ? "Done · exit unavailable" : `Done · exit ${exitCode}`;
   return "Pending";
+}
+
+/** When the task started and ended: the worker's times on the task, else the ones seen on the live stream. */
+export function backgroundTimes(entry: BackgroundEntry): { startedAt?: number | undefined; endedAt?: number | undefined } {
+  const task = entry.item.content.value;
+  return {
+    startedAt: task.startedAt ? timestampMs(task.startedAt) : entry.startedAt,
+    endedAt: task.endedAt ? timestampMs(task.endedAt) : entry.completedAt,
+  };
 }
 
 export { OUTPUT_LINE_HEIGHT, outputRange, OutputPin } from "#lib/shared/ui/terminal-scroll.ts";

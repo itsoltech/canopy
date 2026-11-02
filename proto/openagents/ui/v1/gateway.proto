@@ -246,7 +246,7 @@ message Turn {
   uint32 ordinal = 2;
   // queued | running | completed | interrupted | failed | cancelled
   string status = 3;
-  // user | agent_bus | schedule | interaction | goal | provider | recovery
+  // user | agent_bus | schedule | interaction | goal | provider | recovery | background_task
   string trigger = 4;
   string input_text = 5;
   string error = 6;
@@ -264,6 +264,7 @@ message Turn {
   // Skąd przyszło wejście tury (puste dla użytkownika i tur dostawcy):
   // task (spawn_thread) | message (send_message) | report (powiadomienie: wątek docelowy skończył turę)
   // | question (wątek boczny pyta rodzica) | schedule (harmonogram)
+  // | background_task (zadania w tle się zakończyły: background_item_ids)
   string source_kind = 14;
   // Wątek, od którego tura pochodzi: zlecający (task, message), raportujący (report), pytający (question),
   // a dla harmonogramu agenta wątek, który go utworzył.
@@ -323,6 +324,10 @@ message Turn {
 
   // Numery od 210: nadawca-agent (source_kind task | message | report): wątek, jego dostawca i model.
   AgentSender sender = 210;
+
+  // Numery od 230: tura z notatką platformy o zakończonych zadaniach w tle (trigger background_task,
+  // source_kind background_task): item_id tych itemów background_task (docs/execution.md, „Pobudka”).
+  repeated string background_item_ids = 230;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -812,6 +817,10 @@ message Steer {
   repeated Quote quotes = 150;
   // Numery od 210: steer agenta (send_message): wątek nadawcy, jego dostawca i model.
   AgentSender sender = 210;
+
+  // Numery od 230: notatka platformy o zakończonych zadaniach w tle wstrzyknięta do tury w toku (bez autora):
+  // item_id tych itemów background_task.
+  repeated string background_item_ids = 230;
 }
 
 // Katalog modeli jednego workera (z ostatniego raportu workera).

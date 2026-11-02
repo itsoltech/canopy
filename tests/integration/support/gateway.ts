@@ -30,7 +30,7 @@ import { migrate } from "@open-agents/db";
 import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
 import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, AttachmentStore, GatewayStore, GoalStore, Ingest, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
+import { AgentBusStore, AttachmentStore, BackgroundTaskStore, GatewayStore, GoalStore, Ingest, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
 import type { AttachmentLimits } from "@open-agents/domain";
 import { startGrpcServer } from "@open-agents/transport";
 import { applyWorkerConfig } from "@open-agents/worker/config";
@@ -41,7 +41,7 @@ import type { SqlClient } from "effect/sql";
 export const SERVICE_TOKEN = "t".repeat(48);
 
 export type TestRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | SqlClient.SqlClient,
+  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | BackgroundTaskStore | SqlClient.SqlClient,
   unknown
 >;
 
@@ -319,7 +319,7 @@ export interface TestGateway {
 }
 
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
-export async function startTestGateway(options: { attachmentLimits?: AttachmentLimits } = {}): Promise<TestGateway> {
+export async function startTestGateway(options: { attachmentLimits?: AttachmentLimits; backgroundGraceMs?: number } = {}): Promise<TestGateway> {
   const pg = await startPostgres();
   const secretsKey = randomBytes(32);
   const runtime: TestRuntime = ManagedRuntime.make(
@@ -334,6 +334,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
       GoalStore.layer,
       InstanceStore.layer(secretsKey),
       AttachmentStore.layer,
+      BackgroundTaskStore.layer,
     ).pipe(Layer.provideMerge(pg.layer)),
   );
   await runtime.runPromise(migrate);
@@ -345,7 +346,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
     await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [added.workerId])));
     return added;
   };
-  const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
+  const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
   const grpc = await startGrpcServer({
     routes: (router) => {
       core.link.routes(router);

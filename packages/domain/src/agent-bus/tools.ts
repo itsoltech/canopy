@@ -1,5 +1,6 @@
 import { Result, Schema } from "effect";
 import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
+import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 
 /**
  * Agent bus tools: how agents delegate work to each other as side threads (docs/agent-bus.md).
@@ -295,6 +296,8 @@ export const AGENT_BUS_TOOLS = {
     args: CancelSchedule,
     mutates: true,
   }),
+  // The thread's own background work (list, inspect, stop): background-tasks.ts.
+  ...BACKGROUND_TASK_TOOLS,
 } as const;
 
 /** Tools that only make sense for a thread that can have side threads (level 0). */

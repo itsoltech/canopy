@@ -4,6 +4,7 @@ ALTER TABLE agent_bus_calls ADD CONSTRAINT agent_bus_calls_tool_check CHECK (too
   'list_agents', 'spawn_thread', 'send_message', 'wait_threads', 'get_thread', 'read_thread', 'list_threads',
   'interrupt_thread', 'close_thread', 'list_interactions', 'answer_interaction',
   'schedule_wakeup', 'schedule_recurring', 'list_schedules', 'cancel_schedule',
+  'list_background_tasks', 'get_background_task', 'stop_background_task',
   'ask_user', 'get_answers'
 )) NOT VALID;
 ALTER TABLE agent_bus_calls DROP CONSTRAINT agent_bus_calls_starts_turn;

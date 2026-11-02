@@ -75,6 +75,11 @@ export interface ClaudeThreadsOptions {
   readonly idleGraceMs?: number;
   /** How often background task output files are read (default 1 s). */
   readonly outputPollMs?: number;
+  /**
+   * stop_reason of background tasks the runtime's closing kills: worker_shutdown when the worker stops, else
+   * worker_restart (the runtime is rebuilt). Default worker_restart.
+   */
+  closingReason?(): string;
   /** Claude Code executable; the SDK's bundled one when absent. */
   readonly executable?: string;
   readonly nativeTools: NativeToolPolicy;
@@ -598,7 +603,7 @@ const make = (options: ClaudeThreadsOptions) =>
         if (session.closeTimer) clearTimeout(session.closeTimer);
         await session.io;
         // Tasks die with the process.
-        for (const init of mapper.endTasks(shuttingDown ? "worker_restart" : "error")) await record(threadId, init).catch(() => {});
+        for (const init of mapper.endTasks(shuttingDown ? (options.closingReason?.() ?? "worker_restart") : "error")) await record(threadId, init).catch(() => {});
         await readGoalVerdicts(session);
         if (sessions.get(threadId) === session) sessions.delete(threadId);
       }

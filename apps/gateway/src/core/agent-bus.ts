@@ -46,6 +46,8 @@ export interface BusHost {
    * the pickers' model catalogs); undefined before the worker reported its configuration.
    */
   spawnInstances(thread: ThreadRow): Promise<readonly SpawnInstance[] | undefined>;
+  /** The thread's background tasks (list, get, stop): core/background-tasks.ts. */
+  backgroundTask(call: Extract<AgentBusCall, { tool: "list_background_tasks" | "get_background_task" | "stop_background_task" }>, callerId: string): Promise<JsonValue>;
 }
 
 const WAIT_POLL_MS = 1_000;
@@ -311,6 +313,10 @@ export class AgentBus {
         await store((s) => s.cancelSchedule(call.args.schedule_id));
         await this.#host.scheduleChanged(call.args.schedule_id);
         return { schedule_id: call.args.schedule_id, cancelled: true };
+      case "list_background_tasks":
+      case "get_background_task":
+      case "stop_background_task":
+        return await this.#host.backgroundTask(call, caller.id);
     }
   }
 
@@ -355,6 +361,9 @@ function targetsOf(call: AgentBusCall): string[] {
       return [...call.args.thread_ids];
     case "schedule_wakeup":
     case "schedule_recurring":
+    case "list_background_tasks":
+    case "get_background_task":
+    case "stop_background_task":
       return call.args.thread_id ? [call.args.thread_id] : [];
     default:
       return [];

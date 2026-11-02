@@ -8,6 +8,7 @@
   import { useRemembered } from "#lib/shared/ui/memory.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import { turnOrigin } from "../turn-origin.ts";
+  import BackgroundNoteRow from "./BackgroundNoteRow.svelte";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
   import AgentSenderLabel from "./AgentSenderLabel.svelte";
@@ -40,7 +41,10 @@
   $effect(() => memory?.set(expanded));
 </script>
 
-{#if origin.kind === "user"}
+{#if origin.kind === "background_task"}
+  <!-- The platform's note about ended background tasks: a system line, not a message. -->
+  <BackgroundNoteRow itemIds={origin.itemIds} />
+{:else if origin.kind === "user"}
   <!-- With attachments, mentions or quotes the agent got a platform note (file paths, threads, the quoted passages) or a
        reordered command: the message shows as written, with its files, chips and quotes, and the full text folds. -->
   {@const rich = turn.attachments.length > 0 || turn.mentions.length > 0 || turn.quotes.length > 0}

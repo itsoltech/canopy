@@ -1,4 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { timestampNow } from "@bufbuild/protobuf/wkt";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnEndSource, TurnOutcome, type BackgroundTaskSchema, type ItemSchema } from "@open-agents/contracts";
 import { isAgentBusTool, VIEW_IMAGE_TOOL } from "@open-agents/domain";
@@ -250,6 +251,7 @@ export class ClaudeEventMapper {
       startedInTurnId: pending.turnId,
       parentTaskId: pending.parentTaskId,
       sourceItemId: pending.toolUseId,
+      startedAt: timestampNow(),
     };
     const task: LiveTask = { itemId: `bg:${taskId}`, content, stopping: false, ...(call?.outputFile && { outputFile: call.outputFile }) };
     this.#tasks.set(taskId, task);
@@ -282,6 +284,7 @@ export class ClaudeEventMapper {
               case: "backgroundTask",
               value: {
                 ...task.content,
+                endedAt: timestampNow(),
                 ...(stopReason && { stopReason }),
                 progress: {
                   summary: detail.summary ?? "",

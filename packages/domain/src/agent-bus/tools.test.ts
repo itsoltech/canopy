@@ -41,14 +41,17 @@ describe("tool sets per level", () => {
       "ask_user",
       "cancel_schedule",
       "get_answers",
+      "get_background_task",
       "get_thread",
       "list_agents",
+      "list_background_tasks",
       "list_schedules",
       "list_threads",
       "read_thread",
       "schedule_recurring",
       "schedule_wakeup",
       "send_message",
+      "stop_background_task",
       "wait_threads",
     ]);
     expect(agentBusToolSpecs(agentBusToolsFor(1)).map((s) => s.name)).not.toContain("spawn_thread");

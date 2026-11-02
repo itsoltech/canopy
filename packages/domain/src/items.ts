@@ -122,6 +122,8 @@ function keepAccumulated(previous: Item, next: Item): void {
       if (before.case === "backgroundTask" && !after.value.output && !after.value.outputBlob) {
         after.value.output = before.value.output;
       }
+      // An end that does not repeat when the task started keeps the start's time.
+      if (before.case === "backgroundTask" && !after.value.startedAt && before.value.startedAt) after.value.startedAt = before.value.startedAt;
       break;
     default:
       break;

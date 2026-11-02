@@ -6,3 +6,4 @@ export * from "./attachments/index.ts";
 export * from "./mentions/index.ts";
 export * from "./appearance/index.ts";
 export * from "./quotes/index.ts";
+export * from "./background-tasks/index.ts";

@@ -6,6 +6,7 @@
   import { swap } from "#lib/shared/ui/motion.ts";
   import { stopBackgroundTask } from "../../api.ts";
   import { useThreadDirectory } from "../../thread-directory.ts";
+  import { backgroundStopLabel } from "@open-agents/domain/background-tasks";
   import ItemFrame from "./ItemFrame.svelte";
   import OutputBlock from "./OutputBlock.svelte";
   import TaskProgressText from "./TaskProgressText.svelte";
@@ -23,14 +24,6 @@
     [BackgroundTaskKind.AGENT]: "Agent",
     [BackgroundTaskKind.WORKFLOW]: "Workflow",
     [BackgroundTaskKind.PROCESS]: "Process",
-  };
-  const stopReasons: Record<string, string> = {
-    stopped_by_user: "Stopped by you",
-    stopped: "Stopped",
-    drain: "Stopped: worker draining",
-    worker_restart: "Stopped: worker restarted",
-    limit: "Stopped: limit reached",
-    error: "Stopped by an error",
   };
   const running = $derived(status === ItemStatus.IN_PROGRESS);
   const name = $derived(task.description || task.command.split("\n")[0] || task.taskId);
@@ -71,7 +64,7 @@
     {#if error}<p class="text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">{error}</p>{/if}
   {/if}
   {#if task.command}<pre class="code-surface rounded-lg bg-zinc-950/2.5 p-3 text-zinc-950 dark:bg-white/5 dark:text-white">{task.command}</pre>{/if}
-  {#if task.stopReason}<p class="text-sm/5 text-orange-700 sm:text-xs/5 dark:text-orange-400">{stopReasons[task.stopReason] ?? humanizeEnum(task.stopReason)}</p>{/if}
+  {#if task.stopReason}<p class="text-sm/5 text-orange-700 sm:text-xs/5 dark:text-orange-400">{backgroundStopLabel(task.stopReason) === task.stopReason ? humanizeEnum(task.stopReason) : backgroundStopLabel(task.stopReason)}</p>{/if}
   {#if task.progress?.summary}<p class="text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-400">{task.progress.summary}</p>{/if}
   <OutputBlock output={task.output} blob={task.outputBlob} label="Output of {name}" tail={12} empty={running ? "Waiting for output…" : "No output."} streaming={running} />
   {#if openOutput}<Button size="sm" icon="command-line" onclick={() => openOutput(itemId)}>Open output</Button>{/if}

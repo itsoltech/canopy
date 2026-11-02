@@ -10,4 +10,5 @@ export { InstanceConflict, InstanceStore } from "./instances.ts";
 export { SteerStore, toUiSteer, type SteerRow } from "./steers.ts";
 export { AttachmentStore, toUiAttachment, type AttachmentRow, type StoredAttachment } from "./attachments.ts";
 export { QueueConflict, QueueStore } from "./queue.ts";
+export { BackgroundTaskStore, type BackgroundTaskDetail, type BackgroundTaskView, type Delivery } from "./background-tasks.ts";
 export { toUiQuote, type StoredQuote } from "./quotes.ts";

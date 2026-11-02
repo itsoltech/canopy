@@ -25,7 +25,7 @@ Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [dat
 | Tury w toku na workerze: gdzie harness je zapisuje, ich itemy otwarte i skończone, prośby o przerwanie | SQLite workera (`open_turns`, `turn_harness`, `turn_items`, `turn_interrupts`) | rekoncyliacja z transkryptu harnessu |
 | Przetworzone `command_id` | SQLite workera `processed_commands` (TTL) | deduplikacja |
 | Interakcje (zgody, pytania, formularze) | PostgreSQL `interaction_requests` + SQLite workera | proces dostawcy zginął → `expired` |
-| Zadania w tle i subagenci w toku | itemy w `thread_items`; otwarte zadania w dzienniku workera (`background_tasks`); procesy tylko na workerze | `interrupted` (`worker_restart`), output zostaje taki, jaki przyszedł deltami ([execution.md](execution.md#8-trwałość)) |
+| Zadania w tle i subagenci w toku | itemy w `thread_items`; otwarte zadania w dzienniku workera (`background_tasks`); procesy tylko na workerze | `interrupted`: `worker_shutdown` (łagodne zatrzymanie, zapisane i wysłane przed zamknięciem łącza), `worker_lost` (awaria: zamknięte przy następnym starcie), `worker_restart` (restart runtime'u dostawcy); z czasem końca; output zostaje taki, jaki przyszedł deltami; agent dostaje notatkę o każdym końcu ([execution.md](execution.md#8-trwałość)) |
 | Cele | PostgreSQL `goals` (odbicie celu harnessu: ostatni raport w `native_state`) | gateway nie ustawia celu ponownie; Codex trzyma go w stanie wątku, cel Claude ginie z procesem ([goals.md](goals.md#6-trwałość)) |
 | Konfiguracja workera | PostgreSQL `worker_configs` (+ historia); w workerze tylko w pamięci (sekrety) | po starcie `Hello.config_version = 0`, gateway wysyła ją ponownie |
 | Harmonogramy | PostgreSQL `schedules`, odpalane przez gateway z dzierżawą | po przestoju jedna tura nadrabiająca albo pominięcie (`missed_policy`) |
@@ -73,6 +73,7 @@ sequenceDiagram
 
 - `drain_timeout` jest konfigurowalny. Aktualizacja workera domyślnie czeka na brak aktywnych tur („update when idle”) z maksymalnym terminem.
 - Jeśli gateway jest niedostępny w trakcie drain, zdarzenia zostają w dzienniku i zostaną dosłane po starcie. Drain się nie blokuje.
+- **Zaimplementowane dziś** (bez czekania na tury): `DRAINING`, zatrzymanie runtime'ów dostawców przy działającym łączu (`WorkerHost.shutdown`); ich zadania w tle kończą się w dzienniku jako `worker_shutdown` z czasem końca, są wysyłane i potwierdzane (`flush`, do 3 s), dopiero potem łącze się zamyka. Komendy, które przyjdą w tym czasie, zostają bez odpowiedzi (gateway trzyma je w outboxie dla następnego procesu, np. turę notatki o zatrzymanych zadaniach; [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania)).
 
 ### 3.4 Start po awarii
 

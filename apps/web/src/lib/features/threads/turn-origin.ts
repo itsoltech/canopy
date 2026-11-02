@@ -14,6 +14,8 @@ export type TurnOrigin =
   | { readonly kind: "report"; readonly threadId: string }
   /** A side thread (interaction_route = parent) waits for this agent's answer. */
   | { readonly kind: "question"; readonly threadId: string; readonly requestId: string }
+  /** Background tasks of this thread ended; the platform told the agent how (`itemIds`: their items). */
+  | { readonly kind: "background_task"; readonly itemIds: readonly string[] }
   /** A schedule ran; `setBy` is the thread whose agent set it (empty: you did). */
   | { readonly kind: "schedule"; readonly scheduleId: string; readonly setBy: string }
   /** Another trigger without a known source. */
@@ -29,6 +31,8 @@ export function turnOrigin(turn: ui.Turn): TurnOrigin {
       return { kind: "question", threadId: turn.sourceThreadId, requestId: turn.interactionRequestId };
     case "schedule":
       return { kind: "schedule", scheduleId: turn.scheduleId, setBy: turn.sourceThreadId };
+    case "background_task":
+      return { kind: "background_task", itemIds: turn.backgroundItemIds };
     default:
       return turn.trigger === "user" || !turn.trigger ? { kind: "user" } : { kind: "other", trigger: turn.trigger };
   }
