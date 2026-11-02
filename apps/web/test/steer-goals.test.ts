@@ -63,10 +63,11 @@ describe("feed rows for steers", () => {
     ...over,
   });
 
-  test("steers on their way follow the working indicator; queued turns are not rows (the queue panel has them)", () => {
+  test("steers on their way follow the live work and answer slot; queued turns stay in the queue panel", () => {
     const queued = turn("turn-2", 2, "queued", "later");
     const rows = new FeedBuilder().build(input({ steering: [steer("a", "pending")], turns: [turn("turn-1", 1, "running", "go"), queued] }));
-    expect(rows.slice(-2).map((r) => r.kind)).toEqual(["working", "steer"]);
+    expect(rows.slice(-3).map((r) => r.kind)).toEqual(["work", "answer", "steer"]);
+    expect(rows.some((r) => r.kind === "working")).toBe(false);
     expect(rows.some((r) => r.key.includes("turn-2"))).toBe(false);
   });
 

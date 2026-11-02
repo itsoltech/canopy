@@ -26,6 +26,7 @@
   const working = $derived(view.running);
   let historyOpen = $state(false);
   let openWork = $state.raw<ReadonlySet<string>>(new Set());
+  let openGroups = $state.raw<ReadonlySet<string>>(new Set());
   const builder = new FeedBuilder();
   const rows = $derived(
     builder.build({
@@ -40,6 +41,7 @@
       inheritedTurns: view.inheritedTurns,
       historyOpen,
       openWork,
+      openGroups,
     }),
   );
 
@@ -95,6 +97,7 @@
             {row}
             ontoggle={() => (historyOpen = !historyOpen)}
             onwork={(turnId) => (openWork = openWork.has(turnId) ? new Set([...openWork].filter((id) => id !== turnId)) : new Set([...openWork, turnId]))}
+            ongroup={(key) => (openGroups = openGroups.has(key) ? new Set([...openGroups].filter((id) => id !== key)) : new Set([...openGroups, key]))}
           />
         {/snippet}
         {#snippet footer()}

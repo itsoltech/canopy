@@ -8,6 +8,8 @@
   import { steeringNote } from "./message-notes.ts";
   import TimelineRowView from "./TimelineRowView.svelte";
   import WorkFold from "./WorkFold.svelte";
+  import WorkGroup from "./WorkGroup.svelte";
+  import AnswerSlot from "./AnswerSlot.svelte";
 
   /**
    * One row of the thread page's feed. Rows space themselves (bottom padding, measured with the row);
@@ -16,12 +18,12 @@
    * hang off a rule under its chevron. A turn's rows carry its id (`data-turn`): hovering or focusing any
    * of them reveals the turn's quiet details (turn-reveal).
    */
-  let { row, ontoggle, onwork }: { row: FeedRow; ontoggle: () => void; onwork: (turnId: string) => void } = $props();
+  let { row, ontoggle, onwork, ongroup }: { row: FeedRow; ontoggle: () => void; onwork: (turnId: string) => void; ongroup: (key: string) => void } = $props();
 
   const directory = useThreadDirectory();
   const well = "bg-zinc-950/2.5 px-3 dark:bg-white/4";
   const turnId = $derived.by(() => {
-    if (row.kind === "work") return row.turn.id;
+    if (row.kind === "work" || row.kind === "work-group" || row.kind === "answer") return row.turn.id;
     if (row.kind !== "timeline") return undefined;
     const inner = row.row;
     return inner.kind === "item" ? inner.node.entry.turnId || undefined : inner.kind === "notice" ? inner.notice.turnId || undefined : inner.turn.id;
@@ -54,13 +56,15 @@
       <span class="shrink-0">From</span><ThreadLink threadId={row.threadId} fallback="an earlier thread" />
     </p>
   </div>
-{:else if (row.kind === "timeline" || row.kind === "work") && row.history}
+{:else if (row.kind === "timeline" || row.kind === "work" || row.kind === "work-group" || row.kind === "answer") && row.history}
   <div class={[row.last && "pb-3"]} data-turn={turnId}>
     <div class={[well, "pb-3", row.last && "rounded-b-xl"]}>
       <div class="opacity-90">{@render body(row)}</div>
     </div>
   </div>
-{:else if row.kind === "timeline" || row.kind === "work"}
+{:else if row.kind === "answer"}
+  <div data-turn={turnId}><AnswerSlot row={row.row} /></div>
+{:else if row.kind === "timeline" || row.kind === "work" || row.kind === "work-group"}
   <!-- A turn's start is mostly space (its details are quiet): it sits close to the input under it. -->
   <div class={row.kind === "timeline" && row.row.kind === "turn-start" ? "pb-1" : "pb-3"} data-turn={turnId}>{@render body(row)}</div>
 {:else if row.kind === "forked"}
@@ -77,9 +81,13 @@
   <div class="pb-3"><UserMessageView message={{ text: row.steer.text, authorAgentId: row.steer.sourceThreadId, attachments: [], mentions: row.steer.mentions }} quotes={row.steer.quotes} note={steeringNote(row.steer)} sender={row.steer.sender} pending /></div>
 {/if}
 
-{#snippet body(row: Extract<FeedRow, { kind: "timeline" | "work" }>)}
+{#snippet body(row: Extract<FeedRow, { kind: "timeline" | "work" | "work-group" | "answer" }>)}
   {#if row.kind === "work"}
-    <WorkFold summary={row.summary} open={row.open} ontoggle={() => onwork(row.turn.id)} />
+    <WorkFold summary={row.summary} turn={row.turn} open={row.open} ontoggle={() => onwork(row.turn.id)} />
+  {:else if row.kind === "work-group"}
+    <div class="ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10"><WorkGroup label={row.label} open={row.open} running={row.running} ontoggle={() => ongroup(row.key.replace(/^history:[^:]+:/, ""))} /></div>
+  {:else if row.kind === "answer"}
+    <AnswerSlot row={row.row} />
   {:else if row.work}
     <!-- The rule continues the fold's chevron (size-4, centred at 8px); it runs through the row gap. -->
     <div class="-mb-3 ml-2 border-l border-zinc-950/10 pb-3 pl-4 dark:border-white/10"><TimelineRowView row={row.row} /></div>

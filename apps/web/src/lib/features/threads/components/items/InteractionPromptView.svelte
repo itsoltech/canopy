@@ -37,7 +37,7 @@
 
 <ItemFrame icon={prompt.kind === InteractionKind.PERMISSION ? "shield-check" : "question-mark-circle"} {status}>
   {#snippet title()}
-    <span class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+    <span class="flex min-w-0 items-center gap-1.5">
       <span class="shrink-0">{kind}</span>
       {#if prompt.kind === InteractionKind.QUESTION && questions[0]}
         <span class="min-w-0 truncate text-zinc-600 dark:text-zinc-400">
