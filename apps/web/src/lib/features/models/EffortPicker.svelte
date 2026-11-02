@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -41,9 +42,15 @@
   const label = $derived(current ? effortLevel(current).label : "Default");
   const rank = $derived(option.efforts.findIndex((e) => e.id === current));
   const isDefault = $derived(fallback !== undefined && current === fallback);
-  // Every name the pill may show: it keeps the widest one's width, so neither it, the model pill beside it
-  // nor the popover anchored to it moves while the effort changes.
-  const labels = $derived([...option.efforts.map((e) => effortLevel(e.id).label), ...(fallback ? [] : ["Default"])]);
+  // While the picker is open the pill keeps the name it had when it opened, so neither it, the model pill beside
+  // it nor the popover anchored to it moves as the effort changes; on close the name swaps in and the pill
+  // eases to fit it (ResizeSlot in ModelControls).
+  let frozen = $state<{ label: string; rank: number }>();
+  $effect(() => {
+    frozen = open ? untrack(() => ({ label, rank })) : undefined;
+  });
+  const pillLabel = $derived(frozen?.label ?? label);
+  const pillRank = $derived(frozen?.rank ?? rank);
 </script>
 
 <!-- rounded-*! wins over the panel's own rounded-xl (same specificity, later in the stylesheet). The radius
@@ -52,7 +59,7 @@
   {#snippet trigger(props)}
     <PillButton {...props} class={["pl-1.5", className]} aria-label="Reasoning effort: {label}{isDefault && current ? ' (default)' : ''}">
       <Icon name="light-bulb" class={["size-3.5", value ? "fill-zinc-500 dark:fill-zinc-400" : "fill-zinc-400 dark:fill-zinc-500"]} />
-      <SwapText text={label} {rank} reserve={labels} />
+      <SwapText text={pillLabel} rank={pillRank} />
     </PillButton>
   {/snippet}
 

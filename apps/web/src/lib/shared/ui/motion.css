@@ -298,6 +298,29 @@
   }
 }
 
+/* --- Panel reveal (07) for the thread's details panel, like the app sidebar: the page's grid eases the panel's
+ * column (`t-panel-column`, its --panel-width) open on --duration-slow and shut faster on --duration-medium; the
+ * panel inside (`t-panel`) keeps its width on the column's left edge and fades, so its text never re-wraps. */
+.t-panel-column {
+  transition: grid-template-columns var(--duration-slow) var(--ease-smooth-out);
+}
+.t-panel-column[data-collapsed] {
+  transition-duration: var(--duration-medium);
+}
+.t-panel {
+  transition: opacity var(--duration-slow) var(--ease-smooth-out);
+}
+[data-collapsed] > .t-panel {
+  opacity: 0;
+  transition-duration: var(--duration-medium);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-panel-column,
+  .t-panel {
+    transition: none !important;
+  }
+}
+
 /* --- Accordion (21): the disclosure arrow turns with its panel (the panel itself: motion.ts `expand`);
  * a closing <details> keeps painting its content while that shrinks out. */
 .t-acc::details-content {

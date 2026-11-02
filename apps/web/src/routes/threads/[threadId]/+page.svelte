@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ui } from "@open-agents/contracts";
+  import { ItemStatus, ui } from "@open-agents/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
@@ -15,6 +15,9 @@
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
   import { interruptThread } from "#lib/features/threads/api.ts";
   import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
+  import BackgroundTaskDialog from "#lib/features/threads/components/BackgroundTaskDialog.svelte";
+  import { backgroundTasks } from "#lib/features/threads/background-tasks.ts";
+  import { provideBackgroundOutput } from "#lib/features/threads/background-output.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
@@ -27,7 +30,7 @@
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
-  import { ThreadState, type TimelineEntry } from "#lib/features/threads/thread-state.svelte.ts";
+  import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
   import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
   import { isTerminal, topLevelEntry } from "#lib/features/threads/timeline.ts";
   import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
@@ -190,17 +193,16 @@
     goalDialog = true;
   };
 
-  // "N running in background" jumps to the task's row (a nested task: the row of the item it is under).
+  const allBackgroundTasks = $derived(backgroundTasks(view.ownEntries));
+  const runningBackgroundTasks = $derived(allBackgroundTasks.filter((entry) => entry.item.status === ItemStatus.IN_PROGRESS));
+  let outputId = $state<string>();
+  let outputOpen = $state(false);
+  const selectedTask = $derived(allBackgroundTasks.find((entry) => entry.id === outputId));
+  const openOutput = (id: string) => { outputId = id; outputOpen = true; };
+  provideBackgroundOutput(openOutput);
+  $effect(() => { void threadId; outputOpen = false; outputId = undefined; });
+
   let feed = $state<FoldReader & { reveal: (key: string) => Promise<boolean> }>();
-  // A task under a turn's folded work opens the fold first.
-  const jumpTo = async (task: TimelineEntry) => {
-    const top = topLevelEntry(view.ownEntries, task);
-    if (top.turnId && !folds.open.has(top.turnId)) {
-      folds.toggle(top.turnId, true);
-      await tick();
-    }
-    void feed?.reveal(`item:${top.id}`);
-  };
 
   // A quote in a message shows where it came from: its item (in folded work or the inherited history: opened
   // first) scrolls into view and flashes (motion.css `data-flash`).
@@ -271,9 +273,9 @@
 
 <svelte:head><title>{thread?.title ?? "Thread"} · Open Agents</title></svelte:head>
 
-<!-- With the panel open its column is reserved by the container (which arrives first), so the
-     composer does not move when the browser paints before it has parsed the panel at the end. -->
-<div class={["flex h-full", panelOpen && "xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-1"]}>
+<!-- On xl the container reserves the details panel's column (it arrives before the panel, so nothing moves while
+     the page loads) and eases it open or shut (motion.css `t-panel-column`). -->
+<div class="t-panel-column flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1" style:--panel-width={panelOpen ? "20rem" : "0rem"} data-collapsed={!panelOpen || undefined}>
   <div class="flex min-w-0 flex-1 flex-col">
     <TopBar>
       {#if thread}
@@ -363,7 +365,7 @@
               {/if}
               {#if view.backgroundTasks.length > 0}
                 <GrowIn class="justify-self-start pb-3">
-                  <BackgroundTasksChip tasks={view.backgroundTasks} onjump={jumpTo} />
+                  <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
                 </GrowIn>
               {/if}
               {#if thread && queue.rows.length > 0}
@@ -399,8 +401,10 @@
     </div>
   </div>
 
-  {#if panelOpen}
-    <aside class="w-80 shrink-0 overflow-y-auto py-3 pr-3 pl-1 max-xl:hidden" aria-label="Thread details">
+  <!-- Mounted while closed too, so it can ease out: the panel keeps its width on the column's left edge and fades, so
+       its content never re-wraps; a closed panel is inert. -->
+  <aside class="relative min-w-0 overflow-hidden max-xl:hidden" aria-label="Thread details" inert={!panelOpen} data-collapsed={!panelOpen || undefined}>
+    <div class="t-panel absolute inset-y-0 left-0 w-80 overflow-y-auto py-3 pr-3 pl-1">
       {#if thread && tree}
         <ThreadPanel
           {thread}
@@ -409,6 +413,9 @@
           usage={view.usage}
           totals={view.totals}
           schedules={view.upcomingSchedules}
+          backgroundTasks={allBackgroundTasks}
+          items={itemsById}
+          onbackground={openOutput}
           onschedule={canSchedule ? openSchedule : undefined}
           onschedulechange={(schedule) => view.upsertSchedule(schedule)}
           onnewside={canBranch ? openSide : undefined}
@@ -416,8 +423,8 @@
       {:else}
         <Skeleton class="h-72 rounded-2xl" />
       {/if}
-    </aside>
-  {/if}
+    </div>
+  </aside>
 </div>
 
 {#if thread && tree}
@@ -429,12 +436,16 @@
       usage={view.usage}
       totals={view.totals}
       schedules={view.upcomingSchedules}
+      backgroundTasks={allBackgroundTasks}
+      items={itemsById}
+      onbackground={openOutput}
       onschedule={canSchedule ? openSchedule : undefined}
       onschedulechange={(schedule) => view.upsertSchedule(schedule)}
       onnewside={canBranch ? openSide : undefined}
       class="-mx-1.5 shadow-none ring-0 dark:ring-0"
     />
   </Dialog>
+  {#if selectedTask}<BackgroundTaskDialog bind:open={outputOpen} entry={selectedTask} threadId={thread.id} cwd={thread.cwd} source={itemsById.get(selectedTask.item.content.value.sourceItemId)} />{/if}
   <SideThreadDialog bind:open={sideOpen} main={tree.main} {worker} />
   <ThreadModelDialog bind:open={modelOpen} {thread} {worker} />
   <ThreadPermissionsDialog bind:open={permissionsOpen} {thread} />
