@@ -64,6 +64,11 @@
   /** Icons of chips inserted from the catalog, kept when the content is re-rendered. */
   const icons = new Map<string, string>();
   let trigger = $state<ActiveTrigger>();
+  /** The last trigger: the closing popup keeps its words. */
+  let lastChar = $state<TriggerChar>("/");
+  $effect(() => {
+    if (trigger) lastChar = trigger.char;
+  });
   let dismissed = $state<string>();
   let active = $state(0);
   let popupOpen = $state(false);
@@ -86,7 +91,7 @@
   const loading = $derived(catalogTrigger ? (sources?.catalogState.loading ?? false) : (results?.loading ?? false));
   const error = $derived(catalogTrigger ? sources?.catalogState.error : results?.error);
   const emptyText = $derived(
-    trigger?.char === "/" ? "No commands match" : trigger?.char === "$" ? "No skills or plugins match" : trigger?.char === "@" ? "No files match" : "No threads match",
+    lastChar === "/" ? "No commands match" : lastChar === "$" ? "No skills or plugins match" : lastChar === "@" ? "No files match" : "No threads match",
   );
   // Catalog lists react to the catalog arriving.
   $effect(() => {
@@ -172,7 +177,20 @@
   }
 
   function insertChip(mention: MentionData) {
-    document.execCommand("insertHTML", false, `${INLINE_RENDERERS.mention.html({ type: "mention", mention })}&nbsp;`);
+    const html = INLINE_RENDERERS.mention.html({ type: "mention", mention }).replace("<span ", '<span data-inserted="" ');
+    document.execCommand("insertHTML", false, `${html}&nbsp;`);
+    // Chrome leaves the caret before inserted non-editable content: put it after the chip and its space.
+    const chip = root?.querySelector("[data-inserted]");
+    if (chip) {
+      chip.removeAttribute("data-inserted");
+      const after = chip.nextSibling;
+      const range = document.createRange();
+      if (after?.nodeType === Node.TEXT_NODE) range.setStart(after, Math.min(1, after.textContent?.length ?? 0));
+      else range.setStartAfter(chip);
+      range.collapse(true);
+      getSelection()?.removeAllRanges();
+      getSelection()?.addRange(range);
+    }
     sync();
   }
 
@@ -308,9 +326,10 @@
   }
 </script>
 
-<div class={["relative", className]}>
+<!-- The placeholder shares the text's grid cell and padding (`class`), so it sits exactly where typing starts. -->
+<div class="grid grid-cols-1">
   {#if !value && !composing && placeholder}
-    <p aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 truncate text-zinc-400 select-none dark:text-zinc-500">{placeholder}</p>
+    <p aria-hidden="true" class={["pointer-events-none col-start-1 row-start-1 truncate text-zinc-400 select-none dark:text-zinc-500", className]}>{placeholder}</p>
   {/if}
   <div
     bind:this={root}
@@ -326,7 +345,7 @@
     contenteditable={disabled ? "false" : "true"}
     spellcheck="true"
     tabindex={disabled ? -1 : 0}
-    class="max-h-72 min-h-12 overflow-y-auto break-words whitespace-pre-wrap text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px"
+    class={["col-start-1 row-start-1 max-h-72 min-h-16 overflow-y-auto break-words whitespace-pre-wrap text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px", className]}
     oninput={sync}
     {onkeydown}
     {onbeforeinput}
@@ -350,7 +369,7 @@
   <Popover bind:open={popupOpen} label="{label}: suggestions" {anchor} role="none" focusOnOpen={false} placement="top-start" class="w-(--float-anchor-width) max-w-[calc(100vw-1rem)]">
     <MentionList
       id="{id}-popup"
-      label={trigger?.char === "@" ? "Files" : trigger?.char === "#" ? "Threads" : trigger?.char === "/" ? "Commands" : "Skills and plugins"}
+      label={lastChar === "@" ? "Files" : lastChar === "#" ? "Threads" : lastChar === "/" ? "Commands" : "Skills and plugins"}
       {options}
       {active}
       {loading}

@@ -91,3 +91,9 @@ describe("editor model: block shapes", () => {
     expect(serialize(root(...children)).text).toBe(expected);
   });
 });
+
+test("readable text uses the chips' labels", async () => {
+  const { readableText } = await import("../src/lib/features/mentions/editor.ts");
+  const value = { text: "Use $transitions-dev on @docs/a.md", mentions: [create(MentionSchema, { kind: MentionKind.SKILL, name: "transitions-dev", label: "Transitions Dev", start: 4, end: 20 }), create(MentionSchema, { kind: MentionKind.FILE, name: "docs/a.md", start: 24, end: 34 })] };
+  expect(readableText(value)).toBe("Use Transitions Dev on a.md");
+});

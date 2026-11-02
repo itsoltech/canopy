@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { MentionKind, MentionSchema, type Mention } from "@open-agents/contracts";
-import { mentionPlaceholder } from "@open-agents/domain";
+import { mentionLabel, mentionPlaceholder } from "@open-agents/domain";
 import { INLINE_RENDERERS, type InlineElement, type MentionData } from "./kinds.ts";
 
 /**
@@ -170,4 +170,16 @@ export function withoutPlatformNote(value: EditorValue): EditorValue {
     text: value.text.slice(shift),
     mentions: value.mentions.filter((m) => m.start >= shift).map((m) => create(MentionSchema, { ...m, start: m.start - shift, end: m.end - shift })),
   };
+}
+
+/** The text as people read it: each mention as its chip's label (a thread title from the first message). */
+export function readableText(value: EditorValue): string {
+  let out = "";
+  let at = 0;
+  for (const m of [...value.mentions].sort((a, b) => a.start - b.start)) {
+    if (m.start < at || m.end > value.text.length) continue;
+    out += value.text.slice(at, m.start) + mentionLabel(m);
+    at = m.end;
+  }
+  return out + value.text.slice(at);
 }

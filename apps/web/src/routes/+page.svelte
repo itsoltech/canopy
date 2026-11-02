@@ -12,6 +12,7 @@
   import WorkerPicker from "#lib/features/projects/WorkerPicker.svelte";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
+  import { readableText } from "#lib/features/mentions/editor.ts";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import type { Mention } from "@open-agents/contracts";
   import ComposerNotice from "#lib/features/threads/components/ComposerNotice.svelte";
@@ -94,7 +95,7 @@
   const draft = new AttachmentDraft(() => limitsOf(settings.attachmentLimits));
   let busy = $state(false);
   // Thread title: the first line of the task (the gateway falls back to "New thread").
-  const title = $derived(message.trim().split("\n")[0]?.slice(0, 80) || draft.files[0]?.name || "");
+  const title = $derived(readableText({ text: message, mentions }).trim().split("\n")[0]?.slice(0, 80) || draft.files[0]?.name || "");
   const clientRequestId = crypto.randomUUID();
 
   // Why the message cannot go yet (the send button is disabled and this says why).
