@@ -65,7 +65,7 @@ Motion follows the existing tokens and the tooltip travel recipe from `transitio
 
 ## Verified result (2026-11-02)
 
-Latest merged `main`: `f0a2361`. `bun install` completed without dependency changes.
+Latest merged `main`: `0c535d4`. `bun install` completed without dependency changes.
 The final `componentize`/self-review pass confirmed the three-file boundary, class merging,
 kit-owned positioning/padding, keyboard descriptions, gesture cancellation and reduced motion.
 
@@ -74,8 +74,8 @@ kit-owned positioning/padding, keyboard descriptions, gesture cancellation and r
 | Repository typecheck | All workspaces passed; Svelte: 0 errors, 0 warnings. |
 | Web build | Passed; the existing warning about chunks over 500kB remains. |
 | Full `bun run check:tmp` after the timeline-folding merge | 841 passed, 161 skipped, 0 failed; nothing left in its private temp directory. |
-| `bun run check:tmp apps/web` after the latest `main` merge | 307 passed, 0 failed; nothing left in its private temp directory. |
-| Chromium acceptance on the final build | 6 passed, 81 assertions, 0 browser exceptions; input alignment drift at most 0.5625px (limit 2px). |
+| `bun run check:tmp apps/web` after the latest `main` merge | 308 passed, 0 failed; nothing left in its private temp directory. |
+| Chromium acceptance on the final build | 6 passed, 81 assertions, 0 browser exceptions; input alignment drift at most 0.296875px (limit 2px). |
 
 Snapshots: `artifacts/turn-rail/1440-{light,dark}-preview.png`,
 `1440-{light,dark}-last-aligned.png`, `1440-{light,dark}-compressed.png`,
