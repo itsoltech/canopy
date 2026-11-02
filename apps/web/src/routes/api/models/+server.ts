@@ -23,5 +23,5 @@ const Refresh = Schema.Struct({ workerId: Schema.String.check(Schema.isMinLength
 /** Lists the worker's models again (it must be online; 503 otherwise). */
 export const POST: RequestHandler = async ({ request }) => {
   const body = await readBody(request, Refresh);
-  return json(encode(ui.ListModelsResponseSchema, await call((api) => api.listModels({ workerId: body.workerId, refresh: true }))));
+  return json(encode(ui.ListModelsResponseSchema, await call((api) => api.listModels({ workerId: body.workerId, refresh: true }, { timeoutMs: 100_000 }))));
 };

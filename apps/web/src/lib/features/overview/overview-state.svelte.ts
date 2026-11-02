@@ -16,7 +16,7 @@ export class OverviewState {
   projects = $state.raw<ui.Project[]>([]);
   /** Every thread by id (seeded from the server, status changes and new threads arrive live). */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
-  connection = $state<OverviewConnection>("live");
+  connection = $state<OverviewConnection>("reconnecting");
   /** Grows with every reload after a gap in the stream: state kept elsewhere (settings, schedules) reloads too. */
   resyncs = $state(0);
   #synced = false;
@@ -24,7 +24,6 @@ export class OverviewState {
 
   constructor(initial: ui.GetOverviewResponse | undefined, threads: readonly ui.Thread[] = []) {
     if (initial) this.#replace(initial, threads);
-    else this.connection = "unavailable";
   }
 
   worker(id: string): ui.Worker | undefined {
@@ -63,34 +62,48 @@ export class OverviewState {
     this.#synced = true;
   }
 
-  async #resync(): Promise<void> {
+  async #resync(signal: AbortSignal): Promise<void> {
     const get = async (path: string) => {
-      const response = await fetch(path, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+      const response = await fetch(path, { headers: { accept: "application/json" }, signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
     };
     try {
       const [overview, threads] = await Promise.all([get("/api/overview"), get("/api/threads")]);
+      if (signal.aborted) return;
       this.#replace(decode(ui.GetOverviewResponseSchema, overview), decode(ui.ListThreadsResponseSchema, threads).threads);
       this.connection = "live";
       this.resyncs += 1;
-    } catch {
+    } catch (cause) {
+      if (signal.aborted) return;
       this.connection = "unavailable";
+      throw cause;
     }
   }
 
   connect(): () => void {
+    let pending: ui.OverviewUpdate[] | undefined;
     return liveSource("/api/overview/events", {
-      // The server-rendered overview is fresh on the first open; later opens follow a gap.
-      onopen: (reconnected) => {
+      // A supplied seed is fresh on the first open; otherwise fetch it, and always resync after a gap.
+      onopen: async (reconnected, signal) => {
         if (!reconnected && this.#synced) this.connection = "live";
-        else void this.#resync();
+        else {
+          pending = [];
+          await this.#resync(signal);
+          if (signal.aborted) return;
+          for (const update of pending) this.apply(update);
+          pending = undefined;
+        }
       },
       ondrop: () => {
         if (this.connection === "live") this.connection = "reconnecting";
       },
       onfailure: () => (this.connection = "unavailable"),
-      onmessage: (data) => this.apply(decode(ui.OverviewUpdateSchema, JSON.parse(data))),
+      onmessage: (data) => {
+        const update = decode(ui.OverviewUpdateSchema, JSON.parse(data));
+        if (pending) pending.push(update);
+        else this.apply(update);
+      },
     });
   }
 }

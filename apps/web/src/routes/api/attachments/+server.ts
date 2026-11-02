@@ -23,6 +23,6 @@ export const POST: RequestHandler = async ({ request, url }) => {
     error(400, "Bad file name");
   }
   const data = new Uint8Array(await request.arrayBuffer());
-  const response = await call((api) => api.uploadAttachment({ name, data }));
+  const response = await call((api) => api.uploadAttachment({ name, data }, { timeoutMs: 60_000 }));
   return json(encode(ui.AttachmentSchema, response.attachment!));
 };
