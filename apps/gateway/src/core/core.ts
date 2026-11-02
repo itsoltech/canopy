@@ -125,6 +125,7 @@ export interface GatewayCoreOptions {
   /** How long a Claude task that completed by itself waits for Claude's own wake-up turn (core/background-tasks.ts). */
   readonly backgroundGraceMs?: number;
   readonly botModel?: BotModel;
+  readonly botClock?: () => Date;
   readonly secretTtlMs?: number;
 }
 
@@ -190,6 +191,7 @@ export class GatewayCore {
       interaction: (interaction) => this.#publishInteraction(interaction) });
     this.bots = new BotsRuntime({ runtime: options.runtime, userId: options.userId,
       connectors: this.connectors,
+      ...(options.botClock && { now: options.botClock }),
       ...(options.botModel && { model: options.botModel }), ...(options.log && { log: options.log }),
       platform: (turn, call) => botPlatform(this, options, turn, call),
       describeTool: (tool, args) => describeBotTool(this, tool, args),

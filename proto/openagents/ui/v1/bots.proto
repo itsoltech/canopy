@@ -27,6 +27,9 @@ message Bot {
   // Podgląd ostatniej zapisanej wiadomości na liście i w snapshotcie rozmowy.
   BotMessage last_message = 350;
   bool archived = 430;
+  string owner_user_id = 560;
+  uint32 unread_count = 561;
+  uint64 last_read_seq = 562;
 }
 message BotMessage {
   string id = 1;
@@ -62,6 +65,7 @@ message BotApproval {
   google.protobuf.Timestamp created_at = 8;
   // Pytanie: proponowane odpowiedzi (do 6); użytkownik może też odpowiedzieć własnymi słowami.
   repeated string options = 9;
+  string routine_title = 560;
 }
 message BotConversation {
   Bot bot = 1;
@@ -70,7 +74,37 @@ message BotConversation {
   string status_line = 4;
   bool working = 5;
   uint64 revision = 6;
+  repeated BotRoutine routines = 560;
+  repeated BotReminder reminders = 561;
 }
+message BotRoutine {
+  string id = 1;
+  string bot_id = 2;
+  string title = 3;
+  string instructions = 4;
+  string cron = 5;
+  string timezone = 6;
+  string schedule_text = 7;
+  bool enabled = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  google.protobuf.Timestamp last_run_at = 11;
+  google.protobuf.Timestamp next_run_at = 12;
+  string last_outcome = 13;
+  uint32 run_count = 14;
+}
+message BotReminder {
+  string id = 1;
+  string prompt = 2;
+  google.protobuf.Timestamp run_at = 3;
+}
+message SetBotRoutineEnabledRequest { string bot_id = 1; string routine_id = 2; bool enabled = 3; }
+message DeleteBotRoutineRequest { string bot_id = 1; string routine_id = 2; }
+message BotRoutineResponse { BotRoutine routine = 1; }
+message DeleteBotRoutineResponse {}
+message CancelBotReminderRequest { string bot_id = 1; string reminder_id = 2; }
+message CancelBotReminderResponse {}
+message MarkBotReadRequest { string bot_id = 1; uint64 through_seq = 2; }
 message CreateBotRequest { BotConfiguration configuration = 1; string client_request_id = 2; }
 message UpdateBotRequest { string bot_id = 1; BotConfiguration configuration = 2; }
 message GetBotRequest { string bot_id = 1; }

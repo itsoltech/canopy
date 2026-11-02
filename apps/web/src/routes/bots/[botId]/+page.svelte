@@ -9,6 +9,8 @@
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import type { ApprovalAnswer, ApprovalPolicy } from "#lib/features/bots/components/ApprovalCard.svelte";
   import ChatView from "#lib/features/bots/components/ChatView.svelte";
+  import BotDetailsLayout from "#lib/features/bots/details/BotDetailsLayout.svelte";
+  import BotDetailsPanel from "#lib/features/bots/details/BotDetailsPanel.svelte";
   import { botConversation, botEntries, botParticipant, botWizardInstances } from "#lib/features/bots/live.ts";
   import type { ChatEntry } from "#lib/features/bots/model.ts";
   import ChangeModelDialog, { type BotModelChoice } from "#lib/features/bots/wizard/ChangeModelDialog.svelte";
@@ -36,6 +38,10 @@
   let pending = $state<{ id: string; text: string; mentions: Mention[]; quotes: ui.Quote[]; at: Date; baseline: number; failed: boolean }[]>([]);
   let instances = $state.raw<ui.ProviderInstance[]>([]);
   let changingModel = $state(false);
+  let detailsOpen = $state(true);
+  let detailsLayout = $state<ReturnType<typeof BotDetailsLayout>>();
+  let detailsToggle: HTMLButtonElement | undefined;
+  function closeDetails() { detailsLayout?.close(); detailsToggle?.focus(); }
   let observedBotId: string | undefined;
 
   const bot = $derived(botList.list.find((b) => b.id === data.bot.id) ?? snapshot.bot ?? data.bot);
@@ -58,6 +64,17 @@
   const modelInstances = $derived(botWizardInstances(instances, [...catalogs.workers.values()]));
 
   $effect(() => botList.use());
+  function markVisibleRead() {
+    const last = snapshot.messages.at(-1)?.seq;
+    if (snapshot.bot && last && last > snapshot.bot.lastReadSeq && document.visibilityState === 'visible') {
+      void botList.markRead(snapshot.bot.id, last).catch(() => undefined);
+    }
+  }
+  $effect(() => { markVisibleRead(); });
+  $effect(() => {
+    document.addEventListener('visibilitychange', markVisibleRead);
+    return () => document.removeEventListener('visibilitychange', markVisibleRead);
+  });
   $effect(() => {
     const id = data.bot.id;
     if (botList.list.some((b) => b.id === id)) observedBotId = id;
@@ -156,6 +173,8 @@
 <svelte:head><title>{config.name || "Bot"} · Canopy</title></svelte:head>
 <div class="flex h-full min-h-0 flex-col">
   {#key data.bot.id}
+    <BotDetailsLayout bind:this={detailsLayout} bind:open={detailsOpen} ownerId={bot.ownerUserId}>
+      {#snippet panel()}<BotDetailsPanel {bot} routines={snapshot.routines} reminders={snapshot.reminders} status={snapshot.statusLine} onclose={closeDetails} />{/snippet}
     <ChatView
       {conversation}
       {entries}
@@ -178,6 +197,7 @@
     >
       {#snippet actions()}
         {#if snapshot.working}<Button size="sm" variant="ghost" icon="stop" onclick={interrupt}>Stop</Button>{/if}
+        <IconButton icon="information-circle" label="Bot details" aria-expanded={detailsLayout?.isExpanded() ?? false} onclick={(event) => { detailsToggle = event.currentTarget; detailsLayout?.toggle(); }} />
         <DropdownMenu label="Bot actions" placement="bottom-end">
           {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="Bot actions" {...props} />{/snippet}
           <MenuItem icon="pencil-square" onselect={() => openBotSettings(bot.id)}>Edit bot…</MenuItem>
@@ -190,6 +210,7 @@
         {#if bot.archived}<div class="flex flex-wrap items-center justify-center gap-3 rounded-xl bg-zinc-950/3 p-4 text-base/6 sm:text-sm/6 dark:bg-white/4"><p class="text-zinc-500 dark:text-zinc-400">{config.name} is archived</p><Button onclick={() => { void archiveBot(bot, false).catch(reportLifecycleError); }}>Unarchive</Button></div>{/if}
       {/snippet}
     </ChatView>
+    </BotDetailsLayout>
   {/key}
   {#if connection || pending.some((p) => p.failed)}
     <div role="alert" class="flex items-center justify-center gap-3 border-t border-zinc-950/5 px-4 py-2 text-sm/5 text-rose-600 dark:border-white/5 dark:text-rose-400">

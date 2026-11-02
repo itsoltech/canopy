@@ -48,6 +48,11 @@ class BotList {
     this.list = this.list.some((b) => b.id === bot.id) ? this.list.map((b) => b.id === bot.id ? bot : b) : [...this.list, bot];
   }
 
+  async markRead(botId: string, throughSeq: bigint): Promise<void> {
+    const response = decode(bots.GetBotResponseSchema, await requestJson('POST', `/api/bots/${botId}/read`, encode(bots.MarkBotReadRequestSchema, create(bots.MarkBotReadRequestSchema, { botId, throughSeq }))));
+    if (response.bot) this.upsert(response.bot);
+  }
+
   async save(bot: bots.Bot, configuration: bots.BotConfiguration): Promise<void> {
     if (this.#saving.has(bot.id)) throw new Error("This bot is already being saved. Try again after it finishes.");
     this.#saving.add(bot.id);

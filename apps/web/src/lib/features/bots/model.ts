@@ -106,6 +106,7 @@ export interface QuestionView {
   askedBy: string;
   at: Date;
   prompt: string;
+  routineTitle?: string | undefined;
   options: QuestionOptionView[];
   freeText?: boolean | undefined;
   /** Set once answered (by you, here or elsewhere): the option, or "" with your own words in `text`; skipped = not answered. */
@@ -119,6 +120,7 @@ export interface ApprovalView {
   at: Date;
   /** What it wants to do, e.g. "Sending to Notion". */
   action: string;
+  routineTitle?: string | undefined;
   fields: { label: string; value: string }[];
   /** pending until you answer; `edited` = you sent your own version back instead of approving. */
   status: "pending" | "approved" | "discarded" | "edited";
