@@ -216,6 +216,27 @@
   }
 }
 
+/* --- Quiet details (tooltip 17 timing): metadata that waits at opacity 0 in the space it keeps, so showing
+ * it moves nothing (a thread's turn details, revealed by `data-shown` on an ancestor or on itself). It fades
+ * in on --duration-quick after an intent delay (--duration-micro: a pointer sweeping down the feed does not
+ * flash every turn it crosses) and out on --duration-quick at once. `t-quiet-touch`: shown where nothing
+ * hovers (touch screens), e.g. the button that reveals the rest. Opacity only, so it stays as it is with
+ * reduced motion. */
+.t-quiet {
+  opacity: 0;
+  transition: opacity var(--duration-quick) var(--ease-out);
+}
+[data-shown] .t-quiet,
+.t-quiet[data-shown] {
+  opacity: 1;
+  transition-delay: var(--duration-micro);
+}
+@media (hover: none) {
+  .t-quiet.t-quiet-touch {
+    opacity: 1;
+  }
+}
+
 /* --- Sliding tabs (16): the raised pill of a segmented control travels between segments ----------------- */
 .t-tabs-pill {
   transition: translate var(--duration-fast) var(--ease-smooth-out);

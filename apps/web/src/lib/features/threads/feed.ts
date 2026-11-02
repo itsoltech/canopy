@@ -61,7 +61,7 @@ const ESTIMATES: Record<string, number> = {
   working: 36,
   steer: 96,
   queued: 96,
-  "turn-start": 36,
+  "turn-start": 24,
   input: 96,
   notice: 44,
   "turn-end": 40,
