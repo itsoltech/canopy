@@ -70,6 +70,11 @@ service GatewayService {
   rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse);
   rpc GetAttachment(GetAttachmentRequest) returns (GetAttachmentResponse);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
+
+  // Wzmianki w kompozytorze (sekcja na końcu pliku): komendy, skille i pluginy dostawcy, pliki workspace'u, wątki.
+  rpc ListMentionCatalog(ListMentionCatalogRequest) returns (ListMentionCatalogResponse);
+  rpc SearchFiles(SearchFilesRequest) returns (SearchFilesResponse);
+  rpc SearchThreads(SearchThreadsRequest) returns (SearchThreadsResponse);
 }
 
 // ---------- Model ----------
@@ -234,6 +239,8 @@ message Turn {
   openagents.worker.v1.PermissionMode permission_mode = 90;
   // Pliki dołączone do wiadomości (numery od 110). Ich ścieżki na workerze są w platform_note.
   repeated Attachment attachments = 110;
+  // Wzmianki w message_text (numery od 140): chipy wiadomości użytkownika.
+  repeated openagents.worker.v1.Mention mentions = 140;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -367,6 +374,8 @@ message CreateThreadRequest {
   string effort = 40;
   // Załączniki pierwszej wiadomości (UploadAttachment).
   repeated string initial_attachment_ids = 110;
+  // Wzmianki w initial_message (zakresy w nim; docs/ui-api.md, "Wzmianki").
+  repeated openagents.worker.v1.Mention initial_mentions = 140;
 }
 
 message CreateThreadResponse {
@@ -388,6 +397,8 @@ message SendMessageRequest {
   openagents.worker.v1.PermissionMode permission_mode = 90;
   // Załączniki (UploadAttachment). Wiadomość z załącznikami zawsze idzie do kolejki (nie steer).
   repeated string attachment_ids = 110;
+  // Wzmianki w text (zakresy w nim). Gateway sprawdza je i dopisuje to, czego dostawca potrzebuje (docs/ui-api.md).
+  repeated openagents.worker.v1.Mention mentions = 140;
 }
 
 message SendMessageResponse {
@@ -663,6 +674,8 @@ message Steer {
   google.protobuf.Timestamp created_at = 8;
   // Autor: użytkownik albo wątek agenta (send_message z delivery = steer).
   string source_thread_id = 9;
+  // Wzmianki w text.
+  repeated openagents.worker.v1.Mention mentions = 140;
 }
 
 // Katalog modeli jednego workera (z ostatniego raportu workera).
@@ -951,4 +964,52 @@ message GetThreadBlobRequest {
 message GetThreadBlobResponse {
   bytes data = 1;
   string mime_type = 2;
+}
+
+// ---------- Wzmianki w kompozytorze (docs/ui-api.md, "Wzmianki") ----------
+// Wyzwalacze w kompozytorze: "/" komendy, "$" skille i pluginy (jak w Codexie), "@" pliki, "#" wątki.
+
+// Gdzie: istniejący wątek (thread_id) albo nowy (workspace, dostawca, profil, opcjonalnie katalog).
+message MentionScope {
+  string thread_id = 1;
+  string workspace_id = 2;
+  openagents.worker.v1.Provider provider = 3;
+  string provider_profile_id = 4;
+  // Pusty = katalog wątku albo główny workspace'u.
+  string cwd = 5;
+}
+
+message ListMentionCatalogRequest {
+  MentionScope scope = 1;
+  // Od nowa z workera (bez pamięci podręcznej gateway i workera).
+  bool refresh = 2;
+}
+
+message ListMentionCatalogResponse {
+  // Komendy, skille i pluginy harnessu oraz komendy platformy (source = platform).
+  openagents.worker.v1.MentionCatalog catalog = 1;
+}
+
+message SearchFilesRequest {
+  MentionScope scope = 1;
+  string query = 2;
+  uint32 limit = 3;
+}
+
+message SearchFilesResponse {
+  openagents.worker.v1.FileSearchResult result = 1;
+}
+
+message SearchThreadsRequest {
+  // Pusty = najnowsze wątki.
+  string query = 1;
+  // Bez tego wątku (zwykle bieżący).
+  string exclude_thread_id = 2;
+  // 0 = 20; najwyżej 50.
+  uint32 limit = 3;
+}
+
+message SearchThreadsResponse {
+  // Najpierw najlepiej pasujące, przy równym dopasowaniu najnowsza aktywność.
+  repeated Thread threads = 1;
 }
