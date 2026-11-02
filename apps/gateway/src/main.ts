@@ -21,6 +21,7 @@ const core = new GatewayCore({
   runtime,
   instanceId: `${process.pid}@${Bun.env["HOSTNAME"] ?? "gateway"}`,
   userId,
+  ...(env["OA_PUBLIC_GATEWAY_URL"] && { publicGatewayUrl: env["OA_PUBLIC_GATEWAY_URL"] }),
   log: (m) => console.info(m),
   attachmentLimits: attachmentLimits(env),
 });
@@ -31,6 +32,7 @@ const keyFile = env["OA_TLS_KEY"];
 const server = await startGrpcServer({
   routes: (router) => {
     core.link.routes(router);
+    core.workers.routes(router);
     uiRoutes(core)(router);
   },
   interceptors: [serviceTokenAuth(serviceToken)],

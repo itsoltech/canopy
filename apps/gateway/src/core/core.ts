@@ -97,6 +97,7 @@ import { ThreadSecrets } from "./thread-secrets.ts";
 import { ActionContext } from "./action-context.ts";
 import { providerOf } from "../store/instance-config.ts";
 import { ConnectorsRuntime } from "../connectors/runtime.ts";
+import { WorkerAdministration, checkWorkerGatewayUrl } from "./worker-administration.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -115,6 +116,7 @@ export type CoreServices = GatewayStore | Ingest | AgentBusStore | SettingsStore
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<CoreServices, unknown>;
 
 export interface GatewayCoreOptions {
+  readonly publicGatewayUrl?: string;
   readonly runtime: CoreRuntime;
   readonly instanceId: string;
   /** Single development user until authentication lands (docs/ui-api.md). */
@@ -164,6 +166,7 @@ const HARNESS_ERROR_CODES: ReadonlySet<string> = new Set(["HARNESS_ERROR"]);
 const MAX_OBJECTIVE = 4000;
 
 export class GatewayCore {
+  readonly workers: WorkerAdministration;
   readonly connectors: ConnectorsRuntime;
   readonly secrets: ThreadSecrets;
   readonly bots: BotsRuntime;
@@ -207,6 +210,12 @@ export class GatewayCore {
       },
       config: async (workerId) => (await this.#run((s) => s.workerConfig(workerId))) ?? undefined,
       onConnected: (connection) => void this.#serve(connection),
+    });
+    this.workers = new WorkerAdministration({ runtime: options.runtime, userId: options.userId, link: this.link,
+      ...(options.publicGatewayUrl && { publicGatewayUrl: options.publicGatewayUrl }),
+      publish: (value) => this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "enrollment", value } })),
+      removed: (value) => this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "workerRemoved", value } })),
+      changed: () => this.#broadcastWorkers(),
     });
     this.secrets = new ThreadSecrets({ runtime: options.runtime, link: this.link, hub: this.hub, userId: options.userId,
       ...(options.secretTtlMs !== undefined && { ttlMs: options.secretTtlMs }) });
@@ -1868,6 +1877,7 @@ export class GatewayCore {
 
   /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
   async updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
+    if (request.workerGatewayUrl !== undefined) checkWorkerGatewayUrl(request.workerGatewayUrl);
     if (request.timezone !== undefined) {
       try {
         if (!request.timezone || request.timezone.length > 100 || /^[+-]/.test(request.timezone)) throw new Error();
@@ -1890,6 +1900,7 @@ export class GatewayCore {
     const settings = await this.#settings((s) =>
       s.updateUser({
         userId: this.#options.userId,
+        ...(request.workerGatewayUrl !== undefined && { workerGatewayUrl: request.workerGatewayUrl }),
         ...(request.appearance && { appearance: { ...request.appearance, sidebarWidth: storedSidebarWidth(request.appearance.sidebarWidth) } }),
         ...(request.timezone !== undefined && { timezone: request.timezone }),
         ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),

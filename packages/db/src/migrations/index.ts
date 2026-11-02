@@ -40,6 +40,7 @@ import botCreation from "./0040_bot_creation.sql" with { type: "text" };
 import connectors from "./0041_connectors.sql" with { type: "text" };
 import answerBot from "./0042_answer_bot.sql" with { type: "text" };
 import grokProvider from "./0043_grok_provider.sql" with { type: "text" };
+import workerEnrollment from "./0044_worker_enrollment.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -96,6 +97,7 @@ export const migrations = Migrator.fromRecord({
   "0041_connectors": sqlFile(connectors),
   "0042_answer_bot": sqlFile(answerBot),
   "0043_grok_provider": sqlFile(grokProvider),
+  "0044_worker_enrollment": sqlFile(workerEnrollment),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

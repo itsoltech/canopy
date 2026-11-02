@@ -4,11 +4,19 @@ import { ui, bots, connectors } from "@open-agents/contracts";
 import { ConnectorFailure } from "../connectors/store.ts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
 import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, SettingsConflict } from "../store/index.ts";
+import { workerGuard } from "../core/worker-administration.ts";
 
 /** GatewayService for the UI (docs/ui-api.md). Thin: validation and state live in the core and the store. */
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
   return (router) =>
     router.service(ui.GatewayService, {
+      getWorkerSetup: () => workerGuard(() => core.workers.setup()),
+      createWorkerEnrollment: (r) => workerGuard(() => core.workers.create(r.name)),
+      revokeWorkerEnrollment: (r) => workerGuard(async () => { await core.workers.revokeEnrollment(r.id); return create(ui.WorkerOperationResponseSchema); }),
+      renameWorker: (r) => workerGuard(async () => { await core.workers.manage(r.workerId, "rename", r.name); return create(ui.WorkerOperationResponseSchema); }),
+      rotateWorkerCredential: (r) => workerGuard(async () => create(ui.RotateWorkerCredentialResponseSchema, { credential: await core.workers.manage(r.workerId, "rotate") })),
+      revokeWorker: (r) => workerGuard(async () => { await core.workers.manage(r.workerId, "revoke"); return create(ui.WorkerOperationResponseSchema); }),
+      archiveWorker: (r) => workerGuard(async () => { await core.workers.manage(r.workerId, "archive"); return create(ui.WorkerOperationResponseSchema); }),
       listConnectors: (r) => connectorGuard(() => core.connectors.list(r)),
       saveConnectorAccount: (r) => connectorGuard(async () => create(connectors.ConnectorAccountResponseSchema, { account: await core.connectors.save(r) })),
       setConnectorAccess: (r) => connectorGuard(async () => create(connectors.ConnectorAccountResponseSchema, { account: await core.connectors.access(r) })),
