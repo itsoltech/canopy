@@ -23,7 +23,7 @@
       <Icon name={mark.icon} class={["size-3.5", mark.iconClass]} />
     {/snippet}
   </ThreadActivityMark>
-  <SwapText text={thread.title} class="h-6 min-w-0 flex-1 overflow-hidden text-base/6 text-zinc-700 group-data-calm:opacity-60 group-data-result:text-zinc-950 group-aria-[current=page]:text-zinc-950 sm:text-sm/6 dark:text-zinc-300 dark:group-data-result:text-white dark:group-aria-[current=page]:text-white" />
+  <SwapText text={thread.title} class={["h-6 min-w-0 flex-1 overflow-hidden text-base/6 sm:text-sm/6", thread.titleGenerating ? "shimmer" : "text-zinc-700 group-data-calm:opacity-60 group-data-result:text-zinc-950 group-aria-[current=page]:text-zinc-950 dark:text-zinc-300 dark:group-data-result:text-white dark:group-aria-[current=page]:text-white"]} />
   {#if thread.spawnedByAgent}<span class="sr-only">(started by an agent)</span>{/if}
   {#if thread.forkSourceThreadId}<span class="sr-only">(fork)</span>{/if}
   <ThreadGoalMark {thread} />

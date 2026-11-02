@@ -709,11 +709,11 @@ export class GatewayCore {
   }
 
   async listThreads(projectId: string): Promise<ui.Thread[]> {
-    return (await this.#run((s) => s.listThreads(this.#options.userId, projectId))).map(toUiThread);
+    return (await this.#run((s) => s.listThreads(this.#options.userId, projectId))).map((row) => this.#uiThread(row));
   }
 
   async getThread(threadId: string): Promise<ui.Thread> {
-    return toUiThread(await this.#run((s) => s.thread(threadId)));
+    return this.#uiThread(await this.#run((s) => s.thread(threadId)));
   }
 
   /** The user saw the thread up to an event: a lower marker changes nothing; a new one reaches every device. */
@@ -733,7 +733,7 @@ export class GatewayCore {
       const row = await this.#run((s) => s.createThread(this.#options.userId, effort === request.effort ? request : { ...request, effort }));
       await this.#startThread(row);
       if (request.initialMessage.trim()) this.#autoTitle(row.id, titleContext({ text: request.initialMessage }));
-      return toUiThread(row);
+      return this.#uiThread(row);
     }
     // With attachments or mentions: checked first (no thread for a message that cannot go), then the first message as a turn.
     const projects = await this.#run((s) => s.listProjects(this.#options.userId));
@@ -759,7 +759,7 @@ export class GatewayCore {
     // A /goal first message: the new thread's goal (Claude: its /goal turn; Codex: thread/goal/set after the thread).
     if (goal !== undefined) await this.setGoal(create(ui.SetGoalRequestSchema, { threadId: row.id, action: "set", objective: goal }));
     else this.#autoTitle(row.id, titleContext({ text: request.initialMessage, mentions, attachments: files?.input(row.id, request.initialMessage).attachments }));
-    return toUiThread(row);
+    return this.#uiThread(row);
   }
 
   // ------------------------------------------------------------------ attachments
@@ -919,7 +919,7 @@ export class GatewayCore {
     const limit = Math.min(request.limit || 20, 50);
     const activity = (t: ui.Thread) => (t.lastActivityAt ? timestampDate(t.lastActivityAt).getTime() : 0);
     const threads = (await this.#run((s) => s.listThreads(this.#options.userId, "")))
-      .map(toUiThread)
+      .map((row) => this.#uiThread(row))
       .filter((t) => t.id !== request.excludeThreadId)
       .sort((a, b) => activity(b) - activity(a));
     const ranked = fuzzyRank(request.query, threads, (t) => [t.title || "Untitled"], limit);
@@ -1045,7 +1045,7 @@ export class GatewayCore {
     const from = await this.#run((s) => s.thread(request.forkThreadId));
     if (from.owner_user_id !== this.#options.userId) throw new InvalidError("thread not found");
     if (from.runtime !== "worker" || !from.workspace_id) throw new InvalidError("only threads on a worker can be forked");
-    const source = toUiThread(from);
+    const source = this.#uiThread(from);
     return create(ui.CreateThreadRequestSchema, {
       ...request,
       projectId: from.project_id,
@@ -1083,7 +1083,7 @@ export class GatewayCore {
       { kind: { case: "createThread", value: { thread: spec, ...(fork && { fork }) } } },
       { threadId: row.id, ttlSeconds: TTL.createThread },
     );
-    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: toUiThread(row) } }));
+    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: this.#uiThread(row) } }));
   }
 
   /**
@@ -1179,7 +1179,7 @@ export class GatewayCore {
       }),
     );
     await this.#broadcastThread(row.id);
-    return toUiThread(row);
+    return this.#uiThread(row);
   }
 
   /** Shared hook for the thread panel, command palette and future sidebar context menu. */
@@ -1205,6 +1205,13 @@ export class GatewayCore {
   readonly #titleJobs = new Map<string, Promise<void>>();
   readonly #titlePreparing = new Set<string>();
 
+  /** The UI's thread: the row plus what only this gateway knows (a title being generated right now). */
+  #uiThread(row: ThreadRow): ui.Thread {
+    const thread = toUiThread(row);
+    thread.titleGenerating = this.#titleJobs.has(row.id) || this.#titlePreparing.has(row.id);
+    return thread;
+  }
+
   #autoTitle(threadId: string, context: string): void {
     // One atomic claim across duplicate requests and gateway processes. No outbox or reconnect retries.
     void this.#run((s) => s.beginTitle(threadId, true, context, provisionalTitle(context)))
@@ -1219,8 +1226,13 @@ export class GatewayCore {
     const job = this.#generateTitle(thread).catch(() => {
       // SDK/provider failures can contain auth or endpoints. Only a safe, bounded diagnostic is logged.
       this.#log(`thread title ${thread.id}: generation unavailable, failed or timed out; title retained`);
-    }).finally(() => { if (this.#titleJobs.get(thread.id) === job) this.#titleJobs.delete(thread.id); });
+    }).finally(() => {
+      if (this.#titleJobs.get(thread.id) !== job) return;
+      this.#titleJobs.delete(thread.id);
+      void this.#broadcastThread(thread.id).catch(() => {}); // the UI stops showing it as generating
+    });
     this.#titleJobs.set(thread.id, job);
+    void this.#broadcastThread(thread.id).catch(() => {});
   }
 
   async #generateTitle(thread: ThreadRow): Promise<void> {
@@ -1241,7 +1253,8 @@ export class GatewayCore {
     if (!result.ok) throw new Error("text generation failed");
     const title = sanitizeTitle(result.generatedText);
     if (!title) throw new Error("text generation returned an empty title");
-    if (await this.#run((s) => s.finishTitle(thread.id, thread.title_revision, title))) await this.#broadcastThread(thread.id);
+    // The job's end broadcasts the thread: the new title and the end of "generating" arrive together.
+    await this.#run((s) => s.finishTitle(thread.id, thread.title_revision, title));
   }
 
   // ------------------------------------------------------------------ models and steers
@@ -1572,7 +1585,7 @@ export class GatewayCore {
         change: {
           case: "snapshot",
           value: {
-            thread: toUiThread(snapshot.thread),
+            thread: this.#uiThread(snapshot.thread),
             turns: snapshot.turns.map(toUiTurn),
             items: snapshot.items,
             interactions: snapshot.interactions,
@@ -1934,7 +1947,7 @@ export class GatewayCore {
   }
 
   async #broadcastThread(threadId: string): Promise<void> {
-    const thread = toUiThread(await this.#run((s) => s.thread(threadId)));
+    const thread = this.#uiThread(await this.#run((s) => s.thread(threadId)));
     this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "thread", value: thread } }));
     this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));
   }

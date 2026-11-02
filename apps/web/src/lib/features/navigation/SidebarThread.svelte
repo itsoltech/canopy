@@ -38,7 +38,7 @@
     <span class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5 dark:text-zinc-400">{project?.name ?? "Unknown project"}</span>
     <ThreadStatusText {thread} icons={false} class="group-data-calm:opacity-60" />
   </span>
-  <SwapText text={thread.title} class="h-6 min-w-0 w-full overflow-hidden text-base/6 text-zinc-800 group-data-calm:opacity-60 group-data-result:text-zinc-950 group-aria-[current=page]:text-zinc-950 sm:text-sm/6 dark:text-zinc-200 dark:group-data-result:text-white dark:group-aria-[current=page]:text-white" />
+  <SwapText text={thread.title} class={["h-6 min-w-0 w-full overflow-hidden text-base/6 sm:text-sm/6", thread.titleGenerating ? "shimmer" : "text-zinc-800 group-data-calm:opacity-60 group-data-result:text-zinc-950 group-aria-[current=page]:text-zinc-950 dark:text-zinc-200 dark:group-data-result:text-white dark:group-aria-[current=page]:text-white"]} />
   <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5">
     <Icon name="computer-desktop" class="size-3.5 {worker?.online ? 'fill-zinc-400 dark:fill-zinc-500' : 'fill-zinc-300 dark:fill-zinc-700'}" />
     <span class="min-w-0 flex-1 truncate">{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{basename(thread.cwd)}</span>
