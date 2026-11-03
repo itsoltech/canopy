@@ -5,7 +5,7 @@ import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { healthcheck } from "./healthcheck.ts";
 import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
-import { installKind, isStandalone, serviceSnippet, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
+import { installKind, isStandalone, onSupervisorHandover, serviceSnippet, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 
@@ -47,7 +47,7 @@ const core = new GatewayCore({
     ...(env["CANOPY_RELEASE_BASE_URL"] && { source: { baseUrl: env["CANOPY_RELEASE_BASE_URL"] } }),
     ...(env["CANOPY_UPDATE_CACHE_DIR"] && { cacheDir: env["CANOPY_UPDATE_CACHE_DIR"] }),
     channel: env["CANOPY_UPDATE_CHANNEL"] ?? "stable",
-    restart: async () => { await stop(); process.exit(UPDATE_RESTART_EXIT_CODE); },
+    restart: async (exitCode = UPDATE_RESTART_EXIT_CODE) => { await stop(); process.exit(exitCode); },
     idle: () => runtime.runPromise(Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       const rows = yield* sql<{ idle: boolean }>`SELECT NOT EXISTS (SELECT 1 FROM turns WHERE status = 'running') AND NOT EXISTS (SELECT 1 FROM bot_turns WHERE status = 'running') AS idle`;
@@ -56,6 +56,7 @@ const core = new GatewayCore({
     log: (message) => console.info(message),
   },
 });
+if (installKind() === "binary") onSupervisorHandover(() => core.updates.handover(), (message) => console.info(message));
 // Workers' configurations follow the global provider instances (e.g. right after the migration to them).
 await core.syncProviderInstances();
 const certFile = env["CANOPY_TLS_CERT"];

@@ -45,7 +45,8 @@ test("idle worker exits promptly on SIGTERM after the gateway acknowledges its j
   const config = join(dir, "worker.json");
   writeFileSync(config, JSON.stringify({ gateway_url: server.url, worker_id: workerId, credential, data_dir: dir }), { mode: 0o600 });
   const child = Bun.spawn([process.execPath, "apps/worker/src/main.ts", "--config", config], {
-    env: { ...process.env, CODEX_HOME: join(dir, "device-codex"), CLAUDE_CONFIG_DIR: join(dir, "device-claude") }, stdout: "pipe", stderr: "pipe" });
+    // The binary watchdog now adds IPC; closing it must not hold a gracefully stopped worker alive.
+    ipc: () => {}, env: { ...process.env, CODEX_HOME: join(dir, "device-codex"), CLAUDE_CONFIG_DIR: join(dir, "device-claude") }, stdout: "pipe", stderr: "pipe" });
   const output = new Response(child.stdout).text();
   const errors = new Response(child.stderr).text();
   const deadline = setTimeout(() => child.kill("SIGKILL"), 12_000);

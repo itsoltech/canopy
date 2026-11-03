@@ -3,7 +3,7 @@ import { update } from "@canopy/contracts";
 import { MIN_WORKER_LINK_PROTOCOL, UPDATE_PROTOCOL, WORKER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { createGrpcClientTransport } from "@canopy/transport";
-import { clearUpdateResult, compareVersions, installKind, managedInstructions, parseManifest, readUpdateRecord, releaseAsset, stageBinaryUpdate, whenIdle, type InstallKind } from "@canopy/updater";
+import { clearUpdateResult, compareVersions, installKind, managedInstructions, parseManifest, readUpdateRecord, releaseAsset, stageBinaryUpdate, SUPERVISOR_HANDOVER_EXIT_CODE, whenIdle, type InstallKind } from "@canopy/updater";
 
 export interface WorkerUpdatesOptions {
   baseUrl: string;
@@ -12,7 +12,7 @@ export interface WorkerUpdatesOptions {
   ca?: string | Buffer;
   idle(): boolean | Promise<boolean>;
   drain(value: boolean): void;
-  restart(): Promise<void>;
+  restart(exitCode?: number): Promise<void>;
   signal: AbortSignal;
   log?(message: string): void;
   kind?: InstallKind;
@@ -70,6 +70,16 @@ export class WorkerUpdates {
     await this.#client.report({ workerId: this.options.workerId, commandId: record.commandId, version: record.version,
       state: record.state, reason: record.reason }, { headers: this.#headers, signal: this.options.signal, timeoutMs: 10_000 });
     await clearUpdateResult(this.options.binaryPath);
+  }
+  async handover(): Promise<void> {
+    if (this.#kind !== "binary" || this.#active || this.options.signal.aborted) return;
+    this.#active = "supervisor-handover";
+    try {
+      await whenIdle({ idle: this.options.idle, drain: this.options.drain, signal: this.options.signal,
+        waiting: async () => { this.options.log?.("supervisor handover: waiting for active turns and background work to finish"); },
+        apply: () => this.options.restart(SUPERVISOR_HANDOVER_EXIT_CODE),
+      });
+    } finally { this.#active = undefined; }
   }
   async apply(command: update.UpdateCommand): Promise<void> {
     if (!command.id || this.#handled.has(command.id) || this.#active) return;

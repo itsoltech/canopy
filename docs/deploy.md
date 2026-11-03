@@ -251,6 +251,24 @@ WantedBy=default.target
 bez zalogowanej sesji: `loginctl enable-linger $USER`. `PATH` musi obejmować CLI agentów.
 Kod wyjścia 78 = zła konfiguracja (bez restartu w pętli).
 
+Binarny gateway i worker po potwierdzonej samoczynnej aktualizacji odświeżają też
+kod supervisora. Najpierw blokują nową pracę i czekają na zakończenie aktywnej,
+następnie zamykają dziecko i wykonują `process.execve` na zaktualizowanej binarce.
+PID głównego procesu widziany przez systemd/launchd pozostaje ten sam; nie jest
+potrzebna nowa polityka restartu ani zmiana unitu. `Restart=always` / launchd
+`KeepAlive=true` nadal obsługują zwykłe awarie, a wewnętrzny kod 76 nie trafia
+do menedżera. Mechanizm działa również bez usługi, na pierwszym planie.
+Gdy `execve` jest niedostępne lub zawiedzie, supervisor kontynuuje nadzór i zapisuje
+komunikat; wtedy zrestartuj usługę ręcznie w dogodnym momencie.
+Po pierwszym wdrożeniu tej poprawki supervisor uruchomiony ze starszego wydania,
+które jeszcze nie zna przekazania, wymaga jednego restartu usługi.
+
+Obrazy Docker (`CANOPY_INSTALL_KIND=docker`), instalacje ze źródeł i runtime
+desktopu nie używają tego przekazania. W Compose pozostaje `restart: unless-stopped`
+do zwykłych awarii; nowy kod kontenera wchodzi przez `docker compose pull` i
+odtworzenie kontenera, także pod tini. Przekazanie binarki nie zależy od `restart:`
+i nie służy do aktualizacji obrazu.
+
 ## Aktualizacja
 
 - **Docker**: tag kanału (`stable`/`latest`, `beta`, `nightly`, `v1`) wskazuje nowy obraz po wydaniu:
