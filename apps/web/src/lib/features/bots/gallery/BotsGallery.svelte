@@ -154,9 +154,9 @@
 
       <GallerySection title="Conversation headers" description="1:1, group, and a watched bot ⇄ bot chat.">
         <div class="grid gap-2 rounded-xl ring-1 ring-zinc-950/5 dark:ring-white/10">
-          <ConversationHeader conversation={chats.direct.conversation} />
-          <ConversationHeader conversation={chats.group.conversation} />
-          <ConversationHeader conversation={chats.watch.conversation} />
+          <ConversationHeader conversation={chats.direct.conversation} titlebar={false} />
+          <ConversationHeader conversation={chats.group.conversation} titlebar={false} />
+          <ConversationHeader conversation={chats.watch.conversation} titlebar={false} />
         </div>
       </GallerySection>
 

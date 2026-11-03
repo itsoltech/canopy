@@ -12,7 +12,7 @@
    * right; a full-screen sheet on phones. A native modal `<dialog>`: the page underneath is inert, focus
    * stays inside and goes back to the opener on close. Escape, the close button or a click on the
    * backdrop ask to close (`onclose`); `open` going false plays the exit (motion.css `t-modal`), then
-   * `onexited`.
+   * `onexited`. On macOS its top row is a title strip (routes/layout.css).
    */
   let { open, onclose, onexited, children }: { open: boolean; onclose: () => void; onexited: () => void; children: Snippet } = $props();
   const settings = useSettings();
@@ -55,10 +55,12 @@
 >
   <div class="flex h-full flex-col lg:flex-row">
     <div class="shrink-0 border-zinc-950/5 bg-zinc-50 px-3 pt-3 pb-2 lg:w-64 lg:overflow-y-auto lg:border-r lg:pb-4 dark:border-white/8 dark:bg-white/2">
+      <!-- On macOS the dialog's top row is a title strip, so the traffic lights never sit over the search. -->
+      <div class="-mx-3 -mt-3 hidden h-12 macos:block" data-window-drag></div>
       <SettingsNav />
     </div>
     <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div class="flex h-12 shrink-0 items-center gap-2 border-b border-zinc-950/5 pr-2 pl-5 dark:border-white/8">
+      <div class="flex h-12 shrink-0 items-center gap-2 border-b border-zinc-950/5 pr-2 pl-5 dark:border-white/8" data-window-drag>
         <SettingsBreadcrumb class="flex-1" />
         <IconButton icon="x-mark" label="Close settings" onclick={onclose} />
       </div>

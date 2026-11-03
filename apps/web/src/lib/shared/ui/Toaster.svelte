@@ -15,6 +15,7 @@
     <div
       class="t-toast pointer-events-auto flex items-center gap-2 rounded-full bg-zinc-950 py-1.5 pr-3.5 pl-2.5 text-sm/5 font-medium text-white shadow-lg data-closing:absolute dark:bg-zinc-800 dark:shadow-none dark:ring-1 dark:ring-white/10"
       data-closing={entry.closing || undefined}
+      data-window-no-drag
     >
       {#if entry.tone === "success"}
         <span class="t-success-check text-emerald-400" aria-hidden="true">

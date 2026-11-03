@@ -311,9 +311,18 @@
   opacity: 0;
   transition-duration: var(--duration-medium);
 }
+/* On macOS a page's top bar makes room for the traffic lights while the sidebar is hidden (layout.css); the inset
+ * rides with the column: it grows as the column closes (--duration-medium) and gives way as it opens. */
+:where([data-canopy-platform="darwin"]) [data-window-titlebar] {
+  transition: padding-left var(--duration-slow) var(--ease-smooth-out);
+}
+:where([data-canopy-platform="darwin"]) [data-sidebar="hidden"] [data-window-titlebar] {
+  transition-duration: var(--duration-medium);
+}
 @media (prefers-reduced-motion: reduce) {
   .t-sidebar,
-  .t-sidebar-panel {
+  .t-sidebar-panel,
+  [data-window-titlebar] {
     transition: none !important;
   }
 }

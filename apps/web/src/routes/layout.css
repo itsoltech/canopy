@@ -5,10 +5,26 @@
 /* Dark mode by class (set before first paint in app.html from the Appearance setting; default: system). */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Native macOS traffic lights occupy the sidebar's existing header row. */
-html[data-canopy-platform="darwin"] .canopy-sidebar-header { padding-left: 88px; -webkit-app-region: drag; }
-html[data-canopy-platform="darwin"] .canopy-sidebar-header a,
-html[data-canopy-platform="darwin"] .canopy-sidebar-header button { -webkit-app-region: no-drag; }
+/*
+ * macOS desktop window chrome (docs/desktop.md): no title bar, the traffic lights sit in the window's top-left
+ * corner. Electron moves the window from app regions: the boxes of every element with one, in document order,
+ * regardless of z-order. The property is inherited, so each descendant of a strip adds its own box, overflowing
+ * or clipped ones too. So:
+ * - `data-window-drag` marks a title strip; nothing in it may reach outside it, the controls in it stay clickable.
+ *   The sidebar header is one (inset clear of the lights); a page's top bar (`data-window-titlebar`) becomes
+ *   one, inset clear of the lights, while the sidebar is hidden (`data-sidebar` on the shell).
+ * - Whatever floats over the window (dialogs, sheets, drawers, popovers, menus, tooltips, toasts) is no-drag,
+ *   and an open modal turns the strips underneath it off, so a strip never takes a click meant for it.
+ * `macos:` styles an element for the desktop app on macOS only.
+ */
+@custom-variant macos (&:where([data-canopy-platform="darwin"] *));
+html[data-canopy-platform="darwin"] .canopy-sidebar-header { padding-left: 88px; }
+html[data-canopy-platform="darwin"] [data-sidebar="hidden"] [data-window-titlebar] { padding-left: 80px; }
+html[data-canopy-platform="darwin"] :is([data-window-drag], [data-sidebar="hidden"] [data-window-titlebar]) { -webkit-app-region: drag; }
+html[data-canopy-platform="darwin"] :is([data-window-drag], [data-window-titlebar])
+  :is(a, button, input, select, textarea, label, summary, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="switch"], [role="combobox"], [tabindex]:not([tabindex="-1"]), [contenteditable]),
+html[data-canopy-platform="darwin"] :is(dialog, [popover], [data-window-no-drag]),
+html[data-canopy-platform="darwin"]:has(dialog:modal) :is([data-window-drag], [data-window-titlebar]):not(dialog:modal *) { -webkit-app-region: no-drag; }
 
 /*
  * Design tokens. Neutrals are zinc; colour carries meaning only:
