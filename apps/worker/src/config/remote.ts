@@ -19,6 +19,7 @@ import {
   type ProfileStatus,
   type ProviderProfileConfig,
 } from "../providers/index.ts";
+import { findCli } from "../cli-tools/discovery.ts";
 
 /**
  * Applies the remote WorkerConfig (docs/worker-config.md). Validation happens here, on the device,
@@ -103,7 +104,8 @@ export function instanceShadowHome(
 }
 
 export const systemProbe: DeviceProbe = {
-  which: (command) => Bun.which(command),
+  // PATH, then where the official installers put CLIs (a service's PATH often lacks ~/.local/bin).
+  which: (command) => findCli(command),
   version: (executable) => {
     const result = Bun.spawnSync([executable, "--version"], { stdout: "pipe", stderr: "ignore", timeout: 10_000 });
     return result.exitCode === 0 ? result.stdout.toString().trim().split("\n")[0] : undefined;

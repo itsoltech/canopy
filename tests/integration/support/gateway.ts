@@ -332,7 +332,7 @@ export interface TestGateway {
 }
 
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
-export async function startTestGateway(options: { updates?: GatewayCoreOptions["updates"]; attachmentLimits?: AttachmentLimits; backgroundGraceMs?: number; botModel?: BotModel; worker?: ScriptedWorkerOptions; secretTtlMs?: number } = {}): Promise<TestGateway> {
+export async function startTestGateway(options: { cliLatest?: GatewayCoreOptions["cliLatest"]; updates?: GatewayCoreOptions["updates"]; attachmentLimits?: AttachmentLimits; backgroundGraceMs?: number; botModel?: BotModel; worker?: ScriptedWorkerOptions; secretTtlMs?: number } = {}): Promise<TestGateway> {
   const pg = await startPostgres();
   const secretsKey = randomBytes(32);
   const runtime: TestRuntime = ManagedRuntime.make(
@@ -360,7 +360,7 @@ export async function startTestGateway(options: { updates?: GatewayCoreOptions["
     await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [added.workerId])));
     return added;
   };
-  const core = new GatewayCore({ runtime, instanceId: "test", userId, sshSecretsKey: secretsKey, ...(options.updates && { updates: options.updates }), ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }), ...(options.botModel && { botModel: options.botModel }), ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["CANOPY_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
+  const core = new GatewayCore({ runtime, instanceId: "test", userId, sshSecretsKey: secretsKey, ...(options.cliLatest && { cliLatest: options.cliLatest }), ...(options.updates && { updates: options.updates }), ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }), ...(options.botModel && { botModel: options.botModel }), ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["CANOPY_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
   const grpc = await startGrpcServer({
     routes: (router) => {
       core.link.routes(router);

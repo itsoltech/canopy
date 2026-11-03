@@ -77,6 +77,14 @@ Kreator obserwuje istniejący `Worker` stream, wykryte CLI i używa `SetInstance
 w ostatnim kroku. BFF ustawia `Cache-Control: no-store` na odpowiedziach zarządzania.
 Pełne zasady tokenu, usług i zachowania historii: [worker-config.md](worker-config.md#dodanie-maszyny-z-ui).
 
+### CLI dostawców
+
+`Worker.cli_tools` (**800**) i `Worker.arch` (**801**) pokazują CLI workera z najnowszą wersją, akcją i powodem
+blokady. `InstallCli` (jeden worker albo `all_workers` dla dostawcy) i `CheckCliUpdates` są właścicielskie i
+egzekwowane w gatewayu; BFF: `POST /api/workers/cli/install`, `POST /api/workers/cli/check`. UI: sekcja „Agent CLIs”
+w rozwiniętym workerze, „Agent CLI updates” z „Update all” i kropka przy Settings → Workers. Zasady:
+[provider-cli.md](provider-cli.md).
+
 ## No project i katalogi scratch
 
 `GetOverview.projects` zawiera projekt systemowy właściciela o `Project.kind = "scratch"`

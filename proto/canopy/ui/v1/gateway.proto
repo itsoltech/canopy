@@ -134,6 +134,9 @@ service GatewayService {
   rpc RefreshProviders(RefreshProvidersRequest) returns (RefreshProvidersResponse);
   // Logowanie instancji przez API harnessu (Codex: ChatGPT kodem urządzenia).
   rpc StartProviderLogin(StartProviderLoginRequest) returns (StartProviderLoginResponse);
+  // CLI dostawców na workerach (docs/provider-cli.md): instalacja/aktualizacja na kliknięcie i najnowsze wersje.
+  rpc InstallCli(InstallCliRequest) returns (InstallCliResponse);
+  rpc CheckCliUpdates(CheckCliUpdatesRequest) returns (CheckCliUpdatesResponse);
 
   // Załączniki (sekcja na końcu pliku): plik użytkownika do wiadomości, jego bajty i podglądy obrazów z transkryptu.
   rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse);
@@ -266,6 +269,9 @@ message Worker {
   string home_directory = 14;
   // Globalne instancje dostawców z ich stanem na tym workerze (pickery: tylko enabled i available).
   repeated WorkerInstance provider_instances = 120;
+  // CLI dostawców na tym workerze (docs/provider-cli.md); puste = worker ich nie zgłasza (starsza wersja).
+  repeated WorkerCliTool cli_tools = 800;
+  string arch = 801;
 }
 
 message Project {
@@ -1484,6 +1490,61 @@ message StartProviderLoginRequest {
 message StartProviderLoginResponse {
   string verification_url = 1;
   string user_code = 2;
+}
+
+// ---------- CLI dostawców (docs/provider-cli.md) ----------
+
+// Najnowsza wersja CLI z oficjalnego źródła (cache gatewaya).
+message CliLatest {
+  canopy.worker.v1.Provider provider = 1;
+  string version = 2;
+  // Nie udało się sprawdzić (UI: "Couldn't check for updates"); version może być z poprzedniego sprawdzenia.
+  string error = 3;
+  google.protobuf.Timestamp checked_at = 4;
+}
+
+// CLI na workerze z tym, co UI może z nim zrobić. Decyzje egzekwuje gateway (InstallCli), nie UI.
+message WorkerCliTool {
+  // Ostatni raport workera.
+  canopy.worker.v1.CliTool tool = 1;
+  CliLatest latest = 2;
+  bool update_available = 3;
+  // install | update | "" (brak akcji: zarządzane zewnętrznie, aktualne, brak przepisu).
+  string action = 4;
+  // Dlaczego akcja jest teraz zablokowana (offline, trwające tury, starszy worker); pusty = można.
+  string blocked_reason = 5;
+  // Np. "Managed by Homebrew", "Managed by the image".
+  string managed_by = 6;
+  // Trwające tury tego dostawcy na workerze.
+  uint32 running_turns = 7;
+  // Ostatnie zredagowane linie trwającej albo ostatniej instalacji (od startu gatewaya).
+  repeated string log = 8;
+}
+
+message InstallCliRequest {
+  // Pusty z all_workers = wszystkie workery właściciela, na których dostawca ma dostępną aktualizację.
+  string worker_id = 1;
+  canopy.worker.v1.Provider provider = 2;
+  // X.Y.Z[-pre] albo "latest"; pusty = najnowsza znana (albo "latest").
+  string version = 3;
+  bool all_workers = 4;
+}
+
+message InstallCliResponse {
+  // Workery, na których instalacja wystartowała.
+  repeated string started = 1;
+  // Pominięte z powodem ("<nazwa>: <powód>").
+  repeated string skipped = 2;
+}
+
+message CheckCliUpdatesRequest {
+  // Pusty = wszystkie workery online właściciela.
+  string worker_id = 1;
+}
+
+message CheckCliUpdatesResponse {
+  repeated CliLatest latest = 1;
+  repeated string skipped = 2;
 }
 
 // ---------- Załączniki (docs/ui-api.md) ----------

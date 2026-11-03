@@ -12,6 +12,7 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import UpdatesPanel from "#lib/features/workers/UpdatesPanel.svelte";
+  import CliUpdatesSummary from "#lib/features/workers/CliUpdatesSummary.svelte";
   import WorkerSshKey from "#lib/features/workers/WorkerSshKey.svelte";
 
   const overview = useOverview();
@@ -57,6 +58,7 @@
   {#each overview.workers as worker (worker.id)}<WorkerRow {worker} {setup} />
   {:else}<SettingsRow title="Connect your first machine" description="Add a worker to run Claude, Codex or Grok on a machine you control." />{/each}
 </SettingsGroup>
+<CliUpdatesSummary workers={overview.workers} />
 {#if pending.length}
   <SettingsGroup title="Pending enrollments">
     {#each pending as enrollment (enrollment.id)}

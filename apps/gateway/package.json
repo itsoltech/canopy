@@ -7,7 +7,8 @@
     "./worker-link": "./src/worker-link/index.ts",
     "./store": "./src/store/index.ts",
     "./core": "./src/core/core.ts",
-    "./api": "./src/api/index.ts"
+    "./api": "./src/api/index.ts",
+    "./core/cli-tools": "./src/core/cli-tools.ts"
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",

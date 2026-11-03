@@ -94,7 +94,9 @@ docker compose --profile worker up -d
 ```
 
 Obraz workera **nie zawiera CLI agentów** (`claude`, `codex`, `grok`): ich instalacja, wersje
-i logowanie należą do użytkownika. Rozszerz obraz, np.:
+i logowanie należą do użytkownika. Worker w kontenerze zgłasza CLI z metodą `docker`: Settings → Workers
+pokazuje wersje i dostępne aktualizacje, ale bez przycisku („Managed by the image”) — gateway odrzuca też
+instalację przez API. Nowszą wersję CLI daje przebudowany obraz ([provider-cli.md](provider-cli.md)). Rozszerz obraz, np.:
 
 ```dockerfile
 FROM ghcr.io/itsoltech/canopy-worker:v1
