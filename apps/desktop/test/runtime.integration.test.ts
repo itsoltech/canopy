@@ -103,3 +103,40 @@ test.skipIf(!existsSync(paths.gateway))("guardian closes its owned process group
     lines.close();
   }
 }, 120_000);
+
+test.skipIf(!existsSync(paths.gateway))("a postmaster orphaned by a killed guardian is stopped on the next start, so only one runs", async () => {
+  const directory = tempDir("oa-desktop-orphan-");
+  const keys = secrets();
+  const guardian = () => {
+    const child = spawn(join(runtime, `canopy-controller${suffix}`), [], { stdio: "pipe" });
+    const replies = new Map<number, (message: { result?: { pids: number[] }; error?: string }) => void>();
+    createInterface({ input: child.stdout }).on("line", (line) => { const message = JSON.parse(line); if (message.id) replies.get(message.id)?.(message); });
+    const request = (id: number, action: string, args: Record<string, unknown>) => new Promise<{ pids: number[] }>((resolveReply, reject) => {
+      const timer = setTimeout(() => reject(new Error("Guardian RPC timed out")), 90_000);
+      replies.set(id, (message) => { clearTimeout(timer); message.error ? reject(new Error(message.error)) : resolveReply(message.result!); });
+      child.stdin.write(JSON.stringify({ id, action, ...args }) + "\n");
+    });
+    return { child, exited: once(child, "exit"), start: async () => { await request(1, "initialize", { directory, paths, secrets: keys }); return (await request(2, "configure", { configuration: { mode: "local", allowNetwork: false, bindHost: "127.0.0.1" } })).pids; } };
+  };
+  const postmaster = () => Number(readFileSync(join(directory, "postgres", "data", "postmaster.pid"), "utf8").split("\n")[0]);
+  const first = guardian();
+  await first.start();
+  const orphan = postmaster();
+  first.child.kill("SIGKILL"); // kill -9 / OOM: no cleanup code runs in the guardian.
+  await first.exited;
+  expect(gone(orphan)).toBe(false); // postgres does not watch its parent: it survives until the next start.
+  const second = guardian();
+  let current = 0;
+  try {
+    const pids = await second.start();
+    current = postmaster();
+    expect(gone(orphan)).toBe(true);
+    expect(pids).toContain(current);
+  } finally {
+    second.child.stdin.end();
+    await second.exited;
+  }
+  // A clean quit stops it and removes the lock.
+  expect(gone(current)).toBe(true);
+  expect(existsSync(join(directory, "postgres", "data", "postmaster.pid"))).toBe(false);
+}, 240_000);

@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SQL } from "bun";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { freePort } from "./config.ts";
 import { Supervisor, until } from "./process.ts";
 
@@ -18,6 +18,7 @@ export async function startDatabase(options: { directory: string; binaries: stri
       await supervisor.run({ name: "initdb", command: binary("initdb"), args: ["-D", data, "-U", "canopy", "--encoding=UTF8", "--locale=C", "--auth-host=scram-sha-256", "--auth-local=reject", `--pwfile=${pwfile}`], cwd: directory, env });
     } finally { unlinkSync(pwfile); }
   }
+  await stopOrphan(data, binary("pg_ctl"), env);
   const port = await freePort();
   const base = `postgres://canopy:${encodeURIComponent(password)}@127.0.0.1:${port}`;
   // PostgreSQL checks stale postmaster.pid and replays WAL itself. Never delete a live lock.
@@ -36,4 +37,34 @@ export async function startDatabase(options: { directory: string; binaries: stri
     if ((await sql`SELECT 1 FROM pg_database WHERE datname = 'canopy'`).length === 0) await sql.unsafe('CREATE DATABASE canopy');
   } finally { await sql.close(); }
   return `${base}/canopy`;
+}
+
+/**
+ * A postmaster left running by a previous run whose guardian was killed outright (kill -9, OOM): it still holds the
+ * data directory, so a new one could never start. Stop it before starting ours — only if the PID in postmaster.pid
+ * is a postgres serving exactly this data directory (never another process that reused the PID).
+ */
+async function stopOrphan(data: string, pgCtl: string, env: NodeJS.ProcessEnv) {
+  const lock = join(data, "postmaster.pid");
+  if (!existsSync(lock)) return;
+  const pid = Number(readFileSync(lock, "utf8").split("\n")[0]);
+  if (!Number.isInteger(pid) || pid <= 0 || !ownsDataDir(pid, data, pgCtl, env)) return;
+  for (const mode of ["fast", "immediate"]) {
+    const stop = spawnSync(pgCtl, ["stop", "-D", data, "-m", mode, "-w", "-t", "15"], { env, stdio: "ignore", windowsHide: true });
+    if (stop.status === 0) return;
+  }
+  throw new Error("A previous Canopy database is still running and could not be stopped");
+}
+
+function ownsDataDir(pid: number, data: string, pgCtl: string, env: NodeJS.ProcessEnv): boolean {
+  try { process.kill(pid, 0); } catch { return false; }
+  if (process.platform === "linux") {
+    try { return readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").includes(data); } catch { return false; }
+  }
+  if (process.platform === "darwin") {
+    const ps = spawnSync("ps", ["-p", String(pid), "-o", "command="], { encoding: "utf8" });
+    return ps.status === 0 && ps.stdout.includes("postgres") && ps.stdout.includes(data);
+  }
+  // Windows: pg_ctl checks the PID file against a running postmaster itself.
+  return spawnSync(pgCtl, ["status", "-D", data], { env, stdio: "ignore", windowsHide: true }).status === 0;
 }

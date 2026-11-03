@@ -106,6 +106,15 @@ procesów po nazwie. Kontroler otrzymuje EOF po śmierci Electron i ma 30-sekund
 limit całego sprzątania, również podczas trwającego startu. SIGKILL całego drzewa
 procesów lub awaria OS nie daje możliwości wykonania shutdown; trwałość zapewnia WAL.
 
+Jedna baza naraz: Electron trzyma blokadę jednej instancji, a PostgreSQL odmawia startu
+na katalogu danych zajętym przez żywy postmaster. Gdy kontroler zginie bez sprzątania
+(`kill -9`, OOM), sidecary Bun kończą się same po EOF na stdin, ale postmaster nie obserwuje
+rodzica i zostaje osierocony. Następny start (`stopOrphan` w `runtime/database.ts`) czyta PID
+z `postmaster.pid` i — tylko gdy to postgres obsługujący dokładnie ten katalog (Linux
+`/proc/<pid>/cmdline`, macOS `ps`, Windows `pg_ctl status`) — zatrzymuje go `pg_ctl stop -m fast`,
+w razie potrzeby `-m immediate`, i dopiero wtedy uruchamia własny. Wcześniej taki start wisiał.
+Pokrywa to test integracyjny „a postmaster orphaned by a killed guardian…”.
+
 Pliki pod `userData`:
 
 ```text
