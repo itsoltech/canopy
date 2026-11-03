@@ -52,6 +52,8 @@ Kanały: `stable` wybiera najwyższe stabilne semver, `beta` najwyższe ze stabl
 `nightly` najwyższe ze wszystkich wydań (z paginacją i porównaniem semver, nie datą publikacji).
 `vX` / `vX.Y` wybierają najwyższe stable z prefiksem, `vX.Y.Z` wskazuje dokładny stabilny tag
 (mirror może zachować również tagi `X.Y.Z`). Drafty i release bez `manifest.json` są pomijane.
+Pipeline publikuje `manifest.json` najpierw z binariami gatewaya/workera, a po buildach desktop
+wymienia go na wersję z instalatorami; wpisy binariów pozostają takie same ([release.md](release.md)).
 Gateway pobiera manifest swojej konkretnej wersji również dla prerelease; nie zastępuje go
 manifestem nowszego nightly. Protokół UpdateService pozostaje bez zmian.
 

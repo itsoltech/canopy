@@ -1,0 +1,21 @@
+name: Bun and dependencies
+description: Bun (BUN_VERSION of the calling workflow), a cached package store and a frozen install.
+inputs:
+  install:
+    description: Run bun install --frozen-lockfile
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+    - if: inputs.install == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ~/.bun/install/cache
+        key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+        restore-keys: bun-${{ runner.os }}-${{ runner.arch }}-
+    - if: inputs.install == 'true'
+      shell: bash
+      run: bun install --frozen-lockfile

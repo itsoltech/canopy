@@ -1,4 +1,8 @@
-# One run checks, versions, builds and publishes. GITHUB_TOKEN tags do not trigger another workflow.
+# Releases pushes to main/next/dev, manual stable tags and Promote/back-merge dispatches (docs/release.md).
+# `plan` decides the version with a semantic-release dry run, so builds start next to the checks; nothing is
+# tagged, pushed to GHCR or uploaded before `checks` pass. Server artifacts are published first; desktop builds
+# (macOS notarization) publish later without holding the next run: only `plan`/`release` and `publish-server`
+# are serialized per branch, never a whole run. GITHUB_TOKEN tags do not trigger another workflow.
 name: Release
 
 on:
@@ -12,13 +16,14 @@ on:
         description: Commit pushed by Promote/back-merge (reject a moved branch)
         required: true
         type: string
+      desktop_all_targets:
+        description: Nightly also builds the experimental desktop targets (linux-arm64, windows-x64)
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
-
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
 
 env:
   # Keep in sync with mise.toml.
@@ -29,11 +34,59 @@ jobs:
   checks:
     uses: ./.github/workflows/ci.yml
 
-  semantic-release:
-    needs: checks
+  # Dry run: the version this run will release. Shares the per-branch group with `release`, so it never plans
+  # while another run of the branch is tagging.
+  plan:
     if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["main", "next", "dev"]'), github.ref_name)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    concurrency:
+      group: release-version-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      # semantic-release checks push access (`git push --dry-run`) even in a dry run; nothing is written.
+      contents: write
+    outputs:
+      published: ${{ steps.plan.outputs.published }}
+      version: ${{ steps.plan.outputs.version }}
+      channel: ${{ steps.plan.outputs.channel }}
+      tag: ${{ steps.plan.outputs.tag }}
+      desktop_matrix: ${{ steps.matrix.outputs.value }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-bun
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - id: plan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: node scripts/semantic-release.mjs --dry-run
+      # Nightly skips the experimental targets unless the dispatch asks for them; beta and stable build all.
+      - id: matrix
+        env:
+          CHANNEL: ${{ steps.plan.outputs.channel }}
+          ALL_TARGETS: ${{ inputs.desktop_all_targets }}
+        run: |
+          targets='{"target":"linux-x64","runner":"ubuntu-24.04","package":"package:linux","experimental":false},{"target":"darwin-arm64","runner":"macos-15","package":"package:mac","experimental":false}'
+          if [ "$CHANNEL" != nightly ] || [ "$ALL_TARGETS" = true ]; then
+            targets="$targets"',{"target":"linux-arm64","runner":"ubuntu-24.04-arm","package":"package:linux","experimental":true},{"target":"windows-x64","runner":"windows-2025","package":"package:windows","experimental":true}'
+          fi
+          echo "value={\"include\":[$targets]}" >> "$GITHUB_OUTPUT"
+
+  # The real release: tag and GitHub Release only after the checks, and only with the planned version
+  # (EXPECTED_VERSION, scripts/release-expected-version.mjs). A branch that moved meanwhile gives no release.
+  release:
+    needs: [plan, checks]
+    if: needs.plan.outputs.published == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: release-version-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
       contents: write
     outputs:
@@ -41,45 +94,64 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       channel: ${{ steps.release.outputs.channel }}
       tag: ${{ steps.release.outputs.tag }}
-      desktop_matrix: ${{ steps.matrix.outputs.value }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
+      - uses: ./.github/actions/setup-bun
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - run: bun install --frozen-lockfile
       - id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_VERSION: ${{ needs.plan.outputs.version }}
         run: node scripts/semantic-release.mjs
-      - id: matrix
+      - name: Same version as planned
         env:
-          CHANNEL: ${{ steps.release.outputs.channel }}
+          PLANNED: ${{ needs.plan.outputs.version }}
+          RELEASED: ${{ steps.release.outputs.version }}
+          PUBLISHED: ${{ steps.release.outputs.published }}
         run: |
-          echo 'value={"include":[{"target":"linux-x64","runner":"ubuntu-24.04","package":"package:linux","experimental":false},{"target":"linux-arm64","runner":"ubuntu-24.04-arm","package":"package:linux","experimental":true},{"target":"darwin-arm64","runner":"macos-15","package":"package:mac","experimental":false},{"target":"windows-x64","runner":"windows-2025","package":"package:windows","experimental":true}]}' >> "$GITHUB_OUTPUT"
+          if [ "$PUBLISHED" = true ] && [ "$RELEASED" != "$PLANNED" ]; then
+            echo "::error::Planned $PLANNED, released $RELEASED"
+            exit 1
+          fi
+
+  # Nothing of this run will be published: the checks failed, or a newer push to the branch superseded it
+  # (that run releases these commits). Stop the builds instead of holding runners for macOS notarization.
+  stop-builds:
+    needs: [plan, checks, release]
+    if: always() && needs.plan.outputs.published == 'true' && (needs.checks.result == 'failure' || needs.release.result == 'cancelled' || (needs.release.result == 'success' && needs.release.outputs.published != 'true'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHECKS: ${{ needs.checks.result }}
+        run: |
+          if [ "$CHECKS" = failure ]; then
+            echo "::error::Checks failed; nothing is published and the builds are stopped."
+          else
+            echo "::notice::Superseded by a newer push; that run releases these commits."
+          fi
+          gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
 
   binaries:
-    needs: semantic-release
-    if: needs.semantic-release.outputs.published == 'true'
+    needs: plan
+    if: needs.plan.outputs.published == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-      - name: Install
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun
       # Cross-compiled for every target; sharp's native build per target comes from the npm registry.
       - name: Build
         env:
-          CANOPY_VERSION: ${{ needs.semantic-release.outputs.version }}
+          CANOPY_VERSION: ${{ needs.plan.outputs.version }}
         run: bun scripts/build-binaries.ts --target all --outdir dist/release
       - uses: actions/upload-artifact@v4
         with:
@@ -87,11 +159,12 @@ jobs:
           path: dist/release/canopy-*
           if-no-files-found: error
           retention-days: 7
+          overwrite: true
 
   # Each binary starts on its own OS/arch (`--version` already loads the embedded sharp/libvips).
   smoke:
-    needs: [semantic-release, binaries]
-    if: needs.semantic-release.outputs.published == 'true'
+    needs: [plan, binaries]
+    if: needs.plan.outputs.published == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -109,7 +182,7 @@ jobs:
       - name: Start each binary
         shell: bash
         env:
-          EXPECTED: ${{ needs.semantic-release.outputs.version }}
+          EXPECTED: ${{ needs.plan.outputs.version }}
           CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
         run: |
           for app in gateway worker; do
@@ -120,26 +193,118 @@ jobs:
             test "$actual" = "$EXPECTED"
           done
 
-  desktop:
-    needs: semantic-release
-    if: needs.semantic-release.outputs.published == 'true'
+  # Builds every image layer into the GHA cache next to the checks; nothing is pushed here.
+  images-build:
+    needs: plan
+    if: needs.plan.outputs.published == 'true'
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.semantic-release.outputs.desktop_matrix) }}
+      matrix:
+        app: [gateway, web, worker]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          context: .
+          target: ${{ matrix.app }}
+          platforms: linux/amd64,linux/arm64
+          push: false
+          provenance: false
+          sbom: false
+          build-args: |
+            CANOPY_VERSION=${{ needs.plan.outputs.version }}
+            CANOPY_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+
+  # After the release tag exists: the same build from the cache, pushed only as the immutable vX.Y.Z.
+  # Channel aliases move in publish-server, forward only.
+  images:
+    needs: [release, images-build]
+    if: needs.release.outputs.published == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [gateway, web, worker]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}
+          flavor: latest=false
+          tags: type=raw,value=${{ needs.release.outputs.tag }}
+          labels: |
+            org.opencontainers.image.title=canopy-${{ matrix.app }}
+            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+          annotations: |
+            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+      - uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: .
+          target: ${{ matrix.app }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}:${{ needs.release.outputs.tag }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          build-args: |
+            CANOPY_VERSION=${{ needs.release.outputs.version }}
+            CANOPY_REVISION=${{ github.sha }}
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.app }}
+
+  desktop:
+    needs: plan
+    if: needs.plan.outputs.published == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.desktop_matrix) }}
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.experimental }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
+      - uses: ./.github/actions/setup-bun
       # electron-builder runs on Node (docs/desktop.md: Node 24 or newer).
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Install
-        run: bun install --frozen-lockfile
+      # Electron and electron-builder downloads (default cache directories of each OS).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: electron-${{ runner.os }}-${{ runner.arch }}-
       # electron-builder's bundled fpm (deb) is x86-64 only.
       - name: fpm for arm64 deb
         if: matrix.target == 'linux-arm64'
@@ -166,9 +331,12 @@ jobs:
           case "${{ matrix.target }}" in
             darwin-*)
               if [ -n "$MAC_CSC_LINK" ]; then
-                { echo "CSC_LINK=$MAC_CSC_LINK"; echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD"; } >> "$GITHUB_ENV"
-                echo "CANOPY_MAC_SIGNED=true" >> "$GITHUB_ENV"
-                echo "CSC_IDENTITY_AUTO_DISCOVERY=true" >> "$GITHUB_ENV"
+                {
+                  echo "CSC_LINK=$MAC_CSC_LINK"
+                  echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD"
+                  echo "CANOPY_MAC_SIGNED=true"
+                  echo "CSC_IDENTITY_AUTO_DISCOVERY=true"
+                } >> "$GITHUB_ENV"
                 if [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_KEY_ID" ] && [ -n "$APPLE_API_ISSUER" ]; then
                   key_file="$RUNNER_TEMP/canopy-notarization-key.p8"
                   umask 077
@@ -195,13 +363,13 @@ jobs:
           esac
       - name: Package
         env:
-          CANOPY_VERSION: ${{ needs.semantic-release.outputs.version }}
-          CANOPY_CHANNEL: ${{ needs.semantic-release.outputs.channel }}
+          CANOPY_VERSION: ${{ needs.plan.outputs.version }}
+          CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
         run: bun run --cwd apps/desktop ${{ matrix.package }}
       - name: Verify macOS signatures and notarization
         if: startsWith(matrix.target, 'darwin-')
         env:
-          CANOPY_CHANNEL: ${{ needs.semantic-release.outputs.channel }}
+          CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
         run: node apps/desktop/scripts/verify-macos.cjs "apps/desktop/release/$CANOPY_CHANNEL"
       - name: Remove notarization API key
         if: always() && startsWith(matrix.target, 'darwin-')
@@ -212,108 +380,82 @@ jobs:
         with:
           name: desktop-${{ matrix.target }}
           path: |
-            apps/desktop/release/${{ needs.semantic-release.outputs.channel }}/Canopy-*.AppImage
-            apps/desktop/release/${{ needs.semantic-release.outputs.channel }}/Canopy-*.deb
-            apps/desktop/release/${{ needs.semantic-release.outputs.channel }}/Canopy-*.dmg
-            apps/desktop/release/${{ needs.semantic-release.outputs.channel }}/Canopy-*.zip
-            apps/desktop/release/${{ needs.semantic-release.outputs.channel }}/Canopy-*.exe
-            apps/desktop/release/${{ needs.semantic-release.outputs.channel }}/latest*.yml
-            apps/desktop/release/${{ needs.semantic-release.outputs.channel }}/beta*.yml
-            apps/desktop/release/${{ needs.semantic-release.outputs.channel }}/nightly*.yml
-            apps/desktop/release/${{ needs.semantic-release.outputs.channel }}/*.blockmap
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/Canopy-*.AppImage
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/Canopy-*.deb
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/Canopy-*.dmg
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/Canopy-*.zip
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/Canopy-*.exe
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/latest*.yml
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/beta*.yml
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/nightly*.yml
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/*.blockmap
           if-no-files-found: error
           retention-days: 7
+          overwrite: true
 
-  images:
-    needs: semantic-release
-    if: needs.semantic-release.outputs.published == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [gateway, web, worker]
+  # Stage 1: binaries, checksums.txt and manifest.json (gateway/worker updates, worker install), then the
+  # image aliases. Serialized per branch so aliases only move forward. Does not wait for desktop.
+  publish-server:
+    needs: [checks, release, binaries, smoke, images]
+    if: ${{ !cancelled() && needs.release.outputs.published == 'true' && needs.checks.result == 'success' && needs.binaries.result == 'success' && needs.smoke.result == 'success' && needs.images.result == 'success' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 30
+    concurrency:
+      group: release-publish-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
-      contents: read
+      contents: write
       packages: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CANOPY_VERSION: ${{ needs.release.outputs.version }}
+      CANOPY_CHANNEL: ${{ needs.release.outputs.channel }}
+      CANOPY_RELEASE_TAG: ${{ needs.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
-      - uses: docker/setup-qemu-action@v3
+      # The release scripts have no package dependencies.
+      - uses: ./.github/actions/setup-bun
+        with:
+          install: "false"
+      - uses: actions/download-artifact@v5
+        with:
+          name: binaries
+          path: release-assets
+      - name: checksums.txt and manifest.json
+        run: |
+          bun scripts/release-manifest.ts release-assets
+          ls -l release-assets
+          echo "### Canopy $CANOPY_VERSION ($CANOPY_RELEASE_TAG): server" >> "$GITHUB_STEP_SUMMARY"
+          sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload assets (manifest last)
+        run: bun scripts/release-upload.ts release-assets
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: tags
-        env:
-          VERSION: ${{ needs.semantic-release.outputs.version }}
-          CHANNEL: ${{ needs.semantic-release.outputs.channel }}
-          IMAGE: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}
-        run: |
-          {
-            echo 'value<<TAGS'
-            echo "$IMAGE:v$VERSION"
-            echo "$IMAGE:$CHANNEL"
-            if [ "$CHANNEL" = stable ]; then
-              echo "$IMAGE:v${VERSION%.*}"
-              echo "$IMAGE:v${VERSION%%.*}"
-              echo "$IMAGE:latest"
-            fi
-            echo TAGS
-          } >> "$GITHUB_OUTPUT"
-      - id: meta
-        uses: docker/metadata-action@v5
-        env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
-        with:
-          images: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}
-          flavor: latest=false
-          tags: type=raw,value=v${{ needs.semantic-release.outputs.version }}
-          labels: |
-            org.opencontainers.image.title=canopy-${{ matrix.app }}
-            org.opencontainers.image.version=${{ needs.semantic-release.outputs.version }}
-          annotations: |
-            org.opencontainers.image.version=${{ needs.semantic-release.outputs.version }}
-      - uses: docker/build-push-action@v6
-        env:
-          DOCKER_BUILD_RECORD_UPLOAD: false
-        with:
-          context: .
-          target: ${{ matrix.app }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.tags.outputs.value }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          build-args: |
-            CANOPY_VERSION=${{ needs.semantic-release.outputs.version }}
-            CANOPY_REVISION=${{ github.sha }}
-          sbom: true
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      - name: Image channel aliases (forward only)
+        run: bun scripts/image-aliases.ts
 
-  publish:
-    needs: [semantic-release, binaries, smoke, desktop, images]
-    if: ${{ !cancelled() && needs.semantic-release.outputs.published == 'true' && needs.binaries.result == 'success' && needs.smoke.result == 'success' && needs.desktop.result == 'success' && needs.images.result == 'success' }}
+  # Stage 2, whenever the desktop builds end (possibly after the next run published): installers, blockmaps,
+  # merged feeds, then checksums.txt and manifest.json regenerated with the desktop assets. Publishes what
+  # was built; a failed target (e.g. notarization) is added by "Re-run failed jobs", which repeats this job.
+  publish-desktop:
+    needs: [release, publish-server, desktop]
+    if: ${{ !cancelled() && needs.publish-server.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      VERSION: ${{ needs.semantic-release.outputs.version }}
-      TAG: ${{ needs.semantic-release.outputs.tag }}
-      CHANNEL: ${{ needs.semantic-release.outputs.channel }}
+      CANOPY_VERSION: ${{ needs.release.outputs.version }}
+      CANOPY_CHANNEL: ${{ needs.release.outputs.channel }}
+      CANOPY_RELEASE_TAG: ${{ needs.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-      # Only the release assets: build-push-action also uploads *.dockerbuild records, which are not ours to publish.
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v5
         with:
           name: binaries
@@ -322,39 +464,38 @@ jobs:
         with:
           pattern: desktop-*
           path: desktop-artifacts
+      - id: built
+        run: |
+          mkdir -p desktop-artifacts
+          if [ -z "$(ls -A desktop-artifacts)" ]; then
+            echo "::warning::No desktop target finished; the release keeps its server assets only."
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            ls desktop-artifacts
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
       # Stable emits latest/beta/nightly feeds; beta emits beta/nightly; nightly emits nightly.
       # Aliases refer to this release's single Canopy artifact set (including mac ZIP/blockmaps).
       - name: Merge desktop update feeds and publish cumulative channel aliases
-        env:
-          CANOPY_VERSION: ${{ needs.semantic-release.outputs.version }}
-          CANOPY_CHANNEL: ${{ needs.semantic-release.outputs.channel }}
+        if: steps.built.outputs.any == 'true'
         run: bun apps/desktop/scripts/merge-update-metadata.ts desktop-artifacts release-assets
+      # The binaries are hashed again (same bytes, same manifest entries) but publish-server already uploaded them.
       - name: checksums.txt and manifest.json
-        env:
-          CANOPY_VERSION: ${{ needs.semantic-release.outputs.version }}
-          CANOPY_CHANNEL: ${{ needs.semantic-release.outputs.channel }}
-          CANOPY_RELEASE_TAG: ${{ needs.semantic-release.outputs.tag }}
+        if: steps.built.outputs.any == 'true'
         run: |
           bun scripts/release-manifest.ts release-assets
+          mkdir server-assets
+          mv release-assets/canopy-* server-assets/
           ls -l release-assets
-          echo "### Canopy $VERSION ($TAG)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Canopy $CANOPY_VERSION ($CANOPY_RELEASE_TAG): server and desktop" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload assets (manifest last)
-        run: |
-          if ! gh release view "$TAG" > /dev/null 2>&1; then
-            if [ "$CHANNEL" = stable ]; then
-              gh release create "$TAG" --verify-tag --title "Canopy $VERSION" --generate-notes
-            else
-              gh release create "$TAG" --verify-tag --title "Canopy $VERSION" --generate-notes --prerelease --latest=false
-            fi
-          fi
-          find release-assets -type f ! -name manifest.json -print0 | xargs -0 gh release upload "$TAG" --clobber
-          gh release upload "$TAG" release-assets/manifest.json --clobber
+      - name: Upload assets (feeds, then manifest last)
+        if: steps.built.outputs.any == 'true'
+        run: bun scripts/release-upload.ts release-assets
 
   backmerge:
-    needs: [semantic-release, publish]
-    if: needs.semantic-release.outputs.channel == 'stable'
+    needs: [release, publish-server]
+    if: needs.release.outputs.channel == 'stable'
     uses: ./.github/workflows/backmerge.yml
     with:
       stable_sha: ${{ github.sha }}
@@ -364,8 +505,8 @@ jobs:
       actions: write
 
   nightly-hygiene:
-    needs: [semantic-release, publish]
-    if: needs.semantic-release.outputs.channel == 'nightly'
+    needs: [release, publish-server]
+    if: needs.release.outputs.channel == 'nightly'
     uses: ./.github/workflows/nightly-hygiene.yml
     permissions:
       contents: write

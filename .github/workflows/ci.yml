@@ -1,5 +1,5 @@
 # Checks of every change (docs/release.md). Pull requests run it directly; pushes to main/next/dev and stable tags run it
-# as the `checks` job of release.yml, which publishes only after it passes. Live tests stay opt-in: they need
+# as the `checks` job of release.yml, which builds next to it and publishes only after it passes. Live tests stay opt-in: they need
 # private provider credentials and are skipped without CANOPY_LIVE.
 name: CI
 
@@ -19,9 +19,10 @@ jobs:
     name: Typecheck, tests, builds
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    # A newer push to a pull request replaces its running check; release runs (workflow_call) are never cancelled.
+    # A newer push to a pull request replaces its running check. Release runs (workflow_call) get a group of
+    # their own: they are never cancelled and never wait for the previous release run's checks.
     concurrency:
-      group: ci-${{ github.event_name }}-${{ github.ref }}
+      group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v5
@@ -29,24 +30,13 @@ jobs:
           # scripts/version.ts reads the last vX.Y.Z tag.
           fetch-depth: 0
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-
       # semantic-release CLI is exercised by the local-git unit fixtures; Node >=24.10 is required.
       - uses: actions/setup-node@v5
         with:
           node-version: 24
 
-      - name: Cache Bun packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Install
-        run: bun install --frozen-lockfile
+      - name: Bun and dependencies
+        uses: ./.github/actions/setup-bun
 
       - name: Generated code is up to date
         run: bun run gen:check
