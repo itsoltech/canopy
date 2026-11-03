@@ -39,8 +39,14 @@ Aktywny filtr ma licznik i szybkie czyszczenie; pusty wynik ma „Clear filters�
 
 Pod aktywnymi wątkami znajduje się zwijana sekcja „Archived · N” z chevronem. Licznik obejmuje
 główne wiersze pasujące do filtra projektów i wyszukiwania. Stan rozwinięcia zapisuje się w gateway
-(`sidebar.archived_expanded`), także między urządzeniami. Rozwinięcie pobiera pierwsze 20 wierszy,
-a „Load more” kolejne strony. Wiersz ma przygaszony awatar projektu, ucięty tytuł, względny czas
+(`sidebar.archived_expanded`), także między urządzeniami. Zwinięta sekcja pobiera sam licznik, a
+pierwszą stronę (20 wierszy) pobiera z wyprzedzeniem: gdy pasek jest bezczynny (ponownie po zmianie
+licznika) oraz po najechaniu lub fokusie na nagłówku. Ta strona zostaje w pamięci podręcznej; zmiana
+wątku lub projektu ze strumienia i ponowne połączenie oznaczają ją jako nieaktualną. Rozwinięcie
+pokazuje ją od razu (nieaktualną odświeża w tle), a bez niej po 200 ms pokazuje szkielet kilku
+wierszy o docelowej wysokości. Wysokość listy płynnie podąża za treścią (szkielet, wiersze, kolejne
+strony), nowe wiersze wchodzą z lekkim opóźnieniem kolejnych; przy `prefers-reduced-motion` bez
+ruchu. „Load more” pobiera kolejne strony; zwinięcie zostawia w pamięci tylko pierwszą. Wiersz ma przygaszony awatar projektu, ucięty tytuł, względny czas
 archiwizacji po prawej i to samo menu z „Unarchive”. Zwinięcie pozostawia sam nagłówek; jeśli otwarty
 wątek jest archiwalny, sekcja pokazuje jego wyróżniony wiersz i przypina całość u dołu podczas
 przewijania. Wyjątkiem są boczne pod aktywnym rodzicem: pozostają w jego „Previous agents”.
