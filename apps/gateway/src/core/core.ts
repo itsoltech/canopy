@@ -102,6 +102,7 @@ import { MobileDevices } from "./mobile-devices.ts";
 import { GatewayUpdates, type GatewayUpdatesOptions } from "../updates/runtime.ts";
 import { UpdatePersistence } from "../updates/persistence.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
+import { CliTools, type CliLatestOptions } from "./cli-tools.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -126,6 +127,8 @@ export interface GatewayCoreOptions {
   readonly mobileGatewayUrl?: string;
   readonly publicGatewayUrl?: string;
   readonly sshSecretsKey?: Buffer;
+  /** Test-only sources of the latest provider CLI versions (docs/provider-cli.md). */
+  readonly cliLatest?: CliLatestOptions;
   readonly runtime: CoreRuntime;
   readonly instanceId: string;
   /** Single development user until authentication lands (docs/ui-api.md). */
@@ -179,6 +182,8 @@ export class GatewayCore {
   readonly mobile: MobileDevices;
   readonly workers: WorkerAdministration;
   readonly workerSsh: WorkerSsh;
+  /** Provider CLIs on the owner's workers: reports, latest versions, installs (docs/provider-cli.md). */
+  readonly cli: CliTools;
   readonly connectors: ConnectorsRuntime;
   readonly secrets: ThreadSecrets;
   readonly bots: BotsRuntime;
@@ -254,6 +259,9 @@ export class GatewayCore {
       },
       changed: () => this.#broadcastWorkers(),
     });
+    this.cli = new CliTools({ runtime: options.runtime, userId: options.userId, link: this.link,
+      ...(options.cliLatest && { latest: options.cliLatest }),
+      changed: () => this.#broadcastWorkers(), log: (message) => this.#log(message) });
     this.workerSsh = new WorkerSsh({ runtime: options.runtime, userId: options.userId, workers: this.workers, ...(options.sshSecretsKey && { secretsKey: options.sshSecretsKey }) });
     this.secrets = new ThreadSecrets({ runtime: options.runtime, link: this.link, hub: this.hub, userId: options.userId,
       ...(options.secretTtlMs !== undefined && { ttlMs: options.secretTtlMs }) });
@@ -349,6 +357,12 @@ export class GatewayCore {
             await this.#broadcastWorkers();
             break;
           }
+          case "cliTools":
+            await this.cli.report(workerId, message.payload.value);
+            break;
+          case "cliInstallProgress":
+            await this.cli.progress(workerId, message.payload.value);
+            break;
           case "modelCatalog": {
             const catalog = message.payload.value;
             await this.#saveModels(workerId, catalog.configVersion, catalog.profiles);
@@ -618,9 +632,11 @@ export class GatewayCore {
     const run = () => void this.sweep().catch((error: unknown) => this.#log(`sweep failed: ${describeError(error)}`));
     run();
     this.#sweepTimer ??= setInterval(run, intervalMs);
+    this.cli.start();
   }
 
   stopSweep(): void {
+    this.cli.stop();
     this.connectors.stop();
     this.secrets.stop();
     if (this.#sweepTimer) clearInterval(this.#sweepTimer);
@@ -1627,6 +1643,16 @@ export class GatewayCore {
     return create(ui.RefreshProvidersResponseSchema, { instances: await this.listProviderInstances(), skipped });
   }
 
+  /** Installs or updates a provider CLI on the owner's worker(s) (docs/provider-cli.md). */
+  installCli(request: ui.InstallCliRequest): Promise<ui.InstallCliResponse> {
+    return this.cli.install(request);
+  }
+
+  /** Latest CLI versions now, and the owner's online workers report their CLIs again. */
+  async checkCliUpdates(request: ui.CheckCliUpdatesRequest): Promise<ui.CheckCliUpdatesResponse> {
+    return this.cli.check(request, await this.#workers());
+  }
+
   /** Login of an instance through the harness's API (Codex: ChatGPT device code); the worker finishes it. */
   async startProviderLogin(request: ui.StartProviderLoginRequest): Promise<ui.StartProviderLoginResponse> {
     const connection = this.link.connections.get(request.workerId);
@@ -1667,6 +1693,7 @@ export class GatewayCore {
   async #workers(): Promise<ui.Worker[]> {
     const [workers, instances] = await Promise.all([this.#run((s) => s.listWorkers(this.online, this.#options.userId)), this.#instances((s) => s.workerInstances())]);
     for (const worker of workers) worker.providerInstances = instances.get(worker.id) ?? [];
+    await this.cli.decorate(workers);
     return workers;
   }
 

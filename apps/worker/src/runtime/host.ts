@@ -48,6 +48,9 @@ import { claudeCatalogStamp } from "../providers/claude/catalog.ts";
 import { generateClaudeText, generateCodexText } from "../providers/generate-text.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { searchFiles } from "../files/search.ts";
+import { CliRefused, CliTools } from "../cli-tools/index.ts";
+import { systemCliProbe, type CliProbe } from "../cli-tools/discovery.ts";
+import { installKind } from "@canopy/updater";
 import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentError, AttachmentFiles } from "../attachments/files.ts";
 import { ImageError, PreviewStore, viewImage, type ViewImageResult } from "../images/index.ts";
@@ -95,12 +98,20 @@ interface CommandOutput {
 
 /** Read-only queries: answered again on redelivery instead of being remembered in the journal. */
 const QUERIES: ReadonlySet<Command["kind"]["case"]> = new Set(["listMentionCatalog", "searchFiles", "generateText"]);
+/** Never redelivered from an outbox (sent directly): not remembered either. */
+const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([...QUERIES, "installCli"]);
+/** How often provider CLIs are looked at again without a reason (connect, check, install). */
+const CLI_REPORT_INTERVAL_MS = 6 * 60 * 60_000;
 
 export interface WorkerHostOptions {
   readonly runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
   readonly dataDir: string;
   readonly clientVersion: string;
   readonly probe?: DeviceProbe;
+  /** Provider CLI discovery (docs/provider-cli.md); default: this device. */
+  readonly cliProbe?: CliProbe;
+  /** Environment of CLI installs (default: the worker's, without secret-looking variables). */
+  readonly cliEnv?: Readonly<Record<string, string | undefined>>;
   /**
    * The device owner's Claude and Codex homes (login, default effort). Default: $CLAUDE_CONFIG_DIR / $CODEX_HOME
    * of the worker process at start, else ~/.claude and ~/.codex.
@@ -121,6 +132,21 @@ const FETCH_TIMEOUT_MS = 120_000;
 /** InterruptTurn for a turn this process does not run (the gateway ends the turn). */
 const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
 
+/** The provider a command starts work for (admission: turns wait for an install of its CLI). */
+function commandProvider(command: Command): Provider | undefined {
+  const kind = command.kind;
+  switch (kind.case) {
+    case "startTurn":
+    case "createThread":
+    case "setGoal":
+      return kind.value.thread?.provider || undefined;
+    case "generateText":
+      return kind.value.provider || undefined;
+    default:
+      return undefined;
+  }
+}
+
 class CommandError extends Error {
   constructor(
     readonly code: string,
@@ -134,6 +160,13 @@ class CommandError extends Error {
 
 export class WorkerHost {
   readonly secrets: ThreadSecretFiles;
+  /** Provider CLIs on this device: reports and installs on demand (docs/provider-cli.md). */
+  readonly cli: CliTools;
+  readonly #cliTimer: Timer;
+  /** Provider per thread (from the commands' ThreadSpec): running turns per provider. */
+  readonly #threadProviders = new Map<string, Provider>();
+  /** Turns being admitted per provider (between StartTurn and turnStarted). */
+  readonly #admittingBy = new Map<Provider, number>();
   readonly #generations = new Map<AbortController, Promise<void>>();
   #closing = false;
   readonly #options: WorkerHostOptions;
@@ -186,6 +219,30 @@ export class WorkerHost {
     this.#files = new AttachmentFiles(options.dataDir);
     this.#previews = new PreviewStore(options.dataDir);
     this.#previews.prune();
+    this.cli = new CliTools({
+      dataDir: options.dataDir,
+      probe: options.cliProbe ?? systemCliProbe(installKind() === "docker"),
+      configured: () => ({
+        ...(this.#received?.claude?.executablePath && { claude: this.#received.claude.executablePath }),
+        ...(this.#received?.codex?.executablePath && { codex: this.#received.codex.executablePath }),
+        ...(this.#received?.grok?.executablePath && { grok: this.#received.grok.executablePath }),
+      }),
+      send: (report) => this.#send({ case: "cliTools", value: report }),
+      progress: (progress) => this.#send({ case: "cliInstallProgress", value: progress }),
+      busy: (provider) => this.#busy(provider),
+      installed: async () => { if (this.#received) await this.#probe(); },
+      log: (message) => this.#log(message),
+      ...(options.cliEnv && { env: options.cliEnv }),
+    });
+    this.#cliTimer = setInterval(() => void this.cli.report().catch(() => undefined), CLI_REPORT_INTERVAL_MS);
+    this.#cliTimer.unref();
+  }
+
+  /** Running turns of a provider on this worker, and its turns being admitted. */
+  #busy(provider: Provider): number {
+    let running = this.#admittingBy.get(provider) ?? 0;
+    for (const key of this.#running) if (this.#threadProviders.get(key.split("/")[0] ?? "") === provider) running++;
+    return running;
   }
 
   /** Hello.attachments_root. */
@@ -202,6 +259,7 @@ export class WorkerHost {
     for (const { request } of this.#interactions.values()) this.#send({ case: "interactionRequest", value: request });
     for (const { call } of this.#toolCalls.values()) this.#send({ case: "agentToolCall", value: call });
     if (this.#catalog) this.#send({ case: "modelCatalog", value: this.#catalog });
+    void this.cli.report().catch(() => undefined);
   }
 
   detach(link: GatewayLink): void {
@@ -351,8 +409,12 @@ export class WorkerHost {
     // Leave new work unacknowledged in the durable gateway outbox until the update completes/restarts.
     const admission = ["startTurn", "createThread", "generateText", "setGoal"].includes(command.kind.case ?? "");
     if (admission && this.#updateDraining) return undefined;
+    const provider = admission ? commandProvider(command) : undefined;
     if (admission) this.#admitting++;
+    if (provider) this.#admittingBy.set(provider, (this.#admittingBy.get(provider) ?? 0) + 1);
     try {
+      // A CLI being installed: its new work waits for the install to end (docs/provider-cli.md).
+      if (provider) await this.cli.settled(provider);
       const output = await this.#execute(command);
       const result: CommandResultInit = {
         commandId: command.commandId,
@@ -365,7 +427,7 @@ export class WorkerHost {
         ...(output.fileSearch && { fileSearch: output.fileSearch }),
         ...(output.generatedText !== undefined && { generatedText: output.generatedText }),
       };
-      if (!QUERIES.has(command.kind.case)) await this.#remember(result);
+      if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);
       return result;
     } catch (error) {
       // The runtimes went down under it: the next process runs it.
@@ -373,13 +435,17 @@ export class WorkerHost {
       const failure =
         error instanceof CommandError ? error : new CommandError("THREAD_ERROR", error instanceof Error ? error.message : String(error), true);
       const result: CommandResultInit = { commandId: command.commandId, ok: false, errorCode: failure.code, errorMessage: failure.message };
-      if (failure.final && !QUERIES.has(command.kind.case)) await this.#remember(result);
+      if (failure.final && !NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);
       return result;
-    } finally { if (admission) this.#admitting--; }
+    } finally {
+      if (admission) this.#admitting--;
+      if (provider) this.#admittingBy.set(provider, (this.#admittingBy.get(provider) ?? 1) - 1);
+    }
   }
 
   async close(): Promise<void> {
     this.#closing = true;
+    clearInterval(this.#cliTimer);
     try {
       for (const generation of this.#generations.keys()) generation.abort();
       await Promise.allSettled(this.#generations.values());
@@ -449,6 +515,14 @@ export class WorkerHost {
   async #execute(command: Command): Promise<CommandOutput> {
     const kind = command.kind;
     if (kind.case === "listDirectory") return this.#listDirectory(kind.value.path);
+    if (kind.case === "installCli") {
+      try {
+        await this.cli.start(kind.value);
+      } catch (error) {
+        throw error instanceof CliRefused ? new CommandError(error.code, error.message, false) : error;
+      }
+      return {};
+    }
     const config = this.#config;
     if (!config) throw new CommandError("WORKER_NOT_CONFIGURED", "the worker has no configuration yet", false);
     switch (kind.case) {
@@ -461,6 +535,7 @@ export class WorkerHost {
         }
         this.#checkCwd(spec.cwd);
         this.#cwds.set(spec.threadId, spec.cwd);
+        this.#threadProviders.set(spec.threadId, spec.provider);
         const fork = kind.value.fork;
         // A fork point without its provider ref would make both harnesses copy the whole history instead.
         if (fork?.afterTurnId && !fork.afterProviderTurnRef) {
@@ -476,6 +551,7 @@ export class WorkerHost {
         if (!spec || !input) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
         this.#checkCwd(spec.cwd);
         this.#cwds.set(spec.threadId, spec.cwd);
+        this.#threadProviders.set(spec.threadId, spec.provider);
         // The files first: the input already names their paths.
         if (input.attachments.length > 0) await this.#ensureAttachments(spec.threadId, input.attachments);
         // UNSPECIFIED (an older gateway): the thread's mode.
@@ -547,6 +623,7 @@ export class WorkerHost {
       }
       case "probeProviders":
         await this.#probe();
+        void this.cli.report().catch(() => undefined);
         return {};
       case "startLogin":
         return { login: await this.#startLogin(kind.value.provider, kind.value.profileId) };
@@ -729,6 +806,8 @@ export class WorkerHost {
       ...(id !== undefined && { id }),
       key: JSON.stringify({
         executable: config.codex.executable,
+        // A new CLI version (an install from the app) restarts the process once it is idle.
+        version: config.codex.version,
         linkDeviceLogin: config.codex.linkDeviceLogin,
         nativeTools: config.nativeTools,
         profiles,

@@ -157,7 +157,8 @@ while (!stopping.signal.aborted) {
         // running_turns: the list below is complete, the gateway ends its other running turns of this worker.
         // probe_providers, codex_device_login: provider instances are checked again and sign in from the app.
         // attachments: turns may carry files (fetched with FetchBlob into attachments_root).
-        capabilities: ["running_turns", "attachments", "probe_providers", "codex_device_login", "generate_text", "thread_secrets"],
+        // cli_install: provider CLIs are reported (CliToolsReport) and installed on demand (InstallCli).
+        capabilities: ["running_turns", "attachments", "probe_providers", "codex_device_login", "generate_text", "thread_secrets", "cli_install"],
         attachmentsRoot: host.attachmentsRoot,
         scratchRoot: join(dataDir, "scratch"),
         homeDirectory: homedir(),
