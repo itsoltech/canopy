@@ -12,6 +12,7 @@
   import { openBotSettings } from '../settings/open.ts';
   import TouchTarget from '#lib/shared/ui/TouchTarget.svelte';
   import { useBotHome } from '../home.svelte.ts';
+  import MachineBadge from '#lib/features/computers/MachineBadge.svelte';
 
   /**
    * Top bar of a bot chat, left-aligned like a messenger: the bot's avatar and name (1:1), the group's
@@ -41,7 +42,7 @@
     {:else}
       <AvatarStack participants={conversation.bots} {state} {event} class="[--avatar-ring:var(--color-white)] dark:[--avatar-ring:var(--color-black)]" />
     {/if}
-    <div class="min-w-0">
+    <div class="min-w-0 flex-1">
       <h1 class="flex min-w-0 items-center gap-1.5 text-base/5 font-semibold text-zinc-950 sm:text-sm/5 dark:text-white">
         {#if conversation.kind === "watch" && conversation.bots.length === 2}
           <span class="truncate">{conversation.bots[0]!.name}</span>
@@ -52,7 +53,12 @@
           {#if conversation.kind === "group"}<span class="shrink-0 font-normal text-zinc-500 tabular-nums dark:text-zinc-400">{conversation.bots.length + 1}<span class="sr-only"> participants</span></span>{/if}
         {/if}
       </h1>
-      {#if subtitle}<p class="truncate text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{subtitle}</p>{/if}
+      {#if subtitle || conversation.nodeId}
+        <div class="flex min-w-0 items-center gap-1.5">
+          {#if conversation.nodeId}<MachineBadge nodeId={conversation.nodeId} compact class="max-w-28 sm:max-w-40" />{/if}
+          {#if subtitle}<p class="truncate text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{subtitle}</p>{/if}
+        </div>
+      {/if}
     </div>
   </div>
   <div class="flex shrink-0 items-center gap-1">

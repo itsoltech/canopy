@@ -57,7 +57,7 @@
       <h2 class="text-xl font-semibold text-balance wrap-anywhere tracking-tight text-zinc-950 dark:text-white">{participant.name}</h2>
       <p class="text-pretty text-zinc-500 wrap-anywhere dark:text-zinc-400">{modelDisplayName(config.model)} · {config.provider === Provider.CODEX ? 'Codex' : config.provider === Provider.GROK ? 'Grok' : 'Claude'}</p>
     </div>
-    <BotHome nodeId={bot.nodeId} />
+    <BotHome nodeId={bot.nodeId} banner class="justify-center" />
     <Button size="sm" variant="secondary" icon="cog-6-tooth" disabled={Boolean(home.reason)} onclick={() => openBotSettings(bot.id)}>Bot settings</Button>
   </div>
 

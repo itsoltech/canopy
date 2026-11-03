@@ -25,7 +25,7 @@
   import { archiveBot, reportLifecycleError } from '#lib/features/bots/settings/lifecycle.ts';
   import { decode, encode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
-  import BotHome from "#lib/features/bots/components/BotHome.svelte";
+  import Alert from "#lib/shared/ui/Alert.svelte";
   import { useBotHome } from "#lib/features/bots/home.svelte.ts";
   import { nodeRef, splitId } from "@canopy/domain/computers";
 
@@ -181,7 +181,6 @@
 
 <svelte:head><title>{config.name || "Bot"} · Canopy</title></svelte:head>
 <div class="flex h-full min-h-0 flex-col">
-  <BotHome nodeId={bot.nodeId} banner class="px-4 py-2 sm:px-6" />
   {#key data.bot.id}
     <BotDetailsLayout bind:this={detailsLayout} bind:open={detailsOpen} ownerId={bot.ownerUserId}>
       {#snippet panel()}<BotDetailsPanel {bot} routines={snapshot.routines} reminders={snapshot.reminders} status={snapshot.statusLine} onclose={closeDetails} />{/snippet}
@@ -206,6 +205,13 @@
       onchangemodel={canAct ? openChangeModel : undefined}
       class="flex-1"
     >
+      {#snippet notice()}
+        {#if home.reason}
+          <div class="px-4 py-2 sm:px-6">
+            <Alert tone="warning" banner title="Read only for now">{home.reason} You can read the synced conversation. Messages, approvals and settings are unavailable; nothing is queued.</Alert>
+          </div>
+        {/if}
+      {/snippet}
       {#snippet actions()}
         {#if snapshot.working}<Button size="sm" variant="ghost" icon="stop" disabled={!canAct} onclick={interrupt}>Stop</Button>{/if}
         <IconButton icon="information-circle" label="Bot details" aria-expanded={detailsLayout?.isExpanded() ?? false} onclick={(event) => { detailsToggle = event.currentTarget; detailsLayout?.toggle(); }} />

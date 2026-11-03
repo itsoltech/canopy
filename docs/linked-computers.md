@@ -673,8 +673,10 @@ maszyny. Odpowiedź normalizuje odwołania powrotne do własnych lokalnych id.
 ### Rozmowa i odczyt offline
 
 Online rozmowa i karty idą na żywo do domu; edycja, rutyny, przypomnienia, granty connectorów,
-wnioskowanie i ukryte notatki przekazania wykonują się wyłącznie tam. UI pokazuje `MachineBadge`,
-„Runs on Laptop B”, a zarządzanie autoryzacją kont kieruje na komputer domu. Nie używa katalogu
+wnioskowanie i ukryte notatki przekazania wykonują się wyłącznie tam. Nagłówek rozmowy pokazuje
+`MachineBadge`, a panel szczegółów wyjaśnia „Runs on Laptop B. Routines and reminders stay there.”.
+Ostrzeżenie o odczycie offline jest w przewijanej rozmowie pod nagłówkiem; żaden komunikat nie
+poprzedza paska okna macOS. Zarządzanie autoryzacją kont kieruje na komputer domu. UI nie używa katalogu
 connectorów A w rozmowie bota z B. Wzmianki w composerze obejmują boty tego samego domu;
 bot może adresować inne komputery narzędziem `send_bot_message`.
 
