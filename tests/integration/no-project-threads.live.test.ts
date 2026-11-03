@@ -55,7 +55,8 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
         u.change.case === "snapshot" && u.change.value.turns.some((t) => ["completed", "failed", "interrupted"].includes(t.status))), undefined, 180_000);
       expect(answers(updates).join("\n")).toContain(thread.cwd);
       expect(existsSync(thread.cwd)).toBe(true);
-      expect(thread.cwd).toBe(join(root, ".open-agents", "scratch", gw.userId, thread.id));
+      // New scratch directories live under the worker's data dir (docs/worker-config.md), not under a root.
+      expect(thread.cwd).toBe(join(data, "data", "scratch", gw.userId, thread.id));
       const turns = await gw.runtime.runPromise(GatewayStore.use((s) => s.turnsOf(thread.id)));
       expect(turns[0]?.status).toBe("completed");
       // Verify a shell command was actually used, not just an answer inferred from the prompt.
