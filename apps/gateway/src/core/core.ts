@@ -104,6 +104,7 @@ import { UpdatePersistence } from "../updates/persistence.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools, type CliLatestOptions } from "./cli-tools.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
+import { isEntityId } from "@canopy/domain/computers";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -1964,7 +1965,7 @@ export class GatewayCore {
     }
     if (request.sidebar) {
       const ids = [...request.sidebar.projectIds, ...request.sidebar.pinnedThreadIds, ...request.sidebar.pinnedBotIds];
-      if (ids.length > 1000 || ids.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) throw new InvalidError("invalid sidebar ids");
+      if (ids.length > 1000 || ids.some((id) => !isEntityId(id))) throw new InvalidError("invalid sidebar ids");
     }
     if (request.threadDefaults) await this.#checkThreadDefaults(request.threadDefaults);
     if (request.modelFavorites) checkFavorites(request.modelFavorites);

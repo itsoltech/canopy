@@ -1,19 +1,31 @@
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { create, type DescMethod, type Message, type MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter, type HandlerContext } from "@connectrpc/connect";
 import { computerLink as link, ui } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { AsyncChannel } from "@canopy/transport";
 import { MIN_COMPUTER_LINK_PROTOCOL, COMPUTER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
+import { NODE_REF_LENGTH, REMOTE_THREADS } from "@canopy/domain/computers";
+import { RemoteCalls, type RemoteServe } from "./remote.ts";
 import { ComputerStore, type PeerRow } from "./store.ts";
 import { certificateIdentity, computerName, linkAddress } from "./identity.ts";
 import { discoverCertificate, linkClient, listenLink, remoteCertificate, type LinkIdentity } from "./transport.ts";
 
-type Connection = { send: (frame: MessageInitShape<typeof link.LinkFrameSchema>) => void; close: () => void; seen: number; ready: boolean };
-type Options = { store: ComputerStore; host?: string; port?: number; addresses?: string[]; minProtocol?: number; maxProtocol?: number; heartbeatMs?: number };
+type Connection = { send: (frame: MessageInitShape<typeof link.LinkFrameSchema>) => void; close: () => void; seen: number; ready: boolean;
+  protocol?: number; capabilities?: Set<string>; remote?: RemoteCalls };
+type Options = { store: ComputerStore; host?: string; port?: number; addresses?: string[]; minProtocol?: number; maxProtocol?: number; heartbeatMs?: number;
+  /** Serves linked computers' calls on this computer's threads (stage 2). Without it the capability is not offered. */
+  serve?: RemoteServe;
+  /** The owner's IANA zone for "unreachable since 19:42". */
+  zone?: () => Promise<string | undefined>;
+  /** Overrides the advertised capabilities (tests of older computers). */
+  capabilities?: string[] };
+/** A peer changed (presence, name, capabilities) or was removed. */
+export type ComputerChange = { nodeId: string; removed: boolean };
 const ms = (date: Date | null) => date ? BigInt(new Date(date).getTime()) : 0n;
-const peerMessage = (p: PeerRow) => create(ui.LinkedComputerSchema, { nodeId: p.node_id, name: p.name, displayName: p.display_name,
+const peerMessage = (p: PeerRow, capabilities: string[] = []) => create(ui.LinkedComputerSchema, { nodeId: p.node_id, name: p.name, displayName: p.display_name,
   addresses: p.addresses, fingerprint: p.fingerprint, appVersion: p.app_version, minProtocol: p.min_protocol, maxProtocol: p.max_protocol,
-  status: p.status, statusSinceMs: ms(p.status_since), lastSeenMs: ms(p.last_seen), linkedAtMs: ms(p.linked_at), updateNodeId: p.update_node_id });
+  status: p.status, statusSinceMs: ms(p.status_since), lastSeenMs: ms(p.last_seen), linkedAtMs: ms(p.linked_at), updateNodeId: p.update_node_id, capabilities });
+const STATE_TEXT: Record<string, string> = { updating: "is updating", sleeping: "went to sleep", shutting_down: "shut down", unreachable: "is unreachable", pairing_required: "must be paired again" };
 
 export async function computerGuard<A>(run: () => Promise<A>): Promise<A> {
   try { return await run(); } catch (error) {
@@ -36,13 +48,15 @@ export class LinkedComputers {
   #retry = new Map<string, { at: number; delay: number }>();
   #addresses: string[] = [];
   #tickRunning = false;
+  #listeners = new Set<(change: ComputerChange) => void>();
+  #names = new Map<string, string>();
   constructor(readonly options: Options) {}
   get store() { return this.options.store; }
   get identity(): LinkIdentity { return this.#identity; }
   get addresses() { return this.#addresses; }
   hello() { return create(link.NodeHelloSchema, { nodeId: this.#identity.node_id, name: this.#identity.name, addresses: this.#addresses,
     appVersion: CANOPY_VERSION, minProtocol: this.options.minProtocol ?? MIN_COMPUTER_LINK_PROTOCOL, maxProtocol: this.options.maxProtocol ?? COMPUTER_LINK_PROTOCOL,
-    capabilities: ["presence", "unlink"] }); }
+    capabilities: this.options.capabilities ?? ["presence", "unlink", ...(this.options.serve ? [REMOTE_THREADS] : [])] }); }
   async start() {
     this.#identity = await this.store.identity();
     // A process restart never claims an old connection is still alive.
@@ -70,7 +84,7 @@ export class LinkedComputers {
   async snapshot() {
     return create(ui.ComputersSnapshotSchema, { self: { nodeId: this.#identity.node_id, name: this.#identity.name, fingerprint: this.#identity.fingerprint,
       addresses: this.#addresses, appVersion: CANOPY_VERSION, minProtocol: this.hello().minProtocol, maxProtocol: this.hello().maxProtocol },
-      peers: (await this.store.peers()).map(peerMessage), listenerEnabled: Boolean(this.#listener), listenerAvailable: Boolean(this.options.host) });
+      peers: (await this.store.peers()).map((p) => peerMessage(p, this.capabilities(p.node_id))), listenerEnabled: Boolean(this.#listener), listenerAvailable: Boolean(this.options.host) });
   }
   async createPairing() {
     if (!this.#listener || !this.#addresses.length) throw new ConnectError("Enable the link listener and configure at least one advertised address first", Code.FailedPrecondition);
@@ -100,12 +114,15 @@ export class LinkedComputers {
       } else {
         if (!await this.store.peer(nodeId)) throw new ConnectError("Computer not found", Code.NotFound);
         await this.store.query("UPDATE computer_peers SET display_name=$3 WHERE owner_user_id=$1::uuid AND node_id=$2", [this.store.owner, nodeId, name]);
+        this.#names.set(nodeId, name);
+        this.#emit(nodeId);
       }
     } else if (action === "unlink") {
       if (!await this.store.peer(nodeId)) throw new ConnectError("Computer not found", Code.NotFound);
       // Persist revocation before releasing trust. A peer offline now learns it
       // through the authenticated control channel on its next reconnect.
       await this.store.remove(nodeId, true);
+      this.#emit(nodeId, true);
       for (const connection of this.#active.get(nodeId) ?? []) connection.send({ body: { case: "unlinked", value: {} } });
       await new Promise((resolve) => setTimeout(resolve, 100));
       for (const connection of this.#active.get(nodeId) ?? []) connection.close();
@@ -131,19 +148,29 @@ export class LinkedComputers {
   #track(nodeId: string, connection: Connection) {
     const set = this.#active.get(nodeId) ?? new Set(); set.add(connection); this.#active.set(nodeId, set);
     return async () => {
+      connection.remote?.close();
       set.delete(connection);
       if (!set.size) {
         this.#active.delete(nodeId);
         if (this.#stopped) return;
         const peer = await this.store.peer(nodeId);
-        if (peer && ["connected", "needs_update"].includes(peer.status)) await this.store.status(nodeId, "unreachable", peer.update_node_id);
-      }
+        if (peer && ["connected", "needs_update"].includes(peer.status)) await this.#status(nodeId, "unreachable", peer.update_node_id);
+        else this.#emit(nodeId);
+      } else this.#emit(nodeId);
     };
   }
   async #receive(nodeId: string, frame: link.LinkFrame, connection: Connection) {
     const body = frame.body;
+    if (body.case === "remoteRequest" || body.case === "remoteResponse" || body.case === "remoteCancel") {
+      // Only after a handshake with a common protocol; the peer was verified then and unlink closes the stream.
+      if (!connection.remote) throw new ConnectError("Remote calls need a compatible link", Code.FailedPrecondition);
+      connection.seen = Date.now();
+      connection.remote.receive(body);
+      return;
+    }
     if (body.case === "unlinked") {
       await this.store.remove(nodeId, false);
+      this.#emit(nodeId, true);
       for (const c of this.#active.get(nodeId) ?? []) c.close();
       this.#dialing.get(nodeId)?.abort(); return;
     }
@@ -161,15 +188,20 @@ export class LinkedComputers {
       await this.store.query(`UPDATE computer_peers SET name=$3,app_version=$4,min_protocol=$5,max_protocol=$6,addresses=$7::jsonb
         WHERE owner_user_id=$1::uuid AND node_id=$2`, [this.store.owner, nodeId, hello.name, hello.appVersion, hello.minProtocol, hello.maxProtocol,
         JSON.stringify([...new Set([...hello.addresses, ...peer.addresses])].slice(0, 16))]);
-      await this.store.status(nodeId, protocol ? "connected" : "needs_update", updateNodeId);
+      connection.protocol = protocol;
+      connection.capabilities = new Set(hello.capabilities);
+      this.#names.set(nodeId, peer.display_name || hello.name);
+      if (protocol && !connection.remote) connection.remote = new RemoteCalls({ send: (f) => connection.send(f), serve: this.options.serve,
+        name: () => this.#names.get(nodeId) ?? "The other computer", allowed: async () => Boolean(await this.store.peer(nodeId)) });
       connection.ready = true;
+      await this.#status(nodeId, protocol ? "connected" : "needs_update", updateNodeId);
       if (body.case === "hello") {
         connection.send({ body: { case: "welcome", value: { hello: local, protocol, updateNodeId } } });
         if (this.#announced !== "connected") connection.send({ body: { case: "presence", value: { state: this.#announced, announcedAtMs: BigInt(Date.now()) } } });
       }
     } else if (body.case === "presence") {
       if (!["updating", "sleeping", "shutting_down", "connected"].includes(body.value.state)) throw new ConnectError("Unknown presence state", Code.InvalidArgument);
-      await this.store.status(nodeId, body.value.state === "connected" && peer.update_node_id ? "needs_update" : body.value.state, peer.update_node_id);
+      await this.#status(nodeId, body.value.state === "connected" && peer.update_node_id ? "needs_update" : body.value.state, peer.update_node_id);
     } else if (body.case === "heartbeat") {
       await this.store.query("UPDATE computer_peers SET last_seen=now() WHERE owner_user_id=$1::uuid AND node_id=$2", [this.store.owner, nodeId]);
     } else throw new ConnectError("Unsupported link message", Code.InvalidArgument);
@@ -184,7 +216,7 @@ export class LinkedComputers {
     }
     if (peer.fingerprint !== remote.fingerprint) throw new ConnectError("Computer certificate changed. Unlink and pair again.", Code.Unauthenticated);
     const output = new AsyncChannel<link.LinkFrame>();
-    const connection: Connection = { send: (f) => { if (!output.closed) output.push(create(link.LinkFrameSchema, f)); }, close: () => output.close(), seen: Date.now(), ready: false };
+    const connection: Connection = { send: (f) => { if (!output.closed) output.push(create(link.LinkFrameSchema, f)); }, close: () => { output.close(); connection.remote?.close(); }, seen: Date.now(), ready: false };
     const release = this.#track(peer.node_id, connection);
     const abort = () => output.close(); context.signal.addEventListener("abort", abort, { once: true });
     const reader = (async () => {
@@ -232,7 +264,7 @@ export class LinkedComputers {
       if (controller.signal.aborted || this.#stopped || this.#paused || this.#active.get(peer.node_id)?.size) return;
       const output = new AsyncChannel<link.LinkFrame>();
       const routeController = new AbortController();
-      const connection: Connection = { send: (f) => { output.push(create(link.LinkFrameSchema, f)); }, close: () => { output.close(); routeController.abort(); }, seen: Date.now(), ready: false };
+      const connection: Connection = { send: (f) => { output.push(create(link.LinkFrameSchema, f)); }, close: () => { output.close(); routeController.abort(); connection.remote?.close(); }, seen: Date.now(), ready: false };
       const release = this.#track(peer.node_id, connection);
       try {
         connection.send({ body: { case: "hello", value: this.hello() } });
@@ -257,7 +289,7 @@ export class LinkedComputers {
         } finally { clearTimeout(deadline); }
         if (greeted) { this.#retry.delete(peer.node_id); break; }
       } catch (error) {
-        if (error instanceof ConnectError && error.code === Code.Unauthenticated) await this.store.status(peer.node_id, "pairing_required");
+        if (error instanceof ConnectError && error.code === Code.Unauthenticated) await this.#status(peer.node_id, "pairing_required");
         // A pin mismatch never changes trust. Try other known routes.
       }
       finally { output.close(); await release(); }
@@ -265,6 +297,58 @@ export class LinkedComputers {
     const delay = Math.min(30_000, (this.#retry.get(peer.node_id)?.delay ?? 500) * 2);
     this.#retry.set(peer.node_id, { delay, at: Date.now() + delay + Math.random() * delay / 4 });
   }
+  // ------------------------------------------------------------------ stage 2: remote threads
+
+  subscribe(listener: (change: ComputerChange) => void) { this.#listeners.add(listener); return () => { this.#listeners.delete(listener); }; }
+  #emit(nodeId: string, removed = false) {
+    if (removed) this.#names.delete(nodeId);
+    for (const listener of this.#listeners) { try { listener({ nodeId, removed }); } catch { /* a subscriber's failure is its own */ } }
+  }
+  async #status(nodeId: string, status: string, updateNodeId = "") { await this.store.status(nodeId, status, updateNodeId); this.#emit(nodeId); }
+  /** Features of the live connections (empty while not connected). */
+  capabilities(nodeId: string): string[] {
+    const all = new Set<string>();
+    for (const c of this.#active.get(nodeId) ?? []) if (c.ready && c.protocol) for (const name of c.capabilities ?? []) all.add(name);
+    return [...all];
+  }
+  #channel(nodeId: string) {
+    for (const c of this.#active.get(nodeId) ?? []) if (c.ready && c.protocol && c.capabilities?.has(REMOTE_THREADS) && c.remote && !c.remote.closed) return c.remote;
+    return undefined;
+  }
+  /** Peers whose threads this computer can show and act on right now. */
+  reachable(): string[] { return [...this.#active.keys()].filter((id) => this.#channel(id)); }
+  async computer(nodeId: string) { const peer = await this.store.peer(nodeId); return peer && peerMessage(peer, this.capabilities(nodeId)); }
+  /** The linked computer of a qualified id's suffix. */
+  async resolve(ref: string): Promise<PeerRow> {
+    const peers = ref.length === NODE_REF_LENGTH ? (await this.store.peers()).filter((p) => p.node_id.startsWith(ref)) : [];
+    if (peers.length !== 1) throw new ConnectError("That computer is no longer linked", Code.NotFound);
+    return peers[0]!;
+  }
+  /** One call on a peer's home threads. Fails at once when it cannot be delivered; nothing waits for a reconnect. */
+  async *remote(nodeId: string, method: DescMethod, request: Message, signal: AbortSignal): AsyncGenerator<Message> {
+    const remote = this.#channel(nodeId);
+    if (!remote) throw await this.unavailable(nodeId);
+    yield* remote.call(method, request, signal);
+  }
+  /** Why a peer's threads cannot be reached, in the words the UI shows. */
+  async unavailable(nodeId: string): Promise<ConnectError> {
+    const peer = await this.store.peer(nodeId);
+    if (!peer) return new ConnectError("That computer is no longer linked", Code.NotFound);
+    const name = peer.display_name || peer.name;
+    if (peer.status === "needs_update") return new ConnectError(peer.update_node_id === this.#identity.node_id ? `This computer needs an update to work with ${name}` : `${name} needs an update`, Code.FailedPrecondition);
+    if (peer.status === "connected") {
+      return this.capabilities(nodeId).length && !this.capabilities(nodeId).includes(REMOTE_THREADS)
+        ? new ConnectError(`${name} needs an update to share its threads`, Code.FailedPrecondition)
+        : new ConnectError(`${name} is reconnecting. Try again in a moment.`, Code.Unavailable);
+    }
+    if (peer.status === "pairing_required") return new ConnectError(`${name} must be paired again`, Code.FailedPrecondition);
+    const zone = await this.options.zone?.().catch(() => undefined) || "UTC";
+    const since = new Date(peer.status_since);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(since) === new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date());
+    const time = new Intl.DateTimeFormat("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", ...(!today && { day: "numeric", month: "short" }) }).format(since);
+    return new ConnectError(`${name} ${STATE_TEXT[peer.status] ?? "is unreachable"} ${peer.status === "unreachable" || peer.status === "updating" ? "since" : "at"} ${time}`, Code.Unavailable);
+  }
+
   async announce(state: string) {
     if (!["updating", "sleeping", "shutting_down", "connected"].includes(state)) throw new ConnectError("Unknown presence state", Code.InvalidArgument);
     this.#announced = state;
