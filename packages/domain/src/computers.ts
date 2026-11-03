@@ -8,6 +8,8 @@ export const REMOTE_THREADS = "remote_threads";
 export const THREAD_MIRROR = "thread_mirror";
 export const REMOTE_BOTS = "remote_bots";
 export const AGENT_BUS = "agent_bus";
+/** Stage 6: the computer accepts `RouteAnnouncement` frames (its partner's current addresses). */
+export const LAN_ROUTES = "lan_routes";
 export const NODE_REF_LENGTH = 16;
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";

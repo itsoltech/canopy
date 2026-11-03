@@ -9,6 +9,7 @@ import { installKind, isStandalone, onSupervisorHandover, serviceSnippet, superv
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { LinkedComputers } from "./computers/runtime.ts";
+import { lanUnavailable, multicastTransport } from "./computers/lan-transport.ts";
 import { ComputerStore } from "./computers/store.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
 
@@ -67,6 +68,7 @@ core.computers = new LinkedComputers({ store: new ComputerStore(runtime, userId,
   ...(env["CANOPY_LINK_HOST"] && { host: env["CANOPY_LINK_HOST"] }),
   ...(env["CANOPY_LINK_PORT"] && { port: Number(env["CANOPY_LINK_PORT"]) }),
   ...(env["CANOPY_LINK_ADDRESSES"] && { addresses: env["CANOPY_LINK_ADDRESSES"].split(",").map((a) => a.trim()) }),
+  discovery: { transport: multicastTransport, ...(lanUnavailable(env) && { unavailable: lanUnavailable(env)! }) },
 });
 await core.computers.start();
 await core.syncProviderInstances();

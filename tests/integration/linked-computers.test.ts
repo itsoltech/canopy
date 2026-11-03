@@ -158,8 +158,11 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
       router.service(link.ComputerLinkService, { pair: async () => { calls++; return create(link.PairResponseSchema); }, connect: async function* () { calls++; } });
     } });
     try {
-      await sa.query("UPDATE computer_peers SET addresses='[]'::jsonb WHERE owner_user_id=$1::uuid", [a.userId]);
-      await sb.query("UPDATE computer_peers SET addresses=$2::jsonb WHERE owner_user_id=$1::uuid", [b.userId, JSON.stringify([`https://127.0.0.1:${falseRoute.port}`, la.addresses[0]!])]);
+      await sa.query("DELETE FROM computer_routes WHERE owner_user_id=$1::uuid", [a.userId]);
+      // The false route succeeded most recently, so it is tried first.
+      await sb.query("UPDATE computer_routes SET last_success=now()-interval '1 hour',last_failure=NULL WHERE owner_user_id=$1::uuid", [b.userId]);
+      await sb.query("INSERT INTO computer_routes (owner_user_id,node_id,address,source,last_success) SELECT owner_user_id,node_id,$2,'announced',now() FROM computer_peers WHERE owner_user_id=$1::uuid",
+        [b.userId, `https://127.0.0.1:${falseRoute.port}`]);
       await restartB(); await online();
       expect(calls).toBe(0);
       expect((await sb.peers())[0]!.addresses[0]).toBe(la.addresses[0]!);
