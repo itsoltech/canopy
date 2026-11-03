@@ -12,7 +12,10 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    grupami procesów i ograniczonym restartem z backoff. Przy zamykaniu worker kończy
    pracę przed gatewayem, a gateway przed PostgreSQL; bezstanowy BFF kończy się równolegle.
    Zamknięcie stdin po śmierci Electron uruchamia sprzątanie kontrolera. Renderer ładuje
-   zwykły origin HTTP i dokładnie ten sam build web, bez kopii komponentów.
+   zwykły origin HTTP i dokładnie ten sam build web, bez kopii komponentów. adapter-node 6
+   nie czyta `ORIGIN`, a bez nagłówka proxy przyjmuje `https`, więc build desktopu podmienia
+   w `adapter-node.js` stały origin na `CANOPY_WEB_ORIGIN` (dokładnie `http://127.0.0.1:<port>`
+   okna). Kontrola CSRF formularzy SvelteKit zostaje bez zmian.
 2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pakowanych razem
    z aplikacją. Nie wymaga instalacji ani działającego serwera PostgreSQL na komputerze.
    Decyzja użytkownika wyklucza PGlite i SQLite: ten sam silnik co na serwerze zachowuje
