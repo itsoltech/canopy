@@ -59,6 +59,8 @@ for (const [name, entry] of Object.entries({ controller: "src/controller.ts", ga
   const output = join(runtime, `canopy-${name}${suffix}`);
   const build = await Bun.build({
     entrypoints: [resolve(desktop, entry)], target: "bun",
+    // The one Canopy version (scripts/version.ts) in the sidecars; the web build reads the same variable.
+    ...(process.env["CANOPY_VERSION"] && { define: { "process.env.CANOPY_VERSION": JSON.stringify(process.env["CANOPY_VERSION"]) } }),
     compile: { target: `bun-${target.replace("win32", "windows")}` as Bun.Build.CompileTarget, outfile: output },
     plugins: [{ name: "desktop-native-modules", setup(builder) {
       builder.onLoad({ filter: /[/\\]sharp[/\\]dist[/\\]sharp\.[cm]js$/ }, ({ path }) => {

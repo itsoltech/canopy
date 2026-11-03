@@ -246,6 +246,10 @@ The mobile app has been verified on the iOS Simulator and the Android Emulator a
 - Verified builds and workers on macOS, Windows and Linux arm64.
 - Mobile releases through the app stores; push notifications.
 
+## Releases and deployment
+
+One version for every app: `vX.Y.Z` tags publish releases, every push to `main` publishes the rolling `latest`. Docker images `ghcr.io/itsoltech/canopy-{gateway,web,worker}` (tags `latest`, `vX`, `vX.Y`, `vX.Y.Z`), standalone `canopy-gateway` / `canopy-worker` binaries and the desktop installers are attached to GitHub Releases. See `docs/release.md` (versions, CI, artifacts) and `docs/deploy.md` (Docker Compose, binaries with systemd, choosing a channel, upgrading).
+
 ## Contributing
 
 Bug reports and feature ideas are welcome as issues. Source code contributions (pull requests, patches) are accepted only from employees or authorized contractors of IT SOL Sp. z o.o.; see [LICENSE.md](LICENSE.md).

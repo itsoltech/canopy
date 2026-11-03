@@ -174,7 +174,9 @@ Wynik jest w `apps/desktop/release/`; katalog jest ignorowany przez git.
 | macOS arm64 | `macos-15` lub self-hosted Apple Silicon | `darwin-arm64` | dmg | niewykonana |
 | Windows x64 | `windows-2025` | `windows-x64` | NSIS | niewykonana |
 
-Każdy job CI: checkout tego samego commita → instalacja Node/Bun → `bun install`
+Te joby realizuje `desktop` w `.github/workflows/release.yml` ([release.md](release.md)):
+z `CANOPY_VERSION` wersja aplikacji i nazwy plików to `Canopy-<wersja>-<linux|darwin|windows>-<x64|arm64>.<ext>`,
+macOS dostaje też `zip`, podpisywanie jest warunkowe. Każdy job CI: checkout tego samego commita → instalacja Node/Bun → `bun install`
 → `package:linux`, `package:mac` albo `package:windows` → zachowanie plików z
 `apps/desktop/release`. Przed budową sprawdź `process.platform/process.arch`;
 host musi odpowiadać wierszowi tabeli. Brak Windows arm64 jest celowy.

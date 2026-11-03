@@ -3,9 +3,9 @@ import { hostname } from "node:os";
 import { dirname, resolve } from "node:path";
 import { createClient } from "@connectrpc/connect";
 import { WorkerEnrollmentService } from "@open-agents/contracts";
+import { CANOPY_VERSION } from "@open-agents/domain/release/version";
 import { createGrpcClientTransport } from "@open-agents/transport";
 import type { LocalConfig } from "./config/local.ts";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
 import { isStandalone, serviceSnippet } from "@open-agents/updater";
 
 export interface EnrollmentOptions {
@@ -46,6 +46,12 @@ export async function enrollWorker(options: EnrollmentOptions): Promise<LocalCon
     unlinkSync(target);
     throw error;
   } finally { closeSync(fd); }
+}
+
+/** How this worker is started again: the standalone binary itself (bun build --compile), else Bun with the source entry. */
+export function workerCommand(): readonly string[] {
+  const compiled = import.meta.dir.includes("$bunfs") || import.meta.dir.includes("~BUN");
+  return compiled ? [process.execPath] : [process.execPath, resolve(import.meta.dir, "main.ts")];
 }
 
 /** Snippets contain paths only; credentials stay in worker.json. No automatic service installation. */

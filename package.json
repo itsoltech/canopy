@@ -6,7 +6,7 @@
   "scripts": {
     "gen": "bun run --filter @open-agents/contracts gen",
     "gen:codex": "bun run --filter @open-agents/codex-protocol gen",
-    "typecheck": "bun run --filter '*' typecheck",
+    "typecheck": "bun run --filter '*' typecheck && tsc -p scripts/tsconfig.json",
     "test": "bun test",
     "check": "bun run gen:check && bun run typecheck && bun run check:tmp",
     "gen:check": "bun run gen && git diff --exit-code -- packages/contracts/src/gen && bun run --filter @open-agents/ui gen:check",

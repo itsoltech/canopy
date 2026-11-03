@@ -1,0 +1,74 @@
+# Checks of every change (docs/release.md). Pull requests run it directly; pushes to main and release tags run it
+# as the `checks` job of release.yml, which publishes only after it passes. Live tests stay opt-in: they need
+# private provider credentials and are skipped without OA_LIVE.
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # Keep in sync with mise.toml.
+  BUN_VERSION: 1.4.4
+
+jobs:
+  check:
+    name: Typecheck, tests, builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # A newer push to a pull request replaces its running check; release runs (workflow_call) are never cancelled.
+    concurrency:
+      group: ci-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # scripts/version.ts reads the last vX.Y.Z tag.
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache Bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Generated code is up to date
+        run: bun run gen:check
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      # Integration tests start throwaway PostgreSQL containers (packages/db/src/testing.ts); the runner has Docker.
+      - name: Pull the test database image
+        run: docker pull --quiet postgres:17
+
+      - name: Unit and integration tests
+        run: bun run check:tmp
+
+      - name: Version
+        id: version
+        run: bun scripts/version.ts --github-output
+
+      - name: Web build
+        env:
+          CANOPY_VERSION: ${{ steps.version.outputs.version }}
+        run: bun scripts/build-web.ts
+
+      - name: Gateway and worker binaries (linux-x64)
+        env:
+          CANOPY_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bun scripts/build-binaries.ts --target linux-x64
+          test "$(dist/release/canopy-gateway-linux-x64 --version)" = "$CANOPY_VERSION"
+          test "$(dist/release/canopy-worker-linux-x64 --version)" = "$CANOPY_VERSION"

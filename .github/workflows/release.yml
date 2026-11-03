@@ -1,0 +1,302 @@
+# Releases (docs/release.md). One version for every app (scripts/version.ts):
+# - push to main: version X.Y.Z-main.<sha7>, Docker tags `latest` + `sha-<sha7>`, rolling GitHub pre-release `latest`
+#   (its tag is moved to the commit, its assets replaced);
+# - tag vX.Y.Z: Docker tags vX.Y.Z, vX.Y, vX, GitHub release vX.Y.Z (tags never move `latest`).
+# Every release carries the gateway/worker binaries, the desktop installers, checksums.txt and manifest.json.
+# Nothing is published unless the CI checks pass.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Keep in sync with mise.toml.
+  BUN_VERSION: 1.4.4
+  IMAGE_NAMESPACE: ghcr.io/itsoltech
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      channel: ${{ steps.version.outputs.channel }}
+      release_tag: ${{ steps.version.outputs.releaseTag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - id: version
+        run: bun scripts/version.ts --github-output
+
+  binaries:
+    needs: version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Install
+        run: bun install --frozen-lockfile
+      # Cross-compiled for every target; sharp's native build per target comes from the npm registry.
+      - name: Build
+        env:
+          CANOPY_VERSION: ${{ needs.version.outputs.version }}
+        run: bun scripts/build-binaries.ts --target all --outdir dist/release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/release/canopy-*
+          if-no-files-found: error
+          retention-days: 7
+
+  # Each binary starts on its own OS/arch (`--version` already loads the embedded sharp/libvips).
+  smoke:
+    needs: [version, binaries]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-24.04 }
+          - { target: linux-arm64, runner: ubuntu-24.04-arm }
+          - { target: darwin-x64, runner: macos-15-intel }
+          - { target: darwin-arm64, runner: macos-15 }
+          - { target: windows-x64, runner: windows-2025, suffix: .exe }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: binaries
+      - name: Start each binary
+        shell: bash
+        env:
+          EXPECTED: ${{ needs.version.outputs.version }}
+          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
+        run: |
+          for app in gateway worker; do
+            binary="./canopy-$app-${{ matrix.target }}${{ matrix.suffix }}"
+            chmod +x "$binary"
+            actual="$("$binary" --version | tr -d '\r')"
+            echo "$binary: $actual"
+            test "$actual" = "$EXPECTED"
+          done
+
+  desktop:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-24.04, package: package:linux, experimental: false }
+          # Built here for the first time on CI: a failure does not block the release (docs/release.md).
+          - { target: linux-arm64, runner: ubuntu-24.04-arm, package: package:linux, experimental: true }
+          - { target: darwin-x64, runner: macos-15-intel, package: package:mac, experimental: true }
+          - { target: darwin-arm64, runner: macos-15, package: package:mac, experimental: true }
+          - { target: windows-x64, runner: windows-2025, package: package:windows, experimental: true }
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.experimental }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      # electron-builder runs on Node (docs/desktop.md: Node 24 or newer).
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install
+        run: bun install --frozen-lockfile
+      # electron-builder's bundled fpm (deb) is x86-64 only.
+      - name: fpm for arm64 deb
+        if: matrix.target == 'linux-arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+          echo "USE_SYSTEM_FPM=true" >> "$GITHUB_ENV"
+      # Signing only when the secrets exist; otherwise unsigned builds (macOS: no identity lookup).
+      - name: Signing
+        shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          case "${{ matrix.target }}" in
+            darwin-*)
+              if [ -n "$MAC_CSC_LINK" ]; then
+                { echo "CSC_LINK=$MAC_CSC_LINK"; echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD"; } >> "$GITHUB_ENV"
+                if [ -n "$APPLE_ID" ]; then
+                  { echo "APPLE_ID=$APPLE_ID"; echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD"; echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"; } >> "$GITHUB_ENV"
+                fi
+                echo "macOS: signed with the configured Developer ID"
+              else
+                echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+                echo "macOS: unsigned (no MAC_CSC_LINK secret)"
+              fi ;;
+            windows-*)
+              if [ -n "$WIN_CSC_LINK" ]; then
+                { echo "WIN_CSC_LINK=$WIN_CSC_LINK"; echo "WIN_CSC_KEY_PASSWORD=$WIN_CSC_KEY_PASSWORD"; } >> "$GITHUB_ENV"
+                echo "Windows: signed"
+              else
+                echo "Windows: unsigned (no WIN_CSC_LINK secret)"
+              fi ;;
+          esac
+      - name: Package
+        env:
+          CANOPY_VERSION: ${{ needs.version.outputs.version }}
+        run: bun run --cwd apps/desktop ${{ matrix.package }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          path: |
+            apps/desktop/release/Canopy-*.AppImage
+            apps/desktop/release/Canopy-*.deb
+            apps/desktop/release/Canopy-*.dmg
+            apps/desktop/release/Canopy-*.zip
+            apps/desktop/release/Canopy-*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  images:
+    needs: [checks, version]
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [gateway, web, worker]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short,enable={{is_default_branch}}
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}}
+            type=semver,pattern=v{{major}}
+          labels: |
+            org.opencontainers.image.title=canopy-${{ matrix.app }}
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+          annotations: |
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.app }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          build-args: |
+            CANOPY_VERSION=${{ needs.version.outputs.version }}
+            CANOPY_REVISION=${{ github.sha }}
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+
+  publish:
+    needs: [checks, version, binaries, smoke, desktop]
+    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.binaries.result == 'success' && needs.smoke.result == 'success' && needs.desktop.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ needs.version.outputs.release_tag }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/download-artifact@v5
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: checksums.txt and manifest.json
+        env:
+          CANOPY_VERSION: ${{ needs.version.outputs.version }}
+          CANOPY_CHANNEL: ${{ needs.version.outputs.channel }}
+          CANOPY_RELEASE_TAG: ${{ needs.version.outputs.release_tag }}
+        run: |
+          bun scripts/release-manifest.ts release-assets
+          ls -l release-assets
+          echo "### Canopy $VERSION ($TAG)" >> "$GITHUB_STEP_SUMMARY"
+          sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Release vX.Y.Z
+        if: env.TAG != 'latest'
+        run: |
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
+          else
+            gh release create "$TAG" release-assets/* --verify-tag --title "Canopy $VERSION" --generate-notes "${flags[@]}"
+          fi
+
+      # The rolling pre-release of main: move its tag, replace the assets (manifest.json last, so an updater never
+      # sees a manifest whose files are not uploaded yet), then drop assets of older builds.
+      - name: Release latest
+        if: env.TAG == 'latest'
+        run: |
+          git push --force origin "$GITHUB_SHA:refs/tags/latest"
+          notes="Rolling build of main: $VERSION ($GITHUB_SHA). Replaced on every push to main; releases are tagged vX.Y.Z."
+          if gh release view latest > /dev/null 2>&1; then
+            gh release edit latest --prerelease --title "Canopy $VERSION (main)" --notes "$notes"
+          else
+            gh release create latest --prerelease --title "Canopy $VERSION (main)" --notes "$notes"
+          fi
+          find release-assets -type f ! -name manifest.json -print0 | xargs -0 gh release upload latest --clobber
+          gh release upload latest release-assets/manifest.json --clobber
+          gh release view latest --json assets --jq '.assets[].name' | while read -r asset; do
+            if [ ! -e "release-assets/$asset" ]; then gh release delete-asset latest "$asset" --yes; fi
+          done

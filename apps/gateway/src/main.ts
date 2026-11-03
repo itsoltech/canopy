@@ -1,14 +1,18 @@
 import { readFileSync } from "node:fs";
+import { CANOPY_VERSION } from "@open-agents/domain/release/version";
 import { startConnectHttpServer, startGrpcServer } from "@open-agents/transport";
 import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
+import { healthcheck } from "./healthcheck.ts";
 import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
 import { installKind, isStandalone, serviceSnippet, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@open-agents/updater";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 
+const env = Bun.env;
 if (Bun.argv.includes("--version")) { console.info(CANOPY_VERSION); process.exit(0); }
+// Docker HEALTHCHECK / probes: before the supervisor, which would start a second gateway.
+if (Bun.argv[2] === "healthcheck") process.exit(await healthcheck(env));
 if (Bun.argv[2] === "service") {
   console.info(serviceSnippet("gateway", process.platform, process.execPath, isStandalone() ? [] : [Bun.main]));
   process.exit(0);
@@ -18,7 +22,6 @@ if (installKind() === "binary" && !process.env["CANOPY_SUPERVISED"]) {
 }
 
 // One HTTP/2 server for workers (WorkerLinkService) and the web BFF (GatewayService); docs/ui-api.md.
-const env = Bun.env;
 const serviceToken = env["OA_UI_SERVICE_TOKEN"];
 if (!serviceToken) throw new Error("OA_UI_SERVICE_TOKEN is not set (shared with the web BFF): openssl rand -hex 32");
 
@@ -69,7 +72,7 @@ const server = await startGrpcServer({
   health: () => ({ healthy: core.updates.service.verdict().healthy, version: CANOPY_VERSION }),
   ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
 });
-console.info(`gateway listening on ${server.url}`);
+console.info(`gateway ${CANOPY_VERSION} listening on ${server.url}`);
 // Desktop: keep the BFF/API listener on loopback and optionally expose only worker RPCs
 // on an explicitly selected private interface. Existing server deployments are unchanged.
 const workerServer = env["OA_WORKER_HOST"] && env["OA_WORKER_PORT"] ? await startGrpcServer({
