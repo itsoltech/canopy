@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { setTimeout as sleep } from "node:timers/promises";
 import { ManagedRuntime, Result } from "effect";
 import { WorkerState } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
@@ -81,12 +82,13 @@ if (orphans.turns + orphans.tasks > 0) {
 }
 
 const shutdown = new AbortController();
-// Graceful stop (docs/durability.md, 3.3): announce DRAINING and half-close the stream so the
-// gateway sees a clean end. A second signal, or the supervisor's hard deadline, aborts immediately.
+// Graceful stop (docs/durability.md, 3.3): announce DRAINING, stop providers and flush the journal
+// before cancelling the link. A second signal aborts the network immediately; the supervisor bounds cleanup.
 const stopping = new AbortController();
 let currentLink: GatewayLink | undefined;
+let gracefulStop: Promise<void> | undefined;
 const updates = new WorkerUpdates({ baseUrl: local.gateway_url, credential: local.credential, workerId: local.worker_id,
-  ...(ca && { ca }), signal: shutdown.signal, idle: () => host.updateIdle(), drain: (value) => {
+  ...(ca && { ca }), signal: stopping.signal, idle: () => host.updateIdle(), drain: (value) => {
     host.setUpdateDraining(value);
     if (value) currentLink?.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: WorkerState.DRAINING } });
     // A failed/deferred update must replay commands left unacknowledged while draining.
@@ -111,7 +113,9 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     }
     stopping.abort();
     desktopStatus("offline");
-    void (async () => {
+    // Cancel an in-flight handshake immediately; an established link stays up for journal acks.
+    if (!currentLink) shutdown.abort();
+    gracefulStop = (async () => {
       try {
         currentLink?.send({ case: "heartbeat", value: { runningTurns: 0, state: WorkerState.DRAINING } });
       } catch {
@@ -127,7 +131,8 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       } catch {
         // Link already closed; nothing to drain.
       }
-      if (!currentLink) shutdown.abort();
+      // The bounded flush is complete. Do not wait for a remote peer to finish the half-close.
+      shutdown.abort();
     })();
   });
 }
@@ -184,14 +189,15 @@ while (!stopping.signal.aborted) {
   }
   if (stopping.signal.aborted) break;
   if (drainDelayMs !== undefined) {
-    await Bun.sleep(drainDelayMs);
+    await sleep(drainDelayMs, undefined, { signal: stopping.signal }).catch(() => {});
   } else {
-    await Bun.sleep(backoffMs * (0.5 + Math.random()));
+    await sleep(backoffMs * (0.5 + Math.random()), undefined, { signal: stopping.signal }).catch(() => {});
     backoffMs = Math.min(backoffMs * 2, 60_000);
   }
 }
 
 // Stops provider runtimes, then closes the journal (SQLite) cleanly.
+await gracefulStop;
 await host.close();
 shutdown.abort();
 await updateLoop;

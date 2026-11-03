@@ -1,6 +1,12 @@
 /** Optional, capability-limited Electron bridge. No filesystem, secrets or generic IPC. */
 export type DesktopMode = "local" | "remote";
 export type DesktopUpdateChannel = "stable" | "beta" | "nightly";
+export type QuitShortcut = "press-twice" | "hold" | "immediately";
+export interface QuitGuardState {
+  phase: "hint" | "holding" | "cancel";
+  shortcut: string;
+  durationMs: number;
+}
 export interface DesktopUpdateStatus {
   version: string;
   buildChannel: DesktopUpdateChannel;
@@ -31,6 +37,10 @@ export interface DesktopBridge {
   /** Only available in the bundled setup window, never in remote web content. */
   configure(configuration: DesktopConfiguration): Promise<void>;
   openSettings(): Promise<void>;
+  quitShortcut(): Promise<QuitShortcut>;
+  setQuitShortcut(shortcut: QuitShortcut): Promise<QuitShortcut>;
+  onQuitShortcut(listener: (shortcut: QuitShortcut) => void): () => void;
+  onQuitGuard(listener: (state: QuitGuardState) => void): () => void;
   updates(): Promise<DesktopUpdateStatus>;
   setUpdateChannel(channel: DesktopUpdateChannel): Promise<DesktopUpdateStatus>;
   checkForUpdates(): Promise<DesktopUpdateStatus>;

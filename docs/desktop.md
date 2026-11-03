@@ -9,7 +9,8 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
 1. **Runtime:** Electron main (Node) uruchamia kontroler Bun przez prywatne stdin/stdout
    z typowanymi komunikatami JSON. Kontroler nadzoruje PostgreSQL → gateway → enrollment
    → worker → adapter-node SvelteKit. Wszystkie usługi to procesy potomne, z osobnymi
-   grupami procesów, ograniczonym restartem z backoff i zamknięciem w odwrotnej kolejności.
+   grupami procesów i ograniczonym restartem z backoff. Przy zamykaniu worker kończy
+   pracę przed gatewayem, a gateway przed PostgreSQL; bezstanowy BFF kończy się równolegle.
    Zamknięcie stdin po śmierci Electron uruchamia sprzątanie kontrolera. Renderer ładuje
    zwykły origin HTTP i dokładnie ten sam build web, bez kopii komponentów.
 2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pakowanych razem
@@ -129,6 +130,7 @@ Pliki pod `userData`:
 secrets.enc                 # ciphertext OS keychain; 0600 na POSIX
 desktop.json                # tryb/adresy; bez tokenu enrollment
 app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
+app-shortcuts.json          # quitShortcut; zapis atomowy w main, bez gatewaya
 postgres/data/              # pełny klaster PostgreSQL
 local-worker/worker.json    # credential; 0600 na POSIX
 remote-workers/<hash>/      # osobna tożsamość dla każdego gatewaya
@@ -318,6 +320,44 @@ traci kliknięcia. Zasady:
 Nowy pasek: daj mu `data-window-drag` (zawsze) albo `data-window-titlebar` (tylko przy
 schowanym sidebarze). Nowa warstwa nad oknem poza `dialog`/`[popover]`: `data-window-no-drag`.
 
+## Zamykanie i skrót Quit
+
+Po rozpoczęciu zamykania main od razu chowa wszystkie okna. Proces Electron pozostaje
+aktywny do zakończenia sprzątania kontrolera; zachowane są limity kontrolera (30 s)
+i main (35 s). Bezstanowy lokalny BFF jest kończony od razu, równolegle z usługami:
+otwarte połączenia HTTP/SSE przeglądarki nie wymagają oczekiwania na drain adapter-node.
+Usługi zachowują kolejność worker → gateway → PostgreSQL. Postgres nadal dostaje
+czyste fast shutdown (`SIGINT`, na Windows `pg_ctl stop -m fast`).
+
+Worker anuluje kanał aktualizacji i przerywa oczekiwanie na reconnect. Kończy runtime
+dostawców, zapisuje zatrzymanie zadań w tle, czeka do 3 s na potwierdzenie dziennika
+przez gateway i dopiero potem zamyka WorkerLink. Po flush nie czeka bez końca na
+odpowiedź zdalnego serwera na half-close. Niepotwierdzone zdarzenia zostają w SQLite
+i są wysyłane po kolejnym starcie ([durability.md](durability.md)).
+
+**Desktop settings → Desktop shortcuts → Quit shortcut** (również Settings → App updates)
+wybiera zachowanie `⌘Q` na macOS i `Ctrl+Q` na Linux/Windows:
+
+- **Press twice** (domyślnie): pierwsze naciśnięcie pokazuje „Press ⌘Q again to quit”;
+  drugie w ciągu 1,5 s zamyka aplikację. Powtórzenia klawisza nie liczą się jako drugie naciśnięcie.
+- **Hold**: przytrzymanie przez 1 s zamyka aplikację; pierścień pokazuje postęp.
+  Puszczenie Q lub modyfikatora, utrata fokusu i nawigacja anulują odliczanie.
+  Przy ograniczonym ruchu zostaje statyczny skrót i „Keep holding…”, bez animacji pierścienia.
+- **Quit immediately**: pierwsze naciśnięcie zamyka aplikację.
+
+Preferencja jest lokalna i wspólna dla okna głównego oraz ustawień. Main zapisuje ją
+atomowo w `userData/app-shortcuts.json` (0600); nie przechodzi przez gateway.
+IPC sprawdza okno nadawcy, główną ramkę i zaufany origin oraz dozwoloną wartość.
+Preload udostępnia wyłącznie typowane odczyt/zapis preferencji i subskrypcje.
+
+Natywne `before-input-event` przechwytuje key-down i key-up przed menu; menu nie ma
+roli `quit`, która omijałaby zabezpieczenie. Kliknięcie „Quit Canopy” myszą, tray Quit,
+shutdown/logout systemu, sygnały i restart aktualizacji omijają guard. Jeżeli nie ma
+okna z fokusem (np. wszystkie zamknięte na macOS), akcelerator menu zamyka natychmiast:
+bez renderera nie można niezawodnie odebrać key-up ani pokazać wskazówki.
+Zamknięcie aplikacji nadal samo nie instaluje aktualizacji; tylko wybrany przez użytkownika
+restart aktualizacji prowadzi po sprzątaniu do `updates.install()`.
+
 ## Automatyczne aktualizacje desktopu
 
 `electron-updater` **6.8.3** sprawdza publiczne GitHub Releases przy starcie i co
@@ -380,6 +420,9 @@ aplikacja nie wykonuje rollbacku bazy. Jawny downgrade desktopu nie sprawdza zgo
 danych i nie daje gwarancji uruchomienia. Wcześniej wykonaj backup.
 
 ## Weryfikacja
+
+Pomiar i zrzuty szybkiego zamykania oraz zabezpieczenia skrótu:
+[raport quit](../artifacts/desktop/quit/verification.md).
 
 Aktualne dowody wyboru kanału i jednej tożsamości aplikacji:
 [raport i zrzuty Chromium](../artifacts/desktop/update-channel/verification.md).

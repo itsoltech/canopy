@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { onMount } from "svelte";
   import AppShell from "#lib/features/navigation/AppShell.svelte";
+  import QuitGuardOverlay from "#lib/features/desktop/QuitGuardOverlay.svelte";
   import type { LayoutProps } from "./$types";
   let { children }: LayoutProps = $props();
   onMount(() => {
@@ -16,3 +17,4 @@
 {:else}
   <AppShell>{@render children()}</AppShell>
 {/if}
+<QuitGuardOverlay />
