@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge, DesktopStatus, DesktopUpdateStatus, DesktopWindowState, QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
+import { QuitFeedback } from "./quit-feedback.ts";
+import { quitFallback } from "./quit-fallback.ts";
+
+const feedback = new QuitFeedback(quitFallback((phase) => ipcRenderer.send("canopy:quit-guard-delivered", phase, "shell")));
+ipcRenderer.on("canopy:quit-guard", (_event, state: QuitGuardState) => feedback.receive(state));
 
 function subscribe<T>(channel: string, listener: (data: T) => void) {
   const receive = (_event: Electron.IpcRendererEvent, data: T) => listener(data);
@@ -16,7 +21,13 @@ const bridge: DesktopBridge = {
   quitShortcut: () => ipcRenderer.invoke("canopy:quit-shortcut"),
   setQuitShortcut: (shortcut) => ipcRenderer.invoke("canopy:set-quit-shortcut", shortcut),
   onQuitShortcut: (listener) => subscribe<QuitShortcut>("canopy:quit-shortcut", listener),
-  onQuitGuard: (listener) => subscribe<QuitGuardState>("canopy:quit-guard", listener),
+  onQuitGuard: (listener, overlayVersion) => feedback.subscribe((state) => {
+    // Old overlays instruct "press again" after the 500 ms window has expired.
+    // Hide those and keep the bundled feedback visible instead.
+    const delivered = overlayVersion === 1 ? state : { ...state, phase: "cancel" as const, durationMs: 0 };
+    listener(delivered);
+    ipcRenderer.send("canopy:quit-guard-delivered", delivered.phase, "web");
+  }, overlayVersion === 1),
   updates: () => ipcRenderer.invoke("canopy:updates"),
   setUpdateChannel: (channel) => ipcRenderer.invoke("canopy:update-channel", channel),
   checkForUpdates: () => ipcRenderer.invoke("canopy:update-check"),

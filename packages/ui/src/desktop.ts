@@ -6,6 +6,7 @@ export interface QuitGuardState {
   phase: "hint" | "holding" | "cancel";
   shortcut: string;
   durationMs: number;
+  message?: string;
 }
 export interface DesktopWindowState {
   zoomFactor: number;
@@ -47,7 +48,8 @@ export interface DesktopBridge {
   quitShortcut(): Promise<QuitShortcut>;
   setQuitShortcut(shortcut: QuitShortcut): Promise<QuitShortcut>;
   onQuitShortcut(listener: (shortcut: QuitShortcut) => void): () => void;
-  onQuitGuard(listener: (state: QuitGuardState) => void): () => void;
+  /** Versioned feedback avoids outdated remote overlays saying "again" after the window expires. */
+  onQuitGuard(listener: (state: QuitGuardState) => void, overlayVersion?: 1): () => void;
   updates(): Promise<DesktopUpdateStatus>;
   setUpdateChannel(channel: DesktopUpdateChannel): Promise<DesktopUpdateStatus>;
   checkForUpdates(): Promise<DesktopUpdateStatus>;

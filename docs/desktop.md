@@ -488,11 +488,20 @@ i są wysyłane po kolejnym starcie ([durability.md](durability.md)).
 **Desktop settings → Desktop shortcuts → Quit shortcut** (również Settings → App updates)
 wybiera zachowanie `⌘Q` na macOS i `Ctrl+Q` na Linux/Windows:
 
-- **Press twice** (domyślnie): pierwsze naciśnięcie pokazuje „Press ⌘Q again to quit”;
-  drugie w ciągu 1,5 s zamyka aplikację. Powtórzenia klawisza nie liczą się jako drugie naciśnięcie.
-- **Hold**: przytrzymanie przez 1 s zamyka aplikację; pierścień pokazuje postęp.
-  Puszczenie Q lub modyfikatora, utrata fokusu i nawigacja anulują odliczanie.
+- **Press twice** (domyślnie): wymagane są dwa osobne naciśnięcia w oknie krótszym
+  niż **500 ms**. Po pojedynczym naciśnięciu, dopiero po upływie tego okna, pojawia
+  się „Press ⌘Q twice to quit” na **2,5 s**. Późniejsze naciśnięcie rozpoczyna nowe
+  okno; powtórzenia przytrzymanego klawisza nigdy go nie potwierdzają ani nie odnawiają.
+- **Hold**: zamyka dopiero na powtórzeniu potwierdzającym trzymanie przez co najmniej
+  **1 s**; żaden timer sam nie zamyka aplikacji. Pierwsze powtórzenie musi przyjść
+  przed systemowym initial delay + 100 ms, następne przed repeat interval + 100 ms.
+  Brak powtórzenia anuluje próbę i opróżnia pierścień. Szybki tap nie zamyka nawet
+  wtedy, gdy żaden key-up nie dociera. Otrzymany key-up Q lub puszczenie ostatniego
+  Command/Control, utrata fokusu, zamknięcie okna i nawigacja także anulują próbę.
   Przy ograniczonym ruchu zostaje statyczny skrót i „Keep holding…”, bez animacji pierścienia.
+  Długi initial delay wydłuża Hold do `max(1000 ms, initial delay + repeat interval)`;
+  przy Repeat Off, initial delay > 5 s, interval > 500 ms lub nieprawidłowych wartościach
+  działa Press twice z komunikatem „Hold needs key repeat. Press ⌘Q twice to quit”.
 - **Quit immediately**: pierwsze naciśnięcie zamyka aplikację.
 
 Preferencja jest lokalna i wspólna dla okna głównego oraz ustawień. Main zapisuje ją
@@ -500,13 +509,103 @@ atomowo w `userData/app-shortcuts.json` (0600); nie przechodzi przez gateway.
 IPC sprawdza okno nadawcy, główną ramkę i zaufany origin oraz dozwoloną wartość.
 Preload udostępnia wyłącznie typowane odczyt/zapis preferencji i subskrypcje.
 
-Natywne `before-input-event` przechwytuje key-down i key-up przed menu; menu nie ma
-roli `quit`, która omijałaby zabezpieczenie. Kliknięcie „Quit Canopy” myszą, tray Quit,
-shutdown/logout systemu, sygnały i restart aktualizacji omijają guard. Jeżeli nie ma
-okna z fokusem (np. wszystkie zamknięte na macOS), akcelerator menu zamyka natychmiast:
-bez renderera nie można niezawodnie odebrać key-up ani pokazać wskazówki.
+Na macOS `⌘Q` jest natywnym **key equivalent** menu. Punktem wejścia jest
+`MenuItem.click` z `triggeredByAccelerator`; renderer może w ogóle nie dostać key-down,
+a key-up Q pod Command nie jest wiarygodnym sygnałem. Jeżeli `before-input-event`
+dostanie zdarzenie, przekazuje `isAutoRepeat` i blokuje ponowną obsługę przez menu.
+Key-up Command jest tylko dodatkową ścieżką anulowania; guard nie zależy od niego.
+Menu nie ma roli `quit`, która omijałaby zabezpieczenie. Kliknięcie „Quit Canopy”
+myszą, tray Quit, shutdown/logout systemu, SIGTERM/SIGINT i restart aktualizacji
+omijają guard. Bez fokusu akcelerator próbuje otworzyć okno; przy braku wiarygodnego
+zdarzenia pokazuje instrukcję użycia menu zamiast zamykać w trybie chronionym.
 Zamknięcie aplikacji nadal samo nie instaluje aktualizacji; tylko wybrany przez użytkownika
 restart aktualizacji prowadzi po sprzątaniu do `updates.install()`.
+
+**Rozpoznawanie powtórzeń:** Electron 45.2.1 / Chromium 156.0.8078.75 zachowuje
+`NSEvent.isARepeat` w natywnych flagach, ale usuwa tę flagę podczas tworzenia obiektu
+JS callbacku menu. Z samych odstępów czasowych nie da się pewnie rozróżnić drugiego
+naciśnięcia od pierwszego powtórzenia. Mały adapter Node-API w
+`apps/desktop/native/quit-key-event.mm` odczytuje wyłącznie `isARepeat` bieżącego
+`NSApp.currentEvent`, synchronicznie podczas callbacku menu, oraz efektywne czasy
+`NSEvent.keyRepeatDelay/keyRepeatInterval`. Nie zakłada monitorów wejścia, nie
+odczytuje treści klawiszy i nie wymaga Accessibility/Input Monitoring.
+Main odczytuje też `systemPreferences.getUserDefault("InitialKeyRepeat", "integer")`
+i `("KeyRepeat", "integer")`; przeliczenie ticków po 15 ms jest ścieżką rezerwową.
+Preferuje efektywne czasy AppKit, także gdy wartości defaults nie zostały zapisane.
+Oficjalne API Electron dokumentuje odczyt NSUserDefaults, ale nie jednostkę tych
+dwóch nieudokumentowanych kluczy; poprawność Hold nie zależy od tego przeliczenia.
+Przy niedostępnym adapterze nie zgaduje flagi repeat: chroniony akcelerator pokazuje
+„Use Quit Canopy from the application menu to quit”; kliknięcie menu nadal zamyka.
+
+`build:shell` na macOS kompiluje adapter przez `xcrun clang++` (Xcode Command Line
+Tools, nagłówki `node-api-headers`, stabilne Node-API v8). Pakowanie kopiuje go do
+`Contents/Resources/native/quit-key-event.node`, poza ASAR, i obejmuje podpisem
+Developer ID oraz kontrolą architektury. Linux/Windows nie kompilują ani nie ładują adaptera.
+
+**Dostarczenie UI:** main wysyła `canopy:quit-guard` do okna głównego i Settings.
+Bundlowany preload subskrybuje od początku i zapamiętuje ostatni stan dla późnego
+`QuitGuardOverlay.onMount`. Aktualny layout web montuje overlay także na `/desktop`.
+Gdy strona nie subskrybuje `onQuitGuard` z wersją overlay `1` (np. starszy gateway w trybie remote),
+preload pokazuje własną wskazówkę w izolowanym Shadow DOM. Nie wymaga aktualizacji
+gatewaya, sieci, zgody na powiadomienia ani poluzowania CSP; style są constructed
+stylesheet. Stary, niewersjonowany overlay dostaje `cancel`, aby nie pokazywał
+mylącego „press again” ani drugiej wskazówki. Po wersjonowanej subskrypcji web
+fallback znika. Starszy shell ignoruje opcjonalny argument wersji. Fallback pokazuje statyczną wskazówkę
+lub obracający się wskaźnik Hold i respektuje reduced motion; pełny pierścień
+postępu/opróżniania jest w aktualnym web UI.
+
+**Diagnostyka:** `userData/logs/desktop.log` zapisuje `quit-guard press`, `repeat`,
+`release`, `cancel reason=…`, `timeout`, `quit`, efektywne czasy repeat oraz potwierdzenia
+`feedback phase=… surface=web|shell window=main|settings`. Nie zapisuje treści
+klawiszy, adresów gatewaya ani poświadczeń. Menu → Open logs folder otwiera katalog.
+
+Źródła sprawdzone dla wersji z repozytorium:
+
+1. [Apple: Handling Key Events](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/HandlingKeyEvents/HandlingKeyEvents.html)
+   opisuje specjalną ścieżkę key equivalents i `flagsChanged:`;
+   [Event Objects and Types](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/EventObjectsTypes/EventObjectsTypes.html)
+   definiuje `keyRepeatDelay` i `keyRepeatInterval`.
+2. [Electron 45.2.1: menu Cocoa](https://github.com/electron/electron/blob/v45.2.1/shell/browser/ui/cocoa/electron_menu_controller.mm)
+   tworzy `NSMenuItem.keyEquivalent`, a `itemSelected:` przekazuje bieżące zdarzenie
+   do modelu bez filtrowania powtórzeń;
+   [konwerter JS](https://github.com/electron/electron/blob/v45.2.1/shell/browser/api/ui_event.cc)
+   pomija repeat w obiekcie callbacku. Źródła potwierdzają ścieżkę obsługi powtórzeń;
+   ich rzeczywisty strumień z klawiatury Maca wymaga próby na macOS.
+3. [Chromium 156.0.8078.75: Cocoa flags](https://github.com/chromium/chromium/blob/156.0.8078.75/ui/events/cocoa/cocoa_event_utils.mm)
+   mapuje `NSEvent.isARepeat` na `EF_IS_REPEAT` oraz Command `flagsChanged` na key-up;
+   [widok renderera](https://github.com/chromium/chromium/blob/156.0.8078.75/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm)
+   rozdziela `performKeyEquivalent:` od zwykłego `keyDown:`. Nie traktujemy tych
+   źródeł jako gwarancji dostarczenia key-up Q do `before-input-event`.
+4. [Electron: before-input-event](https://github.com/electron/electron/blob/v45.2.1/docs/api/web-contents.md#event-before-input-event),
+   [KeyboardEvent menu](https://github.com/electron/electron/blob/v45.2.1/docs/api/structures/keyboard-event.md)
+   i [systemPreferences](https://github.com/electron/electron/blob/v45.2.1/docs/api/system-preferences.md)
+   dokumentują dostępne pola i odczyt NSUserDefaults;
+   [DEPS](https://github.com/electron/electron/blob/v45.2.1/DEPS) przypina Chromium.
+
+Przed wydaniem na prawdziwym Macu, w podpisanym buildzie:
+
+1. Hold: krótki tap ⌘Q, osobno puszczenie Q przy nadal wciśniętym Command,
+   puszczenie Command, utrata fokusu i nawigacja. Każda próba ma zostać anulowana;
+   ciągłe trzymanie ma zamknąć po ok. 1 s, a długi initial delay odpowiednio później.
+2. Press twice: pojedyncze naciśnięcie pokazuje wskazówkę po 500 ms na 2,5 s;
+   dwa naciśnięcia < 500 ms zamykają, odstęp > 500 ms tylko ponownie uzbraja.
+   Trzymanie przy najszybszym repeat nigdy nie liczy się jako drugie naciśnięcie.
+3. Sprawdź Repeat Off i długi delay; Hold ma wyjaśnić fallback do Press twice
+   lub wymagać trzymania przez wydłużone okno. Sprawdź także domyślne ustawienia
+   systemu bez ręcznie zapisanych wartości `defaults`.
+4. Powtórz w oknie głównym i Settings, w local oraz remote, także ze starszym web UI;
+   sprawdź brak podwójnej wskazówki i oba rodzaje `feedback` w `desktop.log`.
+5. Sprawdź Immediate, kliknięcie Quit w menu, tray Quit i restart aktualizacji;
+   nie powinny wymagać potwierdzenia. Zweryfikuj ładowanie podpisanego adaptera
+   (brak `native-repeat-adapter-unavailable`) i brak nowych próśb o uprawnienia OS.
+
+Testy logiki: `bun test apps/desktop/test/quit-guard.test.ts` (wstrzykiwany zegar,
+bez Electron). Opcjonalny smoke prawdziwego Electron na Linuxie, bez gatewaya,
+workera i bazy: po buildzie web `bun run --filter @canopy/desktop smoke:quit`.
+Używa własnego katalogu danych, BFF na losowym porcie i headless Ozone; obejmuje
+`sendInputEvent` Ctrl+Q, repeat, oba okna, późną subskrypcję, fallback pod ścisłym
+CSP oraz produkcyjny `QuitGuardOverlay`. `CANOPY_QUIT_SMOKE_ARTIFACTS=/ścieżka`
+zachowuje zrzuty. Smoke Linux nie potwierdza natywnego menu ani adaptera macOS.
 
 ## Automatyczne aktualizacje desktopu
 

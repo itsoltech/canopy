@@ -16,7 +16,8 @@
     "package:mac": "bun run build && bun scripts/package.ts",
     "package:windows": "bun run build && bun scripts/package.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test:integration": "bun test test/runtime.integration.test.ts"
+    "test:integration": "bun test test/runtime.integration.test.ts",
+    "smoke:quit": "bun scripts/smoke-quit.ts"
   },
   "devDependencies": {
     "@bufbuild/protobuf": "2.16.0",
@@ -33,6 +34,7 @@
     "electron": "45.2.1",
     "electron-builder": "26.18.0",
     "js-yaml": "4.1.1",
+    "node-api-headers": "1.9.0",
     "playwright": "1.64.1",
     "sharp": "0.35.5",
     "@embedded-postgres/linux-x64": "18.6.0-beta.19",
@@ -88,6 +90,7 @@
       }
     },
     "mac": {
+      "extraResources": [{ "from": "build/native", "to": "native" }],
       "target": [{ "target": "dmg", "arch": ["arm64"] }, { "target": "zip", "arch": ["arm64"] }],
       "icon": "../web/static/icon-512.png",
       "category": "public.app-category.developer-tools",

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { join, resolve } from "node:path";
@@ -11,6 +11,7 @@ import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
 import { desktopIdentity } from "./identity.ts";
 import { DesktopUpdates } from "./updates.ts";
 import { QuitGuard } from "./quit-guard.ts";
+import { quitKeyEvent } from "./quit-key-event.ts";
 import { isQuitShortcut, QuitSettings } from "./quit-settings.ts";
 import { attachWindowChrome, windowState, windowViewMenu } from "./window-chrome.ts";
 
@@ -46,9 +47,18 @@ const resources = app.isPackaged ? process.resourcesPath : join(app.getAppPath()
 const iconPath = app.isPackaged ? join(resources, "icon.png") : resolve(app.getAppPath(), `build/${identity.channel}/icon.png`);
 const logs = new Logs(join(app.getPath("userData"), "logs"));
 const quitSettings = new QuitSettings(app.getPath("userData"));
-const quitGuard = new QuitGuard(quitSettings.read(), () => app.quit(), (state) => {
-  for (const target of [window, settingsWindow]) if (target && !target.isDestroyed()) target.webContents.send("canopy:quit-guard", state);
-});
+const quitLog = (decision: string) => logs.write("desktop", `quit-guard ${decision}`);
+const quitKey = quitKeyEvent(quitLog);
+const quitGuard = new QuitGuard(quitSettings.read(), {
+  clock: { now: () => performance.now(), setTimeout: (callback, delay) => setTimeout(callback, delay), clearTimeout: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>) },
+  shortcut: process.platform === "darwin" ? "⌘Q" : "Ctrl+Q",
+  repeatTiming: quitKey.timing,
+  quit: () => app.quit(),
+  log: quitLog,
+  emit: (state) => {
+    for (const target of [window, settingsWindow]) if (target && !target.isDestroyed()) target.webContents.send("canopy:quit-guard", state);
+  },
+}, process.platform);
 const scriptHashes = new Map<string, Set<string>>();
 async function preparePolicy(url: string) {
   const response = await fetch(url, { signal: AbortSignal.timeout(10_000), redirect: "error" });
@@ -69,7 +79,7 @@ function rpc(action: string, args: Record<string, unknown> = {}) {
     controller.stdin.write(JSON.stringify({ id, action, ...args }) + "\n");
   });
 }
-function isTrusted(event: IpcMainInvokeEvent, setupOnly = false) {
+function isTrusted(event: IpcMainInvokeEvent | IpcMainEvent, setupOnly = false) {
   const frame = event.senderFrame;
   if (!frame || event.sender.isDestroyed() || frame !== event.sender.mainFrame || ![window?.webContents, settingsWindow?.webContents].includes(event.sender)) return false;
   try {
@@ -93,7 +103,11 @@ function broadcast() {
   ]));
   const quitItem: Electron.MenuItemConstructorOptions = { label: `Quit ${identity.productName}`, accelerator: "CmdOrCtrl+Q",
     click: (_item, _target, event) => {
-      if (event.triggeredByAccelerator) quitGuard.accelerator(BrowserWindow.getFocusedWindow());
+      if (event.triggeredByAccelerator) {
+        const repeat = quitKey.isRepeat();
+        if (!BrowserWindow.getFocusedWindow() && quitGuard.mode !== "immediately") showMain();
+        quitGuard.accelerator(BrowserWindow.getFocusedWindow(), repeat);
+      }
       else app.quit();
     } };
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -229,6 +243,10 @@ async function start() {
   ipcMain.handle("canopy:window-state", (event) => { authorize(event); return windowState(BrowserWindow.fromWebContents(event.sender)!); });
   ipcMain.handle("canopy:settings", (event) => { authorize(event); openSettings(); });
   ipcMain.handle("canopy:quit-shortcut", (event) => { authorize(event); return quitGuard.mode; });
+  ipcMain.on("canopy:quit-guard-delivered", (event, phase: unknown, surface: unknown) => {
+    if (!isTrusted(event) || typeof phase !== "string" || !["hint", "holding", "cancel"].includes(phase) || (surface !== "web" && surface !== "shell")) return;
+    quitLog(`feedback phase=${phase} surface=${surface} window=${event.sender === settingsWindow?.webContents ? "settings" : "main"}`);
+  });
   ipcMain.handle("canopy:set-quit-shortcut", (event, value: unknown) => {
     authorize(event);
     if (!isQuitShortcut(value)) throw new Error("Invalid quit shortcut");

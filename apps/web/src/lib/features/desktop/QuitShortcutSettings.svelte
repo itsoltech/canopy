@@ -11,8 +11,8 @@
   let pending = $state(false);
   let error = $state("");
   const options = [
-    { value: "press-twice", label: "Press twice", description: "Press again within 1.5 seconds to quit." },
-    { value: "hold", label: "Hold", description: "Keep holding the shortcut for 1 second." },
+    { value: "press-twice", label: "Press twice", description: "Press twice within 500 ms to quit." },
+    { value: "hold", label: "Hold", description: "Hold for at least 1 second. Requires key repeat; otherwise press twice." },
     { value: "immediately", label: "Quit immediately", description: "Quit on the first press." },
   ];
   function receive(value: QuitShortcut) { saved = value; choice = value; }
