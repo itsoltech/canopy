@@ -16,5 +16,5 @@
 </script>
 
 {#if nodeId}
-  <Badge icon="link" {compact} class={className ?? "max-w-40"}><span class="min-w-0 truncate" title={away ? `${away} ${lastSeen(computer)}. Read only.` : `On ${name}`}>{name}{away && !compact ? ` · ${lastSeen(computer)}` : ""}</span><span class="sr-only">, linked computer{away ? ", read only" : ""}</span></Badge>
+  <Badge icon="link" {compact} class={className ?? "max-w-40"}><span class="min-w-0 truncate" title={away ? `${away} ${lastSeen(computer)}. Read only.` : `On ${name}${computer?.viaName ? ` via ${computer.viaName}` : ""}`}>{name}{computer?.viaName ? ` via ${computer.viaName}` : ""}{away && !compact ? ` · ${lastSeen(computer)}` : ""}</span><span class="sr-only">, linked computer{away ? ", read only" : ""}</span></Badge>
 {/if}

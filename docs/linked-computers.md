@@ -1,13 +1,14 @@
 # Połączone komputery (projekt)
 
-Status: **etapy 1–6 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
+Status: **etapy 1–7 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
 wersjonowanie, obecność i Settings → Linked computers. Etap 2: zsumowany overview i zdalne wątki
 (lista, odczyt na żywo, pisanie, steer, kolejka, przerwanie, zgody i tworzenie wątku na workerze
 partnera, trasowane do domu). Etap 3: trwałe lustra wątków do odczytu offline, kursor i pełna
 resynchronizacja. Etap 4: wspólna konfiguracja (oznaczanie elementów, sekrety, konflikty, znaczki).
 Etap 5: zdalne boty z odczytem offline oraz szyna agentów między domami (spawn, wiadomości,
 pytania i raporty). Etap 6: trasy (źródło, ostatni sukces, opóźnienie) i wykrywanie już połączonych
-komputerów w sieci lokalnej. Etapy 7–8 poniżej pozostają projektem; cały stos PR-ów pozostaje draftem.
+komputerów w sieci lokalnej. Etap 7: jawne „Share onward”, jeden pośrednik, obecność pośrednia,
+lustra i odwołanie dostępu. Etap 8 pozostaje projektem; cały stos PR-ów pozostaje draftem.
 
 ## Cel
 
@@ -161,7 +162,8 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
 7. Udostępnianie dalej z trasowaniem przez pośrednika.
 8. Przeniesienie rzeczy między komputerami.
 
-Każdy etap z testami integracyjnymi gateway↔gateway (dwa gatewaye i bazy w teście); bez testów UI.
+Każdy etap z testami integracyjnymi gateway↔gateway (etapy 1–6: dwa gatewaye i bazy;
+etap 7: trzy niezależne gatewaye i bazy); bez testów UI.
 
 ## Konkretny protokół etapu 1
 
@@ -884,3 +886,119 @@ hoście Linux znalazły się przez prawdziwy multicast na interfejsie LAN (trasa
 obejrzane w jasnym i ciemnym motywie, na desktopie i telefonie. Wymaga jeszcze sprawdzenia na dwóch
 fizycznych maszynach w jednej sieci, na macOS (pytanie o sieć lokalną, współistnienie z
 mDNSResponder) i Windows.
+
+## Konkretny protokół etapu 7
+
+Implementacja: `computers/relay.ts`, runtime łącza, transport `remote.ts`, routing istniejących
+handlerów i szyny agentów; migracja **0053_computer_relay**. Gatewaye W, P1 i P2 zachowują osobne
+bazy, klucze i runtime'y. Żaden wątek ani bot nie zmienia domu. Protokół pozostaje **1**, nowe
+pola są addytywne, a wszystkie trzy komputery muszą ogłaszać capability **`relay`**.
+
+### Kierunkowe zgody i katalog
+
+Na P1 operacja `ManageComputer {action: "share_onward", node_id: W,
+share_onward_node_ids: [P2]}` zastępuje cały wybór innych bezpośrednich partnerów udostępnianych W.
+Domyślnie zbiór jest pusty. Tabela `computer_relay_grants(owner, recipient, home)` jest kierunkowa;
+W→P2 nie daje P2 dostępu do rzeczy W. Wybrać można tylko innych bezpośrednich partnerów P1,
+z `relay`; siebie, odbiorcę, wpis pośredni i nieznany węzeł odrzucamy. Maksymalnie 32 zgody
+na gateway. Wyłączenie zgody pozostaje możliwe także po downgrade partnera.
+
+P1 wysyła pełny `RelayCatalog {revision, computers}` osobno każdemu bezpośredniemu partnerowi.
+W otrzymuje P2 z rolą `home`; P2 otrzymuje W z rolą `origin` (przejrzystość: **W via P1**,
+tylko do odczytu). Przy dwóch jawnych przeciwnych zgodach rola `both` zachowuje oba uprawnienia.
+Katalog zawiera prawdziwe id/nazwę, wersję, stan z czasem, last seen i capabilities etapów 2–5.
+Nie zawiera tras, certyfikatów, konfiguracji, kluczy ani możliwości dalszego pośrednictwa.
+`revision` jest trwałym licznikiem P1. Odbiorca atomowo zastępuje wpisy pośrednika tylko nowszym
+katalogiem; stara ramka z drugiego równoczesnego połączenia nie odtwarza odwołanej zgody.
+
+Wpisy pośrednie w `computer_peers` mają `via_node_id`, `relay_role` oraz **pusty certyfikat i pin**
+(wymuszone CHECK). `ComputerStore.peer/peers` zwracają wyłącznie bezpośrednich partnerów:
+listener mTLS, parowanie, LAN, trasy i konfiguracja nigdy nie uznają katalogu za nowe zaufanie.
+Kaskada po `via_node_id` usuwa wpisy i ich lustra przy Unlink pośrednika. Bezpośredni pin wygrywa
+z wpisem pośrednim; przy kilku ofertach domu wybierany jest leksykograficznie pierwszy pośrednik
+z dostępem do domu. Wpis informacyjny nie zastępuje dostępu do domu przez innego pośrednika.
+Po usunięciu wybranego inna aktualna oferta może zostać przyjęta w następnym katalogu.
+
+### Koperta, id i limit jednego pośrednika
+
+Id rzeczy pozostaje **`<uuid>~<node16 rzeczywistego domu>`**: wątek P2 na W nie otrzymuje id P1
+ani drugiego sufiksu. To rozszerzenie trasowania dotychczasowego schematu, bez zmiany jego składni.
+`resolve` rozpoznaje jednoznaczny dom, a katalog wybiera P1. UI i telefon nadal odsyłają id bez
+zmian. `node_id` wątku, workera, projektu i bota jest pełnym id P2. Gateway kwalifikuje odpowiedź
+dopiero na W; P1 przekazuje binarny protobuf bez przepisywania id. Mieszanie domów nadal odrzucamy.
+
+`RemoteRequest` ma nowe pola `target_node_id`, `origin_node_id`, `relay_hops`:
+
+1. W→P1: target=P2, origin pusty, hops=0. P1 sprawdza aktywny pin W, kierunkową zgodę W→P2,
+   bezpośredni pin P2, capabilities metody wszystkich uczestników i gotowe łącza.
+2. P1→P2: target=P2, origin=W, hops=1. P2 przyjmuje origin tylko od przypiętego P1,
+   po świeżym katalogu, który wykazał prawo W do dostępu przez P1. Handler działa lokalnie,
+   w zakresie właściciela P2, z oryginalnym W jako `peerNodeId` (także dla szyny agentów).
+3. Koperta hops=1 może wykonać się wyłącznie na swoim celu. Inny cel, hops>1, podrobiony origin
+   na pierwszej nodze, cel równy nadawcy/pośrednikowi albo pośredni cel są odrzucane.
+
+Metoda i cała koperta muszą być identyczne we wszystkich fragmentach jednego wywołania.
+`RELAY_METHODS` to jawna lista etapów 2–5 bez `PushSharedConfig`; administracja, poświadczenia,
+sekrety wątków, zarządzanie komputerami, discovery i dowolne RPC nie mają ścieżki relay.
+Każda noga zachowuje limity, błędy i anulowanie etapu 2. Przerwanie wywołania na W odwołuje je
+na P1 i P2. Odwołanie zgody przerywa również już otwarte subskrypcje i oczekujące odpowiedzi.
+
+### Szyna, lustra i obecność
+
+Spawn i wiadomości na P2 zapisują W jako źródło, z rodzicem `uuid~W16`; P1 nie tworzy aktora
+ani własnego wątku. Dziecko i polityka bota pozostają w domu. P2 może zwrócić przez tę samą zgodę
+**wyłącznie** `CallAgentBus` z operacją `question`/`report`; W weryfikuje istniejący call id,
+aktora i cel regułami etapu 5. Wpis `origin` nie bierze udziału w agregacji rzeczy ani
+rozwiązywaniu id dla zwykłych akcji. Limit 8 przeskoków agentów i limit jednego pośrednika
+to odrębne ograniczenia. P2 nie może przez informacyjny wpis W listować ani sterować jego rzeczami.
+
+Subskrypcje `WatchThreadMirror` i `WatchBotMirror` przechodzą do P2 przez P1. W zapisuje je pod
+prawdziwym `origin_node_id=P2`, z dotychczasowymi kursorami i atomowym zatwierdzaniem generacji.
+P1 nie odsyła W swoich kopii P2. Odczyt online korzysta z domu; offline z ostatniej generacji na W.
+Obecność P2 to stan P2 widziany przez P1 **oraz** osiągalność P1 z W. Po utracie P1 UI i API
+wyjaśniają „Available through P1, which is unreachable since …” w strefie właściciela. Na czas
+reconnect pokazują powód ponownego łączenia. Po restarcie nie ma dostępu przez stary katalog,
+dopóki nowe przypięte połączenie z P1 nie dostarczy aktualnego katalogu. Historia pozostaje czytelna.
+Brak połączenia to natychmiastowa odmowa zapisów; nie powstaje kolejka na później.
+
+### Odwołanie i zakres konfiguracji
+
+Wyłączenie „Share onward” najpierw zatwierdza usunięcie zgody i anuluje wywołania na P1,
+następnie wysyła nowsze katalogi. Online W usuwa P2, kursor, wszystkie generacje luster wątków
+i botów oraz listingi; P2 usuwa informacyjny W i odłącza odwołania szyny. Jeśli pozostaje
+przeciwna zgoda, wpis zostaje z węższą rolą, ale odebrane lustra i odwołania są usuwane.
+Unlink P1↔P2 usuwa także zgody i aktualizuje katalog W. Lokalne dane P2 zostają nietknięte.
+Już przyjętej przez dom akcji nie cofamy; nie ponawiamy automatycznie zapisu po utracie odpowiedzi.
+Offline W poznaje odwołanie przy następnym połączeniu, przed odnowieniem dostępu do domu;
+nie można natychmiast skasować bajtów na nieosiągalnym komputerze.
+
+**Konfiguracja etapu 4 nie jest przesyłana przez relay.** `shared_config` nie występuje w katalogu,
+`PushSharedConfig` jest odrzucany w obu nogach, a jego pętla korzysta tylko z bezpośrednich pinów.
+Samo „Share onward” nie włącza udostępniania żadnego elementu konfiguracji ani sekretu P2 do W.
+Pozostaje niezależna, dotychczasowa semantyka etapu 4: element przyjęty i oznaczony jako wspólny
+na P1 może być wysłany przez P1 jego **bezpośrednim** partnerom. „Share onward” nie rozszerza,
+nie odwołuje ani nie zastępuje tego osobnego opt-in. Wspólne projekty zachowują istniejące reguły id.
+
+UI: `ShareOnwardDialog` i `ShareOnwardChoice` (osobny przebieg `componentize`) używają istniejących
+`Dialog`, `SettingsRow` i `Switch`. Wpisy pośrednie pokazują **via P1**, bez tras, fingerprintu,
+Rename, Unlink ani dalszego udostępniania. Wpis informacyjny opisuje kierunek dostępu. Znaczek
+maszyny przy rzeczy również podaje pośrednika; banner blokady korzysta z tego samego powodu co API.
+
+### Weryfikacja i odroczenia
+
+`tests/integration/computer-relay.test.ts`: trzy prawdziwe gatewaye, osobne bazy PostgreSQL,
+przypięte mTLS, skryptowane workery i model bota. Brak dostępu domyślnie (także surowym żądaniem),
+listing via P1 i przejrzystość na P2, wzajemne jawne zgody bez pętli, odczyt/zapis/steer/zgoda,
+załącznik, bot i spawn z raportem do prawdziwego źródła, granice callbacków, odmowa konfiguracji,
+origin spoofing, limity hop i pętle, odwołanie trwającego wywołania i purge obu luster oraz listingu
+żywego strumienia overview (spóźniona odpowiedź nie odtwarza usuniętego komputera), stary
+katalog, P1 offline i restart W/P1 z czytelnym powodem i bez kolejki, capability fallback oraz Unlink.
+`schema.test.ts`: migracja 0053, izolacja ownera, brak certyfikatu wpisu pośredniego i kaskady.
+Ręcznie na trzech gatewayach z osobnymi bazami i BFF: picker „Share onward” w jasnym i ciemnym
+motywie, desktop 1440×1000 i telefon 390×844, bez poziomego przewijania. W widzi P2 via P1,
+P2 pokazuje W via P1 jako wpis tylko do odczytu; wyłączenie przełącznika na P1 usuwa P2 i jego
+wątek z W. Zastosowano `design` oraz osobny przebieg `componentize`. Fixture przeglądarkowy nie
+uruchamiał konfiguracji etapu 4 (jego endpoint zwracał 409); obejmował widoki i przełączniki relay.
+Zrzuty są poza repozytorium w katalogu tymczasowym przekazanym w raporcie.
+Bez testów UI. Bezpośrednie W↔P2 po „przedstawieniu” przez P1, discovery relayed computers,
+przechodnia konfiguracja przez relay oraz przenoszenie rzeczy (etap 8) są odroczone.

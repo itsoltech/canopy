@@ -290,6 +290,7 @@ async function* watchOverview(core: GatewayCore, own: Record<string, Handler>, r
   const stop = new AbortController();
   const signal = AbortSignal.any([context.signal, stop.signal]);
   const watchers = new Map<string, AbortController>();
+  const revisions = new Map<string, number>();
   const watchMethod = methodNamed("WatchOverview")!;
   const watch = (nodeId: string) => {
     const controller = new AbortController();
@@ -298,11 +299,13 @@ async function* watchOverview(core: GatewayCore, own: Record<string, Handler>, r
       try {
         const remote = forward(core, nodeId, watchMethod, create(ui.WatchOverviewRequestSchema, { includeSnapshot: true }), AbortSignal.any([signal, controller.signal]));
         for await (const message of remote) {
+          if (signal.aborted || controller.signal.aborted || watchers.get(nodeId) !== controller) break;
           const update = message as ui.OverviewUpdate;
           const merged = splitShared(update, globalIds(core));
           for (const value of remoteUpdates(update, nodeId)) out.push(value);
           // A shared project is this computer's row: send it again with the other computer's workspaces.
           if (merged.size) void ownOverview(core, own, signal).then((overview) => {
+            if (signal.aborted || controller.signal.aborted || watchers.get(nodeId) !== controller) return;
             for (const value of overview.projects) if (merged.has(value.id)) out.push(create(ui.OverviewUpdateSchema, { change: { case: "project", value } }));
           }).catch(() => {});
         }
@@ -321,8 +324,12 @@ async function* watchOverview(core: GatewayCore, own: Record<string, Handler>, r
     for (const nodeId of reachable) if (!watchers.has(nodeId)) watch(nodeId);
   }
   const unsubscribe = computers.subscribe(({ nodeId, removed }) => {
+    const revision = (revisions.get(nodeId) ?? 0) + 1;
+    revisions.set(nodeId, revision);
     if (removed) out.push(create(ui.OverviewUpdateSchema, { change: { case: "computerRemoved", value: nodeId } }));
-    else void computers.computer(nodeId).then((value) => { if (value) out.push(create(ui.OverviewUpdateSchema, { change: { case: "computer", value } })); }).catch(() => {});
+    else void computers.computer(nodeId).then((value) => {
+      if (value && !signal.aborted && revisions.get(nodeId) === revision) out.push(create(ui.OverviewUpdateSchema, { change: { case: "computer", value } }));
+    }).catch(() => {});
     sync();
   });
   void (async () => {

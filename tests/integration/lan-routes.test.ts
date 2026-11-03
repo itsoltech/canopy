@@ -169,7 +169,12 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     try {
       const failedRoute = async () => (await routesOf(a)).find((r) => r.address === deadAddress)!;
       await eventually(async () => dead.count() > 0 && (await failedRoute()).lastFailureMs > (await failedRoute()).lastSuccessMs, 10_000);
-      await eventually(async () => (await routesOf(a))[0]!.address !== deadAddress && await status(a) === "connected", 10_000);
+      // The handshake publishes presence before the dialler records its successful route.
+      await eventually(async () => {
+        const routes = await routesOf(a);
+        const failed = routes.find((r) => r.address === deadAddress)!;
+        return routes[0]!.address !== deadAddress && routes[0]!.lastSuccessMs > failed.lastSuccessMs && await status(a) === "connected";
+      }, 10_000);
       await online();
       const routes = await routesOf(a);
       const failed = routes.find((r) => r.address === deadAddress)!;

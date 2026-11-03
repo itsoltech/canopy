@@ -331,7 +331,7 @@ export class LinkedAgents {
 
   async receive(node: string, call: link.LinkedAgentCall): Promise<JsonValue> {
     if (!uuid(call.callId) || !uuid(call.actorId) || !["thread", "bot"].includes(call.actorKind) || call.hops > 8) return fail("Invalid linked actor");
-    if (!this.core.computers || !await this.core.computers.store.peer(node)) return fail("That computer is no longer linked");
+    if (!this.core.computers || !await this.core.computers.store.computer(node)) return fail("That computer is no longer linked");
     let args: Record<string, unknown>;
     try { args = record(JSON.parse(call.argumentsJson)); } catch { return fail("Invalid linked agent arguments"); }
     if (["report", "question"].includes(call.operation)) return this.deliver(node, call, args);
@@ -452,7 +452,7 @@ export class LinkedAgents {
         if (!claimed.length) continue;
         try {
           const peer = await this.core.computers.computer(q.peer_node_id);
-          if (!this.core.computers.reachable().includes(q.peer_node_id) || Number(peer?.statusSinceMs ?? 0n) > new Date(q.created_at).getTime()) continue;
+          if (!this.core.computers.canCall(q.peer_node_id) || Number(peer?.statusSinceMs ?? 0n) > new Date(q.created_at).getTime()) continue;
           const requestId = qualifyId(q.request_id, this.core.computers.hello().nodeId);
           await this.call(q.peer_node_id, "question", { id: q.actor_id, kind: q.actor_kind, hops: q.hops + 1, name: "" }, q.call_id,
             { event: q.request_id, text: `[canopy] Your child on ${this.core.computers.hello().name} asks (${q.tool_name}).\nthread_id: ${qualifyId(q.target_id, this.core.computers.hello().nodeId)}\nrequest_id: ${requestId}\n${JSON.stringify(q.request).slice(0, 8000)}\nAnswer with answer_interaction using these ids. The user can answer in the UI instead.` });
@@ -469,7 +469,7 @@ export class LinkedAgents {
         let status = "dropped";
         try {
           const peer = await this.core.computers.computer(r.peer_node_id);
-          if (!this.core.computers.reachable().includes(r.peer_node_id) || Number(peer?.statusSinceMs ?? 0n) > new Date(r.completed_at).getTime()) throw new Error("Parent was unavailable when the turn ended");
+          if (!this.core.computers.canCall(r.peer_node_id) || Number(peer?.statusSinceMs ?? 0n) > new Date(r.completed_at).getTime()) throw new Error("Parent was unavailable when the turn ended");
           await this.call(r.peer_node_id, "report", { id: r.actor_id, kind: r.actor_kind, hops: r.hops + 1, name: "" }, r.call_id,
             { text: `[canopy] ${r.target_kind} ${qualifyId(r.target_id, this.core.computers.hello().nodeId)} on ${this.core.computers.hello().name} ended: ${r.status}.\n${(r.text || "(no message)").slice(0, 20000)}`, event: r.target_turn_id });
           status = "delivered";

@@ -62,6 +62,17 @@ Po reconnect `OverviewUpdate.computer_snapshot` (802) zastępuje widoczne wątki
 jednego `node_id`. Pozwala usunąć z otwartego UI wiersze znikające podczas rozłączenia bez
 naruszania stanu innych komputerów. Następne pojedyncze aktualizacje działają jak wcześniej.
 
+## Połączone komputery: udostępnianie przez pośrednika
+
+Etap 7 dodaje do `LinkedComputer` pola `via_node_id`, `via_name`, `relay_origin`,
+`share_onward_node_ids` i `unavailable_reason`. `PUT /api/computers` z akcją `share_onward`
+zastępuje wybór innych bezpośrednich partnerów udostępnianych danemu `node_id`.
+Wpis pośredni nie ma tras ani pinu, a `relay_origin` jest informacją o dostępie do nas,
+bez dostępu w drugą stronę. Id rzeczy nadal wskazuje rzeczywisty dom (`uuid~home16`).
+UI pokazuje „via …” i blokadę z powodem niedostępności pośrednika. Administracja wymaga
+istniejącego service tokenu; ustawienia i sekrety nie są przesyłane przez relay.
+[Protokół, odwołanie i zakres konfiguracji](linked-computers.md#konkretny-protokół-etapu-7).
+
 ## Połączone komputery: wspólna konfiguracja
 
 `GetSharedConfig` i `ManageSharedConfig` (`share`, `unshare`, `keep_local`, `keep_remote`) zwracają
