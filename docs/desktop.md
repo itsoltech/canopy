@@ -270,6 +270,40 @@ nadal pokazuje „damaged”, usuń quarantine z konkretnej zainstalowanej aplik
 (dla innych kanałów zmień nazwę). Nie wyłączaj Gatekeepera globalnie.
 Procedura uzyskania certyfikatu i sekretów: [release.md](release.md#sekrety-podpisywania-desktop).
 
+## Okno na macOS: pasek tytułu i przeciąganie
+
+Okno ma `titleBarStyle: "hiddenInset"` i `trafficLightPosition: { x: 18, y: 18 }`:
+światła siedzą w lewym górnym rogu, ich środek wypada na środku wiersza nagłówka (48 px).
+Web oznacza `html[data-canopy-platform="darwin"]`; wszystkie reguły poniżej działają
+tylko wtedy (`routes/layout.css`, wariant Tailwind `macos:`), web, Linux i Windows się
+nie zmieniają.
+
+Electron liczy obszary przeciągania z prostokątów elementów z `-webkit-app-region`,
+w kolejności dokumentu, **bez względu na z-index**. Właściwość się dziedziczy: każdy
+potomek paska dokłada własny prostokąt, także wystający poza pasek albo przycięty
+przez `overflow-hidden`. Element nad obszarem `drag`, który sam nie jest `no-drag`,
+traci kliknięcia. Zasady:
+
+- **Jeden pasek tytułu na stan okna**, oznaczony `data-window-drag`; przeciąga tylko
+  jego własny prostokąt. Dekoracje wychodzące poza wiersz (tint i słoje buildu w
+  `SidebarHeader`) leżą obok wiersza, nie w nim.
+  - Sidebar widoczny: nagłówek sidebara (`pl` 88 px pod światła).
+  - Sidebar zwinięty lub okno węższe niż `lg`: górny pasek strony
+    (`data-window-titlebar`: `TopBar`, `ConversationHeader`) staje się paskiem tytułu
+    i dostaje 80 px z lewej (ikona wyrównana z logo). Stan niesie `data-sidebar` na
+    shellu; wcięcie animuje się razem z kolumną (`motion.css`).
+  - Settings: górny wiersz dialogu (nawigacja i breadcrumb), więc wyszukiwarka nie
+    leży pod światłami. Ekran `/desktop`: stały pasek 48 px u góry.
+- **Kontrolki w pasku** (`a`, `button`, pola, `label`, role `button`/`tab`/`menuitem`/…,
+  elementy z `tabindex`) są `no-drag`; przeciąga tylko pusta przestrzeń i tekst.
+- **Wszystko, co pływa nad oknem**, jest `no-drag`: `dialog` (Settings, arkusze,
+  drawer, paleta komend, lightbox), `[popover]` (menu, popovery, tooltipy) i
+  `data-window-no-drag` (toasty). Otwarty modal wyłącza paski pod sobą, więc klik w
+  backdrop zamyka dialog zamiast łapać okno.
+
+Nowy pasek: daj mu `data-window-drag` (zawsze) albo `data-window-titlebar` (tylko przy
+schowanym sidebarze). Nowa warstwa nad oknem poza `dialog`/`[popover]`: `data-window-no-drag`.
+
 ## Automatyczne aktualizacje desktopu
 
 `electron-updater` **6.8.3** sprawdza publiczne GitHub Releases przy starcie i co

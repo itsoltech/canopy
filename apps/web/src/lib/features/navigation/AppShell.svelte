@@ -110,7 +110,8 @@
 <svelte:window bind:innerWidth={sidebar.viewport} />
 <ThreadActionDialogs />
 
-<div class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white">
+<!-- `data-sidebar`: whether the sidebar column shows; on macOS the page's top bar takes the window's title strip when not. -->
+<div class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white" data-sidebar={wide.current && !sidebar.collapsed ? "shown" : "hidden"}>
   <SidebarColumn {sidebar}>
     {#if wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}
   </SidebarColumn>
