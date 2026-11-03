@@ -21,7 +21,7 @@ i zdalne wątki. Bez pushowania, PR-ów i wdrożenia.
 
 `tests/integration/remote-threads.test.ts` (dwa gatewaye, dwie bazy PostgreSQL, mTLS): **10 pass**.
 Regresje `linked-computers`, `gateway-ui`, `attachments`, `quotes`: **46 pass**.
-Wynik pełnego `bun run check:tmp` w raporcie przekazania.
+Pełny `bun run check:tmp`: **686 pass, 149 skip, 0 fail** (835 testów w 142 plikach), nic nie zostało w katalogu tymczasowym.
 
 ## Kontrola w przeglądarce
 
