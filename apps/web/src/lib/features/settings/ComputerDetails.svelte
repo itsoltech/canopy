@@ -3,7 +3,7 @@
   import type { ui } from "@canopy/contracts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
-  import { needsThreadUpdate } from "#lib/features/computers/computers.ts";
+  import { needsThreadUpdate, needsMirrorUpdate } from "#lib/features/computers/computers.ts";
   let { computer, self = false, busy = false, onrename, onunlink, class: className }: {
     computer: ui.LinkedComputer; self?: boolean; busy?: boolean; onrename: () => void; onunlink?: () => void; class?: ClassValue;
   } = $props();
@@ -23,6 +23,7 @@
       </div>
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{self ? "This computer" : status}</p>
       {#if !self && needsThreadUpdate(computer)}<p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Its threads appear here after it updates to a Canopy version that shares them.</p>{/if}
+      {#if !self && needsMirrorUpdate(computer)}<p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Needs an update for offline reading. Its threads are available only while connected.</p>{/if}
       {#if !self && computer.status !== "connected"}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Since {date(computer.statusSinceMs)}</p>{/if}
     </div>
     <div class="flex flex-wrap gap-2">

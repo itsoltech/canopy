@@ -37,7 +37,7 @@
     if (turn.status === "interrupted" && turn.interruptSource === "user") return "by you";
     return said(reason);
   });
-  const canContinue = $derived(turn.status === "interrupted" && turn.interruptSource === "system" && !turn.inherited && Boolean(directory.currentId));
+  const canContinue = $derived(!directory.readOnly && turn.status === "interrupted" && turn.interruptSource === "system" && !turn.inherited && Boolean(directory.currentId));
   let continuing = $state<"idle" | "sending" | "sent" | "error">("idle");
   // One key per footer: a retry after a network error does not queue the continuation twice.
   const continueRequest = crypto.randomUUID();

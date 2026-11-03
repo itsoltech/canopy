@@ -5,6 +5,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import FileChip from "./FileChip.svelte";
   import ZoomableImage from "./ZoomableImage.svelte";
+  import FileAvailability from "./FileAvailability.svelte";
 
   /**
    * The files of a message in the chat: images as thumbnails (tap for the full image), other files as chips with
@@ -21,6 +22,7 @@
     <ul role="list" class="flex max-w-[min(85%,42rem)] flex-wrap justify-end gap-2" aria-label="Images">
       {#each images as image (image.id)}
         <li>
+          <FileAvailability entityId={image.id} name={image.name}>
           <ZoomableImage
             src={url(image, image.hasThumbnail ? "thumbnail" : undefined)}
             full={url(image)}
@@ -32,6 +34,7 @@
             class="rounded-xl"
             imageClass={["max-h-40 rounded-xl object-cover", images.length > 1 ? "size-24 sm:size-28" : "sm:max-h-56"]}
           />
+          </FileAvailability>
         </li>
       {/each}
     </ul>
@@ -40,6 +43,7 @@
     <ul role="list" class="flex max-w-[min(85%,42rem)] flex-wrap justify-end gap-2" aria-label="Files">
       {#each files as file (file.id)}
         <li class="min-w-0">
+          <FileAvailability entityId={file.id} name={file.name}>
           <FileChip
             name={file.name}
             detail="{formatSize(file.sizeBytes)} · {file.mimeType}"
@@ -48,6 +52,7 @@
           >
             {#snippet trailing()}<Icon name="arrow-down" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />{/snippet}
           </FileChip>
+          </FileAvailability>
         </li>
       {/each}
     </ul>

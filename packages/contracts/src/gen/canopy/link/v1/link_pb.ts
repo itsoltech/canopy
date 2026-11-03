@@ -4,13 +4,93 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GetOverviewResponse, ThreadSnapshot } from "../../ui/v1/gateway_pb.ts";
+import { file_canopy_ui_v1_gateway } from "../../ui/v1/gateway_pb.ts";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file canopy/link/v1/link.proto.
  */
 export const file_canopy_link_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSKUAQoJTm9kZUhlbGxvEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglhZGRyZXNzZXMYAyADKAkSEwoLYXBwX3ZlcnNpb24YBCABKAkSFAoMbWluX3Byb3RvY29sGAUgASgNEhQKDG1heF9wcm90b2NvbBgGIAEoDRIUCgxjYXBhYmlsaXRpZXMYByADKAkiRwoLUGFpclJlcXVlc3QSDgoGc2VjcmV0GAEgASgJEigKBWhlbGxvGAIgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvIjgKDFBhaXJSZXNwb25zZRIoCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbyJhCgtMaW5rV2VsY29tZRIoCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbxIQCghwcm90b2NvbBgCIAEoDRIWCg51cGRhdGVfbm9kZV9pZBgDIAEoCSIyCghQcmVzZW5jZRINCgVzdGF0ZRgBIAEoCRIXCg9hbm5vdW5jZWRfYXRfbXMYAiABKAMiHwoJSGVhcnRiZWF0EhIKCnNlbnRfYXRfbXMYASABKAMiCgoIVW5saW5rZWQiTwoNUmVtb3RlUmVxdWVzdBIPCgdjYWxsX2lkGAEgASgEEg4KBm1ldGhvZBgCIAEoCRIPCgdwYXlsb2FkGAMgASgMEgwKBG1vcmUYBCABKAgibAoOUmVtb3RlUmVzcG9uc2USDwoHY2FsbF9pZBgBIAEoBBIPCgdwYXlsb2FkGAIgASgMEgwKBG1vcmUYAyABKAgSCwoDZW5kGAQgASgIEgwKBGNvZGUYBSABKA0SDwoHbWVzc2FnZRgGIAEoCSIfCgxSZW1vdGVDYW5jZWwSDwoHY2FsbF9pZBgBIAEoBCKmAwoJTGlua0ZyYW1lEioKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvSAASLgoHd2VsY29tZRgCIAEoCzIbLmNhbm9weS5saW5rLnYxLkxpbmtXZWxjb21lSAASLgoJaGVhcnRiZWF0GAMgASgLMhkuY2Fub3B5LmxpbmsudjEuSGVhcnRiZWF0SAASLAoIcHJlc2VuY2UYBCABKAsyGC5jYW5vcHkubGluay52MS5QcmVzZW5jZUgAEiwKCHVubGlua2VkGAUgASgLMhguY2Fub3B5LmxpbmsudjEuVW5saW5rZWRIABI3Cg5yZW1vdGVfcmVxdWVzdBgGIAEoCzIdLmNhbm9weS5saW5rLnYxLlJlbW90ZVJlcXVlc3RIABI5Cg9yZW1vdGVfcmVzcG9uc2UYByABKAsyHi5jYW5vcHkubGluay52MS5SZW1vdGVSZXNwb25zZUgAEjUKDXJlbW90ZV9jYW5jZWwYCCABKAsyHC5jYW5vcHkubGluay52MS5SZW1vdGVDYW5jZWxIAEIGCgRib2R5Mp0BChNDb21wdXRlckxpbmtTZXJ2aWNlEkEKBFBhaXISGy5jYW5vcHkubGluay52MS5QYWlyUmVxdWVzdBocLmNhbm9weS5saW5rLnYxLlBhaXJSZXNwb25zZRJDCgdDb25uZWN0EhkuY2Fub3B5LmxpbmsudjEuTGlua0ZyYW1lGhkuY2Fub3B5LmxpbmsudjEuTGlua0ZyYW1lKAEwAWIGcHJvdG8z");
+  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSIfCg1NaXJyb3JSZXF1ZXN0Eg4KBmN1cnNvchgBIAEoCSKEAgoMTWlycm9yVXBkYXRlEhcKD3ByZXZpb3VzX2N1cnNvchgBIAEoCRIOCgZjdXJzb3IYAiABKAkSDQoFcmVzZXQYAyABKAgSDgoGY29tbWl0GAQgASgIEi4KCHNuYXBzaG90GAUgASgLMhwuY2Fub3B5LnVpLnYxLlRocmVhZFNuYXBzaG90EhkKEXJlbW92ZWRfdGhyZWFkX2lkGAYgASgJEjMKCG92ZXJ2aWV3GAcgASgLMiEuY2Fub3B5LnVpLnYxLkdldE92ZXJ2aWV3UmVzcG9uc2USFgoOc25hcHNob3Rfc3RhcnQYCCABKAgSFAoMc25hcHNob3RfZW5kGAkgASgIIpQBCglOb2RlSGVsbG8SDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCWFkZHJlc3NlcxgDIAMoCRITCgthcHBfdmVyc2lvbhgEIAEoCRIUCgxtaW5fcHJvdG9jb2wYBSABKA0SFAoMbWF4X3Byb3RvY29sGAYgASgNEhQKDGNhcGFiaWxpdGllcxgHIAMoCSJHCgtQYWlyUmVxdWVzdBIOCgZzZWNyZXQYASABKAkSKAoFaGVsbG8YAiABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG8iOAoMUGFpclJlc3BvbnNlEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvImEKC0xpbmtXZWxjb21lEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvEhAKCHByb3RvY29sGAIgASgNEhYKDnVwZGF0ZV9ub2RlX2lkGAMgASgJIjIKCFByZXNlbmNlEg0KBXN0YXRlGAEgASgJEhcKD2Fubm91bmNlZF9hdF9tcxgCIAEoAyIfCglIZWFydGJlYXQSEgoKc2VudF9hdF9tcxgBIAEoAyIKCghVbmxpbmtlZCJPCg1SZW1vdGVSZXF1ZXN0Eg8KB2NhbGxfaWQYASABKAQSDgoGbWV0aG9kGAIgASgJEg8KB3BheWxvYWQYAyABKAwSDAoEbW9yZRgEIAEoCCJsCg5SZW1vdGVSZXNwb25zZRIPCgdjYWxsX2lkGAEgASgEEg8KB3BheWxvYWQYAiABKAwSDAoEbW9yZRgDIAEoCBILCgNlbmQYBCABKAgSDAoEY29kZRgFIAEoDRIPCgdtZXNzYWdlGAYgASgJIh8KDFJlbW90ZUNhbmNlbBIPCgdjYWxsX2lkGAEgASgEIqYDCglMaW5rRnJhbWUSKgoFaGVsbG8YASABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG9IABIuCgd3ZWxjb21lGAIgASgLMhsuY2Fub3B5LmxpbmsudjEuTGlua1dlbGNvbWVIABIuCgloZWFydGJlYXQYAyABKAsyGS5jYW5vcHkubGluay52MS5IZWFydGJlYXRIABIsCghwcmVzZW5jZRgEIAEoCzIYLmNhbm9weS5saW5rLnYxLlByZXNlbmNlSAASLAoIdW5saW5rZWQYBSABKAsyGC5jYW5vcHkubGluay52MS5VbmxpbmtlZEgAEjcKDnJlbW90ZV9yZXF1ZXN0GAYgASgLMh0uY2Fub3B5LmxpbmsudjEuUmVtb3RlUmVxdWVzdEgAEjkKD3JlbW90ZV9yZXNwb25zZRgHIAEoCzIeLmNhbm9weS5saW5rLnYxLlJlbW90ZVJlc3BvbnNlSAASNQoNcmVtb3RlX2NhbmNlbBgIIAEoCzIcLmNhbm9weS5saW5rLnYxLlJlbW90ZUNhbmNlbEgAQgYKBGJvZHkyaQoTVGhyZWFkTWlycm9yU2VydmljZRJSChFXYXRjaFRocmVhZE1pcnJvchIdLmNhbm9weS5saW5rLnYxLk1pcnJvclJlcXVlc3QaHC5jYW5vcHkubGluay52MS5NaXJyb3JVcGRhdGUwATKdAQoTQ29tcHV0ZXJMaW5rU2VydmljZRJBCgRQYWlyEhsuY2Fub3B5LmxpbmsudjEuUGFpclJlcXVlc3QaHC5jYW5vcHkubGluay52MS5QYWlyUmVzcG9uc2USQwoHQ29ubmVjdBIZLmNhbm9weS5saW5rLnYxLkxpbmtGcmFtZRoZLmNhbm9weS5saW5rLnYxLkxpbmtGcmFtZSgBMAFiBnByb3RvMw", [file_canopy_ui_v1_gateway]);
+
+/**
+ * @generated from message canopy.link.v1.MirrorRequest
+ */
+export type MirrorRequest = Message<"canopy.link.v1.MirrorRequest"> & {
+  /**
+   * @generated from field: string cursor = 1;
+   */
+  cursor: string;
+};
+
+/**
+ * Describes the message canopy.link.v1.MirrorRequest.
+ * Use `create(MirrorRequestSchema)` to create a new message.
+ */
+export const MirrorRequestSchema: GenMessage<MirrorRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 0);
+
+/**
+ * @generated from message canopy.link.v1.MirrorUpdate
+ */
+export type MirrorUpdate = Message<"canopy.link.v1.MirrorUpdate"> & {
+  /**
+   * @generated from field: string previous_cursor = 1;
+   */
+  previousCursor: string;
+
+  /**
+   * @generated from field: string cursor = 2;
+   */
+  cursor: string;
+
+  /**
+   * Begin a replacement generation. Readers keep the old generation until commit.
+   *
+   * @generated from field: bool reset = 3;
+   */
+  reset: boolean;
+
+  /**
+   * @generated from field: bool commit = 4;
+   */
+  commit: boolean;
+
+  /**
+   * @generated from field: canopy.ui.v1.ThreadSnapshot snapshot = 5;
+   */
+  snapshot?: ThreadSnapshot | undefined;
+
+  /**
+   * @generated from field: string removed_thread_id = 6;
+   */
+  removedThreadId: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.GetOverviewResponse overview = 7;
+   */
+  overview?: GetOverviewResponse | undefined;
+
+  /**
+   * A large timeline is a header, followed by bounded snapshot fragments, then end.
+   *
+   * @generated from field: bool snapshot_start = 8;
+   */
+  snapshotStart: boolean;
+
+  /**
+   * @generated from field: bool snapshot_end = 9;
+   */
+  snapshotEnd: boolean;
+};
+
+/**
+ * Describes the message canopy.link.v1.MirrorUpdate.
+ * Use `create(MirrorUpdateSchema)` to create a new message.
+ */
+export const MirrorUpdateSchema: GenMessage<MirrorUpdate> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 1);
 
 /**
  * @generated from message canopy.link.v1.NodeHello
@@ -57,7 +137,7 @@ export type NodeHello = Message<"canopy.link.v1.NodeHello"> & {
  * Use `create(NodeHelloSchema)` to create a new message.
  */
 export const NodeHelloSchema: GenMessage<NodeHello> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 0);
+  messageDesc(file_canopy_link_v1_link, 2);
 
 /**
  * @generated from message canopy.link.v1.PairRequest
@@ -79,7 +159,7 @@ export type PairRequest = Message<"canopy.link.v1.PairRequest"> & {
  * Use `create(PairRequestSchema)` to create a new message.
  */
 export const PairRequestSchema: GenMessage<PairRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 1);
+  messageDesc(file_canopy_link_v1_link, 3);
 
 /**
  * @generated from message canopy.link.v1.PairResponse
@@ -96,7 +176,7 @@ export type PairResponse = Message<"canopy.link.v1.PairResponse"> & {
  * Use `create(PairResponseSchema)` to create a new message.
  */
 export const PairResponseSchema: GenMessage<PairResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 2);
+  messageDesc(file_canopy_link_v1_link, 4);
 
 /**
  * @generated from message canopy.link.v1.LinkWelcome
@@ -126,7 +206,7 @@ export type LinkWelcome = Message<"canopy.link.v1.LinkWelcome"> & {
  * Use `create(LinkWelcomeSchema)` to create a new message.
  */
 export const LinkWelcomeSchema: GenMessage<LinkWelcome> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 3);
+  messageDesc(file_canopy_link_v1_link, 5);
 
 /**
  * @generated from message canopy.link.v1.Presence
@@ -148,7 +228,7 @@ export type Presence = Message<"canopy.link.v1.Presence"> & {
  * Use `create(PresenceSchema)` to create a new message.
  */
 export const PresenceSchema: GenMessage<Presence> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 4);
+  messageDesc(file_canopy_link_v1_link, 6);
 
 /**
  * @generated from message canopy.link.v1.Heartbeat
@@ -165,7 +245,7 @@ export type Heartbeat = Message<"canopy.link.v1.Heartbeat"> & {
  * Use `create(HeartbeatSchema)` to create a new message.
  */
 export const HeartbeatSchema: GenMessage<Heartbeat> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 5);
+  messageDesc(file_canopy_link_v1_link, 7);
 
 /**
  * @generated from message canopy.link.v1.Unlinked
@@ -178,7 +258,7 @@ export type Unlinked = Message<"canopy.link.v1.Unlinked"> & {
  * Use `create(UnlinkedSchema)` to create a new message.
  */
 export const UnlinkedSchema: GenMessage<Unlinked> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 6);
+  messageDesc(file_canopy_link_v1_link, 8);
 
 /**
  * Stage 2, capability "remote_threads": a canopy.ui.v1.GatewayService call
@@ -221,7 +301,7 @@ export type RemoteRequest = Message<"canopy.link.v1.RemoteRequest"> & {
  * Use `create(RemoteRequestSchema)` to create a new message.
  */
 export const RemoteRequestSchema: GenMessage<RemoteRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 7);
+  messageDesc(file_canopy_link_v1_link, 9);
 
 /**
  * @generated from message canopy.link.v1.RemoteResponse
@@ -267,7 +347,7 @@ export type RemoteResponse = Message<"canopy.link.v1.RemoteResponse"> & {
  * Use `create(RemoteResponseSchema)` to create a new message.
  */
 export const RemoteResponseSchema: GenMessage<RemoteResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 8);
+  messageDesc(file_canopy_link_v1_link, 10);
 
 /**
  * The caller stopped listening (stream closed, timeout). The home aborts the call.
@@ -286,7 +366,7 @@ export type RemoteCancel = Message<"canopy.link.v1.RemoteCancel"> & {
  * Use `create(RemoteCancelSchema)` to create a new message.
  */
 export const RemoteCancelSchema: GenMessage<RemoteCancel> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 9);
+  messageDesc(file_canopy_link_v1_link, 11);
 
 /**
  * @generated from message canopy.link.v1.LinkFrame
@@ -351,7 +431,25 @@ export type LinkFrame = Message<"canopy.link.v1.LinkFrame"> & {
  * Use `create(LinkFrameSchema)` to create a new message.
  */
 export const LinkFrameSchema: GenMessage<LinkFrame> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 10);
+  messageDesc(file_canopy_link_v1_link, 12);
+
+/**
+ * Internal subscription over RemoteRequest/RemoteResponse, only with thread_mirror.
+ * It is not registered on the public gateway or pairing listener.
+ *
+ * @generated from service canopy.link.v1.ThreadMirrorService
+ */
+export const ThreadMirrorService: GenService<{
+  /**
+   * @generated from rpc canopy.link.v1.ThreadMirrorService.WatchThreadMirror
+   */
+  watchThreadMirror: {
+    methodKind: "server_streaming";
+    input: typeof MirrorRequestSchema;
+    output: typeof MirrorUpdateSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_canopy_link_v1_link, 0);
 
 /**
  * Pair is the only RPC open to a certificate without a pin. The invitation
@@ -377,5 +475,5 @@ export const ComputerLinkService: GenService<{
     output: typeof LinkFrameSchema;
   },
 }> = /*@__PURE__*/
-  serviceDesc(file_canopy_link_v1_link, 0);
+  serviceDesc(file_canopy_link_v1_link, 1);
 

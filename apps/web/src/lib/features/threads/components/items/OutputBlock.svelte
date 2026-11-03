@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { BlobRef } from "@canopy/contracts";
+  import FileAvailability from "#lib/features/attachments/FileAvailability.svelte";
+  import { useThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { formatBytes } from "#lib/shared/format.ts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
@@ -26,6 +28,7 @@
     () => output,
     () => streaming,
   );
+  const directory = useThreadDirectory();
   const text = $derived(reveal.text);
   const lines = $derived(text.replace(/\n$/, "").split("\n"));
   const cut = $derived(tail !== undefined && lines.length > tail);
@@ -45,9 +48,11 @@
   </div>
 {/if}
 {#if blob}
-  <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-    Full output ({formatBytes(blob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.
-  </p>
+  <FileAvailability entityId={directory.currentId} name="Full output ({formatBytes(blob.sizeBytes)})">
+    <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      Full output ({formatBytes(blob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.
+    </p>
+  </FileAvailability>
 {:else if !text}
   <p class="text-sm/5 text-zinc-500 italic sm:text-xs/5 dark:text-zinc-400">{empty}</p>
 {/if}

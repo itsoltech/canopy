@@ -5,6 +5,7 @@
  * the gateway: it strips the suffix and forwards the call to that computer over the pinned link.
  */
 export const REMOTE_THREADS = "remote_threads";
+export const THREAD_MIRROR = "thread_mirror";
 export const NODE_REF_LENGTH = 16;
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";

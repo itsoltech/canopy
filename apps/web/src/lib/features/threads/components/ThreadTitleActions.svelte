@@ -7,10 +7,11 @@
   import SwapText from "#lib/shared/ui/SwapText.svelte";
   import { useThreadActions } from "../thread-actions.svelte.ts";
   import { requestTitleRegeneration } from "../title-actions.ts";
+  import { awayReason } from "#lib/features/computers/computers.ts";
 
   let { thread, titlebar = false, class: className }: { thread: ui.Thread; titlebar?: boolean; class?: ClassValue } = $props();
   const actions = useThreadActions();
-  const closed = $derived(thread.status === "archived");
+  const closed = $derived(thread.status === "archived" || Boolean(thread.nodeId && awayReason(actions.overview.computer(thread.nodeId))));
   // From the click until the gateway reports the generation (and then until it ends): the button spins and
   // the title shimmers, so a request never looks ignored.
   let requested = $state(false);

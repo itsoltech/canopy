@@ -26,6 +26,8 @@
   import SummaryRow from "./components/SummaryRow.svelte";
   import ThreadStatusText from "./ThreadStatusText.svelte";
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
+  import ComputerAwayAlert from "#lib/features/computers/ComputerAwayAlert.svelte";
+  import { awayReason } from "#lib/features/computers/computers.ts";
 
   /**
    * A thread's summary next to its row in lists (T3's hover card): title, project, worker, folder, agent
@@ -38,6 +40,7 @@
   const muted = "size-4 fill-zinc-400 dark:fill-zinc-500";
   let { thread, row, touch = "press", disabled = false }: { thread: ui.Thread; row: Snippet<[HoverTriggerProps]>; touch?: "press" | "none"; disabled?: boolean } = $props();
   const overview = useOverview();
+  const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
 </script>
 
 <HoverCard label="Thread {thread.title}" placement={beside.current ? "right-start" : "bottom-start"} {touch} {disabled} class="w-80">
@@ -52,6 +55,9 @@
   <div class="grid gap-3 text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-400">
     <p class="text-base/6 font-semibold text-pretty text-zinc-950 sm:text-sm/5 dark:text-white">{thread.title}</p>
     <ScheduleOrigin {thread} />
+    {#if away}
+      <ComputerAwayAlert reason={away} />
+    {/if}
     <ul role="list" class="grid gap-1.5">
       <SummaryRow>
         {#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} class="size-4" />{/snippet}
@@ -83,10 +89,14 @@
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}<Icon name="signal" class={muted} />{/snippet}
+        {#if away}
+          <span>Last synced status: {thread.status.replaceAll("_", " ")}</span>
+        {:else}
         {#if workState(thread) === "idle" && thread.status === "idle"}<span>Idle<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span></span>{/if}
         <ThreadStatusText {thread} />
         {#if thread.backgroundTasks > 0}
           <span class={["flex shrink-0 items-center gap-0.5 tabular-nums", textTones.sky]}><Icon name="bolt" class="size-3.5" />{thread.backgroundTasks} in background</span>
+        {/if}
         {/if}
       </SummaryRow>
       {#if goal}
@@ -105,7 +115,7 @@
             <SummaryRow>
               {#snippet mark()}<Icon name={look.icon} class={["size-4", look.iconClass]} />{/snippet}
               <span class="truncate text-zinc-700 dark:text-zinc-300">{side.title}</span>
-              {#snippet aside()}<ThreadStatusText thread={side} />{/snippet}
+              {#snippet aside()}{#if away}<span>{side.status.replaceAll("_", " ")}</span>{:else}<ThreadStatusText thread={side} />{/if}{/snippet}
             </SummaryRow>
           {/each}
         </ul>

@@ -211,5 +211,12 @@ describe.skipIf(!dockerAvailable)("worker restart and lost turns (gateway + scri
       (c) => c !== undefined,
     );
     expect(start?.thread?.providerThreadId).toBe("codex-fresh");
+    // Receiving the command is earlier than persisting its acknowledgement. Let the
+    // turn and outbox settle before afterAll disposes the gateway's SQL runtime.
+    await eventually(() => turns(thread.id), (rows) => rows[0]?.status === "completed");
+    await eventually(
+      () => query<{ status: string }>("SELECT status FROM worker_commands WHERE thread_id = $1::uuid", thread.id),
+      (rows) => rows.length > 0 && rows.every((row) => row.status === "completed"),
+    );
   }, 30_000);
 });

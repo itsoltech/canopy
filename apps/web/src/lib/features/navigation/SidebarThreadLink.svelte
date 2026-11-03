@@ -10,6 +10,8 @@
   import { longPress } from "#lib/shared/ui/long-press.ts";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import ThreadMenuItems from "#lib/features/threads/components/ThreadMenuItems.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { awayReason } from "#lib/features/computers/computers.ts";
 
   /**
    * The link of a thread row in the sidebar (main and side threads): opens the thread, previews it on hover,
@@ -20,6 +22,8 @@
    */
   let { thread, current = false, compact = false, class: className, children }: { thread: ui.Thread; current?: boolean; compact?: boolean; class?: ClassValue; children: Snippet } = $props();
   const result = lingeringResult(() => thread);
+  const overview = useOverview();
+  const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
   let open = $state(false);
   // Where the menu opens from: the pointer for a right click, under the "…" button for a click on it, under
   // the row for the keyboard and a long press (phones show it as a sheet anyway).
@@ -67,10 +71,11 @@
       data-unread={thread.markedUnread || undefined}
       class={[
         "group focus-ring [-webkit-touch-callout:none]",
-        needsYou(thread) && "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
+        !away && needsYou(thread) && "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
         "hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
         className,
         thread.status === "archived" && !compact && "opacity-60",
+        away && "opacity-60 saturate-0",
       ]}
     >
       {@render children()}

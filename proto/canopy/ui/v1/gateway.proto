@@ -571,6 +571,14 @@ message MobileOverviewSnapshot {
   repeated Thread threads = 2;
 }
 
+// Pełna lista widocznych wątków i metadanych jednego partnera po reconnect.
+// Odbiorca zastępuje wyłącznie dane o tym origin, usuwając nieobecne wiersze.
+message LinkedComputerSnapshot {
+  string node_id = 1;
+  GetOverviewResponse overview = 2;
+  repeated Thread threads = 3;
+}
+
 message OverviewUpdate {
   oneof change {
     MobileDevice mobile_device = 760;
@@ -591,6 +599,7 @@ message OverviewUpdate {
     LinkedComputer computer = 800;
     // Komputer rozłączony (Unlink): jego wątki, projekty i workery znikają z widoku.
     string computer_removed = 801;
+    LinkedComputerSnapshot computer_snapshot = 802;
   }
 }
 

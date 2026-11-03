@@ -1,6 +1,28 @@
 syntax = "proto3";
 package canopy.link.v1;
 
+import "canopy/ui/v1/gateway.proto";
+
+// Internal subscription over RemoteRequest/RemoteResponse, only with thread_mirror.
+// It is not registered on the public gateway or pairing listener.
+service ThreadMirrorService {
+  rpc WatchThreadMirror(MirrorRequest) returns (stream MirrorUpdate);
+}
+message MirrorRequest { string cursor = 1; }
+message MirrorUpdate {
+  string previous_cursor = 1;
+  string cursor = 2;
+  // Begin a replacement generation. Readers keep the old generation until commit.
+  bool reset = 3;
+  bool commit = 4;
+  canopy.ui.v1.ThreadSnapshot snapshot = 5;
+  string removed_thread_id = 6;
+  canopy.ui.v1.GetOverviewResponse overview = 7;
+  // A large timeline is a header, followed by bounded snapshot fragments, then end.
+  bool snapshot_start = 8;
+  bool snapshot_end = 9;
+}
+
 // Pair is the only RPC open to a certificate without a pin. The invitation
 // authenticates the server certificate before its secret is sent.
 service ComputerLinkService {

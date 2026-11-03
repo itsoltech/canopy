@@ -245,6 +245,12 @@ Worker podaje źródło w `TurnFinished.source` i `error_code`; starszy worker b
 
 ## 5. UI
 
+Lustra połączonych komputerów mają własny trwały dziennik unieważnień domu i zapisany per partner
+kursor `epoch:revision`. Offline czytamy ostatnią zatwierdzoną generację; restart odbiorcy nie
+usuwa historii ani kursora. Pełny resync podmienia generację atomowo, a urwany pozostawia starą.
+Nie ma kolejki zdalnych zapisów: outbox workera opisany wyżej dotyczy wyłącznie domu wątku.
+Szczegóły i ograniczenia zawartości plików: [etap 3 połączonych komputerów](linked-computers.md#konkretny-protokół-etapu-3).
+
 - Subskrypcje wznawiane od ostatniego `seq`.
 - Każda akcja użytkownika ma `client_request_id`. Ponowienie po zerwaniu połączenia lub podwójne kliknięcie nie dubluje komendy.
 

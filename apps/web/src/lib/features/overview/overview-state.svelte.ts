@@ -2,7 +2,7 @@ import { getContext, setContext } from "svelte";
 import { ui } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
 import { liveSource } from "#lib/shared/live-source.ts";
-import { computerName, sharesThreads } from "#lib/features/computers/computers.ts";
+import { computerName, listsThreads, sharesThreads } from "#lib/features/computers/computers.ts";
 
 /** live: stream open and in sync; reconnecting: dropped, retrying; unavailable: the gateway does not answer. */
 export type OverviewConnection = "live" | "reconnecting" | "unavailable";
@@ -17,7 +17,7 @@ export class OverviewState {
   projects = $state.raw<ui.Project[]>([]);
   /** Active threads and Previous agents, plus archived rows observed live or fetched on demand. */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
-  /** Linked computers by node id. Their threads, projects and workers are listed only while they share them. */
+  /** Linked computers by node id. Mirror-capable peers remain listed while offline. */
   computers = $state.raw<ReadonlyMap<string, ui.LinkedComputer>>(new Map());
   /** This computer's own: settings, schedules and workspaces are configured per computer. */
   ownWorkers = $derived(this.workers.filter((w) => !w.nodeId));
@@ -82,6 +82,19 @@ export class OverviewState {
   apply(update: ui.OverviewUpdate): void {
     for (const listener of this.#listeners) listener(update);
     const change = update.change;
+    if (change.case === "computerSnapshot") {
+      const { nodeId, overview, threads } = change.value;
+      const visible = new Set(threads.map((t) => t.id));
+      for (const thread of this.threads.values()) {
+        if (thread.nodeId === nodeId && thread.status !== "archived" && !visible.has(thread.id)) this.#deleted.add(thread.id);
+      }
+      this.#forget(nodeId);
+      this.workers = [...this.workers, ...(overview?.workers ?? [])];
+      this.projects = [...this.projects, ...(overview?.projects ?? [])];
+      const next = new Map(this.threads);
+      for (const thread of threads) if (!thread.deletedAt) { this.#deleted.delete(thread.id); next.set(thread.id, thread); }
+      this.threads = next;
+    }
     if (change.case === "worker") this.workers = upsert(this.workers, change.value, (w) => w.id);
     if (change.case === "workerRemoved") this.workers = this.workers.filter((w) => w.id !== change.value);
     if (change.case === "project") this.projects = change.value.archivedAt
@@ -89,7 +102,8 @@ export class OverviewState {
       : upsert(this.projects, change.value, (p) => p.id);
     if (change.case === "computer") {
       this.computers = new Map(this.computers).set(change.value.nodeId, change.value);
-      if (!sharesThreads(change.value)) this.#forget(change.value.nodeId);
+      if (!listsThreads(change.value)) this.#forget(change.value.nodeId);
+      else if (!sharesThreads(change.value)) this.workers = this.workers.map((w) => w.nodeId === change.value.nodeId ? { ...w, online: false } : w);
     }
     if (change.case === "computerRemoved") {
       const next = new Map(this.computers);

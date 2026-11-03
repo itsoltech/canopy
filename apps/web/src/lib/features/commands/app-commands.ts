@@ -12,6 +12,7 @@ import { basename } from "#lib/shared/format.ts";
 import type { Command, CommandSource } from "./registry.ts";
 import { threadActions } from "#lib/features/threads/thread-actions.ts";
 import type { ThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
+import { awayReason } from "#lib/features/computers/computers.ts";
 
 /** New thread in the current project (Mod+N and Mod+Shift+N belong to the browser: new window, private window). */
 export const NEW_THREAD_HOTKEY = "Mod+Shift+O";
@@ -189,7 +190,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
     }));
 
     const thread = overview.threads.get(currentThreadId ?? "");
-    const currentActions: Command[] = thread ? threadActions(thread, overview.project(thread.projectId)?.name ?? "project", settings.sidebar.pinnedThreadIds.includes(thread.id))
+    const currentActions: Command[] = thread ? threadActions(thread, overview.project(thread.projectId)?.name ?? "project", settings.sidebar.pinnedThreadIds.includes(thread.id), Boolean(thread.nodeId && awayReason(overview.computer(thread.nodeId))))
       .filter((a) => ["pin", "rename", "archive", "delete", "read", "filter"].includes(a.id))
       .map((a) => ({ id: `thread-action:${a.id}`, title: a.label, icon: a.icon, disabled: a.disabled, group: "actions", run: () => context.threadActions.run(a.id, thread) })) : [];
     if (thread) currentActions.push({ id: "thread-action:copy-link", title: "Copy thread link", icon: "link", group: "actions", run: () => context.threadActions.copy(context.threadActions.link(thread)) });

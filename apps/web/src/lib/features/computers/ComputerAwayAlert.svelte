@@ -6,4 +6,4 @@
   let { reason, class: className }: { reason: string; class?: ClassValue } = $props();
 </script>
 
-<Alert tone="warning" banner title="Read only for now" class={className}>{reason} Its threads come back when it is connected; nothing is sent until then.</Alert>
+<Alert tone="warning" banner title="Read only for now" class={className}>{reason} You can read the synced timeline. Messages, approvals and actions are unavailable; nothing is queued. Files are available when its computer is connected.</Alert>

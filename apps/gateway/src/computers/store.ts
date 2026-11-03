@@ -13,6 +13,7 @@ export type PeerRow = {
   node_id: string; name: string; display_name: string; addresses: string[]; certificate: string; fingerprint: string;
   linked_at: Date; app_version: string; min_protocol: number; max_protocol: number; status: string;
   status_since: Date; last_seen: Date | null; update_node_id: string;
+  capabilities: string[];
 };
 export class ComputerStore {
   constructor(readonly runtime: CoreRuntime, readonly owner: string, readonly key: Buffer) {}

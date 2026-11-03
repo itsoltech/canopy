@@ -162,6 +162,7 @@
 
 <form class={["grid grid-cols-1 gap-2", className]} onsubmit={submit}>
   {#if error}<Alert tone="error">{error}</Alert>{/if}
+  <fieldset disabled={disabled} class="contents">
   <ComposerBox
     {compact}
     {panelsLabel}
@@ -201,6 +202,7 @@
       <PermissionPicker value={mode} inherited={threadMode} onselect={(next) => (modeChoice = { threadId: thread.id, mode: next })} class="-mr-1.5" />
     {/snippet}
   </ComposerBox>
+  </fieldset>
   {#if outcome}<p class="px-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">{outcome}</p>{/if}
   {#if note}<p class="px-3 text-sm/5 text-amber-700 sm:text-xs/5 dark:text-amber-400" role="status">{note}</p>{/if}
 </form>

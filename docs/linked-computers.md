@@ -1,9 +1,10 @@
 # Połączone komputery (projekt)
 
-Status: **etapy 1–2 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
+Status: **etapy 1–3 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
 wersjonowanie, obecność i Settings → Linked computers. Etap 2: zsumowany overview i zdalne wątki
 (lista, odczyt na żywo, pisanie, steer, kolejka, przerwanie, zgody i tworzenie wątku na workerze
-partnera, trasowane do domu). Etapy 3–8 poniżej pozostają projektem.
+partnera, trasowane do domu). Etap 3: trwałe lustra wątków do odczytu offline, kursor i pełna
+resynchronizacja. Etapy 4–8 poniżej pozostają projektem; cały stos PR-ów pozostaje draftem.
 
 ## Cel
 
@@ -382,6 +383,118 @@ powrocie brak dostarczonej wiadomości), partnera bez capability („needs an up
 spoza listy i żądań przez inny komputer oraz brak dostępu po Unlink w obie strony, także surowym
 przypiętym strumieniem z `remote_request` (odpowiedź wyłącznie `unlinked`).
 
-Odroczone: lustra offline i kursory (3), wspólna konfiguracja, harmonogramy i sekrety (4), boty
+Odroczone po etapie 2 (lustra i kursory są już opisane w etapie 3): wspólna konfiguracja, harmonogramy i sekrety (4), boty
 i szyna agentów przez granicę (5), archiwum partnera w sidebarze A, wyszukiwanie wątków partnera we
 wzmiankach.
+
+## Konkretny protokół etapu 3
+
+Implementacja: `apps/gateway/src/computers/mirror.ts`, runtime łącza i `api/routed.ts`;
+migracja **0049_thread_mirrors**. To wyłącznie projekcje do odczytu: żadne API wykonawcze,
+planista, bot ani outbox nie korzysta z tabel lustra.
+
+### Dziennik domu i subskrypcja
+
+Capability **`thread_mirror`** rozszerza istniejący protokół 1–1. Nie podbijamy numeru:
+wszystkie zmiany proto są addytywne, a nową subskrypcję uruchamiamy tylko przy wspólnym
+protokole i capability obu stron. `ThreadMirrorService.WatchThreadMirror(MirrorRequest{cursor})`
+działa jako wewnętrzna metoda transportu `RemoteRequest`/`RemoteResponse` po przypiętym mTLS;
+nie jest zarejestrowana jako publiczne RPC gatewaya ani listenera parowania. Nadal obowiązują
+limity i anulowanie wywołań etapu 2 oraz sprawdzanie aktywnego partnera przed obsługą.
+Nie ma routingu do trzeciego komputera.
+
+`computer_thread_clock(owner_user_id,epoch,revision)` nadaje kursor **`<uuid-epoki>:<rewizja>`**.
+Trigger aktualizuje licznik wiersza i dopisuje `computer_thread_changes` w transakcji zmiany
+wątku, itemu, tury/kolejki, interakcji, celu, steeru, zdarzenia diagnostycznego, dostarczenia busa
+lub stanu przeczytania. Zmiana projektu,
+workera lub workspace'u unieważnia metadane overview. Licznik wiersza, zamiast sekwencji SQL,
+zapewnia kolejność commitów: nie da się zatwierdzić rewizji N+1 przed N i pominąć spóźnionego N.
+Triggery są `DEFERRABLE INITIALLY DEFERRED`: dopisują dziennik na końcu transakcji, po blokadach
+danych wykonawczych. Wspólny transakcyjny advisory lock porządkuje także zmiany metadanych
+wielu właścicieli. Dzięki temu licznik nie odwraca kolejności blokad tury i wątku.
+Dziennik zawiera identyfikatory, nigdy wiersze sekretów ani payloady komend.
+
+Subskrypcja odczytuje zmiany co 250 ms i scala wielokrotne unieważnienia tego samego wątku.
+Zmiana źródła forka unieważnia też jego potomków, którzy pokazują odziedziczone itemy i tury.
+Publikuje jego bieżący `ThreadSnapshot` (wszystkie itemy i tury, kolejka, interakcje, steery,
+cel, komunikaty zgodne ze snapshotem UI) i minimalne metadane workerów/projektów.
+Zwykły żywy snapshot UI zachowuje do 200 komunikatów diagnostycznych; publisher lustra
+uzupełnia je pełną historią z dziennika domu. Nie przycinamy itemów, tur ani komunikatów.
+Sekrety wątku i harmonogramy są usuwane z projekcji; konfiguracja
+providerów, poświadczenia i wartości sekretów platformy nie są przesyłane ani zapisywane.
+Treści zwykłych wiadomości/transkryptu pozostają treścią rozmowy użytkownika.
+
+Oś czasu jest przesyłana jako `snapshot_start`, nagłówek, fragmenty kolekcji i `snapshot_end`.
+Limit 48 MiB dotyczy pojedynczej wiadomości transportu (np. pojedynczego itemu), nie całej osi.
+Receiver składa pełny snapshot przed zapisaniem; urwany fragment nigdy nie zastępuje historii
+częściową listą itemów. Domyślnie przechowujemy **pełne osie czasu**, także wątków archiwalnych;
+limit retencji osi to późniejsza opcja. Dziennik unieważnień zachowuje około 10 000 ostatnich
+zmian właściciela; nie ogranicza to długości zapisanej historii.
+
+### Kursor, luki i atomowa resynchronizacja
+
+Partner zapisuje `computer_mirror_state(owner_user_id,origin_node_id,cursor,generation,overview)`
+i `computer_mirror_threads(owner_user_id,origin_node_id,generation,thread_id,snapshot)`.
+Snapshoty są projekcjami protobuf; nie wstawiamy niczego do lokalnych `threads`, `turns`,
+`worker_commands` ani tabel uprawnień. Klucze obce do partnera mają `ON DELETE CASCADE`.
+
+Po reconnect/restart subskrypcja wysyła ostatni zapisany kursor. Dom sprawdza epokę, zakres
+i ciągłość dostępnych rewizji. Brak kursora, za stary kursor, kursor z przyszłości/innej epoki
+lub luka w dzienniku powodują pełny resync wszystkich wątków tego partnera. Skala osobista
+uzasadnia resync całego partnera zamiast osobnego protokołu naprawy zakresów. `previous_cursor`
+przy przyroście chroni przed pominięciem/niezgodnością partii; błąd uruchamia resync od zera.
+
+Pełny resync przygotowuje osobną generację. Stara pozostaje widoczna aż do końcowego `commit`;
+przełączenie generacji, metadanych i kursora jest jedną transakcją. Zamknięcie subskrypcji usuwa
+niedokończoną generację, zachowując poprzedni czytelny stan. Po SIGKILL osierocone generacje
+pozostają niewidoczne i są usuwane przy kolejnym zatwierdzonym checkpointcie. Przyrosty zastępują pełne projekcje po kluczu
+wątku; końcowy checkpoint zapisuje kursor, więc ponowienie po awarii jest idempotentne.
+Cursor jest pobierany **przed** projekcjami: zmiany współbieżne zostaną ponownie objęte kolejną
+partią. Usunięcie daje tombstone (`removed_thread_id`); pełny resync usuwa brakujące wątki.
+Archiwizacja i przywrócenie zmieniają wiersz/status, kolejność itemów pozostaje z domu.
+Każdy fragment sprawdza poprzedni kursor, a checkpoint także format, epokę i postęp rewizji.
+Blokada wiersza i porównanie kursora oraz generacji odrzucają opóźnioną subskrypcję innej
+instancji gatewaya, także gdy resync zachował ten sam kursor.
+
+### Odczyt i dostępność
+
+Online używamy nadal **żywej trasy etapu 2** dla list, odczytu i subskrypcji UI: zmiana w domu
+jest widoczna bez czekania na cykl lustra. Lustro synchronizuje się niezależnie od otwartych kart.
+Po reconnect overview emituje addytywny `OverviewUpdate.computer_snapshot` (pole 802):
+pełną widoczną listę wątków i metadane jednego partnera. UI zastępuje jego wiersze, więc usunięty
+offline wątek nie zostaje na liście jako stara aktualizacja. Pojedyncze upserty nadal są emitowane
+dla starszych klientów.
+Offline `GetOverview`, `ListThreads` (także per projekt), `GetThread` i pierwszy snapshot
+`WatchThread` czytają ostatnią zatwierdzoną generację. Po zmianie obecności strumień offline
+kończy się; zwykły reconnect UI otwiera ponownie odczyt z domu. Niezsynchronizowany wątek
+dostaje jasny błąd zamiast pustej historii.
+
+Wątki pozostają na liście wyszarzone z „Last seen”; banner i karta podglądu wyjaśniają odczyt
+zsynchronizowanej osi czasu oraz brak kolejkowania. Composer, zgody, kolejka, kontynuacja tury, fork,
+akcje tytułu i zatrzymywanie pracy są zablokowane. Worker partnera nie udaje online.
+Zapisy zawsze przechodzą do domu i natychmiast odmawiają, gdy łącze jest niedostępne.
+
+**Pliki:** lustro zawiera metadane załączników i referencje blobów z itemów/tur, ale **nie ich
+bajty ani miniatury**. Online pobieramy zawartość z domu istniejącymi RPC; offline UI pokazuje
+„Available when Laptop B is connected”, bez aktywnego pobierania. Istniejące widoki dużych
+tekstowych blobów nadal mają ograniczenia podglądu opisane w UI. Załączniki przesłane wcześniej
+na A nie stają się automatycznie zawartością lustra B.
+
+Capabilities partnera są trwale zapisywane, żeby restart A zachował możliwość odczytu offline.
+Partner bez `thread_mirror` zachowuje zachowanie etapu 2: tylko online; Settings → Linked
+computers wyjaśnia „Needs an update for offline reading”. Kolejny handshake zastępuje capability,
+więc downgrade nie odsłania starego lustra offline. Unlink usuwa partnera, wszystkie generacje,
+metadane i kursor na tej stronie; lokalne dane domu pozostają nietknięte.
+
+### Weryfikacja
+
+`tests/integration/thread-mirrors.test.ts`: dwa gatewaye i oddzielne PostgreSQL, prawdziwe mTLS
+i skryptowane workery. Obejmuje istniejącą historię, żywe zmiany, kolejkę i metadane plików,
+odczyt offline i szybką odmowę zapisów bez kolejki, wznowienie bez zmiany generacji, resync po
+przycięciu dziennika i zmianie epoki, usunięcia/archiwizację oraz wymianę listy po reconnect,
+błędny poprzednik fragmentu/checkpoint, przerwany i współbieżny resync, rekoncyliację źródła forka,
+nowy core i listener A na tej samej bazie, fallback starszego partnera, owner scoping i Unlink.
+Test współbieżnych transakcji blokujących turę i wątek chroni przed odwróceniem kolejności
+blokad przez dziennik. Test bezpieczeństwa tworzy rzeczywiste metadane sekretu w domu i sprawdza
+ich brak w zapisanej binarnej projekcji partnera.
+Nie dodaje testów UI. `schema.test.ts` obejmuje migrację 0049.
