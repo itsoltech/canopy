@@ -23,6 +23,8 @@ export async function mergeDesktopUpdates(source: string, destination: string, c
     const directory = join(source, entry.name);
     for (const name of readdirSync(directory)) {
       const path = join(directory, name);
+      // Package size reports travel with the artifacts for the job log; they are not release assets.
+      if (/^package-sizes-[\w-]+\.json$/.test(name)) continue;
       if (name.endsWith(".yml")) {
         if (!new RegExp(`^${identity.feed}(-mac|-linux(-arm64)?)?\\.yml$`).test(name)) throw new Error(`Unexpected update channel: ${name}`);
         const feed = load(readFileSync(path, "utf8")) as Feed;
