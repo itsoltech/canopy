@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import WorkerSettings from "#lib/features/overview/WorkerSettings.svelte";
+  import WorkerCliTools from "#lib/features/workers/WorkerCliTools.svelte";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -20,6 +21,7 @@
 
 {#if worker}
   <WorkerSettings {worker} title="Machine" />
+  <WorkerCliTools {worker} />
 {:else}
   <Alert tone="info">This worker is not registered (or was archived).</Alert>
 {/if}

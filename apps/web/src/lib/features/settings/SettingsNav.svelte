@@ -11,6 +11,12 @@
     { href: "/settings/app-updates", label: "App updates", icon: "arrow-up", group: "Connections", keywords: "desktop app updates stable beta nightly channel version" },
   ] : sharedSections);
   import { useSettingsRoute } from "./settings-route.ts";
+  import StatusDot from "#lib/shared/ui/StatusDot.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { hasCliUpdates } from "#lib/features/workers/cli-tools.svelte.ts";
+  const overview = useOverview();
+  /** A quiet hint where something waits for the user (agent CLI updates on workers). */
+  const hinted = $derived(new Set(overview && hasCliUpdates(overview.workers) ? ["/settings/workers"] : []));
   import { CANOPY_VERSION } from "@canopy/domain/release/version";
 
   /** Settings sections with a search filter (T3 style); a scrolling row on narrow screens. */
@@ -29,7 +35,7 @@
 
   <ul role="list" class="flex gap-1 overflow-x-auto lg:hidden">
     {#each settingsSections as section (section.href)}
-      <li><a href={section.href} class={itemClass} aria-current={active(section.href) ? "page" : undefined}><Icon name={section.icon} class="fill-current" />{section.label}</a></li>
+      <li><a href={section.href} class={itemClass} aria-current={active(section.href) ? "page" : undefined}><Icon name={section.icon} class="fill-current" />{section.label}{#if hinted.has(section.href)}<StatusDot tone="amber" class="ml-auto" /><span class="sr-only">(updates available)</span>{/if}</a></li>
     {/each}
   </ul>
 
@@ -41,7 +47,7 @@
           <h2 class="px-2.5 text-sm/6 text-zinc-500 sm:text-xs/6">{group}</h2>
           <ul role="list" class="mt-1 grid gap-0.5">
             {#each items as section (section.href)}
-              <li><a href={section.href} class={itemClass} aria-current={active(section.href) ? "page" : undefined}><Icon name={section.icon} class="fill-current" />{section.label}</a></li>
+              <li><a href={section.href} class={itemClass} aria-current={active(section.href) ? "page" : undefined}><Icon name={section.icon} class="fill-current" />{section.label}{#if hinted.has(section.href)}<StatusDot tone="amber" class="ml-auto" /><span class="sr-only">(updates available)</span>{/if}</a></li>
             {/each}
           </ul>
         </div>

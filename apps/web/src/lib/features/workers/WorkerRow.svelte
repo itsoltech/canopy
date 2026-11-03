@@ -8,8 +8,10 @@
   import { osLabel } from "#lib/features/overview/workers.ts";
   import { providerLabel } from "#lib/features/threads/labels.ts";
   import WorkerActions from "./WorkerActions.svelte";
+  import WorkerCliTools from "./WorkerCliTools.svelte";
   import type { WorkerSetup } from "./worker-setup.svelte.ts";
   let { worker, setup, class: className }: { worker: ui.Worker; setup: WorkerSetup; class?: ClassValue } = $props();
+  const updates = $derived(worker.cliTools.filter((t) => t.action === "update").length);
   const status = $derived(worker.revokedAt ? "Revoked" : worker.online ? "Connected" : "Disconnected");
   // Height of the summary's content: the "…" menu (outside <summary>, so it does not toggle it) centres on that row.
   let summaryHeight = $state(48);
@@ -26,10 +28,11 @@
           <p class="truncate font-medium text-zinc-950 dark:text-white">{worker.name}</p>
           <p class="text-pretty text-zinc-500 dark:text-zinc-400">{statusLine}</p>
         </div>
+        {#if updates > 0}<div class="shrink-0"><Badge tone="amber">{updates === 1 ? "Update" : `${updates} updates`}</Badge></div>{/if}
         <div class="shrink-0 max-sm:hidden"><Badge tone={worker.revokedAt ? "rose" : worker.online ? "emerald" : "neutral"}>{status}</Badge></div>
       </div>
     {/snippet}
-    <div class="px-4 pb-4 sm:px-5"><WorkerSettings {worker} title="Machine details" /></div>
+    <div class="grid grid-cols-1 gap-6 px-4 pb-4 sm:px-5"><WorkerSettings {worker} title="Machine details" /><WorkerCliTools {worker} /></div>
   </Disclosure>
   <!-- The summary's padding is 1rem above and below its content (p-4). -->
   <div class="absolute top-0 right-3 flex items-center sm:right-4" style:height="max(5rem, {summaryHeight + 32}px)"><WorkerActions {worker} {setup} /></div>

@@ -246,7 +246,7 @@ export class CliTools {
       updateAvailable,
       action,
       blockedReason: blocked,
-      managedBy: MANAGED[tool.method] ?? (tool.method === CliInstallMethod.OTHER ? "you" : ""),
+      managedBy: MANAGED[tool.method] ?? "",
       runningTurns: running,
       log: this.#logs.get(`${worker.id}/${tool.provider}`) ?? [],
     });

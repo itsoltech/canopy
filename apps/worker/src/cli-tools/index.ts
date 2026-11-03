@@ -102,7 +102,7 @@ export class CliTools {
       configuredPath: cli.configuredPath,
       installable: Boolean(plan.recipe),
       manualCommand: plan.manualCommand ?? "",
-      detail: [cli.detail, plan.managedBy && !plan.recipe ? `Managed by ${plan.managedBy}` : "", plan.detail].filter(Boolean).join(". "),
+      detail: [cli.detail, plan.detail].filter(Boolean).join(". "),
       ...(status && { install: status }),
     };
   }

@@ -55,7 +55,7 @@ export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeToo
     case CliInstallMethod.ASDF:
       return { managedBy: "asdf", manualCommand: `asdf install ${cli.owner ?? spec.name} latest` };
     case CliInstallMethod.OTHER:
-      return { managedBy: "you", detail: `Installed outside a known installer (${cli.resolvedPath || cli.path}). Update it the way you installed it.` };
+      return { detail: `Installed outside a known installer (${cli.resolvedPath || cli.path}). Update it the way you installed it.` };
     case CliInstallMethod.NATIVE:
       if (spec.name === "claude") return { recipe: { kind: "run", argv: [cli.path, "install", version] } };
       if (spec.script && posix) return { recipe: { kind: "script", url: spec.script, args: version === "latest" ? [] : [version] } };
