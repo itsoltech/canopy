@@ -8,6 +8,7 @@
   onMount(() => { desktop = Boolean(window.canopyDesktop); });
   const settingsSections = $derived<readonly SettingsSection[]>(desktop ? [...sharedSections, { href: "/settings/desktop", label: "Desktop", icon: "server", group: "Connections", keywords: "desktop local remote worker computer" }] : sharedSections);
   import { useSettingsRoute } from "./settings-route.ts";
+  import { CANOPY_VERSION } from "@open-agents/domain/release/version";
 
   /** Settings sections with a search filter (T3 style); a scrolling row on narrow screens. */
   let query = $state("");
@@ -45,5 +46,6 @@
     {:else}
       <p class="px-2.5 text-sm/6 text-zinc-500">No setting matches “{query}”.</p>
     {/each}
+    <p class="px-2.5 text-xs/6 text-zinc-500 tabular-nums">Canopy {CANOPY_VERSION}</p>
   </div>
 </nav>

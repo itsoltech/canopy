@@ -1,0 +1,19 @@
+# Build context of the Canopy images (Dockerfile): sources only.
+.git
+**/node_modules
+**/.svelte-kit
+**/build
+**/dist
+**/.tmp
+.tmp
+artifacts
+docs
+apps/mobile/*
+!apps/mobile/package.json
+apps/desktop/release
+apps/desktop/build
+apps/web/releases
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example
