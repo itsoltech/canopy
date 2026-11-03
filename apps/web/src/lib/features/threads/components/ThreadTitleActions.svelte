@@ -8,7 +8,7 @@
   import { useThreadActions } from "../thread-actions.svelte.ts";
   import { requestTitleRegeneration } from "../title-actions.ts";
 
-  let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
+  let { thread, titlebar = false, class: className }: { thread: ui.Thread; titlebar?: boolean; class?: ClassValue } = $props();
   const actions = useThreadActions();
   const closed = $derived(thread.status === "archived");
   // From the click until the gateway reports the generation (and then until it ends): the button spins and
@@ -31,7 +31,7 @@
 
 </script>
 
-<section aria-label="Thread title" class={["flex min-w-0 items-center gap-2 p-3 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white", className]}>
+<section aria-label="Thread title" data-window-drag={titlebar || undefined} class={["flex min-w-0 items-center gap-2 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white", titlebar ? "h-12 shrink-0 px-3" : "p-3", className]}>
   <SwapText text={thread.title || "New thread"} class={["min-w-0 flex-1 overflow-hidden", generating && "shimmer"]} />
   <!-- Rename and regenerate are occasional: behind "more", so the panel opens on the title alone. -->
   <DropdownMenu label="Title actions" placement="bottom-end">

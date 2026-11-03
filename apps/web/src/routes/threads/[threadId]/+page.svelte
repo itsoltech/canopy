@@ -31,6 +31,7 @@
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
+  import ThreadTitleActions from "#lib/features/threads/components/ThreadTitleActions.svelte";
   import QueuePanel from "#lib/features/threads/queue/QueuePanel.svelte";
   import { QueueState } from "#lib/features/threads/queue/queue-state.svelte.ts";
   import SubagentsPanel from "#lib/features/threads/subagents/SubagentsPanel.svelte";
@@ -472,28 +473,34 @@
   <!-- Mounted while closed too, so it can ease out: the panel keeps its width on the column's left edge and fades, so
        its content never re-wraps; a closed panel is inert. -->
   <aside class="relative min-w-0 overflow-hidden max-xl:hidden" aria-label="Thread details" inert={!panelOpen} data-collapsed={!panelOpen || undefined}>
-    <div class="t-panel absolute inset-y-0 left-0 w-80 overflow-y-auto py-3 pr-3 pl-1">
-      <!-- What the overview already knows (worker, model, status, lineage) shows at once; usage and tasks fill in. -->
-      {#if thread && tree}
-        <ThreadPanel
-          {thread}
-          {tree}
-          {worker}
-          usage={view.usage}
-          totals={view.totals}
-          schedules={view.upcomingSchedules}
-          backgroundTasks={allBackgroundTasks}
-          items={itemsById}
-          onbackground={openOutput}
-          onschedule={canSchedule ? openSchedule : undefined}
-          onschedulechange={(schedule) => view.upsertSchedule(schedule)}
-          secrets={view.secrets}
-          onsecretchange={(secret) => view.upsertSecret(secret)}
-          onnewside={canBranch ? openSide : undefined}
-        />
-      {:else}
-        <Skeleton class="h-72 rounded-2xl" />
-      {/if}
+    <div class="t-panel absolute inset-y-0 left-0 flex w-80 flex-col">
+      <div class="hidden macos:block">
+        {#if thread}<ThreadTitleActions {thread} titlebar />{:else}<div class="h-12" data-window-drag></div>{/if}
+      </div>
+      <div class="min-h-0 flex-1 overflow-y-auto py-3 pr-3 pl-1">
+        <!-- What the overview already knows (worker, model, status, lineage) shows at once; usage and tasks fill in. -->
+        {#if thread && tree}
+          <ThreadPanel
+            windowTitlebar
+            {thread}
+            {tree}
+            {worker}
+            usage={view.usage}
+            totals={view.totals}
+            schedules={view.upcomingSchedules}
+            backgroundTasks={allBackgroundTasks}
+            items={itemsById}
+            onbackground={openOutput}
+            onschedule={canSchedule ? openSchedule : undefined}
+            onschedulechange={(schedule) => view.upsertSchedule(schedule)}
+            secrets={view.secrets}
+            onsecretchange={(secret) => view.upsertSecret(secret)}
+            onnewside={canBranch ? openSide : undefined}
+          />
+        {:else}
+          <Skeleton class="h-72 rounded-2xl" />
+        {/if}
+      </div>
     </div>
   </aside>
 </div>

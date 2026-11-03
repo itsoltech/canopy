@@ -8,8 +8,8 @@
   /**
    * Page top bar: menu button on small screens (sidebar toggle on desktop), breadcrumb, actions on the right
    * (T3-style, no border). The search button opens the command palette where there is no Mod+K to press
-   * (narrow or touch screens). While the sidebar is hidden it is the macOS window's title strip, clear of the
-   * traffic lights (routes/layout.css).
+   * (narrow or touch screens). It is a macOS window title strip in every sidebar state; when the sidebar is
+   * hidden, it also leaves room for the traffic lights (routes/layout.css).
    */
   let { children, actions }: { children: Snippet; actions?: Snippet } = $props();
   const shell = useShell();

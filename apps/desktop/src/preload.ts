@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopBridge, DesktopStatus, DesktopUpdateStatus, QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
+import type { DesktopBridge, DesktopStatus, DesktopUpdateStatus, DesktopWindowState, QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
 
 function subscribe<T>(channel: string, listener: (data: T) => void) {
   const receive = (_event: Electron.IpcRendererEvent, data: T) => listener(data);
@@ -8,6 +8,8 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 }
 const bridge: DesktopBridge = {
   platform: process.platform,
+  windowState: () => ipcRenderer.invoke("canopy:window-state"),
+  onWindowState: (listener) => subscribe<DesktopWindowState>("canopy:window-state", listener),
   status: () => ipcRenderer.invoke("canopy:status"),
   configure: (configuration) => ipcRenderer.invoke("canopy:configure", configuration),
   openSettings: () => ipcRenderer.invoke("canopy:settings"),

@@ -7,24 +7,32 @@
 
 /*
  * macOS desktop window chrome (docs/desktop.md): no title bar, the traffic lights sit in the window's top-left
- * corner. Electron moves the window from app regions: the boxes of every element with one, in document order,
- * regardless of z-order. The property is inherited, so each descendant of a strip adds its own box, overflowing
- * or clipped ones too. So:
- * - `data-window-drag` marks a title strip; nothing in it may reach outside it, the controls in it stay clickable.
- *   The sidebar header is one (inset clear of the lights); a page's top bar (`data-window-titlebar`) becomes
- *   one, inset clear of the lights, while the sidebar is hidden (`data-sidebar` on the shell).
- * - Whatever floats over the window (dialogs, sheets, drawers, popovers, menus, tooltips, toasts) is no-drag,
- *   and an open modal turns the strips underneath it off, so a strip never takes a click meant for it.
+ * corner. Chromium inherits app-region and accumulates boxes in DOM order, ignoring the top layer's z-order.
+ * Only header strips and their controls participate. Never set a region (even `none`) on overlays or bodies:
+ * animated descendants would continually rebuild the native region map. Covered strips have no declaration,
+ * rather than no-drag boxes that could subtract from a later-opened drawer's strip in DOM order.
+ * `windowModal` marks the last opened native modal. Popovers suspend all strips until they close.
  * `macos:` styles an element for the desktop app on macOS only.
  */
 @custom-variant macos (&:where([data-canopy-platform="darwin"] *));
-html[data-canopy-platform="darwin"] .canopy-sidebar-header { padding-left: 88px; }
-html[data-canopy-platform="darwin"] [data-sidebar="hidden"] [data-window-titlebar] { padding-left: 80px; }
-html[data-canopy-platform="darwin"] :is([data-window-drag], [data-sidebar="hidden"] [data-window-titlebar]) { -webkit-app-region: drag; }
-html[data-canopy-platform="darwin"] :is([data-window-drag], [data-window-titlebar])
-  :is(a, button, input, select, textarea, label, summary, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="switch"], [role="combobox"], [tabindex]:not([tabindex="-1"]), [contenteditable]),
-html[data-canopy-platform="darwin"] :is(dialog, [popover], [data-window-no-drag]),
-html[data-canopy-platform="darwin"]:has(dialog:modal) :is([data-window-drag], [data-window-titlebar]):not(dialog:modal *) { -webkit-app-region: no-drag; }
+html[data-canopy-platform="darwin"] {
+  --window-controls-inset: calc(80px / var(--window-zoom, 1));
+  --window-titlebar-height: max(48px, calc(48px / var(--window-zoom, 1)));
+}
+html[data-canopy-platform="darwin"][data-window-fullscreen] {
+  --window-controls-inset: 0px;
+  --window-titlebar-height: 48px;
+}
+html[data-canopy-platform="darwin"] :is([data-window-drag], [data-window-titlebar]) { min-height: var(--window-titlebar-height); }
+html[data-canopy-platform="darwin"] .canopy-sidebar-header { padding-left: calc(var(--window-controls-inset) + 8px); }
+html[data-canopy-platform="darwin"] [data-sidebar="hidden"] [data-window-titlebar]:not([data-window-offset] *) { padding-left: calc(var(--window-controls-inset) + 8px); }
+html[data-canopy-platform="darwin"]:not(:has(:popover-open, [data-window-no-drag])) {
+  &:not(:has(dialog:modal)) :is([data-window-drag], [data-window-titlebar]):not(dialog *, [inert] *),
+  & [data-window-modal-top]:modal :is([data-window-drag], [data-window-titlebar]):not([inert] *) {
+    -webkit-app-region: drag;
+    & :is(a, button, input, select, textarea, label, summary, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="switch"], [role="combobox"], [tabindex]:not([tabindex="-1"]), [contenteditable]) { -webkit-app-region: no-drag; }
+  }
+}
 
 /*
  * Design tokens. Neutrals are zinc; colour carries meaning only:

@@ -6,6 +6,7 @@
   import SettingsBreadcrumb from "./SettingsBreadcrumb.svelte";
   import { useSettings } from "./settings-state.svelte.ts";
   import SettingsNav from "./SettingsNav.svelte";
+  import { windowModal } from "#lib/shared/ui/window-modal.ts";
 
   /**
    * Settings as a large modal panel (T3 layout): searchable section nav on the left, the section on the
@@ -40,6 +41,7 @@
 </script>
 
 <dialog
+  use:windowModal
   bind:this={dialog}
   open
   aria-labelledby="settings-title"

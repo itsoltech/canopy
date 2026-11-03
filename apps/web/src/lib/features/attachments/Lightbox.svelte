@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import { windowModal } from "#lib/shared/ui/window-modal.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import { exitDuration } from "#lib/shared/ui/motion.ts";
 
@@ -35,6 +36,7 @@
 </script>
 
 <dialog
+  use:windowModal
   bind:this={dialog}
   aria-label={name}
   class="t-modal m-auto max-h-dvh max-w-[min(96vw,100rem)] overflow-visible bg-transparent p-0 backdrop:bg-zinc-950/80 dark:backdrop:bg-black/85"

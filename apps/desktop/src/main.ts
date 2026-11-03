@@ -11,6 +11,7 @@ import { desktopIdentity } from "./identity.ts";
 import { DesktopUpdates } from "./updates.ts";
 import { QuitGuard } from "./quit-guard.ts";
 import { isQuitShortcut, QuitSettings } from "./quit-settings.ts";
+import { attachWindowChrome, windowState, windowViewMenu } from "./window-chrome.ts";
 
 const identity = desktopIdentity();
 app.setName(identity.productName);
@@ -100,7 +101,7 @@ function broadcast() {
       { label: "Desktop settings…", accelerator: "CmdOrCtrl+,", click: openSettings }, updates.item(), { label: "Open logs folder", click: () => void shell.openPath(logs.directory) },
       ...(process.platform === "darwin" ? [{ type: "separator" as const }, { role: "services" as const }, { type: "separator" as const }, { role: "hide" as const }, { role: "hideOthers" as const }, { role: "unhide" as const }] : []),
       { type: "separator" }, quitItem] },
-    { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
+    { role: "editMenu" }, windowViewMenu(), { role: "windowMenu" },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -121,6 +122,7 @@ function createWindow() {
     webPreferences: { preload: join(app.getAppPath(), "dist/preload.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, webviewTag: false },
   });
   quitGuard.attach(target);
+  attachWindowChrome(target);
   target.once("ready-to-show", () => { if (!quitting) target.show(); });
   target.on("page-title-updated", (event) => { event.preventDefault(); target.setTitle(identity.productName); });
   const contentId = target.webContents.id;
@@ -224,6 +226,7 @@ async function start() {
   setupOrigin = initialized.origin;
   status = initialized.status;
   ipcMain.handle("canopy:status", (event) => { authorize(event); return status; });
+  ipcMain.handle("canopy:window-state", (event) => { authorize(event); return windowState(BrowserWindow.fromWebContents(event.sender)!); });
   ipcMain.handle("canopy:settings", (event) => { authorize(event); openSettings(); });
   ipcMain.handle("canopy:quit-shortcut", (event) => { authorize(event); return quitGuard.mode; });
   ipcMain.handle("canopy:set-quit-shortcut", (event, value: unknown) => {
