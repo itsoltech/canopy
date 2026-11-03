@@ -12,7 +12,7 @@ interface Feed {
   releaseDate?: string;
 }
 
-// macOS x64 and arm64 runners both emit <channel>-mac.yml. Merge their files arrays
+// Every macOS runner emits <channel>-mac.yml (only arm64 today). Merge their files arrays
 // instead of allowing download-artifact's last writer to remove an architecture.
 export async function mergeDesktopUpdates(source: string, destination: string, channel: string, version: string) {
   const identity = desktopIdentity(channel);

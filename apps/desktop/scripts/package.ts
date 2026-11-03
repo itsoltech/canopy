@@ -9,7 +9,7 @@ if (!existsSync(stamp) || JSON.parse(readFileSync(stamp, "utf8")).channel !== id
   await import("./prepare-identity.ts");
   await import("./build-shell.ts");
 }
-if (!["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64"].includes(`${process.platform}-${process.arch}`)) throw new Error("Unsupported packaging host");
+if (!["linux-x64", "linux-arm64", "darwin-arm64", "win32-x64"].includes(`${process.platform}-${process.arch}`)) throw new Error("Unsupported packaging host");
 const platform = process.platform === "linux" ? "--linux" : process.platform === "darwin" ? "--mac" : "--win";
 const extra = process.argv.slice(2);
 const args = extra.includes("--dir") ? [platform] : process.platform === "linux" ? [platform, "AppImage", "deb"] : process.platform === "darwin" ? [platform, "dmg", "zip"] : [platform, "nsis"];

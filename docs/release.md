@@ -84,7 +84,7 @@ bez kompresji. Zawartość:
 - worker uruchamia CLI agentów (`claude`, `codex`, `grok`) z `PATH` (albo ścieżek z konfiguracji);
   nie są częścią binarki. Claude Agent SDK jest zbundlowany jako JS i dostaje ścieżkę `claude`.
 
-Rozmiary (Bun 1.4.4, 0.0.0-main): linux-x64 124 MiB, linux-arm64 124 MiB, darwin-x64 115 MiB,
+Rozmiary (Bun 1.4.4, 0.0.0-main): linux-x64 124 MiB, linux-arm64 124 MiB,
 darwin-arm64 105 MiB, windows-x64 131 MiB (ok. 95 MiB to runtime Bun, 18 MiB libvips).
 
 ### Obrazy Docker
@@ -116,8 +116,9 @@ Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emu
 `Canopy[-Beta|-Nightly]-<wersja>-<linux|darwin|windows>-<x64|arm64>.<AppImage|deb|dmg|zip|exe>`.
 Produkty kanałów instalują się równolegle; tożsamość, katalogi danych i schematy linków
 opisuje [desktop.md](desktop.md#kanały-i-osobne-instalacje).
-Desktop publikuje też feedy electron-updater i pliki `.blockmap`. Dwa feedy macOS
-z runnerów x64/arm64 są scalane przed uploadem i sprawdzane względem SHA-512 assetów.
+Desktop publikuje też feedy electron-updater i pliki `.blockmap`. Feedy z runnerów są scalane
+przed uploadem i sprawdzane względem SHA-512 assetów. macOS: tylko Apple Silicon (arm64);
+wersji Intel (darwin-x64) nie budujemy — ani desktopu, ani binarek gatewaya/workera.
 
 ### checksums.txt i manifest.json
 
@@ -168,7 +169,7 @@ oraz dispatch po promocji/back-merge):
 | `semantic-release` | pełna historia, GITHUB_TOKEN; wyjścia `published`, `version`, `tag`, `channel` | buildy wyłącznie dla `published=true` |
 | `binaries` | cross-compile wszystkich celów | tak |
 | `smoke` | `--version` każdej binarki na jej OS/arch (ładuje osadzony sharp) | tak |
-| `desktop` | wszystkie kanały: Linux, macOS Intel/ARM, Windows; linux-arm64/Windows eksperymentalne | linux-x64 i oba macOS, także kontrola podpisów |
+| `desktop` | wszystkie kanały: Linux, macOS (Apple Silicon), Windows; linux-arm64/Windows eksperymentalne | linux-x64 i macOS arm64, także kontrola podpisów |
 | `images` | buildx amd64+arm64, GHCR, SBOM, cache GHA | wymagany przed manifestem |
 | `publish` | sumy, manifest z kanałem stable/beta/nightly, upload do istniejącego release | manifest na końcu |
 
@@ -255,7 +256,7 @@ dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
 
 ### Pierwszy przebieg CI na macOS
 
-1. Na obu runnerach (Intel i Apple Silicon) sprawdź liczbę runtime Mach-O w logu,
+1. Na runnerze Apple Silicon sprawdź liczbę runtime Mach-O w logu,
    użycie Developer ID Application, powodzenie notaryzacji/staplingu oraz krok
    `Verify macOS signatures and notarization`. Te joby blokują publikację we wszystkich kanałach.
 2. Pobierz dmg i zip z GitHuba na czystego Maca z quarantine. Uruchom app bez `xattr`,
@@ -334,7 +335,7 @@ ich nie wskazuje. Stable i beta nie podlegają retencji nightly.
 - Pierwszy push tworzy pakiety GHCR prywatne: w ustawieniach pakietów `canopy-gateway`,
   `canopy-web`, `canopy-worker` ustaw **Public** (albo daj dostęp konkretnym użytkownikom)
   i połącz je z repozytorium (etykieta `org.opencontainers.image.source` robi to automatycznie).
-  Runnery `ubuntu-24.04-arm`, `macos-15-intel`, `macos-15`, `windows-2025` muszą być dostępne.
+  Runnery `ubuntu-24.04-arm`, `macos-15`, `windows-2025` muszą być dostępne.
 - GitHub „immutable releases” pozostaw wyłączone: semantic-release publikuje release przed
   uploadem assetów; upload i retencja wymagają możliwości ich późniejszej zmiany/usunięcia.
 

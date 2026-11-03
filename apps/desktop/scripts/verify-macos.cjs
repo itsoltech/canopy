@@ -31,7 +31,7 @@ for (const application of applications) {
   for (const binary of binaries) execFileSync("codesign", ["--verify", "--strict", binary], { stdio: "inherit" });
   for (const name of ["bun", "canopy-controller", "canopy-gateway", "canopy-worker", "canopy-web"]) verifyJit(join(application, "Contents/Resources/runtime", name));
   if (process.env.CANOPY_MAC_SIGNED === "true") {
-    execFileSync("codesign", ["--verify", "--test-requirement", "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists", application], { stdio: "inherit" });
+    execFileSync("codesign", ["--verify", "--strict", "--test-requirement==anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists", application], { stdio: "inherit" });
     const assessment = spawnSync("spctl", ["-a", "-vv", "--type", "execute", application], { stdio: "inherit" });
     if (assessment.error) throw assessment.error;
     if (process.env.CANOPY_MAC_NOTARIZED === "true") {

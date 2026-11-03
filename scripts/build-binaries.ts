@@ -17,7 +17,7 @@ import { join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { currentVersion } from "./version.ts";
 
-export const TARGETS = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "windows-x64"] as const;
+export const TARGETS = ["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"] as const;
 export type Target = (typeof TARGETS)[number];
 export const APPS = { gateway: "apps/gateway/src/main.ts", worker: "apps/worker/src/main.ts" } as const;
 export type App = keyof typeof APPS;
