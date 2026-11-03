@@ -138,15 +138,21 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     expect((await la.mirror.snapshot(node, fork))?.turns.some((t) => t.inherited && t.inputText === "reconciled history")).toBe(true);
   }, 30_000);
 
-  test("full offline history retains diagnostic notices beyond the live snapshot window", async () => {
+  test("full offline history retains diagnostic notices beyond the live snapshot window after reconnect", async () => {
     const long = await createThread("Full diagnostic history");
-    for (let i = 0; i < 205; i++) b.worker.emit(long, "", { case: "notice", value: { level: NoticeLevel.WARNING, code: "api_retry", message: `Retry ${i}` } });
-    await eventually(async () => (await la.mirror.snapshot(node, long))?.notices.length === 205);
-    await caughtUp(); await offline();
-    const change = (await watchUntil(a.api, q(long), (u) => u.length > 0))[0]!.change;
-    expect(change.case === "snapshot" && change.value.notices.length).toBe(205);
-    if (change.case === "snapshot") expect(change.value.notices.map((n) => n.seq)).toEqual(change.value.notices.map((n) => n.seq).toSorted((a, b) => a < b ? -1 : a > b ? 1 : 0));
-    await reconnect();
+    try {
+      await offline();
+      // This checks complete durable history, not live throughput (covered above). Finish ingestion
+      // before reconnecting so snapshots and the heartbeat do not race a flood of worker events.
+      for (let i = 0; i < 205; i++) b.worker.emit(long, "", { case: "notice", value: { level: NoticeLevel.WARNING, code: "api_retry", message: `Retry ${i}` } });
+      await eventually(async () => (await sb.query<{ count: number }>("SELECT count(*)::int AS count FROM thread_events WHERE thread_id=$1::uuid AND kind='notice'", [long]))[0]?.count === 205);
+      await reconnect();
+      expect((await la.mirror.snapshot(node, long))?.notices.length).toBe(205);
+      await offline();
+      const change = (await watchUntil(a.api, q(long), (u) => u.length > 0))[0]!.change;
+      expect(change.case === "snapshot" && change.value.notices.length).toBe(205);
+      if (change.case === "snapshot") expect(change.value.notices.map((n) => n.seq)).toEqual(change.value.notices.map((n) => n.seq).toSorted((a, b) => a < b ? -1 : a > b ? 1 : 0));
+    } finally { await reconnect(); }
   }, 40_000);
 
   test("journal commit ordering does not invert concurrent thread and turn locks", async () => {
