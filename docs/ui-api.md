@@ -41,7 +41,8 @@ na osi czasu; gateway kanonizuje je z własnego katalogu. [Projekt i ograniczeni
 ## Połączone komputery: zdalne wątki
 
 Wątki, workery i projekty połączonych komputerów przychodzą tym samym `GatewayService` co własne,
-z id kwalifikowanym węzłem domu (`<uuid>~<node16>`) i polem `node_id` (800). Przeglądarka i telefon
+z id kwalifikowanym węzłem domu (`<uuid>~<node16>`) i polem `node_id` (800 dla projektu i wątku,
+802 dla workera; 800–801 workera zajmują CLI). Przeglądarka i telefon
 odsyłają id bez zmian; trasowanie do domu robi gateway (`apps/gateway/src/api/routed.ts`). `GetOverview`
 ma `computers` (800), `OverviewUpdate` zmiany `computer` (800) i `computer_removed` (801). BFF przyjmuje
 kwalifikowane id tam, gdzie wcześniej wymagał uuid (`EntityId`: kolejka, fork, przypięcia sidebara).

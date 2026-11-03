@@ -331,7 +331,8 @@ partner, który nie odpowie, jest pomijany, a nie oczekiwany.
 Id z domu dostaje sufiks `~` + pierwsze 16 znaków hex id węzła domu (`<uuid>~<node16>`), np. id wątku,
 tury, interakcji, workera, projektu, workspace'u i załącznika. Przepisywanie jest generyczne (refleksja
 protobuf): każde pole tekstowe `id`, `*_id`, `*_ids` z wartością uuid. Wątki, workery i projekty
-partnera mają `node_id` (800) z pełnym id węzła domu. Przeglądarka i telefon nie trasują niczego:
+partnera mają `node_id` z pełnym id węzła domu (800 dla projektu i wątku, 802 dla workera;
+800–801 workera zajmują pola CLI). Przeglądarka i telefon nie trasują niczego:
 wysyłają id tak, jak je dostały. `routed.ts` po sufiksie wybiera partnera (prefiks musi wskazywać
 dokładnie jednego), zdejmuje sufiks, wysyła wywołanie i kwalifikuje odpowiedź. Żądanie mieszające id
 dwóch komputerów albo lokalny uuid w wywołaniu do partnera jest odrzucane („Choose a project, worker
