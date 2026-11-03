@@ -1,4 +1,4 @@
-import { DEFAULT_BUS_LIMITS } from "@open-agents/domain";
+import { DEFAULT_BUS_LIMITS } from "@canopy/domain";
 import type { ToolSpec } from "./types.ts";
 import { areaTool, areaTools } from "./tools/index.ts";
 

@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { DeviceLogin, Provider, ProviderProfileKind, WorkerConfigSchema } from "@open-agents/contracts";
-import { tempDir } from "@open-agents/testing";
+import { DeviceLogin, Provider, ProviderProfileKind, WorkerConfigSchema } from "@canopy/contracts";
+import { tempDir } from "@canopy/testing";
 import { applyWorkerConfig, systemProbe, type DeviceProbe } from "./remote.ts";
 
 const base = tempDir("oa-remote-config-");

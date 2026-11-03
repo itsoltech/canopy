@@ -4,8 +4,8 @@
  * what ended it, and the thread takes the next message. Gateway on PostgreSQL + scripted workers.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { InteractionKind, ItemDeltaField, ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOutcome, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { InteractionKind, ItemDeltaField, ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOutcome, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";

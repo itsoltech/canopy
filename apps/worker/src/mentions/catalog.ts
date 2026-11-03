@@ -1,5 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { MentionCatalogEntrySchema } from "@open-agents/contracts";
+import type { MentionCatalogEntrySchema } from "@canopy/contracts";
 
 export type MentionEntryInit = MessageInitShape<typeof MentionCatalogEntrySchema>;
 

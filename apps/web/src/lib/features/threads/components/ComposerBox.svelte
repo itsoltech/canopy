@@ -10,7 +10,7 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
-  import type { Mention } from "@open-agents/contracts";
+  import type { Mention } from "@canopy/contracts";
   import { filesOf, type AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
   import DraftTray from "#lib/features/attachments/DraftTray.svelte";
   import ComposerPlusMenu from "#lib/features/mentions/ComposerPlusMenu.svelte";

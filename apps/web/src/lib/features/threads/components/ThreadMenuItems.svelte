@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";

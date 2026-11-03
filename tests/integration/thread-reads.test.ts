@@ -4,8 +4,8 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Client } from "@connectrpc/connect";
-import { PermissionMode, Provider, TurnOrigin, TurnOutcome, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { PermissionMode, Provider, TurnOrigin, TurnOutcome, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;

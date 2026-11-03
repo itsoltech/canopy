@@ -1,22 +1,22 @@
 /**
  * Live, end to end below the gateway, for Claude: a (test) gateway configures a real worker host over gRPC,
  * creates a Claude thread in ASK mode, runs turns (permission round trips, resume), forks it at a turn and
- * answers an agent bus call. Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/claude-adapter.md).
+ * answers an agent bus call. Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/claude-adapter.md).
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { DeviceLogin, InteractionKind, PermissionMode, Provider, ProviderProfileKind, type ThreadEvent } from "@open-agents/contracts";
-import { tempDir } from "@open-agents/testing";
-import { journalHello } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { DeviceLogin, InteractionKind, PermissionMode, Provider, ProviderProfileKind, type ThreadEvent } from "@canopy/contracts";
+import { tempDir } from "@canopy/testing";
+import { journalHello } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const model = process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const model = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
 
 const text = (events: ThreadEvent[], turnId: string) =>
   events
@@ -96,7 +96,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Claude end to end (li
     expect(permissions.length).toBeGreaterThan(0); // ASK: the write and the command were approved through the gateway
     expect(permissions.every((p) => p.startsWith("PERMISSION:"))).toBe(true);
     const init = events.map((e) => JSON.parse(e.rawJson || "{}") as { type?: string; subtype?: string; tools?: string[] }).find((m) => m.type === "system" && m.subtype === "init");
-    expect(init?.tools).toContain("mcp__openagents__spawn_thread");
+    expect(init?.tools).toContain("mcp__canopy__spawn_thread");
     for (const native of ["Agent", "Task", "CronCreate", "ScheduleWakeup", "SendMessage"]) expect(init?.tools ?? []).not.toContain(native);
 
     const second = await turn(withSession, "turn-2", "Call the list_threads tool once, then tell me which file you created earlier. Answer with the file name.");

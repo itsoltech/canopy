@@ -1,7 +1,7 @@
 import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { error, fail, isActionFailure, isHttpError, type ActionFailure } from "@sveltejs/kit";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { GATEWAY_SERVICE_TOKEN, GATEWAY_URL } from "$app/env/private";
 
 /**
@@ -11,7 +11,7 @@ import { GATEWAY_SERVICE_TOKEN, GATEWAY_URL } from "$app/env/private";
 let client: Client<typeof ui.GatewayService> | undefined;
 
 export function requireServiceToken(): string {
-  if (!GATEWAY_SERVICE_TOKEN) throw new Error("GATEWAY_SERVICE_TOKEN is not set (the gateway's OA_UI_SERVICE_TOKEN)");
+  if (!GATEWAY_SERVICE_TOKEN) throw new Error("GATEWAY_SERVICE_TOKEN is not set (the gateway's CANOPY_UI_SERVICE_TOKEN)");
   return GATEWAY_SERVICE_TOKEN;
 }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import ActionForm from "#lib/shared/ui/ActionForm.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";

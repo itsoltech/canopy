@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 import { router } from "expo-router";
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { Button, Sheet } from "../../ui/components";
 import { Icon } from "../../ui/Icon";

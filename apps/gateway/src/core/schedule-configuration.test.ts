@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { scheduleConfiguration } from "./schedule-configuration.ts";
 
 const now = new Date("2026-11-02T12:00:00Z");

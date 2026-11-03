@@ -5,7 +5,7 @@
   import { goto, replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { create } from "@bufbuild/protobuf";
-  import { bots, ui } from "@open-agents/contracts";
+  import { bots, ui } from "@canopy/contracts";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode, encode } from "#lib/shared/wire.ts";
   import { instanceKeyOf } from "#lib/features/providers/instances.ts";

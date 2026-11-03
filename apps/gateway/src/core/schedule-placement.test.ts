@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { Provider, ui } from "@open-agents/contracts";
-import { scheduleWorkerEligible, selectScheduleWorkspace } from "@open-agents/domain";
+import { Provider, ui } from "@canopy/contracts";
+import { scheduleWorkerEligible, selectScheduleWorkspace } from "@canopy/domain";
 
 describe("schedule placement", () => {
   const candidates = [{ id: "b", worker_id: "B", load: 3 }, { id: "a", worker_id: "A", load: 3 }, { id: "c", worker_id: "C", load: 8 }];

@@ -19,7 +19,7 @@ workerów. Stare RPC pozostają adapterem zgodności; nowa konfiguracja korzysta
 z Connectors. Stare tabele pozostają wyłącznie jako źródło migracji.
 
 Gateway jest jedynym klientem zewnętrznego MCP. Tokeny, refresh tokeny, sekrety
-aplikacji OAuth i PKCE są zaszyfrowane AES-256-GCM kluczem `OA_SECRETS_KEY`.
+aplikacji OAuth i PKCE są zaszyfrowane AES-256-GCM kluczem `CANOPY_SECRETS_KEY`.
 Żaden katalog narzędzi ani wynik API nie zawiera tych wartości. Wyniki zdalnych
 narzędzi przechodzą redakcję znanych sekretów przed utrwaleniem i wysłaniem.
 Błędy zewnętrznych serwerów są zastępowane komunikatem bez przyczyny/requestu.
@@ -50,7 +50,7 @@ zostają bez powiązania z kontem. Elementy timeline zachowują zapisaną nazwę
 
 Worker otrzymuje wyłącznie deskryptory: ID konta, nazwę, schemat i opis narzędzia.
 Claude Agent SDK **2.1.316**: narzędzia w istniejącym serwerze MCP w procesie
-workera (`mcp__openagents__…`). Codex **0.164.0**: istniejące `dynamicTools`.
+workera (`mcp__canopy__…`). Codex **0.164.0**: istniejące `dynamicTools`.
 Nazwy są stabilne i rozdzielone per konto (`github_work_<id>__create_issue`),
 także gdy nazwy dwóch kont są identyczne po normalizacji. Opisy podają typ i konto.
 Rename unieważnia cache opisów; techniczna nazwa narzędzia pozostaje stabilna.

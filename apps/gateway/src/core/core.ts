@@ -20,7 +20,7 @@ import {
   type FetchBlob,
   type ProfileModels,
   type ThreadEvent,
-} from "@open-agents/contracts";
+} from "@canopy/contracts";
 import { Effect, type ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
@@ -43,7 +43,7 @@ import {
   withAttachmentsNote,
   type AttachmentLimits,
   type SpawnInstance,
-} from "@open-agents/domain";
+} from "@canopy/domain";
 import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
 import { isPlatformCommand, mentionsFromJson, mentionsToJson, PLATFORM_COMMANDS, workerPath } from "./mentions.ts";
 import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
@@ -87,7 +87,7 @@ import { BackgroundTasks } from "./background-tasks.ts";
 import { Hub } from "./hub.ts";
 import { Scheduler } from "./scheduler.ts";
 import { scheduleConfiguration } from "./schedule-configuration.ts";
-import { PLACEMENTS, scheduleWorkerEligible } from "@open-agents/domain";
+import { PLACEMENTS, scheduleWorkerEligible } from "@canopy/domain";
 import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt } from "./thread-titles.ts";
 import { BotsRuntime } from "../bots/runtime.ts";
 import { BotStore } from "../bots/store.ts";

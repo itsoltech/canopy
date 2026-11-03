@@ -1,7 +1,8 @@
 import { parseArgs } from "node:util";
-import { DeviceLogin } from "@open-agents/contracts";
+import { DeviceLogin } from "@canopy/contracts";
 import { GatewayStore, InstanceStore } from "./store/index.ts";
 import { ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
+import { readEnv } from "@canopy/domain/env";
 
 /**
  * Administration until the UI has these screens:
@@ -31,13 +32,13 @@ if (!values.name) {
 
 const runtime = gatewayRuntime(Bun.env);
 await migrateDatabase(runtime);
-const userId = await ensureDevUser(runtime, Bun.env["OA_DEV_USER_EMAIL"] ?? "dev@localhost");
+const userId = await ensureDevUser(runtime, readEnv("CANOPY_DEV_USER_EMAIL") ?? "dev@localhost");
 const { workerId, credential } = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: values.name!, ownerUserId: userId })));
 
 // CLIProxyAPI key: read from an env var of this process (never a CLI argument), stored encrypted.
 let secretId: string | undefined;
 if (values["cliproxy-url"]) {
-  const keyEnv = values["cliproxy-key-env"] ?? "OA_CLIPROXYAPI_API_KEY";
+  const keyEnv = values["cliproxy-key-env"] ?? "CANOPY_CLIPROXYAPI_API_KEY";
   const key = Bun.env[keyEnv];
   if (!key) throw new Error(`${keyEnv} is not set`);
   secretId = await runtime.runPromise(

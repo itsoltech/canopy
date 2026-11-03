@@ -1,7 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { ModelInfo as ClaudeModelInfo } from "@anthropic-ai/claude-agent-sdk";
-import type { v2 } from "@open-agents/codex-protocol";
-import type { ModelInfoSchema } from "@open-agents/contracts";
+import type { v2 } from "@canopy/codex-protocol";
+import type { ModelInfoSchema } from "@canopy/contracts";
 import { pickDefaultEffort } from "./default-effort.ts";
 import type { ResolvedProfile } from "./profiles.ts";
 

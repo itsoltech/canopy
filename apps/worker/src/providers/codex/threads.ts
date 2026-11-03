@@ -1,5 +1,5 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import type { ServerNotification, v2 } from "@open-agents/codex-protocol";
+import type { ServerNotification, v2 } from "@canopy/codex-protocol";
 import {
   AgentToolCallSchema,
   GoalDirective,
@@ -16,8 +16,8 @@ import {
   type ThreadEvent,
   type ThreadSpec,
   type UserInput,
-} from "@open-agents/contracts";
-import { agentBusToolSpecs, agentBusToolsFor, viewImageSpec } from "@open-agents/domain";
+} from "@canopy/contracts";
+import { agentBusToolSpecs, agentBusToolsFor, isPlatformServer, PLATFORM_SERVER, viewImageSpec } from "@canopy/domain";
 import type { ViewImageResult } from "../../images/index.ts";
 import { Context, Effect, Layer, Schema, Stream } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
@@ -83,7 +83,7 @@ export interface CodexThreadsOptions {
  * files for models that take images), so the platform's is namespaced (docs/codex-adapter.md, "view_image").
  */
 export const CODEX_VIEW_IMAGE_TOOL = "view_image";
-export const CODEX_VIEW_IMAGE_NAMESPACE = "openagents";
+export const CODEX_VIEW_IMAGE_NAMESPACE = PLATFORM_SERVER;
 
 export function codexViewImageTool(): v2.DynamicToolSpec {
   const spec = viewImageSpec();
@@ -119,7 +119,8 @@ function dynamicTools(spec: ThreadSpec, viewImage: boolean): { dynamicTools?: v2
 }
 
 export function isViewImageCall(call: { namespace?: string | null; tool: string }): boolean {
-  return call.tool === CODEX_VIEW_IMAGE_TOOL && call.namespace === CODEX_VIEW_IMAGE_NAMESPACE;
+  // Threads from before the rename keep the "openagents" namespace (Codex stores dynamic tools with the thread).
+  return call.tool === CODEX_VIEW_IMAGE_TOOL && isPlatformServer(call.namespace);
 }
 
 export class CodexThreads extends Context.Service<
@@ -147,7 +148,7 @@ export class CodexThreads extends Context.Service<
     /** The platform thread is loaded in this process (started or resumed here). */
     has(threadId: string): boolean;
   }
->()("open-agents/worker/CodexThreads") {
+>()("canopy/worker/CodexThreads") {
   static readonly layer = (options: CodexThreadsOptions) => {
     // The app-server needs the request handler before the registry exists; route through a reference.
     let route: ServerRequestHandler = async (request) => {
@@ -432,7 +433,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         case "currentTime/read":
           return { currentTime: new Date().toISOString() };
         default:
-          throw new RpcError(request.method, -32601, "not supported by open-agents worker");
+          throw new RpcError(request.method, -32601, "not supported by the Canopy worker");
       }
     });
 

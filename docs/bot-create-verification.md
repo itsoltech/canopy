@@ -50,7 +50,7 @@ Końcowy commit dokumentacyjny zawiera ten raport.
 ## Weryfikacja
 
 `bun install`, `bun run typecheck`, `bun run gen:check` i
-`bun run --filter @open-agents/web build` zakończyły się powodzeniem. Po ostatnim
+`bun run --filter @canopy/web build` zakończyły się powodzeniem. Po ostatnim
 merge powtórzono typecheck i build: Svelte 0 błędów, 0 ostrzeżeń; build ma istniejące
 ostrzeżenia rozmiaru chunka i NO_COLOR/FORCE_COLOR.
 
@@ -73,7 +73,7 @@ i schematu bazy. Fixture routines czeka na asynchroniczny katalog API przed Crea
 Live CLIProxyAPI (sekrety wyłącznie z lokalnego env):
 
 ```sh
-OA_LIVE=1 bun --env-file=/home/nix/.config/open-agents/dev-live.env test tests/integration/bots-create.live.test.ts
+CANOPY_LIVE=1 bun --env-file=/home/nix/.config/canopy/dev-live.env test tests/integration/bots-create.live.test.ts
 ```
 
 **1 pass, 0 fail, 7 asercji**. Prawdziwy `gpt-6.1-sol` sprawdził modele, zaproponował

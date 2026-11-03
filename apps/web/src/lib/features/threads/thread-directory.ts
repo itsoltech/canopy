@@ -1,5 +1,5 @@
 import { getContext, setContext } from "svelte";
-import type { Item, ui } from "@open-agents/contracts";
+import type { Item, ui } from "@canopy/contracts";
 
 /** Lets timeline items name and link other threads of the project (agent bus targets, parents). */
 export interface ThreadDirectory {

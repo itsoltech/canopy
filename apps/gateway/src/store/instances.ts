@@ -1,7 +1,7 @@
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ConfigAppliedSchema, Provider, ProviderProfileKind, ui, type ConfigApplied } from "@open-agents/contracts";
-import { envListProblems } from "@open-agents/domain";
+import { ConfigAppliedSchema, Provider, ProviderProfileKind, ui, type ConfigApplied } from "@canopy/contracts";
+import { envListProblems } from "@canopy/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import {
@@ -132,7 +132,7 @@ export class InstanceStore extends Context.Service<
      */
     registerEndpoint(input: { userId: string; workerId: string; baseUrl: string; apiKey: SecretRef }): Fx<void>;
   }
->()("open-agents/gateway/InstanceStore") {
+>()("canopy/gateway/InstanceStore") {
   static readonly layer = (secretsKey: Buffer) =>
     Layer.effect(
       InstanceStore,

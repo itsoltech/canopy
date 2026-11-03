@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { SIDEBAR_WIDTH } from "@open-agents/domain";
+  import { SIDEBAR_WIDTH } from "@canopy/domain";
   import ResizeHandle from "#lib/shared/ui/ResizeHandle.svelte";
   import { SIDEBAR_ID, type SidebarLayout } from "./sidebar-layout.svelte.ts";
 

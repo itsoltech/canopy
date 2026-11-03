@@ -1,12 +1,12 @@
 import { test, expect } from "bun:test";
 import { join, resolve } from "node:path";
-import { Provider, ProviderProfileKind, PermissionMode, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { tempDirs } from "@open-agents/testing";
-import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { WorkerHost, serveLink } from "@open-agents/worker/runtime";
+import { Provider, ProviderProfileKind, PermissionMode, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
+import { tempDirs } from "@canopy/testing";
+import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { WorkerHost, serveLink } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { startTestGateway, eventually, watchUntil } from "./support/gateway.ts";
 

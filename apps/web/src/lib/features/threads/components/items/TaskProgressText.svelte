@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { TaskProgress } from "@open-agents/contracts";
+  import type { TaskProgress } from "@canopy/contracts";
   import { formatCount, formatDuration } from "#lib/shared/format.ts";
 
   /** "12 tools · 8.1K tokens · 1m 4s" for subagents and background tasks. */

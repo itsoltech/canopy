@@ -24,10 +24,10 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const ALWAYS_DENIED = ["HOME", "USERPROFILE", "PATH", "PWD", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CLAUDE_CODE_ENTRYPOINT", "GROK_HOME", "GROK_AUTH_PATH", "GROK_AUTH", "GROK_CONFIG", "GROK_CONFIG_PATH"] as const;
 
 /**
- * Prefix owned by the platform: the Codex key variables of endpoint profiles (OPENAGENTS_<ID>_API_KEY). The
- * worker's own settings (OA_*) are read by the worker process only, so a harness variable of that name is harmless.
+ * Prefix owned by the platform: the Codex key variables of endpoint profiles (CANOPY_<ID>_API_KEY) and the
+ * worker's own settings (CANOPY_*).
  */
-const DENIED_PREFIXES = ["OPENAGENTS_"] as const;
+const DENIED_PREFIXES = ["CANOPY_"] as const;
 
 /** An endpoint profile sets its own endpoint and key; these would compete with it. */
 const ENDPOINT_DENIED = ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "XAI_API_KEY", "GROK_CODE_XAI_API_KEY", "GROK_XAI_API_BASE_URL", "GROK_CLI_CHAT_PROXY_BASE_URL", "GROK_MODELS_BASE_URL", "GROK_MODELS_LIST_URL", "GROK_AUTH_PROVIDER_COMMAND"] as const;

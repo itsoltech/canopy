@@ -1,17 +1,18 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { readEnv } from "@canopy/domain/env";
 
 /**
  * Envelope for secrets at rest (docs/worker-config.md, "Sekrety"): AES-256-GCM with a master key
- * from the environment (OA_SECRETS_KEY, 32 bytes base64). Layout: iv (12) | tag (16) | ciphertext.
+ * from the environment (CANOPY_SECRETS_KEY, 32 bytes base64). Layout: iv (12) | tag (16) | ciphertext.
  * key_id is stored with every row so the master key can be rotated.
  */
 export const SECRETS_KEY_ID = "env-v1";
 
 export function loadSecretsKey(env: Readonly<Record<string, string | undefined>>): Buffer {
-  const raw = env["OA_SECRETS_KEY"];
-  if (!raw) throw new Error("OA_SECRETS_KEY is not set (32 random bytes, base64): openssl rand -base64 32");
+  const raw = readEnv("CANOPY_SECRETS_KEY", env);
+  if (!raw) throw new Error("CANOPY_SECRETS_KEY is not set (32 random bytes, base64): openssl rand -base64 32");
   const key = Buffer.from(raw, "base64");
-  if (key.length !== 32) throw new Error("OA_SECRETS_KEY must decode to exactly 32 bytes");
+  if (key.length !== 32) throw new Error("CANOPY_SECRETS_KEY must decode to exactly 32 bytes");
   return key;
 }
 

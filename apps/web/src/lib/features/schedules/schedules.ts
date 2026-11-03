@@ -1,5 +1,5 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { formatDateTime } from "#lib/shared/format.ts";
 import { humanizeEnum } from "#lib/shared/humanize.ts";
 import type { Tone } from "#lib/shared/ui/tone.ts";

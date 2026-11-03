@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import { onMount } from "svelte";
   import { decode } from "#lib/shared/wire.ts";
   import { requestJson } from "#lib/shared/http.ts";

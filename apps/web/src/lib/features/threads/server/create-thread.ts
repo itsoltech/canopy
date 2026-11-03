@@ -1,5 +1,5 @@
 import { fail, redirect } from "@sveltejs/kit";
-import { PermissionMode, Provider, type ui } from "@open-agents/contracts";
+import { PermissionMode, Provider, type ui } from "@canopy/contracts";
 import { attempt, failed } from "#lib/server/gateway.ts";
 import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { isProviderKey, providerKeyOf } from "../providers.ts";

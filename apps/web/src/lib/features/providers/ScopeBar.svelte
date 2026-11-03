@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Select from "#lib/shared/ui/Select.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";

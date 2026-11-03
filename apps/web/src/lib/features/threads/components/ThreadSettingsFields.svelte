@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PermissionMode, type ui } from "@open-agents/contracts";
+  import { PermissionMode, type ui } from "@canopy/contracts";
   import Field from "#lib/shared/ui/Field.svelte";
   import ModelIdField from "#lib/features/models/ModelIdField.svelte";
   import Select from "#lib/shared/ui/Select.svelte";

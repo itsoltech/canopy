@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { MentionSchema, PermissionMode, type Mention, type ui } from "@open-agents/contracts";
+import { MentionSchema, PermissionMode, type Mention, type ui } from "@canopy/contracts";
 import { effortLevel, modelDisplayName } from "#lib/features/models/catalog.ts";
 import { permissionLabel } from "../labels.ts";
 

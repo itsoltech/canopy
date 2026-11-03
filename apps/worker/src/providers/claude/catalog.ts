@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { SlashCommand } from "@anthropic-ai/claude-agent-sdk";
-import { MentionKind } from "@open-agents/contracts";
+import { MentionKind } from "@canopy/contracts";
 import type { MentionEntryInit } from "../../mentions/catalog.ts";
 import type { NativeToolPolicy } from "../native-tools.ts";
 

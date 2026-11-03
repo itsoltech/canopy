@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import { create } from "@bufbuild/protobuf";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import Crumb from "#lib/features/navigation/Crumb.svelte";

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Item } from "@open-agents/contracts";
+  import type { Item } from "@canopy/contracts";
   import { parseObject, str } from "#lib/shared/format.ts";
   import { structure, structureJson } from "#lib/shared/structure.ts";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";

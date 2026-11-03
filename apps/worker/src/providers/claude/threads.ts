@@ -19,8 +19,8 @@ import {
   type ThreadEvent,
   type ThreadSpec,
   type UserInput,
-} from "@open-agents/contracts";
-import { AsyncChannel } from "@open-agents/transport";
+} from "@canopy/contracts";
+import { AsyncChannel } from "@canopy/transport";
 import { Context, Effect, Layer, Schema } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
 import { claudeAgentModels, claudeModel, isClaudeEffort, proxyCapabilities, type ModelInit, type ProxyCapabilities } from "../models.ts";
@@ -150,7 +150,7 @@ export class ClaudeThreads extends Context.Service<
     /** Commands and skills for the composer in a folder (Query.supportedCommands() without a prompt; claude/catalog.ts). */
     listMentionCatalog(profileId: string, cwd: string): Effect.Effect<{ entries: MentionEntryInit[]; notes: string[] }, ClaudeThreadError>;
   }
->()("open-agents/worker/ClaudeThreads") {
+>()("canopy/worker/ClaudeThreads") {
   static readonly layer = (options: ClaudeThreadsOptions) => Layer.effect(ClaudeThreads, make(options));
 }
 

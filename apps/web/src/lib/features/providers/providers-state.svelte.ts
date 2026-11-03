@@ -1,4 +1,4 @@
-import { ui, type ModelInfo } from "@open-agents/contracts";
+import { ui, type ModelInfo } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 import { harnessKey, instanceKeyOf, listInstances, providerCall } from "./instances.ts";

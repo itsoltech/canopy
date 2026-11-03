@@ -9,7 +9,7 @@ import {
   type CommandResult,
   type Item,
   type ThreadEvent,
-} from "@open-agents/contracts";
+} from "@canopy/contracts";
 import { Context, Effect, Layer, Schema } from "effect";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 
@@ -108,7 +108,7 @@ export class Journal extends Context.Service<
     /** The platform asked to interrupt the turn (kept until its end). */
     noteInterrupt(threadId: string, turnId: string): Effect.Effect<void, JournalError>;
   }
->()("open-agents/worker/Journal") {
+>()("canopy/worker/Journal") {
   /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
   static readonly layer = (path: string) =>
     Layer.effect(

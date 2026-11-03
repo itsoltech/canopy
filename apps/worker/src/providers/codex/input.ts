@@ -1,5 +1,5 @@
-import { MentionKind, type UserInput } from "@open-agents/contracts";
-import type { v2 } from "@open-agents/codex-protocol";
+import { MentionKind, type UserInput } from "@canopy/contracts";
+import type { v2 } from "@canopy/codex-protocol";
 
 /** Image files a model can look at when mentioned (Codex localImage). */
 const IMAGE_FILE = /\.(png|jpe?g|gif|webp)$/i;

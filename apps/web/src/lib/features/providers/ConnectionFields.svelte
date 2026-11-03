@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { Provider, ProviderProfileKind } from "@open-agents/contracts";
+  import { Provider, ProviderProfileKind } from "@canopy/contracts";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Fieldset from "#lib/shared/ui/Fieldset.svelte";

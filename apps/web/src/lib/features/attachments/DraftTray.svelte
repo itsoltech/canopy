@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatSize } from "@open-agents/domain";
+  import { formatSize } from "@canopy/domain";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { pop, reorder } from "#lib/shared/ui/motion.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";

@@ -1,4 +1,4 @@
-import { bots } from "@open-agents/contracts";
+import { bots } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";

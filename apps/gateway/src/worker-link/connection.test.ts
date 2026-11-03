@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { HelloSchema, WorkerMessageSchema, type GatewayMessage } from "@open-agents/contracts";
-import { AsyncChannel } from "@open-agents/transport";
+import { HelloSchema, WorkerMessageSchema, type GatewayMessage } from "@canopy/contracts";
+import { AsyncChannel } from "@canopy/transport";
 import { WorkerConnection } from "./connection.ts";
 
 test("outbox retries preserve command id across connections; concurrent sends share one acknowledgement", async () => {

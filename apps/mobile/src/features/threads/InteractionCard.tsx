@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import { InteractionKind, ui } from "@open-agents/contracts";
+import { InteractionKind, ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 

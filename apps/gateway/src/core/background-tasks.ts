@@ -1,5 +1,5 @@
 import type { JsonValue } from "@bufbuild/protobuf";
-import type { AgentBusCall } from "@open-agents/domain";
+import type { AgentBusCall } from "@canopy/domain";
 import type { Effect } from "effect";
 import { BackgroundTaskStore, type TurnRow } from "../store/index.ts";
 

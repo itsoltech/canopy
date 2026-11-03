@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { once } from "node:events";
-import { tempDir } from "@open-agents/testing";
+import { tempDir } from "@canopy/testing";
 import { DesktopRuntime, type RuntimePaths, type Secrets } from "../src/runtime/runtime.ts";
 import { until } from "../src/runtime/process.ts";
 

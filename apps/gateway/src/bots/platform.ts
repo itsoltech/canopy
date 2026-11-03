@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
 import { GatewayStore, Invalid, NotFound } from "../store/store.ts";

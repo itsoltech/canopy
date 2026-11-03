@@ -4,25 +4,25 @@
  * stack after a merge. A turn running at the restart ends as interrupted by the system ("worker restarted", then
  * "worker restarted mid-turn" from the worker's reconciliation with the rollout), nothing of it stays open, and the queue goes
  * on; a Codex thread created without any turn (no rollout) still works after the restart.
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { tempDir } from "@open-agents/testing";
-import { journalHello, openGatewayLink, resendPending } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
+import { tempDir } from "@canopy/testing";
+import { journalHello, openGatewayLink, resendPending } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 import { useLiveProxy } from "./support/live.ts";
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const codexModel = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const codexModel = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
 const MINUTE = 60_000;
 
 async function until<A>(what: string, read: () => Promise<A>, done: (value: A) => boolean, timeoutMs: number): Promise<A> {

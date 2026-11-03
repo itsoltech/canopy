@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
-import { ui, bots, connectors } from "@open-agents/contracts";
+import { ui, bots, connectors } from "@canopy/contracts";
 import { ConnectorFailure } from "../connectors/store.ts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
 import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, SettingsConflict } from "../store/index.ts";

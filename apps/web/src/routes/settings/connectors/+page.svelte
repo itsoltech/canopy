@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { bots as botContract, connectors } from "@open-agents/contracts";
+  import { bots as botContract, connectors } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";

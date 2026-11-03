@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import ProviderModel from "./ProviderModel.svelte";
   import ThreadLink from "./items/ThreadLink.svelte";
 

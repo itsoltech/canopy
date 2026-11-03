@@ -23,7 +23,7 @@ Najpierw zaobserwowano RED: dwa testy kolejności shutdownu, dwa testy mapowania
 
 Test live po restarcie wymaga `worker_shutdown`, czasu końca, odpowiedzi o restarcie w turze `background_task` oraz dokładnie tur `user, background_task` po dodatkowych 4 s obserwacji. Osobny scenariusz naturalnego końca czeka na odpowiedź Claude w turze `provider`, obserwuje jeszcze 17 s i wymaga dokładnie tur `user, provider`, bez notatki platformy. Oba scenariusze uruchamiają własny gateway, PostgreSQL i worker; konfigurację pośrednika dostarcza `useLiveProxy`.
 
-Sekrety ładowano z pliku poza repozytorium; żaden host ani klucz pośrednika nie jest częścią fixture lub raportu. Katalogi tymczasowe testów pochodzą z `@open-agents/testing`.
+Sekrety ładowano z pliku poza repozytorium; żaden host ani klucz pośrednika nie jest częścią fixture lub raportu. Katalogi tymczasowe testów pochodzą z `@canopy/testing`.
 
 ## Wyniki live
 
@@ -33,7 +33,7 @@ Po poprawkach: **13/13 scenariuszy**, bez błędów:
 - Claude, naturalny koniec i pojedyncza pobudka: **6/6**.
 - Codex, restart i odpowiedź w turze notatki: **1/1**.
 
-Obejmuje to jeden wstępny przebieg obu scenariuszy Claude, cztery powtórzenia pliku (`OA_LIVE=1 bun test tests/integration/background-task-notes.live.test.ts -t 'Claude:' --rerun-each 4`: 8/8) i końcowy przebieg całego pliku po scaleniu `main` oraz zachowaniu rezerwacji tury na `init` (`OA_LIVE=1 bun run check:tmp tests/integration/background-task-notes.live.test.ts`: 3/3, 28 asercji, 79,91 s). Końcowy przebieg potwierdził brak pozostawionych katalogów testów. Katalogi robocze narzędzi dostawców, np. cache kompilacji i katalogi sandboxa, są raportowane osobno przez istniejący `check:tmp` i usuwane z jego prywatnym katalogiem nadrzędnym.
+Obejmuje to jeden wstępny przebieg obu scenariuszy Claude, cztery powtórzenia pliku (`CANOPY_LIVE=1 bun test tests/integration/background-task-notes.live.test.ts -t 'Claude:' --rerun-each 4`: 8/8) i końcowy przebieg całego pliku po scaleniu `main` oraz zachowaniu rezerwacji tury na `init` (`CANOPY_LIVE=1 bun run check:tmp tests/integration/background-task-notes.live.test.ts`: 3/3, 28 asercji, 79,91 s). Końcowy przebieg potwierdził brak pozostawionych katalogów testów. Katalogi robocze narzędzi dostawców, np. cache kompilacji i katalogi sandboxa, są raportowane osobno przez istniejący `check:tmp` i usuwane z jego prywatnym katalogiem nadrzędnym.
 
 Scalono `main` z `e097e72` (merge `0bc549e`). `bun run typecheck` i `bun run gen:check` po scaleniu zakończyły się powodzeniem; Svelte nie zgłosił błędów ani ostrzeżeń.
 

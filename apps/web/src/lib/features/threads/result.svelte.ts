@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { unseenResult, type TurnResult } from "./activity.ts";
 
 /** How long a result stays shown after it was seen (the open thread's turn ends: "Completed" for a moment). */

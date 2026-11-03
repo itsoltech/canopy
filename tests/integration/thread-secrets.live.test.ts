@@ -3,22 +3,22 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { PermissionMode, Provider } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { tempDirs } from "@open-agents/testing";
-import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { PermissionMode, Provider } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
+import { tempDirs } from "@canopy/testing";
+import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const enabled = process.env["OA_LIVE"] === "1" && !!proxyUrl && !!proxyKey && dockerAvailable;
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const enabled = process.env["CANOPY_LIVE"] === "1" && !!proxyUrl && !!proxyKey && dockerAvailable;
 
 describe.skipIf(!enabled)("thread secrets (Codex + Claude, live CLIProxyAPI)", () => {
   let gw: TestGateway;
@@ -54,7 +54,7 @@ describe.skipIf(!enabled)("thread secrets (Codex + Claude, live CLIProxyAPI)", (
       const value = `live-secret-${crypto.randomUUID()}-${crypto.randomUUID()}`;
       const hash = createHash("sha256").update(value).digest("hex");
       const thread = (await gw.api.createThread({ projectId, workspaceId, provider, providerProfileId: "cliproxyapi",
-        model: provider === Provider.CODEX ? process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" : process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
+        model: provider === Provider.CODEX ? process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" : process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
         permissionMode: mode, title: `Private secret ${Provider[provider]}`,
         initialMessage: "Call the platform request_secret tool NOW with label 'Development access token', description 'Verify private file access using SHA-256.', placeholder 'pat-…', name 'DEV_TOKEN'. " +
           "Do not ask in chat. Wait for the result. If pending, renew using request_id. After saved, run sha256sum on the returned private file path (this prints only its hash and path). " +

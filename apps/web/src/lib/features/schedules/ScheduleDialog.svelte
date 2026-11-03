@@ -1,7 +1,7 @@
 <script lang="ts">
   import { create } from "@bufbuild/protobuf";
   import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import { untrack } from "svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";

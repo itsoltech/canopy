@@ -2,30 +2,30 @@
  * Live, through the whole stack: UI API (gRPC, service token) -> gateway on PostgreSQL -> a real worker host
  * with Codex and Claude through CLIProxyAPI. The UI sees the worker's model catalog, picks a model and an
  * effort, and steers a message into the running turn; it shows up in that turn, where it entered.
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { tempDirs } from "@open-agents/testing";
-import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
+import { tempDirs } from "@canopy/testing";
+import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 import { useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
 const CASES = [
-  { name: "Codex", provider: Provider.CODEX, model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
-  { name: "Claude", provider: Provider.CLAUDE, model: process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
+  { name: "Codex", provider: Provider.CODEX, model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
+  { name: "Claude", provider: Provider.CLAUDE, model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
 ] as const;
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: models, effort and steer with a real worker (live)", () => {

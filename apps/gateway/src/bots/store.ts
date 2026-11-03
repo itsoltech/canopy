@@ -1,9 +1,9 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { bots, connectors, MentionKind, MentionSchema, ProfileModelsSchema, Provider, type Mention, type ProfileModels, type ui } from "@open-agents/contracts";
+import { bots, connectors, MentionKind, MentionSchema, ProfileModelsSchema, Provider, type Mention, type ProfileModels, type ui } from "@canopy/contracts";
 import { ConnectorFailure, connectorStore } from "../connectors/store.ts";
 import { connectorType } from "../connectors/catalog.ts";
-import { checkMentions, mentionPlaceholder } from "@open-agents/domain";
+import { checkMentions, mentionPlaceholder } from "@canopy/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { decryptSecret } from "../store/secrets.ts";
@@ -586,6 +586,6 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   };
 }
 
-export class BotStore extends Context.Service<BotStore, ReturnType<typeof makeStore>>()('open-agents/gateway/BotStore') {
+export class BotStore extends Context.Service<BotStore, ReturnType<typeof makeStore>>()('canopy/gateway/BotStore') {
   static readonly layer = (key: Buffer) => Layer.effect(BotStore, Effect.gen(function* () { return makeStore(yield* SqlClient.SqlClient, key); }));
 }

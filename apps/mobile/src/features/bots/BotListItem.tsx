@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
-import type { bots } from "@open-agents/contracts";
+import type { bots } from "@canopy/contracts";
 import { BotAvatar } from "./BotAvatar";
 import { age } from "../navigation/SidebarThread";
 import { styles, useColors } from "../../ui/theme";

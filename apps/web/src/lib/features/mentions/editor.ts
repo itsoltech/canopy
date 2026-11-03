@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, type Mention } from "@open-agents/contracts";
-import { mentionLabel, mentionPlaceholder } from "@open-agents/domain";
+import { MentionKind, MentionSchema, type Mention } from "@canopy/contracts";
+import { hasPlatformNote, mentionLabel, mentionPlaceholder } from "@canopy/domain";
 import { INLINE_RENDERERS, type InlineElement, type MentionData } from "./kinds.ts";
 import { blockHtml, fenceText, findFences, inlineHtml, type CodeBlockData } from "./markdown.ts";
 
@@ -196,11 +196,11 @@ export function trimValue(value: EditorValue): EditorValue {
 }
 
 /**
- * A transcript user message without the platform's note in front (the gateway puts "[open-agents] …" lines, an
+ * A transcript user message without the platform's note in front (the gateway puts "[canopy] …" lines, an
  * empty line, then the message), its mentions moved along; unchanged when it has no such note.
  */
 export function withoutPlatformNote(value: EditorValue): EditorValue {
-  if (!value.text.startsWith("[open-agents]")) return value;
+  if (!hasPlatformNote(value.text)) return value;
   const cut = value.text.indexOf("\n\n");
   if (cut < 0) return value;
   const shift = cut + 2;

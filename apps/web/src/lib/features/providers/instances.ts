@@ -1,6 +1,6 @@
 import { create, type DescMessage, type MessageInitShape } from "@bufbuild/protobuf";
-import { Provider, ProviderProfileKind, ui, type ModelInfo } from "@open-agents/contracts";
-import { envNameProblem, type ProfileKind } from "@open-agents/domain";
+import { Provider, ProviderProfileKind, ui, type ModelInfo } from "@canopy/contracts";
+import { envNameProblem, type ProfileKind } from "@canopy/domain";
 import { providerKeyOf, type ProviderKey } from "#lib/features/threads/providers.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import type { Tone } from "#lib/shared/ui/tone.ts";

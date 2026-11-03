@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { InputAttachmentSchema } from "@open-agents/contracts";
-import { tempDir } from "@open-agents/testing";
+import { InputAttachmentSchema } from "@canopy/contracts";
+import { tempDir } from "@canopy/testing";
 import { AttachmentFiles } from "./files.ts";
 
 const dataDir = tempDir("oa-attachments-");

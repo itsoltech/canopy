@@ -1,4 +1,4 @@
-import type { Command, CommandSchema } from "@open-agents/contracts";
+import type { Command, CommandSchema } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";

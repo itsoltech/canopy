@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import type { bots } from "@open-agents/contracts";
+import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button, Field, Notice } from "../../ui/components";
 import { Icon } from "../../ui/Icon";

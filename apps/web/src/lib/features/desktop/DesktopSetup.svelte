@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { DesktopMode, DesktopStatus } from "@open-agents/ui/desktop";
+  import type { DesktopMode, DesktopStatus } from "@canopy/ui/desktop";
   import Button from "#lib/shared/ui/Button.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";

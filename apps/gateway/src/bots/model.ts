@@ -1,4 +1,4 @@
-import { Provider, type ProfileModels } from "@open-agents/contracts";
+import { Provider, type ProfileModels } from "@canopy/contracts";
 import type { BotModel, ModelInput, ModelReply, ToolCall } from "./types.ts";
 
 type Endpoint = { url: string; key: string };

@@ -1,5 +1,5 @@
 import { create, fromJson, toJson } from "@bufbuild/protobuf";
-import { ui, update } from "@open-agents/contracts";
+import { ui, update } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";

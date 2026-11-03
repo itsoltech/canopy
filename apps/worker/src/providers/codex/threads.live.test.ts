@@ -1,5 +1,5 @@
 /**
- * Live: platform threads on Codex end to end. Opt-in (OA_LIVE=1, CLIProxyAPI env, see codex-adapter.md).
+ * Live: platform threads on Codex end to end. Opt-in (CANOPY_LIVE=1, CLIProxyAPI env, see codex-adapter.md).
  * Create -> turn -> fork (inherits history) -> worker restart (new app-server, same CODEX_HOME and
  * journal) -> resume -> turn. Events go through the mapper into the journal.
  */
@@ -19,9 +19,9 @@ import {
   type Item,
   type ThreadEvent,
   type ThreadSpec,
-} from "@open-agents/contracts";
-import { eventItemId, reduceItem } from "@open-agents/domain";
-import { tempDirs } from "@open-agents/testing";
+} from "@canopy/contracts";
+import { eventItemId, reduceItem } from "@canopy/domain";
+import { tempDirs } from "@canopy/testing";
 import { Effect, Layer } from "effect";
 import { Journal } from "../../journal/index.ts";
 import { resolveProfiles } from "../profiles.ts";
@@ -31,11 +31,11 @@ import { CodexThreads } from "./threads.ts";
 
 const tempDir = tempDirs();
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-const recordDir = process.env["OA_LIVE_RECORD_DIR"] ?? "/tmp/oa-codex-recordings";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const recordDir = process.env["CANOPY_LIVE_RECORD_DIR"] ?? "/tmp/oa-codex-recordings";
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
   const dataDir = tempDir("oa-codex-threads-");

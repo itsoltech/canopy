@@ -1,5 +1,5 @@
-import { MentionKind, type Mention } from "@open-agents/contracts";
-import { mentionLabel } from "@open-agents/domain";
+import { MentionKind, type Mention } from "@canopy/contracts";
+import { mentionLabel } from "@canopy/domain";
 import { connectorMarks } from "#lib/features/connectors/marks.ts";
 import { icons, lineIcons, type IconName, type SolidIconName } from "#lib/shared/ui/icons.ts";
 

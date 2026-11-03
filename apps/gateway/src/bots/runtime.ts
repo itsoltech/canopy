@@ -1,5 +1,5 @@
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
-import { bots, Provider } from "@open-agents/contracts";
+import { bots, Provider } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { CoreRuntime } from "../core/core.ts";
 import { Invalid } from "../store/store.ts";

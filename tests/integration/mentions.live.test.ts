@@ -3,20 +3,20 @@
  * command, a Codex repo skill and a notes file; the catalogs each harness reports for it; a Claude turn invoking the
  * skill and one running the command; a file mention (does Claude Code expand "@path" itself?); a Codex turn with a
  * skill item and a file mention; a thread mention the agent follows with read_thread / get_thread.
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, PermissionMode, Provider, type Mention } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { mentionPlaceholder } from "@open-agents/domain";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { tempDirs } from "@open-agents/testing";
-import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { MentionKind, MentionSchema, PermissionMode, Provider, type Mention } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { mentionPlaceholder } from "@canopy/domain";
+import { GatewayStore } from "@canopy/gateway/store";
+import { tempDirs } from "@canopy/testing";
+import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -24,11 +24,11 @@ import { useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const CODEX_MODEL = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-const CLAUDE_MODEL = process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const CODEX_MODEL = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const CLAUDE_MODEL = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
 
 type Part = string | { kind: MentionKind; name: string; label?: string; path?: string; source?: string };
 function message(...parts: Part[]): { text: string; mentions: Mention[] } {

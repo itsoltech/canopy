@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus, type Item } from "@open-agents/contracts";
+  import { ItemStatus, type Item } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { backgroundName, visibleTasks, type BackgroundEntry } from "../background-tasks.ts";
   import BackgroundTaskStatus from "./BackgroundTaskStatus.svelte";

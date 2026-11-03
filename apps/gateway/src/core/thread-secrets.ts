@@ -1,6 +1,6 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
-import { ui, type ThreadSecretReceipt } from "@open-agents/contracts";
-import type { AgentBusArgs } from "@open-agents/domain";
+import { ui, type ThreadSecretReceipt } from "@canopy/contracts";
+import type { AgentBusArgs } from "@canopy/domain";
 import type { ManagedRuntime } from "effect";
 import { GatewayStore } from "../store/store.ts";
 import type { CallSource } from "../store/agent-bus.ts";

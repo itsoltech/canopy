@@ -1,7 +1,7 @@
 import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { GoalStateSchema, ui, type GoalState } from "@open-agents/contracts";
-import { goalStatusAfterFailure, goalStatusFromHarness, isFinished, type GoalStatus } from "@open-agents/domain";
+import { GoalStateSchema, ui, type GoalState } from "@canopy/contracts";
+import { goalStatusAfterFailure, goalStatusFromHarness, isFinished, type GoalStatus } from "@canopy/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { NotFound, type TurnRow } from "./store.ts";
@@ -144,7 +144,7 @@ export class GoalStore extends Context.Service<
     /** Claude: /goal as a queued turn of the goal. */
     enqueueGoalTurn(input: { threadId: string; goalId: string; text: string }): Fx<TurnRow>;
   }
->()("open-agents/gateway/GoalStore") {
+>()("canopy/gateway/GoalStore") {
   static readonly layer = Layer.effect(
     GoalStore,
     Effect.gen(function* () {

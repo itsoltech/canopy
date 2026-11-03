@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 
 /** Last change of a thread (created, turn queued, started or finished). */

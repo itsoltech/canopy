@@ -1,11 +1,11 @@
 /**
- * Live tests (OA_LIVE=1): a real worker behind the CLIProxyAPI, set up the way the product does it
+ * Live tests (CANOPY_LIVE=1): a real worker behind the CLIProxyAPI, set up the way the product does it
  * (docs/worker-config.md, section 9): the worker's own part of the configuration (the harnesses,
  * no device login) and the proxy as the global "cliproxyapi" provider instance of each harness, enabled on that
  * worker through the UI API (key stored as a gateway secret, synced to the worker as its effective configuration).
  */
-import { DeviceLogin, Provider, ProviderProfileKind, type ui } from "@open-agents/contracts";
-import { GatewayStore } from "@open-agents/gateway/store";
+import { DeviceLogin, Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
+import { GatewayStore } from "@canopy/gateway/store";
 import { eventually, type TestGateway } from "./gateway.ts";
 
 /** The instance id live threads use (`providerProfileId`). */

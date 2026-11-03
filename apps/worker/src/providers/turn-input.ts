@@ -1,4 +1,4 @@
-import type { PermissionMode } from "@open-agents/contracts";
+import type { PermissionMode } from "@canopy/contracts";
 import { Schema } from "effect";
 
 /**

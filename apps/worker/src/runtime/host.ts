@@ -28,7 +28,7 @@ import {
   type ThreadEvent,
   type WorkerConfig,
   TurnOutcome,
-} from "@open-agents/contracts";
+} from "@canopy/contracts";
 import { Cause, Context, Effect, Exit, Layer, Scope, type ManagedRuntime } from "effect";
 import { applyWorkerConfig, instanceShadowHome, type AppliedConfig, type DeviceHomes, type DeviceProbe, systemProbe } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { create } from "@bufbuild/protobuf";
-  import { bots, ui } from "@open-agents/contracts";
+  import { bots, ui } from "@canopy/contracts";
   import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import type { ModelOption } from "#lib/features/models/catalog.ts";

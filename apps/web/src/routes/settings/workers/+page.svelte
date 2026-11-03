@@ -69,7 +69,7 @@
 <SettingsGroup title="Connection">
   <div class="p-4 sm:p-5">
     <form class="grid gap-3" onsubmit={(e) => { e.preventDefault(); void saveAddress(); }}>
-      <Field label="Gateway address for workers" description="The reachable gRPC origin, including its port. Use your Tailscale hostname or HTTPS gateway, not the Canopy web URL. An empty value uses OA_PUBLIC_GATEWAY_URL.">
+      <Field label="Gateway address for workers" description="The reachable gRPC origin, including its port. Use your Tailscale hostname or HTTPS gateway, not the Canopy web URL. An empty value uses CANOPY_PUBLIC_GATEWAY_URL.">
         <Input name="public-gateway-address" type="url" bind:value={address} placeholder="http://canopy-gateway:7443" />
       </Field>
       <div class="flex justify-end"><Button size="sm" loading={saving} disabled={!setup.loaded} type="submit">Save address</Button></div>

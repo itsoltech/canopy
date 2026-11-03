@@ -2,15 +2,15 @@ import { test, expect } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { GrokClient } from "@open-agents/grok-acp";
+import { GrokClient } from "@canopy/grok-acp";
 import { grokLaunch } from "./launch.ts";
 import { grokBus } from "./bus.ts";
 import { create } from "@bufbuild/protobuf";
-import { AgentToolResultSchema } from "@open-agents/contracts";
+import { AgentToolResultSchema } from "@canopy/contracts";
 
-const live = process.env["OA_LIVE"] === "1";
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const live = process.env["CANOPY_LIVE"] === "1";
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 test.skipIf(!live || !url || !key)("Grok CLI through CLIProxyAPI: catalog, shell tool, answer and resume", async () => {
   const root = mkdtempSync(join(tmpdir(), "canopy-grok-live-"));
   let client: GrokClient | undefined;
@@ -27,8 +27,8 @@ test.skipIf(!live || !url || !key)("Grok CLI through CLIProxyAPI: catalog, shell
     const models = body.data.filter((m) => /grok/i.test(m.id));
     console.info("Proxy Grok models:", models.map((m) => m.id));
     expect(models.length).toBeGreaterThan(0);
-    const model = process.env["OA_LIVE_GROK_MODEL"] || models.find((m) => /fast|mini/i.test(m.id))?.id || models[0]!.id;
-    const open = () => grokLaunch({ dataDir: root, profile: { kind: "cliproxyapi" as const, id: "live", providers: ["grok" as const], env: {}, runtime: {}, baseUrl: new URL(url!), apiKey: key! }, executable: process.env["OA_GROK_EXECUTABLE"] ?? "/home/nix/.local/bin/grok", model, effort: "low", fullAuto: true });
+    const model = process.env["CANOPY_LIVE_GROK_MODEL"] || models.find((m) => /fast|mini/i.test(m.id))?.id || models[0]!.id;
+    const open = () => grokLaunch({ dataDir: root, profile: { kind: "cliproxyapi" as const, id: "live", providers: ["grok" as const], env: {}, runtime: {}, baseUrl: new URL(url!), apiKey: key! }, executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "/home/nix/.local/bin/grok", model, effort: "low", fullAuto: true });
     launch = open();
     client = new GrokClient({ ...launch.options, callbacks: { requestPermission: async (r) => ({ outcome: { outcome: "selected", optionId: r.options.find((o) => o.kind === "allow_once")!.optionId } }) }, promptTimeoutMs: 90_000 });
     await client.initialize();
@@ -39,7 +39,7 @@ test.skipIf(!live || !url || !key)("Grok CLI through CLIProxyAPI: catalog, shell
     console.info("Grok modes:", JSON.stringify(session.modes));
     console.info("Grok catalog:", JSON.stringify(session.models));
     let answer = ""; let tool = false;
-    for await (const event of client.prompt(session.sessionId, [{ type: "text", text: "Run pwd using your shell tool, call openagents__list_threads exactly once, then answer with the directory and CANOPY_GROK_OK. Do not do anything else." }])) {
+    for await (const event of client.prompt(session.sessionId, [{ type: "text", text: "Run pwd using your shell tool, call canopy__list_threads exactly once, then answer with the directory and CANOPY_GROK_OK. Do not do anything else." }])) {
       if (event.type === "update") {
         if (event.update.sessionUpdate === "tool_call") { tool = true; console.info("Grok tool kind:", event.update.kind, "title:", event.update.title); }
         if (event.update.sessionUpdate === "agent_message_chunk" && event.update.content.type === "text") answer += event.update.content.text;
@@ -59,11 +59,11 @@ test.skipIf(!live || (!process.env["XAI_API_KEY"] && !existsSync(join(process.en
   const root = mkdtempSync(join(tmpdir(), "canopy-grok-native-"));
   let calls = 0;
   const bus = grokBus({ threadId: "native", depth: 0, turnId: () => "native-turn", callTool: async () => { calls++; return create(AgentToolResultSchema, { content: "[]" }); } });
-  const launch = grokLaunch({ dataDir: root, profile: { kind: "native", id: "native", providers: ["grok"], env: {}, runtime: {} }, executable: process.env["OA_GROK_EXECUTABLE"] ?? "/home/nix/.local/bin/grok", effort: "low" });
+  const launch = grokLaunch({ dataDir: root, profile: { kind: "native", id: "native", providers: ["grok"], env: {}, runtime: {} }, executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "/home/nix/.local/bin/grok", effort: "low" });
   const client = new GrokClient({ ...launch.options, callbacks: { requestPermission: async (r) => ({ outcome: { outcome: "selected", optionId: r.options.find((o) => o.kind === "allow_once")!.optionId } }) } });
   try {
     await client.initialize(); const session = await client.newSession(root, [bus.server]); let shell = false; let answer = "";
-    for await (const e of client.prompt(session.sessionId, [{ type: "text", text: "Run pwd via your shell, call openagents__list_threads once, then answer CANOPY_NATIVE_OK. Nothing else." }])) {
+    for await (const e of client.prompt(session.sessionId, [{ type: "text", text: "Run pwd via your shell, call canopy__list_threads once, then answer CANOPY_NATIVE_OK. Nothing else." }])) {
       if (e.type !== "update") continue;
       if (e.update.sessionUpdate === "tool_call" && e.update.title === "run_terminal_command") shell = true;
       if (e.update.sessionUpdate === "agent_message_chunk" && e.update.content.type === "text") answer += e.update.content.text;

@@ -1,6 +1,6 @@
 import { fromJson, type JsonValue } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, type Mention } from "@open-agents/contracts";
-import { joinNotes, quotesNote } from "@open-agents/domain";
+import { MentionKind, MentionSchema, type Mention } from "@canopy/contracts";
+import { joinNotes, quotesNote } from "@canopy/domain";
 import type { StoredQuote } from "../store/quotes.ts";
 
 /** Validated at enqueue; keep the original text/ranges in storage and add identity only for the model. */

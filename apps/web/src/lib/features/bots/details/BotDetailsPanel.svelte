@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Provider, type bots } from "@open-agents/contracts";
+  import { Provider, type bots } from "@canopy/contracts";
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { modelDisplayName } from "#lib/features/models/catalog.ts";

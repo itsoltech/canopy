@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { AgentToolCallSchema, ItemStatus, Provider, ThreadEventSchema, type AgentToolResult, type ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { AgentBusStore, SteerStore } from "@open-agents/gateway/store";
-import { GatewayCore } from "@open-agents/gateway/core";
-import { startGrpcServer } from "@open-agents/transport";
-import { openGatewayLink } from "@open-agents/worker/gateway-link";
+import { AgentToolCallSchema, ItemStatus, Provider, ThreadEventSchema, type AgentToolResult, type ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { AgentBusStore, SteerStore } from "@canopy/gateway/store";
+import { GatewayCore } from "@canopy/gateway/core";
+import { startGrpcServer } from "@canopy/transport";
+import { openGatewayLink } from "@canopy/worker/gateway-link";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, ScriptedWorker, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";

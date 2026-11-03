@@ -37,15 +37,15 @@ ukrycie w listach/wyszukiwaniu/wzmiankach/agent-bus oraz przywrócenie właściw
 
 Browser: `/usr/bin/chromium`, `playwright-core` z `/tmp/ro-shot/node_modules/playwright-core`.
 Własny throwaway PostgreSQL/gateway/scripted worker, losowy port gateway, web `5298`;
-profile przeglądarki tworzy `@open-agents/testing`. Test zamyka własne procesy i profile.
+profile przeglądarki tworzy `@canopy/testing`. Test zamyka własne procesy i profile.
 Nie używa wspólnego stosu ani sekretów dostawców.
 
 ```bash
 bun run typecheck
 bun run gen:check
 bun run check:tmp
-bun run --filter @open-agents/web build
-OA_BROWSER_TESTS=1 OA_PLAYWRIGHT_MODULE=/tmp/ro-shot/node_modules/playwright-core bun test tests/integration/sidebar-browser.test.ts
+bun run --filter @canopy/web build
+CANOPY_BROWSER_TESTS=1 CANOPY_PLAYWRIGHT_MODULE=/tmp/ro-shot/node_modules/playwright-core bun test tests/integration/sidebar-browser.test.ts
 ```
 
 Scenariusze browser: prawy przycisk, Shift+F10, strzałki, Escape i powrót fokusu, filtr wielu projektów

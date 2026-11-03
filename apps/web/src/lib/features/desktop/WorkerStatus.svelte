@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { DesktopStatus } from "@open-agents/ui/desktop";
+  import type { DesktopStatus } from "@canopy/ui/desktop";
   import type { ClassValue } from "svelte/elements";
   let { status, class: className }: { status: DesktopStatus; class?: ClassValue } = $props();
 </script>

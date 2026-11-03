@@ -13,7 +13,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
-import type { bots } from "@open-agents/contracts";
+import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";
 import {

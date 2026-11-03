@@ -5,8 +5,8 @@
  * replaces the stored one (thread_ready.replaces_provider_thread_id). Gateway on PostgreSQL + scripted workers.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { GoalDirective, InteractionKind, PermissionMode, Provider, ui, type SetGoal, type StartTurn } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { GoalDirective, InteractionKind, PermissionMode, Provider, ui, type SetGoal, type StartTurn } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";

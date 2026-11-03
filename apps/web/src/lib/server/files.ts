@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { INLINE_IMAGE_TYPES } from "@open-agents/domain";
+import { INLINE_IMAGE_TYPES } from "@canopy/domain";
 
 /**
  * Bytes from the gateway to the browser (docs/ui-api.md, "Załączniki"): only raster images the browser renders
@@ -35,7 +35,7 @@ function asciiName(name: string): string {
  * PROTOCOL_HEADER adapter-node assumes https.
  */
 export function requireSameOrigin(request: Request, url: URL): void {
-  if (request.headers.get("x-requested-with") !== "open-agents") error(403, "Missing request header");
+  if (request.headers.get("x-requested-with") !== "canopy") error(403, "Missing request header");
   const origin = request.headers.get("origin");
   let host: string | undefined;
   try {

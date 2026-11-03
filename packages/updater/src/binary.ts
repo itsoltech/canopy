@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, copyFile, lstat, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname } from "node:path";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { compareVersions, releaseFetch, type InstallKind, type ReleaseAsset, type ReleaseSourceOptions } from "./release.ts";
 
 /** The child requests a restart; the resident old supervisor remains the rollback watchdog. */

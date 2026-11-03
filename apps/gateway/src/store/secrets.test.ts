@@ -20,8 +20,8 @@ describe("secrets", () => {
   });
 
   test("master key from the environment must be 32 bytes", () => {
-    expect(() => loadSecretsKey({})).toThrow("OA_SECRETS_KEY is not set");
-    expect(() => loadSecretsKey({ OA_SECRETS_KEY: Buffer.from("short").toString("base64") })).toThrow("32 bytes");
-    expect(loadSecretsKey({ OA_SECRETS_KEY: key.toString("base64") }).equals(key)).toBe(true);
+    expect(() => loadSecretsKey({})).toThrow("CANOPY_SECRETS_KEY is not set");
+    expect(() => loadSecretsKey({ CANOPY_SECRETS_KEY: Buffer.from("short").toString("base64") })).toThrow("32 bytes");
+    expect(loadSecretsKey({ CANOPY_SECRETS_KEY: key.toString("base64") }).equals(key)).toBe(true);
   });
 });

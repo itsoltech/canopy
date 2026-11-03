@@ -61,7 +61,7 @@ export function quoteBlock(quote: NotedQuote): string {
 /**
  * The platform note for a message's quotes, before the user's text:
  *
- *   [open-agents] The user quoted 2 passages of this conversation. Each quote is the exact text they
+ *   [canopy] The user quoted 2 passages of this conversation. Each quote is the exact text they
  *   selected, followed by their comment on it when they wrote one; their message comes after the quotes.
  *
  *   Quote 1, from your message:
@@ -80,7 +80,7 @@ export function quotesNote(quotes: readonly NotedQuote[]): string {
   if (quotes.length === 0) return "";
   const count = quotes.length === 1 ? "a passage" : `${quotes.length} passages`;
   const parts = [
-    `[open-agents] The user quoted ${count} of this conversation. Each quote is the exact text they selected, followed by their comment on it when they wrote one; their message comes after the quotes.`,
+    `[canopy] The user quoted ${count} of this conversation. Each quote is the exact text they selected, followed by their comment on it when they wrote one; their message comes after the quotes.`,
   ];
   quotes.forEach((quote, index) => {
     const kind = quote.sourceKind ?? "";

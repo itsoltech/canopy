@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { ItemStatus } from "@open-agents/contracts";
+  import { ItemStatus } from "@canopy/contracts";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";

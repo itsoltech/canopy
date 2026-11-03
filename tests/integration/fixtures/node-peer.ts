@@ -11,17 +11,17 @@ import { readFileSync } from "node:fs";
 import * as grpc from "@grpc/grpc-js";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 // Type-only: the apps' envelope helpers use Bun APIs, the peer must stay pure Node.
-import type { GatewayPayloadInit } from "@open-agents/gateway/worker-link";
-import type { WorkerPayloadInit } from "@open-agents/worker/gateway-link";
+import type { GatewayPayloadInit } from "@canopy/gateway/worker-link";
+import type { WorkerPayloadInit } from "@canopy/worker/gateway-link";
 import {
   GatewayMessageSchema,
   Provider,
   WorkerMessageSchema,
   type GatewayMessage,
   type WorkerMessage,
-} from "@open-agents/contracts";
+} from "@canopy/contracts";
 
-const CONNECT_PATH = "/openagents.worker.v1.WorkerLinkService/Connect";
+const CONNECT_PATH = "/canopy.worker.v1.WorkerLinkService/Connect";
 const EVENTS = 100;
 
 const definition = {

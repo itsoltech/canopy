@@ -1,5 +1,5 @@
 import { timestampMs } from "@bufbuild/protobuf/wkt";
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 
 /**
  * Where a new thread runs: a project, then one of its workspaces (a directory on a worker the project

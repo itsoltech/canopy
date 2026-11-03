@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import InstanceMark from "./InstanceMark.svelte";

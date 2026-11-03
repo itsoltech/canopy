@@ -1,5 +1,5 @@
 import { parseObject, str } from "#lib/shared/format.ts";
-import type { UserAnswer } from "@open-agents/domain";
+import type { UserAnswer } from "@canopy/domain";
 
 /** A question in a QUESTION interaction (Codex request_user_input shape; Claude maps onto it). */
 export interface Question {

@@ -9,7 +9,7 @@ import {
   type ConfigIssue,
   type ProviderConfig,
   type WorkerConfig,
-} from "@open-agents/contracts";
+} from "@canopy/contracts";
 import {
   ProfileError,
   resolveProfiles,

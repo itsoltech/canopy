@@ -1,7 +1,7 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ui, type ThreadSecretDelivery, type ThreadSecretReceipt } from "@open-agents/contracts";
-import type { AgentBusArgs } from "@open-agents/domain";
+import { ui, type ThreadSecretDelivery, type ThreadSecretReceipt } from "@canopy/contracts";
+import type { AgentBusArgs } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import type { CallSource } from "./agent-bus.ts";
@@ -112,7 +112,7 @@ export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): Threa
       const rows = yield* sql<ThreadSecretRow>`SELECT s.*, t.cwd AS worker_cwd FROM thread_secrets s JOIN threads t ON t.id = s.thread_id
         WHERE t.worker_id = ${workerId}::uuid AND s.revision > s.applied_revision ORDER BY s.created_at`;
       return rows.map((r) => ({
-        $typeName: "openagents.worker.v1.ThreadSecretDelivery" as const,
+        $typeName: "canopy.worker.v1.ThreadSecretDelivery" as const,
         requestId: r.id, threadId: r.thread_id, revision: r.revision,
         cwd: r.worker_cwd ?? "",
         value: r.status === "saved" && r.ciphertext && r.expires_at && new Date(r.expires_at).getTime() > Date.now() ? decryptSecret(key, r.ciphertext) : "",

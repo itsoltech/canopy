@@ -1,31 +1,31 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { Provider, PermissionMode } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { tempDirs } from "@open-agents/testing";
-import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { Provider, PermissionMode } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
+import { tempDirs } from "@canopy/testing";
+import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { answers, startTestGateway, watchUntil } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 // Private card delivery is optional; the file stays outside the repo and its contents are never logged.
-const privateFile = process.env["OA_LIVE_PROXY_FILE"];
-const privateUrlFile = process.env["OA_LIVE_PROXY_URL_FILE"];
-const privateKeyFile = process.env["OA_LIVE_PROXY_KEY_FILE"];
+const privateFile = process.env["CANOPY_LIVE_PROXY_FILE"];
+const privateUrlFile = process.env["CANOPY_LIVE_PROXY_URL_FILE"];
+const privateKeyFile = process.env["CANOPY_LIVE_PROXY_KEY_FILE"];
 const connection: { url?: string; key?: string } = privateFile ? await Bun.file(privateFile).json().catch(() => {
   throw new Error("Private proxy file must contain JSON with url and key; contents suppressed");
 }) : {};
-const proxyUrl = privateUrlFile ? (await Bun.file(privateUrlFile).text()).trim() : connection.url ?? process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = privateKeyFile ? (await Bun.file(privateKeyFile).text()).trim() : connection.key ?? process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-if (process.env["OA_LIVE"] === "1" && (typeof proxyUrl !== "string" || !proxyUrl || typeof proxyKey !== "string" || !proxyKey || !dockerAvailable)) {
+const proxyUrl = privateUrlFile ? (await Bun.file(privateUrlFile).text()).trim() : connection.url ?? process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = privateKeyFile ? (await Bun.file(privateKeyFile).text()).trim() : connection.key ?? process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+if (process.env["CANOPY_LIVE"] === "1" && (typeof proxyUrl !== "string" || !proxyUrl || typeof proxyKey !== "string" || !proxyKey || !dockerAvailable)) {
   throw new Error("Live scratch verification requires private proxy credentials and Docker; refusing to silently skip it");
 }
 
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)("no-project real worker through CLIProxyAPI", () => {
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)("no-project real worker through CLIProxyAPI", () => {
   const makeTemp = tempDirs();
   test("CreateThread creates a scratch directory and the agent's pwd is that directory", async () => {
     const gw = await startTestGateway();
@@ -47,7 +47,7 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !doc
       const workspace = project.workspaces.find((w) => w.workerId === worker.workerId)!;
       expect(existsSync(workspace.rootPath)).toBe(false);
       const thread = (await gw.api.createThread({ projectId: project.id, workspaceId: workspace.id, provider: Provider.CODEX,
-        providerProfileId: "cliproxyapi", model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol", permissionMode: PermissionMode.READ_ONLY,
+        providerProfileId: "cliproxyapi", model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol", permissionMode: PermissionMode.READ_ONLY,
         initialMessage: "Run pwd using your shell tool. Reply with only the absolute path printed by pwd. Do not change directories.",
       })).thread!;
       const updates = await watchUntil(gw.api, thread.id, (list) => list.some((u) =>

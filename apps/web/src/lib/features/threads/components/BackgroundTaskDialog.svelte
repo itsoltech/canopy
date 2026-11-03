@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus, type Item } from "@open-agents/contracts";
+  import { ItemStatus, type Item } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { formatBytes, formatSpan } from "#lib/shared/format.ts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";

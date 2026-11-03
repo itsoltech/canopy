@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Provider, type GenerateText } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
+import { Provider, type GenerateText } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("thread titles through the worker link", () => {

@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { loadJson } from "#lib/shared/load-json.ts";
 import { decode } from "#lib/shared/wire.ts";
 import type { PageLoad } from "./$types";

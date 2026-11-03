@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import type { MessageNote } from "./items/UserMessageView.svelte";
 
 /** A message that joined the turn while the agent worked (delivered steer). */

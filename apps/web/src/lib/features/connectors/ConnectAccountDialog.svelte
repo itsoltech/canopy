@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { connectors } from "@open-agents/contracts";
+  import { connectors } from "@canopy/contracts";
   import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { page } from "$app/state";

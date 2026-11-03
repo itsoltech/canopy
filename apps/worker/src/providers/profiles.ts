@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { Provider, ProviderProfileKind, type ProviderProfileSchema } from "@open-agents/contracts";
-import { envListProblems } from "@open-agents/domain";
+import { Provider, ProviderProfileKind, type ProviderProfileSchema } from "@canopy/contracts";
+import { envListProblems } from "@canopy/domain";
 
 /**
  * Provider profiles come from the remote worker configuration (WorkerConfig.profiles, docs/worker-config.md).

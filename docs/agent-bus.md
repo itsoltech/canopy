@@ -161,7 +161,7 @@ Agent może napisać do **dowolnego wątku tego samego właściciela**, jak czł
 - Znalezienie celu: `list_threads` z `scope: "all"` (wszystkie niezarchiwizowane wątki właściciela, najnowsza aktywność najpierw; `query` dopasowuje tytuł rozmyto jak `SearchThreads`, `limit` do 50; każdy z `project`, `worker`, `provider`), albo wątek wspomniany przez użytkownika (`#`).
 - `wait_threads` i **sterowanie** (`interrupt_thread`, `close_thread`, `answer_interaction`, harmonogramy innych) bez zmian: tylko drzewo / potomkowie.
 - **Przeskoki** działają między drzewami: tura celu ma `hops` wywołującego + 1, odpowiedź (`notify`, domyślnie włączone) + 1 dalej; limit zatrzymuje dwa agenty piszące do siebie w kółko.
-- Notatka dla modelu celu spoza drzewa: `[open-agents] Message from the thread "<tytuł>" (thread_id: …), an agent outside your thread tree; your final message of this turn is reported back to it:` (część o odpowiedzi tylko z `notify`); w drzewie bez zmian.
+- Notatka dla modelu celu spoza drzewa: `[canopy] Message from the thread "<tytuł>" (thread_id: …), an agent outside your thread tree; your final message of this turn is reported back to it:` (część o odpowiedzi tylko z `notify`); w drzewie bez zmian.
 - Worker mówi tylko za swoje wątki: wywołanie szyny z `thread_id` wątku innego workera jest odrzucane (`thread … not found`), bo wiadomość może teraz dotrzeć na inny worker.
 
 **Oznaczenie nadawcy** (UI): tura od agenta (`source_kind` `task` / `message` / `report`) i steer agenta mają `sender` (`AgentSender`: wątek nadawcy, tytuł, dostawca, instancja, model tury, która wysłała, projekt, worker; widok `turn_sources` z migracji `0023` i zapytanie steerów). Dymek jest fioletowy (fiolet = od agenta) z linią „Message from ‹wątek› ‹znak dostawcy› model · N hops” prowadzącą do nadawcy (`AgentSenderLabel`); tak samo zadanie subagenta, raport i steer agenta (dostarczony: tylko jego treść, bez notatki platformy).
@@ -190,7 +190,7 @@ Panel kolejki nad kompozytorem pokazuje wyłącznie wiadomości użytkownika (`t
 
 ### Pytania platformy: ask_user i get_answers
 
-Osobna definicja `packages/domain/src/agent-bus/questions.ts` jest źródłem schematów i opisów obu harnessów (Claude `mcp__openagents__ask_user`, Codex dynamiczne `ask_user`). `questions` zawiera 1–4 pytania: unikalne `id`, krótki `header` (do 32 znaków), `question`, `kind` (`single_choice`, `multiple_choice`, `text`), opcjonalne `options` (1–9, `label` i opcjonalne `description`) oraz `recommended` (etykieta jednej opcji). Rekomendacja nie zaznacza opcji za użytkownika. Własny tekst jest dozwolony przy każdym rodzaju pytania.
+Osobna definicja `packages/domain/src/agent-bus/questions.ts` jest źródłem schematów i opisów obu harnessów (Claude `mcp__canopy__ask_user`, Codex dynamiczne `ask_user`). `questions` zawiera 1–4 pytania: unikalne `id`, krótki `header` (do 32 znaków), `question`, `kind` (`single_choice`, `multiple_choice`, `text`), opcjonalne `options` (1–9, `label` i opcjonalne `description`) oraz `recommended` (etykieta jednej opcji). Rekomendacja nie zaznacza opcji za użytkownika. Własny tekst jest dozwolony przy każdym rodzaju pytania.
 
 `ask_user({questions, wait: false})` od razu zwraca `question_set_id` i `status: pending`. `get_answers({question_set_id, wait?})` odczytuje stan. Odpowiedź zawiera `status: answered | dismissed` i uporządkowaną listę `answers`; każdy element ma `id` i jedną z postaci:
 
@@ -206,7 +206,7 @@ To trzy osobne przykłady elementów tablicy. `dismissed` oznacza odrzucenie ca�
 
 **Synchronicznie:** `wait: true` trzyma wywołanie najwyżej 120 s. Przy `pending` opis narzędzia i wynik nakazują ponawiać `get_answers({question_set_id, wait: true})` bez wykonywania dalszej pracy. Zestaw nie wygasa po tych 120 s, zakończeniu tury ani restarcie. Jest to odnawialny wait, jak `wait_threads`; po zwróceniu `pending` platforma nie blokuje technicznie innych narzędzi modelu. Po awarii odpowiedź wznawia pracę jako nowa tura, jeśli nie ma już oczekującego wywołania.
 
-**Dowody wyboru (2026-11-02):** przypięty Claude Agent SDK **0.3.316**, `createSdkMcpServer.timeout` (`sdk.d.ts`), opisuje twardy limit wall-clock, którego progress nie przedłuża. Produkcyjny serwer szyny ma 330000 ms. `apps/worker/src/providers/claude/tool-timeout.live.test.ts` potwierdził przez CLIProxyAPI, że limit 1000 ms przerywa odpowiedź handlera trwającego 2500 ms. W przypiętym Codex **0.164.0** [`request_dynamic_tool`](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/dynamic.rs) czeka na `rx_response.or_cancel(...)` bez lokalnego timera. Test live Codexa z `OA_ASK_LONG_WAIT=1` podał odpowiedź po 123 s: model odnowił wait przez `get_answers` i wykorzystał odpowiedź. Nie zakładamy bezterminowości pozostałych warstw transportu.
+**Dowody wyboru (2026-11-02):** przypięty Claude Agent SDK **0.3.316**, `createSdkMcpServer.timeout` (`sdk.d.ts`), opisuje twardy limit wall-clock, którego progress nie przedłuża. Produkcyjny serwer szyny ma 330000 ms. `apps/worker/src/providers/claude/tool-timeout.live.test.ts` potwierdził przez CLIProxyAPI, że limit 1000 ms przerywa odpowiedź handlera trwającego 2500 ms. W przypiętym Codex **0.164.0** [`request_dynamic_tool`](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/dynamic.rs) czeka na `rx_response.or_cancel(...)` bez lokalnego timera. Test live Codexa z `CANOPY_ASK_LONG_WAIT=1` podał odpowiedź po 123 s: model odnowił wait przez `get_answers` i wykorzystał odpowiedź. Nie zakładamy bezterminowości pozostałych warstw transportu.
 
 **Asynchronicznie:** zapis odpowiedzi tworzy trwały outbox. Gdy trwa tura, gateway zapisuje `turn_steers` i komendę workera w jednej transakcji. Odmowa lub upuszczenie steera uruchamia istniejący fallback kolejki. Gdy tury już nie ma, odpowiedź zaczyna nową turę `agent_bus`. W obu przypadkach `hops` = `hops` tury pytającej + 1; odpowiedź człowieka nie zeruje tego łańcucha.
 
@@ -357,7 +357,7 @@ Potwierdzone na żywo 2026-11-02 (`agent-bus-notify.live.test.ts`, Codex `gpt-6.
 
 ## 9. Udostępnienie narzędzi dostawcom
 
-- **Claude:** serwer MCP w procesie workera (`createSdkMcpServer`, nazwy `mcp__openagents__*`) z `timeout` większym niż maksymalne `wait_threads`.
+- **Claude:** serwer MCP w procesie workera (`createSdkMcpServer`, nazwy `mcp__canopy__*`) z `timeout` większym niż maksymalne `wait_threads`.
 - **Codex:** `thread/start { dynamicTools }` ze specyfikacji `agentBusToolSpecs(agentBusToolsFor(depth))`. Pole jest eksperymentalne; plan B to lokalny serwer MCP.
   - `thread/resume` i `thread/fork` nie przyjmują `dynamicTools`. Codex trzyma narzędzia z wątkiem: działają po wznowieniu w nowym procesie i w forkach (sprawdzone na żywo).
   - Skutek: wątek boczny utworzony forkiem wątku głównego widzi też narzędzia orkiestratora (`spawn_thread` itd.). Gateway i tak odrzuca je według poziomu wywołującego (`authorizeBusCall`).
@@ -368,8 +368,8 @@ Potwierdzone na żywo 2026-11-02 (`agent-bus-notify.live.test.ts`, Codex `gpt-6.
 
 Narzędzie platformy, które worker wykonuje sam (nie jest wywołaniem szyny, nie trafia do gateway ani do `agent_bus_calls`). Dostaje je każdy wątek workera, także bez szyny:
 
-- **Claude:** `mcp__openagents__view_image` w tym samym serwerze MCP co szyna, w `allowedTools` (każdy tryb uprawnień).
-- **Codex:** narzędzie dynamiczne w przestrzeni nazw `openagents` (`view_image`), bo Codex ma wbudowane narzędzie o tej nazwie. Jak szyna: tylko w `thread/start`, więc wątki utworzone przed tą zmianą go nie mają (mają natywne `view_image` Codexa). Na żywo model wywołał je przez tryb kodu (`tools.view_image(...)`).
+- **Claude:** `mcp__canopy__view_image` w tym samym serwerze MCP co szyna, w `allowedTools` (każdy tryb uprawnień).
+- **Codex:** narzędzie dynamiczne w przestrzeni nazw `canopy` (dawniej `openagents`; starsze wątki Codexa ją zachowują) (`view_image`), bo Codex ma wbudowane narzędzie o tej nazwie. Jak szyna: tylko w `thread/start`, więc wątki utworzone przed tą zmianą go nie mają (mają natywne `view_image` Codexa). Na żywo model wywołał je przez tryb kodu (`tools.view_image(...)`).
 - Argument `path`: ścieżka absolutna albo względna do `cwd` wątku. Ścieżka jest rozwiązywana (`realpath`, także dowiązania) i musi leżeć w `cwd` wątku albo w jego katalogu załączników; plik najwyżej 50 MB.
 - Wynik: obraz (Claude: treść MCP `image`; Codex: `inputImage` z adresem `data:`) i linijka z wymiarami. Obraz jest obrócony według EXIF, bez metadanych, zmniejszony do 2000 px dłuższego boku i do ~3,75 MB (PNG dla przezroczystości, inaczej JPEG; mniejsze rozmiary, aż się zmieści), więc działa dla każdego modelu niezależnie od jego limitów. Czyta PNG, JPEG, GIF (pierwsza klatka), WebP, AVIF, TIFF; HEIC tylko tam, gdzie libvips go dekoduje.
 - Błąd (poza katalogami, brak pliku, nie obraz) wraca do modelu jako błąd narzędzia z powodem.

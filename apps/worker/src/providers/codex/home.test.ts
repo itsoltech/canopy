@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { lstatSync, mkdirSync, mkdtempSync, readlinkSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tempDir } from "@open-agents/testing";
+import { tempDir } from "@canopy/testing";
 import { deviceCodexHome, prepareCodexHome } from "./home.ts";
 
 const base = tempDir("oa-codex-home-test-");

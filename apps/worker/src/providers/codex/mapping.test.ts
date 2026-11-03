@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import type { ServerNotification } from "@open-agents/codex-protocol";
+import type { ServerNotification } from "@canopy/codex-protocol";
 import {
   ItemStatus,
   NoticeLevel,
@@ -12,8 +12,8 @@ import {
   TurnOutcome,
   type Item,
   type ThreadEvent,
-} from "@open-agents/contracts";
-import { eventItemId, reduceItem } from "@open-agents/domain";
+} from "@canopy/contracts";
+import { eventItemId, reduceItem } from "@canopy/domain";
 import { CodexEventMapper, mapItem } from "./mapping.ts";
 
 /** Recorded live streams (Codex 0.164.0), scrubbed of local paths and moderation metadata. */

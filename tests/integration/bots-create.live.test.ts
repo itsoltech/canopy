@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { bots, Provider } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { bots, Provider } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { useLiveProxy } from "./support/live.ts";
 
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailable)("bot creation through live CLIProxyAPI", () => {
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAvailable)("bot creation through live CLIProxyAPI", () => {
   let gw: TestGateway;
   beforeAll(async () => {
     gw = await startTestGateway();

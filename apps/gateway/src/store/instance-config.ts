@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ModelInfoSchema, ProfileModelsSchema, Provider, ui, type ProfileModels } from "@open-agents/contracts";
+import { ModelInfoSchema, ProfileModelsSchema, Provider, ui, type ProfileModels } from "@canopy/contracts";
 
 /**
  * Global provider instances, the pure part (docs/worker-config.md, section 9): what a worker gets is the

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Mention } from "@open-agents/contracts";
+  import type { Mention } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import type { Snippet } from "svelte";
   import {

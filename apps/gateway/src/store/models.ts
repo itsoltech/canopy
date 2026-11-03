@@ -1,6 +1,6 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ProfileModelsSchema, Provider, ui, type ModelInfo, type ProfileModels } from "@open-agents/contracts";
+import { ProfileModelsSchema, Provider, ui, type ModelInfo, type ProfileModels } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 
@@ -23,7 +23,7 @@ export class ModelStore extends Context.Service<
     /** Catalogs of the given workers (all workers when empty). */
     catalogs(workerIds: readonly string[]): Effect.Effect<ui.WorkerModels[], SqlError.SqlError>;
   }
->()("open-agents/gateway/ModelStore") {
+>()("canopy/gateway/ModelStore") {
   static readonly layer = Layer.effect(
     ModelStore,
     Effect.gen(function* () {

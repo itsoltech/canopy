@@ -1,5 +1,5 @@
-import type { ui } from "@open-agents/contracts";
-import type { UserAnswer } from "@open-agents/domain";
+import type { ui } from "@canopy/contracts";
+import type { UserAnswer } from "@canopy/domain";
 import { answerInteraction } from "../../api.ts";
 import { currentAnswer, encodeAnswers, parseQuestions } from "./questions.ts";
 

@@ -39,12 +39,12 @@ describe.skipIf(true)("a skipped describe", () => {
 });
 
 test("an interrupted run leaves nothing behind either", async () => {
-  if (process.env["OA_SCOPE_HANG"] !== "1") return;
+  if (process.env["CANOPY_SCOPE_HANG"] !== "1") return;
   console.log(`hanging with ${tmp("oa-scope-hanging-")}`);
   await Bun.sleep(60_000);
 }, 70_000);
 
 test("a failing test still leaves nothing behind", () => {
   tmp("oa-scope-failing-");
-  expect(process.env["OA_SCOPE_FAIL"]).toBeUndefined();
+  expect(process.env["CANOPY_SCOPE_FAIL"]).toBeUndefined();
 });

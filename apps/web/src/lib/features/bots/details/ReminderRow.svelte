@@ -1,6 +1,6 @@
 <script lang="ts">
   import { timestampDate } from "@bufbuild/protobuf/wkt";
-  import type { bots } from "@open-agents/contracts";
+  import type { bots } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   let { reminder, busy = false, oncancel, class: className }: { reminder: bots.BotReminder; busy?: boolean; oncancel: () => void; class?: ClassValue } = $props();

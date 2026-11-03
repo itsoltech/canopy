@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { connectors, type ConnectorTool } from "@open-agents/contracts";
+  import { connectors, type ConnectorTool } from "@canopy/contracts";
   import { untrack } from "svelte";
   import { timestampMs } from "@bufbuild/protobuf/wkt";
   import type { ClassValue } from "svelte/elements";

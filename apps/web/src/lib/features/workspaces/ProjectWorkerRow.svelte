@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { workerStatus } from "#lib/features/overview/workers.ts";
   import Button from "#lib/shared/ui/Button.svelte";

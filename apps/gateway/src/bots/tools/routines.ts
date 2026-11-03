@@ -1,4 +1,4 @@
-import { bots } from "@open-agents/contracts";
+import { bots } from "@canopy/contracts";
 import { Effect } from "effect";
 import { BotStore } from "../store.ts";
 import type { RoutinePatch } from "../routines.ts";

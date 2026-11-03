@@ -6,9 +6,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { create } from "@bufbuild/protobuf";
-import { InteractionKind, NoticeLevel, PermissionMode, Provider, TurnOrigin, TurnOutcome, ui } from "@open-agents/contracts";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { InteractionKind, NoticeLevel, PermissionMode, Provider, TurnOrigin, TurnOutcome, ui } from "@canopy/contracts";
+import { GatewayStore } from "@canopy/gateway/store";
+import { dockerAvailable } from "@canopy/db/testing";
 import { answers, eventually, failure, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;
@@ -42,7 +42,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     const workerId = (await api.getOverview({})).workers[0]!.id;
     const listing = await api.listDirectory({ workerId, path: "/repo" });
     expect(listing.entries.map((e) => e.name)).toEqual(["repo-a"]);
-    projectId = (await api.createProject({ name: "Open Agents" })).project!.id;
+    projectId = (await api.createProject({ name: "Canopy" })).project!.id;
     workspaceId = (await api.createWorkspace({ projectId, workerId, rootPath: "/repo/repo-a", label: "laptop" })).workspace!.id;
     const project = (await api.getOverview({})).projects.find((p) => p.id === projectId);
     expect(project?.workspaces.map((w) => w.rootPath)).toEqual(["/repo/repo-a"]);
@@ -372,7 +372,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     ).toContain("one model per provider");
     expect(await failure(api.updateUserSettings({ threadDefaults: { workspaceId: Bun.randomUUIDv7() }, expectedVersion: 2n }))).toContain("workspace not found");
 
-    // The sidebar width is held within its limits (220…560 px, @open-agents/domain); 0 stays "default".
+    // The sidebar width is held within its limits (220…560 px, @canopy/domain); 0 stays "default".
     const look = { colorScheme: ui.ColorScheme.DARK, accent: ui.AccentTheme.GROVE, chatWidth: ui.ChatWidth.WIDE };
     const narrow = (await api.updateUserSettings({ appearance: { ...look, sidebarWidth: 40 }, expectedVersion: 2n })).settings!;
     expect([narrow.appearance?.sidebarWidth, narrow.appearance?.accent]).toEqual([220, ui.AccentTheme.GROVE]);

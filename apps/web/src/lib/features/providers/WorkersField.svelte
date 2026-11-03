@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Fieldset from "#lib/shared/ui/Fieldset.svelte";
 

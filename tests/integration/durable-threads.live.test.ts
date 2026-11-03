@@ -5,25 +5,25 @@
  * data dir, the turn's final state must match what the harness wrote in its own transcript (Codex rollout, Claude
  * session JSONL), nothing of it may stay open, and the thread must take the next message (the harness session is
  * resumed with its context).
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { tempDir } from "@open-agents/testing";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
+import { tempDir } from "@canopy/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 import { useLiveProxy } from "./support/live.ts";
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const codexModel = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-const claudeModel = process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const codexModel = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const claudeModel = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
 const MINUTE = 60_000;
 const WORKER_MAIN = join(import.meta.dir, "../../apps/worker/src/main.ts");
 
@@ -81,7 +81,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker kil
   /** A worker process like the dev stack runs it (its config file, its data dir); waits until it is configured. */
   const startWorker = async () => {
     const proc = Bun.spawn(["bun", WORKER_MAIN], {
-      env: { ...process.env, OA_WORKER_CONFIG: join(dir, "worker.json") },
+      env: { ...process.env, CANOPY_WORKER_CONFIG: join(dir, "worker.json") },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -134,7 +134,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker kil
       }
     }
     await gw?.close();
-    if (process.env["OA_TEST_LOG"] === "1") console.error(logs.join(""));
+    if (process.env["CANOPY_TEST_LOG"] === "1") console.error(logs.join(""));
   });
 
   const newThread = async (title: string, provider: Provider, model: string) => {

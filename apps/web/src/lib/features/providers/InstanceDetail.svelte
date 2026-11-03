@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { Provider, ProviderProfileKind, type ui } from "@open-agents/contracts";
+  import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";

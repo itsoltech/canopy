@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { MentionKind } from "@open-agents/contracts";
+  import { MentionKind } from "@canopy/contracts";
   import ConnectorChip from "#lib/features/connectors/ConnectorChip.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";

@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, Provider, type Mention } from "@open-agents/contracts";
+import { MentionKind, MentionSchema, Provider, type Mention } from "@canopy/contracts";
 
 /**
  * Mentions in a message (docs/ui-api.md, "Wzmianki"; docs/protocol.md, "Wzmianki"): commands, skills, plugins, files
@@ -191,21 +191,21 @@ function mentionNotes(provider: Provider, mentions: readonly Mention[], invoked:
   const threads = mentions.filter((m) => m.kind === MentionKind.THREAD);
   if (threads.length > 0) {
     lines.push(
-      `[open-agents] The user mentioned ${threads.length === 1 ? "another thread" : `${threads.length} other threads`}; read ${threads.length === 1 ? "it" : "them"} with get_thread / read_thread when you need ${threads.length === 1 ? "it" : "them"}:`,
+      `[canopy] The user mentioned ${threads.length === 1 ? "another thread" : `${threads.length} other threads`}; read ${threads.length === 1 ? "it" : "them"} with get_thread / read_thread when you need ${threads.length === 1 ? "it" : "them"}:`,
       ...unique(threads).map((m) => `- "${mentionLabel(m)}" (thread_id: ${m.name})`),
     );
   }
   if (provider !== Provider.CLAUDE) return lines;
   const named = mentions.filter((m) => m.kind === MentionKind.SKILL && !(invoked && m.start === invoked.start));
   if (named.length > 0) {
-    lines.push(`[open-agents] The user picked ${named.length === 1 ? "a skill" : "skills"} for this message; use ${named.length === 1 ? "it" : "each"} with the Skill tool: ${unique(named).map((m) => m.name).join(", ")}`);
+    lines.push(`[canopy] The user picked ${named.length === 1 ? "a skill" : "skills"} for this message; use ${named.length === 1 ? "it" : "each"} with the Skill tool: ${unique(named).map((m) => m.name).join(", ")}`);
   }
   const plugins = mentions.filter((m) => m.kind === MentionKind.PLUGIN);
-  if (plugins.length > 0) lines.push(`[open-agents] The user mentioned ${plugins.length === 1 ? "a plugin" : "plugins"}; prefer its tools and skills: ${unique(plugins).map((m) => m.name).join(", ")}`);
+  if (plugins.length > 0) lines.push(`[canopy] The user mentioned ${plugins.length === 1 ? "a plugin" : "plugins"}; prefer its tools and skills: ${unique(plugins).map((m) => m.name).join(", ")}`);
   const files = mentions.filter((m) => m.kind === MentionKind.FILE);
   if (files.length > 0) {
     lines.push(
-      `[open-agents] The user mentioned ${files.length === 1 ? "a path" : "paths"} in this thread's folder:`,
+      `[canopy] The user mentioned ${files.length === 1 ? "a path" : "paths"} in this thread's folder:`,
       ...unique(files).map((m) => `- ${m.path || m.name}${m.isDir ? " (directory)" : ""}`),
     );
   }

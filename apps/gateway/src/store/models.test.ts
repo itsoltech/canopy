@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { ProfileModelsSchema, Provider } from "@open-agents/contracts";
+import { ProfileModelsSchema, Provider } from "@canopy/contracts";
 import { modelProblem, turnEffort } from "./models.ts";
 
 const catalog = create(ProfileModelsSchema, {

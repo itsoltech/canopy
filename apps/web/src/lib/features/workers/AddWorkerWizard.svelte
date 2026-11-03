@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import Button from "#lib/shared/ui/Button.svelte";

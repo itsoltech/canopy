@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
-import { ItemSchema, ui } from "@open-agents/contracts";
-import { decodeUserAnswers, type UserAnswer, type UserQuestion } from "@open-agents/domain";
+import { ItemSchema, ui } from "@canopy/contracts";
+import { decodeUserAnswers, type UserAnswer, type UserQuestion } from "@canopy/domain";
 import { Result } from "effect";
 import { GatewayStore, Invalid, NotFound } from "../../store/store.ts";
 import { define, bool, json, label, object, permission, permissionSchema, str, strings, type PlatformTool, type ToolContext } from "./shared.ts";

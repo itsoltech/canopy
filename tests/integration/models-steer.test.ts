@@ -4,8 +4,8 @@
  * the catalog) that StartTurn carries, and a message can join the running turn (steer) or fall back to the queue.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { PermissionMode, Provider, ui, type AgentToolResult } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { PermissionMode, Provider, ui, type AgentToolResult } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
@@ -234,7 +234,7 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
     expect(json(sent)).toMatchObject({ thread_id: sideId, turn_id: sideTurn!.id, delivery: "steer" });
     await eventually(() => steers(sideId), (s) => s[0]?.status === "delivered");
     const steered = [...gw.worker.steered.values()].at(-1)!;
-    expect(steered).toContain(`[open-agents] Message from the thread "orchestrator" (thread_id: ${main.id}):`);
+    expect(steered).toContain(`[canopy] Message from the thread "orchestrator" (thread_id: ${main.id}):`);
     expect(steered).toContain("focus on tests");
 
     // One report for the spawn and the steer: both target the side thread's running turn.

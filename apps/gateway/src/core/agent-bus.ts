@@ -1,5 +1,5 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
-import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } from "@open-agents/contracts";
+import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } from "@canopy/contracts";
 import {
   agentCatalog,
   authorizeBusCall,
@@ -12,7 +12,7 @@ import {
   type SpawnInstance,
   type SpawnResolution,
   type SpawnTarget,
-} from "@open-agents/domain";
+} from "@canopy/domain";
 import { Result, type Effect } from "effect";
 import { AgentBusStore, GatewayStore, truncate, type CallSource, type ThreadRow, type TurnRow } from "../store/index.ts";
 import { cronProblem, nextCronRun } from "./cron.ts";
@@ -140,7 +140,7 @@ export class AgentBus {
     for (const { call, target, turnStatus, lastMessage } of due) {
       const label = target.kind === "side" ? "side thread" : "thread";
       const input = {
-        note: `[open-agents] The ${label} "${target.title}" (thread_id: ${target.id}) finished a turn: ${turnStatus}. Its last message:`,
+        note: `[canopy] The ${label} "${target.title}" (thread_id: ${target.id}) finished a turn: ${turnStatus}. Its last message:`,
         message: truncate(lastMessage, 20_000) || "(no message)",
       };
       const delivery = await this.#host.run(AgentBusStore.use((s) => s.deliverNotification(call.id, input)));
@@ -174,7 +174,7 @@ export class AgentBus {
             // All of it is the platform's; the UI shows the question from the turn's structured source.
             return {
               note:
-                `[open-agents] Your side thread "${thread.title}" (thread_id: ${thread.id}) is waiting for your answer.\n` +
+                `[canopy] Your side thread "${thread.title}" (thread_id: ${thread.id}) is waiting for your answer.\n` +
                 `request_id: ${interaction.requestId}\nkind: ${kind}\ntool: ${interaction.toolName}\n` +
                 `request: ${truncate(interaction.requestJson, 4_000)}\n\n` +
                 `Answer with ${how}. The user can answer in the UI instead.`,

@@ -7,9 +7,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import type { Client } from "@connectrpc/connect";
-import { ItemStatus, Provider, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { AttachmentStore, GatewayStore } from "@open-agents/gateway/store";
+import { ItemStatus, Provider, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { AttachmentStore, GatewayStore } from "@canopy/gateway/store";
 import sharp from "sharp";
 import { eventually, failure, SCRIPTED_ATTACHMENTS_ROOT, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
@@ -113,7 +113,7 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
       const shotPath = `${SCRIPTED_ATTACHMENTS_ROOT}/${thread.id}/${shot.id}/screen shot.png`;
       const notesPath = `${SCRIPTED_ATTACHMENTS_ROOT}/${thread.id}/${notes.id}/notes.md`;
       expect(turn.messageText).toBe("What is in these?");
-      expect(turn.platformNote).toStartWith("[open-agents] The user attached 2 files");
+      expect(turn.platformNote).toStartWith("[canopy] The user attached 2 files");
       expect(turn.platformNote).toContain(`- ${shotPath} (image/png,`);
       expect(turn.platformNote).toContain("30×10 px");
       expect(turn.platformNote).toContain(`- ${notesPath} (text/markdown, 13 B)`);

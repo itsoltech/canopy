@@ -1,4 +1,4 @@
-import type { QuoteSourceKind } from "@open-agents/domain";
+import type { QuoteSourceKind } from "@canopy/domain";
 
 /** A quote waiting in a thread's composer draft (sent as SendMessage.quotes). */
 export interface QuoteDraft {

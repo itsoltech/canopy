@@ -1,6 +1,6 @@
 import { error, json } from "@sveltejs/kit";
 import { Schema } from "effect";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { readBody } from "#lib/server/body.ts";
 import { gateway } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";

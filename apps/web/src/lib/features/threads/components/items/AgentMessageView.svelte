@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AgentMessage } from "@open-agents/contracts";
+  import type { AgentMessage } from "@canopy/contracts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
 
   /** Agent text as markdown. Commentary (thinking aloud while working) is quieter than answers. */

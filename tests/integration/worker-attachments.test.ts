@@ -7,12 +7,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PermissionMode, Provider } from "@open-agents/contracts";
-import type { WorkerConnection } from "@open-agents/gateway/worker-link";
-import { tempDir } from "@open-agents/testing";
-import { journalHello } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { PermissionMode, Provider } from "@canopy/contracts";
+import type { WorkerConnection } from "@canopy/gateway/worker-link";
+import { tempDir } from "@canopy/testing";
+import { journalHello } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 

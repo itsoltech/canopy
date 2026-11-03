@@ -16,8 +16,8 @@ import {
   TurnOutcome,
   ui,
   type SetGoal,
-} from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+} from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { eventually, failure, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;

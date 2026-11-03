@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { call } from "./gateway.ts";
 
 let cached: ui.AppearanceSettings | undefined;

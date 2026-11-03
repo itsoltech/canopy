@@ -48,10 +48,10 @@ Zrzuty są poza śledzonym kodem, w `artifacts/custom-form-controls/`. Dla każd
 bun install
 bun run typecheck
 bun run check:tmp
-bun run --filter @open-agents/web build
-OA_FORM_BROWSER=1 bun test tests/integration/custom-form-controls.browser.test.ts
-OA_SCHEDULE_BROWSER=1 OA_SCHEDULE_BROWSER_PORT=5321 bun test tests/integration/schedules.browser.test.ts
-OA_SCHEDULE_EDIT_BROWSER=1 bun test tests/integration/schedules-edit.browser.test.ts
+bun run --filter @canopy/web build
+CANOPY_FORM_BROWSER=1 bun test tests/integration/custom-form-controls.browser.test.ts
+CANOPY_SCHEDULE_BROWSER=1 CANOPY_SCHEDULE_BROWSER_PORT=5321 bun test tests/integration/schedules.browser.test.ts
+CANOPY_SCHEDULE_EDIT_BROWSER=1 bun test tests/integration/schedules-edit.browser.test.ts
 ```
 
 Commity implementacji: `f27a2f3` (Select i migracja), `6aabcd3` (date/time/number/choice), `5f06a60` (componentize, dostępność i testy Chromium), `1044ede` (widoczna stopka pickera, semantyka dostępności i integracja testów edycji), `6b9122a` (reset typeahead). Końcowy commit dokumentacji jest podany w raporcie rozmowy. Scalenia: `93072c0` (composer), `93d9df9` (markdown previews, main do `4b36e34`), `535e829` (edycja harmonogramów, main do `2fadf83`), `dc49421` (mobilne sugestie composera, main do `07d7f19`).

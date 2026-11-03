@@ -1,28 +1,28 @@
 /**
- * Live (OA_LIVE=1): a Claude bot created the way the wizard does it, with the instance's default model, replies
+ * Live (CANOPY_LIVE=1): a Claude bot created the way the wizard does it, with the instance's default model, replies
  * through CLIProxyAPI. The worker's real Claude catalog names that model `default` (a Claude Code alias the
  * Messages API refuses); CreateBot stores the concrete model it resolves to (the wizard offers that one too), and a
  * bot saved earlier with the alias is resolved at runtime.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { Provider } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { tempDirs } from "@open-agents/testing";
-import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { Provider } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
+import { tempDirs } from "@canopy/testing";
+import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailable)("a wizard-made Claude bot with the default model replies through live CLIProxyAPI", () => {
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAvailable)("a wizard-made Claude bot with the default model replies through live CLIProxyAPI", () => {
   let gw: TestGateway;
   let stopWorker = async () => {};
   const state = tempDir("oa-bots-alias-state-");

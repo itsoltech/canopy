@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
-import { ItemStatus, TurnEndSource, TurnOrigin, TurnOutcome, ui, type Item, type Notice, type TurnFinished, type TurnStarted, type Usage } from "@open-agents/contracts";
-import { eventItemId, reduceItem } from "@open-agents/domain/items";
+import { ItemStatus, TurnEndSource, TurnOrigin, TurnOutcome, ui, type Item, type Notice, type TurnFinished, type TurnStarted, type Usage } from "@canopy/contracts";
+import { eventItemId, reduceItem } from "@canopy/domain/items";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
 import { decode } from "#lib/shared/wire.ts";

@@ -1,5 +1,5 @@
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
-import { Provider, ProviderProfileKind, type bots, type ui } from "@open-agents/contracts";
+import { Provider, ProviderProfileKind, type bots, type ui } from "@canopy/contracts";
 import { modelOption, type ModelOption } from "#lib/features/models/catalog.ts";
 import { instanceKeyOf } from "#lib/features/providers/instances.ts";
 import type { BotProviderInstance } from "./wizard/draft.ts";

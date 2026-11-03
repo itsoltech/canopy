@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { BlobRef } from "@open-agents/contracts";
-  import { formatSize } from "@open-agents/domain";
+  import type { BlobRef } from "@canopy/contracts";
+  import { formatSize } from "@canopy/domain";
   import type { ClassValue } from "svelte/elements";
   import ZoomableImage from "./ZoomableImage.svelte";
 

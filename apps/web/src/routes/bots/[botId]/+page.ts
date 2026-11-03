@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { bots } from "@open-agents/contracts";
+import { bots } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
 import type { PageLoad } from "./$types";
 

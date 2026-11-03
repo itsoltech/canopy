@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { bots, InteractionKind, ItemStatus, PermissionMode, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayCore } from "@open-agents/gateway/core";
-import { GatewayStore } from "@open-agents/gateway/store";
+import { bots, InteractionKind, ItemStatus, PermissionMode, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayCore } from "@canopy/gateway/core";
+import { GatewayStore } from "@canopy/gateway/store";
 import { BotStore } from "../../apps/gateway/src/bots/store.ts";
 import { botPlatform } from "../../apps/gateway/src/bots/platform.ts";
 import { PLATFORM_TOOLS } from "../../apps/gateway/src/bots/policy.ts";

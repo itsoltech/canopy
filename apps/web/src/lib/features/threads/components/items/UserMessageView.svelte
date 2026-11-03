@@ -13,7 +13,8 @@
 <script lang="ts">
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import type { Snippet } from "svelte";
-  import type { UserMessage, ui } from "@open-agents/contracts";
+  import type { UserMessage, ui } from "@canopy/contracts";
+  import { hasPlatformNote } from "@canopy/domain";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
   import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
   import { withoutPlatformNote } from "#lib/features/mentions/editor.ts";
@@ -88,7 +89,7 @@
     >
       {#if quotes.length > 0}<MessageQuotes {quotes} class={[message.text.trim() && "mb-2"]} />{/if}
       {#if message.text.trim()}
-        <Markdown text={shown?.text ?? (message.text.startsWith("[open-agents]") ? withoutIds(message.text) : message.text)} breaks elements={shown && { ranges: shown.mentions, render: chip }} class="text-inherit dark:text-inherit" />
+        <Markdown text={shown?.text ?? (hasPlatformNote(message.text) ? withoutIds(message.text) : message.text)} breaks elements={shown && { ranges: shown.mentions, render: chip }} class="text-inherit dark:text-inherit" />
       {/if}
       {@render details?.()}
     </div>

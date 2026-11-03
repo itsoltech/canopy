@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 
 /**
  * Where a turn's input came from, for the timeline: from the turn's source (`source_kind` and the

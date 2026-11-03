@@ -1,6 +1,6 @@
 <script lang="ts">
   import { clone } from "@bufbuild/protobuf";
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";

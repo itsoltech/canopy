@@ -53,7 +53,7 @@ CLI: `/home/nix/.local/bin/grok`, wersja `1.0.70 (f50904eaee6c)`. Publiczne źr�
 
 Proxy potwierdzono z `grok-4.7-build-fast` i `grok-composer-2.5-fast`. Ostatni przebieg launch: 1 pass, 1 skip, 0 fail, 7 asercji; log `/tmp/canopy-grok-live-final.log`. Bot: `/tmp/canopy-grok-bot-live.log`. Nie ponawiano płatnych tur po samych zmianach testów i dokumentacji.
 
-Testy są opt-in, np. `OA_LIVE=1 bun test apps/worker/src/providers/grok/launch.live.test.ts`. Wymagają prywatnych `OA_LIVE_CLIPROXYAPI_URL` i `OA_LIVE_CLIPROXYAPI_KEY`; można ustawić `OA_LIVE_GROK_MODEL`. Host, klucz proxy i tokeny auth nie są umieszczone w repozytorium, zrzutach ani logach testów.
+Testy są opt-in, np. `CANOPY_LIVE=1 bun test apps/worker/src/providers/grok/launch.live.test.ts`. Wymagają prywatnych `CANOPY_LIVE_CLIPROXYAPI_URL` i `CANOPY_LIVE_CLIPROXYAPI_KEY`; można ustawić `CANOPY_LIVE_GROK_MODEL`. Host, klucz proxy i tokeny auth nie są umieszczone w repozytorium, zrzutach ani logach testów.
 
 ## Ręczny odbiór Chromium
 

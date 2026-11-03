@@ -22,8 +22,8 @@ Test pod Bun sprawdza prawdziwy transport z modułu aplikacji i żywe wiadomośc
 Streaming `expo/fetch` sprawdzono również na iOS Simulator i Android Emulator:
 wysłanie wiadomości, częściowa odpowiedź i zakończenie tury.
 
-Cleartext listener gatewaya na `OA_PORT` to h2c (`http2.createServer`), nie HTTP/1.1.
-Telefon nie potrafi użyć tego portu przez fetch. `OA_MOBILE_PORT` dodaje osobny
+Cleartext listener gatewaya na `CANOPY_PORT` to h2c (`http2.createServer`), nie HTTP/1.1.
+Telefon nie potrafi użyć tego portu przez fetch. `CANOPY_MOBILE_PORT` dodaje osobny
 HTTP/1.1 listener **wyłącznie na 127.0.0.1**, z GatewayService i MobilePairingService,
 bez WorkerLink. Tailscale Serve kończy TLS i proxyuje do niego HTTP/1.1. Port gatewaya
 z własnym TLS również obsługuje HTTP/1.1 przez istniejące `allowHTTP1: true`.
@@ -39,8 +39,8 @@ Zachowane są `src/app`, Router, Hermes, domyślna New Architecture i CNG.
 Bez `react-native-web`, Expo web, NativeWind i dodatkowego systemu komponentów.
 
 Metro korzysta z `getDefaultConfig` z `expo/metro-config`. SDK 58 sam wykrywa
-workspaces Bun, eksporty TS `@open-agents/contracts` i współdzielony reducer itemów
-`@open-agents/domain/items`. Nie dodawaj dawnych `watchFolders` ani ręcznych aliasów.
+workspaces Bun, eksporty TS `@canopy/contracts` i współdzielony reducer itemów
+`@canopy/domain/items`. Nie dodawaj dawnych `watchFolders` ani ręcznych aliasów.
 Po zmianie linkera lub przeniesieniu checkoutu uruchom `bunx expo start --dev-client --clear`.
 
 W `bunfig.toml` jest `install.linker = "hoisted"`. Izolowany linker Bun powodował,
@@ -100,16 +100,16 @@ usunięcie aplikacji nie zastępuje odwołania urządzenia na serwerze.
 
 ## Gateway i Tailscale po scaleniu
 
-Na maszynie gatewaya zachowaj istniejące `OA_DATABASE_URL`, `OA_SECRETS_KEY`,
-`OA_UI_SERVICE_TOKEN` i konfigurację workera/BFF. Dodaj do środowiska usługi:
+Na maszynie gatewaya zachowaj istniejące `CANOPY_DATABASE_URL`, `CANOPY_SECRETS_KEY`,
+`CANOPY_UI_SERVICE_TOKEN` i konfigurację workera/BFF. Dodaj do środowiska usługi:
 
 ```dotenv
-OA_MOBILE_PORT=7444
-OA_MOBILE_GATEWAY_URL=https://GATEWAY.TAILNET.ts.net:8443
+CANOPY_MOBILE_PORT=7444
+CANOPY_MOBILE_GATEWAY_URL=https://GATEWAY.TAILNET.ts.net:8443
 ```
 
 Zastąp `GATEWAY.TAILNET.ts.net` pełną nazwą MagicDNS tej maszyny. Wykonaj standardowe
-migracje (main domyślnie ma `OA_MIGRATE=1`) i zrestartuj gateway oraz web BFF.
+migracje (main domyślnie ma `CANOPY_MIGRATE=1`) i zrestartuj gateway oraz web BFF.
 Nie zmieniaj istniejącego portu h2c/BFF. W logu ma pojawić się listener mobilny
 `http://127.0.0.1:7444`. Port 7444 nie potrzebuje wystawiania w firewallu ani na routerze.
 
@@ -123,7 +123,7 @@ To Serve dostępny tylko w tailnecie, **nigdy Funnel**. Tailscale może poprosi�
 włączenie HTTPS/certyfikatów w panelu administracyjnym. Telefon musi należeć do
 tego samego tailnetu, mieć aktywny Tailscale i zgodę ACL/grants na TCP 8443.
 W app/QR adresem jest dokładnie `https://GATEWAY.TAILNET.ts.net:8443`, nie port web BFF,
-nie h2c, nie `http://100.x.y.z`. HTTPS Serve nie wymaga `OA_TLS_CERT`/`OA_TLS_KEY` w gatewayu.
+nie h2c, nie `http://100.x.y.z`. HTTPS Serve nie wymaga `CANOPY_TLS_CERT`/`CANOPY_TLS_KEY` w gatewayu.
 
 Jeśli gateway działa w kontenerze, Serve i listener muszą być w tej samej przestrzeni
 sieciowej: listener binduje loopback. Ta iteracja zakłada gateway jako proces na hoście;
@@ -312,7 +312,7 @@ bun install
 bun run typecheck
 bun run gen:check
 bun run check:tmp
-bun run --filter @open-agents/web build
+bun run --filter @canopy/web build
 ```
 
 Z `apps/mobile`:

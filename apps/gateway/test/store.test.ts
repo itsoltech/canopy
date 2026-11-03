@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
-import { ProviderProfileKind } from "@open-agents/contracts";
-import { migrate } from "@open-agents/db";
-import { dockerAvailable, startPostgres, type TestPostgres } from "@open-agents/db/testing";
+import { ProviderProfileKind } from "@canopy/contracts";
+import { migrate } from "@canopy/db";
+import { dockerAvailable, startPostgres, type TestPostgres } from "@canopy/db/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { GatewayStore } from "../src/store/index.ts";

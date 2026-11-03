@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Redirect, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ui, bots as botContract } from "@open-agents/contracts";
+import { ui, bots as botContract } from "@canopy/contracts";
 import { useSession } from "../state/session";
 import { useOverview } from "../state/overview";
 import {

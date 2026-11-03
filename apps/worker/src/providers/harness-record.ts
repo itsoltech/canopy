@@ -1,5 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { ItemSchema, TurnEndSource, TurnOutcome, UsageSchema } from "@open-agents/contracts";
+import type { ItemSchema, TurnEndSource, TurnOutcome, UsageSchema } from "@canopy/contracts";
 
 /**
  * What a harness wrote down about one turn in its own transcript (docs/durability.md, "Rekoncyliacja z transkryptu

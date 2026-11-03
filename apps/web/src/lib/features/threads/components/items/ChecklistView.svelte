@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus } from "@open-agents/contracts";
+  import { ItemStatus } from "@canopy/contracts";
   import ItemFrame from "./ItemFrame.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import ChecklistSteps from "./ChecklistSteps.svelte";

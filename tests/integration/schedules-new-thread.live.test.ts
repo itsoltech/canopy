@@ -1,21 +1,21 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { PermissionMode, Provider } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
-import { tempDirs } from "@open-agents/testing";
-import { journalHello, openGatewayLink } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { PermissionMode, Provider } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
+import { tempDirs } from "@canopy/testing";
+import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { answers, eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)("a scheduled new thread through CLIProxyAPI", () => {
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)("a scheduled new thread through CLIProxyAPI", () => {
   const makeTemp = tempDirs();
   let gw: TestGateway;
   let workerId: string;
@@ -44,7 +44,7 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !doc
     const schedule = (await gw.api.createSchedule({ target: "new_thread", name: "Live schedule", prompt: "Reply with exactly: SCHEDULE_OK. Do not use tools.",
       when: { case: "runAt", value: timestampFromDate(new Date(Date.now() + 60_000)) },
       newThread: { projectId, placement: "specific", workspaceId, provider: Provider.CLAUDE, providerProfileId: "cliproxyapi",
-        model: process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5", permissionMode: PermissionMode.READ_ONLY },
+        model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5", permissionMode: PermissionMode.READ_ONLY },
     })).schedule!;
     expect((await gw.api.listThreads({ projectId })).threads).toHaveLength(0);
     gw.core.scheduler.start();

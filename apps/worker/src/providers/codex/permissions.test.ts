@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { PermissionMode } from "@open-agents/contracts";
-import type { v2 } from "@open-agents/codex-protocol";
+import { PermissionMode } from "@canopy/contracts";
+import type { v2 } from "@canopy/codex-protocol";
 import { codexPermissions, codexTurnPermissions } from "./permissions.ts";
 
 describe("codexPermissions", () => {

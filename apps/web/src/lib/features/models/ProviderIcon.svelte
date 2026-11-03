@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { providerPaths } from '@open-agents/ui/provider-icons';
+  import { providerPaths } from '@canopy/ui/provider-icons';
   import type { ProviderKey } from "#lib/features/threads/providers.ts";
 
   /**

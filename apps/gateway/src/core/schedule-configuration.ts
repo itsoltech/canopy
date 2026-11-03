@@ -1,6 +1,6 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { ui } from "@open-agents/contracts";
-import { DEFAULT_BUS_LIMITS } from "@open-agents/domain";
+import type { ui } from "@canopy/contracts";
+import { DEFAULT_BUS_LIMITS } from "@canopy/domain";
 import type { NewSchedule } from "../store/agent-bus.ts";
 import { cronProblem, nextCronRun } from "./cron.ts";
 

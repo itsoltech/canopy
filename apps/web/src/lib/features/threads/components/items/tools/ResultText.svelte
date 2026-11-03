@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus, type ToolCall } from "@open-agents/contracts";
+  import { ItemStatus, type ToolCall } from "@canopy/contracts";
   import { isEmptyNode, structureJson } from "#lib/shared/structure.ts";
   import OutputBlock from "../OutputBlock.svelte";
   import ErrorText from "./ErrorText.svelte";

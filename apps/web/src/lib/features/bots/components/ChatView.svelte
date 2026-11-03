@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick, untrack, type Snippet } from "svelte";
-  import type { Mention, ui } from "@open-agents/contracts";
+  import type { Mention, ui } from "@canopy/contracts";
   import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
   import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
   import { visibleText } from "#lib/features/quotes/selection.ts";

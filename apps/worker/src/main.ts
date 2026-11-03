@@ -3,20 +3,20 @@ import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { ManagedRuntime, Result } from "effect";
-import { WorkerState } from "@open-agents/contracts";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
+import { WorkerState } from "@canopy/contracts";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
 import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
 import { enrollWorker, workerCommand, workerServiceSnippet } from "./enroll.ts";
 import { desktopStatus, workerOnline } from "./desktop-status.ts";
-import { confirmStartup, installKind, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@open-agents/updater";
+import { confirmStartup, installKind, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
 import { WorkerUpdates } from "./update-link.ts";
 
 const cliArgs = Bun.argv.slice(2);
 if (cliArgs.includes("--version")) { console.info(CANOPY_VERSION); process.exit(0); }
-// Docker HEALTHCHECK: healthy while the link to the gateway is up (needs OA_WORKER_STATUS_FILE, see desktop-status.ts).
+// Docker HEALTHCHECK: healthy while the link to the gateway is up (needs CANOPY_WORKER_STATUS_FILE, see desktop-status.ts).
 if (cliArgs[0] === "healthcheck") process.exit(workerOnline(Bun.env) ? 0 : 1);
 if (cliArgs[0] === "run") cliArgs.shift();
 const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";

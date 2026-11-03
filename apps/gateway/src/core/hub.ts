@@ -1,5 +1,5 @@
-import type { ui } from "@open-agents/contracts";
-import { AsyncChannel } from "@open-agents/transport";
+import type { ui } from "@canopy/contracts";
+import { AsyncChannel } from "@canopy/transport";
 
 /**
  * In-process fan-out of live changes to UI subscribers (one gateway instance).

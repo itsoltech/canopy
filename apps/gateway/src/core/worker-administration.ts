@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
-import { ui, WorkerEnrollmentService, EnrollResponseSchema, type EnrollRequest } from "@open-agents/contracts";
+import { ui, WorkerEnrollmentService, EnrollResponseSchema, type EnrollRequest } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { GatewayStore, InstanceStore, SettingsStore } from "../store/index.ts";

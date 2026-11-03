@@ -4,9 +4,9 @@
  * UI gets them structured on the turn and the steer.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { quotesNote } from "@open-agents/domain";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { quotesNote } from "@canopy/domain";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";

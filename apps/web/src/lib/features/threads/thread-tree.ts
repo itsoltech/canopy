@@ -1,4 +1,4 @@
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 
 export interface ThreadTree {

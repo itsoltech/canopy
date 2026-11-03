@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { DesktopStatus } from "@open-agents/ui/desktop";
+  import type { DesktopStatus } from "@canopy/ui/desktop";
   import Button from "#lib/shared/ui/Button.svelte";
   import WorkerStatus from "#lib/features/desktop/WorkerStatus.svelte";
   let status = $state<DesktopStatus>();

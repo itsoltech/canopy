@@ -19,7 +19,7 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
 
 1. W **Settings → Workers → Add worker** podaj nazwę i **Gateway address for workers**.
    To origin portu **gRPC**, domyślnie `:7443`, a nie adres strony web. Gateway bierze
-   wartość początkową z `OA_PUBLIC_GATEWAY_URL`; edytowalne nadpisanie należy do ustawień
+   wartość początkową z `CANOPY_PUBLIC_GATEWAY_URL`; edytowalne nadpisanie należy do ustawień
    użytkownika. Zmiana nie przeadresowuje istniejących plików `worker.json`.
 2. Wybierz Linux/macOS i podaj URL swojego repozytorium Canopy albo absolutną ścieżkę
    istniejącego checkoutu **z tą wersją kodu**. Skopiuj komendę i uruchom ją na dodawanej
@@ -38,7 +38,7 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
 
 Przykład Maca przez Tailscale: obie maszyny muszą być w tej samej zaufanej sieci, a ACL
 muszą pozwalać Macowi na TCP do `canopy-gateway:7443`. Gateway musi nasłuchiwać na interfejsie
-dostępnym z Tailscale (`OA_HOST`, domyślnie `0.0.0.0`). Ustaw `OA_PUBLIC_GATEWAY_URL=http://canopy-gateway:7443`
+dostępnym z Tailscale (`CANOPY_HOST`, domyślnie `0.0.0.0`). Ustaw `CANOPY_PUBLIC_GATEWAY_URL=http://canopy-gateway:7443`
 albo zapisz taki adres w UI, wybierz **macOS** i wykonaj komendę na Macu. Połączenie HTTP
 jest h2c — używaj go wyłącznie lokalnie lub wewnątrz zaufanej szyfrowanej sieci. Poza nią
 używaj HTTPS/TLS; proxy musi obsługiwać gRPC HTTP/2 i długie strumienie. Nie otwieraj portu
@@ -63,7 +63,7 @@ bun apps/worker/src/main.ts service --config /absolute/path/worker.json
 
 `canopy-worker` w opisie interfejsu CLI oznacza ten entrypoint uruchomiony przez Bun;
 pakiet nie instaluje obecnie globalnego polecenia. `--config` ma pierwszeństwo przed
-`OA_WORKER_CONFIG`; bez obu obowiązują ścieżki per OS opisane niżej. `enroll` rezerwuje
+`CANOPY_WORKER_CONFIG`; bez obu obowiązują ścieżki per OS opisane niżej. `enroll` rezerwuje
 plik z `0600` **przed** wymianą tokenu. Istniejący plik jest odrzucany bez wydania tokenu;
 `--force` zapisuje nowy prywatny plik i atomowo go podmienia, nie podąża za symlinkiem.
 Nie wypisuje credentialu. Utrata odpowiedzi albo awaria po zużyciu tokenu wymaga nowego
@@ -138,15 +138,16 @@ Wypisuje **sekretny** `worker.json`; przekieruj go do pliku z umask 077, nie do 
   "gateway_url": "https://agents.example.com",
   "worker_id": "0196f0c1-0000-7000-8000-0000000000aa",
   "credential": "…",
-  "ca_file": "/etc/open-agents/gateway-ca.pem",
+  "ca_file": "/etc/canopy/gateway-ca.pem",
   "ping_interval_seconds": 30
 }
 ```
 
-- Lokalizacja: `OA_WORKER_CONFIG` albo domyślna per system:
-  - Linux: `$XDG_CONFIG_HOME/open-agents/worker.json`,
-  - macOS: `~/Library/Application Support/open-agents/worker.json`,
-  - Windows: `%APPDATA%\open-agents\worker.json`.
+- Lokalizacja: `CANOPY_WORKER_CONFIG` albo domyślna per system:
+  - Linux: `$XDG_CONFIG_HOME/canopy/worker.json`,
+  - macOS: `~/Library/Application Support/canopy/worker.json`,
+  - Windows: `%APPDATA%\canopy\worker.json`.
+  - Instalacja sprzed zmiany nazwy: gdy nowego pliku nie ma, a istnieje `…/open-agents/worker.json`, worker czyta stary (tak samo katalog danych `…/open-agents`); nic nie jest przenoszone.
 - Dekodowanie jest ścisłe (Effect Schema): nieznany klucz to błąd. Wyjątkiem zgodności są stare `allowedRoots` i `allowed_roots`: są przyjmowane i ignorowane, podobnie jak pole historyczne w zdalnej konfiguracji i bazie. Worker nie ma listy dozwolonych katalogów.
 - Plik zawiera poświadczenie, więc jak klucz SSH nie może być dostępny dla innych użytkowników (POSIX: `chmod 600`). Inaczej worker kończy pracę z kodem 78 (`EX_CONFIG`), żeby supervisor nie restartował go w pętli. Na Windows ACL ustawia instalator.
 - Plik tworzy rejestracja workera (enrollment): token z UI zamieniany na `worker_id` i `credential`.
@@ -261,12 +262,12 @@ Wbudowany profil `native` zawsze istnieje (worker dodaje go, gdy konfiguracja go
 
 ### 8.1. Zmienne środowiskowe profilu
 
-Reguły są wspólne dla UI, gateway (odrzuca zapis) i workera (wyłącza profil z powodem): `@open-agents/domain`, `profiles/env.ts`.
+Reguły są wspólne dla UI, gateway (odrzuca zapis) i workera (wyłącza profil z powodem): `@canopy/domain`, `profiles/env.ts`.
 
 - Nazwa: `[A-Za-z_][A-Za-z0-9_]*`, do 128 znaków, bez powtórzeń (bez rozróżniania wielkości liter); wartość do 32 KiB, bez NUL; najwyżej 64 zmienne.
-- **Zakazane zawsze** (ustawia je worker; porównanie bez wielkości liter): `HOME`, `USERPROFILE`, `PATH`, `PWD`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `CLAUDE_CODE_ENTRYPOINT` oraz prefiks `OPENAGENTS_*` (klucze endpointów dla Codexa, `OPENAGENTS_<ID>_API_KEY`).
+- **Zakazane zawsze** (ustawia je worker; porównanie bez wielkości liter): `HOME`, `USERPROFILE`, `PATH`, `PWD`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `CLAUDE_CODE_ENTRYPOINT` oraz prefiks `CANOPY_*` (klucze endpointów dla Codexa, `CANOPY_<ID>_API_KEY`).
 - **Zakazane dla endpointu** (ustawia je profil): `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`. Profil `NATIVE` może je ustawić (np. `ANTHROPIC_API_KEY` zamiast logowania, `CLAUDE_CODE_USE_BEDROCK` + dane AWS).
-- Zmienne workera `OA_*` nie są zakazane: czyta je tylko proces workera, harness nie.
+- Ten sam prefiks obejmuje ustawienia workera (`CANOPY_*`); dawne `OA_*` nie są zakazane: czyta je tylko proces workera, harness nie.
 
 Gdzie trafiają:
 

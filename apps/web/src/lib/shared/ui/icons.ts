@@ -3,4 +3,4 @@ export {
   lineIcons,
   type IconName,
   type SolidIconName,
-} from "@open-agents/ui/icons";
+} from "@canopy/ui/icons";

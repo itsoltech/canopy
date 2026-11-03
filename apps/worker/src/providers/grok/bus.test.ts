@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { AgentToolResultSchema, ConnectorToolSchema, type AgentToolCall } from "@open-agents/contracts";
+import { AgentToolResultSchema, ConnectorToolSchema, type AgentToolCall } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 import { grokBus } from "./bus.ts";
 

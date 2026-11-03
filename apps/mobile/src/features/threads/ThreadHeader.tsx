@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { router } from "expo-router";
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button, Field, IconButton, Notice, Sheet } from "../../ui/components";
 import { ProjectMark } from "../../ui/ProjectMark";

@@ -123,8 +123,8 @@ export function backgroundTitle(task: { readonly description: string; readonly c
 export function backgroundTaskNote(tasks: readonly BackgroundTaskEnd[], options: { tools: boolean; outputLines?: number } = { tools: true }): string {
   const one = tasks.length === 1;
   const head = one
-    ? `[open-agents] A background task of this thread ended: ${backgroundEndReason(tasks[0]!.outcome, tasks[0]!.stopReason, tasks[0]!.exitCode)}.`
-    : `[open-agents] ${tasks.length} background tasks of this thread ended.`;
+    ? `[canopy] A background task of this thread ended: ${backgroundEndReason(tasks[0]!.outcome, tasks[0]!.stopReason, tasks[0]!.exitCode)}.`
+    : `[canopy] ${tasks.length} background tasks of this thread ended.`;
   const sections = tasks.map((task) => {
     const lines = [`Task "${task.title}" (task_id: ${task.id})`];
     if (task.command && task.command !== task.title) lines.push(`Command: ${task.command.length > 500 ? `${task.command.slice(0, 500)}…` : task.command}`);

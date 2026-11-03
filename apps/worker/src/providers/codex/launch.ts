@@ -58,7 +58,7 @@ export function codexThreadProvider(profile: ResolvedProfile): { modelProvider?:
 
 /** Prefixed so it cannot collide with providers from the device owner's config.toml. */
 export function codexModelProviderId(profile: ResolvedProfile): string {
-  return `openagents_${profile.id.replace(/-/g, "_")}`;
+  return `canopy_${profile.id.replace(/-/g, "_")}`;
 }
 
 function withTrailingSlash(url: URL): URL {

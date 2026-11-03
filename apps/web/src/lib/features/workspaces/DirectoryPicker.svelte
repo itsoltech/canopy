@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";

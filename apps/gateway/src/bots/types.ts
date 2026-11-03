@@ -1,4 +1,4 @@
-import type { bots } from "@open-agents/contracts";
+import type { bots } from "@canopy/contracts";
 
 export interface ToolSpec {
   name: string;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { ItemStatus, type Item } from "@open-agents/contracts";
+  import { ItemStatus, type Item } from "@canopy/contracts";
   import AgentBusCallView from "./AgentBusCallView.svelte";
   import AgentMessageView from "./AgentMessageView.svelte";
   import BackgroundTaskView from "./BackgroundTaskView.svelte";

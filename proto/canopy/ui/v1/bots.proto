@@ -1,16 +1,16 @@
 // Boty gateway: osobny kontrakt rozmów, bez transkryptu narzędzi dla UI.
 syntax = "proto3";
-package openagents.ui.v1;
+package canopy.ui.v1;
 
 import "google/protobuf/timestamp.proto";
-import "openagents/worker/v1/worker_link.proto";
-import "openagents/ui/v1/quotes.proto";
+import "canopy/worker/v1/worker_link.proto";
+import "canopy/ui/v1/quotes.proto";
 
 message BotConfiguration {
   string name = 1;
   string shape = 2;
   string color = 3;
-  openagents.worker.v1.Provider provider = 4;
+  canopy.worker.v1.Provider provider = 4;
   string provider_instance = 5;
   string model = 6;
   string effort = 7;
@@ -49,7 +49,7 @@ message BotMessage {
   // Ciche zdarzenie samoedycji; wartości przed/po służą wyłącznie widokowi zmian.
   repeated BotSettingChange setting_changes = 430;
   // Wybrane chipy w wiadomości użytkownika; BOT.name = bot_id, zakresy UTF-16.
-  repeated openagents.worker.v1.Mention mentions = 450;
+  repeated canopy.worker.v1.Mention mentions = 450;
   repeated Quote quotes = 451;
 }
 message BotSettingChange {
@@ -124,7 +124,7 @@ message SendBotMessageRequest {
   string bot_id = 1;
   string text = 2;
   string client_request_id = 3;
-  repeated openagents.worker.v1.Mention mentions = 450;
+  repeated canopy.worker.v1.Mention mentions = 450;
   repeated Quote quotes = 451;
 }
 message SendBotMessageResponse { string turn_id = 1; }

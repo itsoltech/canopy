@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { ItemDeltaField, ItemStatus, TurnOutcome } from "@open-agents/contracts";
-import { tempDir } from "@open-agents/testing";
+import { ItemDeltaField, ItemStatus, TurnOutcome } from "@canopy/contracts";
+import { tempDir } from "@canopy/testing";
 import { Effect } from "effect";
 import { Journal, type ThreadEventInit } from "./journal.ts";
 

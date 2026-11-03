@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { InteractionKind, ItemDeltaField, ItemStatus, Provider, ProviderProfileKind } from "@open-agents/contracts";
-import type { GatewayLink } from "@open-agents/worker/gateway-link";
+import { InteractionKind, ItemDeltaField, ItemStatus, Provider, ProviderProfileKind } from "@canopy/contracts";
+import type { GatewayLink } from "@canopy/worker/gateway-link";
 import { connectWorker, makeSelfSignedCert, startGateway, take, type TestCert } from "./helpers.ts";
 
 async function expectConnectError(promise: Promise<unknown>, code: Code): Promise<void> {

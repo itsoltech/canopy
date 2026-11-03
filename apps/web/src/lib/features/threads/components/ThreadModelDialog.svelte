@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import { untrack } from "svelte";
   import { providerName, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";

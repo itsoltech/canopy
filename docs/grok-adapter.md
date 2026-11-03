@@ -22,7 +22,7 @@ Instancja CLIProxyAPI używa odizolowanego `GROK_HOME` i konfiguracji modelu z `
 
 `packages/grok-acp` posiada proces CLI i jego grupę procesów, inicjalizację, typowane sesje, wybór modelu/trybu i asynchroniczny strumień promptu. Żądania mają unikalne ID i timeouty; obsługa callbacków nie blokuje odbioru odpowiedzi. Zapis czeka na flush stdin, kolejka zdarzeń i ramki są ograniczone. Crash/EOF/nieprawidłowa ramka kończą oczekujące żądania. Dispose wysyła TERM, następnie KILL i czeka na zebranie procesu; przerwany konsument nie pozostawia działającej tury. Stderr jest ograniczony i redagowany. Możliwości fs i terminal są ogłaszane wyłącznie, gdy klient dostarcza ich implementację.
 
-Testy fake agenta sprawdzają podzielone ramki UTF-8, kolejne tury, wznowienie, permission round-trip, anulowanie, crash, redakcję i timeout. Testy prawdziwego CLI wymagają `OA_LIVE=1`.
+Testy fake agenta sprawdzają podzielone ramki UTF-8, kolejne tury, wznowienie, permission round-trip, anulowanie, crash, redakcję i timeout. Testy prawdziwego CLI wymagają `CANOPY_LIVE=1`.
 
 ## Adapter workera
 
@@ -77,7 +77,7 @@ Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synch
 1. Zbuduj/zaktualizuj gateway i worker z tej gałęzi, wykonaj migrację 0043. Na urządzeniu workera zainstaluj `grok`, sprawdź `grok --version`. Nie wykonano wdrożenia w ramach implementacji.
 2. W zdalnym WorkerConfig włącz `grok: { enabled: true, executablePath: "/home/nix/.local/bin/grok" }`. Przy natywnym loginie zostaw `deviceLogin` domyślne; dla wyłącznie proxy ustaw `deviceLogin: NONE`. Istniejący worker potrzebuje jawnego włączenia tego harnessu. Nowy `worker add` włącza już wszystkie trzy.
 3. Native: wykonaj `grok login` jako użytkownik OS workera; domyślnie czytane jest `~/.grok/auth.json`. Alternatywnie instancja native może mieć sekretny `XAI_API_KEY`. Przy innym koncie ustaw Home path na katalog tego loginu. Logowanie Groka odbywa się w CLI, bez formularza OAuth w Canopy. Nie kopiuj tokenów do repo.
-4. Proxy: Settings → Providers → Add → Grok → CLIProxyAPI. Wpisz istniejący prywatny URL i klucz w pola instancji, wybierz worker. URL może być bazowy lub kończyć się `/v1`; wrapper normalizuje go do `/v1`. Model wybierz z katalogu, np. sprawdzony `grok-4.7-build-fast`. Worker sam ustawia prywatny home, custom model, `OPENAGENTS_GROK_API_KEY` i `XAI_API_KEY`; nie wymaga dodatkowych env dla proxy.
+4. Proxy: Settings → Providers → Add → Grok → CLIProxyAPI. Wpisz istniejący prywatny URL i klucz w pola instancji, wybierz worker. URL może być bazowy lub kończyć się `/v1`; wrapper normalizuje go do `/v1`. Model wybierz z katalogu, np. sprawdzony `grok-4.7-build-fast`. Worker sam ustawia prywatny home, custom model, `CANOPY_GROK_API_KEY` i `XAI_API_KEY`; nie wymaga dodatkowych env dla proxy.
 5. Zaczekaj na Agents → Grok 1.0.70 oraz dostępność instancji. Utwórz wątek z Grokiem i wybranym modelem. Dla tanich tytułów wybierz osobno mini w Text generation; bot może używać tej samej instancji proxy i mini-fast.
 
 Przy ręcznej rejestracji nowego workera istniejące polecenie `worker add --cliproxy-url <URL> --cliproxy-key-env <NAZWA_ENV>` rejestruje też instancję Groka. Wartości są pobierane z prywatnego środowiska; nie umieszczaj ich w skryptach repo ani logach. Na istniejącym workerze użyj instancji i zdalnego configu; nie rejestruj kolejnego workera tylko po to, aby dodać Groka.
@@ -94,13 +94,13 @@ Fragment zdalnego WorkerConfig dla wyłącznie proxy (zachowaj pozostałe pola c
 }
 ```
 
-Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi widzieć binarkę i katalog loginu użytkownika OS; dla niestandardowej lokalizacji ustaw Home path instancji lub `GROK_HOME` środowiska workera. Proxy nie wymaga ręcznego ustawiania `XAI_API_KEY`, `OPENAGENTS_GROK_API_KEY` ani `GROK_HOME` workera — wrapper ustawia je tylko w potomnym procesie z zaszyfrowanej konfiguracji instancji.
+Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi widzieć binarkę i katalog loginu użytkownika OS; dla niestandardowej lokalizacji ustaw Home path instancji lub `GROK_HOME` środowiska workera. Proxy nie wymaga ręcznego ustawiania `XAI_API_KEY`, `CANOPY_GROK_API_KEY` ani `GROK_HOME` workera — wrapper ustawia je tylko w potomnym procesie z zaszyfrowanej konfiguracji instancji.
 
 ## Weryfikacja i granice
 
 - SDK: deterministyczny fake ACP, framing Unicode, kolejne tury/load, permission deny, cancel/reuse, crash/redakcja, timeout, nieposłuszne anulowanie i abort callbacka.
 - `tests/integration/grok-provider.test.ts`: prawdziwy gateway/PostgreSQL + WorkerHost + fake Grok, native i endpoint instance, MCP, itemy, zgody/odmowy, interrupt, steer→queue, restart/load.
-- Opt-in `OA_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`, `apps/gateway/src/bots/grok.live.test.ts`. Env testowe: `OA_LIVE_CLIPROXYAPI_URL`, `OA_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `OA_LIVE_GROK_MODEL`, `OA_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
+- Opt-in `CANOPY_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`, `apps/gateway/src/bots/grok.live.test.ts`. Env testowe: `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `CANOPY_LIVE_GROK_MODEL`, `CANOPY_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
 - Odbiór Chromium opisuje [grok-verification.md](grok-verification.md). Nie dodano web UI testów.
 
 Ograniczenia: brak ACP fork i goals (odrzucane w gatewayu, kontrolki ukryte), brak native background-task lifecycle/stopTask i automatycznego settlement z transkryptu Groka po awarii; przerwana tura po restarcie korzysta ze wspólnego fallbacku workera, sesja jest nadal wznawialna. Nie odtwarzamy niezgłoszonych tokenów input/output ani nie zgadujemy usage z context occupancy. Natywny płatny smoke pominięto z powodu braku loginu. Live nie obejmował obrazów, rzeczywistych diffów CLI ani mieszanego spawn Claude/Codex↔Grok; obrazy/diffy mają fake integrację, a wybór spawn test resolvera. ASK ma fake round-trip zgody/odmowy/anulowania; live proxy pracował w FULL_AUTO, bez pełnej macierzy READ_ONLY/ACCEPT_EDITS/FULL_AUTO. Nie należy deklarować pełnego live parytetu.

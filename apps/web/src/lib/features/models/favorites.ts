@@ -1,4 +1,4 @@
-import { Provider } from "@open-agents/contracts";
+import { Provider } from "@canopy/contracts";
 import { useOverview, type OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import { providerCall } from "#lib/features/providers/instances.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";

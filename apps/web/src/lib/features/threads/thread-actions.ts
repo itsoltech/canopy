@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 
 export type ThreadActionId = "open" | "new" | "pin" | "rename" | "regenerate" | "read" | "filter" | "settings" | "archive" | "delete";

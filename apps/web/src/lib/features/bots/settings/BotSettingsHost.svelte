@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { bots, ui } from "@open-agents/contracts";
+  import { bots, ui } from "@canopy/contracts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { requestJson } from "#lib/shared/http.ts";

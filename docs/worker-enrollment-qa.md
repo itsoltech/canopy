@@ -23,7 +23,7 @@ oraz style segmentów pochodzą z kitu. Ruch: `Dialog`/`t-modal`, `pageIn` dla e
 - `bun install` — sukces.
 - `bun run typecheck` — sukces, Svelte: 0 błędów i 0 ostrzeżeń.
 - `bun run gen:check` — sukces, wygenerowane kontrakty zgodne.
-- `bun run --filter @open-agents/web build` — sukces; istniejące ostrzeżenie o dużym chunku.
+- `bun run --filter @canopy/web build` — sukces; istniejące ostrzeżenie o dużym chunku.
 - `bun run check:tmp --parallel=2` — sukces: **612 pass, 141 skip, 0 fail**, 3290 asercji,
   125 plików, 231,91 s; brak pozostałości testów w prywatnym katalogu tymczasowym.
 
@@ -98,10 +98,10 @@ przez produkcyjny CLIProxyAPI. Worker jest dystrybuowany z repo, bez gotowej bin
 
 Pełna procedura dla Maca/Tailscale oraz usługi: [worker-config.md](worker-config.md#dodanie-maszyny-z-ui).
 Po merge zachowaj dotychczasowe klucze gateway i token usługi BFF, wykonaj migrację
-0044 (standardowy start gateway z `OA_MIGRATE=1` robi to automatycznie), zbuduj web
+0044 (standardowy start gateway z `CANOPY_MIGRATE=1` robi to automatycznie), zbuduj web
 i zrestartuj gateway/web z tej samej wersji. Istniejące configi workerów pozostają zgodne.
 
-Ustaw `OA_PUBLIC_GATEWAY_URL=http://<host-Tailscale>:<port-gRPC>` albo nadpisz adres
+Ustaw `CANOPY_PUBLIC_GATEWAY_URL=http://<host-Tailscale>:<port-gRPC>` albo nadpisz adres
 w Settings → Workers. Port 7443 jest domyślny; jeśli Twój stack używa 17443,
 podaj 17443. To nie port web ani CLIProxyAPI. Gateway musi nasłuchiwać na interfejsie
 osiągalnym z Tailscale; ACL/firewall muszą przepuszczać ten port z nowej maszyny.

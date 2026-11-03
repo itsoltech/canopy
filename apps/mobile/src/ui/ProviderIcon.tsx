@@ -1,6 +1,6 @@
 import Svg, { Path } from "react-native-svg";
-import { Provider } from "@open-agents/contracts";
-import { providerPaths } from "@open-agents/ui/provider-icons";
+import { Provider } from "@canopy/contracts";
+import { providerPaths } from "@canopy/ui/provider-icons";
 import { useColors } from "./theme";
 export function ProviderIcon({
   provider,

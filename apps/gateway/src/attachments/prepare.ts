@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { formatSize, safeFileName, sniff, withExtension, type AttachmentKind, type AttachmentLimits } from "@open-agents/domain";
+import { formatSize, safeFileName, sniff, withExtension, type AttachmentKind, type AttachmentLimits } from "@canopy/domain";
 import sharp from "sharp";
 
 /**

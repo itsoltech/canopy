@@ -2,7 +2,7 @@ import { createServer } from "node:net";
 import { homedir } from "node:os";
 import { isIP } from "node:net";
 import { delimiter } from "node:path";
-import type { DesktopConfiguration, DesktopStatus } from "@open-agents/ui/desktop";
+import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
 
 export const initialStatus = (): DesktopStatus => ({ mode: null, phase: "setup", worker: "offline", clis: { claude: false, codex: false, grok: false }, allowNetwork: false, bindHost: "127.0.0.1" });
 

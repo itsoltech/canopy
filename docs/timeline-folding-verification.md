@@ -26,10 +26,10 @@ Self-review objął stabilność kluczy, pamięć otwarcia, puste itemy, statusy
 | --- | --- |
 | `bun install` | OK, lockfile bez zmian |
 | `bun run typecheck` | OK we wszystkich workspace'ach; Svelte: 0 błędów, 0 ostrzeżeń |
-| `bun run --filter @open-agents/web build` | OK; pozostaje ostrzeżenie bundlera o dużych chunkach |
+| `bun run --filter @canopy/web build` | OK; pozostaje ostrzeżenie bundlera o dużych chunkach |
 | `bun run check:tmp` | 834 pass, 153 skip, 0 fail; 3305 asercji; brak pozostawionych plików tymczasowych |
 | `bun run check:tmp apps/web` po ostatnim merge | 291 pass, 0 fail; 1058 asercji; brak pozostawionych plików tymczasowych |
-| `OA_TIMELINE_BROWSER=1 bun test tests/integration/timeline-folding.browser.test.ts` | 6 pass, 0 fail; 132 asercje; brak wyjątków przeglądarki |
+| `CANOPY_TIMELINE_BROWSER=1 bun test tests/integration/timeline-folding.browser.test.ts` | 6 pass, 0 fail; 132 asercje; brak wyjątków przeglądarki |
 
 Pełny `check:tmp` wykonano po scaleniu kontrolek formularzy (`main` `1edcd5e`). Po ostatniej zmianie pięciu linii w `Popover` i `ModelPicker` (`main` `1f00d56`) powtórzono install, pełny typecheck, build, `bun run check:tmp apps/web` oraz całą macierz Chromium. Po końcowej zmianie diagnostyki testu dodatkowo przeszedł typecheck workspace'u integracyjnego i `git diff --check`.
 

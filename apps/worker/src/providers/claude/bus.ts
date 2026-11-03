@@ -1,14 +1,14 @@
 import { create } from "@bufbuild/protobuf";
 import { createSdkMcpServer, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import { AgentToolCallSchema, type AgentToolCall, type AgentToolResult, type ConnectorTool } from "@open-agents/contracts";
-import { agentBusToolSpecs, agentBusToolsFor, VIEW_IMAGE_TOOL, viewImageSpec } from "@open-agents/domain";
+import { AgentToolCallSchema, type AgentToolCall, type AgentToolResult, type ConnectorTool } from "@canopy/contracts";
+import { agentBusToolSpecs, agentBusToolsFor, VIEW_IMAGE_TOOL, viewImageSpec } from "@canopy/domain";
 import { z } from "zod";
 import type { ViewImageResult } from "../../images/index.ts";
 import { toolCallId } from "../tool-call-id.ts";
 import { BUS_SERVER } from "./mapping.ts";
 
 /**
- * Agent bus tools for Claude: an in-process MCP server "openagents" (tools `mcp__openagents__<name>`),
+ * Agent bus tools for Claude: an in-process MCP server "canopy" (tools `mcp__canopy__<name>`),
  * built from the same definitions as Codex's dynamicTools (packages/domain). The worker only forwards
  * calls to the gateway (AgentToolCall), which authorizes and runs them (docs/agent-bus.md).
  * The same server carries view_image, which the worker runs itself (images/view-image.ts) and which every thread has.

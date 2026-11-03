@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { formatDateTime, formatRelative, isoDateTime } from "#lib/shared/format.ts";

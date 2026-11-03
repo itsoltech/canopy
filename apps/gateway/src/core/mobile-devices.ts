@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createContextKey, type ConnectRouter } from "@connectrpc/connect";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "./core.ts";
@@ -40,7 +40,7 @@ export class MobileDevices {
     if (options.gatewayUrl) {
       const url = new URL(options.gatewayUrl);
       if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-        throw new Error("OA_MOBILE_GATEWAY_URL must be an HTTPS origin (private Tailscale Serve URL)");
+        throw new Error("CANOPY_MOBILE_GATEWAY_URL must be an HTTPS origin (private Tailscale Serve URL)");
       }
     }
   }

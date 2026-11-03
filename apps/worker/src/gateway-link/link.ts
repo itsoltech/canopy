@@ -6,10 +6,10 @@ import {
   type GatewayMessage,
   type Welcome,
   type WorkerMessage,
-} from "@open-agents/contracts";
-import { AsyncChannel, createGrpcClientTransport } from "@open-agents/transport";
+} from "@canopy/contracts";
+import { AsyncChannel, createGrpcClientTransport } from "@canopy/transport";
 import { workerMessage, type WorkerPayloadInit } from "./messages.ts";
-import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL } from "@open-agents/domain/release/protocol";
+import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
 
 export interface GatewayLinkOptions {
   /** e.g. https://gateway.example.com */

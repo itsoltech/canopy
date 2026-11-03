@@ -45,7 +45,7 @@ obsługi reduced motion; nie dodano natywnych selectów ani nowych zależności 
 | `bun install` po scaleniu botów | OK, bez zmian zależności |
 | `bun run typecheck` | OK, Svelte: 0 błędów i 0 ostrzeżeń |
 | `bun run gen:check` | OK, wygenerowany kontrakt zawiera scratch i Bots |
-| `bun run --filter @open-agents/web build` | OK |
+| `bun run --filter @canopy/web build` | OK |
 | Końcowy pełny `bun run check:tmp` po scaleniu botów | 908 pass, 185 skip, 0 fail; 5156 asercji, brak pozostawionych katalogów testowych |
 | Po scaleniu botów: integracje scratch, Bots i schemat DB | 60 pass, 0 fail; brak pozostawionych katalogów |
 | Chromium po scaleniu botów | 4 pass, 0 fail; 64 asercje |
@@ -76,8 +76,8 @@ podczas tworzenia kontenerów potrafią przerwać połączenia przeglądarki.
 Test live jest w `tests/integration/no-project-threads.live.test.ts` i korzysta z
 `useLiveProxy`, rzeczywistego WorkerHost i Codex. Wymaga wykonania komendy `pwd`, zgodności
 odpowiedzi z `thread.cwd`, statusu completed i zachowania katalogu po archiwizacji.
-Dane można przekazać przez `OA_LIVE_PROXY_FILE` (prywatny JSON z `url` i `key`) albo
-osobne `OA_LIVE_PROXY_URL_FILE` i `OA_LIVE_PROXY_KEY_FILE`. Test z `OA_LIVE=1` odmawia
+Dane można przekazać przez `CANOPY_LIVE_PROXY_FILE` (prywatny JSON z `url` i `key`) albo
+osobne `CANOPY_LIVE_PROXY_URL_FILE` i `CANOPY_LIVE_PROXY_KEY_FILE`. Test z `CANOPY_LIVE=1` odmawia
 cichego pominięcia przy brakujących danych lub Dockerze. Nie zapisuje danych proxy w repo.
 W tym przebiegu próba live zatrzymała się na weryfikacji danych wejściowych, przed połączeniem
 z modelem. Nie potwierdzono uruchomienia rzeczywistego agenta ani jego `pwd`.

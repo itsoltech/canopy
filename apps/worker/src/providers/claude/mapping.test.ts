@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { BackgroundTaskKind, ItemStatus, ThreadEventSchema, TurnOutcome, type Item, type ThreadEvent } from "@open-agents/contracts";
-import { eventItemId, reduceItem } from "@open-agents/domain";
+import { BackgroundTaskKind, ItemStatus, ThreadEventSchema, TurnOutcome, type Item, type ThreadEvent } from "@canopy/contracts";
+import { eventItemId, reduceItem } from "@canopy/domain";
 import { ClaudeEventMapper, startsTurn, toolContent } from "./mapping.ts";
 import { goalVerdictOf } from "./threads.ts";
 
@@ -94,7 +94,7 @@ describe("Claude event mapping on recorded turns", () => {
       ["fileChange", "add hello.txt"],
       ["toolCall", "/ToolSearch", false],
       ["commandExecution", "cat hello.txt", "hi"],
-      ["toolCall", "openagents/record_token", false],
+      ["toolCall", "canopy/record_token", false],
       ["agentMessage", "DONE"],
     ]);
     expect(items.every((i) => i.status === ItemStatus.COMPLETED)).toBe(true);
@@ -107,10 +107,12 @@ describe("Claude event mapping on recorded turns", () => {
   });
 
   test("agent bus tools become agent_bus_call items; failed tools are failed items", () => {
-    expect(toolContent("mcp__openagents__spawn_thread", { title: "x", prompt: "y" })).toEqual({
+    expect(toolContent("mcp__canopy__spawn_thread", { title: "x", prompt: "y" })).toEqual({
       case: "agentBusCall",
       value: { toolName: "spawn_thread", argumentsJson: '{"title":"x","prompt":"y"}' },
     });
+    // Sessions from before the rename call the server by its old name.
+    expect(toolContent("mcp__openagents__spawn_thread", {})).toMatchObject({ case: "agentBusCall", value: { toolName: "spawn_thread" } });
     expect(toolContent("mcp__github__create_issue", { a: 1 })).toEqual({ case: "toolCall", value: { server: "github", name: "create_issue", inputJson: '{"a":1}' } });
     const mapper = new ClaudeEventMapper("t");
     mapper.map({ type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "tu", name: "Bash", input: { command: "false" } }] }, parent_tool_use_id: null, uuid: "u1", session_id: "s" } as never);

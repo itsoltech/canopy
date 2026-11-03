@@ -1,9 +1,9 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter, type HandlerContext } from "@connectrpc/connect";
-import { update } from "@open-agents/contracts";
-import { MIN_WORKER_LINK_PROTOCOL, UPDATE_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@open-agents/domain/release/protocol";
-import { AsyncChannel } from "@open-agents/transport";
-import type { ReleaseMirror } from "@open-agents/updater";
+import { update } from "@canopy/contracts";
+import { MIN_WORKER_LINK_PROTOCOL, UPDATE_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
+import { AsyncChannel } from "@canopy/transport";
+import type { ReleaseMirror } from "@canopy/updater";
 
 export interface UpdateServiceOptions {
   version: string;

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { GrokOptions } from "@open-agents/grok-acp";
+import type { GrokOptions } from "@canopy/grok-acp";
 import type { ResolvedProfile } from "../profiles.ts";
 
 /** Isolated configuration per process; durable sessions per instance. Keys never enter config or argv. */
@@ -36,18 +36,18 @@ export function grokLaunch(options: {
   if (options.readOnly) env["GROK_SANDBOX"] = "read-only";
   else if (options.fullAuto) env["GROK_SANDBOX"] = "workspace";
   else delete env["GROK_SANDBOX"];
-  let config = '[cli]\nauto_update = false\nuse_leader = false\n\n[shell_environment_policy]\nexclude = ["OPENAGENTS_GROK_API_KEY", "XAI_API_KEY", "GROK_CODE_XAI_API_KEY"]\n';
+  let config = '[cli]\nauto_update = false\nuse_leader = false\n\n[shell_environment_policy]\nexclude = ["CANOPY_GROK_API_KEY", "XAI_API_KEY", "GROK_CODE_XAI_API_KEY"]\n';
   config += '\n[ui]\npermission_mode = "ask"\nremember_tool_approvals = false\n';
   // Grok auto-allows mkdir/touch before asking ACP. Explicit denies also cover workspaces under /tmp.
   if (options.readOnly) config += '\n[permission]\nrules = [{ action = "deny", tool = "edit" }, { action = "deny", tool = "bash" }]\n';
   if (profile.kind === "cliproxyapi") {
     delete env["XAI_API_KEY"]; delete env["GROK_CODE_XAI_API_KEY"];
-    env["OPENAGENTS_GROK_API_KEY"] = profile.apiKey;
+    env["CANOPY_GROK_API_KEY"] = profile.apiKey;
     // Also needed by the CLI's session authentication guard; per-model env_key chooses the same key.
     env["XAI_API_KEY"] = profile.apiKey;
     const base = profile.baseUrl.href.replace(/\/$/, "").replace(/\/v1$/, "") + "/v1";
     const model = options.model || "grok-4.6";
-    config += `\n[model.${JSON.stringify(model)}]\nmodel = ${JSON.stringify(model)}\nbase_url = ${JSON.stringify(base)}\nenv_key = "OPENAGENTS_GROK_API_KEY"\napi_backend = "chat_completions"\n`;
+    config += `\n[model.${JSON.stringify(model)}]\nmodel = ${JSON.stringify(model)}\nbase_url = ${JSON.stringify(base)}\nenv_key = "CANOPY_GROK_API_KEY"\napi_backend = "chat_completions"\n`;
   } else if (options.linkDeviceLogin !== false || runtime.ownLogin) {
     const source = runtime.ownLogin ? runtime.shadowHomePath || join(options.dataDir, "homes", `grok-${profile.id}`) : runtime.homePath || (options.baseEnv ?? process.env)["GROK_HOME"] || join(homedir(), ".grok");
     env["GROK_AUTH_PATH"] = join(source, "auth.json");

@@ -1,5 +1,5 @@
 import { fromJson, toJson, type DescMessage, type JsonValue, type MessageShape } from "@bufbuild/protobuf";
-import { PermissionMode, Provider } from "@open-agents/contracts";
+import { PermissionMode, Provider } from "@canopy/contracts";
 import { Invalid } from "../../store/store.ts";
 import type { GatewayCore, GatewayCoreOptions } from "../../core/core.ts";
 import { requiredString } from "../store.ts";

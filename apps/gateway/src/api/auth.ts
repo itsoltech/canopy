@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { Code, ConnectError, type Interceptor } from "@connectrpc/connect";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { mobileIdentity, type MobileDevices } from "../core/mobile-devices.ts";
 
 /**

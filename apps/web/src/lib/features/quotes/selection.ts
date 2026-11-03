@@ -1,4 +1,4 @@
-import type { QuoteSourceKind } from "@open-agents/domain";
+import type { QuoteSourceKind } from "@canopy/domain";
 
 /**
  * What a selection in the transcript quotes: the text as the reader sees it (rendered markdown without its

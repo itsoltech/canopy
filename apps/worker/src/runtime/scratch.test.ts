@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, statSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
-import { tempDirs } from "@open-agents/testing";
+import { tempDirs } from "@canopy/testing";
 import { ensureScratchDirectory } from "./scratch.ts";
 const makeTemp = tempDirs();
 

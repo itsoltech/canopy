@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import ProjectThreadList from "#lib/features/projects/ProjectThreadList.svelte";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";

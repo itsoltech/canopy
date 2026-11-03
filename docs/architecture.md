@@ -21,7 +21,7 @@ Powiązane dokumenty:
 - [goals.md](goals.md) — cele: silnikiem jest harness (Codex goals, Claude `/goal`), platforma je śledzi i steruje nimi z UI
 - [agent-bus.md](agent-bus.md) — szyna agentów: delegowanie przez wątki boczne, interakcje, harmonogram; natywna orkiestracja dostawców wyłączona
 - [durability.md](durability.md) — trwałość, graceful shutdown, aktualizacje w trakcie działania
-- [`proto/openagents/worker/v1/worker_link.proto`](../proto/openagents/worker/v1/worker_link.proto) — szkic kontraktu
+- [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto) — szkic kontraktu
 
 ## 1. Cel
 
@@ -78,7 +78,7 @@ flowchart LR
     UI -- "HTTP: JSON / SSE" --> BFF
     BFF -- "gRPC HTTP/2, service token" --> GW
     M -- "Connect + device token" --> TS
-    TS -- "HTTP/1.1 loopback, OA_MOBILE_PORT" --> GW
+    TS -- "HTTP/1.1 loopback, CANOPY_MOBILE_PORT" --> GW
     GW -- "SQL (TLS)" --> PG
     W1 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW
     W2 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW
@@ -97,7 +97,7 @@ flowchart LR
 | SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. |
 | Mobile → Tailscale Serve → Gateway | HTTPS Connect, dalej HTTP/1.1 loopback | aplikacja | Unary i server streaming przez `expo/fetch`. Jednorazowe parowanie, osobny odwoływalny token urządzenia; administracja urządzeniami tylko przez BFF. |
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Działa za NAT-em i firewallem. Szczegóły: [protocol.md](protocol.md). |
-| Worker → Gateway (aktualizacje) | osobny gRPC `openagents.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |
+| Worker → Gateway (aktualizacje) | osobny gRPC `canopy.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |
 | Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Poświadczenia zostają na urządzeniu (login Claude Code / Codex lub klucz API). |
 | Gateway → LLM | HTTPS | Gateway | Tylko agenci czatowi. Klucze trzyma gateway. |
@@ -299,9 +299,9 @@ type ProviderProfileConfig =
 | | Claude Agent SDK | Codex app-server |
 |---|---|---|
 | Gdzie | `query({ options })` per wątek | `-c` przy starcie procesu + `thread/start` per wątek |
-| Endpoint | `env.ANTHROPIC_BASE_URL = <baseUrl>` | `model_providers.openagents_<id>.base_url = "<baseUrl>/v1"`, `wire_api = "responses"` |
-| Klucz | `env.ANTHROPIC_AUTH_TOKEN` (usuwane `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`) | `env_key = "OPENAGENTS_<ID>_API_KEY"`, wartość w env procesu, nie w argv |
-| Wybór | per wątek | `thread/start { modelProvider: "openagents_<id>" }`; jeden proces obsługuje wątki natywne i przez proxy |
+| Endpoint | `env.ANTHROPIC_BASE_URL = <baseUrl>` | `model_providers.canopy_<id>.base_url = "<baseUrl>/v1"`, `wire_api = "responses"` |
+| Klucz | `env.ANTHROPIC_AUTH_TOKEN` (usuwane `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`) | `env_key = "CANOPY_<ID>_API_KEY"`, wartość w env procesu, nie w argv |
+| Wybór | per wątek | `thread/start { modelProvider: "canopy_<id>" }`; jeden proces obsługuje wątki natywne i przez proxy |
 | Model | `options.model` z agenta | `thread/start { model }` z agenta |
 
 Profile to globalne instancje dostawców, które użytkownik definiuje raz (Settings → Providers) i włącza na wybranych workerach; zmienne środowiskowe i lista zakazanych nazw: [worker-config.md](worker-config.md#81-zmienne-środowiskowe-profilu), instancje, synchronizacja i modele: [worker-config.md](worker-config.md#9-globalne-instancje-dostawców).
@@ -332,7 +332,7 @@ Worker uruchamia kod na prawdziwych maszynach. To główne ryzyko projektu.
 Monorepo na Bun workspaces. Każda aplikacja jest osobno wdrażalna, wspólny kod jest w pakietach, kontrakt jest jeden i generowany.
 
 ```text
-open-agents/
+canopy/
 ├── apps/
 │   ├── gateway/          # serwer centralny (API, gRPC server, chat runtime, agent bus)
 │   ├── worker/           # agent na edge device (gRPC client, adaptery SDK)
@@ -350,8 +350,8 @@ open-agents/
 Zasady zależności:
 
 - `apps/*` → `packages/*`. Aplikacje nie importują siebie nawzajem.
-- Typy protokołu tylko z `@open-agents/contracts`. Ręcznie pisane typy dublujące protokół są niedozwolone.
-- `tests/integration` może importować publiczne wejścia aplikacji (`exports` w `package.json`), np. `@open-agents/gateway/worker-link`.
+- Typy protokołu tylko z `@canopy/contracts`. Ręcznie pisane typy dublujące protokół są niedozwolone.
+- `tests/integration` może importować publiczne wejścia aplikacji (`exports` w `package.json`), np. `@canopy/gateway/worker-link`.
 
 ## 11. Decyzje do podjęcia
 

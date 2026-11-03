@@ -1,6 +1,6 @@
 <script lang="ts">
   import { create } from "@bufbuild/protobuf";
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import TextLink from "#lib/shared/ui/TextLink.svelte";
   import ProjectWorkerRow from "./ProjectWorkerRow.svelte";

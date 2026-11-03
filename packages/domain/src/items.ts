@@ -7,7 +7,7 @@ import {
   type Item,
   type ItemDelta,
   type ThreadEvent,
-} from "@open-agents/contracts";
+} from "@canopy/contracts";
 
 /**
  * Item projection shared by the gateway (thread_items, same transaction as the event)

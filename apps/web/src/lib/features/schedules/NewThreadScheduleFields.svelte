@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Provider, PermissionMode, ui } from "@open-agents/contracts";
-  import { scheduleWorkerEligible } from "@open-agents/domain";
+  import { Provider, PermissionMode, ui } from "@canopy/contracts";
+  import { scheduleWorkerEligible } from "@canopy/domain";
   import { create } from "@bufbuild/protobuf";
   import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";

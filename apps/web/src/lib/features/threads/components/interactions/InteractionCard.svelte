@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { InteractionKind, type Item, type ui } from "@open-agents/contracts";
+  import { InteractionKind, type Item, type ui } from "@canopy/contracts";
   import { humanizeToolName } from "#lib/shared/humanize.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";

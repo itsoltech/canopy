@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { deleteQueued, editQueued, reorderQueue, restoreQueued, steerQueued } from "../api.ts";
 import { messageOf, moveTo, ordered, relocateMentions } from "./queue.ts";

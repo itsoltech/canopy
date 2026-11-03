@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopBridge, DesktopStatus } from "@open-agents/ui/desktop";
+import type { DesktopBridge, DesktopStatus } from "@canopy/ui/desktop";
 
 function subscribe<T>(channel: string, listener: (data: T) => void) {
   const receive = (_event: Electron.IpcRendererEvent, data: T) => listener(data);

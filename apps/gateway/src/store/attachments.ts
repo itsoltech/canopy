@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid, NotFound } from "./store.ts";
@@ -79,7 +79,7 @@ export class AttachmentStore extends Context.Service<
     /** Where the worker keeps attachments (Hello.attachments_root) and its OS; root empty = no attachment support. */
     workerRoot(workerId: string): Fx<{ root: string; os: string }>;
   }
->()("open-agents/gateway/AttachmentStore") {
+>()("canopy/gateway/AttachmentStore") {
   static readonly layer = Layer.effect(
     AttachmentStore,
     Effect.gen(function* () {

@@ -174,7 +174,7 @@ The gateway needs `CANOPY_MOBILE_PORT` and an HTTPS proxy in front of that liste
 
 ## Configuration
 
-Older `OA_*` variable names are still accepted as a fallback for their `CANOPY_*` equivalents; the gateway and worker log a warning when they use one.
+Older `OA_*` variable names are still accepted as a fallback for their `CANOPY_*` equivalents; the gateway and worker log a warning when they use one (mapping in `docs/deploy.md`).
 
 ### Gateway
 

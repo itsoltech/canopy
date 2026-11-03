@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
-  import { isCodeQuote } from "@open-agents/domain";
+  import type { ui } from "@canopy/contracts";
+  import { isCodeQuote } from "@canopy/domain";
   import type { ClassValue } from "svelte/elements";
   import { useThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";

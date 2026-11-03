@@ -9,8 +9,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
-import { BackgroundTaskKind, ItemStatus, PermissionMode, Provider, ThreadEventSchema, TurnOrigin, TurnOutcome, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { BackgroundTaskKind, ItemStatus, PermissionMode, Provider, ThreadEventSchema, TurnOrigin, TurnOutcome, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { SqlClient } from "effect/sql";
 import { Effect } from "effect";
 import { eventually, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
@@ -88,7 +88,7 @@ describe.skipIf(!dockerAvailable)("background task notes (gateway)", () => {
     const turns = await eventually(() => noteTurns(threadId), (t) => t.length === 1 && t[0]!.status === "completed");
     expect(turns[0]).toMatchObject({ trigger: "background_task", sourceKind: "background_task", hops: 1, backgroundItemIds: ["bg:exec-1"] });
     const input = worker.started.get(turns[0]!.id)?.text ?? "";
-    expect(input).toStartWith("[open-agents] A background task of this thread ended: completed with exit code 0.");
+    expect(input).toStartWith("[canopy] A background task of this thread ended: completed with exit code 0.");
     expect(input).toContain('Task "python3 train.py" (task_id: bg:exec-1)');
     expect(input).toContain("epoch 3/3\ndone");
     expect(input).toContain("get_background_task");
@@ -114,7 +114,7 @@ describe.skipIf(!dockerAvailable)("background task notes (gateway)", () => {
       const turnId = running.turns.find((t) => t.status === "running")!.id;
       worker.emit(threadId, "", { case: "itemCompleted", value: { item: ended("bg:exec-2", "102", ItemStatus.FAILED, { exitCode: 2, stopReason: "error", output: "Traceback\nValueError\n" }) } });
       const steer = await eventually(async () => [...worker.steered.values()].find((t) => t.includes("bg:exec-2")), (t) => t !== undefined);
-      expect(steer).toStartWith("[open-agents] A background task of this thread ended: failed with exit code 2.");
+      expect(steer).toStartWith("[canopy] A background task of this thread ended: failed with exit code 2.");
       const state = await eventually(() => snapshot(threadId), (s) => s.steers.some((x) => x.backgroundItemIds.includes("bg:exec-2") && x.status === "delivered"));
       expect(state.steers.find((x) => x.backgroundItemIds.length > 0)).toMatchObject({ turnId, backgroundItemIds: ["bg:exec-2"], status: "delivered" });
       worker.finish(threadId, turnId);

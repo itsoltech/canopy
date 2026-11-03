@@ -1,4 +1,4 @@
-import { Provider, type ui } from "@open-agents/contracts";
+import { Provider, type ui } from "@canopy/contracts";
 
 /** Providers a thread can run on, as sent by forms (enum key). */
 export const providerKeys = ["CLAUDE", "CODEX", "GROK"] as const;

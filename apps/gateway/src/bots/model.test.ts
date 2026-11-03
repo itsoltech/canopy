@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { bots, ProfileModelsSchema, Provider } from "@open-agents/contracts";
+import { bots, ProfileModelsSchema, Provider } from "@canopy/contracts";
 import { anthropicRequest, apiModel, directModel, grokRequest, openaiRequest } from "./model.ts";
 import { PLATFORM_TOOLS } from "./policy.ts";
 import type { ModelInput } from "./types.ts";

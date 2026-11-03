@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
-  import { formatSize } from "@open-agents/domain";
+  import type { ui } from "@canopy/contracts";
+  import { formatSize } from "@canopy/domain";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import FileChip from "./FileChip.svelte";

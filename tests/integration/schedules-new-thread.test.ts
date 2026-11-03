@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { AgentBusStore, GatewayStore } from "@open-agents/gateway/store";
-import { GatewayCore } from "@open-agents/gateway/core";
-import { startGrpcServer } from "@open-agents/transport";
-import { openGatewayLink } from "@open-agents/worker/gateway-link";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { AgentBusStore, GatewayStore } from "@canopy/gateway/store";
+import { GatewayCore } from "@canopy/gateway/core";
+import { startGrpcServer } from "@canopy/transport";
+import { openGatewayLink } from "@canopy/worker/gateway-link";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, ScriptedWorker, type TestGateway } from "./support/gateway.ts";

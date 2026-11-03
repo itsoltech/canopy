@@ -1,7 +1,7 @@
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
-import { SIDEBAR_WIDTH, storedSidebarWidth } from "@open-agents/domain";
-import { accents, type AccentName } from "@open-agents/ui";
+import { SIDEBAR_WIDTH, storedSidebarWidth } from "@canopy/domain";
+import { accents, type AccentName } from "@canopy/ui";
 
 /**
  * Appearance settings (stored by the gateway) as the attributes of `<html>` that layout.css reads:
@@ -9,7 +9,7 @@ import { accents, type AccentName } from "@open-agents/ui";
  * into the page (hooks.server.ts), the browser updates them when the settings change.
  */
 export type SchemeName = "system" | "light" | "dark";
-export type { AccentName } from "@open-agents/ui";
+export type { AccentName } from "@canopy/ui";
 export type ChatWidthName = "comfortable" | "wide" | "full";
 
 export const schemeNames: Record<SchemeName, ui.ColorScheme> = {

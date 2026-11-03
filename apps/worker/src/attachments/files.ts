@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import type { InputAttachment } from "@open-agents/contracts";
-import { attachmentPath } from "@open-agents/domain";
+import type { InputAttachment } from "@canopy/contracts";
+import { attachmentPath } from "@canopy/domain";
 
 /**
  * Attachments on the worker (docs/protocol.md, "Załączniki"): `<data_dir>/attachments/<thread_id>/<attachment_id>/<name>`.

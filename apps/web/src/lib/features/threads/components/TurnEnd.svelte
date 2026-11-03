@@ -1,6 +1,6 @@
 <script lang="ts">
   import { humanizeEnum, isEnumToken } from "#lib/shared/humanize.ts";
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import { statusLook } from "#lib/shared/ui/status.ts";

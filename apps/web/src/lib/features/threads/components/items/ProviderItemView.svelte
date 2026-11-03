@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ItemStatus, ProviderItem } from "@open-agents/contracts";
+  import type { ItemStatus, ProviderItem } from "@canopy/contracts";
   import { humanizeEnum } from "#lib/shared/humanize.ts";
   import { structureJson } from "#lib/shared/structure.ts";
   import ItemFrame from "./ItemFrame.svelte";

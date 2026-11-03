@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { v2 } from "@open-agents/codex-protocol";
+import type { v2 } from "@canopy/codex-protocol";
 import { claudeAgentModels, claudeModel, codexModel, codexProxyModels, isAgentModel, proxyCapabilities, proxyModels } from "./models.ts";
 
 const proxy = { kind: "cliproxyapi" as const, id: "cliproxy", baseUrl: new URL("http://proxy.internal:8317"), apiKey: "sk-test", providers: ["claude" as const, "codex" as const], env: {}, runtime: {} };

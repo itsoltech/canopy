@@ -1,4 +1,4 @@
-import { PermissionMode, Provider } from "@open-agents/contracts";
+import { PermissionMode, Provider } from "@canopy/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 
 export const providerLabel = (provider: Provider): string => (provider === Provider.CLAUDE ? "Claude" : provider === Provider.CODEX ? "Codex" : provider === Provider.GROK ? "Grok" : "Agent");

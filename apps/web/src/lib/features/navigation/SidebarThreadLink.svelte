@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { isCalm, needsYou } from "#lib/features/threads/activity.ts";

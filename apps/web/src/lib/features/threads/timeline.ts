@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { dayKey } from "#lib/shared/format.ts";
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-state.svelte.ts";
 

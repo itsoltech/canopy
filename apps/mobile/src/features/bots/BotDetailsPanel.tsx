@@ -1,5 +1,5 @@
 import { Text } from "react-native";
-import type { bots } from "@open-agents/contracts";
+import type { bots } from "@canopy/contracts";
 import { Sheet } from "../../ui/components";
 import { PanelRow } from "../threads/ThreadPanel";
 import { styles, useColors } from "../../ui/theme";

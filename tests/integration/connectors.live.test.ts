@@ -2,13 +2,13 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { readFileSync, readdirSync } from 'node:fs';
-import { PermissionMode, Provider } from '@open-agents/contracts';
-import { dockerAvailable } from '@open-agents/db/testing';
-import { GatewayStore } from '@open-agents/gateway/store';
-import { tempDirs } from '@open-agents/testing';
-import { journalHello, openGatewayLink } from '@open-agents/worker/gateway-link';
-import { Journal } from '@open-agents/worker/journal';
-import { serveLink, WorkerHost } from '@open-agents/worker/runtime';
+import { PermissionMode, Provider } from '@canopy/contracts';
+import { dockerAvailable } from '@canopy/db/testing';
+import { GatewayStore } from '@canopy/gateway/store';
+import { tempDirs } from '@canopy/testing';
+import { journalHello, openGatewayLink } from '@canopy/worker/gateway-link';
+import { Journal } from '@canopy/worker/journal';
+import { serveLink, WorkerHost } from '@canopy/worker/runtime';
 import { Effect, ManagedRuntime } from 'effect';
 import { SqlClient } from 'effect/sql';
 import { fakeConnector } from './support/connector.ts';
@@ -16,8 +16,8 @@ import { eventually, startTestGateway, type TestGateway } from './support/gatewa
 import { liveProxyReady, useLiveProxy } from './support/live.ts';
 
 const tempDir = tempDirs();
-const proxyUrl = process.env['OA_LIVE_CLIPROXYAPI_URL'], proxyKey = process.env['OA_LIVE_CLIPROXYAPI_KEY'];
-const enabled = process.env['OA_LIVE'] === '1' && !!proxyUrl && !!proxyKey && dockerAvailable;
+const proxyUrl = process.env['CANOPY_LIVE_CLIPROXYAPI_URL'], proxyKey = process.env['CANOPY_LIVE_CLIPROXYAPI_KEY'];
+const enabled = process.env['CANOPY_LIVE'] === '1' && !!proxyUrl && !!proxyKey && dockerAvailable;
 describe.skipIf(!enabled)('connectors (Codex + Claude, live CLIProxyAPI)', () => {
   let gw: TestGateway, fake: ReturnType<typeof fakeConnector>;
   let stop = async () => {};
@@ -46,8 +46,8 @@ describe.skipIf(!enabled)('connectors (Codex + Claude, live CLIProxyAPI)', () =>
     const marker = `CANOPY_${Provider[provider]}_${crypto.randomUUID().slice(0,8)}`;
     const before = fake.calls.length;
     const thread = (await gw.api.createThread({ projectId,workspaceId,provider,providerProfileId: 'cliproxyapi',permissionMode: provider === Provider.CLAUDE ? PermissionMode.READ_ONLY : PermissionMode.FULL_AUTO,
-      model: provider === Provider.CODEX ? process.env['OA_LIVE_CODEX_MODEL'] ?? 'gpt-6.1-sol' : process.env['OA_LIVE_CLAUDE_MODEL'] ?? 'claude-haiku-5-5',
-      title: `Connector ${Provider[provider]}`,initialMessage: `Call the available connector tool ${toolName} exactly once with {"marker":"${marker}"}. It is on the openagents MCP server in Claude. Discover it with ToolSearch if needed. Do not use shell, network or any other tools. Read the result and reply exactly ${marker}.`,
+      model: provider === Provider.CODEX ? process.env['CANOPY_LIVE_CODEX_MODEL'] ?? 'gpt-6.1-sol' : process.env['CANOPY_LIVE_CLAUDE_MODEL'] ?? 'claude-haiku-5-5',
+      title: `Connector ${Provider[provider]}`,initialMessage: `Call the available connector tool ${toolName} exactly once with {"marker":"${marker}"}. It is on the canopy MCP server in Claude. Discover it with ToolSearch if needed. Do not use shell, network or any other tools. Read the result and reply exactly ${marker}.`,
     })).thread!;
     const done = await eventually(() => gw.api.getThread({ threadId: thread.id }), (r) => ['completed','failed','interrupted'].includes(r.thread?.lastTurnStatus ?? ''), 240_000);
     expect(done.thread?.lastTurnStatus).toBe('completed');

@@ -1,6 +1,6 @@
 import { create, toBinary, type JsonValue } from "@bufbuild/protobuf";
-import { CommandSchema, type ui } from "@open-agents/contracts";
-import { questionAnswerInput, questionResult, type AgentBusArgs, type UserQuestion } from "@open-agents/domain";
+import { CommandSchema, type ui } from "@canopy/contracts";
+import { questionAnswerInput, questionResult, type AgentBusArgs, type UserQuestion } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import { Invalid, NotFound, toInteraction, type InteractionRow, type TurnRow } from "./store.ts";

@@ -15,7 +15,7 @@ import {
 import { styles, useColors } from "./theme";
 import type { Connection } from "../state/stream";
 import { Icon } from "./Icon";
-import type { IconName } from "@open-agents/ui/icons";
+import type { IconName } from "@canopy/ui/icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 

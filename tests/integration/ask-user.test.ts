@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { Provider, TurnOutcome, ui, type AgentToolResult } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { Provider, TurnOutcome, ui, type AgentToolResult } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
