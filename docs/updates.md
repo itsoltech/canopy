@@ -1,0 +1,156 @@
+# Aktualizacje Canopy
+
+Gateway i worker używają jednej wersji aplikacji z `CANOPY_VERSION` (wstrzykiwanej
+podczas kompilacji; bez niej `0.0.0-dev`). `--version` wypisuje tę wersję bez
+uruchamiania usług. Wersja aplikacji nie jest numerem protokołu.
+
+## Niezależny kanał ratunkowy
+
+`proto/openagents/update/v1/update.proto` definiuje zamrożony
+`openagents.update.v1.UpdateService`. Gateway wystawia go na tym samym porcie
+HTTP/2 co WorkerLink, pod osobną ścieżką usługi. Działa też na opcjonalnym
+listenerze worker-only (`OA_WORKER_HOST` / `OA_WORKER_PORT`). Osobny port nie
+zwiększyłby odporności na niezgodne kontrakty, a wymagałby dodatkowych reguł proxy
+i firewalla. Worker inicjuje oba niezależne połączenia, również za NAT-em.
+
+| RPC / endpoint | Dostęp i odpowiedź |
+|---|---|
+| `Check` bez Authorization | Tylko zdrowie gatewaya, jego wersja i zakresy protokołów. Nie ujawnia workerów, poleceń ani assetów. |
+| `Check` z credentialem | Dodatkowo werdykt zgodności dla podanego workera. |
+| `Watch` | Credential workera w `Authorization: Bearer …`; natychmiastowy werdykt, następnie polecenia i heartbeat. Rozwiązanie release nie blokuje pierwszego werdyktu. |
+| `Report` | Uwierzytelniony postęp/wynik przypisany do identyfikatora polecenia. Stary raport nie nadpisze nowego polecenia. |
+| `FetchArtifact` | Uwierzytelniony strumień zweryfikowanej binarki workera wyłącznie dla wersji działającego gatewaya i wskazanej platformy. |
+| `GET /healthz` | Anonimowe `{healthy, version}`, HTTP 200/503, bez cache. Przy h2c wymaga HTTP/2; listener TLS obsługuje także HTTP/1.1. |
+
+`worker_id` musi odpowiadać credentialowi. Unieważnienie/rotacja credentialu lub
+archiwizacja workera zamyka kanał; heartbeat ponownie sprawdza uprawnienia.
+Poświadczenia nie trafiają do manifestów, adresów pobierania ani plików usługi.
+
+`WORKER_LINK_PROTOCOL`, `MIN_WORKER_LINK_PROTOCOL` i `UPDATE_PROTOCOL` są w
+`packages/domain/src/release/protocol.ts`. Obecnie wszystkie wynoszą 1. Worker
+wysyła zakres `[min_worker_link_protocol, worker_link_protocol]` także w
+WorkerLink `Hello` (nowe pola 760 i 761). Gateway dopuszcza połączenie, gdy oba
+dodatnie zakresy mają wspólny numer. Brak negocjacji (0) jest niezgodny;
+WorkerLink zwraca `FailedPrecondition` z zakresem i wskazaniem UpdateService.
+Aktualizator działa niezależnie od tego handshake i konfiguracji dostawców.
+
+Reguły utrzymania v1: wyłącznie nowe opcjonalne pola i RPC, bez zmiany znaczeń,
+typów ani numerów istniejących pól. Nie usuwać v1 przy kolejnej wersji WorkerLink.
+Nie importować do niego wiadomości WorkerLink ani UI. `UPDATE_PROTOCOL` pozostaje
+1; zmiana łamiąca WorkerLink zwiększa jego własny numer. Nowe stany postępu są
+tekstowe; stary serwer je przyjmuje, stary klient pokazuje bezpieczny stan
+zastępczy. Nieznana zgodność nie może otworzyć WorkerLink. Nieznany rodzaj
+instalacji jest zarządzany zewnętrznie.
+
+Worker sprzed wprowadzenia UpdateService wymaga **jednej ręcznej aktualizacji**.
+Nie ma możliwości zdalnego dodania kanału do procesu, który go jeszcze nie zna.
+
+## Release i mirror
+
+Źródło domyślne: `https://api.github.com/repos/itsoltech/canopy/releases…`.
+Kanały: `latest` wskazuje tag `latest`, `vX` / `vX.Y` wybierają najwyższe stabilne
+semver z prefiksem (z paginacją), `vX.Y.Z` wskazuje tag `vX.Y.Z`
+(mirror może zachować również tagi `X.Y.Z`). Inne prerelease
+są pomijane. Build main ma wersję `X.Y.Z-main.<sha7>`.
+
+Resolver pobiera asset `manifest.json`, schemat 1:
+
+```json
+{
+  "schema": 1, "version": "2.1.0", "channel": "v2.1.0",
+  "commit": "abcdef0", "published_at": "2026-11-03T00:00:00Z",
+  "protocol": { "worker_link": 1, "update": 1 },
+  "assets": [{
+    "app": "worker", "os": "linux", "arch": "x64",
+    "name": "canopy-worker-linux-x64",
+    "url": "https://github.com/itsoltech/canopy/releases/download/v2.1.0/canopy-worker-linux-x64",
+    "sha256": "<64 znaki hex>", "size": 123456
+  }]
+}
+```
+
+Nazwy niekompresowanych binarek: `canopy-{gateway|worker}-{os}-{arch}`
+(`linux|darwin|windows`, `x64|arm64`, `.exe` na Windows). Pipeline publikuje także
+`checksums.txt`; runtime weryfikuje rozmiar i SHA-256 bezpośrednio z manifestu.
+Manifest może zawierać także instalatory desktop z własnymi nazwami; aktualizator
+gatewaya/workera nie wybiera tych assetów.
+Wszystkie adresy upstream i przekierowania muszą używać HTTPS. Jawny wyjątek HTTP
+jest dostępny tylko w opcjach testowych, nie przez zmienną środowiskową.
+
+Gateway przechowuje manifest własnej wersji oraz binarki workerów w cache
+adresowanym SHA-256. Równoległe żądania współdzielą pobieranie; każde ponowne
+użycie pliku sprawdza jego hash. Przed własną aktualizacją zapisuje wybrany
+manifest oraz pobiera assety platform znanych workerów binarnych, aby przesunięcie
+tagu `latest` nie odebrało im aktualizacji. Cache zachowaj między restartami.
+Workery preferują `FetchArtifact`, więc nie potrzebują dostępu do internetu.
+Przy zimnym cache gateway musi mieć dostęp do release; awaria mirrora kończy
+próbę czytelnym błędem i pozostawia bieżącą binarkę.
+
+## Wymiana, restart i rollback
+
+1. Administrator aktualizuje gateway w **Settings → Workers → Updates**.
+   Gateway sprawdza kanał co 15 minut; akcje zarządzania wymagają roli `admin`.
+   Kanał zapisuje się w istniejącym `user_settings.settings.updateChannel`.
+2. Gateway blokuje nowe tury, czeka na zakończenie tur workerów i botów, pobiera
+   release i weryfikuje go. Wybrany gateway jest wymieniany przed wysłaniem
+   workerom poleceń przejścia na tę wersję.
+3. Po restarcie worker otwiera Watch. Gateway zapisuje trwałe polecenie przejścia
+   na **swoją uruchomioną wersję**; zastępuje polecenie do poprzedniej wersji.
+   Offline worker odbierze je przy następnym połączeniu. Ręczne **Update worker**
+   i **Update all** pozwalają ponowić próbę. Nie ponawia automatycznie błędu lub
+   rollbacku i nie wykonuje automatycznego downgrade.
+4. Worker zamyka przyjmowanie nowej pracy i zgłasza `waiting_idle`; czeka również
+   na generacje i zadania w tle. Limit domyślny to 30 minut. Przekroczenie limitu
+   odracza aktualizację, odblokowuje pracę i wymaga ponowienia. Tylko jawne `force`
+   w administracyjnym `ManageUpdates` może przerwać aktywną pracę. Po błędzie
+   worker odtwarza niepotwierdzone polecenia przez ponowne połączenie WorkerLink.
+5. Zweryfikowane bajty trafiają do pliku `.next` obok executable (ten sam system
+   plików), są synchronizowane, otrzymują prawa wykonania, poprzedni plik zostaje
+   jako `.bak`, a atomowy rename podmienia executable. Manifest, rozmiar i SHA
+   muszą być poprawne **przed** dopuszczeniem wykonania. Downgrade wymaga jawnego
+   `allow_downgrade` administratora. Stan i identyfikator polecenia zapisuje
+   prywatny plik `.update.json` obok binarki.
+
+Binarka uruchamia proces nadzorujący i właściwy proces usługi. Kod wyjścia **75**
+żąda ponownego uruchomienia executable. Ten sam mechanizm działa na pierwszym
+planie i pod systemd/launchd. Stary supervisor pozostaje w pamięci, dzięki czemu
+potrafi przywrócić `.bak`, nawet gdy nowa binarka w ogóle się nie uruchamia.
+Zwykłe zakończenie nie wywołuje restartu supervisora; politykę awarii ustala
+menedżer usług. Drukowane unit/plist mają `Restart=always` / `KeepAlive=true`.
+Gateway `service` drukuje unit z `EnvironmentFile=%h/.config/canopy/gateway.env`;
+przygotuj ten prywatny plik samodzielnie z istniejącą konfiguracją gatewaya.
+
+Nowy gateway potwierdza start po uruchomieniu DB, listenerów i aktualizatora;
+worker po otrzymaniu WorkerLink Welcome. Jeśli proces wcześniej wyjdzie albo
+nie potwierdzi startu w **90 sekund**, supervisor przywraca `.bak` i uruchamia
+poprzednią wersję. Worker raportuje utrwalony sukces/błąd przed następnym Watch.
+Metadane UI i polecenia pozostają w istniejącym JSONB `workers.capabilities`
+(`update`, `updateCommand`); migracja schematu nie jest potrzebna.
+
+## Instalacja i konfiguracja
+
+| Ustawienie | Znaczenie |
+|---|---|
+| `CANOPY_VERSION` | Wspólna wersja, wstrzykiwana przez pipeline. |
+| `CANOPY_UPDATE_CHANNEL` | Kanał początkowy, domyślnie `latest`; zapisany wybór administratora ma pierwszeństwo. |
+| `CANOPY_RELEASE_BASE_URL` | Alternatywny HTTPS endpoint o układzie API GitHub (mirror/testy). |
+| `CANOPY_UPDATE_CACHE_DIR` | Trwały cache gatewaya, domyślnie `~/.cache/canopy/releases`. |
+| `CANOPY_INSTALL_KIND=docker` | Jawnie oznacza kontener; runtime rozpoznaje też `/.dockerenv` i `/run/.containerenv`, a poza kontenerem standalone Bun albo checkout źródeł. |
+
+Samoczynna wymiana obsługuje binarki **Linux/macOS** z zapisywalnym katalogiem
+instalacji i zwykłym executable (bez symlinków). Kontener pokazuje „Pull the new
+image tag and recreate this container”; source — aktualizację checkoutu,
+`bun install` i restart. Nie podmieniają plików uruchomieniowych.
+**Windows wymaga na razie zewnętrznego instalatora/usługi** ze względu na blokadę
+uruchomionego `.exe`; worker zgłasza `managed_externally`.
+
+## Granice i dalsze prace
+
+- SHA-256 zabezpiecza integralność względem manifestu dostarczonego z zaufanego
+  HTTPS/gatewaya. Weryfikacja podpisów manifestu (minisign/cosign) pozostaje do dodania.
+- Samoczynna wymiana Windows wymaga osobnego instalatora, który przeżywa zatrzymanie
+  procesu i potrafi uruchomić usługę oraz rollback.
+- Rollback obejmuje executable, nie migracje bazy. Release wymagający nieodwracalnej
+  migracji musi mieć osobny plan wdrożenia; migracje muszą tolerować powrót binarki.
+- Testy obejmują lokalny fixture release, realny gRPC i PostgreSQL oraz błędne
+  executable. Rzeczywiste publikacje GHCR/GitHub Releases należą do pipeline.

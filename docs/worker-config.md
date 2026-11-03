@@ -72,6 +72,12 @@ jego zawartości usuń go albo użyj `--force`. Kopiowana komenda zawiera token,
 traktuj ją jak hasło (również w historii shella i schowku).
 
 Komenda `service` tylko drukuje treść i komendy aktywacji — niczego nie instaluje.
+Binarka standalone uruchamia się także przez `canopy-worker run --config …`;
+`canopy-worker --version` pokazuje wspólną wersję aplikacji. Drukowana usługa ma
+`Restart=always` (systemd) / `KeepAlive=true` (launchd), a binarka używa supervisora
+z rollbackiem. Checkout źródeł i Docker pozostają zarządzane zewnętrznie.
+Niezależny kanał aktualizacji startuje z lokalnym credentialem po enrollment,
+bez oczekiwania na zgodność WorkerLink ani konfigurację CLI; [aktualizacje](updates.md).
 Utwórz wskazany katalog `~/.config/systemd/user` albo `~/Library/LaunchAgents`, zapisz
 wydrukowany fragment i wykonaj podane komendy. Fragment zawiera absolutne ścieżki do Bun,
 repo i configu oraz PATH użytkownika (CLI muszą być tam dostępne). Katalog checkoutu musi
