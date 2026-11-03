@@ -345,7 +345,7 @@ export class LinkedComputers {
     const zone = await this.options.zone?.().catch(() => undefined) || "UTC";
     const since = new Date(peer.status_since);
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(since) === new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date());
-    const time = new Intl.DateTimeFormat("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", ...(!today && { day: "numeric", month: "short" }) }).format(since);
+    const time = new Intl.DateTimeFormat("en", { timeZone: zone, hour: "numeric", minute: "2-digit", ...(!today && { day: "numeric", month: "short" }) }).format(since);
     return new ConnectError(`${name} ${STATE_TEXT[peer.status] ?? "is unreachable"} ${peer.status === "unreachable" || peer.status === "updating" ? "since" : "at"} ${time}`, Code.Unavailable);
   }
 

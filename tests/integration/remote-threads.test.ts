@@ -149,7 +149,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     await a.api.manageComputer({ action: "listener", enabled: false });
     await eventually(async () => (await a.api.getComputers({})).peers[0]?.status === "unreachable", 10_000);
     const started = Date.now();
-    expect(await failure(a.api.sendMessage({ threadId: thread, text: "while away", clientRequestId: id() }))).toMatch(/is unreachable since \d\d:\d\d/);
+    expect(await failure(a.api.sendMessage({ threadId: thread, text: "while away", clientRequestId: id() }))).toMatch(/is unreachable since \d{1,2}:\d\d/);
     expect(await failure(a.api.answerInteraction({ requestId: q(id()), allow: true }))).toContain("unreachable");
     expect(Date.now() - started).toBeLessThan(1500);
     expect((await a.api.getOverview({})).workers.some((w) => w.nodeId)).toBe(false);
