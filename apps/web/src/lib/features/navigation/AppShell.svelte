@@ -5,6 +5,7 @@
   import { afterNavigate, beforeNavigate } from "$app/navigation";
   import { page } from "$app/state";
   import { onMount } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
   import { appearanceFromDocument, applyAppearance } from "#lib/features/settings/appearance.ts";
   import { SettingsState, provideSettings } from "#lib/features/settings/settings-state.svelte.ts";
@@ -68,6 +69,10 @@
   $effect(() => () => sidebar.flush());
 
   let menuOpen = $state(false);
+  // One sidebar at a time: the column from `lg` (it is max-lg:hidden), the drawer below. Mounting both made every
+  // list in it (threads, archived pages, …) load twice.
+  const wide = new MediaQuery("(min-width: 64rem)");
+  $effect(() => { if (wide.current) menuOpen = false; });
   provideShell({ openMenu: () => (menuOpen = true), sidebar });
   // Close the menu as a navigation starts: Settings then opens over the page (focus returns to the menu button).
   beforeNavigate(() => (menuOpen = false));
@@ -107,10 +112,10 @@
 
 <div class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white">
   <SidebarColumn {sidebar}>
-    <AppSidebar currentThreadId={page.params.threadId} />
+    {#if wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}
   </SidebarColumn>
   <Drawer bind:open={menuOpen} label="Navigation">
-    <AppSidebar currentThreadId={page.params.threadId} />
+    {#if !wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}
   </Drawer>
 
   <div class="flex min-h-0 min-w-0 flex-1 flex-col">
