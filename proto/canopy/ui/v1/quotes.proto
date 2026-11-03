@@ -1,5 +1,5 @@
 syntax = "proto3";
-package openagents.ui.v1;
+package canopy.ui.v1;
 
 // Wspólny cytat w wiadomości wątku albo bota. Metadane źródła służą tylko nawigacji UI.
 message Quote {

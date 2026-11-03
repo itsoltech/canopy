@@ -1,7 +1,7 @@
 // Frozen recovery protocol. Only additive changes; never import WorkerLink or UI messages.
 // Keep v1 available forever, including when WorkerLink rejects a peer. See docs/updates.md.
 syntax = "proto3";
-package openagents.update.v1;
+package canopy.update.v1;
 
 service UpdateService {
   // Anonymous probes reveal only gateway health, version and protocol range.

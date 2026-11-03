@@ -21,7 +21,7 @@ import {
   type WorkerMessage,
 } from "@canopy/contracts";
 
-const CONNECT_PATH = "/openagents.worker.v1.WorkerLinkService/Connect";
+const CONNECT_PATH = "/canopy.worker.v1.WorkerLinkService/Connect";
 const EVENTS = 100;
 
 const definition = {

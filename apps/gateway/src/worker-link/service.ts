@@ -72,7 +72,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
       throw new ConnectError("Hello.worker_id does not match credential", Code.PermissionDenied);
     }
     if (!workerLinkCompatible(hello.minWorkerLinkProtocol, hello.workerLinkProtocol)) {
-      throw new ConnectError(`WorkerLink protocol ${hello.minWorkerLinkProtocol}..${hello.workerLinkProtocol} is incompatible with gateway ${MIN_WORKER_LINK_PROTOCOL}..${WORKER_LINK_PROTOCOL}; use openagents.update.v1.UpdateService to update`, Code.FailedPrecondition);
+      throw new ConnectError(`WorkerLink protocol ${hello.minWorkerLinkProtocol}..${hello.workerLinkProtocol} is incompatible with gateway ${MIN_WORKER_LINK_PROTOCOL}..${WORKER_LINK_PROTOCOL}; use canopy.update.v1.UpdateService to update`, Code.FailedPrecondition);
     }
 
     const outbound = new AsyncChannel<GatewayMessage>();

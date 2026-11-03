@@ -3,14 +3,14 @@
 // Opis: docs/ui-api.md
 syntax = "proto3";
 
-package openagents.ui.v1;
+package canopy.ui.v1;
 
 import "google/protobuf/timestamp.proto";
-import "openagents/worker/v1/worker_link.proto";
-import "openagents/ui/v1/bots.proto";
-import "openagents/ui/v1/quotes.proto";
-import "openagents/ui/v1/connectors.proto";
-import "openagents/ui/v1/mobile.proto";
+import "canopy/worker/v1/worker_link.proto";
+import "canopy/ui/v1/bots.proto";
+import "canopy/ui/v1/quotes.proto";
+import "canopy/ui/v1/connectors.proto";
+import "canopy/ui/v1/mobile.proto";
 
 service GatewayService {
   rpc GetUpdates(UpdatesRequest) returns (UpdatesSnapshot);
@@ -225,13 +225,13 @@ message Worker {
   string hostname = 4;
   string os = 5;
   string version = 6;
-  repeated openagents.worker.v1.ProviderInfo providers = 7;
-  repeated openagents.worker.v1.ProviderProfile profiles = 8;
+  repeated canopy.worker.v1.ProviderInfo providers = 7;
+  repeated canopy.worker.v1.ProviderProfile profiles = 8;
   // Historyczne pole zgodności; gateway zwraca pustą listę.
   repeated string allowed_roots = 9 [deprecated = true];
   uint64 config_version = 10;
   uint64 applied_version = 11;
-  repeated openagents.worker.v1.ConfigIssue config_issues = 12;
+  repeated canopy.worker.v1.ConfigIssue config_issues = 12;
   google.protobuf.Timestamp last_seen_at = 13;
   string home_directory = 14;
   // Globalne instancje dostawców z ich stanem na tym workerze (pickery: tylko enabled i available).
@@ -261,7 +261,7 @@ message Agent {
   string slug = 2;
   string name = 3;
   string description = 4;
-  openagents.worker.v1.Provider provider = 5;
+  canopy.worker.v1.Provider provider = 5;
   string model = 6;
   bool global = 7;
 }
@@ -278,10 +278,10 @@ message Thread {
   ThreadKind kind = 3;
   string parent_thread_id = 4;
   string title = 5;
-  openagents.worker.v1.Provider provider = 6;
+  canopy.worker.v1.Provider provider = 6;
   string provider_profile_id = 7;
   string model = 8;
-  openagents.worker.v1.PermissionMode permission_mode = 9;
+  canopy.worker.v1.PermissionMode permission_mode = 9;
   string worker_id = 10;
   string workspace_id = 11;
   string cwd = 12;
@@ -352,7 +352,7 @@ message Thread {
 message AgentSender {
   string thread_id = 1;
   string title = 2;
-  openagents.worker.v1.Provider provider = 3;
+  canopy.worker.v1.Provider provider = 3;
   // Instancja dostawcy (pusty = native).
   string provider_profile_id = 4;
   // Model tury, która wysłała (task, message), albo domyślny wątku; pusty = domyślny dostawcy.
@@ -387,7 +387,7 @@ message Turn {
   google.protobuf.Timestamp started_at = 8;
   google.protobuf.Timestamp completed_at = 9;
   // Zużycie tokenów i koszt (z turn_finished).
-  openagents.worker.v1.Usage usage = 10;
+  canopy.worker.v1.Usage usage = 10;
   // Długość łańcucha agent → agent bez udziału człowieka (docs/agent-bus.md).
   uint32 hops = 11;
   // Tura z historii odziedziczonej przez fork (należy do wątku źródłowego).
@@ -438,7 +438,7 @@ message Turn {
 
   // Numery od 90: tryb uprawnień tury. Nadpisanie z wiadomości (UNSPECIFIED = domyślny wątku); od startu tury
   // tryb faktycznie wysłany do workera.
-  openagents.worker.v1.PermissionMode permission_mode = 90;
+  canopy.worker.v1.PermissionMode permission_mode = 90;
   // Pliki dołączone do wiadomości (numery od 110). Ich ścieżki na workerze są w platform_note.
   repeated Attachment attachments = 110;
 
@@ -451,7 +451,7 @@ message Turn {
   uint32 revision = 161;
 
   // Wzmianki w message_text (numery od 140): chipy wiadomości użytkownika.
-  repeated openagents.worker.v1.Mention mentions = 140;
+  repeated canopy.worker.v1.Mention mentions = 140;
   // Numery od 150: cytaty z wiadomości (SendMessage.quotes). Ich treść i komentarze są w platform_note.
   repeated Quote quotes = 150;
 
@@ -468,7 +468,7 @@ message Turn {
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
 message TimelineItem {
-  openagents.worker.v1.Item item = 1;
+  canopy.worker.v1.Item item = 1;
   string turn_id = 2;
   uint64 first_seq = 3;
   uint64 last_seq = 4;
@@ -482,7 +482,7 @@ message TimelineItem {
 message ThreadNotice {
   uint64 seq = 1;
   string turn_id = 2;
-  openagents.worker.v1.Notice notice = 3;
+  canopy.worker.v1.Notice notice = 3;
   google.protobuf.Timestamp occurred_at = 4;
 }
 
@@ -491,7 +491,7 @@ message Interaction {
   string thread_id = 2;
   string turn_id = 3;
   string item_id = 4;
-  openagents.worker.v1.InteractionKind kind = 5;
+  canopy.worker.v1.InteractionKind kind = 5;
   string tool_name = 6;
   string request_json = 7;
   // pending | allowed | declined | answered | expired | cancelled
@@ -549,7 +549,7 @@ message ListDirectoryRequest {
 }
 
 message ListDirectoryResponse {
-  repeated openagents.worker.v1.DirectoryEntry entries = 1;
+  repeated canopy.worker.v1.DirectoryEntry entries = 1;
   string path = 2;
 }
 
@@ -628,10 +628,10 @@ message CreateThreadRequest {
   // Pusty = katalog główny workspace'u.
   string cwd = 3;
   string title = 4;
-  openagents.worker.v1.Provider provider = 5;
+  canopy.worker.v1.Provider provider = 5;
   string provider_profile_id = 6;
   string model = 7;
-  openagents.worker.v1.PermissionMode permission_mode = 8;
+  canopy.worker.v1.PermissionMode permission_mode = 8;
   string instructions = 9;
   // Wątek boczny: rodzic (ten sam workspace i katalog), opcjonalnie fork historii rodzica.
   string parent_thread_id = 10;
@@ -645,7 +645,7 @@ message CreateThreadRequest {
   // Załączniki pierwszej wiadomości (UploadAttachment).
   repeated string initial_attachment_ids = 110;
   // Wzmianki w initial_message (zakresy w nim; docs/ui-api.md, "Wzmianki").
-  repeated openagents.worker.v1.Mention initial_mentions = 140;
+  repeated canopy.worker.v1.Mention initial_mentions = 140;
   // Numery od 190: fork od tury ("Fork from here", docs/threads.md). Zakończona tura (completed, failed albo
   // interrupted) z widocznej historii wątku fork_thread_id (jego własna albo odziedziczona), do której
   // (włącznie) nowy wątek dziedziczy historię. Bez parent_thread_id powstaje nowy wątek główny w tym samym
@@ -673,11 +673,11 @@ message SendMessageRequest {
   // Numery od 90: tryb uprawnień tury.
   // Nadpisanie trybu uprawnień tylko dla tej tury (UNSPECIFIED = domyślny wątku). Steer dołącza do tury
   // w toku i zostaje przy jej trybie; nadpisanie obowiązuje, gdy wiadomość trafi do kolejki.
-  openagents.worker.v1.PermissionMode permission_mode = 90;
+  canopy.worker.v1.PermissionMode permission_mode = 90;
   // Załączniki (UploadAttachment). Wiadomość z załącznikami zawsze idzie do kolejki (nie steer).
   repeated string attachment_ids = 110;
   // Wzmianki w text (zakresy w nim). Gateway sprawdza je i dopisuje to, czego dostawca potrzebuje (docs/ui-api.md).
-  repeated openagents.worker.v1.Mention mentions = 140;
+  repeated canopy.worker.v1.Mention mentions = 140;
   // Numery od 150: fragmenty tego, co agent wytworzył, cytowane przez użytkownika (z opcjonalnym komentarzem).
   // Gateway podaje je agentowi przed treścią wiadomości (docs/ui-api.md, "Cytaty"); działa też ze steer.
   // Wiadomość może składać się z samych cytatów (pusty text).
@@ -738,7 +738,7 @@ message ThreadSnapshot {
 
 message ThreadEventUpdate {
   uint64 seq = 1;
-  openagents.worker.v1.ThreadEvent event = 2;
+  canopy.worker.v1.ThreadEvent event = 2;
 }
 
 message ThreadUpdate {
@@ -826,11 +826,11 @@ message NewThreadSchedule {
   string placement = 2;
   // Required only for specific.
   string workspace_id = 3;
-  openagents.worker.v1.Provider provider = 4;
+  canopy.worker.v1.Provider provider = 4;
   string provider_profile_id = 5;
   string model = 6;
   string effort = 7;
-  openagents.worker.v1.PermissionMode permission_mode = 8;
+  canopy.worker.v1.PermissionMode permission_mode = 8;
   string title = 9;
 }
 
@@ -952,18 +952,18 @@ message AppearanceSettings {
 // Wartości startowe nowego wątku. Puste pole = bez preferencji.
 message ThreadDefaults {
   string workspace_id = 1;
-  openagents.worker.v1.Provider provider = 2;
+  canopy.worker.v1.Provider provider = 2;
   // Pusty albo "native" = profil natywny.
   string provider_profile_id = 3;
   reserved 4;
   reserved "model";
-  openagents.worker.v1.PermissionMode permission_mode = 5;
+  canopy.worker.v1.PermissionMode permission_mode = 5;
   // Model per dostawca (zmiana dostawcy w nowym wątku zachowuje model każdego z nich). Brak = model profilu.
   repeated ProviderModel models = 6;
 }
 
 message ProviderModel {
-  openagents.worker.v1.Provider provider = 1;
+  canopy.worker.v1.Provider provider = 1;
   string model = 2;
 }
 
@@ -993,7 +993,7 @@ message SidebarSettings {
 
 // Globalne ustawienie użytkownika. Pusty model = automatyczny wybór z instancji wątku.
 message TextGenerationSettings {
-  openagents.worker.v1.Provider provider = 1;
+  canopy.worker.v1.Provider provider = 1;
   string profile_id = 2;
   string model = 3;
   string effort = 4;
@@ -1085,7 +1085,7 @@ message Steer {
   // na swoje miejsce (queued_turn_id = from_turn_id) zamiast nowej tury na końcu.
   string from_turn_id = 160;
   // Wzmianki w text.
-  repeated openagents.worker.v1.Mention mentions = 140;
+  repeated canopy.worker.v1.Mention mentions = 140;
   // Numery od 150: cytaty wiadomości (SendMessage.quotes); text to sama treść użytkownika.
   repeated Quote quotes = 150;
   // Numery od 210: steer agenta (send_message): wątek nadawcy, jego dostawca i model.
@@ -1099,7 +1099,7 @@ message Steer {
 // Katalog modeli jednego workera (z ostatniego raportu workera).
 message WorkerModels {
   string worker_id = 1;
-  repeated openagents.worker.v1.ProfileModels profiles = 2;
+  repeated canopy.worker.v1.ProfileModels profiles = 2;
   // Wersja konfiguracji workera, dla której powstał.
   uint64 config_version = 3;
   google.protobuf.Timestamp updated_at = 4;
@@ -1124,7 +1124,7 @@ message UpdateThreadRequest {
   optional string model = 2;
   optional string effort = 3;
   // Domyślny tryb uprawnień wątku (tury bez nadpisania). Nieustawione albo UNSPECIFIED = bez zmian.
-  optional openagents.worker.v1.PermissionMode permission_mode = 90;
+  optional canopy.worker.v1.PermissionMode permission_mode = 90;
   optional string title = 200;
 }
 
@@ -1144,7 +1144,7 @@ message ModelFavorites {
 }
 
 message FavoriteModel {
-  openagents.worker.v1.Provider provider = 1;
+  canopy.worker.v1.Provider provider = 1;
   // Pusty = dowolny profil z tym modelem.
   string profile_id = 2;
   string model = 3;
@@ -1321,11 +1321,11 @@ message InstanceOnWorker {
 }
 
 message ProviderInstance {
-  openagents.worker.v1.Provider harness = 1;
+  canopy.worker.v1.Provider harness = 1;
   // Litery, cyfry, "-" i "_" (małe litery); stałe (wątki je zapisują). Unikalne w obrębie dostawcy.
   string id = 2;
   string label = 3;
-  openagents.worker.v1.ProviderProfileKind kind = 4;
+  canopy.worker.v1.ProviderProfileKind kind = 4;
   // CLIPROXYAPI: adres endpointu.
   string base_url = 5;
   bool api_key_set = 6;
@@ -1347,7 +1347,7 @@ message ProviderInstance {
 
 // Instancja w Worker.provider_instances: to, czego potrzebują pickery.
 message WorkerInstance {
-  openagents.worker.v1.Provider harness = 1;
+  canopy.worker.v1.Provider harness = 1;
   string id = 2;
   string label = 3;
   string accent_color = 4;
@@ -1364,12 +1364,12 @@ message ListProviderInstancesResponse {
 }
 
 message SaveProviderInstanceRequest {
-  openagents.worker.v1.Provider harness = 1;
+  canopy.worker.v1.Provider harness = 1;
   string id = 2;
   // true = nowa instancja (id nie może być zajęte), false = zmiana istniejącej.
   bool create = 3;
   string label = 4;
-  openagents.worker.v1.ProviderProfileKind kind = 5;
+  canopy.worker.v1.ProviderProfileKind kind = 5;
   string base_url = 6;
   // Nieustawiony = bez zmian, pusty = usunięcie, inaczej nowy klucz.
   optional string api_key = 7;
@@ -1389,7 +1389,7 @@ message SaveProviderInstanceResponse {
 }
 
 message DeleteProviderInstanceRequest {
-  openagents.worker.v1.Provider harness = 1;
+  canopy.worker.v1.Provider harness = 1;
   string id = 2;
   uint64 expected_revision = 3;
 }
@@ -1397,7 +1397,7 @@ message DeleteProviderInstanceRequest {
 message DeleteProviderInstanceResponse {}
 
 message SetInstanceWorkersRequest {
-  openagents.worker.v1.Provider harness = 1;
+  canopy.worker.v1.Provider harness = 1;
   string id = 2;
   bool all_workers = 3;
   // Bez all_workers: workery, na których instancja działa (pozostałe: wyłączona).
@@ -1409,7 +1409,7 @@ message SetInstanceWorkersResponse {
 }
 
 message SetInstanceWorkerRequest {
-  openagents.worker.v1.Provider harness = 1;
+  canopy.worker.v1.Provider harness = 1;
   string id = 2;
   string worker_id = 3;
   // Nieustawione = bez zmian.
@@ -1423,7 +1423,7 @@ message SetInstanceWorkerResponse {
 }
 
 message SetInstanceModelsRequest {
-  openagents.worker.v1.Provider harness = 1;
+  canopy.worker.v1.Provider harness = 1;
   string id = 2;
   InstanceModels models = 3;
   // true = tylko ulubione (gwiazdka w pickerze); pozostałe listy bez zmian.
@@ -1446,7 +1446,7 @@ message RefreshProvidersResponse {
 }
 
 message StartProviderLoginRequest {
-  openagents.worker.v1.Provider harness = 1;
+  canopy.worker.v1.Provider harness = 1;
   string id = 2;
   string worker_id = 3;
 }
@@ -1537,7 +1537,7 @@ message EditQueuedTurnRequest {
   // Turn.revision, od której klient zaczął (inna = FailedPrecondition: ktoś zmienił ją wcześniej).
   uint32 expected_revision = 3;
   // Wzmianki w nowym tekście (jak SendMessage.mentions); puste = bez wzmianek.
-  repeated openagents.worker.v1.Mention mentions = 4;
+  repeated canopy.worker.v1.Mention mentions = 4;
 }
 
 message EditQueuedTurnResponse {
@@ -1581,7 +1581,7 @@ message SteerQueuedTurnResponse {
 message MentionScope {
   string thread_id = 1;
   string workspace_id = 2;
-  openagents.worker.v1.Provider provider = 3;
+  canopy.worker.v1.Provider provider = 3;
   string provider_profile_id = 4;
   // Pusty = katalog wątku albo główny workspace'u.
   string cwd = 5;
@@ -1595,7 +1595,7 @@ message ListMentionCatalogRequest {
 
 message ListMentionCatalogResponse {
   // Komendy, skille i pluginy harnessu oraz komendy platformy (source = platform).
-  openagents.worker.v1.MentionCatalog catalog = 1;
+  canopy.worker.v1.MentionCatalog catalog = 1;
 }
 
 message SearchFilesRequest {
@@ -1605,7 +1605,7 @@ message SearchFilesRequest {
 }
 
 message SearchFilesResponse {
-  openagents.worker.v1.FileSearchResult result = 1;
+  canopy.worker.v1.FileSearchResult result = 1;
 }
 
 message SearchThreadsRequest {

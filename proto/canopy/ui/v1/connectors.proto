@@ -1,8 +1,8 @@
 syntax = "proto3";
-package openagents.ui.v1;
+package canopy.ui.v1;
 
 import "google/protobuf/timestamp.proto";
-import "openagents/worker/v1/worker_link.proto";
+import "canopy/worker/v1/worker_link.proto";
 
 // Publiczne DTO nigdy nie zwracają poświadczeń ani secretRef.
 message ConnectorType {
@@ -57,7 +57,7 @@ message SetConnectorAccessRequest {
 }
 message ConnectorAccountRequest { string account_id = 1; }
 message DeleteConnectorAccountResponse {}
-message TestConnectorResponse { repeated openagents.worker.v1.ConnectorTool tools = 1; ConnectorAccount account = 2; }
+message TestConnectorResponse { repeated canopy.worker.v1.ConnectorTool tools = 1; ConnectorAccount account = 2; }
 message SaveConnectorOAuthAppRequest { string connector_type = 1; string client_id = 2; string client_secret = 3; string issuer = 4; }
 message SaveConnectorOAuthAppResponse {}
 message BeginConnectorOAuthRequest { string account_id = 1; string redirect_uri = 2; string browser_binding = 3; string scope = 4; }

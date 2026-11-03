@@ -2,7 +2,7 @@
 // Opis semantyki: docs/protocol.md
 syntax = "proto3";
 
-package openagents.worker.v1;
+package canopy.worker.v1;
 
 import "google/protobuf/timestamp.proto";
 

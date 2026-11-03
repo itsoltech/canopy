@@ -1,5 +1,5 @@
 syntax = "proto3";
-package openagents.ui.v1;
+package canopy.ui.v1;
 
 import "google/protobuf/timestamp.proto";
 

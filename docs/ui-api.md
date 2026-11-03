@@ -160,7 +160,7 @@ BFF: `POST /api/threads/:id/lifecycle`, `action`: `archive`, `unarchive`, `delet
 `UpdateThread.title` umożliwia rename (`title_source=user`), a `RegenerateTitle` zleca asynchroniczną generację. Globalne ustawienia `textGeneration`, źródła tytułu i aktualizacje live opisuje [thread-titles.md](thread-titles.md).
 
 Status: **zaimplementowane**:
-- kontrakt: `proto/openagents/ui/v1/gateway.proto`,
+- kontrakt: `proto/canopy/ui/v1/gateway.proto`,
 - rdzeń: `apps/gateway/src/core`,
 - dane: `apps/gateway/src/store`,
 - serwis: `apps/gateway/src/api`,

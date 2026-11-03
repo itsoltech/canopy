@@ -21,7 +21,7 @@ Powiązane dokumenty:
 - [goals.md](goals.md) — cele: silnikiem jest harness (Codex goals, Claude `/goal`), platforma je śledzi i steruje nimi z UI
 - [agent-bus.md](agent-bus.md) — szyna agentów: delegowanie przez wątki boczne, interakcje, harmonogram; natywna orkiestracja dostawców wyłączona
 - [durability.md](durability.md) — trwałość, graceful shutdown, aktualizacje w trakcie działania
-- [`proto/openagents/worker/v1/worker_link.proto`](../proto/openagents/worker/v1/worker_link.proto) — szkic kontraktu
+- [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto) — szkic kontraktu
 
 ## 1. Cel
 
@@ -97,7 +97,7 @@ flowchart LR
 | SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. |
 | Mobile → Tailscale Serve → Gateway | HTTPS Connect, dalej HTTP/1.1 loopback | aplikacja | Unary i server streaming przez `expo/fetch`. Jednorazowe parowanie, osobny odwoływalny token urządzenia; administracja urządzeniami tylko przez BFF. |
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Działa za NAT-em i firewallem. Szczegóły: [protocol.md](protocol.md). |
-| Worker → Gateway (aktualizacje) | osobny gRPC `openagents.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |
+| Worker → Gateway (aktualizacje) | osobny gRPC `canopy.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |
 | Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Poświadczenia zostają na urządzeniu (login Claude Code / Codex lub klucz API). |
 | Gateway → LLM | HTTPS | Gateway | Tylko agenci czatowi. Klucze trzyma gateway. |
