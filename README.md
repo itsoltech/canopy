@@ -236,7 +236,7 @@ The mobile app has been verified on the iOS Simulator and the Android Emulator a
 
 **In progress**
 
-- CI pipeline, container images, standalone gateway and worker binaries, desktop builds on CI, and a single version across all apps with `latest`, `vX`, `vX.Y` and `vX.Y.Z` channels.
+- CI pipeline, container images, standalone gateway and worker binaries, desktop builds on CI, and a single version across all apps with `stable`, `beta`, `nightly` and stable version pins.
 
 **Planned**
 
@@ -248,7 +248,7 @@ The mobile app has been verified on the iOS Simulator and the Android Emulator a
 
 ## Releases and deployment
 
-One version for every app: `vX.Y.Z` tags publish releases, every push to `main` publishes the rolling `latest`. Docker images `ghcr.io/itsoltech/canopy-{gateway,web,worker}` (tags `latest`, `vX`, `vX.Y`, `vX.Y.Z`), standalone `canopy-gateway` / `canopy-worker` binaries and the desktop installers are attached to GitHub Releases. See `docs/release.md` (versions, CI, artifacts) and `docs/deploy.md` (Docker Compose, binaries with systemd, choosing a channel, upgrading).
+One version for every app: Angular squash commits drive semantic-release on `dev` (nightly), `next` (beta) and `main` (stable). `latest` now means stable. Docker images `ghcr.io/itsoltech/canopy-{gateway,web,worker}`, standalone `canopy-gateway` / `canopy-worker` binaries and desktop installers share that exact version. Maintainers promote tested commits through the channels. See `docs/release.md` (bootstrap 0.1.0, burn-in, CI, artifacts), `docs/contributing.md` (commits and PR targets) and `docs/deploy.md` (installation and upgrades).
 
 ## Contributing
 

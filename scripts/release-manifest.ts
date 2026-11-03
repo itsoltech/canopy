@@ -10,7 +10,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { currentVersion } from "./version.ts";
+import { currentVersion, resolveVersion } from "./version.ts";
 
 const root = resolve(import.meta.dir, "..");
 
@@ -70,6 +70,10 @@ export async function releaseManifest(directory: string, env: Readonly<Record<st
   const info = currentVersion(env);
   const version = env["CANOPY_VERSION"] || info.version;
   const tag = env["CANOPY_RELEASE_TAG"] || info.releaseTag;
+  if (!tag) throw new Error("Manifest needs an immutable release tag (or CANOPY_VERSION and CANOPY_RELEASE_TAG)");
+  const release = resolveVersion({ tag, commit: info.commit });
+  const channel = env["CANOPY_CHANNEL"] || release.channel;
+  if (version !== release.version || channel !== release.channel) throw new Error("Manifest version/channel must match its release tag");
   const repository = env["GITHUB_REPOSITORY"] || "itsoltech/canopy";
   const names = readdirSync(directory).filter((name) => !GENERATED.has(name) && statSync(join(directory, name)).isFile()).sort();
   const assets: ManifestAsset[] = [];
@@ -82,7 +86,7 @@ export async function releaseManifest(directory: string, env: Readonly<Record<st
   return {
     schema: 1,
     version,
-    channel: env["CANOPY_CHANNEL"] || info.channel,
+    channel,
     commit: info.commit,
     published_at: new Date().toISOString(),
     protocol: await protocolVersions(),

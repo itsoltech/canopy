@@ -1,4 +1,4 @@
-# Checks of every change (docs/release.md). Pull requests run it directly; pushes to main and release tags run it
+# Checks of every change (docs/release.md). Pull requests run it directly; pushes to main/next/dev and stable tags run it
 # as the `checks` job of release.yml, which publishes only after it passes. Live tests stay opt-in: they need
 # private provider credentials and are skipped without CANOPY_LIVE.
 name: CI
@@ -32,6 +32,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+
+      # semantic-release CLI is exercised by the local-git unit fixtures; Node >=24.10 is required.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
 
       - name: Cache Bun packages
         uses: actions/cache@v4

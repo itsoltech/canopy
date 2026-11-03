@@ -48,16 +48,24 @@ Nie ma możliwości zdalnego dodania kanału do procesu, który go jeszcze nie z
 ## Release i mirror
 
 Źródło domyślne: `https://api.github.com/repos/itsoltech/canopy/releases…`.
-Kanały: `latest` wskazuje tag `latest`, `vX` / `vX.Y` wybierają najwyższe stabilne
-semver z prefiksem (z paginacją), `vX.Y.Z` wskazuje tag `vX.Y.Z`
-(mirror może zachować również tagi `X.Y.Z`). Inne prerelease
-są pomijane. Build main ma wersję `X.Y.Z-main.<sha7>`.
+Kanały: `stable` wybiera najwyższe stabilne semver, `beta` najwyższe ze stable/beta,
+`nightly` najwyższe ze wszystkich wydań (z paginacją i porównaniem semver, nie datą publikacji).
+`vX` / `vX.Y` wybierają najwyższe stable z prefiksem, `vX.Y.Z` wskazuje dokładny stabilny tag
+(mirror może zachować również tagi `X.Y.Z`). Drafty i release bez `manifest.json` są pomijane.
+Gateway pobiera manifest swojej konkretnej wersji również dla prerelease; nie zastępuje go
+manifestem nowszego nightly. Protokół UpdateService pozostaje bez zmian.
+
+**`latest` oznacza teraz stable**, a stare zapisane `updateChannel: "latest"` gateway przy
+starcie zapisuje jako `stable`. Zmienna środowiskowa `latest` i żądania starszych klientów
+także są normalizowane do stable. Nie publikujemy już rolling GitHub release/tagu `latest`
+ani buildów `X.Y.Z-main.<sha7>`. Settings → Workers → Updates pozwala wybrać trzy kanały
+lub wpisać stabilny pin. Nightly z dev, beta z next i stable z main opisuje [release.md](release.md).
 
 Resolver pobiera asset `manifest.json`, schemat 1:
 
 ```json
 {
-  "schema": 1, "version": "2.1.0", "channel": "v2.1.0",
+  "schema": 1, "version": "2.1.0", "channel": "stable",
   "commit": "abcdef0", "published_at": "2026-11-03T00:00:00Z",
   "protocol": { "worker_link": 1, "update": 1 },
   "assets": [{
@@ -81,7 +89,7 @@ Gateway przechowuje manifest własnej wersji oraz binarki workerów w cache
 adresowanym SHA-256. Równoległe żądania współdzielą pobieranie; każde ponowne
 użycie pliku sprawdza jego hash. Przed własną aktualizacją zapisuje wybrany
 manifest oraz pobiera assety platform znanych workerów binarnych, aby przesunięcie
-tagu `latest` nie odebrało im aktualizacji. Cache zachowaj między restartami.
+retencja starszych nightly nie odebrała im aktualizacji. Cache zachowaj między restartami.
 Workery preferują `FetchArtifact`, więc nie potrzebują dostępu do internetu.
 Przy zimnym cache gateway musi mieć dostęp do release; awaria mirrora kończy
 próbę czytelnym błędem i pozostawia bieżącą binarkę.
@@ -132,7 +140,7 @@ Metadane UI i polecenia pozostają w istniejącym JSONB `workers.capabilities`
 | Ustawienie | Znaczenie |
 |---|---|
 | `CANOPY_VERSION` | Wspólna wersja, wstrzykiwana przez pipeline. |
-| `CANOPY_UPDATE_CHANNEL` | Kanał początkowy, domyślnie `latest`; zapisany wybór administratora ma pierwszeństwo. |
+| `CANOPY_UPDATE_CHANNEL` | Kanał początkowy, domyślnie `stable`; `beta`, `nightly` lub stabilny pin. Zapisany wybór administratora ma pierwszeństwo. |
 | `CANOPY_RELEASE_BASE_URL` | Alternatywny HTTPS endpoint o układzie API GitHub (mirror/testy). |
 | `CANOPY_UPDATE_CACHE_DIR` | Trwały cache gatewaya, domyślnie `~/.cache/canopy/releases`. |
 | `CANOPY_INSTALL_KIND=docker` | Jawnie oznacza kontener; runtime rozpoznaje też `/.dockerenv` i `/run/.containerenv`, a poza kontenerem standalone Bun albo checkout źródeł. |

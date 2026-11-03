@@ -1,0 +1,32 @@
+name: Back-merge
+on:
+  workflow_call:
+    inputs:
+      stable_sha:
+        description: Commit of the completed stable release
+        required: true
+        type: string
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+concurrency:
+  group: release-branch-mutations
+  cancel-in-progress: false
+jobs:
+  backmerge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Propagate stable hotfixes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STABLE_SHA: ${{ inputs.stable_sha }}
+        run: bun scripts/backmerge.ts

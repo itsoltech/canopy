@@ -6,7 +6,7 @@
   import { needsYou, unseenResult } from "#lib/features/threads/activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ConnectionStatus from "./ConnectionStatus.svelte";
-  import Logo from "./Logo.svelte";
+  import SidebarHeader from "./SidebarHeader.svelte";
   import SectionSwitch from "./SectionSwitch.svelte";
   import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
   import SidebarThreads from "./SidebarThreads.svelte";
@@ -33,8 +33,7 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <div class="canopy-sidebar-header flex h-12 shrink-0 items-center justify-between gap-2 pr-2 pl-4">
-    <Logo />
+  <SidebarHeader>
     {#if section === "threads"}
       <a href="/" class={iconLink} aria-label="New thread" title="New thread">
         <Icon name="pencil-square" />
@@ -44,7 +43,7 @@
         <Icon name="pencil-square" />
       </a>
     {/if}
-  </div>
+  </SidebarHeader>
 
   <SectionSwitch active={section} attention={{ threads: threadsAttention }} class="px-3 pb-2" />
 

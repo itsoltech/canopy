@@ -1,10 +1,8 @@
 /**
  * The one Canopy version of every app (docs/release.md).
  *
- * - HEAD carries a `vX.Y.Z[-pre]` tag (or CI builds such a tag, GITHUB_REF=refs/tags/…): version `X.Y.Z[-pre]`,
- *   channel and GitHub release `vX.Y.Z[-pre]`, Docker tags `vX.Y.Z`, `vX.Y`, `vX` (only `vX.Y.Z-pre` for a pre-release).
- * - Anything else (main): `X.Y.Z-main.<sha7>` where X.Y.Z is the last tag reachable from HEAD (0.0.0 without one),
- *   channel and GitHub release `latest`, Docker tags `latest` and `sha-<sha7>`.
+ * Release tags carry stable/beta/nightly versions. Untagged checkouts get an unpublished dev version.
+ * The release workflow passes semantic-release's exact version to every build explicitly.
  *
  * `bun scripts/version.ts` prints JSON; `--github-output` appends `key=value` lines to $GITHUB_OUTPUT;
  * `--field version` prints one field.
@@ -12,13 +10,13 @@
 import { appendFileSync } from "node:fs";
 
 export interface CanopyVersion {
-  /** Semver without the `v`: `1.2.3`, `1.2.3-rc.1`, `1.2.3-main.abc1234`. */
+  /** Semver without the `v`. */
   readonly version: string;
-  /** `latest`, or `vX.Y.Z[-pre]` for a release. */
+  /** stable, beta or nightly (unpublished checkouts use nightly). */
   readonly channel: string;
-  /** The GitHub release (and git tag) the build publishes to: `latest` or `vX.Y.Z[-pre]`. */
+  /** Exact GitHub release tag; empty for unpublished checkouts. */
   readonly releaseTag: string;
-  /** A build of main or a pre-release tag: published as a GitHub pre-release. */
+  /** Whether the version is a prerelease. */
   readonly prerelease: boolean;
   readonly commit: string;
   readonly shortSha: string;
@@ -33,24 +31,26 @@ function git(...args: string[]): string | undefined {
   return result.exitCode === 0 ? result.stdout.toString().trim() : undefined;
 }
 
-/** A release from a tag name, a main build from the last reachable tag otherwise. */
+/** Release metadata from an immutable tag; local builds never publish a rolling latest. */
 export function resolveVersion(input: { readonly tag?: string | undefined; readonly lastTag?: string | undefined; readonly commit: string }): CanopyVersion {
   const shortSha = input.commit.slice(0, 7);
   const release = input.tag?.match(RELEASE_TAG);
   if (input.tag && release) {
     const [, major, minor, patch, pre] = release;
     const version = input.tag.slice(1);
+    const channel = pre === undefined ? "stable" : pre.startsWith("beta.") ? "beta" : pre.startsWith("nightly.") ? "nightly" : undefined;
+    if (!channel) throw new Error(`Unsupported release channel: ${pre}`);
     return {
-      version, channel: input.tag, releaseTag: input.tag, prerelease: pre !== undefined, commit: input.commit, shortSha,
-      dockerTags: pre === undefined ? [`v${major}.${minor}.${patch}`, `v${major}.${minor}`, `v${major}`] : [input.tag],
+      version, channel, releaseTag: input.tag, prerelease: pre !== undefined, commit: input.commit, shortSha,
+      dockerTags: pre === undefined ? [input.tag, `v${major}.${minor}`, `v${major}`, "latest", "stable"] : [input.tag, channel],
     };
   }
   if (input.tag) throw new Error(`${input.tag} is not a release tag (vX.Y.Z or vX.Y.Z-pre)`);
   const last = input.lastTag?.match(RELEASE_TAG);
   const base = last ? `${last[1]}.${last[2]}.${last[3]}` : "0.0.0";
   return {
-    version: `${base}-main.${shortSha}`, channel: "latest", releaseTag: "latest", prerelease: true, commit: input.commit, shortSha,
-    dockerTags: ["latest", `sha-${shortSha}`],
+    version: `${base}-dev.${shortSha}`, channel: "nightly", releaseTag: "", prerelease: true, commit: input.commit, shortSha,
+    dockerTags: [],
   };
 }
 

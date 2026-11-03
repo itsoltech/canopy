@@ -1,0 +1,46 @@
+name: Promote
+on:
+  workflow_dispatch:
+    inputs:
+      promotion:
+        description: Fast-forward promotion
+        type: choice
+        options: [dev-next, next-main]
+        required: true
+      burn_in_days:
+        description: Minimum beta age in days
+        type: number
+        default: 3
+      live_smoke:
+        description: Live smoke on the selected source head is green
+        type: boolean
+        default: false
+      update_smoke:
+        description: Updates/self-update smoke is green (required for stable)
+        type: boolean
+        default: false
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: release-branch-mutations
+  cancel-in-progress: false
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Verify and fast-forward
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROMOTION_PATH: ${{ inputs.promotion }}
+          BURN_IN_DAYS: ${{ inputs.burn_in_days }}
+          LIVE_SMOKE: ${{ inputs.live_smoke }}
+          UPDATE_SMOKE: ${{ inputs.update_smoke }}
+        run: bun scripts/promote.ts

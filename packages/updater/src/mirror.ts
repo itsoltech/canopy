@@ -23,7 +23,7 @@ export class ReleaseMirror {
     await this.remember(manifest);
     return manifest;
   }
-  /** Preserve the selected rolling manifest before restarting into that version. */
+  /** Preserve the selected manifest before restarting, including nightly versions subject to retention. */
   async remember(value: ReleaseManifest): Promise<void> {
     const manifest = parseManifest(value, this.source.options);
     if (manifest.version !== this.version) throw new Error("Mirror manifest must match the gateway version");

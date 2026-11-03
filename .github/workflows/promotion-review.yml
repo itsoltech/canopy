@@ -1,0 +1,30 @@
+name: Promotion review
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+  actions: write
+concurrency:
+  group: release-branch-mutations
+  cancel-in-progress: false
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Recommend stable; optionally promote a smoke-tested nightly to beta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BURN_IN_DAYS: ${{ vars.BETA_BURN_IN_DAYS || '3' }}
+          AUTO_PROMOTE_DEV_TO_NEXT: ${{ vars.AUTO_PROMOTE_DEV_TO_NEXT }}
+          NIGHTLY_SMOKE_SHA: ${{ vars.NIGHTLY_SMOKE_SHA }}
+        run: bun scripts/promote.ts --recommend

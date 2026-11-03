@@ -3,7 +3,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { ui, update } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { UPDATE_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
-import { compareVersions, confirmStartup, installKind, managedInstructions, readUpdateRecord, ReleaseMirror, ReleaseSource, releaseAsset, stageBinaryUpdate, validChannel, whenIdle,
+import { compareVersions, confirmStartup, installKind, managedInstructions, normalizeChannel, readUpdateRecord, ReleaseMirror, ReleaseSource, releaseAsset, stageBinaryUpdate, validChannel, whenIdle,
   type InstallKind, type ReleaseManifest, type ReleaseSourceOptions } from "@canopy/updater";
 import type { UpdatePersistence, WorkerUpdateRow } from "./persistence.ts";
 import { GatewayUpdateService } from "./service.ts";
@@ -43,7 +43,7 @@ export class GatewayUpdates {
   constructor(readonly options: GatewayUpdatesOptions) {
     this.version = options.version ?? CANOPY_VERSION;
     this.kind = options.kind ?? installKind();
-    this.#channel = options.channel ?? "latest";
+    this.#channel = normalizeChannel(options.channel ?? "stable");
     this.source = new ReleaseSource(options.source);
     this.service = new GatewayUpdateService({ version: this.version, authenticate: options.authenticate,
       mirror: new ReleaseMirror(options.cacheDir, this.version, this.source),
@@ -53,8 +53,10 @@ export class GatewayUpdates {
     });
   }
   async start(): Promise<void> {
-    this.#channel = await this.options.persistence.channel() ?? this.#channel;
+    const stored = await this.options.persistence.channel();
+    this.#channel = normalizeChannel(stored ?? this.#channel);
     if (!validChannel(this.#channel)) throw new Error("Invalid update channel");
+    if (stored === "latest") await this.options.persistence.setChannel(this.#channel);
     if (this.kind === "binary") {
       // main calls start only after the DB and listeners are ready. Do not converge workers before this checkpoint.
       await confirmStartup(this.options.binaryPath, this.version);
@@ -98,11 +100,12 @@ export class GatewayUpdates {
     if (!await this.options.persistence.admin()) throw new ConnectError("Only an administrator can manage updates", Code.PermissionDenied);
     if (!this.#ready) throw new ConnectError("Gateway update control is starting or shutting down", Code.Unavailable);
     if (request.action === "channel") {
-      if (!validChannel(request.channel)) throw new ConnectError("Use latest, vX, vX.Y or vX.Y.Z", Code.InvalidArgument);
+      const channel = normalizeChannel(request.channel);
+      if (!validChannel(channel)) throw new ConnectError("Use stable, beta, nightly, vX, vX.Y or vX.Y.Z", Code.InvalidArgument);
       if (["waiting_idle", "downloading", "restarting"].includes(this.#state)) throw new ConnectError("Gateway update already in progress", Code.FailedPrecondition);
       await this.#checking;
-      await this.options.persistence.setChannel(request.channel);
-      this.#channel = request.channel; this.#available = undefined;
+      await this.options.persistence.setChannel(channel);
+      this.#channel = channel; this.#available = undefined;
       await this.check();
     } else if (request.action === "check") await this.check();
     else if (request.action === "gateway") {
@@ -136,7 +139,7 @@ export class GatewayUpdates {
           this.#state = "downloading"; this.#reason = "Downloading and verifying the gateway release";
           const mirror = new ReleaseMirror(this.options.cacheDir, manifest.version, this.source);
           await mirror.remember(manifest);
-          // Retain artifacts for known private workers before a rolling latest release can move.
+          // Retain artifacts for known private workers before nightly assets can expire.
           const platforms = new Map((await this.options.persistence.workers()).filter((w) => w.status.installKind === "binary").map((w) => [`${w.os}/${w.arch}`, w]));
           for (const worker of platforms.values()) {
             if (manifest.assets.some((a) => a.app === "worker" && a.os === worker.os && a.arch === worker.arch)) await mirror.artifact(worker.os, worker.arch);

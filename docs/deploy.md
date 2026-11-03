@@ -8,13 +8,18 @@ agentów. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 
 | Kanał | Obraz | Binaria | Dla kogo |
 | --- | --- | --- | --- |
-| `latest` | `canopy-gateway:latest` | release `latest` | testy na żywo, każdy push do main |
+| `stable` (`latest`) | `canopy-gateway:stable` | najwyższe stable | stabilne wydania main |
+| `beta` | `canopy-gateway:beta` | najwyższe stable/beta | testowanie wybranego nightly, branch next |
+| `nightly` | `canopy-gateway:nightly` | najwyższe semver ze wszystkich wydań | nowe funkcje z dev |
 | `v1` | `canopy-gateway:v1` | najwyższe `v1.*.*` | produkcja z automatycznymi poprawkami i nowymi funkcjami 1.x |
 | `v1.2` | `canopy-gateway:v1.2` | najwyższe `v1.2.*` | tylko poprawki |
 | `v1.2.3` | `canopy-gateway:v1.2.3` | `v1.2.3` | zamrożona wersja |
 
 Gateway, web i workery powinny być w tej samej wersji (jedna wersja dla wszystkich aplikacji).
 Wersję widać w Settings (dół nawigacji), w `GET /api/health`, w `--version` binarek i w logu startu.
+`latest` jest aliasem stable, nie buildu main HEAD. Piny wybierają wyłącznie stable.
+Updater beta/nightly wybiera także nowsze stable według semver; obrazy Docker beta/nightly
+są aliasami ostatniego wydania własnego kanału. Aby przejść kontenerem na stable, zmień CANOPY_TAG.
 
 ## Docker Compose (jeden host)
 
@@ -68,7 +73,7 @@ Assety release: `canopy-gateway-<os>-<arch>`, `canopy-worker-<os>-<arch>` (`linu
 `x64|arm64`), `checksums.txt`, `manifest.json`.
 
 ```sh
-TAG=latest   # albo v1.2.3
+TAG=v0.1.0   # dokładne wydanie; stable/beta/nightly rozwiązuj przez API/UI
 curl -fLO https://github.com/itsoltech/canopy/releases/download/$TAG/canopy-worker-linux-x64
 curl -fLO https://github.com/itsoltech/canopy/releases/download/$TAG/checksums.txt
 sha256sum -c --ignore-missing checksums.txt
@@ -184,7 +189,7 @@ automatycznie).
 
 ## Aktualizacja
 
-- **Docker**: tag kanału (`v1`, `latest`) wskazuje nowy obraz po wydaniu:
+- **Docker**: tag kanału (`stable`/`latest`, `beta`, `nightly`, `v1`) wskazuje nowy obraz po wydaniu:
   `docker compose pull && docker compose up -d`. Gateway migruje bazę przy starcie;
   migracje są tylko w przód — przed aktualizacją wersji `X.Y` zrób kopię bazy (`pg_dump`).
   Powrót do starszej wersji po migracji wymaga przywrócenia kopii.
@@ -192,5 +197,5 @@ automatycznie).
   potem web, potem workery. Automatyczna aktualizacja workerów/gatewaya korzysta z `manifest.json`
   danego kanału (osobna funkcja self-update).
 - **Desktop**: instalator nowej wersji z tego samego release (`Canopy-<wersja>-<os>-<arch>.*`).
-- Obrazy i release'y dla konkretnego commita: tag Docker `sha-<sha7>`; binaria `latest` są
-  nadpisywane — do przypięcia używaj wydań `vX.Y.Z`.
+- Do przypięcia używaj pełnej wersji (`vX.Y.Z`, `vX.Y.Z-beta.N`, `vX.Y.Z-nightly.N`).
+  Nie ma rolling binariów `latest` ani obrazów `sha-*`. Starsze nightly podlegają retencji.

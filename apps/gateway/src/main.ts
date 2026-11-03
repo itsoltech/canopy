@@ -47,7 +47,7 @@ const core = new GatewayCore({
   updates: {
     ...(env["CANOPY_RELEASE_BASE_URL"] && { source: { baseUrl: env["CANOPY_RELEASE_BASE_URL"] } }),
     ...(env["CANOPY_UPDATE_CACHE_DIR"] && { cacheDir: env["CANOPY_UPDATE_CACHE_DIR"] }),
-    channel: env["CANOPY_UPDATE_CHANNEL"] ?? "latest",
+    channel: env["CANOPY_UPDATE_CHANNEL"] ?? "stable",
     restart: async () => { await stop(); process.exit(UPDATE_RESTART_EXIT_CODE); },
     idle: () => runtime.runPromise(Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;

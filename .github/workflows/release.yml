@@ -1,17 +1,17 @@
-# Releases (docs/release.md). One version for every app (scripts/version.ts):
-# - push to main: version X.Y.Z-main.<sha7>, Docker tags `latest` + `sha-<sha7>`, rolling GitHub pre-release `latest`
-#   (its tag is moved to the commit, its assets replaced);
-# - tag vX.Y.Z: Docker tags vX.Y.Z, vX.Y, vX, GitHub release vX.Y.Z (tags never move `latest`).
-# Every release carries the gateway/worker binaries, the desktop installers, checksums.txt and manifest.json.
-# Nothing is published unless the CI checks pass.
+# One run checks, versions, builds and publishes. GITHUB_TOKEN tags do not trigger another workflow.
 name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [main, next, dev]
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
-      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Commit pushed by Promote/back-merge (reject a moved branch)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -29,14 +29,19 @@ jobs:
   checks:
     uses: ./.github/workflows/ci.yml
 
-  version:
+  semantic-release:
+    needs: checks
+    if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["main", "next", "dev"]'), github.ref_name)
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
+    permissions:
+      contents: write
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      channel: ${{ steps.version.outputs.channel }}
-      release_tag: ${{ steps.version.outputs.releaseTag }}
-      prerelease: ${{ steps.version.outputs.prerelease }}
+      published: ${{ steps.release.outputs.published }}
+      version: ${{ steps.release.outputs.version }}
+      channel: ${{ steps.release.outputs.channel }}
+      tag: ${{ steps.release.outputs.tag }}
+      desktop_matrix: ${{ steps.matrix.outputs.value }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -44,11 +49,28 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-      - id: version
-        run: bun scripts/version.ts --github-output
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: node scripts/semantic-release.mjs
+      - id: matrix
+        env:
+          CHANNEL: ${{ steps.release.outputs.channel }}
+        run: |
+          if [ "$CHANNEL" = nightly ]; then
+            echo 'value={"include":[{"target":"linux-x64","runner":"ubuntu-24.04","package":"package:linux","experimental":false}]}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'value={"include":[{"target":"linux-x64","runner":"ubuntu-24.04","package":"package:linux","experimental":false},{"target":"linux-arm64","runner":"ubuntu-24.04-arm","package":"package:linux","experimental":true},{"target":"darwin-x64","runner":"macos-15-intel","package":"package:mac","experimental":true},{"target":"darwin-arm64","runner":"macos-15","package":"package:mac","experimental":true},{"target":"windows-x64","runner":"windows-2025","package":"package:windows","experimental":true}]}' >> "$GITHUB_OUTPUT"
+          fi
 
   binaries:
-    needs: version
+    needs: semantic-release
+    if: needs.semantic-release.outputs.published == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -61,7 +83,7 @@ jobs:
       # Cross-compiled for every target; sharp's native build per target comes from the npm registry.
       - name: Build
         env:
-          CANOPY_VERSION: ${{ needs.version.outputs.version }}
+          CANOPY_VERSION: ${{ needs.semantic-release.outputs.version }}
         run: bun scripts/build-binaries.ts --target all --outdir dist/release
       - uses: actions/upload-artifact@v4
         with:
@@ -72,7 +94,8 @@ jobs:
 
   # Each binary starts on its own OS/arch (`--version` already loads the embedded sharp/libvips).
   smoke:
-    needs: [version, binaries]
+    needs: [semantic-release, binaries]
+    if: needs.semantic-release.outputs.published == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -91,7 +114,7 @@ jobs:
       - name: Start each binary
         shell: bash
         env:
-          EXPECTED: ${{ needs.version.outputs.version }}
+          EXPECTED: ${{ needs.semantic-release.outputs.version }}
           CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
         run: |
           for app in gateway worker; do
@@ -103,17 +126,11 @@ jobs:
           done
 
   desktop:
-    needs: version
+    needs: semantic-release
+    if: needs.semantic-release.outputs.published == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { target: linux-x64, runner: ubuntu-24.04, package: package:linux, experimental: false }
-          # Built here for the first time on CI: a failure does not block the release (docs/release.md).
-          - { target: linux-arm64, runner: ubuntu-24.04-arm, package: package:linux, experimental: true }
-          - { target: darwin-x64, runner: macos-15-intel, package: package:mac, experimental: true }
-          - { target: darwin-arm64, runner: macos-15, package: package:mac, experimental: true }
-          - { target: windows-x64, runner: windows-2025, package: package:windows, experimental: true }
+      matrix: ${{ fromJSON(needs.semantic-release.outputs.desktop_matrix) }}
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.experimental }}
     timeout-minutes: 60
@@ -170,7 +187,7 @@ jobs:
           esac
       - name: Package
         env:
-          CANOPY_VERSION: ${{ needs.version.outputs.version }}
+          CANOPY_VERSION: ${{ needs.semantic-release.outputs.version }}
         run: bun run --cwd apps/desktop ${{ matrix.package }}
       - uses: actions/upload-artifact@v4
         with:
@@ -185,7 +202,8 @@ jobs:
           retention-days: 7
 
   images:
-    needs: [checks, version]
+    needs: semantic-release
+    if: needs.semantic-release.outputs.published == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -204,6 +222,23 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - id: tags
+        env:
+          VERSION: ${{ needs.semantic-release.outputs.version }}
+          CHANNEL: ${{ needs.semantic-release.outputs.channel }}
+          IMAGE: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}
+        run: |
+          {
+            echo 'value<<TAGS'
+            echo "$IMAGE:v$VERSION"
+            echo "$IMAGE:$CHANNEL"
+            if [ "$CHANNEL" = stable ]; then
+              echo "$IMAGE:v${VERSION%.*}"
+              echo "$IMAGE:v${VERSION%%.*}"
+              echo "$IMAGE:latest"
+            fi
+            echo TAGS
+          } >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@v5
         env:
@@ -211,45 +246,39 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}
           flavor: latest=false
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-,format=short,enable={{is_default_branch}}
-            type=semver,pattern=v{{version}}
-            type=semver,pattern=v{{major}}.{{minor}}
-            type=semver,pattern=v{{major}}
+          tags: type=raw,value=v${{ needs.semantic-release.outputs.version }}
           labels: |
             org.opencontainers.image.title=canopy-${{ matrix.app }}
-            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.version=${{ needs.semantic-release.outputs.version }}
           annotations: |
-            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.version=${{ needs.semantic-release.outputs.version }}
       - uses: docker/build-push-action@v6
         with:
           context: .
           target: ${{ matrix.app }}
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.tags.outputs.value }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           build-args: |
-            CANOPY_VERSION=${{ needs.version.outputs.version }}
+            CANOPY_VERSION=${{ needs.semantic-release.outputs.version }}
             CANOPY_REVISION=${{ github.sha }}
           sbom: true
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
 
   publish:
-    needs: [checks, version, binaries, smoke, desktop]
-    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.binaries.result == 'success' && needs.smoke.result == 'success' && needs.desktop.result == 'success' }}
+    needs: [semantic-release, binaries, smoke, desktop, images]
+    if: ${{ !cancelled() && needs.semantic-release.outputs.published == 'true' && needs.binaries.result == 'success' && needs.smoke.result == 'success' && needs.desktop.result == 'success' && needs.images.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      VERSION: ${{ needs.version.outputs.version }}
-      TAG: ${{ needs.version.outputs.release_tag }}
-      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+      VERSION: ${{ needs.semantic-release.outputs.version }}
+      TAG: ${{ needs.semantic-release.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -263,40 +292,37 @@ jobs:
           merge-multiple: true
       - name: checksums.txt and manifest.json
         env:
-          CANOPY_VERSION: ${{ needs.version.outputs.version }}
-          CANOPY_CHANNEL: ${{ needs.version.outputs.channel }}
-          CANOPY_RELEASE_TAG: ${{ needs.version.outputs.release_tag }}
+          CANOPY_VERSION: ${{ needs.semantic-release.outputs.version }}
+          CANOPY_CHANNEL: ${{ needs.semantic-release.outputs.channel }}
+          CANOPY_RELEASE_TAG: ${{ needs.semantic-release.outputs.tag }}
         run: |
           bun scripts/release-manifest.ts release-assets
           ls -l release-assets
           echo "### Canopy $VERSION ($TAG)" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Release vX.Y.Z
-        if: env.TAG != 'latest'
+      - name: Upload assets (manifest last)
         run: |
-          flags=()
-          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" release-assets/* --clobber
-          else
-            gh release create "$TAG" release-assets/* --verify-tag --title "Canopy $VERSION" --generate-notes "${flags[@]}"
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --title "Canopy $VERSION" --generate-notes
           fi
+          find release-assets -type f ! -name manifest.json -print0 | xargs -0 gh release upload "$TAG" --clobber
+          gh release upload "$TAG" release-assets/manifest.json --clobber
 
-      # The rolling pre-release of main: move its tag, replace the assets (manifest.json last, so an updater never
-      # sees a manifest whose files are not uploaded yet), then drop assets of older builds.
-      - name: Release latest
-        if: env.TAG == 'latest'
-        run: |
-          git push --force origin "$GITHUB_SHA:refs/tags/latest"
-          notes="Rolling build of main: $VERSION ($GITHUB_SHA). Replaced on every push to main; releases are tagged vX.Y.Z."
-          if gh release view latest > /dev/null 2>&1; then
-            gh release edit latest --prerelease --title "Canopy $VERSION (main)" --notes "$notes"
-          else
-            gh release create latest --prerelease --title "Canopy $VERSION (main)" --notes "$notes"
-          fi
-          find release-assets -type f ! -name manifest.json -print0 | xargs -0 gh release upload latest --clobber
-          gh release upload latest release-assets/manifest.json --clobber
-          gh release view latest --json assets --jq '.assets[].name' | while read -r asset; do
-            if [ ! -e "release-assets/$asset" ]; then gh release delete-asset latest "$asset" --yes; fi
-          done
+  backmerge:
+    needs: [semantic-release, publish]
+    if: needs.semantic-release.outputs.channel == 'stable'
+    uses: ./.github/workflows/backmerge.yml
+    with:
+      stable_sha: ${{ github.sha }}
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+
+  nightly-hygiene:
+    needs: [semantic-release, publish]
+    if: needs.semantic-release.outputs.channel == 'nightly'
+    uses: ./.github/workflows/nightly-hygiene.yml
+    permissions:
+      contents: write

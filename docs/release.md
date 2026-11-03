@@ -1,29 +1,40 @@
 # Wydania: wersje, CI, artefakty
 
-Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop). Źródłem jest git:
-tag `vX.Y.Z` dla wydań, commit na `main` dla buildów ciągłych. Wdrożenie: [deploy.md](deploy.md).
+Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop). Wersję wyznacza
+semantic-release z commitów Angular po squash merge. Wdrożenie: [deploy.md](deploy.md).
+Zasady commitów i wybór gałęzi: [contributing.md](contributing.md).
+
+Nagłówek sidebara oznacza **uruchomiony build**: Beta (bursztyn), Nightly (fiolet),
+lokalny checkout Dev (neutralny). Stable zachowuje zwykły nagłówek bez koloru, wzoru i etykiety.
+Delikatne kontury słojów drzewa dla pozostałych kanałów
+nawiązują do Canopy; nazwa kanału pozostaje czytelna również bez rozróżniania kolorów.
+Oznaczenie wynika z `CANOPY_VERSION`, nie z wybranego kanału przyszłej aktualizacji.
+Wersja jest w podpowiedzi nagłówka i Settings; ten sam nagłówek działa w drawerze mobilnym.
 
 ## Schemat wersji
 
 | Build | Wersja (`CANOPY_VERSION`) | Kanał | GitHub Release | Tagi obrazów Docker |
 | --- | --- | --- | --- | --- |
-| push do `main` | `X.Y.Z-main.<sha7>` | `latest` | pre-release `latest` (tag przesuwany, assety podmieniane) | `latest`, `sha-<sha7>` |
-| tag `vX.Y.Z` | `X.Y.Z` | `vX.Y.Z` | wydanie `vX.Y.Z` | `vX.Y.Z`, `vX.Y`, `vX` |
-| tag `vX.Y.Z-rc.N` | `X.Y.Z-rc.N` | `vX.Y.Z-rc.N` | pre-release `vX.Y.Z-rc.N` | tylko `vX.Y.Z-rc.N` |
+| `main` | `X.Y.Z` | `stable` | wydanie `vX.Y.Z` | `vX.Y.Z`, `vX.Y`, `vX`, `latest`, `stable` |
+| `next` | `X.Y.Z-beta.N` | `beta` | pre-release `vX.Y.Z-beta.N` | `vX.Y.Z-beta.N`, `beta` |
+| `dev` | `X.Y.Z-nightly.N` | `nightly` | pre-release `vX.Y.Z-nightly.N` | `vX.Y.Z-nightly.N`, `nightly` |
 
-- `X.Y.Z` buildu z `main` to ostatni tag `vX.Y.Z` osiągalny z commita (`git describe`, bez
-  sufiksu pre-release), a bez tagów `0.0.0`. To pre-release semver: `1.2.0-main.abc1234` jest
-  starszy od `1.2.0` (to build *po* `1.2.0` — porównuj kanałem, nie samym semverem).
-- `latest` śledzi `main`. Tagi wydań nigdy nie przesuwają `latest` (ani w Dockerze, ani na GitHubie).
-- Kto wdraża, wybiera, czego słucha: `latest` (każdy push do main), `v1` (najnowsze 1.x.y),
-  `v1.2` (najnowsze 1.2.x) albo dokładne `v1.2.3`.
-- Updatery rozwiązują kanał tak: `latest` → wydanie z tagiem `latest`; `vX` / `vX.Y` →
-  najwyższe wydanie semver z tym prefiksem; `vX.Y.Z` → to wydanie. Tag Docker `vX`/`vX.Y`
-  przesuwa `docker/metadata-action` przy każdym tagu — wydanie poprawki dla starszej linii
-  (np. `v1.0.5` po `v1.1.0`) przesunęłoby `v1` wstecz; takich wydań nie publikujemy bez
-  ręcznego przestawienia tagu obrazu.
-- Znane ograniczenie kontraktu: `<sha7>` złożony z samych cyfr z wiodącym zerem (ok. 0,4%
-  commitów) nie jest poprawnym identyfikatorem semver; updatery porównują wtedy kanał/commit.
+- Startujemy od **0.1.0**. `feat` zwiększa minor; `fix`/`perf` i rozpoznany revert — patch.
+  Pozostałe typy bez `BREAKING CHANGE` nie publikują wydania. W 0.x breaking zwiększa minor, np. 0.1.0 → 0.2.0;
+  od 1.0.0 zwiększa major. Wrapper `release-analyzer.mjs` przekazuje odpowiednie `releaseRules`
+  do `@semantic-release/commit-analyzer` na podstawie ostatniej wersji. Przejście na 1.0.0
+  jest świadomą decyzją maintainera i wymaga osobnej zmiany polityki/wyznaczenia tego wydania.
+- `release.config.mjs`: Angular analyzer, Angular release notes i `@semantic-release/github`.
+  Nie używamy `@semantic-release/git`, npm publish ani commitowanego CHANGELOG-a. Notatki są
+  w GitHub Releases; bot nie dopisuje commitów wersji, więc promocje zachowują wspólną historię.
+- **`latest` oznacza teraz najnowsze stable.** Nie powstaje rolling GitHub pre-release `latest`,
+  tag `latest` ani obrazy `sha-*`. Tagi wersji pozostają niezmienne. Nie publikujemy poprawek
+  starszych linii po nowszym stable bez osobnej polityki obsługi aliasów Docker.
+- Updater: `stable` wybiera najwyższe stabilne semver; `beta` najwyższe stable/beta;
+  `nightly` najwyższe ze wszystkich wydań. Piny `vX`, `vX.Y`, `vX.Y.Z` wybierają tylko stable.
+  Starsze ustawienie `latest` jest zapisywane jako `stable` przy starcie gatewaya.
+- Samo utworzenie gałęzi na istniejącym tagu i merge `docs:` nie publikuje nowej wersji.
+  `scripts/semantic-release.mjs` blokuje automatyczne pierwsze wydanie przed tagiem bootstrap.
 
 `scripts/version.ts` liczy wszystko lokalnie i w CI:
 
@@ -33,7 +44,8 @@ bun scripts/version.ts --field version # jedno pole
 bun scripts/version.ts --github-output # klucze do $GITHUB_OUTPUT
 ```
 
-W CI tag pochodzi z `GITHUB_REF_TYPE`/`GITHUB_REF_NAME`, lokalnie z `git tag --points-at HEAD`.
+W CI wszystkie buildy dostają dokładną wersję wyjściową semantic-release. Lokalnie skrypt czyta
+tag na HEAD; bez niego zwraca niepublikowaną wersję `X.Y.Z-dev.<sha7>` i pustą listę tagów Docker.
 
 ## Wstrzykiwanie wersji
 
@@ -108,6 +120,9 @@ Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emu
 
 `bun scripts/release-manifest.ts <katalog>` liczy z assetów w katalogu (odrzuca nieznane nazwy):
 
+Wymaga tagu wydania na HEAD albo jawnych `CANOPY_VERSION` i `CANOPY_RELEASE_TAG`.
+Kanał wynika z tagu; sprzeczny `CANOPY_CHANNEL` lub numer wersji zatrzymuje publikację.
+
 - `checksums.txt`: linie `sha256  nazwa` dla wszystkich assetów (bez samych `checksums.txt`/`manifest.json`),
 - `manifest.json`:
 
@@ -115,7 +130,7 @@ Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emu
 {
   "schema": 1,
   "version": "1.2.3",
-  "channel": "v1.2.3",
+  "channel": "stable",
   "commit": "<sha>",
   "published_at": "<iso>",
   "protocol": { "worker_link": 1, "update": 1 },
@@ -138,59 +153,140 @@ Assety desktop mają `app: "desktop"` (kilka formatów na jedną parę os/arch).
 i integracyjne; PostgreSQL w kontenerach Docker runnera) → build web → binaria linux-x64
 z kontrolą `--version`. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze) i nie mają sekretów w CI.
 
-`.github/workflows/release.yml` (push do `main`, tagi `vX.Y.Z[-…]`):
+`.github/workflows/release.yml` (push do `main`/`next`/`dev`, ręczne stabilne tagi `vX.Y.Z`,
+oraz dispatch po promocji/back-merge):
 
 | Job | Co robi | Blokuje publikację |
 | --- | --- | --- |
-| `checks` | `ci.yml` (to jest „CI na push do main”) | tak: obrazy i Release czekają |
-| `version` | `scripts/version.ts` | — |
+| `checks` | `ci.yml` | tak, także przed semantic-release |
+| `semantic-release` | pełna historia, GITHUB_TOKEN; wyjścia `published`, `version`, `tag`, `channel` | buildy wyłącznie dla `published=true` |
 | `binaries` | cross-compile wszystkich celów | tak |
 | `smoke` | `--version` każdej binarki na jej OS/arch (ładuje osadzony sharp) | tak |
-| `desktop` | macierz: linux-x64 (wymagany), linux-arm64, darwin-x64, darwin-arm64, windows-x64 (eksperymentalne: `continue-on-error`) | tylko linux-x64 |
-| `images` | buildx amd64+arm64, push do `ghcr.io/itsoltech/canopy-{gateway,web,worker}`, SBOM, cache GHA | po `checks` |
-| `publish` | `release-manifest.ts`, `gh release` | — |
+| `desktop` | stable/beta: wszystkie OS/arch; nightly: linux-x64; poza linux-x64 eksperymentalne `continue-on-error` | tylko linux-x64 |
+| `images` | buildx amd64+arm64, GHCR, SBOM, cache GHA | wymagany przed manifestem |
+| `publish` | sumy, manifest z kanałem stable/beta/nightly, upload do istniejącego release | manifest na końcu |
 
-Release `vX.Y.Z`: `gh release create --verify-tag --generate-notes` (pre-release dla `-rc`).
-Ponowne uruchomienie wgrywa assety z `--clobber`. Rolling `latest`: tag `latest` przesuwany
-`git push --force` na commit, assety podmieniane (najpierw pliki, `manifest.json` na końcu,
-więc updater nie zobaczy manifestu wskazującego niewgrane pliki; stary manifest z nowym plikiem
-nie przejdzie weryfikacji sha256), potem usuwane assety starszych buildów.
-Push tagu tokenem `GITHUB_TOKEN` nie uruchamia kolejnych workflowów.
+semantic-release tworzy tag i GitHub Release (beta/nightly jako prerelease), po czym ten sam
+przebieg buduje i wgrywa assety. Tag utworzony przez `GITHUB_TOKEN` nie uruchamia nowego workflow.
+Resolver pomija release bez `manifest.json`, więc nie wybiera nieukończonego buildu.
+Po błędzie buildów użyj **Re-run failed jobs**, zachowując wyjścia joba semantic-release;
+ponowienie całego workflow może zakończyć się „no release”, bo tag już istnieje.
+Ręczny stabilny tag musi należeć do historii `main`; ścieżka tagowa tworzy release przy uploadzie.
 
 Podpisywanie desktop jest warunkowe: bez sekretów buildy są niepodpisane. macOS:
 `MAC_CSC_LINK` (base64 .p12 Developer ID Application), `MAC_CSC_KEY_PASSWORD`, opcjonalnie
 notaryzacja `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. Windows: `WIN_CSC_LINK`,
 `WIN_CSC_KEY_PASSWORD`. Workflow przekazuje je electron-builderowi tylko, gdy istnieją.
 
-### Ustawienia repozytorium
+## Promocja i okres stabilizacji („burn-in”)
 
-- Settings → Actions → General: „Workflow permissions” może zostać „Read” — joby same żądają
-  `contents: write` (publish) i `packages: write` (images).
+Nightly powstaje po każdej zmianie `feat`/`fix`/`perf` na `dev` (zmiany bez wpływu na wersję
+nie publikują buildu). Beta to wybrany nightly; stable to beta po okresie obserwacji.
+Promocja przebudowuje ten sam commit z nowym numerem wersji, nie kopiuje binariów między kanałami.
+
+1. **dev → next:** maintainer wybiera HEAD z opublikowanym tagiem nightly; CI i live smoke
+   muszą być zielone, bez otwartych issue `release-blocker`. Uruchamia **Promote**, `dev-next`,
+   zaznaczając `live_smoke`. Jeśli `dev` ma już nowsze commity, najpierw wybiera odpowiedni
+   moment promocji; workflow celowo wymaga tagu na HEAD i nie przesuwa `dev` wstecz.
+2. **next → main:** beta na HEAD musi mieć gotowy manifest od co najmniej `burn_in_days`
+   (domyślnie **3 dni**); brak issue `release-blocker`, ostatni przebieg Release na HEAD zielony,
+   live smoke i aktualizacja gatewaya/workera z rollbackiem sprawdzone. Maintainer uruchamia
+   **Promote**, `next-main`, zaznaczając oba potwierdzenia smoke.
+3. Workflow sprawdza, czy target jest przodkiem source; robi zwykły push fast-forward
+   `<src-sha>:refs/heads/<target>` bez `--force`. Rozjechana historia lub zmiana targetu zatrzymuje
+   promocję. Po pushu jawnie dispatchuje Release na target, bo `GITHUB_TOKEN` nie uruchamia
+   workflow od swojego pushu. `expected_sha` chroni przed wydaniem późniejszego commita.
+4. Co poniedziałek **Promotion review** tworzy/aktualizuje issue
+   „Promote next → main (beta X)” z listą kontrolną i linkiem do Promote, gdy warunki automatyczne
+   są spełnione. `BETA_BURN_IN_DAYS` ustala próg przypomnienia (domyślnie 3). Stable zawsze wymaga
+   decyzji maintainera. Opcjonalne `AUTO_PROMOTE_DEV_TO_NEXT=true` włącza promocję do beta podczas
+   tego przeglądu; wymaga też `NIGHTLY_SMOKE_SHA` równemu HEAD dev, ustawionego po zewnętrznym
+   live smoke. Nie kopiuj starego potwierdzenia smoke dla nowego SHA.
+5. Po stable **Back-merge** przenosi hotfix `main` → `next` → `dev` commitami merge bota,
+   dispatchując CI/Release dla zmienionych gałęzi. Dla promocji bez rozbieżności jest to no-op.
+   Przy konflikcie otwiera PR i zatrzymuje dalsze przenoszenie. Po rozwiązaniu konfliktu i squash
+   merge PR uruchom Back-merge ponownie: dopisze merge commit przywracający relację przodków.
+
+Nowy commit w `next` zeruje obserwację dopiero po wydaniu kolejnej bety i ukończeniu jej assetów.
+Workflow nie uznaje ręcznych potwierdzeń smoke za automatyczne testy; maintainer odpowiada za
+ich prawdziwość. Docs-only HEAD bez nowego tagu nie jest kandydatem promocji.
+
+## Retencja nightly
+
+**Nightly hygiene** po publikacji nightly i codziennie zachowuje 10 najnowszych ukończonych
+GitHub prereleases nightly. Pozostawia tagi git i notes semantic-release: są potrzebne do
+numeracji oraz historii kanałów. Cache gatewaya zachowuje manifest/binarie jego wersji.
+Starszy nightly na zimnym cache może wymagać ręcznego przejścia na zachowany release.
+
+Starych tagów obrazów GHCR automatycznie nie usuwamy. API usuwa wersję pakietu/digest,
+który może mieć wspólne aliasy (`nightly`) i manifesty wielu architektur; bez osobnej polityki
+nie można bezpiecznie usuwać wyłącznie tagu. Administrator może okresowo usuwać stare wersje
+złożone wyłącznie z tagów `v*-nightly.*`, po sprawdzeniu, że żaden aktualny alias ani manifest
+ich nie wskazuje. Stable i beta nie podlegają retencji nightly.
+
+## Ustawienia repozytorium (stosuje maintainer/rodzic)
+
+- Feature PR: wyłącznie **squash merge**, tytuł PR jest tytułem commita. Wymagane checki:
+  `commitlint` (workflow PR title) i CI. Stopka `BREAKING CHANGE` musi zostać w body squasha.
+- Promocje są pushami **fast-forward**, back-merge bezpośrednimi commitami merge bota — nie
+  korzystają z przycisku merge PR. Reguły ochrony `dev`/`next`/`main` muszą pozwalać GitHub Actions
+  botowi na te operacje i zapis tagów/notes. Nie wymagaj linear history dla back-merge.
+- Actions: joby żądają `contents: write`, `packages: write`, `actions: write`, `issues: write`
+  lub `pull-requests: write` według potrzeby. Włącz „Allow GitHub Actions to create and approve
+  pull requests” dla PR konfliktowych. Utwórz etykietę **release-blocker**. Proponowana gałąź
+  domyślna: **dev** (również dla workflowów schedule/dispatch).
 - Pierwszy push tworzy pakiety GHCR prywatne: w ustawieniach pakietów `canopy-gateway`,
   `canopy-web`, `canopy-worker` ustaw **Public** (albo daj dostęp konkretnym użytkownikom)
   i połącz je z repozytorium (etykieta `org.opencontainers.image.source` robi to automatycznie).
-- Jeśli włączone są reguły tagów lub „immutable releases”, wyłącz je dla tagu `latest`
-  (jest przesuwany, a jego assety podmieniane).
-- Runnery `ubuntu-24.04-arm`, `macos-15-intel`, `macos-15`, `windows-2025` muszą być dostępne
-  dla repozytorium (publiczne repo: standardowe runnery GitHub).
+  Runnery `ubuntu-24.04-arm`, `macos-15-intel`, `macos-15`, `windows-2025` muszą być dostępne.
+- GitHub „immutable releases” pozostaw wyłączone: semantic-release publikuje release przed
+  uploadem assetów; upload i retencja wymagają możliwości ich późniejszej zmiany/usunięcia.
 
-### Pierwsze uruchomienie — lista kontrolna
+## Bootstrap 0.1.0 — wykonuje rodzic
 
-1. PR: job „Typecheck, tests, builds” przechodzi (Docker Postgres na runnerze, czas `check:tmp`).
-2. Merge do main: `smoke` zielony na 5 runnerach (macOS: binarka podpisana ad hoc przez Bun;
-   Windows: sharp/libvips DLL z katalogu cache).
-3. `desktop`: sprawdź, które eksperymentalne cele przeszły; po zielonych przebiegach można
-   zdjąć `experimental`.
-4. GHCR: trzy obrazy z tagami `latest`, `sha-<sha7>`, manifest list z `linux/amd64` i `linux/arm64`;
-   ustaw widoczność.
-5. Release `latest`: pre-release z binariami, instalatorami, `checksums.txt`, `manifest.json`;
-   tag `latest` na commicie z main. Drugi push do main podmienia assety.
-6. `git tag v0.1.0 && git push origin v0.1.0`: wydanie `v0.1.0`, obrazy `v0.1.0`, `v0.1`, `v0`;
-   `latest` bez zmian.
-7. `curl -sL https://github.com/itsoltech/canopy/releases/download/latest/manifest.json` zgadza się
-   z `checksums.txt`.
+1. Po zielonym PR scal tę zmianę do `main` i pobierz jego HEAD. Przed pierwszym stabilnym tagiem
+   push main kończy się „no release” (guard bootstrap), nawet jeśli squash ma typ `feat`.
+2. Na HEAD main utwórz `git tag -a v0.1.0 -m 'Canopy 0.1.0'`, potem
+   `git push origin main v0.1.0`. Tylko przebieg tagowy publikuje **0.1.0 stable**; przebieg main
+   widzi tag na HEAD i brak nowych commitów. CI, wszystkie binaria/smoke, desktop i obrazy muszą
+   przejść przed uploadem manifestu. Sprawdź `v0.1.0/manifest.json` i publiczną widoczność GHCR.
+3. Utwórz `git branch next v0.1.0` oraz `git branch dev v0.1.0`; wykonaj
+   `git push origin next dev`. Obie gałęzie kończą się **no release** aż do nowych commitów
+   wpływających na wersję. Nie twórz tagów beta/nightly ręcznie.
+4. Ustaw domyślną gałąź `dev`, ustawienia opisane wyżej i ewentualne zmienne promocji.
+5. Przykładowy dalszy cykl: `feat` do dev → **0.2.0-nightly.1**; Promote dev-next →
+   **0.2.0-beta.1**; po 3 dniach i smoke Promote next-main → **0.2.0**. Hotfix `fix` do main
+   po 0.1.0 → **0.1.1** i back-merge; sam `docs` bez breaking → **no release**.
 
-## Weryfikacja lokalna (2026-11-03)
+## Weryfikacja kanałów
+
+`bun test scripts/release.test.ts` tworzy lokalny bare origin i jego klon z tagiem `v0.1.0`.
+Uruchamia w klonie **`bunx --no-install semantic-release --dry-run --no-ci`**, z rzeczywistą
+konfiguracją i wyłączonym wyłącznie pluginem GitHub (brak tokena/publikacji do GitHuba).
+Origin używa `file://`, aby generator notatek miał poprawny URL. Sprawdza brak wydania na
+main/next/dev, feat → 0.2.0 / 0.2.0-beta.1 / 0.2.0-nightly.1 oraz breaking w 0.x i po 1.0.0.
+Osobny test publikuje wyłącznie do tego lokalnego bare origin, sprawdzając pełen cykl promocji
+nightly → beta → stable i brak wydania po docs-only. Fixture nie tworzy tagów w repozytorium roboczym.
+Testy updatera używają lokalnego fixture HTTP
+z prereleases, paginacją i manifestami. Pełna publikacja wymaga uruchomienia workflow na GitHubie.
+
+Weryfikacja implementacji kanałów lokalnie (2026-11-03):
+
+| Sprawdzenie | Wynik |
+| --- | --- |
+| `bun install` i `bun install --frozen-lockfile` | OK; hook commit-msg zainstalowany |
+| `mise exec actionlint@1.7.12 shellcheck@0.11.0 -- actionlint` | bez uwag |
+| `bun run typecheck`, `bun run gen:check` | OK; Svelte bez błędów i ostrzeżeń; brak zmian wygenerowanego kodu |
+| `bun run check:tmp` | 654 pass, 147 skip, 0 fail; czysty katalog tymczasowy |
+| `bun test scripts/release.test.ts` po dodaniu walidacji manifestu | 5 pass, 0 fail; dodatkowy test manifestu po pełnym przebiegu |
+| hook `feat(web): …` / `Web: …` | poprawny przyjęty, niepoprawny odrzucony |
+| `CANOPY_VERSION=0.2.0-nightly.1 bun scripts/build-web.ts` | OK, także po zmianie stable na neutralny |
+
+Nie uruchamiano publikacji GitHub/GHCR, workflowów promocji na repo zdalnym ani testów live/E2E.
+Nie wykonywano pushu do GitHuba ani tagów w repozytorium roboczym. Dodatkowy podgląd nagłówków
+był statyczną prezentacją wyglądu, nie testem przeglądarkowym aplikacji.
+
+## Historyczna weryfikacja artefaktów przed kanałami (2026-11-03)
 
 - `bun scripts/build-binaries.ts --target all`: 10 binariów (rozmiary wyżej), `manifest.json` +
   `checksums.txt` z `release-manifest.ts`.

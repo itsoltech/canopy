@@ -28,8 +28,10 @@ class ReleaseHttpError extends Error {
   constructor(readonly status: number) { super(`Release server returned HTTP ${status}`); }
 }
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?$/;
+/** Legacy clients/settings may still send latest; it now always means stable. */
+export function normalizeChannel(channel: string): string { return channel === "latest" ? "stable" : channel; }
 export function validChannel(channel: string): boolean {
-  return channel === "latest" || /^v(0|[1-9]\d*)(?:\.(0|[1-9]\d*)){0,2}$/.test(channel);
+  return ["stable", "beta", "nightly"].includes(normalizeChannel(channel)) || /^v(0|[1-9]\d*)(?:\.(0|[1-9]\d*)){0,2}$/.test(channel);
 }
 export function compareVersions(a: string, b: string): number {
   const left = SEMVER.exec(a), right = SEMVER.exec(b);
@@ -102,42 +104,56 @@ export class ReleaseSource {
     this.baseUrl = secureUrl(options.baseUrl ?? "https://api.github.com/repos/itsoltech/canopy", options.allowHttpForTests).href.replace(/\/$/, "");
   }
   async resolve(channel: string): Promise<ReleaseManifest> {
-    if (!validChannel(channel)) throw new Error("Use latest, vX, vX.Y or vX.Y.Z");
-    let release: GithubRelease | undefined;
-    if (channel === "latest" || /^v\d+\.\d+\.\d+$/.test(channel)) {
-      try {
-        release = await (await releaseFetch(`${this.baseUrl}/releases/tags/${channel}`, this.options)).json() as GithubRelease;
-      } catch (error) {
-        // Mirrors may retain stable X.Y.Z tags; the pipeline publishes vX.Y.Z.
-        if (channel === "latest" || !(error instanceof ReleaseHttpError) || error.status !== 404) throw error;
-        release = await (await releaseFetch(`${this.baseUrl}/releases/tags/${channel.slice(1)}`, this.options)).json() as GithubRelease;
-      }
-    } else {
-      const candidates: GithubRelease[] = [];
-      for (let page = 1; ; page++) {
-        const batch = await (await releaseFetch(`${this.baseUrl}/releases?per_page=100&page=${page}`, this.options)).json() as GithubRelease[];
-        if (!Array.isArray(batch)) throw new Error("Invalid releases response");
-        candidates.push(...batch.filter((r) => !r.draft && !r.prerelease && SEMVER.test(r.tag_name.replace(/^v/, "")) && !r.tag_name.includes("-") && r.tag_name.replace(/^v/, "").startsWith(`${channel.slice(1)}.`)));
-        if (batch.length < 100) break;
-        if (page >= 100) throw new Error("Release list exceeds pagination limit");
-      }
-      release = candidates.sort((a, b) => compareVersions(b.tag_name.replace(/^v/, ""), a.tag_name.replace(/^v/, "")))[0];
+    channel = normalizeChannel(channel);
+    if (!validChannel(channel)) throw new Error("Use stable, beta, nightly, vX, vX.Y or vX.Y.Z");
+    if (/^v\d+\.\d+\.\d+$/.test(channel)) return this.#exact(channel.slice(1), true);
+    const candidates: GithubRelease[] = [];
+    for (let page = 1; ; page++) {
+      const batch = await (await releaseFetch(`${this.baseUrl}/releases?per_page=100&page=${page}`, this.options)).json() as GithubRelease[];
+      if (!Array.isArray(batch)) throw new Error("Invalid releases response");
+      candidates.push(...batch.filter((release) => {
+        const version = release.tag_name.replace(/^v/, "");
+        const match = SEMVER.exec(version);
+        // semantic-release creates the release before the builds finish; manifest.json is uploaded last.
+        if (!match || release.draft || !release.assets?.some((asset) => asset.name === "manifest.json")) return false;
+        const stable = !release.prerelease && !match[4];
+        if (channel === "nightly") return true;
+        if (channel === "beta") return stable || (release.prerelease && /^beta\.\d+$/.test(match[4] ?? ""));
+        return stable && (channel === "stable" || version.startsWith(`${channel.slice(1)}.`));
+      }));
+      if (batch.length < 100) break;
+      if (page >= 100) throw new Error("Release list exceeds pagination limit");
     }
-    if (!release || release.draft || (channel !== "latest" && release.prerelease)) throw new Error("No release for this channel");
+    const release = candidates.sort((a, b) => compareVersions(b.tag_name.replace(/^v/, ""), a.tag_name.replace(/^v/, "")))[0];
+    if (!release) throw new Error("No release for this channel");
+    return this.#manifest(release);
+  }
+  async #exact(version: string, stableOnly: boolean): Promise<ReleaseManifest> {
+    let release: GithubRelease;
+    try {
+      release = await (await releaseFetch(`${this.baseUrl}/releases/tags/v${version}`, this.options)).json() as GithubRelease;
+    } catch (error) {
+      if (!(error instanceof ReleaseHttpError) || error.status !== 404) throw error;
+      release = await (await releaseFetch(`${this.baseUrl}/releases/tags/${version}`, this.options)).json() as GithubRelease;
+    }
+    if (release.draft || (stableOnly && release.prerelease)) throw new Error("No release for this channel");
+    if (release.tag_name.replace(/^v/, "") !== version) throw new Error("Requested version and release tag differ");
+    return this.#manifest(release);
+  }
+  async #manifest(release: GithubRelease): Promise<ReleaseManifest> {
     const asset = release.assets?.find((a) => a.name === "manifest.json");
     if (!asset) throw new Error("Release has no manifest.json");
     const response = await releaseFetch(asset.browser_download_url, this.options);
     const json = await response.text();
     if (json.length > 2 * 1024 * 1024) throw new Error("Release manifest is too large");
     const manifest = parseManifest(JSON.parse(json), this.options);
-    if (channel !== "latest" && manifest.version !== release.tag_name.replace(/^v/, "")) throw new Error("Release tag and manifest version differ");
+    if (manifest.version !== release.tag_name.replace(/^v/, "")) throw new Error("Release tag and manifest version differ");
     return manifest;
   }
   async version(version: string): Promise<ReleaseManifest> {
     if (!SEMVER.test(version)) throw new Error("Invalid release version");
-    const manifest = await this.resolve(version.includes("-") ? "latest" : `v${version}`);
-    if (manifest.version !== version) throw new Error("This gateway version is no longer published; use a retained release or cached manifest");
-    return manifest;
+    // Fetch our immutable prerelease, even when a newer nightly has been published.
+    return this.#exact(version, false);
   }
 }
 export function releaseAsset(manifest: ReleaseManifest, app: ReleaseAsset["app"], os: string, arch: string): ReleaseAsset {
