@@ -153,6 +153,17 @@ services:
 
 Sprawdzenie z sieci Dockera: `docker run --rm --network canopy_default curlimages/curl -sS -o /dev/null -w '%{http_code}\n' <endpoint>/v1/models`.
 
+### Połączone komputery: wykrywanie w sieci lokalnej
+
+Gateway z listenerem połączonych komputerów (`CANOPY_LINK_HOST`) wykrywa już sparowane komputery
+w tej samej podsieci przez mDNS (UDP 5353, grupa 224.0.0.251; [etap 6](linked-computers.md#konkretny-protokół-etapu-6)).
+Domyślna sieć bridge Dockera nie przenosi multicastu do LAN-u hosta: gateway w kontenerze z samymi
+interfejsami `eth*` pokazuje w Settings → Linked computers „Not available here” i działa dalej na
+trasach ręcznych i ogłaszanych. Wykrywanie w kontenerze wymaga `network_mode: host` (jak wyżej).
+`CANOPY_LINK_DISCOVERY=off` wyłącza je dla gatewaya niezależnie od ustawienia w UI, a `on` pomija
+heurystykę kontenera. Firewall hosta musi przepuszczać UDP 5353 (zwykle otwarte dla mDNS) oraz TCP
+na porcie listenera.
+
 ## Binaria (systemd)
 
 Assety release: `canopy-gateway-<os>-<arch>`, `canopy-worker-<os>-<arch>` (`linux|darwin|windows`,
