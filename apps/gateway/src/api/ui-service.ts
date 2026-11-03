@@ -82,6 +82,13 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     archiveBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.archive(r.botId, true) })),
     unarchiveBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.archive(r.botId, false) })),
     getBot: (r) => guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.get(r.botId) })),
+    getBotProviderInstances: (r) => guard(async () => {
+      await core.bots.get(r.botId);
+      const instances = (await core.listProviderInstances()).map((i) => create(ui.ProviderInstanceSchema, {
+        id: i.id, harness: i.harness, label: i.label, kind: i.kind, accentColor: i.accentColor, models: i.models,
+      }));
+      return create(ui.ListProviderInstancesResponseSchema, { instances });
+    }),
     sendBotMessage: (r) => guard(async () => create(bots.SendBotMessageResponseSchema, { turnId: await core.bots.send(r) })),
     watchBotConversation: (r, context) => core.bots.watch(r.botId, context.signal),
     readBotExchange: (r) => guard(async () => create(bots.ReadBotExchangeResponseSchema, { messages: await core.bots.exchange(r.exchangeId) })),

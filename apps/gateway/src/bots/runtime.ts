@@ -27,6 +27,7 @@ export interface BotRuntimeOptions {
   prepareTool?: (turn: BotTurn, call: StoredCall) => Promise<{ prompt?: string } | undefined>;
   log?: (message: string) => void;
   draining?: () => boolean;
+  linkedTick?: () => Promise<void>;
 }
 
 /** PostgreSQL is the queue and event source; this object only owns cancellable inference. */
@@ -118,6 +119,7 @@ export class BotsRuntime {
     const tickDone = Promise.withResolvers<void>();
     this.#tickDone = tickDone.promise;
     try {
+      await this.#options.linkedTick?.();
       await this.run((s) => s.deliver());
       await this.run((s) => s.deliverRoutines(this.#options.userId, this.now()));
       while (this.#active.size < 4 && !this.#stopped && !this.#options.draining?.()) {

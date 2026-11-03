@@ -104,6 +104,7 @@ import { UpdatePersistence } from "../updates/persistence.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools, type CliLatestOptions } from "./cli-tools.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
+import { LinkedAgents } from "../computers/agents.ts";
 import { isEntityId } from "@canopy/domain/computers";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -194,6 +195,7 @@ export class GatewayCore {
   readonly #actions: ActionContext;
   readonly hub: Hub;
   readonly bus: AgentBus;
+  readonly linkedAgents: LinkedAgents;
   readonly scheduler: Scheduler;
   /** Background tasks for their agents: the tools, and the notes about every end (docs/execution.md, "Pobudka"). */
   readonly backgroundTasks: BackgroundTasks;
@@ -213,6 +215,10 @@ export class GatewayCore {
     this.#options = options;
     this.#actions = new ActionContext(options.runtime);
     this.hub = new Hub((action) => this.#actions.defer(action));
+    this.linkedAgents = new LinkedAgents(this, options, {
+      run: (effect) => this.#actions.run(effect),
+      transaction: (perform) => this.#actions.transaction(perform),
+    });
     this.mobile = new MobileDevices({ runtime: options.runtime, userId: options.userId,
       ...(options.mobileGatewayUrl && { gatewayUrl: options.mobileGatewayUrl }), publish: (update) => this.hub.publishOverview(update) });
     this.connectors = new ConnectorsRuntime({ runtime: options.runtime, userId: options.userId,
@@ -225,6 +231,7 @@ export class GatewayCore {
       platform: (turn, call) => botPlatform(this, options, turn, call),
       describeTool: (tool, args) => describeBotTool(this, tool, args),
       prepareTool: (turn, call) => prepareBotTool(this, options, turn, call),
+      linkedTick: () => this.linkedAgents.tick(),
     });
     this.link = createWorkerLink({
       authenticate: (credential) => this.#run((s) => s.authenticateWorker(credential)),
@@ -270,6 +277,8 @@ export class GatewayCore {
       ...(options.secretTtlMs !== undefined && { ttlMs: options.secretTtlMs }) });
     this.secrets.start();
     this.bus = new AgentBus({
+      linked: (request, call, caller) => this.linkedAgents.tool(request, call, caller),
+      extend: (call, caller, result) => this.linkedAgents.extend(call, caller, result),
       run: (effect) => this.#options.runtime.runPromise(effect),
       startThread: (row) => this.#startThread(row),
       queued: async (threadId, turn) => {
@@ -936,7 +945,7 @@ export class GatewayCore {
     return this.getThread(threadId);
   }
 
-  async createThread(input: ui.CreateThreadRequest): Promise<ui.Thread> {
+  async createThread(input: ui.CreateThreadRequest, remoteParent?: { ref: string; kind: string; instructions: string; interactions: string }): Promise<ui.Thread> {
     const request = input.forkAtTurnId && !input.parentThreadId ? await this.#forkRequest(input) : input;
     await this.#checkProvider(request);
     const where = { workspaceId: request.workspaceId, provider: request.provider, profileId: request.providerProfileId };
@@ -945,6 +954,14 @@ export class GatewayCore {
     const effort = turnEffort((await this.#profileModels(where)).models, request.model, request.effort);
     if (request.initialAttachmentIds.length === 0 && request.initialMentions.length === 0) {
       const row = await this.#run((s) => s.createThread(this.#options.userId, effort === request.effort ? request : { ...request, effort }));
+      if (remoteParent) {
+        await this.#actions.run(Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`UPDATE threads SET remote_parent_ref=${remoteParent.ref},remote_parent_kind=${remoteParent.kind},interaction_route=${remoteParent.interactions},settings=settings || ${JSON.stringify({ instructions: remoteParent.instructions })}::jsonb WHERE id=${row.id}::uuid`;
+        }));
+        row.remote_parent_ref = remoteParent.ref; row.remote_parent_kind = remoteParent.kind; row.interaction_route = remoteParent.interactions === "human" ? "human" : "parent";
+        row.settings.instructions = remoteParent.instructions;
+      }
       await this.#startThread(row);
       if (request.initialMessage.trim()) this.#autoTitle(row.id, titleContext({ text: request.initialMessage }));
       return this.#uiThread(row);

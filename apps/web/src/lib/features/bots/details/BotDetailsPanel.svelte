@@ -16,6 +16,8 @@
   import DetailsSection from "./DetailsSection.svelte";
   import RoutineRow from "./RoutineRow.svelte";
   import ReminderRow from "./ReminderRow.svelte";
+  import BotHome from "../components/BotHome.svelte";
+  import { useBotHome } from "../home.svelte.ts";
 
   /** Section composition leaves a slot for Connections without coupling to the settings editor. */
   let { bot, routines, reminders, status = '', onclose, children, class: className }: {
@@ -23,6 +25,7 @@
     onclose: () => void; children?: Snippet; class?: ClassValue;
   } = $props();
   const participant = $derived(botParticipant(bot));
+  const home = useBotHome(() => bot.nodeId);
   const config = $derived(bot.configuration!);
   const shape = $derived(mascotShapes.find((s) => s.id === config.shape)?.id);
   let busy = $state<Record<string, boolean>>({});
@@ -54,7 +57,8 @@
       <h2 class="text-xl font-semibold text-balance wrap-anywhere tracking-tight text-zinc-950 dark:text-white">{participant.name}</h2>
       <p class="text-pretty text-zinc-500 wrap-anywhere dark:text-zinc-400">{modelDisplayName(config.model)} · {config.provider === Provider.CODEX ? 'Codex' : config.provider === Provider.GROK ? 'Grok' : 'Claude'}</p>
     </div>
-    <Button size="sm" variant="secondary" icon="cog-6-tooth" onclick={() => openBotSettings(bot.id)}>Bot settings</Button>
+    <BotHome nodeId={bot.nodeId} />
+    <Button size="sm" variant="secondary" icon="cog-6-tooth" disabled={Boolean(home.reason)} onclick={() => openBotSettings(bot.id)}>Bot settings</Button>
   </div>
 
   {#if error}<Alert tone="error">{error}</Alert>{/if}
@@ -62,7 +66,7 @@
     {#if routines.length}
       <ul role="list" class="divide-y divide-zinc-950/6 dark:divide-white/8">
         {#each routines as routine (routine.id)}
-          <RoutineRow {routine} busy={busy[routine.id] ?? false} disabled={bot.archived} ontoggle={(enabled) => toggle(routine, enabled)} ondelete={() => { removing = routine; confirming = true; }} />
+          <RoutineRow {routine} busy={busy[routine.id] ?? false} disabled={bot.archived || Boolean(home.reason)} ontoggle={(enabled) => toggle(routine, enabled)} ondelete={() => { removing = routine; confirming = true; }} />
         {/each}
       </ul>
     {:else}
@@ -76,7 +80,7 @@
     <DetailsSection title="Reminders">
       <ul role="list" class="grid gap-4">
         {#each reminders as reminder (reminder.id)}
-          <ReminderRow {reminder} busy={busy[reminder.id] ?? false} oncancel={() => { void act(reminder.id, () => requestJson('DELETE', `/api/bots/${bot.id}/reminders/${reminder.id}`)); }} />
+          <ReminderRow {reminder} disabled={Boolean(home.reason)} busy={busy[reminder.id] ?? false} oncancel={() => { void act(reminder.id, () => requestJson('DELETE', `/api/bots/${bot.id}/reminders/${reminder.id}`)); }} />
         {/each}
       </ul>
     </DetailsSection>

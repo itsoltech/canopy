@@ -29,6 +29,7 @@ export interface SteerRow {
   /** A platform report about this call's target, rather than another send_message. */
   notification_call_id?: string | null;
   hops: number;
+  linked_call_id?: string | null;
   client_request_id: string | null;
   model: string;
   effort: string;
@@ -156,13 +157,14 @@ export class SteerStore extends Context.Service<
               const agent = steer.agent_call_id !== null || !!steer.notification_call_id;
               const bot = steer.bot_call_id != null;
               const rows = back[0] ? back : yield* sql<TurnRow>`
-                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, bot_call_id, hops, input, model, effort, permission_mode)
-                SELECT ${Bun.randomUUIDv7()}::uuid, ${steer.thread_id}::uuid, coalesce(max(ordinal), 0) + 1, ${bot ? "bot" : agent ? "agent_bus" : "user"},
-                       ${steer.author_user_id}::uuid, ${steer.agent_call_id ?? steer.notification_call_id ?? null}::uuid, ${steer.bot_call_id ?? null}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
+                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, bot_call_id, linked_call_id, hops, input, model, effort, permission_mode)
+                SELECT ${Bun.randomUUIDv7()}::uuid, ${steer.thread_id}::uuid, coalesce(max(ordinal), 0) + 1, ${steer.linked_call_id ? "linked_agent" : bot ? "bot" : agent ? "agent_bus" : "user"},
+                       ${steer.author_user_id}::uuid, ${steer.agent_call_id ?? steer.notification_call_id ?? null}::uuid, ${steer.bot_call_id ?? null}::uuid, ${steer.linked_call_id ?? null}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
                        ${steer.model}, ${steer.effort}, ${steer.permission_mode}
                   FROM turns WHERE thread_id = ${steer.thread_id}::uuid
                 RETURNING *`;
               const turn = rows[0]!;
+              if (steer.linked_call_id) yield* sql`UPDATE computer_agent_calls SET target_turn_id=${turn.id}::uuid WHERE target_steer_id=${id}::uuid AND direction='incoming' AND NOT detached`;
               yield* sql`
                 UPDATE turn_steers SET status = 'queued', queued_turn_id = ${turn.id}::uuid, reason = ${reason}, updated_at = now()
                  WHERE id = ${id}::uuid`;

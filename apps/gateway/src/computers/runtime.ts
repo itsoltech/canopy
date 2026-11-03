@@ -4,9 +4,10 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { AsyncChannel } from "@canopy/transport";
 import { MIN_COMPUTER_LINK_PROTOCOL, COMPUTER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
-import { NODE_REF_LENGTH, REMOTE_THREADS, SHARED_CONFIG, THREAD_MIRROR } from "@canopy/domain/computers";
+import { AGENT_BUS, NODE_REF_LENGTH, REMOTE_BOTS, REMOTE_THREADS, SHARED_CONFIG, THREAD_MIRROR } from "@canopy/domain/computers";
 import { ThreadMirror } from "./mirror.ts";
-import { RemoteCalls, type RemoteServe } from "./remote.ts";
+import { BOT_METHODS, RemoteCalls, type RemoteServe } from "./remote.ts";
+import { BotMirror } from "./bot-mirror.ts";
 import { SharedConfig, type SharedHost } from "./shared.ts";
 import { ComputerStore, type PeerRow } from "./store.ts";
 import { certificateIdentity, computerName, linkAddress } from "./identity.ts";
@@ -56,11 +57,14 @@ export class LinkedComputers {
   #names = new Map<string, string>();
   #capabilities = new Map<string, string[]>();
   #mirroring = new Map<string, AbortController>();
+  #botMirroring = new Map<string, AbortController>();
   #sharing = false;
   readonly mirror: ThreadMirror;
+  readonly botMirror: BotMirror;
   readonly shared: SharedConfig | undefined;
   constructor(readonly options: Options) {
     this.mirror = new ThreadMirror(options.store);
+    this.botMirror = new BotMirror(options.store);
     this.shared = options.shared && options.serve ? new SharedConfig(options.store, options.shared, {
       self: () => this.#identity.node_id,
       ready: () => this.#sharesConfig() ? this.reachable().filter((n) => this.capabilities(n).includes(SHARED_CONFIG)) : [],
@@ -73,7 +77,7 @@ export class LinkedComputers {
   get addresses() { return this.#addresses; }
   hello() { return create(link.NodeHelloSchema, { nodeId: this.#identity.node_id, name: this.#identity.name, addresses: this.#addresses,
     appVersion: CANOPY_VERSION, minProtocol: this.options.minProtocol ?? MIN_COMPUTER_LINK_PROTOCOL, maxProtocol: this.options.maxProtocol ?? COMPUTER_LINK_PROTOCOL,
-    capabilities: this.options.capabilities ?? ["presence", "unlink", ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR] : []), ...(this.shared ? [SHARED_CONFIG] : [])] }); }
+    capabilities: this.options.capabilities ?? ["presence", "unlink", ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS] : []), ...(this.shared ? [SHARED_CONFIG] : [])] }); }
   #sharesConfig() { return Boolean(this.shared) && this.hello().capabilities.includes(SHARED_CONFIG); }
   async start() {
     this.#identity = await this.store.identity();
@@ -216,6 +220,9 @@ export class LinkedComputers {
       this.#names.set(nodeId, peer.display_name || hello.name);
       if (protocol && !connection.remote) connection.remote = new RemoteCalls({ send: (f) => connection.send(f), serve: async function* (this: LinkedComputers, method: DescMethod, request: Message, signal: AbortSignal) {
         if (!this.options.serve) throw new ConnectError("Thread sharing unavailable", Code.Unimplemented);
+        const feature = method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : undefined;
+        if (feature && (!this.hello().capabilities.includes(feature) || !connection.capabilities?.has(feature)))
+          throw new ConnectError("Both computers need an update for linked bots and agents", Code.Unimplemented);
         if (method.name === "WatchThreadMirror") {
           if (!this.hello().capabilities.includes(THREAD_MIRROR) || !connection.capabilities?.has(THREAD_MIRROR))
             throw new ConnectError("Thread mirrors need an update on both computers", Code.Unimplemented);
@@ -224,7 +231,8 @@ export class LinkedComputers {
           if (!this.shared || !this.#sharesConfig() || !connection.capabilities?.has(SHARED_CONFIG))
             throw new ConnectError("Shared configuration needs an update on both computers", Code.Unimplemented);
           yield await this.shared.receive(nodeId, request as link.SharedConfigPush);
-        } else yield* this.options.serve(method, request, signal);
+        } else if (method.name === "WatchBotMirror") yield* this.botMirror.publish(request as link.MirrorRequest, this.options.serve, signal);
+        else yield* this.options.serve(method, request, signal, nodeId);
       }.bind(this),
         name: () => this.#names.get(nodeId) ?? "The other computer", allowed: async () => Boolean(await this.store.peer(nodeId)) });
       connection.ready = true;
@@ -359,6 +367,7 @@ export class LinkedComputers {
     this.#syncMirror(nodeId);
   }
   #syncMirror(nodeId: string) {
+    this.#syncBotMirror(nodeId);
     const enabled = !this.#stopped && this.hello().capabilities.includes(THREAD_MIRROR)
       && this.capabilities(nodeId).includes(THREAD_MIRROR) && this.reachable().includes(nodeId);
     if (!enabled) { this.#mirroring.get(nodeId)?.abort(); return; }
@@ -379,6 +388,25 @@ export class LinkedComputers {
     this.#tasks.add(task);
     // A failed cursor write can reject during shutdown too. Observe both outcomes
     // without creating an unhandled rejected promise from finally().
+    void task.then(() => this.#tasks.delete(task), () => this.#tasks.delete(task));
+  }
+  #syncBotMirror(nodeId: string) {
+    const enabled = !this.#stopped && this.hello().capabilities.includes(REMOTE_BOTS)
+      && this.capabilities(nodeId).includes(REMOTE_BOTS) && this.reachable().includes(nodeId);
+    if (!enabled) { this.#botMirroring.get(nodeId)?.abort(); return; }
+    if (this.#botMirroring.has(nodeId)) return;
+    const controller = new AbortController(); this.#botMirroring.set(nodeId, controller);
+    const task = (async () => {
+      try {
+        const cursor = await this.botMirror.cursor(nodeId);
+        await this.botMirror.consume(nodeId, this.remote(nodeId, link.LinkedAgentsService.method.watchBotMirror,
+          create(link.MirrorRequestSchema, { cursor }), controller.signal), () => {
+            for (const listener of this.#listeners) { try { listener({ nodeId, removed: false }); } catch { /* subscriber owns errors */ } }
+          }, controller.signal);
+      } catch { /* reconnect resumes from the last atomic checkpoint */ }
+      finally { if (this.#botMirroring.get(nodeId) === controller) this.#botMirroring.delete(nodeId); }
+    })();
+    this.#tasks.add(task);
     void task.then(() => this.#tasks.delete(task), () => this.#tasks.delete(task));
   }
   async #status(nodeId: string, status: string, updateNodeId = "") { await this.store.status(nodeId, status, updateNodeId); this.#emit(nodeId); }
@@ -405,6 +433,11 @@ export class LinkedComputers {
   async *remote(nodeId: string, method: DescMethod, request: Message, signal: AbortSignal): AsyncGenerator<Message> {
     const remote = this.#channel(nodeId);
     if (!remote) throw await this.unavailable(nodeId);
+    const feature = method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : undefined;
+    if (feature && (!this.hello().capabilities.includes(feature) || !this.capabilities(nodeId).includes(feature))) {
+      const peer = await this.store.peer(nodeId);
+      throw new ConnectError(`${peer?.display_name || peer?.name || "The other computer"} needs an update for linked bots and agents`, Code.FailedPrecondition);
+    }
     yield* remote.call(method, request, signal);
   }
   /** Why a peer's threads cannot be reached, in the words the UI shows. */
@@ -443,6 +476,7 @@ export class LinkedComputers {
     this.shared?.close();
     for (const controller of this.#dialing.values()) controller.abort();
     for (const controller of this.#mirroring.values()) controller.abort();
+    for (const controller of this.#botMirroring.values()) controller.abort();
     for (const set of this.#active.values()) for (const c of set) c.close();
     await this.#listener?.close(); this.#listener = undefined;
     await Promise.allSettled(this.#tasks);

@@ -2,10 +2,12 @@ import type { connectors } from '@canopy/contracts';
 import { listConnectors } from './api.ts';
 
 /** Shared scoped catalog; late responses from a previous bot/thread cannot replace the current one. */
-export function useConnectorAccounts(scope: () => { botId: string } | { threadId: string }) {
+export function useConnectorAccounts(scope: () => { botId: string } | { threadId: string } | undefined) {
   const state = $state({ accounts: [] as connectors.ConnectorAccount[], types: [] as connectors.ConnectorType[], loading: true, error: '' });
   $effect(() => {
-    const query = new URLSearchParams(scope()).toString();
+    const current = scope();
+    if (!current) { state.accounts = []; state.types = []; state.loading = false; return; }
+    const query = new URLSearchParams(current).toString();
     let active = true;
     state.accounts = [];
     const load = async () => {

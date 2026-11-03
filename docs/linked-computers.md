@@ -1,11 +1,12 @@
 # Połączone komputery (projekt)
 
-Status: **etapy 1–4 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
+Status: **etapy 1–5 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
 wersjonowanie, obecność i Settings → Linked computers. Etap 2: zsumowany overview i zdalne wątki
 (lista, odczyt na żywo, pisanie, steer, kolejka, przerwanie, zgody i tworzenie wątku na workerze
 partnera, trasowane do domu). Etap 3: trwałe lustra wątków do odczytu offline, kursor i pełna
 resynchronizacja. Etap 4: wspólna konfiguracja (oznaczanie elementów, sekrety, konflikty, znaczki).
-Etapy 5–8 poniżej pozostają projektem; cały stos PR-ów pozostaje draftem.
+Etap 5: zdalne boty z odczytem offline oraz szyna agentów między domami (spawn, wiadomości,
+pytania i raporty). Etapy 6–8 poniżej pozostają projektem; cały stos PR-ów pozostaje draftem.
 
 ## Cel
 
@@ -642,3 +643,124 @@ Odroczone po etapie 4: harmonogramy i sekrety wątków partnera (nadal per kompu
 projektu (domyślne wątku w projekcie), kompozytor i układ sidebara, scalanie pól wewnątrz jednego
 elementu (konflikt dotyczy całego elementu), dostępność CLI instancji na innym komputerze widoczna
 z tego komputera (UI pokazuje stan własnych workerów).
+
+## Konkretny protokół etapu 5
+
+Implementacja: `computers/agents.ts`, `computers/bot-mirror.ts`, routing API i migracja
+**0051_linked_agents**. Rzeczy wykonawcze nadal mają dokładnie jeden dom. Lustra botów i odwołania
+szyny nie są drugim runtime'em, lokalnymi botami ani outboxem komend dla partnera.
+
+### Zgodność i dozwolone wywołania
+
+Capabilities **`remote_bots`** i **`agent_bus`** są negocjowane osobno. `COMPUTER_LINK_PROTOCOL`
+pozostaje **1**: zmiany proto są addytywne, nowe usługi wewnętrzne używają istniejącego
+`RemoteRequest`/`RemoteResponse` i są wywoływane wyłącznie przy capability obu stron.
+Starszy partner zachowuje wcześniejsze funkcje; próba nowej operacji daje „needs an update”.
+
+`remote_bots` rozszerza jawną listę `SERVED` o `ListBots`, `GetBot`, `WatchBotConversation`,
+`SendBotMessage`, `AnswerBotApproval`, `UpdateBot`, `InterruptBot`, `RetryBot`, `MarkBotRead`,
+`ArchiveBot`, `UnarchiveBot`, `DeleteBot`, `ReadBotExchange`, `SetBotRoutineEnabled`,
+`DeleteBotRoutine`, `CancelBotReminder`, `GetBotProviderInstances` oraz wewnętrzny `WatchBotMirror`.
+Nie udostępnia tworzenia bota na innym komputerze ani administracji connectorów, sekretów czy MCP.
+`GetBotProviderInstances` wymaga odczytu bota i zwraca tylko id, nazwy, typy, kolory i wybory modeli
+instancji jego domu, bez endpointów, env i kluczy. BFF: `GET /api/bots/:botId/providers`.
+
+Id bota, zgody, rutyny, przypomnienia i wymiany używają sufiksu domu jak w etapie 2;
+`Bot.node_id` ma numer **800**. `ListBots` sumuje własne boty i boty bezpośrednich partnerów.
+Wywołanie partnera korzysta tylko z lokalnych handlerów domu, bez agregacji i routingu do trzeciej
+maszyny. Odpowiedź normalizuje odwołania powrotne do własnych lokalnych id.
+
+### Rozmowa i odczyt offline
+
+Online rozmowa i karty idą na żywo do domu; edycja, rutyny, przypomnienia, granty connectorów,
+wnioskowanie i ukryte notatki przekazania wykonują się wyłącznie tam. UI pokazuje `MachineBadge`,
+„Runs on Laptop B”, a zarządzanie autoryzacją kont kieruje na komputer domu. Nie używa katalogu
+connectorów A w rozmowie bota z B. Wzmianki w composerze obejmują boty tego samego domu;
+bot może adresować inne komputery narzędziem `send_bot_message`.
+
+`LinkedAgentsService.WatchBotMirror(MirrorRequest{cursor})` wykorzystuje transport, fragmentację,
+anulowanie i model atomowej podmiany lustra etapu 3. Co sekundę dom czyta pełne `BotConversation`
+wszystkich swoich botów (także archiwalnych). Kursor jest SHA-256 uporządkowanych snapshotów.
+Równy kursor nie przesyła nic; zmiana przesyła **pełną podmianę**, nie przyrost dziennika.
+`BotMirrorUpdate` otwiera partię, wysyła nagłówek każdej rozmowy oraz osobne wiadomości, karty,
+rutyny i przypomnienia, zamyka rozmowę i zatwierdza partię. Zerwana partia nie zmienia lustra.
+Blokada wiersza partnera serializuje commit z Unlink. Tabele `computer_mirror_bots` i
+`computer_bot_mirror_state` mają kaskadę do partnera; restart zachowuje ostatnią pełną kopię.
+
+Offline `ListBots`, `GetBot`, `WatchBotConversation` i podgląd wymian czytają lustro. UI pokazuje
+powód z obecności i ostatni kontakt, wyszarza wiersz, blokuje composer, karty, ustawienia i akcje
+rutyn/przypomnień. Po powrocie łącza odczyt wraca do domu. Żaden zapis nie trafia do lustra.
+
+### Wywołania szyny i autoryzacja
+
+Wewnętrzne `LinkedAgentsService.CallAgentBus(LinkedAgentCall)` jest dostępne wyłącznie po
+przypiętym mTLS, dla aktywnego partnera z `agent_bus`. Niesie uuid wywołania, lokalne id i rodzaj
+aktora (`thread`/`bot`), `hops`, operację i JSON argumentów. Nie jest publiczną metodą API.
+Operacje: `spawn`, `send`, `get_thread`, `read_thread`, `answer`, `interrupt_thread`, `close_thread`,
+`question`, `report`. Nie ma arbitralnego wywoływania handlerów ani routingu dalej.
+
+`list_agents` pokazuje nazwy komputerów, status/błąd, projekty/workspace'y, workery, boty i modele.
+Katalogi botów również oznaczają dom nazwą. Model przekazuje kwalifikowane id bez zmian:
+`spawn_thread(workspace_id, project_id?, ...)` tworzy dziecko na B, `send_message(thread_id, ...)`
+pisze do wątku, a `target_kind: "bot"` adresuje bota. Bot używa swoich `start_thread`,
+`send_message`, `send_bot_message` i `answer_interaction`. Odczyty zachowują sufiksy id w wynikach.
+
+Gateway A sprawdza właściciela wątku/worker, głębokość, `hops`, limit dzieci i sufit permissions
+rodzica. Zdalne dzieci zarchiwizowane lub usunięte w domu zwalniają miejsce w limicie;
+gdy ich dom jest niedostępny, slot pozostaje zajęty do ponownego odczytu. Zdalny fork jest
+odrzucany: kontekst należy podać w prompcie. Gateway B sprawdza aktywnego
+partnera pod blokadą, argumenty, własność i placement workspace'u, katalog modelu i stan workera;
+tworzy wątek i trwałe komendy dopiero u siebie. Dziecko ma lokalny root fragmentu oraz jawne
+`remote_parent_ref`/`remote_parent_kind`, zamiast fałszywego lokalnego rodzica; worker i reguły
+narzędzi widzą głębokość 1, więc nie może tworzyć wnuków. `computer_agent_calls` trzyma kierunek,
+aktora, cel, turę/steer, wynik i stan raportu; uuid wywołania deduplikuje przyjęcie po obu stronach.
+Tury przez łącze mają `trigger=linked_agent`, `linked_call_id` i dodatnie `hops`; fallback steera
+zachowuje to pochodzenie i aktualizuje obserwowaną turę.
+
+Zdalne narzędzie bota zapisuje znacznik `bot_tool_calls.linked_remote` i stan `running` pod
+kontrolą dzierżawy, a następnie zwalnia lokalne blokady przed wywołaniem partnera. Dzięki temu
+dwa boty mogą równocześnie pisać do siebie. Wynik zapisuje dom źródłowy. Restart przy nieznanym
+wyniku przerywa takie wywołanie, zamiast ponawiać zapis, tak samo jak zdalne MCP.
+
+Partner ma pełny dostęp w opisanym modelu jednego użytkownika; nie przekazujemy poświadczeń
+pracownika, dostawcy ani konta connectora. **Polityka narzędzi bota nadal działa na jego domu**:
+`always`, operacje wrażliwe i podwyższenie permissions czekają na jego kartę, także dla zdalnego
+spawn/odpowiedzi. Karta wskazuje komputer. Dopiero zatwierdzone narzędzie wysyła żądanie do B;
+B stosuje własne walidacje i lokalne granty. Odpowiedź użytkownika z UI A na kartę bota B jest
+trasowana na B i dopiero B wznawia model lub narzędzie. Sekrety nie wchodzą do tych żądań ani luster.
+
+### Pytania, raporty i rozłączenie
+
+Pytania dziecka (`InteractionRequest` oraz `ask_user`) z trasą `parent` trafiają do rodzica na A
+z nazwą maszyny, kwalifikowanym `thread_id` i `request_id`. Odpowiedź jest walidowana i dostarczana
+przez dom dziecka. Wątki mogą sterować tylko własnymi zdalnymi dziećmi; odpowiedź narzędzia bota
+zachowuje wymaganie jego lokalnej zgody. Człowiek może zawsze odpowiedzieć w UI domu.
+
+Zakończenie wskazanej tury wysyła raport do źródła; bot↔bot ma też `exchange_id` i czytelny podgląd
+wymiany. Każdy przeskok zwiększa `hops`; operacja rezerwuje miejsce na raport w limicie 8.
+Wynik pochodzący z rutyny wraca do ukrytego wykonania tej samej rutyny na domu bota, o ile nadal
+jest włączona. Rutyna nie przenosi się na B.
+
+Brak łącza lub capability to natychmiastowy, czytelny błąd narzędzia; przy zerwaniu otwarte
+wywołania są anulowane. Nie ma outboxu wiadomości dla komputera offline. Pytanie/raport próbuje
+przejść raz; niedostępność rodzica powoduje porzucenie powiadomienia (pytanie i wynik nadal są
+do odczytu w domu dziecka). Raport ukończony przed obecnym połączeniem również jest porzucany,
+żeby reconnect nie dostarczał zaległej pracy. Akcja już przyjęta przez dom pozostaje jego pracą;
+utrata odpowiedzi nie cofa jej i nie stanowi podstawy do automatycznego powtórzenia zapisu.
+
+Unlink atomowo usuwa lustra botów i oznacza odwołania szyny jako `detached`, raporty jako `dropped`,
+a rodzica zdalnego dziecka jako odłączonego. Lokalne wątki, boty i rozmowy zostają; stare
+odwołanie nie daje prawa routingu ani sterowania po ponownym parowaniu.
+
+### Weryfikacja
+
+`tests/integration/linked-agents.test.ts`: dwa prawdziwe gatewaye, osobne bazy, przypięte mTLS,
+skryptowane workery oraz atrapy wywołań modeli botów. Obejmuje listę/stream/edycję bota z B na A,
+odpowiedź na jego kartę, spawn wątku i spawn bota na workerze B (zgoda na A), pytania workera
+i `ask_user` z odpowiedziami, raporty, thread→thread, thread→bot, bot↔bot i podgląd wymiany,
+równoczesną rozmowę bot↔bot, ukryty powrót do rutyny, bezsekretowy katalog dostawców
+i zwolnienie limitu dzieci po zamknięciu zdalnego wątku,
+odmowę mieszania domów, podwyższenia permissions i forka, fallback steera, odczyt po restarcie
+offline, natychmiastową odmowę bez późniejszego wykonania, porzucenie raportu offline, starszego
+partnera i odłączenie relacji przy Unlink. Migracja 0051 jest w oczekiwanej liście schematu.
+Brak testów UI; wygląd i blokady sprawdzamy ręcznie na własnych stosach.

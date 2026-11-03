@@ -99,7 +99,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     expect(home.case === "snapshot" && home.value.secrets.some((s) => s.requestId === secretId)).toBe(true);
     await caughtUp();
     const names = await sa.query<{ table_name: string }>("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'computer_mirror_%'");
-    expect(names.map((n) => n.table_name).toSorted()).toEqual(["computer_mirror_state", "computer_mirror_threads"]);
+    expect(names.map((n) => n.table_name).toSorted()).toEqual(["computer_mirror_bots", "computer_mirror_state", "computer_mirror_threads"]);
     expect((await mirror())!.secrets).toEqual([]);
     const stored = await sa.query<{ snapshot: Uint8Array }>("SELECT snapshot FROM computer_mirror_threads WHERE origin_node_id=$1", [node]);
     expect(stored.some((r) => new TextDecoder().decode(r.snapshot).includes(marker))).toBe(false);

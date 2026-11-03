@@ -291,7 +291,7 @@ export class AgentBusStore extends Context.Service<
       const node = (row: ThreadRow & { archived_at?: Date | null }): ThreadNode => ({
         id: row.id,
         rootId: row.root_thread_id,
-        depth: row.depth,
+        depth: row.remote_parent_ref ? 1 : row.depth,
         ancestorIds: row.parent_thread_id ? [row.parent_thread_id, ...(row.root_thread_id !== row.parent_thread_id ? [row.root_thread_id] : [])] : [],
         ownerId: row.owner_user_id,
         provider: row.provider,
@@ -313,11 +313,11 @@ export class AgentBusStore extends Context.Service<
       const summary = (threadId: string): Fx<ThreadSummary> =>
         Effect.gen(function* () {
           const rows = yield* sql<{
-            id: string; title: string; kind: "main" | "side"; parent_thread_id: string | null; status: string; provider: string;
+            id: string; title: string; kind: "main" | "side"; parent_thread_id: string | null; remote_parent_ref: string | null; remote_parent_detached: boolean; status: string; provider: string;
             provider_profile_id: string | null; project: string | null; worker: string | null;
             settings: ThreadRow["settings"]; running: number; queued: number; for_parent: number; for_user: number;
           }>`
-            SELECT t.id, t.title, t.kind, t.parent_thread_id, t.status, t.settings, t.provider, t.provider_profile_id,
+            SELECT t.id, t.title, t.kind, t.parent_thread_id, t.remote_parent_ref, t.remote_parent_detached, t.status, t.settings, t.provider, t.provider_profile_id,
                    (SELECT p.name FROM projects p WHERE p.id = t.project_id) AS project,
                    (SELECT w.name FROM workers w WHERE w.id = t.worker_id) AS worker,
                    (SELECT count(*)::int FROM turns u WHERE u.thread_id = t.id AND u.status = 'running') AS running,
@@ -339,8 +339,9 @@ export class AgentBusStore extends Context.Service<
           return {
             thread_id: row.id,
             title: row.title,
-            kind: row.kind,
-            parent_thread_id: row.parent_thread_id,
+            kind: row.remote_parent_ref ? "side" : row.kind,
+            parent_thread_id: row.parent_thread_id ?? row.remote_parent_ref,
+            ...(row.remote_parent_ref && { parent_detached: row.remote_parent_detached }),
             status: row.status,
             provider: agentKey({ harness: row.provider === "claude" ? "claude" : row.provider === "grok" ? "grok" : "codex", instance: row.provider_profile_id ?? "" }),
             project: row.project ?? "",
@@ -510,6 +511,10 @@ export class AgentBusStore extends Context.Service<
               status: ok ? "completed" : "failed",
               ...(result !== undefined && { result }),
               ...(error !== undefined && { error }),
+              ...(ok && (tool === "spawn_thread" || tool === "send_message") && {
+                // Linked actions persist their executable reference at the remote home.
+                hops: ((yield* sql<{ hops: number }>`SELECT hops FROM turns WHERE id=${turnRef(source)}`)[0]?.hops ?? 0) + 1,
+              }),
             });
           })).pipe(
             // A concurrent duplicate stored it first: same call, same outcome.

@@ -33,6 +33,8 @@ message Bot {
   string owner_user_id = 560;
   uint32 unread_count = 561;
   uint64 last_read_seq = 562;
+  // Home gateway of a bot listed through a linked computer; empty for local bots.
+  string node_id = 800;
 }
 message BotMessage {
   string id = 1;

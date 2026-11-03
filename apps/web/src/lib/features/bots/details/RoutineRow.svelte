@@ -27,7 +27,7 @@
     <div class="flex shrink-0 items-center gap-1 pt-0.5">
       <Switch bind:checked name={`routine-${routine.id}`} label={`${routine.enabled ? 'Pause' : 'Activate'} ${routine.title}`} disabled={busy || disabled} onchange={ontoggle} />
       <DropdownMenu label={`Actions for ${routine.title}`} placement="bottom-end">
-        {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" size="sm" label={`Actions for ${routine.title}`} disabled={busy} {...props} />{/snippet}
+        {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" size="sm" label={`Actions for ${routine.title}`} disabled={busy || disabled} {...props} />{/snippet}
         <MenuItem icon="trash" onselect={ondelete}>Delete routine…</MenuItem>
       </DropdownMenu>
     </div>

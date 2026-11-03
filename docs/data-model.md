@@ -18,6 +18,18 @@ kluczem tego komputera). Potwierdzenia i pytania kasują się z partnerem. Warto
 `provider_instances`, `user_settings` i `projects`; wspólny projekt ma to samo id na każdym komputerze.
 [Etap 4](linked-computers.md#konkretny-protokół-etapu-4).
 
+Migracja `0051_linked_agents` dodaje atomowo zastępowane projekcje rozmów botów
+(`computer_mirror_bots`, `computer_bot_mirror_state`) oraz owner-scoped referencje
+`computer_agent_calls` i deduplikację pytań `computer_agent_events`. Referencje mają
+kierunek, dom partnera, aktora, cel i pochodzenie rutyny; nie są kolejką wykonawczą.
+`threads.remote_parent_ref/kind/detached` zachowuje rodzica poza lokalnym fragmentem
+drzewa. `bot_tool_calls.linked_remote` oznacza rozpoczęty zapis do partnera, którego nie wolno
+ponowić po restarcie z nieznanym wynikiem. `turns.trigger='linked_agent'` i `linked_call_id` oraz analogiczne pole steerów
+zachowują pochodzenie i dodatnie hops bez fikcyjnych lokalnych FK. Unlink usuwa projekcje
+przez FK cascade, a trigger odłącza referencje i porzuca raporty. Akceptacja wywołania,
+dostarczenie raportu i zapis referencji blokują peer, aby nie ścigać się z unlink.
+[Etap 5](linked-computers.md#konkretny-protokół-etapu-5).
+
 ## Instalacja workerów przez SSH
 
 Migracja `0047_worker_ssh` dodaje `worker_ssh_keys` (jeden Ed25519 per właściciel,

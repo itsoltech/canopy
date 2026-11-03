@@ -8,6 +8,8 @@
   import { listTimeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
   import { conversationTitle, type ConversationView } from "../model.ts";
+  import BotHome from "./BotHome.svelte";
+  import { useBotHome } from "../home.svelte.ts";
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import ActionItems from "./ActionItems.svelte";
 
@@ -28,7 +30,8 @@
 
   let menuOpen = $state(false);
   const title = $derived(conversationTitle(conversation));
-  const items = $derived(conversationMenu(conversation, handlers));
+  const home = useBotHome(() => conversation.nodeId);
+  const items = $derived(conversationMenu(conversation, home.reason ? {} : handlers));
   // Who wrote the last message, when that is not the 1:1 chat's own bot: "You: …", "Notes: …".
   const author = $derived.by(() => {
     const last = conversation.lastMessage;
@@ -41,12 +44,14 @@
   class={[
     "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-zinc-950/4 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-brand-500 dark:hover:bg-white/4",
     current && "bg-zinc-950/6 dark:bg-white/8",
+    home.reason && "opacity-60",
     className,
   ]}
   {@attach contextMenu(() => (menuOpen = items.length > 0))}
 >
   {@render avatar()}
   <div class="grid min-w-0 flex-1 grid-cols-1 gap-0.5">
+    {#if conversation.nodeId}<BotHome nodeId={conversation.nodeId} />{/if}
     <p class="flex items-baseline gap-2">
       <a
         {href}

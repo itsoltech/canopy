@@ -11,6 +11,7 @@
   import type { MascotState } from "../behaviour.ts";
   import { openBotSettings } from '../settings/open.ts';
   import TouchTarget from '#lib/shared/ui/TouchTarget.svelte';
+  import { useBotHome } from '../home.svelte.ts';
 
   /**
    * Top bar of a bot chat, left-aligned like a messenger: the bot's avatar and name (1:1), the group's
@@ -23,6 +24,7 @@
   let { conversation, subtitle, actions, state = "idle", event, titlebar = true, class: className }: { conversation: ConversationView; subtitle?: string | undefined; actions?: Snippet; state?: MascotState; event?: unknown; titlebar?: boolean; class?: ClassValue } = $props();
   const shell = useShell();
   const title = $derived(conversationTitle(conversation));
+  const home = useBotHome(() => conversation.nodeId);
 </script>
 
 <header class={["flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4", className]} data-window-titlebar={titlebar || undefined}>
@@ -35,7 +37,7 @@
         <BotAvatar participant={conversation.bots[1]!} size="sm" {state} {event} class="rounded-full ring-2 ring-(--avatar-ring)" />
       </span>
     {:else if conversation.kind === "direct" && conversation.bots[0]}
-      <button type="button" class="relative rounded-full focus-ring" aria-label="Edit {title}" onclick={() => openBotSettings(conversation.id)}><BotAvatar participant={conversation.bots[0]} size="sm" {state} {event} /><TouchTarget /></button>
+      <button type="button" class="relative rounded-full focus-ring" disabled={Boolean(home.reason)} aria-label="Edit {title}" onclick={() => openBotSettings(conversation.id)}><BotAvatar participant={conversation.bots[0]} size="sm" {state} {event} /><TouchTarget /></button>
     {:else}
       <AvatarStack participants={conversation.bots} {state} {event} class="[--avatar-ring:var(--color-white)] dark:[--avatar-ring:var(--color-black)]" />
     {/if}
@@ -46,7 +48,7 @@
           <Icon name="arrows-right-left" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" label="and" />
           <span class="truncate">{conversation.bots[1]!.name}</span>
         {:else}
-          {#if conversation.kind === 'direct'}<button type="button" class="relative truncate rounded focus-ring" aria-label="Edit {title}" onclick={() => openBotSettings(conversation.id)}>{title}<TouchTarget /></button>{:else}<span class="truncate">{title}</span>{/if}
+          {#if conversation.kind === 'direct'}<button type="button" class="relative truncate rounded focus-ring" disabled={Boolean(home.reason)} aria-label="Edit {title}" onclick={() => openBotSettings(conversation.id)}>{title}<TouchTarget /></button>{:else}<span class="truncate">{title}</span>{/if}
           {#if conversation.kind === "group"}<span class="shrink-0 font-normal text-zinc-500 tabular-nums dark:text-zinc-400">{conversation.bots.length + 1}<span class="sr-only"> participants</span></span>{/if}
         {/if}
       </h1>
