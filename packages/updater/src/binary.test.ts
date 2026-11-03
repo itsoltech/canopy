@@ -45,6 +45,17 @@ describe.skipIf(process.platform === "win32")("binary update and independent rol
     expect(await readFile(binaryPath, "utf8")).toBe(oldBinary);
     expect(await readUpdateRecord(binaryPath)).toMatchObject({ state: "failed", reason: expect.stringContaining("exit 23") });
   });
+  test("a confirmed update can apply the next one: its restart request is not rolled back", async () => {
+    const binaryPath = await fixture(), record = `${binaryPath}.update.json`;
+    // v3 confirms its own update and stops; v2 confirms, stages v3 (new command) and asks for a restart (75).
+    const v3 = `#!/bin/sh\nprintf '{"commandId":"u2","previousVersion":"2.0.0","version":"3.0.0","state":"succeeded","reason":""}' > '${record}'\nexit 0\n`;
+    await writeFile(`${binaryPath}.v3`, v3, { mode: 0o700 });
+    const v2 = `#!/bin/sh\nprintf '{"commandId":"u2","previousVersion":"2.0.0","version":"3.0.0","state":"restarting","reason":""}' > '${record}'\ncp '${binaryPath}' '${binaryPath}.bak'\nmv '${binaryPath}.v3' '${binaryPath}'\nexit 75\n`;
+    await stageBinaryUpdate({ binaryPath, currentVersion: "1.0.0", version: "2.0.0", commandId: "u1", asset: artifact(v2), chunks: chunks(v2) });
+    expect(await superviseBinary({ binaryPath, args: [], startupTimeoutMs: 2_000, pollMs: 10 })).toBe(0);
+    expect(await readFile(binaryPath, "utf8")).toBe(v3);
+    expect(await readUpdateRecord(binaryPath)).toMatchObject({ commandId: "u2", version: "3.0.0", state: "succeeded" });
+  });
   test("restores .bak when the new executable never becomes healthy", async () => {
     const binaryPath = await fixture(), next = '#!/bin/sh\nexec sleep 30\n';
     await stageBinaryUpdate({ binaryPath, currentVersion: "1.0.0", version: "2.0.0", commandId: "timeout", asset: artifact(next), chunks: chunks(next) });

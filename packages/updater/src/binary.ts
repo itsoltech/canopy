@@ -148,7 +148,10 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
   try {
     for (;;) {
       let pending = await readUpdateRecord(options.binaryPath);
-      const testingCandidate = pending?.state === "restarting";
+      // The update this child must prove (by confirming startup). Once it has, a later "restarting" record is its own
+      // next update (a new commandId), whose exit 75 is a normal restart request, not a failed candidate.
+      const candidate = pending?.state === "restarting" ? pending.commandId : undefined;
+      const unconfirmed = (record: UpdateRecord | undefined) => candidate !== undefined && record?.state === "restarting" && record.commandId === candidate;
       const deadline = Date.now() + (options.startupTimeoutMs ?? 90_000);
       let rolledBack = false;
       try {
@@ -164,7 +167,7 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
         if (stopped || running.exitCode !== null) return;
         void (async () => {
           pending = await readUpdateRecord(options.binaryPath);
-          if (testingCandidate && pending?.state === "restarting" && Date.now() >= deadline) {
+          if (unconfirmed(pending) && Date.now() >= deadline) {
             rolledBack = true;
             running.kill("SIGKILL");
           }
@@ -175,7 +178,7 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
       child = undefined;
       if (stopped) return exit;
       pending = await readUpdateRecord(options.binaryPath);
-      if (pending?.state === "restarting" && (testingCandidate || rolledBack || exit !== UPDATE_RESTART_EXIT_CODE)) {
+      if (pending?.state === "restarting" && (unconfirmed(pending) || rolledBack || exit !== UPDATE_RESTART_EXIT_CODE)) {
         await rollbackBinary(options.binaryPath, rolledBack ? "New version did not become healthy/connect before the startup deadline" : `New version exited before becoming healthy (exit ${exit})`);
         options.log?.("update rolled back: new version did not become healthy");
         continue;
