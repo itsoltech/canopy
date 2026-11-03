@@ -4,14 +4,21 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { ManagedRuntime, Result } from "effect";
 import { WorkerState } from "@open-agents/contracts";
+import { CANOPY_VERSION } from "@open-agents/domain/release/version";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
 import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
-import { enrollWorker, workerServiceSnippet } from "./enroll.ts";
-import { desktopStatus } from "./desktop-status.ts";
+import { enrollWorker, workerCommand, workerServiceSnippet } from "./enroll.ts";
+import { desktopStatus, workerOnline } from "./desktop-status.ts";
 
 const cliArgs = Bun.argv.slice(2);
+if (cliArgs[0] === "--version") {
+  console.info(CANOPY_VERSION);
+  process.exit(0);
+}
+// Docker HEALTHCHECK: healthy while the link to the gateway is up (needs OA_WORKER_STATUS_FILE, see desktop-status.ts).
+if (cliArgs[0] === "healthcheck") process.exit(workerOnline(Bun.env) ? 0 : 1);
 const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";
 let cli;
 try {
@@ -23,8 +30,10 @@ try {
   process.exit(64);
 }
 const configPath = cli.config ?? defaultConfigPath(Bun.env, process.platform);
+// What to type to run this worker: the standalone binary, or Bun with the source entry from the repository root.
+const self = workerCommand().length === 1 ? process.execPath : "bun apps/worker/src/main.ts";
 if (cli.help) {
-  console.info("Canopy worker\nEnroll: bun apps/worker/src/main.ts enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\nStart: bun apps/worker/src/main.ts [--config PATH]\nService: bun apps/worker/src/main.ts service [--config PATH]");
+  console.info(`Canopy worker ${CANOPY_VERSION}\nEnroll: ${self} enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\nStart: ${self} [--config PATH]\nService: ${self} service [--config PATH]\nVersion: ${self} --version`);
   process.exit(0);
 }
 if (command === "enroll") {
@@ -32,7 +41,7 @@ if (command === "enroll") {
   try {
     await enrollWorker({ gateway: cli.gateway, token: cli.token, configPath, ...(cli["data-dir"] && { dataDir: cli["data-dir"] }), ...(cli.force && { force: true }) });
     const pathArg = `'${resolve(configPath).replaceAll("'", `'"'"'`)}'`;
-    console.info(`Enrolled. Config saved with mode 0600: ${resolve(configPath)}\nStart: bun apps/worker/src/main.ts --config ${pathArg}\nFor a user service: bun apps/worker/src/main.ts service --config ${pathArg}`);
+    console.info(`Enrolled. Config saved with mode 0600: ${resolve(configPath)}\nStart: ${self} --config ${pathArg}\nFor a user service: ${self} service --config ${pathArg}`);
     process.exit(0);
   } catch (error) { console.error(error instanceof Error ? error.message : "Enrollment failed"); process.exit(78); }
 }
@@ -41,7 +50,7 @@ if (command === "service") {
   process.exit(0);
 }
 
-const WORKER_VERSION = "0.0.0";
+const WORKER_VERSION = CANOPY_VERSION;
 /** How long a graceful stop waits for the gateway to ack what it recorded (stopped background tasks). */
 const SHUTDOWN_FLUSH_MS = 3_000;
 
@@ -60,7 +69,7 @@ mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
 const { journalId } = await runtime.runPromise(journalHello());
 const host = new WorkerHost({ runtime, dataDir, clientVersion: WORKER_VERSION, log: (m) => console.info(m) });
-console.info(`worker ${local.worker_id}, gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`);
+console.info(`worker ${local.worker_id} (Canopy ${CANOPY_VERSION}), gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`);
 // Turns and background tasks of a previous process died with it: turns are settled from their harness transcripts,
 // tasks end as interrupted (sent after connecting).
 const orphans = await host.recover();

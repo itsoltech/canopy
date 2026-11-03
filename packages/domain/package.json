@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./items": "./src/items.ts",
-    "./background-tasks": "./src/background-tasks/index.ts"
+    "./background-tasks": "./src/background-tasks/index.ts",
+    "./release/version": "./src/release/version.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

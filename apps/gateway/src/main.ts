@@ -1,11 +1,18 @@
 import { readFileSync } from "node:fs";
+import { CANOPY_VERSION } from "@open-agents/domain/release/version";
 import { startConnectHttpServer, startGrpcServer } from "@open-agents/transport";
 import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
+import { healthcheck } from "./healthcheck.ts";
 import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
 
 // One HTTP/2 server for workers (WorkerLinkService) and the web BFF (GatewayService); docs/ui-api.md.
 const env = Bun.env;
+if (Bun.argv[2] === "--version") {
+  console.info(CANOPY_VERSION);
+  process.exit(0);
+}
+if (Bun.argv[2] === "healthcheck") process.exit(await healthcheck(env));
 const serviceToken = env["OA_UI_SERVICE_TOKEN"];
 if (!serviceToken) throw new Error("OA_UI_SERVICE_TOKEN is not set (shared with the web BFF): openssl rand -hex 32");
 
@@ -42,7 +49,7 @@ const server = await startGrpcServer({
   port: Number(env["OA_PORT"] ?? 7443),
   ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
 });
-console.info(`gateway listening on ${server.url}`);
+console.info(`gateway ${CANOPY_VERSION} listening on ${server.url}`);
 // Desktop: keep the BFF/API listener on loopback and optionally expose only worker RPCs
 // on an explicitly selected private interface. Existing server deployments are unchanged.
 const workerServer = env["OA_WORKER_HOST"] && env["OA_WORKER_PORT"] ? await startGrpcServer({
