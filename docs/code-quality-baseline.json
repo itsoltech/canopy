@@ -1,0 +1,713 @@
+{
+  "generated": "2026-11-03",
+  "base": "origin/dev f39f5b6",
+  "tools": {
+    "oxlint": "1.91.0",
+    "@oxlint/plugins": "1.91.0",
+    "oxfmt": "0.76.0",
+    "antiSlop": "13909c9e07590f5a85d93c62712259fe14a883f7"
+  },
+  "lintedFiles": 1116,
+  "formatter": {
+    "filesToChange": 961,
+    "insertions": 47873,
+    "deletions": 15172
+  },
+  "readableSpacingAutofix": {
+    "files": 898,
+    "insertions": 11564
+  },
+  "sourceLines": {
+    "tsTsxSvelteBefore": 93069,
+    "tsTsxSvelteAfterMechanicalPass": 137188
+  },
+  "today": {
+    "total": 11543,
+    "files": 869,
+    "byRule": {
+      "anti-slop/require-readable-spacing": 9570,
+      "anti-slop/require-safety-comment-for-type-assertion": 690,
+      "anti-slop/no-shape-in-symbol-names": 300,
+      "anti-slop/no-runtime-typeof": 246,
+      "anti-slop/no-unsafe-dictionary-type": 174,
+      "anti-slop/no-unknown-parameters": 152,
+      "anti-slop/no-known-value-widening": 143,
+      "anti-slop-effect/prefer-effect-match": 66,
+      "max-lines-per-function": 34,
+      "anti-slop/no-unknown-returns": 31,
+      "anti-slop/no-chained-type-assertions": 30,
+      "anti-slop/no-array-filter-map": 29,
+      "no-unused-vars": 18,
+      "max-lines": 11,
+      "anti-slop/no-object-parameters": 10,
+      "anti-slop/no-conditional-empty-object-spread": 9,
+      "no-control-regex": 9,
+      "unicorn/no-useless-spread": 5,
+      "no-unused-expressions": 3,
+      "oxc/no-accumulating-spread": 3,
+      "typescript/triple-slash-reference": 2,
+      "anti-slop-effect/no-manual-tag-comparison": 2,
+      "no-unsafe-optional-chaining": 2,
+      "typescript/no-non-null-asserted-optional-chain": 1,
+      "no-useless-escape": 1,
+      "unicorn/no-new-array": 1,
+      "unicorn/prefer-string-starts-ends-with": 1
+    },
+    "byArea": {
+      "apps/web": 3649,
+      "apps/gateway": 2658,
+      "apps/worker": 1895,
+      "tests/integration": 1393,
+      "apps/desktop": 451,
+      "packages/domain": 433,
+      "apps/mobile": 329,
+      "scripts": 269,
+      "packages/updater": 160,
+      "packages/grok-acp": 113,
+      "packages/db": 84,
+      "packages/ui": 64,
+      "packages/transport": 25,
+      "packages/testing": 14,
+      "packages/contracts": 5,
+      "packages/codex-protocol": 1
+    },
+    "filesPerRule": {
+      "anti-slop/require-readable-spacing": 854,
+      "anti-slop/require-safety-comment-for-type-assertion": 248,
+      "anti-slop/no-runtime-typeof": 81,
+      "anti-slop/no-known-value-widening": 79,
+      "anti-slop/no-unknown-parameters": 75,
+      "anti-slop/no-shape-in-symbol-names": 75,
+      "anti-slop/no-unsafe-dictionary-type": 70,
+      "anti-slop-effect/prefer-effect-match": 54,
+      "max-lines-per-function": 27,
+      "anti-slop/no-unknown-returns": 24,
+      "anti-slop/no-array-filter-map": 17,
+      "no-unused-vars": 15,
+      "anti-slop/no-chained-type-assertions": 13,
+      "max-lines": 11,
+      "no-control-regex": 8,
+      "anti-slop/no-object-parameters": 7,
+      "anti-slop/no-conditional-empty-object-spread": 7,
+      "unicorn/no-useless-spread": 4,
+      "typescript/triple-slash-reference": 2,
+      "no-unused-expressions": 2,
+      "anti-slop-effect/no-manual-tag-comparison": 2,
+      "oxc/no-accumulating-spread": 2,
+      "typescript/no-non-null-asserted-optional-chain": 1,
+      "no-useless-escape": 1,
+      "unicorn/no-new-array": 1,
+      "unicorn/prefer-string-starts-ends-with": 1,
+      "no-unsafe-optional-chaining": 1
+    }
+  },
+  "afterMechanicalPass": {
+    "total": 1992,
+    "files": 411,
+    "byRule": {
+      "anti-slop/require-safety-comment-for-type-assertion": 690,
+      "anti-slop/no-shape-in-symbol-names": 300,
+      "anti-slop/no-runtime-typeof": 246,
+      "anti-slop/no-unsafe-dictionary-type": 174,
+      "anti-slop/no-unknown-parameters": 152,
+      "anti-slop/no-known-value-widening": 143,
+      "anti-slop-effect/prefer-effect-match": 66,
+      "max-lines-per-function": 46,
+      "anti-slop/no-unknown-returns": 31,
+      "anti-slop/no-chained-type-assertions": 30,
+      "anti-slop/no-array-filter-map": 29,
+      "max-lines": 22,
+      "no-unused-vars": 18,
+      "anti-slop/no-object-parameters": 10,
+      "no-control-regex": 9,
+      "anti-slop/no-conditional-empty-object-spread": 9,
+      "unicorn/no-useless-spread": 3,
+      "oxc/no-accumulating-spread": 3,
+      "no-unused-expressions": 3,
+      "no-unsafe-optional-chaining": 2,
+      "anti-slop-effect/no-manual-tag-comparison": 2,
+      "typescript/triple-slash-reference": 2,
+      "unicorn/no-new-array": 1,
+      "typescript/no-non-null-asserted-optional-chain": 1
+    },
+    "byArea": {
+      "apps/web": 584,
+      "apps/worker": 458,
+      "apps/gateway": 417,
+      "tests/integration": 261,
+      "packages/domain": 65,
+      "apps/desktop": 54,
+      "apps/mobile": 40,
+      "scripts": 33,
+      "packages/grok-acp": 25,
+      "packages/ui": 24,
+      "packages/db": 13,
+      "packages/updater": 12,
+      "packages/transport": 5,
+      "packages/testing": 1
+    },
+    "filesPerRule": {
+      "anti-slop/require-safety-comment-for-type-assertion": 248,
+      "anti-slop/no-runtime-typeof": 81,
+      "anti-slop/no-known-value-widening": 79,
+      "anti-slop/no-shape-in-symbol-names": 75,
+      "anti-slop/no-unknown-parameters": 75,
+      "anti-slop/no-unsafe-dictionary-type": 70,
+      "anti-slop-effect/prefer-effect-match": 54,
+      "max-lines-per-function": 38,
+      "anti-slop/no-unknown-returns": 24,
+      "max-lines": 22,
+      "anti-slop/no-array-filter-map": 17,
+      "no-unused-vars": 15,
+      "anti-slop/no-chained-type-assertions": 13,
+      "no-control-regex": 8,
+      "anti-slop/no-conditional-empty-object-spread": 7,
+      "anti-slop/no-object-parameters": 7,
+      "unicorn/no-useless-spread": 2,
+      "anti-slop-effect/no-manual-tag-comparison": 2,
+      "oxc/no-accumulating-spread": 2,
+      "no-unused-expressions": 2,
+      "typescript/triple-slash-reference": 2,
+      "unicorn/no-new-array": 1,
+      "no-unsafe-optional-chaining": 1,
+      "typescript/no-non-null-asserted-optional-chain": 1
+    },
+    "byRuleAndArea": {
+      "anti-slop-effect/prefer-effect-match": {
+        "apps/web": 35,
+        "apps/worker": 10,
+        "packages/domain": 4,
+        "apps/gateway": 16,
+        "tests/integration": 1
+      },
+      "anti-slop/no-shape-in-symbol-names": {
+        "apps/web": 123,
+        "apps/worker": 58,
+        "packages/domain": 3,
+        "tests/integration": 50,
+        "apps/gateway": 39,
+        "apps/mobile": 4,
+        "packages/ui": 23
+      },
+      "anti-slop/no-unknown-parameters": {
+        "apps/web": 32,
+        "apps/worker": 44,
+        "packages/updater": 1,
+        "packages/transport": 1,
+        "scripts": 1,
+        "packages/grok-acp": 4,
+        "tests/integration": 13,
+        "apps/gateway": 41,
+        "apps/desktop": 12,
+        "packages/db": 1,
+        "packages/domain": 2
+      },
+      "anti-slop/require-safety-comment-for-type-assertion": {
+        "apps/web": 167,
+        "packages/domain": 15,
+        "packages/updater": 6,
+        "scripts": 25,
+        "apps/worker": 163,
+        "packages/transport": 3,
+        "packages/grok-acp": 8,
+        "tests/integration": 131,
+        "apps/desktop": 19,
+        "apps/gateway": 136,
+        "apps/mobile": 12,
+        "packages/ui": 1,
+        "packages/db": 4
+      },
+      "anti-slop/no-known-value-widening": {
+        "apps/worker": 21,
+        "scripts": 2,
+        "apps/web": 74,
+        "tests/integration": 14,
+        "apps/mobile": 6,
+        "apps/gateway": 16,
+        "packages/domain": 10
+      },
+      "anti-slop/no-array-filter-map": {
+        "apps/web": 9,
+        "apps/worker": 13,
+        "apps/gateway": 2,
+        "tests/integration": 5
+      },
+      "anti-slop/no-unsafe-dictionary-type": {
+        "apps/worker": 27,
+        "scripts": 1,
+        "packages/grok-acp": 3,
+        "apps/web": 56,
+        "tests/integration": 24,
+        "apps/desktop": 5,
+        "apps/mobile": 2,
+        "apps/gateway": 46,
+        "packages/db": 4,
+        "packages/domain": 6
+      },
+      "anti-slop/no-runtime-typeof": {
+        "apps/worker": 69,
+        "packages/updater": 4,
+        "apps/web": 59,
+        "packages/grok-acp": 2,
+        "apps/desktop": 11,
+        "apps/mobile": 9,
+        "apps/gateway": 58,
+        "packages/db": 2,
+        "packages/domain": 23,
+        "tests/integration": 9
+      },
+      "no-control-regex": {
+        "apps/web": 1,
+        "apps/gateway": 7,
+        "packages/domain": 1
+      },
+      "anti-slop/no-conditional-empty-object-spread": {
+        "scripts": 2,
+        "packages/transport": 1,
+        "apps/worker": 4,
+        "apps/desktop": 1,
+        "apps/gateway": 1
+      },
+      "max-lines": {
+        "apps/worker": 5,
+        "apps/web": 4,
+        "apps/desktop": 1,
+        "apps/gateway": 10,
+        "packages/db": 1,
+        "tests/integration": 1
+      },
+      "anti-slop/no-chained-type-assertions": {
+        "apps/worker": 15,
+        "tests/integration": 3,
+        "apps/web": 3,
+        "apps/gateway": 9
+      },
+      "max-lines-per-function": {
+        "scripts": 1,
+        "apps/web": 5,
+        "apps/worker": 10,
+        "apps/desktop": 2,
+        "apps/mobile": 7,
+        "apps/gateway": 20,
+        "packages/domain": 1
+      },
+      "unicorn/no-new-array": {
+        "apps/web": 1
+      },
+      "anti-slop/no-unknown-returns": {
+        "apps/web": 8,
+        "apps/worker": 8,
+        "packages/grok-acp": 5,
+        "apps/gateway": 10
+      },
+      "anti-slop/no-object-parameters": {
+        "packages/grok-acp": 3,
+        "apps/worker": 4,
+        "tests/integration": 1,
+        "apps/web": 2
+      },
+      "no-unused-vars": {
+        "scripts": 1,
+        "tests/integration": 8,
+        "apps/gateway": 4,
+        "apps/desktop": 1,
+        "apps/worker": 1,
+        "apps/web": 2,
+        "packages/updater": 1
+      },
+      "no-unsafe-optional-chaining": {
+        "apps/worker": 2
+      },
+      "unicorn/no-useless-spread": {
+        "packages/testing": 1,
+        "apps/worker": 2
+      },
+      "anti-slop-effect/no-manual-tag-comparison": {
+        "apps/worker": 2
+      },
+      "oxc/no-accumulating-spread": {
+        "apps/web": 2,
+        "apps/gateway": 1
+      },
+      "no-unused-expressions": {
+        "apps/desktop": 2,
+        "apps/web": 1
+      },
+      "typescript/triple-slash-reference": {
+        "packages/db": 1,
+        "apps/gateway": 1
+      },
+      "typescript/no-non-null-asserted-optional-chain": {
+        "tests/integration": 1
+      }
+    }
+  },
+  "maxLinesToday": [
+    {
+      "file": "apps/gateway/src/core/core.ts",
+      "lines": 1994
+    },
+    {
+      "file": "apps/gateway/src/store/store.ts",
+      "lines": 1103
+    },
+    {
+      "file": "apps/gateway/src/store/agent-bus.ts",
+      "lines": 924
+    },
+    {
+      "file": "apps/worker/src/runtime/host.ts",
+      "lines": 885
+    },
+    {
+      "file": "apps/worker/src/providers/claude/threads.ts",
+      "lines": 714
+    },
+    {
+      "file": "apps/worker/src/providers/codex/mapping.ts",
+      "lines": 570
+    },
+    {
+      "file": "apps/gateway/src/bots/store.ts",
+      "lines": 562
+    },
+    {
+      "file": "apps/worker/src/providers/codex/threads.ts",
+      "lines": 559
+    },
+    {
+      "file": "apps/gateway/src/store/instances.ts",
+      "lines": 520
+    },
+    {
+      "file": "apps/worker/src/providers/claude/mapping.ts",
+      "lines": 457
+    },
+    {
+      "file": "apps/web/src/lib/shared/ui/virtual/VirtualFeed.svelte",
+      "lines": 417
+    }
+  ],
+  "maxLinesAfterMechanicalPass": [
+    {
+      "file": "apps/gateway/src/core/core.ts",
+      "lines": 2564
+    },
+    {
+      "file": "apps/gateway/src/store/store.ts",
+      "lines": 1382
+    },
+    {
+      "file": "apps/gateway/src/store/agent-bus.ts",
+      "lines": 1183
+    },
+    {
+      "file": "apps/worker/src/runtime/host.ts",
+      "lines": 1161
+    },
+    {
+      "file": "apps/gateway/src/bots/store.ts",
+      "lines": 1124
+    },
+    {
+      "file": "apps/worker/src/providers/claude/threads.ts",
+      "lines": 917
+    },
+    {
+      "file": "packages/db/test/schema.test.ts",
+      "lines": 885
+    },
+    {
+      "file": "tests/integration/bots.test.ts",
+      "lines": 836
+    },
+    {
+      "file": "apps/worker/src/providers/codex/threads.ts",
+      "lines": 722
+    },
+    {
+      "file": "apps/worker/src/providers/codex/mapping.ts",
+      "lines": 648
+    },
+    {
+      "file": "apps/worker/src/providers/claude/mapping.ts",
+      "lines": 645
+    },
+    {
+      "file": "apps/gateway/src/store/instances.ts",
+      "lines": 612
+    },
+    {
+      "file": "apps/desktop/src/main.ts",
+      "lines": 531
+    },
+    {
+      "file": "apps/web/src/lib/features/providers/instances.ts",
+      "lines": 470
+    },
+    {
+      "file": "apps/gateway/src/connectors/runtime.ts",
+      "lines": 468
+    },
+    {
+      "file": "apps/gateway/src/bots/runtime.ts",
+      "lines": 454
+    },
+    {
+      "file": "apps/gateway/src/core/agent-bus.ts",
+      "lines": 440
+    },
+    {
+      "file": "apps/web/src/lib/features/threads/dev/tool-fixtures.ts",
+      "lines": 436
+    },
+    {
+      "file": "apps/gateway/src/store/ingest.ts",
+      "lines": 435
+    },
+    {
+      "file": "apps/web/src/lib/shared/ui/virtual/VirtualFeed.svelte",
+      "lines": 434
+    },
+    {
+      "file": "apps/web/src/routes/threads/[threadId]/+page.svelte",
+      "lines": 427
+    },
+    {
+      "file": "apps/gateway/src/api/ui-service.ts",
+      "lines": 425
+    }
+  ],
+  "maxLinesPerFunctionAfterMechanicalPass": [
+    {
+      "file": "apps/gateway/src/bots/store.ts",
+      "line": 144,
+      "lines": 988
+    },
+    {
+      "file": "apps/gateway/src/store/store.ts",
+      "line": 348,
+      "lines": 918
+    },
+    {
+      "file": "apps/gateway/src/store/store.ts",
+      "line": 351,
+      "lines": 914
+    },
+    {
+      "file": "apps/gateway/src/store/agent-bus.ts",
+      "line": 340,
+      "lines": 858
+    },
+    {
+      "file": "apps/worker/src/providers/claude/threads.ts",
+      "line": 235,
+      "lines": 691
+    },
+    {
+      "file": "apps/worker/src/providers/claude/threads.ts",
+      "line": 236,
+      "lines": 690
+    },
+    {
+      "file": "apps/worker/src/providers/codex/threads.ts",
+      "line": 256,
+      "lines": 536
+    },
+    {
+      "file": "apps/worker/src/providers/codex/threads.ts",
+      "line": 257,
+      "lines": 535
+    },
+    {
+      "file": "apps/gateway/src/store/instances.ts",
+      "line": 150,
+      "lines": 508
+    },
+    {
+      "file": "apps/gateway/src/store/instances.ts",
+      "line": 153,
+      "lines": 504
+    },
+    {
+      "file": "apps/web/src/lib/features/threads/dev/tool-fixtures.ts",
+      "line": 94,
+      "lines": 350
+    },
+    {
+      "file": "apps/gateway/src/api/ui-service.ts",
+      "line": 19,
+      "lines": 339
+    },
+    {
+      "file": "apps/gateway/src/api/ui-service.ts",
+      "line": 20,
+      "lines": 337
+    },
+    {
+      "file": "apps/gateway/src/store/ingest.ts",
+      "line": 97,
+      "lines": 321
+    },
+    {
+      "file": "apps/gateway/src/connectors/store.ts",
+      "line": 60,
+      "lines": 316
+    },
+    {
+      "file": "apps/mobile/src/app/settings.tsx",
+      "line": 17,
+      "lines": 290
+    },
+    {
+      "file": "apps/worker/src/runtime/host.ts",
+      "line": 594,
+      "lines": 260
+    },
+    {
+      "file": "apps/mobile/src/app/index.tsx",
+      "line": 14,
+      "lines": 249
+    },
+    {
+      "file": "apps/mobile/src/app/thread/[id].tsx",
+      "line": 27,
+      "lines": 237
+    },
+    {
+      "file": "apps/worker/src/journal/journal.ts",
+      "line": 187,
+      "lines": 226
+    },
+    {
+      "file": "apps/web/src/lib/features/commands/app-commands.ts",
+      "line": 47,
+      "lines": 219
+    },
+    {
+      "file": "apps/gateway/src/store/background-tasks.ts",
+      "line": 107,
+      "lines": 202
+    },
+    {
+      "file": "apps/web/src/lib/features/commands/app-commands.ts",
+      "line": 71,
+      "lines": 197
+    },
+    {
+      "file": "apps/mobile/src/features/threads/MessageComposer.tsx",
+      "line": 19,
+      "lines": 196
+    },
+    {
+      "file": "apps/gateway/src/bots/platform.ts",
+      "line": 66,
+      "lines": 195
+    },
+    {
+      "file": "apps/gateway/src/bots/runtime.ts",
+      "line": 189,
+      "lines": 194
+    },
+    {
+      "file": "apps/gateway/src/core/worker-ssh.ts",
+      "line": 127,
+      "lines": 178
+    },
+    {
+      "file": "scripts/prune-nightly.ts",
+      "line": 93,
+      "lines": 177
+    },
+    {
+      "file": "apps/gateway/src/core/agent-bus.ts",
+      "line": 268,
+      "lines": 177
+    },
+    {
+      "file": "apps/desktop/src/main.ts",
+      "line": 428,
+      "lines": 176
+    },
+    {
+      "file": "apps/worker/src/providers/claude/threads.ts",
+      "line": 605,
+      "lines": 174
+    },
+    {
+      "file": "apps/worker/src/providers/codex/mapping.ts",
+      "line": 108,
+      "lines": 172
+    },
+    {
+      "file": "apps/worker/src/providers/codex/mapping.ts",
+      "line": 477,
+      "lines": 164
+    },
+    {
+      "file": "apps/mobile/src/app/pair.tsx",
+      "line": 13,
+      "lines": 164
+    },
+    {
+      "file": "apps/gateway/src/store/queue.ts",
+      "line": 74,
+      "lines": 152
+    },
+    {
+      "file": "packages/domain/src/agent-bus/policy.ts",
+      "line": 97,
+      "lines": 151
+    },
+    {
+      "file": "apps/gateway/src/store/settings.ts",
+      "line": 72,
+      "lines": 149
+    },
+    {
+      "file": "apps/worker/src/providers/grok/bus.ts",
+      "line": 23,
+      "lines": 142
+    },
+    {
+      "file": "apps/gateway/src/core/core.ts",
+      "line": 230,
+      "lines": 141
+    },
+    {
+      "file": "apps/gateway/src/bots/routines.ts",
+      "line": 84,
+      "lines": 138
+    },
+    {
+      "file": "apps/mobile/src/app/bot/[id].tsx",
+      "line": 23,
+      "lines": 132
+    },
+    {
+      "file": "apps/gateway/src/store/thread-secrets.ts",
+      "line": 56,
+      "lines": 130
+    },
+    {
+      "file": "apps/web/src/lib/features/bots/behaviour.ts",
+      "line": 121,
+      "lines": 127
+    },
+    {
+      "file": "apps/desktop/src/runtime/runtime.ts",
+      "line": 204,
+      "lines": 127
+    },
+    {
+      "file": "apps/web/src/routes/threads/[threadId]/+page.svelte",
+      "line": 382,
+      "lines": 124
+    },
+    {
+      "file": "apps/mobile/src/features/threads/ComposerBox.tsx",
+      "line": 6,
+      "lines": 124
+    }
+  ]
+}

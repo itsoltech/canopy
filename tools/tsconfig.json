@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // The vendored anti-slop plugin is written against `strict` alone; two reads fail these stricter flags.
+    // Relaxed here instead of patching vendored code (tools/oxlint/anti-slop/UPSTREAM.md).
+    "noUncheckedIndexedAccess": false,
+    "noPropertyAccessFromIndexSignature": false
+  },
+  "include": [".", "../oxlint.config.ts"]
+}

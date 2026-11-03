@@ -8,11 +8,16 @@
     "commitlint": "commitlint",
     "gen": "bun run --filter @canopy/contracts gen",
     "gen:codex": "bun run --filter @canopy/codex-protocol gen",
-    "typecheck": "bun run --filter '*' typecheck && tsc -p scripts/tsconfig.json",
+    "typecheck": "bun run --filter '*' typecheck && tsc -p scripts/tsconfig.json && tsc -p tools/tsconfig.json",
     "test": "bun test",
     "check": "bun run gen:check && bun run typecheck && bun run check:tmp",
     "gen:check": "bun run gen && git diff --exit-code -- packages/contracts/src/gen && bun run --filter @canopy/ui gen:check",
-    "check:tmp": "bun packages/testing/src/check-temp.ts"
+    "check:tmp": "bun packages/testing/src/check-temp.ts",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "lint:spacing": "oxlint -A all -D anti-slop/require-readable-spacing --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
   },
   "simple-git-hooks": {
     "commit-msg": "bunx --no-install commitlint --edit \"$1\""
@@ -20,12 +25,15 @@
   "devDependencies": {
     "@commitlint/cli": "21.2.4",
     "@commitlint/config-angular": "21.2.4",
+    "@oxlint/plugins": "1.91.0",
     "@semantic-release/commit-analyzer": "13.0.1",
     "@semantic-release/github": "12.0.10",
     "@semantic-release/release-notes-generator": "14.1.1",
     "@types/bun": "1.4.4",
     "@typescript/native": "npm:typescript@7.0.2",
     "conventional-changelog-angular": "9.4.0",
+    "oxfmt": "0.76.0",
+    "oxlint": "1.91.0",
     "semantic-release": "25.0.9",
     "simple-git-hooks": "2.14.0",
     "typescript": "npm:@typescript/typescript6@6.0.2"

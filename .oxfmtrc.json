@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 120,
+  "sortPackageJson": false,
+  "svelte": true,
+  "sortTailwindcss": { "stylesheet": "./apps/web/src/routes/layout.css" },
+  "ignorePatterns": [
+    ".agent/**",
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".continue/**",
+    ".cursor/**",
+    ".gemini/**",
+    ".opencode/**",
+    ".pi/**",
+    ".roo/**",
+    ".windsurf/**",
+    "tools/oxlint/anti-slop/**",
+    "**/gen/**",
+    "packages/ui/src/palette.json",
+    "**/*.md",
+    "**/build/**",
+    "**/dist/**",
+    "**/.svelte-kit/**",
+    "**/.expo/**",
+    "apps/web/releases/**",
+    "artifacts/**"
+  ]
+}
