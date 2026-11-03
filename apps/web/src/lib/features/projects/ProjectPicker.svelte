@@ -6,6 +6,7 @@
   import PillButton from "#lib/shared/ui/PillButton.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import SearchPicker from "#lib/shared/ui/SearchPicker.svelte";
+  import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
 
   /**
    * The new-thread composer's project pill: a searchable list of your projects, each with the workers it
@@ -18,7 +19,7 @@
   const workersOf = (project: ui.Project) => [...new Set(project.workspaces.map((w) => overview.worker(w.workerId)?.name ?? "Unknown worker"))];
   const detailOf = (project: ui.Project) => {
     const names = workersOf(project);
-    return project.kind === "scratch" ? "A private scratch directory on your worker" : names.length === 0 ? "Not on any worker yet" : `On ${names.join(", ")}`;
+    return project.kind === "scratch" ? `A private scratch directory on ${project.nodeId ? "its" : "your"} worker` : names.length === 0 ? "Not on any worker yet" : `On ${names.join(", ")}`;
   };
 </script>
 
@@ -28,7 +29,7 @@
   placeholder="Search projects…"
   items={projects}
   key={(p) => p.id}
-  text={(p) => `${p.name} ${workersOf(p).join(" ")}`}
+  text={(p) => `${p.name} ${workersOf(p).join(" ")} ${overview.machine(p.nodeId) ?? ""}`}
   {value}
   {onselect}
   link={{ href: "/settings/projects", label: "Manage projects" }}
@@ -37,10 +38,11 @@
     <PillButton {...props} class={["pl-1.5", className]} aria-label="Project: {selected?.name ?? 'none'}">
       <ProjectMark name={selected?.name ?? "?"} kind={selected?.kind} />
       <span class="truncate text-zinc-800 dark:text-zinc-200">{selected?.name ?? "Choose a project"}</span>
+      {#if selected?.nodeId}<MachineBadge nodeId={selected.nodeId} compact />{/if}
     </PillButton>
   {/snippet}
   {#snippet option(project, state)}
-    <PickerRow title={project.name} detail={detailOf(project)} selected={state.selected}>
+    <PickerRow title={project.name} detail={detailOf(project)} status={overview.machine(project.nodeId)} selected={state.selected}>
       {#snippet leading()}<ProjectMark name={project.name} kind={project.kind} />{/snippet}
     </PickerRow>
   {/snippet}

@@ -69,6 +69,9 @@
   import type { PageProps } from "./$types";
   import ThreadComposerSlot from "#lib/features/threads/components/ThreadComposerSlot.svelte";
   import ThreadMenuItems from "#lib/features/threads/components/ThreadMenuItems.svelte";
+  import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
+  import ComputerAwayAlert from "#lib/features/computers/ComputerAwayAlert.svelte";
+  import { awayReason } from "#lib/features/computers/computers.ts";
 
   let { data }: PageProps = $props();
   const threadId = $derived(page.params.threadId ?? "");
@@ -86,8 +89,13 @@
 
   const thread = $derived(view.thread);
   $effect(() => { if (thread?.deletedAt) void goto("/"); });
-  const worker = $derived(overview.worker(thread?.workerId ?? ""));
-  const project = $derived(overview.project(thread?.projectId ?? ""));
+  // A linked computer's project and worker leave the overview while it is away; the open thread keeps their names.
+  let known: { project?: ui.Project; worker?: ui.Worker } = {};
+  const worker = $derived(overview.worker(thread?.workerId ?? "") ?? (known.worker?.id === thread?.workerId ? known.worker : undefined));
+  const project = $derived(overview.project(thread?.projectId ?? "") ?? (known.project?.id === thread?.projectId ? known.project : undefined));
+  $effect(() => { known = { ...(project && { project }), ...(worker && { worker }) }; });
+  // A thread whose home is a linked computer: read and driven there, unusable while that computer is away.
+  const away = $derived(thread?.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
 
   // The tree comes from the live thread index (side threads spawned by agents appear as they start);
   // this thread's own stream is fresher for itself.
@@ -188,6 +196,7 @@
     if (!thread) return undefined;
     if (thread.status === "failed") return "This thread failed to start and cannot take messages.";
     if (thread.status === "archived") return "This thread is archived.";
+    if (away) return "Read only until it is connected again.";
     if (worker && !worker.online) return `${worker.name} is offline. Messages wait and are delivered when it reconnects.`;
     if (thread.status === "creating") return "The thread is starting on the worker. Messages run once it is ready.";
     return undefined;
@@ -213,7 +222,8 @@
   const forkPoint = $derived(canFork ? lastForkPoint(view.ownTurns, view.inheritedTurns) : undefined);
   const forkThread = () => forkPoint && forkFrom(threadId, forkPoint.id);
   let scheduling = $state(false);
-  const canSchedule = $derived(Boolean(thread && thread.status !== "archived" && thread.status !== "failed"));
+  // Schedules stay on each computer in this stage; a linked computer's thread has none here.
+  const canSchedule = $derived(Boolean(thread && !thread.nodeId && thread.status !== "archived" && thread.status !== "failed"));
   const openSchedule = () => {
     panelSheet = false;
     scheduling = true;
@@ -332,6 +342,7 @@
     <TopBar>
       {#if thread}
         <Crumb href={project ? project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}` : undefined}><ProjectMark name={project?.name ?? "?"} kind={project?.kind} /><span class="truncate">{project?.name ?? "Project"}</span></Crumb>
+        {#if thread.nodeId}<li class="flex shrink-0 items-center"><MachineBadge nodeId={thread.nodeId} /></li>{/if}
         {#if tree && isSide(thread) && tree.main.id !== thread.id}
           <Crumb href="/threads/{tree.main.id}"><span class="truncate max-sm:hidden">{tree.main.title}</span><span class="sm:hidden">…</span></Crumb>
         {/if}
@@ -362,7 +373,9 @@
     {#if thread?.status === "failed" && thread.statusDetail}
       <Alert tone="error" banner title="The thread failed">{thread.statusDetail}</Alert>
     {/if}
-    {#if view.connection === "reconnecting" && overview.connection !== "unavailable"}
+    {#if away}
+      <ComputerAwayAlert reason={away} />
+    {:else if view.connection === "reconnecting" && overview.connection !== "unavailable"}
       <Alert tone="info" banner>{view.failure ?? "Reconnecting to live updates…"}</Alert>
     {/if}
 
@@ -402,7 +415,7 @@
               {/if}
               {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
                 <GrowIn class="pb-3">
-                  <div class="grid max-h-[40dvh] gap-3 overflow-y-auto p-px" role="region" aria-label="Waiting for you">
+                  <div class={["grid max-h-[40dvh] gap-3 overflow-y-auto p-px", away && "opacity-60"]} role="region" aria-label="Waiting for you" inert={Boolean(away)}>
                     {#each view.pending.filter((i) => i.kind !== InteractionKind.QUESTION) as interaction (interaction.requestId)}
                       <div in:rise><InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} /></div>
                     {/each}
@@ -447,7 +460,7 @@
                   {thread}
                   {worker}
                   running={view.running}
-                  disabled={closed || !view.loaded}
+                  disabled={closed || !view.loaded || Boolean(away)}
                   note={composerNote}
                   onsent={(response) => {
                     if (response.steer) view.upsertSteer(response.steer);

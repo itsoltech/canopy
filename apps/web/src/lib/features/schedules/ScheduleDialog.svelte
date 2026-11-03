@@ -42,7 +42,7 @@
 
   const overview = useOverview();
   const groups = $derived(
-    overview.projects
+    overview.ownProjects
       .map((project) => ({ project, threads: threads.filter((t) => t.projectId === project.id && t.status !== "archived") }))
       .filter((g) => g.threads.length > 0),
   );

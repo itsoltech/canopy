@@ -18,12 +18,12 @@
   const overview = useOverview();
   const catalog = useModelCatalog();
   const value = $derived(settings.textGeneration);
-  const options = $derived([...new Map(overview.workers.flatMap((worker) =>
+  const options = $derived([...new Map(overview.ownWorkers.flatMap((worker) =>
     modelOptions({ worker, catalog: catalog.of(worker.id), threads: overview.threads.values() }).filter((o) => o.model),
   ).map((o) => [o.key, o])).values()]);
   const provider = $derived(providerKeyOf(value.provider));
   const profileId = $derived(value.profileId === "native" ? "" : value.profileId);
-  const worker = $derived(overview.workers.find((w) => w.providerInstances.some((i) => i.harness === value.provider && i.id === (profileId || "native") && i.available && i.enabled)));
+  const worker = $derived(overview.ownWorkers.find((w) => w.providerInstances.some((i) => i.harness === value.provider && i.id === (profileId || "native") && i.available && i.enabled)));
   const option = $derived(value.model && provider
     ? options.find((o) => o.provider === provider && o.profileId === profileId && o.model === value.model)
       ?? modelOption(provider, profileId, profileId || "Device login", value.model, worker ? catalog.of(worker.id) : undefined)

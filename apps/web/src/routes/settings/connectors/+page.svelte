@@ -47,7 +47,7 @@
     <h2 class="text-lg font-semibold text-balance">Your accounts</h2>
     {#each accounts as account (account.id)}
       {@const entry = catalog.types.find((t) => t.id === account.connectorType)}
-      {#if entry}<div in:rise><AccountDetail {account} type={entry} workers={overview.workers} {bots} onupdate={update} onremove={remove} /></div>{/if}
+      {#if entry}<div in:rise><AccountDetail {account} type={entry} workers={overview.ownWorkers} {bots} onupdate={update} onremove={remove} /></div>{/if}
     {:else}<p class="py-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">No accounts connected yet. Pick an app above to connect one.</p>{/each}
   </section>
 </div>

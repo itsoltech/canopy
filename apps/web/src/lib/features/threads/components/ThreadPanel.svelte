@@ -90,7 +90,8 @@
 
 <div class={["grid grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white py-1.5 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10", className]}>
   <ThreadTitleActions {thread} class={windowTitlebar ? "macos:hidden" : undefined} />
-  <ThreadConnectors threadId={thread.id} />
+  <!-- Connector accounts are per computer (stage 4); a linked computer's thread uses that computer's. -->
+  {#if !thread.nodeId}<ThreadConnectors threadId={thread.id} />{/if}
   <section aria-label="Placement" class="grid grid-cols-1 px-1.5 pb-1.5">
     <PanelRow icon="computer-desktop">
       {worker?.name ?? "Unknown worker"}

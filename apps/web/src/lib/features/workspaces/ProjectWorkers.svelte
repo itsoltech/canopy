@@ -19,7 +19,7 @@
     const on = (workerId: string) => project.workspaces.filter((w) => w.workerId === workerId);
     const missing = [...new Set(project.workspaces.map((w) => w.workerId))].filter((id) => !overview.worker(id));
     return [
-      ...overview.workers.map((worker) => ({ worker, workspaces: on(worker.id) })),
+      ...overview.ownWorkers.map((worker) => ({ worker, workspaces: on(worker.id) })),
       ...missing.map((id) => ({ worker: create(ui.WorkerSchema, { id, name: "Unknown worker" }), workspaces: on(id) })),
     ];
   });

@@ -16,7 +16,7 @@
   import WorkerSshKey from "#lib/features/workers/WorkerSshKey.svelte";
 
   const overview = useOverview();
-  const online = $derived(overview.workers.filter((w) => w.online).length);
+  const online = $derived(overview.ownWorkers.filter((w) => w.online).length);
   const setup = new WorkerSetup();
   let adding = $state(false);
   let address = $state("");
@@ -49,13 +49,13 @@
 <div class="flex flex-wrap items-start justify-between gap-4 px-1">
   <div class="min-w-0">
     <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Workers</h1>
-    <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Your machines, connected to Canopy. <span class="tabular-nums">{online} of {overview.workers.length}</span> connected.</p>
+    <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Your machines, connected to Canopy. <span class="tabular-nums">{online} of {overview.ownWorkers.length}</span> connected.</p>
   </div>
   <div class="shrink-0"><Button variant="primary" icon="plus" disabled={!setup.loaded} onclick={() => adding = true}>Add worker</Button></div>
 </div>
 {#if setup.error || error}<Alert tone="error">{error || setup.error}{#snippet actions()}<Button size="sm" onclick={() => void setup.reload()}>Retry</Button>{/snippet}</Alert>{/if}
 <SettingsGroup>
-  {#each overview.workers as worker (worker.id)}<WorkerRow {worker} {setup} />
+  {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} />
   {:else}<SettingsRow title="Connect your first machine" description="Add a worker to run Claude, Codex or Grok on a machine you control." />{/each}
 </SettingsGroup>
 <CliUpdatesSummary workers={overview.workers} />
