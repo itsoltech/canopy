@@ -1,0 +1,68 @@
+// Frozen recovery protocol. Only additive changes; never import WorkerLink or UI messages.
+// Keep v1 available forever, including when WorkerLink rejects a peer. See docs/updates.md.
+syntax = "proto3";
+package openagents.update.v1;
+
+service UpdateService {
+  // Anonymous probes reveal only gateway health, version and protocol range.
+  rpc Check(CheckRequest) returns (CheckResponse);
+  // Worker credential in Authorization metadata; independent of WorkerLink compatibility.
+  rpc Watch(CheckRequest) returns (stream UpdateEvent);
+  rpc Report(ReportRequest) returns (ReportResponse);
+  // Authenticated mirror of the gateway's own worker binary. No arbitrary URLs/paths.
+  rpc FetchArtifact(FetchArtifactRequest) returns (stream ArtifactChunk);
+}
+
+message CheckRequest {
+  string worker_id = 1;
+  string version = 2;
+  uint32 min_worker_link_protocol = 3;
+  uint32 worker_link_protocol = 4;
+  string os = 5;
+  string arch = 6;
+  // binary | docker | source; unknown values must be treated as externally managed.
+  string install_kind = 7;
+}
+message CheckResponse {
+  bool healthy = 1;
+  string version = 2;
+  uint32 min_worker_link_protocol = 3;
+  uint32 worker_link_protocol = 4;
+  uint32 update_protocol = 5;
+  // Only authenticated calls receive a verdict. Unknown values must not enable WorkerLink.
+  string compatibility = 6; // compatible | update_required
+  string reason = 7;
+}
+message UpdateCommand {
+  string id = 1;
+  string version = 2;
+  // schema=1 release manifest, authenticated by the gateway connection; worker validates it.
+  string manifest_json = 3;
+  bool force = 4;
+  // Set only for an explicit user request, never for automatic convergence.
+  bool allow_downgrade = 5;
+  uint32 max_idle_wait_seconds = 6;
+  bool prefer_gateway_mirror = 7;
+}
+message UpdateEvent {
+  CheckResponse gateway = 1;
+  UpdateCommand command = 2;
+}
+message ReportRequest {
+  string worker_id = 1;
+  string command_id = 2;
+  string version = 3;
+  // waiting_idle | downloading | restarting | succeeded | failed | managed_externally
+  string state = 4;
+  string reason = 5;
+}
+message ReportResponse {}
+message FetchArtifactRequest {
+  string worker_id = 1;
+  string version = 2;
+  string os = 3;
+  string arch = 4;
+}
+message ArtifactChunk {
+  bytes data = 1;
+}

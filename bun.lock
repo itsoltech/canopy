@@ -48,6 +48,7 @@
         "@open-agents/db": "workspace:*",
         "@open-agents/domain": "workspace:*",
         "@open-agents/transport": "workspace:*",
+        "@open-agents/updater": "workspace:*",
         "cronstrue": "3.38.0",
         "effect": "4.1.1",
         "sharp": "0.35.5",
@@ -136,6 +137,7 @@
         "@open-agents/domain": "workspace:*",
         "@open-agents/grok-acp": "workspace:*",
         "@open-agents/transport": "workspace:*",
+        "@open-agents/updater": "workspace:*",
         "effect": "4.1.1",
         "sharp": "0.35.5",
         "zod": "4.6.7",
@@ -197,6 +199,13 @@
       "version": "0.0.0",
       "devDependencies": {
         "tailwindcss": "4.3.3",
+      },
+    },
+    "packages/updater": {
+      "name": "@open-agents/updater",
+      "version": "0.0.0",
+      "dependencies": {
+        "@open-agents/domain": "workspace:*",
       },
     },
     "tests/integration": {
@@ -681,6 +690,8 @@
     "@open-agents/transport": ["@open-agents/transport@workspace:packages/transport"],
 
     "@open-agents/ui": ["@open-agents/ui@workspace:packages/ui"],
+
+    "@open-agents/updater": ["@open-agents/updater@workspace:packages/updater"],
 
     "@open-agents/web": ["@open-agents/web@workspace:apps/web"],
 
