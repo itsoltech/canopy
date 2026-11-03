@@ -1,7 +1,7 @@
 /**
- * Live recordings of the Claude Agent SDK stream (opt-in: OA_LIVE=1 with OA_LIVE_CLIPROXYAPI_URL/KEY).
+ * Live recordings of the Claude Agent SDK stream (opt-in: CANOPY_LIVE=1 with CANOPY_LIVE_CLIPROXYAPI_URL/KEY).
  * Raw material for the event mapping, like the Codex recordings: every SDK message of a turn is written
- * to $OA_LIVE_RECORD_DIR (default /tmp/oa-claude-recordings).
+ * to $CANOPY_LIVE_RECORD_DIR (default /tmp/oa-claude-recordings).
  */
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -12,11 +12,11 @@ import { z } from "zod";
 import { resolveProfiles } from "../profiles.ts";
 import { claudeProfileOptions } from "./profile.ts";
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const model = process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
-const recordDir = process.env["OA_LIVE_RECORD_DIR"] ?? "/tmp/oa-claude-recordings";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const model = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
+const recordDir = process.env["CANOPY_LIVE_RECORD_DIR"] ?? "/tmp/oa-claude-recordings";
 const home = tempDir("oa-claude-home-");
 const cwd = tempDir("oa-claude-cwd-");
 

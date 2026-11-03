@@ -3,7 +3,7 @@
  * through a global CLIProxyAPI instance. "Fork from here" on turn 2 of a three-turn thread: the fork is a new
  * main thread whose provider history ends at turn 2 (Codex thread/fork with lastTurnId, Claude forkSession up to
  * the turn's last entry), so asked about the last message it names turn 2's word, never turn 3's.
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -18,13 +18,13 @@ import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
 const CASES = [
-  { name: "codex", provider: Provider.CODEX, model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
-  { name: "claude", provider: Provider.CLAUDE, model: process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
+  { name: "codex", provider: Provider.CODEX, model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
+  { name: "claude", provider: Provider.CLAUDE, model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
 ] as const;
 
 const ENDED = new Set(["completed", "failed", "interrupted", "cancelled"]);

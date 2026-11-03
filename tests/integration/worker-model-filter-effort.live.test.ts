@@ -3,7 +3,7 @@
  * that cannot run an agent turn (image, video, speech...), keeps its chat models without effort data, and reports
  * the device owner's configured default effort, which a turn without an effort of its own then runs with.
  * The device homes are fixtures (temp dirs), never the real ~/.codex or ~/.claude.
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -18,9 +18,9 @@ import { connectWorker, startGateway } from "./helpers.ts";
 
 const tempDir = tempDirs();
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
 /** The configured default: a level both models offer that is not Codex's catalog default for them. */
 const CONFIGURED = "medium";
@@ -29,14 +29,14 @@ const CASES = [
   {
     name: "Codex",
     provider: Provider.CODEX,
-    model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol",
+    model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol",
     permissionMode: PermissionMode.FULL_AUTO,
     config: { codex: { enabled: true, deviceLogin: DeviceLogin.NONE }, claude: { enabled: false } },
   },
   {
     name: "Claude",
     provider: Provider.CLAUDE,
-    model: process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
+    model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
     permissionMode: PermissionMode.ASK,
     config: { codex: { enabled: false }, claude: { enabled: true, deviceLogin: DeviceLogin.NONE } },
   },

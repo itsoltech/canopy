@@ -46,7 +46,7 @@ bun install
 bun run typecheck
 bun run check:tmp
 bun run --cwd apps/web build
-OA_COMPOSER_BROWSER=1 bun test tests/integration/composer-compact.browser.test.ts
+CANOPY_COMPOSER_BROWSER=1 bun test tests/integration/composer-compact.browser.test.ts
 ```
 
 Screenshoty (lokalne artefakty ignorowane przez Git):

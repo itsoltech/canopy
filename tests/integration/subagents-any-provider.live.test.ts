@@ -5,7 +5,7 @@
  *   round (Claude parent, Codex child),
  * - a thread asked to message another, unrelated thread (another tree) finds it and sends with send_message: the
  *   target runs it as a turn marked as an agent's, and the reply comes back to the sender.
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
@@ -23,11 +23,11 @@ import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const CODEX_MODEL = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-const CLAUDE_MODEL = process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const CODEX_MODEL = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const CLAUDE_MODEL = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
 
 const CASES = [
   { name: "Codex parent, Claude child", parent: Provider.CODEX, parentModel: CODEX_MODEL, child: Provider.CLAUDE, childKey: "claude/cliproxyapi", childModel: CLAUDE_MODEL, question: "17 * 23", answer: "391" },

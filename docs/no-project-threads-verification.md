@@ -76,8 +76,8 @@ podczas tworzenia kontenerów potrafią przerwać połączenia przeglądarki.
 Test live jest w `tests/integration/no-project-threads.live.test.ts` i korzysta z
 `useLiveProxy`, rzeczywistego WorkerHost i Codex. Wymaga wykonania komendy `pwd`, zgodności
 odpowiedzi z `thread.cwd`, statusu completed i zachowania katalogu po archiwizacji.
-Dane można przekazać przez `OA_LIVE_PROXY_FILE` (prywatny JSON z `url` i `key`) albo
-osobne `OA_LIVE_PROXY_URL_FILE` i `OA_LIVE_PROXY_KEY_FILE`. Test z `OA_LIVE=1` odmawia
+Dane można przekazać przez `CANOPY_LIVE_PROXY_FILE` (prywatny JSON z `url` i `key`) albo
+osobne `CANOPY_LIVE_PROXY_URL_FILE` i `CANOPY_LIVE_PROXY_KEY_FILE`. Test z `CANOPY_LIVE=1` odmawia
 cichego pominięcia przy brakujących danych lub Dockerze. Nie zapisuje danych proxy w repo.
 W tym przebiegu próba live zatrzymała się na weryfikacji danych wejściowych, przed połączeniem
 z modelem. Nie potwierdzono uruchomienia rzeczywistego agenta ani jego `pwd`.

@@ -4,7 +4,7 @@
  * subagent tools are off (Codex: none of spawn_agent/wait_agent/... in the rollout's tool list; Claude: no
  * Agent/Task call), the model uses the bus tool spawn_thread, the child is a side thread of the main thread
  * the UI sees, and its result reaches the parent.
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
@@ -23,13 +23,13 @@ import { useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
 const CASES = [
-  { name: "Codex", provider: Provider.CODEX, model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
-  { name: "Claude", provider: Provider.CLAUDE, model: process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
+  { name: "Codex", provider: Provider.CODEX, model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
+  { name: "Claude", provider: Provider.CLAUDE, model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
 ] as const;
 
 /**

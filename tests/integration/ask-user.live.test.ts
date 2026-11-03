@@ -14,12 +14,12 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 const CASES = [
-  { name: "Codex", provider: Provider.CODEX, model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
-  { name: "Claude", provider: Provider.CLAUDE, model: process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
+  { name: "Codex", provider: Provider.CODEX, model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
+  { name: "Claude", provider: Provider.CLAUDE, model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
 ] as const;
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("platform questions with real harnesses (live)", () => {
@@ -65,7 +65,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("platform q
       const request = requests[0]!;
       expect(request.question_wait).toBe(wait);
       expect((await messages(thread.id)).some((m) => /RESULT:/.test(m.text ?? ""))).toBe(false);
-      if (wait && c.provider === Provider.CODEX && process.env["OA_ASK_LONG_WAIT"] === "1") {
+      if (wait && c.provider === Provider.CODEX && process.env["CANOPY_ASK_LONG_WAIT"] === "1") {
         // Cross the shared 120 s boundary: the model must renew the wait without asking again.
         await Bun.sleep(123_000);
         expect((await messages(thread.id)).some((m) => /RESULT:/.test(m.text ?? ""))).toBe(false);
@@ -73,7 +73,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("platform q
       await gw.api.answerInteraction({ requestId: request.id, answerJson: JSON.stringify({ answers: [{ id: "color", kind: "choice", labels: ["Green"] }] }) });
       const answered = await eventually(() => messages(thread.id), (r) => r.some((m) => /RESULT:\s*Green/i.test(m.text ?? "")), 180_000);
       expect(answered.some((m) => /RESULT:\s*Green/i.test(m.text ?? ""))).toBe(true);
-      if (wait && c.provider === Provider.CODEX && process.env["OA_ASK_LONG_WAIT"] === "1") {
+      if (wait && c.provider === Provider.CODEX && process.env["CANOPY_ASK_LONG_WAIT"] === "1") {
         expect((await query<{ n: number }>("SELECT count(*)::int AS n FROM agent_bus_calls WHERE source_thread_id = $1::uuid AND tool = 'get_answers'", thread.id))[0]?.n).toBeGreaterThan(0);
       }
       if (!wait) {

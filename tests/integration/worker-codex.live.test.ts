@@ -2,7 +2,7 @@
  * Live, end to end below the gateway: a (test) gateway configures a real worker host over gRPC,
  * creates a Codex thread in ASK mode and starts a turn; Codex asks for permission, the gateway
  * allows it, the file appears and the transcript flows back as journaled ThreadEvents.
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md).
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md).
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
@@ -14,10 +14,10 @@ import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Codex end to end (live)", () => {
   const dir = tempDir("oa-e2e-");

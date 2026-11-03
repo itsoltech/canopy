@@ -2,7 +2,7 @@
  * `bun run check:tmp [bun test arguments]`: runs the tests with a private TMPDIR and fails when they leave a temp
  * directory of theirs there (`oa-*`, `open-agents-*`: a test, or a process it started, that does not clean up). Private, so other runs on the machine writing to
  * /tmp at the same time do not count; new /tmp/oa-* entries made meanwhile are listed as a hint only (live
- * recordings, OA_LIVE_RECORD_DIR, are kept on purpose under fixed names).
+ * recordings, CANOPY_LIVE_RECORD_DIR, are kept on purpose under fixed names).
  */
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

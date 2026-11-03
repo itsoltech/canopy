@@ -50,7 +50,7 @@ describe("local worker config (connection only)", () => {
     expect(defaultConfigPath({ XDG_CONFIG_HOME: "/x" }, "linux", "/home/u")).toBe("/x/open-agents/worker.json");
     expect(defaultConfigPath({}, "darwin", "/Users/u")).toBe("/Users/u/Library/Application Support/open-agents/worker.json");
     expect(defaultConfigPath({ APPDATA: "C:/Users/u/AppData/Roaming" }, "win32")).toBe(join("C:/Users/u/AppData/Roaming", "open-agents", "worker.json"));
-    expect(defaultConfigPath({ OA_WORKER_CONFIG: "/etc/oa/worker.json" }, "linux")).toBe("/etc/oa/worker.json");
+    expect(defaultConfigPath({ CANOPY_WORKER_CONFIG: "/etc/oa/worker.json" }, "linux")).toBe("/etc/oa/worker.json");
     expect(defaultDataDir({}, "linux", "/home/u")).toBe("/home/u/.local/share/open-agents");
   });
 });

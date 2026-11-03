@@ -72,7 +72,7 @@
   <Button variant="primary" disabled={!loaded || !setup.gatewayUrl || busy} loading={busy} onclick={() => void pair()}>Pair a phone</Button>
 </div>
 {#if error}<Alert tone="error">{error}<Button size="sm" onclick={() => { error = ""; void reload(); }}>Retry</Button></Alert>{/if}
-{#if loaded && !setup.gatewayUrl}<Alert tone="warning">Set OA_MOBILE_PORT and OA_MOBILE_GATEWAY_URL on the gateway, then configure private Tailscale Serve. See docs/mobile.md.</Alert>{/if}
+{#if loaded && !setup.gatewayUrl}<Alert tone="warning">Set CANOPY_MOBILE_PORT and CANOPY_MOBILE_GATEWAY_URL on the gateway, then configure private Tailscale Serve. See docs/mobile.md.</Alert>{/if}
 <SettingsGroup title="Paired devices">
   {#each setup.devices as device (device.id)}
     <SettingsRow title={device.name} description={`${device.platform} · ${device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${timestampDate(device.lastSeenAt).toLocaleString()}` : "Not connected yet"}`}>

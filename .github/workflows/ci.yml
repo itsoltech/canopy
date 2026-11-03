@@ -1,6 +1,6 @@
 # Checks of every change (docs/release.md). Pull requests run it directly; pushes to main and release tags run it
 # as the `checks` job of release.yml, which publishes only after it passes. Live tests stay opt-in: they need
-# private provider credentials and are skipped without OA_LIVE.
+# private provider credentials and are skipped without CANOPY_LIVE.
 name: CI
 
 on:

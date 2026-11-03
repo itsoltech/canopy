@@ -22,14 +22,14 @@ Wersję widać w Settings (dół nawigacji), w `GET /api/health`, w `--version` 
 mkdir canopy && cd canopy
 curl -LO https://raw.githubusercontent.com/itsoltech/canopy/main/deploy/docker-compose.yml
 curl -L -o .env https://raw.githubusercontent.com/itsoltech/canopy/main/deploy/.env.example
-# uzupełnij .env: POSTGRES_PASSWORD, OA_UI_SERVICE_TOKEN, OA_SECRETS_KEY, OA_PUBLIC_GATEWAY_URL, CANOPY_TAG
+# uzupełnij .env: POSTGRES_PASSWORD, CANOPY_UI_SERVICE_TOKEN, CANOPY_SECRETS_KEY, CANOPY_PUBLIC_GATEWAY_URL, CANOPY_TAG
 docker compose up -d
 docker compose ps        # postgres, gateway, web: healthy
 ```
 
-Wszystkie zmienne opisuje [`deploy/.env.example`](../deploy/.env.example). `OA_SECRETS_KEY`
+Wszystkie zmienne opisuje [`deploy/.env.example`](../deploy/.env.example). `CANOPY_SECRETS_KEY`
 szyfruje klucze providerów i tokeny konektorów w bazie — zachowaj kopię; jego utrata oznacza
-ponowne wpisanie sekretów. Gateway przy starcie wykonuje migracje (`OA_MIGRATE=0` wyłącza).
+ponowne wpisanie sekretów. Gateway przy starcie wykonuje migracje (`CANOPY_MIGRATE=0` wyłącza).
 
 Domyślnie porty są wystawione tylko na `127.0.0.1`:
 
@@ -39,8 +39,8 @@ Domyślnie porty są wystawione tylko na `127.0.0.1`:
   Przykład Caddy: `canopy.example.com { reverse_proxy 127.0.0.1:3000 }` (Caddy ustawia `X-Forwarded-*`).
 - **gateway** (`GATEWAY_PORT`, 7443): gRPC po HTTP/2 dla workerów. Workery spoza hosta: wystaw port
   w prywatnej sieci (`GATEWAY_BIND`, np. adres Tailscale) albo za proxy TLS obsługującym HTTP/2 do
-  upstreamu (h2c), i ustaw `OA_PUBLIC_GATEWAY_URL` na adres widoczny dla workerów. Gateway sam
-  obsługuje też TLS (`OA_TLS_CERT`, `OA_TLS_KEY` — pliki zamontowane do kontenera).
+  upstreamu (h2c), i ustaw `CANOPY_PUBLIC_GATEWAY_URL` na adres widoczny dla workerów. Gateway sam
+  obsługuje też TLS (`CANOPY_TLS_CERT`, `CANOPY_TLS_KEY` — pliki zamontowane do kontenera).
 
 Worker w kontenerze (opcjonalnie, profil `worker`) — token z Settings → Workers → Add worker:
 
@@ -89,12 +89,12 @@ i `install -o canopy -m 0755 canopy-gateway-linux-x64 /opt/canopy/bin/canopy-gat
 `/etc/canopy/gateway.env` (0600, właściciel `canopy`):
 
 ```sh
-OA_DATABASE_URL=postgres://canopy:…@127.0.0.1:5432/canopy
-OA_UI_SERVICE_TOKEN=…        # openssl rand -hex 32, ten sam w web
-OA_SECRETS_KEY=…             # openssl rand -base64 32
-OA_HOST=0.0.0.0
-OA_PORT=7443
-OA_PUBLIC_GATEWAY_URL=https://gateway.example.com:7443
+CANOPY_DATABASE_URL=postgres://canopy:…@127.0.0.1:5432/canopy
+CANOPY_UI_SERVICE_TOKEN=…        # openssl rand -hex 32, ten sam w web
+CANOPY_SECRETS_KEY=…             # openssl rand -base64 32
+CANOPY_HOST=0.0.0.0
+CANOPY_PORT=7443
+CANOPY_PUBLIC_GATEWAY_URL=https://gateway.example.com:7443
 ```
 
 `/etc/systemd/system/canopy-gateway.service`:
@@ -125,7 +125,7 @@ WantedBy=multi-user.target
 ```
 
 `systemctl daemon-reload && systemctl enable --now canopy-gateway`; kontrola: `canopy-gateway healthcheck`
-(z tymi samymi `OA_HOST`/`OA_PORT`). Web jako usługa: obraz `canopy-web` albo `bun index.js`
+(z tymi samymi `CANOPY_HOST`/`CANOPY_PORT`). Web jako usługa: obraz `canopy-web` albo `bun index.js`
 z wyniku `bun scripts/build-web.ts` (zmienne `GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN`, `PORT`,
 `PROTOCOL_HEADER`, `BODY_SIZE_LIMIT`).
 
@@ -159,6 +159,28 @@ WantedBy=default.target
 `systemctl --user daemon-reload && systemctl --user enable --now canopy-worker`; żeby działał
 bez zalogowanej sesji: `loginctl enable-linger $USER`. `PATH` musi obejmować CLI agentów.
 Kod wyjścia 78 = zła konfiguracja (bez restartu w pętli).
+
+## Zmienne środowiskowe: dawne `OA_*`
+
+Przed zmianą nazwy (Canopy, dawniej open-agents) wszystkie zmienne miały prefiks `OA_`. Teraz
+każda nazywa się `CANOPY_*` z tym samym sufiksem: `OA_DATABASE_URL` → `CANOPY_DATABASE_URL`,
+`OA_UI_SERVICE_TOKEN` → `CANOPY_UI_SERVICE_TOKEN`, `OA_SECRETS_KEY` → `CANOPY_SECRETS_KEY`,
+`OA_HOST`/`OA_PORT` → `CANOPY_HOST`/`CANOPY_PORT`, `OA_WORKER_HOST`/`OA_WORKER_PORT`,
+`OA_PUBLIC_GATEWAY_URL`, `OA_MOBILE_PORT`, `OA_MOBILE_GATEWAY_URL`, `OA_TLS_CERT`, `OA_TLS_KEY`,
+`OA_MIGRATE`, `OA_DEV_USER_EMAIL`, `OA_ATTACHMENT_MAX_*` (gateway), `OA_WORKER_CONFIG`,
+`OA_WORKER_STATUS_FILE` (worker) oraz testowe `OA_LIVE*`, `OA_*_BROWSER`.
+
+Zgodność: gdy `CANOPY_X` nie jest ustawiona, a `OA_X` jest, gateway i worker używają starej
+wartości i raz na proces logują ostrzeżenie o przestarzałej nazwie (`readEnv` w
+`packages/domain/src/env.ts`). `bun test` tak samo mapuje stare `OA_*` przy starcie. Nowa nazwa
+zawsze wygrywa. `deploy/docker-compose.yml` i `.env.example` znają już tylko `CANOPY_*` — w
+istniejącym `.env` zmień nazwy przed `docker compose up`. Web BFF nie ma prefiksu
+(`GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN`), więc nic tam się nie zmienia.
+
+Domyślne katalogi też zmieniły nazwę: konfiguracja workera `~/.config/canopy/worker.json`
+(macOS `~/Library/Application Support/canopy`, Windows `%APPDATA%\canopy`). Jeśli nowego pliku
+nie ma, a stary `…/open-agents/worker.json` istnieje, worker czyta stary (dane nie są przenoszone
+automatycznie).
 
 ## Aktualizacja
 

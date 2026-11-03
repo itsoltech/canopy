@@ -78,7 +78,7 @@ flowchart LR
     UI -- "HTTP: JSON / SSE" --> BFF
     BFF -- "gRPC HTTP/2, service token" --> GW
     M -- "Connect + device token" --> TS
-    TS -- "HTTP/1.1 loopback, OA_MOBILE_PORT" --> GW
+    TS -- "HTTP/1.1 loopback, CANOPY_MOBILE_PORT" --> GW
     GW -- "SQL (TLS)" --> PG
     W1 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW
     W2 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW

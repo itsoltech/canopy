@@ -14,11 +14,11 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
 
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)("agent bus notify and wait (live)", () => {
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)("agent bus notify and wait (live)", () => {
   let gw: TestGateway;
   let workerId: string;
   let projectId: string;

@@ -119,7 +119,7 @@ export class DesktopRuntime {
         gatewayUrl = `http://127.0.0.1:${gatewayPort}`;
         webUrl = this.setupOrigin;
         workerDirectory = join(this.directory, "local-worker");
-        this.services.start({ name: "gateway", ...this.command(this.paths.gateway), cwd: dirname(this.paths.gateway), env: { ...this.env, OA_DATABASE_URL: databaseUrl, OA_SECRETS_KEY: this.secrets.secretsKey, OA_UI_SERVICE_TOKEN: this.secrets.serviceToken, OA_HOST: "127.0.0.1", OA_PORT: String(gatewayPort), OA_PUBLIC_GATEWAY_URL: workerPort ? `http://${config.bindHost}:${workerPort}` : gatewayUrl, ...(workerPort && { OA_WORKER_HOST: config.bindHost, OA_WORKER_PORT: String(workerPort) }) }, restart: true });
+        this.services.start({ name: "gateway", ...this.command(this.paths.gateway), cwd: dirname(this.paths.gateway), env: { ...this.env, CANOPY_DATABASE_URL: databaseUrl, CANOPY_SECRETS_KEY: this.secrets.secretsKey, CANOPY_UI_SERVICE_TOKEN: this.secrets.serviceToken, CANOPY_HOST: "127.0.0.1", CANOPY_PORT: String(gatewayPort), CANOPY_PUBLIC_GATEWAY_URL: workerPort ? `http://${config.bindHost}:${workerPort}` : gatewayUrl, ...(workerPort && { CANOPY_WORKER_HOST: config.bindHost, CANOPY_WORKER_PORT: String(workerPort) }) }, restart: true });
         const client = this.client(gatewayUrl);
         await until(async () => { await client.getOverview({}, { timeoutMs: 1000 }); return true; });
         if (!existsSync(join(workerDirectory, "worker.json"))) token = (await client.createWorkerEnrollment({ name: `Canopy · ${hostname()}` })).token;
@@ -147,7 +147,7 @@ export class DesktopRuntime {
       this.workerStatusFile = join(workerDirectory, "status.json");
       this.writeJson(this.workerStatusFile, { status: "offline", time: Date.now() });
       const launch = this.command(this.paths.worker);
-      this.services.start({ name: "worker", ...launch, args: [...launch.args, "--config", configPath], cwd: dirname(this.paths.worker), env: { ...this.env, OA_WORKER_STATUS_FILE: this.workerStatusFile }, restart: true });
+      this.services.start({ name: "worker", ...launch, args: [...launch.args, "--config", configPath], cwd: dirname(this.paths.worker), env: { ...this.env, CANOPY_WORKER_STATUS_FILE: this.workerStatusFile }, restart: true });
       this.publish({ mode: config.mode, gatewayUrl, webUrl, allowNetwork: config.mode === "local" && config.allowNetwork, bindHost: config.mode === "local" ? config.bindHost : "127.0.0.1", clis: { claude: Boolean(Bun.which("claude", { PATH: this.env["PATH"]! })), codex: Boolean(Bun.which("codex", { PATH: this.env["PATH"]! })), grok: Boolean(Bun.which("grok", { PATH: this.env["PATH"]! })) }, worker: "connecting" });
       const connected = until(async () => { this.readWorkerStatus(); return this.state.worker === "online"; }, config.mode === "local" ? 30_000 : 10_000);
       if (config.mode === "local") await connected;

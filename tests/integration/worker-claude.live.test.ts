@@ -1,7 +1,7 @@
 /**
  * Live, end to end below the gateway, for Claude: a (test) gateway configures a real worker host over gRPC,
  * creates a Claude thread in ASK mode, runs turns (permission round trips, resume), forks it at a turn and
- * answers an agent bus call. Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/claude-adapter.md).
+ * answers an agent bus call. Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/claude-adapter.md).
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
@@ -13,10 +13,10 @@ import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const model = process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const model = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
 
 const text = (events: ThreadEvent[], turnId: string) =>
   events

@@ -1,15 +1,15 @@
 /**
  * Development smoke client playing the web BFF: talks to GatewayService over gRPC with the service token.
- *   OA_GATEWAY_URL=http://127.0.0.1:7443 OA_UI_SERVICE_TOKEN=... bun tests/integration/smoke/bff-client.ts "Reply OK"
- * Creates a project, a workspace on the first online worker (OA_SMOKE_CWD or its home), a Codex thread
+ *   CANOPY_GATEWAY_URL=http://127.0.0.1:7443 CANOPY_UI_SERVICE_TOKEN=... bun tests/integration/smoke/bff-client.ts "Reply OK"
+ * Creates a project, a workspace on the first online worker (CANOPY_SMOKE_CWD or its home), a Codex thread
  * with the message, and prints the live transcript until the turn finishes.
  */
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
 
-const baseUrl = Bun.env["OA_GATEWAY_URL"] ?? "http://127.0.0.1:7443";
-const token = Bun.env["OA_UI_SERVICE_TOKEN"] ?? "";
+const baseUrl = Bun.env["CANOPY_GATEWAY_URL"] ?? "http://127.0.0.1:7443";
+const token = Bun.env["CANOPY_UI_SERVICE_TOKEN"] ?? "";
 const message = Bun.argv[2] ?? "Reply with exactly the word OK and nothing else.";
 const api = createClient(
   ui.GatewayService,
@@ -26,7 +26,7 @@ if (!worker) throw new Error("no online worker");
 console.log(`worker ${worker.name} online, profiles ${worker.profiles.map((p) => `${p.id}:${p.available}`).join(", ")}`);
 
 const project = (await api.createProject({ name: "Smoke" })).project!;
-const workspace = (await api.createWorkspace({ projectId: project.id, workerId: worker.id, rootPath: Bun.env["OA_SMOKE_CWD"] || worker.homeDirectory, label: worker.name })).workspace!;
+const workspace = (await api.createWorkspace({ projectId: project.id, workerId: worker.id, rootPath: Bun.env["CANOPY_SMOKE_CWD"] || worker.homeDirectory, label: worker.name })).workspace!;
 const profile = worker.profiles.find((p) => p.id === "cliproxyapi" && p.available)?.id ?? "";
 const thread = (
   await api.createThread({
@@ -35,7 +35,7 @@ const thread = (
     title: "Smoke",
     provider: Provider.CODEX,
     providerProfileId: profile,
-    model: Bun.env["OA_LIVE_CODEX_MODEL"] ?? (profile ? "gpt-6.1-sol" : ""),
+    model: Bun.env["CANOPY_LIVE_CODEX_MODEL"] ?? (profile ? "gpt-6.1-sol" : ""),
     permissionMode: PermissionMode.READ_ONLY,
     initialMessage: message,
     clientRequestId: Bun.randomUUIDv7(),

@@ -36,7 +36,7 @@ Badanie dostawców i decyzje projektowe: [connectors.md](connectors.md).
 | `bun run check:tmp tests/integration/connectors.test.ts tests/integration/bots.test.ts tests/integration/bot-platform-tools.test.ts` po merge odpowiedzi strukturalnych | 28 pass, 0 fail, 413 asercji; bez pozostawionych katalogów testowych |
 | `check:tmp` po merge `full_auto` i stref czasowych, 6 plików | 50 pass, 0 fail, 643 asercje; konektory, boty, platform tools, rutyny, tworzenie botów i policy; bez pozostawionych katalogów testowych |
 | `bun test tests/integration/bots.test.ts --test-name-pattern 'remote MCP registry'` | 1 pass, 0 fail po skierowaniu adaptera przez runtime konektorów |
-| Live: `OA_LIVE=1 bun test tests/integration/connectors.live.test.ts` | 2 pass, 0 fail, 25 asercji; rzeczywisty Codex i Claude przez CLIProxyAPI |
+| Live: `CANOPY_LIVE=1 bun test tests/integration/connectors.live.test.ts` | 2 pass, 0 fail, 25 asercji; rzeczywisty Codex i Claude przez CLIProxyAPI |
 
 Test live używa prawdziwych harnessów (Codex 0.164.0 w `FULL_AUTO`, Claude Agent SDK
 2.1.316 w `READ_ONLY`) i lokalnego fake MCP. Sprawdza wynik i audyt oraz brak sekretu w komendach/events
@@ -105,7 +105,7 @@ z kitu i wrapperów; nie dodano natywnych select/multi-select.
    MCP. Nie skonfigurowano fikcyjnego globalnego endpointu dla tych usług.
 5. Codex utrwala dynamic tools przy rozpoczęciu sesji: dodanie konta może wymagać
    nowej sesji/wątku. Odebranie grantu jest skuteczne natychmiast w gateway.
-   Przed łączeniem kont należy ustawić trwały `OA_SECRETS_KEY`; jego utrata
+   Przed łączeniem kont należy ustawić trwały `CANOPY_SECRETS_KEY`; jego utrata
    uniemożliwia odzyskanie tokenów.
 
 ## Commity implementacji

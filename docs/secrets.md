@@ -60,7 +60,7 @@ localStorage, wiadomościach, interakcjach `ask_user`, notatkach, wynikach narz�
 ani zdarzeniach. Po zapisie karta pokazuje termin dostępności i cofnięcie dostępu.
 Stan kontrolki jest czyszczony po wysłaniu i przy opuszczeniu karty.
 
-Gateway szyfruje wartość AES-256-GCM istniejącym `OA_SECRETS_KEY`. Do workera
+Gateway szyfruje wartość AES-256-GCM istniejącym `CANOPY_SECRETS_KEY`. Do workera
 przechodzi osobnym komunikatem istniejącego połączenia gRPC, poza trwałym outboxem
 komend i dziennikiem zdarzeń. Worker zapisuje plik `0600` w katalogu `0700` poza
 workspace. Model otrzymuje tylko ścieżkę, termin i instrukcję użycia wewnątrz
@@ -119,7 +119,7 @@ Zaszyfrowane kopie w backupach/WAL podlegają polityce retencji bazy; zwykłe DE
 lub UPDATE nie jest kryptograficznym wymazaniem historycznych backupów.
 
 TTL 24 h jest obecnie stałą domyślną serwisu; krótszy można wstrzyknąć w fixture.
-Nie dodano jeszcze publicznego ustawienia TTL. Klucz pozostaje w `OA_SECRETS_KEY`
+Nie dodano jeszcze publicznego ustawienia TTL. Klucz pozostaje w `CANOPY_SECRETS_KEY`
 i korzysta z istniejącego identyfikatora klucza `env-v1`. Prywatne komunikaty gRPC
 nie są logowane ani wpisywane do worker_commands. Zdalne połączenie wymaga istniejącej
 ochrony transportu TLS lub zaufanego tunelu, tak samo jak sekrety provider instances.

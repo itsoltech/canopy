@@ -4,9 +4,9 @@
 
 Natywny klient `apps/mobile` korzysta z tego samego `GatewayService` przez Connect
 z binarnym protobuf i streaming `expo/fetch`. Osobny HTTP/1.1 listener
-`OA_MOBILE_PORT` na loopback działa za prywatnym Tailscale Serve HTTPS;
+`CANOPY_MOBILE_PORT` na loopback działa za prywatnym Tailscale Serve HTTPS;
 przeglądarka nadal komunikuje się wyłącznie z BFF. Telefon nigdy nie otrzymuje
-`OA_UI_SERVICE_TOKEN`.
+`CANOPY_UI_SERVICE_TOKEN`.
 
 Settings → Mobile devices tworzy 10-minutowy kod/QR, listuje urządzenia i odwołuje
 zaproszenia/tokeny przez BFF `/api/mobile-devices` i `/api/mobile-devices/:id`.
@@ -41,7 +41,7 @@ na osi czasu; gateway kanonizuje je z własnego katalogu. [Projekt i ograniczeni
 ## Workery: kreator i zarządzanie
 
 `GetWorkerSetup` zwraca publiczny `gateway_url` (`UserSettings.worker_gateway_url`,
-pole **700**, z domyślną wartością `OA_PUBLIC_GATEWAY_URL`) oraz metadane ostatnich
+pole **700**, z domyślną wartością `CANOPY_PUBLIC_GATEWAY_URL`) oraz metadane ostatnich
 enrollmentów właściciela, bez tokenów. `UpdateUserSettings.worker_gateway_url` (optional,
 **700**) podlega `expected_version`; pusty string przywraca wartość z env. Adres musi być
 originem HTTP(S), z portem gRPC, bez userinfo, ścieżki, query ani fragmentu.
@@ -185,7 +185,7 @@ flowchart LR
 - **Gateway jest jedynym stanem globalnym.** Przechowuje projekty, wątki, tury, transkrypty, interakcje i komendy. Orkiestruje workery.
 - **SvelteKit jest BFF.** Przeglądarka rozmawia tylko z nim, po HTTP/1.1. Serwer SvelteKit woła gateway po gRPC z prywatnym tokenem usługi, a zmiany na żywo przekazuje przeglądarce przez **SSE**. Prywatny adres BFF i token usługi zostają na serwerze. UI pokazuje publiczny adres gRPC dla workerów, token enrollment i nowy credential rotacji (sekrety jednorazowo), bez klienta gRPC.
 - **Frontend jest SPA (`ssr = false` w głównym `+layout.ts`).** adapter-node podaje powłokę i pliki statyczne, przekazuje `/api/*` do gateway i obsługuje istniejące akcje formularzy. Dane tras pobierają klientowe `+page.ts` przez `/api/*`; overview, ustawienia i katalog modeli pobierają stany funkcji. Akcje tworzenia wątku/projektu/workspace pozostają po stronie BFF: `enhance` zachowuje walidację, błędy pól i przekierowania bez SSR.
-- Gateway podaje `GatewayService` na tym samym serwerze HTTP/2 co `WorkerLinkService`, a opcjonalnie także na mobilnym HTTP/1.1 listenerze. Interceptor (`serviceTokenAuth`) przyjmuje token usługi BFF (`OA_UI_SERVICE_TOKEN`, porównanie odporne na pomiar czasu) lub aktywny token urządzenia, mapowany na obecnego pojedynczego właściciela. Administracja parowaniem wymaga tokenu usługi. Workery uwierzytelniają się osobno, w handlerze `WorkerLinkService`.
+- Gateway podaje `GatewayService` na tym samym serwerze HTTP/2 co `WorkerLinkService`, a opcjonalnie także na mobilnym HTTP/1.1 listenerze. Interceptor (`serviceTokenAuth`) przyjmuje token usługi BFF (`CANOPY_UI_SERVICE_TOKEN`, porównanie odporne na pomiar czasu) lub aktywny token urządzenia, mapowany na obecnego pojedynczego właściciela. Administracja parowaniem wymaga tokenu usługi. Workery uwierzytelniają się osobno, w handlerze `WorkerLinkService`.
 
 ## 2. `GatewayService`
 
@@ -324,7 +324,7 @@ Pliki dołączone do wiadomości (obrazy, zrzuty ekranu, tekst, kod, PDF, archiw
 | `Turn.attachments` (110) | pliki wiadomości (bez ścieżek); UI pokazuje je zamiast notatki |
 | `GetSettingsResponse.attachment_limits` (110) | `max_file_bytes`, `max_message_bytes`, `max_files` |
 
-Limity (gateway, zmienne środowiskowe): `OA_ATTACHMENT_MAX_FILE_MB` (domyślnie 20), `OA_ATTACHMENT_MAX_MESSAGE_MB` (50), `OA_ATTACHMENT_MAX_FILES` (10). Kompozytor sprawdza je przed wysłaniem pliku; ostatnie słowo ma gateway.
+Limity (gateway, zmienne środowiskowe): `CANOPY_ATTACHMENT_MAX_FILE_MB` (domyślnie 20), `CANOPY_ATTACHMENT_MAX_MESSAGE_MB` (50), `CANOPY_ATTACHMENT_MAX_FILES` (10). Kompozytor sprawdza je przed wysłaniem pliku; ostatnie słowo ma gateway.
 
 **Notatka platformy.** Gateway składa wejście tury przy przyjęciu wiadomości: `input_text` = notatka + pusta linia + wiadomość (sama notatka, gdy tekstu nie ma), `platform_note` = notatka, `message_text` = wiadomość. UI bierze notatkę i wiadomość osobno (`platform_note`, `message_text`); z cytatami notatka ma też ich blok (niżej, „Cytaty”):
 
@@ -588,21 +588,21 @@ nadal wysyłają strefę przeglądarki bez zmian.
 
 ```bash
 docker run -d --name oa-pg -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=open_agents -p 127.0.0.1::5432 postgres:17
-export OA_DATABASE_URL=postgres://postgres:dev@127.0.0.1:<port>/open_agents
-export OA_SECRETS_KEY=$(openssl rand -base64 32)   # trzymać stały: szyfruje sekrety w bazie
-export OA_UI_SERVICE_TOKEN=$(openssl rand -hex 32) # ten sam dla SvelteKit
+export CANOPY_DATABASE_URL=postgres://postgres:dev@127.0.0.1:<port>/open_agents
+export CANOPY_SECRETS_KEY=$(openssl rand -base64 32)   # trzymać stały: szyfruje sekrety w bazie
+export CANOPY_UI_SERVICE_TOKEN=$(openssl rand -hex 32) # ten sam dla SvelteKit
 
 # rejestracja workera (wypisuje worker.json; zapisać z chmod 600)
-OA_CLIPROXYAPI_API_KEY=... bun apps/gateway/src/cli.ts worker add --name laptop \
+CANOPY_CLIPROXYAPI_API_KEY=... bun apps/gateway/src/cli.ts worker add --name laptop \
   --gateway-url http://127.0.0.1:7443 [--cliproxy-url https://proxy:8443]
 
-bun apps/gateway/src/main.ts          # migracje (OA_MIGRATE=1, domyślnie), serwer gRPC na :7443
-OA_WORKER_CONFIG=./worker.json bun apps/worker/src/main.ts
-OA_UI_SERVICE_TOKEN=... bun tests/integration/smoke/bff-client.ts "Reply OK"   # klient BFF do testów
+bun apps/gateway/src/main.ts          # migracje (CANOPY_MIGRATE=1, domyślnie), serwer gRPC na :7443
+CANOPY_WORKER_CONFIG=./worker.json bun apps/worker/src/main.ts
+CANOPY_UI_SERVICE_TOKEN=... bun tests/integration/smoke/bff-client.ts "Reply OK"   # klient BFF do testów
 
 # frontend
 cd apps/web
-GATEWAY_SERVICE_TOKEN=$OA_UI_SERVICE_TOKEN bun run dev                     # http://localhost:5173
+GATEWAY_SERVICE_TOKEN=$CANOPY_UI_SERVICE_TOKEN bun run dev                     # http://localhost:5173
 bun run build && GATEWAY_SERVICE_TOKEN=... PORT=3000 node build/index.js    # produkcyjnie
 ```
 
@@ -633,7 +633,7 @@ Zmiana dla skryptu restartu stacka:
 4. Uruchomić web z zapamiętanego katalogu, zachowując dotychczasowe zmienne proxy, origin, limity uploadu i logowanie PID-a:
 
    ```bash
-   GATEWAY_SERVICE_TOKEN="$OA_UI_SERVICE_TOKEN" \
+   GATEWAY_SERVICE_TOKEN="$CANOPY_UI_SERVICE_TOKEN" \
    GATEWAY_URL=http://127.0.0.1:17443 HOST=127.0.0.1 PORT=5180 \
    BODY_SIZE_LIMIT=25M PROTOCOL_HEADER=x-forwarded-proto \
    bun "$web_release/index.js"
@@ -653,6 +653,6 @@ Powłoka odpowiada 200 także bez gateway; początkowy HTML zawiera szkielet z w
 
 ## 6. Ograniczenia na teraz
 
-- **Jeden użytkownik deweloperski** (`OA_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
+- **Jeden użytkownik deweloperski** (`CANOPY_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
 - **Jedna instancja gateway** (`Hub` w procesie).
 - Workery dodaje kreator Settings → Workers; administracyjny `worker add` pozostaje w CLI. Instancje dostawców (globalne, włączane per worker), ich zmienne i modele są w UI.

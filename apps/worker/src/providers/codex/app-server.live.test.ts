@@ -1,7 +1,7 @@
 /**
- * Live tests against the real `codex app-server` and real models. Opt-in: OA_LIVE=1.
+ * Live tests against the real `codex app-server` and real models. Opt-in: CANOPY_LIVE=1.
  * They use the account / proxy configured on this machine and cost a few tokens.
- * Notification streams are recorded to $OA_LIVE_RECORD_DIR (default /tmp/oa-codex-recordings)
+ * Notification streams are recorded to $CANOPY_LIVE_RECORD_DIR (default /tmp/oa-codex-recordings)
  * as raw material for the event mapping.
  */
 import { describe, expect, test } from "bun:test";
@@ -18,10 +18,10 @@ import { codexAgentBusTools } from "./threads.ts";
 
 const tempDir = tempDirs();
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const recordDir = process.env["OA_LIVE_RECORD_DIR"] ?? "/tmp/oa-codex-recordings";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const recordDir = process.env["CANOPY_LIVE_RECORD_DIR"] ?? "/tmp/oa-codex-recordings";
 const workDir = tempDir("oa-codex-live-");
 
 const serverRequests: { method: string }[] = [];
@@ -91,7 +91,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
   }, 60_000);
 
   // Depends on the device owner's ~/.codex being usable non-interactively (provider keys in env etc.).
-  test.skipIf(process.env["OA_LIVE_NATIVE"] !== "1")("one turn with the device's own Codex configuration (native profile)", async () => {
+  test.skipIf(process.env["CANOPY_LIVE_NATIVE"] !== "1")("one turn with the device's own Codex configuration (native profile)", async () => {
     const notifications = await Effect.runPromise(
       Effect.gen(function* () {
         const codex = yield* CodexAppServer;
@@ -112,7 +112,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
     const statuses = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]);
     const profile = statuses.find((s) => s.config.id === "live")?.resolved;
     if (!profile) throw new Error("profile not resolved");
-    const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
     const notifications = await Effect.runPromise(
       Effect.gen(function* () {
         const codex = yield* CodexAppServer;
@@ -137,7 +137,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
     const home = tempDir("oa-codex-home-");
     const statuses = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]);
     const profile = statuses.find((s) => s.config.id === "live")!.resolved!;
-    const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
     try {
       const notifications = await Effect.runPromise(
         Effect.gen(function* () {
@@ -166,7 +166,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
     const cwd = tempDir("oa-codex-tools-");
     const statuses = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]);
     const profile = statuses.find((s) => s.config.id === "live")!.resolved!;
-    const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
     try {
       const notifications = await Effect.runPromise(
         Effect.gen(function* () {
@@ -198,7 +198,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
   }, 300_000);
 
   // Default after the 2026-11-01 decision: isolated CODEX_HOME with the device login linked in.
-  test.skipIf(process.env["OA_LIVE_NATIVE"] !== "1")("native profile in the isolated home with the linked device login", async () => {
+  test.skipIf(process.env["CANOPY_LIVE_NATIVE"] !== "1")("native profile in the isolated home with the linked device login", async () => {
     const dataDir = tempDir("oa-codex-data-");
     try {
       const home = prepareCodexHome({ dataDir, linkDeviceLogin: true });
@@ -234,7 +234,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex dynamic tools (live)", (
     const cwd = tempDir("oa-codex-dyn-");
     const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]).find((s) => s.config.id === "live")!
       .resolved!;
-    const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
     const calls: { threadId: string; tool: string; arguments: unknown }[] = [];
     const layer = () =>
       CodexAppServer.layer({
@@ -298,7 +298,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex collaboration tools (liv
   test("off for a multi-agent v2 model; a subagent request calls the bus tool spawn_thread", async () => {
     const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]).find((s) => s.config.id === "live")!
       .resolved!;
-    const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
     // Declarations only (spawn_thread's description mentions spawn_agent). Codex's own send_message is not listed:
     // the bus has a tool of that name.
     const COLLAB = /("name":"|### `|\b)(spawn_agent|wait_agent|send_input|followup_task|interrupt_agent|close_agent|resume_agent)("|`|\(args)/;

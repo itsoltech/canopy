@@ -8,7 +8,8 @@
     "./items": "./src/items.ts",
     "./background-tasks": "./src/background-tasks/index.ts",
     "./release/protocol": "./src/release/protocol.ts",
-    "./release/version": "./src/release/version.ts"
+    "./release/version": "./src/release/version.ts",
+    "./env": "./src/env.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

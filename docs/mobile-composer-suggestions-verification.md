@@ -27,7 +27,7 @@ bun install
 bun run typecheck
 bun run check:tmp
 bun run --cwd apps/web build
-OA_MENTION_BROWSER=1 bun test tests/integration/mentions.browser.test.ts
+CANOPY_MENTION_BROWSER=1 bun test tests/integration/mentions.browser.test.ts
 ```
 
 WebKit na Arch: pobranie do prywatnego cache zadziałało, ale uruchomienie wymagało brakujących bibliotek `libicu74`, `libxml2` i `libflite1`. Zamiast zmieniać system użyto kontenera z pasującą wersją Playwright:
@@ -38,7 +38,7 @@ docker run --rm --name mobile-composer-webkit --network host --ipc host \
   -v "$PWD:/work" -w /work mcr.microsoft.com/playwright:v1.64.1-noble \
   node tests/integration/node_modules/playwright-core/cli.js run-server --host 127.0.0.1 --port 9539
 # W drugim terminalu:
-OA_MENTION_BROWSER=1 OA_MENTION_WEBKIT_WS=ws://127.0.0.1:9539/ bun test tests/integration/mentions.browser.test.ts
+CANOPY_MENTION_BROWSER=1 CANOPY_MENTION_WEBKIT_WS=ws://127.0.0.1:9539/ bun test tests/integration/mentions.browser.test.ts
 docker stop mobile-composer-webkit
 ```
 

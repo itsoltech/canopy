@@ -11,7 +11,7 @@ export const variables = defineEnvVars({
     },
   },
   GATEWAY_SERVICE_TOKEN: {
-    description: "Service token shared with the gateway (OA_UI_SERVICE_TOKEN). Required when the server runs",
+    description: "Service token shared with the gateway (CANOPY_UI_SERVICE_TOKEN). Required when the server runs",
     // Missing is allowed only so `vite build` (which analyses the server) works without secrets;
     // `init` in hooks.server.ts refuses to start the server without it.
     schema: (value) => {

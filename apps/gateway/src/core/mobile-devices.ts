@@ -40,7 +40,7 @@ export class MobileDevices {
     if (options.gatewayUrl) {
       const url = new URL(options.gatewayUrl);
       if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-        throw new Error("OA_MOBILE_GATEWAY_URL must be an HTTPS origin (private Tailscale Serve URL)");
+        throw new Error("CANOPY_MOBILE_GATEWAY_URL must be an HTTPS origin (private Tailscale Serve URL)");
       }
     }
   }

@@ -1,5 +1,5 @@
 /**
- * Live (OA_LIVE=1): a Claude bot created the way the wizard does it, with the instance's default model, replies
+ * Live (CANOPY_LIVE=1): a Claude bot created the way the wizard does it, with the instance's default model, replies
  * through CLIProxyAPI. The worker's real Claude catalog names that model `default` (a Claude Code alias the
  * Messages API refuses); CreateBot stores the concrete model it resolves to (the wizard offers that one too), and a
  * bot saved earlier with the alias is resolved at runtime.
@@ -19,10 +19,10 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailable)("a wizard-made Claude bot with the default model replies through live CLIProxyAPI", () => {
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAvailable)("a wizard-made Claude bot with the default model replies through live CLIProxyAPI", () => {
   let gw: TestGateway;
   let stopWorker = async () => {};
   const state = tempDir("oa-bots-alias-state-");

@@ -28,7 +28,7 @@ RUN bun scripts/build-binaries.ts --app worker --target "linux-$(echo "$TARGETAR
 FROM build AS web-build
 RUN bun scripts/build-web.ts --outdir /out/web
 
-# Gateway: gRPC (HTTP/2) for workers and the web BFF on 7443. Needs PostgreSQL (OA_DATABASE_URL).
+# Gateway: gRPC (HTTP/2) for workers and the web BFF on 7443. Needs PostgreSQL (CANOPY_DATABASE_URL).
 FROM gcr.io/distroless/cc-debian12:nonroot AS gateway
 ARG CANOPY_VERSION=0.0.0-dev
 ARG CANOPY_REVISION=unknown
@@ -39,7 +39,7 @@ LABEL org.opencontainers.image.title="canopy-gateway" \
       org.opencontainers.image.revision="${CANOPY_REVISION}"
 COPY --from=gateway-build /out/canopy-gateway /usr/local/bin/canopy-gateway
 # sharp's native library is extracted on first start; /tmp is writable for the nonroot user.
-ENV CANOPY_VERSION=${CANOPY_VERSION} CANOPY_NATIVE_DIR=/tmp/canopy-native OA_HOST=0.0.0.0 OA_PORT=7443
+ENV CANOPY_VERSION=${CANOPY_VERSION} CANOPY_NATIVE_DIR=/tmp/canopy-native CANOPY_HOST=0.0.0.0 CANOPY_PORT=7443
 USER nonroot:nonroot
 EXPOSE 7443
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD ["/usr/local/bin/canopy-gateway", "healthcheck"]
@@ -78,7 +78,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 10001 --user-group --shell /bin/bash canopy
 COPY --from=worker-build /out/canopy-worker /usr/local/bin/canopy-worker
-ENV CANOPY_VERSION=${CANOPY_VERSION} OA_WORKER_STATUS_FILE=/tmp/canopy-worker-status.json
+ENV CANOPY_VERSION=${CANOPY_VERSION} CANOPY_WORKER_STATUS_FILE=/tmp/canopy-worker-status.json
 USER canopy
 WORKDIR /home/canopy
 VOLUME ["/home/canopy"]

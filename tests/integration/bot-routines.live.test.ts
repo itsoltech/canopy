@@ -7,9 +7,9 @@ import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailable)("bot routines through live CLIProxyAPI", () => {
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAvailable)("bot routines through live CLIProxyAPI", () => {
   let gw: TestGateway;
   beforeAll(async () => {
     gw = await startTestGateway();
@@ -21,7 +21,7 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailab
   test("a real bot schedules a conditional check and its healthy run remains silent", async () => {
     const bot = (await gw.api.createBot({ clientRequestId: Bun.randomUUIDv7(), configuration: {
       name: "Routine live", shape: "round", color: "#22aaff", provider: Provider.CODEX, providerInstance: "cliproxyapi",
-      model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol", effort: "low", approvalPolicy: "always",
+      model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol", effort: "low", approvalPolicy: "always",
     } })).bot!;
     const read = () => gw.core.bots.run((s) => s.conversation(gw.userId, bot.id));
     await gw.api.sendBotMessage({ botId: bot.id, clientRequestId: Bun.randomUUIDv7(), text:

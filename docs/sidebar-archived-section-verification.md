@@ -39,7 +39,7 @@ bez konfliktu `absolute` z własnym `relative` komponentu IconButton.
 | `bun run gen:check` | kontrakty zgodne z wygenerowanym kodem |
 | `bun run check:tmp` | 786 zaliczonych, 115 pominiętych, 0 błędów; prywatny katalog testowy pusty |
 | `bun run --filter @canopy/web build` | poprawny build adapter-node; istniejące ostrzeżenie o chunku ponad 500 kB |
-| `OA_ARCHIVE_BROWSER=1 OA_BROWSER_TESTS=1 bun test tests/integration/archived-sidebar.browser.test.ts tests/integration/sidebar-browser.test.ts` | 4 scenariusze Chromium zaliczone |
+| `CANOPY_ARCHIVE_BROWSER=1 CANOPY_BROWSER_TESTS=1 bun test tests/integration/archived-sidebar.browser.test.ts tests/integration/sidebar-browser.test.ts` | 4 scenariusze Chromium zaliczone |
 
 Testy jednostkowe sprawdzają grupowanie, sortowanie, filtr, ukrywanie dzieci archiwalnego rodzica
 także w trakcie kaskady live, wyjątek bieżącego wątku po zwinięciu, kolejne strony, odrzucenie

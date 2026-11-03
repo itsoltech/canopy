@@ -98,10 +98,10 @@ przez produkcyjny CLIProxyAPI. Worker jest dystrybuowany z repo, bez gotowej bin
 
 Pełna procedura dla Maca/Tailscale oraz usługi: [worker-config.md](worker-config.md#dodanie-maszyny-z-ui).
 Po merge zachowaj dotychczasowe klucze gateway i token usługi BFF, wykonaj migrację
-0044 (standardowy start gateway z `OA_MIGRATE=1` robi to automatycznie), zbuduj web
+0044 (standardowy start gateway z `CANOPY_MIGRATE=1` robi to automatycznie), zbuduj web
 i zrestartuj gateway/web z tej samej wersji. Istniejące configi workerów pozostają zgodne.
 
-Ustaw `OA_PUBLIC_GATEWAY_URL=http://<host-Tailscale>:<port-gRPC>` albo nadpisz adres
+Ustaw `CANOPY_PUBLIC_GATEWAY_URL=http://<host-Tailscale>:<port-gRPC>` albo nadpisz adres
 w Settings → Workers. Port 7443 jest domyślny; jeśli Twój stack używa 17443,
 podaj 17443. To nie port web ani CLIProxyAPI. Gateway musi nasłuchiwać na interfejsie
 osiągalnym z Tailscale; ACL/firewall muszą przepuszczać ten port z nowej maszyny.

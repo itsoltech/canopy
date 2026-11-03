@@ -47,7 +47,7 @@ mascot motion, including blinks. Turning either switch off restores neutral SVG 
 ```sh
 bun install
 bun test apps/web/src/lib/features/bots/behaviour-math.test.ts apps/web/src/lib/features/bots/mascot.test.ts
-OA_MASCOTS_BROWSER=1 bun test apps/web/src/lib/features/bots/gallery/behaviour.browser.test.ts
+CANOPY_MASCOTS_BROWSER=1 bun test apps/web/src/lib/features/bots/gallery/behaviour.browser.test.ts
 bun run typecheck
 bun run check:tmp
 bun run --filter @canopy/web build

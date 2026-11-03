@@ -27,12 +27,12 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      OA_DATABASE_URL: postgres://canopy:${POSTGRES_PASSWORD}@postgres:5432/canopy
-      OA_UI_SERVICE_TOKEN: ${OA_UI_SERVICE_TOKEN:?set OA_UI_SERVICE_TOKEN in .env}
-      OA_SECRETS_KEY: ${OA_SECRETS_KEY:?set OA_SECRETS_KEY in .env}
-      OA_PUBLIC_GATEWAY_URL: ${OA_PUBLIC_GATEWAY_URL:-}
-      OA_DEV_USER_EMAIL: ${OA_DEV_USER_EMAIL:-dev@localhost}
-      OA_ATTACHMENT_MAX_FILE_MB: ${OA_ATTACHMENT_MAX_FILE_MB:-}
+      CANOPY_DATABASE_URL: postgres://canopy:${POSTGRES_PASSWORD}@postgres:5432/canopy
+      CANOPY_UI_SERVICE_TOKEN: ${CANOPY_UI_SERVICE_TOKEN:?set CANOPY_UI_SERVICE_TOKEN in .env}
+      CANOPY_SECRETS_KEY: ${CANOPY_SECRETS_KEY:?set CANOPY_SECRETS_KEY in .env}
+      CANOPY_PUBLIC_GATEWAY_URL: ${CANOPY_PUBLIC_GATEWAY_URL:-}
+      CANOPY_DEV_USER_EMAIL: ${CANOPY_DEV_USER_EMAIL:-dev@localhost}
+      CANOPY_ATTACHMENT_MAX_FILE_MB: ${CANOPY_ATTACHMENT_MAX_FILE_MB:-}
     ports:
       - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-7443}:7443"
 
@@ -44,7 +44,7 @@ services:
         condition: service_healthy
     environment:
       GATEWAY_URL: http://gateway:7443
-      GATEWAY_SERVICE_TOKEN: ${OA_UI_SERVICE_TOKEN}
+      GATEWAY_SERVICE_TOKEN: ${CANOPY_UI_SERVICE_TOKEN}
       # The reverse proxy tells the BFF the public scheme and host (form submissions check the origin).
       PROTOCOL_HEADER: x-forwarded-proto
       HOST_HEADER: x-forwarded-host

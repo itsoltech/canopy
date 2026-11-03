@@ -73,7 +73,7 @@ i schematu bazy. Fixture routines czeka na asynchroniczny katalog API przed Crea
 Live CLIProxyAPI (sekrety wyłącznie z lokalnego env):
 
 ```sh
-OA_LIVE=1 bun --env-file=/home/nix/.config/open-agents/dev-live.env test tests/integration/bots-create.live.test.ts
+CANOPY_LIVE=1 bun --env-file=/home/nix/.config/open-agents/dev-live.env test tests/integration/bots-create.live.test.ts
 ```
 
 **1 pass, 0 fail, 7 asercji**. Prawdziwy `gpt-6.1-sol` sprawdził modele, zaproponował

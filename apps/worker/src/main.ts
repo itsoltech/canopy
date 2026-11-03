@@ -16,7 +16,7 @@ import { WorkerUpdates } from "./update-link.ts";
 
 const cliArgs = Bun.argv.slice(2);
 if (cliArgs.includes("--version")) { console.info(CANOPY_VERSION); process.exit(0); }
-// Docker HEALTHCHECK: healthy while the link to the gateway is up (needs OA_WORKER_STATUS_FILE, see desktop-status.ts).
+// Docker HEALTHCHECK: healthy while the link to the gateway is up (needs CANOPY_WORKER_STATUS_FILE, see desktop-status.ts).
 if (cliArgs[0] === "healthcheck") process.exit(workerOnline(Bun.env) ? 0 : 1);
 if (cliArgs[0] === "run") cliArgs.shift();
 const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";

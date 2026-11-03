@@ -86,7 +86,7 @@ bota, limity odstępu/liczby/strefy/hops i częściowe edycje. Test migracji wym
 Live przez CLIProxyAPI, bez ujawniania hosta/klucza:
 
 ```sh
-OA_LIVE=1 bun --env-file=/home/nix/.config/open-agents/dev-live.env test tests/integration/bot-routines.live.test.ts
+CANOPY_LIVE=1 bun --env-file=/home/nix/.config/open-agents/dev-live.env test tests/integration/bot-routines.live.test.ts
 ```
 
 **1 pass, 0 fail, 11 asercji**. Prawdziwy `gpt-6.1-sol` utworzył `*/15 * * * *`, UTC,

@@ -2,6 +2,7 @@ import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Result, Schema } from "effect";
+import { readEnv } from "@canopy/domain/env";
 
 /**
  * The only configuration a worker keeps locally: how to reach the gateway (docs/worker-config.md).
@@ -31,9 +32,10 @@ export type LocalConfig = Schema.Schema.Type<typeof LocalConfig>;
 
 export type Platform = "linux" | "darwin" | "win32" | (string & {});
 
-/** Default config file location per OS; OA_WORKER_CONFIG overrides it. */
+/** Default config file location per OS; CANOPY_WORKER_CONFIG overrides it. */
 export function defaultConfigPath(env: Readonly<Record<string, string | undefined>>, platform: Platform, home = homedir()): string {
-  if (env["OA_WORKER_CONFIG"]) return env["OA_WORKER_CONFIG"];
+  const configured = readEnv("CANOPY_WORKER_CONFIG", env);
+  if (configured) return configured;
   switch (platform) {
     case "win32":
       return join(env["APPDATA"] ?? join(home, "AppData", "Roaming"), "open-agents", "worker.json");

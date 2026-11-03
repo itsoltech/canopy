@@ -87,9 +87,13 @@ docker buildx build --target gateway --build-arg CANOPY_VERSION=$V --build-arg C
 
 | Obraz | Baza | Zawartość | Użytkownik | Healthcheck |
 | --- | --- | --- | --- | --- |
-| `canopy-gateway` | `distroless/cc-debian12:nonroot` | binarka gateway | `nonroot` | `canopy-gateway healthcheck` (TCP na `OA_PORT`) |
+| `canopy-gateway` | `distroless/cc-debian12:nonroot` | binarka gateway | `nonroot` | `canopy-gateway healthcheck` (TCP na `CANOPY_PORT`) |
 | `canopy-web` | `oven/bun:1.4.4-distroless` | `scripts/build-web.ts`: BFF zbundlowany z zależnościami + `client/` | 65532 | `GET /api/health` |
-| `canopy-worker` | `debian:bookworm-slim` + git, curl, ssh, tini | binarka worker | `canopy` (10001) | `canopy-worker healthcheck` (link online wg `OA_WORKER_STATUS_FILE`) |
+| `canopy-worker` | `debian:bookworm-slim` + git, curl, ssh, tini | binarka worker | `canopy` (10001) | `canopy-worker healthcheck` (link online wg `CANOPY_WORKER_STATUS_FILE`) |
+
+
+Wszystkie zmienne runtime mają prefiks `CANOPY_`; dawne `OA_*` działają jeszcze jako fallback
+z ostrzeżeniem — mapowanie w [deploy.md](deploy.md#zmienne-środowiskowe-dawne-oa_).
 
 Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emulacji poza
 `apt-get` w obrazie workera.
@@ -132,7 +136,7 @@ Assety desktop mają `app: "desktop"` (kilka formatów na jedną parę os/arch).
 `.github/workflows/ci.yml` (pull requesty; wywoływany też przez Release):
 `bun install --frozen-lockfile` → `gen:check` → `typecheck` → `check:tmp` (testy jednostkowe
 i integracyjne; PostgreSQL w kontenerach Docker runnera) → build web → binaria linux-x64
-z kontrolą `--version`. Testy live są opt-in (`OA_LIVE`, prywatne klucze) i nie mają sekretów w CI.
+z kontrolą `--version`. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze) i nie mają sekretów w CI.
 
 `.github/workflows/release.yml` (push do `main`, tagi `vX.Y.Z[-…]`):
 

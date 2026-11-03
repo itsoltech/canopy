@@ -71,9 +71,9 @@ już obejmuje `apps/*`, więc nowa aplikacja nie wymaga zmiany konfiguracji work
 Zmiany wspólnego kodu są addytywne:
 
 - `packages/ui/desktop`: opcjonalne typy bridge, bez zmian protokołu gatewaya.
-- Gateway: opcjonalne `OA_WORKER_HOST` + `OA_WORKER_PORT`; istniejący listener
+- Gateway: opcjonalne `CANOPY_WORKER_HOST` + `CANOPY_WORKER_PORT`; istniejący listener
   i listener mobile działają jak wcześniej, gdy tych zmiennych nie ma.
-- Worker: opcjonalny `OA_WORKER_STATUS_FILE`, raportujący stan linku bez sekretów.
+- Worker: opcjonalny `CANOPY_WORKER_STATUS_FILE`, raportujący stan linku bez sekretów.
 - Web: dotychczasowy shell wyodrębniony do `AppShell.svelte`, ekran `/desktop`
   i feature-detectowana sekcja Settings → Desktop. Normalna przeglądarka zachowuje UI.
 

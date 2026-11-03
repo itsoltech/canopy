@@ -7,9 +7,9 @@ import { resolveProfiles } from "../profiles.ts";
 import { claudeProfileOptions } from "./profile.ts";
 
 const tempDir = tempDirs();
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key)("Claude MCP timeout (live)", () => {
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key)("Claude MCP timeout (live)", () => {
   test("an in-process MCP call times out even while its handler is still running", async () => {
     let called = false;
     let finished = false;
@@ -20,7 +20,7 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key)("Claude MCP time
     const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: url!, apiKey: key! }]).find((p) => p.config.id === "live")!.resolved!;
     const messages: SDKMessage[] = [];
     for await (const message of query({ prompt: "Call mcp__probe__wait_probe exactly once. If it errors or times out, reply TIMEOUT. Do not retry it.", options: {
-      cwd: tempDir("oa-timeout-cwd-"), model: process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
+      cwd: tempDir("oa-timeout-cwd-"), model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
       ...claudeProfileOptions(profile, { ...process.env, CLAUDE_CONFIG_DIR: tempDir("oa-timeout-home-") }),
       mcpServers: { probe: server }, allowedTools: ["mcp__probe__wait_probe"], maxTurns: 3,
       canUseTool: async (_name, input) => ({ behavior: "allow", updatedInput: input }),

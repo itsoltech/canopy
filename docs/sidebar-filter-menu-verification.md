@@ -45,7 +45,7 @@ bun run typecheck
 bun run gen:check
 bun run check:tmp
 bun run --filter @canopy/web build
-OA_BROWSER_TESTS=1 OA_PLAYWRIGHT_MODULE=/tmp/ro-shot/node_modules/playwright-core bun test tests/integration/sidebar-browser.test.ts
+CANOPY_BROWSER_TESTS=1 CANOPY_PLAYWRIGHT_MODULE=/tmp/ro-shot/node_modules/playwright-core bun test tests/integration/sidebar-browser.test.ts
 ```
 
 Scenariusze browser: prawy przycisk, Shift+F10, strzałki, Escape i powrót fokusu, filtr wielu projektów

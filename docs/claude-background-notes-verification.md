@@ -33,7 +33,7 @@ Po poprawkach: **13/13 scenariuszy**, bez błędów:
 - Claude, naturalny koniec i pojedyncza pobudka: **6/6**.
 - Codex, restart i odpowiedź w turze notatki: **1/1**.
 
-Obejmuje to jeden wstępny przebieg obu scenariuszy Claude, cztery powtórzenia pliku (`OA_LIVE=1 bun test tests/integration/background-task-notes.live.test.ts -t 'Claude:' --rerun-each 4`: 8/8) i końcowy przebieg całego pliku po scaleniu `main` oraz zachowaniu rezerwacji tury na `init` (`OA_LIVE=1 bun run check:tmp tests/integration/background-task-notes.live.test.ts`: 3/3, 28 asercji, 79,91 s). Końcowy przebieg potwierdził brak pozostawionych katalogów testów. Katalogi robocze narzędzi dostawców, np. cache kompilacji i katalogi sandboxa, są raportowane osobno przez istniejący `check:tmp` i usuwane z jego prywatnym katalogiem nadrzędnym.
+Obejmuje to jeden wstępny przebieg obu scenariuszy Claude, cztery powtórzenia pliku (`CANOPY_LIVE=1 bun test tests/integration/background-task-notes.live.test.ts -t 'Claude:' --rerun-each 4`: 8/8) i końcowy przebieg całego pliku po scaleniu `main` oraz zachowaniu rezerwacji tury na `init` (`CANOPY_LIVE=1 bun run check:tmp tests/integration/background-task-notes.live.test.ts`: 3/3, 28 asercji, 79,91 s). Końcowy przebieg potwierdził brak pozostawionych katalogów testów. Katalogi robocze narzędzi dostawców, np. cache kompilacji i katalogi sandboxa, są raportowane osobno przez istniejący `check:tmp` i usuwane z jego prywatnym katalogiem nadrzędnym.
 
 Scalono `main` z `e097e72` (merge `0bc549e`). `bun run typecheck` i `bun run gen:check` po scaleniu zakończyły się powodzeniem; Svelte nie zgłosił błędów ani ostrzeżeń.
 

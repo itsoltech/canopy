@@ -13,10 +13,10 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailable)("bots in the gateway through live CLIProxyAPI (both providers)", () => {
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAvailable)("bots in the gateway through live CLIProxyAPI (both providers)", () => {
   let gw: TestGateway;
   let workerId = "";
   let projectId = "";
@@ -42,7 +42,7 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailab
   afterAll(async () => { await gw?.core.bots.stop(); await stopWorker(); await gw?.close(); });
 
   for (const provider of [Provider.CLAUDE, Provider.CODEX]) test(`${Provider[provider]}: chat, shell refusal, platform start_thread and completion follow-up`, async () => {
-    const model = provider === Provider.CLAUDE ? process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" : process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    const model = provider === Provider.CLAUDE ? process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" : process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
     const bot = (await gw.api.createBot({ clientRequestId: Bun.randomUUIDv7(), configuration: {
       name: `Live ${Provider[provider]}`, shape: "ghost", color: "#22aaff", provider, providerInstance: "cliproxyapi", model, effort: "low", approvalPolicy: "safe",
     } })).bot!;

@@ -1,7 +1,7 @@
 /**
  * Live, the whole chain: UI API -> gateway core (PostgreSQL) -> real worker host -> Codex app-server /
  * Claude Code -> events -> ingest -> UI. Harness goals (docs/goals.md) and background work
- * (docs/execution.md). Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
+ * (docs/execution.md). Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
@@ -16,11 +16,11 @@ import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const codexModel = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-const claudeModel = process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const codexModel = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const claudeModel = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
 const MINUTE = 60_000;
 
 /** Like eventually, but a condition that never holds fails the test (with what was awaited). */

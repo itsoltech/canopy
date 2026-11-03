@@ -22,7 +22,7 @@ Instancja CLIProxyAPI używa odizolowanego `GROK_HOME` i konfiguracji modelu z `
 
 `packages/grok-acp` posiada proces CLI i jego grupę procesów, inicjalizację, typowane sesje, wybór modelu/trybu i asynchroniczny strumień promptu. Żądania mają unikalne ID i timeouty; obsługa callbacków nie blokuje odbioru odpowiedzi. Zapis czeka na flush stdin, kolejka zdarzeń i ramki są ograniczone. Crash/EOF/nieprawidłowa ramka kończą oczekujące żądania. Dispose wysyła TERM, następnie KILL i czeka na zebranie procesu; przerwany konsument nie pozostawia działającej tury. Stderr jest ograniczony i redagowany. Możliwości fs i terminal są ogłaszane wyłącznie, gdy klient dostarcza ich implementację.
 
-Testy fake agenta sprawdzają podzielone ramki UTF-8, kolejne tury, wznowienie, permission round-trip, anulowanie, crash, redakcję i timeout. Testy prawdziwego CLI wymagają `OA_LIVE=1`.
+Testy fake agenta sprawdzają podzielone ramki UTF-8, kolejne tury, wznowienie, permission round-trip, anulowanie, crash, redakcję i timeout. Testy prawdziwego CLI wymagają `CANOPY_LIVE=1`.
 
 ## Adapter workera
 
@@ -100,7 +100,7 @@ Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi
 
 - SDK: deterministyczny fake ACP, framing Unicode, kolejne tury/load, permission deny, cancel/reuse, crash/redakcja, timeout, nieposłuszne anulowanie i abort callbacka.
 - `tests/integration/grok-provider.test.ts`: prawdziwy gateway/PostgreSQL + WorkerHost + fake Grok, native i endpoint instance, MCP, itemy, zgody/odmowy, interrupt, steer→queue, restart/load.
-- Opt-in `OA_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`, `apps/gateway/src/bots/grok.live.test.ts`. Env testowe: `OA_LIVE_CLIPROXYAPI_URL`, `OA_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `OA_LIVE_GROK_MODEL`, `OA_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
+- Opt-in `CANOPY_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`, `apps/gateway/src/bots/grok.live.test.ts`. Env testowe: `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `CANOPY_LIVE_GROK_MODEL`, `CANOPY_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
 - Odbiór Chromium opisuje [grok-verification.md](grok-verification.md). Nie dodano web UI testów.
 
 Ograniczenia: brak ACP fork i goals (odrzucane w gatewayu, kontrolki ukryte), brak native background-task lifecycle/stopTask i automatycznego settlement z transkryptu Groka po awarii; przerwana tura po restarcie korzysta ze wspólnego fallbacku workera, sesja jest nadal wznawialna. Nie odtwarzamy niezgłoszonych tokenów input/output ani nie zgadujemy usage z context occupancy. Natywny płatny smoke pominięto z powodu braku loginu. Live nie obejmował obrazów, rzeczywistych diffów CLI ani mieszanego spawn Claude/Codex↔Grok; obrazy/diffy mają fake integrację, a wybór spawn test resolvera. ASK ma fake round-trip zgody/odmowy/anulowania; live proxy pracował w FULL_AUTO, bez pełnej macierzy READ_ONLY/ACCEPT_EDITS/FULL_AUTO. Nie należy deklarować pełnego live parytetu.

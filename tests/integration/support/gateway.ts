@@ -360,7 +360,7 @@ export async function startTestGateway(options: { attachmentLimits?: AttachmentL
     await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [added.workerId])));
     return added;
   };
-  const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }), ...(options.botModel && { botModel: options.botModel }), ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["OA_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
+  const core = new GatewayCore({ runtime, instanceId: "test", userId, ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }), ...(options.botModel && { botModel: options.botModel }), ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["CANOPY_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
   const grpc = await startGrpcServer({
     routes: (router) => {
       core.link.routes(router);

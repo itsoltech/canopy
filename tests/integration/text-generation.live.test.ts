@@ -14,10 +14,10 @@ import { startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)("one-shot text through both live harness SDKs", () => {
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)("one-shot text through both live harness SDKs", () => {
   let gw: TestGateway;
   let workerId = "";
   let host: WorkerHost;
@@ -40,8 +40,8 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !proxyUrl || !proxyKey || !doc
   afterAll(async () => { await stop(); await gw?.close(); });
 
   for (const c of [
-    { provider: Provider.CLAUDE, name: "Claude", model: process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
-    { provider: Provider.CODEX, name: "Codex", model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
+    { provider: Provider.CLAUDE, name: "Claude", model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5" },
+    { provider: Provider.CODEX, name: "Codex", model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
   ]) {
     test(`${c.name}: returns plain text without platform threads, turns, journal records or transcripts`, async () => {
       const before = await runtime.runPromise(journalHello());

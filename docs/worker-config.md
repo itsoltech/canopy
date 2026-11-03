@@ -19,7 +19,7 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
 
 1. W **Settings → Workers → Add worker** podaj nazwę i **Gateway address for workers**.
    To origin portu **gRPC**, domyślnie `:7443`, a nie adres strony web. Gateway bierze
-   wartość początkową z `OA_PUBLIC_GATEWAY_URL`; edytowalne nadpisanie należy do ustawień
+   wartość początkową z `CANOPY_PUBLIC_GATEWAY_URL`; edytowalne nadpisanie należy do ustawień
    użytkownika. Zmiana nie przeadresowuje istniejących plików `worker.json`.
 2. Wybierz Linux/macOS i podaj URL swojego repozytorium Canopy albo absolutną ścieżkę
    istniejącego checkoutu **z tą wersją kodu**. Skopiuj komendę i uruchom ją na dodawanej
@@ -38,7 +38,7 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
 
 Przykład Maca przez Tailscale: obie maszyny muszą być w tej samej zaufanej sieci, a ACL
 muszą pozwalać Macowi na TCP do `canopy-gateway:7443`. Gateway musi nasłuchiwać na interfejsie
-dostępnym z Tailscale (`OA_HOST`, domyślnie `0.0.0.0`). Ustaw `OA_PUBLIC_GATEWAY_URL=http://canopy-gateway:7443`
+dostępnym z Tailscale (`CANOPY_HOST`, domyślnie `0.0.0.0`). Ustaw `CANOPY_PUBLIC_GATEWAY_URL=http://canopy-gateway:7443`
 albo zapisz taki adres w UI, wybierz **macOS** i wykonaj komendę na Macu. Połączenie HTTP
 jest h2c — używaj go wyłącznie lokalnie lub wewnątrz zaufanej szyfrowanej sieci. Poza nią
 używaj HTTPS/TLS; proxy musi obsługiwać gRPC HTTP/2 i długie strumienie. Nie otwieraj portu
@@ -63,7 +63,7 @@ bun apps/worker/src/main.ts service --config /absolute/path/worker.json
 
 `canopy-worker` w opisie interfejsu CLI oznacza ten entrypoint uruchomiony przez Bun;
 pakiet nie instaluje obecnie globalnego polecenia. `--config` ma pierwszeństwo przed
-`OA_WORKER_CONFIG`; bez obu obowiązują ścieżki per OS opisane niżej. `enroll` rezerwuje
+`CANOPY_WORKER_CONFIG`; bez obu obowiązują ścieżki per OS opisane niżej. `enroll` rezerwuje
 plik z `0600` **przed** wymianą tokenu. Istniejący plik jest odrzucany bez wydania tokenu;
 `--force` zapisuje nowy prywatny plik i atomowo go podmienia, nie podąża za symlinkiem.
 Nie wypisuje credentialu. Utrata odpowiedzi albo awaria po zużyciu tokenu wymaga nowego
@@ -143,7 +143,7 @@ Wypisuje **sekretny** `worker.json`; przekieruj go do pliku z umask 077, nie do 
 }
 ```
 
-- Lokalizacja: `OA_WORKER_CONFIG` albo domyślna per system:
+- Lokalizacja: `CANOPY_WORKER_CONFIG` albo domyślna per system:
   - Linux: `$XDG_CONFIG_HOME/open-agents/worker.json`,
   - macOS: `~/Library/Application Support/open-agents/worker.json`,
   - Windows: `%APPDATA%\open-agents\worker.json`.

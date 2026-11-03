@@ -7,10 +7,10 @@ import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { useLiveProxy } from "./support/live.ts";
 
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailable)("live bot handoff through CLIProxyAPI", () => {
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAvailable)("live bot handoff through CLIProxyAPI", () => {
   let gw: TestGateway;
   beforeAll(async () => {
     gw = await startTestGateway();
@@ -19,8 +19,8 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailab
   }, 30000);
   afterAll(async () => { await gw?.core.bots.stop(); await gw?.close(); });
   test("Codex hands a learned fact to Grok, which identifies its current model", async () => {
-    const source = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-    const target = process.env["OA_LIVE_GROK_MODEL"] ?? "grok-3-mini-fast";
+    const source = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    const target = process.env["CANOPY_LIVE_GROK_MODEL"] ?? "grok-3-mini-fast";
     for (const [harness, model] of [[Provider.CODEX, source], [Provider.GROK, target]] as const) await gw.api.setInstanceModels({ harness, id: "cliproxyapi", models: { custom: [model] } });
     const bot = (await gw.api.createBot({ clientRequestId: Bun.randomUUIDv7(), configuration: { name: "Live handoff", shape: "round", color: "#22aaff", provider: Provider.CODEX, providerInstance: "cliproxyapi", model: source, effort: "low", approvalPolicy: "safe", instructions: "Answer briefly. Do not use tools in this conversation." } })).bot!;
     const query = <A extends object>(text: string) => gw.runtime.runPromise(Effect.gen(function* () { return yield* (yield* SqlClient.SqlClient).unsafe<A>(text, [bot.id]); }));

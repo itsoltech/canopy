@@ -4,11 +4,12 @@ import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import { BotStore } from "./bots/store.ts";
 import { AgentBusStore, AttachmentStore, BackgroundTaskStore, GatewayStore, GoalStore, Ingest, loadSecretsKey, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "./store/index.ts";
+import { readEnv } from "@canopy/domain/env";
 
 /** Database-backed services of the gateway, shared by main.ts and cli.ts. */
 export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>) {
-  const url = env["OA_DATABASE_URL"];
-  if (!url) throw new Error("OA_DATABASE_URL is not set, e.g. postgres://open_agents:...@127.0.0.1:5432/open_agents");
+  const url = readEnv("CANOPY_DATABASE_URL", env);
+  if (!url) throw new Error("CANOPY_DATABASE_URL is not set, e.g. postgres://open_agents:...@127.0.0.1:5432/open_agents");
   const database = PgClient.layer({ url: Redacted.make(url), applicationName: "open-agents-gateway" });
   const secretsKey = loadSecretsKey(env);
   return ManagedRuntime.make(
@@ -41,19 +42,19 @@ export const ensureDevUser = (runtime: GatewayRuntime, email: string) =>
   runtime.runPromise(GatewayStore.use((s) => s.ensureUser(email, email.split("@")[0] ?? "dev")));
 
 /**
- * Attachment limits (docs/ui-api.md, "Załączniki"): OA_ATTACHMENT_MAX_FILE_MB, OA_ATTACHMENT_MAX_MESSAGE_MB,
- * OA_ATTACHMENT_MAX_FILES; unset or invalid = the default.
+ * Attachment limits (docs/ui-api.md, "Załączniki"): CANOPY_ATTACHMENT_MAX_FILE_MB, CANOPY_ATTACHMENT_MAX_MESSAGE_MB,
+ * CANOPY_ATTACHMENT_MAX_FILES; unset or invalid = the default.
  */
 export function attachmentLimits(env: Readonly<Record<string, string | undefined>>): AttachmentLimits {
-  const number = (name: string, fallback: number) => {
-    const value = Number(env[name]);
+  const number = (name: `CANOPY_${string}`, fallback: number) => {
+    const value = Number(readEnv(name, env));
     return Number.isFinite(value) && value > 0 ? value : fallback;
   };
   const d = DEFAULT_ATTACHMENT_LIMITS;
   return {
-    maxFileBytes: Math.round(number("OA_ATTACHMENT_MAX_FILE_MB", d.maxFileBytes / 1024 ** 2) * 1024 ** 2),
-    maxMessageBytes: Math.round(number("OA_ATTACHMENT_MAX_MESSAGE_MB", d.maxMessageBytes / 1024 ** 2) * 1024 ** 2),
-    maxFiles: Math.round(number("OA_ATTACHMENT_MAX_FILES", d.maxFiles)),
+    maxFileBytes: Math.round(number("CANOPY_ATTACHMENT_MAX_FILE_MB", d.maxFileBytes / 1024 ** 2) * 1024 ** 2),
+    maxMessageBytes: Math.round(number("CANOPY_ATTACHMENT_MAX_MESSAGE_MB", d.maxMessageBytes / 1024 ** 2) * 1024 ** 2),
+    maxFiles: Math.round(number("CANOPY_ATTACHMENT_MAX_FILES", d.maxFiles)),
   };
 }
 

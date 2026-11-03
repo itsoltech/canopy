@@ -19,7 +19,7 @@ workerów. Stare RPC pozostają adapterem zgodności; nowa konfiguracja korzysta
 z Connectors. Stare tabele pozostają wyłącznie jako źródło migracji.
 
 Gateway jest jedynym klientem zewnętrznego MCP. Tokeny, refresh tokeny, sekrety
-aplikacji OAuth i PKCE są zaszyfrowane AES-256-GCM kluczem `OA_SECRETS_KEY`.
+aplikacji OAuth i PKCE są zaszyfrowane AES-256-GCM kluczem `CANOPY_SECRETS_KEY`.
 Żaden katalog narzędzi ani wynik API nie zawiera tych wartości. Wyniki zdalnych
 narzędzi przechodzą redakcję znanych sekretów przed utrwaleniem i wysłaniem.
 Błędy zewnętrznych serwerów są zastępowane komunikatem bez przyczyny/requestu.

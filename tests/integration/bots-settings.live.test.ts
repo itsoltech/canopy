@@ -5,10 +5,10 @@ import { dockerAvailable } from '@canopy/db/testing';
 import { eventually, startTestGateway, type TestGateway } from './support/gateway.ts';
 import { useLiveProxy } from './support/live.ts';
 
-const url = process.env['OA_LIVE_CLIPROXYAPI_URL'];
-const key = process.env['OA_LIVE_CLIPROXYAPI_KEY'];
+const url = process.env['CANOPY_LIVE_CLIPROXYAPI_URL'];
+const key = process.env['CANOPY_LIVE_CLIPROXYAPI_KEY'];
 
-describe.skipIf(process.env['OA_LIVE'] !== '1' || !url || !key || !dockerAvailable)('self-edit through live CLIProxyAPI', () => {
+describe.skipIf(process.env['CANOPY_LIVE'] !== '1' || !url || !key || !dockerAvailable)('self-edit through live CLIProxyAPI', () => {
   let gw: TestGateway;
   beforeAll(async () => {
     gw = await startTestGateway();
@@ -18,7 +18,7 @@ describe.skipIf(process.env['OA_LIVE'] !== '1' || !url || !key || !dockerAvailab
   afterAll(async () => { await gw?.core.bots.stop(); await gw?.close(); });
   test('a conversational request durably changes the name and standing language, and the next reply follows', async () => {
     const name = `Kropka-${Bun.randomUUIDv7().slice(-6)}`;
-    const bot = (await gw.api.createBot({ clientRequestId: Bun.randomUUIDv7(), configuration: { name: 'Live edit bot', shape: 'round', color: '#f97316', provider: Provider.CODEX, providerInstance: 'cliproxyapi', model: process.env['OA_LIVE_CODEX_MODEL'] ?? 'gpt-6.1-sol', effort: 'low', approvalPolicy: 'safe' } })).bot!;
+    const bot = (await gw.api.createBot({ clientRequestId: Bun.randomUUIDv7(), configuration: { name: 'Live edit bot', shape: 'round', color: '#f97316', provider: Provider.CODEX, providerInstance: 'cliproxyapi', model: process.env['CANOPY_LIVE_CODEX_MODEL'] ?? 'gpt-6.1-sol', effort: 'low', approvalPolicy: 'safe' } })).bot!;
     const ask = async (text: string) => {
       await gw.core.bots.send(create(bots.SendBotMessageRequestSchema, { botId: bot.id, text, clientRequestId: Bun.randomUUIDv7() }));
       return eventually(() => gw.core.bots.run((s) => s.conversation(gw.userId, bot.id)), (s) => !s.working, 120_000);

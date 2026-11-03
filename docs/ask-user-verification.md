@@ -12,11 +12,11 @@ Dowody:
 
 1. Claude Agent SDK 0.3.316 dokumentuje twardy timeout MCP; live `tool-timeout.live.test.ts` potwierdził błąd timeout dla 1000 ms przy handlerze 2500 ms (4 asercje).
 2. Codex 0.164.0, `request_dynamic_tool`, czeka do odpowiedzi lub anulowania bez lokalnego timera; nie zakładamy bezterminowości całego transportu.
-3. Live Codex z `OA_ASK_LONG_WAIT=1`: odpowiedź API po 123 s, wykonane `get_answers`, jedna interakcja, wynik `RESULT: Green` (7 asercji; test trwał około 136 s).
+3. Live Codex z `CANOPY_ASK_LONG_WAIT=1`: odpowiedź API po 123 s, wykonane `get_answers`, jedna interakcja, wynik `RESULT: Green` (7 asercji; test trwał około 136 s).
 
 ## Testy
 
-`bun run typecheck`, `bun run gen:check`, pełne `bun run check:tmp` i `bun run --filter @canopy/web build` są wymaganymi kontrolami tej gałęzi. Testy live są osobnym przebiegiem z `OA_LIVE=1`, plikiem środowiska spoza repozytorium i `useLiveProxy`; żadnych wartości poświadczeń w repozytorium ani raporcie.
+`bun run typecheck`, `bun run gen:check`, pełne `bun run check:tmp` i `bun run --filter @canopy/web build` są wymaganymi kontrolami tej gałęzi. Testy live są osobnym przebiegiem z `CANOPY_LIVE=1`, plikiem środowiska spoza repozytorium i `useLiveProxy`; żadnych wartości poświadczeń w repozytorium ani raporcie.
 
 Po ostatnim scaleniu wszystkie wymagane kontrole przeszły: typecheck (Svelte: 0 błędów i 0 ostrzeżeń), gen:check, web build oraz pełne check:tmp — **748 pass, 96 skip, 0 fail**, 844 testy w 126 plikach, 2876 asercji. Testy opt-in live/browser są pomijane w pełnej suite i uruchamiane osobno. Kontrolowany katalog tymczasowy pozostał pusty; narzędzie odnotowało równoległe katalogi w `/tmp`, w tym własny działający fixture, który następnie zakończono i posprzątano. Build zgłasza ostrzeżenie o rozmiarze chunka.
 

@@ -19,7 +19,7 @@ Zastosowano skille `design`, `transitions-dev` i `componentize`. Animacje odwoł
 | `bun run --cwd apps/web build` | OK; adapter-node zakończył build; standardowe ostrzeżenie Vite o chunkach >500 kB |
 | pełne `bun run check:tmp` | 839 pass, 154 skip, 0 fail; 993 testy, 153 pliki; brak własnych pozostałości w TMPDIR |
 | `bun run check:tmp apps/web/src/lib/features/bots apps/web/test/worked-for.test.ts apps/web/test/steer-goals.test.ts` | 46 pass, 0 fail; brak pozostałości |
-| `OA_BOTS_WIZARD_BROWSER=1 bun test tests/integration/bots-wizard.browser.test.ts` | 7 pass, 0 fail; 180 asercji; końcowy przebieg 35,18 s |
+| `CANOPY_BOTS_WIZARD_BROWSER=1 bun test tests/integration/bots-wizard.browser.test.ts` | 7 pass, 0 fail; 180 asercji; końcowy przebieg 35,18 s |
 
 Włączono przesuwający się `main`, w tym custom form controls, poprawkę przewijania popoverów, ikony providerów w bocznych wątkach i timeline folding (`28aef2b`). Po ostatnim scaleniu ponowiono instalację, pełny typecheck, build, testy jednostkowe botów i testy zmienione na main oraz cały przebieg przeglądarkowy. Pełny `check:tmp` zakończył się przed ostatnim scaleniem timeline folding; wiersz z 46 testami jest ponowną weryfikacją po tym scaleniu.
 

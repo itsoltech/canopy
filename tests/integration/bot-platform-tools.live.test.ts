@@ -12,10 +12,10 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
 const tempDir = tempDirs();
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
-describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailable)("bot provisions a project through live CLIProxyAPI", () => {
+describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAvailable)("bot provisions a project through live CLIProxyAPI", () => {
   let gw: TestGateway;
   let workerId = "";
   let stopWorker = async () => {};
@@ -37,7 +37,7 @@ describe.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key || !dockerAvailab
   afterAll(async () => { await gw?.core.bots.stop(); await stopWorker(); await gw?.close(); });
 
   test("natural request creates a project, workspace and pwd thread, then reports the completion", async () => {
-    const model = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+    const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
     const name = `Bot platform ${Bun.randomUUIDv7().slice(-8)}`;
     const bot = (await gw.api.createBot({ clientRequestId: Bun.randomUUIDv7(), configuration: {
       name: "Platform live", shape: "round", color: "#22aaff", provider: Provider.CODEX,

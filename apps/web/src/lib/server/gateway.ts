@@ -11,7 +11,7 @@ import { GATEWAY_SERVICE_TOKEN, GATEWAY_URL } from "$app/env/private";
 let client: Client<typeof ui.GatewayService> | undefined;
 
 export function requireServiceToken(): string {
-  if (!GATEWAY_SERVICE_TOKEN) throw new Error("GATEWAY_SERVICE_TOKEN is not set (the gateway's OA_UI_SERVICE_TOKEN)");
+  if (!GATEWAY_SERVICE_TOKEN) throw new Error("GATEWAY_SERVICE_TOKEN is not set (the gateway's CANOPY_UI_SERVICE_TOKEN)");
   return GATEWAY_SERVICE_TOKEN;
 }
 

@@ -3,9 +3,9 @@ import { create } from "@bufbuild/protobuf";
 import { bots, Provider } from "@canopy/contracts";
 import { directModel } from "./model.ts";
 
-const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const key = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-test.skipIf(process.env["OA_LIVE"] !== "1" || !url || !key)("cheap Grok bot API: function call and durable tool result through CLIProxyAPI", async () => {
+const url = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+test.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key)("cheap Grok bot API: function call and durable tool result through CLIProxyAPI", async () => {
   const run = directModel(async () => ({ url: url!, key: key! }));
   const input = {
     configuration: create(bots.BotConfigurationSchema, { provider: Provider.GROK, model: "grok-3-mini-fast", effort: "low" }),

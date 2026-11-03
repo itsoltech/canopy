@@ -3,7 +3,7 @@
  * Codex and for Claude, the worker is stopped gracefully mid-task (as main.ts does on SIGTERM: shutdown, flush,
  * close) and started again on the same journal. The task ends as worker_shutdown with its end time, the agent gets
  * the platform's note in a turn of its own after the restart, and can say what happened (get_background_task).
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
@@ -18,11 +18,11 @@ import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
-const codexModel = process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-const claudeModel = process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
+const codexModel = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
+const claudeModel = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
 const MINUTE = 60_000;
 
 async function until<A>(what: string, read: () => Promise<A>, done: (value: A) => boolean, timeoutMs: number): Promise<A> {

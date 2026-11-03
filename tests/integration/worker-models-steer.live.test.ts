@@ -2,7 +2,7 @@
  * Live, below the gateway, for Codex and Claude through CLIProxyAPI: the worker host lists the models of the
  * profile after its config (no model turn), runs a turn with a chosen model and reasoning effort, and takes a
  * steered message into a running turn (Codex turn/steer, Claude streaming input).
- * Opt-in: OA_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
+ * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/codex-adapter.md#testy-na-żywo).
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
@@ -16,15 +16,15 @@ import { connectWorker, startGateway } from "./helpers.ts";
 
 const tempDir = tempDirs();
 
-const LIVE = process.env["OA_LIVE"] === "1";
-const proxyUrl = process.env["OA_LIVE_CLIPROXYAPI_URL"];
-const proxyKey = process.env["OA_LIVE_CLIPROXYAPI_KEY"];
+const LIVE = process.env["CANOPY_LIVE"] === "1";
+const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
+const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
 const CASES = [
   {
     name: "Codex",
     provider: Provider.CODEX,
-    model: process.env["OA_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol",
+    model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol",
     // Codex runs the command without asking (workspace-write); Claude asks and the test allows it.
     permissionMode: PermissionMode.FULL_AUTO,
     config: { codex: { enabled: true, deviceLogin: DeviceLogin.NONE }, claude: { enabled: false } },
@@ -32,7 +32,7 @@ const CASES = [
   {
     name: "Claude",
     provider: Provider.CLAUDE,
-    model: process.env["OA_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
+    model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
     permissionMode: PermissionMode.ASK,
     config: { codex: { enabled: false }, claude: { enabled: true, deviceLogin: DeviceLogin.NONE } },
   },
