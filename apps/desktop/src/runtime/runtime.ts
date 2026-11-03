@@ -42,7 +42,14 @@ export class DesktopRuntime {
   get status() { return { ...this.state, clis: { ...this.state.clis } }; }
   get origin() { return this.setupOrigin; }
   get pids() { return [...this.services.pids, ...this.web.pids]; }
-  private publish(patch: Partial<DesktopStatus>) { this.state = { ...this.state, ...patch }; this.changed(this.status); }
+  // Worker/health polls repeat the same status every second; each event rebuilds the app and tray
+  // menus on Electron's UI thread, which also delivers input. Only report real changes.
+  private publish(patch: Partial<DesktopStatus>) {
+    const next = { ...this.state, ...patch };
+    if (JSON.stringify(next) === JSON.stringify(this.state)) return;
+    this.state = next;
+    this.changed(this.status);
+  }
   private makeSupervisor() {
     return new Supervisor(this.logs, (name, running, failed) => {
       if (name === "worker" && !running) this.publish({ worker: "offline" });

@@ -235,14 +235,17 @@ async function start() {
     try { await preparePolicy(status.webUrl); initialUrl = status.webUrl; }
     catch { logs.write("desktop", "Web application unavailable; opening desktop settings while the worker reconnects"); }
   }
+  // Only documents need these hooks. Unfiltered, every script, fetch and font would wait for a
+  // round trip through this process (busy with menus and IPC) before reaching the network.
+  const documents: Electron.WebRequestFilter = { urls: ["<all_urls>"], types: ["mainFrame"] };
   // Refresh hashes for every document (including reloading a nested SvelteKit route).
-  window.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+  window.webContents.session.webRequest.onBeforeRequest(documents, (details, callback) => {
     if (details.resourceType === "mainFrame" && [setupOrigin, status.webUrl].includes(new URL(details.url).origin)) {
       void preparePolicy(details.url).then(() => callback({})).catch(() => callback({ cancel: true }));
     } else callback({});
   });
   // Restrict executable code to the selected origin. Svelte needs inline style attributes; no eval.
-  window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+  window.webContents.session.webRequest.onHeadersReceived(documents, (details, callback) => {
     let headers = details.responseHeaders;
     if (details.resourceType === "mainFrame" && [setupOrigin, status.webUrl].includes(new URL(details.url).origin)) {
       const hashes = [...(scriptHashes.get(new URL(details.url).origin) ?? [])].join(" ");
