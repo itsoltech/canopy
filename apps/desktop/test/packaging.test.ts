@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { noAgentClis } from "../../../scripts/agent-clis.ts";
@@ -41,6 +41,30 @@ test("packaging rejects bundled agent CLIs and a bundled database", async () => 
   const second = await packed();
   mkdirSync(join(second.runtime, "postgres"));
   await expect(verify(second.context)).rejects.toThrow("PostgreSQL must be downloaded only for local mode");
+});
+
+test("macOS packaging requires an arm64 quit adapter and includes it in signing", async () => {
+  const fixture = await packed();
+  const application = join(fixture.app, "Canopy.app");
+  const resources = join(application, "Contents/Resources");
+  mkdirSync(join(application, "Contents"), { recursive: true });
+  renameSync(fixture.resources, resources);
+  const runtime = join(resources, "runtime");
+  renameSync(join(runtime, "node_modules/@img/sharp-linux-x64"), join(runtime, "node_modules/@img/sharp-darwin-arm64"));
+  writeFileSync(join(runtime, "target.json"), JSON.stringify({ target: "darwin-arm64" }));
+  writeFileSync(join(runtime, "postgres.json"), JSON.stringify({ packageName: "@embedded-postgres/darwin-arm64", target: "darwin-arm64", integrity: `sha512-${Buffer.alloc(64).toString("base64")}` }));
+  const arm64 = Buffer.from("cffaedfe0c0000010000000061726d3634", "hex");
+  writeFileSync(join(runtime, "bun"), arm64);
+  const signing = { binaries: [] as string[] };
+  const context = { appOutDir: fixture.app, electronPlatformName: "darwin", packager: { appInfo: { productFilename: "Canopy" }, platformSpecificBuildOptions: signing } };
+  await expect(verify(context)).rejects.toThrow("quit key event adapter missing");
+  mkdirSync(join(resources, "native"));
+  const adapter = join(resources, "native/quit-key-event.node");
+  writeFileSync(adapter, "not a Mach-O");
+  await expect(verify(context)).rejects.toThrow("adapter must be an arm64 Mach-O");
+  writeFileSync(adapter, arm64);
+  await expect(verify(context)).resolves.toBeUndefined();
+  expect(signing.binaries).toContain(adapter);
 });
 
 test("the size guard rejects duplicated large files even outside node_modules", () => {
