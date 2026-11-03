@@ -9,6 +9,8 @@ import { loadSecrets } from "./vault.ts";
 import { Logs } from "./runtime/log.ts";
 import { desktopIdentity } from "./identity.ts";
 import { DesktopUpdates } from "./updates.ts";
+import { QuitGuard } from "./quit-guard.ts";
+import { isQuitShortcut, QuitSettings } from "./quit-settings.ts";
 
 const identity = desktopIdentity();
 app.setName(identity.productName);
@@ -41,6 +43,10 @@ const requests = new Map<number, { resolve: (value: unknown) => void; reject: (e
 const resources = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
 const iconPath = app.isPackaged ? join(resources, "icon.png") : resolve(app.getAppPath(), `build/${identity.channel}/icon.png`);
 const logs = new Logs(join(app.getPath("userData"), "logs"));
+const quitSettings = new QuitSettings(app.getPath("userData"));
+const quitGuard = new QuitGuard(quitSettings.read(), () => app.quit(), (state) => {
+  for (const target of [window, settingsWindow]) if (target && !target.isDestroyed()) target.webContents.send("canopy:quit-guard", state);
+});
 const scriptHashes = new Map<string, Set<string>>();
 async function preparePolicy(url: string) {
   const response = await fetch(url, { signal: AbortSignal.timeout(10_000), redirect: "error" });
@@ -83,9 +89,17 @@ function broadcast() {
     updates.item(),
     { type: "separator" }, { label: `Quit ${identity.productName}`, click: () => app.quit() },
   ]));
+  const quitItem: Electron.MenuItemConstructorOptions = { label: `Quit ${identity.productName}`, accelerator: "CmdOrCtrl+Q",
+    click: (_item, _target, event) => {
+      if (event.triggeredByAccelerator) quitGuard.accelerator(BrowserWindow.getFocusedWindow());
+      else app.quit();
+    } };
   const template: Electron.MenuItemConstructorOptions[] = [
-    ...(process.platform === "darwin" ? [{ role: "appMenu" as const }] : []),
-    { label: identity.productName, submenu: [{ label: "Desktop settings…", accelerator: "CmdOrCtrl+,", click: openSettings }, updates.item(), { label: "Open logs folder", click: () => void shell.openPath(logs.directory) }, { type: "separator" }, { role: "quit" }] },
+    { label: identity.productName, submenu: [
+      ...(process.platform === "darwin" ? [{ role: "about" as const }, { type: "separator" as const }] : []),
+      { label: "Desktop settings…", accelerator: "CmdOrCtrl+,", click: openSettings }, updates.item(), { label: "Open logs folder", click: () => void shell.openPath(logs.directory) },
+      ...(process.platform === "darwin" ? [{ type: "separator" as const }, { role: "services" as const }, { type: "separator" as const }, { role: "hide" as const }, { role: "hideOthers" as const }, { role: "unhide" as const }] : []),
+      { type: "separator" }, quitItem] },
     { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -106,7 +120,8 @@ function createWindow() {
     ...(process.platform === "darwin" && { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 18, y: 18 } }),
     webPreferences: { preload: join(app.getAppPath(), "dist/preload.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, webviewTag: false },
   });
-  target.once("ready-to-show", () => target.show());
+  quitGuard.attach(target);
+  target.once("ready-to-show", () => { if (!quitting) target.show(); });
   target.on("page-title-updated", (event) => { event.preventDefault(); target.setTitle(identity.productName); });
   const contentId = target.webContents.id;
   target.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
@@ -167,6 +182,8 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   if (quitting) return;
   quitting = true;
+  quitGuard.cancel();
+  for (const target of BrowserWindow.getAllWindows()) target.hide();
   updates.stop();
   const finish = () => { stopped = true; if (installingUpdate) updates.install(); else app.quit(); };
   // EOF makes the guardian stop owned process groups even if Electron subsequently crashes.
@@ -208,6 +225,16 @@ async function start() {
   status = initialized.status;
   ipcMain.handle("canopy:status", (event) => { authorize(event); return status; });
   ipcMain.handle("canopy:settings", (event) => { authorize(event); openSettings(); });
+  ipcMain.handle("canopy:quit-shortcut", (event) => { authorize(event); return quitGuard.mode; });
+  ipcMain.handle("canopy:set-quit-shortcut", (event, value: unknown) => {
+    authorize(event);
+    if (!isQuitShortcut(value)) throw new Error("Invalid quit shortcut");
+    quitSettings.write(value);
+    quitGuard.cancel();
+    quitGuard.mode = value;
+    for (const target of [window, settingsWindow]) if (target && !target.isDestroyed()) target.webContents.send("canopy:quit-shortcut", value);
+    return value;
+  });
   ipcMain.handle("canopy:updates", (event) => { authorize(event); return updates.status(); });
   ipcMain.handle("canopy:update-channel", (event, channel: unknown) => { authorize(event); return updates.setChannel(channel); });
   ipcMain.handle("canopy:update-check", (event) => { authorize(event); return updates.check(); });

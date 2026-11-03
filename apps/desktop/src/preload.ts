@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopBridge, DesktopStatus, DesktopUpdateStatus } from "@canopy/ui/desktop";
+import type { DesktopBridge, DesktopStatus, DesktopUpdateStatus, QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
 
 function subscribe<T>(channel: string, listener: (data: T) => void) {
   const receive = (_event: Electron.IpcRendererEvent, data: T) => listener(data);
@@ -11,6 +11,10 @@ const bridge: DesktopBridge = {
   status: () => ipcRenderer.invoke("canopy:status"),
   configure: (configuration) => ipcRenderer.invoke("canopy:configure", configuration),
   openSettings: () => ipcRenderer.invoke("canopy:settings"),
+  quitShortcut: () => ipcRenderer.invoke("canopy:quit-shortcut"),
+  setQuitShortcut: (shortcut) => ipcRenderer.invoke("canopy:set-quit-shortcut", shortcut),
+  onQuitShortcut: (listener) => subscribe<QuitShortcut>("canopy:quit-shortcut", listener),
+  onQuitGuard: (listener) => subscribe<QuitGuardState>("canopy:quit-guard", listener),
   updates: () => ipcRenderer.invoke("canopy:updates"),
   setUpdateChannel: (channel) => ipcRenderer.invoke("canopy:update-channel", channel),
   checkForUpdates: () => ipcRenderer.invoke("canopy:update-check"),
