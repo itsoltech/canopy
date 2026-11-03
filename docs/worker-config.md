@@ -25,7 +25,8 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
    istniejącego checkoutu **z tą wersją kodu**. Skopiuj komendę i uruchom ją na dodawanej
    maszynie w bash/zsh jako zwykły użytkownik. Potrzebne są Git, dostęp do repozytorium
    oraz sieć do gateway; komenda instaluje Bun, jeśli go brakuje, wykonuje `bun install`,
-   enrollment i uruchamia worker. Nie ma jeszcze opublikowanej binarki/instalatora workera.
+   enrollment i uruchamia worker. Kreator nie korzysta jeszcze z binarek `canopy-worker-<os>-<arch>`
+   z GitHub Releases; ręczna instalacja binarki: [deploy.md](deploy.md#worker).
 3. Wybierz **Check connection**. Kreator pokazuje status z istniejącego overview stream,
    wykryte wersje CLI oraz czas ważności tokenu. **Generate new token** odwołuje poprzedni
    token przed utworzeniem nowego. Po zamknięciu kreatora tokenu nie można odczytać ponownie;

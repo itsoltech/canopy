@@ -75,5 +75,7 @@ Testy na żywo z prawdziwymi modelami są opt-in (zużywają limity kont): `OA_L
 - [Adapter Claude (Agent SDK)](docs/claude-adapter.md)
 - [Model danych](docs/data-model.md)
 - [Trwałość i aktualizacje w trakcie działania](docs/durability.md)
+- [Wydania: wersje, CI, obrazy, binaria](docs/release.md)
+- [Wdrożenie: Docker Compose, binaria, systemd, kanały](docs/deploy.md)
 - [Wyniki spike'a gRPC po HTTP/2 w Bun](docs/spikes/grpc-http2-bun.md)
 - [Kontrakt gRPC](proto/openagents/worker/v1/worker_link.proto)
