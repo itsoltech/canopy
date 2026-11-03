@@ -20,8 +20,8 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key)("Claude MCP 
     const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: url!, apiKey: key! }]).find((p) => p.config.id === "live")!.resolved!;
     const messages: SDKMessage[] = [];
     for await (const message of query({ prompt: "Call mcp__probe__wait_probe exactly once. If it errors or times out, reply TIMEOUT. Do not retry it.", options: {
-      cwd: tempDir("oa-timeout-cwd-"), model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
-      ...claudeProfileOptions(profile, { ...process.env, CLAUDE_CONFIG_DIR: tempDir("oa-timeout-home-") }),
+      cwd: tempDir("canopy-timeout-cwd-"), model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
+      ...claudeProfileOptions(profile, { ...process.env, CLAUDE_CONFIG_DIR: tempDir("canopy-timeout-home-") }),
       mcpServers: { probe: server }, allowedTools: ["mcp__probe__wait_probe"], maxTurns: 3,
       canUseTool: async (_name, input) => ({ behavior: "allow", updatedInput: input }),
     } })) messages.push(message);

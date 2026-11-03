@@ -2,7 +2,6 @@ import { parseArgs } from "node:util";
 import { DeviceLogin } from "@canopy/contracts";
 import { GatewayStore, InstanceStore } from "./store/index.ts";
 import { ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
-import { readEnv } from "@canopy/domain/env";
 
 /**
  * Administration until the UI has these screens:
@@ -32,7 +31,7 @@ if (!values.name) {
 
 const runtime = gatewayRuntime(Bun.env);
 await migrateDatabase(runtime);
-const userId = await ensureDevUser(runtime, readEnv("CANOPY_DEV_USER_EMAIL") ?? "dev@localhost");
+const userId = await ensureDevUser(runtime, process.env["CANOPY_DEV_USER_EMAIL"] ?? "dev@localhost");
 const { workerId, credential } = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: values.name!, ownerUserId: userId })));
 
 // CLIProxyAPI key: read from an env var of this process (never a CLI argument), stored encrypted.

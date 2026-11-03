@@ -87,8 +87,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("mentions w
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = tempDir("oa-live-mentions-repo-");
-    const data = tempDir("oa-live-mentions-worker-");
+    const repo = tempDir("canopy-live-mentions-repo-");
+    const data = tempDir("canopy-live-mentions-worker-");
     const write = (path: string, content: string) => {
       mkdirSync(join(repo, path, ".."), { recursive: true });
       writeFileSync(join(repo, path), content);

@@ -35,8 +35,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("platform q
   const messages = (id: string) => query<{ text: string }>("SELECT content->'agentMessage'->>'text' AS text FROM thread_items WHERE thread_id = $1::uuid AND type = 'agent_message'", id);
   beforeAll(async () => {
     gw = await startTestGateway();
-    const cwd = tempDir("oa-questions-live-repo-");
-    const data = tempDir("oa-questions-live-worker-");
+    const cwd = tempDir("canopy-questions-live-repo-");
+    const data = tempDir("canopy-questions-live-worker-");
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "Questions live", ownerUserId: gw.userId })));
     workerId = added.workerId;
     await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [cwd] });

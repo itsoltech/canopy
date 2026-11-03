@@ -5,7 +5,7 @@ import { tempDir } from "@canopy/testing";
 import { Effect } from "effect";
 import { Journal, type ThreadEventInit } from "./journal.ts";
 
-const dir = tempDir("oa-journal-");
+const dir = tempDir("canopy-journal-");
 let n = 0;
 const freshPath = () => join(dir, `journal-${++n}.db`);
 

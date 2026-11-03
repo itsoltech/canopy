@@ -29,7 +29,7 @@ type Content = NonNullable<ItemInit["content"]>;
 /** Platform agent bus tools, served by the worker's in-process MCP server "canopy". */
 export const BUS_SERVER = PLATFORM_SERVER;
 
-/** `mcp__canopy__x` (or `mcp__openagents__x` in sessions from before the rename) → `x`. */
+/** `mcp__canopy__x` → `x`. */
 function platformTool(name: string): string | undefined {
   const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
   return mcp && isPlatformServer(mcp[1]) ? mcp[2] : undefined;

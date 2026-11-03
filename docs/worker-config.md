@@ -147,7 +147,6 @@ Wypisuje **sekretny** `worker.json`; przekieruj go do pliku z umask 077, nie do 
   - Linux: `$XDG_CONFIG_HOME/canopy/worker.json`,
   - macOS: `~/Library/Application Support/canopy/worker.json`,
   - Windows: `%APPDATA%\canopy\worker.json`.
-  - Instalacja sprzed zmiany nazwy: gdy nowego pliku nie ma, a istnieje `…/open-agents/worker.json`, worker czyta stary (tak samo katalog danych `…/open-agents`); nic nie jest przenoszone.
 - Dekodowanie jest ścisłe (Effect Schema): nieznany klucz to błąd. Wyjątkiem zgodności są stare `allowedRoots` i `allowed_roots`: są przyjmowane i ignorowane, podobnie jak pole historyczne w zdalnej konfiguracji i bazie. Worker nie ma listy dozwolonych katalogów.
 - Plik zawiera poświadczenie, więc jak klucz SSH nie może być dostępny dla innych użytkowników (POSIX: `chmod 600`). Inaczej worker kończy pracę z kodem 78 (`EX_CONFIG`), żeby supervisor nie restartował go w pętli. Na Windows ACL ustawia instalator.
 - Plik tworzy rejestracja workera (enrollment): token z UI zamieniany na `worker_id` i `credential`.
@@ -206,7 +205,7 @@ Gateway zapewnia workspace `<data_dir>/scratch/<user-id>`, a `CreateThread` z
 `ThreadSpec.scratch` tworzy podkatalog UUID wątku. Worker sprawdza każdy składnik zarządzanego
 poddrzewa; symlinki są błędem. Na POSIX nowe katalogi mają `0700`. Brak praw zapisu uniemożliwia
 start. Zmiana `data_dir` dotyczy tylko przyszłych niezależnych rozmów. Istniejące wątki i forki
-zachowują zapisane cwd, także stare `<root>/.open-agents/scratch/<user>/<thread>`.
+zachowują zapisane cwd, także pod poprzednim `data_dir`.
 Stare katalogi muszą istnieć; worker ich nie przenosi ani nie odtwarza w dawnej lokalizacji.
 Pliki nie są usuwane automatycznie. Ich pełną ścieżkę i zasady ręcznego usuwania pokazuje panel wątku.
 
@@ -267,7 +266,7 @@ Reguły są wspólne dla UI, gateway (odrzuca zapis) i workera (wyłącza profil
 - Nazwa: `[A-Za-z_][A-Za-z0-9_]*`, do 128 znaków, bez powtórzeń (bez rozróżniania wielkości liter); wartość do 32 KiB, bez NUL; najwyżej 64 zmienne.
 - **Zakazane zawsze** (ustawia je worker; porównanie bez wielkości liter): `HOME`, `USERPROFILE`, `PATH`, `PWD`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `CLAUDE_CODE_ENTRYPOINT` oraz prefiks `CANOPY_*` (klucze endpointów dla Codexa, `CANOPY_<ID>_API_KEY`).
 - **Zakazane dla endpointu** (ustawia je profil): `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`. Profil `NATIVE` może je ustawić (np. `ANTHROPIC_API_KEY` zamiast logowania, `CLAUDE_CODE_USE_BEDROCK` + dane AWS).
-- Ten sam prefiks obejmuje ustawienia workera (`CANOPY_*`); dawne `OA_*` nie są zakazane: czyta je tylko proces workera, harness nie.
+- Ten sam prefiks obejmuje ustawienia workera (`CANOPY_*`).
 
 Gdzie trafiają:
 

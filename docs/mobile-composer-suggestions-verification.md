@@ -42,7 +42,7 @@ CANOPY_MENTION_BROWSER=1 CANOPY_MENTION_WEBKIT_WS=ws://127.0.0.1:9539/ bun test 
 docker stop mobile-composer-webkit
 ```
 
-Test sam tworzy prywatny PostgreSQL na losowym porcie, gateway na losowym porcie i produkcyjny web na `5299`. Worker jest skryptowany, bez prawdziwych providerów. Procesy i konteksty są zamykane przez własne uchwyty. Nie użyto `/tmp/oa-stack` ani portów `17443`, `5180`, `8444`.
+Test sam tworzy prywatny PostgreSQL na losowym porcie, gateway na losowym porcie i produkcyjny web na `5299`. Worker jest skryptowany, bez prawdziwych providerów. Procesy i konteksty są zamykane przez własne uchwyty. Nie użyto prywatnego stacka live ani portów `17443`, `5180`, `8444`.
 
 Zakres: `/`, `$`, `@`, `#`; tap/click wstawia dokładnie jedną wzmiankę, fokus pozostaje w edytorze, przewijanie nie wybiera opcji, pusta lista `$`, klawiatura ArrowDown/Enter/Escape, usunięcie całego chipa; mobile 390 px (deskryptor iPhone 13), desktop 1440 px, light/dark, granice ekranu i brak poziomego overflow. Testy obejmują również kompozycję i odzyskanie stanu przez `insertReplacementText`, kompaktowanie oraz resize/scroll `visualViewport` z zasymulowaną wysokością 360 px i offsetem 120 px.
 

@@ -67,7 +67,7 @@ export function toolGallery(): { title: string; items: Item[] }[] {
     {
       title: "Claude Code",
       items: [
-        tool("read", "Read", { file_path: "/tmp/oa-stack/code/apps/web/src/lib/format.ts" }, numbered(source) + "\n\n<system-reminder>\nWhenever you read a file…\n</system-reminder>"),
+        tool("read", "Read", { file_path: "/tmp/canopy-stack/code/apps/web/src/lib/format.ts" }, numbered(source) + "\n\n<system-reminder>\nWhenever you read a file…\n</system-reminder>"),
         tool("read-range", "Read", { file_path: "/repo/README.md", offset: 40, limit: 7 }, numbered("## Install\n\nRun `bun install`.\n\n## Test\n\nRun `bun test`.", 40)),
         tool("read-missing", "Read", { file_path: "/repo/missing.ts" }, "<tool_use_error>File does not exist.</tool_use_error>", { isError: true }),
         tool("grep-files", "Grep", { pattern: "describeTool", path: "/repo/apps/web/src", glob: "*.svelte" }, "Found 3 files\n/repo/apps/web/src/lib/a.svelte\n/repo/apps/web/src/lib/b.svelte\n/repo/apps/web/src/routes/c.svelte"),
@@ -109,8 +109,8 @@ export function toolGallery(): { title: string; items: Item[] }[] {
         tool(
           "exec-goal",
           "exec",
-          { code: 'text(await tools.exec_command({cmd:"printf \'done\\\\n\' > goal-check.txt","workdir":"/tmp/oa-stack/code"}));\ntext(await tools.update_goal({status:"complete"}));\n' },
-          'Script completed\nWall time 0.1 seconds\nOutput:\n\n{"chunk_id":"22223a","wall_time_seconds":0.0000124,"exit_code":0,"original_token_count":11,"output":"/tmp/oa-stack/code/goal-check.txt: verified\\n"}\n{"goal":{"threadId":"01a198fa-0935-77d1-9093-8d243c72323b","objective":"Create the file goal-check.txt","status":"complete","tokenBudget":300000,"tokensUsed":1512,"timeUsedSeconds":3},"remainingTokens":298488}',
+          { code: 'text(await tools.exec_command({cmd:"printf \'done\\\\n\' > goal-check.txt","workdir":"/tmp/canopy-stack/code"}));\ntext(await tools.update_goal({status:"complete"}));\n' },
+          'Script completed\nWall time 0.1 seconds\nOutput:\n\n{"chunk_id":"22223a","wall_time_seconds":0.0000124,"exit_code":0,"original_token_count":11,"output":"/tmp/canopy-stack/code/goal-check.txt: verified\\n"}\n{"goal":{"threadId":"01a198fa-0935-77d1-9093-8d243c72323b","objective":"Create the file goal-check.txt","status":"complete","tokenBudget":300000,"tokensUsed":1512,"timeUsedSeconds":3},"remainingTokens":298488}',
         ),
         tool("exec-sleep", "exec", { code: 'await tools.exec_command({cmd:"sleep 25",yield_time_ms:30000,max_output_tokens:100});\n' }, "Script completed\nWall time 25.0 seconds\nOutput:\n"),
         tool("patch", "apply_patch", { input: "*** Begin Patch\n*** Update File: src/app.ts\n@@\n-const a = 1;\n+const a = 2;\n*** Add File: docs/notes.md\n+# Notes\n+First line.\n*** End Patch" }, "Done!"),
@@ -129,8 +129,8 @@ export function toolGallery(): { title: string; items: Item[] }[] {
               { seq: 3, type: "user_message", userMessage: { text: "Hej", clientId: "01a198ce-fe6d-77c3-b110-8d25414fb489", authorUserId: "01a1981a-c5b8-734c-a479-d714b09c22ae" } },
               { seq: 9, type: "agent_message", agentMessage: { text: "Hej! What can I help you with today?" } },
               { seq: 12, type: "user_message", userMessage: { text: "szybko odpisujesz" } },
-              { seq: 20, type: "command_execution", commandExecution: { command: "ls -A /tmp/oa-stack/code" } },
-              { seq: 31, type: "agent_message", agentMessage: { text: "Dzięki! W czym mogę pomóc? Widzę, że jesteś w repozytorium `/tmp/oa-stack/code`." } },
+              { seq: 20, type: "command_execution", commandExecution: { command: "ls -A /tmp/canopy-stack/code" } },
+              { seq: 31, type: "agent_message", agentMessage: { text: "Dzięki! W czym mogę pomóc? Widzę, że jesteś w repozytorium `/tmp/canopy-stack/code`." } },
             ],
             nextSeq: 31,
           },

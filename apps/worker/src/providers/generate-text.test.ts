@@ -8,7 +8,7 @@ import { claudeProfileOptions } from "./claude/profile.ts";
 import { codexAppServerLaunch } from "./codex/launch.ts";
 import { resolveProfiles } from "./profiles.ts";
 
-const dir = tempDir("oa-text-config-");
+const dir = tempDir("canopy-text-config-");
 test.skipIf(!Bun.which("codex"))("the pinned Codex accepts the isolated no-tools generation configuration", () => {
   const catalog = join(dir, "models.json");
   writeFileSync(catalog, JSON.stringify(codexTextCatalog("gpt-6.1-sol", "low")));

@@ -111,8 +111,6 @@ describe("Claude event mapping on recorded turns", () => {
       case: "agentBusCall",
       value: { toolName: "spawn_thread", argumentsJson: '{"title":"x","prompt":"y"}' },
     });
-    // Sessions from before the rename call the server by its old name.
-    expect(toolContent("mcp__openagents__spawn_thread", {})).toMatchObject({ case: "agentBusCall", value: { toolName: "spawn_thread" } });
     expect(toolContent("mcp__github__create_issue", { a: 1 })).toEqual({ case: "toolCall", value: { server: "github", name: "create_issue", inputJson: '{"a":1}' } });
     const mapper = new ClaudeEventMapper("t");
     mapper.map({ type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "tu", name: "Bash", input: { command: "false" } }] }, parent_tool_use_id: null, uuid: "u1", session_id: "s" } as never);

@@ -28,7 +28,7 @@ Końcowe sprawdzenia po scaleniu `main` (`07d7f19`): `bun install` bez zmian; `b
 | `schedules-edit.browser.test.ts` | 3 pass, 0 fail, 91 asercji |
 | `schedules.browser.test.ts` | 1 pass, 0 fail, 18 asercji |
 
-Testy przeglądarkowe są opt-in i używają `/usr/bin/chromium` oraz `playwright-core`. Prywatny Postgres na losowym porcie i prywatny gateway ze skryptowanym workerem, web na 5317; test zapisu harmonogramu na 5321, edycji na 5298. Nie użyto `/tmp/oa-stack` ani portów 17443, 5180, 8444. Procesy kończone przez własne uchwyty, katalogi tymczasowe przez istniejący harness. Karta wspólnego podglądu została zamknięta.
+Testy przeglądarkowe są opt-in i używają `/usr/bin/chromium` oraz `playwright-core`. Prywatny Postgres na losowym porcie i prywatny gateway ze skryptowanym workerem, web na 5317; test zapisu harmonogramu na 5321, edycji na 5298. Nie użyto prywatnego stacka live ani portów 17443, 5180, 8444. Procesy kończone przez własne uchwyty, katalogi tymczasowe przez istniejący harness. Karta wspólnego podglądu została zamknięta.
 
 Macierz `custom-form-controls.browser.test.ts`: 1440×1000 i 390×844, light/dark, hasTouch/isMobile dla 390, locale en-GB, Europe/Warsaw. Formularze: domyślne ustawienia wątków, appearance, scope providers i kreator providera (ChoiceCard/AccentPicker), schedule (calendar/time/number/nowy wątek), side thread, permissions, goal, markdown tasks i pytania. Sprawdzane są klawiatura kontrolek, Escape/powrót fokusu, wiązania i hidden/FormData, walidacja czasu, clamp/step, arkusze, brak poziomego overflow oraz brak natywnych select/date/time/number w DOM. Oddzielny `schedules.browser.test.ts` weryfikuje też zapis konfiguracji nowego wątku i pochodzenie uruchomienia.
 

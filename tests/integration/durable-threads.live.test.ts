@@ -64,8 +64,8 @@ const jsonl = (path: string) =>
     });
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("worker killed mid-turn, settled from the harness transcript (live)", () => {
-  const dir = tempDir("oa-live-durable-");
-  const repo = tempDir("oa-live-durable-repo-");
+  const dir = tempDir("canopy-live-durable-");
+  const repo = tempDir("canopy-live-durable-repo-");
   const dataDir = join(dir, "data");
   const logs: string[] = [];
   let gw: TestGateway;

@@ -12,7 +12,7 @@ const root = resolve(import.meta.dir, "..");
 const temporaryDirectories: string[] = [];
 afterEach(() => { for (const dir of temporaryDirectories.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), "oa-release-unit-"));
+  const dir = mkdtempSync(join(tmpdir(), "canopy-release-unit-"));
   temporaryDirectories.push(dir);
   const remote = join(dir, "origin.git"), cwd = join(dir, "checkout");
   const git = (...args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
@@ -80,7 +80,7 @@ test("release versions assign Docker aliases exclusively to their channel", () =
   expect(resolveVersion({ commit }).dockerTags).toEqual([]);
 });
 test("manifest preserves the exact version/channel and rejects contradictory release metadata", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "oa-release-manifest-unit-"));
+  const directory = mkdtempSync(join(tmpdir(), "canopy-release-manifest-unit-"));
   temporaryDirectories.push(directory);
   writeFileSync(join(directory, "canopy-worker-linux-x64"), "fixture binary");
   const env = { GITHUB_SHA: "abc123456789", CANOPY_VERSION: "0.2.0-beta.1", CANOPY_RELEASE_TAG: "v0.2.0-beta.1", CANOPY_CHANNEL: "beta" };

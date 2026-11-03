@@ -20,7 +20,7 @@ const fixture = (name: string) => join(import.meta.dir, "fixtures", name);
 
 /** A Claude config dir with the session transcript where Claude Code keeps it; returns the home and the content. */
 function claudeHome(sessionId: string, content: string): string {
-  const home = tempDir("oa-claude-");
+  const home = tempDir("canopy-claude-");
   mkdirSync(join(home, "projects", "-work-app"), { recursive: true });
   writeFileSync(join(home, "projects", "-work-app", `${sessionId}.jsonl`), content);
   return home;

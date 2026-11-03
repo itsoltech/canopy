@@ -75,7 +75,7 @@ połączonych komputerów:
 2. **Lokalna dla maszyny**, nigdy nie synchronizowana: ścieżki CLI, logowanie natywne, workspace'y,
    adresy, porty, ustawienia desktopowe, konta connectorów.
 3. **Sekrety** (klucze API instancji): przesyłane tylko dla elementów oznaczonych jako wspólne,
-   szyfrowanym łączem; odbiorca szyfruje je własnym kluczem (`OA_SECRETS_KEY` / keychain).
+   szyfrowanym łączem; odbiorca szyfruje je własnym kluczem (`CANOPY_SECRETS_KEY` / keychain).
 
 **Konflikty:** ta sama wspólna rzecz zmieniona na dwóch komputerach bez połączenia → przy ponownym
 połączeniu **pytanie** z obiema wersjami („Keep this computer's / Keep Laptop B's”). Zmiany bez konfliktu

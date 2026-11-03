@@ -65,8 +65,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("subagents 
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = tempDir("oa-live-any-repo-");
-    const data = tempDir("oa-live-any-worker-");
+    const repo = tempDir("canopy-live-any-repo-");
+    const data = tempDir("canopy-live-any-worker-");
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;
     await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });

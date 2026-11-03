@@ -35,11 +35,11 @@ const LIVE = process.env["CANOPY_LIVE"] === "1";
 const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
 const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
-const recordDir = process.env["CANOPY_LIVE_RECORD_DIR"] ?? "/tmp/oa-codex-recordings";
+const recordDir = process.env["CANOPY_LIVE_RECORD_DIR"] ?? "/tmp/canopy-codex-recordings";
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
-  const dataDir = tempDir("oa-codex-threads-");
-  const cwd = tempDir("oa-codex-threads-cwd-");
+  const dataDir = tempDir("canopy-codex-threads-");
+  const cwd = tempDir("canopy-codex-threads-cwd-");
 
   // bun runs the body of a skipped describe too: resolve only when the live env is present.
   const profile =
@@ -140,7 +140,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
   // The reported gap: in code mode a command failing like a sandbox denial (ping without network) had no item.
   test("every command is in the transcript, also one that fails at once, before and after a restart", async () => {
     const threadId = Bun.randomUUIDv7();
-    const repo = tempDir("oa-codex-commands-");
+    const repo = tempDir("canopy-codex-commands-");
     Bun.spawnSync(["git", "init", "-q"], { cwd: repo });
     writeFileSync(join(repo, "a.txt"), "a\n");
     const s = (providerThreadId = "") => create(ThreadSpecSchema, { ...spec(threadId, providerThreadId), cwd: repo, permissionMode: PermissionMode.FULL_AUTO });

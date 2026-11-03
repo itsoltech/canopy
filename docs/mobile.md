@@ -67,7 +67,7 @@ aplikacja i Connect nie wymagają globalnego `crypto.getRandomValues`.
 3. Telefon skanuje kod przez expo-camera albo użytkownik wkleja kod i HTTPS URL.
    Po skanie użytkownik potwierdza adres i nazwę przyciskiem **Pair this phone**.
 4. Publiczny `MobilePairingService.ExchangeMobilePairing` atomowo zużywa kod i zwraca
-   token urządzenia `oa_device_…` (256 losowych bitów). Baza przechowuje tylko SHA-256.
+   token urządzenia `canopy_device_…` (256 losowych bitów). Baza przechowuje tylko SHA-256.
 5. `expo-secure-store` zapisuje token i adres. Na iOS używa
    `WHEN_UNLOCKED_THIS_DEVICE_ONLY`; Android backup wyklucza klucze SecureStore.
    Nie ma logowania tokenu, cookies, storage przeglądarki ani service tokenu w aplikacji.

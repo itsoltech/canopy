@@ -20,8 +20,8 @@ const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Codex end to end (live)", () => {
-  const dir = tempDir("oa-e2e-");
-  const repo = tempDir("oa-e2e-repo-");
+  const dir = tempDir("canopy-e2e-");
+  const repo = tempDir("canopy-e2e-repo-");
 
   test("ASK mode: permission round trip through the gateway, file written, transcript delivered", async () => {
     const gateway = await startGateway();

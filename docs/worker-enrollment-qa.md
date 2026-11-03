@@ -46,7 +46,7 @@ z istniejącą polityką `check:tmp`; prywatny katalog został usunięty.
 ## Chromium i prawdziwy drugi worker
 
 Własny stack: PostgreSQL `38544`, gateway `18544`, web `5281`. Nie korzystano
-z `/tmp/oa-stack`, portów `17443`/`5180`/`8444` ani `dev-live.env`.
+z prywatnego stacka live, portów `17443`/`5180`/`8444` ani `dev-live.env`.
 Chromium: `/usr/bin/chromium`, Playwright Core z `/tmp/ro-shot`,
 `extraHTTPHeaders: {"x-forwarded-proto":"http"}`.
 

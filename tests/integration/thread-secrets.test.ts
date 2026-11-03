@@ -46,7 +46,7 @@ describe.skipIf(!dockerAvailable)("thread secrets (gateway ↔ scripted worker, 
     }
   };
   beforeAll(async () => {
-    dataDir = tempDir("oa-thread-secrets-worker-");
+    dataDir = tempDir("canopy-thread-secrets-worker-");
     gw = await startTestGateway({ worker: { secretsDataDir: dataDir } });
     worker = gw.worker;
     projectId = (await gw.api.createProject({ name: "Secrets" })).project!.id;

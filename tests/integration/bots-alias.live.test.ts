@@ -25,11 +25,11 @@ const key = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAvailable)("a wizard-made Claude bot with the default model replies through live CLIProxyAPI", () => {
   let gw: TestGateway;
   let stopWorker = async () => {};
-  const state = tempDir("oa-bots-alias-state-");
+  const state = tempDir("canopy-bots-alias-state-");
   beforeAll(async () => {
     gw = await startTestGateway();
     const worker = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ ownerUserId: gw.userId, name: "bots-alias-worker" })));
-    await useLiveProxy(gw, worker.workerId, { url: url!, key: key!, allowedRoots: [tempDir("oa-bots-alias-repo-")], harnesses: [Provider.CLAUDE] });
+    await useLiveProxy(gw, worker.workerId, { url: url!, key: key!, allowedRoots: [tempDir("canopy-bots-alias-repo-")], harnesses: [Provider.CLAUDE] });
     const runtime = ManagedRuntime.make(Journal.layer(join(state, "journal.db")));
     const host = new WorkerHost({ runtime, dataDir: join(state, "worker"), clientVersion: "bots-alias-live" });
     const link = await openGatewayLink({ baseUrl: gw.grpcUrl, credential: worker.credential, hello: { workerId: worker.workerId, ...(await runtime.runPromise(journalHello())) } });

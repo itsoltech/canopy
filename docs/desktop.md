@@ -262,4 +262,4 @@ Zakres: implementacja i lokalne commity według jawnego zlecenia, bez push/PR.
 `workflow_mode: direct`, `mode_source: explicit-user-task-instruction`,
 `decision_authority: delegated`, `scope: current-task`, `artifact_state: not-required`,
 `execution_mode: inline`. Ograniczenia chronione: brak zmian produkcji, Tailscale,
-portów 17443/17444/5180/8444 i `/tmp/oa-stack`; brak odczytu sekretów dev-live.
+portów 17443/17444/5180/8444 i prywatnego stacka live; brak odczytu sekretów dev-live.

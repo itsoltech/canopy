@@ -22,8 +22,8 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAva
   let projectId = "";
   let workspaceId = "";
   let stopWorker = async () => {};
-  const state = tempDir("oa-bots-live-state-");
-  const repo = tempDir("oa-bots-live-repo-");
+  const state = tempDir("canopy-bots-live-state-");
+  const repo = tempDir("canopy-bots-live-repo-");
   beforeAll(async () => {
     gw = await startTestGateway();
     const worker = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ ownerUserId: gw.userId, name: "bots-live-worker" })));

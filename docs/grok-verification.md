@@ -57,7 +57,7 @@ Testy są opt-in, np. `CANOPY_LIVE=1 bun test apps/worker/src/providers/grok/lau
 
 ## Ręczny odbiór Chromium
 
-Własny jednorazowy gateway/PostgreSQL/WorkerHost z deterministycznym fake Grokiem oraz web na porcie 5193. Chromium `/usr/bin/chromium`, Playwright Core z `/tmp/ro-shot`, nagłówek `x-forwarded-proto: http`. Przeglądarkę oraz własne procesy web/gateway/workera zatrzymano po odbiorze. Nie korzystano z `/tmp/oa-stack` ani portów 17443, 5180, 8444.
+Własny jednorazowy gateway/PostgreSQL/WorkerHost z deterministycznym fake Grokiem oraz web na porcie 5193. Chromium `/usr/bin/chromium`, Playwright Core z `/tmp/ro-shot`, nagłówek `x-forwarded-proto: http`. Przeglądarkę oraz własne procesy web/gateway/workera zatrzymano po odbiorze. Nie korzystano z prywatnego stacka live ani portów 17443, 5180, 8444.
 
 Sprawdzono: streaming i rozwijanie komendy/diffu/planu, kartę zgody Allow/Deny i odpowiedź po odmowie, wybór modelu, effort Low ↔ High klawiaturą, kreator Grok/API endpoint, listę Agents z Grok 1.0.70. Oba motywy przy 1440×1000 i 390×844; na mobile `innerWidth=scrollWidth=390`.
 

@@ -39,8 +39,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: fo
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = mkdtempSync(join(tmpdir(), "oa-live-fork-repo-"));
-    const data = mkdtempSync(join(tmpdir(), "oa-live-fork-worker-"));
+    const repo = mkdtempSync(join(tmpdir(), "canopy-live-fork-repo-"));
+    const data = mkdtempSync(join(tmpdir(), "canopy-live-fork-worker-"));
     dirs.push(repo, data);
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     const workerId = added.workerId;

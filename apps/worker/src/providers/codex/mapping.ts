@@ -461,7 +461,7 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
       };
     case "dynamicToolCall": {
       const output = (item.contentItems ?? []).map((c) => (c.type === "inputText" ? c.text : `[${c.type}]`)).join("\n");
-      // The platform's view_image (namespace "canopy", formerly "openagents"): an image item; the preview comes from its result.
+      // The platform's view_image (namespace "canopy"): an image item; the preview comes from its result.
       if (item.tool === VIEW_IMAGE_TOOL && isPlatformServer(item.namespace)) {
         const path = (item.arguments as { path?: unknown } | null)?.path;
         return {

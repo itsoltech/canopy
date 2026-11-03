@@ -20,7 +20,7 @@ let certFile: string;
 let keyFile: string;
 
 beforeAll(async () => {
-  workDir = tempDir("oa-interop-");
+  workDir = tempDir("canopy-interop-");
   const build = await Bun.build({
     entrypoints: [join(import.meta.dir, "fixtures/node-peer.ts")],
     target: "node",

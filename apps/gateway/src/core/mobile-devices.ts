@@ -97,7 +97,7 @@ export class MobileDevices {
       throw new ConnectError("Enter a device name (1–100 characters) and a supported platform", Code.InvalidArgument);
     }
     const { runtime, userId } = this.options;
-    const token = `oa_device_${randomBytes(32).toString("base64url")}`;
+    const token = `canopy_device_${randomBytes(32).toString("base64url")}`;
     const result = await runtime.runPromise(Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       return yield* sql.withTransaction(Effect.gen(function* () {
@@ -123,7 +123,7 @@ export class MobileDevices {
   }
 
   async authenticate(token: string) {
-    if (!/^oa_device_[A-Za-z0-9_-]{43}$/.test(token)) return undefined;
+    if (!/^canopy_device_[A-Za-z0-9_-]{43}$/.test(token)) return undefined;
     const { runtime, userId } = this.options;
     return mobileGuard(() => runtime.runPromise(Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;

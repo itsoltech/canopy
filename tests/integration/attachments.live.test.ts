@@ -58,8 +58,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("attachment
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = tempDir("oa-live-att-repo-");
-    const data = tempDir("oa-live-att-worker-");
+    const repo = tempDir("canopy-live-att-repo-");
+    const data = tempDir("canopy-live-att-worker-");
     dataDir = join(data, "data");
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;

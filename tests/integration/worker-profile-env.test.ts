@@ -14,7 +14,7 @@ import { Journal } from "@canopy/worker/journal";
 import { WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 
-const dir = tempDir("oa-profile-env-");
+const dir = tempDir("canopy-profile-env-");
 const root = join(dir, "repos");
 const log = join(dir, "codex-processes.jsonl");
 const codex = join(dir, "codex");

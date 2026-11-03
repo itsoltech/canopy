@@ -60,7 +60,7 @@ describe.skipIf(!dockerAvailable)("mobile pairing + native app Connect client ov
     const valid = await invite();
     expect(await failure(client().pairing.exchangeMobilePairing({ code: valid.code, name: "", platform: "android" }))).toContain("device name");
     expect(await failure(client().pairing.exchangeMobilePairing({ code: valid.code, name: "Browser", platform: "web" }))).toContain("platform");
-    expect((await exchange(valid.code)).deviceToken).toStartWith("oa_device_");
+    expect((await exchange(valid.code)).deviceToken).toStartWith("canopy_device_");
   });
 
   test("device authorizes GatewayService, cannot administer pairing; revocation closes existing streams and rejects new RPCs", async () => {

@@ -1,7 +1,7 @@
 /**
  * Live tests against the real `codex app-server` and real models. Opt-in: CANOPY_LIVE=1.
  * They use the account / proxy configured on this machine and cost a few tokens.
- * Notification streams are recorded to $CANOPY_LIVE_RECORD_DIR (default /tmp/oa-codex-recordings)
+ * Notification streams are recorded to $CANOPY_LIVE_RECORD_DIR (default /tmp/canopy-codex-recordings)
  * as raw material for the event mapping.
  */
 import { describe, expect, test } from "bun:test";
@@ -21,8 +21,8 @@ const tempDir = tempDirs();
 const LIVE = process.env["CANOPY_LIVE"] === "1";
 const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
 const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
-const recordDir = process.env["CANOPY_LIVE_RECORD_DIR"] ?? "/tmp/oa-codex-recordings";
-const workDir = tempDir("oa-codex-live-");
+const recordDir = process.env["CANOPY_LIVE_RECORD_DIR"] ?? "/tmp/canopy-codex-recordings";
+const workDir = tempDir("canopy-codex-live-");
 
 const serverRequests: { method: string }[] = [];
 
@@ -134,7 +134,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
   }, 200_000);
 
   test.skipIf(!proxyUrl || !proxyKey)("isolated CODEX_HOME: no device MCP servers, hooks or plugins in platform threads", async () => {
-    const home = tempDir("oa-codex-home-");
+    const home = tempDir("canopy-codex-home-");
     const statuses = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]);
     const profile = statuses.find((s) => s.config.id === "live")!.resolved!;
     const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
@@ -162,8 +162,8 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
   }, 200_000);
 
   test.skipIf(!proxyUrl || !proxyKey)("a turn with tools (file change + command), recorded for the event mapping", async () => {
-    const home = tempDir("oa-codex-home-");
-    const cwd = tempDir("oa-codex-tools-");
+    const home = tempDir("canopy-codex-home-");
+    const cwd = tempDir("canopy-codex-tools-");
     const statuses = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]);
     const profile = statuses.find((s) => s.config.id === "live")!.resolved!;
     const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
@@ -199,7 +199,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
 
   // Default after the 2026-11-01 decision: isolated CODEX_HOME with the device login linked in.
   test.skipIf(process.env["CANOPY_LIVE_NATIVE"] !== "1")("native profile in the isolated home with the linked device login", async () => {
-    const dataDir = tempDir("oa-codex-data-");
+    const dataDir = tempDir("canopy-codex-data-");
     try {
       const home = prepareCodexHome({ dataDir, linkDeviceLogin: true });
       expect(home.login).toBe("linked");
@@ -230,8 +230,8 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
 // Codex keeping them with the thread: after a restart of app-server (resume) and in forks.
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex dynamic tools (live)", () => {
   test("a tool given at thread/start is called in the thread, after resume in a new process, and in a fork", async () => {
-    const home = tempDir("oa-codex-home-");
-    const cwd = tempDir("oa-codex-dyn-");
+    const home = tempDir("canopy-codex-home-");
+    const cwd = tempDir("canopy-codex-dyn-");
     const profile = resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl!, apiKey: proxyKey! }]).find((s) => s.config.id === "live")!
       .resolved!;
     const model = process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol";
@@ -303,8 +303,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex collaboration tools (liv
     // the bus has a tool of that name.
     const COLLAB = /("name":"|### `|\b)(spawn_agent|wait_agent|send_input|followup_task|interrupt_agent|close_agent|resume_agent)("|`|\(args)/;
     const run = async (withOverride: boolean, prompt: string) => {
-      const home = tempDir("oa-codex-home-");
-      const cwd = tempDir("oa-codex-collab-");
+      const home = tempDir("canopy-codex-home-");
+      const cwd = tempDir("canopy-codex-collab-");
       const launch = codexAppServerLaunch([profile], process.env, "codex", undefined, home);
       const command = withOverride ? launch.command : launch.command.filter((arg, i, all) => arg !== "agents.enabled=false" && all[i + 1] !== "agents.enabled=false");
       const calls: string[] = [];

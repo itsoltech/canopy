@@ -48,8 +48,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: pe
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    repo = tempDir("oa-live-perm-repo-");
-    const data = tempDir("oa-live-perm-worker-");
+    repo = tempDir("canopy-live-perm-repo-");
+    const data = tempDir("canopy-live-perm-worker-");
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;
     await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
@@ -152,7 +152,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: pe
   }
 
   test("claude: a process kept by a background task switches mode before the next turn (sandbox included)", async () => {
-    const probe = join(homedir(), `oa-live-outside-${Bun.randomUUIDv7()}.txt`);
+    const probe = join(homedir(), `canopy-live-outside-${Bun.randomUUIDv7()}.txt`);
     try {
       const thread = (
         await gw.api.createThread({

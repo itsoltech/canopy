@@ -10,7 +10,7 @@ import { readClaudeTurn } from "./transcript.ts";
  * for it (readClaudeTurn / the live mapping), and forkSession up to that entry keeps the turns up to and
  * including it, nothing after. Runs the SDK's file operation on a three-turn session in the recorded transcript shape (no model).
  */
-const home = mkdtempSync(join(tmpdir(), "oa-claude-fork-"));
+const home = mkdtempSync(join(tmpdir(), "canopy-claude-fork-"));
 const cwd = "/repo/project";
 const projectDir = join(home, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"));
 afterAll(() => rmSync(home, { recursive: true, force: true }));

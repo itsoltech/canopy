@@ -79,7 +79,7 @@ Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną hist
 ## Załączniki i obrazy
 
 - Pliki leżą poza repozytorium (`<data_dir>/attachments/...`); sandbox Codexa (`read-only`, `workspace-write`) czyta cały dysk, więc nic nie trzeba dodawać.
-- `view_image` platformy: narzędzie dynamiczne `canopy` › `view_image` (w wątkach sprzed zmiany nazwy `openagents`) ([agent-bus.md](agent-bus.md#view_image)); item `dynamicToolCall` z tą przestrzenią nazw → item `image` (`source = view_image`), podgląd z `contentItems[].inputImage`.
+- `view_image` platformy: narzędzie dynamiczne `canopy` › `view_image` ([agent-bus.md](agent-bus.md#view_image)); item `dynamicToolCall` z tą przestrzenią nazw → item `image` (`source = view_image`), podgląd z `contentItems[].inputImage`.
 - Wbudowane `view_image` Codexa → item `imageView` → `image` (`source = native`), podgląd z pliku (`path`). Wygenerowane obrazy (`imageGeneration`, `savedPath`) → `source = generated`.
 - Obrazy w wynikach narzędzi MCP (`result.content[].type = image`) → `ToolCall.images`.
 
@@ -148,7 +148,7 @@ Opt-in, bo zużywają limity kont: `CANOPY_LIVE=1 bun test apps/worker/src/provi
 
 - `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`: tura przez profil CLIProxyAPI platformy. Lokalnie trzymane w pliku poza repozytorium (`~/.config/canopy/dev-live.env`, `0600`).
 - `CANOPY_LIVE_NATIVE=1`: tura z konfiguracją Codexa właściciela urządzenia (wymaga, żeby działała bez interakcji).
-- Nagrania strumieni: `CANOPY_LIVE_RECORD_DIR` (domyślnie `/tmp/oa-codex-recordings`), materiał do mapowania zdarzeń.
+- Nagrania strumieni: `CANOPY_LIVE_RECORD_DIR` (domyślnie `/tmp/canopy-codex-recordings`), materiał do mapowania zdarzeń.
 - Testy przez gateway (`tests/integration/*.live.test.ts`) zakładają proxy jak produkt: `useLiveProxy` (`tests/integration/support/live.ts`) zapisuje workerowi jego część konfiguracji (katalogi, harnessy, bez logowania urządzenia) i globalną instancję `cliproxyapi` każdego harnessu przez API UI, włączoną na tym workerze ([worker-config.md](worker-config.md), sekcja 9).
 
 Potwierdzone na żywo (2026-11-01):

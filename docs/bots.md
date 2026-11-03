@@ -703,7 +703,7 @@ tego samego zapisanego wywołania przez nową instancję gateway przed i po comm
 naturalną prośbę o nowy projekt na `stack-worker` w istniejącym katalogu i wątek z `pwd`.
 Test potwierdza projekt, workspace, jeden wątek, wykonanie `pwd` w transkrypcie,
 wynik i odpowiedź bota po follow-upie.
-Izolowany PostgreSQL, gateway, prawdziwy worker oraz katalogi testowe; bez `/tmp/oa-stack`
+Izolowany PostgreSQL, gateway, prawdziwy worker oraz katalogi testowe; bez prywatnego stacka live
 i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozytorium.
 
 - Jednostkowe: `apps/gateway/src/bots/{policy,model}.test.ts`; decyzje zgód,
@@ -726,7 +726,7 @@ i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozy
   stosu testowego i dostają jego wynik jako nową turę. `bots-alias.live.test.ts`: prawdziwy
   katalog Claude przez CLIProxyAPI, wizard oferuje model rozwiązany z `default`, bot
   utworzony z `default` odpowiada, a bot z aliasem zapisanym w bazie również. Izolowane porty
-  i katalogi przez `@canopy/testing`; istniejący `/tmp/oa-stack` i jego porty nie są używane.
+  i katalogi przez `@canopy/testing`; istniejący prywatny stack live i jego porty nie są używane.
   `bots-settings.live.test.ts`: prawdziwy model przez `useLiveProxy` zmienia swoją nazwę
   i zapamiętuje angielskie odpowiedzi po prośbie użytkownika; następna polska wiadomość
   dostaje angielską odpowiedź z nową nazwą.

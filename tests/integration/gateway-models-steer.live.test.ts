@@ -37,8 +37,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("UI API: mo
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = tempDir("oa-live-ui-repo-");
-    const data = tempDir("oa-live-ui-worker-");
+    const repo = tempDir("canopy-live-ui-repo-");
+    const data = tempDir("canopy-live-ui-worker-");
     // A real worker with both providers through the proxy (its key is a secret reference, as with the CLI).
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
     workerId = added.workerId;

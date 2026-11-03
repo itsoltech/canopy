@@ -58,7 +58,7 @@ końcowe wyniki pochodzą z ponownego uruchomienia.
 Ręczna kontrola własnego jednorazowego stacka na `127.0.0.1:19180`, z osobnym
 PostgreSQL, gateway i fake MCP. Chromium: `/usr/bin/chromium`, sterowanie przez
 `/tmp/ro-shot/node_modules/playwright-core`. Nie dodano trwałych testów web UI.
-Nie używano `/tmp/oa-stack` ani portów 17443, 5180, 8444.
+Nie używano prywatnego stacka live ani portów 17443, 5180, 8444.
 
 Po scaleniu `main` z rutynami botów ponownie przetestowano katalog i konta,
 Test z listą dwóch narzędzi, wybór i zapis grantów,

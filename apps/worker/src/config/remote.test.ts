@@ -6,7 +6,7 @@ import { DeviceLogin, Provider, ProviderProfileKind, WorkerConfigSchema } from "
 import { tempDir } from "@canopy/testing";
 import { applyWorkerConfig, systemProbe, type DeviceProbe } from "./remote.ts";
 
-const base = tempDir("oa-remote-config-");
+const base = tempDir("canopy-remote-config-");
 const repo = join(base, "repo");
 mkdirSync(join(repo, "sub"), { recursive: true });
 symlinkSync(repo, join(base, "link"));

@@ -4,11 +4,10 @@ import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import { BotStore } from "./bots/store.ts";
 import { AgentBusStore, AttachmentStore, BackgroundTaskStore, GatewayStore, GoalStore, Ingest, loadSecretsKey, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "./store/index.ts";
-import { readEnv } from "@canopy/domain/env";
 
 /** Database-backed services of the gateway, shared by main.ts and cli.ts. */
 export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>) {
-  const url = readEnv("CANOPY_DATABASE_URL", env);
+  const url = env["CANOPY_DATABASE_URL"];
   if (!url) throw new Error("CANOPY_DATABASE_URL is not set, e.g. postgres://canopy:...@127.0.0.1:5432/canopy");
   const database = PgClient.layer({ url: Redacted.make(url), applicationName: "canopy-gateway" });
   const secretsKey = loadSecretsKey(env);
@@ -47,7 +46,7 @@ export const ensureDevUser = (runtime: GatewayRuntime, email: string) =>
  */
 export function attachmentLimits(env: Readonly<Record<string, string | undefined>>): AttachmentLimits {
   const number = (name: `CANOPY_${string}`, fallback: number) => {
-    const value = Number(readEnv(name, env));
+    const value = Number(env[name]);
     return Number.isFinite(value) && value > 0 ? value : fallback;
   };
   const d = DEFAULT_ATTACHMENT_LIMITS;

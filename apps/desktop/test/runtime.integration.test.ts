@@ -9,8 +9,8 @@ import { tempDir } from "@canopy/testing";
 import { DesktopRuntime, type RuntimePaths, type Secrets } from "../src/runtime/runtime.ts";
 import { until } from "../src/runtime/process.ts";
 
-const data = tempDir("oa-desktop-local-");
-const remoteData = tempDir("oa-desktop-remote-");
+const data = tempDir("canopy-desktop-local-");
+const remoteData = tempDir("canopy-desktop-remote-");
 const runtime = resolve(import.meta.dir, "../build/runtime");
 const suffix = process.platform === "win32" ? ".exe" : "";
 const paths: RuntimePaths = { bun: join(runtime, `bun${suffix}`), gateway: join(runtime, `canopy-gateway${suffix}`), worker: join(runtime, `canopy-worker${suffix}`), web: join(runtime, `canopy-web${suffix}`), postgres: join(runtime, "postgres"), compiled: true };
@@ -72,7 +72,7 @@ test.skipIf(!existsSync(paths.gateway))("bundled stack: local enrollment, gRPC o
 }, 180_000);
 
 test.skipIf(!existsSync(paths.gateway))("guardian closes its owned process groups when the Electron pipe disappears", async () => {
-  const directory = tempDir("oa-desktop-guardian-");
+  const directory = tempDir("canopy-desktop-guardian-");
   const child = spawn(join(runtime, `canopy-controller${suffix}`), [], { stdio: "pipe" });
   const exited = once(child, "exit");
   const replies = new Map<number, (message: { result?: { pids: number[] }; error?: string }) => void>();
@@ -105,7 +105,7 @@ test.skipIf(!existsSync(paths.gateway))("guardian closes its owned process group
 }, 120_000);
 
 test.skipIf(!existsSync(paths.gateway))("a postmaster orphaned by a killed guardian is stopped on the next start, so only one runs", async () => {
-  const directory = tempDir("oa-desktop-orphan-");
+  const directory = tempDir("canopy-desktop-orphan-");
   const keys = secrets();
   const guardian = () => {
     const child = spawn(join(runtime, `canopy-controller${suffix}`), [], { stdio: "pipe" });

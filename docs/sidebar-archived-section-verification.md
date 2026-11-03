@@ -54,7 +54,7 @@ kaskady oraz zachowanie wcześniejszych niezależnych archiwizacji. Testy schema
 
 `/usr/bin/chromium`, Playwright Core. Osobny PostgreSQL w kontenerze na losowym porcie,
 gateway na losowym porcie i web `127.0.0.1:5396`; wcześniejsze testy sidebaru używają własnego
-web `5298`. Nie używano `/tmp/oa-stack` ani portów `17443`, `5180`, `8444`.
+web `5298`. Nie używano prywatnego stacka live ani portów `17443`, `5180`, `8444`.
 Stosy, przeglądarki i katalogi profili są zamykane po testach.
 
 Zestaw danych zawiera 55 głównych wątków archiwalnych, 35 aktywnych oraz osobne drzewo do testu

@@ -13,7 +13,7 @@ Nowe testy jednostkowe obejmują backoff i jitter, reset po sukcesie, ukrytą ka
 
 ## Chromium i własne serwery
 
-Użyto `playwright-core` z `/tmp/ro-shot/node_modules/playwright-core` i `/usr/bin/chromium`. Własne weby działały na portach 15181–15185, z gateway `http://127.0.0.1:17443` albo portem bez gateway. Token został odczytany wyłącznie do środowiska procesu testowego. Nie uruchamiano, nie zatrzymywano ani nie edytowano stacka w `/tmp/oa-stack`.
+Użyto `playwright-core` z `/tmp/ro-shot/node_modules/playwright-core` i `/usr/bin/chromium`. Własne weby działały na portach 15181–15185, z gateway `http://127.0.0.1:17443` albo portem bez gateway. Token został odczytany wyłącznie do środowiska procesu testowego. Nie uruchamiano, nie zatrzymywano ani nie edytowano stacka w prywatnego stacka live.
 
 1. **Wydania A → B z otwartą kartą.** A obsługiwało ruch w czasie budowania B; odpowiedź wersji A nie zmieniła się podczas builda. B miało inne chunki. Po przełączeniu procesu stary chunk odpowiadał **200** i miał `Cache-Control: immutable`. Focus wywołał wykrycie nowej wersji; banner nie przeładował dokumentu i zachował tekst szkicu. Kliknięcie New thread spowodowało pełną nawigację i nowy dokument. Resync SSE przywrócił Connected.
 2. **Błędy importów.** Zdarzenie `vite:preloadError`, rzeczywisty dynamiczny import brakującego pliku JS (404) oraz przechwycony brak gramatyki Shiki Rust (404) pokazały banner. Kompozytor zachował szkic. Reload działał po jawnym kliknięciu; nie było automatycznej pętli odświeżeń. Przy błędzie gramatyki kod pozostał czytelny bez kolorowania.

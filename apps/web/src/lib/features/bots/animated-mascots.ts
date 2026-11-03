@@ -1,5 +1,5 @@
-const key = "oa.animated-mascots";
-const changed = "oa:animated-mascots";
+const key = "canopy.animated-mascots";
+const changed = "canopy:animated-mascots";
 
 /** Device-local preference: no gateway contract changes, defaults on even without storage access. */
 export function animatedMascots(): boolean {

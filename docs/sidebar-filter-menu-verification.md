@@ -60,7 +60,7 @@ Testy live dostawców wymagające zewnętrznych poświadczeń pozostają domyśl
 ## Zrzuty
 
 Katalog artefaktów jest lokalny i ignorowany przez Git:
-`/home/nix/.t3/worktrees/open-agents/t3-9815a940/artifacts/sidebar-filter-menu/`.
+`artifacts/sidebar-filter-menu/` w worktree gałęzi.
 
 | Plik | Widok |
 |---|---|

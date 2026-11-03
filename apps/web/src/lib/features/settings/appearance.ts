@@ -52,23 +52,23 @@ export const chatWidthOf = (
 ): ChatWidthName =>
   nameOf(chatWidthNames, appearance?.chatWidth, "comfortable");
 
-/** Values for the `%oa.*%` placeholders of app.html. */
+/** Values for the `%canopy.*%` placeholders of app.html. */
 export function documentAttributes(
   appearance: ui.AppearanceSettings | undefined,
 ): Record<string, string> {
   const scheme = schemeOf(appearance);
   return {
-    "%oa.dark%": scheme === "dark" ? " dark" : "",
-    "%oa.scheme%": scheme,
-    "%oa.colorSchemeMeta%": scheme === "system" ? "light dark" : scheme,
-    "%oa.accent%": accentOf(appearance),
-    "%oa.chatWidth%": chatWidthOf(appearance),
-    "%oa.sidebarWidth%": String(
+    "%canopy.dark%": scheme === "dark" ? " dark" : "",
+    "%canopy.scheme%": scheme,
+    "%canopy.colorSchemeMeta%": scheme === "system" ? "light dark" : scheme,
+    "%canopy.accent%": accentOf(appearance),
+    "%canopy.chatWidth%": chatWidthOf(appearance),
+    "%canopy.sidebarWidth%": String(
       storedSidebarWidth(appearance?.sidebarWidth ?? 0) ||
         SIDEBAR_WIDTH.default,
     ),
-    "%oa.sidebarCollapsed%": String(appearance?.sidebarCollapsed ?? false),
-    "%oa.threadPanelCollapsed%": String(
+    "%canopy.sidebarCollapsed%": String(appearance?.sidebarCollapsed ?? false),
+    "%canopy.threadPanelCollapsed%": String(
       appearance?.threadPanelCollapsed ?? false,
     ),
   };

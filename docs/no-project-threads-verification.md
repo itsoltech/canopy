@@ -15,7 +15,7 @@ projektów. Automatyczny workspace na dostępnego workera zachowuje istniejące 
 dotyczące projektu, właściciela, workspace'u i drzewa wątków.
 
 Worker tworzy na `CreateThread` katalog
-`<allowed_roots[0]>/.open-agents/scratch/<owner-user-id>/<thread-id>`.
+`<allowed_roots[0]>/<ukryty katalog aplikacji>/scratch/<owner-user-id>/<thread-id>`.
 UUID jest jedynym składnikiem nazwy zależnym od rozmowy: tytuły nie trafiają do ścieżek.
 Nowe katalogi mają uprawnienia POSIX `0700`; worker sprawdza rzeczywiste ścieżki i odrzuca
 symlinki w zarządzanym poddrzewie. Nie rozszerza allowed roots. Forki i wątki boczne,
@@ -62,7 +62,7 @@ a `start_thread` tworzy wątek z poprawnym workspace'em, workerem i cwd oraz dos
 
 Browser suite uruchamia własny PostgreSQL, gateway, scripted worker i produkcyjny web
 na porcie `5391`, używa `/usr/bin/chromium` przez playwright-core. Nie korzysta ze stacka
-`/tmp/oa-stack` ani portów `17443`, `5180`, `8444`.
+prywatnego stacka live ani portów `17443`, `5180`, `8444`.
 W każdym wariancie sprawdza pierwszą pozycję No project, zmianę projektu, worker offline,
 utworzenie rozmowy przez composer, ścieżkę i informację o zachowaniu plików, filtr,
 grupę defaults, ukrycie projektu systemowego w Settings → Projects i formularz harmonogramu.

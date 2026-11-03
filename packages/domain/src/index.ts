@@ -7,6 +7,5 @@ export * from "./mentions/index.ts";
 export * from "./appearance/index.ts";
 export * from "./quotes/index.ts";
 export * from "./background-tasks/index.ts";
-export { legacyEnvReader, readEnv } from "./env.ts";
 export * from "./platform.ts";
 export { PLACEMENTS, scheduleWorkerEligible, selectScheduleWorkspace, type Placement } from "./schedules.ts";

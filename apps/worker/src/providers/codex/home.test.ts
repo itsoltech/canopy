@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tempDir } from "@canopy/testing";
 import { deviceCodexHome, prepareCodexHome } from "./home.ts";
 
-const base = tempDir("oa-codex-home-test-");
+const base = tempDir("canopy-codex-home-test-");
 
 function device(withLogin: boolean): string {
   const dir = mkdtempSync(join(base, "device-"));

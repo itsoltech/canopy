@@ -66,7 +66,7 @@ describe("file names and paths", () => {
 
   test("the path follows the worker's OS and always ends in the attachment's own directory", () => {
     expect(attachmentPath("/data/attachments/", "linux", "t1", "a1", "../x.png")).toBe("/data/attachments/t1/a1/x.png");
-    expect(attachmentPath("C:\\oa\\attachments", "win32", "t1", "a1", "s.png")).toBe("C:\\oa\\attachments\\t1\\a1\\s.png");
+    expect(attachmentPath("C:\\canopy\\attachments", "win32", "t1", "a1", "s.png")).toBe("C:\\canopy\\attachments\\t1\\a1\\s.png");
   });
 });
 

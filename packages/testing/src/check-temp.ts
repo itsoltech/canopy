@@ -1,7 +1,7 @@
 /**
  * `bun run check:tmp [bun test arguments]`: runs the tests with a private TMPDIR and fails when they leave a temp
- * directory of theirs there (`oa-*`: a test, or a process it started, that does not clean up). Private, so other runs on the machine writing to
- * /tmp at the same time do not count; new /tmp/oa-* entries made meanwhile are listed as a hint only (live
+ * directory of theirs there (`canopy-*`: a test, or a process it started, that does not clean up). Private, so other runs on the machine writing to
+ * /tmp at the same time do not count; new /tmp/canopy-* entries made meanwhile are listed as a hint only (live
  * recordings, CANOPY_LIVE_RECORD_DIR, are kept on purpose under fixed names).
  */
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
@@ -9,9 +9,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const shared = tmpdir();
-const ours = (name: string) => name.startsWith("oa-");
+const ours = (name: string) => name.startsWith("canopy-");
 const before = new Set(readdirSync(shared).filter(ours));
-const tmp = mkdtempSync(join(shared, "oa-tmpcheck-"));
+const tmp = mkdtempSync(join(shared, "canopy-tmpcheck-"));
 
 const proc = Bun.spawn(["bun", "test", ...process.argv.slice(2)], { env: { ...process.env, TMPDIR: tmp }, stdio: ["inherit", "inherit", "inherit"] });
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => proc.kill(signal));

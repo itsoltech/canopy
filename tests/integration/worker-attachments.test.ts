@@ -16,7 +16,7 @@ import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 
-const dir = tempDir("oa-host-attachments-");
+const dir = tempDir("canopy-host-attachments-");
 const root = join(dir, "repos");
 mkdirSync(join(root, "app"), { recursive: true });
 

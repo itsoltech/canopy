@@ -165,28 +165,6 @@ WantedBy=default.target
 bez zalogowanej sesji: `loginctl enable-linger $USER`. `PATH` musi obejmować CLI agentów.
 Kod wyjścia 78 = zła konfiguracja (bez restartu w pętli).
 
-## Zmienne środowiskowe: dawne `OA_*`
-
-Przed zmianą nazwy (Canopy, dawniej open-agents) wszystkie zmienne miały prefiks `OA_`. Teraz
-każda nazywa się `CANOPY_*` z tym samym sufiksem: `OA_DATABASE_URL` → `CANOPY_DATABASE_URL`,
-`OA_UI_SERVICE_TOKEN` → `CANOPY_UI_SERVICE_TOKEN`, `OA_SECRETS_KEY` → `CANOPY_SECRETS_KEY`,
-`OA_HOST`/`OA_PORT` → `CANOPY_HOST`/`CANOPY_PORT`, `OA_WORKER_HOST`/`OA_WORKER_PORT`,
-`OA_PUBLIC_GATEWAY_URL`, `OA_MOBILE_PORT`, `OA_MOBILE_GATEWAY_URL`, `OA_TLS_CERT`, `OA_TLS_KEY`,
-`OA_MIGRATE`, `OA_DEV_USER_EMAIL`, `OA_ATTACHMENT_MAX_*` (gateway), `OA_WORKER_CONFIG`,
-`OA_WORKER_STATUS_FILE` (worker) oraz testowe `OA_LIVE*`, `OA_*_BROWSER`.
-
-Zgodność: gdy `CANOPY_X` nie jest ustawiona, a `OA_X` jest, gateway i worker używają starej
-wartości i raz na proces logują ostrzeżenie o przestarzałej nazwie (`readEnv` w
-`packages/domain/src/env.ts`). `bun test` tak samo mapuje stare `OA_*` przy starcie. Nowa nazwa
-zawsze wygrywa. `deploy/docker-compose.yml` i `.env.example` znają już tylko `CANOPY_*` — w
-istniejącym `.env` zmień nazwy przed `docker compose up`. Web BFF nie ma prefiksu
-(`GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN`), więc nic tam się nie zmienia.
-
-Domyślne katalogi też zmieniły nazwę: konfiguracja workera `~/.config/canopy/worker.json`
-(macOS `~/Library/Application Support/canopy`, Windows `%APPDATA%\canopy`). Jeśli nowego pliku
-nie ma, a stary `…/open-agents/worker.json` istnieje, worker czyta stary (dane nie są przenoszone
-automatycznie).
-
 ## Aktualizacja
 
 - **Docker**: tag kanału (`stable`/`latest`, `beta`, `nightly`, `v1`) wskazuje nowy obraz po wydaniu:

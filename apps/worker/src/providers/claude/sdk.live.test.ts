@@ -1,7 +1,7 @@
 /**
  * Live recordings of the Claude Agent SDK stream (opt-in: CANOPY_LIVE=1 with CANOPY_LIVE_CLIPROXYAPI_URL/KEY).
  * Raw material for the event mapping, like the Codex recordings: every SDK message of a turn is written
- * to $CANOPY_LIVE_RECORD_DIR (default /tmp/oa-claude-recordings).
+ * to $CANOPY_LIVE_RECORD_DIR (default /tmp/canopy-claude-recordings).
  */
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -16,9 +16,9 @@ const LIVE = process.env["CANOPY_LIVE"] === "1";
 const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
 const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 const model = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
-const recordDir = process.env["CANOPY_LIVE_RECORD_DIR"] ?? "/tmp/oa-claude-recordings";
-const home = tempDir("oa-claude-home-");
-const cwd = tempDir("oa-claude-cwd-");
+const recordDir = process.env["CANOPY_LIVE_RECORD_DIR"] ?? "/tmp/canopy-claude-recordings";
+const home = tempDir("canopy-claude-home-");
+const cwd = tempDir("canopy-claude-cwd-");
 
 function record(name: string, messages: readonly SDKMessage[]): void {
   mkdirSync(recordDir, { recursive: true });

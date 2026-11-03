@@ -59,7 +59,7 @@ export function grokBus(options: { threadId: string; depth: number; agentBus?: b
   return { server: { type: "http", name: PLATFORM_SERVER, url: `http://127.0.0.1:${server.port}/mcp`, headers: [{ name: "Authorization", value: `Bearer ${token}` }] }, close: () => { void server.stop(true); } };
 }
 
-/** Grok's name of a platform tool, `canopy__list_threads` (`openagents__…` from before the rename) → `list_threads`. */
+/** Grok's name of a platform tool, `canopy__list_threads` → `list_threads`. */
 export function platformToolName(name: string): string | undefined {
   const match = /^(.+?)__(.+)$/.exec(name);
   return match && isPlatformServer(match[1]) ? match[2] : undefined;

@@ -17,7 +17,7 @@ export interface TestCert extends TlsMaterial {
 
 /** Self-signed certificate for 127.0.0.1/localhost, valid 1 day. */
 export function makeSelfSignedCert(): TestCert {
-  const dir = mkdtempSync(join(tmpdir(), "oa-tls-"));
+  const dir = mkdtempSync(join(tmpdir(), "canopy-tls-"));
   const key = join(dir, "key.pem");
   const cert = join(dir, "cert.pem");
   const result = Bun.spawnSync([

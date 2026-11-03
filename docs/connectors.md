@@ -110,7 +110,7 @@ wykonania jest osobny od audytu i redagowany tak jak wynik na osi czasu.
 `artifact_state: ready-for-execution`, `execution_mode: inline`.
 Użytkownik zlecił samodzielny dobór szczegółów i wdrożenie jako subagent.
 Ograniczenia: bez push/PR, bez publikacji produkcyjnej, bez cudzych sekretów,
-bez /tmp/oa-stack i portów 17443/5180/8444, bez trwałych testów UI.
+bez prywatnego stacka live i portów 17443/5180/8444, bez trwałych testów UI.
 Kryteria zakończenia: migracja, API, granty, OAuth, bridge obu harnessów, boty,
 UI i dokumentacja, meaningful integration/live, kontrola light/dark 1440/390,
 wymagane komendy i logiczne commity. Wyniki i zrzuty ekranu:

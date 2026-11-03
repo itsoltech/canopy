@@ -27,7 +27,7 @@ async function refused(promise: Promise<unknown>, code: Code): Promise<void> {
 }
 
 async function fixture() {
-  const dir = await mkdtemp(join(tmpdir(), "oa-update-integration-")); cleanups.push(() => rm(dir, { recursive: true, force: true }));
+  const dir = await mkdtemp(join(tmpdir(), "canopy-update-integration-")); cleanups.push(() => rm(dir, { recursive: true, force: true }));
   let downloads = 0;
   const bytes = '#!/bin/sh\nprintf "2.0.0\\n"\n';
   const sha = createHash("sha256").update(bytes).digest("hex");

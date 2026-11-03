@@ -14,7 +14,7 @@ import { ManagedRuntime } from "effect";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("worker without directory roots", () => {
-  const dir = tempDir("oa-any-directory-");
+  const dir = tempDir("canopy-any-directory-");
   const dataDir = join(dir, "worker-data");
   const projectDir = join(dir, "anywhere", "project");
   const codexHome = join(dir, "device-codex");
@@ -79,14 +79,14 @@ describe.skipIf(!dockerAvailable)("worker without directory roots", () => {
     expect(existsSync(gone)).toBe(false);
   });
 
-  test("scratch starts under worker data without roots; an existing legacy scratch thread also starts", async () => {
+  test("scratch starts under worker data without roots; a thread under a previous data dir also starts", async () => {
     const scratch = (await gw.api.getOverview({})).projects.find((p) => p.kind === "scratch")!;
     const workspace = scratch.workspaces.find((w) => w.workerId === workerId)!;
     const thread = (await gw.api.createThread({ projectId: scratch.id, workspaceId: workspace.id, provider: Provider.CODEX })).thread!;
     await eventually(() => gw.api.getThread({ threadId: thread.id }), (r) => r.thread?.status === "idle");
     expect(thread.cwd).toBe(join(dataDir, "scratch", gw.userId, thread.id));
     expect(readFileSync(join(thread.cwd, "worker-started.txt"), "utf8")).toBe(thread.cwd);
-    const cwd = join(dir, "old-projects", ".open-agents", "scratch", gw.userId, Bun.randomUUIDv7());
+    const cwd = join(dir, "old-data", "scratch", gw.userId, Bun.randomUUIDv7());
     mkdirSync(cwd, { recursive: true });
     const connection = gw.core.link.connections.get(workerId)!;
     expect(await connection.sendCommand({ case: "createThread", value: { thread: { threadId: Bun.randomUUIDv7(), cwd, scratch: true, provider: Provider.CODEX } } })).toMatchObject({ ok: true });

@@ -16,7 +16,7 @@ import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 
-const dir = tempDir("oa-host-");
+const dir = tempDir("canopy-host-");
 const root = join(dir, "repos");
 mkdirSync(join(root, "project-a", ".git"), { recursive: true });
 mkdirSync(join(root, "notes"), { recursive: true });
@@ -106,7 +106,7 @@ describe("worker command handling", () => {
     expect(result).toMatchObject({ ok: false, errorCode: "FORK_POINT_UNKNOWN" });
   });
 
-  test("CreateThread prepares private scratch in worker data; existing legacy cwd stays valid", async () => {
+  test("CreateThread prepares private scratch in worker data; an existing cwd under a previous data dir stays valid", async () => {
     const suffix = join("scratch", Bun.randomUUIDv7(), Bun.randomUUIDv7());
     const cwd = join(dir, "data", suffix);
     const result = await connection.sendCommand({ case: "createThread", value: { thread: { ...thread(cwd), scratch: true } } });
@@ -116,9 +116,9 @@ describe("worker command handling", () => {
     const outside = join(dir, suffix);
     expect((await connection.sendCommand({ case: "createThread", value: { thread: { ...thread(outside), scratch: true } } })).errorCode).toBe("SCRATCH_NOT_ALLOWED");
     expect(existsSync(outside)).toBe(false);
-    const legacy = join(root, ".open-agents", suffix);
-    mkdirSync(legacy, { recursive: true });
-    expect((await connection.sendCommand({ case: "createThread", value: { thread: { ...thread(legacy), scratch: true } } })).errorCode).toBe("PROVIDER_UNAVAILABLE");
+    const previous = join(root, "old-data", suffix);
+    mkdirSync(previous, { recursive: true });
+    expect((await connection.sendCommand({ case: "createThread", value: { thread: { ...thread(previous), scratch: true } } })).errorCode).toBe("PROVIDER_UNAVAILABLE");
   });
 
   test("a redelivered command is answered from the journal, not executed again", async () => {

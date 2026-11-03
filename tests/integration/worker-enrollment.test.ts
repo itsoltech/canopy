@@ -26,7 +26,7 @@ async function query(statement: string, params: unknown[]) {
 
 describe.skipIf(!dockerAvailable)("worker enrollment and credential lifecycle over gRPC", () => {
   beforeAll(async () => {
-    dir = mkdtempSync(join(tmpdir(), "oa-enrollment-"));
+    dir = mkdtempSync(join(tmpdir(), "canopy-enrollment-"));
     gw = await startTestGateway();
     client = createClient(WorkerEnrollmentService, createGrpcTransport({ baseUrl: gw.grpcUrl }));
   }, 60_000);

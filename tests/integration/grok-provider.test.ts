@@ -14,7 +14,7 @@ const tempDir = tempDirs();
 const fake = resolve(import.meta.dir, "../../apps/worker/src/providers/grok/fixtures/agent.ts");
 test.skipIf(!dockerAvailable)("Grok: UI API→gateway→worker→fake ACP, approvals, MCP, interrupt, steer queue, restart/resume", async () => {
   const gw = await startTestGateway();
-  const data = tempDir("oa-grok-worker-"); const repo = tempDir("oa-grok-repo-");
+  const data = tempDir("canopy-grok-worker-"); const repo = tempDir("canopy-grok-repo-");
   const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "Grok fake", ownerUserId: gw.userId })));
   await gw.runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { grok: { enabled: true, executablePath: fake } }, gw.userId)));
   let stop = async () => {};

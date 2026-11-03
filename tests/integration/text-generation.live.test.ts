@@ -23,8 +23,8 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
   let host: WorkerHost;
   let runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
   let stop = async () => {};
-  const dir = tempDir("oa-text-live-");
-  const repo = tempDir("oa-text-live-repo-");
+  const dir = tempDir("canopy-text-live-");
+  const repo = tempDir("canopy-text-live-repo-");
   beforeAll(async () => {
     gw = await startTestGateway();
     const worker = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ ownerUserId: gw.userId, name: "generation" })));

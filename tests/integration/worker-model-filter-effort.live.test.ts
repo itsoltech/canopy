@@ -47,8 +47,8 @@ const NON_AGENT = /image|imagine|video|tts|voice|embedding|moderation|realtime|t
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker: model filter and configured default effort (live)", () => {
   for (const c of CASES) {
     test(`${c.name}: no non-agent models, the configured default effort in the catalog and in a turn`, async () => {
-      const dir = tempDir(`oa-live-effort-${c.name.toLowerCase()}-`);
-      const repo = tempDir("oa-live-effort-repo-");
+      const dir = tempDir(`canopy-live-effort-${c.name.toLowerCase()}-`);
+      const repo = tempDir("canopy-live-effort-repo-");
       // Fixture device homes: a Codex profile with its own effort, a Claude per-model effort.
       const codexHome = join(dir, "device-codex");
       const claudeHome = join(dir, "device-claude");

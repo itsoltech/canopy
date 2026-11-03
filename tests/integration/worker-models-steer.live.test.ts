@@ -46,8 +46,8 @@ const agentText = (events: ThreadEvent[], turnId: string) =>
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker: models, effort and steer (live)", () => {
   for (const c of CASES) {
     test(`${c.name}: model list, a turn with a chosen effort, a steer into a running turn`, async () => {
-      const dir = tempDir(`oa-live-models-${c.name.toLowerCase()}-`);
-      const repo = tempDir(`oa-live-models-repo-`);
+      const dir = tempDir(`canopy-live-models-${c.name.toLowerCase()}-`);
+      const repo = tempDir(`canopy-live-models-repo-`);
       const gateway = await startGateway();
       const runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
       const host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "live" });

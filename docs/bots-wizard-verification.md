@@ -23,7 +23,7 @@ Zastosowano skille `design`, `transitions-dev` i `componentize`. Animacje odwoł
 
 Włączono przesuwający się `main`, w tym custom form controls, poprawkę przewijania popoverów, ikony providerów w bocznych wątkach i timeline folding (`28aef2b`). Po ostatnim scaleniu ponowiono instalację, pełny typecheck, build, testy jednostkowe botów i testy zmienione na main oraz cały przebieg przeglądarkowy. Pełny `check:tmp` zakończył się przed ostatnim scaleniem timeline folding; wiersz z 46 testami jest ponowną weryfikacją po tym scaleniu.
 
-Przeglądarka: `/usr/bin/chromium`, `playwright-core`, własny Vite na 5197. Nie używano `/tmp/oa-stack` ani portów 17443, 5180, 8444. Proces Vite i Chromium są zamykane przez fixture, bez wyszukiwania/zabijania procesów po wzorcu.
+Przeglądarka: `/usr/bin/chromium`, `playwright-core`, własny Vite na 5197. Nie używano prywatnego stacka live ani portów 17443, 5180, 8444. Proces Vite i Chromium są zamykane przez fixture, bez wyszukiwania/zabijania procesów po wzorcu.
 
 Pełne testy Docker uruchamiane na tej maszynie powodowały reset interfejsów i `ERR_NETWORK_CHANGED` w Chromium. Fixture przekazuje rzeczywiste odpowiedzi Vite i fontów przez klienta HTTP Playwright oraz lokalnie obsługuje handshake HMR. API powłoki i SSE są mockowane. Nie zastępuje to kodu komponentów ani ich CSS. Końcowy przebieg nie zawierał błędów strony ani konsoli; błędy aplikacji i interakcji nie są ignorowane. Komunikat procesu Vite o kodzie 143 wynika z jego celowego zamknięcia po testach.
 

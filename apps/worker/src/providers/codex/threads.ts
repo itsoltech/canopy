@@ -119,7 +119,6 @@ function dynamicTools(spec: ThreadSpec, viewImage: boolean): { dynamicTools?: v2
 }
 
 export function isViewImageCall(call: { namespace?: string | null; tool: string }): boolean {
-  // Threads from before the rename keep the "openagents" namespace (Codex stores dynamic tools with the thread).
   return call.tool === CODEX_VIEW_IMAGE_TOOL && isPlatformServer(call.namespace);
 }
 

@@ -104,8 +104,7 @@ docker buildx build --target gateway --build-arg CANOPY_VERSION=$V --build-arg C
 | `canopy-worker` | `debian:bookworm-slim` + git, curl, ssh, tini | binarka worker | `canopy` (10001) | `canopy-worker healthcheck` (link online wg `CANOPY_WORKER_STATUS_FILE`) |
 
 
-Wszystkie zmienne runtime mają prefiks `CANOPY_`; dawne `OA_*` działają jeszcze jako fallback
-z ostrzeżeniem — mapowanie w [deploy.md](deploy.md#zmienne-środowiskowe-dawne-oa_).
+Wszystkie zmienne runtime mają prefiks `CANOPY_`.
 
 Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emulacji poza
 `apt-get` w obrazie workera.

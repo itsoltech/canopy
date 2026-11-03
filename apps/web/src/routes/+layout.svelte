@@ -6,7 +6,7 @@
   import type { LayoutProps } from "./$types";
   let { children }: LayoutProps = $props();
   onMount(() => {
-    document.getElementById("oa-boot")?.remove();
+    document.getElementById("canopy-boot")?.remove();
     if (window.canopyDesktop) document.documentElement.dataset["canopyPlatform"] = window.canopyDesktop.platform;
   });
 </script>

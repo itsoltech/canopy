@@ -26,7 +26,7 @@ describe.skipIf(!enabled)('connectors (Codex + Claude, live CLIProxyAPI)', () =>
   const query = <A extends object>(text: string, ...params: unknown[]) => gw.runtime.runPromise(Effect.gen(function* () { const sql = yield* SqlClient.SqlClient; return yield* sql.unsafe<A>(text, params); }));
   beforeAll(async () => {
     fake = fakeConnector(); gw = await startTestGateway();
-    const repo = tempDir('oa-connectors-live-repo-'); data = tempDir('oa-connectors-live-data-');
+    const repo = tempDir('canopy-connectors-live-repo-'); data = tempDir('canopy-connectors-live-data-');
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: 'connectors-live', ownerUserId: gw.userId })));
     await useLiveProxy(gw, added.workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const runtime = ManagedRuntime.make(Journal.layer(join(data,'journal.db')));

@@ -55,7 +55,7 @@
   });
   // The server rendered the appearance into <html>; keep it current (and follow the system for "system").
   $effect(() => applyAppearance(settings.appearance));
-  onMount(() => document.getElementById("oa-boot")?.remove());
+  onMount(() => document.getElementById("canopy-boot")?.remove());
   $effect(() => {
     const query = matchMedia("(prefers-color-scheme: dark)");
     const follow = () => applyAppearance(settings.appearance);

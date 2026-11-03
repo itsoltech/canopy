@@ -33,8 +33,8 @@ describe.skipIf(!enabled)("thread secrets (Codex + Claude, live CLIProxyAPI)", (
   }));
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = tempDir("oa-secret-live-repo-");
-    data = tempDir("oa-secret-live-data-");
+    const repo = tempDir("canopy-secret-live-repo-");
+    data = tempDir("canopy-secret-live-data-");
     const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "secret-live", ownerUserId: gw.userId })));
     await useLiveProxy(gw, added.workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));

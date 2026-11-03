@@ -14,8 +14,7 @@ uprawnień i sandboxy nadal obowiązują osobno dla każdego wątku.
 Nowa baza scratch to **`<data_dir>/scratch/<user-id>/<thread-id>`**. Worker zgłasza
 `scratch_root` oraz `home_directory` w Hello. Zmiana bazy aktualizuje workspace tylko dla
 przyszłych rozmów; zapisane cwd istniejących wątków, forków i wątków bocznych pozostaje
-bez zmian. Istniejące stare `.open-agents/scratch/...` oraz katalogi z poprzedniego
-`data_dir` działają dalej. Nie są przenoszone ani odtwarzane, gdy ich brakuje. Zarządzane
+bez zmian. Istniejące katalogi z poprzedniego `data_dir` działają dalej. Nie są przenoszone ani odtwarzane, gdy ich brakuje. Zarządzane
 poddrzewo scratch odrzuca symlinki; nowe katalogi POSIX mają `0700`.
 
 Stare lokalne `allowedRoots` i `allowed_roots`, zdalne pole protobuf oraz JSON w bazie
@@ -78,7 +77,7 @@ app-server i zapisuje rzeczywisty cwd procesu. Testów live przez CLIProxyAPI ni
 uruchamiano; nie potwierdzono rzeczywistej odpowiedzi modelu. Web build zgłasza
 ostrzeżenie Vite o rozmiarze chunka, ale kończy się kodem 0.
 `check:tmp` odnotował wyłącznie runtime narzędzia `claude-1000`, wyłączony z kontroli
-przez samą procedurę; katalogi testowe `oa-*` i `open-agents-*` zostały posprzątane.
+przez samą procedurę; katalogi testowe zostały posprzątane.
 
 Logi końcowe:
 
@@ -111,12 +110,12 @@ w sprawdzonych widokach; picker używa niestandardowego combobox/listbox.
 
 ## Instrukcja aktualizacji istniejącego stacka dla lead
 
-Nie odczytywano ani nie modyfikowano `/tmp/oa-stack/worker.json`, live env ani sekretów
+Nie odczytywano ani nie modyfikowano `worker.json` prywatnego stacka live, live env ani sekretów
 CLIProxyAPI. Nie użyto portów `17443`, `5180`, `8444`.
 
 1. Po merge zaktualizować i zrestartować gateway, worker oraz web. Worker zgłosi home
    i bazę scratch w Hello; nie potrzeba migracji SQL ani zmiany env.
-2. W `/tmp/oa-stack/worker.json` zachować `gateway_url`, `worker_id`, `credential`,
+2. W `worker.json` prywatnego stacka live zachować `gateway_url`, `worker_id`, `credential`,
    `data_dir` i pozostałe ustawienia połączenia. `allowedRoots`/`allowed_roots` można
    usunąć, ale nie jest to wymagane — nowa wersja je ignoruje.
 3. Zachować obecny `data_dir`. Nowe scratch pojawią się automatycznie w jego

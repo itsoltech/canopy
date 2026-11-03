@@ -29,8 +29,8 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
   const makeTemp = tempDirs();
   test("CreateThread creates a scratch directory and the agent's pwd is that directory", async () => {
     const gw = await startTestGateway();
-    const root = makeTemp("oa-scratch-live-root-");
-    const data = makeTemp("oa-scratch-live-data-");
+    const root = makeTemp("canopy-scratch-live-root-");
+    const data = makeTemp("canopy-scratch-live-data-");
     const worker = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ ownerUserId: gw.userId, name: "scratch-live" })));
     const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));
     const host = new WorkerHost({ runtime, dataDir: join(data, "data"), clientVersion: "scratch-live" });

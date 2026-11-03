@@ -37,7 +37,7 @@ Pierwszy pełny zestaw wykrył nieaktualne oczekiwanie osobnego „Working…”
 
 ## Pomiary Chromium
 
-Własny PostgreSQL/gateway/scripted worker, web na porcie 5398, Chromium `/usr/bin/chromium`. Po testach proces web oraz gateway zostały zamknięte. Nie używano `/tmp/oa-stack` ani portów 17443, 5180, 8444.
+Własny PostgreSQL/gateway/scripted worker, web na porcie 5398, Chromium `/usr/bin/chromium`. Po testach proces web oraz gateway zostały zamknięte. Nie używano prywatnego stacka live ani portów 17443, 5180, 8444.
 
 | Wariant | Początek odpowiedzi od góry feedu | Dryf przy wcześniejszym przewinięciu | Największy krok płynnego przewijania na klatkę |
 | --- | ---: | ---: | ---: |

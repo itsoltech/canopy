@@ -11,7 +11,7 @@ import { Journal } from "@canopy/worker/journal";
 import { Effect, ManagedRuntime } from "effect";
 import { connectWorker, startGateway, take } from "./helpers.ts";
 
-const dir = tempDir("oa-delivery-");
+const dir = tempDir("canopy-delivery-");
 
 /** Gateway-side persistence: cursors per journal, event ids already stored. */
 class FakeStore {

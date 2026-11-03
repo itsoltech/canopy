@@ -18,7 +18,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   return resolve(event, {
     transformPageChunk: async ({ html }) => {
       const attributes = documentAttributes(await appearance);
-      return html.replace(/%oa\.\w+%/g, (placeholder) => attributes[placeholder] ?? "");
+      return html.replace(/%canopy\.\w+%/g, (placeholder) => attributes[placeholder] ?? "");
     },
   });
 };

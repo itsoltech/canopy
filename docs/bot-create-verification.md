@@ -73,7 +73,7 @@ i schematu bazy. Fixture routines czeka na asynchroniczny katalog API przed Crea
 Live CLIProxyAPI (sekrety wyłącznie z lokalnego env):
 
 ```sh
-CANOPY_LIVE=1 bun --env-file=/home/nix/.config/canopy/dev-live.env test tests/integration/bots-create.live.test.ts
+CANOPY_LIVE=1 bun --env-file="$HOME/.config/canopy/dev-live.env" test tests/integration/bots-create.live.test.ts
 ```
 
 **1 pass, 0 fail, 7 asercji**. Prawdziwy `gpt-6.1-sol` sprawdził modele, zaproponował
@@ -86,7 +86,7 @@ Test sprawdza rzeczywistą inferencję Codex/CLIProxyAPI; nie sprawdza dostawcy 
 `/usr/bin/chromium`, Playwright Core z `/tmp/ro-shot/node_modules/playwright-core`,
 nagłówek `x-forwarded-proto: http`. Własny tymczasowy gateway/PostgreSQL i web na
 **5286**, z deterministycznym modelem do UI; osobno powyższy live z prawdziwym modelem.
-Nie używano `/tmp/oa-stack` ani portów 17443/5180/8444. Helpery i zrzuty są poza repo.
+Nie używano prywatnego stacka live ani portów 17443/5180/8444. Helpery i zrzuty są poza repo.
 
 Zgoda kliknięta w przeglądarce utworzyła bota widocznego w sidebarze bez refresh.
 Sprawdzono pustą rozmowę i pochodzenie w ustawieniach. Jasny/ciemny motyw przy

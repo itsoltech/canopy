@@ -31,8 +31,8 @@ async function until<A>(what: string, read: () => Promise<A>, done: (value: A) =
 }
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("harness goals and background work, end to end (live)", () => {
-  const dir = tempDir("oa-live-goals-");
-  const repo = tempDir("oa-live-goals-repo-");
+  const dir = tempDir("canopy-live-goals-");
+  const repo = tempDir("canopy-live-goals-repo-");
   let gw: TestGateway;
   let close: () => Promise<void> = async () => {};
   let projectId = "";

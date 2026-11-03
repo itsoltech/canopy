@@ -10,7 +10,7 @@ const directories: string[] = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map((d) => rm(d, { recursive: true, force: true }))); });
 const oldBinary = '#!/bin/sh\nprintf "1.0.0\\n"\n';
 async function fixture() {
-  const dir = await mkdtemp(join(tmpdir(), "oa-updater-")); directories.push(dir);
+  const dir = await mkdtemp(join(tmpdir(), "canopy-updater-")); directories.push(dir);
   const binaryPath = join(dir, "canopy-worker");
   await writeFile(binaryPath, oldBinary, { mode: 0o700 });
   return binaryPath;

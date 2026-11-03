@@ -86,7 +86,7 @@ bota, limity odstępu/liczby/strefy/hops i częściowe edycje. Test migracji wym
 Live przez CLIProxyAPI, bez ujawniania hosta/klucza:
 
 ```sh
-CANOPY_LIVE=1 bun --env-file=/home/nix/.config/canopy/dev-live.env test tests/integration/bot-routines.live.test.ts
+CANOPY_LIVE=1 bun --env-file="$HOME/.config/canopy/dev-live.env" test tests/integration/bot-routines.live.test.ts
 ```
 
 **1 pass, 0 fail, 11 asercji**. Prawdziwy `gpt-6.1-sol` utworzył `*/15 * * * *`, UTC,
@@ -100,7 +100,7 @@ zewnętrznego monitorowanego systemu ani dostarczenia systemowego push.
 `/usr/bin/chromium`, Playwright Core z `/tmp/ro-shot/node_modules/playwright-core`,
 nagłówek `x-forwarded-proto: http`. Jednorazowy helper poza repo, bez nowego test suite.
 Własny PostgreSQL **25439**, gateway **28443**, web **5289**. Nie używano
-`/tmp/oa-stack` ani portów 17443/5180/8444. Po oględzinach zatrzymano własne procesy
+prywatnego stacka live ani portów 17443/5180/8444. Po oględzinach zatrzymano własne procesy
 i kontener, zamknięto własne karty preview. PNG pozostały w `/tmp`.
 
 Oba motywy, szerokości 1440/390 px, panel otwarty/zamknięty i pusty stan: bez błędów

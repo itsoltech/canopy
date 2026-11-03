@@ -24,8 +24,8 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
   let stop = async () => {};
   beforeAll(async () => {
     gw = await startTestGateway();
-    const repo = makeTemp("oa-schedule-live-repo-");
-    const dir = makeTemp("oa-schedule-live-");
+    const repo = makeTemp("canopy-schedule-live-repo-");
+    const dir = makeTemp("canopy-schedule-live-");
     const worker = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ ownerUserId: gw.userId, name: "scheduled-live" })));
     workerId = worker.workerId;
     await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo], harnesses: [Provider.CLAUDE] });

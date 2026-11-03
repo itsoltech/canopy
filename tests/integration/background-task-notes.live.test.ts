@@ -32,8 +32,8 @@ async function until<A>(what: string, read: () => Promise<A>, done: (value: A) =
 }
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("background task notes across a worker restart (live)", () => {
-  const dir = tempDir("oa-live-bgnotes-");
-  const repo = tempDir("oa-live-bgnotes-repo-");
+  const dir = tempDir("canopy-live-bgnotes-");
+  const repo = tempDir("canopy-live-bgnotes-repo-");
   let gw: TestGateway;
   let workerId = "";
   let credential = "";

@@ -25,8 +25,8 @@ const text = (events: ThreadEvent[], turnId: string) =>
     .join("\n");
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Claude end to end (live)", () => {
-  const dir = tempDir("oa-e2e-claude-");
-  const repo = tempDir("oa-e2e-claude-repo-");
+  const dir = tempDir("canopy-e2e-claude-");
+  const repo = tempDir("canopy-e2e-claude-repo-");
 
   test("ASK turn with permissions, resume, fork at a turn, agent bus call, native subagents off", async () => {
     const gateway = await startGateway();
