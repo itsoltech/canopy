@@ -7,6 +7,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ModeChoice from "./ModeChoice.svelte";
   import WorkerStatus from "./WorkerStatus.svelte";
+  import AppUpdates from "./AppUpdates.svelte";
   let mode = $state<DesktopMode>("local");
   let status = $state<DesktopStatus>();
   let available = $state(false);
@@ -81,6 +82,7 @@
         </div>
       </form>
       {#if status?.mode}<div class="grid gap-3 border-t border-zinc-950/5 pt-6 dark:border-white/10"><WorkerStatus {status} /><p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Saving these settings restarts this computer’s services and stops its running agents.</p></div>{/if}
+      <AppUpdates />
     {/if}
   </div>
 </main>

@@ -72,6 +72,7 @@ function isTrusted(event: IpcMainInvokeEvent, setupOnly = false) {
 function authorize(event: IpcMainInvokeEvent, setupOnly = false) { if (!isTrusted(event, setupOnly)) throw new Error("Untrusted desktop request"); }
 function broadcast() {
   for (const target of [window, settingsWindow]) if (target && !target.isDestroyed()) target.webContents.send("canopy:status", status);
+  for (const target of [window, settingsWindow]) if (target && !target.isDestroyed()) target.webContents.send("canopy:updates", updates.status());
   const text = status.phase === "error" ? "Needs attention" : status.worker === "online" ? "Worker online" : status.phase === "starting" ? "Starting…" : "Worker offline";
   tray?.setToolTip(`${identity.productName} · ${text}`);
   tray?.setContextMenu(Menu.buildFromTemplate([
@@ -207,6 +208,10 @@ async function start() {
   status = initialized.status;
   ipcMain.handle("canopy:status", (event) => { authorize(event); return status; });
   ipcMain.handle("canopy:settings", (event) => { authorize(event); openSettings(); });
+  ipcMain.handle("canopy:updates", (event) => { authorize(event); return updates.status(); });
+  ipcMain.handle("canopy:update-channel", (event, channel: unknown) => { authorize(event); return updates.setChannel(channel); });
+  ipcMain.handle("canopy:update-check", (event) => { authorize(event); return updates.check(); });
+  ipcMain.handle("canopy:update-install", (event) => { authorize(event); updates.restartIfReady(); });
   ipcMain.handle("canopy:enrollment-ready", (event) => {
     authorize(event, true);
     enrollmentReady.add(event.sender.id);

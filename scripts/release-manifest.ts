@@ -39,8 +39,8 @@ const DESKTOP = /^Canopy-.+-(linux|darwin|windows)-(x64|arm64)\.(AppImage|deb|dm
 const GENERATED = new Set(["checksums.txt", "manifest.json"]);
 
 function isDesktopUpdateMetadata(name: string, channel: string) {
-  const feed = channel === "stable" ? "latest" : channel;
-  return new RegExp(`^${feed}(-mac|-linux(-arm64)?)?\\.yml$`).test(name) ||
+  const feeds = channel === "stable" ? "latest|beta|nightly" : channel === "beta" ? "beta|nightly" : "nightly";
+  return new RegExp(`^(${feeds})(-mac|-linux(-arm64)?)?\\.yml$`).test(name) ||
     /^Canopy-.+-(linux|darwin|windows)-(x64|arm64)\.(AppImage|dmg|zip|exe)\.blockmap$/.test(name);
 }
 

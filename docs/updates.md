@@ -82,6 +82,16 @@ Nazwy niekompresowanych binarek: `canopy-{gateway|worker}-{os}-{arch}`
 `checksums.txt`; runtime weryfikuje rozmiar i SHA-256 bezpośrednio z manifestu.
 Manifest może zawierać także instalatory desktop z własnymi nazwami; aktualizator
 gatewaya/workera nie wybiera tych assetów.
+Desktop ma osobną politykę: Settings → App updates zapisuje kanał w lokalnym
+`userData/app-updates.json` Electrona, bez wywołania gatewaya i bez zmiany kanału
+gatewaya ani workera. Jedna aplikacja Canopy ma wspólne dane dla wszystkich kanałów.
+Stable dopuszcza stable, Beta stable/beta, Nightly wszystkie trzy; resolver wybiera
+najwyższy SemVer. Powrót do stabilniejszego kanału wymaga zgody na pojedynczą próbę
+downgrade'u z ryzykiem niezgodnych danych. Nie jest to rollback bazy ani mechanizm
+UpdateService opisany poniżej. W lokalnym desktopie nowy instalator zawiera też nowy
+runtime gatewaya/workera — ich jawne polityki aktualizacji pozostają niezależne.
+Semantyka feedów i migracja starych instalacji: [desktop.md](desktop.md#automatyczne-aktualizacje-desktopu).
+
 Wszystkie adresy upstream i przekierowania muszą używać HTTPS. Jawny wyjątek HTTP
 jest dostępny tylko w opcjach testowych, nie przez zmienną środowiskową.
 

@@ -89,9 +89,11 @@ test("manifest preserves the exact version/channel and rejects contradictory rel
   expect(manifest.channel).toBe("beta");
   expect(manifest.assets[0]?.url).toContain("/v0.2.0-beta.1/canopy-worker-linux-x64");
   writeFileSync(join(directory, "beta-mac.yml"), "desktop feed");
-  writeFileSync(join(directory, "Canopy-Beta-0.2.0-beta.1-darwin-arm64.zip.blockmap"), "desktop blockmap");
+  writeFileSync(join(directory, "Canopy-0.2.0-beta.1-darwin-arm64.zip.blockmap"), "desktop blockmap");
   expect((await releaseManifest(directory, env)).assets).toEqual(manifest.assets);
-  writeFileSync(join(directory, "nightly-mac.yml"), "wrong channel");
+  writeFileSync(join(directory, "nightly-mac.yml"), "cumulative alias");
+  expect((await releaseManifest(directory, env)).assets).toEqual(manifest.assets);
+  writeFileSync(join(directory, "latest-mac.yml"), "wrong channel");
   await expect(releaseManifest(directory, env)).rejects.toThrow("Not a release asset");
   await expect(releaseManifest(directory, { ...env, CANOPY_CHANNEL: "stable" })).rejects.toThrow("must match");
 });

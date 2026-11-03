@@ -2,7 +2,7 @@
 
 Implementacja: `apps/desktop`. Zweryfikowany cel: **Linux x64**. Pozostałe cele mają
 konfigurację i układ zasobów, ale nie zostały tutaj zbudowane ani uruchomione.
-Produkty: **Canopy**, **Canopy Beta**, **Canopy Nightly** (osobne instalacje).
+Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji.
 
 ## Decyzje
 
@@ -49,15 +49,18 @@ Każdy zdalny origin gatewaya ma własny katalog tożsamości workera. Niedostę
 gateway powoduje ponawianie połączenia przez workera. Niedostępny web przy starcie
 otwiera lokalny ekran ustawień. Zmiana trybu zatrzymuje lokalnie wykonywane zadania.
 
-Preload udostępnia tylko status, konfigurację trybu w zaufanym lokalnym ekranie,
-otwarcie ustawień i subskrypcję statusu. Brak dostępu do plików, shella i dowolnego IPC.
+Preload udostępnia status, konfigurację trybu w zaufanym lokalnym ekranie,
+otwarcie ustawień oraz typowane operacje i subskrypcję aktualizacji aplikacji.
+Brak dostępu do plików, shella i dowolnego IPC.
 Każde wywołanie jest sprawdzane względem nadawcy i originu; obcy web nie może
 zmienić lokalnej konfiguracji ani przesłać tokenu enrollment. Renderer ma sandbox,
 contextIsolation i wyłączoną integrację Node. Linki zewnętrzne otwierają systemową
 przeglądarkę. `canopy://enroll` jedynie wypełnia formularz — nie zużywa tokenu bez akcji użytkownika.
 Format: `canopy://enroll?gateway=<encoded-origin>&web=<encoded-origin>&token=<encoded-token>`.
 Formularz potwierdza gotowość przez IPC przed dostarczeniem sekretu z linku.
-Remote web ma dostęp do statusu i otwarcia ustawień; konfigurację oraz odbiór tokenu
+Wybrany remote web ma też dostęp do wyboru kanału, sprawdzenia i restartu aktualizacji;
+zgodę na downgrade wyświetla natywny dialog main, z domyślnym Cancel.
+Konfigurację trybu oraz odbiór tokenu
 może wykonać wyłącznie lokalna strona `/desktop`.
 
 Polityka CSP dopuszcza skrypty z wybranego originu i hashe skryptów startowych
@@ -125,6 +128,7 @@ Pliki pod `userData`:
 ```text
 secrets.enc                 # ciphertext OS keychain; 0600 na POSIX
 desktop.json                # tryb/adresy; bez tokenu enrollment
+app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
 postgres/data/              # pełny klaster PostgreSQL
 local-worker/worker.json    # credential; 0600 na POSIX
 remote-workers/<hash>/      # osobna tożsamość dla każdego gatewaya
@@ -169,7 +173,7 @@ bun run --cwd apps/desktop package:windows
 `CANOPY_TARGET` opcjonalnie deklaruje cel i musi zgadzać się z hostem. Build odrzuca
 cross-host, zamiast dołączyć niezgodne biblioteki sharp/SDK/Postgres. Do ponownego
 pakowania już zbudowanego runtime: `bun run --cwd apps/desktop scripts/package.ts`.
-`CANOPY_CHANNEL=stable|beta|nightly` wybiera produkt (domyślnie stable).
+`CANOPY_CHANNEL=stable|beta|nightly` określa kanał buildu i domyślny wybór aktualizacji (domyślnie stable).
 Przykład: `CANOPY_CHANNEL=beta CANOPY_VERSION=0.2.0-beta.1 bun run --cwd apps/desktop package:mac`.
 Wynik jest w `apps/desktop/release/<kanał>/`; katalog jest ignorowany przez git.
 Skrypt pakowania w razie zmiany kanału odświeża shell i ikonę, zachowując zbudowany runtime.
@@ -214,30 +218,36 @@ przypięte w `bun.lock`; podczas build wersja jest dodatkowo sprawdzana. Licencj
 PostgreSQL, MIT opakowania, Apache-2.0 dystrybucji oraz odnośniki do bibliotek
 zależnych zapisano w `apps/desktop/THIRD_PARTY_NOTICES.md` i dołączono do paczki.
 
-## Kanały i osobne instalacje
+## Jedna instalacja i kanały
 
-| Kanał | Produkt / katalog userData | appId | Plik wykonywalny / schemat linków | Ikona |
-| --- | --- | --- | --- | --- |
-| stable | Canopy | `app.canopy.desktop` | `canopy` / `canopy://` | istniejąca, bez zmian |
-| beta | Canopy Beta | `app.canopy.desktop.beta` | `canopy-beta` / `canopy-beta://` | bursztynowa `#f59e0b` |
-| nightly | Canopy Nightly | `app.canopy.desktop.nightly` | `canopy-nightly` / `canopy-nightly://` | fioletowa `#8b5cf6` |
+Wszystkie buildy mają `appId: app.canopy.desktop`, `productName: Canopy`, executable
+`canopy` i jeden schemat `canopy://`. Instalatory nazywają się
+`Canopy-<wersja>-<os>-<arch>.<ext>`; wersja zawiera `-beta.N` lub `-nightly.N`.
+Zmiana kanału zastępuje tę samą aplikację. userData jest wspólne: macOS
+`~/Library/Application Support/Canopy`, Windows `%APPDATA%/Canopy`, Linux
+`${XDG_CONFIG_HOME:-~/.config}/Canopy`. `CANOPY_USER_DATA` pozostaje nadpisaniem diagnostycznym.
 
-Nazwy obowiązują także w menu, trayu, identyfikatorze Windows i instalatorach.
-Na macOS plik wykonywalny wewnątrz `.app` nosi nazwę produktu nadaną przez electron-builder.
-Ikony PNG są generowane przez sharp z istniejącego artworku przed pakowaniem;
-electron-builder konwertuje je na ICNS/ICO. Kanał jest utrwalony w shellu podczas build,
-więc zmienna środowiskowa na komputerze użytkownika nie przełącza zainstalowanego produktu.
+Ikona zależy od **zainstalowanego buildu**: stable zachowuje źródłowy PNG, beta jest
+bursztynowa, nightly fioletowa. Kolor nie wpływa na bundle ID, podpis ani schemat.
+Zmiana preferencji nie zmienia ikony przed instalacją. Sidebar oznacza wersję
+uruchomionego web buildu; sekcja App updates pokazuje wersję i kanał samego Electrona,
+także gdy okno ładuje web ze zdalnego gatewaya o innej wersji.
 
-Katalogi danych: macOS `~/Library/Application Support/<produkt>`, Windows
-`%APPDATA%/<produkt>`, Linux `${XDG_CONFIG_HOME:-~/.config}/<produkt>`.
-Każdy kanał ma osobną bazę, konfigurację workera, cache sesji i blokadę instancji.
-`CANOPY_USER_DATA` pozostaje jawnym nadpisaniem diagnostycznym; nie kieruj kilku kanałów
-do tego samego katalogu.
+### Przejście ze starych Canopy Beta / Canopy Nightly
 
-Tylko stable rejestruje `canopy://`. Generowane przez web linki enrollment otwierają
-stable; aby użyć beta/nightly, zmień wyłącznie schemat linku na odpowiedni z tabeli
-lub wklej dane w ustawieniach tego produktu. Kanały nie przejmują cudzych schematów
-i nie kopiują tokenów ani danych między sobą.
+**Zainstaluj Canopy jeden raz ręcznie.** Dotyczy m.in. `Canopy Nightly`
+`0.2.0-nightly.2` (`app.canopy.desktop.nightly`) i dawnego `app.canopy.desktop.beta`.
+Ich updater na macOS nie może zmienić bundle ID: Squirrel wymaga tego samego
+designated requirement. Ponawianie aktualizacji starej aplikacji tego nie naprawi.
+Po instalacji Canopy wybierz Beta/Nightly w App updates. Stare aplikacje zamknij
+i usuń ich bundle/instalator, gdy nowa instalacja działa; ich dane pozostają nietknięte.
+
+Nie ma automatycznego importu: `secrets.enc` jest związany z magazynem kluczy OS
+i dawną aplikacją, a kopia działającego klastra PostgreSQL nie jest poprawnym backupem.
+Stare `Canopy Beta` / `Canopy Nightly` userData nie jest odczytywane, przenoszone ani
+kasowane. Zachowaj jego kopię przy zamkniętej starej aplikacji. Dla nowej instalacji
+skonfiguruj tryb i enrollment; przeniesienie danych wymaga osobnego eksportu/odtworzenia
+i sprawdzenia dostępu do kluczy. Nie kopiuj w ciemno samego `secrets.enc`.
 
 ## Podpisywanie macOS i Gatekeeper
 
@@ -271,7 +281,7 @@ komunikatu Gatekeepera. Najpierw sprawdź źródło i `checksums.txt`. Dla zaufa
 ad-hoc można użyć System Settings → Privacy & Security → Open Anyway; jeśli system
 nadal pokazuje „damaged”, usuń quarantine z konkretnej zainstalowanej aplikacji:
 `xattr -dr com.apple.quarantine '/Applications/Canopy.app'`
-(dla innych kanałów zmień nazwę). Nie wyłączaj Gatekeepera globalnie.
+Nie wyłączaj Gatekeepera globalnie.
 Procedura uzyskania certyfikatu i sekretów: [release.md](release.md#sekrety-podpisywania-desktop).
 
 ## Okno na macOS: pasek tytułu i przeciąganie
@@ -311,16 +321,46 @@ schowanym sidebarze). Nowa warstwa nad oknem poza `dialog`/`[popover]`: `data-wi
 ## Automatyczne aktualizacje desktopu
 
 `electron-updater` **6.8.3** sprawdza publiczne GitHub Releases przy starcie i co
-6 godzin. Resolver wybiera wyłącznie nowszą wersję tego samego kanału, bez draftów,
-z feedem dla platformy i końcowym `manifest.json`. Stable nie przyjmuje prerelease;
-beta/nightly nie przechodzą na stable ani między sobą. `allowDowngrade=false`
-pozostaje ustawione po wyborze kanału. Brak kompletnego wydania nie powoduje instalacji.
+6 godzin. Settings → **App updates** oraz lokalny ekran Desktop settings pokazują
+wersję/kanał buildu, własny combobox Stable/Beta/Nightly, Check for updates,
+procent pobierania i Restart to update. Sekcja istnieje wyłącznie przy obecności
+bridge desktopu. Wybór jest atomowo zapisany w `userData/app-updates.json` przez main;
+bez zapisu domyślny jest kanał zainstalowanego buildu.
+
+Resolver wybiera najwyższą wersję SemVer z publicznych GitHub Releases (do 1000
+ostatnich), bez draftów, z feedem platformy i końcowym `manifest.json`.
+Przekazuje niezmienny URL konkretnego release do generic providera electron-updater.
+Nie używa zmiennego GitHub `/latest`, który nie obsługuje poprawnie nightly.
+
+| Wybrany kanał | Dopuszczone wydania | Feed bazowy | `allowPrerelease` |
+| --- | --- | --- | --- |
+| Stable | stable | `latest` | false |
+| Beta | stable, beta | `beta` | true |
+| Nightly | stable, beta, nightly | `nightly` | true |
+
+Stable publikuje aliasy `latest`, `beta`, `nightly`; beta `beta`, `nightly`;
+nightly tylko `nightly`. Wszystkie aliasy w danym release wskazują na jeden zestaw
+Canopy, nigdy na inne wydanie. Dlatego beta dostanie nowsze stable, ale nowsze beta
+wygrywa ze starszym stable. Ochronę przed prerelease w Stable zapewnia resolver;
+`allowPrerelease` samo nie filtruje generic feedów.
+
+Przejście do mniej stabilnego kanału aktualizuje tylko w przód. Powrót do stabilniejszego
+wymaga natywnego potwierdzenia: może zainstalować starszą wersję, dane zapisane przez
+nowszą wersję mogą być nieczytelne i aplikacja może przestać działać. Po zgodzie
+`allowDowngrade=true` obowiązuje tylko w sprawdzeniu/pobraniu tego przełączenia.
+Po sukcesie, braku wydania lub błędzie wraca do false; nie jest zapisywane i nie przechodzi
+na timer, przycisk Check ani następne uruchomienie. Po nieudanej próbie ponowna zgoda
+wymaga przełączenia kanału ponownie. Kierunek przełączenia porównuje starą i nową
+preferencję; przejście w stronę Nightly nigdy nie zezwala na starszą wersję, nawet gdy
+zainstalowany build nadal pochodzi z Nightly. Podczas operacji wybór jest zablokowany;
+późniejsza zmiana unieważnia poprzednio pobraną aktualizację w UI.
 
 Feed to `latest-mac.yml` / `beta-mac.yml` / `nightly-mac.yml` na macOS,
 odpowiednio `*-linux.yml` (ARM: `*-linux-arm64.yml`) i `latest.yml` / `beta.yml` /
 `nightly.yml` na Windows. ZIP jest wymagany przez updater macOS. Workflow scala listy
 plików obu architektur macOS, sprawdza SHA-512 i publikuje feedy oraz blockmapy obok
-instalatorów. Oddzielne kanały nie współdzielą feedu ani cache updatera.
+instalatorów. Alias ma ten sam hash/ZIP; manifest zachowuje `app: desktop`,
+a `checksums.txt` obejmuje również feedy i blockmapy.
 
 Pobieranie odbywa się w tle; menu/tray pokazują postęp i „Restart to update”.
 Powiadomienie systemowe sygnalizuje gotowość, jeśli system je obsługuje. Restart wymaga
@@ -336,12 +376,15 @@ błąd i uruchamia ponownie bieżącą wersję zamiast zostawiać zatrzymany run
 
 Aktualizacja aplikacji nie służy do automatycznej zmiany głównej wersji PostgreSQL.
 Wycofanie wadliwego wydania wymaga nowszego wydania naprawczego tego samego kanału;
-aplikacja nie wykonuje rollbacku bazy ani downgrade'u. Przed ręczną instalacją starszej
-wersji wykonaj backup i sprawdź zgodność danych.
+aplikacja nie wykonuje rollbacku bazy. Jawny downgrade desktopu nie sprawdza zgodności
+danych i nie daje gwarancji uruchomienia. Wcześniej wykonaj backup.
 
 ## Weryfikacja
 
-Weryfikacja zmiany podpisywania i kanałów (2026-11-03, Linux x64):
+Aktualne dowody wyboru kanału i jednej tożsamości aplikacji:
+[raport i zrzuty Chromium](../artifacts/desktop/update-channel/verification.md).
+
+Historyczna weryfikacja podpisywania przed ujednoliceniem aplikacji (2026-11-03, Linux x64):
 
 - `actionlint -shellcheck= .github/workflows/release.yml`, instalacja zależności,
   typecheck i `gen:check` przeszły; desktop build obejmuje także produkcyjny build web.
@@ -349,7 +392,7 @@ Weryfikacja zmiany podpisywania i kanałów (2026-11-03, Linux x64):
   katalogów testowych. Pierwszy przebieg miał trzy błędy w niezmienionych testach
   `thread-secrets`; nie odtworzyły się w izolacji ani w drugim pełnym przebiegu.
 - Powstały AppImage i deb wszystkich trzech kanałów. Metadane deb mają osobne nazwy
-  `canopy`, `canopy-beta`, `canopy-nightly`; ikony w paczkach różnią się, a stable ma
+  `canopy`, `canopy-beta`, `canopy-nightly` (ten podział usunięto); ikony w paczkach różnią się, a stable ma
   identyczny SHA-256 jak źródłowy PNG. Gotowe shelle uruchomiono na prywatnym Xvfb
   z osobnymi katalogami danych; stable i nightly działały równolegle.
 - Testy resolvera chronią granice kanałów/downgrade, scalanie feedów zachowuje oba

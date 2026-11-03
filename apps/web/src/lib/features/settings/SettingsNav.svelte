@@ -6,7 +6,10 @@
   import type { SettingsSection } from "@canopy/ui/settings";
   let desktop = $state(false);
   onMount(() => { desktop = Boolean(window.canopyDesktop); });
-  const settingsSections = $derived<readonly SettingsSection[]>(desktop ? [...sharedSections, { href: "/settings/desktop", label: "Desktop", icon: "server", group: "Connections", keywords: "desktop local remote worker computer" }] : sharedSections);
+  const settingsSections = $derived<readonly SettingsSection[]>(desktop ? [...sharedSections,
+    { href: "/settings/desktop", label: "Desktop", icon: "server", group: "Connections", keywords: "desktop local remote worker computer" },
+    { href: "/settings/app-updates", label: "App updates", icon: "arrow-up", group: "Connections", keywords: "desktop app updates stable beta nightly channel version" },
+  ] : sharedSections);
   import { useSettingsRoute } from "./settings-route.ts";
   import { CANOPY_VERSION } from "@canopy/domain/release/version";
 

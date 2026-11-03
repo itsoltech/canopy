@@ -1,5 +1,16 @@
 /** Optional, capability-limited Electron bridge. No filesystem, secrets or generic IPC. */
 export type DesktopMode = "local" | "remote";
+export type DesktopUpdateChannel = "stable" | "beta" | "nightly";
+export interface DesktopUpdateStatus {
+  version: string;
+  buildChannel: DesktopUpdateChannel;
+  channel: DesktopUpdateChannel;
+  phase: "disabled" | "idle" | "checking" | "downloading" | "downloaded" | "error";
+  message: string;
+  progress?: number | undefined;
+  updateVersion?: string | undefined;
+  changingChannel: boolean;
+}
 export interface DesktopStatus {
   mode: DesktopMode | null;
   phase: "setup" | "starting" | "running" | "stopping" | "error";
@@ -20,6 +31,11 @@ export interface DesktopBridge {
   /** Only available in the bundled setup window, never in remote web content. */
   configure(configuration: DesktopConfiguration): Promise<void>;
   openSettings(): Promise<void>;
+  updates(): Promise<DesktopUpdateStatus>;
+  setUpdateChannel(channel: DesktopUpdateChannel): Promise<DesktopUpdateStatus>;
+  checkForUpdates(): Promise<DesktopUpdateStatus>;
+  restartToUpdate(): Promise<void>;
+  onUpdates(listener: (status: DesktopUpdateStatus) => void): () => void;
   onStatus(listener: (status: DesktopStatus) => void): () => void;
   onEnrollment(listener: (prefill: { gatewayUrl: string; webUrl: string; enrollmentToken: string }) => void): () => void;
   /** Setup subscribes before asking main to deliver a pending deep link. */
