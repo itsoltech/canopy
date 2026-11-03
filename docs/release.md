@@ -429,16 +429,46 @@ ich prawdziwość. Docs-only HEAD bez nowego tagu nie jest kandydatem promocji.
 
 ## Retencja nightly
 
-**Nightly hygiene** po publikacji nightly i codziennie zachowuje 10 najnowszych ukończonych
-GitHub prereleases nightly. Pozostawia tagi git i notes semantic-release: są potrzebne do
-numeracji oraz historii kanałów. Cache gatewaya zachowuje manifest/binarie jego wersji.
-Starszy nightly na zimnym cache może wymagać ręcznego przejścia na zachowany release.
+**Nightly hygiene** (`scripts/prune-nightly.ts`, workflow `nightly-hygiene.yml`) działa po publikacji
+nightly i codziennie o 04:30 UTC; grupa `nightly-hygiene` nie dopuszcza dwóch przebiegów naraz. Nic, co
+powstało lub zmieniło się w ciągu ostatnich **6 h**, nie jest usuwane (publikacja w toku albo do
+„Re-run failed jobs”).
 
-Starych tagów obrazów GHCR automatycznie nie usuwamy. API usuwa wersję pakietu/digest,
-który może mieć wspólne aliasy (`nightly`) i manifesty wielu architektur; bez osobnej polityki
-nie można bezpiecznie usuwać wyłącznie tagu. Administrator może okresowo usuwać stare wersje
-złożone wyłącznie z tagów `v*-nightly.*`, po sprawdzeniu, że żaden aktualny alias ani manifest
-ich nie wskazuje. Stable i beta nie podlegają retencji nightly.
+1. **GitHub Releases.** Zachowuje 10 najnowszych ukończonych (z `manifest.json`) prereleases nightly
+   i usuwa starsze. Nieukończony nightly (bez `manifest.json`: publikacja nieudana/anulowana, niewidoczny
+   dla updaterów) usuwa, gdy istnieje nowszy ukończony nightly i minęło 6 h; inaczej zostaje do
+   ponowienia. Pozostawia tagi git i notes semantic-release: są potrzebne do numeracji oraz historii
+   kanałów. Cache gatewaya zachowuje manifest/binarie jego wersji. Starszy nightly na zimnym cache może
+   wymagać ręcznego przejścia na zachowany release.
+2. **GHCR** (`canopy-gateway`, `canopy-web`, `canopy-worker`, REST
+   `/orgs/{org}/packages/container/{name}/versions`). Usuwa wersję pakietu (digest) tylko gdy:
+   - wszystkie jej tagi to wersje `vX.Y.Z-nightly.N`, których nightly nie jest już zachowany
+     (także sprzed lat, bez release'u) i które są starsze od najnowszego ukończonego nightly;
+   - nie ma żadnego innego tagu (`nightly`, `beta`, `latest`, `stable`, `vX`, `vX.Y`, wersja
+     beta/stable, `buildcache`…), więc beta i stable nigdy nie podlegają retencji;
+   - nie jest celem aliasu `nightly`/`beta`/`latest`/`stable` — po digeście (wspólna wersja) i po
+     adnotacji `org.opencontainers.image.version` indeksu aliasu;
+   - jej `updated_at` jest starsze niż 6 h (przesunięcie aliasu też liczy się jako zmiana).
+
+   Nieotagowane wersje (manifesty platform, manifesty atestacji SBOM/provenance) skrypt czyta z indeksu
+   OCI przez API rejestru (`/v2/.../manifests/<digest>`, token pull z `ghcr.io/token`). Usuwa je tylko,
+   gdy wskazuje je usuwany indeks, a żaden pozostający indeks (otagowany lub nie, np. stary indeks aliasu)
+   — przed samym indeksem, więc przerwany przebieg dokończy następny. Nieotagowanych wersji bez
+   usuwanego rodzica (pochodzenie nieustalone) nie rusza; takie sieroty, np. po ręcznym usunięciu
+   indeksu, usuwa administrator. Błąd odczytu rejestru pomija cały pakiet.
+
+Najpierw releases, potem GHCR: brak dostępu do pakietu kończy job błędem z opisem dopiero po
+przycięciu releases. Wydanie to nie dotyka — `nightly-hygiene` startuje po `publish-server` i nic od
+niego nie zależy (przebieg release jest wtedy czerwony tylko na tym jobie). Ręcznie: workflow dispatch
+`Nightly hygiene` z `dry_run: true` albo lokalnie `GH_TOKEN=… GITHUB_REPOSITORY=itsoltech/canopy bun
+scripts/prune-nightly.ts --dry-run` — wypisuje tylko plan (nazwy, tagi, id). Harmonogram i wywołanie
+z release działają naprawdę.
+
+**Uprawnienia GHCR.** Job ma `packages: write`, ale `GITHUB_TOKEN` może listować i usuwać wersje
+pakietu organizacji tylko, gdy repozytorium ma do niego rolę **Admin**: w ustawieniach każdego
+pakietu (`canopy-gateway`, `canopy-web`, `canopy-worker`) → *Manage Actions access* → dodaj
+`itsoltech/canopy` z rolą **Admin** (domyślna rola połączonego repozytorium to Write, która wystarcza
+do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to package versions`.
 
 ## Ustawienia repozytorium (stosuje maintainer/rodzic)
 
@@ -454,6 +484,8 @@ ich nie wskazuje. Stable i beta nie podlegają retencji nightly.
 - Pierwszy push tworzy pakiety GHCR prywatne: w ustawieniach pakietów `canopy-gateway`,
   `canopy-web`, `canopy-worker` ustaw **Public** (albo daj dostęp konkretnym użytkownikom)
   i połącz je z repozytorium (etykieta `org.opencontainers.image.source` robi to automatycznie).
+  W *Manage Actions access* nadaj repozytorium rolę **Admin** (retencja nightly usuwa wersje,
+  [Retencja nightly](#retencja-nightly)).
   Runnery `ubuntu-24.04-arm`, `macos-15`, `windows-2025` muszą być dostępne.
 - GitHub „immutable releases” pozostaw wyłączone: semantic-release publikuje release przed
   uploadem assetów; upload i retencja wymagają możliwości ich późniejszej zmiany/usunięcia.
