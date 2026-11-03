@@ -510,3 +510,4 @@ jobs:
     uses: ./.github/workflows/nightly-hygiene.yml
     permissions:
       contents: write
+      packages: write
