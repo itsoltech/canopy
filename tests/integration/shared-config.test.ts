@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { createServer, type AddressInfo } from "node:net";
-import { create } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { qualifyId, REMOTE_THREADS, SHARED_CONFIG, sharedKey, THREAD_MIRROR } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -52,8 +52,8 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
     await online();
   }
   const settings = async (gateway: TestGateway) => (await gateway.api.getSettings({})).user!;
-  const updateSettings = async (gateway: TestGateway, change: Partial<ui.UpdateUserSettingsRequest>) =>
-    gateway.api.updateUserSettings({ ...change, expectedVersion: (await settings(gateway)).version });
+  const updateSettings = async (gateway: TestGateway, change: Omit<MessageInitShape<typeof ui.UpdateUserSettingsRequestSchema>, "expectedVersion">) =>
+    gateway.api.updateUserSettings(create(ui.UpdateUserSettingsRequestSchema, { ...change, expectedVersion: (await settings(gateway)).version } as MessageInitShape<typeof ui.UpdateUserSettingsRequestSchema>));
   const instance = async (gateway: TestGateway, id = "team") => (await gateway.api.listProviderInstances({})).instances.find((i) => i.harness === Provider.CODEX && i.id === id);
   const conflicts = async (computers: LinkedComputers) => (await computers.shared!.snapshot()).conflicts;
   const item = async (computers: LinkedComputers, key: string) => (await computers.shared!.snapshot()).items.find((i) => i.key === key);
