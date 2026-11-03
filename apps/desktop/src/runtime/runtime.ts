@@ -63,7 +63,7 @@ export class DesktopRuntime {
     await this.web.stop();
     this.web = this.makeSupervisor();
     // The local BFF owns no durable state. Browser keep-alive/SSE connections must not delay quit.
-    this.web.start({ name: "web", ...this.command(this.paths.web), cwd: dirname(this.paths.web), env: { ...this.env, CANOPY_WEB_ASSETS_DIR: join(dirname(this.paths.web), "web"), HOST: "127.0.0.1", PORT: String(this.webPort), ORIGIN: this.setupOrigin, GATEWAY_URL: gatewayUrl, GATEWAY_SERVICE_TOKEN: this.secrets.serviceToken }, restart: true, stopSignal: "SIGKILL" });
+    this.web.start({ name: "web", ...this.command(this.paths.web), cwd: dirname(this.paths.web), env: { ...this.env, CANOPY_WEB_ASSETS_DIR: join(dirname(this.paths.web), "web"), HOST: "127.0.0.1", PORT: String(this.webPort), CANOPY_WEB_ORIGIN: this.setupOrigin, GATEWAY_URL: gatewayUrl, GATEWAY_SERVICE_TOKEN: this.secrets.serviceToken }, restart: true, stopSignal: "SIGKILL" });
     await until(async () => (await fetch(`${this.setupOrigin}/desktop`, { signal: AbortSignal.timeout(1000) })).ok);
   }
   async initialize(restore = true) {

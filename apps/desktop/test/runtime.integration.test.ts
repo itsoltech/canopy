@@ -15,6 +15,11 @@ const runtime = resolve(import.meta.dir, "../build/runtime");
 const suffix = process.platform === "win32" ? ".exe" : "";
 const paths: RuntimePaths = { bun: join(runtime, `bun${suffix}`), gateway: join(runtime, `canopy-gateway${suffix}`), worker: join(runtime, `canopy-worker${suffix}`), web: join(runtime, `canopy-web${suffix}`), postgres: join(runtime, "postgres"), compiled: true };
 const secrets = (): Secrets => ({ databasePassword: randomBytes(32).toString("hex"), secretsKey: randomBytes(32).toString("base64"), serviceToken: randomBytes(32).toString("hex") });
+// The window's own form action passes SvelteKit's CSRF origin check (a validation failure, not a 403); a foreign origin does not.
+async function formAction(origin: string, from = origin) {
+  const response = await fetch(`${origin}/?/createThread`, { method: "POST", headers: { origin: from, accept: "application/json", "x-sveltekit-action": "true" }, body: new URLSearchParams({ projectId: "" }) });
+  return { status: response.status, body: await response.text() };
+}
 function gone(pid: number) {
   try { process.kill(process.platform === "win32" ? pid : -pid, 0); return false; } catch { return true; }
 }
@@ -36,11 +41,14 @@ test.skipIf(!existsSync(paths.gateway))("bundled stack: local enrollment, gRPC o
     const workerId = online[0]!.id;
     const project = (await api.createProject({ name: "Desktop persistence" })).project!;
     expect((await fetch(local.status.webUrl!)).ok).toBe(true);
+    expect((await formAction(local.status.webUrl!)).body).toContain("Choose a project");
+    expect((await formAction(local.status.webUrl!, "http://attacker.example")).status).toBe(403);
     const token = (await api.createWorkerEnrollment({ name: "Remote desktop" })).token;
     await remote.initialize(false);
     await remote.configure({ mode: "remote", gatewayUrl: local.status.gatewayUrl!, webUrl: local.status.webUrl!, enrollmentToken: token });
     remote.pids.forEach((pid) => owned.add(pid));
     expect(remote.pids).toHaveLength(2); // worker and setup BFF; no gateway or DB
+    expect((await formAction(remote.origin)).body).toContain("Choose a project");
     expect((await api.getOverview({})).workers.filter((worker) => worker.online)).toHaveLength(2);
     const enrollment = await api.getWorkerSetup({});
     expect(enrollment.enrollments.filter((invite) => invite.usedAt)).toHaveLength(2);

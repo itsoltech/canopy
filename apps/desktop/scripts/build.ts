@@ -26,7 +26,11 @@ const adapterConfig = join(runtime, "web/adapter-node.js");
 const adapterSource = readFileSync(adapterConfig, "utf8");
 const directoryDeclaration = "export const dir = dirname(fileURLToPath(import.meta.url));";
 if (!adapterSource.includes(directoryDeclaration)) throw new Error("adapter-node layout changed; review the desktop asset path override");
-writeFileSync(adapterConfig, adapterSource.replace(directoryDeclaration, 'export const dir = process.env["CANOPY_WEB_ASSETS_DIR"];'));
+// adapter-node 6 has no runtime ORIGIN: without a proxy header it treats every request as https,
+// so SvelteKit's CSRF check rejects the window's http://127.0.0.1 forms. The runtime knows the exact origin.
+const originDeclaration = "export const origin = undefined;";
+if (!adapterSource.includes(originDeclaration)) throw new Error("adapter-node layout changed; review the desktop origin override");
+writeFileSync(adapterConfig, adapterSource.replace(directoryDeclaration, 'export const dir = process.env["CANOPY_WEB_ASSETS_DIR"];').replace(originDeclaration, 'export const origin = process.env["CANOPY_WEB_ORIGIN"];'));
 const webEntry = join(runtime, "web/index.js");
 writeFileSync(webEntry, 'process.stdin.on("end", () => process.emit("SIGTERM")); process.stdin.resume();\n' + readFileSync(webEntry, "utf8"));
 copyFileSync(process.execPath, join(runtime, `bun${suffix}`));
