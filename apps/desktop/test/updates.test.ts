@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { load } from "js-yaml";
 import { tempDir } from "@canopy/testing";
@@ -46,9 +46,11 @@ test("mac update metadata preserves both runner architectures and rejects mismat
     const sha512 = createHash("sha512").update(contents).digest("base64");
     writeFileSync(join(artifact, name), contents);
     writeFileSync(join(artifact, "beta-mac.yml"), JSON.stringify({ version: "0.3.0-beta.1", files: [{ url: name, sha512 }], path: name, sha512 }));
+    writeFileSync(join(artifact, `package-sizes-darwin-${arch}.json`), "{}");
   }
   const output = join(directory, "assets");
   await mergeDesktopUpdates(source, output, "beta", "0.3.0-beta.1");
+  expect(existsSync(join(output, "package-sizes-darwin-arm64.json"))).toBe(false);
   const feed = load(readFileSync(join(output, "beta-mac.yml"), "utf8")) as { files: { url: string }[] };
   expect(feed.files.map((file) => file.url).sort()).toEqual([
     "Canopy-0.3.0-beta.1-darwin-arm64.zip", "Canopy-0.3.0-beta.1-darwin-x64.zip",
