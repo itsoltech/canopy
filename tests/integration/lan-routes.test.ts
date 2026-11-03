@@ -5,6 +5,7 @@ import * as dns from "dns-packet";
 import { dockerAvailable } from "@canopy/db/testing";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { ROUTE_ORDER } from "../../apps/gateway/src/computers/routes.ts";
 import { discoveryKey, lanNames, lanWindow } from "../../apps/gateway/src/computers/lan.ts";
 import { eventually as poll, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { MemoryLan } from "./support/lan.ts";
@@ -39,9 +40,10 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
   const routesOf = async (gw: TestGateway) => (await gw.api.getComputers({})).peers[0]?.routes ?? [];
   const status = async (gw: TestGateway) => (await gw.api.getComputers({})).peers[0]?.status;
   const online = () => eventually(async () => await status(a) === "connected" && await status(b) === "connected", 15_000);
-  async function restartA() {
+  async function restartA(meanwhile = async () => {}) {
     const port = la.options.port!;
     await la.close();
+    await meanwhile();
     la = new LinkedComputers({ store: sa, host: "127.0.0.1", port, heartbeatMs: 100, discovery: discovery("a", [SUBNET]) });
     a.core.computers = la; await la.start();
   }
@@ -150,12 +152,14 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
   test("routes are tried in order of last success and the next one takes over when the best route dies", async () => {
     const dead = await counter("127.0.0.78"); const deadAddress = `https://127.0.0.78:${dead.port}`;
     const nodeB = lb.hello().nodeId;
-    await sa.query("UPDATE computer_routes SET last_success=now()-interval '1 hour',last_failure=NULL WHERE owner_user_id=$1::uuid", [a.userId]);
-    await sa.query("INSERT INTO computer_routes (owner_user_id,node_id,address,source,last_success) VALUES ($1::uuid,$2,$3,'manual',now())", [a.userId, nodeB, deadAddress]);
-    expect((await routesOf(a))[0]!.address).toBe(deadAddress);
     // Only A can dial now (a new runtime without its listener and earlier connections), and its best route is dead.
+    // The routes change while A is stopped, so no dial of the old runtime reorders them.
     await a.api.manageComputer({ action: "listener", enabled: false });
-    await restartA();
+    await restartA(async () => {
+      await sa.query("UPDATE computer_routes SET last_success=now()-interval '1 hour',last_failure=NULL WHERE owner_user_id=$1::uuid", [a.userId]);
+      await sa.query("INSERT INTO computer_routes (owner_user_id,node_id,address,source,last_success) VALUES ($1::uuid,$2,$3,'manual',now())", [a.userId, nodeB, deadAddress]);
+      expect((await sa.query<{ address: string }>(`SELECT address FROM computer_routes WHERE owner_user_id=$1::uuid ORDER BY ${ROUTE_ORDER}`, [a.userId]))[0]!.address).toBe(deadAddress);
+    });
     try {
       const failedRoute = async () => (await routesOf(a)).find((r) => r.address === deadAddress)!;
       await eventually(async () => dead.count() > 0 && (await failedRoute()).lastFailureMs > (await failedRoute()).lastSuccessMs, 10_000);

@@ -89,7 +89,6 @@ export class LinkedComputers {
   get store() { return this.options.store; }
   get identity(): LinkIdentity { return this.#identity; }
   get addresses() { return this.#addresses; }
-  get routeBook() { return this.#routes; }
   hello() { return create(link.NodeHelloSchema, { nodeId: this.#identity.node_id, name: this.#identity.name, addresses: this.#advertised,
     appVersion: CANOPY_VERSION, minProtocol: this.options.minProtocol ?? MIN_COMPUTER_LINK_PROTOCOL, maxProtocol: this.options.maxProtocol ?? COMPUTER_LINK_PROTOCOL,
     capabilities: this.options.capabilities ?? ["presence", "unlink", LAN_ROUTES, ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS] : []), ...(this.shared ? [SHARED_CONFIG] : [])] }); }
