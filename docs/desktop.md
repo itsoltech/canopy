@@ -103,8 +103,8 @@ Renderer ustawia `--window-zoom` i `data-window-fullscreen`; rezerwa pozioma
 kontrolek. Rezerwa znika w pełnym ekranie i dotyczy tylko lewej kolumny pod kontrolkami.
 Zdalny web rozpoznaje nowe metody bridge, więc starszy shell nadal może go otworzyć.
 
-Mapa regionów, geometria zoomu i ograniczenia weryfikacji:
-[raport macOS title bar](../artifacts/desktop/macos-title-bar/verification.md).
+Mapę regionów i geometrię zoomu sprawdzono w Chromium 156 z `data-canopy-platform="darwin"`;
+przeciąganie i trafianie w kontrolki wymagają potwierdzenia na macOS.
 
 Zmiany wspólnego kodu są addytywne:
 
@@ -398,6 +398,15 @@ procent pobierania i Restart to update. Sekcja istnieje wyłącznie przy obecno�
 bridge desktopu. Wybór jest atomowo zapisany w `userData/app-updates.json` przez main;
 bez zapisu domyślny jest kanał zainstalowanego buildu.
 
+Na macOS aktualizacje są włączone, gdy aplikację podpisał Developer ID (odczyt podpisującego przez
+`codesign --display`). Pieczęć zasobów nie jest warunkiem: buildy do 0.2.0-nightly.7 nie ustawiały
+`CANOPY_INSTALL_KIND=desktop`, więc ich worker podmieniał się wewnątrz bundla na wersję gatewaya
+(`runtime/canopy-worker` + `.bak`), co łamie pieczęć. Aktualizacja i tak zastępuje cały bundle, a
+Squirrel weryfikuje nowy. Od tej wersji binarka z `resources/runtime/` zawsze ma rodzaj instalacji
+`desktop`, także bez zmiennej, i nigdy nie aktualizuje się sama. Buildy z wcześniejszym, błędnym
+sprawdzeniem wymagania (`--test-requirement` bez `=`) nie aktualizują się wcale: trzeba raz
+zainstalować nowy DMG ręcznie.
+
 Resolver wybiera najwyższą wersję SemVer z publicznych GitHub Releases (do 1000
 ostatnich), bez draftów, z feedem platformy i końcowym `manifest.json`.
 Przekazuje niezmienny URL konkretnego release do generic providera electron-updater.
@@ -452,8 +461,8 @@ danych i nie daje gwarancji uruchomienia. Wcześniej wykonaj backup.
 
 ## Weryfikacja
 
-Pomiar i zrzuty szybkiego zamykania oraz zabezpieczenia skrótu:
-[raport quit](../artifacts/desktop/quit/verification.md).
+Szybkie zamykanie mierzą testy `apps/desktop/test/shutdown.integration.test.ts` i
+`tests/integration/worker-shutdown.test.ts`; fizyczne puszczenie ⌘Q w trybie Hold wymaga macOS.
 
 Aktualne dowody wyboru kanału i jednej tożsamości aplikacji:
 [raport i zrzuty Chromium](../artifacts/desktop/update-channel/verification.md).

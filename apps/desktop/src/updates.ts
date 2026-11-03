@@ -1,6 +1,6 @@
 import { app, dialog, Notification, type MenuItemConstructorOptions } from "electron";
 import { autoUpdater } from "electron-updater";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { desktopIdentity, type DesktopChannel } from "./identity.ts";
 import { newestRelease, type DesktopRelease } from "./update-releases.ts";
@@ -49,13 +49,15 @@ export class DesktopUpdates {
   async start() {
     if (!app.isPackaged) { this.control.enable("Updates are available in installed builds"); return; }
     if (process.platform === "darwin") {
-      try {
-        const bundle = resolve(process.execPath, "../../..");
-        execFileSync("codesign", ["--verify", "--deep", "--strict", bundle], { stdio: "pipe" });
-        // Use a requirement to validate Developer ID
-        // instead of trusting a build-time flag or an ad-hoc signature.
-        execFileSync("codesign", ["--verify", "--test-requirement", "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists", bundle], { stdio: "pipe" });
-      } catch { this.control.enable("Updates need a signed build"); return; }
+      // Only a Developer ID build can take updates: Squirrel accepts a new bundle only if it satisfies the running
+      // app's designated requirement. Read the signer, not the bundle seal: a seal broken by older builds (their
+      // worker replaced itself inside the bundle) must not block the update that replaces the whole bundle.
+      const bundle = resolve(process.execPath, "../../..");
+      // codesign --display reports to stderr.
+      const { stderr: signature = "" } = spawnSync("codesign", ["--display", "--verbose=2", bundle], { encoding: "utf8" });
+      if (!/^Authority=Developer ID Application: /m.test(signature) || !/^TeamIdentifier=(?!not set)\w+/m.test(signature)) {
+        this.control.enable("Updates need a signed build"); return;
+      }
     } else if (process.platform === "linux" && !process.env["APPIMAGE"]) {
       this.control.enable("Update this installation with your package manager"); return;
     }
