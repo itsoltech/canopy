@@ -28,4 +28,4 @@ export class UpdatesState {
   }
 }
 export const updateBusy = (state: string) => ["queued", "waiting_idle", "downloading", "restarting"].includes(state);
-export const updateStateLabel = (state: string, compatible: boolean) => ({ queued: "Queued", waiting_idle: "Waiting for idle", downloading: "Updating", restarting: "Restarting", failed: "Failed", succeeded: "Up to date", managed_externally: "Managed externally" }[state] ?? (compatible ? "Compatible" : "Update required"));
+export const updateStateLabel = (state: string, compatible: boolean) => ({ queued: "Queued", waiting_idle: "Waiting for idle", downloading: "Updating", restarting: "Restarting", failed: "Failed", succeeded: "Up to date", managed_externally: "Managed externally", ahead: "Newer than gateway" }[state] ?? (compatible ? "Compatible" : "Update required"));

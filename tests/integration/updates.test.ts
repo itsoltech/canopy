@@ -159,6 +159,24 @@ describe("independent update service and gateway mirror", () => {
     while (!event.value?.command) event = await events.next();
     expect(event.value.command.version).toBe("2.0.0"); expect(queued.version).toBe("2.0.0");
   });
+  test("a newer worker is shown as ahead and never downgraded; desktop workers are managed by the app", async () => {
+    const f = await fixture();
+    const workers: WorkerUpdateRow[] = [
+      { id: "ahead", name: "laptop", version: "2.1.0", os: "darwin", arch: "arm64", status: { installKind: "binary" } },
+      { id: "desktop", name: "desktop", version: "1.0.0", os: "darwin", arch: "arm64", status: { installKind: "desktop" } },
+    ];
+    let saved = 0;
+    const runtime = new GatewayUpdates({ cacheDir: join(f.dir, "ahead-cache"), version: "2.0.0", kind: "binary", source: f.mirror.source.options,
+      authenticate: async () => "worker", persistence: { admin: async () => true, channel: async () => undefined, setChannel: async () => {}, workers: async () => workers,
+        hello: async () => {}, saveCommand: async () => { saved++; }, report: async () => {} } });
+    cleanups.push(() => runtime.close());
+    await runtime.start();
+    const snapshot = await runtime.manage(create(ui.ManageUpdatesRequestSchema, { action: "all" }));
+    expect(saved).toBe(0);
+    expect(snapshot.workers.find((w) => w.workerId === "ahead")).toMatchObject({ state: "ahead", reason: expect.stringContaining("2.1.0") });
+    expect(snapshot.workers.find((w) => w.workerId === "desktop")).toMatchObject({ state: "managed_externally", reason: expect.stringContaining("desktop app") });
+    await expect(runtime.manage(create(ui.ManageUpdatesRequestSchema, { action: "worker", workerId: "ahead" }))).rejects.toThrow("downgrade");
+  });
   test("admin gateway update waits for idle, preserves its release mirror and only then restarts", async () => {
     const f = await fixture(), binaryPath = join(f.dir, "gateway");
     await writeFile(binaryPath, '#!/bin/sh\nprintf "1.0.0\\n"\n', { mode: 0o700 });

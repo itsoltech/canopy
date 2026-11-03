@@ -18,10 +18,13 @@ export function isStandalone(): boolean {
   return /(?:\$bunfs|~BUN)[/\\]/i.test(Bun.main);
 }
 export function installKind(env: NodeJS.ProcessEnv = process.env): InstallKind {
+  // The desktop app ships its gateway/worker inside a signed bundle and updates them itself (never in place).
+  if (env["CANOPY_INSTALL_KIND"] === "desktop") return "desktop";
   if (env["CANOPY_INSTALL_KIND"] === "docker" || existsSync("/.dockerenv") || existsSync("/run/.containerenv")) return "docker";
   return isStandalone() ? "binary" : "source";
 }
 export function managedInstructions(kind: string): string {
+  if (kind === "desktop") return "Managed by the Canopy desktop app: it updates itself (Settings → App updates).";
   return kind === "docker" ? "Managed externally. Pull the new image tag and recreate this container." :
     "Managed externally. Update the Canopy checkout, run bun install, then restart the service.";
 }
