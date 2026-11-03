@@ -88,6 +88,11 @@ test("manifest preserves the exact version/channel and rejects contradictory rel
   expect(manifest.version).toBe("0.2.0-beta.1");
   expect(manifest.channel).toBe("beta");
   expect(manifest.assets[0]?.url).toContain("/v0.2.0-beta.1/canopy-worker-linux-x64");
+  writeFileSync(join(directory, "beta-mac.yml"), "desktop feed");
+  writeFileSync(join(directory, "Canopy-Beta-0.2.0-beta.1-darwin-arm64.zip.blockmap"), "desktop blockmap");
+  expect((await releaseManifest(directory, env)).assets).toEqual(manifest.assets);
+  writeFileSync(join(directory, "nightly-mac.yml"), "wrong channel");
+  await expect(releaseManifest(directory, env)).rejects.toThrow("Not a release asset");
   await expect(releaseManifest(directory, { ...env, CANOPY_CHANNEL: "stable" })).rejects.toThrow("must match");
 });
 test("fast-forward promotions retain the base version, and docs-only changes produce no release", async () => {

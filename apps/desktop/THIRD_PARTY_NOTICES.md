@@ -9,6 +9,7 @@ relocatable database distribution and its bundled libraries.
 | Component | Version | License / source |
 | --- | --- | --- |
 | Electron / Chromium / Node | 45.2.1 | MIT and bundled Chromium/Node notices; https://github.com/electron/electron |
+| electron-updater | 6.8.3 | MIT; https://github.com/electron-userland/electron-builder |
 | Bun | 1.4.4 | MIT; WebKit/JavaScriptCore LGPL-2.1 and additional notices; https://github.com/oven-sh/bun/blob/main/LICENSE.md |
 | PostgreSQL | 18.6 | PostgreSQL License; https://www.postgresql.org/about/licence/ |
 | embedded-postgres relocatable binary distribution | 18.6.0-beta.19 | MIT packaging; Apache-2.0 Zonky distribution; https://github.com/leinelissen/embedded-postgres and https://github.com/zonkyio/embedded-postgres-binaries |

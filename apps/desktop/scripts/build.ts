@@ -16,6 +16,7 @@ async function run(args: string[], cwd = root, env: NodeJS.ProcessEnv = process.
   const child = Bun.spawn(args, { cwd, env, stdio: ["inherit", "inherit", "inherit"] });
   if (await child.exited !== 0) throw new Error(`Build command failed: ${args[1] ?? args[0]}`);
 }
+await run([process.execPath, "scripts/prepare-identity.ts"], desktop);
 await run([process.execPath, "scripts/build-shell.ts"], desktop);
 await run([process.execPath, "run", "build"], join(root, "apps/web"));
 cpSync(join(root, "apps/web/build"), join(runtime, "web"), { recursive: true });

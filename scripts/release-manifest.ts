@@ -38,6 +38,12 @@ const BINARY = /^canopy-(gateway|worker)-(linux|darwin|windows)-(x64|arm64)(\.ex
 const DESKTOP = /^Canopy-.+-(linux|darwin|windows)-(x64|arm64)\.(AppImage|deb|dmg|zip|exe)$/;
 const GENERATED = new Set(["checksums.txt", "manifest.json"]);
 
+function isDesktopUpdateMetadata(name: string, channel: string) {
+  const feed = channel === "stable" ? "latest" : channel;
+  return new RegExp(`^${feed}(-mac|-linux(-arm64)?)?\\.yml$`).test(name) ||
+    /^Canopy-.+-(linux|darwin|windows)-(x64|arm64)\.(AppImage|dmg|zip|exe)\.blockmap$/.test(name);
+}
+
 /** app/os/arch of a release asset name, or undefined when it is not one. */
 export function classify(name: string): Pick<ManifestAsset, "app" | "os" | "arch"> | undefined {
   const binary = name.match(BINARY);
@@ -79,6 +85,9 @@ export async function releaseManifest(directory: string, env: Readonly<Record<st
   const assets: ManifestAsset[] = [];
   for (const name of names) {
     const kind = classify(name);
+    // Desktop updater metadata has no single app/os/arch; keep it outside the frozen
+    // gateway/worker manifest format. checksums.txt covers these files as well.
+    if (!kind && isDesktopUpdateMetadata(name, channel)) continue;
     if (!kind) throw new Error(`Not a release asset: ${name}`);
     const path = join(directory, name);
     assets.push({ ...kind, name, url: `https://github.com/${repository}/releases/download/${tag}/${encodeURIComponent(name)}`, sha256: await sha256(path), size: statSync(path).size });
@@ -98,7 +107,9 @@ if (import.meta.main) {
   const directory = process.argv[2];
   if (!directory) throw new Error("Usage: bun scripts/release-manifest.ts <assets dir>");
   const manifest = await releaseManifest(resolve(directory));
-  writeFileSync(join(directory, "checksums.txt"), manifest.assets.map((asset) => `${asset.sha256}  ${asset.name}\n`).join(""));
+  const names = readdirSync(directory).filter((name) => !GENERATED.has(name) && statSync(join(directory, name)).isFile()).sort();
+  const checksums = await Promise.all(names.map(async (name) => `${await sha256(join(directory, name))}  ${name}\n`));
+  writeFileSync(join(directory, "checksums.txt"), checksums.join(""));
   writeFileSync(join(directory, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   console.info(`manifest.json: ${manifest.version} (${manifest.channel}), ${manifest.assets.length} assets`);
 }
