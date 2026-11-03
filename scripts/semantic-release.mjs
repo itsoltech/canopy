@@ -1,8 +1,12 @@
-/** CI entry point: bootstrap is explicit; tag creation does not start another Actions run. */
+/**
+ * CI entry point: bootstrap is explicit; tag creation does not start another Actions run.
+ * `--dry-run` plans the version without tagging (release.yml `plan`); the real run publishes it after the checks.
+ */
 import { appendFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import semanticRelease from "semantic-release";
 
+const dryRun = process.argv.includes("--dry-run");
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 const output = (values) => {
   const lines = Object.entries(values).map(([key, value]) => `${key}=${value}`).join("\n");
@@ -21,7 +25,7 @@ if (process.env.GITHUB_REF_TYPE === "tag") {
   console.log("No stable bootstrap tag: push v0.1.0 before automatic releases.");
   output({ published: false });
 } else {
-  const result = await semanticRelease();
+  const result = await semanticRelease({ dryRun });
   if (!result) output({ published: false });
   else {
     const { version, gitTag: tag } = result.nextRelease;

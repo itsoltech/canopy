@@ -1,12 +1,13 @@
 /** Behavioral dry-runs of the real config against a throwaway local clone; no GitHub or app services. */
 import { afterEach, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { resolveVersion } from "./version.ts";
-import { releaseManifest } from "./release-manifest.ts";
+import { releaseManifest, writeReleaseFiles } from "./release-manifest.ts";
+import { mergeDesktopUpdates } from "../apps/desktop/scripts/merge-update-metadata.ts";
 
 const root = resolve(import.meta.dir, "..");
 const temporaryDirectories: string[] = [];
@@ -28,6 +29,7 @@ function fixture() {
   mkdirSync(join(cwd, "scripts"));
   copyFileSync(join(root, "release.config.mjs"), join(cwd, "canopy.config.mjs"));
   copyFileSync(join(root, "scripts/release-analyzer.mjs"), join(cwd, "scripts/release-analyzer.mjs"));
+  copyFileSync(join(root, "scripts/release-expected-version.mjs"), join(cwd, "scripts/release-expected-version.mjs"));
   writeFileSync(join(cwd, "release.config.mjs"), 'import config from "./canopy.config.mjs"; export default { ...config, plugins: config.plugins.filter((plugin) => !(Array.isArray(plugin) && plugin[0] === "@semantic-release/github")) };\n');
   writeFileSync(join(cwd, ".gitignore"), "node_modules/\n");
   symlinkSync(join(root, "node_modules"), join(cwd, "node_modules"), "dir");
@@ -37,16 +39,17 @@ function fixture() {
   git("branch", "next");
   git("branch", "dev");
   git("push", "origin", "main", "next", "dev", "--tags");
-  async function run(dry = true): Promise<string> {
+  async function run(dry = true, expectedVersion = ""): Promise<string> {
     const result = Bun.spawn(["bunx", "--no-install", "semantic-release", ...(dry ? ["--dry-run"] : []), "--no-ci"], {
-      cwd, env: { ...process.env, GITHUB_TOKEN: "", GH_TOKEN: "", GITHUB_ACTIONS: "", GITHUB_REF: "", GITHUB_SHA: "", CI: "" }, stdout: "pipe", stderr: "pipe",
+      cwd, env: { ...process.env, GITHUB_TOKEN: "", GH_TOKEN: "", GITHUB_ACTIONS: "", GITHUB_REF: "", GITHUB_SHA: "", CI: "", EXPECTED_VERSION: expectedVersion }, stdout: "pipe", stderr: "pipe",
     });
     const [stdout, stderr, code] = await Promise.all([new Response(result.stdout).text(), new Response(result.stderr).text(), result.exited]);
     const output = stdout + stderr;
     if (code !== 0) throw new Error(output);
     return output;
   }
-  return { git, dryRun: () => run(), publishLocally: () => run(false), cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  const remoteTags = () => execFileSync("git", ["tag", "--list"], { cwd: remote, encoding: "utf8" }).trim().split("\n").sort();
+  return { git, remoteTags, dryRun: () => run(), publishLocally: (expectedVersion?: string) => run(false, expectedVersion), cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 test("bootstrap branches produce no release, then feat produces stable, beta and nightly 0.2.0", async () => {
   const repo = fixture();
@@ -117,3 +120,83 @@ test("fast-forward promotions retain the base version, and docs-only changes pro
     expect(await repo.dryRun()).toContain("no new version is released");
   } finally { repo.cleanup(); }
 }, 60_000);
+test("a release publishes only the planned version, and a superseded run publishes nothing", async () => {
+  const repo = fixture();
+  try {
+    repo.git("checkout", "dev");
+    repo.git("commit", "--allow-empty", "-m", "feat: first merge");
+    repo.git("push", "origin", "dev");
+    // Run A plans while its checks run; run B's merge lands before A's checks finish and plans the same version.
+    expect(await repo.dryRun()).toContain("Published release 0.2.0-nightly.1 on");
+    repo.git("commit", "--allow-empty", "-m", "fix: second merge");
+    repo.git("push", "origin", "dev");
+    expect(await repo.dryRun()).toContain("Published release 0.2.0-nightly.1 on");
+    // Run A's real release: its commit is behind the branch, so nothing is tagged.
+    const runB = repo.git("rev-parse", "HEAD");
+    repo.git("reset", "--hard", "HEAD~1");
+    expect(await repo.publishLocally("0.2.0-nightly.1")).toContain("is behind the remote one");
+    expect(repo.remoteTags()).toEqual(["v0.1.0"]);
+    // Run B: a different version than planned is refused before tagging; the planned one is published.
+    repo.git("reset", "--hard", runB);
+    await expect(repo.publishLocally("0.2.0-nightly.2")).rejects.toThrow("Planned 0.2.0-nightly.2 but the release would be 0.2.0-nightly.1");
+    expect(repo.remoteTags()).toEqual(["v0.1.0"]);
+    expect(await repo.publishLocally("0.2.0-nightly.1")).toContain("Published release 0.2.0-nightly.1 on nightly");
+    expect(repo.remoteTags()).toEqual(["v0.1.0", "v0.2.0-nightly.1"]);
+  } finally { repo.cleanup(); }
+}, 60_000);
+test("server-then-desktop publication keeps checksums.txt and manifest.json consistent and repeatable", async () => {
+  const base = mkdtempSync(join(tmpdir(), "canopy-release-stages-unit-"));
+  temporaryDirectories.push(base);
+  const assets = join(base, "release-assets"), artifacts = join(base, "desktop-artifacts");
+  const version = "0.2.0-nightly.3";
+  const env = { GITHUB_SHA: "abc123456789", GITHUB_REPOSITORY: "itsoltech/canopy", CANOPY_VERSION: version, CANOPY_RELEASE_TAG: `v${version}`, CANOPY_CHANNEL: "nightly" };
+  mkdirSync(assets);
+  for (const name of ["canopy-gateway-linux-x64", "canopy-worker-linux-x64", "canopy-worker-windows-x64.exe"]) writeFileSync(join(assets, name), `binary ${name}`);
+  const sha256 = (path: string) => new Bun.CryptoHasher("sha256").update(readFileSync(path)).digest("hex");
+  const consistent = (manifest: Awaited<ReturnType<typeof writeReleaseFiles>>) => {
+    const files = readdirSync(assets).filter((name) => name !== "checksums.txt" && name !== "manifest.json").sort();
+    const checksums = readFileSync(join(assets, "checksums.txt"), "utf8").trim().split("\n").map((line) => line.split("  "));
+    expect(checksums.map(([, name]) => name)).toEqual(files);
+    for (const [hash, name] of checksums) expect(hash).toBe(sha256(join(assets, name!)));
+    expect(JSON.parse(readFileSync(join(assets, "manifest.json"), "utf8"))).toEqual(manifest);
+    for (const asset of manifest.assets) {
+      expect(files).toContain(asset.name);
+      expect(asset.sha256).toBe(sha256(join(assets, asset.name)));
+      expect(asset.url).toBe(`https://github.com/itsoltech/canopy/releases/download/v${version}/${asset.name}`);
+    }
+  };
+  // Stage 1: server assets only.
+  const server = await writeReleaseFiles(assets, env);
+  consistent(server);
+  expect(server.assets.map((asset) => asset.app)).toEqual(["gateway", "worker", "worker"]);
+  // Stage 2: one desktop target finished (the other failed); feeds are merged next to the binaries.
+  const linux = join(artifacts, "desktop-linux-x64");
+  mkdirSync(linux, { recursive: true });
+  const installer = `Canopy-${version}-linux-x64.AppImage`;
+  writeFileSync(join(linux, installer), "appimage");
+  writeFileSync(join(linux, `${installer}.blockmap`), "blockmap");
+  const sha512 = new Bun.CryptoHasher("sha512").update("appimage").digest("base64");
+  writeFileSync(join(linux, "nightly-linux.yml"), `version: ${version}\nfiles:\n  - url: ${installer}\n    sha512: ${sha512}\n    size: 8\npath: ${installer}\nsha512: ${sha512}\n`);
+  await mergeDesktopUpdates(artifacts, assets, "nightly", version);
+  const desktop = await writeReleaseFiles(assets, env);
+  consistent(desktop);
+  expect(desktop.assets.filter((asset) => asset.app !== "desktop")).toEqual([...server.assets]);
+  expect(desktop.assets.filter((asset) => asset.app === "desktop").map((asset) => asset.name)).toEqual([installer]);
+  expect(readFileSync(join(assets, "checksums.txt"), "utf8")).toContain("  nightly-linux.yml\n");
+  // "Re-run failed jobs" adds the missing target: the same files are merged again plus the new one.
+  const mac = join(artifacts, "desktop-darwin-arm64");
+  mkdirSync(mac);
+  const zip = `Canopy-${version}-darwin-arm64.zip`;
+  writeFileSync(join(mac, zip), "zip");
+  const zipSha512 = new Bun.CryptoHasher("sha512").update("zip").digest("base64");
+  writeFileSync(join(mac, "nightly-mac.yml"), `version: ${version}\nfiles:\n  - url: ${zip}\n    sha512: ${zipSha512}\n    size: 3\npath: ${zip}\nsha512: ${zipSha512}\n`);
+  const rerun = join(base, "rerun-assets");
+  mkdirSync(rerun);
+  for (const asset of server.assets) copyFileSync(join(assets, asset.name), join(rerun, asset.name));
+  await mergeDesktopUpdates(artifacts, rerun, "nightly", version);
+  const repeated = await writeReleaseFiles(rerun, env);
+  expect(repeated.assets.filter((asset) => asset.name !== zip)).toEqual([...desktop.assets]);
+  expect(repeated.assets.find((asset) => asset.name === zip)?.app).toBe("desktop");
+  const again = await writeReleaseFiles(rerun, env);
+  expect({ ...again, published_at: "" }).toEqual({ ...repeated, published_at: "" });
+});

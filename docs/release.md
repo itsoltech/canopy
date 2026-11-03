@@ -163,6 +163,8 @@ Assety desktop mają `app: "desktop"` (kilka formatów na jedną parę os/arch).
 Feedy `latest*.yml`, `beta*.yml`, `nightly*.yml` i blockmapy nie wchodzą do tablicy
 `manifest.assets`, bo nie mają pojedynczego os/arch. Obejmuje je `checksums.txt`.
 Format manifestu i zamrożony protokół aktualizacji gatewaya/workera pozostają bez zmian.
+Release dostaje oba pliki dwukrotnie: najpierw z samymi binariami (`publish-server`), potem
+przeliczone z assetami desktop (`publish-desktop`); wpisy serwerowe w obu wersjach są identyczne.
 
 ## Workflowy GitHub Actions
 
@@ -170,26 +172,128 @@ Format manifestu i zamrożony protokół aktualizacji gatewaya/workera pozostaj�
 `bun install --frozen-lockfile` → `gen:check` → `typecheck` → `check:tmp` (testy jednostkowe
 i integracyjne; PostgreSQL w kontenerach Docker runnera) → build web → binaria linux-x64
 z kontrolą `--version`. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze) i nie mają sekretów w CI.
+Nowy push do PR anuluje trwający check tego PR; wywołanie z Release ma własną grupę (`run_id`),
+więc nie czeka na checki poprzedniego przebiegu Release. Bun, cache pakietów i `bun install`
+są we wspólnej akcji `.github/actions/setup-bun`.
 
 `.github/workflows/release.yml` (push do `main`/`next`/`dev`, ręczne stabilne tagi `vX.Y.Z`,
-oraz dispatch po promocji/back-merge):
+oraz dispatch po promocji/back-merge). Nie ma `concurrency` na poziomie całego przebiegu:
+kolejny merge do `dev` nie czeka na notaryzację macOS poprzedniego. Serializowane per gałąź
+są tylko joby, które ustalają lub publikują wersję.
 
-| Job | Co robi | Blokuje publikację |
-| --- | --- | --- |
-| `checks` | `ci.yml` | tak, także przed semantic-release |
-| `semantic-release` | pełna historia, GITHUB_TOKEN; wyjścia `published`, `version`, `tag`, `channel` | buildy wyłącznie dla `published=true` |
-| `binaries` | cross-compile wszystkich celów | tak |
-| `smoke` | `--version` każdej binarki na jej OS/arch (ładuje osadzony sharp) | tak |
-| `desktop` | wszystkie kanały: Linux, macOS (Apple Silicon), Windows; linux-arm64/Windows eksperymentalne | linux-x64 i macOS arm64, także kontrola podpisów |
-| `images` | buildx amd64+arm64, GHCR, SBOM, cache GHA | wymagany przed manifestem |
-| `publish` | sumy, manifest z kanałem stable/beta/nightly, upload do istniejącego release | manifest na końcu |
+```text
+plan ─┬─ binaries ── smoke ──────────────────────────┐
+      ├─ images-build ─────────────┐                 │
+      ├─ desktop (macierz) ────────┼─────────────────┼──────────────┐
+checks┴─ release ──────────────────┴─ images ─ publish-server ─ publish-desktop
+                └─ stop-builds (checki czerwone / przebieg wyprzedzony)   ├─ nightly-hygiene / backmerge
+```
 
-semantic-release tworzy tag i GitHub Release (beta/nightly jako prerelease), po czym ten sam
-przebieg buduje i wgrywa assety. Tag utworzony przez `GITHUB_TOKEN` nie uruchamia nowego workflow.
-Resolver pomija release bez `manifest.json`, więc nie wybiera nieukończonego buildu.
-Po błędzie buildów użyj **Re-run failed jobs**, zachowując wyjścia joba semantic-release;
-ponowienie całego workflow może zakończyć się „no release”, bo tag już istnieje.
-Ręczny stabilny tag musi należeć do historii `main`; ścieżka tagowa tworzy release przy uploadzie.
+| Job | Co robi | Kiedy startuje | Publikuje |
+| --- | --- | --- | --- |
+| `checks` | `ci.yml` | od razu | — |
+| `plan` | semantic-release **`--dry-run`**: `version`, `tag`, `channel`, macierz desktop | od razu; grupa `release-version-<ref>` | nic (sprawdza tylko prawo pushu) |
+| `binaries`, `smoke` | cross-compile wszystkich celów; `--version` każdej binarki na jej OS/arch | po `plan`, równolegle z checkami | — (artefakt Actions) |
+| `images-build` | buildx amd64+arm64 do cache GHA (`mode=max`), bez pushu i atestacji | po `plan` | — |
+| `desktop` | Linux, macOS (Apple Silicon), Windows; podpisy i notaryzacja | po `plan` | — (artefakt Actions) |
+| `release` | prawdziwy semantic-release: tag i GitHub Release z notatkami | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + pusty release |
+| `images` | ten sam build z cache, push wyłącznie niezmiennego `vX.Y.Z` (SBOM) | po `release` i `images-build` | obraz `vX.Y.Z` |
+| `publish-server` | binaria, `checksums.txt`, `manifest.json` (ostatni), potem aliasy obrazów | po `checks`, `release`, `binaries`, `smoke`, `images`; grupa `release-publish-<ref>` | etap 1 |
+| `publish-desktop` | instalatory, blockmapy, scalone feedy, nowe `checksums.txt`/`manifest.json` | po `publish-server` i końcu macierzy desktop | etap 2 |
+| `stop-builds` | `gh run cancel` własnego przebiegu | checki czerwone albo `release` bez wydania/anulowany | — |
+| `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-server` | — |
+
+**Nic nie jest publikowane przed zielonymi testami.** Przed `checks` powstają wyłącznie artefakty
+Actions i cache buildx (prywatne dla repozytorium). Tag, GitHub Release, obraz w GHCR, assety
+release i aliasy obrazów zależą od `release`, a ten od `checks`. Dry run nie tworzy tagu ani notes;
+wymaga tylko `contents: write`, bo semantic-release sprawdza prawo pushu (`git push --dry-run`).
+
+**Wersja z planu.** Buildy dostają wersję z `plan`. `release` uruchamia semantic-release
+z `EXPECTED_VERSION`; plugin `scripts/release-expected-version.mjs` (krok `verifyRelease`, przed
+utworzeniem tagu) odrzuca inną wersję, a krok po nim porównuje wynik jeszcze raz. Rozjazd kończy
+przebieg błędem bez tagu: użyj **Re-run all jobs** (nowy plan i buildy). `plan` i `release`
+dzielą grupę `release-version-<ref>`, więc plan nie liczy wersji w trakcie tagowania innego przebiegu.
+
+**Wyprzedzony przebieg.** semantic-release nie wydaje, gdy gałąź przesunęła się w trakcie
+przebiegu („local branch … is behind the remote one”). Wtedy `stop-builds` anuluje własny przebieg
+(m.in. budowę i notaryzację macOS), a nowszy przebieg wydaje wszystkie commity od ostatniego tagu.
+GitHub w grupie `concurrency` trzyma jeden job oczekujący: nowszy anuluje starszy oczekujący — to też
+oznacza wyprzedzony przebieg. Przy czerwonych checkach `stop-builds` także zatrzymuje buildy;
+nic nie zostało otagowane, więc ponowienie (**Re-run all jobs**) jest bezpieczne.
+
+**Publikacja w dwóch etapach** (`scripts/release-upload.ts`, oba etapy można powtarzać):
+
+1. Tag musi wskazywać `GITHUB_SHA` przebiegu, release nie może być draftem, a flaga prerelease
+   musi zgadzać się z kanałem. Ścieżka tagowa tworzy release przy pierwszym uploadzie.
+2. Kolejność: binaria/instalatory/blockmapy (`--clobber`) → feedy `*.yml` → `checksums.txt`
+   → `manifest.json`. Te dwa ostatnie są wymieniane przez upload `<nazwa>.next` i zmianę nazwy,
+   więc opublikowany release traci je najwyżej na czas jednego wywołania API.
+3. `publish-server` publikuje manifest tylko z binariami gatewaya/workera. Od tej chwili działają
+   aktualizacje gatewaya/workera, instalator workera i obrazy kanału.
+4. `publish-desktop` pobiera ponownie artefakt `binaries` i wszystkie gotowe `desktop-*`, scala feedy,
+   liczy `checksums.txt`/`manifest.json` od nowa (wpisy serwerowe są identyczne, dochodzą `app: desktop`),
+   wgrywa tylko pliki desktop, feedy i oba pliki zbiorcze. Updater desktopu wybiera release dopiero,
+   gdy ma feed jego platformy **i** `manifest.json`, więc release z samymi binariami pomija;
+   feed trafia na release po instalatorach i blockmapach, które opisuje.
+5. Aliasy obrazów (`nightly`, `beta`, `stable`, `latest`, `vX`, `vX.Y`) przesuwa
+   `scripts/image-aliases.ts` (`docker buildx imagetools create`) **tylko do przodu**: alias wskazujący
+   nowszą wersję (adnotacja `org.opencontainers.image.version` indeksu) zostaje. `publish-server`
+   jest serializowany per gałąź, więc dwa przebiegi nie cofną aliasu. Poprawka starszej linii stable
+   przesuwa `vX.Y`, ale nie `latest`/`stable`.
+
+Błąd desktopu nie dotyka już opublikowanego etapu 1. `publish-desktop` publikuje cele, które się
+zbudowały; brakujący cel jest widoczny jako czerwony job i ewentualne ostrzeżenie w podsumowaniu.
+`promote.ts` wymaga zielonego przebiegu Release na HEAD, więc niepełny desktop blokuje promocję
+aż do skutecznego ponowienia. Ponowny upload manifestu przesuwa jego `updated_at`, od którego liczy się
+burn-in bety — to zamierzone: liczy się od kompletu assetów.
+
+**Nightly bez celów eksperymentalnych.** Kanał nightly buduje desktop tylko dla linux-x64 i darwin-arm64
+(podpisany nightly dla maintainera). linux-arm64 i windows-x64 (eksperymentalne, `continue-on-error`)
+buduje beta i stable, a nightly tylko przy ręcznym dispatchu z `desktop_all_targets: true`
+(dispatch wymaga `expected_sha` = HEAD gałęzi i wydaje tylko, gdy są niewydane commity).
+
+**Cache.** Pakiety Bun (`~/.bun/install/cache`, klucz z `bun.lock`) we wszystkich jobach z instalacją;
+pobrania Electron/electron-builder w jobach desktop; warstwy obrazów w cache GHA per aplikacja.
+Bundla web nie współdzielimy między jobami desktop: osobny job buildu opóźniłby start macOS
+(ścieżka krytyczna desktopu) bardziej, niż oszczędza (~1 min na runner).
+
+### Oczekiwane czasy
+
+| Etap | Od pushu |
+| --- | --- |
+| `plan` gotowy, start buildów | ~1 min |
+| `checks` zielone | ~4,5–5 min |
+| `release` (tag), start `images` | ~5,5–6 min |
+| obrazy `vX.Y.Z` w GHCR (build z cache) | ~7–8 min |
+| **etap 1: binaria, `manifest.json`, aliasy obrazów** | **~9–11 min** |
+| desktop Linux w release | ~12–14 min |
+| desktop macOS (podpis + notaryzacja) w release | ~30–35 min |
+
+Następny merge do `dev` startuje od razu; czeka jedynie na krótkie joby `plan`/`release`
+poprzedniego przebiegu (~1 min każdy) i ewentualnie na jego `publish-server`.
+
+### Ponowienia i błąd notaryzacji
+
+- Po błędzie buildów albo publikacji użyj **Re-run failed jobs**: zachowuje wyjścia `plan`/`release`
+  i powtarza nieudane joby z zależnymi. Ponowienie całego workflow po utworzeniu tagu kończy się
+  „no release”, bo tag już istnieje. Artefakty Actions żyją 7 dni.
+- **Notaryzacja macOS zawiodła** (timeout Apple, odrzucenie, wygasła umowa/klucz): etap 1 i pozostałe
+  cele desktop są już opublikowane, release nie ma assetów mac ani `*-mac.yml`, więc desktop macOS
+  zostaje na poprzedniej wersji. Sprawdź log `desktop (darwin-arm64)` (status zgłoszenia `notarytool`,
+  ważność sekretów i umów Apple), napraw przyczynę i użyj **Re-run failed jobs** — przebuduje macOS
+  i powtórzy `publish-desktop`, który dopisze assety mac oraz przeliczy feedy, sumy i manifest.
+  Ponowienie działa także po tym, jak nowszy przebieg wydał już kolejny nightly.
+- Ręczny stabilny tag musi należeć do historii `main`; ścieżka tagowa tworzy release przy uploadzie.
+
+### Do potwierdzenia na pierwszych przebiegach
+
+GitHub Actions nie da się uruchomić lokalnie. Na pierwszych przebiegach `dev` sprawdź:
+`plan` (dry run z `contents: write`) podaje wersję i nie tworzy tagu; `release` publikuje tę samą wersję;
+`images` korzysta z cache `images-build` (krótki build); `imagetools inspect` czyta adnotację wersji
+aliasu (log `stays at`/`→`), a `imagetools create` zachowuje obie platformy i SBOM; `release-upload.ts`
+podmienia `manifest.json`/`checksums.txt` przez `.next` (brak pozostałych plików `.next`);
+`publish-desktop` widzi artefakty z poprzedniej próby po **Re-run failed jobs**; `stop-builds`
+anuluje wyprzedzony przebieg; dwa merge'e w odstępie kilku minut dają jeden nightly z obu commitów.
 
 Podpisywanie desktop jest warunkowe: bez certyfikatu macOS otrzymuje podpis ad-hoc,
 Windows pozostaje niepodpisany. Konfiguracja certyfikatu macOS włącza obowiązkowy signing,
@@ -269,7 +373,8 @@ dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
 
 1. Na runnerze Apple Silicon sprawdź liczbę runtime Mach-O w logu,
    użycie Developer ID Application, powodzenie notaryzacji/staplingu oraz krok
-   `Verify macOS signatures and notarization`. Te joby blokują publikację we wszystkich kanałach.
+   `Verify macOS signatures and notarization`. Ich błąd blokuje publikację desktopu macOS
+   (etap 2) i promocję, nie binaria ani obrazy (etap 1).
 2. Pobierz dmg i zip z GitHuba na czystego Maca z quarantine. Uruchom app bez `xattr`,
    sprawdź lokalny start PostgreSQL, gatewaya, workera i web oraz zamknięcie procesów.
    Sprawdź `codesign -d --entitlements :-` dla app, helpera i skompilowanego Bun sidecara.
@@ -359,8 +464,8 @@ ich nie wskazuje. Stable i beta nie podlegają retencji nightly.
    push main kończy się „no release” (guard bootstrap), nawet jeśli squash ma typ `feat`.
 2. Na HEAD main utwórz `git tag -a v0.1.0 -m 'Canopy 0.1.0'`, potem
    `git push origin main v0.1.0`. Tylko przebieg tagowy publikuje **0.1.0 stable**; przebieg main
-   widzi tag na HEAD i brak nowych commitów. CI, wszystkie binaria/smoke, desktop i obrazy muszą
-   przejść przed uploadem manifestu. Sprawdź `v0.1.0/manifest.json` i publiczną widoczność GHCR.
+   widzi tag na HEAD i brak nowych commitów. CI, wszystkie binaria/smoke i obrazy muszą przejść
+   przed pierwszym manifestem; desktop dopisuje się w drugim etapie. Sprawdź `v0.1.0/manifest.json` i publiczną widoczność GHCR.
 3. Utwórz `git branch next v0.1.0` oraz `git branch dev v0.1.0`; wykonaj
    `git push origin next dev`. Obie gałęzie kończą się **no release** aż do nowych commitów
    wpływających na wersję. Nie twórz tagów beta/nightly ręcznie.
@@ -378,6 +483,11 @@ Origin używa `file://`, aby generator notatek miał poprawny URL. Sprawdza brak
 main/next/dev, feat → 0.2.0 / 0.2.0-beta.1 / 0.2.0-nightly.1 oraz breaking w 0.x i po 1.0.0.
 Osobny test publikuje wyłącznie do tego lokalnego bare origin, sprawdzając pełen cykl promocji
 nightly → beta → stable i brak wydania po docs-only. Fixture nie tworzy tagów w repozytorium roboczym.
+Kolejny test odtwarza dwa merge'e w krótkim odstępie: oba plany dają tę samą wersję, wyprzedzony
+przebieg nic nie taguje, inna niż zaplanowana wersja jest odrzucana przed tagiem, a planowana wydana.
+Test etapów publikacji liczy sumy i manifest z samymi binariami, potem z jednym celem desktop, potem
+po „ponowieniu” z brakującym celem: każdy asset manifestu istnieje i ma zgodny SHA-256, `checksums.txt`
+obejmuje wszystkie pliki, wpisy serwerowe się nie zmieniają, a powtórka daje ten sam wynik.
 Testy updatera używają lokalnego fixture HTTP
 z prereleases, paginacją i manifestami. Pełna publikacja wymaga uruchomienia workflow na GitHubie.
 
