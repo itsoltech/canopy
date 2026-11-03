@@ -1,5 +1,5 @@
 import type { Attachment } from "svelte/attachments";
-import { positionNow, type Placement } from "./floating.ts";
+import { autoPosition, type Placement } from "./floating.ts";
 import { hotkeyKeys, isApple } from "./hotkeys.ts";
 
 /**
@@ -53,6 +53,7 @@ export function tooltip(text: string | undefined, { placement = "top", hotkey, d
     document.body.append(tip);
     if (node.getAttribute("aria-label") !== text) node.setAttribute("aria-describedby", tip.id);
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopPosition: (() => void) | undefined;
 
     trackModality();
     const show = () => {
@@ -63,10 +64,13 @@ export function tooltip(text: string | undefined, { placement = "top", hotkey, d
         tip.toggleAttribute("data-warm", Date.now() - lastHidden < WARM_MS);
         tip.showPopover();
       }
-      positionNow(node, tip, { placement, offset: 6 });
+      stopPosition?.();
+      stopPosition = autoPosition(node, tip, { placement, offset: 6 });
     };
     const hide = () => {
       clearTimeout(timer);
+      stopPosition?.();
+      stopPosition = undefined;
       if (tip.matches(":popover-open")) {
         tip.hidePopover();
         lastHidden = Date.now();

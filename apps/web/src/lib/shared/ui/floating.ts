@@ -39,13 +39,15 @@ function split(placement: Placement): [Side, "start" | "center" | "end"] {
 export function computePosition(
   anchor: Pick<DOMRect, "top" | "bottom" | "left" | "right" | "width" | "height">,
   size: { readonly width: number; readonly height: number },
-  viewport: { readonly width: number; readonly height: number },
+  viewport: { readonly width: number; readonly height: number; readonly top?: number },
   { placement = "bottom-start", offset = 6, padding = 8 }: PositionOptions = {},
 ): Position {
   const [preferred, align] = split(placement);
+  const safeTop = viewport.top ?? 0;
+  const top = safeTop + padding;
   const room: Record<Side, number> = {
-    top: anchor.top - offset - padding,
-    bottom: viewport.height - anchor.bottom - offset - padding,
+    top: anchor.top - offset - top,
+    bottom: viewport.height - (safeTop > 0 ? Math.max(anchor.bottom + offset, top) : anchor.bottom + offset) - padding,
     left: anchor.left - offset - padding,
     right: viewport.width - anchor.right - offset - padding,
   };
@@ -58,14 +60,16 @@ export function computePosition(
   let y: number;
   if (vertical) {
     y = side === "bottom" ? anchor.bottom + offset : anchor.top - offset - Math.min(size.height, room.top);
+    // Keep zero-safe-area placement identical, including anchors scrolled beyond the viewport.
+    if (safeTop > 0) y = Math.max(top, y);
     x = align === "start" ? anchor.left : align === "end" ? anchor.right - size.width : anchor.left + (anchor.width - size.width) / 2;
     x = clamp(x, padding, viewport.width - size.width - padding);
   } else {
     x = side === "right" ? anchor.right + offset : anchor.left - offset - size.width;
     y = align === "start" ? anchor.top : align === "end" ? anchor.bottom - size.height : anchor.top + (anchor.height - size.height) / 2;
-    y = clamp(y, padding, viewport.height - size.height - padding);
+    y = clamp(y, top, viewport.height - size.height - padding);
   }
-  const availableHeight = vertical ? Math.max(room[side], 0) : viewport.height - 2 * padding;
+  const availableHeight = vertical ? Math.max(room[side], 0) : viewport.height - top - padding;
   return { x: Math.round(x), y: Math.round(y), side, availableHeight: Math.floor(availableHeight) };
 }
 
@@ -76,7 +80,11 @@ export function positionNow(anchor: Element, floating: HTMLElement, options?: Po
   const position = computePosition(
     anchor.getBoundingClientRect(),
     { width: floating.offsetWidth, height: floating.offsetHeight },
-    { width: document.documentElement.clientWidth, height: window.innerHeight },
+    {
+      width: document.documentElement.clientWidth,
+      height: window.innerHeight,
+      top: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-safe-top")) || 0,
+    },
     options,
   );
   floating.style.setProperty("--float-x", `${position.x}px`);
@@ -112,11 +120,15 @@ export function autoPosition(anchor: Element, floating: HTMLElement, options?: P
   const observer = new ResizeObserver(update);
   observer.observe(anchor);
   observer.observe(floating);
+  // Fullscreen/bridge zoom can change the safe area while a menu stays open.
+  const windowState = new MutationObserver(update);
+  windowState.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-window-fullscreen", "data-canopy-platform"] });
   window.addEventListener("scroll", update, { capture: true, passive: true });
   window.addEventListener("resize", update, { passive: true });
   return () => {
     cancelAnimationFrame(frame);
     observer.disconnect();
+    windowState.disconnect();
     window.removeEventListener("scroll", update, { capture: true });
     window.removeEventListener("resize", update);
   };

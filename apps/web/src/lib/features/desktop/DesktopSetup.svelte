@@ -49,7 +49,7 @@
 <svelte:head><title>Set up Canopy</title></svelte:head>
 <!-- On macOS the window has no title bar: the top of the screen moves it (routes/layout.css). -->
 <div class="fixed inset-x-0 top-0 hidden h-12 macos:block" data-window-drag></div>
-<main class="isolate flex min-h-dvh items-center bg-white py-12 text-zinc-950 dark:bg-black dark:text-white">
+<main class="isolate flex min-h-dvh items-center bg-white pt-[max(3rem,var(--window-safe-top))] pb-12 text-zinc-950 dark:bg-black dark:text-white">
   <div class="mx-auto grid w-full max-w-2xl gap-8 px-6 sm:px-10">
     <div class="grid gap-3">
       <img src="/icon-192.png" alt="" width="48" height="48" class="size-12 shrink-0" />

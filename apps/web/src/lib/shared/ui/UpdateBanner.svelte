@@ -20,7 +20,7 @@
 </script>
 
 {#if updateState.available}
-  <div class="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4" role="status">
+  <div class="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 macos:max-h-[max(0px,var(--window-safe-height)-2rem)] macos:overflow-y-auto" role="status">
     <div class="flex items-center gap-3 rounded-xl bg-white px-4 py-2 text-sm/6 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 dark:bg-zinc-900 dark:text-white dark:ring-white/10">
       <span>A new version is available —</span>
       <Button size="sm" onclick={() => location.reload()}>Reload</Button>
