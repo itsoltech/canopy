@@ -342,7 +342,7 @@
     <TopBar>
       {#if thread}
         <Crumb href={project ? project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}` : undefined}><ProjectMark name={project?.name ?? "?"} kind={project?.kind} /><span class="truncate">{project?.name ?? "Project"}</span></Crumb>
-        {#if thread.nodeId}<li class="flex shrink-0 items-center"><MachineBadge nodeId={thread.nodeId} /></li>{/if}
+        {#if thread.nodeId}<li class="flex shrink-0 items-center"><MachineBadge nodeId={thread.nodeId} compact class="max-w-20 sm:max-w-40" /></li>{/if}
         {#if tree && isSide(thread) && tree.main.id !== thread.id}
           <Crumb href="/threads/{tree.main.id}"><span class="truncate max-sm:hidden">{tree.main.title}</span><span class="sm:hidden">…</span></Crumb>
         {/if}
