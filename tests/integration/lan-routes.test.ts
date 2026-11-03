@@ -29,6 +29,9 @@ async function freePort() {
   return port;
 }
 const SUBNET = { address: "127.0.0.1", netmask: "255.255.255.0" };
+// Route discovery has its own fast clock. Keep the unrelated liveness detector long enough for
+// pinned handshakes and database work when the integration suites run together.
+const HEARTBEAT_MS = 1000;
 
 describe.skipIf(!dockerAvailable)("routes and local network discovery between two linked gateways", () => {
   let a: TestGateway; let b: TestGateway;
@@ -44,7 +47,7 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     const port = la.options.port!;
     await la.close();
     await meanwhile();
-    la = new LinkedComputers({ store: sa, host: "127.0.0.1", port, heartbeatMs: 100, discovery: discovery("a", [SUBNET]) });
+    la = new LinkedComputers({ store: sa, host: "127.0.0.1", port, heartbeatMs: HEARTBEAT_MS, discovery: discovery("a", [SUBNET]) });
     a.core.computers = la; await la.start();
   }
   const discovery = (name: string, interfaces: typeof ifaceB) => ({ transport: lan.transport(name, interfaces), queryIntervalMs: 150, testIntervalMs: 300 });
@@ -53,9 +56,9 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     a = await startTestGateway(); b = await startTestGateway();
     sa = new ComputerStore(a.runtime, a.userId, a.secretsKey); sb = new ComputerStore(b.runtime, b.userId, b.secretsKey);
     // A fixed port: A's listener is switched off and on to make A the dialling side.
-    la = new LinkedComputers({ store: sa, host: "127.0.0.1", port: await freePort(), heartbeatMs: 100, discovery: discovery("a", [SUBNET]) });
+    la = new LinkedComputers({ store: sa, host: "127.0.0.1", port: await freePort(), heartbeatMs: HEARTBEAT_MS, discovery: discovery("a", [SUBNET]) });
     // B listens on every interface without configured addresses: it advertises its LAN addresses.
-    lb = new LinkedComputers({ store: sb, host: "0.0.0.0", heartbeatMs: 100, discovery: discovery("b", ifaceB) });
+    lb = new LinkedComputers({ store: sb, host: "0.0.0.0", heartbeatMs: HEARTBEAT_MS, discovery: discovery("b", ifaceB) });
     a.core.computers = la; b.core.computers = lb;
     await la.start(); await lb.start();
     portB = Number(new URL(lb.hello().addresses[0]!).port);
@@ -81,8 +84,11 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     expect(route.latencyMs).toBeGreaterThanOrEqual(0);
     // And A reaches B through it when it has to dial: B can no longer reach A.
     await a.api.manageComputer({ action: "listener", enabled: false });
-    await online();
-    await a.api.manageComputer({ action: "listener", enabled: true });
+    try {
+      // Wait for the old streams and their presence writes to finish before testing a fresh dial.
+      await restartA();
+      await online();
+    } finally { await a.api.manageComputer({ action: "listener", enabled: true }); }
   }, 30_000);
 
   test("announcements carry only rotating opaque names, the link port and a LAN address", async () => {
