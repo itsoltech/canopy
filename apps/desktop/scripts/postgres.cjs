@@ -1,3 +1,4 @@
+const { createHash } = require("node:crypto");
 const { existsSync, lstatSync, readFileSync, readdirSync, rmSync, symlinkSync } = require("node:fs");
 const { execFileSync } = require("node:child_process");
 const { dirname, isAbsolute, join, relative, resolve } = require("node:path");
@@ -22,6 +23,34 @@ function restorePostgresLinks(directory) {
   }
 }
 
+// Pinned releases may ship an empty alias manifest and publish every library alias
+// (libicudata.dylib, .77.dylib, .77.1.dylib) as a full copy. Link identical copies to
+// the most specific name, as the upstream build has them.
+function linkDuplicateLibraries(directory) {
+  const library = /^(.+?)((?:\.\d+)*\.(?:dylib|so)(?:\.\d+)*)$/;
+  const lib = join(directory, "lib");
+  if (!existsSync(lib)) return;
+  const families = new Map();
+  for (const entry of readdirSync(lib, { withFileTypes: true })) {
+    const match = entry.isFile() && library.exec(entry.name);
+    if (!match) continue;
+    const kind = entry.name.includes(".dylib") ? "dylib" : "so";
+    const key = `${match[1]}:${kind}`;
+    families.set(key, [...(families.get(key) ?? []), entry.name]);
+  }
+  const digest = (name) => createHash("sha256").update(readFileSync(join(lib, name))).digest("hex");
+  for (const names of families.values()) {
+    if (names.length < 2) continue;
+    const original = names.reduce((best, name) => name.length > best.length ? name : best);
+    const hash = digest(original);
+    for (const name of names) {
+      if (name === original || digest(name) !== hash) continue;
+      rmSync(join(lib, name));
+      symlinkSync(original, join(lib, name));
+    }
+  }
+}
+
 function preparePostgres(directory, target) {
   // Shared libraries, SQL extensions, locales and all licenses remain intact.
   function removeBuildInputs(path) {
@@ -32,7 +61,7 @@ function preparePostgres(directory, target) {
     }
   }
   removeBuildInputs(directory);
-  if (!target.startsWith("win32")) restorePostgresLinks(directory);
+  if (!target.startsWith("win32")) { restorePostgresLinks(directory); linkDuplicateLibraries(directory); }
   if (target.startsWith("darwin")) {
     const { machOFiles, thinMachOFilesPortable } = require("./macho.cjs");
     thinMachOFilesPortable(directory, target.split("-")[1]);
@@ -45,4 +74,4 @@ function preparePostgres(directory, target) {
     }
   }
 }
-module.exports = { restorePostgresLinks, preparePostgres };
+module.exports = { restorePostgresLinks, linkDuplicateLibraries, preparePostgres };

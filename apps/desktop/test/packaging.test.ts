@@ -7,7 +7,7 @@ import { noAgentClis } from "../../../scripts/agent-clis.ts";
 const { createPackage } = require("@electron/asar") as { createPackage(source: string, output: string): Promise<void> };
 const verify = require("../scripts/verify-package.cjs") as (context: unknown) => Promise<void>;
 const { packageMetrics } = require("../scripts/package-metrics.cjs") as { packageMetrics(app: string, resources: string, target: string): unknown };
-const { restorePostgresLinks } = require("../scripts/postgres.cjs") as { restorePostgresLinks(directory: string): void };
+const { restorePostgresLinks, linkDuplicateLibraries } = require("../scripts/postgres.cjs") as { restorePostgresLinks(directory: string): void; linkDuplicateLibraries(directory: string): void };
 const { machOArchitectures, thinMachOFilesPortable } = require("../scripts/macho.cjs") as { machOArchitectures(path: string): string[]; thinMachOFilesPortable(directory: string, arch: string): void };
 const makeTemp = tempDirs();
 
@@ -70,6 +70,22 @@ test("Postgres aliases replace dereferenced copies, with relative links that sur
   expect(lstatSync(join(directory, "lib/libicudata.dylib")).isSymbolicLink()).toBe(true);
   expect(readlinkSync(join(directory, "lib/libicudata.dylib"))).toBe("libicudata.77.1.dylib");
   expect(readFileSync(join(directory, "lib/libicudata.dylib"), "utf8")).toBe("icu");
+});
+
+test("Postgres library copies without a manifest become links to the most specific name", () => {
+  // The pinned 18.6 package ships an empty pg-symlinks.json and three 30 MB copies of each ICU library.
+  const directory = makeTemp("canopy-postgres-dedupe-");
+  mkdirSync(join(directory, "lib"));
+  for (const name of ["libicudata.77.1.dylib", "libicudata.77.dylib", "libicudata.dylib", "libicuuc.so.77.1", "libicuuc.so.77"]) writeFileSync(join(directory, "lib", name), name.includes("icudata") ? "data" : "uc");
+  writeFileSync(join(directory, "lib/libpq.5.dylib"), "pq5");
+  writeFileSync(join(directory, "lib/libpq.dylib"), "different");
+  linkDuplicateLibraries(directory);
+  expect(readlinkSync(join(directory, "lib/libicudata.dylib"))).toBe("libicudata.77.1.dylib");
+  expect(readlinkSync(join(directory, "lib/libicudata.77.dylib"))).toBe("libicudata.77.1.dylib");
+  expect(lstatSync(join(directory, "lib/libicudata.77.1.dylib")).isFile()).toBe(true);
+  expect(readlinkSync(join(directory, "lib/libicuuc.so.77"))).toBe("libicuuc.so.77.1");
+  // Different contents are never linked.
+  expect(lstatSync(join(directory, "lib/libpq.dylib")).isFile()).toBe(true);
 });
 
 test("macOS runtime thinning selects the exact arm64 slice without lipo or Xcode", () => {
