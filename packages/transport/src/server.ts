@@ -16,6 +16,8 @@ export interface GrpcServerOptions {
   readonly port?: number;
   /** Without TLS the server speaks h2c (cleartext HTTP/2), e.g. behind a TLS-terminating proxy. */
   readonly tls?: TlsMaterial;
+  /** Minimal unauthenticated load-balancer probe; contains no worker or release asset information. */
+  readonly health?: () => { healthy: boolean; version: string };
 }
 
 export interface RunningGrpcServer {
@@ -31,7 +33,16 @@ export interface RunningGrpcServer {
 
 /** HTTP/2 server serving Connect, gRPC and gRPC-Web on one port. */
 export async function startGrpcServer(options: GrpcServerOptions): Promise<RunningGrpcServer> {
-  const handler = connectNodeAdapter({ routes: options.routes, ...(options.interceptors && { interceptors: options.interceptors }) });
+  const adapter = connectNodeAdapter({ routes: options.routes, ...(options.interceptors && { interceptors: options.interceptors }) });
+  const handler: typeof adapter = (request, response) => {
+    if (request.url === "/healthz" && options.health && request.method === "GET") {
+      const health = options.health();
+      response.writeHead(health.healthy ? 200 : 503, { "content-type": "application/json", "cache-control": "no-store" });
+      response.end(JSON.stringify(health));
+      return;
+    }
+    return adapter(request, response);
+  };
   const server = options.tls
     ? http2.createSecureServer({ cert: options.tls.cert, key: options.tls.key, allowHTTP1: true }, handler)
     : http2.createServer(handler);

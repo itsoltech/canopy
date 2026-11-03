@@ -244,4 +244,5 @@ Wyszukiwanie plików jest własne workera (nie Codexowe `fuzzyFileSearch`), bo m
 ## Wersjonowanie
 
 - Pakiet `openagents.worker.v1`. Zmiany zgodne wstecz: tylko nowe pola i wartości enumów.
-- `Hello.host.worker_version` pozwala gateway odrzucić zbyt stare workery z czytelnym komunikatem.
+- `Hello.worker_link_protocol` (760) i `min_worker_link_protocol` (761) negocjują dodatni zakres protokołu; brak wspólnego numeru oznacza `FailedPrecondition` z czytelnym powodem. Wersja aplikacji z `CANOPY_VERSION` jest niezależna od zgodności protokołu.
+- Osobny zamrożony `openagents.update.v1.UpdateService` działa na tym samym porcie również wtedy, gdy WorkerLink odrzuca handshake. Nie importuje wiadomości WorkerLink/UI, pozostaje dostępny na zawsze, przyjmuje tylko addytywne rozszerzenia. Przepływy aktualizacji, auth, mirror i rollback: [updates.md](updates.md).

@@ -231,12 +231,12 @@ The mobile app has been verified on the iOS Simulator and the Android Emulator a
 - Bots with routines, reminders, bot-to-bot conversations, bot creation, approval policies including full auto, and silent handoff on model change.
 - Connectors with named accounts, per-worker and per-bot grants, OAuth or token authentication, and an audit log.
 - Worker enrollment from the UI, credential rotation, revocation and archiving.
+- [Gateway and worker updates](docs/updates.md): a separate frozen gRPC protocol, compatibility negotiation, gateway mirror, verified Linux/macOS binary replacement, rollback and Settings controls. Runtime verified on Linux; Windows binaries remain externally managed.
 - Desktop app (Linux verified) and mobile development build (iOS and Android).
 
 **In progress**
 
 - CI pipeline, container images, standalone gateway and worker binaries, desktop builds on CI, and a single version across all apps with `latest`, `vX`, `vX.Y` and `vX.Y.Z` channels.
-- Self-update for gateway and workers over a separate, stable update protocol (health, version and compatibility information, update commands from the gateway).
 
 **Planned**
 

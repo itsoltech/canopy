@@ -152,6 +152,15 @@ export class WorkerHost {
   #shuttingDown = false;
   readonly #codexRestart = new Map<string, Promise<void>>();
   readonly #running = new Set<string>();
+  #updateDraining = false;
+  #admitting = 0;
+
+  setUpdateDraining(value: boolean): void { this.#updateDraining = value; }
+  get updateDraining(): boolean { return this.#updateDraining; }
+  async updateIdle(): Promise<boolean> {
+    return this.#admitting === 0 && this.#running.size === 0 && this.#generations.size === 0 &&
+      (await this.#options.runtime.runPromise(Journal.use((j) => j.openBackgroundTasks()))).length === 0;
+  }
   readonly #interactions = new Map<string, { request: InteractionRequest; resolve: (r: InteractionResponse) => void }>();
   readonly #toolCalls = new Map<string, { call: AgentToolCall; resolve: (r: AgentToolResult) => void }>();
   /** Last model catalog (ModelCatalog), re-sent after a reconnect. */
@@ -339,6 +348,10 @@ export class WorkerHost {
     const known = await this.#options.runtime.runPromise(Journal.use((j) => j.commandResult(command.commandId)));
     if (known) return known;
     if (this.#shuttingDown) return undefined;
+    // Leave new work unacknowledged in the durable gateway outbox until the update completes/restarts.
+    const admission = ["startTurn", "createThread", "generateText", "setGoal"].includes(command.kind.case ?? "");
+    if (admission && this.#updateDraining) return undefined;
+    if (admission) this.#admitting++;
     try {
       const output = await this.#execute(command);
       const result: CommandResultInit = {
@@ -362,7 +375,7 @@ export class WorkerHost {
       const result: CommandResultInit = { commandId: command.commandId, ok: false, errorCode: failure.code, errorMessage: failure.message };
       if (failure.final && !QUERIES.has(command.kind.case)) await this.#remember(result);
       return result;
-    }
+    } finally { if (admission) this.#admitting--; }
   }
 
   async close(): Promise<void> {

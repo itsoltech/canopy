@@ -9,6 +9,7 @@ import {
 } from "@open-agents/contracts";
 import { AsyncChannel, createGrpcClientTransport } from "@open-agents/transport";
 import { workerMessage, type WorkerPayloadInit } from "./messages.ts";
+import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL } from "@open-agents/domain/release/protocol";
 
 export interface GatewayLinkOptions {
   /** e.g. https://gateway.example.com */
@@ -43,7 +44,7 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
   const client = createClient(WorkerLinkService, transport);
 
   const outbound = new AsyncChannel<WorkerMessage>();
-  outbound.push(workerMessage({ case: "hello", value: options.hello }));
+  outbound.push(workerMessage({ case: "hello", value: { workerLinkProtocol: WORKER_LINK_PROTOCOL, minWorkerLinkProtocol: MIN_WORKER_LINK_PROTOCOL, ...options.hello } }));
 
   const responses = client
     .connect(outbound, {

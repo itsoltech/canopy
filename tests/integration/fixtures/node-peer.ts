@@ -98,6 +98,8 @@ function runClient(baseUrl: string, caFile: string | undefined): void {
     case: "hello",
     value: {
       workerId: "worker-1",
+      workerLinkProtocol: 1,
+      minWorkerLinkProtocol: 1,
       host: { hostname: "node-peer", os: process.platform, arch: process.arch, workerVersion: "node-interop" },
       providers: [{ provider: Provider.CLAUDE, available: true }],
     },

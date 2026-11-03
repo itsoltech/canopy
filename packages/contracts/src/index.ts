@@ -6,3 +6,4 @@ export * from "./gen/openagents/worker/v1/worker_link_pb.ts";
 export * as ui from "./ui.ts";
 export * as bots from "./gen/openagents/ui/v1/bots_pb.ts";
 export * as connectors from "./gen/openagents/ui/v1/connectors_pb.ts";
+export * as update from "./gen/openagents/update/v1/update_pb.ts";

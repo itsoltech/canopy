@@ -10,6 +10,7 @@ Powiązane dokumenty:
 - [protocol.md](protocol.md) — kanał gRPC gateway ↔ worker
 - [data-model.md](data-model.md) — model danych PostgreSQL i reguły dostępu
 - [worker-config.md](worker-config.md) — zdalna konfiguracja workerów (lokalnie tylko połączenie z gateway)
+- [updates.md](updates.md) — niezależny UpdateService, zgodność protokołów, mirror i rollback binarek
 - [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`
 - [grok-adapter.md](grok-adapter.md) — własny SDK ACP stdio Grok CLI, native/CLIProxyAPI i MCP narzędzi platformy
 - [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
@@ -96,6 +97,7 @@ flowchart LR
 | SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. |
 | Mobile → Tailscale Serve → Gateway | HTTPS Connect, dalej HTTP/1.1 loopback | aplikacja | Unary i server streaming przez `expo/fetch`. Jednorazowe parowanie, osobny odwoływalny token urządzenia; administracja urządzeniami tylko przez BFF. |
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Działa za NAT-em i firewallem. Szczegóły: [protocol.md](protocol.md). |
+| Worker → Gateway (aktualizacje) | osobny gRPC `openagents.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |
 | Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Poświadczenia zostają na urządzeniu (login Claude Code / Codex lub klucz API). |
 | Gateway → LLM | HTTPS | Gateway | Tylko agenci czatowi. Klucze trzyma gateway. |

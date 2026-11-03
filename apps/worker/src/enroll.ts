@@ -5,6 +5,8 @@ import { createClient } from "@connectrpc/connect";
 import { WorkerEnrollmentService } from "@open-agents/contracts";
 import { createGrpcClientTransport } from "@open-agents/transport";
 import type { LocalConfig } from "./config/local.ts";
+import { CANOPY_VERSION } from "@open-agents/domain/release/version";
+import { isStandalone, serviceSnippet } from "@open-agents/updater";
 
 export interface EnrollmentOptions {
   gateway: string;
@@ -29,7 +31,7 @@ export async function enrollWorker(options: EnrollmentOptions): Promise<LocalCon
     let result;
     try {
       result = await client.enroll({ enrollmentToken: options.token,
-        host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: "0.0.0" } }, { timeoutMs: 15_000 });
+        host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: CANOPY_VERSION } }, { timeoutMs: 15_000 });
     } catch {
       throw new Error("Enrollment failed. Check the gateway address and use a valid, unexpired token from Settings → Workers");
     }
@@ -47,12 +49,6 @@ export async function enrollWorker(options: EnrollmentOptions): Promise<LocalCon
 }
 
 /** Snippets contain paths only; credentials stay in worker.json. No automatic service installation. */
-export function workerServiceSnippet(platform: string, configPath: string, entrypoint = resolve(import.meta.dir, "main.ts"), bunPath = process.execPath): string {
-  const config = resolve(configPath);
-  if (platform === "darwin") {
-    const xml = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-    return `Save as ~/Library/LaunchAgents/com.canopy.worker.plist, then run:\nlaunchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.canopy.worker.plist\n\n<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n  <key>Label</key><string>com.canopy.worker</string>\n  <key>ProgramArguments</key><array><string>${xml(bunPath)}</string><string>${xml(entrypoint)}</string><string>--config</string><string>${xml(config)}</string></array>\n  <key>RunAtLoad</key><true/>\n  <key>KeepAlive</key><true/>\n  <key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(process.env["PATH"] ?? "/usr/local/bin:/usr/bin:/bin")}</string></dict>\n</dict></plist>`;
-  }
-  const unit = (s: string) => '"' + s.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%").replaceAll("$", "$$") + '"';
-  return `Save as ~/.config/systemd/user/canopy-worker.service, then run:\nsystemctl --user daemon-reload\nsystemctl --user enable --now canopy-worker\n\n[Unit]\nDescription=Canopy worker\nAfter=network-online.target\n\n[Service]\nExecStart=${unit(bunPath)} ${unit(entrypoint)} --config ${unit(config)}\nEnvironment=${unit(`PATH=${process.env["PATH"] ?? "/usr/local/bin:/usr/bin:/bin"}`)}\nRestart=on-failure\nRestartPreventExitStatus=78\nRestartSec=5\n\n[Install]\nWantedBy=default.target`;
+export function workerServiceSnippet(platform: string, configPath: string, entrypoint = isStandalone() ? "" : resolve(import.meta.dir, "main.ts"), bunPath = process.execPath): string {
+  return serviceSnippet("worker", platform, bunPath, [...(entrypoint ? [entrypoint] : []), "--config", resolve(configPath)]);
 }

@@ -11,6 +11,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import UpdatesPanel from "#lib/features/workers/UpdatesPanel.svelte";
 
   const overview = useOverview();
   const online = $derived(overview.workers.filter((w) => w.online).length);
@@ -64,6 +65,7 @@
     {/each}
   </SettingsGroup>
 {/if}
+<UpdatesPanel />
 <SettingsGroup title="Connection">
   <div class="p-4 sm:p-5">
     <form class="grid gap-3" onsubmit={(e) => { e.preventDefault(); void saveAddress(); }}>

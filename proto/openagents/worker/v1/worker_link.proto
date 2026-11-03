@@ -101,6 +101,8 @@ message ThreadSecretReceipt {
 // ---------- Handshake ----------
 
 message Hello {
+  uint32 worker_link_protocol = 760;
+  uint32 min_worker_link_protocol = 761;
   // Pola 4 (allowed_roots) i 6 (profiles) były lokalną konfiguracją; konfiguracja jest teraz zdalna (WorkerConfig).
   reserved 4, 6;
   reserved "allowed_roots", "profiles";

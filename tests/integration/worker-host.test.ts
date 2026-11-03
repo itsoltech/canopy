@@ -76,6 +76,18 @@ describe("worker command handling", () => {
     expect(await connection.sendCommand({ case: "listDirectory", value: { path: "relative" } })).toMatchObject({ ok: false, errorCode: "CWD_NOT_ABSOLUTE" });
   });
 
+  test("update draining leaves new work unacknowledged and retryable while reads remain available", async () => {
+    const command = create(CommandSchema, { commandId: Bun.randomUUIDv7(), kind: { case: "createThread", value: { thread: thread(root) } } });
+    host.setUpdateDraining(true);
+    try {
+      expect(await host.handleCommand(command)).toBeUndefined();
+      expect(await runtime.runPromise(Journal.use((j) => j.commandResult(command.commandId)))).toBeUndefined();
+      expect(await connection.sendCommand({ case: "listDirectory", value: { path: root } })).toMatchObject({ ok: true });
+      expect(await host.updateIdle()).toBe(true);
+    } finally { host.setUpdateDraining(false); }
+    expect(await host.handleCommand(command)).toMatchObject({ ok: false, errorCode: "PROVIDER_UNAVAILABLE" });
+  });
+
   test("threads: any existing directory reaches provider; missing directory fails before provider", async () => {
     expect(await connection.sendCommand({ case: "createThread", value: { thread: thread(dir) } })).toMatchObject({ errorCode: "PROVIDER_UNAVAILABLE" });
     expect(await connection.sendCommand({ case: "createThread", value: { thread: thread(join(root, "nope")) } })).toMatchObject({

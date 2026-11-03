@@ -13,6 +13,8 @@ import "openagents/ui/v1/connectors.proto";
 import "openagents/ui/v1/mobile.proto";
 
 service GatewayService {
+  rpc GetUpdates(UpdatesRequest) returns (UpdatesSnapshot);
+  rpc ManageUpdates(ManageUpdatesRequest) returns (UpdatesSnapshot);
   // Device administration is restricted to the web BFF service token.
   rpc GetMobileDevices(GetMobileDevicesRequest) returns (GetMobileDevicesResponse);
   rpc CreateMobilePairing(CreateMobilePairingRequest) returns (CreateMobilePairingResponse);
@@ -180,6 +182,37 @@ message CreateWorkerEnrollmentResponse {
 }
 message RevokeWorkerEnrollmentRequest { string id = 1; }
 message WorkerRequest { string worker_id = 1; }
+
+message UpdatesRequest {}
+message ManageUpdatesRequest {
+  string action = 1; // check | channel | gateway | worker | all
+  string channel = 2;
+  string worker_id = 3;
+  bool force = 4;
+  bool allow_downgrade = 5; // explicit user choice only
+}
+message WorkerUpdate {
+  string worker_id = 1;
+  string name = 2;
+  string version = 3;
+  string install_kind = 4;
+  string compatibility = 5;
+  string state = 6;
+  string reason = 7;
+  bool connected = 8;
+}
+message UpdatesSnapshot {
+  string gateway_version = 1;
+  string channel = 2;
+  string available_version = 3;
+  string gateway_install_kind = 4;
+  string gateway_state = 5;
+  string gateway_reason = 6;
+  repeated WorkerUpdate workers = 7;
+  bool admin = 8;
+  bool checking = 9;
+  string checked_at = 10;
+}
 message RenameWorkerRequest { string worker_id = 1; string name = 2; }
 message RotateWorkerCredentialResponse { string credential = 1; }
 message WorkerOperationResponse {}
