@@ -509,6 +509,13 @@ edycja, karty i akcje rutyn idą do domu przez przypięte łącze z capability `
 `GetBotProviderInstances` zwraca bezsekretowy katalog domu do edytora; connectory autoryzuje się
 na komputerze domu. UI nie podpowiada kont z innego gatewaya.
 
+**Przeniesienie bota** („Move to…”, [etap 8](linked-computers.md#konkretny-protokół-etapu-8)) zmienia
+dom: rozmowa, tury, karty, notatki handoff, rutyny i przypomnienia przechodzą wierszami na nowy
+komputer, a zamrożenie na starym wyklucza je z planisty, więc żadna rutyna nie wykona się dwa razy
+ani nie zginie. Nie jest to zmiana modelu: nowy handoff nie powstaje, bot ma pełną historię. Granty
+connectorów i serwery MCP trzeba podłączyć na nowym komputerze (`Bot.moved_from_name` 801,
+`Bot.reconnect` 802 w UI).
+
 Capability `agent_bus` pozwala `start_thread` użyć workspace'u partnera oraz `send_message`,
 `send_bot_message` i `answer_interaction` adresować kwalifikowane id. Katalogi pokazują nazwy
 komputerów. **Polityka zgód bota jest sprawdzana u niego przed wysłaniem operacji**; karta

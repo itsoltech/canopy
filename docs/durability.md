@@ -284,6 +284,7 @@ Szczegóły i ograniczenia zawartości plików: [etap 3 połączonych komputeró
 | Restart PostgreSQL | gateway ponawia z backoffem, `readyz = false`; workery buforują w dzienniku | brak |
 | Zerwanie sieci worker ↔ gateway | ponowne połączenie, dosłanie dziennika | brak |
 | Aktualizacja CLI dostawcy na urządzeniu | nowe tury na nowej wersji (wznowienie wątku); restart Codex app-server przechodzi przez drain wątków | brak |
+| Restart lub zerwanie łącza w trakcie przeniesienia wątku/bota na inny komputer | przed decyzją ruch jest cofany, po decyzji kończony; trwałe rekordy po obu stronach ([etap 8](linked-computers.md#konkretny-protokół-etapu-8)) | brak; zawsze dokładnie jeden dom |
 
 ## 10. Wpływ na dotychczasowe decyzje
 
