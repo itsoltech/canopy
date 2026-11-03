@@ -4,7 +4,7 @@ import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, qualifyId, REMOTE_BOTS, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import type { GatewayCore } from "../core/core.ts";
-import { globalize, mapIds, methodNamed, nodesOf, qualify, SERVED, unqualify, type RemoteServe } from "../computers/remote.ts";
+import { globalize, mapIds, methodNamed, movedItems, nodesOf, qualify, SERVED, unqualify, type RemoteServe } from "../computers/remote.ts";
 import type { SharedHost } from "../computers/shared.ts";
 import { toConnectError, type UiHandlers } from "./ui-service.ts";
 
@@ -22,6 +22,29 @@ const CONFIG_WRITES = new Set(["SaveProviderInstance", "DeleteProviderInstance",
 const NONE: ReadonlySet<string> = new Set();
 /** Ids of projects shared with linked computers: one identity on every computer. */
 const globalIds = (core: GatewayCore): ReadonlySet<string> => core.computers?.shared?.projects ?? NONE;
+
+/** Calls that only read: allowed on a thread or bot frozen for a move (stage 8). */
+const READS = new Set(["GetOverview", "WatchOverview", "ListThreads", "GetThread", "WatchThread", "ListModels", "ListDirectory", "GetAttachment", "GetThreadBlob",
+  "ListMentionCatalog", "SearchFiles", "ListBots", "GetBot", "WatchBotConversation", "ReadBotExchange", "GetBotProviderInstances", "MarkThreadSeen", "SetThreadRead", "MarkBotRead"]);
+const PLAIN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A write on this computer's thread or bot while it moves to another computer waits, with the reason. */
+async function refuseFrozen(core: GatewayCore, method: DescMethod, request: Message) {
+  const moves = core.computers?.moves;
+  if (!moves || READS.has(method.name)) return;
+  const ids: string[] = [];
+  mapIds(method.input, request, (id) => { if (PLAIN.test(id)) ids.push(id); return id; });
+  const reason = await moves.frozen(ids);
+  if (reason) throw new ConnectError(reason, Code.FailedPrecondition);
+}
+
+/** Old ids of moved threads and bots point at their new home (stage 8). The request is rewritten in place. */
+function redirected(core: GatewayCore, method: DescMethod, request: Message): Message {
+  const redirects = core.computers?.redirects;
+  if (!redirects?.size) return request;
+  const next = clone(method.input, request);
+  return redirects.rewrite(method.input, next).length ? next : request;
+}
 
 /** Other computers' overviews in this one. A shared project is listed once, with every computer's workspaces. */
 function absorb(overview: { workers: ui.Worker[]; projects: ui.Project[] }, others: readonly ui.GetOverviewResponse[], global: ReadonlySet<string>) {
@@ -73,15 +96,17 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
       continue;
     }
     handlers[method.localName] = method.methodKind === "unary"
-      ? async (request, context) => {
+      ? async (input, context) => {
+        const request = redirected(core, method, input);
         const node = target(method, request);
-        if (!node) return unary(handler, request, context);
-        return single(forward(core, await peerOf(core, node), method, request, AbortSignal.any([context.signal, AbortSignal.timeout(UNARY_TIMEOUT_MS)])));
+        if (!node) { await refuseFrozen(core, method, request); return unary(handler, request, context); }
+        return single(forward(core, await peerOf(core, node, method, request), method, request, AbortSignal.any([context.signal, AbortSignal.timeout(UNARY_TIMEOUT_MS)])));
       }
-      : async function* (request, context) {
+      : async function* (input, context) {
+        const request = redirected(core, method, input);
         const node = target(method, request);
-        if (!node) yield* stream(handler, request, context);
-        else yield* forward(core, await peerOf(core, node), method, request, context.signal);
+        if (!node) { await refuseFrozen(core, method, request); yield* stream(handler, request, context); }
+        else yield* forward(core, await peerOf(core, node, method, request), method, request, context.signal);
       };
   }
   const routedOne = handlers as Record<string, Handler>;
@@ -136,19 +161,41 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   function handler(name: string) { return own[name]!; }
 }
 
-async function peerOf(core: GatewayCore, ref: string) {
+async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
-  return (await core.computers.resolve(ref)).node_id;
+  try { return (await core.computers.resolve(ref)).node_id; }
+  catch (error) {
+    // A thing that moved to a computer this one is not linked with: say where it went.
+    let moved: string | undefined;
+    if (method && request) mapIds(method.input, request, (value) => {
+      const { id, node } = splitId(value);
+      const row = node === ref ? core.computers?.redirects.home(id) : undefined;
+      moved ??= row && (row.home_name || "another computer");
+      return value;
+    });
+    throw moved ? new ConnectError(`Moved to ${moved}, which isn't linked to this computer`, Code.FailedPrecondition) : error;
+  }
 }
 
-/** One call to a thread's home. Shared projects keep their one id in both directions. */
-async function* forward(core: GatewayCore, nodeId: string, method: DescMethod, request: Message, signal: AbortSignal): AsyncGenerator<Message> {
+/** One call to a thread's home. Shared projects keep their one id in both directions. A thing that moved is followed once. */
+async function* forward(core: GatewayCore, nodeId: string, method: DescMethod, request: Message, signal: AbortSignal, followed = false): AsyncGenerator<Message> {
   const global = globalIds(core);
-  for await (const message of home(core, nodeId, method, request, signal, global)) {
-    globalize(method.output, message, global);
-    const self = core.computers && nodeRef(core.computers.hello().nodeId);
-    if (self) mapIds(method.output, message, (id) => splitId(id).node === self ? splitId(id).id : id);
-    yield message;
+  try {
+    for await (const message of home(core, nodeId, method, request, signal, global)) {
+      globalize(method.output, message, global);
+      const self = core.computers && nodeRef(core.computers.hello().nodeId);
+      if (self) mapIds(method.output, message, (id) => splitId(id).node === self ? splitId(id).id : id);
+      yield message;
+    }
+  } catch (error) {
+    const moved = movedItems(error);
+    if (!moved || followed || !core.computers) throw error;
+    await core.computers.redirects.learn(nodeId, moved);
+    const next = redirected(core, method, request);
+    const node = next !== request ? target(method, next) : undefined;
+    // Moved here (it came back) or nowhere this computer knows: the caller sees where it went.
+    if (!node) throw error;
+    yield* forward(core, await peerOf(core, node, method, next), method, next, signal, true);
   }
 }
 
@@ -362,6 +409,7 @@ async function* watchOverview(core: GatewayCore, own: Record<string, Handler>, r
 export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe {
   const own = local as unknown as Record<string, Handler>;
   return async function* (method, request, signal, peerNodeId) {
+    if (core) await refuseFrozen(core, method, request);
     if (method.name === "CallAgentBus") {
       if (!core || !peerNodeId) throw new ConnectError("Linked agent bus unavailable", Code.Unimplemented);
       try { yield create(link.LinkedAgentResultSchema, { resultJson: JSON.stringify(await core.linkedAgents.receive(peerNodeId, request as link.LinkedAgentCall)) }); }

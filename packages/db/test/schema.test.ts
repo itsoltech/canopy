@@ -165,7 +165,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode",
       "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage", "22_thread_titles", "23_agent_senders",
       "24_background_task_notes", "25_ask_user", "26_sidebar_threads", "27_schedules_new_thread", "28_archive_cascade", "29_schedule_edit", "30_bus_notify_delivery",
-      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider", "44_worker_enrollment", "45_bot_handoffs", "46_mobile_devices", "47_worker_ssh", "48_linked_computers", "49_thread_mirrors", "50_shared_config", "51_linked_agents", "52_computer_routes", "53_computer_relay",
+      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider", "44_worker_enrollment", "45_bot_handoffs", "46_mobile_devices", "47_worker_ssh", "48_linked_computers", "49_thread_mirrors", "50_shared_config", "51_linked_agents", "52_computer_routes", "53_computer_relay", "54_computer_moves",
     ]);
   }, 60_000);
 
@@ -840,6 +840,28 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(await query(`SELECT 1 FROM computer_peers WHERE owner_user_id=$1 AND node_id=$2`, [w.user, home])).toHaveLength(0);
       expect(await query(`SELECT 1 FROM computer_mirror_state WHERE owner_user_id=$1`, [w.user])).toHaveLength(0);
       expect(await query(`SELECT 1 FROM computer_relay_grants WHERE owner_user_id=$1`, [w.user])).toHaveLength(0);
+    });
+  });
+
+  describe("computer moves (0054)", () => {
+    test("nothing starts on a frozen thread or bot; one unfinished move per thing; sides keep their own states", async () => {
+      const w = await world();
+      const thread = await mainThread(w);
+      const turn = `INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, input) VALUES ($1, $2, $3, 'user', $4, '{}')`;
+      await query(turn, [id(), thread, 1, w.user]);
+      await query(`UPDATE threads SET moved_to = 'target' WHERE id = $1`, [thread]);
+      expect(await failure(turn, [id(), thread, 2, w.user])).toContain("moving to another computer");
+      await query(`UPDATE threads SET moved_to = NULL WHERE id = $1`, [thread]);
+      await query(turn, [id(), thread, 2, w.user]);
+      const bot = id();
+      await query(`INSERT INTO bots (id, owner_user_id, client_request_id, configuration, provider, provider_instance, moved_to) VALUES ($1, $2, 'r', '{}', 'codex', 'native', 'target')`, [bot, w.user]);
+      expect(await failure(`INSERT INTO bot_turns (id, bot_id, client_request_id, input) VALUES ($1, $2, 'c', 'x')`, [id(), bot])).toContain("moving to another computer");
+      const move = `INSERT INTO computer_moves (owner_user_id, id, role, peer_node_id, kind, item_id, state) VALUES ($1, $2, $3, 'peer', 'thread', $4, $5)`;
+      await query(move, [w.user, id(), "source", thread, "preparing"]);
+      expect(await failure(move, [w.user, id(), "target", thread, "prepared"])).toContain("computer_moves_active");
+      await query(move, [w.user, id(), "source", thread, "aborted"]);
+      expect(await failure(move, [w.user, id(), "source", bot, "prepared"])).toContain("check");
+      expect(await failure(`INSERT INTO computer_moves (owner_user_id, id, role, peer_node_id, kind, item_id, state, payload) VALUES ($1, $2, 'source', 'p', 'bot', $3, 'aborted', '\\x00')`, [w.user, id(), bot])).toContain("check");
     });
   });
 

@@ -97,7 +97,7 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
     })),
     deliverRoutines: (user: string, now: Date) => sql.withTransaction(Effect.gen(function* () {
       // Claim and enqueue atomically. Advance from now: downtime coalesces to one occurrence.
-      const dueBots = yield* sql<BotRow>`SELECT b.* FROM bots b WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL
+      const dueBots = yield* sql<BotRow>`SELECT b.* FROM bots b WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
         AND EXISTS (SELECT 1 FROM bot_routines r WHERE r.bot_id = b.id AND r.enabled AND r.deleted_at IS NULL AND r.next_run_at <= ${now})
         ORDER BY b.id FOR UPDATE SKIP LOCKED LIMIT 100`;
       for (const b of dueBots) {

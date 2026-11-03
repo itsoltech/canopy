@@ -26,10 +26,23 @@ export const SERVED = new Set([
   "ListBots", "GetBot", "WatchBotConversation", "SendBotMessage", "AnswerBotApproval", "UpdateBot",
   "InterruptBot", "RetryBot", "MarkBotRead", "ArchiveBot", "UnarchiveBot", "DeleteBot", "ReadBotExchange",
   "SetBotRoutineEnabled", "DeleteBotRoutine", "CancelBotReminder", "WatchBotMirror", "CallAgentBus", "GetBotProviderInstances",
+  "PrepareMove", "DecideMove", "MoveOutcome", "InspectMove",
 ]);
+/** Stage 8: the two sides of a move, direct partners only (never relayed). */
+export const MOVE_METHODS = new Set(["PrepareMove", "DecideMove", "MoveOutcome", "InspectMove"]);
 export const methodNamed = (name: string) => ui.GatewayService.methods.find((m) => m.name === name)
   ?? link.ThreadMirrorService.methods.find((m) => m.name === name) ?? link.SharedConfigService.methods.find((m) => m.name === name)
-  ?? link.LinkedAgentsService.methods.find((m) => m.name === name);
+  ?? link.LinkedAgentsService.methods.find((m) => m.name === name) ?? link.ComputerMoveService.methods.find((m) => m.name === name);
+
+/** Stage 8: a call named things that moved to another computer. The caller follows the redirect; the items cross relays. */
+export class MovedError extends ConnectError {
+  constructor(readonly items: link.MovedItem[], message = `Moved to ${items[0]?.homeName || "another computer"}`) {
+    super(message, Code.FailedPrecondition);
+  }
+}
+/** ConnectError's `instanceof` matches any ConnectError, so moved errors are told apart by their items. */
+export const movedItems = (error: unknown): link.MovedItem[] | undefined =>
+  error instanceof ConnectError && Array.isArray((error as Partial<MovedError>).items) && (error as MovedError).items.length ? (error as MovedError).items : undefined;
 
 export const BOT_METHODS = new Set(["ListBots", "GetBot", "WatchBotConversation", "SendBotMessage", "AnswerBotApproval", "UpdateBot",
   "InterruptBot", "RetryBot", "MarkBotRead", "ArchiveBot", "UnarchiveBot", "DeleteBot", "ReadBotExchange",
@@ -122,7 +135,9 @@ function join(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 /** Only Connect's own codes cross; anything else is an internal error without details. */
-function wireError(error: unknown): { code: number; message: string } {
+function wireError(error: unknown): { code: number; message: string; moved?: link.MovedItem[] } {
+  const moved = movedItems(error);
+  if (moved) return { code: (error as ConnectError).code, message: (error as ConnectError).rawMessage.slice(0, 500), moved: moved.slice(0, 64) };
   if (error instanceof ConnectError && error.code > 0 && error.code <= 16) return { code: error.code, message: error.rawMessage.slice(0, 500) };
   return { code: Code.Internal, message: "internal error" };
 }
@@ -169,7 +184,7 @@ export class RemoteCalls {
     if (!call) return;
     if (r.end) {
       this.#outgoing.delete(r.callId);
-      call.channel.close(r.code ? new ConnectError(r.message, r.code in Code ? r.code : Code.Internal) : undefined);
+      call.channel.close(r.code ? r.moved.length ? new MovedError(r.moved, r.message) : new ConnectError(r.message, r.code in Code ? r.code : Code.Internal) : undefined);
       return;
     }
     call.size += r.payload.length;
@@ -216,7 +231,7 @@ export class RemoteCalls {
     }
   }
 
-  #end(id: bigint, error?: { code: number; message: string }) {
+  #end(id: bigint, error?: { code: number; message: string; moved?: link.MovedItem[] }) {
     if (!this.#closed) this.options.send({ body: { case: "remoteResponse", value: { callId: id, end: true, ...error } } });
   }
 

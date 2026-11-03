@@ -1,4 +1,4 @@
-import { create, fromJson, toJson, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
+import { create, fromBinary, fromJson, toJson, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
 import {
   CommandResultSchema,
   CommandSchema,
@@ -1909,6 +1909,37 @@ export class GatewayCore {
     await this.#broadcastThread(interaction.threadId);
   }
 
+  /** The history a thread had on the linked computer it moved from (docs/linked-computers.md, stage 8). */
+  async movedHistory(threadId: string): Promise<ui.ThreadSnapshot | undefined> {
+    const rows = await this.#actions.run(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      return yield* sql<{ history: Uint8Array }>`SELECT history FROM computer_moved_threads WHERE thread_id = ${threadId}::uuid`;
+    }));
+    return rows[0] ? fromBinary(ui.ThreadSnapshotSchema, rows[0].history) : undefined;
+  }
+
+  /**
+   * A thread moved here keeps its id. `prepare` writes its history and handoff note before the worker starts
+   * its new session; a retry after a restart finds the thread and repeats only the idempotent steps.
+   */
+  async createMovedThread(request: ui.CreateThreadRequest, id: string, prepare: () => Promise<void>): Promise<void> {
+    const existing = await this.#run((s) => s.thread(id)).catch(() => undefined);
+    if (existing) {
+      await prepare();
+      if (existing.status === "creating" && !existing.provider_thread_id) await this.#startThread(await this.#run((s) => s.thread(id)));
+      return;
+    }
+    await this.#checkProvider(request);
+    const where = { workspaceId: request.workspaceId, provider: request.provider, profileId: request.providerProfileId };
+    // The model may not exist here: the thread then continues with the instance's default.
+    const known = await this.#checkModel(where, request.model, request.effort).then(() => true, () => false);
+    const chosen = known ? request : create(ui.CreateThreadRequestSchema, { ...request, model: "", effort: "" });
+    const effort = turnEffort((await this.#profileModels(where)).models, chosen.model, chosen.effort);
+    await this.#run((s) => s.createThread(this.#options.userId, { ...chosen, effort }, id));
+    await prepare();
+    await this.#startThread(await this.#run((s) => s.thread(id)));
+  }
+
   /** Snapshot first, then live updates after it (subscribe before reading, skip what the snapshot has). */
   async *watchThread(threadId: string, signal: AbortSignal): AsyncGenerator<ui.ThreadUpdate> {
     const subscription = this.hub.subscribeThread(threadId);
@@ -1916,20 +1947,23 @@ export class GatewayCore {
     try {
       const snapshot = await this.#run((s) => s.snapshot(threadId));
       if (snapshot.thread.owner_user_id !== this.#options.userId) throw new NotFound("thread not found");
+      // A thread moved here from a linked computer shows its history there first (stage 8).
+      const moved = await this.movedHistory(threadId);
+      const goal = await this.#goals((s) => s.latest(threadId)).then((goal) => goal && toUiGoal(goal));
       yield create(ui.ThreadUpdateSchema, {
         change: {
           case: "snapshot",
           value: {
             thread: this.#uiThread(snapshot.thread),
-            turns: snapshot.turns.map(toUiTurn),
-            items: snapshot.items,
+            turns: [...moved?.turns ?? [], ...snapshot.turns.map(toUiTurn)],
+            items: [...moved?.items ?? [], ...snapshot.items],
             interactions: snapshot.interactions,
             secrets: await this.#run((s) => s.threadSecrets(this.#options.userId, threadId)),
-            notices: snapshot.notices,
+            notices: [...moved?.notices ?? [], ...snapshot.notices],
             schedules: (await this.#bus((s) => s.schedulesFor({ ownerUserId: this.#options.userId, threadId, includeFinished: false }))).map(toUiSchedule),
-            steers: (await this.#steers((s) => s.ofThread(threadId))).map(toUiSteer),
-            busDeliveries: (await this.#bus((s) => s.deliveries({ sourceThreadId: threadId }))).map(toUiDelivery),
-            ...(await this.#goals((s) => s.latest(threadId)).then((goal) => goal && { goal: toUiGoal(goal) })),
+            steers: [...moved?.steers ?? [], ...(await this.#steers((s) => s.ofThread(threadId))).map(toUiSteer)],
+            busDeliveries: [...moved?.busDeliveries ?? [], ...(await this.#bus((s) => s.deliveries({ sourceThreadId: threadId }))).map(toUiDelivery)],
+            ...(goal ? { goal } : moved?.goal && ["achieved", "cancelled"].includes(moved.goal.status) && { goal: moved.goal }),
             lastSeq: snapshot.lastSeq,
           },
         },
@@ -2302,6 +2336,11 @@ export class GatewayCore {
     } catch {
       // closed meanwhile: re-sent request gets the stored answer
     }
+  }
+
+  /** Threads changed outside the core's own actions (a move to or from a linked computer). */
+  async threadsChanged(ids: readonly string[]): Promise<void> {
+    for (const id of ids) await this.#broadcastThread(id).catch(() => undefined);
   }
 
   async #broadcastThread(threadId: string): Promise<void> {

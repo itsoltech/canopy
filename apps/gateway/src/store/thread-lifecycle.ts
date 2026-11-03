@@ -6,13 +6,13 @@ import { Invalid, NotFound } from "./store.ts";
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | Invalid | NotFound>;
 type Dispatch = (input: { workerId: string; threadId: string; turnId: string; command: MessageInitShape<typeof CommandSchema>; ttlSeconds: number }) => Fx<Command>;
-interface Owned { id: string; parent_thread_id: string | null; deleted_at: Date | null; deletion_batch_id: string | null; archived_at: Date | null; }
+interface Owned { id: string; parent_thread_id: string | null; deleted_at: Date | null; deletion_batch_id: string | null; archived_at: Date | null; moved_to: string | null; }
 
 /** All lifecycle transitions lock the same thread rows as the turn queue. Interrupts go into the durable
  * outbox before a thread is hidden, including an offline worker. Restoring never restarts work. */
 export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
   const owned = (userId: string, threadId: string, deleted = false) => Effect.gen(function* () {
-    const row = (yield* sql<Owned>`SELECT id, parent_thread_id, deleted_at, deletion_batch_id, archived_at FROM threads
+    const row = (yield* sql<Owned>`SELECT id, parent_thread_id, deleted_at, deletion_batch_id, archived_at, moved_to FROM threads
       WHERE id = ${threadId}::uuid AND owner_user_id = ${userId}::uuid FOR UPDATE`)[0];
     if (!row || (!deleted && row.deleted_at)) return yield* Effect.fail(new NotFound("thread not found"));
     return row;
@@ -82,13 +82,15 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
     restoreThread: (userId: string, threadId: string) => sql.withTransaction(Effect.gen(function* () {
       const row = yield* owned(userId, threadId, true);
       if (!row.deleted_at) return [threadId];
+      // A thread that moved to a linked computer lives there now; restoring it here would make a second home.
+      if (row.moved_to) return yield* Effect.fail(new Invalid("this thread moved to another computer"));
       if (row.parent_thread_id && (yield* sql`SELECT id FROM threads WHERE id = ${row.parent_thread_id}::uuid AND deleted_at IS NOT NULL`).length)
         return yield* Effect.fail(new Invalid("restore the parent thread first"));
       const rows = yield* sql<{ id: string }>`UPDATE threads SET deleted_at = NULL, deletion_batch_id = NULL,
         status = CASE WHEN archived_at IS NOT NULL THEN 'archived'
           WHEN EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = threads.id AND u.status = 'running') THEN 'running'
           WHEN runtime = 'worker' AND provider_thread_id IS NULL THEN CASE WHEN status_detail IS NULL THEN 'creating' ELSE 'failed' END ELSE 'idle' END
-        WHERE owner_user_id = ${userId}::uuid AND deleted_at IS NOT NULL AND
+        WHERE owner_user_id = ${userId}::uuid AND deleted_at IS NOT NULL AND moved_to IS NULL AND
         (id = ${threadId}::uuid OR (deletion_batch_id = ${threadId}::uuid AND parent_thread_id = ${threadId}::uuid)) RETURNING id`;
       return rows.map((r) => r.id);
     })),

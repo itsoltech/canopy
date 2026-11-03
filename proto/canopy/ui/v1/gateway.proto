@@ -22,6 +22,10 @@ service GatewayService {
   rpc ManageComputer(ComputerOperationRequest) returns (ComputersSnapshot);
   rpc GetSharedConfig(SharedConfigRequest) returns (SharedConfigSnapshot);
   rpc ManageSharedConfig(SharedConfigOperation) returns (SharedConfigSnapshot);
+  // Stage 8: "Move to…" for threads and bots of this computer (restricted to the web BFF).
+  rpc PreviewMove(MovePreviewRequest) returns (MovePreview);
+  rpc StartMove(StartMoveRequest) returns (MovesSnapshot);
+  rpc GetMoves(MovesRequest) returns (MovesSnapshot);
   rpc FetchWorkerInstall(FetchWorkerInstallRequest) returns (stream WorkerInstallChunk);
   rpc WorkerSsh(WorkerSshRequest) returns (stream WorkerSshEvent);
   rpc GetUpdates(UpdatesRequest) returns (UpdatesSnapshot);

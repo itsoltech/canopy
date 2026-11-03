@@ -15,6 +15,12 @@ function computers(core: GatewayCore) {
   return core.computers;
 }
 
+function moves(core: GatewayCore) {
+  const value = computers(core).moves;
+  if (!value) throw new ConnectError("Moving to linked computers is not available on this computer", Code.FailedPrecondition);
+  return value;
+}
+
 function shared(core: GatewayCore) {
   const config = computers(core).shared;
   if (!config) throw new ConnectError("Shared configuration is not available on this computer", Code.FailedPrecondition);
@@ -37,6 +43,9 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     manageComputer: (r) => computerGuard(() => computers(core).manage(r)),
     getSharedConfig: () => computerGuard(() => shared(core).snapshot()),
     manageSharedConfig: (r) => computerGuard(() => shared(core).manage(r)),
+    previewMove: (r) => computerGuard(() => moves(core).preview(r)),
+    startMove: (r) => computerGuard(() => moves(core).start(r)),
+    getMoves: (r) => computerGuard(() => moves(core).list(r.batchId)),
     fetchWorkerInstall: (request, context) => workerInstall(core.updates, request, context.signal),
     workerSsh: (request, context) => core.workerSsh.run(request, context.signal),
     getUpdates: () => core.updates.snapshot(),

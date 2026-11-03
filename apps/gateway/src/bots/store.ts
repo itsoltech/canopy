@@ -40,7 +40,13 @@ export const botView = (row: BotRow) => create(bots.BotSchema, {
   createdByBotId: row.created_by_bot_id ?? "", createdByBotName: row.created_by_bot_name,
   ownerUserId: row.owner_user_id,
   lastReadSeq: BigInt(row.last_read_seq), unreadCount: Number(row.unread_count ?? 0),
+  movedFromName: row.move_notes?.from_name ?? "", reconnect: row.move_reconnect ?? [],
 });
+/** A bot moved from a linked computer: its accounts and MCP servers not connected here yet (docs/linked-computers.md, stage 8). */
+const MOVE_RECONNECT = `(SELECT coalesce(jsonb_agg(r), '[]'::jsonb) FROM jsonb_array_elements_text(coalesce(b.move_notes -> 'reconnect', '[]'::jsonb)) r
+  WHERE NOT EXISTS (SELECT 1 FROM connector_accounts a WHERE a.owner_user_id = b.owner_user_id AND r = a.name || ' (' || a.connector_type || ')'
+    AND (a.all_bots OR EXISTS (SELECT 1 FROM connector_bot_grants g WHERE g.account_id = a.id AND g.bot_id = b.id)))
+    AND NOT EXISTS (SELECT 1 FROM bot_mcp_connections c JOIN bot_mcp_servers s ON s.id = c.server_id WHERE c.bot_id = b.id AND r = 'MCP server ' || s.name)) AS move_reconnect`;
 const messageView = (row: MessageRow) => create(bots.BotMessageSchema, {
   id: row.id, seq: BigInt(row.seq), botId: row.bot_id, senderId: row.sender_id, recipientId: row.recipient_id,
   kind: row.kind, text: row.text, exchangeId: row.exchange_id ?? "", createdAt: timestampFromDate(new Date(row.created_at)),
@@ -75,11 +81,13 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   const handoffs = handoffStore(sql);
   const connections = connectorStore(sql, key);
   const owned = (user: string, id: string, lock = false) => sql.unsafe<BotRow>(
-    `SELECT b.*, (SELECT count(*) FROM bot_messages m WHERE m.bot_id = b.id AND m.seq > b.last_read_seq AND m.sender_id = b.id::text AND m.recipient_id = 'user' AND m.kind = 'message') AS unread_count
-      FROM bots b WHERE b.id = $1::uuid AND b.owner_user_id = $2::uuid AND b.deleted_at IS NULL${lock ? " FOR UPDATE OF b" : ""}`, [id, user],
+    `SELECT b.*, (SELECT count(*) FROM bot_messages m WHERE m.bot_id = b.id AND m.seq > b.last_read_seq AND m.sender_id = b.id::text AND m.recipient_id = 'user' AND m.kind = 'message') AS unread_count,
+      ${MOVE_RECONNECT} FROM bots b WHERE b.id = $1::uuid AND b.owner_user_id = $2::uuid AND b.deleted_at IS NULL${lock ? " FOR UPDATE OF b" : ""}`, [id, user],
   ).pipe(Effect.flatMap((rows) => rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("bot not found"))));
   const changed = (id: string) => sql`UPDATE bots SET revision = revision + 1, updated_at = now() WHERE id = ${id}::uuid`;
-  const active = (user: string, id: string, lock = false) => owned(user, id, lock).pipe(Effect.flatMap((row) => row.archived_at ? Effect.fail(new Invalid("this bot is archived; unarchive it first")) : Effect.succeed(row)));
+  const active = (user: string, id: string, lock = false) => owned(user, id, lock).pipe(Effect.flatMap((row) => row.archived_at ? Effect.fail(new Invalid("this bot is archived; unarchive it first"))
+    // Frozen for a move to another computer (docs/linked-computers.md, stage 8): nothing new starts here.
+    : (row as { moved_to?: string | null }).moved_to ? Effect.fail(new Invalid("this bot is moving to another computer")) : Effect.succeed(row)));
   const unpin = (user: string, id: string) => sql`UPDATE user_settings SET settings = jsonb_set(settings, '{sidebar,pinnedBotIds}',
     coalesce((SELECT jsonb_agg(v) FROM jsonb_array_elements_text(settings #> '{sidebar,pinnedBotIds}') v WHERE v <> ${id}), '[]'::jsonb)),
     version = version + 1, updated_at = now() WHERE user_id = ${user}::uuid AND settings #> '{sidebar,pinnedBotIds}' ? ${id}`;
@@ -91,7 +99,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   const fenced = (turn: BotTurn) => Effect.gen(function* () {
     // Lifecycle operations and claim() lock bot -> turn. Writers must use that order too,
     // so an archive cannot deadlock with a checkpoint, self-edit or finishing response.
-    const bot = yield* sql`SELECT id FROM bots WHERE id = ${turn.bot_id}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`;
+    const bot = yield* sql`SELECT id FROM bots WHERE id = ${turn.bot_id}::uuid AND deleted_at IS NULL AND archived_at IS NULL AND moved_to IS NULL FOR UPDATE`;
     if (!bot.length) return yield* Effect.fail(new Invalid("bot lease lost"));
     const rows = yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid
       AND status = 'running' AND lease_until > now() FOR UPDATE`;
@@ -340,8 +348,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       return { id: saved.id, name: saved.configuration!.name };
     }),
     list: (user: string, includeArchived = false) => Effect.gen(function* () {
-      const rows = yield* sql<BotRow>`SELECT b.*, (SELECT count(*) FROM bot_messages m WHERE m.bot_id = b.id AND m.seq > b.last_read_seq AND m.sender_id = b.id::text AND m.recipient_id = 'user' AND m.kind = 'message') AS unread_count
-        FROM bots b WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND (${includeArchived} OR b.archived_at IS NULL) ORDER BY b.created_at, b.id`;
+      const rows = yield* sql.unsafe<BotRow>(`SELECT b.*, (SELECT count(*) FROM bot_messages m WHERE m.bot_id = b.id AND m.seq > b.last_read_seq AND m.sender_id = b.id::text AND m.recipient_id = 'user' AND m.kind = 'message') AS unread_count,
+        ${MOVE_RECONNECT} FROM bots b WHERE b.owner_user_id = $1::uuid AND b.deleted_at IS NULL AND ($2 OR b.archived_at IS NULL) ORDER BY b.created_at, b.id`, [user, includeArchived]);
       const latest = yield* sql<MessageRow>`SELECT DISTINCT ON(m.bot_id) m.*, t.status AS turn_status FROM bot_messages m JOIN bots b ON b.id = m.bot_id JOIN bot_turns t ON t.id = m.turn_id
         WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL ORDER BY m.bot_id, m.seq DESC`;
       const byBot = new Map(latest.map((m) => [m.bot_id, messageView(m)]));
@@ -562,11 +570,11 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     deliver: () => sql.withTransaction(Effect.gen(function* () {
       const steers = yield* sql<{ call_id: string; target_turn_id: string }>`SELECT w.call_id, CASE WHEN s.status = 'delivered' THEN s.turn_id ELSE s.queued_turn_id END AS target_turn_id
         FROM bot_thread_watches w JOIN turn_steers s ON w.target_steer_id = s.id JOIN bots b ON b.id = w.bot_id
-        WHERE NOT w.delivered AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued') AND b.deleted_at IS NULL AND b.archived_at IS NULL FOR UPDATE OF b, w SKIP LOCKED`;
+        WHERE NOT w.delivered AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued') AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL FOR UPDATE OF b, w SKIP LOCKED`;
       for (const steer of steers) yield* sql`UPDATE bot_thread_watches SET target_turn_id = ${steer.target_turn_id}::uuid WHERE call_id = ${steer.call_id}::uuid`;
       const watches = yield* sql<{ call_id: string; bot_id: string; target_thread_id: string; target_turn_id: string; hops: number; owner_user_id: string; status: string; title: string }>`SELECT w.*, b.owner_user_id, t.status, th.title FROM bot_thread_watches w
         JOIN bots b ON b.id = w.bot_id JOIN turns t ON t.id = w.target_turn_id JOIN threads th ON th.id = t.thread_id
-        WHERE NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') FOR UPDATE OF b, w SKIP LOCKED`;
+        WHERE NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') FOR UPDATE OF b, w SKIP LOCKED`;
       for (const watch of watches) {
         const items = yield* sql<{ content: { agentMessage?: { text?: string } } }>`SELECT content FROM thread_items WHERE thread_id = ${watch.target_thread_id}::uuid AND turn_id = ${watch.target_turn_id}::uuid ORDER BY first_seq`;
         const text = items.map((i) => i.content.agentMessage?.text ?? "").filter(Boolean).join("\n").slice(0, 80_000);
@@ -575,7 +583,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         yield* sql`UPDATE bot_thread_watches SET delivered = true WHERE call_id = ${watch.call_id}::uuid`;
       }
       const wakeups = yield* sql<{ id: string; bot_id: string; prompt: string; hops: number; owner_user_id: string }>`SELECT w.*, b.owner_user_id FROM bot_wakeups w JOIN bots b ON b.id = w.bot_id
-        WHERE NOT w.delivered AND NOT w.cancelled AND w.run_at <= now() AND b.deleted_at IS NULL AND b.archived_at IS NULL FOR UPDATE OF b, w SKIP LOCKED`;
+        WHERE NOT w.delivered AND NOT w.cancelled AND w.run_at <= now() AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL FOR UPDATE OF b, w SKIP LOCKED`;
       for (const wake of wakeups) {
         const source = (yield* sql<BotTurn>`SELECT t.* FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE c.id = ${wake.id}::uuid`)[0];
         if (yield* originEnabled(source)) yield* enqueue(wake.owner_user_id, wake.bot_id, wake.prompt, `wakeup:${wake.id}`, { hops: wake.hops, sender: "system", event: true, ...originOf(source) });
