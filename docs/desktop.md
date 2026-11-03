@@ -64,6 +64,8 @@ Polityka CSP dopuszcza skrypty z wybranego originu i hashe skryptów startowych
 SvelteKit, bez `unsafe-eval` i `unsafe-inline` dla skryptów. Przy przeładowaniu dokumentu
 main ponownie pobiera HTML, aby policzyć hashe. Zdalny web musi być osiągalnym originem
 HTTP(S), bez prefiksu ścieżki i bez zewnętrznego przekierowania logowania.
+Hooki `webRequest` mają filtr `types: ["mainFrame"]`: skrypty, fetch i fonty nie czekają
+na proces main, który na macOS obsługuje też wejście z klawiatury i myszy.
 
 Bez migracji DB ani zmian proto. `packages/ui/desktop` jest nowym, opcjonalnym
 kontraktem typów. Mobile i przeglądarka nie muszą go implementować. Root workspaces
@@ -96,6 +98,8 @@ Niepełne `initdb` również zgłasza błąd zamiast usuwać istniejące dane.
 Procesy uruchamiają się w kolejności: baza → migracje/start gatewaya → enrollment
 → worker. Lokalny BFF służy także jako ekran konfiguracji przed uruchomieniem bazy.
 Gotowość sprawdzana jest przez SQL, gRPC i HTTP; potem co 5 sekund przez gRPC/HTTP.
+Kontroler wysyła status do Electron tylko przy zmianie; każde zdarzenie przebudowuje menu
+aplikacji i traya w wątku UI, który dostarcza też wejście; ten sam stan nie jest powtarzany co sekundę.
 Trzy błędy kontroli zdrowia restartują odpowiedni proces. Restart po wyjściu ma
 backoff 1–30 sekund i budżet 8 prób; kod 78 workera nie jest ponawiany.
 
