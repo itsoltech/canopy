@@ -281,8 +281,15 @@
 .t-resize {
   transition: width var(--duration-fast) var(--ease-smooth-out);
 }
+/* The same on the height (resizeHeightToContent): content that grows or shrinks after it is shown. */
+.t-resize-height {
+  overflow: clip;
+  overflow-clip-margin: --spacing(1);
+  transition: height var(--duration-fast) var(--ease-smooth-out);
+}
 @media (prefers-reduced-motion: reduce) {
-  .t-resize {
+  .t-resize,
+  .t-resize-height {
     transition: none !important;
   }
 }

@@ -216,23 +216,34 @@ export function shake(trigger: unknown = true): Attachment<HTMLElement> {
  *
  *   <div class="t-resize" {@attach resizeToContent}><div class="w-max">…</div></div>
  */
-export const resizeToContent: Attachment<HTMLElement> = (node) => {
+export const resizeToContent: Attachment<HTMLElement> = (node) => followContent(node, "width");
+
+/**
+ * Card resize (01) on the height, for a list whose rows arrive or leave after it is shown (a page that
+ * loads, a skeleton replaced by rows): the element takes its first child's height and eases to each new
+ * one (motion.css `t-resize-height`, clipped meanwhile), so what follows glides instead of jumping.
+ *
+ *   <div class="t-resize-height" {@attach resizeHeightToContent}><div>…</div></div>
+ */
+export const resizeHeightToContent: Attachment<HTMLElement> = (node) => followContent(node, "height");
+
+function followContent(node: HTMLElement, axis: "width" | "height") {
   let first = true;
   const observer = new ResizeObserver(() => {
     const content = node.firstElementChild as HTMLElement | null;
-    const width = content ? content.offsetWidth : 0;
+    const size = content ? (axis === "width" ? content.offsetWidth : content.offsetHeight) : 0;
     if (first) {
       node.style.transition = "none";
-      node.style.width = `${width}px`;
+      node.style[axis] = `${size}px`;
       void node.offsetWidth;
       node.style.transition = "";
       first = false;
-    } else node.style.width = `${width}px`;
+    } else node.style[axis] = `${size}px`;
   });
   const watch = () => {
     observer.disconnect();
     if (node.firstElementChild) observer.observe(node.firstElementChild);
-    else node.style.width = "0px";
+    else node.style[axis] = "0px";
   };
   // The child itself can be replaced ({#if} inside): follow it.
   const children = new MutationObserver(watch);
@@ -242,7 +253,7 @@ export const resizeToContent: Attachment<HTMLElement> = (node) => {
     observer.disconnect();
     children.disconnect();
   };
-};
+}
 
 /** How long an element's exit transition lasts (its longest `transition-duration` now), in ms. */
 export function exitDuration(element: Element): number {
