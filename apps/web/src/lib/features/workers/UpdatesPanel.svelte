@@ -44,7 +44,7 @@
       <div class="border-t border-zinc-950/5 pt-4 dark:border-white/10">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h3 class="text-base font-medium text-zinc-950 sm:text-sm dark:text-white">Worker versions</h3>
-          <div><Button size="sm" disabled={!snapshot.admin || !!updates.pending || !snapshot.workers.some((w) => w.installKind === "binary" && w.version !== snapshot.gatewayVersion && !updateBusy(w.state))} loading={updates.pending === "all"} onclick={() => void updates.manage({ action: "all" })}>Update all</Button></div>
+          <div><Button size="sm" disabled={!snapshot.admin || !!updates.pending || !snapshot.workers.some((w) => w.installKind === "binary" && w.version !== snapshot.gatewayVersion && w.state !== "ahead" && !updateBusy(w.state))} loading={updates.pending === "all"} onclick={() => void updates.manage({ action: "all" })}>Update all</Button></div>
         </div>
         <div class="divide-y divide-zinc-950/5 dark:divide-white/10">
           {#each snapshot.workers as worker (worker.workerId)}

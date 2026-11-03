@@ -36,6 +36,8 @@ export class DesktopRuntime {
     this.logs = new Logs(join(directory, "logs"));
     this.logs.protect(...Object.values(secrets));
     this.env["PATH"] = `${dirname(paths.bun)}${delimiter}${this.env["PATH"]}`;
+    // Sidecars live in the signed app bundle: the app's own updater replaces them, never gateway/worker self-update.
+    this.env["CANOPY_INSTALL_KIND"] = "desktop";
     this.services = this.makeSupervisor();
     this.web = this.makeSupervisor();
   }

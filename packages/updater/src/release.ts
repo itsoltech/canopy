@@ -1,4 +1,4 @@
-export type InstallKind = "binary" | "docker" | "source";
+export type InstallKind = "binary" | "docker" | "source" | "desktop";
 export interface ReleaseAsset {
   app: "gateway" | "worker" | "desktop";
   os: "linux" | "darwin" | "windows";

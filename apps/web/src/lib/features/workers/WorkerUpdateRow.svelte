@@ -18,13 +18,13 @@
     <p class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">{worker.name} <span class="font-mono font-normal tabular-nums text-zinc-500 dark:text-zinc-400">{worker.version || "Version unknown"}</span></p>
     <div class="flex flex-wrap items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
       {#key `${worker.state}/${worker.compatibility}`}
-        <div in:swap role="status"><Badge tone={worker.state === "failed" ? "rose" : worker.state === "managed_externally" ? "neutral" : busy || worker.compatibility !== "compatible" ? "amber" : "emerald"}>{updateStateLabel(worker.state, worker.compatibility === "compatible")}</Badge></div>
+        <div in:swap role="status"><Badge tone={worker.state === "failed" ? "rose" : worker.state === "managed_externally" || worker.state === "ahead" ? "neutral" : busy || worker.compatibility !== "compatible" ? "amber" : "emerald"}>{updateStateLabel(worker.state, worker.compatibility === "compatible")}</Badge></div>
       {/key}
       <p>{worker.connected ? "Update channel connected" : "Update channel offline"}</p>
     </div>
     {#if worker.reason}<p class="text-base/6 text-pretty break-words text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{worker.reason}</p>{/if}
   </div>
   {#if worker.installKind === "binary" && admin}
-    <div class="shrink-0"><Button size="sm" loading={pending === worker.workerId || busy} disabled={!!pending || worker.version === gatewayVersion} onclick={onupdate}>Update worker</Button></div>
+    <div class="shrink-0"><Button size="sm" loading={pending === worker.workerId || busy} disabled={!!pending || worker.version === gatewayVersion || worker.state === "ahead"} onclick={onupdate}>Update worker</Button></div>
   {/if}
 </div>

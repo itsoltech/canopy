@@ -23,6 +23,8 @@ export interface GatewayUpdatesOptions {
   log?(message: string): void;
   pollMs?: number;
 }
+const updateBusyState = (state: string | undefined) => ["queued", "waiting_idle", "downloading", "restarting"].includes(state ?? "");
+
 export class GatewayUpdates {
   readonly service: GatewayUpdateService;
   readonly source: ReleaseSource;
@@ -83,6 +85,10 @@ export class GatewayUpdates {
       finally { this.#checkedAt = new Date().toISOString(); this.#checking = undefined; }
     })();
   }
+  /** A worker version above the gateway's (unknown or unparsable versions are not "ahead"). */
+  #ahead(version: string): boolean {
+    try { return !!version && compareVersions(version, this.version) > 0; } catch { return false; }
+  }
   async snapshot(): Promise<ui.UpdatesSnapshot> {
     const workers = await this.options.persistence.workers();
     return create(ui.UpdatesSnapshotSchema, { gatewayVersion: this.version, channel: this.#channel,
@@ -91,8 +97,13 @@ export class GatewayUpdates {
       admin: await this.options.persistence.admin(), checking: !!this.#checking, checkedAt: this.#checkedAt,
       workers: workers.map((w) => ({ workerId: w.id, name: w.name, version: w.version, installKind: w.status.installKind ?? "unknown",
         compatibility: workerLinkCompatible(w.status.minWorkerLinkProtocol ?? 0, w.status.workerLinkProtocol ?? 0) ? "compatible" : "update_required",
-        state: w.status.state === "succeeded" && w.version !== this.version ? "idle" : w.status.state ?? (w.status.installKind && w.status.installKind !== "binary" ? "managed_externally" : "idle"),
-        reason: w.status.reason ?? (w.status.installKind && w.status.installKind !== "binary" ? managedInstructions(w.status.installKind) : !w.status.installKind ? "This worker has not reported to the update channel. Older installations need one manual upgrade." : ""),
+        ...(this.#ahead(w.version) && !updateBusyState(w.status.state) ? {
+          // Newer than this gateway (e.g. a desktop app on a newer channel): nothing to do here; never a downgrade.
+          state: "ahead", reason: `Newer than this gateway. Update the gateway to ${w.version} or later.`,
+        } : {
+          state: w.status.state === "succeeded" && w.version !== this.version ? "idle" : w.status.state ?? (w.status.installKind && w.status.installKind !== "binary" ? "managed_externally" : "idle"),
+          reason: w.status.reason ?? (w.status.installKind && w.status.installKind !== "binary" ? managedInstructions(w.status.installKind) : !w.status.installKind ? "This worker has not reported to the update channel. Older installations need one manual upgrade." : ""),
+        }),
         connected: this.service.connections.has(w.id),
       })) });
   }
@@ -125,7 +136,7 @@ export class GatewayUpdates {
       const selected = request.action === "all" ? workers : workers.filter((w) => w.id === request.workerId);
       if (!selected.length && request.action === "worker") throw new ConnectError("Worker not found", Code.NotFound);
       for (const worker of selected) {
-        if (request.action === "all" && (worker.version === this.version || worker.status.installKind !== "binary")) continue;
+        if (request.action === "all" && (worker.version === this.version || worker.status.installKind !== "binary" || this.#ahead(worker.version))) continue;
         const command = await this.#queue(worker, request.force, request.allowDowngrade);
         if (command) this.service.push(worker.id, command);
       }
