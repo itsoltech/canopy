@@ -38,6 +38,16 @@ katalog dla bota/composera/wątku i odrzuca spóźnione odpowiedzi po zmianie wi
 `ToolCall.connector_account_id/type/name` (520–522) zapewniają logo i etykietę konta
 na osi czasu; gateway kanonizuje je z własnego katalogu. [Projekt i ograniczenia](connectors.md).
 
+## Połączone komputery: zdalne wątki
+
+Wątki, workery i projekty połączonych komputerów przychodzą tym samym `GatewayService` co własne,
+z id kwalifikowanym węzłem domu (`<uuid>~<node16>`) i polem `node_id` (800). Przeglądarka i telefon
+odsyłają id bez zmian; trasowanie do domu robi gateway (`apps/gateway/src/api/routed.ts`). `GetOverview`
+ma `computers` (800), `OverviewUpdate` zmiany `computer` (800) i `computer_removed` (801). BFF przyjmuje
+kwalifikowane id tam, gdzie wcześniej wymagał uuid (`EntityId`: kolejka, fork, przypięcia sidebara).
+Szczegóły, lista metod i błędy niedostępności: [linked-computers.md](linked-computers.md),
+„Konkretny protokół etapu 2”.
+
 ## Workery: kreator i zarządzanie
 
 Kreator instalacji używa dodatkowych, addytywnych RPC `FetchWorkerInstall` (stream bajtów
