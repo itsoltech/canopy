@@ -53,12 +53,10 @@
   onclick={(event) => {
     if (event.target === dialog) onclose();
   }}
-  class="t-modal fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-white p-0 text-zinc-950 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-[2px] sm:m-auto sm:h-[min(100dvh-3rem,60rem)] sm:w-[min(100vw-3rem,76rem)] sm:rounded-2xl sm:shadow-2xl sm:ring-1 sm:ring-zinc-950/10 dark:bg-zinc-950 dark:text-white dark:backdrop:bg-black/70 dark:sm:shadow-none dark:sm:ring-white/10"
+  class="t-modal fixed inset-x-0 bottom-0 top-(--window-safe-top) m-0 h-(--window-safe-height) max-h-none w-full max-w-none overflow-hidden bg-white p-0 text-zinc-950 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-[2px] sm:m-auto sm:h-[min(var(--window-safe-height)-3rem,60rem)] sm:w-[min(100vw-3rem,76rem)] sm:rounded-2xl sm:shadow-2xl sm:ring-1 sm:ring-zinc-950/10 dark:bg-zinc-950 dark:text-white dark:backdrop:bg-black/70 dark:sm:shadow-none dark:sm:ring-white/10"
 >
   <div class="flex h-full flex-col lg:flex-row">
     <div class="shrink-0 border-zinc-950/5 bg-zinc-50 px-3 pt-3 pb-2 lg:w-64 lg:overflow-y-auto lg:border-r lg:pb-4 dark:border-white/8 dark:bg-white/2">
-      <!-- On macOS the dialog's top row is a title strip, so the traffic lights never sit over the search. -->
-      <div class="-mx-3 -mt-3 hidden h-12 macos:block" data-window-drag></div>
       <SettingsNav />
     </div>
     <div class="flex min-h-0 min-w-0 flex-1 flex-col">

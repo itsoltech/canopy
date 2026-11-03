@@ -9,7 +9,7 @@
   }));
 </script>
 
-<div class="pointer-events-none fixed inset-0 z-[1000] flex items-center justify-center p-6">
+<div class="pointer-events-none fixed inset-x-0 bottom-0 top-(--window-safe-top) z-[1000] flex items-center justify-center p-6 macos:overflow-y-auto">
   {#if state}
     {#key state}
       <div transition:rise class="flex max-w-full items-center gap-4 rounded-2xl border border-zinc-950/10 bg-white px-5 py-4 text-zinc-950 shadow-xl dark:border-white/10 dark:bg-zinc-900 dark:text-white" data-window-no-drag role="status" aria-live="polite">

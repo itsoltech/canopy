@@ -211,7 +211,7 @@
   }}
   inert={closing || undefined}
   class={[
-    "t-modal m-0 mb-auto flex max-h-[85dvh] w-full max-w-none flex-col overflow-hidden rounded-b-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 not-open:hidden backdrop:bg-zinc-950/30 backdrop:backdrop-blur-xs sm:mx-auto sm:mt-[12dvh] sm:max-h-[min(36rem,76dvh)] sm:w-[calc(100%-2rem)] sm:max-w-160 sm:rounded-2xl dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/50",
+    "t-modal top-(--window-safe-top) m-0 mb-auto flex max-h-[min(85dvh,var(--window-safe-height))] w-full max-w-none flex-col overflow-hidden rounded-b-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 not-open:hidden backdrop:bg-zinc-950/30 backdrop:backdrop-blur-xs sm:mx-auto sm:mt-[12dvh] sm:max-h-[min(36rem,76dvh,var(--window-safe-height)-12dvh)] sm:w-[calc(100%-2rem)] sm:max-w-160 sm:rounded-2xl dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/50",
     className,
   ]}
 >

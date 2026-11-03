@@ -419,6 +419,28 @@ Web oznacza `html[data-canopy-platform="darwin"]`; wszystkie reguły poniżej dz
 tylko wtedy (`routes/layout.css`, wariant Tailwind `macos:`), web, Linux i Windows się
 nie zmieniają.
 
+`routes/layout.css` jest jednym źródłem wymiarów: `--window-titlebar-size` (48 px)
+obejmuje dół świateł (około 34 px) z zapasem. `--window-safe-top` wynosi ten wymiar
+podzielony przez `--window-zoom`: 48 px przy zoomie 1, 60 px przy 0,8. Zoom i
+`data-window-fullscreen` pochodzą z `windowState()` / `onWindowState()` bridge'a
+(`features/desktop/window-chrome.ts`); w pełnym ekranie i poza macOS safe top wynosi
+0 px. Zarejestrowana właściwość CSS typu `<length>` udostępnia także obliczoną
+wartość w pikselach dla pozycjonowania JS. `--window-safe-height` to pozostała
+wysokość viewportu. Rezerwa nagłówków pod światła z lewej wynosi `80px / zoom`
+i również znika w pełnym ekranie.
+
+Poza sidebarem powierzchnie UI omijają obszar świateł. Dialogi (także zagnieżdżone),
+Settings, drawer, paleta komend i lightbox mają górne wcięcie oraz wysokość ograniczoną
+do bezpiecznego viewportu. Dotyczy to również pełnoekranowych arkuszy w wąskim oknie
+desktopowym. Przesuwa się krawędź panelu, nie jego wnętrze; backdrop nadal pokrywa
+całe okno. Toasty używają safe top, a baner niedostępnego gatewaya pozostaje pod
+paskiem tytułu, którego wysokość uwzględnia tę samą rezerwę. Warstwa Quit i baner
+aktualizacji ograniczają zawartość do bezpiecznego viewportu. Menu, popovery,
+hover cards i tooltipy współdzielą `shared/ui/floating.ts`: safe top ogranicza
+miejsce nad kotwicą, przesuwanie i dostępną wysokość; otwarte menu przelicza pozycję
+także po zmianie zoomu lub pełnego ekranu. Nowa warstwa nad oknem powinna używać
+tych samych zmiennych na swoim kontenerze, a nie dodawać pusty pasek wewnątrz panelu.
+
 Electron liczy obszary przeciągania z prostokątów elementów z `-webkit-app-region`,
 w kolejności dokumentu, **bez względu na z-index**. Właściwość się dziedziczy: każdy
 potomek paska dokłada własny prostokąt, także wystający poza pasek albo przycięty
@@ -433,14 +455,17 @@ traci kliknięcia. Zasady:
     (`data-window-titlebar`: `TopBar`, `ConversationHeader`) staje się paskiem tytułu
     i dostaje 80 px z lewej (ikona wyrównana z logo). Stan niesie `data-sidebar` na
     shellu; wcięcie animuje się razem z kolumną (`motion.css`).
-  - Settings: górny wiersz dialogu (nawigacja i breadcrumb), więc wyszukiwarka nie
-    leży pod światłami. Ekran `/desktop`: stały pasek 48 px u góry.
+  - Settings: wiersz breadcrumb i przycisku zamknięcia; cały dialog leży poniżej
+    świateł, bez dodatkowego pustego paska nad wyszukiwarką. Ekran `/desktop`:
+    stały pasek 48 px u góry.
 - **Kontrolki w pasku** (`a`, `button`, pola, `label`, role `button`/`tab`/`menuitem`/…,
   elementy z `tabindex`) są `no-drag`; przeciąga tylko pusta przestrzeń i tekst.
-- **Wszystko, co pływa nad oknem**, jest `no-drag`: `dialog` (Settings, arkusze,
-  drawer, paleta komend, lightbox), `[popover]` (menu, popovery, tooltipy) i
-  `data-window-no-drag` (toasty). Otwarty modal wyłącza paski pod sobą, więc klik w
-  backdrop zamyka dialog zamiast łapać okno.
+- **Warstwy nad oknem** nie dodają własnych regionów `app-region` na swoich
+  kontenerach: `dialog`, `[popover]` i `data-window-no-drag` (toasty, warstwa Quit).
+  `windowModal` oznacza ostatnio otwarty modal przez `data-window-modal-top`;
+  przeciągać mogą wyłącznie jego jawne paski, nigdy paski pod nim. Otwarcie popovera
+  lub warstwy `data-window-no-drag` zawiesza wszystkie paski. Klik w backdrop nie
+  łapie okna. Zamknięcie zagnieżdżonego modalu przywraca pasek poprzedniego.
 
 Nowy pasek: daj mu `data-window-drag` (zawsze) albo `data-window-titlebar` (tylko przy
 schowanym sidebarze). Nowa warstwa nad oknem poza `dialog`/`[popover]`: `data-window-no-drag`.

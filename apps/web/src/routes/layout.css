@@ -15,13 +15,26 @@
  * `macos:` styles an element for the desktop app on macOS only.
  */
 @custom-variant macos (&:where([data-canopy-platform="darwin"] *));
+/* Registered length: floating.ts reads the resolved CSS pixels, including zoom calculations. */
+@property --window-safe-top {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+:root {
+  --window-titlebar-size: 48px;
+  --window-safe-top: 0px;
+  --window-safe-height: calc(100dvh - var(--window-safe-top));
+}
 html[data-canopy-platform="darwin"] {
   --window-controls-inset: calc(80px / var(--window-zoom, 1));
-  --window-titlebar-height: max(48px, calc(48px / var(--window-zoom, 1)));
+  --window-safe-top: calc(var(--window-titlebar-size) / var(--window-zoom, 1));
+  --window-titlebar-height: max(var(--window-titlebar-size), var(--window-safe-top));
 }
 html[data-canopy-platform="darwin"][data-window-fullscreen] {
   --window-controls-inset: 0px;
-  --window-titlebar-height: 48px;
+  --window-safe-top: 0px;
+  --window-titlebar-height: var(--window-titlebar-size);
 }
 html[data-canopy-platform="darwin"] :is([data-window-drag], [data-window-titlebar]) { min-height: var(--window-titlebar-height); }
 html[data-canopy-platform="darwin"] .canopy-sidebar-header { padding-left: calc(var(--window-controls-inset) + 8px); }
