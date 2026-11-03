@@ -103,13 +103,22 @@ export async function releaseManifest(directory: string, env: Readonly<Record<st
   };
 }
 
-if (import.meta.main) {
-  const directory = process.argv[2];
-  if (!directory) throw new Error("Usage: bun scripts/release-manifest.ts <assets dir>");
-  const manifest = await releaseManifest(resolve(directory));
+/**
+ * Writes `checksums.txt` and `manifest.json` for everything in the directory. Release publication runs it twice
+ * (docs/release.md): with the server assets, then again once desktop assets are added; the server entries stay the same.
+ */
+export async function writeReleaseFiles(directory: string, env: Readonly<Record<string, string | undefined>> = process.env): Promise<ReleaseManifest> {
+  const manifest = await releaseManifest(directory, env);
   const names = readdirSync(directory).filter((name) => !GENERATED.has(name) && statSync(join(directory, name)).isFile()).sort();
   const checksums = await Promise.all(names.map(async (name) => `${await sha256(join(directory, name))}  ${name}\n`));
   writeFileSync(join(directory, "checksums.txt"), checksums.join(""));
   writeFileSync(join(directory, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  return manifest;
+}
+
+if (import.meta.main) {
+  const directory = process.argv[2];
+  if (!directory) throw new Error("Usage: bun scripts/release-manifest.ts <assets dir>");
+  const manifest = await writeReleaseFiles(resolve(directory));
   console.info(`manifest.json: ${manifest.version} (${manifest.channel}), ${manifest.assets.length} assets`);
 }
