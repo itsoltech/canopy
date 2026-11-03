@@ -231,10 +231,17 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
 
     // The source restarts after the target staged the move: the restart rolls back and C drops what it staged.
     const crashed = await thread(a, aProject, aWorkspace, "Source restart", "two");
-    hooks.set(a, async (phase) => { if (phase === "prepared") throw new MoveCrash(); });
+    const prepared = Promise.withResolvers<void>();
+    hooks.set(a, async (phase) => {
+      if (phase === "prepared") { prepared.resolve(); throw new MoveCrash(); }
+    });
     const second = await move([{ kind: "thread", id: crashed }]);
     const moveId = second.moves[0]!.id;
     expect(await eventually(async () => (await c.api.getMoves({})).moves.find((m) => m.id === moveId)?.state, (s) => s === "prepared")).toBe("prepared");
+    // Target persistence precedes the source receiving its reply. Crash the source before stopping it,
+    // and keep the hook until it has stopped so a heartbeat cannot retry and commit the move.
+    await prepared.promise;
+    await stop(a);
     hooks.delete(a);
     await restart(a);
     expect(await linked()).toBe(true);
