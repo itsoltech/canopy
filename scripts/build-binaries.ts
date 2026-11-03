@@ -145,6 +145,15 @@ export async function compile(entry: string, outfile: string, target: Target, ve
         builder.onResolve({ filter: /^canopy-sharp-native$/ }, () => ({ path: "canopy-sharp-native", namespace: "canopy-native" }));
         builder.onLoad({ filter: /.*/, namespace: "canopy-native" }, () => ({ loader: "js", contents: native }));
       },
+    }, {
+      // ssh2's optional native addons (cpu-features, sshcrypto) are built for the build machine only, if at all
+      // (the images install with --ignore-scripts); ssh2 falls back to pure JS when requiring them throws.
+      name: "canopy-no-ssh2-addons",
+      setup(builder) {
+        builder.onLoad({ filter: /[/\\]cpu-features[/\\]lib[/\\]index\.js$/ }, () => ({ loader: "js", contents: 'throw new Error("cpu-features is not bundled");' }));
+        builder.onResolve({ filter: /sshcrypto\.node$/ }, () => ({ path: "sshcrypto", namespace: "canopy-no-addon" }));
+        builder.onLoad({ filter: /.*/, namespace: "canopy-no-addon" }, () => ({ loader: "js", contents: 'throw new Error("sshcrypto is not bundled");' }));
+      },
     }],
   });
   if (!build.success) throw new AggregateError(build.logs, `${outfile}: compilation failed`);
