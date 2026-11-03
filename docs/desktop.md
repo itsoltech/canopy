@@ -174,7 +174,6 @@ Skrypt pakowania w razie zmiany kanału odświeża shell i ikonę, zachowując z
 | --- | --- | --- | --- | --- |
 | Linux x64 | `ubuntu-24.04` | `linux-x64` | AppImage, deb | build + run AppImage |
 | Linux arm64 | `ubuntu-24.04-arm` lub natywny self-hosted ARM64 | `linux-arm64` | AppImage, deb | niewykonana |
-| macOS x64 | `macos-15-intel` lub self-hosted Intel | `darwin-x64` | dmg, zip | niewykonana |
 | macOS arm64 | `macos-15` lub self-hosted Apple Silicon | `darwin-arm64` | dmg, zip | niewykonana |
 | Windows x64 | `windows-2025` | `windows-x64` | NSIS | niewykonana |
 
@@ -253,7 +252,7 @@ Klucz `.p8` jest dekodowany w prywatnym pliku runnera i usuwany także po błęd
 Wbudowane `mac.notarize` electron-builder wysyła app do Apple i stapluje bilet przed
 utworzeniem zip/dmg. Bez kompletnego zestawu notaryzacji podpis pozostaje Developer ID,
 ale app nie otrzymuje biletu. Bez certyfikatu konfiguracja jawnie używa `identity: "-"`
-(podpis ad-hoc również na Intel), zamiast pomijać signing.
+(podpis ad-hoc), zamiast pomijać signing.
 
 | Pobrana aplikacja z quarantine | Co zobaczy użytkownik | Aktualizacje |
 | --- | --- | --- |

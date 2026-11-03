@@ -62,7 +62,7 @@ jobs:
         env:
           CHANNEL: ${{ steps.release.outputs.channel }}
         run: |
-          echo 'value={"include":[{"target":"linux-x64","runner":"ubuntu-24.04","package":"package:linux","experimental":false},{"target":"linux-arm64","runner":"ubuntu-24.04-arm","package":"package:linux","experimental":true},{"target":"darwin-x64","runner":"macos-15-intel","package":"package:mac","experimental":false},{"target":"darwin-arm64","runner":"macos-15","package":"package:mac","experimental":false},{"target":"windows-x64","runner":"windows-2025","package":"package:windows","experimental":true}]}' >> "$GITHUB_OUTPUT"
+          echo 'value={"include":[{"target":"linux-x64","runner":"ubuntu-24.04","package":"package:linux","experimental":false},{"target":"linux-arm64","runner":"ubuntu-24.04-arm","package":"package:linux","experimental":true},{"target":"darwin-arm64","runner":"macos-15","package":"package:mac","experimental":false},{"target":"windows-x64","runner":"windows-2025","package":"package:windows","experimental":true}]}' >> "$GITHUB_OUTPUT"
 
   binaries:
     needs: semantic-release
@@ -98,7 +98,6 @@ jobs:
         include:
           - { target: linux-x64, runner: ubuntu-24.04 }
           - { target: linux-arm64, runner: ubuntu-24.04-arm }
-          - { target: darwin-x64, runner: macos-15-intel }
           - { target: darwin-arm64, runner: macos-15 }
           - { target: windows-x64, runner: windows-2025, suffix: .exe }
     runs-on: ${{ matrix.runner }}
