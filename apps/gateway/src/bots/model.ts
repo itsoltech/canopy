@@ -43,6 +43,10 @@ export function directModel(resolve: (input: ModelInput) => Promise<Endpoint>): 
     const response = await fetch(`${base}/v1/${claude ? "messages" : grok ? "chat/completions" : "responses"}`, {
       method: "POST", headers, signal: input.signal, redirect: "error",
       body: JSON.stringify(claude ? anthropicRequest(input) : grok ? grokRequest(input) : openaiRequest(input)),
+    }).catch((error: unknown) => {
+      // A connection that never reached the provider (DNS, refused, timeout): say so, without the URL.
+      if (input.signal?.aborted) throw error;
+      throw new Error("Model endpoint unreachable", { cause: error });
     });
     // Provider errors can echo credentials or input; persist only the status.
     if (!response.ok) { await response.body?.cancel(); throw new Error(`Model endpoint returned HTTP ${response.status}`); }
