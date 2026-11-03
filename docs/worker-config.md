@@ -79,7 +79,8 @@ Zakładka **Docker** podaje `docker run` i Compose z obrazem
 `ghcr.io/itsoltech/canopy-worker:v<VERSION>` (lub kanałem dla buildu bez wersji wydania).
 Enrollment wykonuje się raz z wolumenem `/home/canopy`; ten sam wolumen przechowuje
 config, dziennik i loginy. Obraz bazowy nie zawiera CLI agentów — rozszerz go i zaloguj
-dostawców w kontenerze. **Manual** pobiera binarkę i `checksums.txt` z tego samego
+dostawców w kontenerze. Na zwykłej maszynie Settings → Workers instaluje i aktualizuje CLI na kliknięcie
+([provider-cli.md](provider-cli.md)); w kontenerze tylko je pokazuje. **Manual** pobiera binarkę i `checksums.txt` z tego samego
 GitHub Release, sprawdza SHA-256, uruchamia `enroll` i drukuje `service`.
 Wygenerowaną usługę zapisuje i uruchamia administrator maszyny/użytkownik według
 wydrukowanych poleceń. Szczegóły: [deploy.md](deploy.md).

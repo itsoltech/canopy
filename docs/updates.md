@@ -172,6 +172,11 @@ image tag and recreate this container”; source — aktualizację checkoutu,
 **Windows wymaga na razie zewnętrznego instalatora/usługi** ze względu na blokadę
 uruchomionego `.exe`; worker zgłasza `managed_externally`.
 
+## CLI dostawców
+
+Aktualizacje Canopy nie obejmują CLI dostawców (`claude`, `codex`, `grok`) — nie są dołączane. Ich osobne
+instalacje i aktualizacje na kliknięcie, źródła najnowszych wersji i przepisy opisuje [provider-cli.md](provider-cli.md).
+
 ## Granice i dalsze prace
 
 - SHA-256 zabezpiecza integralność względem manifestu dostarczonego z zaufanego
