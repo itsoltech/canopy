@@ -11,15 +11,17 @@
    * row with a rotating chevron; `open` is bindable so callers can expand on events (e.g. a failure).
    * The content grows in and shrinks out (accordion, motion.ts `expand`); remounted rows open without it.
    * `remember` names it in the surrounding UI memory (rows of a virtual list): remounted, it opens as it was.
+   * `align="center"` centres the chevron on a multi-line summary (a card row) instead of its first line.
    */
   let {
     open = $bindable(false),
     remember,
+    align = "start",
     class: className,
     summaryClass,
     summary,
     children,
-  }: { open?: boolean; remember?: string; class?: ClassValue; summaryClass?: ClassValue; summary: Snippet; children: Snippet } = $props();
+  }: { open?: boolean; remember?: string; align?: "start" | "center"; class?: ClassValue; summaryClass?: ClassValue; summary: Snippet; children: Snippet } = $props();
 
   const memory = untrack(() => (remember ? useRemembered<boolean>(remember) : undefined));
   const saved = memory?.get();
@@ -28,8 +30,8 @@
 </script>
 
 <details class={["t-acc group/disclosure", className]} bind:open>
-  <summary class={["flex cursor-pointer list-none items-start gap-2 rounded-md focus-ring select-none", summaryClass]}>
-    <span class="flex h-lh items-center">
+  <summary class={["flex cursor-pointer list-none gap-2 rounded-md focus-ring select-none", align === "center" ? "items-center" : "items-start", summaryClass]}>
+    <span class={["flex items-center", align === "start" && "h-lh"]}>
       <Icon name="chevron-right" class="t-acc-chevron fill-zinc-400 group-open/disclosure:rotate-90 dark:fill-zinc-500" />
     </span>
     <span class="min-w-0 flex-1">{@render summary()}</span>

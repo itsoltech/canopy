@@ -11,14 +11,16 @@
   import type { WorkerSetup } from "./worker-setup.svelte.ts";
   let { worker, setup, class: className }: { worker: ui.Worker; setup: WorkerSetup; class?: ClassValue } = $props();
   const status = $derived(worker.revokedAt ? "Revoked" : worker.online ? "Connected" : "Disconnected");
+  // Height of the summary's content: the "…" menu (outside <summary>, so it does not toggle it) centres on that row.
+  let summaryHeight = $state(48);
   const statusLine = $derived([worker.hostname, worker.os && osLabel(worker.os), status,
     ...worker.providers.filter((p) => p.version).map((p) => `${providerLabel(p.provider)} ${p.version}`)].filter(Boolean).join(" · "));
 </script>
 
 <div class={["relative border-b border-zinc-950/5 last:border-0 dark:border-white/10", className]}>
-  <Disclosure summaryClass="min-h-20 items-center p-4 pr-16 sm:px-5 sm:pr-16">
+  <Disclosure align="center" summaryClass="min-h-20 p-4 pr-16 sm:px-5 sm:pr-16">
     {#snippet summary()}
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3" bind:clientHeight={summaryHeight}>
         <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-zinc-950/5 text-zinc-500 dark:bg-white/5"><Icon name="computer-desktop" /></div>
         <div class="min-w-0 flex-1 text-base/6 sm:text-sm/6">
           <p class="truncate font-medium text-zinc-950 dark:text-white">{worker.name}</p>
@@ -29,5 +31,6 @@
     {/snippet}
     <div class="px-4 pb-4 sm:px-5"><WorkerSettings {worker} title="Machine details" /></div>
   </Disclosure>
-  <div class="absolute top-5 right-3 sm:right-4"><WorkerActions {worker} {setup} /></div>
+  <!-- The summary's padding is 1rem above and below its content (p-4). -->
+  <div class="absolute top-0 right-3 flex items-center sm:right-4" style:height="max(5rem, {summaryHeight + 32}px)"><WorkerActions {worker} {setup} /></div>
 </div>
