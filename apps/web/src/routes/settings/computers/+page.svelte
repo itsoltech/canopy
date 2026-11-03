@@ -17,7 +17,8 @@
   import AddRouteDialog from "#lib/features/computers/AddRouteDialog.svelte";
   import LanDiscoveryRow from "#lib/features/computers/LanDiscoveryRow.svelte";
   import ShareOnwardDialog from "#lib/features/computers/ShareOnwardDialog.svelte";
-  import { RELAY } from "@canopy/domain/computers";
+  import MoveDialog from "#lib/features/computers/MoveDialog.svelte";
+  import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
 
   let setup = $state.raw(create(ui.ComputersSnapshotSchema));
   let loaded = $state(false);
@@ -40,6 +41,8 @@
   let shareFor = $state("");
   let shareOpen = $state(false);
   const shareComputer = $derived(setup.peers.find((p) => p.nodeId === shareFor));
+  let moveFor = $state("");
+  let moveOpen = $state(false);
   let now = $state(Date.now());
   const remaining = $derived(Math.max(0, Math.ceil((Number(invitation?.expiresAtMs ?? 0n) - now) / 1000)));
   async function run(action: () => Promise<void>) {
@@ -104,6 +107,7 @@
   {#each setup.peers as computer (computer.nodeId)}
     <ComputerDetails {computer} {busy} {now} onrename={() => edit(computer)} onunlink={() => { error = ""; remove = computer; removeOpen = true; }}
       onshare={!computer.viaNodeId && (computer.capabilities.includes(RELAY) || computer.shareOnwardNodeIds.length) ? () => { error = ""; shareFor = computer.nodeId; shareOpen = true; } : undefined}
+      onmove={!computer.viaNodeId && computer.capabilities.includes(MOVE_ITEMS) ? () => { moveFor = computer.nodeId; moveOpen = true; } : undefined}
       onaddroute={() => { error = ""; routeFor = computer; routeOpen = true; }}
       onremoveroute={(address) => void run(() => manage("remove_route", { nodeId: computer.nodeId, address }))} />
   {:else}<SettingsRow title={loaded ? "No computers linked yet" : "Loading linked computers…"} description="Generate a code here, or enter a code from your other computer." />{/each}
@@ -159,3 +163,4 @@
 </Dialog>
 <AddRouteDialog bind:open={routeOpen} computer={routeFor} {busy} {error} onsubmit={(address) => void run(async () => { await manage("add_route", { nodeId: routeFor!.nodeId, address }); routeOpen = false; })} />
 <ShareOnwardDialog bind:open={shareOpen} computer={shareComputer} peers={setup.peers} {busy} {error} onchange={(shareOnwardNodeIds) => void run(() => manage("share_onward", { nodeId: shareFor, shareOnwardNodeIds }))} />
+<MoveDialog bind:open={moveOpen} everything nodeId={moveFor} />

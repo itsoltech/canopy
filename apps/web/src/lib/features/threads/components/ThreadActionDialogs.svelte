@@ -5,6 +5,7 @@
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
+  import MoveDialog from "#lib/features/computers/MoveDialog.svelte";
   import type { ClassValue } from "svelte/elements";
 
   let { class: className }: { class?: ClassValue } = $props();
@@ -38,3 +39,5 @@
     </div>
   {/if}
 </Dialog>
+<MoveDialog bind:open={() => Boolean(actions.moving), (open) => { if (!open) actions.moving = undefined; }}
+  items={actions.moving ? [{ kind: "thread", id: actions.moving.id }] : []} name={actions.moving?.title ?? ""} />

@@ -5,9 +5,9 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import RouteList from "#lib/features/computers/RouteList.svelte";
   import { needsThreadUpdate, needsMirrorUpdate } from "#lib/features/computers/computers.ts";
-  let { computer, self = false, busy = false, now = Date.now(), onrename, onunlink, onaddroute, onremoveroute, onshare, class: className }: {
+  let { computer, self = false, busy = false, now = Date.now(), onrename, onunlink, onaddroute, onremoveroute, onshare, onmove, class: className }: {
     computer: ui.LinkedComputer; self?: boolean; busy?: boolean; now?: number; onrename: () => void; onunlink?: () => void;
-    onaddroute?: () => void; onremoveroute?: (address: string) => void; onshare?: () => void; class?: ClassValue;
+    onaddroute?: () => void; onremoveroute?: (address: string) => void; onshare?: () => void; onmove?: () => void; class?: ClassValue;
   } = $props();
   const date = (value: bigint) => value ? new Date(Number(value)).toLocaleString() : "Never";
   const status = $derived(computer.status === "connected" ? "Connected" : computer.status === "needs_update" ?
@@ -32,6 +32,7 @@
       {#if !self && computer.status !== "connected"}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Since {date(computer.statusSinceMs)}</p>{/if}
     </div>
     {#if !computer.viaNodeId}<div class="flex flex-wrap gap-2">
+      {#if onmove}<Button size="sm" variant="ghost" icon="arrows-right-left" disabled={busy} onclick={onmove}>Move everything here</Button>{/if}
       {#if onshare}<Button size="sm" variant="ghost" disabled={busy} onclick={onshare}>Share onward{computer.shareOnwardNodeIds.length ? ` · ${computer.shareOnwardNodeIds.length}` : ""}</Button>{/if}
       <Button size="sm" variant="ghost" disabled={busy} onclick={onrename}>Rename</Button>
       {#if onunlink}<Button size="sm" variant="ghost" disabled={busy} onclick={onunlink}>Unlink</Button>{/if}

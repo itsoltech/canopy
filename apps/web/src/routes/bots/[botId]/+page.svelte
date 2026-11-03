@@ -27,6 +27,7 @@
   import type { PageProps } from "./$types";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { useBotHome } from "#lib/features/bots/home.svelte.ts";
+  import MovedBotNotice from "#lib/features/bots/components/MovedBotNotice.svelte";
   import { nodeRef, splitId } from "@canopy/domain/computers";
 
   let { data }: PageProps = $props();
@@ -206,6 +207,7 @@
       class="flex-1"
     >
       {#snippet notice()}
+        <MovedBotNotice {bot} class="px-4 py-2 sm:px-6" />
         {#if home.reason}
           <div class="px-4 py-2 sm:px-6">
             <Alert tone="warning" banner title="Read only for now">{home.reason} You can read the synced conversation. Messages, approvals and settings are unavailable; nothing is queued.</Alert>
@@ -220,6 +222,7 @@
           <MenuItem icon="pencil-square" disabled={Boolean(home.reason)} onselect={() => openBotSettings(bot.id)}>Edit bot…</MenuItem>
           {#if !bot.archived}<MenuItem icon="star" onselect={() => { void settings.pinBot(bot.id, !conversation.pinned); }}>{conversation.pinned ? 'Unpin' : 'Pin to top'}</MenuItem>{/if}
           <MenuItem icon="archive-box" disabled={Boolean(home.reason)} onselect={() => { void archiveBot(bot, !bot.archived).then(() => settings.pinBot(bot.id, false)).catch(reportLifecycleError); }}>{bot.archived ? 'Unarchive bot' : 'Archive bot'}</MenuItem>
+          {#if !bot.nodeId}<MenuItem icon="arrows-right-left" onselect={() => window.dispatchEvent(new CustomEvent('move-bot', { detail: bot.id }))}>Move to…</MenuItem>{/if}
           {#if bot.archived}<MenuItem icon="trash" disabled={Boolean(home.reason)} onselect={() => window.dispatchEvent(new CustomEvent('delete-bot', { detail: bot.id }))}>Delete bot…</MenuItem>{/if}
         </DropdownMenu>
       {/snippet}

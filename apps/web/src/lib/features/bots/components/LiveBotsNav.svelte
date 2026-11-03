@@ -21,16 +21,17 @@
     try { await archiveBot(bot, !bot.archived); if (!bot.archived) await settings.pinBot(bot.id, false); }
     catch (cause) { reportLifecycleError(cause); }
   }
+  const move = (c: ConversationView) => window.dispatchEvent(new CustomEvent("move-bot", { detail: c.id }));
   $effect(() => botList.use());
 </script>
 
 {#if botList.error}<p role="alert" class="px-3 py-2 text-sm/6 text-rose-600 dark:text-rose-400">{botList.error}</p>{/if}
 {#if conversations.length}
-  <BotsNav {conversations} {query} currentId={page.params.botId} hrefOf={(c) => `/bots/${c.id}`} onEdit={(c) => openBotSettings(c.id)} onArchive={archive} onTogglePin={(c) => { void settings.pinBot(c.id, !c.pinned); }} />
+  <BotsNav {conversations} {query} currentId={page.params.botId} hrefOf={(c) => `/bots/${c.id}`} onEdit={(c) => openBotSettings(c.id)} onArchive={archive} onMove={move} onTogglePin={(c) => { void settings.pinBot(c.id, !c.pinned); }} />
 {:else if botList.loaded && !botList.error}<BotsSectionEmpty {query} />{/if}
 {#if archived.length}
   <details class="group pt-4">
     <summary class="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-500 focus-ring dark:text-zinc-400"><Icon name="chevron-right" class="group-open:rotate-90" />Archived bots · {archived.length}</summary>
-    <BotsNav conversations={archived} {query} currentId={page.params.botId} hrefOf={(c) => `/bots/${c.id}`} onEdit={(c) => openBotSettings(c.id)} onArchive={archive} onDelete={(c) => window.dispatchEvent(new CustomEvent('delete-bot', { detail: c.id }))} />
+    <BotsNav conversations={archived} {query} currentId={page.params.botId} hrefOf={(c) => `/bots/${c.id}`} onEdit={(c) => openBotSettings(c.id)} onArchive={archive} onMove={move} onDelete={(c) => window.dispatchEvent(new CustomEvent('delete-bot', { detail: c.id }))} />
   </details>
 {/if}
