@@ -149,6 +149,8 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
     expect(user.threadDefaults?.workspaceId).toBe("");
     expect((await instance(b, "native"))!.models?.hidden).toEqual(["old-model"]);
     expect(await instance(b, "private")).toBeUndefined();
+    // B already had the default thread settings: equal values still name the computer that shared them.
+    expect((await item(lb, sharedKey.settings("thread_defaults")))?.changedByNodeId).toBe(nodeA);
     expect(await conflicts(la)).toEqual([]);
     expect(await conflicts(lb)).toEqual([]);
 

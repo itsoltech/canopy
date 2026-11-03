@@ -371,7 +371,9 @@ export class SharedConfig {
     const local = current ? digestOf(current.payload) : "";
     const secrets = new Map(item.secrets.map((s) => [s.token, s.value]));
     if (local === item.digest) {
-      await this.#save({ ...row, shared: true, clock: merge(row.clock, clock), digest: local, tokens: current!.tokens, note: "" });
+      // First share of an equal value: the sender's change is the last one known here.
+      const author = row.shared && row.changed_by ? {} : { changed_by: item.changedBy, changed_at: new Date(Number(item.changedAtMs)) };
+      await this.#save({ ...row, ...author, shared: true, clock: merge(row.clock, clock), digest: local, tokens: current!.tokens, note: "" });
       await this.store.query("DELETE FROM computer_shared_conflicts WHERE owner_user_id=$1::uuid AND item_key=$2 AND node_id=$3", [this.store.owner, item.key, node]);
       await this.#ack(node, item.key, item.digest);
       return { outcome: "same" };

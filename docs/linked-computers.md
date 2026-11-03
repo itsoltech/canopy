@@ -616,6 +616,10 @@ projekt raz, z workspace'ami wszystkich połączonych komputerów (kwalifikowany
 w tym projekcie są w nim na liście; nowy wątek na workerze B w projekcie wspólnym trafia do B
 z tym samym id projektu.
 
+Strefa czasowa jest jak dotąd brana z urządzenia przeglądarki. Gdy jest wspólna, ostatnie urządzenie,
+które ją zgłosi, ustawia ją na wszystkich połączonych komputerach; kto chce różnych stref, zostawia ją
+lokalną.
+
 ### Partner bez capability
 
 Starszy partner zachowuje etapy 1–3; jego konfiguracja zostaje u niego. `SharedConfigSnapshot`
