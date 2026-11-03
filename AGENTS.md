@@ -24,6 +24,10 @@ Short rules for agents working in this repository. Details live in `docs/` (most
   - `main`: **stable**.
 - Branch off `dev` and open PRs into `dev`. Never push to `next`/`main`, never create tags; promotions (Promote workflow) and releases belong to the maintainer.
 - Merges are **squash merges**: one Angular commit per feature. The PR title becomes the commit.
+- `dev` only gets complete, working features: it feeds beta and stable. A plan with several stages ships as **stacked PRs** (`gh stack`, extension `github/gh-stack`):
+  - each stage is its own PR, based on the previous stage's branch; the bottom one targets `dev`,
+  - keep them drafts until the whole plan is done and verified,
+  - then merge the stack at once (`gh stack merge <stack> --squash`), never stage by stage.
 - **Angular commit convention**, enforced by commitlint (a commit-msg hook installed by `bun install`, plus a CI check of PR titles):
   - Format: `type(scope): summary`, lower case, header ≤ 72 chars, no trailing period.
   - `feat` → minor release; `fix`/`perf` → patch.
