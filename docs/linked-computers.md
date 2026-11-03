@@ -1,10 +1,11 @@
 # Połączone komputery (projekt)
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
+Status: **etapy 1–4 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
 wersjonowanie, obecność i Settings → Linked computers. Etap 2: zsumowany overview i zdalne wątki
 (lista, odczyt na żywo, pisanie, steer, kolejka, przerwanie, zgody i tworzenie wątku na workerze
 partnera, trasowane do domu). Etap 3: trwałe lustra wątków do odczytu offline, kursor i pełna
-resynchronizacja. Etapy 4–8 poniżej pozostają projektem; cały stos PR-ów pozostaje draftem.
+resynchronizacja. Etap 4: wspólna konfiguracja (oznaczanie elementów, sekrety, konflikty, znaczki).
+Etapy 5–8 poniżej pozostają projektem; cały stos PR-ów pozostaje draftem.
 
 ## Cel
 
@@ -498,3 +499,142 @@ Test współbieżnych transakcji blokujących turę i wątek chroni przed odwró
 blokad przez dziennik. Test bezpieczeństwa tworzy rzeczywiste metadane sekretu w domu i sprawdza
 ich brak w zapisanej binarnej projekcji partnera.
 Nie dodaje testów UI. `schema.test.ts` obejmuje migrację 0049.
+
+## Konkretny protokół etapu 4
+
+Implementacja: `apps/gateway/src/computers/shared.ts` (stan, wektory wersji, push/odbiór, konflikty),
+runtime łącza, `api/routed.ts` (wspólna tożsamość projektu), migracja **0050_shared_config**,
+kontrakty `SharedConfigService` w `canopy.link.v1` i `GetSharedConfig`/`ManageSharedConfig` w
+`canopy.ui.v1`. UI: `apps/web/src/lib/features/computers` (`ShareSetting`, `ShareScope`,
+`ConflictDialog`, `SharedConfigOverview`) i `providers/SharedInstance.svelte`.
+
+### Elementy i ich pola
+
+Udostępnianie jest **opt-in per element** (przełącznik „Share with linked computers”). Klucze są takie
+same na każdym komputerze:
+
+| Klucz | Wspólne pola | Zostaje na komputerze |
+|---|---|---|
+| `instance:<harness>:<id>` | nazwa, rodzaj, endpoint, kolor, klucz API, zmienne (także sekretne) | ścieżki CLI, katalogi, argumenty, własne logowanie, workery i ich nadpisania, stan instalacji CLI |
+| `models:<harness>:<id>` | ulubione, ukryte, pokazane i własne modele instancji | — |
+| `settings:appearance` | schemat kolorów, motyw, szerokość czatu | układ paneli i paska bocznego |
+| `settings:thread_defaults` | dostawca, instancja, uprawnienia, modele | domyślny workspace |
+| `settings:timezone` | strefa IANA | — |
+| `settings:text_generation` | instancja, model, wysiłek, instrukcje tytułów | — |
+| `project:<uuid>` | tożsamość (to samo id) i nazwa | workspace'y, ustawienia projektu |
+
+Wbudowanego logowania urządzenia (`native`) nie udostępniamy jako definicji; jego listy modeli tak.
+Listę modeli innej instancji można udostępnić dopiero razem z instancją. Nigdy nie są synchronizowane:
+ścieżki CLI, logowania natywne, workspace'y, adresy, porty, ustawienia desktopu, konta connectorów
+i stan instalacji CLI. UI pokazuje to przy connectorach i ustawieniach desktopu znaczkiem „This computer”.
+
+Nowa wspólna instancja jest u odbiorcy włączona na wszystkich jego workerach (`all_workers`), żeby od razu
+działała; dalszy wybór workerów jest lokalny. Gdy żaden worker odbiorcy jej nie uruchamia (brak CLI),
+szczegóły instancji wyjaśniają to ostrzeżeniem.
+
+### Stan i wersje
+
+`computer_shared_items` przechowuje per element: `shared`, **wektor wersji** (`{node_id: licznik}`),
+skrót SHA-256 kanonicznego JSON-a wspólnych pól, komputer i czas ostatniej zmiany, mapę
+`secrets.id → token` oraz notatkę o lokalnej kopii. Wartości pozostają w swoich tabelach
+(`provider_instances`, `user_settings`, `projects`). Każda strona co heartbeat (oraz od razu po zapisie
+przez UI: `SaveProviderInstance`, `DeleteProviderInstance`, `SetInstanceModels`, `UpdateUserSettings`,
+`RenameProject`, `ArchiveProject`) porównuje skrót z bieżącą wartością; zmiana podbija jej licznik
+w wektorze. UI pokazuje sumę wektora jako wersję i komputer, który zmienił element ostatnio.
+
+`computer_shared_acks(owner, node_id, item_key, digest, shared)` zapamiętuje, co partner potwierdził.
+`computer_shared_conflicts` trzyma pytania do czasu odpowiedzi. Obie tabele mają `ON DELETE CASCADE`
+do `computer_peers`.
+
+### Protokół
+
+Capability **`shared_config`**; `COMPUTER_LINK_PROTOCOL` zostaje 1 (zmiana addytywna, negocjowana
+funkcją, jak w etapach 2–3). `SharedConfigService.PushSharedConfig(SharedConfigPush)` jest wewnętrzną
+metodą transportu `RemoteRequest`/`RemoteResponse` po przypiętym mTLS, obsługiwaną tylko przy
+capability obu stron i aktywnym partnerze. Każda strona wysyła partnerowi elementy, których
+potwierdzony skrót różni się od bieżącego (po każdym handshake — wszystkie), w kolejności instancje,
+modele, ustawienia, projekty. `SharedItem` niesie klucz, `shared`, wektor, skrót, kanoniczny JSON
+pól bez wartości sekretów, autora i czas, a dla wyłączonych: powód (`deleted`).
+
+Odbiorca dla każdego elementu (pod jedną blokadą stanu, nigdy trzymaną w czasie wywołania partnera):
+
+- ten sam skrót → `same` (scala wektory, usuwa ewentualne pytanie);
+- element już wspólny: wektor nadawcy nowszy → zastosowanie przez własne handlery
+  (`SaveProviderInstance`, `SetInstanceModels`, `UpdateUserSettings`, `RenameProject`, nowy projekt
+  z tym samym id) → `applied`; własny nowszy → `newer` (odeśle swój); **współbieżne → `conflict`**;
+- pierwsze udostępnienie: brak elementu lub wartość domyślna → `applied`; inna istniejąca wartość →
+  `conflict` (nie nadpisujemy po cichu lokalnej instancji ani wyglądu);
+- brak wymaganego sekretu → `secrets` (nadawca kasuje potwierdzenie i wysyła ponownie z sekretami).
+
+Odpowiedź `applied`/`same` zawiera wektor odbiorcy: nadawca go scala i usuwa własne pytanie o ten
+element, gdy obie strony mają już tę samą wartość. Bez tego pytanie po stronie, która nie rozstrzygała,
+zostałoby na zawsze, a jej następna zmiana wyglądałaby na współbieżną.
+
+### Sekrety
+
+Klucz API i zmienne sekretne przechodzą **tylko dla elementów oznaczonych jako wspólne** i tylko wtedy,
+gdy partner nie potwierdził tej wartości. Nadawca odszyfrowuje je swoim `CANOPY_SECRETS_KEY`, łącze mTLS
+je szyfruje, odbiorca zapisuje je nowym wierszem `secrets` zaszyfrowanym **własnym** kluczem (inny
+ciphertext). Wartość identyfikuje losowy token (nie skrót sekretu), wspólny dla kopii tej samej wartości;
+skrót elementu obejmuje tokeny, więc zmiana klucza jest zmianą elementu. Sekrety nie trafiają do UI,
+BFF, logów, workerów innych niż własne odbiorcy (te dostają je jak przy każdej instancji) ani do
+modeli. W pytaniu konfliktu sekrety drugiej strony są przechowywane zaszyfrowane kluczem odbiorcy,
+a UI widzi wyłącznie „Set”, „Not set” albo „A different key”.
+
+### Konflikty
+
+Ta sama wspólna rzecz zmieniona na dwóch komputerach bez połączenia daje po ponownym połączeniu
+pytanie na obu („Keep this computer’s” / „Keep Laptop B’s”), z różniącymi się polami obu wersji.
+Nie ma last-writer-wins: każdy komputer zachowuje swoją wartość do odpowiedzi. Zmiany różnych
+elementów (np. strefa na A, nazwa projektu na B) przechodzą same. Pytania są trwałe (restart ich
+nie gubi), widoczne w Settings → Linked computers („Needs your decision”), przy elemencie
+(ostrzeżenie z „Choose a version”) i jako znaczek na listach instancji i projektów.
+
+Odpowiedź jest nową wersją, która widziała obie: wektor = scalenie obu + licznik tego komputera.
+„Keep this computer’s” wysyła lokalną wartość, „Keep Laptop B’s” stosuje zapisaną wersję B (z jej
+sekretami) i wysyła ją jako tę samą wartość. Druga strona przyjmuje ją bez pytania i usuwa swoje.
+Gdy obie strony jednocześnie odpowiedzą przeciwnie, wektory znów są współbieżne i pytanie wraca —
+świadomie, zamiast zgadywać.
+
+### Wyłączenie, usunięcie, rozłączenie
+
+- **Wyłączenie udostępniania** na jednym komputerze wyłącza je na wszystkich; każdy zachowuje swoją
+  bieżącą wartość jako **kopię lokalną** (z kluczem API zaszyfrowanym własnym kluczem). UI: „Laptop A
+  stopped sharing it. This computer keeps its own copy.” Wyłączenie wygrywa z równoczesną zmianą bez
+  pytania i usuwa pytania o ten element.
+- **Usunięcie** (instancja) lub **archiwizacja** (projekt) wspólnego elementu działa jak wyłączenie
+  z powodem `deleted`: na innych komputerach nic nie jest kasowane ani archiwizowane (mogą tam być
+  wątki), kopia staje się lokalna („Deleted on Laptop A. This computer keeps its own copy.”).
+- **Unlink** usuwa potwierdzenia i pytania dotyczące tego komputera (kaskada). Wartości i flagi
+  udostępnienia zostają na obu komputerach; ponowne sparowanie zaczyna jak pierwsze udostępnienie.
+
+### Projekty jako wspólna tożsamość
+
+Wspólny projekt ma to samo id na każdym komputerze. Gateway nie kwalifikuje go sufiksem węzła
+(`globalize`), dopuszcza je w wywołaniach do partnera (`unqualify` z listą globalnych id) i pokazuje
+projekt raz, z workspace'ami wszystkich połączonych komputerów (kwalifikowanymi). Wątki partnera
+w tym projekcie są w nim na liście; nowy wątek na workerze B w projekcie wspólnym trafia do B
+z tym samym id projektu.
+
+### Partner bez capability
+
+Starszy partner zachowuje etapy 1–3; jego konfiguracja zostaje u niego. `SharedConfigSnapshot`
+zawiera `needs_update_node_ids`, a przy wspólnym elemencie UI pisze „Laptop B needs an update to share
+configuration and keeps its own”. Kolejny handshake z capability rozpoczyna synchronizację.
+
+### Weryfikacja
+
+`tests/integration/shared-config.test.ts`: dwa prawdziwe gatewaye z osobnymi bazami PostgreSQL
+i kluczami sekretów, mTLS. Obejmuje instancję z kluczem API (inny ciphertext, odbiorca odszyfrowuje,
+klucz A nie; profil z kluczem na workerze B; brak klucza w odpowiedziach BFF i w logach), listy
+modeli, wygląd (pierwsze udostępnienie z pytaniem), domyślne ustawienia wątków bez workspace'u,
+strefę, projekt z tym samym id (raz na liście, nowy wątek na workerze A z UI B), brak
+nieudostępnionej instancji u partnera, konflikty po edycjach offline rozstrzygnięte w obie strony
+(także sekret z zapieczętowanej wersji), łączenie zmian bez konfliktu, trwałość pytania po restarcie
+obu runtime'ów, wyłączenie i archiwizację, partnera bez capability oraz Unlink.
+`schema.test.ts` obejmuje migrację 0050 (kaskada przy usunięciu partnera). Bez testów UI.
+
+Odroczone po etapie 4: harmonogramy i sekrety wątków partnera (nadal per komputer), ustawienia
+projektu (domyślne wątku w projekcie), kompozytor i układ sidebara, scalanie pól wewnątrz jednego
+elementu (konflikt dotyczy całego elementu), dostępność CLI instancji na innym komputerze widoczna
+z tego komputera (UI pokazuje stan własnych workerów).

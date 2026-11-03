@@ -11,6 +11,13 @@ Parowanie atomowo zużywa kod i zapisuje peer. Unlink usuwa rekord peer; znaczni
 odwołania pozwala usunąć relację po stronie partnera wracającego z offline.
 Szczegóły i granice bezpieczeństwa: [linked-computers.md](linked-computers.md#konkretny-protokół-etapu-1).
 
+Migracja `0050_shared_config` dodaje `computer_shared_items` (stan udostępnienia, wektor wersji,
+skrót wartości, tokeny sekretów, notatka o kopii lokalnej), `computer_shared_acks` (co potwierdził
+partner) i `computer_shared_conflicts` (pytania do odpowiedzi, sekrety drugiej strony zaszyfrowane
+kluczem tego komputera). Potwierdzenia i pytania kasują się z partnerem. Wartości zostają w
+`provider_instances`, `user_settings` i `projects`; wspólny projekt ma to samo id na każdym komputerze.
+[Etap 4](linked-computers.md#konkretny-protokół-etapu-4).
+
 ## Instalacja workerów przez SSH
 
 Migracja `0047_worker_ssh` dodaje `worker_ssh_keys` (jeden Ed25519 per właściciel,

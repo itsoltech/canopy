@@ -62,6 +62,16 @@ Po reconnect `OverviewUpdate.computer_snapshot` (802) zastępuje widoczne wątki
 jednego `node_id`. Pozwala usunąć z otwartego UI wiersze znikające podczas rozłączenia bez
 naruszania stanu innych komputerów. Następne pojedyncze aktualizacje działają jak wcześniej.
 
+## Połączone komputery: wspólna konfiguracja
+
+`GetSharedConfig` i `ManageSharedConfig` (`share`, `unshare`, `keep_local`, `keep_remote`) zwracają
+`SharedConfigSnapshot`: elementy (klucz, rodzaj, nazwa, wspólny, wersja, autor ostatniej zmiany,
+notatka o kopii lokalnej), pytania z różniącymi się polami obu wersji (sekrety tylko jako „Set”,
+„Not set”, „A different key”) i partnerów wymagających aktualizacji. Zmiany przychodzą na żywo jako
+`OverviewUpdate.shared_config` (803). BFF: `GET`/`PUT /api/computers/shared`. Wspólny projekt ma to samo
+id na każdym komputerze i nie ma `node_id`; jego workspace'y z partnerów są kwalifikowane.
+[Etap 4](linked-computers.md#konkretny-protokół-etapu-4).
+
 ## Workery: kreator i zarządzanie
 
 Kreator instalacji używa dodatkowych, addytywnych RPC `FetchWorkerInstall` (stream bajtów
