@@ -7,6 +7,10 @@ export interface QuitGuardState {
   shortcut: string;
   durationMs: number;
 }
+export interface DesktopWindowState {
+  zoomFactor: number;
+  fullscreen: boolean;
+}
 export interface DesktopUpdateStatus {
   version: string;
   buildChannel: DesktopUpdateChannel;
@@ -33,6 +37,8 @@ export type DesktopConfiguration =
   | { mode: "remote"; gatewayUrl: string; webUrl: string; enrollmentToken?: string };
 export interface DesktopBridge {
   readonly platform: string;
+  windowState(): Promise<DesktopWindowState>;
+  onWindowState(listener: (state: DesktopWindowState) => void): () => void;
   status(): Promise<DesktopStatus>;
   /** Only available in the bundled setup window, never in remote web content. */
   configure(configuration: DesktopConfiguration): Promise<void>;

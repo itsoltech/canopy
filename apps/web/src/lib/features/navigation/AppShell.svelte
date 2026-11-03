@@ -110,8 +110,8 @@
 <svelte:window bind:innerWidth={sidebar.viewport} />
 <ThreadActionDialogs />
 
-<!-- `data-sidebar`: whether the sidebar column shows; on macOS the page's top bar takes the window's title strip when not. -->
-<div class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white" data-sidebar={wide.current && !sidebar.collapsed ? "shown" : "hidden"}>
+<!-- `data-sidebar`: whether the sidebar clears the page header from the native window controls. -->
+<div class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white" data-sidebar={wide.current && !sidebar.collapsed && !sidebar.settling ? "shown" : "hidden"}>
   <SidebarColumn {sidebar}>
     {#if wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}
   </SidebarColumn>
@@ -119,7 +119,11 @@
     {#if !wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}
   </Drawer>
 
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col" data-window-offset={overview.connection === "unavailable" || !ready || Boolean(page.error) || undefined}>
+    {#if overview.connection === "unavailable" || !ready || page.error}
+      <!-- Keep banners, loading and error content below a static native title strip. -->
+      <div class="hidden h-12 shrink-0 macos:block" data-window-drag></div>
+    {/if}
     {#if overview.connection === "unavailable"}
       <GrowIn><Alert tone="warning" banner>The gateway is not responding. Showing the last known state; retrying automatically.</Alert></GrowIn>
     {/if}

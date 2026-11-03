@@ -4,6 +4,7 @@
   import IconButton from "./IconButton.svelte";
   import { exitDuration } from "./motion.ts";
   import SheetHandle from "./SheetHandle.svelte";
+  import { windowModal } from "./window-modal.ts";
 
   /**
    * Modal dialog on the native `<dialog>` (focus trap, Escape, top layer for free).
@@ -56,6 +57,7 @@
 </script>
 
 <dialog
+  use:windowModal
   bind:this={dialog}
   {onkeydown}
   aria-labelledby="{id}-title"

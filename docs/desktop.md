@@ -75,6 +75,34 @@ Bez migracji DB ani zmian proto. `packages/ui/desktop` jest nowym, opcjonalnym
 kontraktem typów. Mobile i przeglądarka nie muszą go implementować. Root workspaces
 już obejmuje `apps/*`, więc nowa aplikacja nie wymaga zmiany konfiguracji workspaces.
 
+### Paski okna macOS
+
+Okna używają `hiddenInset` i pozycji kontrolek `{ x: 18, y: 18 }`. Regiony przeciągania
+są ograniczone do jawnych pasków `data-window-drag` / `data-window-titlebar`.
+Nagłówki stron działają przy rozwiniętym i zwiniętym sidebarze; wspólna wysokość to
+48 px. Tylko kontrolki wewnątrz aktywnego paska dostają `no-drag`. Nie wolno ustawiać
+`app-region` na dialogach, popoverach ani ich treści, nawet na `none`: Chromium 156
+dziedziczy tę właściwość, a animacja dużego poddrzewa przebudowuje mapę regionów co klatkę.
+
+Akcja `windowModal` oznacza ostatni otwarty modal przez `data-window-modal-top`.
+Paski pod nim nie mają deklaracji regionu; `no-drag` na zasłoniętym pasku odejmowałby
+obszar szuflady występującej wcześniej w DOM. Zamknięcie przez Escape, przycisk lub
+odmontowanie przywraca poprzedni modal. Obserwowany jest wyłącznie atrybut `open`
+samego dialogu. Otwarty popover lub toast zawiesza paski, bez regionów na nakładce.
+Baner braku gatewaya i toasty są odsunięte poniżej kontrolek okna.
+
+Typowany bridge `windowState()` / `onWindowState()` przenosi `{ zoomFactor, fullscreen }`
+przez `canopy:window-state`; odczyt wymaga tego samego sprawdzenia nadawcy i originu
+co pozostałe IPC. Main publikuje stan po załadowaniu dokumentu, zmianie zoomu gestem
+lub z menu, fokusie oraz wejściu/wyjściu z pełnego ekranu. Zoom pozostaje dostępny.
+Renderer ustawia `--window-zoom` i `data-window-fullscreen`; rezerwa pozioma
+`80px / zoom` oraz minimalna wysokość `48px / zoom` chronią stałe położenie natywnych
+kontrolek. Rezerwa znika w pełnym ekranie i dotyczy tylko lewej kolumny pod kontrolkami.
+Zdalny web rozpoznaje nowe metody bridge, więc starszy shell nadal może go otworzyć.
+
+Mapa regionów, geometria zoomu i ograniczenia weryfikacji:
+[raport macOS title bar](../artifacts/desktop/macos-title-bar/verification.md).
+
 Zmiany wspólnego kodu są addytywne:
 
 - `packages/ui/desktop`: opcjonalne typy bridge, bez zmian protokołu gatewaya.

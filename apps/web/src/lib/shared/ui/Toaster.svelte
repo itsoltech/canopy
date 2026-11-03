@@ -10,7 +10,7 @@
    */
 </script>
 
-<div class="pointer-events-none fixed inset-x-0 top-3 z-50 flex flex-col items-center gap-2 px-4" role="status" aria-live="polite">
+<div class="pointer-events-none fixed inset-x-0 top-3 z-50 flex flex-col items-center gap-2 px-4 macos:top-[calc(var(--window-titlebar-height)+0.75rem)]" role="status" aria-live="polite">
   {#each toasts as entry (entry.id)}
     <div
       class="t-toast pointer-events-auto flex items-center gap-2 rounded-full bg-zinc-950 py-1.5 pr-3.5 pl-2.5 text-sm/5 font-medium text-white shadow-lg data-closing:absolute dark:bg-zinc-800 dark:shadow-none dark:ring-1 dark:ring-white/10"

@@ -2,6 +2,7 @@
   import { goto } from "$app/navigation";
   import { tick } from "svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import { windowModal } from "#lib/shared/ui/window-modal.ts";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import KeyHint from "#lib/shared/ui/KeyHint.svelte";
   import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
@@ -197,6 +198,7 @@
 <svelte:window onkeydown={onWindowKeydown} />
 
 <dialog
+  use:windowModal
   bind:this={dialog}
   aria-label="Command palette"
   onclose={() => {

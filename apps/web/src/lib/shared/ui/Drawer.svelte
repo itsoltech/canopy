@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import IconButton from "./IconButton.svelte";
+  import { windowModal } from "./window-modal.ts";
 
   /** Side panel from the left on the native `<dialog>` (mobile navigation); slides in and out (motion.css `t-drawer`). */
   let { open = $bindable(false), label, children }: { open?: boolean; label: string; children: Snippet } = $props();
@@ -14,6 +15,7 @@
 </script>
 
 <dialog
+  use:windowModal
   bind:this={dialog}
   aria-label={label}
   onclose={() => (open = false)}

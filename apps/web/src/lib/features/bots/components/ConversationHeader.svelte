@@ -18,14 +18,14 @@
    * under the name (e.g. the model). What the bot is doing is not here: it shows under its last message.
    * The menu button opens the navigation on small screens; `actions` go on the right. `state` and `event`
    * drive the living mascots (what the bot is doing, a new message). As the page's top bar (`titlebar`) it is
-   * the macOS window's title strip while the sidebar is hidden (routes/layout.css).
+   * a macOS window title strip in every sidebar state (routes/layout.css).
    */
   let { conversation, subtitle, actions, state = "idle", event, titlebar = true, class: className }: { conversation: ConversationView; subtitle?: string | undefined; actions?: Snippet; state?: MascotState; event?: unknown; titlebar?: boolean; class?: ClassValue } = $props();
   const shell = useShell();
   const title = $derived(conversationTitle(conversation));
 </script>
 
-<header class={["flex h-14 shrink-0 items-center gap-2 px-2 sm:px-4", className]} data-window-titlebar={titlebar || undefined}>
+<header class={["flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4", className]} data-window-titlebar={titlebar || undefined}>
   <IconButton icon="bars-3" label="Open menu" class="lg:hidden" onclick={() => shell.openMenu()} />
   <SidebarToggle />
   <div class="flex min-w-0 flex-1 items-center gap-2.5 pl-1">
