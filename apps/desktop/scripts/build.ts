@@ -1,12 +1,14 @@
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, cpSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { noAgentClis } from "../../../scripts/agent-clis.ts";
+const { thinMachOFiles } = require("./macho.cjs") as { thinMachOFiles(directory: string, arch: string): void };
 
 const root = resolve(import.meta.dir, "../../..");
 const desktop = join(root, "apps/desktop");
 const target = process.env["CANOPY_TARGET"] ?? `${process.platform}-${process.arch}`;
 const supported = ["linux-x64", "linux-arm64", "darwin-arm64", "win32-x64"];
 if (!supported.includes(target)) throw new Error(`Unsupported desktop target: ${target}`);
-// Native packages (sharp, Claude SDK), electron-builder and dmg need a matching OS/arch runner.
+// Native sharp, electron-builder and dmg need a matching OS/arch runner.
 if (target !== `${process.platform}-${process.arch}`) throw new Error(`Build ${target} on a matching OS/architecture runner; cross-host native assets are not supported`);
 const suffix = process.platform === "win32" ? ".exe" : "";
 const runtime = join(desktop, "build/runtime");
@@ -20,7 +22,7 @@ await run([process.execPath, "scripts/prepare-identity.ts"], desktop);
 await run([process.execPath, "scripts/build-shell.ts"], desktop);
 await run([process.execPath, "run", "build"], join(root, "apps/web"));
 cpSync(join(root, "apps/web/build"), join(runtime, "web"), { recursive: true });
-// Compile adapter-node without embedding the client assets in $bunfs. Only this generated
+// Bundle adapter-node separately from its client assets. Only this generated
 // desktop copy gets a resource-directory override; the normal web build stays untouched.
 const adapterConfig = join(runtime, "web/adapter-node.js");
 const adapterSource = readFileSync(adapterConfig, "utf8");
@@ -39,35 +41,35 @@ const pgName = target.replace("win32", "windows");
 const pgPackage = resolve(dirname(realpathSync(require.resolve(`@embedded-postgres/${pgName}`))), "..");
 const pgVersion = (JSON.parse(readFileSync(join(pgPackage, "package.json"), "utf8")) as { version: string }).version;
 if (pgVersion !== "18.6.0-beta.19") throw new Error("Unexpected PostgreSQL binary version");
-cpSync(join(pgPackage, "native"), join(runtime, "postgres"), { recursive: true, dereference: false, verbatimSymlinks: true });
-const links = join(pgPackage, "native/pg-symlinks.json");
-if (existsSync(links)) {
-  for (const { source, target: link } of JSON.parse(readFileSync(links, "utf8")) as { source: string; target: string }[]) {
-    const destination = join(runtime, "postgres", relative("native", link));
-    if (!existsSync(destination)) symlinkSync(relative(dirname(destination), join(runtime, "postgres", relative("native", source))), destination);
-  }
+// All JS dependencies are bundled except this self-contained SDK. Copy the exact
+// installed files, without a second dependency resolution or workspace sources.
+writeFileSync(join(runtime, "package.json"), JSON.stringify({ private: true, type: "module" }));
+const sdk = dirname(realpathSync(require.resolve("@anthropic-ai/claude-agent-sdk")));
+const sdkDestination = join(runtime, "node_modules/@anthropic-ai/claude-agent-sdk");
+mkdirSync(sdkDestination, { recursive: true });
+for (const name of ["sdk.mjs", "package.json", "README.md", "LICENSE.md"]) copyFileSync(join(sdk, name), join(sdkDestination, name));
+const externalPackages = [`@img/sharp-${target}`, ...(process.platform === "win32" ? [] : [`@img/sharp-libvips-${target}`])];
+for (const name of externalPackages) {
+  const source = join(root, "node_modules", name);
+  cpSync(source, join(runtime, "node_modules", name), { recursive: true, dereference: false, verbatimSymlinks: true });
 }
-// Keep SDK assets and sharp's native modules as files next to the compiled sidecars.
-// These dependencies are pinned by the repository; workspace packages remain source-only copies.
-const manifests = ["apps/gateway", "apps/worker", "apps/web"].map((name) => JSON.parse(readFileSync(join(root, name, "package.json"), "utf8")) as { dependencies: Record<string, string> });
-const dependencies: Record<string, string> = {};
-for (const manifest of manifests) for (const [name, version] of Object.entries(manifest.dependencies)) if (!version.startsWith("workspace:")) dependencies[name] = version;
-writeFileSync(join(runtime, "package.json"), JSON.stringify({ private: true, type: "module", dependencies }, null, 2));
-await run([process.execPath, "install", "--production", "--ignore-scripts"], runtime);
-for (const name of ["contracts", "domain", "ui", "transport", "db", "grok-acp", "codex-protocol"]) {
-  const destination = join(runtime, "node_modules/@canopy", name);
-  mkdirSync(destination, { recursive: true });
-  cpSync(join(root, "packages", name, "src"), join(destination, "src"), { recursive: true, filter: (path) => !/\.(?:test|live\.test)\.ts$/.test(path) && !path.includes("/fixtures/") });
-  copyFileSync(join(root, "packages", name, "package.json"), join(destination, "package.json"));
-}
+// Only the local-mode database is downloaded. Agent CLIs are never bundled or
+// downloaded: users install claude/codex/grok on their own machine.
+const packageName = `@embedded-postgres/${pgName}`;
+const version = pgVersion;
+const lock = Bun.JSONC.parse(readFileSync(join(root, "bun.lock"), "utf8")) as { packages: Record<string, unknown[]> };
+const pinned = lock.packages[packageName];
+const integrity = pinned?.at(-1);
+if (pinned?.[0] !== `${packageName}@${version}` || typeof integrity !== "string" || !/^sha512-[A-Za-z0-9+/]{86}==$/.test(integrity)) throw new Error("PostgreSQL distribution is not pinned with SHA-512 in bun.lock");
+writeFileSync(join(runtime, "postgres.json"), JSON.stringify({ packageName, version, major: Number(version.split(".")[0]), target, integrity }, null, 2));
 for (const [name, entry] of Object.entries({ controller: "src/controller.ts", gateway: "src/sidecars/gateway.ts", worker: "src/sidecars/worker.ts", web: webEntry })) {
-  const output = join(runtime, `canopy-${name}${suffix}`);
   const build = await Bun.build({
     entrypoints: [resolve(desktop, entry)], target: "bun",
     // The one Canopy version (scripts/version.ts) in the sidecars; the web build reads the same variable.
     ...(process.env["CANOPY_VERSION"] && { define: { "process.env.CANOPY_VERSION": JSON.stringify(process.env["CANOPY_VERSION"]) } }),
-    compile: { target: `bun-${target.replace("win32", "windows")}` as Bun.Build.CompileTarget, outfile: output },
-    plugins: [{ name: "desktop-native-modules", setup(builder) {
+    outdir: runtime, naming: `canopy-${name}.js`,
+    minify: { syntax: true, whitespace: true }, sourcemap: "none",
+    plugins: [noAgentClis, { name: "desktop-native-modules", setup(builder) {
       builder.onLoad({ filter: /[/\\]sharp[/\\]dist[/\\]sharp\.[cm]js$/ }, ({ path }) => {
         const nativeDirectory = join(dirname(realpathSync(require.resolve(`@img/sharp-${target}/sharp.node`))), "lib");
         const bindingFile = readdirSync(nativeDirectory).find((name) => name.endsWith(".node"));
@@ -83,13 +85,18 @@ for (const [name, entry] of Object.entries({ controller: "src/controller.ts", ga
           const library = load(join(dirname(process.execPath), 'node_modules', ${JSON.stringify(path === "sharp" ? "sharp/dist/index.cjs" : "@anthropic-ai/claude-agent-sdk/sdk.mjs")}));
           ${path === "sharp" ? "export default library;" : "export const {query, forkSession, getSessionMessages, createSdkMcpServer} = library;"}`,
       }));
+      // Match standalone releases: ssh2 falls back to JS without these optional,
+      // host-built addons. Do not accidentally copy a build machine's .node file.
+      builder.onLoad({ filter: /[/\\]cpu-features[/\\]lib[/\\]index\.js$/ }, () => ({ loader: "js", contents: 'throw new Error("cpu-features is not bundled");' }));
+      builder.onResolve({ filter: /sshcrypto\.node$/ }, () => ({ path: "sshcrypto", namespace: "desktop-no-addon" }));
+      builder.onLoad({ filter: /.*/, namespace: "desktop-no-addon" }, () => ({ loader: "js", contents: 'throw new Error("sshcrypto is not bundled");' }));
     } }],
   });
   if (!build.success) throw new AggregateError(build.logs, `Sidecar compilation failed: ${name}`);
-  chmodSync(output, 0o755);
 }
 copyFileSync(join(desktop, "THIRD_PARTY_NOTICES.md"), join(runtime, "THIRD_PARTY_NOTICES.md"));
 cpSync(join(desktop, "licenses"), join(runtime, "licenses"), { recursive: true });
-copyFileSync(join(pgPackage, "LICENSE.md"), join(runtime, "postgres/DISTRIBUTION-LICENSE.md"));
+copyFileSync(join(pgPackage, "LICENSE.md"), join(runtime, "licenses/postgres-distribution-LICENSE.md"));
+if (process.platform === "darwin") thinMachOFiles(runtime, process.arch);
 writeFileSync(join(runtime, "target.json"), JSON.stringify({ target, bun: Bun.version, postgres: pgVersion }));
 console.info(`Canopy desktop runtime ready: ${target}`);

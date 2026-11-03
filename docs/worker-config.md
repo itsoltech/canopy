@@ -1,5 +1,19 @@
 # Konfiguracja workerów
 
+CLI **Claude Code (`claude`), Codex (`codex`) i Grok (`grok`)** muszą być już
+zainstalowane na komputerze workera. Dotyczy to desktopu, samodzielnych binarek
+i Dockera. Canopy ich nie zawiera, nie pobiera i nie aktualizuje. Użytkownik
+zapewnia wersję, login oraz PATH usługi albo ścieżkę pliku wykonywalnego instancji.
+W Dockerze CLI trzeba zamontować lub dodać do własnego obrazu; instalacja CLI
+na hoście nie udostępnia go automatycznie w kontenerze.
+
+Claude Agent SDK jest biblioteką JS. Każde uruchomienie przekazuje jawne
+`pathToClaudeCodeExecutable`; fallback do opcjonalnego binarnego pakietu SDK jest
+wykluczony. Brak instalacji pokazuje „Claude Code is not installed on this computer”
+w istniejącym statusie providera i instancji. Instancja z własną ścieżką działa
+także bez domyślnego `claude` na PATH. Brak CLI nie blokuje połączenia workera
+z gatewayem; po instalacji użyj odświeżenia providerów.
+
 Grok używa `WorkerConfig.grok` (pole 640), `PROVIDER_GROK` i tych samych globalnych instancji native/CLIProxyAPI co Claude/Codex. Nowy `worker add` włącza również Groka; istniejące workery wymagają `grok.enabled: true` w konfiguracji zdalnej. Login native jest czytany z domu CLI; endpointy dostają prywatny home procesu i klucz w env. Szczegóły oraz instrukcja uruchomienia: [grok-adapter.md](grok-adapter.md#włączenie-na-stosie-użytkownika).
 
 Boty używają globalnej instancji endpointowej z gateway, bez nadpisań workera,

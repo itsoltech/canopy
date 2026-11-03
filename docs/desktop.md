@@ -16,8 +16,10 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    nie czyta `ORIGIN`, a bez nagłówka proxy przyjmuje `https`, więc build desktopu podmienia
    w `adapter-node.js` stały origin na `CANOPY_WEB_ORIGIN` (dokładnie `http://127.0.0.1:<port>`
    okna). Kontrola CSRF formularzy SvelteKit zostaje bez zmian.
-2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pakowanych razem
-   z aplikacją. Nie wymaga instalacji ani działającego serwera PostgreSQL na komputerze.
+2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pobieranych tylko
+   po wybraniu trybu lokalnego. Aplikacja nie zawiera PostgreSQL. Pierwszy lokalny start
+   wymaga internetu; gotowy cache działa offline. Nie wymaga ręcznej instalacji ani
+   działającego serwera PostgreSQL na komputerze.
    Decyzja użytkownika wyklucza PGlite i SQLite: ten sam silnik co na serwerze zachowuje
    transakcje, blokady, LISTEN/NOTIFY, typy i istniejące migracje bez zmian. Nie dodajemy
    drugiego drivera Effect SQL ani wariantów zapytań. Aktualny checkout zawiera już
@@ -52,6 +54,13 @@ nie trafia do `desktop.json`; reconnect używa istniejącego `worker.json`.
 Każdy zdalny origin gatewaya ma własny katalog tożsamości workera. Niedostępny
 gateway powoduje ponawianie połączenia przez workera. Niedostępny web przy starcie
 otwiera lokalny ekran ustawień. Zmiana trybu zatrzymuje lokalnie wykonywane zadania.
+
+CLI agentów są wymaganiami komputera: **Claude Code (`claude`), Codex (`codex`),
+Grok (`grok`)** instaluje i aktualizuje użytkownik. Desktop ani żadna dystrybucja
+workera nie zawiera ani nie pobiera CLI. Claude Agent SDK pozostaje biblioteką JS;
+każde wywołanie otrzymuje `pathToClaudeCodeExecutable` z PATH lub konfiguracji instancji.
+Brak Claude daje status „Claude Code is not installed on this computer” w istniejącym
+sondowaniu providerów. Własne pliki wykonywalne, loginy i profile native są zachowane.
 
 Preload udostępnia status, konfigurację trybu w zaufanym lokalnym ekranie,
 otwarcie ustawień oraz typowane operacje i subskrypcję aktualizacji aplikacji.
@@ -163,6 +172,8 @@ desktop.json                # tryb/adresy; bez tokenu enrollment
 app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
 app-shortcuts.json          # quitShortcut; zapis atomowy w main, bez gatewaya
 postgres/data/              # pełny klaster PostgreSQL
+postgres/versions/<pin>/    # zweryfikowany runtime; installed.json oznacza pełną instalację
+postgres/versions/*.download/ # częściowe pobranie do wznowienia; nigdy nie służy do startu
 local-worker/worker.json    # credential; 0600 na POSIX
 remote-workers/<hash>/      # osobna tożsamość dla każdego gatewaya
 logs/                       # redakcja sekretów; 5 MiB + 3 rotacje na usługę
@@ -180,7 +191,8 @@ wersji PostgreSQL potrzebny jest eksport i jawna procedura migracji.
 ## Build i uruchomienie
 
 Wymagania środowiska budującego: Bun **1.4.4**, Node **24 lub nowszy**, natywny host
-zgodny z docelowym OS/arch. Aplikacja użytkownika zawiera własny Bun i PostgreSQL.
+zgodny z docelowym OS/arch. Aplikacja zawiera jeden Bun; PostgreSQL pobiera osobno
+dla trybu lokalnego. CLI agentów trzeba zainstalować samodzielnie.
 Linux potrzebuje zwykłych bibliotek Electron i odblokowanego Secret Service/KWallet;
 nie stosujemy fallbacku plaintext ani `--no-sandbox`.
 Narzędzie fpm do deb potrzebuje `libcrypt.so.1` (na Arch: `libxcrypt-compat`).
@@ -204,7 +216,7 @@ bun run --cwd apps/desktop package:windows
 ```
 
 `CANOPY_TARGET` opcjonalnie deklaruje cel i musi zgadzać się z hostem. Build odrzuca
-cross-host, zamiast dołączyć niezgodne biblioteki sharp/SDK/Postgres. Do ponownego
+cross-host, zamiast dołączyć niezgodne biblioteki sharp lub pin PostgreSQL. Do ponownego
 pakowania już zbudowanego runtime: `bun run --cwd apps/desktop scripts/package.ts`.
 `CANOPY_CHANNEL=stable|beta|nightly` określa kanał buildu i domyślny wybór aktualizacji (domyślnie stable).
 Przykład: `CANOPY_CHANNEL=beta CANOPY_VERSION=0.2.0-beta.1 bun run --cwd apps/desktop package:mac`.
@@ -228,18 +240,18 @@ Runner nie potrzebuje sekretów gatewaya ani kluczy providerów. Publikowanie
 wyłączono (`--publish never`). Metadata `homepage` używa identyfikatora `canopy://desktop`;
 repozytorium nie deklaruje publicznej strony produktu.
 
-Układ zasobów jest taki sam dla każdego celu (`.exe` wyłącznie na Windows):
+Układ zasobów jest taki sam dla każdego celu (`.exe` wyłącznie przy Bun na Windows):
 
 ```text
 resources/runtime/
-  canopy-controller[.exe]
-  canopy-gateway[.exe]
-  canopy-worker[.exe]
-  canopy-web[.exe]
+  canopy-controller.js
+  canopy-gateway.js
+  canopy-worker.js
+  canopy-web.js
   bun[.exe]
-  postgres/{bin,lib,share}/
+  postgres.json             # dokładna wersja, major, platforma i SHA-512 z bun.lock
   web/                      # assets identycznego adapter-node build
-  node_modules/             # natywne moduły i assets SDK
+  node_modules/             # sdk.mjs Claude Agent SDK oraz natywne @img sharp/libvips
   licenses/
   THIRD_PARTY_NOTICES.md
   target.json
@@ -250,6 +262,78 @@ resources/runtime/
 przypięte w `bun.lock`; podczas build wersja jest dodatkowo sprawdzana. Licencje
 PostgreSQL, MIT opakowania, Apache-2.0 dystrybucji oraz odnośniki do bibliotek
 zależnych zapisano w `apps/desktop/THIRD_PARTY_NOTICES.md` i dołączono do paczki.
+
+Shell main/preload wraz z electron-updater jest zbundlowany do `dist/*.cjs`.
+Zależności desktopu są `devDependencies`, więc asar zawiera wyłącznie `dist` i
+`package.json`. Gateway, worker, web i kontroler są minifikowanymi bundlami JS
+uruchamianymi jako `bun <entry>.js`; zachowują stdin i grupy procesów.
+`CANOPY_INSTALL_KIND=desktop` nadal wyłącza samodzielną podmianę workera/gatewaya.
+Nie wykonujemy drugiego `bun install --production` z zależnościami całego monorepo.
+
+### PostgreSQL pobierany dla trybu lokalnego
+
+Build zapisuje pin z `bun.lock`; runtime pobiera wyłącznie tę wersję tarballa z npm,
+bez rozwiązywania `latest` i ponownego zaufania do metadanych rejestru. SHA-512
+jest sprawdzane przed rozpakowaniem. Ponowienie częściowego pobrania używa HTTP Range;
+serwer bez Range powoduje bezpieczne pobranie od początku. Zły hash usuwa pobranie.
+Rozpakowanie odbywa się w katalogu tymczasowym, a rename publikuje cały runtime
+wraz z `installed.json`. Niepełny runtime nigdy nie służy do `initdb` ani startu.
+Zamykanie aplikacji przerywa pobieranie, zachowując plik do wznowienia.
+
+Ekran konfiguracji pokazuje procent pobrania, weryfikację i przygotowanie, a przy
+błędzie „Try again”. Także przy przywracaniu zapisanej konfiguracji najpierw otwiera
+się ekran lokalny. Tryb remote nie czyta nawet manifestu PG i nic nie pobiera.
+Po poprawnym starcie nowej wersji i zatrzymaniu ewentualnego osieroconego postmastera
+usuwane są poprzednie, nieużywane katalogi wersji. Katalog danych pozostaje osobno.
+Inny major w `PG_VERSION` blokuje start **przed pobraniem i sprzątaniem cache**;
+dane i stare binaria zostają. Canopy nie wykonuje `pg_upgrade` ani nie usuwa klastra.
+Bez jawnej migracji i backupu użyj poprzedniej wersji aplikacji.
+
+Przy przygotowaniu odtwarzamy symlinki z `pg-symlinks.json`, zastępując także
+zduplikowane zwykłe pliki. Usuwamy wyłącznie nagłówki i statyczne archiwa `.a`;
+SQL, rozszerzenia, locale, biblioteki dynamiczne i licencje zostają. Na macOS
+wybieramy slice arm64 plików universal bez wymagania Xcode/lipo u użytkownika,
+podpisujemy Mach-O ad-hoc i sprawdzamy `codesign --verify --strict`. Przed atomowym
+opublikowaniem wszystkie trzy narzędzia PG muszą wykonać `--version`.
+
+Adres rejestru można nadpisać tylko testowym argumentem albo
+`NODE_ENV=test CANOPY_TEST_POSTGRES_REGISTRY=http://127.0.0.1:<port>/` w procesie
+testowego kontrolera. Produkcyjne środowisko i konfiguracja UI nie mają takiego pola.
+
+### Rozmiary i blokady regresji
+
+Linux x64, Bun 1.4.4, pomiar `du -sk` rozpakowanej aplikacji, MiB (2026-11-03;
+składniki zaokrąglone):
+
+| Składnik | Przed | Po |
+| --- | ---: | ---: |
+| Electron i pozostały shell | 274 | 274 |
+| app.asar | 49,9 | 0,6 |
+| app.asar.unpacked | 57,8 | 0 |
+| Bun + cztery usługi | 525,1 | 107,2 |
+| runtime/node_modules | 485,5 | 19,6 |
+| PostgreSQL w aplikacji | 59,8 | 0 |
+| web, licencje, pozostałe | około 16 | około 16 |
+| **Cała aplikacja** | **1468,2** | **417,5** |
+
+Gotowy AppImage zmniejszył się z **586,4 MiB** (614 880 223 bajty) do
+**184,0 MiB** (192 904 303 bajty). Oba pomiary pochodzą z lokalnego pakowania
+Linux x64. Cel deb nie został ukończony: host nie ma `libcrypt.so.1` wymaganej przez fpm.
+
+Pomiary etapów: sam bundling shellu **1361,1 MiB**; minimalne zależności runtime
+i oczyszczony PG **1206,4 MiB**; jeden Bun **788,5 MiB**; bez CLI i PostgreSQL
+**417,5 MiB**. Guard używa długości plików (bez narzutu bloków filesystemu):
+aktualnie **414,2 MiB**; limity Linux 550 MiB, macOS arm64 600 MiB, Windows x64
+650 MiB. `package-sizes-<target>.json` powstaje w release i jest artefaktem CI.
+Guard odrzuca też app node_modules, asar.unpacked, dołączoną bazę/CLI, nieoczekiwane
+zależności runtime, kopie Bun, identyczne pliki ≥8 MiB i nie-arm64 Mach-O na macOS.
+Wspólny plugin kompilatora blokuje import pakietów CLI także w binarkach i Dockerze.
+
+macOS nie został zbudowany tutaj: z pomiaru użytkownika **1,8 GiB** szacujemy
+**około 380–450 MiB** aplikacji po zmianie (Framework Electron zostaje). PG i CLI
+w pakiecie mają 0 MiB; Bun około 85–90 MiB, JS około 5 MiB, natywne zależności/SDK
+około 20 MiB, web około 16 MiB. Osobny cache PG po deduplikacji/thinning szacujemy
+na **70–110 MiB**, do pomiaru na Macu. To nie jest pomiar artefaktu macOS.
 
 ## Jedna instalacja i kanały
 
@@ -289,9 +373,19 @@ Hardened runtime jest włączony. `resources/entitlements.mac.plist` i
 unsigned executable memory i ładowania bibliotek natywnych. Nie włączają debugowania
 ani sandboxu App Store. `afterPack` wykrywa po nagłówku wszystkie Mach-O w
 `Contents/Resources/runtime` i przekazuje je do `mac.binaries` przed podpisaniem:
-Bun, skompilowane sidecary, PostgreSQL (także narzędzia pomocnicze i dylib), moduły `.node`
-oraz binaria SDK. Symlinki wskazują na podpisane pliki; rozszerzenie i bit executable
+Bun oraz natywne moduły sharp/libvips. Usługi JS, PG i CLI nie dodają kolejnych
+kopii runtime do aplikacji. Symlinki wskazują na podpisane pliki; rozszerzenie i bit executable
 nie decydują o wykryciu. Nic nie jest zmieniane po podpisaniu.
+
+Pobrany PostgreSQL jest osobnym procesem potomnym, nie biblioteką ładowaną przez
+hardened Bun. Jego podpis ad-hoc nie wymaga dziedziczenia Developer ID ani uprawnień
+JIT aplikacji. Fetch Bun i rozpakowanie nie dodają quarantine; Canopy nie usuwa
+quarantine, nie wyłącza Gatekeepera i nie zmienia polityki systemu. Jeśli system
+zablokuje wykonanie, instalacja zgłasza błąd i nie publikuje runtime.
+[Apple opisuje](https://support.apple.com/guide/security/gatekeeper-and-runtime-protection-sec5599b66df/web)
+także śledzenie pochodzenia plików zapisanych przez pobrane aplikacje. Dlatego Linux
+ani sam terminal CI nie potwierdzają zachowania app z quarantine: konieczny jest
+test na czystym Macu z [release.md](release.md#pierwszy-przebieg-ci-na-macos).
 
 Z `MAC_CSC_LINK` workflow wymaga poprawnego Developer ID Application; brak certyfikatu
 lub błąd signing zatrzymuje job. Pełny zestaw API key ma pierwszeństwo przed Apple ID.
@@ -461,6 +555,17 @@ danych i nie daje gwarancji uruchomienia. Wcześniej wykonaj backup.
 
 ## Weryfikacja
 
+Odchudzenie paczki i pobieranie PostgreSQL (Linux x64, 2026-11-03):
+`bun install`, `gen:check`, typecheck, produkcyjny build web i pakowanie AppImage
+przeszły. Pełny `check:tmp`: **687 pass, 146 skip, 0 fail**; testy desktopu/guardów:
+**15 pass**, testy konfiguracji i generowania tekstu workera: **13 pass**.
+Po poprawieniu katalogu raportu w fixture ponownie przeszedł izolowany
+`check:tmp apps/desktop/test/packaging.test.ts` (**6 pass**, bez pozostałości).
+Ekran pobierania i błędu sprawdzono w prawdziwej przeglądarce: jasny/ciemny motyw,
+szerokość desktop/telefon i reduced motion. Spakowany main uruchomiono z aktywnym
+sandboxem i magazynem kluczy OS. Mac, Windows i rzeczywiste tury providerów
+w nowej paczce wymagają osobnej weryfikacji.
+
 Szybkie zamykanie mierzą testy `apps/desktop/test/shutdown.integration.test.ts` i
 `tests/integration/worker-shutdown.test.ts`; fizyczne puszczenie ⌘Q w trybie Hold wymaga macOS.
 
@@ -493,11 +598,17 @@ bun run gen:check
 bun run check:tmp
 ```
 
-Integracja używa skompilowanych sidecarów i dołączonych binariów PostgreSQL, temp
-data dirów oraz losowych portów. Obejmuje lokalny enrollment i online przez gRPC,
+Integracja kopiuje finalny runtime poza repozytorium, używa jednego Bun i bundli JS,
+lokalnego rejestru HTTP z prawdziwym pakietem PG z node_modules, temp data dirów
+i losowych portów. PG jest pobierany i weryfikowany jak u użytkownika.
+Obejmuje lokalny enrollment i online przez gRPC,
 zdalny enrollment do testowego gatewaya, trwałość projektu/tożsamości po restarcie,
 SIGKILL serwera i WAL recovery, redakcję sekretów, brak pozostałych grup procesów
 oraz zamknięcie kontrolera po utracie stdin rodzica. Nie dodano testów UI.
+Osobne integracje obejmują zły SHA-512, wznowienie HTTP, anulowanie, cache offline
+i blokadę zmiany major. Test remote potwierdza brak pobrania i katalogu PG.
+Release CI uruchamia integracje na spakowanym runtime Linux/macOS; Windows czeka
+na osobne potwierdzenie na natywnym runnerze.
 Przed integracją wykonaj desktop build; przy braku sidecarów testy są pomijane,
 aby zwykły checkout monorepo nie wymagał instalowania toolchainu Electron do testów backendu.
 

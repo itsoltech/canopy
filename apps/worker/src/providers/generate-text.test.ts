@@ -9,6 +9,10 @@ import { codexAppServerLaunch } from "./codex/launch.ts";
 import { resolveProfiles } from "./profiles.ts";
 
 const dir = tempDir("canopy-text-config-");
+test("Claude refuses a missing installed CLI instead of using the SDK's optional bundled binary", async () => {
+  await expect(generateClaudeText({ model: "", effort: "", prompt: "unused" }, { cwd: dir, env: { PATH: "" } }, new AbortController().signal))
+    .rejects.toThrow("Claude Code is not installed on this computer");
+});
 test.skipIf(!Bun.which("codex"))("the pinned Codex accepts the isolated no-tools generation configuration", () => {
   const catalog = join(dir, "models.json");
   writeFileSync(catalog, JSON.stringify(codexTextCatalog("gpt-6.1-sol", "low")));

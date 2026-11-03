@@ -1,6 +1,9 @@
 # Canopy Desktop — third-party notices
 
-The packaged application includes the following runtimes and database distribution.
+The packaged application includes Electron, one Bun runtime, bundled JavaScript
+and sharp's native libraries. PostgreSQL is downloaded only for local mode using
+the build-pinned distribution and SHA-512. Agent CLIs (Claude Code, Codex, Grok)
+are prerequisites supplied by the user; Canopy never bundles or downloads them.
 License files in `resources/runtime/licenses`, the binary distribution's MIT
 license, Electron's `LICENSE` / `LICENSES.chromium.html`, and installed npm package
 notices are retained. Upstream source and license references below cover the
@@ -17,8 +20,8 @@ relocatable database distribution and its bundled libraries.
 | sharp / libvips | 0.35.5 | Apache-2.0 / LGPL-2.1-or-later and included library notices |
 | Claude Agent SDK | 0.3.316 | Anthropic's license/terms in the npm package; not relicensed by Canopy |
 
-Binary packages are pinned separately for linux-x64, linux-arm64, darwin-x64,
-darwin-arm64 and windows-x64. No Windows arm64 distribution is built.
+PostgreSQL distribution pins are recorded separately for linux-x64, linux-arm64,
+darwin-arm64 and windows-x64. No Intel macOS or Windows arm64 app is built.
 
 For redistribution, retain all upstream license files. macOS and Windows installers
 must be signed under the distributor's own identity. No credentials are bundled.

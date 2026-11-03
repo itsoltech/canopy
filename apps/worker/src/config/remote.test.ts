@@ -65,7 +65,7 @@ describe("applyWorkerConfig", () => {
       { ...probe, which: (c) => (c === "codex" ? "/usr/bin/codex" : null) },
     );
     if (!result.applied) throw new Error("expected applied");
-    expect(result.config.claude).toEqual({ enabled: false, linkDeviceLogin: true, problem: "claude CLI not found" });
+    expect(result.config.claude).toEqual({ enabled: false, linkDeviceLogin: true, problem: "Claude Code is not installed on this computer" });
     expect(result.config.codex.enabled).toBe(false);
     expect(result.config.codex.problem).toBe("codex 0.164.0 found, 0.170.0 required");
   });
@@ -75,6 +75,17 @@ describe("applyWorkerConfig", () => {
     const off = applyWorkerConfig(config({ codex: { enabled: true, deviceLogin: DeviceLogin.NONE } }), probe);
     expect(linked.applied && linked.config.codex.linkDeviceLogin).toBe(true);
     expect(off.applied && off.config.codex.linkDeviceLogin).toBe(false);
+  });
+
+  test("a configured Claude instance works without a default CLI while other instances report it missing", () => {
+    const result = applyWorkerConfig(config({ profiles: [{ id: "custom", kind: ProviderProfileKind.CLIPROXYAPI, providers: [Provider.CLAUDE], baseUrl: "http://127.0.0.1:8317", apiKey: "test", executablePath: "/opt/custom/claude" }] }), {
+      ...probe, which: () => null, version: (path) => path === "/opt/custom/claude" ? "2.3.1 (Claude Code)" : undefined,
+    });
+    if (!result.applied) throw new Error("expected applied");
+    expect(result.config.claude.enabled).toBe(true);
+    expect(result.config.claude.executable).toBeUndefined();
+    expect(result.config.profiles.find((status) => status.config.id === "custom")?.resolved?.runtime?.executablePath).toBe("/opt/custom/claude");
+    expect(result.config.profiles.find((status) => status.config.id === "native" && status.config.providers?.includes("claude"))?.problem).toBe("Claude Code is not installed on this computer");
   });
 
   test("invalid profiles are fatal: the worker keeps its previous configuration", () => {

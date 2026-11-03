@@ -10,11 +10,12 @@ import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
 import { enrollWorker } from "../../../worker/src/enroll.ts";
 import { configuration, freePort, initialStatus, serviceEnvironment } from "./config.ts";
 import { startDatabase } from "./database.ts";
+import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from "./postgres-install.ts";
 import { Logs } from "./log.ts";
 import { Supervisor, until } from "./process.ts";
 
 export interface Secrets { databasePassword: string; secretsKey: string; serviceToken: string }
-export interface RuntimePaths { bun: string; gateway: string; worker: string; web: string; postgres: string; compiled?: boolean }
+export interface RuntimePaths { bun: string; gateway: string; worker: string; web: string; postgres: string }
 export class DesktopRuntime {
   readonly logs: Logs;
   private services: Supervisor;
@@ -30,8 +31,9 @@ export class DesktopRuntime {
   private healthFailures = new Map<string, number>();
   private state = initialStatus();
   private setupOrigin = "";
-  private command(entry: string) { return this.paths.compiled ? { command: entry, args: [] as string[] } : { command: this.paths.bun, args: [entry] }; }
-  constructor(readonly directory: string, readonly paths: RuntimePaths, private readonly secrets: Secrets, private readonly changed: (status: DesktopStatus) => void = () => {}) {
+  private installing: AbortController | undefined;
+  private command(entry: string) { return { command: this.paths.bun, args: [entry] }; }
+  constructor(readonly directory: string, readonly paths: RuntimePaths, private readonly secrets: Secrets, private readonly changed: (status: DesktopStatus) => void = () => {}, private readonly testing?: PostgresTestOptions) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.logs = new Logs(join(directory, "logs"));
     this.logs.protect(...Object.values(secrets));
@@ -72,12 +74,15 @@ export class DesktopRuntime {
     await this.startWeb("http://127.0.0.1:1");
     this.statusTimer = setInterval(() => this.readWorkerStatus(), 1000);
     this.healthTimer = setInterval(() => void this.checkHealth(), 5000);
+    if (restore) await this.restore();
+    return this.setupOrigin;
+  }
+  async restore() {
     const saved = join(this.directory, "desktop.json");
-    if (restore && existsSync(saved)) {
+    if (existsSync(saved)) {
       try { await this.configure(configuration(JSON.parse(readFileSync(saved, "utf8")))); }
       catch (error) { this.publish({ phase: "error", error: error instanceof Error ? error.message : "Desktop startup failed" }); }
     }
-    return this.setupOrigin;
   }
   private readWorkerStatus() {
     if (!this.workerStatusFile || !this.services.alive("worker")) return;
@@ -114,7 +119,10 @@ export class DesktopRuntime {
     this.generation++;
     this.configured = false;
     this.healthFailures.clear();
-    this.publish({ phase: "starting", worker: "offline", error: undefined });
+    this.cancelStartup();
+    const installing = new AbortController();
+    this.installing = installing;
+    this.publish({ mode: config.mode, phase: "starting", worker: "offline", error: undefined, database: undefined });
     await this.services.stop();
     this.services = this.makeSupervisor();
     try {
@@ -123,7 +131,10 @@ export class DesktopRuntime {
       let workerDirectory: string;
       let token: string | undefined;
       if (config.mode === "local") {
-        const databaseUrl = await startDatabase({ directory: join(this.directory, "postgres"), binaries: this.paths.postgres, password: this.secrets.databasePassword, supervisor: this.services, env: this.env });
+        const installer = new PostgresInstaller(this.paths.postgres, join(this.directory, "postgres"), (database) => this.publish({ database }), this.testing ?? postgresTestOptions());
+        const binaries = await installer.ensure(installing.signal);
+        const databaseUrl = await startDatabase({ directory: join(this.directory, "postgres"), binaries, password: this.secrets.databasePassword, supervisor: this.services, env: this.env });
+        installer.cleanup();
         const gatewayPort = await freePort();
         const workerPort = config.allowNetwork ? await freePort(config.bindHost) : undefined;
         gatewayUrl = `http://127.0.0.1:${gatewayPort}`;
@@ -173,7 +184,7 @@ export class DesktopRuntime {
       this.logs.write("desktop", message);
       this.publish({ phase: "error", worker: "offline", error: message });
       throw new Error(message);
-    }
+    } finally { if (this.installing === installing) this.installing = undefined; }
   }
   client(gatewayUrl = this.state.gatewayUrl!) {
     return createClient(ui.GatewayService, createGrpcTransport({ baseUrl: gatewayUrl, connectTimeoutMs: 1000, defaultTimeoutMs: 3000, interceptors: [(next) => (request) => { request.header.set("authorization", `Bearer ${this.secrets.serviceToken}`); return next(request); }] }));
@@ -184,7 +195,9 @@ export class DesktopRuntime {
     renameSync(temporary, path);
   }
   killOwned() { this.services.killOwned(); this.web.killOwned(); }
+  cancelStartup() { this.installing?.abort(); }
   async stop() {
+    this.cancelStartup();
     this.generation++;
     this.configured = false;
     this.publish({ phase: "stopping" });

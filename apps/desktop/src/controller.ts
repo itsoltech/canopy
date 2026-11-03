@@ -11,6 +11,7 @@ async function stop() {
   ending = true;
   // Bound cleanup even when a startup/enrollment operation has not settled yet.
   const deadline = setTimeout(() => { runtime?.killOwned(); process.exit(1); }, 30_000);
+  runtime?.cancelStartup();
   await queue.catch(() => {});
   await runtime?.stop();
   clearTimeout(deadline);
@@ -30,8 +31,11 @@ lines.on("line", (line) => {
       if (ending) throw new Error("Desktop is stopping");
       if (request.action === "initialize" && !runtime) {
         runtime = new DesktopRuntime(request.directory, request.paths, request.secrets, (status) => send({ event: "status", status }));
-        const origin = await runtime.initialize();
+        const origin = await runtime.initialize(false);
         send({ id, result: { origin, status: runtime.status } });
+      } else if (request.action === "restore" && runtime) {
+        await runtime.restore();
+        send({ id, result: { status: runtime.status } });
       } else if (request.action === "configure" && runtime) {
         await runtime.configure(request.configuration);
         send({ id, result: { pids: runtime.pids } });

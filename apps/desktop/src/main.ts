@@ -7,6 +7,7 @@ import type { DesktopStatus } from "@canopy/ui/desktop";
 import { configuration, initialStatus, origin, serviceEnvironment } from "./runtime/config.ts";
 import { loadSecrets } from "./vault.ts";
 import { Logs } from "./runtime/log.ts";
+import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
 import { desktopIdentity } from "./identity.ts";
 import { DesktopUpdates } from "./updates.ts";
 import { QuitGuard } from "./quit-guard.ts";
@@ -63,7 +64,7 @@ function rpc(action: string, args: Record<string, unknown> = {}) {
   return new Promise<unknown>((resolveRequest, reject) => {
     if (!controller?.stdin.writable) { reject(new Error("Desktop services are unavailable; restart Canopy")); return; }
     const id = ++sequence;
-    const timer = setTimeout(() => { requests.delete(id); reject(new Error("Desktop operation timed out; see logs")); }, 180_000);
+    const timer = setTimeout(() => { requests.delete(id); reject(new Error("Desktop operation timed out; see logs")); }, 20 * 60_000);
     requests.set(id, { resolve: resolveRequest, reject, timer });
     controller.stdin.write(JSON.stringify({ id, action, ...args }) + "\n");
   });
@@ -199,9 +200,8 @@ async function start() {
   const secrets = await loadSecrets(app.getPath("userData"));
   logs.protect(...Object.values(secrets));
   const runtime = join(resources, "runtime");
-  const suffix = process.platform === "win32" ? ".exe" : "";
-  const bun = join(runtime, `bun${suffix}`);
-  controller = spawn(join(runtime, `canopy-controller${suffix}`), [], { stdio: "pipe", env: serviceEnvironment(), cwd: runtime, windowsHide: true });
+  const paths = runtimePaths(runtime);
+  controller = spawn(paths.bun, [controllerEntry(runtime)], { stdio: "pipe", env: serviceEnvironment(), cwd: runtime, windowsHide: true });
   controller.stderr.on("data", logs.stream("controller"));
   createInterface({ input: controller.stdout }).on("line", (line) => {
     try {
@@ -222,7 +222,7 @@ async function start() {
     requests.clear();
     if (!quitting) { status = { ...status, phase: "error", worker: "offline", error: "Desktop services stopped. Restart Canopy." }; broadcast(); }
   });
-  const initialized = await rpc("initialize", { directory: app.getPath("userData"), secrets, paths: { bun, gateway: join(runtime, `canopy-gateway${suffix}`), worker: join(runtime, `canopy-worker${suffix}`), web: join(runtime, `canopy-web${suffix}`), postgres: join(runtime, "postgres"), compiled: true } }) as { origin: string; status: DesktopStatus };
+  const initialized = await rpc("initialize", { directory: app.getPath("userData"), secrets, paths }) as { origin: string; status: DesktopStatus };
   setupOrigin = initialized.origin;
   status = initialized.status;
   ipcMain.handle("canopy:status", (event) => { authorize(event); return status; });
@@ -295,6 +295,16 @@ async function start() {
   void updates.start();
   broadcast();
   await window.loadURL(initialUrl);
+  // Show setup before restoring: an updated app may need a new database runtime.
+  // Its download status must be visible while the controller prepares local mode.
+  busy = true;
+  try {
+    await rpc("restore");
+    if (status.phase === "running" && status.webUrl) {
+      try { await preparePolicy(status.webUrl); await window.loadURL(status.webUrl); }
+      catch { logs.write("desktop", "Web application unavailable; keeping desktop settings open"); }
+    }
+  } finally { busy = false; }
   const link = pendingLink ?? process.argv.find((arg) => arg.startsWith(`${identity.scheme}://`));
   if (link) { pendingLink = undefined; enrollment(link); }
 }

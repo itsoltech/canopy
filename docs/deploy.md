@@ -4,6 +4,19 @@ Canopy to PostgreSQL + gateway + web (BFF i SPA) oraz workery na maszynach, któ
 agentów. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
+Każdy komputer wykonujący zadania agentów musi mieć osobno zainstalowane
+**Claude Code (`claude`), Codex (`codex`) lub Grok (`grok`)** dla używanego providera.
+Desktop, binarki workera i obrazy Docker nie zawierają ani nie pobierają tych CLI.
+Zapewnij PATH procesu usługi albo własną ścieżkę w konfiguracji instancji, oraz
+login/klucz właściwego konta. Claude SDK zawsze dostaje jawny plik wykonywalny;
+brak instalacji raportuje jako „Claude Code is not installed on this computer”.
+W kontenerze CLI musi być dostępne wewnątrz kontenera, nie tylko na hoście.
+
+Desktop w trybie lokalnym pobiera PostgreSQL o wersji i SHA-512 przypiętych podczas
+budowania; po instalacji działa z cache offline. Tryb remote nic nie pobiera.
+Nie dotyczy to wdrożenia serwerowego: Compose nadal uruchamia osobny PostgreSQL.
+Szczegóły cache i blokady zmiany major: [desktop.md](desktop.md#postgresql-pobierany-dla-trybu-lokalnego).
+
 ## Wybór kanału
 
 | Kanał | Obraz | Binaria | Dla kogo |

@@ -163,14 +163,23 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
   // What the device says (CLI, version, login) is reported with each instance, not as a configuration issue.
   // An instance is one harness (provider, id): a profile serving both (a local or older configuration) is checked,
   // and may be unavailable, per harness, so Claude turned off does not take its Codex side down with it.
-  profiles = profiles.flatMap(perHarness).map((status) => inspectProfile(status, { claude, codex, grok }, probe, homes));
+  const runtimes = { claude, codex, grok };
+  profiles = profiles.flatMap(perHarness).map((status) => inspectProfile(status, runtimes, probe, homes, config));
+  // A configured instance executable also works on a machine with no default CLI
+  // on PATH. Instances without their own executable keep the missing-CLI status.
+  for (const name of ["claude", "codex", "grok"] as const) {
+    if (!runtimes[name].enabled && profiles.some((status) => status.resolved && providersOf(status.config).includes(name))) {
+      const { problem: _, ...available } = runtimes[name];
+      runtimes[name] = { ...available, enabled: true };
+    }
+  }
 
   const limits = config.limits;
   const report = {
     version: config.version,
     issues,
     profiles: profiles.map(toProfileReport),
-    providers: [providerInfo(Provider.CLAUDE, claude), providerInfo(Provider.CODEX, codex), providerInfo(Provider.GROK, grok)],
+    providers: [providerInfo(Provider.CLAUDE, runtimes.claude), providerInfo(Provider.CODEX, runtimes.codex), providerInfo(Provider.GROK, runtimes.grok)],
   };
   if (issues.some((i) => i.fatal)) return { applied: false, report: create(ConfigAppliedSchema, { ...report, applied: false }) };
 
@@ -179,9 +188,7 @@ export function applyWorkerConfig(config: WorkerConfig, probe: DeviceProbe = sys
     report: create(ConfigAppliedSchema, { ...report, applied: true }),
     config: {
       version: config.version,
-      claude,
-      codex,
-      grok,
+      ...runtimes,
       profiles,
       nativeTools: {
         nativeSubagents: config.nativeTools?.subagents ?? false,
@@ -208,8 +215,9 @@ function providerRuntime(
   if (!config?.enabled) return { enabled: false, linkDeviceLogin, problem: "disabled in configuration" };
   const executable = config.executablePath || probe.which(name);
   if (!executable) {
-    issue(`${name}.executable_path`, `${name} CLI not found on PATH`);
-    return { enabled: false, linkDeviceLogin, problem: `${name} CLI not found` };
+    const problem = name === "claude" ? "Claude Code is not installed on this computer" : `${name} CLI not found`;
+    issue(`${name}.executable_path`, name === "claude" ? problem : `${name} CLI not found on PATH`);
+    return { enabled: false, linkDeviceLogin, problem };
   }
   const versionLine = probe.version(executable);
   const version = versionLine?.match(/\d+\.\d+\.\d+(?:[-+][\w.]+)?/)?.[0];
@@ -250,12 +258,16 @@ function inspectProfile(
   runtimes: Record<"claude" | "codex" | "grok", ProviderRuntime>,
   probe: DeviceProbe,
   homes: DeviceHomes | undefined,
+  providers: WorkerConfig,
 ): ProfileStatus {
   const { config } = status;
   if (config.disabled) return status;
   const harness = providersOf(config)[0]!;
-  const runtime = runtimes[harness];
+  let runtime = runtimes[harness];
   const own = config.runtime?.executablePath;
+  if (!runtime.enabled && own && runtime.problem === (harness === "claude" ? "Claude Code is not installed on this computer" : `${harness} CLI not found`)) {
+    runtime = providerRuntime(harness, { ...providers[harness]!, executablePath: own }, probe, () => {});
+  }
   let version = runtime.version;
   if (!runtime.enabled) return { config, problem: runtime.problem ?? `${harness} is disabled` };
   if (own) {

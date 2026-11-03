@@ -1,5 +1,5 @@
-import { expect, test } from "bun:test";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { afterAll, expect, test } from "bun:test";
+import { cpSync, copyFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -7,13 +7,22 @@ import { createInterface } from "node:readline";
 import { once } from "node:events";
 import { tempDir } from "@canopy/testing";
 import { DesktopRuntime, type RuntimePaths, type Secrets } from "../src/runtime/runtime.ts";
+import { controllerEntry, runtimePaths } from "../src/runtime/launch.ts";
 import { until } from "../src/runtime/process.ts";
+import { postgresArchive, postgresRegistry } from "./postgres-fixture.ts";
 
 const data = tempDir("canopy-desktop-local-");
 const remoteData = tempDir("canopy-desktop-remote-");
-const runtime = resolve(import.meta.dir, "../build/runtime");
-const suffix = process.platform === "win32" ? ".exe" : "";
-const paths: RuntimePaths = { bun: join(runtime, `bun${suffix}`), gateway: join(runtime, `canopy-gateway${suffix}`), worker: join(runtime, `canopy-worker${suffix}`), web: join(runtime, `canopy-web${suffix}`), postgres: join(runtime, "postgres"), compiled: true };
+const source = process.env["CANOPY_DESKTOP_RUNTIME"] ?? resolve(import.meta.dir, "../build/runtime");
+const runtime = tempDir("canopy-desktop-isolated-runtime-");
+const available = existsSync(join(source, "canopy-gateway.js"));
+if (available) cpSync(source, runtime, { recursive: true, dereference: false, verbatimSymlinks: true });
+const fixture = postgresArchive(tempDir("canopy-desktop-postgres-registry-"));
+const registry = await postgresRegistry(fixture.bytes);
+afterAll(() => registry.close());
+if (available) copyFileSync(fixture.manifest, join(runtime, "postgres.json"));
+const guardianEnvironment = { ...process.env, NODE_ENV: "test", CANOPY_TEST_POSTGRES_REGISTRY: registry.registry };
+const paths: RuntimePaths = runtimePaths(runtime);
 const secrets = (): Secrets => ({ databasePassword: randomBytes(32).toString("hex"), secretsKey: randomBytes(32).toString("base64"), serviceToken: randomBytes(32).toString("hex") });
 // The window's own form action passes SvelteKit's CSRF origin check (a validation failure, not a 403); a foreign origin does not.
 async function formAction(origin: string, from = origin) {
@@ -26,8 +35,8 @@ function gone(pid: number) {
 
 test.skipIf(!existsSync(paths.gateway))("bundled stack: local enrollment, gRPC online, remote enrollment, restart durability and complete shutdown", async () => {
   const keys = secrets();
-  let local = new DesktopRuntime(data, paths, keys);
-  const remote = new DesktopRuntime(remoteData, paths, secrets());
+  let local = new DesktopRuntime(data, paths, keys, () => {}, registry);
+  const remote = new DesktopRuntime(remoteData, { ...paths, postgres: "remote-must-not-read-postgres-manifest" }, secrets(), () => {}, registry);
   const owned = new Set<number>();
   try {
     await local.initialize(false);
@@ -45,7 +54,10 @@ test.skipIf(!existsSync(paths.gateway))("bundled stack: local enrollment, gRPC o
     expect((await formAction(local.status.webUrl!, "http://attacker.example")).status).toBe(403);
     const token = (await api.createWorkerEnrollment({ name: "Remote desktop" })).token;
     await remote.initialize(false);
+    const beforeRemote = registry.ranges.length;
     await remote.configure({ mode: "remote", gatewayUrl: local.status.gatewayUrl!, webUrl: local.status.webUrl!, enrollmentToken: token });
+    expect(registry.ranges.length).toBe(beforeRemote);
+    expect(existsSync(join(remoteData, "postgres"))).toBe(false);
     remote.pids.forEach((pid) => owned.add(pid));
     expect(remote.pids).toHaveLength(2); // worker and setup BFF; no gateway or DB
     expect((await formAction(remote.origin)).body).toContain("Choose a project");
@@ -58,8 +70,11 @@ test.skipIf(!existsSync(paths.gateway))("bundled stack: local enrollment, gRPC o
     await remote.stop();
     await local.stop();
     for (const pid of owned) expect(gone(pid)).toBe(true);
-    local = new DesktopRuntime(data, paths, keys);
+    local = new DesktopRuntime(data, paths, keys, () => {}, registry);
+    registry.offline(true);
     await local.initialize();
+    registry.offline(false);
+    expect(registry.ranges.length).toBe(beforeRemote);
     local.pids.forEach((pid) => owned.add(pid));
     const restarted = await local.client().getOverview({});
     expect(restarted.workers.find((worker) => worker.id === workerId)?.online).toBe(true);
@@ -73,6 +88,7 @@ test.skipIf(!existsSync(paths.gateway))("bundled stack: local enrollment, gRPC o
     }, 45_000);
     expect(Number(readFileSync(join(data, "postgres/data/postmaster.pid"), "utf8").split("\n")[0])).not.toBe(postgresPid);
   } finally {
+    registry.offline(false);
     await remote.stop();
     await local.stop();
   }
@@ -81,7 +97,7 @@ test.skipIf(!existsSync(paths.gateway))("bundled stack: local enrollment, gRPC o
 
 test.skipIf(!existsSync(paths.gateway))("guardian closes its owned process groups when the Electron pipe disappears", async () => {
   const directory = tempDir("canopy-desktop-guardian-");
-  const child = spawn(join(runtime, `canopy-controller${suffix}`), [], { stdio: "pipe" });
+  const child = spawn(paths.bun, [controllerEntry(runtime)], { stdio: "pipe", env: guardianEnvironment });
   const exited = once(child, "exit");
   const replies = new Map<number, (message: { result?: { pids: number[] }; error?: string }) => void>();
   const lines = createInterface({ input: child.stdout });
@@ -116,7 +132,7 @@ test.skipIf(!existsSync(paths.gateway))("a postmaster orphaned by a killed guard
   const directory = tempDir("canopy-desktop-orphan-");
   const keys = secrets();
   const guardian = () => {
-    const child = spawn(join(runtime, `canopy-controller${suffix}`), [], { stdio: "pipe" });
+    const child = spawn(paths.bun, [controllerEntry(runtime)], { stdio: "pipe", env: guardianEnvironment });
     const replies = new Map<number, (message: { result?: { pids: number[] }; error?: string }) => void>();
     createInterface({ input: child.stdout }).on("line", (line) => { const message = JSON.parse(line); if (message.id) replies.get(message.id)?.(message); });
     const request = (id: number, action: string, args: Record<string, unknown>) => new Promise<{ pids: number[] }>((resolveReply, reject) => {

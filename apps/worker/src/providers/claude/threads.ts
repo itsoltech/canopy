@@ -1,6 +1,7 @@
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { create } from "@bufbuild/protobuf";
 import { forkSession, getSessionMessages, query, type CanUseTool, type Options, type Query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import { claudeExecutable } from "./executable.ts";
 import {
   InteractionKind,
   InteractionRequestSchema,
@@ -219,7 +220,7 @@ const make = (options: ClaudeThreadsOptions) =>
     const runtimeOf = (profile: ResolvedProfile): ClaudeInstanceRuntime => options.runtimeOf?.(profile) ?? { home: options.home, ...(options.executable && { executable: options.executable }) };
     const queryRuntime = (profile: ResolvedProfile, runtime: ClaudeInstanceRuntime): Pick<Options, "env" | "settingSources" | "pathToClaudeCodeExecutable" | "extraArgs"> => ({
       ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: runtime.home }),
-      ...(runtime.executable && { pathToClaudeCodeExecutable: runtime.executable }),
+      pathToClaudeCodeExecutable: claudeExecutable(runtime.executable, options.baseEnv),
       ...(runtime.extraArgs && Object.keys(runtime.extraArgs).length > 0 && { extraArgs: runtime.extraArgs }),
     });
     /**
@@ -745,8 +746,7 @@ const make = (options: ClaudeThreadsOptions) =>
               prompt,
               options: {
                 cwd,
-                ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: options.home }),
-                ...(options.executable && { pathToClaudeCodeExecutable: options.executable }),
+                ...queryRuntime(profile, runtimeOf(profile)),
                 persistSession: false,
                 strictMcpConfig: true,
                 mcpServers: {},

@@ -27,6 +27,7 @@ export interface DesktopStatus {
   worker: "offline" | "connecting" | "online";
   clis: { claude: boolean; codex: boolean; grok: boolean };
   error?: string | undefined;
+  database?: { phase: "downloading" | "verifying" | "installing" | "ready"; message: string; progress?: number } | undefined;
   webUrl?: string;
   gatewayUrl?: string;
   allowNetwork: boolean;
