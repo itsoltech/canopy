@@ -7,6 +7,7 @@
   import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
   import ConnectAccountDialog from "#lib/features/connectors/ConnectAccountDialog.svelte";
   import AccountDetail from "#lib/features/connectors/AccountDetail.svelte";
+  import ShareScope from "#lib/features/computers/ShareScope.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { rise } from "#lib/shared/ui/motion.ts";
   import { decode } from "#lib/shared/wire.ts";
@@ -34,6 +35,12 @@
 </script>
 <div class="grid min-w-0 gap-7">
   <SettingsHeading title="Connectors" description="Connect your apps once. Choose which workers and bots can use each account." />
+  {#if overview.computers.size > 0}
+    <Alert title="Accounts stay on this computer">
+      <p>Connector accounts are never shared. Connect an app on each linked computer whose workers or bots need it.</p>
+      <div class="pt-2"><ShareScope shared={false} /></div>
+    </Alert>
+  {/if}
   {#if notice === 'connected'}<Alert>Account connected. Choose who can use it below.</Alert>{:else if notice === 'error'}<Alert tone="error">Sign-in could not finish. Reconnect the account to try again.</Alert>{/if}
   <section aria-label="Connect an app" class="grid gap-4">
     <h2 class="text-lg font-semibold text-balance">Add an account</h2>

@@ -18,6 +18,9 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import ShareSetting from "#lib/features/computers/ShareSetting.svelte";
+  import SharingGroup from "#lib/features/computers/SharingGroup.svelte";
+  import { sharedKey } from "@canopy/domain/computers";
   import AnimatedMascotsSetting from "#lib/features/bots/components/AnimatedMascotsSetting.svelte";
 
   /** Saved in the gateway: the same on every device, changes elsewhere show up here live. */
@@ -103,3 +106,8 @@
     {/snippet}
   </SettingsRow>
 </SettingsGroup>
+
+<SharingGroup>
+  <ShareSetting itemKey={sharedKey.settings("appearance")} label="Appearance" local="Color scheme, theme and chat width. Panel and sidebar layout stay on each computer." />
+  <ShareSetting itemKey={sharedKey.settings("timezone")} label="Time zone" />
+</SharingGroup>

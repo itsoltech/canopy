@@ -14,6 +14,7 @@
   import OverrideForm from "./OverrideForm.svelte";
   import type { ProvidersState } from "./providers-state.svelte.ts";
   import SettingsSection from "./SettingsSection.svelte";
+  import SharedInstance from "./SharedInstance.svelte";
   import StatusLine from "./StatusLine.svelte";
   import WorkersField from "./WorkersField.svelte";
 
@@ -130,6 +131,8 @@
   <SettingsSection title="Models" description="What the model picker offers for this instance, on every worker.">
     <InstanceModels catalog={providers.models(instance, worker?.id)} models={instance.models} onchange={setModels} />
   </SettingsSection>
+
+  <SharedInstance {instance} />
 
   {#if !instance.builtIn}
     <SettingsSection title="Delete instance" description={instance.threadCount > 0 ? "Threads use it: turn it off on the workers instead." : "Removes it from every worker, with its secrets."}>

@@ -41,3 +41,15 @@ export function awayReason(computer: ui.LinkedComputer | undefined): string | un
     default: return `${name} is unreachable${at && ` since ${at}`}.`;
   }
 }
+
+/** "Last changed on Laptop B · 2:41 PM"; this computer's own change names no computer. */
+export function changedLine(item: ui.SharedConfigItem, name: (nodeId: string) => string | undefined): string {
+  const at = item.changedAtMs ? ` · ${since(item.changedAtMs)}` : "";
+  return `Last changed ${item.changedByNodeId ? `on ${name(item.changedByNodeId) ?? "another computer"}` : "on this computer"}${at}`;
+}
+/** Why an item became a local copy, or undefined while it is shared. */
+export function localCopyNote(item: ui.SharedConfigItem | undefined, name: (nodeId: string) => string | undefined): string | undefined {
+  if (!item || item.shared || !item.noteNodeId) return undefined;
+  const who = name(item.noteNodeId) ?? "Another computer";
+  return item.note === "deleted" ? `Deleted on ${who}. This computer keeps its own copy.` : `${who} stopped sharing it. This computer keeps its own copy.`;
+}
