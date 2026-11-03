@@ -11,6 +11,8 @@ import { mobileGuard, mobileIdentity } from "../core/mobile-devices.ts";
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
   return (router) =>
     router.service(ui.GatewayService, {
+      getUpdates: () => core.updates.snapshot(),
+      manageUpdates: (request) => core.updates.manage(request),
       getMobileDevices: () => mobileGuard(() => core.mobile.list()),
       createMobilePairing: () => mobileGuard(() => core.mobile.create()),
       revokeMobilePairing: (r) => mobileGuard(async () => { await core.mobile.revoke(r.id, "pairing"); return create(ui.MobileOperationResponseSchema); }),

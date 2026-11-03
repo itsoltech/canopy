@@ -178,6 +178,18 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     expect(await runtime.runPromise(migrate)).toEqual([]);
   });
 
+  test("release metadata fits existing JSONB without overwriting worker capabilities or user preferences", async () => {
+    const w = await world();
+    await query(`UPDATE workers SET capabilities = '{"providers":["codex"]}' WHERE id = $1`, [w.worker]);
+    await query(`UPDATE workers SET capabilities = jsonb_set(capabilities, '{update}', '{"state":"queued","targetVersion":"2.0.0"}') WHERE id = $1`, [w.worker]);
+    await query(`INSERT INTO user_settings (user_id, settings, version) VALUES ($1, '{"theme":"dark"}', 1)`, [w.user]);
+    await query(`UPDATE user_settings SET settings = settings || '{"updateChannel":"v2"}', version = version + 1 WHERE user_id = $1`, [w.user]);
+    expect((await query<{ capabilities: unknown }>(`SELECT capabilities FROM workers WHERE id = $1`, [w.worker]))[0]?.capabilities)
+      .toEqual({ providers: ["codex"], update: { state: "queued", targetVersion: "2.0.0" } });
+    expect((await query<{ settings: unknown }>(`SELECT settings FROM user_settings WHERE user_id = $1`, [w.user]))[0]?.settings)
+      .toEqual({ theme: "dark", updateChannel: "v2" });
+  });
+
   describe("threads: placement", () => {
     test("worker threads need worker, workspace and cwd; gateway threads must not have them", async () => {
       const w = await world();

@@ -34,6 +34,7 @@ export class WorkerAdministration {
   #attempts = 0;
   constructor(readonly options: {
     runtime: CoreRuntime; userId: string; link: WorkerLink; publicGatewayUrl?: string;
+    disconnectUpdates?: (workerId: string) => void;
     publish: (enrollment: ui.WorkerEnrollment) => void;
     changed: () => Promise<void>;
     removed: (workerId: string) => void | Promise<void>;
@@ -163,7 +164,7 @@ export class WorkerAdministration {
       }));
     }));
     if (!found) throw new ConnectError("Active worker not found", Code.NotFound);
-    if (action !== "rename") link.disconnect(workerId);
+    if (action !== "rename") { link.disconnect(workerId); this.options.disconnectUpdates?.(workerId); }
     if (action === "archive") await this.options.removed(workerId);
     await this.options.changed();
     return credential;

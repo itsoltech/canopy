@@ -10,8 +10,13 @@ import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
 import { enrollWorker, workerServiceSnippet } from "./enroll.ts";
 import { desktopStatus } from "./desktop-status.ts";
+import { CANOPY_VERSION } from "@open-agents/domain/release/version";
+import { confirmStartup, installKind, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@open-agents/updater";
+import { WorkerUpdates } from "./update-link.ts";
 
 const cliArgs = Bun.argv.slice(2);
+if (cliArgs.includes("--version")) { console.info(CANOPY_VERSION); process.exit(0); }
+if (cliArgs[0] === "run") cliArgs.shift();
 const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";
 let cli;
 try {
@@ -41,7 +46,10 @@ if (command === "service") {
   process.exit(0);
 }
 
-const WORKER_VERSION = "0.0.0";
+if (installKind() === "binary" && !process.env["CANOPY_SUPERVISED"]) {
+  process.exit(await superviseBinary({ binaryPath: process.execPath, args: Bun.argv.slice(2), log: (m) => console.warn(m) }));
+}
+const WORKER_VERSION = CANOPY_VERSION;
 /** How long a graceful stop waits for the gateway to ack what it recorded (stopped background tasks). */
 const SHUTDOWN_FLUSH_MS = 3_000;
 
@@ -73,6 +81,24 @@ const shutdown = new AbortController();
 // gateway sees a clean end. A second signal, or the supervisor's hard deadline, aborts immediately.
 const stopping = new AbortController();
 let currentLink: GatewayLink | undefined;
+const updates = new WorkerUpdates({ baseUrl: local.gateway_url, credential: local.credential, workerId: local.worker_id,
+  ...(ca && { ca }), signal: shutdown.signal, idle: () => host.updateIdle(), drain: (value) => {
+    host.setUpdateDraining(value);
+    if (value) currentLink?.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: WorkerState.DRAINING } });
+    // A failed/deferred update must replay commands left unacknowledged while draining.
+    else if (!stopping.signal.aborted) currentLink?.close();
+  },
+  log: (message) => console.info(message),
+  restart: async () => {
+    stopping.abort();
+    await host.shutdown();
+    await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false);
+    currentLink?.close(); shutdown.abort();
+    await runtime.dispose();
+    process.exit(UPDATE_RESTART_EXIT_CODE);
+  },
+});
+const updateLoop = updates.run();
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     if (stopping.signal.aborted) {
@@ -118,7 +144,7 @@ while (!stopping.signal.aborted) {
       hello: {
         workerId: local.worker_id,
         host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: WORKER_VERSION },
-        state: WorkerState.ACTIVE,
+        state: host.updateDraining ? WorkerState.DRAINING : WorkerState.ACTIVE,
         // running_turns: the list below is complete, the gateway ends its other running turns of this worker.
         // probe_providers, codex_device_login: provider instances are checked again and sign in from the app.
         // attachments: turns may carry files (fetched with FetchBlob into attachments_root).
@@ -132,12 +158,13 @@ while (!stopping.signal.aborted) {
       },
     });
     currentLink = link;
+    if (installKind() === "binary") await confirmStartup();
     desktopStatus("online");
     backoffMs = 1_000;
     const resent = await runtime.runPromise(resendPending(link, (event) => host.sendPreviews(link, event)));
     console.info(`connected to ${local.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`);
     const heartbeat = setInterval(
-      () => { desktopStatus("online"); link.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: WorkerState.ACTIVE } }); },
+      () => { desktopStatus("online"); link.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: host.updateDraining ? WorkerState.DRAINING : WorkerState.ACTIVE } }); },
       link.welcome.heartbeatIntervalSeconds * 1_000,
     );
     try {
@@ -162,4 +189,6 @@ while (!stopping.signal.aborted) {
 
 // Stops provider runtimes, then closes the journal (SQLite) cleanly.
 await host.close();
+shutdown.abort();
+await updateLoop;
 await runtime.dispose();

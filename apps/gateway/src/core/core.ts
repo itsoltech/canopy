@@ -99,6 +99,10 @@ import { providerOf } from "../store/instance-config.ts";
 import { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { WorkerAdministration, checkWorkerGatewayUrl } from "./worker-administration.ts";
 import { MobileDevices } from "./mobile-devices.ts";
+import { GatewayUpdates, type GatewayUpdatesOptions } from "../updates/runtime.ts";
+import { UpdatePersistence } from "../updates/persistence.ts";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -117,6 +121,7 @@ export type CoreServices = GatewayStore | Ingest | AgentBusStore | SettingsStore
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<CoreServices, unknown>;
 
 export interface GatewayCoreOptions {
+  readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;
   readonly mobileGatewayUrl?: string;
   readonly publicGatewayUrl?: string;
   readonly runtime: CoreRuntime;
@@ -168,6 +173,7 @@ const HARNESS_ERROR_CODES: ReadonlySet<string> = new Set(["HARNESS_ERROR"]);
 const MAX_OBJECTIVE = 4000;
 
 export class GatewayCore {
+  readonly updates: GatewayUpdates;
   readonly mobile: MobileDevices;
   readonly workers: WorkerAdministration;
   readonly connectors: ConnectorsRuntime;
@@ -189,6 +195,8 @@ export class GatewayCore {
   /** Previews a worker is uploading (BlobChunk), by sha256, until their last chunk. */
   readonly #uploads = new WeakMap<WorkerConnection, Map<string, { chunks: Uint8Array[]; size: number; mimeType: string }>>();
   #sweepTimer: ReturnType<typeof setInterval> | undefined;
+  #pumpAdmissions = 0;
+  readonly #updateDeferred = new Set<string>();
 
   constructor(options: GatewayCoreOptions) {
     this.#options = options;
@@ -199,6 +207,7 @@ export class GatewayCore {
     this.connectors = new ConnectorsRuntime({ runtime: options.runtime, userId: options.userId,
       interaction: (interaction) => this.#publishInteraction(interaction) });
     this.bots = new BotsRuntime({ runtime: options.runtime, userId: options.userId,
+      draining: () => this.updates?.draining ?? false,
       connectors: this.connectors,
       ...(options.botClock && { now: options.botClock }),
       ...(options.botModel && { model: options.botModel }), ...(options.log && { log: options.log }),
@@ -216,7 +225,22 @@ export class GatewayCore {
       config: async (workerId) => (await this.#run((s) => s.workerConfig(workerId))) ?? undefined,
       onConnected: (connection) => void this.#serve(connection),
     });
+    this.updates = new GatewayUpdates({
+      cacheDir: join(homedir(), ".cache", "canopy", "releases"),
+      ...options.updates,
+      idle: async () => this.#pumpAdmissions === 0 && this.bots.idle && (await options.updates?.idle?.() ?? true),
+      drain: (value) => {
+        options.updates?.drain?.(value);
+        if (!value) {
+          const deferred = [...this.#updateDeferred]; this.#updateDeferred.clear();
+          for (const threadId of deferred) void this.pump(threadId).catch(() => this.#log(`thread ${threadId}: queue resume failed`));
+        }
+      },
+      persistence: new UpdatePersistence(options.runtime, options.userId),
+      authenticate: (credential) => this.#run((s) => s.authenticateWorker(credential)),
+    });
     this.workers = new WorkerAdministration({ runtime: options.runtime, userId: options.userId, link: this.link,
+      disconnectUpdates: (workerId) => this.updates.service.disconnect(workerId),
       ...(options.publicGatewayUrl && { publicGatewayUrl: options.publicGatewayUrl }),
       publish: (value) => this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "enrollment", value } })),
       removed: async (value) => {
@@ -601,6 +625,13 @@ export class GatewayCore {
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */
   async pump(threadId: string): Promise<void> {
+    if (this.updates.draining) { this.#updateDeferred.add(threadId); return; }
+    this.#pumpAdmissions++;
+    try { await this.#pump(threadId); }
+    finally { this.#pumpAdmissions--; }
+  }
+
+  async #pump(threadId: string): Promise<void> {
     if (this.#actions.defer(() => this.pump(threadId))) return;
     const state = await this.#run((s) => s.thread(threadId, true));
     if (state.deleted_at || state.archived_at) return;

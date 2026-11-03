@@ -26,6 +26,7 @@ export interface BotRuntimeOptions {
   /** Validates a call before an approval card exists; returns the card's wording when the tool has its own. */
   prepareTool?: (turn: BotTurn, call: StoredCall) => Promise<{ prompt?: string } | undefined>;
   log?: (message: string) => void;
+  draining?: () => boolean;
 }
 
 /** PostgreSQL is the queue and event source; this object only owns cancellable inference. */
@@ -96,6 +97,7 @@ export class BotsRuntime {
   run<A, E>(use: (store: BotStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
     return this.#options.runtime.runPromise(BotStore.use(use));
   }
+  get idle(): boolean { return !this.#ticking && this.#active.size === 0; }
   start(): void {
     this.#stopped = false;
     this.#timer ??= setInterval(() => { void this.tick().catch(() => this.#options.log?.("bots: queue tick failed")); }, 250);
@@ -118,7 +120,7 @@ export class BotsRuntime {
     try {
       await this.run((s) => s.deliver());
       await this.run((s) => s.deliverRoutines(this.#options.userId, this.now()));
-      while (this.#active.size < 4 && !this.#stopped) {
+      while (this.#active.size < 4 && !this.#stopped && !this.#options.draining?.()) {
         const turn = await this.run((s) => s.claim(this.#options.userId));
         if (!turn) break;
         const lease = turn.lease_token!;

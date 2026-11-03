@@ -3,6 +3,19 @@ import { startConnectHttpServer, startGrpcServer } from "@open-agents/transport"
 import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
+import { CANOPY_VERSION } from "@open-agents/domain/release/version";
+import { installKind, isStandalone, serviceSnippet, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@open-agents/updater";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
+
+if (Bun.argv.includes("--version")) { console.info(CANOPY_VERSION); process.exit(0); }
+if (Bun.argv[2] === "service") {
+  console.info(serviceSnippet("gateway", process.platform, process.execPath, isStandalone() ? [] : [Bun.main]));
+  process.exit(0);
+}
+if (installKind() === "binary" && !process.env["CANOPY_SUPERVISED"]) {
+  process.exit(await superviseBinary({ binaryPath: process.execPath, args: Bun.argv.slice(2), log: (m) => console.warn(m) }));
+}
 
 // One HTTP/2 server for workers (WorkerLinkService) and the web BFF (GatewayService); docs/ui-api.md.
 const env = Bun.env;
@@ -25,6 +38,18 @@ const core = new GatewayCore({
   ...(env["OA_MOBILE_GATEWAY_URL"] && { mobileGatewayUrl: env["OA_MOBILE_GATEWAY_URL"] }),
   log: (m) => console.info(m),
   attachmentLimits: attachmentLimits(env),
+  updates: {
+    ...(env["CANOPY_RELEASE_BASE_URL"] && { source: { baseUrl: env["CANOPY_RELEASE_BASE_URL"] } }),
+    ...(env["CANOPY_UPDATE_CACHE_DIR"] && { cacheDir: env["CANOPY_UPDATE_CACHE_DIR"] }),
+    channel: env["CANOPY_UPDATE_CHANNEL"] ?? "latest",
+    restart: async () => { await stop(); process.exit(UPDATE_RESTART_EXIT_CODE); },
+    idle: () => runtime.runPromise(Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const rows = yield* sql<{ idle: boolean }>`SELECT NOT EXISTS (SELECT 1 FROM turns WHERE status = 'running') AND NOT EXISTS (SELECT 1 FROM bot_turns WHERE status = 'running') AS idle`;
+      return rows[0]?.idle ?? false;
+    })),
+    log: (message) => console.info(message),
+  },
 });
 // Workers' configurations follow the global provider instances (e.g. right after the migration to them).
 await core.syncProviderInstances();
@@ -34,19 +59,22 @@ const server = await startGrpcServer({
   routes: (router) => {
     core.link.routes(router);
     core.workers.routes(router);
+    core.updates.service.routes(router);
     core.mobile.routes(router);
     uiRoutes(core)(router);
   },
   interceptors: [serviceTokenAuth(serviceToken, core.mobile)],
   host: env["OA_HOST"] ?? "0.0.0.0",
   port: Number(env["OA_PORT"] ?? 7443),
+  health: () => ({ healthy: core.updates.service.verdict().healthy, version: CANOPY_VERSION }),
   ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
 });
 console.info(`gateway listening on ${server.url}`);
 // Desktop: keep the BFF/API listener on loopback and optionally expose only worker RPCs
 // on an explicitly selected private interface. Existing server deployments are unchanged.
 const workerServer = env["OA_WORKER_HOST"] && env["OA_WORKER_PORT"] ? await startGrpcServer({
-  routes: (router) => { core.link.routes(router); core.workers.routes(router); },
+  routes: (router) => { core.link.routes(router); core.workers.routes(router); core.updates.service.routes(router); },
+  health: () => ({ healthy: core.updates.service.verdict().healthy, version: CANOPY_VERSION }),
   host: env["OA_WORKER_HOST"],
   port: Number(env["OA_WORKER_PORT"]),
   ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
@@ -66,9 +94,11 @@ core.startSweep();
 // Notes about ended background tasks that still wait (Claude's grace, a restart in between): delivered every few seconds.
 core.backgroundTasks.start();
 core.bots.start();
+await core.updates.start();
 
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, async () => {
+async function stop() {
+    core.updates.close();
+    core.secrets.stop();
     await core.scheduler.stop();
     core.stopSweep();
     core.backgroundTasks.stop();
@@ -78,6 +108,10 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     await workerServer?.close();
     await server.close();
     await runtime.dispose();
+}
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, async () => {
+    await stop();
     process.exit(0);
   });
 }

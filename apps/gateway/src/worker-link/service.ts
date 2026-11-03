@@ -9,6 +9,7 @@ import {
   type WorkerMessage,
 } from "@open-agents/contracts";
 import { AsyncChannel } from "@open-agents/transport";
+import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@open-agents/domain/release/protocol";
 import { WorkerConnection } from "./connection.ts";
 import { gatewayMessage } from "./messages.ts";
 
@@ -69,6 +70,9 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     const hello = first.value.payload.value;
     if (hello.workerId !== workerId) {
       throw new ConnectError("Hello.worker_id does not match credential", Code.PermissionDenied);
+    }
+    if (!workerLinkCompatible(hello.minWorkerLinkProtocol, hello.workerLinkProtocol)) {
+      throw new ConnectError(`WorkerLink protocol ${hello.minWorkerLinkProtocol}..${hello.workerLinkProtocol} is incompatible with gateway ${MIN_WORKER_LINK_PROTOCOL}..${WORKER_LINK_PROTOCOL}; use openagents.update.v1.UpdateService to update`, Code.FailedPrecondition);
     }
 
     const outbound = new AsyncChannel<GatewayMessage>();
