@@ -113,7 +113,11 @@ Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emu
 
 `bun run --cwd apps/desktop package:<linux|mac|windows>` na hoście danego OS/arch
 ([desktop.md](desktop.md)). Z `CANOPY_VERSION` pliki nazywają się
-`Canopy-<wersja>-<linux|darwin|windows>-<x64|arm64>.<AppImage|deb|dmg|zip|exe>`.
+`Canopy[-Beta|-Nightly]-<wersja>-<linux|darwin|windows>-<x64|arm64>.<AppImage|deb|dmg|zip|exe>`.
+Produkty kanałów instalują się równolegle; tożsamość, katalogi danych i schematy linków
+opisuje [desktop.md](desktop.md#kanały-i-osobne-instalacje).
+Desktop publikuje też feedy electron-updater i pliki `.blockmap`. Dwa feedy macOS
+z runnerów x64/arm64 są scalane przed uploadem i sprawdzane względem SHA-512 assetów.
 
 ### checksums.txt i manifest.json
 
@@ -144,6 +148,9 @@ Kanał wynika z tagu; sprzeczny `CANOPY_CHANNEL` lub numer wersji zatrzymuje pub
 `protocol.worker_link` / `protocol.update` to `WORKER_LINK_PROTOCOL` / `UPDATE_PROTOCOL`
 z `packages/domain/src/release/protocol.ts`, jeśli plik istnieje; inaczej `1`.
 Assety desktop mają `app: "desktop"` (kilka formatów na jedną parę os/arch).
+Feedy `latest*.yml`, `beta*.yml`, `nightly*.yml` i blockmapy nie wchodzą do tablicy
+`manifest.assets`, bo nie mają pojedynczego os/arch. Obejmuje je `checksums.txt`.
+Format manifestu i zamrożony protokół aktualizacji gatewaya/workera pozostają bez zmian.
 
 ## Workflowy GitHub Actions
 
@@ -161,7 +168,7 @@ oraz dispatch po promocji/back-merge):
 | `semantic-release` | pełna historia, GITHUB_TOKEN; wyjścia `published`, `version`, `tag`, `channel` | buildy wyłącznie dla `published=true` |
 | `binaries` | cross-compile wszystkich celów | tak |
 | `smoke` | `--version` każdej binarki na jej OS/arch (ładuje osadzony sharp) | tak |
-| `desktop` | stable/beta: wszystkie OS/arch; nightly: linux-x64; poza linux-x64 eksperymentalne `continue-on-error` | tylko linux-x64 |
+| `desktop` | wszystkie kanały: Linux, macOS Intel/ARM, Windows; linux-arm64/Windows eksperymentalne | linux-x64 i oba macOS, także kontrola podpisów |
 | `images` | buildx amd64+arm64, GHCR, SBOM, cache GHA | wymagany przed manifestem |
 | `publish` | sumy, manifest z kanałem stable/beta/nightly, upload do istniejącego release | manifest na końcu |
 
@@ -172,10 +179,100 @@ Po błędzie buildów użyj **Re-run failed jobs**, zachowując wyjścia joba se
 ponowienie całego workflow może zakończyć się „no release”, bo tag już istnieje.
 Ręczny stabilny tag musi należeć do historii `main`; ścieżka tagowa tworzy release przy uploadzie.
 
-Podpisywanie desktop jest warunkowe: bez sekretów buildy są niepodpisane. macOS:
-`MAC_CSC_LINK` (base64 .p12 Developer ID Application), `MAC_CSC_KEY_PASSWORD`, opcjonalnie
-notaryzacja `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. Windows: `WIN_CSC_LINK`,
-`WIN_CSC_KEY_PASSWORD`. Workflow przekazuje je electron-builderowi tylko, gdy istnieją.
+Podpisywanie desktop jest warunkowe: bez certyfikatu macOS otrzymuje podpis ad-hoc,
+Windows pozostaje niepodpisany. Konfiguracja certyfikatu macOS włącza obowiązkowy signing,
+a kompletny zestaw notaryzacji włącza wbudowane `mac.notarize` i stapling przed zip/dmg.
+Kontrola CI sprawdza app przez `codesign --verify --deep --strict`, każdy runtime Mach-O
+oddzielnie, Developer ID przez requirement i `spctl -a -vv` dla podpisanych buildów.
+Notaryzowany build musi przejść Gatekeeper i `xcrun stapler validate`.
+Bez notaryzacji odmowa `spctl` jest oczekiwana i raportowana; sam podpis musi być poprawny.
+
+### Sekrety podpisywania desktop
+
+Sekrety dodaje maintainer do GitHub → Settings → Secrets and variables → Actions
+(repository secrets). Nic nie trafia do kodu, gatewaya, workera ani renderera.
+Do pobierania publicznych aktualizacji aplikacja nie potrzebuje tokena GitHub.
+
+1. Dołącz do **Apple Developer Program** i zaakceptuj aktualne umowy Apple.
+   Na Macu w Keychain Access utwórz Certificate Signing Request, a w Apple Developer
+   → Certificates, Identifiers & Profiles utwórz **Developer ID Application**.
+   To certyfikat dystrybucji poza App Store; nie wybieraj Developer ID Installer
+   ani Apple Distribution. Tworzenie może wymagać roli Account Holder lub uprawnienia
+   do certyfikatów Developer ID. Zainstaluj pobrany certyfikat w pęku z kluczem prywatnym.
+2. W Keychain Access → My Certificates wyeksportuj certyfikat **razem z kluczem prywatnym**
+   jako `.p12`, zabezpiecz hasłem. Zakoduj plik do base64 (jedna linia, np.
+   `base64 -i /secure/DeveloperID.p12 | tr -d '\n' > /secure/DeveloperID.p12.base64`).
+   Sekrety `MAC_CSC_LINK` i `MAC_CSC_KEY_PASSWORD` przechowują odpowiednio base64 i hasło.
+   Workflow mapuje je na `CSC_LINK` / `CSC_KEY_PASSWORD` electron-buildera.
+3. Preferowana notaryzacja: App Store Connect → Users and Access → Integrations
+   → App Store Connect API → Team Keys. Account Holder może najpierw zatwierdzić dostęp API.
+   Utwórz klucz zespołowy z rolą **App Manager**, pobierz `.p8` (tylko raz), zapisz
+   Key ID i Issuer ID. `APPLE_API_KEY` przechowuje **base64 zawartości `.p8`**, nie ścieżkę;
+   `APPLE_API_KEY_ID` i `APPLE_API_ISSUER` identyfikatory. Na runnerze `.p8` jest dekodowany
+   poza repozytorium z uprawnieniami 0600, przekazywany Apple jako ścieżka i usuwany po jobie.
+4. Alternatywnie użyj Apple ID z dostępem do zespołu: `APPLE_ID`, app-specific password
+   wygenerowane na account.apple.com → Sign-In and Security (`APPLE_APP_SPECIFIC_PASSWORD`)
+   oraz Team ID z Apple Developer Membership (`APPLE_TEAM_ID`). Nie używaj zwykłego hasła
+   konta. Pełny zestaw API ma pierwszeństwo; Apple ID nie jest wtedy przekazywane do buildera.
+5. Opcjonalne podpisywanie Windows pozostaje przy `WIN_CSC_LINK` i `WIN_CSC_KEY_PASSWORD`.
+   Bez tych sekretów NSIS jest niepodpisany i może pokazać SmartScreen.
+
+Dokładna lista sekretów (wartości wprowadzaj przez bezpieczny prompt `gh`, nigdy do repo):
+
+```sh
+# Obowiązkowe dla Developer ID; gh odczyta base64 z bezpiecznie przechowanego pliku.
+gh secret set MAC_CSC_LINK < /secure/DeveloperID.p12.base64
+gh secret set MAC_CSC_KEY_PASSWORD
+
+# Preferowany komplet notaryzacji — trzy sekrety.
+gh secret set APPLE_API_KEY < /secure/AuthKey.p8.base64
+gh secret set APPLE_API_KEY_ID
+gh secret set APPLE_API_ISSUER
+
+# Alternatywny komplet notaryzacji — zamiast powyższego.
+gh secret set APPLE_ID
+gh secret set APPLE_APP_SPECIFIC_PASSWORD
+gh secret set APPLE_TEAM_ID
+
+# Opcjonalnie Windows, bez zmiany istniejącego mechanizmu.
+gh secret set WIN_CSC_LINK
+gh secret set WIN_CSC_KEY_PASSWORD
+```
+
+`AuthKey.p8.base64` przygotuj tak samo jak `.p12`, z pliku `.p8`. Do pełnej dystrybucji
+macOS potrzeba **2 sekretów certyfikatu + jednego pełnego kompletu 3 sekretów notaryzacji**.
+Brak sekretów daje ad-hoc; sam certyfikat daje Developer ID bez notaryzacji.
+Niepełny komplet notaryzacji nie uruchamia wysyłki do Apple i jest widoczny w logu joba.
+Błąd kompletnych poświadczeń przerywa build zamiast publikować po cichu gorszy wariant.
+
+Gatekeeper dla Developer ID + notarization + staple pokazuje standardowe potwierdzenie
+pobrania aplikacji z Internetu. Bez notaryzacji lub przy ad-hoc blokuje uruchomienie
+i może wymagać Privacy & Security → Open Anyway albo usunięcia quarantine po weryfikacji
+źródła. Stare niepodpisane 0.1.0 na Apple Silicon może zgłaszać „damaged”. Ad-hoc naprawia
+brak podpisu maszynowego, ale nie nadaje zaufania Apple i nie gwarantuje konkretnego tekstu
+dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
+[desktop.md](desktop.md#podpisywanie-macos-i-gatekeeper).
+
+### Pierwszy przebieg CI na macOS
+
+1. Na obu runnerach (Intel i Apple Silicon) sprawdź liczbę runtime Mach-O w logu,
+   użycie Developer ID Application, powodzenie notaryzacji/staplingu oraz krok
+   `Verify macOS signatures and notarization`. Te joby blokują publikację we wszystkich kanałach.
+2. Pobierz dmg i zip z GitHuba na czystego Maca z quarantine. Uruchom app bez `xattr`,
+   sprawdź lokalny start PostgreSQL, gatewaya, workera i web oraz zamknięcie procesów.
+   Sprawdź `codesign -d --entitlements :-` dla app, helpera i skompilowanego Bun sidecara.
+3. Zainstaluj stable, beta i nightly równolegle. Potwierdź osobne dane, ikony i obsługę
+   `canopy://`, `canopy-beta://`, `canopy-nightly://`. Stable jest jedynym właścicielem
+   zwykłych linków enrollment generowanych przez web.
+4. W release sprawdź odpowiedni `*-mac.yml`: musi wymieniać zipy **obu architektur**.
+   Feedy i blockmapy są uploadowane przed końcowym `manifest.json`; prerelease muszą
+   pozostać oznaczone jako prerelease. Stary klient bez updatera wymaga instalacji ręcznej.
+5. Przy kolejnym wydaniu tego samego kanału sprawdź pobieranie, „Restart to update”,
+   czysty shutdown i zachowanie danych. Wyższy numer innego kanału ani niższy własnego
+   nie może się instalować. Osobno sprawdź build ad-hoc: menu „Updates need a signed build”.
+
+Podpisywania, polityki Gatekeepera, ticketów Apple i rzeczywistej instalacji aktualizacji
+nie da się potwierdzić na Linuxie; walidacja konfiguracji buildera tego nie zastępuje.
 
 ## Promocja i okres stabilizacji („burn-in”)
 

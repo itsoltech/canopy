@@ -7,8 +7,13 @@ import type { DesktopStatus } from "@canopy/ui/desktop";
 import { configuration, initialStatus, origin, serviceEnvironment } from "./runtime/config.ts";
 import { loadSecrets } from "./vault.ts";
 import { Logs } from "./runtime/log.ts";
+import { desktopIdentity } from "./identity.ts";
+import { DesktopUpdates } from "./updates.ts";
 
-app.setName("Canopy");
+const identity = desktopIdentity();
+app.setName(identity.productName);
+app.setPath("userData", join(app.getPath("appData"), identity.productName));
+if (process.platform === "win32") app.setAppUserModelId(identity.appId);
 // Chromium does not recognize every Linux desktop (e.g. Hyprland). Select a real
 // keychain backend explicitly instead of silently falling back to basic_text.
 if (process.platform === "linux" && !app.commandLine.hasSwitch("password-store")) {
@@ -27,12 +32,14 @@ let status = initialStatus();
 let quitting = false;
 let stopped = false;
 let busy = false;
+let installingUpdate = false;
+const updates = new DesktopUpdates(broadcast, () => { installingUpdate = true; app.quit(); });
 let sequence = 0;
 let pendingLink: string | undefined;
 const enrollmentReady = new Set<number>();
 const requests = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 const resources = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
-const iconPath = app.isPackaged ? join(resources, "icon.png") : resolve(app.getAppPath(), "../web/static/icon-512.png");
+const iconPath = app.isPackaged ? join(resources, "icon.png") : resolve(app.getAppPath(), `build/${identity.channel}/icon.png`);
 const logs = new Logs(join(app.getPath("userData"), "logs"));
 const scriptHashes = new Map<string, Set<string>>();
 async function preparePolicy(url: string) {
@@ -66,14 +73,21 @@ function authorize(event: IpcMainInvokeEvent, setupOnly = false) { if (!isTruste
 function broadcast() {
   for (const target of [window, settingsWindow]) if (target && !target.isDestroyed()) target.webContents.send("canopy:status", status);
   const text = status.phase === "error" ? "Needs attention" : status.worker === "online" ? "Worker online" : status.phase === "starting" ? "Starting…" : "Worker offline";
-  tray?.setToolTip(`Canopy · ${text}`);
+  tray?.setToolTip(`${identity.productName} · ${text}`);
   tray?.setContextMenu(Menu.buildFromTemplate([
-    { label: `Canopy · ${text}`, enabled: false },
-    { label: "Open Canopy", click: showMain },
+    { label: `${identity.productName} · ${text}`, enabled: false },
+    { label: `Open ${identity.productName}`, click: showMain },
     { label: `CLIs: ${Object.entries(status.clis).filter(([, found]) => found).map(([name]) => name).join(", ") || "none found"}`, enabled: false },
     { label: "Desktop settings…", click: openSettings },
-    { type: "separator" }, { label: "Quit Canopy", click: () => app.quit() },
+    updates.item(),
+    { type: "separator" }, { label: `Quit ${identity.productName}`, click: () => app.quit() },
   ]));
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(process.platform === "darwin" ? [{ role: "appMenu" as const }] : []),
+    { label: identity.productName, submenu: [{ label: "Desktop settings…", accelerator: "CmdOrCtrl+,", click: openSettings }, updates.item(), { label: "Open logs folder", click: () => void shell.openPath(logs.directory) }, { type: "separator" }, { role: "quit" }] },
+    { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 function external(url: string) {
   try { if (["https:", "http:", "mailto:"].includes(new URL(url).protocol)) void shell.openExternal(url); } catch { /* Invalid link. */ }
@@ -87,11 +101,12 @@ function showMain() {
   window.show(); window.focus();
 }
 function createWindow() {
-  const target = new BrowserWindow({ width: 1280, height: 850, minWidth: 760, minHeight: 560, title: "Canopy", icon: iconPath, show: false,
+  const target = new BrowserWindow({ width: 1280, height: 850, minWidth: 760, minHeight: 560, title: identity.productName, icon: iconPath, show: false,
     ...(process.platform === "darwin" && { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 18, y: 18 } }),
     webPreferences: { preload: join(app.getAppPath(), "dist/preload.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, webviewTag: false },
   });
   target.once("ready-to-show", () => target.show());
+  target.on("page-title-updated", (event) => { event.preventDefault(); target.setTitle(identity.productName); });
   const contentId = target.webContents.id;
   target.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) enrollmentReady.delete(target.webContents.id);
@@ -125,7 +140,7 @@ function openSettings() {
 function enrollment(link: string) {
   try {
     const url = new URL(link);
-    if (url.protocol !== "canopy:" || url.hostname !== "enroll" || link.length > 8192) return;
+    if (url.protocol !== `${identity.scheme}:` || url.hostname !== "enroll" || link.length > 8192) return;
     const gatewayUrl = origin(url.searchParams.get("gateway"), "Gateway address");
     const webUrl = origin(url.searchParams.get("web"), "Web address");
     const enrollmentToken = url.searchParams.get("token") ?? "";
@@ -140,7 +155,7 @@ function enrollment(link: string) {
     }
   } catch { /* Never log deep links containing an enrollment secret. */ }
 }
-app.on("second-instance", (_event, argv) => { const link = argv.find((arg) => arg.startsWith("canopy://")); if (link) enrollment(link); else showMain(); });
+app.on("second-instance", (_event, argv) => { const link = argv.find((arg) => arg.startsWith(`${identity.scheme}://`)); if (link) enrollment(link); else showMain(); });
 app.on("open-url", (event, url) => { event.preventDefault(); enrollment(url); });
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
 app.on("activate", showMain);
@@ -151,11 +166,13 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   if (quitting) return;
   quitting = true;
+  updates.stop();
+  const finish = () => { stopped = true; if (installingUpdate) updates.install(); else app.quit(); };
   // EOF makes the guardian stop owned process groups even if Electron subsequently crashes.
   controller?.stdin.end();
   const timeout = setTimeout(() => { controller?.kill("SIGTERM"); }, 35_000);
-  if (!controller || controllerExited || !controller.pid || controller.exitCode !== null || controller.signalCode !== null) { clearTimeout(timeout); stopped = true; app.quit(); }
-  else controller.once("exit", () => { clearTimeout(timeout); stopped = true; app.quit(); });
+  if (!controller || controllerExited || !controller.pid || controller.exitCode !== null || controller.signalCode !== null) { clearTimeout(timeout); finish(); }
+  else controller.once("exit", () => { clearTimeout(timeout); finish(); });
 });
 
 async function start() {
@@ -236,17 +253,11 @@ async function start() {
   const image = nativeImage.createFromPath(iconPath).resize({ width: 20, height: 20 });
   tray = new Tray(image);
   tray.on("click", showMain);
-  const template: Electron.MenuItemConstructorOptions[] = [
-    ...(process.platform === "darwin" ? [{ role: "appMenu" as const }] : []),
-    { label: "Canopy", submenu: [{ label: "Desktop settings…", accelerator: "CmdOrCtrl+,", click: openSettings }, { label: "Open logs folder", click: () => void shell.openPath(logs.directory) }, { type: "separator" }, { role: "quit" }] },
-    { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
-  ];
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-  app.setAsDefaultProtocolClient("canopy");
-  // Auto-update hook: initialize a signed release feed here when updates enter scope.
+  app.setAsDefaultProtocolClient(identity.scheme);
+  void updates.start();
   broadcast();
   await window.loadURL(initialUrl);
-  const link = pendingLink ?? process.argv.find((arg) => arg.startsWith("canopy://"));
+  const link = pendingLink ?? process.argv.find((arg) => arg.startsWith(`${identity.scheme}://`));
   if (link) { pendingLink = undefined; enrollment(link); }
 }
 if (ownsInstance) void app.whenReady().then(start).catch((error: unknown) => {
