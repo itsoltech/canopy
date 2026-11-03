@@ -24,8 +24,9 @@ from bots-core. Images and user initials have no behaviour.
 ## Motion and restraint
 
 `behaviour.ts` is a Svelte action backed by one shared pointer listener, one IntersectionObserver,
-one ResizeObserver and one rAF scheduler. Each frame writes only SVG group `transform` attributes;
-it never changes Svelte state. Geometry is cached and read in a batch after scroll, resize or
+one ResizeObserver and one rAF scheduler. Each frame writes only SVG group `transform` attributes,
+and only those whose value changed after rounding to steps no screen shows (each write costs the page a
+style and layout pass, so an idle mascot writes a few times a second); it never changes Svelte state. Geometry is cached and read in a batch after scroll, resize or
 intersection changes. The scheduler cancels on a hidden tab or reduced motion, resets the drawing,
 and disposes its global listeners when the last mascot unmounts. Off-screen and disabled mascots
 receive no animation writes. The hidden-tab browser scenario uses a deterministic visibility fixture.

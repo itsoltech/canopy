@@ -12,6 +12,7 @@
   import SidebarArchivedThreads from "./SidebarArchivedThreads.svelte";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
+  import { whenIdle } from "#lib/shared/idle.ts";
 
   let { currentThreadId, query = "", class: className }: { currentThreadId?: string | undefined; query?: string; class?: ClassValue } = $props();
   const overview = useOverview();
@@ -46,6 +47,32 @@
     }
     return entries;
   });
+  // The each below animates reorders, so every update of its list measures all rows and forces a style and
+  // layout pass. It iterates the order only, kept while unchanged; rows read their entry from the map, so a
+  // thread update that keeps the order (or a settings write) leaves the list alone.
+  let order: string[] = [];
+  const keys = $derived.by(() => {
+    const next = entries.map((entry) => entry.key);
+    if (next.length !== order.length || next.some((key, at) => key !== order[at])) order = next;
+    return order;
+  });
+  const byKey = $derived(new Map(entries.map((entry) => [entry.key, entry])));
+  // About a screenful of rows renders with the list, the rest a few at a time when the browser is idle: the
+  // frame that shows the sidebar does not also build every row's menu and preview card, and no chunk holds
+  // input back for long. Rows the fill adds appear as they are.
+  const FIRST_ROWS = 16;
+  const ROWS_PER_IDLE = 4;
+  let limit = $state(FIRST_ROWS);
+  let filled = $state(false);
+  $effect(() => {
+    if (filled || keys.length === 0) return;
+    if (keys.length <= limit) {
+      filled = true;
+      return;
+    }
+    return whenIdle(() => (limit += ROWS_PER_IDLE), 500);
+  });
+  const shown = $derived(filled ? keys : keys.slice(0, limit));
 </script>
 
 <div class={["flex min-h-full flex-col", className]}>
@@ -58,9 +85,10 @@
     </div>
   {:else}
     <ul role="list" class="grid gap-0.5" aria-label="Thread inbox">
-      {#each entries as entry, index (entry.key)}
-        <li animate:reorder in:rise={{ delay: stagger(index) }} out:expand>
-          {#if entry.thread}
+      {#each shown as key, index (key)}
+        {@const entry = byKey.get(key)}
+        <li animate:reorder in:rise={{ delay: stagger(index), instant: !filled }} out:expand>
+          {#if entry?.thread}
             {@const thread = entry.thread}
             {@const sides = groupSideThreads((filtered.sides.get(thread.id) ?? []).filter((t) => !rootIds.has(t.id)))}
             <div class="relative">
@@ -69,7 +97,7 @@
             {#if openTree === thread.id && (sides.active.length || sides.previous.length)}
               <SidebarThreadChildren {sides} title={thread.title} {currentThreadId} class="mt-0.5 mb-1 ml-5" />
             {/if}
-          {:else}<h2 class="px-3 pt-3 pb-1 text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">{entry.heading}</h2>{/if}
+          {:else if entry}<h2 class="px-3 pt-3 pb-1 text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">{entry.heading}</h2>{/if}
         </li>
       {/each}
     </ul>

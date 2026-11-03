@@ -5,6 +5,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { requestJson } from "#lib/shared/http.ts";
+  import { whenIdle } from "#lib/shared/idle.ts";
   import { decode } from "#lib/shared/wire.ts";
   import { expand, reorder, resizeHeightToContent, rise, stagger } from "#lib/shared/ui/motion.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -60,9 +61,7 @@
   // count changes) and on intent (hover, focus). The pager skips it while its cached page is fresh.
   $effect(() => {
     if (expanded || !total) return;
-    const idle = typeof requestIdleCallback === "function" ? requestIdleCallback(() => pager.prefetch(), { timeout: 2000 }) : undefined;
-    const timer = idle === undefined ? setTimeout(() => pager.prefetch(), 1000) : undefined;
-    return () => { if (idle !== undefined) cancelIdleCallback(idle); clearTimeout(timer); };
+    return whenIdle(() => pager.prefetch(), 2000);
   });
   const prefetch = () => { if (!expanded) pager.prefetch(); };
   const retry = () => void pager.refresh({ projectIds: [...settings.sidebar.projectIds], query }, expanded, `${overview.resyncs}:${revision}`);

@@ -20,10 +20,27 @@ export type DurationToken = "stagger" | "micro" | "quick" | "fast" | "medium" | 
 
 const fallback: Record<DurationToken, number> = { stagger: 40, micro: 80, quick: 150, fast: 250, medium: 350, slow: 400, "very-slow": 500 };
 
+// Token values read in this frame. Reading the document's style recalculates every style changed since the
+// last read: rows that mount together (each with its own transition) would otherwise pay that once each.
+const tokens = new Map<string, string>();
+let tokenFrame = 0;
+function rootToken(name: string): string {
+  let value = tokens.get(name);
+  if (value === undefined) {
+    value = getComputedStyle(document.documentElement).getPropertyValue(name);
+    tokens.set(name, value);
+    tokenFrame ||= requestAnimationFrame(() => {
+      tokens.clear();
+      tokenFrame = 0;
+    });
+  }
+  return value;
+}
+
 /** A duration token in ms (`duration("fast")` = `--duration-fast`). */
 export function duration(token: DurationToken): number {
   if (typeof document === "undefined") return fallback[token];
-  const value = toMs(getComputedStyle(document.documentElement).getPropertyValue(`--duration-${token}`));
+  const value = toMs(rootToken(`--duration-${token}`));
   return Number.isFinite(value) ? value : fallback[token];
 }
 
@@ -36,7 +53,7 @@ export function toMs(time: string): number {
 /** A length token in px (`distance("base")` = `--distance-base`, 0 with reduced motion). */
 function length(name: string, fallbackPx: number): number {
   if (typeof document === "undefined") return fallbackPx;
-  const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+  const value = Number.parseFloat(rootToken(name));
   return Number.isFinite(value) ? value : fallbackPx;
 }
 
@@ -67,9 +84,10 @@ export function expand(node: HTMLElement, { delay = 0, instantReduced = false }:
 /**
  * Rise (toast 22 / texts reveal 18 for one element): fade and cross-blur up from --distance-base, for
  * things that appear on their own (a button over the timeline, a new list row). In on --duration-fast,
- * out on --duration-quick.
+ * out on --duration-quick. `instant`: no motion (a row that was only rendered late, not new).
  */
-export function rise(node: HTMLElement, { delay = 0 }: { delay?: number } = {}, options?: { direction: "in" | "out" | "both" }): TransitionConfig {
+export function rise(node: HTMLElement, { delay = 0, instant = false }: { delay?: number; instant?: boolean } = {}, options?: { direction: "in" | "out" | "both" }): TransitionConfig {
+  if (instant) return { duration: 0 };
   const out = options?.direction === "out";
   const ms = duration(out ? "quick" : "fast");
   if (prefersReducedMotion.current) return { delay, duration: ms, css: (t) => `opacity: ${t}` };

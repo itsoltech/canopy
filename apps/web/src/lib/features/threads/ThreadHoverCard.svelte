@@ -1,7 +1,13 @@
+<script lang="ts" module>
+  import { MediaQuery } from "svelte/reactivity";
+
+  // Beside the row where the sidebar leaves room; under it in the phone drawer. One query for every row.
+  const beside = new MediaQuery("min-width: 40rem");
+</script>
+
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { Snippet } from "svelte";
-  import { MediaQuery } from "svelte/reactivity";
   import { goalLook } from "#lib/features/goals/goals.ts";
   import { effortLevel } from "#lib/features/models/catalog.ts";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
@@ -32,8 +38,6 @@
   const muted = "size-4 fill-zinc-400 dark:fill-zinc-500";
   let { thread, row, touch = "press", disabled = false }: { thread: ui.Thread; row: Snippet<[HoverTriggerProps]>; touch?: "press" | "none"; disabled?: boolean } = $props();
   const overview = useOverview();
-  // Beside the row where the sidebar leaves room; under it in the phone drawer.
-  const beside = new MediaQuery("min-width: 40rem");
 </script>
 
 <HoverCard label="Thread {thread.title}" placement={beside.current ? "right-start" : "bottom-start"} {touch} {disabled} class="w-80">

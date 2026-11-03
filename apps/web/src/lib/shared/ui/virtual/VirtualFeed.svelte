@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import { tick, untrack } from "svelte";
   import type { Attachment } from "svelte/attachments";
+  import { whenIdle } from "../../idle.ts";
   import Button from "../Button.svelte";
   import { rise } from "../motion.ts";
   import { UiMemory } from "../memory.ts";
@@ -74,6 +75,10 @@
   const id = `feed-${uid}`;
   /** Enough rows from the end to fill the viewport before its first measurement. */
   const INITIAL_HEIGHT = 2400;
+  /** Overscan when the rows first render: opening a thread renders about half of the rows in its frame. */
+  const COLD_OVERSCAN = 240;
+  /** How much the overscan grows per idle period up to its full size (a row or two each time). */
+  const OVERSCAN_STEP = 120;
   const memory = new UiMemory();
   const index = new SizeIndex((name) => untrack(() => estimate(name)));
 
@@ -94,6 +99,15 @@
   let measured = $state(0);
   /** Following the end (the reader is at the bottom). */
   let stuck = $state(true);
+  // The overscan (most of it above the end, where the reader starts) grows to its full size in idle-time
+  // steps after the first rows were measured, instead of rendering in the frame that opens the thread.
+  let overscanLimit = $state(COLD_OVERSCAN);
+  const fullOverscan = $derived(Math.max(viewport, 480));
+  const shown = $derived(viewport > 0 && rows.length > 0);
+  $effect(() => {
+    if (!shown || overscanLimit >= fullOverscan) return;
+    return whenIdle(() => (overscanLimit = Math.min(fullOverscan, overscanLimit + OVERSCAN_STEP)), 1000);
+  });
   $effect(() => {
     atEnd = stuck;
   });
@@ -111,8 +125,8 @@
   const range = $derived.by((): [number, number] => {
     void layout;
     void scrollTop;
-    if (viewport === 0) return index.tail(INITIAL_HEIGHT);
-    const overscan = Math.max(viewport, 480);
+    if (viewport === 0) return index.tail(typeof innerHeight !== "number" ? INITIAL_HEIGHT : Math.min(INITIAL_HEIGHT, innerHeight + 2 * COLD_OVERSCAN));
+    const overscan = Math.min(fullOverscan, overscanLimit);
     // Reading above: the window follows the anchor row, also when rows were added or resized above it
     // (its scroll position is corrected only once it is mounted).
     const at = anchor && positions.get(anchor.key);
