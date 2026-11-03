@@ -1,4 +1,4 @@
-import { Provider, type ModelInfo, type ProfileModels, type ui } from "@open-agents/contracts";
+import { Provider, type ModelInfo, type ProfileModels, type ui } from "@canopy/contracts";
 import { modelFor } from "#lib/features/settings/thread-defaults.ts";
 import { instanceLabel, instanceOf, instancesFor, instanceValue, knownModels, profileIdValue, type ProviderKey, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
 

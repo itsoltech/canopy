@@ -1,5 +1,5 @@
 {
-  "name": "@open-agents/desktop",
+  "name": "@canopy/desktop",
   "version": "0.1.0",
   "private": true,
   "description": "Canopy desktop: a local gateway and worker, or a worker for your remote gateway",
@@ -22,10 +22,10 @@
     "@bufbuild/protobuf": "2.16.0",
     "@connectrpc/connect": "2.3.0",
     "@connectrpc/connect-node": "2.3.0",
-    "@open-agents/contracts": "workspace:*",
-    "@open-agents/db": "workspace:*",
-    "@open-agents/testing": "workspace:*",
-    "@open-agents/ui": "workspace:*"
+    "@canopy/contracts": "workspace:*",
+    "@canopy/db": "workspace:*",
+    "@canopy/testing": "workspace:*",
+    "@canopy/ui": "workspace:*"
   },
   "devDependencies": {
     "electron": "45.2.1",

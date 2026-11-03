@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { BlobRef } from "@open-agents/contracts";
+  import type { BlobRef } from "@canopy/contracts";
   import { formatBytes } from "#lib/shared/format.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";

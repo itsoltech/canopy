@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { Invalid } from "../../store/store.ts";
 import { define, json, message, object, str } from "./shared.ts";
 

@@ -1,10 +1,10 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkerLink, type WorkerConnection, type WorkerLinkOptions } from "@open-agents/gateway/worker-link";
-import { openGatewayLink, type GatewayLinkOptions } from "@open-agents/worker/gateway-link";
-import { Provider } from "@open-agents/contracts";
-import { startGrpcServer, type TlsMaterial } from "@open-agents/transport";
+import { createWorkerLink, type WorkerConnection, type WorkerLinkOptions } from "@canopy/gateway/worker-link";
+import { openGatewayLink, type GatewayLinkOptions } from "@canopy/worker/gateway-link";
+import { Provider } from "@canopy/contracts";
+import { startGrpcServer, type TlsMaterial } from "@canopy/transport";
 
 export const CREDENTIALS: Readonly<Record<string, string>> = {
   "secret-worker-1": "worker-1",

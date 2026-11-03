@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { needsYou, treeActivity } from "#lib/features/threads/activity.ts";
 import { isSide } from "#lib/features/threads/thread-tree.ts";
 

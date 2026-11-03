@@ -1,4 +1,4 @@
-import type { ItemStatus, ToolCall } from "@open-agents/contracts";
+import type { ItemStatus, ToolCall } from "@canopy/contracts";
 
 /** What every tool body gets: the call, its parsed input, its item status and whether output still streams. */
 export interface ToolBodyProps {

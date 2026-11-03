@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus } from "@open-agents/contracts";
+  import { ItemStatus } from "@canopy/contracts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { iconSwap } from "#lib/shared/ui/motion.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";

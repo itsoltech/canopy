@@ -1,6 +1,6 @@
 import { timestampMs } from "@bufbuild/protobuf/wkt";
-import { ItemStatus } from "@open-agents/contracts";
-import type { ui } from "@open-agents/contracts";
+import { ItemStatus } from "@canopy/contracts";
+import type { ui } from "@canopy/contracts";
 import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
 import { isSteerMessage, isTerminal, type ItemNode, type TimelineRow } from "./timeline.ts";
 import { describeTool } from "./components/items/tools/registry.ts";

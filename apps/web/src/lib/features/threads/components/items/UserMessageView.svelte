@@ -13,7 +13,7 @@
 <script lang="ts">
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import type { Snippet } from "svelte";
-  import type { UserMessage, ui } from "@open-agents/contracts";
+  import type { UserMessage, ui } from "@canopy/contracts";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
   import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
   import { withoutPlatformNote } from "#lib/features/mentions/editor.ts";

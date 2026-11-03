@@ -6,11 +6,11 @@
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind, type ModelCatalog, type ThreadEvent } from "@open-agents/contracts";
-import { tempDirs } from "@open-agents/testing";
-import { journalHello } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind, type ModelCatalog, type ThreadEvent } from "@canopy/contracts";
+import { tempDirs } from "@canopy/testing";
+import { journalHello } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 

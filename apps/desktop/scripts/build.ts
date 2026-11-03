@@ -50,7 +50,7 @@ for (const manifest of manifests) for (const [name, version] of Object.entries(m
 writeFileSync(join(runtime, "package.json"), JSON.stringify({ private: true, type: "module", dependencies }, null, 2));
 await run([process.execPath, "install", "--production", "--ignore-scripts"], runtime);
 for (const name of ["contracts", "domain", "ui", "transport", "db", "grok-acp", "codex-protocol"]) {
-  const destination = join(runtime, "node_modules/@open-agents", name);
+  const destination = join(runtime, "node_modules/@canopy", name);
   mkdirSync(destination, { recursive: true });
   cpSync(join(root, "packages", name, "src"), join(destination, "src"), { recursive: true, filter: (path) => !/\.(?:test|live\.test)\.ts$/.test(path) && !path.includes("/fixtures/") });
   copyFileSync(join(root, "packages", name, "package.json"), join(destination, "package.json"));

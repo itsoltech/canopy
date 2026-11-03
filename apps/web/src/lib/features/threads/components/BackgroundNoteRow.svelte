@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { ItemStatus } from "@open-agents/contracts";
+  import { ItemStatus } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { backgroundHeadline, backgroundOutcome, backgroundTitle } from "@open-agents/domain/background-tasks";
+  import { backgroundHeadline, backgroundOutcome, backgroundTitle } from "@canopy/domain/background-tasks";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { useBackgroundOutput } from "../background-output.ts";
   import { useThreadDirectory } from "../thread-directory.ts";

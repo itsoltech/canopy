@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { create } from "@bufbuild/protobuf";
-  import { MentionKind, ui, type Mention } from "@open-agents/contracts";
-  import { fuzzyRank } from "@open-agents/domain";
+  import { MentionKind, ui, type Mention } from "@canopy/contracts";
+  import { fuzzyRank } from "@canopy/domain";
   import { connectorLabel } from "#lib/features/connectors/api.ts";
   import { useConnectorAccounts } from "#lib/features/connectors/accounts.svelte.ts";
   import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";

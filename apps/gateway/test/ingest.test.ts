@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { ItemDeltaField, ItemStatus, ThreadEventSchema, TurnEndSource, TurnOrigin, TurnOutcome, type ThreadEvent } from "@open-agents/contracts";
-import { migrate } from "@open-agents/db";
-import { dockerAvailable, startPostgres, type TestPostgres } from "@open-agents/db/testing";
+import { ItemDeltaField, ItemStatus, ThreadEventSchema, TurnEndSource, TurnOrigin, TurnOutcome, type ThreadEvent } from "@canopy/contracts";
+import { migrate } from "@canopy/db";
+import { dockerAvailable, startPostgres, type TestPostgres } from "@canopy/db/testing";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { Ingest } from "../src/store/index.ts";

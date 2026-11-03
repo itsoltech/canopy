@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
 
 /**
  * Starting values of a new thread: the project's defaults over the user's. The agent (provider,

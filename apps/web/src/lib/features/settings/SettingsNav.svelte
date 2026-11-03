@@ -3,12 +3,12 @@
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import { settingsGroups, settingsSections as sharedSections } from "./sections.ts";
   import { onMount } from "svelte";
-  import type { SettingsSection } from "@open-agents/ui/settings";
+  import type { SettingsSection } from "@canopy/ui/settings";
   let desktop = $state(false);
   onMount(() => { desktop = Boolean(window.canopyDesktop); });
   const settingsSections = $derived<readonly SettingsSection[]>(desktop ? [...sharedSections, { href: "/settings/desktop", label: "Desktop", icon: "server", group: "Connections", keywords: "desktop local remote worker computer" }] : sharedSections);
   import { useSettingsRoute } from "./settings-route.ts";
-  import { CANOPY_VERSION } from "@open-agents/domain/release/version";
+  import { CANOPY_VERSION } from "@canopy/domain/release/version";
 
   /** Settings sections with a search filter (T3 style); a scrolling row on narrow screens. */
   let query = $state("");

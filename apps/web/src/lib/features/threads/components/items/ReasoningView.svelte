@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Reasoning } from "@open-agents/contracts";
+  import type { Reasoning } from "@canopy/contracts";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";

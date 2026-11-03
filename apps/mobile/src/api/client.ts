@@ -1,6 +1,6 @@
 import { createClient, type Interceptor } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
-import { ui } from '@open-agents/contracts';
+import { ui } from '@canopy/contracts';
 
 export function gatewayOrigin(value: string, development = false): string {
   const url = new URL(value.trim());

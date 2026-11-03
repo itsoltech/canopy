@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import type { bots } from "@open-agents/contracts";
+import type { bots } from "@canopy/contracts";
 import { Markdown } from "../../ui/markdown";
 import { styles, useColors } from "../../ui/theme";
 

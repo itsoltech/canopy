@@ -1,5 +1,5 @@
-import { MentionKind, type MentionCatalogEntry } from "@open-agents/contracts";
-import { fuzzyRank } from "@open-agents/domain";
+import { MentionKind, type MentionCatalogEntry } from "@canopy/contracts";
+import { fuzzyRank } from "@canopy/domain";
 import { HttpError } from "#lib/shared/http.ts";
 import { listMentionCatalog, searchFiles, searchThreads, type MentionScope } from "./api.ts";
 import type { TriggerChar } from "./editor.ts";

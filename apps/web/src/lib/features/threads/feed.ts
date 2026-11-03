@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-state.svelte.ts";
 import { buildTimeline, type ItemNode, type TimelineRow } from "./timeline.ts";
 import { foldTurns, type WorkSummary } from "./work-groups.ts";

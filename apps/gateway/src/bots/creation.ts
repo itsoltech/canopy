@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { create } from "@bufbuild/protobuf";
-import { bots, Provider } from "@open-agents/contracts";
+import { bots, Provider } from "@canopy/contracts";
 import { Invalid } from "../store/store.ts";
 
 // Same choices as the appearance wizard. No UI dependency in the gateway.

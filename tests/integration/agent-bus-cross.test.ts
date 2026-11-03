@@ -9,9 +9,9 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { PermissionMode, Provider, ui, type AgentToolResult } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
+import { PermissionMode, Provider, ui, type AgentToolResult } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, SCRIPTED_MODELS, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";

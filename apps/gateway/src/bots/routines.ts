@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { bots } from "@open-agents/contracts";
+import { bots } from "@canopy/contracts";
 import cronstrue from "cronstrue";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { deniedEnvNames, deniedEnvPrefixes } from "@open-agents/domain";
+  import { deniedEnvNames, deniedEnvPrefixes } from "@canopy/domain";
   import { flip } from "svelte/animate";
   import Button from "#lib/shared/ui/Button.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
@@ -9,7 +9,7 @@
   import { duration, expand } from "#lib/shared/ui/motion.ts";
   import { envRow, ruleKind, type EnvVarDraft } from "./instances.ts";
   import SecretValue from "./SecretValue.svelte";
-  import type { ProviderProfileKind } from "@open-agents/contracts";
+  import type { ProviderProfileKind } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
 
   /**

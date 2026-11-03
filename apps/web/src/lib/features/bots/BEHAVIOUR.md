@@ -50,7 +50,7 @@ bun test apps/web/src/lib/features/bots/behaviour-math.test.ts apps/web/src/lib/
 OA_MASCOTS_BROWSER=1 bun test apps/web/src/lib/features/bots/gallery/behaviour.browser.test.ts
 bun run typecheck
 bun run check:tmp
-bun run --filter @open-agents/web build
+bun run --filter @canopy/web build
 ```
 
 The opt-in browser suite owns Vite on **5196**, uses `/usr/bin/chromium` and Playwright from

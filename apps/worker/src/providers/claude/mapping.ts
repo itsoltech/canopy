@@ -1,8 +1,8 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnEndSource, TurnOutcome, type BackgroundTaskSchema, type ItemSchema } from "@open-agents/contracts";
-import { isAgentBusTool, VIEW_IMAGE_TOOL } from "@open-agents/domain";
+import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnEndSource, TurnOutcome, type BackgroundTaskSchema, type ItemSchema } from "@canopy/contracts";
+import { isAgentBusTool, VIEW_IMAGE_TOOL } from "@canopy/domain";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**

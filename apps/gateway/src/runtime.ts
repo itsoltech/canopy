@@ -1,6 +1,6 @@
 import { PgClient } from "@effect/sql-pg";
-import { migrate } from "@open-agents/db";
-import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@open-agents/domain";
+import { migrate } from "@canopy/db";
+import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import { BotStore } from "./bots/store.ts";
 import { AgentBusStore, AttachmentStore, BackgroundTaskStore, GatewayStore, GoalStore, Ingest, loadSecretsKey, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "./store/index.ts";

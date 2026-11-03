@@ -3,7 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
-import type { DesktopStatus } from "@open-agents/ui/desktop";
+import type { DesktopStatus } from "@canopy/ui/desktop";
 import { configuration, initialStatus, origin, serviceEnvironment } from "./runtime/config.ts";
 import { loadSecrets } from "./vault.ts";
 import { Logs } from "./runtime/log.ts";

@@ -1,5 +1,5 @@
 import { getContext, setContext } from "svelte";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";

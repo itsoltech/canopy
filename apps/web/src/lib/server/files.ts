@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { INLINE_IMAGE_TYPES } from "@open-agents/domain";
+import { INLINE_IMAGE_TYPES } from "@canopy/domain";
 
 /**
  * Bytes from the gateway to the browser (docs/ui-api.md, "Załączniki"): only raster images the browser renders

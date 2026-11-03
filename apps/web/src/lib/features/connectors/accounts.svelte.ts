@@ -1,4 +1,4 @@
-import type { connectors } from '@open-agents/contracts';
+import type { connectors } from '@canopy/contracts';
 import { listConnectors } from './api.ts';
 
 /** Shared scoped catalog; late responses from a previous bot/thread cannot replace the current one. */

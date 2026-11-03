@@ -261,7 +261,7 @@ Wbudowany profil `native` zawsze istnieje (worker dodaje go, gdy konfiguracja go
 
 ### 8.1. Zmienne środowiskowe profilu
 
-Reguły są wspólne dla UI, gateway (odrzuca zapis) i workera (wyłącza profil z powodem): `@open-agents/domain`, `profiles/env.ts`.
+Reguły są wspólne dla UI, gateway (odrzuca zapis) i workera (wyłącza profil z powodem): `@canopy/domain`, `profiles/env.ts`.
 
 - Nazwa: `[A-Za-z_][A-Za-z0-9_]*`, do 128 znaków, bez powtórzeń (bez rozróżniania wielkości liter); wartość do 32 KiB, bez NUL; najwyżej 64 zmienne.
 - **Zakazane zawsze** (ustawia je worker; porównanie bez wielkości liter): `HOME`, `USERPROFILE`, `PATH`, `PWD`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `CLAUDE_CODE_ENTRYPOINT` oraz prefiks `OPENAGENTS_*` (klucze endpointów dla Codexa, `OPENAGENTS_<ID>_API_KEY`).

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { InteractionKind, type InteractionPrompt, type ItemStatus } from "@open-agents/contracts";
+  import { InteractionKind, type InteractionPrompt, type ItemStatus } from "@canopy/contracts";
   import { parseObject } from "#lib/shared/format.ts";
   import { humanizeToolName } from "#lib/shared/humanize.ts";
   import { isEmptyNode, structureJson } from "#lib/shared/structure.ts";

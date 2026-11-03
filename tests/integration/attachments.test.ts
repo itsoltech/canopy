@@ -7,9 +7,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import type { Client } from "@connectrpc/connect";
-import { ItemStatus, Provider, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { AttachmentStore, GatewayStore } from "@open-agents/gateway/store";
+import { ItemStatus, Provider, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { AttachmentStore, GatewayStore } from "@canopy/gateway/store";
 import sharp from "sharp";
 import { eventually, failure, SCRIPTED_ATTACHMENTS_ROOT, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 

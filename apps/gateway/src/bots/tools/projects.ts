@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { define, json, label, object, str } from "./shared.ts";
 
 export const projectTools = [

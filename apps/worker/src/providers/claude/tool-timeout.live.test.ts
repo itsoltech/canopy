@@ -1,7 +1,7 @@
 /** Proves the pinned SDK's documented MCP wall-clock limit against the actual CLI, with an isolated home. */
 import { describe, expect, test } from "bun:test";
 import { createSdkMcpServer, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { tempDirs } from "@open-agents/testing";
+import { tempDirs } from "@canopy/testing";
 import { z } from "zod";
 import { resolveProfiles } from "../profiles.ts";
 import { claudeProfileOptions } from "./profile.ts";

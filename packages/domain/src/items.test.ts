@@ -6,7 +6,7 @@ import {
   ThreadEventSchema,
   type Item,
   type ThreadEvent,
-} from "@open-agents/contracts";
+} from "@canopy/contracts";
 import { eventItemId, eventKind, itemStatus, itemType, reduceItem } from "./items.ts";
 
 type Body = NonNullable<MessageInitShape<typeof ThreadEventSchema>["body"]>;

@@ -7,9 +7,9 @@ import {
   type GatewayMessage,
   type Hello,
   type WorkerMessage,
-} from "@open-agents/contracts";
-import { AsyncChannel } from "@open-agents/transport";
-import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@open-agents/domain/release/protocol";
+} from "@canopy/contracts";
+import { AsyncChannel } from "@canopy/transport";
+import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
 import { WorkerConnection } from "./connection.ts";
 import { gatewayMessage } from "./messages.ts";
 

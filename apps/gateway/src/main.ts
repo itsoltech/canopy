@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
-import { startConnectHttpServer, startGrpcServer } from "@open-agents/transport";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { startConnectHttpServer, startGrpcServer } from "@canopy/transport";
 import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { healthcheck } from "./healthcheck.ts";
 import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
-import { installKind, isStandalone, serviceSnippet, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@open-agents/updater";
+import { installKind, isStandalone, serviceSnippet, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 

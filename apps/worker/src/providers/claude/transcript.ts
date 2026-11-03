@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { ItemStatus, TurnEndSource, TurnOutcome } from "@open-agents/contracts";
+import { ItemStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import { readJsonl, type HarnessRecord, type TurnEnd } from "../harness-record.ts";
 import { resultText, toolContent, withOutput } from "./mapping.ts";
 

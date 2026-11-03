@@ -1,6 +1,6 @@
 import { fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
-import { ItemSchema, type BackgroundTask } from "@open-agents/contracts";
+import { ItemSchema, type BackgroundTask } from "@canopy/contracts";
 import {
   backgroundEndReason,
   backgroundOutcome,
@@ -10,7 +10,7 @@ import {
   outputTail,
   type BackgroundOutcome,
   type BackgroundTaskEnd,
-} from "@open-agents/domain";
+} from "@canopy/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import type { TurnRow } from "./store.ts";

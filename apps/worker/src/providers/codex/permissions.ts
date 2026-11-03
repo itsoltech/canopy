@@ -1,5 +1,5 @@
-import { PermissionMode } from "@open-agents/contracts";
-import type { v2 } from "@open-agents/codex-protocol";
+import { PermissionMode } from "@canopy/contracts";
+import type { v2 } from "@canopy/codex-protocol";
 
 /**
  * Platform permission modes -> Codex approval policy + sandbox.

@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, type Mention } from "@open-agents/contracts";
-import { mentionLabel, mentionPlaceholder } from "@open-agents/domain";
+import { MentionKind, MentionSchema, type Mention } from "@canopy/contracts";
+import { mentionLabel, mentionPlaceholder } from "@canopy/domain";
 import { INLINE_RENDERERS, type InlineElement, type MentionData } from "./kinds.ts";
 import { blockHtml, fenceText, findFences, inlineHtml, type CodeBlockData } from "./markdown.ts";
 

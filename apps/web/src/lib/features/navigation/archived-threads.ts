@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 
 export interface ArchivedFilter { projectIds: string[]; query: string }
 export interface ArchivedPageState {

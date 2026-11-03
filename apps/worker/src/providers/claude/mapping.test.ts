@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { BackgroundTaskKind, ItemStatus, ThreadEventSchema, TurnOutcome, type Item, type ThreadEvent } from "@open-agents/contracts";
-import { eventItemId, reduceItem } from "@open-agents/domain";
+import { BackgroundTaskKind, ItemStatus, ThreadEventSchema, TurnOutcome, type Item, type ThreadEvent } from "@canopy/contracts";
+import { eventItemId, reduceItem } from "@canopy/domain";
 import { ClaudeEventMapper, startsTurn, toolContent } from "./mapping.ts";
 import { goalVerdictOf } from "./threads.ts";
 

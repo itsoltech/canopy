@@ -2,7 +2,7 @@ import { chmodSync, closeSync, constants, existsSync, lstatSync, mkdirSync, open
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { create } from "@bufbuild/protobuf";
-import { ItemDeltaField, ThreadSecretReceiptSchema, type ThreadSecretDelivery, type ThreadSecretReceipt } from "@open-agents/contracts";
+import { ItemDeltaField, ThreadSecretReceiptSchema, type ThreadSecretDelivery, type ThreadSecretReceipt } from "@canopy/contracts";
 import type { ThreadEventInit } from "../journal/journal.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

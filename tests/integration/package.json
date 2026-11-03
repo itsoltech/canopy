@@ -1,5 +1,5 @@
 {
-  "name": "@open-agents/integration-tests",
+  "name": "@canopy/integration-tests",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,16 +11,16 @@
     "@connectrpc/connect": "2.3.0",
     "@connectrpc/connect-node": "2.3.0",
     "@grpc/grpc-js": "1.14.7",
-    "@open-agents/contracts": "workspace:*",
-    "@open-agents/db": "workspace:*",
-    "@open-agents/domain": "workspace:*",
-    "@open-agents/gateway": "workspace:*",
-    "@open-agents/transport": "workspace:*",
-    "@open-agents/worker": "workspace:*",
+    "@canopy/contracts": "workspace:*",
+    "@canopy/db": "workspace:*",
+    "@canopy/domain": "workspace:*",
+    "@canopy/gateway": "workspace:*",
+    "@canopy/transport": "workspace:*",
+    "@canopy/worker": "workspace:*",
     "effect": "4.1.1",
     "sharp": "0.35.5"
   },
   "devDependencies": {
-    "@open-agents/testing": "workspace:*"
+    "@canopy/testing": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
-import { MentionKind, type bots } from "@open-agents/contracts";
-import { fuzzyRank } from "@open-agents/domain";
+import { MentionKind, type bots } from "@canopy/contracts";
+import { fuzzyRank } from "@canopy/domain";
 import type { TriggerChar } from "#lib/features/mentions/editor.ts";
 import type { MentionOption, MentionResults, MentionSourceSet } from "#lib/features/mentions/sources.svelte.ts";
 import { INLINE_RENDERERS } from "#lib/features/mentions/kinds.ts";

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, toJson } from "@bufbuild/protobuf";
-import { bots, MentionKind, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayCore } from "@open-agents/gateway/core";
+import { bots, MentionKind, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayCore } from "@canopy/gateway/core";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { BotModel, ModelInput, ModelReply } from "../../apps/gateway/src/bots/types.ts";

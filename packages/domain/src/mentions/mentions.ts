@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, Provider, type Mention } from "@open-agents/contracts";
+import { MentionKind, MentionSchema, Provider, type Mention } from "@canopy/contracts";
 
 /**
  * Mentions in a message (docs/ui-api.md, "Wzmianki"; docs/protocol.md, "Wzmianki"): commands, skills, plugins, files

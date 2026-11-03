@@ -6,8 +6,8 @@ import {
   type GatewayMessage,
   type Hello,
   type WorkerMessage,
-} from "@open-agents/contracts";
-import { AsyncChannel } from "@open-agents/transport";
+} from "@canopy/contracts";
+import { AsyncChannel } from "@canopy/transport";
 import { gatewayMessage, type GatewayPayloadInit } from "./messages.ts";
 
 type KindInit = NonNullable<MessageInitShape<typeof CommandSchema>["kind"]>;

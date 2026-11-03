@@ -1,6 +1,6 @@
 <script lang="ts">
   import { create } from "@bufbuild/protobuf";
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ThreadDefaultsFields from "#lib/features/settings/ThreadDefaultsFields.svelte";

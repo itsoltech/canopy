@@ -1,7 +1,7 @@
 import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { error, fail, isActionFailure, isHttpError, type ActionFailure } from "@sveltejs/kit";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { GATEWAY_SERVICE_TOKEN, GATEWAY_URL } from "$app/env/private";
 
 /**

@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 
 /**
  * Where a fork can start (docs/threads.md, "Fork od tury"): after an ended turn (completed, failed, interrupted).

@@ -1,6 +1,6 @@
 import { clone, create } from "@bufbuild/protobuf";
-import { ItemDeltaField, ItemSchema, ItemStatus, type Item } from "@open-agents/contracts";
-import type { SessionUpdate, ToolCall } from "@open-agents/grok-acp";
+import { ItemDeltaField, ItemSchema, ItemStatus, type Item } from "@canopy/contracts";
+import type { SessionUpdate, ToolCall } from "@canopy/grok-acp";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 const text = (value: unknown): string => typeof value === "string" ? value : value == null ? "" : JSON.stringify(value);

@@ -5,9 +5,9 @@ import {
   mascotFor,
   mascotShapes,
   normalizeColor,
-} from "@open-agents/ui/mascot";
-import type { bots } from "@open-agents/contracts";
-import { palette } from "@open-agents/ui";
+} from "@canopy/ui/mascot";
+import type { bots } from "@canopy/contracts";
+import { palette } from "@canopy/ui";
 
 export function BotAvatar({
   bot,

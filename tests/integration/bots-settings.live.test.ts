@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { bots, Provider } from '@open-agents/contracts';
+import { bots, Provider } from '@canopy/contracts';
 import { create } from '@bufbuild/protobuf';
-import { dockerAvailable } from '@open-agents/db/testing';
+import { dockerAvailable } from '@canopy/db/testing';
 import { eventually, startTestGateway, type TestGateway } from './support/gateway.ts';
 import { useLiveProxy } from './support/live.ts';
 

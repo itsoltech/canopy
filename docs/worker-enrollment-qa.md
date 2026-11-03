@@ -23,7 +23,7 @@ oraz style segmentów pochodzą z kitu. Ruch: `Dialog`/`t-modal`, `pageIn` dla e
 - `bun install` — sukces.
 - `bun run typecheck` — sukces, Svelte: 0 błędów i 0 ostrzeżeń.
 - `bun run gen:check` — sukces, wygenerowane kontrakty zgodne.
-- `bun run --filter @open-agents/web build` — sukces; istniejące ostrzeżenie o dużym chunku.
+- `bun run --filter @canopy/web build` — sukces; istniejące ostrzeżenie o dużym chunku.
 - `bun run check:tmp --parallel=2` — sukces: **612 pass, 141 skip, 0 fail**, 3290 asercji,
   125 plików, 231,91 s; brak pozostałości testów w prywatnym katalogu tymczasowym.
 

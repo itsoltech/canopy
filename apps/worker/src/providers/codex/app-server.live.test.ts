@@ -7,8 +7,8 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CODEX_PROTOCOL_VERSION, type ServerNotification } from "@open-agents/codex-protocol";
-import { tempDirs } from "@open-agents/testing";
+import { CODEX_PROTOCOL_VERSION, type ServerNotification } from "@canopy/codex-protocol";
+import { tempDirs } from "@canopy/testing";
 import { Effect, Fiber, Stream } from "effect";
 import { resolveProfiles } from "../profiles.ts";
 import { CodexAppServer } from "./app-server.ts";

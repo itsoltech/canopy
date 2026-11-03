@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Provider } from "@open-agents/contracts";
+  import type { Provider } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import { providerKeyOf } from "../providers.ts";

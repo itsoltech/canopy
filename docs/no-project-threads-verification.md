@@ -45,7 +45,7 @@ obsługi reduced motion; nie dodano natywnych selectów ani nowych zależności 
 | `bun install` po scaleniu botów | OK, bez zmian zależności |
 | `bun run typecheck` | OK, Svelte: 0 błędów i 0 ostrzeżeń |
 | `bun run gen:check` | OK, wygenerowany kontrakt zawiera scratch i Bots |
-| `bun run --filter @open-agents/web build` | OK |
+| `bun run --filter @canopy/web build` | OK |
 | Końcowy pełny `bun run check:tmp` po scaleniu botów | 908 pass, 185 skip, 0 fail; 5156 asercji, brak pozostawionych katalogów testowych |
 | Po scaleniu botów: integracje scratch, Bots i schemat DB | 60 pass, 0 fail; brak pozostawionych katalogów |
 | Chromium po scaleniu botów | 4 pass, 0 fail; 64 asercje |

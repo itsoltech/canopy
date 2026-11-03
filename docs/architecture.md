@@ -350,8 +350,8 @@ open-agents/
 Zasady zależności:
 
 - `apps/*` → `packages/*`. Aplikacje nie importują siebie nawzajem.
-- Typy protokołu tylko z `@open-agents/contracts`. Ręcznie pisane typy dublujące protokół są niedozwolone.
-- `tests/integration` może importować publiczne wejścia aplikacji (`exports` w `package.json`), np. `@open-agents/gateway/worker-link`.
+- Typy protokołu tylko z `@canopy/contracts`. Ręcznie pisane typy dublujące protokół są niedozwolone.
+- `tests/integration` może importować publiczne wejścia aplikacji (`exports` w `package.json`), np. `@canopy/gateway/worker-link`.
 
 ## 11. Decyzje do podjęcia
 

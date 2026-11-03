@@ -1,5 +1,5 @@
 {
-  "name": "@open-agents/codex-protocol",
+  "name": "@canopy/codex-protocol",
   "version": "0.0.0",
   "private": true,
   "type": "module",

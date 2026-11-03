@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AsyncChannel } from "@open-agents/transport";
+import { AsyncChannel } from "@canopy/transport";
 import { JsonRpcPeer, RpcClosedError, RpcError, readLines, type RpcHandlers } from "./rpc.ts";
 
 /** In-memory server side: lines the client wrote, and a channel to push server lines. */

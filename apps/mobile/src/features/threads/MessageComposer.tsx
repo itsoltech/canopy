@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Alert, Text, View } from "react-native";
-import { PermissionMode, ui, type ProfileModels } from "@open-agents/contracts";
+import { PermissionMode, ui, type ProfileModels } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { ComposerBox, ComposerPill } from "./ComposerBox";
 import { Button, Field, Notice, Sheet } from "../../ui/components";

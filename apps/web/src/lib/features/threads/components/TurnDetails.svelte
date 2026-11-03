@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import { timestampMs } from "@bufbuild/protobuf/wkt";
   import type { ClassValue } from "svelte/elements";
   import { formatDuration } from "#lib/shared/format.ts";

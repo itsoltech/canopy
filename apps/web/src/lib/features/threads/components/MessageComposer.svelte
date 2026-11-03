@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import type { Mention } from "@open-agents/contracts";
+  import type { Mention } from "@canopy/contracts";
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { trimValue } from "#lib/features/mentions/editor.ts";
   import { toWire, useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";

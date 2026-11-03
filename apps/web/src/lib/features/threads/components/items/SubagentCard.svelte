@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PermissionMode, Provider } from "@open-agents/contracts";
+  import { PermissionMode, Provider } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";

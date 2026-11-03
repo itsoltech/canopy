@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Mention } from "@open-agents/contracts";
+  import type { Mention } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { mentionLabel } from "@open-agents/domain";
+  import { mentionLabel } from "@canopy/domain";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { CHIP_CLASS, CHIP_ICON_CLASS, chipTitle, kindLook } from "./kinds.ts";
 

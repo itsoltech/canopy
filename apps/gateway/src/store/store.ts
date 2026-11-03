@@ -20,9 +20,9 @@ import {
   type Item,
   type ThreadSpec,
   type WorkerConfig,
-} from "@open-agents/contracts";
+} from "@canopy/contracts";
 import { Context, Effect, Layer, Result } from "effect";
-import { decodeUserAnswers, type UserQuestion } from "@open-agents/domain";
+import { decodeUserAnswers, type UserQuestion } from "@canopy/domain";
 import { writeInteractionTimeline } from "./interaction-timeline.ts";
 import { SqlClient, type SqlError } from "effect/sql";
 import { isAbsolutePath, isWithinWorkspace, normalizePath, pathKey, pathStyle, scratchBase, scratchCwd } from "./paths.ts";
@@ -287,7 +287,7 @@ export class GatewayStore extends Context.Service<
     answerInteraction(requestId: string, by: { userId: string; botId?: string } | { threadId: string }, answer: ui.AnswerInteractionRequest): Fx<ui.Interaction>;
     pendingInteractions(threadId: string): Fx<ui.Interaction[]>;
     interactionAnswer(requestId: string): Fx<{ threadId: string; answer: ui.AnswerInteractionRequest } | undefined>;
-    interactionEvent(requestId: string): Fx<{ seq: bigint; event: import("@open-agents/contracts").ThreadEvent } | undefined>;
+    interactionEvent(requestId: string): Fx<{ seq: bigint; event: import("@canopy/contracts").ThreadEvent } | undefined>;
   } & ThreadLifecycle
 >()("open-agents/gateway/GatewayStore") {
   static readonly layer = (secretsKey: Buffer) =>

@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@open-agents/contracts";
-import { eventItemId, reduceItem } from "@open-agents/domain/items";
+import { ui } from "@canopy/contracts";
+import { eventItemId, reduceItem } from "@canopy/domain/items";
 
 const upsert = <T>(rows: T[], value: T, key: (row: T) => string) => [
   ...rows.filter((r) => key(r) !== key(value)),

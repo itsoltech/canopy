@@ -1,6 +1,6 @@
 import { create, fromJson, toBinary, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { CommandSchema, ui, type Command } from "@open-agents/contracts";
+import { CommandSchema, ui, type Command } from "@canopy/contracts";
 import {
   agentKey,
   fuzzyRank,
@@ -13,7 +13,7 @@ import {
   type SpawnPermissionMode,
   type SpawnTarget,
   type ThreadNode,
-} from "@open-agents/domain";
+} from "@canopy/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { GatewayStore, Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";

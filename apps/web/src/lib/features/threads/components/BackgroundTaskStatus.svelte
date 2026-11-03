@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus } from "@open-agents/contracts";
+  import { ItemStatus } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { timestampFromMs } from "@bufbuild/protobuf/wkt";
   import { formatRelative, formatSpan } from "#lib/shared/format.ts";

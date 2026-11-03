@@ -1,1 +1,1 @@
-export * from "@open-agents/ui/mascot";
+export * from "@canopy/ui/mascot";

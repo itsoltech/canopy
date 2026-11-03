@@ -3,15 +3,15 @@ import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { ManagedRuntime, Result } from "effect";
-import { WorkerState } from "@open-agents/contracts";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
+import { WorkerState } from "@canopy/contracts";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
 import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
 import { enrollWorker, workerCommand, workerServiceSnippet } from "./enroll.ts";
 import { desktopStatus, workerOnline } from "./desktop-status.ts";
-import { confirmStartup, installKind, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@open-agents/updater";
+import { confirmStartup, installKind, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
 import { WorkerUpdates } from "./update-link.ts";
 
 const cliArgs = Bun.argv.slice(2);

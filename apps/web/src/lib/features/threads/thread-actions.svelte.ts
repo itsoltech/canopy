@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { goto } from "$app/navigation";
 import { getContext, setContext } from "svelte";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";

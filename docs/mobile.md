@@ -39,8 +39,8 @@ Zachowane są `src/app`, Router, Hermes, domyślna New Architecture i CNG.
 Bez `react-native-web`, Expo web, NativeWind i dodatkowego systemu komponentów.
 
 Metro korzysta z `getDefaultConfig` z `expo/metro-config`. SDK 58 sam wykrywa
-workspaces Bun, eksporty TS `@open-agents/contracts` i współdzielony reducer itemów
-`@open-agents/domain/items`. Nie dodawaj dawnych `watchFolders` ani ręcznych aliasów.
+workspaces Bun, eksporty TS `@canopy/contracts` i współdzielony reducer itemów
+`@canopy/domain/items`. Nie dodawaj dawnych `watchFolders` ani ręcznych aliasów.
 Po zmianie linkera lub przeniesieniu checkoutu uruchom `bunx expo start --dev-client --clear`.
 
 W `bunfig.toml` jest `install.linker = "hoisted"`. Izolowany linker Bun powodował,
@@ -312,7 +312,7 @@ bun install
 bun run typecheck
 bun run gen:check
 bun run check:tmp
-bun run --filter @open-agents/web build
+bun run --filter @canopy/web build
 ```
 
 Z `apps/mobile`:

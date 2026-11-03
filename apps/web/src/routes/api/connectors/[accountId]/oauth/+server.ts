@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { randomBytes } from "node:crypto";
-import { connectors } from "@open-agents/contracts";
+import { connectors } from "@canopy/contracts";
 import { readMessage } from "#lib/server/body.ts";
 import { call } from "#lib/server/gateway.ts";
 import type { RequestHandler } from "./$types";

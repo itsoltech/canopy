@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tempDir } from "@open-agents/testing";
+import { tempDir } from "@canopy/testing";
 import { Result } from "effect";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig, parseLocalConfig } from "./local.ts";
 

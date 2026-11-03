@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import { goalLook } from "#lib/features/goals/goals.ts";
   import { formatDateTime, formatDay, formatTime, isoDateTime } from "#lib/shared/format.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";

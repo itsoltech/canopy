@@ -1,4 +1,4 @@
-import type { Mention, ui } from "@open-agents/contracts";
+import type { Mention, ui } from "@canopy/contracts";
 
 /**
  * View model of Bots (agents that live in the gateway). Presentational only: no proto types, so a

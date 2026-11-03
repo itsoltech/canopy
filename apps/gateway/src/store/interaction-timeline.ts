@@ -1,6 +1,6 @@
 import { create, toJson } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
-import { InteractionKind, ItemSchema, ItemStatus, ThreadEventSchema } from "@open-agents/contracts";
+import { InteractionKind, ItemSchema, ItemStatus, ThreadEventSchema } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { InteractionRow } from "./store.ts";

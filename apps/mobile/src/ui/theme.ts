@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { accents, palette, typography, type AccentName } from "@open-agents/ui";
+import { accents, palette, typography, type AccentName } from "@canopy/ui";
 import { useAppearance } from "../state/appearance";
 
 export function colorsFor(dark: boolean, accent: AccentName = "default") {

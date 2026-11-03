@@ -9,8 +9,8 @@ import {
   UsageSchema,
   type Item,
   type ThreadEvent,
-} from "@open-agents/contracts";
-import { DEFAULT_BUS_LIMITS, eventItemId, eventKind, itemStatus, itemType, previewRefs, reduceItem, stoppedByUser } from "@open-agents/domain";
+} from "@canopy/contracts";
+import { DEFAULT_BUS_LIMITS, eventItemId, eventKind, itemStatus, itemType, previewRefs, reduceItem, stoppedByUser } from "@canopy/domain";
 import { timestampDate, timestampNow } from "@bufbuild/protobuf/wkt";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";

@@ -1,5 +1,5 @@
 {
-  "name": "@open-agents/domain",
+  "name": "@canopy/domain",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",
-    "@open-agents/contracts": "workspace:*",
+    "@canopy/contracts": "workspace:*",
     "effect": "4.1.1"
   }
 }

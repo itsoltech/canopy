@@ -1,6 +1,6 @@
 <script lang="ts">
   import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
-  import type { bots } from "@open-agents/contracts";
+  import type { bots } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";

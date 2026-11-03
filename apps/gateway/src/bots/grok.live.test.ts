@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { bots, Provider } from "@open-agents/contracts";
+import { bots, Provider } from "@canopy/contracts";
 import { directModel } from "./model.ts";
 
 const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];

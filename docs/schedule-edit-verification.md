@@ -30,7 +30,7 @@ tokenów i obsługi reduced motion w `routes/layout.css` oraz `lib/shared/ui/mot
 | `bun run typecheck` | Sukces wszystkich workspace; Svelte: 0 błędów i 0 ostrzeżeń |
 | `bun run gen:check` | Sukces, wygenerowany kontrakt zgodny |
 | `bun run check:tmp` | 809 pass, 130 skip, 0 fail; 3190 asercji, 144 pliki; katalog tymczasowy pusty |
-| `bun run --filter @open-agents/web build` | Sukces; ostrzeżenie Vite o dużym chunku |
+| `bun run --filter @canopy/web build` | Sukces; ostrzeżenie Vite o dużym chunku |
 | `OA_SCHEDULE_EDIT_BROWSER=1 bun test tests/integration/schedules-edit.browser.test.ts` | 3 pass, 0 fail; 91 asercji |
 
 Testy jednostkowe obejmują walidację, przeliczanie następnego terminu, akcje zależne od statusu

@@ -1,5 +1,5 @@
 import { clone } from "@bufbuild/protobuf";
-import { ItemSchema, ItemStatus, TurnEndSource, TurnOutcome, type ThreadEvent } from "@open-agents/contracts";
+import { ItemSchema, ItemStatus, TurnEndSource, TurnOutcome, type ThreadEvent } from "@canopy/contracts";
 import { Effect } from "effect";
 import { Journal, type OpenTurn, type ThreadEventInit } from "../journal/index.ts";
 import { readClaudeTurn } from "./claude/transcript.ts";

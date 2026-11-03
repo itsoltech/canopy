@@ -3,7 +3,7 @@ import { ScrollView, Text, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
-import { Provider } from "@open-agents/contracts";
+import { Provider } from "@canopy/contracts";
 import { useSession } from "../state/session";
 import { useOverview } from "../state/overview";
 import { useAppearance } from "../state/appearance";

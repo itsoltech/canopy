@@ -25,17 +25,17 @@ import {
   type InteractionRequest,
   type ProfileModelsSchema,
   type WorkerConfig,
-} from "@open-agents/contracts";
-import { migrate } from "@open-agents/db";
-import { startPostgres, type TestPostgres } from "@open-agents/db/testing";
-import { serviceTokenAuth, uiRoutes } from "@open-agents/gateway/api";
-import { GatewayCore } from "@open-agents/gateway/core";
-import { AgentBusStore, AttachmentStore, BackgroundTaskStore, GatewayStore, GoalStore, Ingest, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "@open-agents/gateway/store";
-import type { AttachmentLimits } from "@open-agents/domain";
-import { startGrpcServer } from "@open-agents/transport";
-import { applyWorkerConfig } from "@open-agents/worker/config";
-import { openGatewayLink, type GatewayLink } from "@open-agents/worker/gateway-link";
-import { ThreadSecretFiles } from "@open-agents/worker/runtime";
+} from "@canopy/contracts";
+import { migrate } from "@canopy/db";
+import { startPostgres, type TestPostgres } from "@canopy/db/testing";
+import { serviceTokenAuth, uiRoutes } from "@canopy/gateway/api";
+import { GatewayCore } from "@canopy/gateway/core";
+import { AgentBusStore, AttachmentStore, BackgroundTaskStore, GatewayStore, GoalStore, Ingest, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "@canopy/gateway/store";
+import type { AttachmentLimits } from "@canopy/domain";
+import { startGrpcServer } from "@canopy/transport";
+import { applyWorkerConfig } from "@canopy/worker/config";
+import { openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
+import { ThreadSecretFiles } from "@canopy/worker/runtime";
 import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
 import { BotStore } from "../../../apps/gateway/src/bots/store.ts";

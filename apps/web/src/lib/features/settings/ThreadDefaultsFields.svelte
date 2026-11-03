@@ -1,6 +1,6 @@
 <script lang="ts">
   import { create } from "@bufbuild/protobuf";
-  import { PermissionMode, Provider, ui } from "@open-agents/contracts";
+  import { PermissionMode, Provider, ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { permissionLabel, permissionModes, providerLabel } from "#lib/features/threads/labels.ts";
   import { isProviderKey, instancesFor, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";

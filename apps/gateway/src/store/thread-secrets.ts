@@ -1,7 +1,7 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ui, type ThreadSecretDelivery, type ThreadSecretReceipt } from "@open-agents/contracts";
-import type { AgentBusArgs } from "@open-agents/domain";
+import { ui, type ThreadSecretDelivery, type ThreadSecretReceipt } from "@canopy/contracts";
+import type { AgentBusArgs } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import type { CallSource } from "./agent-bus.ts";

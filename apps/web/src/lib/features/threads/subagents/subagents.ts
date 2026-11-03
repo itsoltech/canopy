@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import type { StatusLook } from "#lib/shared/ui/status.ts";
 
 /**

@@ -1,9 +1,9 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { bots, connectors, MentionKind, MentionSchema, ProfileModelsSchema, Provider, type Mention, type ProfileModels, type ui } from "@open-agents/contracts";
+import { bots, connectors, MentionKind, MentionSchema, ProfileModelsSchema, Provider, type Mention, type ProfileModels, type ui } from "@canopy/contracts";
 import { ConnectorFailure, connectorStore } from "../connectors/store.ts";
 import { connectorType } from "../connectors/catalog.ts";
-import { checkMentions, mentionPlaceholder } from "@open-agents/domain";
+import { checkMentions, mentionPlaceholder } from "@canopy/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { decryptSecret } from "../store/secrets.ts";

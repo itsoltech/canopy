@@ -1,8 +1,8 @@
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import type { PermissionModeKey } from "./labels.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
-import type { Mention } from "@open-agents/contracts";
+import type { Mention } from "@canopy/contracts";
 import { mentionsToWire } from "#lib/features/mentions/wire.ts";
 import type { WireQuote } from "#lib/features/quotes/quote.ts";
 

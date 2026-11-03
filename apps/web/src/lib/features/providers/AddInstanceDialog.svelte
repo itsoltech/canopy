@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Provider, type ui } from "@open-agents/contracts";
+  import { Provider, type ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import ChoiceCard from "#lib/shared/ui/ChoiceCard.svelte";

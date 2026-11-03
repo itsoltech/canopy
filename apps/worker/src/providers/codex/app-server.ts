@@ -1,4 +1,4 @@
-import type { InitializeParams, InitializeResponse, ServerNotification, ServerRequest, v2 } from "@open-agents/codex-protocol";
+import type { InitializeParams, InitializeResponse, ServerNotification, ServerRequest, v2 } from "@canopy/codex-protocol";
 import { Context, Effect, Layer, PubSub, Schema, Stream } from "effect";
 import type { CodexAppServerLaunch } from "./launch.ts";
 import { JsonRpcPeer, RpcError, readLines } from "./rpc.ts";

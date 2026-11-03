@@ -1,5 +1,5 @@
 import { humanizeEnum } from "#lib/shared/humanize.ts";
-import { Provider, type ui } from "@open-agents/contracts";
+import { Provider, type ui } from "@canopy/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 import type { Tone } from "#lib/shared/ui/tone.ts";
 

@@ -4,8 +4,8 @@
  * and results come back to the calling thread as notification turns.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { InteractionKind, PermissionMode, Provider, type AgentToolResult } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { InteractionKind, PermissionMode, Provider, type AgentToolResult } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";

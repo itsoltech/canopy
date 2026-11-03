@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { BotStore } from "../store.ts";
 import { Invalid, NotFound } from "../../store/store.ts";
 import { bool, define, json, object, permission, permissionSchema, provider, providerSchema, str, type ToolContext } from "./shared.ts";

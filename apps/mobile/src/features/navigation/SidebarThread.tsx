@@ -6,7 +6,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { router } from "expo-router";
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ProviderIcon } from "../../ui/ProviderIcon";

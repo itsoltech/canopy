@@ -1,9 +1,9 @@
 import { create } from "@bufbuild/protobuf";
-import { AgentToolCallSchema, ItemStatus, type AgentToolCall, type AgentToolResult, type ConnectorTool } from "@open-agents/contracts";
+import { AgentToolCallSchema, ItemStatus, type AgentToolCall, type AgentToolResult, type ConnectorTool } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
-import { agentBusToolSpecs, agentBusToolsFor, viewImageSpec, VIEW_IMAGE_TOOL } from "@open-agents/domain";
+import { agentBusToolSpecs, agentBusToolsFor, viewImageSpec, VIEW_IMAGE_TOOL } from "@canopy/domain";
 import type { ViewImageResult } from "../../images/index.ts";
-import type { McpServer } from "@open-agents/grok-acp";
+import type { McpServer } from "@canopy/grok-acp";
 import { toolCallId } from "../tool-call-id.ts";
 
 /** Stateless Streamable HTTP MCP bound to loopback, authenticated and scoped to a single thread. */

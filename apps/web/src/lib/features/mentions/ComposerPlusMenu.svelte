@@ -5,7 +5,7 @@
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import type { TriggerChar } from "./editor.ts";
   import { kindLook } from "./kinds.ts";
-  import { MentionKind } from "@open-agents/contracts";
+  import { MentionKind } from "@canopy/contracts";
 
   /**
    * The composer's "+": attach files (the system picker; on phones also the camera and photos) and, for

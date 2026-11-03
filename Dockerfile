@@ -11,7 +11,7 @@ WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile --ignore-scripts \
-      --filter @open-agents/gateway --filter @open-agents/worker --filter @open-agents/web
+      --filter @canopy/gateway --filter @canopy/worker --filter @canopy/web
 ARG CANOPY_VERSION=0.0.0-dev
 ENV CANOPY_VERSION=${CANOPY_VERSION}
 

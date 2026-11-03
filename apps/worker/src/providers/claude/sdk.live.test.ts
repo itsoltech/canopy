@@ -7,7 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createSdkMcpServer, forkSession, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { tempDir } from "@open-agents/testing";
+import { tempDir } from "@canopy/testing";
 import { z } from "zod";
 import { resolveProfiles } from "../profiles.ts";
 import { claudeProfileOptions } from "./profile.ts";

@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
-import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@open-agents/codex-protocol";
+import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@canopy/codex-protocol";
 import {
   BackgroundTaskKind,
   ItemDeltaField,
@@ -11,8 +11,8 @@ import {
   TurnOrigin,
   TurnOutcome,
   type ItemSchema,
-} from "@open-agents/contracts";
-import { isAgentBusTool, VIEW_IMAGE_TOOL } from "@open-agents/domain";
+} from "@canopy/contracts";
+import { isAgentBusTool, VIEW_IMAGE_TOOL } from "@canopy/domain";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**

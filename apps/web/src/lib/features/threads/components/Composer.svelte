@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { InteractionKind, type ui } from "@open-agents/contracts";
+  import { InteractionKind, type ui } from "@canopy/contracts";
   import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import ComposerBox from "./ComposerBox.svelte";

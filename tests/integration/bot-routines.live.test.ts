@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { Provider } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { Provider } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";

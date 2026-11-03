@@ -80,7 +80,7 @@ W jednej transakcji per paczka zdarzeń wątku:
 1. `SELECT ... FROM threads WHERE id = $1 FOR UPDATE` (serializacja zapisu w wątku),
 2. odrzucenie zdarzeń, których `event_id` już jest,
 3. nadanie kolejnych `seq` i `INSERT INTO thread_events`,
-4. dla zdarzeń itemów: `reduceItem` (z `@open-agents/domain`) i upsert `thread_items` (`first_seq`, `last_seq`),
+4. dla zdarzeń itemów: `reduceItem` (z `@canopy/domain`) i upsert `thread_items` (`first_seq`, `last_seq`),
 5. aktualizacja `threads.last_seq`, `turns` (status, `first_seq` / `last_seq`, `provider_turn_ref`),
 6. po commicie: `EventAck(journal_seq)` do workera i `NOTIFY` dla subskrybentów UI.
 

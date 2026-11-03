@@ -1,5 +1,5 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import type { ServerNotification, v2 } from "@open-agents/codex-protocol";
+import type { ServerNotification, v2 } from "@canopy/codex-protocol";
 import {
   AgentToolCallSchema,
   GoalDirective,
@@ -16,8 +16,8 @@ import {
   type ThreadEvent,
   type ThreadSpec,
   type UserInput,
-} from "@open-agents/contracts";
-import { agentBusToolSpecs, agentBusToolsFor, viewImageSpec } from "@open-agents/domain";
+} from "@canopy/contracts";
+import { agentBusToolSpecs, agentBusToolsFor, viewImageSpec } from "@canopy/domain";
 import type { ViewImageResult } from "../../images/index.ts";
 import { Context, Effect, Layer, Schema, Stream } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";

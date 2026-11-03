@@ -1,5 +1,5 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
-import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } from "@open-agents/contracts";
+import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } from "@canopy/contracts";
 import {
   agentCatalog,
   authorizeBusCall,
@@ -12,7 +12,7 @@ import {
   type SpawnInstance,
   type SpawnResolution,
   type SpawnTarget,
-} from "@open-agents/domain";
+} from "@canopy/domain";
 import { Result, type Effect } from "effect";
 import { AgentBusStore, GatewayStore, truncate, type CallSource, type ThreadRow, type TurnRow } from "../store/index.ts";
 import { cronProblem, nextCronRun } from "./cron.ts";

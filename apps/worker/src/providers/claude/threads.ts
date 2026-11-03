@@ -19,8 +19,8 @@ import {
   type ThreadEvent,
   type ThreadSpec,
   type UserInput,
-} from "@open-agents/contracts";
-import { AsyncChannel } from "@open-agents/transport";
+} from "@canopy/contracts";
+import { AsyncChannel } from "@canopy/transport";
 import { Context, Effect, Layer, Schema } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
 import { claudeAgentModels, claudeModel, isClaudeEffort, proxyCapabilities, type ModelInit, type ProxyCapabilities } from "../models.ts";

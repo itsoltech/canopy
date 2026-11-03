@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus, type Image } from "@open-agents/contracts";
+  import { ItemStatus, type Image } from "@canopy/contracts";
   import SeenImage from "#lib/features/attachments/SeenImage.svelte";
   import { useThreadDirectory } from "../../thread-directory.ts";
   import ItemFrame from "./ItemFrame.svelte";

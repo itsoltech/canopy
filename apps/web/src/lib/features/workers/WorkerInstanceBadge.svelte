@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import { harnessKey, harnessName } from "#lib/features/providers/instances.ts";
   let { instance, class: className }: { instance: ui.WorkerInstance; class?: ClassValue } = $props();

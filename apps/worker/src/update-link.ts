@@ -1,9 +1,9 @@
 import { createClient } from "@connectrpc/connect";
-import { update } from "@open-agents/contracts";
-import { MIN_WORKER_LINK_PROTOCOL, UPDATE_PROTOCOL, WORKER_LINK_PROTOCOL } from "@open-agents/domain/release/protocol";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
-import { createGrpcClientTransport } from "@open-agents/transport";
-import { clearUpdateResult, compareVersions, installKind, managedInstructions, parseManifest, readUpdateRecord, releaseAsset, stageBinaryUpdate, whenIdle, type InstallKind } from "@open-agents/updater";
+import { update } from "@canopy/contracts";
+import { MIN_WORKER_LINK_PROTOCOL, UPDATE_PROTOCOL, WORKER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { createGrpcClientTransport } from "@canopy/transport";
+import { clearUpdateResult, compareVersions, installKind, managedInstructions, parseManifest, readUpdateRecord, releaseAsset, stageBinaryUpdate, whenIdle, type InstallKind } from "@canopy/updater";
 
 export interface WorkerUpdatesOptions {
   baseUrl: string;

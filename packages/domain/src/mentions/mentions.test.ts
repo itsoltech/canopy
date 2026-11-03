@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, Provider, UserInputSchema, ui, type Mention } from "@open-agents/contracts";
+import { MentionKind, MentionSchema, Provider, UserInputSchema, ui, type Mention } from "@canopy/contracts";
 import { fuzzyMatch, fuzzyRank } from "./fuzzy.ts";
 import { checkMentions, composeMessage, MentionError, mentionLabel, mentionPlaceholder } from "./mentions.ts";
 

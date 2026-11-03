@@ -1,5 +1,5 @@
-import { MentionKind } from "@open-agents/contracts";
-import type { v2 } from "@open-agents/codex-protocol";
+import { MentionKind } from "@canopy/contracts";
+import type { v2 } from "@canopy/codex-protocol";
 import type { MentionEntryInit } from "../../mentions/catalog.ts";
 import { catalogIcon } from "../../mentions/icons.ts";
 

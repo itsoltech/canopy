@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tempDir } from "@open-agents/testing";
+import { tempDir } from "@canopy/testing";
 import { RolloutTail } from "./rollout.ts";
 
 const dir = tempDir("oa-rollout-");

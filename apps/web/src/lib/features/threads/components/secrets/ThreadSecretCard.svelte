@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { timestampMs } from "@bufbuild/protobuf/wkt";
   import { clock } from "#lib/shared/clock.svelte.ts";

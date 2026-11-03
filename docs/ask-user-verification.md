@@ -16,14 +16,14 @@ Dowody:
 
 ## Testy
 
-`bun run typecheck`, `bun run gen:check`, pełne `bun run check:tmp` i `bun run --filter @open-agents/web build` są wymaganymi kontrolami tej gałęzi. Testy live są osobnym przebiegiem z `OA_LIVE=1`, plikiem środowiska spoza repozytorium i `useLiveProxy`; żadnych wartości poświadczeń w repozytorium ani raporcie.
+`bun run typecheck`, `bun run gen:check`, pełne `bun run check:tmp` i `bun run --filter @canopy/web build` są wymaganymi kontrolami tej gałęzi. Testy live są osobnym przebiegiem z `OA_LIVE=1`, plikiem środowiska spoza repozytorium i `useLiveProxy`; żadnych wartości poświadczeń w repozytorium ani raporcie.
 
 Po ostatnim scaleniu wszystkie wymagane kontrole przeszły: typecheck (Svelte: 0 błędów i 0 ostrzeżeń), gen:check, web build oraz pełne check:tmp — **748 pass, 96 skip, 0 fail**, 844 testy w 126 plikach, 2876 asercji. Testy opt-in live/browser są pomijane w pełnej suite i uruchamiane osobno. Kontrolowany katalog tymczasowy pozostał pusty; narzędzie odnotowało równoległe katalogi w `/tmp`, w tym własny działający fixture, który następnie zakończono i posprzątano. Build zgłasza ostrzeżenie o rozmiarze chunka.
 
 - Kontrakt domeny i adaptery UI: granice schematu, duplikaty, rekomendacja, tekst zamiast opcji, wiele opcji, skip, dismiss, kolejność odpowiedzi i czytelny tekst dostarczenia.
 - Gateway + skryptowany worker (`ask-user.test.ts`, 9 testów): sync oczekuje i wznawia się po odpowiedzi, idempotencja, async w tej samej turze, nowa tura po jej końcu, odmowa/upuszczenie steera, skip/dismiss, izolacja wątków, parent routing z możliwością odpowiedzi człowieka, restart workera i awaria podczas przekazywania wyniku. Sprawdzane są też hops, autor i rekord osi czasu.
 - Live przez CLIProxyAPI (`ask-user.live.test.ts`, 4 testy): sync i async dla Codexa i Claude. Sync używa odpowiedzi API w wyniku; async dostaje odpowiedź jako dostarczony steer w tej samej turze (`hops = 1`). Końcowy przebieg po scaleniu main wraz z testem timeoutu Claude: **5 pass, 0 fail**, 26 asercji, 48,65 s.
-- Browser fixture: osobny PostgreSQL/gateway ze skryptowanym workerem, Vite 5293. Wszystkie przebiegi fixture zakończone poprawnie; serwer zatrzymany przez uchwyt procesu, tymczasowe katalogi usunięte przez `@open-agents/testing`, karta przeglądarki zamknięta. Końcowy podgląd potwierdził czytelny tekst dostarczenia po Skip all. Poprawiono też sprzątanie: oczekujący handler sync kończy się przed zwolnieniem runtime'u; osobny rerun fixture i typecheck testów integracyjnych przeszły.
+- Browser fixture: osobny PostgreSQL/gateway ze skryptowanym workerem, Vite 5293. Wszystkie przebiegi fixture zakończone poprawnie; serwer zatrzymany przez uchwyt procesu, tymczasowe katalogi usunięte przez `@canopy/testing`, karta przeglądarki zamknięta. Końcowy podgląd potwierdził czytelny tekst dostarczenia po Skip all. Poprawiono też sprzątanie: oczekujący handler sync kończy się przed zwolnieniem runtime'u; osobny rerun fixture i typecheck testów integracyjnych przeszły.
 
 ## UI i componentize
 

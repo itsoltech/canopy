@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Provider, ProviderProfileKind } from "@open-agents/contracts";
+import { Provider, ProviderProfileKind } from "@canopy/contracts";
 import { claudeProfileOptions } from "./claude/profile.ts";
 import { codexAppServerLaunch, codexThreadProvider } from "./codex/launch.ts";
 import {

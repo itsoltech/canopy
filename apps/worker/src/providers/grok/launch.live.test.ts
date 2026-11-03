@@ -2,11 +2,11 @@ import { test, expect } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { GrokClient } from "@open-agents/grok-acp";
+import { GrokClient } from "@canopy/grok-acp";
 import { grokLaunch } from "./launch.ts";
 import { grokBus } from "./bus.ts";
 import { create } from "@bufbuild/protobuf";
-import { AgentToolResultSchema } from "@open-agents/contracts";
+import { AgentToolResultSchema } from "@canopy/contracts";
 
 const live = process.env["OA_LIVE"] === "1";
 const url = process.env["OA_LIVE_CLIPROXYAPI_URL"];

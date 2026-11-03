@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
-  import { bots, Provider, ui, type Mention } from "@open-agents/contracts";
+  import { bots, Provider, ui, type Mention } from "@canopy/contracts";
   import { mentionsToWire } from "#lib/features/mentions/wire.ts";
   import { create } from "@bufbuild/protobuf";
   import { modelDisplayName } from "#lib/features/models/catalog.ts";

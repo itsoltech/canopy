@@ -1,5 +1,5 @@
 import type { ParticipantView } from "./model.ts";
-import { MentionKind, type Mention } from "@open-agents/contracts";
+import { MentionKind, type Mention } from "@canopy/contracts";
 
 /** Explicit ids/ranges for user messages, including bots renamed or removed since sending. */
 export function structuredMentionRanges(text: string, mentions: readonly Mention[], bots: readonly ParticipantView[]): { start: number; end: number; bot: ParticipantView }[] {

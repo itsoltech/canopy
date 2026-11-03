@@ -7,12 +7,12 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { create } from "@bufbuild/protobuf";
-import { BackgroundTaskKind, CommandSchema, ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@open-agents/contracts";
-import type { WorkerConnection } from "@open-agents/gateway/worker-link";
-import { tempDir } from "@open-agents/testing";
-import { journalHello } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
-import { serveLink, WorkerHost } from "@open-agents/worker/runtime";
+import { BackgroundTaskKind, CommandSchema, ItemStatus, PermissionMode, Provider, TurnEndSource, TurnOrigin, TurnOutcome } from "@canopy/contracts";
+import type { WorkerConnection } from "@canopy/gateway/worker-link";
+import { tempDir } from "@canopy/testing";
+import { journalHello } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
+import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { connectWorker, startGateway } from "./helpers.ts";
 

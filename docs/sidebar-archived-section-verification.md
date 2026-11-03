@@ -38,7 +38,7 @@ bez konfliktu `absolute` z własnym `relative` komponentu IconButton.
 | `bun run typecheck` | wszystkie pakiety poprawne; svelte-check: 0 błędów i 0 ostrzeżeń |
 | `bun run gen:check` | kontrakty zgodne z wygenerowanym kodem |
 | `bun run check:tmp` | 786 zaliczonych, 115 pominiętych, 0 błędów; prywatny katalog testowy pusty |
-| `bun run --filter @open-agents/web build` | poprawny build adapter-node; istniejące ostrzeżenie o chunku ponad 500 kB |
+| `bun run --filter @canopy/web build` | poprawny build adapter-node; istniejące ostrzeżenie o chunku ponad 500 kB |
 | `OA_ARCHIVE_BROWSER=1 OA_BROWSER_TESTS=1 bun test tests/integration/archived-sidebar.browser.test.ts tests/integration/sidebar-browser.test.ts` | 4 scenariusze Chromium zaliczone |
 
 Testy jednostkowe sprawdzają grupowanie, sortowanie, filtr, ukrywanie dzieci archiwalnego rodzica

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { ItemStatus, type Item, ui } from "@open-agents/contracts";
+import { ItemStatus, type Item, ui } from "@canopy/contracts";
 import { Markdown } from "./markdown";
 import { Icon } from "./Icon";
 import { styles, useColors } from "./theme";

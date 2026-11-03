@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import { providerLabel } from "#lib/features/threads/labels.ts";
 
 /** Worker OS as reported by the worker (`process.platform`). */

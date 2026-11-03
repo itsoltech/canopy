@@ -1,5 +1,5 @@
 import { json } from "@sveltejs/kit";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import type { RequestHandler } from "./$types";
 
 /** Liveness of the BFF itself (Docker HEALTHCHECK, load balancers); it does not call the gateway. */

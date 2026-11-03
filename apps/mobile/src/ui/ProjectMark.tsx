@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import { palette } from "@open-agents/ui";
+import { palette } from "@canopy/ui";
 import { useColors } from "./theme";
 export function ProjectMark({ name, kind }: { name: string; kind?: string }) {
   const c = useColors();

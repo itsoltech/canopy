@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { failure, startTestGateway, type TestGateway } from "./support/gateway.ts";

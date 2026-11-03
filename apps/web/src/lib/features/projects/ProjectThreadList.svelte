@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import ThreadRow from "#lib/features/threads/components/ThreadRow.svelte";
   import { treeActivity } from "#lib/features/threads/activity.ts";

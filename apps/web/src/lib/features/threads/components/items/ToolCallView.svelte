@@ -2,7 +2,7 @@
   import type { Component } from "svelte";
   import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import { ItemStatus, type ToolCall } from "@open-agents/contracts";
+  import { ItemStatus, type ToolCall } from "@canopy/contracts";
   import { parseObject } from "#lib/shared/format.ts";
   import SeenImage from "#lib/features/attachments/SeenImage.svelte";
   import { useThreadDirectory } from "../../thread-directory.ts";

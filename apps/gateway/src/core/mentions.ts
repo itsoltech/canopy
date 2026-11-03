@@ -1,5 +1,5 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
-import { MentionCatalogEntrySchema, MentionKind, MentionSchema, type Mention, type MentionCatalogEntry } from "@open-agents/contracts";
+import { MentionCatalogEntrySchema, MentionKind, MentionSchema, type Mention, type MentionCatalogEntry } from "@canopy/contracts";
 
 /**
  * Mentions on the gateway (docs/ui-api.md, "Wzmianki"): how they are stored with a turn or a steer, where a file

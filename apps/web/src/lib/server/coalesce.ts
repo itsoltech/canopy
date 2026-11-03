@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ItemDeltaSchema, ThreadEventSchema, ui, type ItemDelta } from "@open-agents/contracts";
+import { ItemDeltaSchema, ThreadEventSchema, ui, type ItemDelta } from "@canopy/contracts";
 
 /** How long a partial line of deltas may wait for more before it goes out (ms). */
 export const DELTA_WINDOW_MS = 200;

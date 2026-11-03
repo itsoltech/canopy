@@ -1,5 +1,5 @@
 import { closeSync, existsSync, fstatSync, openSync, readSync, statSync } from "node:fs";
-import type { ResponseItem } from "@open-agents/codex-protocol";
+import type { ResponseItem } from "@canopy/codex-protocol";
 
 /**
  * Codex's own record of a thread (`Thread.path`, `<CODEX_HOME>/sessions/.../rollout-*.jsonl`), read as it grows.

@@ -1,5 +1,5 @@
 import { toJson } from "@bufbuild/protobuf";
-import { bots } from "@open-agents/contracts";
+import { bots } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { harnessOf } from "../store/instance-config.ts";

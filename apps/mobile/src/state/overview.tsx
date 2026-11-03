@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { useSession } from "./session";
 import { useStream } from "./stream";
 

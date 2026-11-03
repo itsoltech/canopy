@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { MentionKind, PermissionMode, Provider, TurnOutcome } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { GatewayStore } from "@open-agents/gateway/store";
+import { MentionKind, PermissionMode, Provider, TurnOutcome } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";

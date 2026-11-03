@@ -1,10 +1,10 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { ui, update } from "@open-agents/contracts";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
-import { UPDATE_PROTOCOL, workerLinkCompatible } from "@open-agents/domain/release/protocol";
+import { ui, update } from "@canopy/contracts";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { UPDATE_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
 import { compareVersions, confirmStartup, installKind, managedInstructions, readUpdateRecord, ReleaseMirror, ReleaseSource, releaseAsset, stageBinaryUpdate, validChannel, whenIdle,
-  type InstallKind, type ReleaseManifest, type ReleaseSourceOptions } from "@open-agents/updater";
+  type InstallKind, type ReleaseManifest, type ReleaseSourceOptions } from "@canopy/updater";
 import type { UpdatePersistence, WorkerUpdateRow } from "./persistence.ts";
 import { GatewayUpdateService } from "./service.ts";
 

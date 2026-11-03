@@ -1,6 +1,6 @@
 <script lang="ts">
   import BotSenderLabel from "./BotSenderLabel.svelte";
-  import type { BlobRef, ui } from "@open-agents/contracts";
+  import type { BlobRef, ui } from "@canopy/contracts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";

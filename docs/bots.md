@@ -213,7 +213,7 @@ Codexa z tej maszyny, bez aktualizacji zależności.
 
 - Claude: `tools: []`, `allowedTools: []`, odmowa w `canUseTool`, `settingSources: []`,
   własny system prompt, `mcpServers: {}`, `strictMcpConfig: true`, brak pluginów,
-  wyłączone hooki, katalog testowy przez `@open-agents/testing`, brak zapisu sesji.
+  wyłączone hooki, katalog testowy przez `@canopy/testing`, brak zapisu sesji.
   To lista narzędzi bazowych jest pusta; samo `allowedTools` nie byłoby takim dowodem.
 - Codex: `model_catalog_json` z `shell_type: "disabled"`,
   `apply_patch_tool_type: null`, `experimental_supported_tools: []`,
@@ -726,7 +726,7 @@ i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozy
   stosu testowego i dostają jego wynik jako nową turę. `bots-alias.live.test.ts`: prawdziwy
   katalog Claude przez CLIProxyAPI, wizard oferuje model rozwiązany z `default`, bot
   utworzony z `default` odpowiada, a bot z aliasem zapisanym w bazie również. Izolowane porty
-  i katalogi przez `@open-agents/testing`; istniejący `/tmp/oa-stack` i jego porty nie są używane.
+  i katalogi przez `@canopy/testing`; istniejący `/tmp/oa-stack` i jego porty nie są używane.
   `bots-settings.live.test.ts`: prawdziwy model przez `useLiveProxy` zmienia swoją nazwę
   i zapamiętuje angielskie odpowiedzi po prośbie użytkownika; następna polska wiadomość
   dostaje angielską odpowiedź z nową nazwą.

@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import { accentLabels, accentNames, accentOf, chatWidthLabels, chatWidthNames, chatWidthOf, schemeLabels, schemeNames, schemeOf } from "#lib/features/settings/appearance.ts";
 import { settingsSections } from "#lib/features/settings/sections.ts";

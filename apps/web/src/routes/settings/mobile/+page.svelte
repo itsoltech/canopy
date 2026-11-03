@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import QRCode from "qrcode";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";

@@ -1,6 +1,6 @@
 <script lang="ts">
   import favicon from "#lib/assets/favicon.svg";
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import { create } from "@bufbuild/protobuf";
   import { afterNavigate, beforeNavigate } from "$app/navigation";
   import { page } from "$app/state";

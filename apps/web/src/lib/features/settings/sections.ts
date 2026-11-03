@@ -1,1 +1,1 @@
-export * from "@open-agents/ui/settings";
+export * from "@canopy/ui/settings";

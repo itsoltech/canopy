@@ -2,11 +2,11 @@ import { closeSync, existsSync, fchmodSync, fsyncSync, mkdirSync, openSync, rena
 import { hostname } from "node:os";
 import { dirname, resolve } from "node:path";
 import { createClient } from "@connectrpc/connect";
-import { WorkerEnrollmentService } from "@open-agents/contracts";
-import { CANOPY_VERSION } from "@open-agents/domain/release/version";
-import { createGrpcClientTransport } from "@open-agents/transport";
+import { WorkerEnrollmentService } from "@canopy/contracts";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { createGrpcClientTransport } from "@canopy/transport";
 import type { LocalConfig } from "./config/local.ts";
-import { isStandalone, serviceSnippet } from "@open-agents/updater";
+import { isStandalone, serviceSnippet } from "@canopy/updater";
 
 export interface EnrollmentOptions {
   gateway: string;

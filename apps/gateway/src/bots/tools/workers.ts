@@ -1,4 +1,4 @@
-import { Provider } from "@open-agents/contracts";
+import { Provider } from "@canopy/contracts";
 import { define, label, object, str } from "./shared.ts";
 import { NotFound } from "../../store/store.ts";
 

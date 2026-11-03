@@ -1,6 +1,6 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ProfileModelsSchema, Provider, ui, type ModelInfo, type ProfileModels } from "@open-agents/contracts";
+import { ProfileModelsSchema, Provider, ui, type ModelInfo, type ProfileModels } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 

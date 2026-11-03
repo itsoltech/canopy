@@ -1,5 +1,5 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { InteractionKind, ItemSchema, ItemStatus, ui, type Item } from "@open-agents/contracts";
+import { InteractionKind, ItemSchema, ItemStatus, ui, type Item } from "@canopy/contracts";
 
 type ItemContent = MessageInitShape<typeof ItemSchema>["content"];
 

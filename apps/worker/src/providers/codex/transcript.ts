@@ -1,5 +1,5 @@
-import type { ResponseItem, ServerNotification, v2 } from "@open-agents/codex-protocol";
-import { ItemStatus, TurnEndSource, TurnOutcome } from "@open-agents/contracts";
+import type { ResponseItem, ServerNotification, v2 } from "@canopy/codex-protocol";
+import { ItemStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 import { readJsonl, type HarnessRecord, type TurnEnd } from "../harness-record.ts";
 import { CodexEventMapper, codexErrorCode } from "./mapping.ts";

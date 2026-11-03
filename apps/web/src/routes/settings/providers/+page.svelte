@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ui } from "@open-agents/contracts";
+  import { ui } from "@canopy/contracts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import AddInstanceDialog from "#lib/features/providers/AddInstanceDialog.svelte";

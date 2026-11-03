@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { BackgroundTaskKind, ItemStatus, type BackgroundTask } from "@open-agents/contracts";
+  import { BackgroundTaskKind, ItemStatus, type BackgroundTask } from "@canopy/contracts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import { humanizeEnum } from "#lib/shared/humanize.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { stopBackgroundTask } from "../../api.ts";
   import { useThreadDirectory } from "../../thread-directory.ts";
-  import { backgroundStopLabel } from "@open-agents/domain/background-tasks";
+  import { backgroundStopLabel } from "@canopy/domain/background-tasks";
   import ItemFrame from "./ItemFrame.svelte";
   import OutputBlock from "./OutputBlock.svelte";
   import TaskProgressText from "./TaskProgressText.svelte";

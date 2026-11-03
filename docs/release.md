@@ -37,7 +37,7 @@ W CI tag pochodzi z `GITHUB_REF_TYPE`/`GITHUB_REF_NAME`, lokalnie z `git tag --p
 
 ## Wstrzykiwanie wersji
 
-Stała `CANOPY_VERSION` z `@open-agents/domain/release/version` czyta `process.env.CANOPY_VERSION`
+Stała `CANOPY_VERSION` z `@canopy/domain/release/version` czyta `process.env.CANOPY_VERSION`
 (zapis z kropką, aby bundlery mogły go podmienić); uruchomienie ze źródeł pokazuje `0.0.0-dev`.
 
 - binaria: `bun build --compile --define process.env.CANOPY_VERSION="…"` (`scripts/build-binaries.ts`),

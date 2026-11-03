@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import type { ProviderKey } from "#lib/features/threads/providers.ts";
   import Combobox from "#lib/shared/ui/Combobox.svelte";

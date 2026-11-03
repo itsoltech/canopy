@@ -1,5 +1,5 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
-import { AgentToolResultSchema, ConnectorToolSchema, connectors, InteractionKind, InteractionRequestSchema, ui, type AgentToolCall, type ConnectorTool, type ThreadEvent } from "@open-agents/contracts";
+import { AgentToolResultSchema, ConnectorToolSchema, connectors, InteractionKind, InteractionRequestSchema, ui, type AgentToolCall, type ConnectorTool, type ThreadEvent } from "@canopy/contracts";
 import { randomBytes } from "node:crypto";
 import { Effect } from "effect";
 import { GatewayStore } from "../store/store.ts";

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { GrokOptions } from "@open-agents/grok-acp";
+import type { GrokOptions } from "@canopy/grok-acp";
 import type { ResolvedProfile } from "../profiles.ts";
 
 /** Isolated configuration per process; durable sessions per instance. Keys never enter config or argv. */

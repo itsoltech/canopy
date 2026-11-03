@@ -19,9 +19,9 @@ import {
   type Item,
   type ThreadEvent,
   type ThreadSpec,
-} from "@open-agents/contracts";
-import { eventItemId, reduceItem } from "@open-agents/domain";
-import { tempDirs } from "@open-agents/testing";
+} from "@canopy/contracts";
+import { eventItemId, reduceItem } from "@canopy/domain";
+import { tempDirs } from "@canopy/testing";
 import { Effect, Layer } from "effect";
 import { Journal } from "../../journal/index.ts";
 import { resolveProfiles } from "../profiles.ts";

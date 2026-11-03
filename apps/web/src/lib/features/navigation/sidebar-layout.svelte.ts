@@ -1,4 +1,4 @@
-import { maxSidebarWidth, SIDEBAR_WIDTH, sidebarWidthFor } from "@open-agents/domain";
+import { maxSidebarWidth, SIDEBAR_WIDTH, sidebarWidthFor } from "@canopy/domain";
 import type { ResizeChange } from "#lib/shared/ui/resize-handle.ts";
 import { duration } from "#lib/shared/ui/motion.ts";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";

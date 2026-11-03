@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { QUOTE_LIMITS } from "@open-agents/domain";
+  import { QUOTE_LIMITS } from "@canopy/domain";
   import Button from "#lib/shared/ui/Button.svelte";
   import { focusables, type Placement } from "#lib/shared/ui/floating.ts";
   import type { ClassValue } from "svelte/elements";

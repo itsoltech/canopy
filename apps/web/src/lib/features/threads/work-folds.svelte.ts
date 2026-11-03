@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
 import { isTerminal } from "./timeline.ts";
 import { readWork } from "./work-groups.ts";

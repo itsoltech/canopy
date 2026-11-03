@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { readFile } from "node:fs/promises";
-import { GrokClient, type Content, type PermissionRequest, type PermissionResult, type SessionResult } from "@open-agents/grok-acp";
-import { InteractionKind, InteractionRequestSchema, ItemStatus, PermissionMode, TurnEndSource, TurnOutcome, type AgentToolCall, type AgentToolResult, type ForkSpec, type InteractionRequest, type InteractionResponse, type ThreadEvent, type ThreadSpec, type UserInput } from "@open-agents/contracts";
+import { GrokClient, type Content, type PermissionRequest, type PermissionResult, type SessionResult } from "@canopy/grok-acp";
+import { InteractionKind, InteractionRequestSchema, ItemStatus, PermissionMode, TurnEndSource, TurnOutcome, type AgentToolCall, type AgentToolResult, type ForkSpec, type InteractionRequest, type InteractionResponse, type ThreadEvent, type ThreadSpec, type UserInput } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 import type { ViewImageResult } from "../../images/index.ts";
 import { isAgentModel, proxyModels, type ModelInit } from "../models.ts";

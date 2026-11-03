@@ -1,5 +1,5 @@
 import { getContext, setContext } from "svelte";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
 import { liveSource } from "#lib/shared/live-source.ts";
 

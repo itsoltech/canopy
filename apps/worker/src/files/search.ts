@@ -1,6 +1,6 @@
 import { lstatSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { fuzzyRank } from "@open-agents/domain";
+import { fuzzyRank } from "@canopy/domain";
 
 /**
  * File search for "@" mentions in the composer (docs/ui-api.md, "Wzmianki"): ranked fuzzy matches of paths inside the

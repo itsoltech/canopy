@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ItemStatus, WebSearch } from "@open-agents/contracts";
+  import type { ItemStatus, WebSearch } from "@canopy/contracts";
   import { prettyJson, str } from "#lib/shared/format.ts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import { safeHref } from "#lib/shared/ui/markdown/safe-url.ts";

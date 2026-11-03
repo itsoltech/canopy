@@ -48,7 +48,7 @@ Zrzuty są poza śledzonym kodem, w `artifacts/custom-form-controls/`. Dla każd
 bun install
 bun run typecheck
 bun run check:tmp
-bun run --filter @open-agents/web build
+bun run --filter @canopy/web build
 OA_FORM_BROWSER=1 bun test tests/integration/custom-form-controls.browser.test.ts
 OA_SCHEDULE_BROWSER=1 OA_SCHEDULE_BROWSER_PORT=5321 bun test tests/integration/schedules.browser.test.ts
 OA_SCHEDULE_EDIT_BROWSER=1 bun test tests/integration/schedules-edit.browser.test.ts

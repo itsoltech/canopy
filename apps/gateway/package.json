@@ -1,5 +1,5 @@
 {
-  "name": "@open-agents/gateway",
+  "name": "@canopy/gateway",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -20,11 +20,11 @@
     "@connectrpc/connect-node": "2.3.0",
     "@effect/sql-pg": "4.1.1",
     "@modelcontextprotocol/sdk": "1.32.2",
-    "@open-agents/contracts": "workspace:*",
-    "@open-agents/db": "workspace:*",
-    "@open-agents/domain": "workspace:*",
-    "@open-agents/transport": "workspace:*",
-    "@open-agents/updater": "workspace:*",
+    "@canopy/contracts": "workspace:*",
+    "@canopy/db": "workspace:*",
+    "@canopy/domain": "workspace:*",
+    "@canopy/transport": "workspace:*",
+    "@canopy/updater": "workspace:*",
     "cronstrue": "3.38.0",
     "effect": "4.1.1",
     "sharp": "0.35.5"

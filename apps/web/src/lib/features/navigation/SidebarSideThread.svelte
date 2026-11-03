@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { sideMark } from "#lib/features/threads/thread-tree.ts";
   import ThreadActivityMark from "#lib/features/threads/ThreadActivityMark.svelte";

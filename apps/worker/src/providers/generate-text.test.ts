@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tempDir } from "@open-agents/testing";
+import { tempDir } from "@canopy/testing";
 import { codexTextCatalog, codexTextOverrides } from "./generate-text.ts";
 import { generateClaudeText, generateCodexText } from "./generate-text.ts";
 import { claudeProfileOptions } from "./claude/profile.ts";

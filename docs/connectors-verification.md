@@ -29,7 +29,7 @@ Badanie dostawców i decyzje projektowe: [connectors.md](connectors.md).
 | `bun install` | OK, Bun 1.4.4; ponowiono po scaleniu rutyn botów, bez dodatkowych zmian lockfile |
 | `bun run typecheck` | OK po scaleniu rutyn i ujednoliceniu błędu walidacji wzmianki; Svelte: 0 errors / 0 warnings |
 | `bun run gen:check` | OK, wygenerowane kontrakty zgodne z repo |
-| `bun run --filter @open-agents/web build` | OK; Vite zgłasza ostrzeżenie wielkości chunków |
+| `bun run --filter @canopy/web build` | OK; Vite zgłasza ostrzeżenie wielkości chunków |
 | `bun run check:tmp` | 589 pass, 134 skip, 0 fail, 3038 asercji / 116 plików; bez pozostawionych katalogów testów. Baza `main`: `8b8e3ad` |
 | `tests/integration/connectors.test.ts` w końcowym zestawie | 5 pass, 0 fail, 64 asercje; także zapis `full_auto` przy zmienionej adnotacji narzędzia |
 | `check:tmp` po merge tworzenia botów, 9 plików | 92 pass, 0 fail, 790 asercji; konektory, boty, ustawienia, rutyny, tworzenie botów, platform tools, migracja, schema i policy; bez pozostawionych katalogów testowych |

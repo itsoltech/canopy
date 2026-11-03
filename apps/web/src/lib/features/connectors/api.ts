@@ -1,4 +1,4 @@
-import { connectors } from "@open-agents/contracts";
+import { connectors } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 

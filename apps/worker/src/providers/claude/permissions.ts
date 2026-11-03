@@ -1,5 +1,5 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { PermissionMode } from "@open-agents/contracts";
+import { PermissionMode } from "@canopy/contracts";
 
 /**
  * Platform permission modes -> Claude Code permission mode + sandbox, aligned with Codex (codex/permissions.ts):

@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { Schema } from "effect";
-import { PermissionMode, ui } from "@open-agents/contracts";
+import { PermissionMode, ui } from "@canopy/contracts";
 import { readBody } from "#lib/server/body.ts";
 import { call } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";

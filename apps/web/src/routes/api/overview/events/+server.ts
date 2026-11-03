@@ -1,4 +1,4 @@
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { call, gateway } from "#lib/server/gateway.ts";
 import { sseResponse } from "#lib/server/sse.ts";
 import { encode } from "#lib/shared/wire.ts";

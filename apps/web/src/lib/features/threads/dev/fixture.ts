@@ -1,6 +1,6 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
-import { ItemDeltaField, ItemSchema, ItemStatus, Provider, ThreadEventSchema, ui, type Item } from "@open-agents/contracts";
+import { ItemDeltaField, ItemSchema, ItemStatus, Provider, ThreadEventSchema, ui, type Item } from "@canopy/contracts";
 
 type ItemContent = MessageInitShape<typeof ItemSchema>["content"];
 type EventBody = MessageInitShape<typeof ThreadEventSchema>["body"];

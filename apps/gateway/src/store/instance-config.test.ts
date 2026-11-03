@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { Provider, ui } from "@open-agents/contracts";
+import { Provider, ui } from "@canopy/contracts";
 import { applyInstanceModels, canonicalJson, effectiveProfiles, mergeEnv, type AssignmentRow, type InstanceRow } from "./instance-config.ts";
 
 const instance = (over: Partial<InstanceRow>): InstanceRow => ({

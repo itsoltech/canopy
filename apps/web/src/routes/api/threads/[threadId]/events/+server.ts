@@ -1,4 +1,4 @@
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { coalesceDeltas } from "#lib/server/coalesce.ts";
 import { call, gateway } from "#lib/server/gateway.ts";
 import { sseResponse } from "#lib/server/sse.ts";

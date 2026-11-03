@@ -1,5 +1,5 @@
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 import type { FeedRow } from "../feed.ts";
 import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
 

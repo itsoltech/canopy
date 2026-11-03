@@ -4,10 +4,10 @@
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { ItemDeltaField, type ThreadEvent } from "@open-agents/contracts";
-import { tempDir } from "@open-agents/testing";
-import { applyAck, journalHello, resendPending, type GatewayLink } from "@open-agents/worker/gateway-link";
-import { Journal } from "@open-agents/worker/journal";
+import { ItemDeltaField, type ThreadEvent } from "@canopy/contracts";
+import { tempDir } from "@canopy/testing";
+import { applyAck, journalHello, resendPending, type GatewayLink } from "@canopy/worker/gateway-link";
+import { Journal } from "@canopy/worker/journal";
 import { Effect, ManagedRuntime } from "effect";
 import { connectWorker, startGateway, take } from "./helpers.ts";
 

@@ -3196,7 +3196,7 @@ export type AppearanceSettings = Message<"openagents.ui.v1.AppearanceSettings"> 
 
   /**
    * Szerokość paska bocznego na desktopie w px; 0 = domyślna. Gateway przycina do granic
-   * (@open-agents/domain SIDEBAR_WIDTH), UI dodatkowo do szerokości okna.
+   * (@canopy/domain SIDEBAR_WIDTH), UI dodatkowo do szerokości okna.
    *
    * @generated from field: uint32 sidebar_width = 130;
    */

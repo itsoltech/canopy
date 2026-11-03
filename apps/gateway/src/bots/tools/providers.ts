@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { Provider, ui } from "@open-agents/contracts";
+import { Provider, ui } from "@canopy/contracts";
 import { NotFound } from "../../store/store.ts";
 import { bool, define, json, object, provider, providerSchema, str, strings } from "./shared.ts";
 

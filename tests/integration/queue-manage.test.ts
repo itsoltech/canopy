@@ -5,12 +5,12 @@
  * the scheduler starts only the head it read, with the input it read.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { MentionKind, PermissionMode, Provider, ui } from "@open-agents/contracts";
-import { quotesNote } from "@open-agents/domain";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { MentionKind, PermissionMode, Provider, ui } from "@canopy/contracts";
+import { quotesNote } from "@canopy/domain";
+import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { QueueStore } from "@open-agents/gateway/store";
+import { QueueStore } from "@canopy/gateway/store";
 import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;

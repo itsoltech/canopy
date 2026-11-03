@@ -5,8 +5,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ItemDeltaField } from "@open-agents/contracts";
-import { tempDirs } from "@open-agents/testing";
+import { ItemDeltaField } from "@canopy/contracts";
+import { tempDirs } from "@canopy/testing";
 import { connectWorker, makeSelfSignedCert, startGateway, take, type TestCert } from "./helpers.ts";
 
 const tempDir = tempDirs();

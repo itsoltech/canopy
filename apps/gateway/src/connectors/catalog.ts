@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { connectors } from "@open-agents/contracts";
+import { connectors } from "@canopy/contracts";
 
 /** Endpoints checked against vendor documentation, 2026-11-02; never imply a live account check. */
 export const CONNECTOR_TYPES = [

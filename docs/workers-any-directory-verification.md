@@ -62,7 +62,7 @@ main; późniejsze zmiany dotyczą wyłącznie dokumentacji i komentarzy.
 | `bun run typecheck` | OK, Svelte: 0 błędów i 0 ostrzeżeń |
 | `bun run gen:check` | OK |
 | `bun run check:tmp` | OK: 575 pass, 127 skip, 0 fail; 2837 asercji, 111 plików, 301,28 s; brak pozostawionych katalogów testowych |
-| `bun run --filter @open-agents/web build` i `git diff --check` | OK |
+| `bun run --filter @canopy/web build` i `git diff --check` | OK |
 
 Znaczące scenariusze integracyjne obejmują rzeczywisty PostgreSQL, gateway, gRPC,
 WorkerHost i adapter Codex: dowolny istniejący katalog trafia do uruchomionego CLI,

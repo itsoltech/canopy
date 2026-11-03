@@ -4,8 +4,8 @@
  * the catalog) that StartTurn carries, and a message can join the running turn (steer) or fall back to the queue.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { PermissionMode, Provider, ui, type AgentToolResult } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
+import { PermissionMode, Provider, ui, type AgentToolResult } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";

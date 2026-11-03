@@ -1,5 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { EventAck, HelloSchema, ThreadEvent } from "@open-agents/contracts";
+import type { EventAck, HelloSchema, ThreadEvent } from "@canopy/contracts";
 import { Effect } from "effect";
 import { Journal } from "../journal/index.ts";
 import type { GatewayLink } from "./link.ts";

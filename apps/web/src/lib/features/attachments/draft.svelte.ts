@@ -1,5 +1,5 @@
-import { ui } from "@open-agents/contracts";
-import { DEFAULT_ATTACHMENT_LIMITS, extensionOf, formatSize, type AttachmentLimits } from "@open-agents/domain";
+import { ui } from "@canopy/contracts";
+import { DEFAULT_ATTACHMENT_LIMITS, extensionOf, formatSize, type AttachmentLimits } from "@canopy/domain";
 import { decode } from "#lib/shared/wire.ts";
 
 /**

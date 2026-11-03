@@ -943,7 +943,7 @@ message AppearanceSettings {
   // Panel kontekstu wątku zwinięty.
   bool thread_panel_collapsed = 4;
   // Szerokość paska bocznego na desktopie w px; 0 = domyślna. Gateway przycina do granic
-  // (@open-agents/domain SIDEBAR_WIDTH), UI dodatkowo do szerokości okna.
+  // (@canopy/domain SIDEBAR_WIDTH), UI dodatkowo do szerokości okna.
   uint32 sidebar_width = 130;
   // Pasek boczny na desktopie zwinięty (szerokość zostaje zapisana na powrót).
   bool sidebar_collapsed = 131;

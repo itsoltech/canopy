@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ConnectorTool } from "@open-agents/contracts";
+  import type { ConnectorTool } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   let { tools, class: className }: { tools: readonly ConnectorTool[]; class?: ClassValue } = $props();

@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { DeviceLogin } from "@open-agents/contracts";
+import { DeviceLogin } from "@canopy/contracts";
 import { GatewayStore, InstanceStore } from "./store/index.ts";
 import { ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
 

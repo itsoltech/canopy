@@ -7,8 +7,8 @@ import {
 } from "react";
 import { useColorScheme } from "react-native";
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@open-agents/contracts";
-import { accents } from "@open-agents/ui";
+import { ui } from "@canopy/contracts";
+import { accents } from "@canopy/ui";
 import { useSession } from "./session";
 import { useStream } from "./stream";
 

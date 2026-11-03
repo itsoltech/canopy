@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ContextCompaction } from "@open-agents/contracts";
+  import type { ContextCompaction } from "@canopy/contracts";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
 

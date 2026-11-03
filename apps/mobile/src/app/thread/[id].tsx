@@ -15,7 +15,7 @@ import {
 import * as Crypto from "expo-crypto";
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";

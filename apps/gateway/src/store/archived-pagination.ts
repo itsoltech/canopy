@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 interface Cursor { scope: string; at: string; id: string }

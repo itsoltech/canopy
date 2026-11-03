@@ -1,5 +1,5 @@
-import type { ui } from "@open-agents/contracts";
-import { QUOTE_LIMITS, isQuoteSourceKind, joinNotes, quotesNote, withAttachmentsNote } from "@open-agents/domain";
+import type { ui } from "@canopy/contracts";
+import { QUOTE_LIMITS, isQuoteSourceKind, joinNotes, quotesNote, withAttachmentsNote } from "@canopy/domain";
 import type { StoredQuote } from "../store/quotes.ts";
 import type { TurnRow } from "../store/store.ts";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { InteractionKind, ItemStatus, Provider, ui } from "@open-agents/contracts";
+  import { InteractionKind, ItemStatus, Provider, ui } from "@canopy/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";

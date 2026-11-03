@@ -1,6 +1,6 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { connectors, ConnectorToolSchema, type ConnectorTool } from "@open-agents/contracts";
+import { connectors, ConnectorToolSchema, type ConnectorTool } from "@canopy/contracts";
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
 import { createHash } from "node:crypto";

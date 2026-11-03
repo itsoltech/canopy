@@ -9,7 +9,7 @@ import {
   type CommandResult,
   type Item,
   type ThreadEvent,
-} from "@open-agents/contracts";
+} from "@canopy/contracts";
 import { Context, Effect, Layer, Schema } from "effect";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 

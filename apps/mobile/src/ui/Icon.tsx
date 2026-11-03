@@ -4,7 +4,7 @@ import {
   lineIcons,
   type IconName,
   type SolidIconName,
-} from "@open-agents/ui/icons";
+} from "@canopy/ui/icons";
 import { useColors } from "./theme";
 
 export function Icon({

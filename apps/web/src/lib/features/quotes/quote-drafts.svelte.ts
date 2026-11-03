@@ -1,4 +1,4 @@
-import { QUOTE_LIMITS } from "@open-agents/domain";
+import { QUOTE_LIMITS } from "@canopy/domain";
 import { toWire, type QuoteDraft, type WireQuote } from "./quote.ts";
 import type { QuoteSource } from "./selection.ts";
 

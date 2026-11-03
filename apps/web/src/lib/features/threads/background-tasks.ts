@@ -1,6 +1,6 @@
 import { timestampMs } from "@bufbuild/protobuf/wkt";
-import { ItemStatus, type BackgroundTask } from "@open-agents/contracts";
-import { backgroundStopLabel } from "@open-agents/domain/background-tasks";
+import { ItemStatus, type BackgroundTask } from "@canopy/contracts";
+import { backgroundStopLabel } from "@canopy/domain/background-tasks";
 import type { TimelineEntry } from "./thread-state.svelte.ts";
 
 export type BackgroundEntry = TimelineEntry & { readonly item: TimelineEntry["item"] & { content: { case: "backgroundTask"; value: BackgroundTask } } };

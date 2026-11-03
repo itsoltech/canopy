@@ -5,7 +5,7 @@
   import { terminalCwd } from "#lib/shared/ui/terminal.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
-  import type { ui, Usage } from "@open-agents/contracts";
+  import type { ui, Usage } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import { osLabel } from "#lib/features/overview/workers.ts";
@@ -24,7 +24,7 @@
   import PanelRow from "./PanelRow.svelte";
   import BackgroundTasksSection from "./BackgroundTasksSection.svelte";
   import type { BackgroundEntry } from "../background-tasks.ts";
-  import type { Item } from "@open-agents/contracts";
+  import type { Item } from "@canopy/contracts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import ThreadTitleActions from "./ThreadTitleActions.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";

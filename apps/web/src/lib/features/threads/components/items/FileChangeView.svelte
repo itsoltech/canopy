@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus, type FileChange } from "@open-agents/contracts";
+  import { ItemStatus, type FileChange } from "@canopy/contracts";
   import { basename } from "#lib/shared/format.ts";
   import FileDiffEntry from "./FileDiffEntry.svelte";
   import ItemFrame from "./ItemFrame.svelte";

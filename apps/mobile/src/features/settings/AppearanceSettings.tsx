@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
-import { ui } from "@open-agents/contracts";
-import { accents, palette } from "@open-agents/ui";
+import { ui } from "@canopy/contracts";
+import { accents, palette } from "@canopy/ui";
 import { useAppearance } from "../../state/appearance";
 import { Segmented } from "../../ui/components";
 import { colorsFor, styles, useColors } from "../../ui/theme";

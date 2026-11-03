@@ -1,4 +1,4 @@
-import type { ui } from "@open-agents/contracts";
+import type { ui } from "@canopy/contracts";
 
 export const PLACEMENTS = ["specific", "any", "least_busy", "round_robin"] as const;
 export type Placement = (typeof PLACEMENTS)[number];

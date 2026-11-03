@@ -7,9 +7,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import type { Client } from "@connectrpc/connect";
-import { MentionKind, MentionSchema, Provider, ui, type Mention } from "@open-agents/contracts";
-import { dockerAvailable } from "@open-agents/db/testing";
-import { mentionPlaceholder, quotesNote } from "@open-agents/domain";
+import { MentionKind, MentionSchema, Provider, ui, type Mention } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { mentionPlaceholder, quotesNote } from "@canopy/domain";
 import { eventually, failure, startTestGateway, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Provider, ui } from "@open-agents/contracts";
+  import type { Provider, ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { formatCount } from "#lib/shared/format.ts";
   import Button from "#lib/shared/ui/Button.svelte";

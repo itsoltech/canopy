@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { stepSwap } from "#lib/shared/ui/motion.ts";

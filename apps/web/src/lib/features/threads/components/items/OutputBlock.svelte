@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { BlobRef } from "@open-agents/contracts";
+  import type { BlobRef } from "@canopy/contracts";
   import { formatBytes } from "#lib/shared/format.ts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";

@@ -50,7 +50,7 @@ Końcowy commit dokumentacyjny zawiera ten raport.
 ## Weryfikacja
 
 `bun install`, `bun run typecheck`, `bun run gen:check` i
-`bun run --filter @open-agents/web build` zakończyły się powodzeniem. Po ostatnim
+`bun run --filter @canopy/web build` zakończyły się powodzeniem. Po ostatnim
 merge powtórzono typecheck i build: Svelte 0 błędów, 0 ostrzeżeń; build ma istniejące
 ostrzeżenia rozmiaru chunka i NO_COLOR/FORCE_COLOR.
 

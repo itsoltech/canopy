@@ -8,10 +8,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { Provider, ProviderProfileKind, WorkerConfigSchema, type WorkerConfig } from "@open-agents/contracts";
-import { tempDir } from "@open-agents/testing";
-import { Journal } from "@open-agents/worker/journal";
-import { WorkerHost } from "@open-agents/worker/runtime";
+import { Provider, ProviderProfileKind, WorkerConfigSchema, type WorkerConfig } from "@canopy/contracts";
+import { tempDir } from "@canopy/testing";
+import { Journal } from "@canopy/worker/journal";
+import { WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 
 const dir = tempDir("oa-profile-env-");

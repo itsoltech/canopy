@@ -6,7 +6,7 @@
  */
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
-import { PermissionMode, Provider, ui } from "@open-agents/contracts";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
 
 const baseUrl = Bun.env["OA_GATEWAY_URL"] ?? "http://127.0.0.1:7443";
 const token = Bun.env["OA_UI_SERVICE_TOKEN"] ?? "";

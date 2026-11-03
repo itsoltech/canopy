@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ItemStatus, type CommandExecution } from "@open-agents/contracts";
+  import { ItemStatus, type CommandExecution } from "@canopy/contracts";
   import { formatDuration } from "#lib/shared/format.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import ItemFrame from "./ItemFrame.svelte";

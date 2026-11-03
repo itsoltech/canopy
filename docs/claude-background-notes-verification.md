@@ -23,7 +23,7 @@ Najpierw zaobserwowano RED: dwa testy kolejności shutdownu, dwa testy mapowania
 
 Test live po restarcie wymaga `worker_shutdown`, czasu końca, odpowiedzi o restarcie w turze `background_task` oraz dokładnie tur `user, background_task` po dodatkowych 4 s obserwacji. Osobny scenariusz naturalnego końca czeka na odpowiedź Claude w turze `provider`, obserwuje jeszcze 17 s i wymaga dokładnie tur `user, provider`, bez notatki platformy. Oba scenariusze uruchamiają własny gateway, PostgreSQL i worker; konfigurację pośrednika dostarcza `useLiveProxy`.
 
-Sekrety ładowano z pliku poza repozytorium; żaden host ani klucz pośrednika nie jest częścią fixture lub raportu. Katalogi tymczasowe testów pochodzą z `@open-agents/testing`.
+Sekrety ładowano z pliku poza repozytorium; żaden host ani klucz pośrednika nie jest częścią fixture lub raportu. Katalogi tymczasowe testów pochodzą z `@canopy/testing`.
 
 ## Wyniki live
 

@@ -4,7 +4,7 @@
   import Rule from "#lib/shared/ui/Rule.svelte";
   import type { ClassValue } from "svelte/elements";
   import type { WorkSummary } from "../work-groups.ts";
-  import type { ui } from "@open-agents/contracts";
+  import type { ui } from "@canopy/contracts";
   import { timestampMs } from "@bufbuild/protobuf/wkt";
 
   /**

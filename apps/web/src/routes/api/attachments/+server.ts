@@ -1,5 +1,5 @@
 import { error, json } from "@sveltejs/kit";
-import { ui } from "@open-agents/contracts";
+import { ui } from "@canopy/contracts";
 import { requireSameOrigin } from "#lib/server/files.ts";
 import { call } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
