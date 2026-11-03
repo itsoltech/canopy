@@ -253,6 +253,8 @@ jobs:
           annotations: |
             org.opencontainers.image.version=${{ needs.semantic-release.outputs.version }}
       - uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
           target: ${{ matrix.app }}
@@ -286,8 +288,14 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+      # Only the release assets: build-push-action also uploads *.dockerbuild records, which are not ours to publish.
       - uses: actions/download-artifact@v5
         with:
+          name: binaries
+          path: release-assets
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: desktop-*
           path: release-assets
           merge-multiple: true
       - name: checksums.txt and manifest.json
