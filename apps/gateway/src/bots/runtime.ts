@@ -219,8 +219,13 @@ export class BotsRuntime {
     } catch (error) {
       if (abort.signal.aborted && this.#stopped) await this.run((s) => s.release(turn));
       else if (turn.handoff_configuration) throw error;
-      else await this.run((s) => s.finish(turn, abort.signal.aborted ? "interrupted" : "failed",
-        error instanceof BotFailure || error instanceof Error && /Model endpoint returned HTTP|limit reached|incomplete response/.test(error.message) ? error.message : "Bot could not finish this turn")).catch(() => undefined);
+      else {
+        const known = error instanceof BotFailure || error instanceof Error && /Model endpoint returned HTTP|Model endpoint unreachable|limit reached|incomplete response/.test(error.message);
+        // The stored reason is shown in the chat; the log names the kind of failure (never URLs, keys or payloads).
+        if (!abort.signal.aborted) this.#options.log?.(`bots: turn failed (${known ? (error as Error).message : error instanceof Error ? error.name : "unknown error"})`);
+        await this.run((s) => s.finish(turn, abort.signal.aborted ? "interrupted" : "failed",
+          known ? (error as Error).message : "Bot could not finish this turn")).catch(() => undefined);
+      }
     } finally { clearInterval(heartbeat); clearTimeout(deadline); }
   }
 

@@ -106,6 +106,38 @@ ENV PATH=/home/canopy/.local/bin:$PATH
 Loginy CLI (`~/.claude`, `~/.codex`), `worker.json` i dziennik leżą w wolumenie `/home/canopy`.
 Projekty, na których pracują agenci, montuj jako dodatkowe wolumeny.
 
+### Sieć kontenera gatewaya
+
+Boty działają w gatewayu, więc **kontener gatewaya musi sam dosięgnąć endpointów modeli** instancji
+providerów (np. CLIProxyAPI). Endpoint dostępny tylko w prywatnej sieci hosta — typowo adres Tailscale
+(`*.ts.net`, `100.x`) — bywa nieosiągalny z bridge'a Dockera (firewall hosta/Tailscale): bot kończy wtedy
+turę komunikatem „couldn't reach the model provider”, a log gatewaya `bots: turn failed (Model endpoint
+unreachable)`. Workery na hoście działają normalnie. Rozwiązanie: gateway i web w sieci hosta, nasłuchujące
+tylko na loopbacku (`docker-compose.override.yml` obok `docker-compose.yml`):
+
+```yaml
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:7432:5432"
+  gateway:
+    network_mode: host
+    ports: !reset []
+    environment:
+      CANOPY_DATABASE_URL: postgres://canopy:${POSTGRES_PASSWORD}@127.0.0.1:7432/canopy
+      CANOPY_HOST: 127.0.0.1
+      CANOPY_PORT: "7443"
+  web:
+    network_mode: host
+    ports: !reset []
+    environment:
+      GATEWAY_URL: http://127.0.0.1:7443
+      HOST: 127.0.0.1
+      PORT: "3000"
+```
+
+Sprawdzenie z sieci Dockera: `docker run --rm --network canopy_default curlimages/curl -sS -o /dev/null -w '%{http_code}\n' <endpoint>/v1/models`.
+
 ## Binaria (systemd)
 
 Assety release: `canopy-gateway-<os>-<arch>`, `canopy-worker-<os>-<arch>` (`linux|darwin|windows`,

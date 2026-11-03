@@ -11,6 +11,7 @@ export function replyFailure(detail: string): { reason: string; model: boolean }
   if (status?.startsWith("5")) return { reason: "the provider had a problem", model: false };
   if (/limit reached|exceeds bot limits/i.test(detail)) return { reason: "it hit its step limit", model: false };
   if (/incomplete response/i.test(detail)) return { reason: "the answer got cut off", model: false };
+  if (/endpoint unreachable/i.test(detail)) return { reason: "it couldn't reach the model provider", model: false };
   if (/endpoint unavailable/i.test(detail)) return { reason: "its provider is no longer set up", model: true };
   return { reason: "something went wrong", model: false };
 }
