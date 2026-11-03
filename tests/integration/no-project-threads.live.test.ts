@@ -39,7 +39,7 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
     try {
       await useLiveProxy(gw, worker.workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [root], harnesses: [Provider.CODEX] });
       const link = await openGatewayLink({ baseUrl: gw.grpcUrl, credential: worker.credential,
-        hello: { workerId: worker.workerId, ...(await runtime.runPromise(journalHello())) } });
+        hello: { workerId: worker.workerId, scratchRoot: join(data, "data", "scratch"), ...(await runtime.runPromise(journalHello())) } });
       closeLink = () => link.close();
       serving = serveLink(link, host, runtime);
       await liveProxyReady(gw, worker.workerId, [Provider.CODEX]);
