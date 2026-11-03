@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } fr
 import { join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { currentVersion } from "./version.ts";
+import { noAgentClis } from "./agent-clis.ts";
 
 export const TARGETS = ["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"] as const;
 export type Target = (typeof TARGETS)[number];
@@ -134,7 +135,7 @@ export async function compile(entry: string, outfile: string, target: Target, ve
     sourcemap: "none",
     define: { "process.env.CANOPY_VERSION": JSON.stringify(version) },
     compile: { target: `bun-${target}` as Bun.Build.CompileTarget, outfile },
-    plugins: [{
+    plugins: [noAgentClis, {
       name: "canopy-native-sharp",
       setup(builder) {
         // sharp/dist/sharp.{cjs,mjs} probe node_modules for the platform addon; the binary has none.

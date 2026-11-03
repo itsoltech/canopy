@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
+import { claudeExecutable } from "./claude/executable.ts";
 import type { ReasoningEffort } from "@canopy/codex-protocol";
 import { Deferred, Effect, Stream } from "effect";
 import { CodexAppServer } from "./codex/app-server.ts";
@@ -43,6 +44,7 @@ export function codexTextOverrides(catalog: string): string[] {
 
 /** Isolated SDK query: no registry, mapper, journal, hooks, tools, settings or session transcript. */
 export async function generateClaudeText(input: TextInput, runtime: Pick<Options, "env" | "pathToClaudeCodeExecutable"> & { cwd: string }, signal: AbortSignal): Promise<string> {
+  const executable = claudeExecutable(runtime.pathToClaudeCodeExecutable, runtime.env);
   const abort = new AbortController();
   const cancel = () => abort.abort();
   signal.addEventListener("abort", cancel, { once: true });
@@ -51,6 +53,7 @@ export async function generateClaudeText(input: TextInput, runtime: Pick<Options
     prompt: input.prompt,
     options: {
       ...runtime,
+      pathToClaudeCodeExecutable: executable,
       ...(input.model && { model: input.model }),
       ...(isClaudeEffort(input.effort) && { effort: input.effort }),
       settingSources: [],

@@ -13,6 +13,7 @@
   let status = $state<DesktopStatus>();
   let available = $state(false);
   let busy = $state(false);
+  const working = $derived(busy || status?.phase === "starting");
   let message = $state("");
   let gatewayUrl = $state("");
   let webUrl = $state("");
@@ -35,7 +36,7 @@
   });
   async function submit(event: SubmitEvent) {
     event.preventDefault();
-    if (!window.canopyDesktop || busy) return;
+    if (!window.canopyDesktop || working) return;
     busy = true; message = "";
     try {
       await window.canopyDesktop.configure(mode === "local" ? { mode, allowNetwork, bindHost } : { mode, gatewayUrl, webUrl, ...(enrollmentToken.trim() && { enrollmentToken: enrollmentToken.trim() }) });
@@ -60,8 +61,8 @@
     {:else}
       <form onsubmit={submit} class="grid gap-6">
         <div class="grid gap-3 sm:grid-cols-2" aria-label="Canopy mode">
-          <ModeChoice title="Run Canopy on this computer" description="A private gateway, database and worker. Everything is included." icon="server" selected={mode === "local"} onclick={() => (mode = "local")} disabled={busy} />
-          <ModeChoice title="Connect to a Canopy gateway" description="Add this computer as a worker and open your existing Canopy." icon="link" selected={mode === "remote"} onclick={() => (mode = "remote")} disabled={busy} />
+          <ModeChoice title="Run Canopy on this computer" description="A private gateway and worker. Downloads PostgreSQL once for local mode." icon="server" selected={mode === "local"} onclick={() => (mode = "local")} disabled={working} />
+          <ModeChoice title="Connect to a Canopy gateway" description="Add this computer as a worker and open your existing Canopy." icon="link" selected={mode === "remote"} onclick={() => (mode = "remote")} disabled={working} />
         </div>
         <div class="t-panel-slide grid gap-5 [--panel-translate-y:12px]" data-open={revealed}>
           {#if mode === "remote"}
@@ -78,8 +79,16 @@
             {/if}
           {/if}
           {#if message || status?.error}<Alert tone="error">{message || status?.error}</Alert>{/if}
-          {#if busy}<p role="status" class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{status?.phase === "starting" ? "Starting services and connecting your worker…" : "Preparing Canopy…"}</p>{/if}
-          <div class="flex flex-wrap items-center gap-3"><Button variant="primary" type="submit" loading={busy}>{status?.mode ? "Save and open Canopy" : "Open Canopy"}</Button></div>
+          {#if working}
+            <p role="status" class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{status?.database?.message ?? "Starting services and connecting your worker…"}</p>
+            {#if status?.database?.phase === "downloading" && status.database.progress !== undefined}
+              <div role="progressbar" aria-label="PostgreSQL download" aria-valuemin="0" aria-valuemax="100" aria-valuenow={status.database.progress} class="h-1.5 overflow-hidden rounded-full bg-zinc-950/10 dark:bg-white/10">
+                <div class="h-full rounded-full bg-zinc-950 dark:bg-white" style:width={`${status.database.progress}%`}></div>
+              </div>
+            {/if}
+          {/if}
+          <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Install Claude Code, Codex or Grok on this computer to use that provider. Canopy does not install agent CLIs.</p>
+          <div class="flex flex-wrap items-center gap-3"><Button variant="primary" type="submit" loading={working}>{status?.phase === "error" ? "Try again" : status?.mode ? "Save and open Canopy" : "Open Canopy"}</Button></div>
         </div>
       </form>
       {#if status?.mode}<div class="grid gap-3 border-t border-zinc-950/5 pt-6 dark:border-white/10"><WorkerStatus {status} /><p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Saving these settings restarts this computer’s services and stops its running agents.</p></div>{/if}

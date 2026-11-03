@@ -865,7 +865,7 @@ export class WorkerHost {
   }
 
   #claudeKey(config: AppliedConfig): string | undefined {
-    if (!config.claude.enabled || !config.claude.executable) return undefined;
+    if (!config.claude.enabled) return undefined;
     return JSON.stringify({
       executable: config.claude.executable,
       linkDeviceLogin: config.claude.linkDeviceLogin,

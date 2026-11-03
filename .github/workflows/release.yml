@@ -371,6 +371,18 @@ jobs:
         env:
           CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
         run: node apps/desktop/scripts/verify-macos.cjs "apps/desktop/release/$CANOPY_CHANNEL"
+      - name: Verify packaged runtime and downloaded PostgreSQL
+        if: ${{ !startsWith(matrix.target, 'windows-') }}
+        shell: bash
+        env:
+          CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            export CANOPY_DESKTOP_RUNTIME="$PWD/apps/desktop/release/$CANOPY_CHANNEL/mac-arm64/Canopy.app/Contents/Resources/runtime"
+          else
+            export CANOPY_DESKTOP_RUNTIME="$PWD/apps/desktop/release/$CANOPY_CHANNEL/linux-unpacked/resources/runtime"
+          fi
+          bun test apps/desktop/test/*.integration.test.ts
       - name: Remove notarization API key
         if: always() && startsWith(matrix.target, 'darwin-')
         shell: bash
@@ -389,6 +401,7 @@ jobs:
             apps/desktop/release/${{ needs.plan.outputs.channel }}/beta*.yml
             apps/desktop/release/${{ needs.plan.outputs.channel }}/nightly*.yml
             apps/desktop/release/${{ needs.plan.outputs.channel }}/*.blockmap
+            apps/desktop/release/${{ needs.plan.outputs.channel }}/package-sizes-*.json
           if-no-files-found: error
           retention-days: 7
           overwrite: true

@@ -1,7 +1,7 @@
 const { execFileSync, spawnSync } = require("node:child_process");
 const { readdirSync } = require("node:fs");
 const { join } = require("node:path");
-const { machOFiles } = require("./macho.cjs");
+const { machOFiles, machOArchitectures } = require("./macho.cjs");
 
 if (process.platform !== "darwin") throw new Error("Verify macOS signatures on a macOS runner");
 const directory = process.argv[2];
@@ -24,12 +24,13 @@ function verifyJit(path) {
   }
 }
 for (const application of applications) {
+  for (const binary of machOFiles(application)) if (machOArchitectures(binary).join() !== "arm64") throw new Error(`macOS app contains a non-arm64 Mach-O: ${binary}`);
   execFileSync("codesign", ["--verify", "--deep", "--strict", "--verbose=2", application], { stdio: "inherit" });
   verifyJit(application);
   const binaries = machOFiles(join(application, "Contents/Resources/runtime"));
   if (!binaries.length) throw new Error("No Mach-O runtime binaries found");
   for (const binary of binaries) execFileSync("codesign", ["--verify", "--strict", binary], { stdio: "inherit" });
-  for (const name of ["bun", "canopy-controller", "canopy-gateway", "canopy-worker", "canopy-web"]) verifyJit(join(application, "Contents/Resources/runtime", name));
+  verifyJit(join(application, "Contents/Resources/runtime/bun"));
   if (process.env.CANOPY_MAC_SIGNED === "true") {
     execFileSync("codesign", ["--verify", "--strict", "--test-requirement==anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists", application], { stdio: "inherit" });
     const assessment = spawnSync("spctl", ["-a", "-vv", "--type", "execute", application], { stdio: "inherit" });

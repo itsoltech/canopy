@@ -377,7 +377,8 @@ dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
    (etap 2) i promocję, nie binaria ani obrazy (etap 1).
 2. Pobierz dmg i zip z GitHuba na czystego Maca z quarantine. Uruchom app bez `xattr`,
    sprawdź lokalny start PostgreSQL, gatewaya, workera i web oraz zamknięcie procesów.
-   Sprawdź `codesign -d --entitlements :-` dla app, helpera i skompilowanego Bun sidecara.
+   Sprawdź `codesign -d --entitlements :-` dla app, helpera i jednego `runtime/bun`.
+   Usługi są plikami JS; w app nie może być PostgreSQL ani CLI agentów.
 3. Potwierdź jedną `Canopy.app`, `app.canopy.desktop`, wspólne userData i `canopy://`.
    Przełącz stable → beta → nightly i sprawdź wersję/kanał buildu po restarcie.
    Stare Canopy Beta/Nightly, w tym 0.2.0-nightly.2, zastąp ręcznie; zachowaj ich dane.
@@ -393,6 +394,30 @@ dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
 
 Podpisywania, polityki Gatekeepera, ticketów Apple i rzeczywistej instalacji aktualizacji
 nie da się potwierdzić na Linuxie; walidacja konfiguracji buildera tego nie zastępuje.
+
+Po zmianie układu runtime i pobieraniu PostgreSQL sprawdź dodatkowo:
+
+1. `package-sizes-darwin-arm64.json`, brak `app.asar.unpacked` i node_modules w asar,
+   jeden Bun, brak PG/CLI w app, same arm64 Mach-O. Framework Electron zostaje.
+   CI ma przejść `Verify packaged runtime and downloaded PostgreSQL`: lokalny rejestr
+   HTTP podaje prawdziwy pakiet PG, który jest weryfikowany, odchudzany, podpisywany
+   ad-hoc i używany do rzeczywistego enrollment/startu/stopu i recovery bazy.
+2. Na czystym Apple Silicon **bez Xcode/CLT** pobierz notarized dmg/zip w przeglądarce
+   z quarantine i uruchom normalnie z Findera. Pierwszy local ma pokazać postęp,
+   pobrać przypięty npm PG i uruchomić usługi bez obchodzenia Gatekeepera. Nie używaj
+   `xattr -d`, wyłączania zabezpieczeń ani ręcznych podpisów. Zapisz ewentualny błąd
+   polityki; test pod Bun w terminalu CI nie rozstrzyga śledzenia pochodzenia plików.
+3. W cache PG potwierdź względne symlinki ICU zamiast trzech kopii, jeden slice arm64,
+   `codesign --verify --strict` wszystkich Mach-O oraz `postgres --version`.
+   Zmierz osobno rozmiar app, instalatora i cache PG; oszacowania z Linuxa nie są
+   pomiarem macOS. Wyłącz sieć: ponowny lokalny start ma działać z cache.
+4. Na świeżym katalogu danych remote nie może utworzyć cache ani pobierać PG.
+   Brak zainstalowanego `claude` ma pokazać jasny status; własna ścieżka/PATH i login
+   mają działać bez pobierania CLI. Osobno sprawdź Codex i Grok oraz zwykłe tury.
+5. Przerwij pobieranie i zamknij app: ponowienie ma wznowić instalację, bez użycia
+   częściowych plików i bez procesów sierot. Na kopii danych testuj major mismatch:
+   odmowa startu, brak pobrania/usuwania danych i starych binariów. Po aktualizacji
+   tej samej głównej wersji stare cache mają zniknąć dopiero po poprawnym starcie.
 
 ## Promocja i okres stabilizacji („burn-in”)
 
