@@ -5,7 +5,8 @@ import { compareTags } from "./version.ts";
 const repo = repository();
 git("config", "user.name", "github-actions[bot]");
 git("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com");
-git("fetch", "origin", "--tags");
+// --force: a tag-triggered checkout already holds the tag (lightweight), which a plain fetch refuses to replace.
+git("fetch", "origin", "--tags", "--force");
 const stable = process.env["STABLE_SHA"] || git("tag", "--merged", "origin/main", "--list", "v*").split("\n").filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag)).sort(compareTags).at(-1);
 if (!stable) throw new Error("No stable release to back-merge");
 for (const [source, target] of [["main", "next"], ["next", "dev"]] as const) {

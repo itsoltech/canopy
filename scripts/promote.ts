@@ -21,7 +21,7 @@ function sourceAndTarget(path: string): ["dev" | "next", "next" | "main"] {
 }
 export function candidate(repo: string, path: string, days: number): { source: string; target: string; sha: string; release: PromotionRelease } {
   const [source, target] = sourceAndTarget(path);
-  git("fetch", "origin", source, target, "--tags");
+  git("fetch", "origin", source, target, "--tags", "--force");
   const sha = git("rev-parse", `origin/${source}`);
   const targetSha = git("rev-parse", `origin/${target}`);
   if (sha === targetSha) throw new Error("Target already contains the source head");
