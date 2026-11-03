@@ -101,6 +101,7 @@ import { WorkerAdministration, checkWorkerGatewayUrl } from "./worker-administra
 import { MobileDevices } from "./mobile-devices.ts";
 import { GatewayUpdates, type GatewayUpdatesOptions } from "../updates/runtime.ts";
 import { UpdatePersistence } from "../updates/persistence.ts";
+import { WorkerSsh } from "./worker-ssh.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -124,6 +125,7 @@ export interface GatewayCoreOptions {
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;
   readonly mobileGatewayUrl?: string;
   readonly publicGatewayUrl?: string;
+  readonly sshSecretsKey?: Buffer;
   readonly runtime: CoreRuntime;
   readonly instanceId: string;
   /** Single development user until authentication lands (docs/ui-api.md). */
@@ -176,6 +178,7 @@ export class GatewayCore {
   readonly updates: GatewayUpdates;
   readonly mobile: MobileDevices;
   readonly workers: WorkerAdministration;
+  readonly workerSsh: WorkerSsh;
   readonly connectors: ConnectorsRuntime;
   readonly secrets: ThreadSecrets;
   readonly bots: BotsRuntime;
@@ -251,6 +254,7 @@ export class GatewayCore {
       },
       changed: () => this.#broadcastWorkers(),
     });
+    this.workerSsh = new WorkerSsh({ runtime: options.runtime, userId: options.userId, workers: this.workers, ...(options.sshSecretsKey && { secretsKey: options.sshSecretsKey }) });
     this.secrets = new ThreadSecrets({ runtime: options.runtime, link: this.link, hub: this.hub, userId: options.userId,
       ...(options.secretTtlMs !== undefined && { ttlMs: options.secretTtlMs }) });
     this.secrets.start();

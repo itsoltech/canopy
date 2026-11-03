@@ -137,6 +137,14 @@ Metadane UI i polecenia pozostają w istniejącym JSONB `workers.capabilities`
 
 ## Instalacja i konfiguracja
 
+Ten sam mirror zasila nową instalację: uwierzytelniony BFF wywołuje dodany
+`GatewayService.FetchWorkerInstall`, a publiczne `/install/worker/<os>/<arch>` przekazuje
+strumień binarki. `?sha256=1` zwraca hash z manifestu dokładnej wersji gatewaya. Nie zmienia
+to zamrożonego `UpdateService` ani nie wymaga credentialu jeszcze nieutworzonego workera.
+Dozwolone platformy instalatora: Linux x64/arm64 i macOS arm64. Brak wydania/mirrora
+kończy pobieranie błędem HTTP; kreator rozwiązuje wtedy kanał do konkretnego GitHub Release
+i wyświetla jawny fallback. Skrypt zawsze weryfikuje checksum przed wykonaniem binarki.
+
 | Ustawienie | Znaczenie |
 |---|---|
 | `CANOPY_VERSION` | Wspólna wersja, wstrzykiwana przez pipeline. |

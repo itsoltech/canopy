@@ -40,6 +40,21 @@ na osi czasu; gateway kanonizuje je z własnego katalogu. [Projekt i ograniczeni
 
 ## Workery: kreator i zarządzanie
 
+Kreator instalacji używa dodatkowych, addytywnych RPC `FetchWorkerInstall` (stream bajtów
+lub metadane mirrora własnej wersji gatewaya; jawny fallback kanału zwraca URL wydania)
+oraz `WorkerSsh` (stream operacji `key`, `rotate`, `probe`, `install`). Oba RPC są
+dostępne tylko z tokenem usługi BFF, nie z tokenem urządzenia mobilnego.
+`GetWorkerSetup` zawiera również `gateway_version` i `channel`.
+
+Publiczne GET `/install/worker.sh`, `/install/worker/<os>/<arch>` i `?sha256=1`
+nie wymagają enrollment tokenu ani credentialu. BFF przekazuje stream bez buforowania
+całej binarki; sprawdza błąd mirrora przed nagłówkami HTTP. GET `/api/workers/install`
+rozwiązuje metadane platformy dla kreatora. POST `/api/workers/ssh` przekazuje NDJSON
+`{event: WorkerSshEvent}` albo `{error: string}`, z wyłączonym cache i buforowaniem proxy.
+Origin web ustala BFF z własnego requestu. Klucz prywatny i świeży token enrollment
+SSH nigdy nie trafiają do strumienia przeglądarki; stream zawiera klucz publiczny,
+fingerprint, zredagowany output i metadane enrollment. Anulowanie requestu zamyka SSH.
+
 `GetWorkerSetup` zwraca publiczny `gateway_url` (`UserSettings.worker_gateway_url`,
 pole **700**, z domyślną wartością `CANOPY_PUBLIC_GATEWAY_URL`) oraz metadane ostatnich
 enrollmentów właściciela, bez tokenów. `UpdateUserSettings.worker_gateway_url` (optional,

@@ -23,6 +23,45 @@ są aliasami ostatniego wydania własnego kanału. Aby przejść kontenerem na s
 
 ## Docker Compose (jeden host)
 
+Instalację workerów z kreatora (skrypt, Docker, ręcznie i SSH) opisuje
+[worker-config.md](worker-config.md#dodanie-maszyny-z-ui). Skrypt pod
+`/install/worker.sh` jest publiczny; routes `/install/worker/<os>/<arch>` i `?sha256=1`
+streamują wyłącznie zweryfikowany worker uruchomionej wersji gatewaya. Reverse proxy musi
+udostępniać `/install/*` z BFF i tolerować pobieranie dużych plików. Nie cache'uj odpowiedzi
+pomiędzy wersjami gatewaya. Skrypt wymaga curl i sha256sum/shasum, instaluje binarkę
+w `~/.local/share/canopy/bin`, config `0600` w `~/.config/canopy/worker.json`.
+`--no-service` pozwala uruchomić go bez systemd/launchd; istniejący config zostaje zachowany
+przy reinstalacji, a jego zastąpienie wymaga `--force` i nowego tokenu. Kontenery nadal
+aktualizuje się przez zmianę obrazu i odtworzenie.
+
+SSH inicjuje **gateway**, nie przeglądarka. Ogranicz jego ruch wychodzący do hostów,
+którymi użytkownik może zarządzać. Klucz prywatny Ed25519 per właściciel jest szyfrowany
+`CANOPY_SECRETS_KEY`; backup DB musi zachować również ten klucz. Publiczny klucz dodaj do
+`authorized_keys` docelowego użytkownika. Pierwszy fingerprint wymaga niezależnego
+sprawdzenia i potwierdzenia; mismatch blokuje dalsze połączenia. Gateway nie przyjmuje
+dowolnego polecenia SSH, tylko ustalony installer. Sesja systemd użytkownika/linger lub
+zalogowana sesja GUI macOS muszą istnieć przed automatycznym startem usługi.
+Przy HTTP używaj wyłącznie zaufanej szyfrowanej sieci (np. Tailscale); w publicznej sieci TLS.
+
+Weryfikacja instalatora na Linux x64 (izolowany PostgreSQL i sshd, wolne porty;
+komendy z głównego katalogu repozytorium):
+
+```sh
+shellcheck scripts/install-worker.sh
+bun scripts/build-binaries.ts --target linux-x64 --app worker
+docker build -t canopy-worker-install-sshd:test tests/integration/fixtures/worker-install-sshd
+mkdir -p .tmp/worker-install-tests
+TMPDIR="$PWD/.tmp/worker-install-tests" CANOPY_INSTALL_BINARY_TEST=1 CANOPY_SSH_CONTAINER_TEST=1 \
+  bun test tests/integration/worker-install.test.ts tests/integration/worker-ssh.test.ts
+```
+
+Test używa prawdziwej binarki, gRPC i OpenSSH; sprawdza hash, prywatny config,
+ponowną instalację, błąd autoryzacji, potwierdzenie i mismatch klucza hosta oraz
+połączenie workera. W kontenerze nie działa systemd użytkownika: jawny shim
+`fixtures/worker-install-sshd/systemctl` zapisuje wywołania i startuje prawdziwy worker,
+a test sprawdza unit (`Restart=always`, PATH) i aktywację. To dry-run menedżera usługi,
+nie test prawdziwego systemd/launchd; te wymagają sesji właściwego systemu.
+
 ```sh
 mkdir canopy && cd canopy
 curl -LO https://raw.githubusercontent.com/itsoltech/canopy/main/deploy/docker-compose.yml

@@ -19,9 +19,7 @@ export async function workerAction<K extends WorkerAction>(action: K, input: Mes
 
 /** POSIX shells on both Linux and macOS; user-controlled URLs/paths never become shell syntax. */
 export const shellQuote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`;
-export function enrollmentCommand(input: { gatewayUrl: string; token: string; repository: string; checkout: string; source: "clone" | "existing"; os: "linux" | "darwin" }) {
-  const getSource = input.source === "clone"
-    ? `git clone ${shellQuote(input.repository || "<YOUR_CANOPY_REPOSITORY_URL>")} "$HOME/canopy"\ncd "$HOME/canopy"`
-    : `cd ${shellQuote(input.checkout || "/path/to/canopy")}`;
-  return `# ${input.os === "darwin" ? "macOS" : "Linux"}: run as your regular user, in bash or zsh\n(\nset -e\nif ! command -v bun >/dev/null 2>&1; then\n  curl -fsSL https://bun.com/install | bash\nfi\nexport PATH="$HOME/.bun/bin:$PATH"\n${getSource}\nbun install\nbun apps/worker/src/main.ts enroll --gateway ${shellQuote(input.gatewayUrl)} --token ${shellQuote(input.token)}\nbun apps/worker/src/main.ts\n)`;
+export function enrollmentCommand(input: { origin: string; gatewayUrl: string; token: string; name: string; releaseUrl?: string }) {
+  const fallback = input.releaseUrl ? ` --release-url ${shellQuote(input.releaseUrl)} --checksum-url ${shellQuote(input.releaseUrl.replace(/\/[^/]+$/, "/checksums.txt"))}` : "";
+  return `curl -fsSL ${shellQuote(`${input.origin}/install/worker.sh`)} | sh -s -- --gateway ${shellQuote(input.gatewayUrl)} --token ${shellQuote(input.token)} --name ${shellQuote(input.name)}${fallback}`;
 }

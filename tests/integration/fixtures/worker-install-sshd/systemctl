@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+printf '%s\n' "$*" >> "$HOME/systemctl-calls"
+case "$*" in
+  *restart*)
+    nohup "$HOME/.local/share/canopy/bin/canopy-worker" --config "$HOME/.config/canopy/worker.json" >"$HOME/worker.log" 2>&1 </dev/null &
+    ;;
+esac

@@ -1,5 +1,14 @@
 # Model danych (PostgreSQL)
 
+## Instalacja workerów przez SSH
+
+Migracja `0047_worker_ssh` dodaje `worker_ssh_keys` (jeden Ed25519 per właściciel,
+publiczny klucz, prywatny envelope AES-256-GCM, `key_id`) oraz `worker_ssh_hosts`
+(owner/host/port → fingerprint SHA-256). Wszystkie odczyty i zapisy filtrują właściciela;
+FK wskazują `users.id` z cascade. Tworzenie/rotacja klucza blokuje wiersz użytkownika,
+aby równoległe pierwsze żądania nie wygenerowały dwóch tożsamości. Pin nie jest nadpisywany
+przy konflikcie; mismatch blokuje instalację. Audit przechowuje akcje, nigdy tokeny/klucze.
+
 ## Urządzenia mobilne
 
 Migracja `0046_mobile_devices` dodaje `mobile_pairings` i `mobile_devices`, powiązane

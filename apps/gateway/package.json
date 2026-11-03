@@ -16,17 +16,21 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",
-    "@connectrpc/connect": "2.3.0",
-    "@connectrpc/connect-node": "2.3.0",
-    "@effect/sql-pg": "4.1.1",
-    "@modelcontextprotocol/sdk": "1.32.2",
     "@canopy/contracts": "workspace:*",
     "@canopy/db": "workspace:*",
     "@canopy/domain": "workspace:*",
     "@canopy/transport": "workspace:*",
     "@canopy/updater": "workspace:*",
+    "@connectrpc/connect": "2.3.0",
+    "@connectrpc/connect-node": "2.3.0",
+    "@effect/sql-pg": "4.1.1",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "cronstrue": "3.38.0",
     "effect": "4.1.1",
-    "sharp": "0.35.5"
+    "sharp": "0.35.5",
+    "ssh2": "1.17.0"
+  },
+  "devDependencies": {
+    "@types/ssh2": "1.15.5"
   }
 }
