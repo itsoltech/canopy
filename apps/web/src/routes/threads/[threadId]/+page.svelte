@@ -92,8 +92,11 @@
   // An old link of a thread that moved to another computer: the gateway follows the move; open its new id (stage 8).
   $effect(() => {
     if (!thread || thread.id === threadId || thread.id.split("~")[0] !== threadId.split("~")[0]) return;
-    toast(`Moved to ${overview.machine(thread.nodeId) ?? "this computer"}`);
-    void goto(`/threads/${thread.id}`, { replaceState: true });
+    // toast reads and changes its reactive queue; it must not become a dependency of this redirect.
+    untrack(() => {
+      toast(`Moved to ${overview.machine(thread.nodeId) ?? "this computer"}`);
+      void goto(`/threads/${thread.id}`, { replaceState: true });
+    });
   });
   // A linked computer's project and worker leave the overview while it is away; the open thread keeps their names.
   let known: { project?: ui.Project; worker?: ui.Worker } = {};
