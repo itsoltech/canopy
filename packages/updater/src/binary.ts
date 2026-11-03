@@ -17,9 +17,10 @@ export interface UpdateRecord {
 export function isStandalone(): boolean {
   return /(?:\$bunfs|~BUN)[/\\]/i.test(Bun.main);
 }
-export function installKind(env: NodeJS.ProcessEnv = process.env): InstallKind {
+export function installKind(env: NodeJS.ProcessEnv = process.env, executable = process.execPath): InstallKind {
   // The desktop app ships its gateway/worker inside a signed bundle and updates them itself (never in place).
-  if (env["CANOPY_INSTALL_KIND"] === "desktop") return "desktop";
+  // The path also counts: desktop builds before CANOPY_INSTALL_KIND replaced the worker inside the bundle.
+  if (env["CANOPY_INSTALL_KIND"] === "desktop" || /[\\/]resources[\\/]runtime[\\/][^\\/]+$/i.test(executable)) return "desktop";
   if (env["CANOPY_INSTALL_KIND"] === "docker" || existsSync("/.dockerenv") || existsSync("/run/.containerenv")) return "docker";
   return isStandalone() ? "binary" : "source";
 }
