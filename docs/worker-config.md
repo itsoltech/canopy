@@ -21,12 +21,11 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
    To origin portu **gRPC**, domyślnie `:7443`, a nie adres strony web. Gateway bierze
    wartość początkową z `CANOPY_PUBLIC_GATEWAY_URL`; edytowalne nadpisanie należy do ustawień
    użytkownika. Zmiana nie przeadresowuje istniejących plików `worker.json`.
-2. Wybierz Linux/macOS i podaj URL swojego repozytorium Canopy albo absolutną ścieżkę
-   istniejącego checkoutu **z tą wersją kodu**. Skopiuj komendę i uruchom ją na dodawanej
-   maszynie w bash/zsh jako zwykły użytkownik. Potrzebne są Git, dostęp do repozytorium
-   oraz sieć do gateway; komenda instaluje Bun, jeśli go brakuje, wykonuje `bun install`,
-   enrollment i uruchamia worker. Kreator nie korzysta jeszcze z binarek `canopy-worker-<os>-<arch>`
-   z GitHub Releases; ręczna instalacja binarki: [deploy.md](deploy.md#worker).
+2. Wybierz **Install script**, **Docker**, **Manual** albo **Over SSH**.
+   Domyślny skrypt pobiera zweryfikowaną binarkę dokładnej wersji gatewaya, rejestruje
+   worker i uruchamia usługę użytkownika. Nie wymaga Bun, Git ani źródeł Canopy.
+   Obsługuje Linux x64/arm64 oraz macOS arm64. Dla buildów bez wydania kreator pokazuje
+   jawny fallback do wydania GitHub z kanału gatewaya; zgodność może wymagać aktualizacji gatewaya.
 3. Wybierz **Check connection**. Kreator pokazuje status z istniejącego overview stream,
    wykryte wersje CLI oraz czas ważności tokenu. **Generate new token** odwołuje poprzedni
    token przed utworzeniem nowego. Po zamknięciu kreatora tokenu nie można odczytać ponownie;
@@ -45,7 +44,77 @@ używaj HTTPS/TLS; proxy musi obsługiwać gRPC HTTP/2 i długie strumienie. Nie
 przychodzącego na Macu. Prywatny CA dodaj do systemowego magazynu zaufania przed enrollment;
 `ca_file` w gotowym `worker.json` obsługuje dodatkowy CA dla późniejszego połączenia.
 
-### CLI i usługa użytkownika
+### Skrypt instalacyjny
+
+```sh
+curl -fsSL https://canopy.example.com/install/worker.sh | sh -s -- \
+  --gateway https://gateway.example.com:7443 --token TOKEN --name 'Home server'
+```
+
+Pierwszy adres jest originem **web BFF**, drugi originem **gRPC workera**. Skrypt
+wykrywa platformę i pobiera `/install/worker/<os>/<arch>` oraz `?sha256=1` z web BFF.
+Gateway udostępnia wyłącznie własną wersję z weryfikowanego mirrora, nigdy „latest”.
+Brak binarki daje czytelny błąd. Fallback kreatora używa jawnych `--release-url` i
+`--checksum-url` wskazujących to samo wydanie GitHub; SHA-256 jest sprawdzany przed wykonaniem.
+
+Binarka trafia do `~/.local/share/canopy/bin/canopy-worker` (zapisywalny katalog
+do self-update), config do `~/.config/canopy/worker.json` z prawami `0600`, także na macOS.
+Istniejący config jest zachowywany wraz z adresem gatewaya, bez ponownego enrollment.
+`--force` z nowym tokenem jawnie go zastępuje; ponowne uruchomienie instaluje ponownie
+binarkę i usługę. Symlink/pusty config bez `--force` jest odrzucany. `--no-service` pomija usługę
+i wypisuje komendę ręcznego startu. Token ani credential nie trafiają do outputu.
+Pliki tymczasowe są usuwane także po błędzie i przerwaniu.
+
+Usługa systemd `--user` ma `Restart=always`; LaunchAgent ma `KeepAlive=true`.
+PATH obejmuje m.in. `~/.local/bin`, Bun, Volta, Homebrew, mise i zainstalowane wersje
+Node z mise/nvm oraz npm global prefix, jeśli npm jest dostępny. Skrypt nie instaluje
+CLI agentów: wypisuje wykryte `claude`/`codex`/`grok` i komendy logowania.
+Na Linuxie potrzebna jest sesja systemd użytkownika; po SSH skrypt używa istniejącego
+`/run/user/<uid>`. Administrator może wykonać `loginctl enable-linger USER`, aby worker
+działał po wylogowaniu. macOS wymaga aktywnej sesji GUI użytkownika dla LaunchAgent.
+
+### Docker i instalacja ręczna
+
+Zakładka **Docker** podaje `docker run` i Compose z obrazem
+`ghcr.io/itsoltech/canopy-worker:v<VERSION>` (lub kanałem dla buildu bez wersji wydania).
+Enrollment wykonuje się raz z wolumenem `/home/canopy`; ten sam wolumen przechowuje
+config, dziennik i loginy. Obraz bazowy nie zawiera CLI agentów — rozszerz go i zaloguj
+dostawców w kontenerze. **Manual** pobiera binarkę i `checksums.txt` z tego samego
+GitHub Release, sprawdza SHA-256, uruchamia `enroll` i drukuje `service`.
+Wygenerowaną usługę zapisuje i uruchamia administrator maszyny/użytkownik według
+wydrukowanych poleceń. Szczegóły: [deploy.md](deploy.md).
+
+### Instalacja przez SSH
+
+W **Settings → Workers → Install over SSH** wybierz **Show public key** i skopiuj
+publiczny klucz Ed25519 do `~/.ssh/authorized_keys` docelowego użytkownika.
+Gateway tworzy jedną parę na właściciela; prywatny klucz jest szyfrowany AES-256-GCM
+tym samym `CANOPY_SECRETS_KEY` co pozostałe sekrety. Nigdy nie trafia do BFF, przeglądarki,
+workera ani logów. Rotacja wymaga zastąpienia publicznego klucza na hostach; nie zmienia
+credentiali już zarejestrowanych workerów.
+
+W kreatorze **Over SSH** podaj `login@host[:port]` (IPv6: `login@[adres]:port`).
+**Check host key** zatrzymuje handshake przed uwierzytelnieniem. Sprawdź pokazany fingerprint
+SHA-256 niezależnym kanałem i wybierz **Trust fingerprint and install**. Gateway zapisuje
+pin per właściciel/host/port; późniejsza zmiana klucza jest twardym błędem, bez automatycznej
+akceptacji. Rotacja klucza Canopy nie usuwa pinów hostów. Cel musi być osiągalny z gatewaya
+przez SSH, a z celu muszą być osiągalne web BFF oraz adres gRPC workera (np. przez Tailscale).
+
+Gateway wykonuje wyłącznie ustalony `sh -s`, przesyła skrypt i świeży jednorazowy token
+przez szyfrowane stdin, bez dowolnych komend od klienta. Output ma limit 128 KB,
+redakcję sekretów i usuwanie znaków sterujących; buforowanie linii chroni przed tokenem
+podzielonym na pakiety. Handshake ma timeout 15 s, cała operacja 5 minut; anulowanie
+zamyka kanał i odwołuje niezużyte zaproszenie. Po aktywacji usługi gateway czeka do
+60 sekund na WorkerLink Hello; sam kod wyjścia instalatora nie oznacza połączenia.
+Usługa już uruchomiona na celu może
+pozostać aktywna po anulowaniu. Operacje są owner-scoped i zapisują audyt bez sekretów.
+Przy braku mirrora SSH może użyć jawnego fallbacku kanału z komunikatem w output;
+skrypt nadal weryfikuje hash manifestu wybranego wydania. Ponowna instalacja zachowuje
+istniejący config, a SSH wskazuje wtedy istniejący worker zamiast tworzyć drugi enrollment.
+Nie ma obejścia mismatchu w UI: administrator musi niezależnie zweryfikować i usunąć
+nieaktualny pin z `worker_ssh_hosts` dla właściwego właściciela.
+
+### CLI i usługa użytkownika (źródła / development)
 
 ```bash
 # Z katalogu repozytorium; TOKEN pochodzi z kreatora, nie zapisuj go w logach.
@@ -61,8 +130,8 @@ bun apps/worker/src/main.ts --config /absolute/path/worker.json
 bun apps/worker/src/main.ts service --config /absolute/path/worker.json
 ```
 
-`canopy-worker` w opisie interfejsu CLI oznacza ten entrypoint uruchomiony przez Bun;
-pakiet nie instaluje obecnie globalnego polecenia. `--config` ma pierwszeństwo przed
+W przykładach development powyżej entrypoint działa przez Bun; instalacja binarna
+używa bezpośrednio `canopy-worker`. `--config` ma pierwszeństwo przed
 `CANOPY_WORKER_CONFIG`; bez obu obowiązują ścieżki per OS opisane niżej. `enroll` rezerwuje
 plik z `0600` **przed** wymianą tokenu. Istniejący plik jest odrzucany bez wydania tokenu;
 `--force` zapisuje nowy prywatny plik i atomowo go podmienia, nie podąża za symlinkiem.

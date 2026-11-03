@@ -13,7 +13,7 @@
   import WorkerInstallStep from "./WorkerInstallStep.svelte";
   import WorkerConnectionStatus from "./WorkerConnectionStatus.svelte";
   import WorkerProviderChoices from "./WorkerProviderChoices.svelte";
-  import { enrollmentCommand, workerAction } from "./actions.ts";
+  import { workerAction } from "./actions.ts";
   import type { WorkerSetup } from "./worker-setup.svelte.ts";
 
   let { setup, open = $bindable(false), class: className }: { setup: WorkerSetup; open?: boolean; class?: ClassValue } = $props();
@@ -21,10 +21,6 @@
   let step = $state(1);
   let name = $state("");
   let address = $state("");
-  let os = $state("linux");
-  let source = $state("clone");
-  let repository = $state("");
-  let checkout = $state("");
   let invitation = $state<ui.WorkerEnrollment>();
   let token = $state("");
   let busy = $state(false);
@@ -36,8 +32,6 @@
   const worker = $derived(overview.worker(currentEnrollment?.workerId ?? ""));
   const remaining = $derived(Math.max(0, Math.ceil(((currentEnrollment?.expiresAt ? timestampDate(currentEnrollment.expiresAt).getTime() : now) - now) / 1000)));
   const expired = $derived(!currentEnrollment?.usedAt && (remaining === 0 || Boolean(currentEnrollment?.revokedAt)));
-  const command = $derived(enrollmentCommand({ gatewayUrl: setup.gatewayUrl, token, repository, checkout, source: source as "clone" | "existing", os: os as "linux" | "darwin" }));
-  const sourceReady = $derived(source === "existing" ? checkout.startsWith("/") : /^(https?:\/\/|git@|ssh:\/\/)/.test(repository));
 
   onMount(() => { const timer = setInterval(() => now = Date.now(), 1000); return () => clearInterval(timer); });
   $effect(() => {
@@ -82,16 +76,17 @@
             <div class="flex justify-end"><Button variant="primary" type="submit" loading={busy} disabled={!name.trim() || !address.trim() || !setup.loaded}>Continue</Button></div>
           </form>
         {:else if step === 2}
-          <WorkerInstallStep {name} {command} copyable={sourceReady && !expired} bind:os bind:source bind:repository bind:checkout />
+          <WorkerInstallStep {name} gatewayUrl={setup.gatewayUrl} {token} version={setup.gatewayVersion} channel={setup.channel} copyable={!expired && !!token && !currentEnrollment?.usedAt} bind:busy
+            onenrollment={(value) => { invitation = value; token = ""; void setup.reload(); }} oninstalled={() => go(3)} />
           <div class="flex flex-wrap items-center justify-between gap-3">
             <Button size="sm" variant="ghost" onclick={() => go(1)} disabled={busy}>Back</Button>
-            <Button variant="primary" onclick={() => go(3)} disabled={!sourceReady || expired}>Check connection</Button>
+            <Button variant="primary" onclick={() => go(3)} disabled={busy || expired}>Check connection</Button>
           </div>
         {:else if step === 3}
           <WorkerConnectionStatus {worker} {name} />
           {#if overview.connection !== "live"}<Alert tone="warning">The live connection is recovering. Worker status will update when Canopy reconnects.</Alert>{/if}
           {#if expired}<Alert tone="warning">This token expired or was revoked. Generate a new token and use the updated command.</Alert>{/if}
-          <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Leave the terminal running. For automatic startup, run <code class="font-mono">bun apps/worker/src/main.ts service</code> in the checkout for a systemd user unit or launchd plist.</p>
+          <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">The install script starts your user service automatically. For Docker, keep the container running. Manual installations use the startup commands printed by <code>canopy-worker service</code>.</p>
           <div class="flex flex-wrap items-center justify-between gap-3"><Button size="sm" variant="ghost" onclick={() => go(2)}>Show command</Button><Button variant="primary" disabled={!worker?.online} onclick={() => go(4)}>Choose providers</Button></div>
         {:else if worker}
           <WorkerProviderChoices workerId={worker.id} bind:busy />

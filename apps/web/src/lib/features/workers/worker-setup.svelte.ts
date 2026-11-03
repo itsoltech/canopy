@@ -7,6 +7,8 @@ import { workerAction } from "./actions.ts";
 /** Metadata only. The wizard owns the plaintext token and discards it on close. */
 export class WorkerSetup {
   gatewayUrl = $state("");
+  gatewayVersion = $state("");
+  channel = $state("nightly");
   enrollments = $state.raw<ui.WorkerEnrollment[]>([]);
   loaded = $state(false);
   error = $state("");
@@ -14,6 +16,8 @@ export class WorkerSetup {
     try {
       const setup = decode(ui.GetWorkerSetupResponseSchema, await requestJson("GET", "/api/workers/setup"));
       this.gatewayUrl = setup.gatewayUrl;
+      this.gatewayVersion = setup.gatewayVersion;
+      this.channel = setup.channel;
       this.enrollments = setup.enrollments;
       this.loaded = true;
       this.error = "";

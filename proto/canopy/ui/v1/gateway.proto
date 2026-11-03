@@ -13,6 +13,8 @@ import "canopy/ui/v1/connectors.proto";
 import "canopy/ui/v1/mobile.proto";
 
 service GatewayService {
+  rpc FetchWorkerInstall(FetchWorkerInstallRequest) returns (stream WorkerInstallChunk);
+  rpc WorkerSsh(WorkerSshRequest) returns (stream WorkerSshEvent);
   rpc GetUpdates(UpdatesRequest) returns (UpdatesSnapshot);
   rpc ManageUpdates(ManageUpdatesRequest) returns (UpdatesSnapshot);
   // Device administration is restricted to the web BFF service token.
@@ -171,9 +173,37 @@ message WorkerEnrollment {
   string worker_id = 6;
 }
 message GetWorkerSetupRequest {}
+message FetchWorkerInstallRequest {
+  string os = 1;
+  string arch = 2;
+  bool metadata_only = 3;
+  bool channel_fallback = 4;
+}
+message WorkerInstallChunk {
+  bytes data = 1;
+  string sha256 = 2;
+  string version = 3;
+  string download_url = 4;
+}
+message WorkerSshRequest {
+  string action = 1; // key | rotate | probe | install
+  string target = 2; // login@host[:port], IPv6: login@[address]:port
+  string fingerprint = 3; // explicit confirmation, required on first install
+  string name = 4;
+  string web_origin = 5;
+}
+message WorkerSshEvent {
+  string public_key = 1;
+  string fingerprint = 2;
+  bool trusted = 3;
+  string output = 4;
+  WorkerEnrollment enrollment = 5;
+}
 message GetWorkerSetupResponse {
   string gateway_url = 1;
   repeated WorkerEnrollment enrollments = 2;
+  string gateway_version = 3;
+  string channel = 4;
 }
 message CreateWorkerEnrollmentRequest { string name = 1; }
 message CreateWorkerEnrollmentResponse {

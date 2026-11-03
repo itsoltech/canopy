@@ -12,6 +12,7 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import UpdatesPanel from "#lib/features/workers/UpdatesPanel.svelte";
+  import WorkerSshKey from "#lib/features/workers/WorkerSshKey.svelte";
 
   const overview = useOverview();
   const online = $derived(overview.workers.filter((w) => w.online).length);
@@ -66,6 +67,7 @@
   </SettingsGroup>
 {/if}
 <UpdatesPanel />
+<SettingsGroup title="Install over SSH"><WorkerSshKey class="p-4 sm:p-5" /></SettingsGroup>
 <SettingsGroup title="Connection">
   <div class="p-4 sm:p-5">
     <form class="grid gap-3" onsubmit={(e) => { e.preventDefault(); void saveAddress(); }}>

@@ -6,11 +6,14 @@ import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.t
 import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, SettingsConflict } from "../store/index.ts";
 import { workerGuard } from "../core/worker-administration.ts";
 import { mobileGuard, mobileIdentity } from "../core/mobile-devices.ts";
+import { workerInstall } from "../updates/install.ts";
 
 /** GatewayService for the UI (docs/ui-api.md). Thin: validation and state live in the core and the store. */
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
   return (router) =>
     router.service(ui.GatewayService, {
+      fetchWorkerInstall: (request, context) => workerInstall(core.updates, request, context.signal),
+      workerSsh: (request, context) => core.workerSsh.run(request, context.signal),
       getUpdates: () => core.updates.snapshot(),
       manageUpdates: (request) => core.updates.manage(request),
       getMobileDevices: () => mobileGuard(() => core.mobile.list()),
@@ -23,7 +26,12 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
         await core.mobile.revoke(identity.deviceId, "device");
         return create(ui.MobileOperationResponseSchema);
       }),
-      getWorkerSetup: () => workerGuard(() => core.workers.setup()),
+      getWorkerSetup: () => workerGuard(async () => {
+        const setup = await core.workers.setup();
+        const updates = await core.updates.snapshot();
+        setup.gatewayVersion = updates.gatewayVersion; setup.channel = updates.channel;
+        return setup;
+      }),
       createWorkerEnrollment: (r) => workerGuard(() => core.workers.create(r.name)),
       revokeWorkerEnrollment: (r) => workerGuard(async () => { await core.workers.revokeEnrollment(r.id); return create(ui.WorkerOperationResponseSchema); }),
       renameWorker: (r) => workerGuard(async () => { await core.workers.manage(r.workerId, "rename", r.name); return create(ui.WorkerOperationResponseSchema); }),
