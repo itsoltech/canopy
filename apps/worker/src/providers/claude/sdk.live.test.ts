@@ -30,7 +30,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("claude agent sdk (live recordi
   const sessionId = crypto.randomUUID();
   const tokens: string[] = [];
   const bus = createSdkMcpServer({
-    name: "openagents",
+    name: "canopy",
     tools: [
       {
         name: "record_token",
@@ -54,7 +54,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("claude agent sdk (live recordi
         includePartialMessages: true,
         permissionMode: "default",
         canUseTool: async (_tool, input) => ({ behavior: "allow", updatedInput: input }),
-        mcpServers: { openagents: bus },
+        mcpServers: { canopy: bus },
         ...extra,
       },
     })) {

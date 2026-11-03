@@ -74,7 +74,7 @@ export class Ingest extends Context.Service<
     /** Threads settle() would change (the sweep). */
     unsettledThreads(staleSeconds: number): Effect.Effect<readonly string[], SqlError.SqlError>;
   }
->()("open-agents/gateway/Ingest") {
+>()("canopy/gateway/Ingest") {
   static readonly layer = Layer.effect(
     Ingest,
     Effect.gen(function* () {

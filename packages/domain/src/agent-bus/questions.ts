@@ -93,6 +93,6 @@ export function questionAnswerInput(id: string, status: string, response: { answ
     const value = answer.kind === "choice" ? answer.labels.join(", ") : answer.kind === "text" ? answer.text : "Skipped";
     return `${header}: ${value}`;
   }).join("\n");
-  const note = `[open-agents] Answers to your questions (question_set_id: ${id}).\n${JSON.stringify(result)}`;
+  const note = `[canopy] Answers to your questions (question_set_id: ${id}).\n${JSON.stringify(result)}`;
   return { text: `${note}\n\n${message}`, note, message };
 }

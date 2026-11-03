@@ -1,6 +1,6 @@
 /**
  * `bun run check:tmp [bun test arguments]`: runs the tests with a private TMPDIR and fails when they leave a temp
- * directory of theirs there (`oa-*`, `open-agents-*`: a test, or a process it started, that does not clean up). Private, so other runs on the machine writing to
+ * directory of theirs there (`oa-*`: a test, or a process it started, that does not clean up). Private, so other runs on the machine writing to
  * /tmp at the same time do not count; new /tmp/oa-* entries made meanwhile are listed as a hint only (live
  * recordings, CANOPY_LIVE_RECORD_DIR, are kept on purpose under fixed names).
  */
@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const shared = tmpdir();
-const ours = (name: string) => name.startsWith("oa-") || name.startsWith("open-agents-");
+const ours = (name: string) => name.startsWith("oa-");
 const before = new Set(readdirSync(shared).filter(ours));
 const tmp = mkdtempSync(join(shared, "oa-tmpcheck-"));
 

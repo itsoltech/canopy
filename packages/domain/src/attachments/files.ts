@@ -86,7 +86,7 @@ export function attachmentsNote(attachments: readonly NotedAttachment[]): string
     return `- ${a.path} (${details})`;
   });
   return [
-    `[open-agents] The user attached ${count} to this message, saved on this machine. Read ${attachments.length === 1 ? "it" : "them"} as needed${images ? "; view_image shows you an image" : ""}:`,
+    `[canopy] The user attached ${count} to this message, saved on this machine. Read ${attachments.length === 1 ? "it" : "them"} as needed${images ? "; view_image shows you an image" : ""}:`,
     ...lines,
   ].join("\n");
 }

@@ -52,7 +52,7 @@ describe("the platform note", () => {
 
   test("one task: what, how and why, when, output tail, and how to read more", () => {
     const note = backgroundTaskNote([killed], { tools: true });
-    expect(note.startsWith("[open-agents] A background task of this thread ended: stopped because the worker was shut down")).toBe(true);
+    expect(note.startsWith("[canopy] A background task of this thread ended: stopped because the worker was shut down")).toBe(true);
     expect(note).toContain('Task "python3 train.py" (task_id: bg:exec-1)');
     expect(note).toContain("Command: python3 train.py --epochs 3");
     expect(note).toContain("When: started 2026-11-02T10:00:00.000Z, ended 2026-11-02T10:01:05.000Z, ran 1 min 5 s");
@@ -64,7 +64,7 @@ describe("the platform note", () => {
   test("several tasks in one note; exit codes; no tool hint without the bus", () => {
     const done = { ...killed, id: "bg:exec-2", title: "make", command: "make", outcome: "completed" as const, stopReason: "", exitCode: 0, output: "" };
     const note = backgroundTaskNote([killed, done], { tools: false });
-    expect(note.startsWith("[open-agents] 2 background tasks of this thread ended.")).toBe(true);
+    expect(note.startsWith("[canopy] 2 background tasks of this thread ended.")).toBe(true);
     expect(note).toContain("Outcome: completed with exit code 0");
     expect(note).toContain("Output: (none)");
     expect(note).not.toContain("get_background_task");

@@ -168,9 +168,9 @@
             <ChatEventLine event={entry.event} />
           {/each}
           <div class="flex flex-wrap gap-2">
-            <LinkChip link={{ url: "https://github.com/example/open-agents/pull/443", title: "Merge after CI", kind: "pull_request", subtitle: "open-agents#443" }} />
-            <LinkChip link={{ url: "https://github.com/example/open-agents/issues/12", title: "Composer loses focus", kind: "issue", subtitle: "open-agents#12" }} />
-            <LinkChip link={{ url: "https://github.com/example/open-agents/commit/1aa4d69", title: "1aa4d69", kind: "commit" }} />
+            <LinkChip link={{ url: "https://github.com/example/canopy/pull/443", title: "Merge after CI", kind: "pull_request", subtitle: "canopy#443" }} />
+            <LinkChip link={{ url: "https://github.com/example/canopy/issues/12", title: "Composer loses focus", kind: "issue", subtitle: "canopy#12" }} />
+            <LinkChip link={{ url: "https://github.com/example/canopy/commit/1aa4d69", title: "1aa4d69", kind: "commit" }} />
             <LinkChip link={{ url: "https://svelte.dev/docs/kit", title: "SvelteKit docs", kind: "web" }} />
             <LinkChip link={{ url: "javascript:alert(1)", title: "Unsafe link stays text", kind: "web", subtitle: "blocked" }} />
           </div>

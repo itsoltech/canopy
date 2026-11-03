@@ -101,7 +101,7 @@ export class BackgroundTaskStore extends Context.Service<
      */
     release(steerId: string, reason: string): Fx<boolean>;
   }
->()("open-agents/gateway/BackgroundTaskStore") {
+>()("canopy/gateway/BackgroundTaskStore") {
   static readonly layer = Layer.effect(
     BackgroundTaskStore,
     Effect.gen(function* () {

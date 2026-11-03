@@ -289,7 +289,7 @@ export class GatewayStore extends Context.Service<
     interactionAnswer(requestId: string): Fx<{ threadId: string; answer: ui.AnswerInteractionRequest } | undefined>;
     interactionEvent(requestId: string): Fx<{ seq: bigint; event: import("@canopy/contracts").ThreadEvent } | undefined>;
   } & ThreadLifecycle
->()("open-agents/gateway/GatewayStore") {
+>()("canopy/gateway/GatewayStore") {
   static readonly layer = (secretsKey: Buffer) =>
     Layer.effect(
       GatewayStore,

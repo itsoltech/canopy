@@ -60,7 +60,7 @@ export class SettingsStore extends Context.Service<
     }): Fx<ui.UserSettings>;
     updateProject(input: { userId: string; projectId: string; threadDefaults?: ui.ThreadDefaults; expectedVersion: bigint }): Fx<ui.ProjectSettings>;
   }
->()("open-agents/gateway/SettingsStore") {
+>()("canopy/gateway/SettingsStore") {
   static readonly layer = Layer.effect(
     SettingsStore,
     Effect.gen(function* () {

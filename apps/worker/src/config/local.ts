@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Result, Schema } from "effect";
@@ -32,28 +32,39 @@ export type LocalConfig = Schema.Schema.Type<typeof LocalConfig>;
 
 export type Platform = "linux" | "darwin" | "win32" | (string & {});
 
+/** Directory name of the worker's files; before the rename it was "open-agents", still read when only it exists. */
+const APP_DIR = "canopy";
+const LEGACY_APP_DIR = "open-agents";
+
+/** `<base>/canopy/...`, or the pre-rename `<base>/open-agents/...` when only that exists (nothing is moved). */
+function appPath(base: string, rest: readonly string[], exists: (path: string) => boolean): string {
+  const current = join(base, APP_DIR, ...rest);
+  const legacy = join(base, LEGACY_APP_DIR, ...rest);
+  return !exists(current) && exists(legacy) ? legacy : current;
+}
+
 /** Default config file location per OS; CANOPY_WORKER_CONFIG overrides it. */
-export function defaultConfigPath(env: Readonly<Record<string, string | undefined>>, platform: Platform, home = homedir()): string {
+export function defaultConfigPath(env: Readonly<Record<string, string | undefined>>, platform: Platform, home = homedir(), exists: (path: string) => boolean = existsSync): string {
   const configured = readEnv("CANOPY_WORKER_CONFIG", env);
   if (configured) return configured;
   switch (platform) {
     case "win32":
-      return join(env["APPDATA"] ?? join(home, "AppData", "Roaming"), "open-agents", "worker.json");
+      return appPath(env["APPDATA"] ?? join(home, "AppData", "Roaming"), ["worker.json"], exists);
     case "darwin":
-      return join(home, "Library", "Application Support", "open-agents", "worker.json");
+      return appPath(join(home, "Library", "Application Support"), ["worker.json"], exists);
     default:
-      return join(env["XDG_CONFIG_HOME"] ?? join(home, ".config"), "open-agents", "worker.json");
+      return appPath(env["XDG_CONFIG_HOME"] ?? join(home, ".config"), ["worker.json"], exists);
   }
 }
 
-export function defaultDataDir(env: Readonly<Record<string, string | undefined>>, platform: Platform, home = homedir()): string {
+export function defaultDataDir(env: Readonly<Record<string, string | undefined>>, platform: Platform, home = homedir(), exists: (path: string) => boolean = existsSync): string {
   switch (platform) {
     case "win32":
-      return join(env["LOCALAPPDATA"] ?? join(home, "AppData", "Local"), "open-agents");
+      return appPath(env["LOCALAPPDATA"] ?? join(home, "AppData", "Local"), [], exists);
     case "darwin":
-      return join(home, "Library", "Application Support", "open-agents");
+      return appPath(join(home, "Library", "Application Support"), [], exists);
     default:
-      return join(env["XDG_DATA_HOME"] ?? join(home, ".local", "share"), "open-agents");
+      return appPath(env["XDG_DATA_HOME"] ?? join(home, ".local", "share"), [], exists);
   }
 }
 

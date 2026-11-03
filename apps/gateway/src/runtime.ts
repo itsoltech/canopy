@@ -9,8 +9,8 @@ import { readEnv } from "@canopy/domain/env";
 /** Database-backed services of the gateway, shared by main.ts and cli.ts. */
 export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>) {
   const url = readEnv("CANOPY_DATABASE_URL", env);
-  if (!url) throw new Error("CANOPY_DATABASE_URL is not set, e.g. postgres://open_agents:...@127.0.0.1:5432/open_agents");
-  const database = PgClient.layer({ url: Redacted.make(url), applicationName: "open-agents-gateway" });
+  if (!url) throw new Error("CANOPY_DATABASE_URL is not set, e.g. postgres://canopy:...@127.0.0.1:5432/canopy");
+  const database = PgClient.layer({ url: Redacted.make(url), applicationName: "canopy-gateway" });
   const secretsKey = loadSecretsKey(env);
   return ManagedRuntime.make(
     Layer.mergeAll(

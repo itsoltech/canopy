@@ -50,7 +50,7 @@ zostają bez powiązania z kontem. Elementy timeline zachowują zapisaną nazwę
 
 Worker otrzymuje wyłącznie deskryptory: ID konta, nazwę, schemat i opis narzędzia.
 Claude Agent SDK **2.1.316**: narzędzia w istniejącym serwerze MCP w procesie
-workera (`mcp__openagents__…`). Codex **0.164.0**: istniejące `dynamicTools`.
+workera (`mcp__canopy__…`). Codex **0.164.0**: istniejące `dynamicTools`.
 Nazwy są stabilne i rozdzielone per konto (`github_work_<id>__create_issue`),
 także gdy nazwy dwóch kont są identyczne po normalizacji. Opisy podają typ i konto.
 Rename unieważnia cache opisów; techniczna nazwa narzędzia pozostaje stabilna.

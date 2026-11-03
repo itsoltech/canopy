@@ -58,7 +58,7 @@ export interface LinkView {
   url: string;
   title: string;
   kind: "pull_request" | "issue" | "commit" | "web";
-  /** e.g. "open-agents#443" or the host. */
+  /** e.g. "canopy#443" or the host. */
   subtitle?: string | undefined;
 }
 

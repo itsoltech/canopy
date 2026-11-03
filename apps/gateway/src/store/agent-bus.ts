@@ -277,7 +277,7 @@ export class AgentBusStore extends Context.Service<
      */
     forwardInteraction(input: { requestId: string; input: (thread: ThreadRow) => TurnInput; maxHops: number }): Fx<ForwardedInteraction | undefined>;
   } & QuestionStore
->()("open-agents/gateway/AgentBusStore") {
+>()("canopy/gateway/AgentBusStore") {
   static readonly layer = Layer.effect(
     AgentBusStore,
     Effect.gen(function* () {
@@ -552,7 +552,7 @@ export class AgentBusStore extends Context.Service<
                         ${args.fork ? caller.id : null}::uuid, ${JSON.stringify(settings)}::jsonb, 'creating', ${args.title.trim()})`;
               const input: TurnInput = {
                 note:
-                  `[open-agents] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` +
+                  `[canopy] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` +
                   "End your turn with a final message that reports your result; it is delivered to that thread.",
                 message: args.prompt,
               };
@@ -586,7 +586,7 @@ export class AgentBusStore extends Context.Service<
               const outside = target.root_thread_id !== caller.root_thread_id;
               const input: TurnInput = {
                 note:
-                  `[open-agents] Message from the thread "${caller.title}" (thread_id: ${caller.id})` +
+                  `[canopy] Message from the thread "${caller.title}" (thread_id: ${caller.id})` +
                   (outside ? `, an agent outside your thread tree${notify ? "; your final message of this turn is reported back to it" : ""}` : "") +
                   ":",
                 message: args.prompt,

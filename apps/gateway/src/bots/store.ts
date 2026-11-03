@@ -586,6 +586,6 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   };
 }
 
-export class BotStore extends Context.Service<BotStore, ReturnType<typeof makeStore>>()('open-agents/gateway/BotStore') {
+export class BotStore extends Context.Service<BotStore, ReturnType<typeof makeStore>>()('canopy/gateway/BotStore') {
   static readonly layer = (key: Buffer) => Layer.effect(BotStore, Effect.gen(function* () { return makeStore(yield* SqlClient.SqlClient, key); }));
 }

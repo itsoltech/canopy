@@ -9,7 +9,7 @@ export interface TestPostgres {
   readonly stop: () => void;
 }
 
-const CREATED_LABEL = "open-agents-test.created";
+const CREATED_LABEL = "canopy-test.created";
 const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
 
 /** Containers of test runs that were killed before `stop` (an interrupted run never reaches afterAll). */
@@ -27,7 +27,7 @@ function removeStaleContainers() {
 /** Throwaway PostgreSQL 17 in Docker on a random local port (tests only). */
 export async function startPostgres(): Promise<TestPostgres> {
   removeStaleContainers();
-  const name = `open-agents-test-${Bun.randomUUIDv7().slice(-12)}`;
+  const name = `canopy-test-${Bun.randomUUIDv7().slice(-12)}`;
   const run = Bun.spawnSync([
     "docker", "run", "-d", "--rm", "--name", name, "--label", `${CREATED_LABEL}=${Date.now()}`,
     "-e", "POSTGRES_PASSWORD=test", "-p", "127.0.0.1::5432", "postgres:17",

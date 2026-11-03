@@ -2,7 +2,7 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnEndSource, TurnOutcome, type BackgroundTaskSchema, type ItemSchema } from "@canopy/contracts";
-import { isAgentBusTool, VIEW_IMAGE_TOOL } from "@canopy/domain";
+import { isAgentBusTool, isPlatformServer, PLATFORM_SERVER, VIEW_IMAGE_TOOL } from "@canopy/domain";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**
@@ -26,9 +26,14 @@ import type { ThreadEventInit } from "../../journal/index.ts";
 type ItemInit = MessageInitShape<typeof ItemSchema>;
 type Content = NonNullable<ItemInit["content"]>;
 
-/** Platform agent bus tools, served by the worker's in-process MCP server "openagents". */
-export const BUS_SERVER = "openagents";
-const BUS_PREFIX = `mcp__${BUS_SERVER}__`;
+/** Platform agent bus tools, served by the worker's in-process MCP server "canopy". */
+export const BUS_SERVER = PLATFORM_SERVER;
+
+/** `mcp__canopy__x` (or `mcp__openagents__x` in sessions from before the rename) → `x`. */
+function platformTool(name: string): string | undefined {
+  const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
+  return mcp && isPlatformServer(mcp[1]) ? mcp[2] : undefined;
+}
 
 interface OpenBlock {
   readonly itemId: string;
@@ -476,9 +481,10 @@ export function toolContent(name: string, input: unknown): Content {
   const args = (input ?? {}) as Record<string, unknown>;
   const str = (key: string) => (typeof args[key] === "string" ? (args[key] as string) : "");
   // The platform's view_image: an image item; its preview comes from the tool result (images/previews.ts).
-  if (name === `${BUS_PREFIX}${VIEW_IMAGE_TOOL}`) return { case: "image", value: { path: str("path"), source: VIEW_IMAGE_TOOL } };
-  if (name.startsWith(BUS_PREFIX) && isAgentBusTool(name.slice(BUS_PREFIX.length))) {
-    return { case: "agentBusCall", value: { toolName: name.slice(BUS_PREFIX.length), argumentsJson: JSON.stringify(args) } };
+  const platform = platformTool(name);
+  if (platform === VIEW_IMAGE_TOOL) return { case: "image", value: { path: str("path"), source: VIEW_IMAGE_TOOL } };
+  if (platform && isAgentBusTool(platform)) {
+    return { case: "agentBusCall", value: { toolName: platform, argumentsJson: JSON.stringify(args) } };
   }
   switch (name) {
     case "Bash":

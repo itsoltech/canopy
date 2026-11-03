@@ -81,7 +81,7 @@ export class Scheduler {
   async #fire(schedule: ScheduleRow, now: Date): Promise<void> {
     const { late, run, nextRunAt } = scheduleTiming(schedule, now);
     const runLabel = schedule.kind === "once" ? "wake-up" : `run ${schedule.runs + 1}${schedule.max_runs ? ` of ${schedule.max_runs}` : ""}`;
-    const input = { note: `[open-agents] Scheduled ${runLabel} (schedule_id: ${schedule.id}${late ? ", delayed" : ""}):`, message: schedule.prompt };
+    const input = { note: `[canopy] Scheduled ${runLabel} (schedule_id: ${schedule.id}${late ? ", delayed" : ""}):`, message: schedule.prompt };
     const eligibleWorkerIds = schedule.target === "new_thread" ? await this.#host.eligibleWorkers(schedule) : [];
     const fired = await this.#host.run(AgentBusStore.use((s) => s.fireSchedule({ schedule, input, run, nextRunAt, eligibleWorkerIds, now })));
     if (fired.created) await this.#host.created(fired.created, schedule.prompt);

@@ -64,13 +64,13 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(sideTurns[0]?.text).toContain("Review the diff");
     // The UI's subagent card reads the result from the thread; main threads carry none.
     const listed = (await gw.api.listThreads({ projectId: side.projectId })).threads;
-    expect(listed.find((t) => t.id === sideId)?.lastMessage).toStartWith("Echo: [open-agents] Task from");
+    expect(listed.find((t) => t.id === sideId)?.lastMessage).toStartWith("Echo: [canopy] Task from");
     expect(listed.find((t) => t.id === mainId)?.lastMessage).toBe("");
     // ...and the orchestrator got a notification turn with the side thread's last message, and ran it.
     const mainTurns = await eventually(() => turns(mainId), (t) => t.length === 2 && t[1]?.status === "completed");
     expect(mainTurns[1]).toMatchObject({ trigger: "agent_bus", hops: 2 });
     expect(mainTurns[1]?.text).toContain(`"Reviewer" (thread_id: ${sideId}) finished a turn: completed`);
-    expect(mainTurns[1]?.text).toContain("Echo: [open-agents] Task from");
+    expect(mainTurns[1]?.text).toContain("Echo: [canopy] Task from");
   });
 
   test("a re-sent call (same call_id) returns the stored result and starts nothing new", async () => {
@@ -110,7 +110,7 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(listed.threads.map((t) => t.title).sort()).toEqual(["Once", "Reviewer"]);
     const status = json(await gw.worker.callTool({ threadId: mainId, tool: "get_thread", args: { thread_id: sideId } }));
     expect(status).toMatchObject({ thread_id: sideId, kind: "side", settled: true, status: "idle" });
-    expect(String(status["last_message"])).toStartWith("Echo: [open-agents] Task from");
+    expect(String(status["last_message"])).toStartWith("Echo: [canopy] Task from");
     const read = json(await gw.worker.callTool({ threadId: mainId, tool: "read_thread", args: { thread_id: sideId } })) as { entries: { type: string }[] };
     expect(read.entries.map((e) => e.type)).toContain("agent_message");
     const waited = json(await gw.worker.callTool({ threadId: mainId, tool: "wait_threads", args: { thread_ids: [sideId], timeout_seconds: 5 } }));
@@ -287,14 +287,14 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     );
     const task = side.find((t) => t.sourceKind === "task")!;
     expect(task.messageText).toBe("Review the diff");
-    expect(task.platformNote).toStartWith('[open-agents] Task from the thread "Orchestrator"');
+    expect(task.platformNote).toStartWith('[canopy] Task from the thread "Orchestrator"');
     expect(task.inputText).toBe(`${task.platformNote}\n\n${task.messageText}`); // what the model got
     const main = await snapshotTurns(mainId);
     const kinds = main.map((t) => t.sourceKind);
     expect(kinds[0]).toBe(""); // the user's first message
     const report = main.find((t) => t.sourceKind === "report")!;
     expect([report.sourceThreadId, report.sourceStatus]).toEqual([sideId, "completed"]);
-    expect(report.messageText).toStartWith("Echo: [open-agents] Task from"); // the side thread's last message
+    expect(report.messageText).toStartWith("Echo: [canopy] Task from"); // the side thread's last message
     const question = main.find((t) => t.sourceKind === "question")!;
     expect([question.questionKind, question.questionTool, question.messageText]).toEqual(["permission", "shell", ""]);
     expect(question.interactionRequestId).not.toBe("");

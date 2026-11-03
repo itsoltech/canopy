@@ -77,7 +77,7 @@ describe("the platform note", () => {
   ]);
 
   test("lists every file with path, type, size and dimensions, without an empty line", () => {
-    expect(note.startsWith("[open-agents] The user attached 2 files")).toBe(true);
+    expect(note.startsWith("[canopy] The user attached 2 files")).toBe(true);
     expect(note).toContain("view_image");
     expect(note).toContain("- /d/t/a/shot.png (image/png, 244.1 KB, 1920×1080 px)");
     expect(note).toContain("- /d/t/b/notes.txt (text/plain, 2.0 KB)");

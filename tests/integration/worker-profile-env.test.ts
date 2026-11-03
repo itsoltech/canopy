@@ -27,7 +27,7 @@ writeFileSync(
 import { appendFileSync } from "node:fs";
 if (process.argv[2] === "--version") { console.log("codex-cli 0.164.0"); process.exit(0); }
 const env = process.env;
-appendFileSync(${JSON.stringify(log)}, JSON.stringify({ pid: process.pid, probe: env.PROFILE_PROBE ?? null, token: env.TEAM_TOKEN ?? null, keys: Object.keys(env).filter((k) => k.startsWith("OPENAGENTS_")).sort() }) + "\\n");
+appendFileSync(${JSON.stringify(log)}, JSON.stringify({ pid: process.pid, probe: env.PROFILE_PROBE ?? null, token: env.TEAM_TOKEN ?? null, keys: Object.keys(env).filter((k) => k.startsWith("CANOPY_")).sort() }) + "\\n");
 let buffer = "";
 for await (const chunk of process.stdin) {
   buffer += chunk;
@@ -87,7 +87,7 @@ describe("profile environment on the Codex app-server", () => {
     expect(report.applied).toBe(true);
     const started = processes();
     expect(started).toHaveLength(1);
-    expect(started[0]).toMatchObject({ probe: null, keys: ["OPENAGENTS_TEAM_API_KEY"] });
+    expect(started[0]).toMatchObject({ probe: null, keys: ["CANOPY_TEAM_API_KEY"] });
   });
 
   test("a profile with variables gets its own process with them; the shared one keeps running", async () => {
@@ -97,7 +97,7 @@ describe("profile environment on the Codex app-server", () => {
     expect(started).toHaveLength(3); // the shared one again (its profile left it), and the profile's own
     expect(alive(shared!.pid)).toBe(false);
     const own = started.find((p) => p.probe === "probe-7");
-    expect(own).toMatchObject({ token: "t0k", keys: ["OPENAGENTS_TEAM_API_KEY"] });
+    expect(own).toMatchObject({ token: "t0k", keys: ["CANOPY_TEAM_API_KEY"] });
     const newShared = started.at(-1)!.probe === null ? started.at(-1)! : started.at(-2)!;
     expect(newShared).toMatchObject({ probe: null, keys: [] });
     expect(alive(own!.pid) && alive(newShared.pid)).toBe(true);

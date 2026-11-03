@@ -8,7 +8,7 @@ import { isAgentModel, proxyModels, type ModelInit } from "../models.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import type { TurnSettings } from "../turn-input.ts";
 import { grokLaunch } from "./launch.ts";
-import { grokBus } from "./bus.ts";
+import { grokBus, platformToolName } from "./bus.ts";
 import { GrokEventMapper } from "./mapping.ts";
 
 interface Options {
@@ -116,7 +116,8 @@ export class GrokThreads {
           const update = event.update;
           if (update.sessionUpdate === "tool_call" && update.title === "use_tool") {
             const input = update.rawInput as { tool_name?: string; tool_input?: unknown } | undefined;
-            if (input?.tool_name?.startsWith("openagents__")) entry.toolUses.set(update.toolCallId, { name: input.tool_name.slice("openagents__".length), args: input.tool_input ?? {} });
+            const platformTool = input?.tool_name === undefined ? undefined : platformToolName(input.tool_name);
+            if (platformTool) entry.toolUses.set(update.toolCallId, { name: platformTool, args: input?.tool_input ?? {} });
           }
           for (const init of mapper.update(update)) await record(init);
         }

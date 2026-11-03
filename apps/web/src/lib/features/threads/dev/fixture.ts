@@ -51,7 +51,7 @@ function turnItems(prefix: string, seed: number, input: string): Item[] {
         case: "commandExecution",
         value: {
           command: `bun test --filter ${words[(seed + c) % words.length]}`,
-          cwd: "/srv/open-agents",
+          cwd: "/srv/canopy",
           exitCode: seed % 11 === 0 && c === 0 ? 1 : 0,
           output: output(c === 0 ? 40 + (seed % 5) * 60 : 8, seed + c),
           durationMs: BigInt(1200 + c * 300),

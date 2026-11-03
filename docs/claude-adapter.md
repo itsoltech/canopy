@@ -49,7 +49,7 @@ Potwierdzone na żywo (`tests/integration/worker-claude.live.test.ts`, Claude pr
 | start tury (adapter) | `turn_started` + item `user_message` z treścią wejścia |
 | `stream_event` `content_block_start/delta` (text, thinking) | `item_started` + `item_delta` (item `<message id>:<index>`) |
 | `assistant` text / thinking | `item_completed` (`agent_message` / `reasoning`); pusty, zredagowany thinking nie tworzy itemu |
-| `assistant` `tool_use` | `item_started`: `Bash` → `command_execution`, `Write`/`Edit`/`MultiEdit`/`NotebookEdit` → `file_change`, `WebSearch` → `web_search`, `TodoWrite` → `todo_list`, `mcp__openagents__*` → `agent_bus_call`, inne → `tool_call` |
+| `assistant` `tool_use` | `item_started`: `Bash` → `command_execution`, `Write`/`Edit`/`MultiEdit`/`NotebookEdit` → `file_change`, `WebSearch` → `web_search`, `TodoWrite` → `todo_list`, `mcp__canopy__*` → `agent_bus_call`, inne → `tool_call` |
 | `user` `tool_result` | `item_completed` tego narzędzia z wynikiem (`is_error` → `failed`) |
 | `result` | `turn_finished` (wynik, przyczyna, zużycie tokenów i koszt) |
 | `system` `api_retry` | `notice` (warning) |
@@ -85,7 +85,7 @@ Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test
 
 ## Szyna agentów
 
-- Serwer MCP `openagents` w procesie workera (`createSdkMcpServer`), narzędzia `mcp__openagents__<nazwa>` z tych samych definicji co `dynamicTools` Codexa (`packages/domain`, Effect Schema → JSON Schema → `z.fromJSONSchema`).
+- Serwer MCP `canopy` w procesie workera (`createSdkMcpServer`), narzędzia `mcp__canopy__<nazwa>` z tych samych definicji co `dynamicTools` Codexa (`packages/domain`, Effect Schema → JSON Schema → `z.fromJSONSchema`).
 - `alwaysLoad`: bez tego Claude Code chowa narzędzia MCP za wyszukiwaniem narzędzi i model musi je najpierw znaleźć (zaobserwowane na żywo).
 - Limit czasu wywołania 330 s, dłuższy niż najdłuższe `wait_threads` (300 s).
 - `call_id` z id `tool_use` (z `_meta` wywołania albo dopasowany po nazwie i argumentach ze strumienia), więc ponowione wywołanie po ponownym połączeniu dostaje zapisany wynik.
@@ -94,7 +94,7 @@ Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test
 ## Załączniki i obrazy
 
 - Katalog załączników wątku (`<data_dir>/attachments/<thread_id>`) jest w `additionalDirectories`: `Read` czyta załączniki bez pytania w każdym trybie (sprawdzone na żywo w trybie `ASK`).
-- `mcp__openagents__view_image` ([agent-bus.md](agent-bus.md#view_image)) — serwer `openagents` jest zawsze, narzędzia szyny tylko z `enable_agent_bus`. Mapowanie: item `image` (`source = view_image`), błąd w `detail`.
+- `mcp__canopy__view_image` ([agent-bus.md](agent-bus.md#view_image)) — serwer `canopy` jest zawsze, narzędzia szyny tylko z `enable_agent_bus`. Mapowanie: item `image` (`source = view_image`), błąd w `detail`.
 - Obrazy w `tool_result` (np. `Read` na pliku obrazu) → `ToolCall.images`: podgląd z bloku `image` (base64) wyniku, czyli dokładnie to, co dostał model.
 
 ## Wzmianki
@@ -109,7 +109,7 @@ Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test
 - Funkcje sesji SDK (`forkSession`, `getSessionMessages`) działają w procesie workera, więc adapter ustawia `CLAUDE_CONFIG_DIR` dla całego procesu.
 - `strictMcpConfig`: tylko serwery MCP platformy.
 - `settingSources: ["project", "local"]`: `CLAUDE.md` i ustawienia repozytorium działają, ustawienia użytkownika nie.
-- Wyłączone narzędzia natywne: subagenci (`Agent`, `Task`, `Workflow`, `ListAgents`, `SendMessage`, `SubagentHandback`) i harmonogramy (`ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList`, `RemoteTrigger`); zastępuje je szyna ([agent-bus.md](agent-bus.md)). Sprawdzone na żywo: lista narzędzi z `system/init` nie ma `Agent` ani `Task` (`worker-claude.live.test.ts`), a prośba o subagenta kończy się `mcp__openagents__spawn_thread` (`platform-subagents.live.test.ts`).
+- Wyłączone narzędzia natywne: subagenci (`Agent`, `Task`, `Workflow`, `ListAgents`, `SendMessage`, `SubagentHandback`) i harmonogramy (`ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList`, `RemoteTrigger`); zastępuje je szyna ([agent-bus.md](agent-bus.md)). Sprawdzone na żywo: lista narzędzi z `system/init` nie ma `Agent` ani `Task` (`worker-claude.live.test.ts`), a prośba o subagenta kończy się `mcp__canopy__spawn_thread` (`platform-subagents.live.test.ts`).
 
 ## Otwarte
 

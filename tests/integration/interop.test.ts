@@ -20,7 +20,7 @@ let certFile: string;
 let keyFile: string;
 
 beforeAll(async () => {
-  workDir = tempDir("open-agents-interop-");
+  workDir = tempDir("oa-interop-");
   const build = await Bun.build({
     entrypoints: [join(import.meta.dir, "fixtures/node-peer.ts")],
     target: "node",

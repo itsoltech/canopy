@@ -76,7 +76,7 @@ describe("composeMessage", () => {
     const { text, mentions } = message("Use ", { kind: MentionKind.SKILL, name: "imagegen" }, " and see ", { kind: MentionKind.THREAD, name: THREAD, label: "Plan" });
     const out = composeMessage(Provider.CODEX, text, mentions);
     expect(out.message).toBe(text);
-    expect(out.note).toBe(`[open-agents] The user mentioned another thread; read it with get_thread / read_thread when you need it:\n- "Plan" (thread_id: ${THREAD})`);
+    expect(out.note).toBe(`[canopy] The user mentioned another thread; read it with get_thread / read_thread when you need it:\n- "Plan" (thread_id: ${THREAD})`);
     expect(out.text).toBe(`${out.note}\n\n${text}`);
     expect(slices(out.text, out.mentions)).toEqual(["$imagegen", "#Plan"]);
   });
@@ -85,7 +85,7 @@ describe("composeMessage", () => {
     const { text, mentions } = message("please  ", { kind: MentionKind.COMMAND, name: "review" }, "  the ", { kind: MentionKind.FILE, name: "src/a.ts", path: "/w/src/a.ts" }, " now");
     const out = composeMessage(Provider.CLAUDE, text, mentions);
     expect(out.message).toBe("/review please the @src/a.ts now");
-    expect(out.note).toBe("[open-agents] The user mentioned a path in this thread's folder:\n- /w/src/a.ts");
+    expect(out.note).toBe("[canopy] The user mentioned a path in this thread's folder:\n- /w/src/a.ts");
     expect(slices(out.text, out.mentions)).toEqual(["/review", "@src/a.ts"]);
   });
 
@@ -104,14 +104,14 @@ describe("composeMessage", () => {
     const { text, mentions } = message({ kind: MentionKind.SKILL, name: "design" }, " a page, then ", { kind: MentionKind.SKILL, name: "componentize" });
     const out = composeMessage(Provider.CLAUDE, text, mentions);
     expect(out.message).toBe("/design a page, then $componentize");
-    expect(out.note).toBe("[open-agents] The user picked a skill for this message; use it with the Skill tool: componentize");
+    expect(out.note).toBe("[canopy] The user picked a skill for this message; use it with the Skill tool: componentize");
     expect(slices(out.text, out.mentions)).toEqual(["/design", "$componentize"]);
   });
 
   test("other notes (attachments) go first, one note block without empty lines", () => {
     const { text, mentions } = message("see ", { kind: MentionKind.THREAD, name: THREAD, label: "T" });
-    const out = composeMessage(Provider.CLAUDE, text, mentions, ["[open-agents] The user attached a file…:\n- /a/b.png (image/png, 1 KB)"]);
-    expect(out.note.startsWith("[open-agents] The user attached")).toBe(true);
+    const out = composeMessage(Provider.CLAUDE, text, mentions, ["[canopy] The user attached a file…:\n- /a/b.png (image/png, 1 KB)"]);
+    expect(out.note.startsWith("[canopy] The user attached")).toBe(true);
     expect(out.note.includes("\n\n")).toBe(false);
     expect(slices(out.text, out.mentions)).toEqual(["#T"]);
   });

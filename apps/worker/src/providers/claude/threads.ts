@@ -150,7 +150,7 @@ export class ClaudeThreads extends Context.Service<
     /** Commands and skills for the composer in a folder (Query.supportedCommands() without a prompt; claude/catalog.ts). */
     listMentionCatalog(profileId: string, cwd: string): Effect.Effect<{ entries: MentionEntryInit[]; notes: string[] }, ClaudeThreadError>;
   }
->()("open-agents/worker/ClaudeThreads") {
+>()("canopy/worker/ClaudeThreads") {
   static readonly layer = (options: ClaudeThreadsOptions) => Layer.effect(ClaudeThreads, make(options));
 }
 

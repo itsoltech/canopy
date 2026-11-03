@@ -79,7 +79,7 @@ Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną hist
 ## Załączniki i obrazy
 
 - Pliki leżą poza repozytorium (`<data_dir>/attachments/...`); sandbox Codexa (`read-only`, `workspace-write`) czyta cały dysk, więc nic nie trzeba dodawać.
-- `view_image` platformy: narzędzie dynamiczne `openagents` › `view_image` ([agent-bus.md](agent-bus.md#view_image)); item `dynamicToolCall` z tą przestrzenią nazw → item `image` (`source = view_image`), podgląd z `contentItems[].inputImage`.
+- `view_image` platformy: narzędzie dynamiczne `canopy` › `view_image` (w wątkach sprzed zmiany nazwy `openagents`) ([agent-bus.md](agent-bus.md#view_image)); item `dynamicToolCall` z tą przestrzenią nazw → item `image` (`source = view_image`), podgląd z `contentItems[].inputImage`.
 - Wbudowane `view_image` Codexa → item `imageView` → `image` (`source = native`), podgląd z pliku (`path`). Wygenerowane obrazy (`imageGeneration`, `savedPath`) → `source = generated`.
 - Obrazy w wynikach narzędzi MCP (`result.content[].type = image`) → `ToolCall.images`.
 

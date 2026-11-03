@@ -93,7 +93,7 @@ korzystają z zakresu `500–519`.
 ## Kontrakt i trwałość
 
 `request_secret` jest dostępne jako dynamiczne narzędzie Codex oraz
-`mcp__openagents__request_secret` serwera MCP Claude. Wywołanie czeka do 120 sekund.
+`mcp__canopy__request_secret` serwera MCP Claude. Wywołanie czeka do 120 sekund.
 Jeżeli człowiek lub worker nadal nie odpowiedział, zwraca `status: pending`
 i `request_id`. Agent odnawia oczekiwanie tym identyfikatorem. Ponowiona prośba
 o tę samą etykietę w tym samym wątku dołącza do istniejącego oczekiwania.

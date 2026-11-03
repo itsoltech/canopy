@@ -1113,7 +1113,7 @@ export type Turn = Message<"canopy.ui.v1.Turn"> & {
   messageText: string;
 
   /**
-   * Notatka platformy przed treścią (np. "[open-agents] Task from the thread …"); pusta dla użytkownika.
+   * Notatka platformy przed treścią (np. "[canopy] Task from the thread …"); pusta dla użytkownika.
    *
    * @generated from field: string platform_note = 19;
    */

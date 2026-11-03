@@ -17,12 +17,12 @@ export interface TestCert extends TlsMaterial {
 
 /** Self-signed certificate for 127.0.0.1/localhost, valid 1 day. */
 export function makeSelfSignedCert(): TestCert {
-  const dir = mkdtempSync(join(tmpdir(), "open-agents-tls-"));
+  const dir = mkdtempSync(join(tmpdir(), "oa-tls-"));
   const key = join(dir, "key.pem");
   const cert = join(dir, "cert.pem");
   const result = Bun.spawnSync([
     "openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
-    "-nodes", "-days", "1", "-subj", "/CN=open-agents-test",
+    "-nodes", "-days", "1", "-subj", "/CN=canopy-test",
     "-addext", "subjectAltName=IP:127.0.0.1,DNS:localhost",
     "-keyout", key, "-out", cert,
   ]);

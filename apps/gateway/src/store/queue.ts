@@ -55,7 +55,7 @@ export class QueueStore extends Context.Service<
      */
     whileHead<A, E, R>(input: { threadId: string; turnId: string; revision: number }, start: Effect.Effect<A, E, R>): Effect.Effect<A | undefined, E | SqlError.SqlError, R>;
   }
->()("open-agents/gateway/QueueStore") {
+>()("canopy/gateway/QueueStore") {
   static readonly layer = Layer.effect(
     QueueStore,
     Effect.gen(function* () {

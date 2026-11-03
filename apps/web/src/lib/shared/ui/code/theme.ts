@@ -10,7 +10,7 @@ export const DEFAULT_COLOR = "var(--code-fg)";
 const role = (name: string) => ({ foreground: `var(--code-${name})` });
 
 export const theme: ThemeRegistration = {
-  name: "open-agents",
+  name: "canopy",
   type: "dark",
   fg: DEFAULT_COLOR,
   bg: "transparent",

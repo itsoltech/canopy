@@ -96,7 +96,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Claude end to end (li
     expect(permissions.length).toBeGreaterThan(0); // ASK: the write and the command were approved through the gateway
     expect(permissions.every((p) => p.startsWith("PERMISSION:"))).toBe(true);
     const init = events.map((e) => JSON.parse(e.rawJson || "{}") as { type?: string; subtype?: string; tools?: string[] }).find((m) => m.type === "system" && m.subtype === "init");
-    expect(init?.tools).toContain("mcp__openagents__spawn_thread");
+    expect(init?.tools).toContain("mcp__canopy__spawn_thread");
     for (const native of ["Agent", "Task", "CronCreate", "ScheduleWakeup", "SendMessage"]) expect(init?.tools ?? []).not.toContain(native);
 
     const second = await turn(withSession, "turn-2", "Call the list_threads tool once, then tell me which file you created earlier. Answer with the file name.");

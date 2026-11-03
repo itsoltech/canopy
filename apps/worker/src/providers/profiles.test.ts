@@ -111,20 +111,20 @@ describe("codexAppServerLaunch", () => {
     const profiles = resolved([PROXY, { ...PROXY, id: "claude-only", providers: ["claude"] }]);
     const launch = codexAppServerLaunch(profiles, ENV);
     expect(launch.command.slice(14)).toEqual([
-      "-c", 'model_providers.openagents_cliproxy.name="CLIProxyAPI (cliproxy)"',
-      "-c", 'model_providers.openagents_cliproxy.base_url="http://127.0.0.1:8317/v1"',
-      "-c", 'model_providers.openagents_cliproxy.wire_api="responses"',
-      "-c", 'model_providers.openagents_cliproxy.env_key="OPENAGENTS_CLIPROXY_API_KEY"',
-      "-c", "model_providers.openagents_cliproxy.requires_openai_auth=false",
+      "-c", 'model_providers.canopy_cliproxy.name="CLIProxyAPI (cliproxy)"',
+      "-c", 'model_providers.canopy_cliproxy.base_url="http://127.0.0.1:8317/v1"',
+      "-c", 'model_providers.canopy_cliproxy.wire_api="responses"',
+      "-c", 'model_providers.canopy_cliproxy.env_key="CANOPY_CLIPROXY_API_KEY"',
+      "-c", "model_providers.canopy_cliproxy.requires_openai_auth=false",
     ]);
-    expect(launch.env["OPENAGENTS_CLIPROXY_API_KEY"]).toBe("sk-proxy");
+    expect(launch.env["CANOPY_CLIPROXY_API_KEY"]).toBe("sk-proxy");
     expect(launch.command.join(" ")).not.toContain("sk-proxy");
   });
 
   test("threads select the provider by id", () => {
     const [native, proxy] = resolved([{ ...PROXY, id: "my-proxy" }]);
     expect(codexThreadProvider(native!)).toEqual({});
-    expect(codexThreadProvider(proxy!)).toEqual({ modelProvider: "openagents_my_proxy" });
+    expect(codexThreadProvider(proxy!)).toEqual({ modelProvider: "canopy_my_proxy" });
   });
 
   const codexBin = Bun.which("codex");
@@ -140,7 +140,7 @@ describe("codexAppServerLaunch", () => {
 });
 
 describe("custom profiles and their environment", () => {
-  const PROBE = { name: "OPENAGENTS_TEAM_API_KEY", value: "x" };
+  const PROBE = { name: "CANOPY_TEAM_API_KEY", value: "x" };
 
   test("a profile's variables reach Claude over the base env; auth of an endpoint profile still wins", () => {
     const [, proxy, custom] = resolved([
@@ -183,7 +183,7 @@ describe("custom profiles and their environment", () => {
   test("Codex: the profile's variables go into the process env, not argv", () => {
     const [, proxy] = resolved([{ ...PROXY, env: [{ name: "PROFILE_PROBE", value: "probe-1" }] }]);
     const launch = codexAppServerLaunch([proxy!], ENV, "codex", undefined, "/data/codex-home", proxy!.env);
-    expect(launch.env).toMatchObject({ PROFILE_PROBE: "probe-1", CODEX_HOME: "/data/codex-home", OPENAGENTS_CLIPROXY_API_KEY: "sk-proxy" });
+    expect(launch.env).toMatchObject({ PROFILE_PROBE: "probe-1", CODEX_HOME: "/data/codex-home", CANOPY_CLIPROXY_API_KEY: "sk-proxy" });
     expect(launch.command.join(" ")).not.toContain("probe-1");
   });
 });

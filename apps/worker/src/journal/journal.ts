@@ -108,7 +108,7 @@ export class Journal extends Context.Service<
     /** The platform asked to interrupt the turn (kept until its end). */
     noteInterrupt(threadId: string, turnId: string): Effect.Effect<void, JournalError>;
   }
->()("open-agents/worker/Journal") {
+>()("canopy/worker/Journal") {
   /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
   static readonly layer = (path: string) =>
     Layer.effect(

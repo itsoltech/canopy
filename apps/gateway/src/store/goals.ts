@@ -144,7 +144,7 @@ export class GoalStore extends Context.Service<
     /** Claude: /goal as a queued turn of the goal. */
     enqueueGoalTurn(input: { threadId: string; goalId: string; text: string }): Fx<TurnRow>;
   }
->()("open-agents/gateway/GoalStore") {
+>()("canopy/gateway/GoalStore") {
   static readonly layer = Layer.effect(
     GoalStore,
     Effect.gen(function* () {

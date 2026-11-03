@@ -115,7 +115,7 @@ export class AttachmentDraft {
     this.#uploads.set(key, request);
     request.open("POST", "/api/attachments");
     request.setRequestHeader("x-file-name", encodeURIComponent(name));
-    request.setRequestHeader("x-requested-with", "open-agents");
+    request.setRequestHeader("x-requested-with", "canopy");
     request.setRequestHeader("content-type", "application/octet-stream");
     request.responseType = "json";
     request.upload.onprogress = (event) => {

@@ -132,7 +132,7 @@ export class InstanceStore extends Context.Service<
      */
     registerEndpoint(input: { userId: string; workerId: string; baseUrl: string; apiKey: SecretRef }): Fx<void>;
   }
->()("open-agents/gateway/InstanceStore") {
+>()("canopy/gateway/InstanceStore") {
   static readonly layer = (secretsKey: Buffer) =>
     Layer.effect(
       InstanceStore,

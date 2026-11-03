@@ -12,7 +12,7 @@ import {
   TurnOutcome,
   type ItemSchema,
 } from "@canopy/contracts";
-import { isAgentBusTool, VIEW_IMAGE_TOOL } from "@canopy/domain";
+import { isAgentBusTool, isPlatformServer, VIEW_IMAGE_TOOL } from "@canopy/domain";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**
@@ -461,8 +461,8 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
       };
     case "dynamicToolCall": {
       const output = (item.contentItems ?? []).map((c) => (c.type === "inputText" ? c.text : `[${c.type}]`)).join("\n");
-      // The platform's view_image (namespace "openagents"): an image item; the preview comes from its result.
-      if (item.tool === VIEW_IMAGE_TOOL && item.namespace === "openagents") {
+      // The platform's view_image (namespace "canopy", formerly "openagents"): an image item; the preview comes from its result.
+      if (item.tool === VIEW_IMAGE_TOOL && isPlatformServer(item.namespace)) {
         const path = (item.arguments as { path?: unknown } | null)?.path;
         return {
           ...base,

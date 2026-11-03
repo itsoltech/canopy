@@ -123,7 +123,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
           model,
           ...codexThreadProvider(profile),
         });
-        expect(started.modelProvider).toBe("openagents_live");
+        expect(started.modelProvider).toBe("canopy_live");
         return yield* runTurn(started.thread.id, "Reply with exactly the word OK and nothing else. Do not run any tools.");
       }).pipe(Effect.provide(layerFor([profile]))),
     );

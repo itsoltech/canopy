@@ -78,7 +78,7 @@ export class SteerStore extends Context.Service<
      */
     queue(id: string, reason: string): Fx<{ steer: SteerRow; turn?: TurnRow }>;
   }
->()("open-agents/gateway/SteerStore") {
+>()("canopy/gateway/SteerStore") {
   static readonly layer = Layer.effect(
     SteerStore,
     Effect.gen(function* () {

@@ -145,7 +145,7 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
       const { turn } = await api.sendMessage({ threadId: thread.id, text, mentions, clientRequestId: "m1" });
       await eventually(async () => worker.started.get(turn!.id), (input) => input !== undefined);
       const input = worker.started.get(turn!.id)!;
-      expect(input.text.startsWith(`[open-agents] The user mentioned another thread; read it with get_thread / read_thread when you need it:\n- "Plan sprintu" (thread_id: ${other.id})\n\n`)).toBe(true);
+      expect(input.text.startsWith(`[canopy] The user mentioned another thread; read it with get_thread / read_thread when you need it:\n- "Plan sprintu" (thread_id: ${other.id})\n\n`)).toBe(true);
       expect(slices(input.text, input.mentions)).toEqual(["$imagegen", "@docs/notatka.md", "#stary tytuł"]);
       expect(input.mentions[1]?.path).toBe("/repo/app/docs/notatka.md");
       // The chat shows the message as written, with its chips (the title as the gateway knows it).
@@ -185,8 +185,8 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
       const [note, delivered] = input.text.split("\n\n");
       expect(delivered).toBe("/review please with $design on @src");
       expect(note).toBe(
-        "[open-agents] The user picked a skill for this message; use it with the Skill tool: design\n" +
-          "[open-agents] The user mentioned a path in this thread's folder:\n- /srv/app/src",
+        "[canopy] The user picked a skill for this message; use it with the Skill tool: design\n" +
+          "[canopy] The user mentioned a path in this thread's folder:\n- /srv/app/src",
       );
       expect(slices(input.text, input.mentions)).toEqual(["/review", "$design", "@src"]);
     });

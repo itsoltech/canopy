@@ -12,7 +12,7 @@ for await (const line of createInterface({ input: process.stdin })) {
   const m = JSON.parse(line);
   if (m.method === "initialize") send({ id: m.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true, mcpCapabilities: { http: true } }, _meta: { modelState: { currentModelId: "fake-grok", availableModels: [{ modelId: "fake-grok", name: "Fake Grok", _meta: { reasoningEfforts: [{ id: "high" }, { id: "low", default: true }] } }] } } } });
   else if (m.method === "session/new" || m.method === "session/load") {
-    if (process.env["OPENAGENTS_GROK_API_KEY"] && (!process.env["XAI_API_KEY"] || (await Bun.file(join(process.env["GROK_HOME"]!, "config.toml")).text()).includes(process.env["OPENAGENTS_GROK_API_KEY"]!))) throw new Error("Proxy credentials were not isolated");
+    if (process.env["CANOPY_GROK_API_KEY"] && (!process.env["XAI_API_KEY"] || (await Bun.file(join(process.env["GROK_HOME"]!, "config.toml")).text()).includes(process.env["CANOPY_GROK_API_KEY"]!))) throw new Error("Proxy credentials were not isolated");
     const sessionId = m.params.sessionId ?? crypto.randomUUID();
     const file = join(process.env["GROK_HOME"]!, "sessions", sessionId + ".json");
     if (m.method === "session/load" && !await Bun.file(file).exists()) { send({ id: m.id, error: { code: -32000, message: "Session missing" } }); continue; }

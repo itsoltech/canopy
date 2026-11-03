@@ -49,7 +49,7 @@ export interface CodexAppServerOptions {
 export class CodexAppServer extends Context.Service<
   CodexAppServer,
   {
-    /** e.g. "open-agents-worker/0.164.0 (Linux ...)"; the Codex version is the first version in it. */
+    /** e.g. "canopy-worker/0.164.0 (Linux ...)"; the Codex version is the first version in it. */
     readonly userAgent: string;
     request<M extends keyof CodexMethods>(method: M, params: CodexMethods[M]["params"]): Effect.Effect<CodexMethods[M]["result"], CodexAppServerError>;
     /** Every server notification, for all threads. Subscribe before triggering the work you want to observe. */
@@ -59,7 +59,7 @@ export class CodexAppServer extends Context.Service<
     /** Completes with the exit code when the process ends (crash, kill); never while it runs. */
     readonly exited: Effect.Effect<number | null>;
   }
->()("open-agents/worker/CodexAppServer") {
+>()("canopy/worker/CodexAppServer") {
   static readonly layer = (options: CodexAppServerOptions) =>
     Layer.effect(
       CodexAppServer,
@@ -121,7 +121,7 @@ export class CodexAppServer extends Context.Service<
           });
 
         const initializeParams: InitializeParams = {
-          clientInfo: { name: options.clientName ?? "open-agents-worker", title: null, version: options.clientVersion },
+          clientInfo: { name: options.clientName ?? "canopy-worker", title: null, version: options.clientVersion },
           // experimentalApi: dynamicTools (agent bus) and other experimental fields.
           capabilities: { experimentalApi: true, requestAttestation: false },
         };

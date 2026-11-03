@@ -77,7 +77,7 @@ Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synch
 1. Zbuduj/zaktualizuj gateway i worker z tej gałęzi, wykonaj migrację 0043. Na urządzeniu workera zainstaluj `grok`, sprawdź `grok --version`. Nie wykonano wdrożenia w ramach implementacji.
 2. W zdalnym WorkerConfig włącz `grok: { enabled: true, executablePath: "/home/nix/.local/bin/grok" }`. Przy natywnym loginie zostaw `deviceLogin` domyślne; dla wyłącznie proxy ustaw `deviceLogin: NONE`. Istniejący worker potrzebuje jawnego włączenia tego harnessu. Nowy `worker add` włącza już wszystkie trzy.
 3. Native: wykonaj `grok login` jako użytkownik OS workera; domyślnie czytane jest `~/.grok/auth.json`. Alternatywnie instancja native może mieć sekretny `XAI_API_KEY`. Przy innym koncie ustaw Home path na katalog tego loginu. Logowanie Groka odbywa się w CLI, bez formularza OAuth w Canopy. Nie kopiuj tokenów do repo.
-4. Proxy: Settings → Providers → Add → Grok → CLIProxyAPI. Wpisz istniejący prywatny URL i klucz w pola instancji, wybierz worker. URL może być bazowy lub kończyć się `/v1`; wrapper normalizuje go do `/v1`. Model wybierz z katalogu, np. sprawdzony `grok-4.7-build-fast`. Worker sam ustawia prywatny home, custom model, `OPENAGENTS_GROK_API_KEY` i `XAI_API_KEY`; nie wymaga dodatkowych env dla proxy.
+4. Proxy: Settings → Providers → Add → Grok → CLIProxyAPI. Wpisz istniejący prywatny URL i klucz w pola instancji, wybierz worker. URL może być bazowy lub kończyć się `/v1`; wrapper normalizuje go do `/v1`. Model wybierz z katalogu, np. sprawdzony `grok-4.7-build-fast`. Worker sam ustawia prywatny home, custom model, `CANOPY_GROK_API_KEY` i `XAI_API_KEY`; nie wymaga dodatkowych env dla proxy.
 5. Zaczekaj na Agents → Grok 1.0.70 oraz dostępność instancji. Utwórz wątek z Grokiem i wybranym modelem. Dla tanich tytułów wybierz osobno mini w Text generation; bot może używać tej samej instancji proxy i mini-fast.
 
 Przy ręcznej rejestracji nowego workera istniejące polecenie `worker add --cliproxy-url <URL> --cliproxy-key-env <NAZWA_ENV>` rejestruje też instancję Groka. Wartości są pobierane z prywatnego środowiska; nie umieszczaj ich w skryptach repo ani logach. Na istniejącym workerze użyj instancji i zdalnego configu; nie rejestruj kolejnego workera tylko po to, aby dodać Groka.
@@ -94,7 +94,7 @@ Fragment zdalnego WorkerConfig dla wyłącznie proxy (zachowaj pozostałe pola c
 }
 ```
 
-Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi widzieć binarkę i katalog loginu użytkownika OS; dla niestandardowej lokalizacji ustaw Home path instancji lub `GROK_HOME` środowiska workera. Proxy nie wymaga ręcznego ustawiania `XAI_API_KEY`, `OPENAGENTS_GROK_API_KEY` ani `GROK_HOME` workera — wrapper ustawia je tylko w potomnym procesie z zaszyfrowanej konfiguracji instancji.
+Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi widzieć binarkę i katalog loginu użytkownika OS; dla niestandardowej lokalizacji ustaw Home path instancji lub `GROK_HOME` środowiska workera. Proxy nie wymaga ręcznego ustawiania `XAI_API_KEY`, `CANOPY_GROK_API_KEY` ani `GROK_HOME` workera — wrapper ustawia je tylko w potomnym procesie z zaszyfrowanej konfiguracji instancji.
 
 ## Weryfikacja i granice
 

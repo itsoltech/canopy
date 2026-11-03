@@ -299,9 +299,9 @@ type ProviderProfileConfig =
 | | Claude Agent SDK | Codex app-server |
 |---|---|---|
 | Gdzie | `query({ options })` per wątek | `-c` przy starcie procesu + `thread/start` per wątek |
-| Endpoint | `env.ANTHROPIC_BASE_URL = <baseUrl>` | `model_providers.openagents_<id>.base_url = "<baseUrl>/v1"`, `wire_api = "responses"` |
-| Klucz | `env.ANTHROPIC_AUTH_TOKEN` (usuwane `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`) | `env_key = "OPENAGENTS_<ID>_API_KEY"`, wartość w env procesu, nie w argv |
-| Wybór | per wątek | `thread/start { modelProvider: "openagents_<id>" }`; jeden proces obsługuje wątki natywne i przez proxy |
+| Endpoint | `env.ANTHROPIC_BASE_URL = <baseUrl>` | `model_providers.canopy_<id>.base_url = "<baseUrl>/v1"`, `wire_api = "responses"` |
+| Klucz | `env.ANTHROPIC_AUTH_TOKEN` (usuwane `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`) | `env_key = "CANOPY_<ID>_API_KEY"`, wartość w env procesu, nie w argv |
+| Wybór | per wątek | `thread/start { modelProvider: "canopy_<id>" }`; jeden proces obsługuje wątki natywne i przez proxy |
 | Model | `options.model` z agenta | `thread/start { model }` z agenta |
 
 Profile to globalne instancje dostawców, które użytkownik definiuje raz (Settings → Providers) i włącza na wybranych workerach; zmienne środowiskowe i lista zakazanych nazw: [worker-config.md](worker-config.md#81-zmienne-środowiskowe-profilu), instancje, synchronizacja i modele: [worker-config.md](worker-config.md#9-globalne-instancje-dostawców).

@@ -23,7 +23,7 @@ export class ModelStore extends Context.Service<
     /** Catalogs of the given workers (all workers when empty). */
     catalogs(workerIds: readonly string[]): Effect.Effect<ui.WorkerModels[], SqlError.SqlError>;
   }
->()("open-agents/gateway/ModelStore") {
+>()("canopy/gateway/ModelStore") {
   static readonly layer = Layer.effect(
     ModelStore,
     Effect.gen(function* () {

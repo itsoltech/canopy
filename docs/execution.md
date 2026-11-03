@@ -141,7 +141,7 @@ Domyślnie wyłączeni w obu harnessach; delegowanie idzie przez szynę agentów
 |---|---|---|---|
 | `permission` | `canUseTool` | `item/commandExecution|fileChange|permissions/requestApproval` | `allow` / odmowa z powodem / `allow_for_session` / zmienione wejście |
 | `question` | narzędzie `AskUserQuestion` (dialog) | `item/tool/requestUserInput` | `answer_json` albo `cancelled` |
-| `question` platformy | `mcp__openagents__ask_user` | dynamiczne `ask_user` | wspólne `{answers: [...]}`; `wait` wybiera sync/async |
+| `question` platformy | `mcp__canopy__ask_user` | dynamiczne `ask_user` | wspólne `{answers: [...]}`; `wait` wybiera sync/async |
 | `elicitation` | MCP elicitation | `mcpServer/elicitation/request` | `answer_json` albo `cancelled` |
 
 - Adresat zależy od `threads.interaction_route`: użytkownik albo, dla wątków bocznych tworzonych przez agenta, agent wątku głównego ([agent-bus.md](agent-bus.md#4-interakcje-w-wątkach-bocznych)). Użytkownik może odpowiedzieć zawsze.

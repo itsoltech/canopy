@@ -408,7 +408,7 @@ message Turn {
   // (ostatnia wiadomość wątku docelowego) albo polecenie harmonogramu. input_text = notatka + treść,
   // dokładnie to, co dostał model.
   string message_text = 18;
-  // Notatka platformy przed treścią (np. "[open-agents] Task from the thread …"); pusta dla użytkownika.
+  // Notatka platformy przed treścią (np. "[canopy] Task from the thread …"); pusta dla użytkownika.
   string platform_note = 19;
   // report: jak skończyła się tura wątku docelowego (completed | interrupted | failed | cancelled).
   string source_status = 20;

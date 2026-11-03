@@ -4,6 +4,7 @@
  * opaque ids (uuids, provider call ids), which the UI keeps out of sight (tooltips, copy actions).
  * One module, so every view says the same thing for the same value.
  */
+import { isPlatformServer } from "@canopy/domain";
 
 /** Words that keep their own spelling inside a label. */
 const SPELLING: Record<string, string> = {
@@ -135,9 +136,9 @@ export function humanizeToolName(name: string): string {
   return phrase(words(name));
 }
 
-/** An MCP server's name: `github` → "GitHub", `chrome-devtools` → "Chrome devtools", `openagents` → "Canopy". */
+/** An MCP server's name: `github` → "GitHub", `chrome-devtools` → "Chrome devtools", `canopy` (formerly `openagents`) → "Canopy". */
 export function humanizeServer(server: string): string {
-  if (server === "openagents") return "Canopy";
+  if (isPlatformServer(server)) return "Canopy";
   return phrase(words(server));
 }
 
@@ -190,7 +191,7 @@ export function humanizeSeconds(total: number): string {
 
 /**
  * Text for people without the ids written into it for agents: `(thread_id: 01a…)` goes, `(schedule_id: 01a…,
- * delayed)` keeps `(delayed)`. Used on the platform's notes in messages ("[open-agents] Message from …").
+ * delayed)` keeps `(delayed)`. Used on the platform's notes in messages ("[canopy] Message from …").
  */
 export function withoutIds(text: string): string {
   const id = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";

@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { AgentToolCallSchema, ItemStatus, type AgentToolCall, type AgentToolResult, type ConnectorTool } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
-import { agentBusToolSpecs, agentBusToolsFor, viewImageSpec, VIEW_IMAGE_TOOL } from "@canopy/domain";
+import { agentBusToolSpecs, agentBusToolsFor, isPlatformServer, PLATFORM_SERVER, viewImageSpec, VIEW_IMAGE_TOOL } from "@canopy/domain";
 import type { ViewImageResult } from "../../images/index.ts";
 import type { McpServer } from "@canopy/grok-acp";
 import { toolCallId } from "../tool-call-id.ts";
@@ -56,5 +56,11 @@ export function grokBus(options: { threadId: string; depth: number; agentBus?: b
     },
     idleTimeout: 0,
   });
-  return { server: { type: "http", name: "openagents", url: `http://127.0.0.1:${server.port}/mcp`, headers: [{ name: "Authorization", value: `Bearer ${token}` }] }, close: () => { void server.stop(true); } };
+  return { server: { type: "http", name: PLATFORM_SERVER, url: `http://127.0.0.1:${server.port}/mcp`, headers: [{ name: "Authorization", value: `Bearer ${token}` }] }, close: () => { void server.stop(true); } };
+}
+
+/** Grok's name of a platform tool, `canopy__list_threads` (`openagents__…` from before the rename) → `list_threads`. */
+export function platformToolName(name: string): string | undefined {
+  const match = /^(.+?)__(.+)$/.exec(name);
+  return match && isPlatformServer(match[1]) ? match[2] : undefined;
 }

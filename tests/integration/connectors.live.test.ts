@@ -47,7 +47,7 @@ describe.skipIf(!enabled)('connectors (Codex + Claude, live CLIProxyAPI)', () =>
     const before = fake.calls.length;
     const thread = (await gw.api.createThread({ projectId,workspaceId,provider,providerProfileId: 'cliproxyapi',permissionMode: provider === Provider.CLAUDE ? PermissionMode.READ_ONLY : PermissionMode.FULL_AUTO,
       model: provider === Provider.CODEX ? process.env['CANOPY_LIVE_CODEX_MODEL'] ?? 'gpt-6.1-sol' : process.env['CANOPY_LIVE_CLAUDE_MODEL'] ?? 'claude-haiku-5-5',
-      title: `Connector ${Provider[provider]}`,initialMessage: `Call the available connector tool ${toolName} exactly once with {"marker":"${marker}"}. It is on the openagents MCP server in Claude. Discover it with ToolSearch if needed. Do not use shell, network or any other tools. Read the result and reply exactly ${marker}.`,
+      title: `Connector ${Provider[provider]}`,initialMessage: `Call the available connector tool ${toolName} exactly once with {"marker":"${marker}"}. It is on the canopy MCP server in Claude. Discover it with ToolSearch if needed. Do not use shell, network or any other tools. Read the result and reply exactly ${marker}.`,
     })).thread!;
     const done = await eventually(() => gw.api.getThread({ threadId: thread.id }), (r) => ['completed','failed','interrupted'].includes(r.thread?.lastTurnStatus ?? ''), 240_000);
     expect(done.thread?.lastTurnStatus).toBe('completed');

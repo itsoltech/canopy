@@ -79,7 +79,7 @@ export class AttachmentStore extends Context.Service<
     /** Where the worker keeps attachments (Hello.attachments_root) and its OS; root empty = no attachment support. */
     workerRoot(workerId: string): Fx<{ root: string; os: string }>;
   }
->()("open-agents/gateway/AttachmentStore") {
+>()("canopy/gateway/AttachmentStore") {
   static readonly layer = Layer.effect(
     AttachmentStore,
     Effect.gen(function* () {

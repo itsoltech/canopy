@@ -2,6 +2,7 @@ import { clone, create } from "@bufbuild/protobuf";
 import { ItemDeltaField, ItemSchema, ItemStatus, type Item } from "@canopy/contracts";
 import type { SessionUpdate, ToolCall } from "@canopy/grok-acp";
 import type { ThreadEventInit } from "../../journal/index.ts";
+import { platformToolName } from "./bus.ts";
 
 const text = (value: unknown): string => typeof value === "string" ? value : value == null ? "" : JSON.stringify(value);
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -38,7 +39,7 @@ export class GrokEventMapper {
       const tool = { ...previous, ...update };
       this.#tools.set(tool.toolCallId, tool);
       // The gateway owns canonical agentBusCall items; keep use_tool wrappers only in the raw transcript.
-      if (tool.title === "use_tool" && text(object(tool.rawInput)["tool_name"]).startsWith("openagents__")) return [{ turnId: this.turnId, rawJson }];
+      if (tool.title === "use_tool" && platformToolName(text(object(tool.rawInput)["tool_name"])) !== undefined) return [{ turnId: this.turnId, rawJson }];
       const itemId = `${this.turnId}:${tool.toolCallId}`;
       const item = toolItem(itemId, tool, this.cwd);
       this.#items.set(itemId, item);
