@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, powerMonitor, shell, Tray, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { join, resolve } from "node:path";
@@ -204,13 +204,15 @@ app.on("before-quit", (event) => {
   updates.stop();
   const finish = () => { stopped = true; if (installingUpdate) updates.install(); else app.quit(); };
   // EOF makes the guardian stop owned process groups even if Electron subsequently crashes.
-  controller?.stdin.end();
+  void rpc("presence", { state: installingUpdate ? "updating" : "shutting_down" }).catch(() => {}).finally(() => controller?.stdin.end());
   const timeout = setTimeout(() => { controller?.kill("SIGTERM"); }, 35_000);
   if (!controller || controllerExited || !controller.pid || controller.exitCode !== null || controller.signalCode !== null) { clearTimeout(timeout); finish(); }
   else controller.once("exit", () => { clearTimeout(timeout); finish(); });
 });
 
 async function start() {
+  powerMonitor.on("suspend", () => { void rpc("presence", { state: "sleeping" }).catch(() => {}); });
+  powerMonitor.on("resume", () => { void rpc("presence", { state: "connected" }).catch(() => {}); });
   const secrets = await loadSecrets(app.getPath("userData"));
   logs.protect(...Object.values(secrets));
   const runtime = join(resources, "runtime");

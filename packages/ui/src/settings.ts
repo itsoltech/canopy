@@ -76,6 +76,13 @@ export const settingsSections: readonly SettingsSection[] = [
     group: "Connections",
     keywords: "phone iphone android pairing qr tailscale device revoke mobile",
   },
+  {
+    href: "/settings/computers",
+    label: "Linked computers",
+    icon: "server",
+    group: "Connections",
+    keywords: "computer link pair fingerprint certificate network desktop",
+  },
 ];
 
 export const settingsGroups = ["General", "Code", "Connections"] as const;

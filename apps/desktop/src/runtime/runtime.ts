@@ -137,10 +137,15 @@ export class DesktopRuntime {
         installer.cleanup();
         const gatewayPort = await freePort();
         const workerPort = config.allowNetwork ? await freePort(config.bindHost) : undefined;
+        // Unlike loopback sidecars, peers need a stable reachable port after restart.
+        const linkPortFile = join(this.directory, "computer-link.json");
+        const savedLinkPort = existsSync(linkPortFile) ? (JSON.parse(readFileSync(linkPortFile, "utf8")) as { port: number }).port : undefined;
+        const linkPort = config.allowNetwork ? (savedLinkPort ?? await freePort(config.bindHost)) : undefined;
+        if (linkPort) this.writeJson(linkPortFile, { port: linkPort });
         gatewayUrl = `http://127.0.0.1:${gatewayPort}`;
         webUrl = this.setupOrigin;
         workerDirectory = join(this.directory, "local-worker");
-        this.services.start({ name: "gateway", ...this.command(this.paths.gateway), cwd: dirname(this.paths.gateway), env: { ...this.env, CANOPY_DATABASE_URL: databaseUrl, CANOPY_SECRETS_KEY: this.secrets.secretsKey, CANOPY_UI_SERVICE_TOKEN: this.secrets.serviceToken, CANOPY_HOST: "127.0.0.1", CANOPY_PORT: String(gatewayPort), CANOPY_PUBLIC_GATEWAY_URL: workerPort ? `http://${config.bindHost}:${workerPort}` : gatewayUrl, ...(workerPort && { CANOPY_WORKER_HOST: config.bindHost, CANOPY_WORKER_PORT: String(workerPort) }) }, restart: true });
+        this.services.start({ name: "gateway", ...this.command(this.paths.gateway), cwd: dirname(this.paths.gateway), env: { ...this.env, CANOPY_DATABASE_URL: databaseUrl, CANOPY_SECRETS_KEY: this.secrets.secretsKey, CANOPY_UI_SERVICE_TOKEN: this.secrets.serviceToken, CANOPY_HOST: "127.0.0.1", CANOPY_PORT: String(gatewayPort), CANOPY_PUBLIC_GATEWAY_URL: workerPort ? `http://${config.bindHost}:${workerPort}` : gatewayUrl, ...(workerPort && { CANOPY_WORKER_HOST: config.bindHost, CANOPY_WORKER_PORT: String(workerPort) }), ...(linkPort && { CANOPY_LINK_HOST: config.bindHost, CANOPY_LINK_PORT: String(linkPort), CANOPY_LINK_ADDRESSES: `https://${config.bindHost}:${linkPort}` }) }, restart: true });
         const client = this.client(gatewayUrl);
         await until(async () => { await client.getOverview({}, { timeoutMs: 1000 }); return true; });
         if (!existsSync(join(workerDirectory, "worker.json"))) token = (await client.createWorkerEnrollment({ name: `Canopy · ${hostname()}` })).token;
@@ -196,6 +201,9 @@ export class DesktopRuntime {
   }
   killOwned() { this.services.killOwned(); this.web.killOwned(); }
   cancelStartup() { this.installing?.abort(); }
+  async presence(state: string) {
+    if (this.state.mode === "local" && this.state.gatewayUrl) await this.client().manageComputer({ action: "presence", name: state });
+  }
   async stop() {
     this.cancelStartup();
     this.generation++;

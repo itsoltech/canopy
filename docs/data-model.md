@@ -1,5 +1,16 @@
 # Model danych (PostgreSQL)
 
+## Połączone komputery
+
+Migracja `0048_linked_computers` dodaje singleton `computer_identity` (id z SHA-256 klucza,
+nazwa, publiczny certyfikat, prywatny klucz jako AES-256-GCM i ustawienie listenera),
+owner-scoped `computer_peers` (pin, adresy, wersje, stan i czasy), `computer_pairings`
+(hash jednorazowego kodu, expiry/revoke/use, liczba prób), trwały globalny budżet prób
+oraz `computer_revocations` (tylko id odwołanych węzłów, bez aktywnego zaufania).
+Parowanie atomowo zużywa kod i zapisuje peer. Unlink usuwa rekord peer; znacznik
+odwołania pozwala usunąć relację po stronie partnera wracającego z offline.
+Szczegóły i granice bezpieczeństwa: [linked-computers.md](linked-computers.md#konkretny-protokół-etapu-1).
+
 ## Instalacja workerów przez SSH
 
 Migracja `0047_worker_ssh` dodaje `worker_ssh_keys` (jeden Ed25519 per właściciel,

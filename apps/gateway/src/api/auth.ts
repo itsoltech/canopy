@@ -18,7 +18,7 @@ export function serviceTokenAuth(token: string, mobile?: MobileDevices): Interce
       if (presented.length === expected.length && timingSafeEqual(presented, expected)) return next(request);
       const identity = await mobile?.authenticate(bearer);
       if (!identity || !mobile) throw new ConnectError("Invalid or revoked device token", Code.Unauthenticated);
-      if (["GetMobileDevices", "CreateMobilePairing", "RevokeMobilePairing", "RevokeMobileDevice", "ManageUpdates", "WorkerSsh", "FetchWorkerInstall"].includes(request.method.name)) {
+      if (["GetMobileDevices", "CreateMobilePairing", "RevokeMobilePairing", "RevokeMobileDevice", "ManageUpdates", "WorkerSsh", "FetchWorkerInstall", "GetComputers", "CreateComputerPairing", "LinkComputer", "ManageComputer"].includes(request.method.name)) {
         throw new ConnectError("Manage mobile devices in web Settings", Code.PermissionDenied);
       }
       request.contextValues.set(mobileIdentity, identity);

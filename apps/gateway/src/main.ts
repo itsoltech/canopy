@@ -8,6 +8,9 @@ import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase } from
 import { installKind, isStandalone, onSupervisorHandover, serviceSnippet, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { LinkedComputers } from "./computers/runtime.ts";
+import { ComputerStore } from "./computers/store.ts";
+import { loadSecretsKey } from "./store/secrets.ts";
 
 const env = Bun.env;
 if (Bun.argv.includes("--version")) { console.info(CANOPY_VERSION); process.exit(0); }
@@ -47,7 +50,7 @@ const core = new GatewayCore({
     ...(env["CANOPY_RELEASE_BASE_URL"] && { source: { baseUrl: env["CANOPY_RELEASE_BASE_URL"] } }),
     ...(env["CANOPY_UPDATE_CACHE_DIR"] && { cacheDir: env["CANOPY_UPDATE_CACHE_DIR"] }),
     channel: env["CANOPY_UPDATE_CHANNEL"] ?? "stable",
-    restart: async (exitCode = UPDATE_RESTART_EXIT_CODE) => { await stop(); process.exit(exitCode); },
+    restart: async (exitCode = UPDATE_RESTART_EXIT_CODE) => { await stop("updating"); process.exit(exitCode); },
     idle: () => runtime.runPromise(Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       const rows = yield* sql<{ idle: boolean }>`SELECT NOT EXISTS (SELECT 1 FROM turns WHERE status = 'running') AND NOT EXISTS (SELECT 1 FROM bot_turns WHERE status = 'running') AS idle`;
@@ -58,6 +61,12 @@ const core = new GatewayCore({
 });
 if (installKind() === "binary") onSupervisorHandover(() => core.updates.handover(), (message) => console.info(message));
 // Workers' configurations follow the global provider instances (e.g. right after the migration to them).
+core.computers = new LinkedComputers({ store: new ComputerStore(runtime, userId, loadSecretsKey(env)),
+  ...(env["CANOPY_LINK_HOST"] && { host: env["CANOPY_LINK_HOST"] }),
+  ...(env["CANOPY_LINK_PORT"] && { port: Number(env["CANOPY_LINK_PORT"]) }),
+  ...(env["CANOPY_LINK_ADDRESSES"] && { addresses: env["CANOPY_LINK_ADDRESSES"].split(",").map((a) => a.trim()) }),
+});
+await core.computers.start();
 await core.syncProviderInstances();
 const certFile = env["CANOPY_TLS_CERT"];
 const keyFile = env["CANOPY_TLS_KEY"];
@@ -105,7 +114,8 @@ core.backgroundTasks.start();
 core.bots.start();
 await core.updates.start();
 
-async function stop() {
+async function stop(presence = "shutting_down") {
+    await core.computers?.close(presence);
     core.updates.close();
     core.secrets.stop();
     await core.scheduler.stop();
