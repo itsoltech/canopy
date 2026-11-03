@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/link/v1/link.proto.
  */
 export const file_canopy_link_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSIfCg1NaXJyb3JSZXF1ZXN0Eg4KBmN1cnNvchgBIAEoCSKEAgoMTWlycm9yVXBkYXRlEhcKD3ByZXZpb3VzX2N1cnNvchgBIAEoCRIOCgZjdXJzb3IYAiABKAkSDQoFcmVzZXQYAyABKAgSDgoGY29tbWl0GAQgASgIEi4KCHNuYXBzaG90GAUgASgLMhwuY2Fub3B5LnVpLnYxLlRocmVhZFNuYXBzaG90EhkKEXJlbW92ZWRfdGhyZWFkX2lkGAYgASgJEjMKCG92ZXJ2aWV3GAcgASgLMiEuY2Fub3B5LnVpLnYxLkdldE92ZXJ2aWV3UmVzcG9uc2USFgoOc25hcHNob3Rfc3RhcnQYCCABKAgSFAoMc25hcHNob3RfZW5kGAkgASgIIpQBCglOb2RlSGVsbG8SDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCWFkZHJlc3NlcxgDIAMoCRITCgthcHBfdmVyc2lvbhgEIAEoCRIUCgxtaW5fcHJvdG9jb2wYBSABKA0SFAoMbWF4X3Byb3RvY29sGAYgASgNEhQKDGNhcGFiaWxpdGllcxgHIAMoCSJHCgtQYWlyUmVxdWVzdBIOCgZzZWNyZXQYASABKAkSKAoFaGVsbG8YAiABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG8iOAoMUGFpclJlc3BvbnNlEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvImEKC0xpbmtXZWxjb21lEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvEhAKCHByb3RvY29sGAIgASgNEhYKDnVwZGF0ZV9ub2RlX2lkGAMgASgJIjIKCFByZXNlbmNlEg0KBXN0YXRlGAEgASgJEhcKD2Fubm91bmNlZF9hdF9tcxgCIAEoAyIfCglIZWFydGJlYXQSEgoKc2VudF9hdF9tcxgBIAEoAyIKCghVbmxpbmtlZCJPCg1SZW1vdGVSZXF1ZXN0Eg8KB2NhbGxfaWQYASABKAQSDgoGbWV0aG9kGAIgASgJEg8KB3BheWxvYWQYAyABKAwSDAoEbW9yZRgEIAEoCCJsCg5SZW1vdGVSZXNwb25zZRIPCgdjYWxsX2lkGAEgASgEEg8KB3BheWxvYWQYAiABKAwSDAoEbW9yZRgDIAEoCBILCgNlbmQYBCABKAgSDAoEY29kZRgFIAEoDRIPCgdtZXNzYWdlGAYgASgJIh8KDFJlbW90ZUNhbmNlbBIPCgdjYWxsX2lkGAEgASgEIqYDCglMaW5rRnJhbWUSKgoFaGVsbG8YASABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG9IABIuCgd3ZWxjb21lGAIgASgLMhsuY2Fub3B5LmxpbmsudjEuTGlua1dlbGNvbWVIABIuCgloZWFydGJlYXQYAyABKAsyGS5jYW5vcHkubGluay52MS5IZWFydGJlYXRIABIsCghwcmVzZW5jZRgEIAEoCzIYLmNhbm9weS5saW5rLnYxLlByZXNlbmNlSAASLAoIdW5saW5rZWQYBSABKAsyGC5jYW5vcHkubGluay52MS5VbmxpbmtlZEgAEjcKDnJlbW90ZV9yZXF1ZXN0GAYgASgLMh0uY2Fub3B5LmxpbmsudjEuUmVtb3RlUmVxdWVzdEgAEjkKD3JlbW90ZV9yZXNwb25zZRgHIAEoCzIeLmNhbm9weS5saW5rLnYxLlJlbW90ZVJlc3BvbnNlSAASNQoNcmVtb3RlX2NhbmNlbBgIIAEoCzIcLmNhbm9weS5saW5rLnYxLlJlbW90ZUNhbmNlbEgAQgYKBGJvZHkyaQoTVGhyZWFkTWlycm9yU2VydmljZRJSChFXYXRjaFRocmVhZE1pcnJvchIdLmNhbm9weS5saW5rLnYxLk1pcnJvclJlcXVlc3QaHC5jYW5vcHkubGluay52MS5NaXJyb3JVcGRhdGUwATKdAQoTQ29tcHV0ZXJMaW5rU2VydmljZRJBCgRQYWlyEhsuY2Fub3B5LmxpbmsudjEuUGFpclJlcXVlc3QaHC5jYW5vcHkubGluay52MS5QYWlyUmVzcG9uc2USQwoHQ29ubmVjdBIZLmNhbm9weS5saW5rLnYxLkxpbmtGcmFtZRoZLmNhbm9weS5saW5rLnYxLkxpbmtGcmFtZSgBMAFiBnByb3RvMw", [file_canopy_ui_v1_gateway]);
+  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSIfCg1NaXJyb3JSZXF1ZXN0Eg4KBmN1cnNvchgBIAEoCSKEAgoMTWlycm9yVXBkYXRlEhcKD3ByZXZpb3VzX2N1cnNvchgBIAEoCRIOCgZjdXJzb3IYAiABKAkSDQoFcmVzZXQYAyABKAgSDgoGY29tbWl0GAQgASgIEi4KCHNuYXBzaG90GAUgASgLMhwuY2Fub3B5LnVpLnYxLlRocmVhZFNuYXBzaG90EhkKEXJlbW92ZWRfdGhyZWFkX2lkGAYgASgJEjMKCG92ZXJ2aWV3GAcgASgLMiEuY2Fub3B5LnVpLnYxLkdldE92ZXJ2aWV3UmVzcG9uc2USFgoOc25hcHNob3Rfc3RhcnQYCCABKAgSFAoMc25hcHNob3RfZW5kGAkgASgIIiwKDFNoYXJlZFNlY3JldBINCgV0b2tlbhgBIAEoCRINCgV2YWx1ZRgCIAEoCSKYAgoKU2hhcmVkSXRlbRILCgNrZXkYASABKAkSDgoGc2hhcmVkGAIgASgIEjQKBWNsb2NrGAMgAygLMiUuY2Fub3B5LmxpbmsudjEuU2hhcmVkSXRlbS5DbG9ja0VudHJ5EhIKCmNoYW5nZWRfYnkYBCABKAkSFQoNY2hhbmdlZF9hdF9tcxgFIAEoAxIOCgZkaWdlc3QYBiABKAkSDwoHcGF5bG9hZBgHIAEoCRItCgdzZWNyZXRzGAggAygLMhwuY2Fub3B5LmxpbmsudjEuU2hhcmVkU2VjcmV0Eg4KBnJlYXNvbhgJIAEoCRosCgpDbG9ja0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBDoCOAEiPQoQU2hhcmVkQ29uZmlnUHVzaBIpCgVpdGVtcxgBIAMoCzIaLmNhbm9weS5saW5rLnYxLlNoYXJlZEl0ZW0iuwEKEFNoYXJlZEl0ZW1SZXN1bHQSCwoDa2V5GAEgASgJEg8KB291dGNvbWUYAiABKAkSDgoGZGlnZXN0GAMgASgJEg8KB21lc3NhZ2UYBCABKAkSOgoFY2xvY2sYBSADKAsyKy5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0LkNsb2NrRW50cnkaLAoKQ2xvY2tFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAQ6AjgBIkYKEVNoYXJlZENvbmZpZ1JlcGx5EjEKB3Jlc3VsdHMYASADKAsyIC5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0IpQBCglOb2RlSGVsbG8SDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCWFkZHJlc3NlcxgDIAMoCRITCgthcHBfdmVyc2lvbhgEIAEoCRIUCgxtaW5fcHJvdG9jb2wYBSABKA0SFAoMbWF4X3Byb3RvY29sGAYgASgNEhQKDGNhcGFiaWxpdGllcxgHIAMoCSJHCgtQYWlyUmVxdWVzdBIOCgZzZWNyZXQYASABKAkSKAoFaGVsbG8YAiABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG8iOAoMUGFpclJlc3BvbnNlEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvImEKC0xpbmtXZWxjb21lEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvEhAKCHByb3RvY29sGAIgASgNEhYKDnVwZGF0ZV9ub2RlX2lkGAMgASgJIjIKCFByZXNlbmNlEg0KBXN0YXRlGAEgASgJEhcKD2Fubm91bmNlZF9hdF9tcxgCIAEoAyIfCglIZWFydGJlYXQSEgoKc2VudF9hdF9tcxgBIAEoAyIKCghVbmxpbmtlZCJPCg1SZW1vdGVSZXF1ZXN0Eg8KB2NhbGxfaWQYASABKAQSDgoGbWV0aG9kGAIgASgJEg8KB3BheWxvYWQYAyABKAwSDAoEbW9yZRgEIAEoCCJsCg5SZW1vdGVSZXNwb25zZRIPCgdjYWxsX2lkGAEgASgEEg8KB3BheWxvYWQYAiABKAwSDAoEbW9yZRgDIAEoCBILCgNlbmQYBCABKAgSDAoEY29kZRgFIAEoDRIPCgdtZXNzYWdlGAYgASgJIh8KDFJlbW90ZUNhbmNlbBIPCgdjYWxsX2lkGAEgASgEIqYDCglMaW5rRnJhbWUSKgoFaGVsbG8YASABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG9IABIuCgd3ZWxjb21lGAIgASgLMhsuY2Fub3B5LmxpbmsudjEuTGlua1dlbGNvbWVIABIuCgloZWFydGJlYXQYAyABKAsyGS5jYW5vcHkubGluay52MS5IZWFydGJlYXRIABIsCghwcmVzZW5jZRgEIAEoCzIYLmNhbm9weS5saW5rLnYxLlByZXNlbmNlSAASLAoIdW5saW5rZWQYBSABKAsyGC5jYW5vcHkubGluay52MS5VbmxpbmtlZEgAEjcKDnJlbW90ZV9yZXF1ZXN0GAYgASgLMh0uY2Fub3B5LmxpbmsudjEuUmVtb3RlUmVxdWVzdEgAEjkKD3JlbW90ZV9yZXNwb25zZRgHIAEoCzIeLmNhbm9weS5saW5rLnYxLlJlbW90ZVJlc3BvbnNlSAASNQoNcmVtb3RlX2NhbmNlbBgIIAEoCzIcLmNhbm9weS5saW5rLnYxLlJlbW90ZUNhbmNlbEgAQgYKBGJvZHkyaQoTVGhyZWFkTWlycm9yU2VydmljZRJSChFXYXRjaFRocmVhZE1pcnJvchIdLmNhbm9weS5saW5rLnYxLk1pcnJvclJlcXVlc3QaHC5jYW5vcHkubGluay52MS5NaXJyb3JVcGRhdGUwATJuChNTaGFyZWRDb25maWdTZXJ2aWNlElcKEFB1c2hTaGFyZWRDb25maWcSIC5jYW5vcHkubGluay52MS5TaGFyZWRDb25maWdQdXNoGiEuY2Fub3B5LmxpbmsudjEuU2hhcmVkQ29uZmlnUmVwbHkynQEKE0NvbXB1dGVyTGlua1NlcnZpY2USQQoEUGFpchIbLmNhbm9weS5saW5rLnYxLlBhaXJSZXF1ZXN0GhwuY2Fub3B5LmxpbmsudjEuUGFpclJlc3BvbnNlEkMKB0Nvbm5lY3QSGS5jYW5vcHkubGluay52MS5MaW5rRnJhbWUaGS5jYW5vcHkubGluay52MS5MaW5rRnJhbWUoATABYgZwcm90bzM", [file_canopy_ui_v1_gateway]);
 
 /**
  * @generated from message canopy.link.v1.MirrorRequest
@@ -93,6 +93,177 @@ export const MirrorUpdateSchema: GenMessage<MirrorUpdate> = /*@__PURE__*/
   messageDesc(file_canopy_link_v1_link, 1);
 
 /**
+ * A secret value of a shared item, only for items marked shared and only while the receiver does
+ * not have this value yet. The token names the value; the receiver encrypts it with its own key.
+ *
+ * @generated from message canopy.link.v1.SharedSecret
+ */
+export type SharedSecret = Message<"canopy.link.v1.SharedSecret"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * @generated from field: string value = 2;
+   */
+  value: string;
+};
+
+/**
+ * Describes the message canopy.link.v1.SharedSecret.
+ * Use `create(SharedSecretSchema)` to create a new message.
+ */
+export const SharedSecretSchema: GenMessage<SharedSecret> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 2);
+
+/**
+ * @generated from message canopy.link.v1.SharedItem
+ */
+export type SharedItem = Message<"canopy.link.v1.SharedItem"> & {
+  /**
+   * "instance:<harness>:<id>", "models:<harness>:<id>", "settings:<section>", "project:<uuid>".
+   *
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * false: the sender stopped sharing it (or deleted it); every copy becomes local.
+   *
+   * @generated from field: bool shared = 2;
+   */
+  shared: boolean;
+
+  /**
+   * Version vector: node id -> counter. Concurrent vectors with different values are a conflict.
+   *
+   * @generated from field: map<string, uint64> clock = 3;
+   */
+  clock: { [key: string]: bigint };
+
+  /**
+   * @generated from field: string changed_by = 4;
+   */
+  changedBy: string;
+
+  /**
+   * @generated from field: int64 changed_at_ms = 5;
+   */
+  changedAtMs: bigint;
+
+  /**
+   * Hex SHA-256 of the canonical payload (secret values are represented by their tokens).
+   *
+   * @generated from field: string digest = 6;
+   */
+  digest: string;
+
+  /**
+   * Canonical JSON of the item's shared fields. Never contains secret values.
+   *
+   * @generated from field: string payload = 7;
+   */
+  payload: string;
+
+  /**
+   * @generated from field: repeated canopy.link.v1.SharedSecret secrets = 8;
+   */
+  secrets: SharedSecret[];
+
+  /**
+   * Why the sender stopped sharing ("deleted"), shown on the receiver.
+   *
+   * @generated from field: string reason = 9;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message canopy.link.v1.SharedItem.
+ * Use `create(SharedItemSchema)` to create a new message.
+ */
+export const SharedItemSchema: GenMessage<SharedItem> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 3);
+
+/**
+ * @generated from message canopy.link.v1.SharedConfigPush
+ */
+export type SharedConfigPush = Message<"canopy.link.v1.SharedConfigPush"> & {
+  /**
+   * @generated from field: repeated canopy.link.v1.SharedItem items = 1;
+   */
+  items: SharedItem[];
+};
+
+/**
+ * Describes the message canopy.link.v1.SharedConfigPush.
+ * Use `create(SharedConfigPushSchema)` to create a new message.
+ */
+export const SharedConfigPushSchema: GenMessage<SharedConfigPush> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 4);
+
+/**
+ * @generated from message canopy.link.v1.SharedItemResult
+ */
+export type SharedItemResult = Message<"canopy.link.v1.SharedItemResult"> & {
+  /**
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * applied, same, newer (the receiver has a newer value and pushes it back), conflict,
+   * unshared, rejected (invalid here, e.g. a missing instance), secrets (resend with secrets).
+   *
+   * @generated from field: string outcome = 2;
+   */
+  outcome: string;
+
+  /**
+   * @generated from field: string digest = 3;
+   */
+  digest: string;
+
+  /**
+   * @generated from field: string message = 4;
+   */
+  message: string;
+
+  /**
+   * The receiver's version vector after this item (applied, same): the sender merges it, so a
+   * later change on either side is not mistaken for a concurrent one, and settles its own question.
+   *
+   * @generated from field: map<string, uint64> clock = 5;
+   */
+  clock: { [key: string]: bigint };
+};
+
+/**
+ * Describes the message canopy.link.v1.SharedItemResult.
+ * Use `create(SharedItemResultSchema)` to create a new message.
+ */
+export const SharedItemResultSchema: GenMessage<SharedItemResult> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 5);
+
+/**
+ * @generated from message canopy.link.v1.SharedConfigReply
+ */
+export type SharedConfigReply = Message<"canopy.link.v1.SharedConfigReply"> & {
+  /**
+   * @generated from field: repeated canopy.link.v1.SharedItemResult results = 1;
+   */
+  results: SharedItemResult[];
+};
+
+/**
+ * Describes the message canopy.link.v1.SharedConfigReply.
+ * Use `create(SharedConfigReplySchema)` to create a new message.
+ */
+export const SharedConfigReplySchema: GenMessage<SharedConfigReply> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 6);
+
+/**
  * @generated from message canopy.link.v1.NodeHello
  */
 export type NodeHello = Message<"canopy.link.v1.NodeHello"> & {
@@ -137,7 +308,7 @@ export type NodeHello = Message<"canopy.link.v1.NodeHello"> & {
  * Use `create(NodeHelloSchema)` to create a new message.
  */
 export const NodeHelloSchema: GenMessage<NodeHello> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 2);
+  messageDesc(file_canopy_link_v1_link, 7);
 
 /**
  * @generated from message canopy.link.v1.PairRequest
@@ -159,7 +330,7 @@ export type PairRequest = Message<"canopy.link.v1.PairRequest"> & {
  * Use `create(PairRequestSchema)` to create a new message.
  */
 export const PairRequestSchema: GenMessage<PairRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 3);
+  messageDesc(file_canopy_link_v1_link, 8);
 
 /**
  * @generated from message canopy.link.v1.PairResponse
@@ -176,7 +347,7 @@ export type PairResponse = Message<"canopy.link.v1.PairResponse"> & {
  * Use `create(PairResponseSchema)` to create a new message.
  */
 export const PairResponseSchema: GenMessage<PairResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 4);
+  messageDesc(file_canopy_link_v1_link, 9);
 
 /**
  * @generated from message canopy.link.v1.LinkWelcome
@@ -206,7 +377,7 @@ export type LinkWelcome = Message<"canopy.link.v1.LinkWelcome"> & {
  * Use `create(LinkWelcomeSchema)` to create a new message.
  */
 export const LinkWelcomeSchema: GenMessage<LinkWelcome> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 5);
+  messageDesc(file_canopy_link_v1_link, 10);
 
 /**
  * @generated from message canopy.link.v1.Presence
@@ -228,7 +399,7 @@ export type Presence = Message<"canopy.link.v1.Presence"> & {
  * Use `create(PresenceSchema)` to create a new message.
  */
 export const PresenceSchema: GenMessage<Presence> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 6);
+  messageDesc(file_canopy_link_v1_link, 11);
 
 /**
  * @generated from message canopy.link.v1.Heartbeat
@@ -245,7 +416,7 @@ export type Heartbeat = Message<"canopy.link.v1.Heartbeat"> & {
  * Use `create(HeartbeatSchema)` to create a new message.
  */
 export const HeartbeatSchema: GenMessage<Heartbeat> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 7);
+  messageDesc(file_canopy_link_v1_link, 12);
 
 /**
  * @generated from message canopy.link.v1.Unlinked
@@ -258,7 +429,7 @@ export type Unlinked = Message<"canopy.link.v1.Unlinked"> & {
  * Use `create(UnlinkedSchema)` to create a new message.
  */
 export const UnlinkedSchema: GenMessage<Unlinked> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 8);
+  messageDesc(file_canopy_link_v1_link, 13);
 
 /**
  * Stage 2, capability "remote_threads": a canopy.ui.v1.GatewayService call
@@ -301,7 +472,7 @@ export type RemoteRequest = Message<"canopy.link.v1.RemoteRequest"> & {
  * Use `create(RemoteRequestSchema)` to create a new message.
  */
 export const RemoteRequestSchema: GenMessage<RemoteRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 9);
+  messageDesc(file_canopy_link_v1_link, 14);
 
 /**
  * @generated from message canopy.link.v1.RemoteResponse
@@ -347,7 +518,7 @@ export type RemoteResponse = Message<"canopy.link.v1.RemoteResponse"> & {
  * Use `create(RemoteResponseSchema)` to create a new message.
  */
 export const RemoteResponseSchema: GenMessage<RemoteResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 10);
+  messageDesc(file_canopy_link_v1_link, 15);
 
 /**
  * The caller stopped listening (stream closed, timeout). The home aborts the call.
@@ -366,7 +537,7 @@ export type RemoteCancel = Message<"canopy.link.v1.RemoteCancel"> & {
  * Use `create(RemoteCancelSchema)` to create a new message.
  */
 export const RemoteCancelSchema: GenMessage<RemoteCancel> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 11);
+  messageDesc(file_canopy_link_v1_link, 16);
 
 /**
  * @generated from message canopy.link.v1.LinkFrame
@@ -431,7 +602,7 @@ export type LinkFrame = Message<"canopy.link.v1.LinkFrame"> & {
  * Use `create(LinkFrameSchema)` to create a new message.
  */
 export const LinkFrameSchema: GenMessage<LinkFrame> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 12);
+  messageDesc(file_canopy_link_v1_link, 17);
 
 /**
  * Internal subscription over RemoteRequest/RemoteResponse, only with thread_mirror.
@@ -450,6 +621,25 @@ export const ThreadMirrorService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_canopy_link_v1_link, 0);
+
+/**
+ * Stage 4, capability "shared_config": internal call over RemoteRequest/RemoteResponse, never
+ * registered on a public listener. A computer pushes the state of every item it shares (and the
+ * items it stopped sharing); the receiver applies, ignores or records a conflict per item.
+ *
+ * @generated from service canopy.link.v1.SharedConfigService
+ */
+export const SharedConfigService: GenService<{
+  /**
+   * @generated from rpc canopy.link.v1.SharedConfigService.PushSharedConfig
+   */
+  pushSharedConfig: {
+    methodKind: "unary";
+    input: typeof SharedConfigPushSchema;
+    output: typeof SharedConfigReplySchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_canopy_link_v1_link, 1);
 
 /**
  * Pair is the only RPC open to a certificate without a pin. The invitation
@@ -475,5 +665,5 @@ export const ComputerLinkService: GenService<{
     output: typeof LinkFrameSchema;
   },
 }> = /*@__PURE__*/
-  serviceDesc(file_canopy_link_v1_link, 1);
+  serviceDesc(file_canopy_link_v1_link, 2);
 

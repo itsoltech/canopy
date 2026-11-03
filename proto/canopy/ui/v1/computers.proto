@@ -40,3 +40,50 @@ message ComputerOperationRequest {
   string name = 3;
   bool enabled = 4;
 }
+
+// Stage 4: configuration shared between linked computers. Items are opt-in; everything else stays
+// on this computer. Secret values are never part of these messages.
+message SharedConfigItem {
+  string key = 1;
+  // instance, models, settings, project
+  string kind = 2;
+  string label = 3;
+  bool shared = 4;
+  // Sum of the version vector; grows with every change on any computer.
+  uint64 version = 5;
+  // Empty: this computer.
+  string changed_by_node_id = 6;
+  int64 changed_at_ms = 7;
+  // Why a copy became local: deleted / unshared on another computer (see note_node_id).
+  string note = 8;
+  string note_node_id = 9;
+}
+message SharedConfigField {
+  string name = 1;
+  string local = 2;
+  string remote = 3;
+}
+message SharedConfigConflict {
+  string key = 1;
+  string kind = 2;
+  string label = 3;
+  string node_id = 4;
+  int64 detected_at_ms = 5;
+  int64 remote_changed_at_ms = 6;
+  // Only the differing fields. Secrets appear as "Set" / "Changed", never as values.
+  repeated SharedConfigField fields = 7;
+}
+message SharedConfigSnapshot {
+  repeated SharedConfigItem items = 1;
+  repeated SharedConfigConflict conflicts = 2;
+  // Linked computers that cannot share configuration yet (an older Canopy): they keep their own.
+  repeated string needs_update_node_ids = 3;
+}
+message SharedConfigRequest {}
+message SharedConfigOperation {
+  // share, unshare, keep_local, keep_remote
+  string action = 1;
+  string key = 2;
+  // keep_local / keep_remote: the computer of the conflict.
+  string node_id = 3;
+}

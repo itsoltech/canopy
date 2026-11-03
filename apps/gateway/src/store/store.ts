@@ -203,7 +203,8 @@ export class GatewayStore extends Context.Service<
     configApplied(workerId: string, report: ConfigApplied): Fx<void>;
     listWorkers(online: ReadonlySet<string>, ownerUserId?: string): Fx<ui.Worker[]>;
     // projects
-    createProject(ownerUserId: string, name: string): Fx<ui.Project>;
+    /** `id`: a project shared by a linked computer keeps its id here (docs/linked-computers.md, stage 4). */
+    createProject(ownerUserId: string, name: string, id?: string): Fx<ui.Project>;
     lockProject(ownerUserId: string, projectId: string): Fx<void>;
     renameProject(ownerUserId: string, projectId: string, name: string): Fx<void>;
     archiveProject(ownerUserId: string, projectId: string): Fx<void>;
@@ -541,12 +542,12 @@ export class GatewayStore extends Context.Service<
               });
             }),
 
-          createProject: (ownerUserId, name) =>
+          createProject: (ownerUserId, name, shared) =>
             Effect.gen(function* () {
               const trimmed = name.trim();
               if (!trimmed) return yield* Effect.fail(new Invalid("project name is required"));
               if (trimmed.length > 200 || /[\r\n\p{Cc}]/u.test(trimmed)) return yield* Effect.fail(new Invalid("project name must be one line with 1–200 characters"));
-              const id = Bun.randomUUIDv7();
+              const id = shared ?? Bun.randomUUIDv7();
               const slug = `${slugify(trimmed)}-${id.slice(-6)}`;
               yield* sql`INSERT INTO projects (id, owner_user_id, name, slug) VALUES (${id}::uuid, ${ownerUserId}::uuid, ${trimmed}, ${slug})`;
               return create(ui.ProjectSchema, { id, name: trimmed, slug, kind: "project", workspaces: [] });

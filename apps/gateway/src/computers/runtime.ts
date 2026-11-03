@@ -4,9 +4,10 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { AsyncChannel } from "@canopy/transport";
 import { MIN_COMPUTER_LINK_PROTOCOL, COMPUTER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
-import { NODE_REF_LENGTH, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
+import { NODE_REF_LENGTH, REMOTE_THREADS, SHARED_CONFIG, THREAD_MIRROR } from "@canopy/domain/computers";
 import { ThreadMirror } from "./mirror.ts";
 import { RemoteCalls, type RemoteServe } from "./remote.ts";
+import { SharedConfig, type SharedHost } from "./shared.ts";
 import { ComputerStore, type PeerRow } from "./store.ts";
 import { certificateIdentity, computerName, linkAddress } from "./identity.ts";
 import { discoverCertificate, linkClient, listenLink, remoteCertificate, type LinkIdentity } from "./transport.ts";
@@ -16,6 +17,8 @@ type Connection = { send: (frame: MessageInitShape<typeof link.LinkFrameSchema>)
 type Options = { store: ComputerStore; host?: string; port?: number; addresses?: string[]; minProtocol?: number; maxProtocol?: number; heartbeatMs?: number;
   /** Serves linked computers' calls on this computer's threads (stage 2). Without it the capability is not offered. */
   serve?: RemoteServe;
+  /** Configuration shared with linked computers (stage 4). Without it the capability is not offered. */
+  shared?: SharedHost;
   /** The owner's IANA zone for "unreachable since 19:42". */
   zone?: () => Promise<string | undefined>;
   /** Overrides the advertised capabilities (tests of older computers). */
@@ -53,17 +56,29 @@ export class LinkedComputers {
   #names = new Map<string, string>();
   #capabilities = new Map<string, string[]>();
   #mirroring = new Map<string, AbortController>();
+  #sharing = false;
   readonly mirror: ThreadMirror;
-  constructor(readonly options: Options) { this.mirror = new ThreadMirror(options.store); }
+  readonly shared: SharedConfig | undefined;
+  constructor(readonly options: Options) {
+    this.mirror = new ThreadMirror(options.store);
+    this.shared = options.shared && options.serve ? new SharedConfig(options.store, options.shared, {
+      self: () => this.#identity.node_id,
+      ready: () => this.#sharesConfig() ? this.reachable().filter((n) => this.capabilities(n).includes(SHARED_CONFIG)) : [],
+      outdated: async () => (await this.store.peers()).filter((p) => this.capabilities(p.node_id).length && !this.capabilities(p.node_id).includes(SHARED_CONFIG)).map((p) => p.node_id),
+      call: (nodeId, method, request, signal) => this.remote(nodeId, method, request, signal),
+    }) : undefined;
+  }
   get store() { return this.options.store; }
   get identity(): LinkIdentity { return this.#identity; }
   get addresses() { return this.#addresses; }
   hello() { return create(link.NodeHelloSchema, { nodeId: this.#identity.node_id, name: this.#identity.name, addresses: this.#addresses,
     appVersion: CANOPY_VERSION, minProtocol: this.options.minProtocol ?? MIN_COMPUTER_LINK_PROTOCOL, maxProtocol: this.options.maxProtocol ?? COMPUTER_LINK_PROTOCOL,
-    capabilities: this.options.capabilities ?? ["presence", "unlink", ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR] : [])] }); }
+    capabilities: this.options.capabilities ?? ["presence", "unlink", ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR] : []), ...(this.shared ? [SHARED_CONFIG] : [])] }); }
+  #sharesConfig() { return Boolean(this.shared) && this.hello().capabilities.includes(SHARED_CONFIG); }
   async start() {
     this.#identity = await this.store.identity();
     for (const peer of await this.store.peers()) this.#capabilities.set(peer.node_id, peer.capabilities);
+    await this.shared?.load();
     // A process restart never claims an old connection is still alive.
     await this.store.query("UPDATE computer_peers SET status='unreachable',status_since=now() WHERE owner_user_id=$1::uuid AND status IN ('connected','needs_update')", [this.store.owner]);
     await this.#listen();
@@ -128,6 +143,7 @@ export class LinkedComputers {
       // through the authenticated control channel on its next reconnect.
       await this.store.remove(nodeId, true);
       this.#emit(nodeId, true);
+      this.shared?.changed();
       for (const connection of this.#active.get(nodeId) ?? []) connection.send({ body: { case: "unlinked", value: {} } });
       await new Promise((resolve) => setTimeout(resolve, 100));
       for (const connection of this.#active.get(nodeId) ?? []) connection.close();
@@ -176,6 +192,7 @@ export class LinkedComputers {
     if (body.case === "unlinked") {
       await this.store.remove(nodeId, false);
       this.#emit(nodeId, true);
+      this.shared?.changed();
       for (const c of this.#active.get(nodeId) ?? []) c.close();
       this.#dialing.get(nodeId)?.abort(); return;
     }
@@ -203,6 +220,10 @@ export class LinkedComputers {
           if (!this.hello().capabilities.includes(THREAD_MIRROR) || !connection.capabilities?.has(THREAD_MIRROR))
             throw new ConnectError("Thread mirrors need an update on both computers", Code.Unimplemented);
           yield* this.mirror.publish(request as link.MirrorRequest, this.options.serve, signal);
+        } else if (method.name === "PushSharedConfig") {
+          if (!this.shared || !this.#sharesConfig() || !connection.capabilities?.has(SHARED_CONFIG))
+            throw new ConnectError("Shared configuration needs an update on both computers", Code.Unimplemented);
+          yield await this.shared.receive(nodeId, request as link.SharedConfigPush);
         } else yield* this.options.serve(method, request, signal);
       }.bind(this),
         name: () => this.#names.get(nodeId) ?? "The other computer", allowed: async () => Boolean(await this.store.peer(nodeId)) });
@@ -215,6 +236,9 @@ export class LinkedComputers {
         connection.send({ body: { case: "welcome", value: { hello: local, protocol, updateNodeId } } });
         if (this.#announced !== "connected") connection.send({ body: { case: "presence", value: { state: this.#announced, announcedAtMs: BigInt(Date.now()) } } });
       }
+      // Both sides offer everything they share after each handshake; offline edits meet here.
+      if (protocol && this.#sharesConfig() && hello.capabilities.includes(SHARED_CONFIG)) setTimeout(() => void this.shared?.push(nodeId, true).catch(() => {}), 0);
+      this.shared?.changed();
     } else if (body.case === "presence") {
       if (!["updating", "sleeping", "shutting_down", "connected"].includes(body.value.state)) throw new ConnectError("Unknown presence state", Code.InvalidArgument);
       await this.#status(nodeId, body.value.state === "connected" && peer.update_node_id ? "needs_update" : body.value.state, peer.update_node_id);
@@ -255,6 +279,10 @@ export class LinkedComputers {
     if (this.#tickRunning || this.#stopped || this.#paused) return;
     this.#tickRunning = true;
     try {
+      if (this.shared && !this.#sharing) {
+        this.#sharing = true;
+        void this.configChanged().finally(() => { this.#sharing = false; });
+      }
       for (const peer of await this.store.peers()) {
         if (this.#stopped || this.#paused) break;
         this.#syncMirror(peer.node_id);
@@ -313,6 +341,14 @@ export class LinkedComputers {
     }
     const delay = Math.min(30_000, (this.#retry.get(peer.node_id)?.delay ?? 500) * 2);
     this.#retry.set(peer.node_id, { delay, at: Date.now() + delay + Math.random() * delay / 4 });
+  }
+  /** A local change of configuration (or the heartbeat): version shared items and send what peers lack. */
+  async configChanged() {
+    if (!this.shared || this.#stopped) return;
+    try {
+      await this.shared.scan();
+      await Promise.allSettled(this.shared.peers.ready().map((nodeId) => this.shared!.push(nodeId)));
+    } catch { /* retried on the next heartbeat */ }
   }
   // ------------------------------------------------------------------ stage 2: remote threads
 
@@ -404,6 +440,7 @@ export class LinkedComputers {
     this.#stopped = true;
     await this.announce(state === "shutting_down" && this.#announced === "updating" ? "updating" : state);
     clearInterval(this.#timer);
+    this.shared?.close();
     for (const controller of this.#dialing.values()) controller.abort();
     for (const controller of this.#mirroring.values()) controller.abort();
     for (const set of this.#active.values()) for (const c of set) c.close();

@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/computers.proto.
  */
 export const file_canopy_ui_v1_computers: GenFile = /*@__PURE__*/
-  fileDesc("ChxjYW5vcHkvdWkvdjEvY29tcHV0ZXJzLnByb3RvEgxjYW5vcHkudWkudjEisQIKDkxpbmtlZENvbXB1dGVyEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglhZGRyZXNzZXMYAyADKAkSEwoLZmluZ2VycHJpbnQYBCABKAkSEwoLYXBwX3ZlcnNpb24YBSABKAkSFAoMbWluX3Byb3RvY29sGAYgASgNEhQKDG1heF9wcm90b2NvbBgHIAEoDRIOCgZzdGF0dXMYCCABKAkSFwoPc3RhdHVzX3NpbmNlX21zGAkgASgDEhQKDGxhc3Rfc2Vlbl9tcxgKIAEoAxIUCgxsaW5rZWRfYXRfbXMYCyABKAMSFgoOdXBkYXRlX25vZGVfaWQYDCABKAkSFAoMZGlzcGxheV9uYW1lGA0gASgJEhQKDGNhcGFiaWxpdGllcxgOIAMoCSISChBDb21wdXRlcnNSZXF1ZXN0IqIBChFDb21wdXRlcnNTbmFwc2hvdBIqCgRzZWxmGAEgASgLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyEisKBXBlZXJzGAIgAygLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyEhgKEGxpc3RlbmVyX2VuYWJsZWQYAyABKAgSGgoSbGlzdGVuZXJfYXZhaWxhYmxlGAQgASgIIh4KHENyZWF0ZUNvbXB1dGVyUGFpcmluZ1JlcXVlc3QiVQoPQ29tcHV0ZXJQYWlyaW5nEgoKAmlkGAEgASgJEgwKBGNvZGUYAiABKAkSFQoNZXhwaXJlc19hdF9tcxgDIAEoAxIRCglhZGRyZXNzZXMYBCADKAkiNAoTTGlua0NvbXB1dGVyUmVxdWVzdBIPCgdhZGRyZXNzGAEgASgJEgwKBGNvZGUYAiABKAkiWgoYQ29tcHV0ZXJPcGVyYXRpb25SZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIPCgdub2RlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSDwoHZW5hYmxlZBgEIAEoCGIGcHJvdG8z");
+  fileDesc("ChxjYW5vcHkvdWkvdjEvY29tcHV0ZXJzLnByb3RvEgxjYW5vcHkudWkudjEisQIKDkxpbmtlZENvbXB1dGVyEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglhZGRyZXNzZXMYAyADKAkSEwoLZmluZ2VycHJpbnQYBCABKAkSEwoLYXBwX3ZlcnNpb24YBSABKAkSFAoMbWluX3Byb3RvY29sGAYgASgNEhQKDG1heF9wcm90b2NvbBgHIAEoDRIOCgZzdGF0dXMYCCABKAkSFwoPc3RhdHVzX3NpbmNlX21zGAkgASgDEhQKDGxhc3Rfc2Vlbl9tcxgKIAEoAxIUCgxsaW5rZWRfYXRfbXMYCyABKAMSFgoOdXBkYXRlX25vZGVfaWQYDCABKAkSFAoMZGlzcGxheV9uYW1lGA0gASgJEhQKDGNhcGFiaWxpdGllcxgOIAMoCSISChBDb21wdXRlcnNSZXF1ZXN0IqIBChFDb21wdXRlcnNTbmFwc2hvdBIqCgRzZWxmGAEgASgLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyEisKBXBlZXJzGAIgAygLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyEhgKEGxpc3RlbmVyX2VuYWJsZWQYAyABKAgSGgoSbGlzdGVuZXJfYXZhaWxhYmxlGAQgASgIIh4KHENyZWF0ZUNvbXB1dGVyUGFpcmluZ1JlcXVlc3QiVQoPQ29tcHV0ZXJQYWlyaW5nEgoKAmlkGAEgASgJEgwKBGNvZGUYAiABKAkSFQoNZXhwaXJlc19hdF9tcxgDIAEoAxIRCglhZGRyZXNzZXMYBCADKAkiNAoTTGlua0NvbXB1dGVyUmVxdWVzdBIPCgdhZGRyZXNzGAEgASgJEgwKBGNvZGUYAiABKAkiWgoYQ29tcHV0ZXJPcGVyYXRpb25SZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIPCgdub2RlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSDwoHZW5hYmxlZBgEIAEoCCK0AQoQU2hhcmVkQ29uZmlnSXRlbRILCgNrZXkYASABKAkSDAoEa2luZBgCIAEoCRINCgVsYWJlbBgDIAEoCRIOCgZzaGFyZWQYBCABKAgSDwoHdmVyc2lvbhgFIAEoBBIaChJjaGFuZ2VkX2J5X25vZGVfaWQYBiABKAkSFQoNY2hhbmdlZF9hdF9tcxgHIAEoAxIMCgRub3RlGAggASgJEhQKDG5vdGVfbm9kZV9pZBgJIAEoCSJAChFTaGFyZWRDb25maWdGaWVsZBIMCgRuYW1lGAEgASgJEg0KBWxvY2FsGAIgASgJEg4KBnJlbW90ZRgDIAEoCSK4AQoUU2hhcmVkQ29uZmlnQ29uZmxpY3QSCwoDa2V5GAEgASgJEgwKBGtpbmQYAiABKAkSDQoFbGFiZWwYAyABKAkSDwoHbm9kZV9pZBgEIAEoCRIWCg5kZXRlY3RlZF9hdF9tcxgFIAEoAxIcChRyZW1vdGVfY2hhbmdlZF9hdF9tcxgGIAEoAxIvCgZmaWVsZHMYByADKAsyHy5jYW5vcHkudWkudjEuU2hhcmVkQ29uZmlnRmllbGQimwEKFFNoYXJlZENvbmZpZ1NuYXBzaG90Ei0KBWl0ZW1zGAEgAygLMh4uY2Fub3B5LnVpLnYxLlNoYXJlZENvbmZpZ0l0ZW0SNQoJY29uZmxpY3RzGAIgAygLMiIuY2Fub3B5LnVpLnYxLlNoYXJlZENvbmZpZ0NvbmZsaWN0Eh0KFW5lZWRzX3VwZGF0ZV9ub2RlX2lkcxgDIAMoCSIVChNTaGFyZWRDb25maWdSZXF1ZXN0IkUKFVNoYXJlZENvbmZpZ09wZXJhdGlvbhIOCgZhY3Rpb24YASABKAkSCwoDa2V5GAIgASgJEg8KB25vZGVfaWQYAyABKAliBnByb3RvMw");
 
 /**
  * @generated from message canopy.ui.v1.LinkedComputer
@@ -241,4 +241,221 @@ export type ComputerOperationRequest = Message<"canopy.ui.v1.ComputerOperationRe
  */
 export const ComputerOperationRequestSchema: GenMessage<ComputerOperationRequest> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_computers, 6);
+
+/**
+ * Stage 4: configuration shared between linked computers. Items are opt-in; everything else stays
+ * on this computer. Secret values are never part of these messages.
+ *
+ * @generated from message canopy.ui.v1.SharedConfigItem
+ */
+export type SharedConfigItem = Message<"canopy.ui.v1.SharedConfigItem"> & {
+  /**
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * instance, models, settings, project
+   *
+   * @generated from field: string kind = 2;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string label = 3;
+   */
+  label: string;
+
+  /**
+   * @generated from field: bool shared = 4;
+   */
+  shared: boolean;
+
+  /**
+   * Sum of the version vector; grows with every change on any computer.
+   *
+   * @generated from field: uint64 version = 5;
+   */
+  version: bigint;
+
+  /**
+   * Empty: this computer.
+   *
+   * @generated from field: string changed_by_node_id = 6;
+   */
+  changedByNodeId: string;
+
+  /**
+   * @generated from field: int64 changed_at_ms = 7;
+   */
+  changedAtMs: bigint;
+
+  /**
+   * Why a copy became local: deleted / unshared on another computer (see note_node_id).
+   *
+   * @generated from field: string note = 8;
+   */
+  note: string;
+
+  /**
+   * @generated from field: string note_node_id = 9;
+   */
+  noteNodeId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.SharedConfigItem.
+ * Use `create(SharedConfigItemSchema)` to create a new message.
+ */
+export const SharedConfigItemSchema: GenMessage<SharedConfigItem> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 7);
+
+/**
+ * @generated from message canopy.ui.v1.SharedConfigField
+ */
+export type SharedConfigField = Message<"canopy.ui.v1.SharedConfigField"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string local = 2;
+   */
+  local: string;
+
+  /**
+   * @generated from field: string remote = 3;
+   */
+  remote: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.SharedConfigField.
+ * Use `create(SharedConfigFieldSchema)` to create a new message.
+ */
+export const SharedConfigFieldSchema: GenMessage<SharedConfigField> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 8);
+
+/**
+ * @generated from message canopy.ui.v1.SharedConfigConflict
+ */
+export type SharedConfigConflict = Message<"canopy.ui.v1.SharedConfigConflict"> & {
+  /**
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * @generated from field: string kind = 2;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string label = 3;
+   */
+  label: string;
+
+  /**
+   * @generated from field: string node_id = 4;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: int64 detected_at_ms = 5;
+   */
+  detectedAtMs: bigint;
+
+  /**
+   * @generated from field: int64 remote_changed_at_ms = 6;
+   */
+  remoteChangedAtMs: bigint;
+
+  /**
+   * Only the differing fields. Secrets appear as "Set" / "Changed", never as values.
+   *
+   * @generated from field: repeated canopy.ui.v1.SharedConfigField fields = 7;
+   */
+  fields: SharedConfigField[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.SharedConfigConflict.
+ * Use `create(SharedConfigConflictSchema)` to create a new message.
+ */
+export const SharedConfigConflictSchema: GenMessage<SharedConfigConflict> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 9);
+
+/**
+ * @generated from message canopy.ui.v1.SharedConfigSnapshot
+ */
+export type SharedConfigSnapshot = Message<"canopy.ui.v1.SharedConfigSnapshot"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.SharedConfigItem items = 1;
+   */
+  items: SharedConfigItem[];
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.SharedConfigConflict conflicts = 2;
+   */
+  conflicts: SharedConfigConflict[];
+
+  /**
+   * Linked computers that cannot share configuration yet (an older Canopy): they keep their own.
+   *
+   * @generated from field: repeated string needs_update_node_ids = 3;
+   */
+  needsUpdateNodeIds: string[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.SharedConfigSnapshot.
+ * Use `create(SharedConfigSnapshotSchema)` to create a new message.
+ */
+export const SharedConfigSnapshotSchema: GenMessage<SharedConfigSnapshot> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 10);
+
+/**
+ * @generated from message canopy.ui.v1.SharedConfigRequest
+ */
+export type SharedConfigRequest = Message<"canopy.ui.v1.SharedConfigRequest"> & {
+};
+
+/**
+ * Describes the message canopy.ui.v1.SharedConfigRequest.
+ * Use `create(SharedConfigRequestSchema)` to create a new message.
+ */
+export const SharedConfigRequestSchema: GenMessage<SharedConfigRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 11);
+
+/**
+ * @generated from message canopy.ui.v1.SharedConfigOperation
+ */
+export type SharedConfigOperation = Message<"canopy.ui.v1.SharedConfigOperation"> & {
+  /**
+   * share, unshare, keep_local, keep_remote
+   *
+   * @generated from field: string action = 1;
+   */
+  action: string;
+
+  /**
+   * @generated from field: string key = 2;
+   */
+  key: string;
+
+  /**
+   * keep_local / keep_remote: the computer of the conflict.
+   *
+   * @generated from field: string node_id = 3;
+   */
+  nodeId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.SharedConfigOperation.
+ * Use `create(SharedConfigOperationSchema)` to create a new message.
+ */
+export const SharedConfigOperationSchema: GenMessage<SharedConfigOperation> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 12);
 

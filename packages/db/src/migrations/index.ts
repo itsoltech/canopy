@@ -46,6 +46,7 @@ import mobileDevices from "./0046_mobile_devices.sql" with { type: "text" };
 import workerSsh from "./0047_worker_ssh.sql" with { type: "text" };
 import linkedComputers from "./0048_linked_computers.sql" with { type: "text" };
 import threadMirrors from "./0049_thread_mirrors.sql" with { type: "text" };
+import sharedConfig from "./0050_shared_config.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -108,6 +109,7 @@ export const migrations = Migrator.fromRecord({
   "0047_worker_ssh": sqlFile(workerSsh),
   "0048_linked_computers": sqlFile(linkedComputers),
   "0049_thread_mirrors": sqlFile(threadMirrors),
+  "0050_shared_config": sqlFile(sharedConfig),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

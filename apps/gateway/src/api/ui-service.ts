@@ -15,6 +15,12 @@ function computers(core: GatewayCore) {
   return core.computers;
 }
 
+function shared(core: GatewayCore) {
+  const config = computers(core).shared;
+  if (!config) throw new ConnectError("Shared configuration is not available on this computer", Code.FailedPrecondition);
+  return config;
+}
+
 export type UiHandlers = ServiceImpl<typeof ui.GatewayService>;
 
 /** GatewayService for the UI (docs/ui-api.md), with threads of linked computers routed to their home (routed.ts). */
@@ -29,6 +35,8 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     createComputerPairing: () => computerGuard(() => computers(core).createPairing()),
     linkComputer: (r) => computerGuard(() => computers(core).pair(r.address, r.code)),
     manageComputer: (r) => computerGuard(() => computers(core).manage(r)),
+    getSharedConfig: () => computerGuard(() => shared(core).snapshot()),
+    manageSharedConfig: (r) => computerGuard(() => shared(core).manage(r)),
     fetchWorkerInstall: (request, context) => workerInstall(core.updates, request, context.signal),
     workerSsh: (request, context) => core.workerSsh.run(request, context.signal),
     getUpdates: () => core.updates.snapshot(),

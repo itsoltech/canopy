@@ -320,6 +320,8 @@ export interface TestGateway {
   readonly api: Client<typeof ui.GatewayService>;
   readonly grpcUrl: string;
   readonly userId: string;
+  /** CANOPY_SECRETS_KEY of this gateway (linked computers re-encrypt shared secrets with their own). */
+  readonly secretsKey: Buffer;
   readonly worker: ScriptedWorker;
   readonly workerId: string;
   /** Ephemeral credential for reconnecting the fixture's primary worker after a gateway restart. */
@@ -402,6 +404,7 @@ export async function startTestGateway(options: { cliLatest?: GatewayCoreOptions
     api,
     grpcUrl: grpc.url,
     userId,
+    secretsKey,
     worker,
     workerId: laptop.workerId,
     workerCredential: laptop.credential,
