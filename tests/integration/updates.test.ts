@@ -1,16 +1,16 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { connect as http2Connect } from "node:http2";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ui, update } from "@canopy/contracts";
 import { createWorkerLink } from "@canopy/gateway/worker-link";
 import { openGatewayLink } from "@canopy/worker/gateway-link";
 import { createGrpcClientTransport, startGrpcServer } from "@canopy/transport";
-import { ReleaseMirror, ReleaseSource, confirmStartup, readUpdateRecord, type ReleaseManifest } from "../../packages/updater/src/index.ts";
+import { ReleaseMirror, ReleaseSource, confirmStartup, readUpdateRecord, stageBinaryUpdate, type ReleaseManifest } from "../../packages/updater/src/index.ts";
 import { GatewayUpdateService } from "../../apps/gateway/src/updates/service.ts";
 import { WorkerUpdates } from "../../apps/worker/src/update-link.ts";
 import { GatewayUpdates } from "../../apps/gateway/src/updates/runtime.ts";
@@ -52,6 +52,138 @@ async function fixture() {
   const client = createClient(update.UpdateService, createGrpcClientTransport({ baseUrl: server.url }));
   return { dir, bytes, manifest, mirror, reports, service, server, client, downloads: () => downloads, revoke: () => { valid = false; service.disconnect("worker"); } };
 }
+
+describe.skipIf(process.platform === "win32")("standalone supervisor handover", () => {
+  let builds: string;
+  const versions = ["1.0.0", "2.0.0", "3.0.0", "4.0.0"];
+  beforeAll(async () => {
+    builds = await mkdtemp(join(tmpdir(), "canopy-supervisor-builds-"));
+    for (const version of versions) {
+      const result = await Bun.build({ entrypoints: [join(import.meta.dir, "fixtures/updater-binary.ts")], target: "bun",
+        define: { "process.env.CANOPY_VERSION": JSON.stringify(version) },
+        compile: { outfile: join(builds, version) },
+      });
+      if (!result.success) throw new AggregateError(result.logs, "Supervisor fixture compilation failed");
+    }
+  }, 60_000);
+  afterAll(async () => { if (builds) await rm(builds, { recursive: true, force: true }); });
+  interface Event { type: string; version: string; pid: number; parent?: number; args?: string[]; active?: boolean; exitCode?: number; message?: string }
+  const residentHealthy = (all: Event[], version: string) => all.some((event, index) => event.type === "supervisor" && event.version === version &&
+    all.slice(index + 1).some((next) => next.type === "healthy" && next.version === version));
+  async function start(env: NodeJS.ProcessEnv = {}, alreadyConfirmed = false) {
+    const directory = await mkdtemp(join(tmpdir(), "canopy-supervisor-process-"));
+    cleanups.push(() => rm(directory, { recursive: true, force: true }));
+    const binaryPath = join(directory, "installed");
+    await copyFile(join(builds, "1.0.0"), binaryPath);
+    async function stage(version: string, previousVersion: string) {
+      const bytes = await readFile(join(builds, version));
+      await stageBinaryUpdate({ binaryPath, currentVersion: previousVersion, version, commandId: `update-${version}`,
+        asset: { app: "worker", os: process.platform === "darwin" ? "darwin" : "linux", arch: process.arch === "arm64" ? "arm64" : "x64", name: "fixture", url: "https://release.fixture/binary",
+          size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") },
+        chunks: (async function* () { yield bytes; })(),
+      });
+    }
+    if (alreadyConfirmed) { await stage("2.0.0", "1.0.0"); await confirmStartup(binaryPath, "2.0.0"); }
+    // In the startup regression, A is already mapped while the installed, confirmed executable is B.
+    const proc = Bun.spawn([alreadyConfirmed ? join(builds, "1.0.0") : binaryPath, "--fixture-arg"], {
+      env: { ...process.env, ...env, CANOPY_TEST_DIRECTORY: directory, CANOPY_SUPERVISED: "" }, stdout: "ignore", stderr: "pipe",
+    });
+    const errors = new Response(proc.stderr).text();
+    cleanups.push(async () => {
+      if (proc.exitCode === null) proc.kill("SIGTERM");
+      expect(await proc.exited).toBe(0);
+      expect(await errors).toBe("");
+    });
+    async function events(): Promise<Event[]> {
+      try { return (await readFile(join(directory, "events.jsonl"), "utf8")).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as Event); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
+    }
+    async function wait(predicate: (events: Event[]) => boolean) {
+      const deadline = Date.now() + 8000;
+      for (;;) {
+        const all = await events();
+        if (predicate(all)) return all;
+        if (proc.exitCode !== null || Date.now() >= deadline) throw new Error(`Supervisor fixture did not reach expected state: ${JSON.stringify(all)}; ${proc.exitCode === null ? "still running" : await errors}`);
+        await Bun.sleep(10);
+      }
+    }
+    const command = (value: { idle?: boolean; restart?: boolean }) => writeFile(join(directory, "command.json"), JSON.stringify(value));
+    return { proc, stage, events, wait, command, binaryPath };
+  }
+  for (const app of ["worker", "gateway"]) {
+    test(`${app}: A -> B -> C replaces supervisor code with the same PID after active work drains`, async () => {
+      const f = await start({ CANOPY_TEST_APP: app, CANOPY_TEST_BUSY_VERSION: "2.0.0" });
+      await f.wait((all) => all.some((e) => e.type === "healthy" && e.version === "1.0.0"));
+      await f.stage("2.0.0", "1.0.0"); await f.command({ restart: true });
+      await f.wait((all) => all.some((e) => e.type === "drain" && e.version === "2.0.0"));
+      await Bun.sleep(80);
+      expect((await f.events()).filter((e) => e.type === "supervisor").map((e) => e.version)).toEqual(["1.0.0"]);
+      expect((await f.events()).some((e) => e.type === "stopped" && e.version === "2.0.0")).toBe(false);
+      await f.command({ idle: true });
+      await f.wait((all) => residentHealthy(all, "2.0.0"));
+      await f.stage("3.0.0", "2.0.0"); await f.command({ restart: true });
+      const all = await f.wait((events) => residentHealthy(events, "3.0.0"));
+      const supervisors = all.filter((e) => e.type === "supervisor");
+      expect(supervisors.map((e) => e.version)).toEqual(["1.0.0", "2.0.0", "3.0.0"]);
+      expect(supervisors.every((e) => e.pid === f.proc.pid && e.args?.[0] === "--fixture-arg")).toBe(true);
+      expect(all.filter((e) => e.type === "child").every((e) => e.parent === f.proc.pid)).toBe(true);
+      expect(all.filter((e) => e.exitCode === 76).every((e) => e.active === false)).toBe(true);
+      expect(all.some((e) => e.message?.includes("rolled back"))).toBe(false);
+      expect(await readUpdateRecord(f.binaryPath)).toBeUndefined();
+      await Bun.sleep(80);
+      expect((await f.events()).filter((e) => e.type === "supervisor")).toHaveLength(3);
+    }, 20_000);
+  }
+  for (const failure of ["23", "75", "76", "timeout"]) {
+    test(`unconfirmed candidate (${failure}) rolls back without handing over`, async () => {
+      const f = await start({ CANOPY_TEST_FAILURE: failure });
+      await f.wait((all) => all.some((e) => e.type === "healthy"));
+      await f.stage("4.0.0", "1.0.0"); await f.command({ restart: true });
+      const all = await f.wait((events) => events.filter((e) => e.type === "healthy" && e.version === "1.0.0").length === 2);
+      expect(all.filter((e) => e.type === "supervisor").map((e) => e.version)).toEqual(["1.0.0"]);
+      expect(all.some((e) => e.exitCode === 76)).toBe(false);
+      expect(await readUpdateRecord(f.binaryPath)).toMatchObject({ state: "failed", reason: expect.stringContaining(failure === "timeout" ? "deadline" : `exit ${failure}`) });
+    }, 10_000);
+  }
+  test("an update staged during handover keeps its watchdog and can still roll back", async () => {
+    const f = await start({ CANOPY_TEST_BUSY_VERSION: "2.0.0" });
+    await f.wait((all) => all.some((e) => e.type === "healthy"));
+    await f.stage("2.0.0", "1.0.0"); await f.command({ restart: true });
+    await f.wait((all) => all.some((e) => e.type === "drain" && e.version === "2.0.0"));
+    // Replacement races with B's drain: exit 76 must not exec the unproven D or roll it back before trying it.
+    await f.stage("4.0.0", "2.0.0"); await f.command({ idle: true });
+    const all = await f.wait((events) => residentHealthy(events, "2.0.0"));
+    expect(all.filter((e) => e.type === "supervisor").map((e) => e.version)).toEqual(["1.0.0", "2.0.0"]);
+    expect(all.filter((e) => e.type === "child").map((e) => e.version)).toEqual(["1.0.0", "2.0.0", "4.0.0", "2.0.0", "2.0.0"]);
+    expect(await readUpdateRecord(f.binaryPath)).toMatchObject({ state: "failed", version: "4.0.0", previousVersion: "2.0.0" });
+  }, 10_000);
+  test("an older supervisor hands over an already confirmed installation exactly once", async () => {
+    const f = await start({}, true);
+    const all = await f.wait((events) => residentHealthy(events, "2.0.0"));
+    expect(all.filter((e) => e.type === "supervisor").map((e) => [e.version, e.pid])).toEqual([["1.0.0", f.proc.pid], ["2.0.0", f.proc.pid]]);
+    await Bun.sleep(80);
+    expect((await f.events()).filter((e) => e.type === "supervisor")).toHaveLength(2);
+  }, 10_000);
+  test("matching supervisor and child versions do not restart", async () => {
+    const f = await start();
+    await f.wait((all) => all.some((e) => e.type === "healthy"));
+    await Bun.sleep(80);
+    expect((await f.events()).map((e) => e.type)).toEqual(["supervisor", "child", "healthy"]);
+  });
+  test("execve failure keeps supervising instead of exiting or retrying in a loop", async () => {
+    const f = await start({ CANOPY_TEST_EXECVE: "throws" });
+    await f.wait((all) => all.some((e) => e.type === "healthy"));
+    await f.stage("2.0.0", "1.0.0"); await f.command({ restart: true });
+    await f.wait((all) => all.some((e) => e.message?.includes("fixture execve failure")) &&
+      all.some((e, index) => e.type === "stopped" && e.exitCode === 76 && all.slice(index + 1).some((next) => next.type === "healthy" && next.version === "2.0.0")));
+    await Bun.sleep(80);
+    const all = await f.events();
+    expect(all.filter((e) => e.type === "supervisor")).toHaveLength(1);
+    expect(all.filter((e) => e.message?.includes("fixture execve failure"))).toHaveLength(1);
+    expect(all.filter((e) => e.exitCode === 76)).toHaveLength(1);
+    expect(f.proc.exitCode).toBeNull();
+  }, 10_000);
+});
 
 describe("independent update service and gateway mirror", () => {
   test("exposes minimal health/version over HTTP/2 for a load balancer", async () => {

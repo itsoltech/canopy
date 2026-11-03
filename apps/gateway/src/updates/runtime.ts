@@ -4,7 +4,7 @@ import { ui, update } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { UPDATE_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
 import { compareVersions, confirmStartup, installKind, managedInstructions, normalizeChannel, readUpdateRecord, ReleaseMirror, ReleaseSource, releaseAsset, stageBinaryUpdate, validChannel, whenIdle,
-  type InstallKind, type ReleaseManifest, type ReleaseSourceOptions } from "@canopy/updater";
+  SUPERVISOR_HANDOVER_EXIT_CODE, type InstallKind, type ReleaseManifest, type ReleaseSourceOptions } from "@canopy/updater";
 import type { UpdatePersistence, WorkerUpdateRow } from "./persistence.ts";
 import { GatewayUpdateService } from "./service.ts";
 
@@ -17,7 +17,7 @@ export interface GatewayUpdatesOptions {
   version?: string;
   kind?: InstallKind;
   binaryPath?: string;
-  restart?(): Promise<void>;
+  restart?(exitCode?: number): Promise<void>;
   idle?(): Promise<boolean>;
   drain?(value: boolean): void;
   log?(message: string): void;
@@ -73,6 +73,19 @@ export class GatewayUpdates {
     this.#timer = setInterval(() => void this.check(), this.options.pollMs ?? 15 * 60_000);
   }
   close(): void { this.#ready = false; if (this.#timer) clearInterval(this.#timer); this.#stopping.abort(); this.service.close(); }
+  async handover(): Promise<void> {
+    if (!this.#ready || this.kind !== "binary" || !this.options.restart || updateBusyState(this.#state)) return;
+    const previousState = this.#state, previousReason = this.#reason;
+    this.#state = "waiting_idle";
+    this.#reason = "Waiting for active turns before supervisor handover";
+    try {
+      await whenIdle({ idle: () => this.options.idle?.() ?? true,
+        drain: (value) => { this.#draining = value; this.options.drain?.(value); }, signal: this.#stopping.signal,
+        waiting: async () => { this.options.log?.("supervisor handover: waiting for active turns to finish"); },
+        apply: () => this.options.restart!(SUPERVISOR_HANDOVER_EXIT_CODE),
+      });
+    } finally { this.#state = previousState; this.#reason = previousReason; }
+  }
   check(): Promise<void> {
     return this.#checking ??= (async () => {
       try {

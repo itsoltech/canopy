@@ -12,7 +12,7 @@ import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
 import { enrollWorker, workerCommand, workerServiceSnippet } from "./enroll.ts";
 import { desktopStatus, workerOnline } from "./desktop-status.ts";
-import { confirmStartup, installKind, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
+import { confirmStartup, installKind, onSupervisorHandover, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
 import { WorkerUpdates } from "./update-link.ts";
 
 const cliArgs = Bun.argv.slice(2);
@@ -95,15 +95,16 @@ const updates = new WorkerUpdates({ baseUrl: local.gateway_url, credential: loca
     else if (!stopping.signal.aborted) currentLink?.close();
   },
   log: (message) => console.info(message),
-  restart: async () => {
+  restart: async (exitCode = UPDATE_RESTART_EXIT_CODE) => {
     stopping.abort();
     await host.shutdown();
     await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false);
     currentLink?.close(); shutdown.abort();
     await runtime.dispose();
-    process.exit(UPDATE_RESTART_EXIT_CODE);
+    process.exit(exitCode);
   },
 });
+if (installKind() === "binary") onSupervisorHandover(() => updates.handover(), (message) => console.info(message));
 const updateLoop = updates.run();
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
@@ -203,3 +204,4 @@ await host.close();
 shutdown.abort();
 await updateLoop;
 await runtime.dispose();
+if (process.connected) process.disconnect?.();

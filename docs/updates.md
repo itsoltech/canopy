@@ -133,8 +133,9 @@ próbę czytelnym błędem i pozostawia bieżącą binarkę.
 
 Binarka uruchamia proces nadzorujący i właściwy proces usługi. Kod wyjścia **75**
 żąda ponownego uruchomienia executable. Ten sam mechanizm działa na pierwszym
-planie i pod systemd/launchd. Stary supervisor pozostaje w pamięci, dzięki czemu
-potrafi przywrócić `.bak`, nawet gdy nowa binarka w ogóle się nie uruchamia.
+planie i pod systemd/launchd. Stary supervisor pozostaje w pamięci do potwierdzenia
+nowej wersji, dzięki czemu potrafi przywrócić `.bak`, nawet gdy nowa binarka w ogóle
+się nie uruchamia.
 Zwykłe zakończenie nie wywołuje restartu supervisora; politykę awarii ustala
 menedżer usług. Drukowane unit/plist mają `Restart=always` / `KeepAlive=true`.
 Gateway `service` drukuje unit z `EnvironmentFile=%h/.config/canopy/gateway.env`;
@@ -143,7 +144,37 @@ przygotuj ten prywatny plik samodzielnie z istniejącą konfiguracją gatewaya.
 Nowy gateway potwierdza start po uruchomieniu DB, listenerów i aktualizatora;
 worker po otrzymaniu WorkerLink Welcome. Jeśli proces wcześniej wyjdzie albo
 nie potwierdzi startu w **90 sekund**, supervisor przywraca `.bak` i uruchamia
-poprzednią wersję. Worker raportuje utrwalony sukces/błąd przed następnym Watch.
+poprzednią wersję. Potwierdzenie trafia też przez lokalne IPC do supervisora;
+raportowanie i usunięcie `.update.json` nie mogą zgubić tego sygnału.
+
+Jeżeli wersja potwierdzonego dziecka różni się od wersji supervisora, supervisor
+prosi je przez IPC o przekazanie nadzoru. Dziecko używa tej samej blokady aktualizacji
+i bariery przyjmowania pracy: worker czeka na tury, generacje i zadania w tle,
+gateway na tury workerów i botów. Nie wymusza przerwania pracy. Po opróżnieniu
+wykonuje zwykłe zamknięcie zasobów i wychodzi z wewnętrznym kodem **76**.
+Dopiero wtedy supervisor wykonuje `process.execve` na potwierdzonej binarce:
+zachowuje PID, argumenty i środowisko usługi oraz standardowe strumienie,
+a nowy supervisor uruchamia właściwy proces usługi. Zdrowe dziecko uruchamia się
+zatem drugi raz; żadne aktywne zadanie nie jest z tego powodu przerywane.
+Kod 76 jest obsługiwany wewnętrznie, nie wymaga restartu przez menedżera usług.
+
+Obsługa `process.execve` jest zweryfikowana na przypiętym Bun **1.4.4** przez testy
+skompilowanych binariów. Mechanizm działa również na pierwszym planie bez
+systemd/launchd. Brak API lub błąd `execve` pozostawia dotychczasowy supervisor
+aktywny (po błędzie uruchamia on ponownie potwierdzone dziecko), wyłącza dalsze
+próby przekazania w tym procesie i zapisuje komunikat o potrzebie restartu usługi.
+Nie uruchamia niepotwierdzonego executable przez `execve`; kolejna aktualizacja
+zachowuje własny watchdog i rollback. Sprawdza też, czy plik nie został ponownie
+podmieniony od startu potwierdzonego dziecka.
+
+Potwierdzenie startupu jest wysyłane także wtedy, gdy wynik aktualizacji został już
+zgłoszony albo binarka na dysku była potwierdzona przed startem dziecka. Starszy
+supervisor z tym mechanizmem przechodzi wówczas na wersję dziecka jeden raz;
+zgodne wersje nie wywołują kolejnego przekazania. **Supervisor sprzed dodania tego
+mechanizmu wymaga jednego ręcznego restartu usługi**, żeby załadować jego obsługę.
+Nie da się zmienić kodu procesu, który nie zna protokołu przekazania.
+
+Worker raportuje utrwalony sukces/błąd przed następnym Watch.
 Metadane UI i polecenia pozostają w istniejącym JSONB `workers.capabilities`
 (`update`, `updateCommand`); migracja schematu nie jest potrzebna.
 
@@ -185,5 +216,7 @@ instalacje i aktualizacje na kliknięcie, źródła najnowszych wersji i przepis
   procesu i potrafi uruchomić usługę oraz rollback.
 - Rollback obejmuje executable, nie migracje bazy. Release wymagający nieodwracalnej
   migracji musi mieć osobny plan wdrożenia; migracje muszą tolerować powrót binarki.
-- Testy obejmują lokalny fixture release, realny gRPC i PostgreSQL oraz błędne
-  executable. Rzeczywiste publikacje GHCR/GitHub Releases należą do pipeline.
+- Testy obejmują lokalny fixture release, realny gRPC i PostgreSQL oraz skompilowane
+  binaria: A → B → C z niezmiennym PID supervisora, oczekiwanie na pracę w toku,
+  rollback przed potwierdzeniem, start ze starszym supervisorem i brak pętli
+  restartów. Rzeczywiste publikacje GHCR/GitHub Releases należą do pipeline.

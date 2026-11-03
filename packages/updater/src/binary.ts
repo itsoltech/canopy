@@ -7,6 +7,10 @@ import { compareVersions, releaseFetch, type InstallKind, type ReleaseAsset, typ
 
 /** The child requests a restart; the resident old supervisor remains the rollback watchdog. */
 export const UPDATE_RESTART_EXIT_CODE = 75;
+/** A confirmed child has drained and stopped so its supervisor can replace itself. */
+export const SUPERVISOR_HANDOVER_EXIT_CODE = 76;
+const STARTUP_CONFIRMED = "canopy:startup-confirmed";
+const SUPERVISOR_HANDOVER = "canopy:supervisor-handover";
 export interface UpdateRecord {
   commandId: string;
   previousVersion: string;
@@ -120,6 +124,17 @@ export async function stageBinaryUpdate(options: StageUpdateOptions): Promise<vo
 export async function confirmStartup(binaryPath = process.execPath, version = CANOPY_VERSION): Promise<void> {
   const record = await readUpdateRecord(binaryPath);
   if (record?.state === "restarting" && record.version === version) await recordUpdate(binaryPath, { ...record, state: "succeeded" });
+  // Unlike the result file, IPC cannot be consumed by the worker's progress reporter before the watchdog sees it.
+  // Send on every healthy startup, including an already confirmed binary started by an older supervisor.
+  if (process.connected) process.send?.({ type: STARTUP_CONFIRMED, version });
+}
+
+/** Only standalone entrypoints install this listener; the callback shares their ordinary update/drain lock. */
+export function onSupervisorHandover(handover: () => Promise<void>, log: (message: string) => void): void {
+  process.on("message", (message: unknown) => {
+    if (!message || typeof message !== "object" || !("type" in message) || message.type !== SUPERVISOR_HANDOVER) return;
+    void handover().catch((error: unknown) => log(`supervisor handover deferred: ${error instanceof Error ? error.message : String(error)}`));
+  });
 }
 export async function rollbackBinary(binaryPath: string, reason: string): Promise<void> {
   const record = await readUpdateRecord(binaryPath);
@@ -139,10 +154,15 @@ export interface SupervisorOptions {
 /**
  * The supervisor runs from the previous executable already mapped in memory. It can restore .bak even
  * if the candidate cannot execute at all. Both foreground and service installs use the same watchdog.
+ * Only after confirmation and an idle child exit does execve replace it, retaining the manager's PID.
  * It forwards user signals and never restarts an ordinary exit; systemd/launchd own crash restart policy.
  */
 export async function superviseBinary(options: SupervisorOptions): Promise<number> {
-  const env = { ...process.env, ...options.env, CANOPY_SUPERVISED: "1" };
+  const supervisorEnv = { ...process.env, ...options.env };
+  delete supervisorEnv["CANOPY_SUPERVISED"];
+  const env = { ...supervisorEnv, CANOPY_SUPERVISED: "1" };
+  let handoverUnavailable = process.platform === "win32" || !process.execve;
+  let handoverUnavailableLogged = false;
   let stopped = false;
   let child: ReturnType<typeof Bun.spawn> | undefined;
   const signals = ["SIGINT", "SIGTERM"] as const;
@@ -155,11 +175,37 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
       // The update this child must prove (by confirming startup). Once it has, a later "restarting" record is its own
       // next update (a new commandId), whose exit 75 is a normal restart request, not a failed candidate.
       const candidate = pending?.state === "restarting" ? pending.commandId : undefined;
+      const expectedVersion = pending?.state === "failed" ? pending.previousVersion : pending?.version;
       const unconfirmed = (record: UpdateRecord | undefined) => candidate !== undefined && record?.state === "restarting" && record.commandId === candidate;
       const deadline = Date.now() + (options.startupTimeoutMs ?? 90_000);
       let rolledBack = false;
+      let confirmedVersion: string | undefined;
+      let handoverRequested = false;
+      let executable: Awaited<ReturnType<typeof lstat>>;
+      const requestHandover = () => {
+        if (stopped || !child || child.exitCode !== null || !confirmedVersion || confirmedVersion === CANOPY_VERSION) return;
+        if (handoverUnavailable) {
+          if (!handoverUnavailableLogged) options.log?.("supervisor handover unavailable: restart the service to load the installed supervisor");
+          handoverUnavailableLogged = true;
+          return;
+        }
+        try {
+          child.send({ type: SUPERVISOR_HANDOVER });
+          handoverRequested = true;
+        } catch {
+          // The child can disconnect IPC while stopping. Its exit, not IPC delivery, decides restart/rollback.
+        }
+      };
       try {
-        child = Bun.spawn([options.binaryPath, ...options.args], { env, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+        executable = await lstat(options.binaryPath);
+        child = Bun.spawn([options.binaryPath, ...options.args], { env, stdin: "inherit", stdout: "inherit", stderr: "inherit", serialization: "json",
+          ipc(message: unknown, sender) {
+            if (sender !== child || !message || typeof message !== "object" || !("type" in message) || message.type !== STARTUP_CONFIRMED ||
+              !("version" in message) || typeof message.version !== "string" || (expectedVersion && message.version !== expectedVersion)) return;
+            confirmedVersion = message.version;
+            requestHandover();
+          },
+        });
       } catch (error) {
         if (!pending || pending.state !== "restarting") throw error;
         await rollbackBinary(options.binaryPath, "New executable could not start");
@@ -167,27 +213,49 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
         continue;
       }
       const running = child;
+      let checking: Promise<void> | undefined;
       const watch = setInterval(() => {
-        if (stopped || running.exitCode !== null) return;
-        void (async () => {
+        if (stopped || running.exitCode !== null || checking) return;
+        checking = (async () => {
           pending = await readUpdateRecord(options.binaryPath);
-          if (unconfirmed(pending) && Date.now() >= deadline) {
+          if (!confirmedVersion && unconfirmed(pending) && Date.now() >= deadline) {
             rolledBack = true;
             running.kill("SIGKILL");
           }
-        })().catch(() => { rolledBack = true; running.kill("SIGKILL"); });
+          requestHandover();
+        })().catch(() => { rolledBack = true; running.kill("SIGKILL"); }).finally(() => { checking = undefined; });
       }, options.pollMs ?? 250);
       const exit = await running.exited;
       clearInterval(watch);
+      await checking;
       child = undefined;
       if (stopped) return exit;
       pending = await readUpdateRecord(options.binaryPath);
-      if (pending?.state === "restarting" && (unconfirmed(pending) || rolledBack || exit !== UPDATE_RESTART_EXIT_CODE)) {
+      const handoverExit = exit === SUPERVISOR_HANDOVER_EXIT_CODE && handoverRequested && confirmedVersion !== undefined;
+      if (pending?.state === "restarting" && (unconfirmed(pending) || rolledBack || exit !== UPDATE_RESTART_EXIT_CODE && !handoverExit)) {
         await rollbackBinary(options.binaryPath, rolledBack ? "New version did not become healthy/connect before the startup deadline" : `New version exited before becoming healthy (exit ${exit})`);
         options.log?.("update rolled back: new version did not become healthy");
         continue;
       }
       if (exit === UPDATE_RESTART_EXIT_CODE) continue;
+      if (handoverExit) {
+        // A concurrent next update must still run as an unconfirmed candidate under this watchdog.
+        // Also refuse to exec a path replaced since this child was launched (including manual replacement).
+        const installed = await lstat(options.binaryPath);
+        if (stopped) return exit;
+        if ((!pending || pending.state === "succeeded" && pending.version === confirmedVersion ||
+          pending.state === "failed" && pending.previousVersion === confirmedVersion) &&
+          installed.dev === executable.dev && installed.ino === executable.ino) {
+          try {
+            options.log?.(`supervisor handover: ${CANOPY_VERSION} -> ${confirmedVersion} (pid ${process.pid})`);
+            process.execve!(options.binaryPath, [options.binaryPath, ...options.args], supervisorEnv);
+          } catch (error) {
+            handoverUnavailable = true;
+            options.log?.(`supervisor handover unavailable: ${error instanceof Error ? error.message : String(error)}; continuing supervision`);
+          }
+        }
+        continue;
+      }
       return exit;
     }
   } finally { process.off(signals[0], onInt); process.off(signals[1], onTerm); }
