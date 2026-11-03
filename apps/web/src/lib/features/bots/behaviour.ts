@@ -149,7 +149,7 @@ function tick(now: number): void {
     const ease = 1 - Math.exp(-dt / timings.ease);
     c.gaze.x += (target.x - c.gaze.x) * ease;
     c.gaze.y += (target.y - c.gaze.y) * ease;
-    write(c, c.eyes, `translate(${c.gaze.x.toFixed(3)} ${c.gaze.y.toFixed(3)})`, 0);
+    write(c, c.eyes, `translate(${c.gaze.x.toFixed(2)} ${c.gaze.y.toFixed(2)})`, 0);
 
     if (now >= c.blinkAt && !c.blinkStart) { c.blinkStart = now; c.blinkAt = now + idleDelay("blink"); }
     const blinkProgress = c.blinkStart ? (now - c.blinkStart) / timings.blink : 1;
@@ -174,8 +174,10 @@ function tick(now: number): void {
       }
       if (p === 1) { c.attention = undefined; if (attentionOwner === c) attentionOwner = undefined; }
     }
+    // Rounded to steps no screen shows (0.01 of the 40-unit drawing, 0.1% of its size): every changed
+    // attribute costs the page a style and layout pass, so breathing writes a few times a second, not every frame.
     write(c, c.lids, `translate(20 ${c.options.shape.eyeY}) scale(1 ${lid.toFixed(3)}) translate(-20 ${-c.options.shape.eyeY})`, 1);
-    write(c, c.body, `translate(${x.toFixed(3)} ${y.toFixed(3)}) translate(20 24) rotate(${angle.toFixed(3)}) scale(${scaleX.toFixed(4)} ${scaleY.toFixed(4)}) translate(-20 -24)`, 2);
+    write(c, c.body, `translate(${x.toFixed(2)} ${y.toFixed(2)}) translate(20 24) rotate(${angle.toFixed(2)}) scale(${scaleX.toFixed(3)} ${scaleY.toFixed(3)}) translate(-20 -24)`, 2);
   }
   if (count) frame = requestAnimationFrame(tick);
   else lastFrame = 0;

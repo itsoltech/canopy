@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import type { Attachment } from "svelte/attachments";
   import type { ClassValue } from "svelte/elements";
   import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -127,6 +128,13 @@
   }
   let box = $state<HTMLDivElement>();
   let sendWidth = $state(36);
+  // From its observer, after layout: `bind:clientWidth` also reads the width as it mounts, which forces a
+  // layout of the whole page in the middle of rendering it (the observer still reports before the first paint).
+  const followSendWidth: Attachment<HTMLElement> = (node) => {
+    const observer = new ResizeObserver(() => (sendWidth = node.clientWidth));
+    observer.observe(node);
+    return () => observer.disconnect();
+  };
   let editor = $state<{ insertTrigger(char: TriggerChar): void; focus(): void }>();
   const submit = () => box?.closest("form")?.requestSubmit();
 
@@ -208,7 +216,7 @@
       {@render controls?.()}
     </div>
     </ComposerFold>
-    <div class="absolute right-2.5 bottom-2.5" bind:clientWidth={sendWidth}>
+    <div class="absolute right-2.5 bottom-2.5" {@attach followSendWidth}>
       <ResizeSlot>
         {#if steerMode && onqueue}
           <SteerSendButton

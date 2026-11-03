@@ -1,5 +1,10 @@
 <script lang="ts" module>
   import type { Attachment } from "svelte/attachments";
+  import { MediaQuery } from "svelte/reactivity";
+
+  // Phones show `sheet` popovers as bottom sheets. One query for all of them: a list mounts a closed popover
+  // per row (its menu, its preview card).
+  const narrowScreen = new MediaQuery("(max-width: 39.999rem)");
 
   /** Attributes the `trigger` snippet spreads on its button (`{...props}`). */
   export interface PopoverTriggerProps {
@@ -34,7 +39,8 @@
    * close it. On open, focus goes to the first `[data-autofocus]` inside, else the first focusable
    * element, else the panel; on close it returns to the trigger. With `sheet` it is a bottom sheet on
    * phones (with a drag handle). It grows from its trigger and fades out (motion.css `t-dropdown`); content
-   * renders while open and during that exit, inert, and `onclose` runs once it is gone.
+   * renders while open and during that exit, inert, and `onclose` runs once it is gone. The panel itself
+   * mounts on the first opening (lists keep a closed popover per row).
    *
    *   <Popover bind:open label="Reasoning effort" placement="top-start">
    *     {#snippet trigger(props)}<button type="button" {...props}>Effort</button>{/snippet}
@@ -90,8 +96,11 @@
 
   const id = $props.id();
   let panel = $state<HTMLElement>();
+  /** Opened at least once: the panel stays mounted from then on. */
+  let opened = false;
+  const mounted = $derived.by(() => (opened ||= open));
   let anchor = $state<HTMLElement>();
-  let narrow = $state(false);
+  const narrow = $derived(sheet && narrowScreen.current);
   let focusInside = false;
   /** The exit transition runs: content stays (inert) until it ends. */
   let closing = $state(false);
@@ -111,15 +120,6 @@
         if (anchor === node) anchor = undefined;
       };
     },
-  });
-
-  $effect(() => {
-    if (!sheet) return;
-    const query = matchMedia("(max-width: 39.999rem)");
-    const sync = () => (narrow = query.matches);
-    sync();
-    query.addEventListener("change", sync);
-    return () => query.removeEventListener("change", sync);
   });
 
   // Show and focus when opened; hide and return focus to the trigger when closed.
@@ -217,6 +217,7 @@
 
 <!-- overflow-x-hidden: on touch screens the 48 px touch targets of buttons at the panel's edge reach a few
      pixels past it, which would otherwise scroll the panel sideways (a scrollbar on Android). -->
+{#if mounted}
 <div
   bind:this={panel}
   {id}
@@ -242,3 +243,4 @@
   {/if}
   {#if open || closing}{@render children()}{/if}
 </div>
+{/if}
