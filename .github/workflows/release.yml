@@ -304,6 +304,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       VERSION: ${{ needs.semantic-release.outputs.version }}
       TAG: ${{ needs.semantic-release.outputs.tag }}
+      CHANNEL: ${{ needs.semantic-release.outputs.channel }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -321,7 +322,9 @@ jobs:
         with:
           pattern: desktop-*
           path: desktop-artifacts
-      - name: Merge desktop update feeds across architectures
+      # Stable emits latest/beta/nightly feeds; beta emits beta/nightly; nightly emits nightly.
+      # Aliases refer to this release's single Canopy artifact set (including mac ZIP/blockmaps).
+      - name: Merge desktop update feeds and publish cumulative channel aliases
         env:
           CANOPY_VERSION: ${{ needs.semantic-release.outputs.version }}
           CANOPY_CHANNEL: ${{ needs.semantic-release.outputs.channel }}
@@ -340,7 +343,11 @@ jobs:
       - name: Upload assets (manifest last)
         run: |
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --title "Canopy $VERSION" --generate-notes
+            if [ "$CHANNEL" = stable ]; then
+              gh release create "$TAG" --verify-tag --title "Canopy $VERSION" --generate-notes
+            else
+              gh release create "$TAG" --verify-tag --title "Canopy $VERSION" --generate-notes --prerelease --latest=false
+            fi
           fi
           find release-assets -type f ! -name manifest.json -print0 | xargs -0 gh release upload "$TAG" --clobber
           gh release upload "$TAG" release-assets/manifest.json --clobber

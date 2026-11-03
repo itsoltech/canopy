@@ -49,7 +49,11 @@ export async function mergeDesktopUpdates(source: string, destination: string, c
       }
     }
   }
-  for (const [name, feed] of feeds) writeFileSync(join(destination, name), dump(feed, { lineWidth: -1 }));
+  // A stable release is eligible for every channel; beta also reaches nightly.
+  const channels = channel === "stable" ? ["latest", "beta", "nightly"] : channel === "beta" ? ["beta", "nightly"] : ["nightly"];
+  for (const [name, feed] of feeds) {
+    for (const target of channels) writeFileSync(join(destination, name.replace(identity.feed, target)), dump(feed, { lineWidth: -1 }));
+  }
 }
 
 if (import.meta.main) {

@@ -2,25 +2,52 @@ import { app, dialog, Notification, type MenuItemConstructorOptions } from "elec
 import { autoUpdater } from "electron-updater";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
-import { desktopIdentity } from "./identity.ts";
+import { desktopIdentity, type DesktopChannel } from "./identity.ts";
 import { newestRelease, type DesktopRelease } from "./update-releases.ts";
+import { UpdateController } from "./update-controller.ts";
+import { UpdateSettings } from "./update-settings.ts";
 
 export class DesktopUpdates {
-  private text = "Check for updates…";
-  private available = false;
-  private enabled = false;
-  private checking = false;
+  private controller?: UpdateController;
   private timer?: ReturnType<typeof setInterval>;
   private readonly identity = desktopIdentity();
 
   constructor(private readonly changed: () => void, private readonly restart: () => void) {}
 
+  private get control() {
+    if (!this.controller) {
+      const settings = new UpdateSettings(app.getPath("userData"));
+      autoUpdater.logger = null;
+      this.controller = new UpdateController(autoUpdater, {
+        version: app.getVersion(), buildChannel: this.identity.channel, channel: settings.read(this.identity.channel),
+        save: (channel) => settings.write(channel),
+        confirmDowngrade: async (channel) => (await dialog.showMessageBox({
+          type: "warning", title: "Switch to a more stable channel?", message: `Switch to ${channel === "stable" ? "Stable" : "Beta"}?`,
+          detail: "This switch allows installing an older version. Data written by newer versions may not be readable, and Canopy may stop working. Back up your data before continuing. Downgrades are allowed only for this switch’s update attempt.",
+          buttons: ["Cancel", "Switch channel"], defaultId: 0, cancelId: 0, noLink: true,
+        })).response === 1,
+        prepare: (channel, downgrade) => this.prepare(channel, downgrade), changed: this.changed,
+        downloaded: () => {
+          if (!Notification.isSupported()) return;
+          const notice = new Notification({ title: "Canopy", body: "An update is ready. Choose Restart to update in App updates or the application menu." });
+          notice.on("click", () => this.restartIfReady()); notice.show();
+        },
+      });
+    }
+    return this.controller;
+  }
+  status() { return this.control.status(); }
+  setChannel(channel: unknown) { return this.control.setChannel(channel); }
+  check() { return this.control.check(); }
+  restartIfReady() { if (this.status().phase === "downloaded" && !this.status().changingChannel) this.restart(); }
+
   item(): MenuItemConstructorOptions {
-    return { label: this.available ? "Restart to update" : this.text, enabled: this.enabled && (!this.checking || this.available), click: () => this.available ? this.restart() : void this.check() };
+    const state = this.status();
+    return { label: state.phase === "downloaded" ? "Restart to update" : state.message, enabled: !["disabled", "checking", "downloading"].includes(state.phase) && !state.changingChannel, click: () => state.phase === "downloaded" ? this.restartIfReady() : void this.check() };
   }
 
   async start() {
-    if (!app.isPackaged) { this.text = "Updates are available in installed builds"; this.changed(); return; }
+    if (!app.isPackaged) { this.control.enable("Updates are available in installed builds"); return; }
     if (process.platform === "darwin") {
       try {
         const bundle = resolve(process.execPath, "../../..");
@@ -28,28 +55,11 @@ export class DesktopUpdates {
         // Use a requirement to validate Developer ID
         // instead of trusting a build-time flag or an ad-hoc signature.
         execFileSync("codesign", ["--verify", "--test-requirement", "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists", bundle], { stdio: "pipe" });
-      } catch { this.text = "Updates need a signed build"; this.changed(); return; }
+      } catch { this.control.enable("Updates need a signed build"); return; }
     } else if (process.platform === "linux" && !process.env["APPIMAGE"]) {
-      this.text = "Update this installation with your package manager"; this.changed(); return;
+      this.control.enable("Update this installation with your package manager"); return;
     }
-    this.enabled = true;
-    autoUpdater.logger = null;
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = false;
-    autoUpdater.allowPrerelease = this.identity.channel !== "stable";
-    autoUpdater.channel = this.identity.feed;
-    autoUpdater.allowDowngrade = false; // Setting channel enables downgrades; always reset afterwards.
-    autoUpdater.on("error", () => { this.text = "Update failed — click to retry"; this.changed(); });
-    autoUpdater.on("download-progress", () => { this.text = "Downloading update…"; this.changed(); });
-    autoUpdater.on("update-downloaded", () => {
-      this.available = true;
-      this.changed();
-      if (Notification.isSupported()) {
-        const notice = new Notification({ title: this.identity.productName, body: "An update is ready. Choose Restart to update in the application menu." });
-        notice.on("click", this.restart);
-        notice.show();
-      }
-    });
+    this.control.enable();
     await this.check();
     this.timer = setInterval(() => void this.check(), 6 * 60 * 60 * 1000);
     this.timer.unref();
@@ -57,7 +67,7 @@ export class DesktopUpdates {
 
   stop() { if (this.timer) clearInterval(this.timer); }
   install() {
-    if (!this.available) return;
+    if (this.status().phase !== "downloaded") return;
     // Squirrel validates and stages the macOS ZIP after this call. Services have
     // already stopped; recover to the current version if that final step fails.
     const failed = () => {
@@ -70,31 +80,24 @@ export class DesktopUpdates {
     catch { autoUpdater.removeListener("error", failed); failed(); }
   }
 
-  private async check() {
-    if (!this.enabled || this.checking || this.available) return;
-    this.checking = true;
-    this.text = "Checking for updates…";
-    this.changed();
-    try {
-      const suffix = process.platform === "darwin" ? "-mac" : process.platform === "linux" ? `-linux${process.arch === "arm64" ? "-arm64" : ""}` : "";
-      const feedFile = `${this.identity.feed}${suffix}.yml`;
-      const releases: DesktopRelease[] = [];
-      for (let page = 1; page <= 10; page++) {
-        const response = await fetch(`https://api.github.com/repos/itsoltech/canopy/releases?per_page=100&page=${page}`, {
-          headers: { Accept: "application/vnd.github+json", "User-Agent": `${this.identity.executableName}/${app.getVersion()}` },
-          signal: AbortSignal.timeout(20_000),
-        });
-        if (!response.ok) throw new Error("Release feed unavailable");
-        const batch = await response.json() as DesktopRelease[];
-        releases.push(...batch);
-        if (batch.length < 100) break;
-      }
-      const release = newestRelease(releases, app.getVersion(), this.identity.channel, feedFile);
-      if (!release) { this.text = "Up to date — check again"; return; }
-      autoUpdater.setFeedURL({ provider: "generic", url: `https://github.com/itsoltech/canopy/releases/download/${encodeURIComponent(release.tag_name)}/`, channel: this.identity.feed, useMultipleRangeRequest: false });
-      const result = await autoUpdater.checkForUpdates();
-      await result?.downloadPromise;
-    } catch { this.text = "Update failed — click to retry"; }
-    finally { this.checking = false; this.changed(); }
+  private async prepare(channel: DesktopChannel, allowDowngrade: boolean) {
+    const suffix = process.platform === "darwin" ? "-mac" : process.platform === "linux" ? `-linux${process.arch === "arm64" ? "-arm64" : ""}` : "";
+    const feed = channel === "stable" ? "latest" : channel;
+    const feedFile = `${feed}${suffix}.yml`;
+    const releases: DesktopRelease[] = [];
+    for (let page = 1; page <= 10; page++) {
+      const response = await fetch(`https://api.github.com/repos/itsoltech/canopy/releases?per_page=100&page=${page}`, {
+        headers: { Accept: "application/vnd.github+json", "User-Agent": `${this.identity.executableName}/${app.getVersion()}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!response.ok) throw new Error("Release feed unavailable");
+      const batch = await response.json() as DesktopRelease[];
+      releases.push(...batch);
+      if (batch.length < 100) break;
+    }
+    const release = newestRelease(releases, app.getVersion(), channel, feedFile, allowDowngrade);
+    if (!release) return false;
+    autoUpdater.setFeedURL({ provider: "generic", url: `https://github.com/itsoltech/canopy/releases/download/${encodeURIComponent(release.tag_name)}/`, channel: feed, useMultipleRangeRequest: false });
+    return true;
   }
 }

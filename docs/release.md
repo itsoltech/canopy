@@ -113,11 +113,22 @@ Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emu
 
 `bun run --cwd apps/desktop package:<linux|mac|windows>` na hoście danego OS/arch
 ([desktop.md](desktop.md)). Z `CANOPY_VERSION` pliki nazywają się
-`Canopy[-Beta|-Nightly]-<wersja>-<linux|darwin|windows>-<x64|arm64>.<AppImage|deb|dmg|zip|exe>`.
-Produkty kanałów instalują się równolegle; tożsamość, katalogi danych i schematy linków
-opisuje [desktop.md](desktop.md#kanały-i-osobne-instalacje).
+`Canopy-<wersja>-<linux|darwin|windows>-<x64|arm64>.<AppImage|deb|dmg|zip|exe>`.
+Jedna aplikacja `app.canopy.desktop` / Canopy współdzieli userData i `canopy://`.
+Kanał wybiera się lokalnie w Settings → App updates; domyślnie odpowiada buildowi.
+To niezależna preferencja od polityki aktualizacji gatewaya/workera.
+Stare Canopy Beta/Nightly wymagają jednorazowej ręcznej instalacji Canopy — Squirrel
+nie aktualizuje między różnymi bundle ID. [Migracja](desktop.md#przejście-ze-starych-canopy-beta--canopy-nightly)
+nie usuwa ani nie importuje starych danych.
 Desktop publikuje też feedy electron-updater i pliki `.blockmap`. Feedy z runnerów są scalane
-przed uploadem i sprawdzane względem SHA-512 assetów. macOS: tylko Apple Silicon (arm64);
+przed uploadem i sprawdzane względem SHA-512 assetów. Skrypt merge tworzy aliasy:
+stable → latest/beta/nightly, beta → beta/nightly, nightly → nightly, dla każdej platformy.
+Wszystkie wskazują na jeden zestaw instalatorów tego release. Stable widzi tylko stable,
+Beta także beta, Nightly wszystkie trzy; najwyższy SemVer wygrywa. Brak rollbacku
+bez jednorazowej zgody na stabilniejszy kanał. Manifest nadal oznacza instalatory
+`app: desktop`; feedy/blockmapy są w checksumach. ZIP i blockmapy macOS pozostają
+wymagane; niepodpisane/ad-hoc macOS nie emituje feedu.
+macOS: tylko Apple Silicon (arm64);
 wersji Intel (darwin-x64) nie budujemy — ani desktopu, ani binarek gatewaya/workera.
 
 ### checksums.txt i manifest.json
@@ -262,15 +273,18 @@ dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
 2. Pobierz dmg i zip z GitHuba na czystego Maca z quarantine. Uruchom app bez `xattr`,
    sprawdź lokalny start PostgreSQL, gatewaya, workera i web oraz zamknięcie procesów.
    Sprawdź `codesign -d --entitlements :-` dla app, helpera i skompilowanego Bun sidecara.
-3. Zainstaluj stable, beta i nightly równolegle. Potwierdź osobne dane, ikony i obsługę
-   `canopy://`, `canopy-beta://`, `canopy-nightly://`. Stable jest jedynym właścicielem
-   zwykłych linków enrollment generowanych przez web.
-4. W release sprawdź odpowiedni `*-mac.yml`: musi wymieniać zipy **obu architektur**.
+3. Potwierdź jedną `Canopy.app`, `app.canopy.desktop`, wspólne userData i `canopy://`.
+   Przełącz stable → beta → nightly i sprawdź wersję/kanał buildu po restarcie.
+   Stare Canopy Beta/Nightly, w tym 0.2.0-nightly.2, zastąp ręcznie; zachowaj ich dane.
+4. W release sprawdź wymagane aliasy `*-mac.yml`: każdy musi wymieniać ZIP arm64
+   (po dodaniu x64 także ZIP tej architektury).
    Feedy i blockmapy są uploadowane przed końcowym `manifest.json`; prerelease muszą
    pozostać oznaczone jako prerelease. Stary klient bez updatera wymaga instalacji ręcznej.
-5. Przy kolejnym wydaniu tego samego kanału sprawdź pobieranie, „Restart to update”,
-   czysty shutdown i zachowanie danych. Wyższy numer innego kanału ani niższy własnego
-   nie może się instalować. Osobno sprawdź build ad-hoc: menu „Updates need a signed build”.
+5. Sprawdź pobieranie, postęp, „Restart to update”, czysty shutdown i zachowanie danych.
+   Beta powinna przyjąć nowsze stable, Stable nigdy prerelease. Na kopii danych sprawdź
+   Cancel i zgodę przy nightly → beta/stable oraz beta → stable; po próbie i ponownym
+   starcie brak dalszych downgrade'ów. Zweryfikuj Squirrel i ten sam Developer ID oraz
+   designated requirement. Osobno build ad-hoc: „Updates need a signed build”.
 
 Podpisywania, polityki Gatekeepera, ticketów Apple i rzeczywistej instalacji aktualizacji
 nie da się potwierdzić na Linuxie; walidacja konfiguracji buildera tego nie zastępuje.
