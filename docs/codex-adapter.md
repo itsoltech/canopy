@@ -146,7 +146,7 @@ Błąd konfiguracji dostawcy: `thread/status/changed (systemError)` → `error {
 
 Opt-in, bo zużywają limity kont: `CANOPY_LIVE=1 bun test apps/worker/src/providers/codex/app-server.live.test.ts`.
 
-- `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`: tura przez profil CLIProxyAPI platformy. Lokalnie trzymane w pliku poza repozytorium (`~/.config/open-agents/dev-live.env`, `0600`).
+- `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`: tura przez profil CLIProxyAPI platformy. Lokalnie trzymane w pliku poza repozytorium (`~/.config/canopy/dev-live.env`, `0600`).
 - `CANOPY_LIVE_NATIVE=1`: tura z konfiguracją Codexa właściciela urządzenia (wymaga, żeby działała bez interakcji).
 - Nagrania strumieni: `CANOPY_LIVE_RECORD_DIR` (domyślnie `/tmp/oa-codex-recordings`), materiał do mapowania zdarzeń.
 - Testy przez gateway (`tests/integration/*.live.test.ts`) zakładają proxy jak produkt: `useLiveProxy` (`tests/integration/support/live.ts`) zapisuje workerowi jego część konfiguracji (katalogi, harnessy, bez logowania urządzenia) i globalną instancję `cliproxyapi` każdego harnessu przez API UI, włączoną na tym workerze ([worker-config.md](worker-config.md), sekcja 9).

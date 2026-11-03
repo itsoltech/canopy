@@ -138,15 +138,16 @@ Wypisuje **sekretny** `worker.json`; przekieruj go do pliku z umask 077, nie do 
   "gateway_url": "https://agents.example.com",
   "worker_id": "0196f0c1-0000-7000-8000-0000000000aa",
   "credential": "…",
-  "ca_file": "/etc/open-agents/gateway-ca.pem",
+  "ca_file": "/etc/canopy/gateway-ca.pem",
   "ping_interval_seconds": 30
 }
 ```
 
 - Lokalizacja: `CANOPY_WORKER_CONFIG` albo domyślna per system:
-  - Linux: `$XDG_CONFIG_HOME/open-agents/worker.json`,
-  - macOS: `~/Library/Application Support/open-agents/worker.json`,
-  - Windows: `%APPDATA%\open-agents\worker.json`.
+  - Linux: `$XDG_CONFIG_HOME/canopy/worker.json`,
+  - macOS: `~/Library/Application Support/canopy/worker.json`,
+  - Windows: `%APPDATA%\canopy\worker.json`.
+  - Instalacja sprzed zmiany nazwy: gdy nowego pliku nie ma, a istnieje `…/open-agents/worker.json`, worker czyta stary (tak samo katalog danych `…/open-agents`); nic nie jest przenoszone.
 - Dekodowanie jest ścisłe (Effect Schema): nieznany klucz to błąd. Wyjątkiem zgodności są stare `allowedRoots` i `allowed_roots`: są przyjmowane i ignorowane, podobnie jak pole historyczne w zdalnej konfiguracji i bazie. Worker nie ma listy dozwolonych katalogów.
 - Plik zawiera poświadczenie, więc jak klucz SSH nie może być dostępny dla innych użytkowników (POSIX: `chmod 600`). Inaczej worker kończy pracę z kodem 78 (`EX_CONFIG`), żeby supervisor nie restartował go w pętli. Na Windows ACL ustawia instalator.
 - Plik tworzy rejestracja workera (enrollment): token z UI zamieniany na `worker_id` i `credential`.

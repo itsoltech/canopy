@@ -330,8 +330,8 @@ Limity (gateway, zmienne środowiskowe): `CANOPY_ATTACHMENT_MAX_FILE_MB` (domyś
 
 ```text
 [canopy] The user attached 2 files to this message, saved on this machine. Read them as needed; view_image shows you an image:
-- /home/me/.local/share/open-agents/attachments/<thread>/<attachment>/screenshot.png (image/png, 245.3 KB, 1920×1080 px)
-- /home/me/.local/share/open-agents/attachments/<thread>/<attachment>/notes.txt (text/plain, 2.0 KB)
+- /home/me/.local/share/canopy/attachments/<thread>/<attachment>/screenshot.png (image/png, 245.3 KB, 1920×1080 px)
+- /home/me/.local/share/canopy/attachments/<thread>/<attachment>/notes.txt (text/plain, 2.0 KB)
 
 Co jest na zrzucie?
 ```
@@ -587,8 +587,8 @@ nadal wysyłają strefę przeglądarki bez zmian.
 ## 5. Uruchomienie (development)
 
 ```bash
-docker run -d --name oa-pg -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=open_agents -p 127.0.0.1::5432 postgres:17
-export CANOPY_DATABASE_URL=postgres://postgres:dev@127.0.0.1:<port>/open_agents
+docker run -d --name canopy-pg -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=canopy -p 127.0.0.1::5432 postgres:17
+export CANOPY_DATABASE_URL=postgres://postgres:dev@127.0.0.1:<port>/canopy
 export CANOPY_SECRETS_KEY=$(openssl rand -base64 32)   # trzymać stały: szyfruje sekrety w bazie
 export CANOPY_UI_SERVICE_TOKEN=$(openssl rand -hex 32) # ten sam dla SvelteKit
 

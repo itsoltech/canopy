@@ -42,7 +42,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     const workerId = (await api.getOverview({})).workers[0]!.id;
     const listing = await api.listDirectory({ workerId, path: "/repo" });
     expect(listing.entries.map((e) => e.name)).toEqual(["repo-a"]);
-    projectId = (await api.createProject({ name: "Open Agents" })).project!.id;
+    projectId = (await api.createProject({ name: "Canopy" })).project!.id;
     workspaceId = (await api.createWorkspace({ projectId, workerId, rootPath: "/repo/repo-a", label: "laptop" })).workspace!.id;
     const project = (await api.getOverview({})).projects.find((p) => p.id === projectId);
     expect(project?.workspaces.map((w) => w.rootPath)).toEqual(["/repo/repo-a"]);

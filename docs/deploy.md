@@ -146,7 +146,7 @@ Description=Canopy worker
 After=network-online.target
 
 [Service]
-ExecStart="/home/me/.local/bin/canopy-worker" --config "/home/me/.config/open-agents/worker.json"
+ExecStart="/home/me/.local/bin/canopy-worker" --config "/home/me/.config/canopy/worker.json"
 Environment="PATH=/home/me/.local/bin:/usr/local/bin:/usr/bin:/bin"
 Restart=always
 RestartPreventExitStatus=78

@@ -332,7 +332,7 @@ Worker uruchamia kod na prawdziwych maszynach. To główne ryzyko projektu.
 Monorepo na Bun workspaces. Każda aplikacja jest osobno wdrażalna, wspólny kod jest w pakietach, kontrakt jest jeden i generowany.
 
 ```text
-open-agents/
+canopy/
 ├── apps/
 │   ├── gateway/          # serwer centralny (API, gRPC server, chat runtime, agent bus)
 │   ├── worker/           # agent na edge device (gRPC client, adaptery SDK)
