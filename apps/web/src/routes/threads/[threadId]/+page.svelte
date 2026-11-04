@@ -510,7 +510,7 @@
                 label="Thread actions"
                 {...props}
               />{/snippet}
-            <ThreadMenuItems {thread} />
+            <ThreadMenuItems {thread} omit={panelOpen ? ["open", "rename", "regenerate"] : ["open"]} />
           </DropdownMenu>
         {/if}
         <IconButton icon="panel-right" label="Thread details" aria-pressed={panelOpen} onclick={togglePanel} />

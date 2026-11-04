@@ -3,12 +3,18 @@
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
-  import { threadActions } from "../thread-actions.ts";
+  import { threadActions, type ThreadActionId } from "../thread-actions.ts";
   import { useThreadActions } from "../thread-actions.svelte.ts";
   import type { ClassValue } from "svelte/elements";
   import { awayReason } from "#lib/features/computers/computers.ts";
 
-  let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
+  /** `omit`: actions already visible where the menu is opened (e.g. the open thread's own header). */
+  let {
+    thread,
+    omit = [],
+    class: className,
+  }: { thread: ui.Thread; omit?: readonly ThreadActionId[]; class?: ClassValue } = $props();
+
   const actions = useThreadActions();
   const away = $derived(thread.nodeId ? awayReason(actions.overview.computer(thread.nodeId)) : undefined);
 
@@ -18,7 +24,7 @@
       actions.overview.project(thread.projectId)?.name ?? "project",
       actions.settings.sidebar.pinnedThreadIds.includes(thread.id),
       Boolean(away),
-    ),
+    ).filter((item) => !omit.includes(item.id)),
   );
 </script>
 
