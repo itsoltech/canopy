@@ -9,6 +9,7 @@
   import TagInput from "./TagInput.svelte";
   import InstructionPreview from "./InstructionPreview.svelte";
   import InstructionDiff from "./InstructionDiff.svelte";
+  import ComputerSkills from "./ComputerSkills.svelte";
   import type { EnvironmentState } from "./environment-state.svelte.ts";
 
   let {
@@ -42,7 +43,8 @@
       label="Your tags"
       name="manual-worker-tags"
       bind:value={tags}
-      suggestions={["work", "personal", "laptop", "production"]}
+      workers={environment.snapshot.workers}
+      automatic={false}
       description="Add your own groups. Detected tags above are maintained automatically."
     />
     <div>
@@ -102,4 +104,5 @@
         Assigned files appear here after the worker's first sync.
       </p>{/each}
   </section>
+  <ComputerSkills {worker} {environment} />
 </div>

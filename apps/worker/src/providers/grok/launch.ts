@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import type { GrokOptions } from "@canopy/grok-acp";
 import type { ResolvedProfile } from "../profiles.ts";
+import { instanceShadowHome } from "../../config/remote.ts";
+import { instructionDirectory } from "../../agent-environment/files.ts";
 
 interface GrokLaunch {
   options: GrokOptions;
@@ -29,6 +31,14 @@ export function grokLaunch(options: {
   mkdirSync(sessions, { recursive: true, mode: 0o700 });
   const home = mkdtempSync(join(root, "process-"));
   symlinkSync(sessions, join(home, "sessions"), "dir");
+
+  const skillHome =
+    instanceShadowHome(options.dataDir, "grok", profile.id, runtime) ?? join(options.dataDir, "grok-home");
+
+  const skills = join(skillHome, "skills");
+  instructionDirectory(skills, true);
+  // The process home is disposable. Skills remain in the reconciled, durable instance home.
+  symlinkSync(skills, join(home, "skills"), process.platform === "win32" ? "junction" : "dir");
   const env: NodeJS.ProcessEnv = { ...(options.baseEnv ?? process.env), ...profile.env };
 
   // Ignore device configuration: it can carry another account, endpoint, permissions or MCP servers.

@@ -1,4 +1,6 @@
 import { ThreadSecretFiles } from "./thread-secrets.ts";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import {
   Provider,
   type AgentToolCall,
@@ -57,7 +59,12 @@ export class HostState {
   catalog: { configVersion: bigint; profiles: ProfileModelsInit[] } | undefined;
   catalogRun = 0;
   /** Taken at start: the Claude runtime points this process's CLAUDE_CONFIG_DIR at the isolated home. */
-  readonly deviceHomes: { readonly claude: string; readonly codex: string };
+  readonly deviceHomes: {
+    readonly claude: string;
+    readonly codex: string;
+    readonly grok?: string;
+    readonly agents?: string;
+  };
   /** Claude's mention catalogs (a listing starts Claude Code); Codex answers skills/list from its own cache. */
   readonly catalogs = new CatalogCache();
   /** The isolated Claude config dir of the running Claude runtime (its skills and commands). */
@@ -78,6 +85,8 @@ export class HostState {
     this.deviceHomes = options.deviceHomes ?? {
       claude: deviceClaudeHome(process.env),
       codex: deviceCodexHome(process.env),
+      grok: process.env["GROK_HOME"] || join(homedir(), ".grok"),
+      agents: join(homedir(), ".agents", "skills"),
     };
     this.files = new AttachmentFiles(options.dataDir);
     this.previews = new PreviewStore(options.dataDir);

@@ -16,12 +16,17 @@ import { automaticTags, checkDocument, compose, manualTags } from "./composition
 import { documents, EnvironmentDatabase, revision, workers } from "./database.ts";
 import { putDocument, removeDocument, setTags } from "./mutations.ts";
 import { resolveDrift } from "./drift.ts";
+import { skills } from "./skill-database.ts";
+import { EnvironmentSkills } from "./skills.ts";
+import { skillApplies } from "./skill-assignment.ts";
 
 export class AgentEnvironment {
   readonly db: EnvironmentDatabase;
+  readonly skills: EnvironmentSkills;
 
   constructor(readonly options: { runtime: CoreRuntime; userId: string; link: WorkerLink; changed: () => void }) {
     this.db = new EnvironmentDatabase(options.runtime, options.userId);
+    this.skills = new EnvironmentSkills(this);
   }
 
   async snapshot(): Promise<ui.AgentEnvironmentSnapshot> {
@@ -40,6 +45,7 @@ export class AgentEnvironment {
               revision: yield* revision(sql, owner),
               documents: yield* documents(sql, owner),
               workers: yield* workers(sql, owner),
+              skills: yield* skills(sql, owner),
             });
           }),
         );
@@ -53,9 +59,15 @@ export class AgentEnvironment {
         ? connection.hello.capabilities.includes("agent_environment_v1")
         : worker.supported;
       worker.desiredRevision = snapshot.revision;
+      worker.skillsSupported = connection?.isOpen
+        ? connection.hello.capabilities.includes("agent_skills_v1")
+        : worker.skillsSupported;
+      worker.skillIds = snapshot.skills.filter((s) => skillApplies(s, worker)).map((s) => s.id);
 
       try {
         worker.preview = compose(snapshot.documents, worker);
+
+        if (worker.skillsSupported) await this.skills.desired(snapshot.skills, worker);
       } catch (error) {
         worker.compositionError =
           error instanceof ConnectError ? error.rawMessage : "Couldn't compose this computer's instructions.";
@@ -153,6 +165,10 @@ export class AgentEnvironment {
           revision: snapshot.revision,
           instructions: worker.preview,
           resolutions: pending.resolutions,
+          skills: connection.hello.capabilities.includes("agent_skills_v1")
+            ? await this.skills.desired(snapshot.skills, worker)
+            : [],
+          skillResolutions: connection.hello.capabilities.includes("agent_skills_v1") ? pending.skillResolutions : [],
         },
       });
     }
@@ -178,6 +194,7 @@ export class AgentEnvironment {
 
     const automatic = tags;
     const supported = hello.capabilities.includes("agent_environment_v1");
+    const skillsSupported = hello.capabilities.includes("agent_skills_v1");
     const owner = this.options.userId;
 
     const changed = await this.db.run(
@@ -193,10 +210,11 @@ export class AgentEnvironment {
             yield* sql`INSERT INTO agent_environments (owner_user_id) VALUES (${owner}::uuid) ON CONFLICT DO NOTHING`;
             yield* sql`SELECT revision FROM agent_environments WHERE owner_user_id = ${owner}::uuid FOR UPDATE`;
 
-            const updated = yield* sql`INSERT INTO worker_environments (worker_id, automatic_tags, supported)
-          VALUES (${workerId}::uuid, ${automatic}::text[], ${supported})
-          ON CONFLICT (worker_id) DO UPDATE SET automatic_tags = EXCLUDED.automatic_tags, supported = EXCLUDED.supported
-          WHERE worker_environments.automatic_tags IS DISTINCT FROM EXCLUDED.automatic_tags OR worker_environments.supported <> EXCLUDED.supported
+            const updated =
+              yield* sql`INSERT INTO worker_environments (worker_id, automatic_tags, supported, skills_supported)
+          VALUES (${workerId}::uuid, ${automatic}::text[], ${supported}, ${skillsSupported})
+          ON CONFLICT (worker_id) DO UPDATE SET automatic_tags = EXCLUDED.automatic_tags, supported = EXCLUDED.supported, skills_supported = EXCLUDED.skills_supported
+          WHERE worker_environments.automatic_tags IS DISTINCT FROM EXCLUDED.automatic_tags OR worker_environments.supported <> EXCLUDED.supported OR worker_environments.skills_supported <> EXCLUDED.skills_supported
           RETURNING worker_id`;
 
             if (updated.length)
@@ -216,7 +234,8 @@ export class AgentEnvironment {
     // Bound an authenticated but untrusted worker's report before persisting or exposing any block to the UI.
     if (
       report.files.length > 128 ||
-      Buffer.byteLength(JSON.stringify(toJson(AgentEnvironmentReportSchema, report))) > 2 * 1024 * 1024
+      report.skills.length > 512 ||
+      Buffer.byteLength(JSON.stringify(toJson(AgentEnvironmentReportSchema, report))) > 128 * 1024 * 1024
     )
       return;
     const owner = this.options.userId;

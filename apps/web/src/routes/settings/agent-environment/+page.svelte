@@ -4,6 +4,8 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { EnvironmentState } from "#lib/features/agent-environment/environment-state.svelte.ts";
   import DocumentEditor from "#lib/features/agent-environment/DocumentEditor.svelte";
+  import SkillsLibrary from "#lib/features/agent-environment/SkillsLibrary.svelte";
+  import AssignmentSummary from "#lib/features/agent-environment/AssignmentSummary.svelte";
   import EnvironmentComputer from "#lib/features/agent-environment/EnvironmentComputer.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -40,7 +42,7 @@
 <div class="grid min-w-0 gap-7">
   <SettingsHeading
     title="Agent environment"
-    description="Instructions that follow your computers. Write once, tailor by tag, and see exactly what each agent receives."
+    description="Instructions and skills that follow your computers. Assign by tag and see exactly what each agent receives."
   />
   {#if state.error}<Alert tone="error">{state.error}</Alert>{/if}
   {#if state.notice}<Alert>{state.notice}</Alert>{/if}
@@ -79,6 +81,11 @@
               <p class="text-base text-zinc-500 tabular-nums sm:text-sm dark:text-zinc-400">
                 {document.harness === "claude" ? "CLAUDE.md" : "AGENTS.md"} · {document.fragments.length} fragments · v{document.revision.toString()}
               </p>
+              <AssignmentSummary
+                selector={document.selector}
+                workers={state.snapshot.workers}
+                disabled={document.overrides.filter((o) => o.disabled).map((o) => o.workerId)}
+              />
             </button>
             <Button size="sm" variant="ghost" disabled={state.busy} onclick={() => state.remove(document)}
               >Delete</Button
@@ -95,6 +102,7 @@
       </div>
     {/if}
   </section>
+  <SkillsLibrary environment={state} />
   <section
     class="grid min-w-0 gap-5 border-t border-zinc-950/10 pt-6 dark:border-white/10"
     aria-label="Environment computers"

@@ -20,8 +20,9 @@ export function workers(sql: SqlClient.SqlClient, owner: string) {
     automatic_tags: string[] | null;
     manual_tags: string[] | null;
     supported: boolean | null;
+    skills_supported: boolean | null;
     report: JsonValue | null;
-  }>`SELECT w.id, w.name, e.automatic_tags, e.manual_tags, e.supported, e.report
+  }>`SELECT w.id, w.name, e.automatic_tags, e.manual_tags, e.supported, e.skills_supported, e.report
      FROM workers w LEFT JOIN worker_environments e ON e.worker_id = w.id
      WHERE w.owner_user_id = ${owner}::uuid AND w.archived_at IS NULL AND w.revoked_at IS NULL ORDER BY w.name, w.id`.pipe(
     Effect.map((rows) =>
@@ -32,6 +33,7 @@ export function workers(sql: SqlClient.SqlClient, owner: string) {
           automaticTags: w.automatic_tags ?? [],
           manualTags: w.manual_tags ?? [],
           supported: w.supported ?? false,
+          skillsSupported: w.skills_supported ?? false,
           ...(w.report && { report: fromJson(AgentEnvironmentReportSchema, w.report) }),
         }),
       ),

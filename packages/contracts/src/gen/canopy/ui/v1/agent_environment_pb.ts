@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import type { AgentEnvironmentReport, EnvironmentInstruction } from "../../worker/v1/agent_environment_pb.ts";
+import type { AgentEnvironmentReport, EnvironmentInstruction, SkillArtifact, SkillFile } from "../../worker/v1/agent_environment_pb.ts";
 import { file_canopy_worker_v1_agent_environment } from "../../worker/v1/agent_environment_pb.ts";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/agent_environment.proto.
  */
 export const file_canopy_ui_v1_agent_environment: GenFile = /*@__PURE__*/
-  fileDesc("CiRjYW5vcHkvdWkvdjEvYWdlbnRfZW52aXJvbm1lbnQucHJvdG8SDGNhbm9weS51aS52MSJ3ChNFbnZpcm9ubWVudFNlbGVjdG9yEhAKCGV2ZXJ5b25lGAEgASgIEhIKCndvcmtlcl9pZHMYAiADKAkSDAoEdGFncxgDIAMoCRIWCg5tYXRjaF9hbGxfdGFncxgEIAEoCBIUCgxleGNsdWRlX3RhZ3MYBSADKAkidQoTSW5zdHJ1Y3Rpb25GcmFnbWVudBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2NvbnRlbnQYAyABKAkSMwoIc2VsZWN0b3IYBCABKAsyIS5jYW5vcHkudWkudjEuRW52aXJvbm1lbnRTZWxlY3RvciJSChpJbnN0cnVjdGlvbk1hY2hpbmVPdmVycmlkZRIRCgl3b3JrZXJfaWQYASABKAkSEAoIZGlzYWJsZWQYAiABKAgSDwoHY29udGVudBgDIAEoCSKmAgoTSW5zdHJ1Y3Rpb25Eb2N1bWVudBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2hhcm5lc3MYAyABKAkSEAoIcmV2aXNpb24YBCABKAQSMwoIc2VsZWN0b3IYBSABKAsyIS5jYW5vcHkudWkudjEuRW52aXJvbm1lbnRTZWxlY3RvchI0CglmcmFnbWVudHMYBiADKAsyIS5jYW5vcHkudWkudjEuSW5zdHJ1Y3Rpb25GcmFnbWVudBI7CglvdmVycmlkZXMYByADKAsyKC5jYW5vcHkudWkudjEuSW5zdHJ1Y3Rpb25NYWNoaW5lT3ZlcnJpZGUSEwoLZGV2aWNlX2hvbWUYCCABKAgSFQoNcGxhdGZvcm1faG9tZRgJIAEoCCKuAgoRRW52aXJvbm1lbnRXb3JrZXISEQoJd29ya2VyX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOYXV0b21hdGljX3RhZ3MYAyADKAkSEwoLbWFudWFsX3RhZ3MYBCADKAkSEQoJc3VwcG9ydGVkGAUgASgIEg4KBm9ubGluZRgGIAEoCBI4CgZyZXBvcnQYByABKAsyKC5jYW5vcHkud29ya2VyLnYxLkFnZW50RW52aXJvbm1lbnRSZXBvcnQSOQoHcHJldmlldxgIIAMoCzIoLmNhbm9weS53b3JrZXIudjEuRW52aXJvbm1lbnRJbnN0cnVjdGlvbhIYChBkZXNpcmVkX3JldmlzaW9uGAkgASgEEhkKEWNvbXBvc2l0aW9uX2Vycm9yGAogASgJIhkKF0FnZW50RW52aXJvbm1lbnRSZXF1ZXN0IpQBChhBZ2VudEVudmlyb25tZW50U25hcHNob3QSEAoIcmV2aXNpb24YASABKAQSNAoJZG9jdW1lbnRzGAIgAygLMiEuY2Fub3B5LnVpLnYxLkluc3RydWN0aW9uRG9jdW1lbnQSMAoHd29ya2VycxgDIAMoCzIfLmNhbm9weS51aS52MS5FbnZpcm9ubWVudFdvcmtlciJwCh5TYXZlSW5zdHJ1Y3Rpb25Eb2N1bWVudFJlcXVlc3QSMwoIZG9jdW1lbnQYASABKAsyIS5jYW5vcHkudWkudjEuSW5zdHJ1Y3Rpb25Eb2N1bWVudBIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoBCJJCiBEZWxldGVJbnN0cnVjdGlvbkRvY3VtZW50UmVxdWVzdBIKCgJpZBgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoBCJXChlTZXRFbnZpcm9ubWVudFRhZ3NSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCRIMCgR0YWdzGAIgAygJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgEImUKHlByZXZpZXdBZ2VudEVudmlyb25tZW50UmVxdWVzdBIRCgl3b3JrZXJfaWQYASABKAkSMAoFZHJhZnQYAiABKAsyIS5jYW5vcHkudWkudjEuSW5zdHJ1Y3Rpb25Eb2N1bWVudCJhCh9QcmV2aWV3QWdlbnRFbnZpcm9ubWVudFJlc3BvbnNlEj4KDGluc3RydWN0aW9ucxgBIAMoCzIoLmNhbm9weS53b3JrZXIudjEuRW52aXJvbm1lbnRJbnN0cnVjdGlvbiKMAQoeUmVzb2x2ZUVudmlyb25tZW50RHJpZnRSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCRIRCgl0YXJnZXRfaWQYAiABKAkSDgoGYWN0aW9uGAMgASgJEhkKEW9ic2VydmVkX2NoZWNrc3VtGAQgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAUgASgEYgZwcm90bzM", [file_canopy_worker_v1_agent_environment]);
+  fileDesc("CiRjYW5vcHkvdWkvdjEvYWdlbnRfZW52aXJvbm1lbnQucHJvdG8SDGNhbm9weS51aS52MSJ3ChNFbnZpcm9ubWVudFNlbGVjdG9yEhAKCGV2ZXJ5b25lGAEgASgIEhIKCndvcmtlcl9pZHMYAiADKAkSDAoEdGFncxgDIAMoCRIWCg5tYXRjaF9hbGxfdGFncxgEIAEoCBIUCgxleGNsdWRlX3RhZ3MYBSADKAkidQoTSW5zdHJ1Y3Rpb25GcmFnbWVudBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2NvbnRlbnQYAyABKAkSMwoIc2VsZWN0b3IYBCABKAsyIS5jYW5vcHkudWkudjEuRW52aXJvbm1lbnRTZWxlY3RvciJSChpJbnN0cnVjdGlvbk1hY2hpbmVPdmVycmlkZRIRCgl3b3JrZXJfaWQYASABKAkSEAoIZGlzYWJsZWQYAiABKAgSDwoHY29udGVudBgDIAEoCSKmAgoTSW5zdHJ1Y3Rpb25Eb2N1bWVudBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2hhcm5lc3MYAyABKAkSEAoIcmV2aXNpb24YBCABKAQSMwoIc2VsZWN0b3IYBSABKAsyIS5jYW5vcHkudWkudjEuRW52aXJvbm1lbnRTZWxlY3RvchI0CglmcmFnbWVudHMYBiADKAsyIS5jYW5vcHkudWkudjEuSW5zdHJ1Y3Rpb25GcmFnbWVudBI7CglvdmVycmlkZXMYByADKAsyKC5jYW5vcHkudWkudjEuSW5zdHJ1Y3Rpb25NYWNoaW5lT3ZlcnJpZGUSEwoLZGV2aWNlX2hvbWUYCCABKAgSFQoNcGxhdGZvcm1faG9tZRgJIAEoCCLbAgoRRW52aXJvbm1lbnRXb3JrZXISEQoJd29ya2VyX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOYXV0b21hdGljX3RhZ3MYAyADKAkSEwoLbWFudWFsX3RhZ3MYBCADKAkSEQoJc3VwcG9ydGVkGAUgASgIEg4KBm9ubGluZRgGIAEoCBI4CgZyZXBvcnQYByABKAsyKC5jYW5vcHkud29ya2VyLnYxLkFnZW50RW52aXJvbm1lbnRSZXBvcnQSOQoHcHJldmlldxgIIAMoCzIoLmNhbm9weS53b3JrZXIudjEuRW52aXJvbm1lbnRJbnN0cnVjdGlvbhIYChBkZXNpcmVkX3JldmlzaW9uGAkgASgEEhkKEWNvbXBvc2l0aW9uX2Vycm9yGAogASgJEhgKEHNraWxsc19zdXBwb3J0ZWQYCyABKAgSEQoJc2tpbGxfaWRzGAwgAygJIhkKF0FnZW50RW52aXJvbm1lbnRSZXF1ZXN0IsABChhBZ2VudEVudmlyb25tZW50U25hcHNob3QSEAoIcmV2aXNpb24YASABKAQSNAoJZG9jdW1lbnRzGAIgAygLMiEuY2Fub3B5LnVpLnYxLkluc3RydWN0aW9uRG9jdW1lbnQSMAoHd29ya2VycxgDIAMoCzIfLmNhbm9weS51aS52MS5FbnZpcm9ubWVudFdvcmtlchIqCgZza2lsbHMYBCADKAsyGi5jYW5vcHkudWkudjEuTGlicmFyeVNraWxsIkwKFFNraWxsTWFjaGluZU92ZXJyaWRlEhEKCXdvcmtlcl9pZBgBIAEoCRIQCghkaXNhYmxlZBgCIAEoCBIPCgd2ZXJzaW9uGAMgASgEIqkCCgxMaWJyYXJ5U2tpbGwSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIPCgd2ZXJzaW9uGAMgASgEEhEKCWhhcm5lc3NlcxgEIAMoCRIzCghzZWxlY3RvchgFIAEoCzIhLmNhbm9weS51aS52MS5FbnZpcm9ubWVudFNlbGVjdG9yEjUKCW92ZXJyaWRlcxgGIAMoCzIiLmNhbm9weS51aS52MS5Ta2lsbE1hY2hpbmVPdmVycmlkZRITCgtkZXZpY2VfaG9tZRgHIAEoCBIVCg1wbGF0Zm9ybV9ob21lGAggASgIEjEKCGFydGlmYWN0GAkgASgLMh8uY2Fub3B5Lndvcmtlci52MS5Ta2lsbEFydGlmYWN0EhAKCHZlcnNpb25zGAogAygEIpgBChdTYXZlTGlicmFyeVNraWxsUmVxdWVzdBIpCgVza2lsbBgBIAEoCzIaLmNhbm9weS51aS52MS5MaWJyYXJ5U2tpbGwSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAQSKgoFZmlsZXMYAyADKAsyGy5jYW5vcHkud29ya2VyLnYxLlNraWxsRmlsZRILCgN6aXAYBCABKAwiQgoZRGVsZXRlTGlicmFyeVNraWxsUmVxdWVzdBIKCgJpZBgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoBCKGAQoYUmVzb2x2ZVNraWxsRHJpZnRSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCRIRCgl0YXJnZXRfaWQYAiABKAkSDgoGYWN0aW9uGAMgASgJEhkKEW9ic2VydmVkX2NoZWNrc3VtGAQgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAUgASgEInAKHlNhdmVJbnN0cnVjdGlvbkRvY3VtZW50UmVxdWVzdBIzCghkb2N1bWVudBgBIAEoCzIhLmNhbm9weS51aS52MS5JbnN0cnVjdGlvbkRvY3VtZW50EhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgEIkkKIERlbGV0ZUluc3RydWN0aW9uRG9jdW1lbnRSZXF1ZXN0EgoKAmlkGAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgEIlcKGVNldEVudmlyb25tZW50VGFnc1JlcXVlc3QSEQoJd29ya2VyX2lkGAEgASgJEgwKBHRhZ3MYAiADKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAQiZQoeUHJldmlld0FnZW50RW52aXJvbm1lbnRSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCRIwCgVkcmFmdBgCIAEoCzIhLmNhbm9weS51aS52MS5JbnN0cnVjdGlvbkRvY3VtZW50ImEKH1ByZXZpZXdBZ2VudEVudmlyb25tZW50UmVzcG9uc2USPgoMaW5zdHJ1Y3Rpb25zGAEgAygLMiguY2Fub3B5Lndvcmtlci52MS5FbnZpcm9ubWVudEluc3RydWN0aW9uIowBCh5SZXNvbHZlRW52aXJvbm1lbnREcmlmdFJlcXVlc3QSEQoJd29ya2VyX2lkGAEgASgJEhEKCXRhcmdldF9pZBgCIAEoCRIOCgZhY3Rpb24YAyABKAkSGQoRb2JzZXJ2ZWRfY2hlY2tzdW0YBCABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YBSABKARiBnByb3RvMw", [file_canopy_worker_v1_agent_environment]);
 
 /**
  * @generated from message canopy.ui.v1.EnvironmentSelector
@@ -222,6 +222,16 @@ export type EnvironmentWorker = Message<"canopy.ui.v1.EnvironmentWorker"> & {
    * @generated from field: string composition_error = 10;
    */
   compositionError: string;
+
+  /**
+   * @generated from field: bool skills_supported = 11;
+   */
+  skillsSupported: boolean;
+
+  /**
+   * @generated from field: repeated string skill_ids = 12;
+   */
+  skillIds: string[];
 };
 
 /**
@@ -262,6 +272,11 @@ export type AgentEnvironmentSnapshot = Message<"canopy.ui.v1.AgentEnvironmentSna
    * @generated from field: repeated canopy.ui.v1.EnvironmentWorker workers = 3;
    */
   workers: EnvironmentWorker[];
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.LibrarySkill skills = 4;
+   */
+  skills: LibrarySkill[];
 };
 
 /**
@@ -270,6 +285,194 @@ export type AgentEnvironmentSnapshot = Message<"canopy.ui.v1.AgentEnvironmentSna
  */
 export const AgentEnvironmentSnapshotSchema: GenMessage<AgentEnvironmentSnapshot> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_agent_environment, 6);
+
+/**
+ * @generated from message canopy.ui.v1.SkillMachineOverride
+ */
+export type SkillMachineOverride = Message<"canopy.ui.v1.SkillMachineOverride"> & {
+  /**
+   * @generated from field: string worker_id = 1;
+   */
+  workerId: string;
+
+  /**
+   * @generated from field: bool disabled = 2;
+   */
+  disabled: boolean;
+
+  /**
+   * 0 = library's selected version
+   *
+   * @generated from field: uint64 version = 3;
+   */
+  version: bigint;
+};
+
+/**
+ * Describes the message canopy.ui.v1.SkillMachineOverride.
+ * Use `create(SkillMachineOverrideSchema)` to create a new message.
+ */
+export const SkillMachineOverrideSchema: GenMessage<SkillMachineOverride> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_agent_environment, 7);
+
+/**
+ * @generated from message canopy.ui.v1.LibrarySkill
+ */
+export type LibrarySkill = Message<"canopy.ui.v1.LibrarySkill"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: uint64 version = 3;
+   */
+  version: bigint;
+
+  /**
+   * @generated from field: repeated string harnesses = 4;
+   */
+  harnesses: string[];
+
+  /**
+   * @generated from field: canopy.ui.v1.EnvironmentSelector selector = 5;
+   */
+  selector?: EnvironmentSelector | undefined;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.SkillMachineOverride overrides = 6;
+   */
+  overrides: SkillMachineOverride[];
+
+  /**
+   * @generated from field: bool device_home = 7;
+   */
+  deviceHome: boolean;
+
+  /**
+   * @generated from field: bool platform_home = 8;
+   */
+  platformHome: boolean;
+
+  /**
+   * @generated from field: canopy.worker.v1.SkillArtifact artifact = 9;
+   */
+  artifact?: SkillArtifact | undefined;
+
+  /**
+   * @generated from field: repeated uint64 versions = 10;
+   */
+  versions: bigint[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.LibrarySkill.
+ * Use `create(LibrarySkillSchema)` to create a new message.
+ */
+export const LibrarySkillSchema: GenMessage<LibrarySkill> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_agent_environment, 8);
+
+/**
+ * @generated from message canopy.ui.v1.SaveLibrarySkillRequest
+ */
+export type SaveLibrarySkillRequest = Message<"canopy.ui.v1.SaveLibrarySkillRequest"> & {
+  /**
+   * @generated from field: canopy.ui.v1.LibrarySkill skill = 1;
+   */
+  skill?: LibrarySkill | undefined;
+
+  /**
+   * @generated from field: uint64 expected_revision = 2;
+   */
+  expectedRevision: bigint;
+
+  /**
+   * folder upload; paths relative to skill root
+   *
+   * @generated from field: repeated canopy.worker.v1.SkillFile files = 3;
+   */
+  files: SkillFile[];
+
+  /**
+   * alternative to files, one skill root
+   *
+   * @generated from field: bytes zip = 4;
+   */
+  zip: Uint8Array;
+};
+
+/**
+ * Describes the message canopy.ui.v1.SaveLibrarySkillRequest.
+ * Use `create(SaveLibrarySkillRequestSchema)` to create a new message.
+ */
+export const SaveLibrarySkillRequestSchema: GenMessage<SaveLibrarySkillRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_agent_environment, 9);
+
+/**
+ * @generated from message canopy.ui.v1.DeleteLibrarySkillRequest
+ */
+export type DeleteLibrarySkillRequest = Message<"canopy.ui.v1.DeleteLibrarySkillRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: uint64 expected_revision = 2;
+   */
+  expectedRevision: bigint;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DeleteLibrarySkillRequest.
+ * Use `create(DeleteLibrarySkillRequestSchema)` to create a new message.
+ */
+export const DeleteLibrarySkillRequestSchema: GenMessage<DeleteLibrarySkillRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_agent_environment, 10);
+
+/**
+ * @generated from message canopy.ui.v1.ResolveSkillDriftRequest
+ */
+export type ResolveSkillDriftRequest = Message<"canopy.ui.v1.ResolveSkillDriftRequest"> & {
+  /**
+   * @generated from field: string worker_id = 1;
+   */
+  workerId: string;
+
+  /**
+   * @generated from field: string target_id = 2;
+   */
+  targetId: string;
+
+  /**
+   * keep | overwrite | import
+   *
+   * @generated from field: string action = 3;
+   */
+  action: string;
+
+  /**
+   * @generated from field: string observed_checksum = 4;
+   */
+  observedChecksum: string;
+
+  /**
+   * @generated from field: uint64 expected_revision = 5;
+   */
+  expectedRevision: bigint;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ResolveSkillDriftRequest.
+ * Use `create(ResolveSkillDriftRequestSchema)` to create a new message.
+ */
+export const ResolveSkillDriftRequestSchema: GenMessage<ResolveSkillDriftRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_agent_environment, 11);
 
 /**
  * @generated from message canopy.ui.v1.SaveInstructionDocumentRequest
@@ -291,7 +494,7 @@ export type SaveInstructionDocumentRequest = Message<"canopy.ui.v1.SaveInstructi
  * Use `create(SaveInstructionDocumentRequestSchema)` to create a new message.
  */
 export const SaveInstructionDocumentRequestSchema: GenMessage<SaveInstructionDocumentRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_agent_environment, 7);
+  messageDesc(file_canopy_ui_v1_agent_environment, 12);
 
 /**
  * @generated from message canopy.ui.v1.DeleteInstructionDocumentRequest
@@ -313,7 +516,7 @@ export type DeleteInstructionDocumentRequest = Message<"canopy.ui.v1.DeleteInstr
  * Use `create(DeleteInstructionDocumentRequestSchema)` to create a new message.
  */
 export const DeleteInstructionDocumentRequestSchema: GenMessage<DeleteInstructionDocumentRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_agent_environment, 8);
+  messageDesc(file_canopy_ui_v1_agent_environment, 13);
 
 /**
  * @generated from message canopy.ui.v1.SetEnvironmentTagsRequest
@@ -340,7 +543,7 @@ export type SetEnvironmentTagsRequest = Message<"canopy.ui.v1.SetEnvironmentTags
  * Use `create(SetEnvironmentTagsRequestSchema)` to create a new message.
  */
 export const SetEnvironmentTagsRequestSchema: GenMessage<SetEnvironmentTagsRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_agent_environment, 9);
+  messageDesc(file_canopy_ui_v1_agent_environment, 14);
 
 /**
  * @generated from message canopy.ui.v1.PreviewAgentEnvironmentRequest
@@ -364,7 +567,7 @@ export type PreviewAgentEnvironmentRequest = Message<"canopy.ui.v1.PreviewAgentE
  * Use `create(PreviewAgentEnvironmentRequestSchema)` to create a new message.
  */
 export const PreviewAgentEnvironmentRequestSchema: GenMessage<PreviewAgentEnvironmentRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_agent_environment, 10);
+  messageDesc(file_canopy_ui_v1_agent_environment, 15);
 
 /**
  * @generated from message canopy.ui.v1.PreviewAgentEnvironmentResponse
@@ -381,7 +584,7 @@ export type PreviewAgentEnvironmentResponse = Message<"canopy.ui.v1.PreviewAgent
  * Use `create(PreviewAgentEnvironmentResponseSchema)` to create a new message.
  */
 export const PreviewAgentEnvironmentResponseSchema: GenMessage<PreviewAgentEnvironmentResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_agent_environment, 11);
+  messageDesc(file_canopy_ui_v1_agent_environment, 16);
 
 /**
  * @generated from message canopy.ui.v1.ResolveEnvironmentDriftRequest
@@ -420,5 +623,5 @@ export type ResolveEnvironmentDriftRequest = Message<"canopy.ui.v1.ResolveEnviro
  * Use `create(ResolveEnvironmentDriftRequestSchema)` to create a new message.
  */
 export const ResolveEnvironmentDriftRequestSchema: GenMessage<ResolveEnvironmentDriftRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_agent_environment, 12);
+  messageDesc(file_canopy_ui_v1_agent_environment, 17);
 

@@ -15,7 +15,12 @@ export interface InstructionTarget {
 
 export interface EnvironmentHomes {
   readonly dataDir: string;
-  readonly deviceHomes: { readonly claude: string; readonly codex: string };
+  readonly deviceHomes: {
+    readonly claude: string;
+    readonly codex: string;
+    readonly grok?: string;
+    readonly agents?: string;
+  };
   readonly config: AppliedConfig | undefined;
 }
 

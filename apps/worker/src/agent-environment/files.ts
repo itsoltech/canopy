@@ -54,7 +54,7 @@ export function instructionDirectory(path: string, create: boolean): void {
   }
 }
 
-export function readInstructionFile(path: string): InstructionFile {
+export function readInstructionFile(path: string, limit = ENVIRONMENT_FILE_BYTES): InstructionFile {
   instructionDirectory(dirname(path), false);
   let descriptor: number;
 
@@ -73,9 +73,9 @@ export function readInstructionFile(path: string): InstructionFile {
   try {
     const stat = fstatSync(descriptor);
 
-    if (!stat.isFile() || stat.size > ENVIRONMENT_FILE_BYTES)
+    if (!stat.isFile() || stat.size > limit)
       throw new EnvironmentFileError("The instruction file must be a regular UTF-8 file up to 256 KiB.");
-    const buffer = Buffer.alloc(ENVIRONMENT_FILE_BYTES + 1);
+    const buffer = Buffer.alloc(Math.min(stat.size + 1, limit + 1));
     let length = 0;
 
     while (length < buffer.length) {
@@ -87,7 +87,10 @@ export function readInstructionFile(path: string): InstructionFile {
 
     const bytes = buffer.subarray(0, length);
 
-    if (bytes.length > ENVIRONMENT_FILE_BYTES || !isUtf8(bytes))
+    if (bytes.length > stat.size)
+      throw new EnvironmentFileError("The file changed while reading. Refresh before syncing.");
+
+    if (bytes.length > limit || !isUtf8(bytes))
       throw new EnvironmentFileError("The instruction file must be a regular UTF-8 file up to 256 KiB.");
     const text = bytes.toString("utf8");
 
@@ -98,8 +101,13 @@ export function readInstructionFile(path: string): InstructionFile {
 }
 
 /** Same-directory fsync + rename. Failure before rename leaves the old file intact. */
-export function replaceInstructionFile(path: string, expected: InstructionFile, text: string): void {
-  if (Buffer.byteLength(text) > ENVIRONMENT_FILE_BYTES)
+export function replaceInstructionFile(
+  path: string,
+  expected: InstructionFile,
+  text: string,
+  limit = ENVIRONMENT_FILE_BYTES,
+): void {
+  if (Buffer.byteLength(text) > limit)
     throw new EnvironmentFileError("The resulting instruction file would exceed 256 KiB.");
   instructionDirectory(dirname(path), true);
   const temporary = join(dirname(path), `.canopy-instructions-${Bun.randomUUIDv7()}.tmp`);
@@ -114,7 +122,7 @@ export function replaceInstructionFile(path: string, expected: InstructionFile, 
       closeSync(descriptor);
     }
 
-    if (readInstructionFile(path).checksum !== expected.checksum)
+    if (readInstructionFile(path, limit).checksum !== expected.checksum)
       throw new EnvironmentFileError("The file changed after the preview. Refresh before choosing a version.");
     renameSync(temporary, path);
   } finally {

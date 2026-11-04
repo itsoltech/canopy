@@ -440,7 +440,7 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
 
 ### Środowisko agentów
 
-Settings → Agent environment przechowuje w DB wersjonowane dokumenty i tagi;
+Settings → Agent environment przechowuje w DB wersjonowane dokumenty, skille i tagi;
 to osobny oczekiwany stan z capability `agent_environment_v1`, nie pole konfiguracji
 CLI ani zmienna procesu. Instrukcje trafiają do domyślnych izolowanych domów i
 każdego domu instancji wyznaczonego przez `instanceShadowHome`, opcjonalnie również
@@ -449,6 +449,13 @@ Claude dopisuje tylko zarządzany blok do system promptu, zachowując
 `settingSources: ["project", "local"]`. Codex czyta `AGENTS.md` z faktycznego
 `CODEX_HOME`. Lokalne teksty poza blokiem pozostają na urządzeniu; dla platformowego
 Claude nie są częścią dopisanego promptu. Zmiany dotyczą nowych sesji.
+Skille negocjują osobną capability `agent_skills_v1`. Claude ładuje zarządzane
+`<actual home>/canopy-environment/skills` jako jawny lokalny plugin bez włączania
+user settings. Codex platformowy czyta `<actual CODEX_HOME>/skills`; osobny cel CLI
+urządzenia to `~/.agents/skills`, którego nie izoluje zmiana `CODEX_HOME`.
+Grok łączy disposable process home z trwałym `<actual home>/skills`. Manifest
+własności w `data_dir` pozwala usuwać tylko pliki Canopy; lokalne zmiany wymagają
+rozstrzygnięcia driftu. Nie instalujemy zależności ani nie uruchamiamy skryptów.
 Patrz [agent-environment.md](agent-environment.md).
 
 ### 9.5. Logowanie z aplikacji

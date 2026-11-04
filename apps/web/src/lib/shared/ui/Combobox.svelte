@@ -29,6 +29,8 @@
     value = $bindable(),
     filter,
     onselect,
+    multiple = false,
+    selectedKeys = [],
     onchange,
     inline = false,
     loading = false,
@@ -53,6 +55,9 @@
     /** Custom match, or `false` when `items` are already filtered (server-side search). */
     filter?: ((item: T, query: string) => boolean) | false;
     onselect?: ((item: T) => void) | undefined;
+    /** Multiple selection keeps the picker open; the owning control supplies selected keys. */
+    multiple?: boolean;
+    selectedKeys?: readonly string[];
     /** Autocomplete: the text was committed (an option chosen, or edited and left / Enter). */
     onchange?: ((text: string) => void) | undefined;
     inline?: boolean;
@@ -124,6 +129,14 @@
   });
 
   function choose(item: T) {
+    if (multiple) {
+      query = "";
+      activeKey = undefined;
+      onselect?.(item);
+
+      return;
+    }
+
     value = key(item);
     activeKey = value;
 
@@ -202,6 +215,7 @@
   <ul
     id="{id}-list"
     role="listbox"
+    aria-multiselectable={multiple || undefined}
     aria-label={label}
     class={[
       "grid grid-cols-1 content-start",
@@ -219,7 +233,7 @@
       {/if}
       {#each group.entries as { item, index } (key(item))}
         {@const isActive = index === activeIndex}
-        {@const selected = key(item) === value}
+        {@const selected = multiple ? selectedKeys.includes(key(item)) : key(item) === value}
         <!-- Keys reach options through the input (aria-activedescendant); a click picks with the pointer. -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <li

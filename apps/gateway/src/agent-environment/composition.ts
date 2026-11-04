@@ -1,6 +1,10 @@
 import { create } from "@bufbuild/protobuf";
 import { EnvironmentInstructionSchema, ui, type Hello } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
+import { environmentSelected as selected } from "@canopy/domain/environment-selectors";
+
+export { environmentSelected as selected } from "@canopy/domain/environment-selectors";
+
 import {
   ENVIRONMENT_BEGIN,
   ENVIRONMENT_END,
@@ -49,22 +53,6 @@ export function manualTags(tags: readonly string[]): string[] {
   return [...new Set(tags)].sort();
 }
 
-export function selected(selector: ui.EnvironmentSelector | undefined, worker: ui.EnvironmentWorker): boolean {
-  if (!selector) return true;
-  const tags = new Set([...worker.automaticTags, ...worker.manualTags]);
-
-  if (selector.excludeTags.some((tag) => tags.has(tag))) return false;
-
-  return (
-    selector.everyone ||
-    selector.workerIds.includes(worker.workerId) ||
-    (selector.tags.length > 0 &&
-      (selector.matchAllTags
-        ? selector.tags.every((tag) => tags.has(tag))
-        : selector.tags.some((tag) => tags.has(tag))))
-  );
-}
-
 export function compose(documents: readonly ui.InstructionDocument[], worker: ui.EnvironmentWorker) {
   return harnesses.flatMap((harness) =>
     [false, true].map((device) => {
@@ -107,7 +95,7 @@ function checkContent(content: string): void {
     invalid("Canopy's managed block markers cannot be part of an instruction fragment.");
 }
 
-function checkSelector(selector: ui.EnvironmentSelector | undefined, workers: ReadonlySet<string>): void {
+export function checkSelector(selector: ui.EnvironmentSelector | undefined, workers: ReadonlySet<string>): void {
   if (!selector) return;
 
   if (selector.workerIds.length > 200 || selector.tags.length > 32 || selector.excludeTags.length > 32)

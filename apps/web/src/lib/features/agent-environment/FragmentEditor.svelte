@@ -9,10 +9,13 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import AssignmentEditor from "./AssignmentEditor.svelte";
+  import AssignmentSummary from "./AssignmentSummary.svelte";
 
   let {
     fragment = $bindable(),
     workers,
+    parentSelector,
+    disabled = [],
     index,
     count,
     onmove,
@@ -21,6 +24,8 @@
   }: {
     fragment: ui.InstructionFragment;
     workers: readonly ui.EnvironmentWorker[];
+    parentSelector?: ui.EnvironmentSelector;
+    disabled?: readonly string[];
     index: number;
     count: number;
     onmove: (direction: number) => void;
@@ -79,7 +84,13 @@
           (on) => (fragment.selector = on ? create(ui.EnvironmentSelectorSchema) : undefined)
         }
       />
-      {#if fragment.selector}<AssignmentEditor bind:selector={fragment.selector} {workers} />{/if}
+      {#if fragment.selector}<AssignmentEditor
+          bind:selector={fragment.selector}
+          {workers}
+          {parentSelector}
+          {disabled}
+        />
+      {:else}<AssignmentSummary selector={parentSelector} {workers} {disabled} />{/if}
     </div>
   </Disclosure>
 </section>

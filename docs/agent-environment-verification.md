@@ -105,3 +105,110 @@ sesje harnessów mogą zachować wcześniejsze instrukcje.
 
 Lokalny commit etapu: `feat(agents): sync tagged global instruction environments`.
 Dokładny SHA znajduje się w raporcie końcowym zadania.
+
+---
+
+## Etap 2 — skille i tag picker
+
+Data: 2026-11-04. Gałąź `feat/agent-environment-2`, oparta o lokalną
+`feat/agent-environment-1`; wykonano fetch origin przed utworzeniem gałęzi.
+Nowa migracja `0056_agent_skills` następuje po najwyższej migracji etapu 1 (`0055`),
+z wpisem w indeksie i oczekiwanej liście schema test. Bez push, PR ani tagów.
+
+Biblioteka przyjmuje folder/ZIP z walidowanym SKILL.md, przechowuje niezmienne
+wersje i przypisuje je selektorami oraz wyłączeniami/pinami per maszyna.
+Capability `agent_skills_v1` działa obok instrukcji. Worker uzgadnia rzeczywiste
+cele Claude/Codex/Grok, prowadzi manifest własności, journal swapu i rollback,
+zachowuje prywatne pliki. Drift ma porównanie plików, keep/overwrite/import;
+import tworzy wersję przypiętą tylko komputerowi z konfliktem. Opis protokołu,
+katalogów i ograniczeń: [agent-environment.md](agent-environment.md).
+
+### Sprawdzenia etapu 2
+
+| Polecenie | Wynik |
+| --- | --- |
+| `bun install` | PASS; bez zmiany lockfile |
+| `bun run gen:check` | PASS; addytywne protokoły i wygenerowany kod zgodne |
+| `bun run typecheck` | PASS wszystkich pakietów, scripts i tools; Svelte 0 błędów i 0 ostrzeżeń |
+| `bun run lint` | PASS; bez wyłączeń reguł rozmiaru i bez globalnego autofix |
+| `bun run format:check` | PASS po formatowaniu |
+| `TMPDIR=~/.cache/canopy-agent-environment-2 bun run check:tmp` | PASS: **863 pass, 150 skip, 0 fail**, 1013 testów / 163 pliki, 5233 asercje; TMPDIR bez pozostałości testów `canopy-*` |
+| `bun run check:tmp tests/integration/agent-skills.test.ts tests/integration/agent-skills-files.test.ts` | PASS: **18 pass, 0 fail, 165 asercji**, TMPDIR czysty; także zastrzeżona nazwa folderu Windows, duże raporty driftu i izolacja komponentów pluginu Claude |
+| `bun run --filter @canopy/web build` | PASS; standardowe ostrzeżenie bundlera o dużych chunkach |
+
+Pełne logi w `/home/nix/.cache/canopy-agent-environment-2/`: `check-tmp.log`,
+`check-tmp-final.log`, `skills-tests-final.log`, `gen-check.log`, `typecheck.log`, `lint.log`,
+`format-check.log`, `web-build.log`. Pełny przebieg obejmował działający PostgreSQL
+17 i idempotencję migracji. Po nim dodano jeszcze odrzucanie zastrzeżonej nazwy
+folderu skilla (`con`), budżet dużych raportów driftu i kontrolę komponentów pluginu
+Claude; powtórzono testy skilli,
+kontrole statyczne i pełny check:tmp (końcowy wynik w tabeli powyżej).
+Narzędzie Claude pozostawiło własny `claude-1000`; checker odróżnia go od
+katalogów testów Canopy. Nie dodawano testów web UI ani live sesji modeli.
+
+### Pokrycie etapu 2
+
+1. Prawdziwe UI RPC → gateway → gRPC WorkerLink → WorkerHost, temp HOMEs:
+   folder/ZIP, traversal, symlink/specjalne wpisy ZIP, limity archiwum/pliku/sumy
+   i liczby plików, zip bomb, kolizje katalogów i wielkości liter, SKILL.md oraz
+   zastrzeżone nazwy Windows. Błędny upload nie zapisuje rewizji ani wersji.
+2. Instalacja do domów CLI oraz wspólnych i jawnych domów instancji wszystkich
+   trzech harnessów, w tym Codex `.agents/skills` i namespace pluginu Claude.
+   Windows-only selector nie instaluje na Linux; disable i pin wersji działają.
+   Worker bez skill capability zachowuje instrukcje i nie dostaje artefaktów.
+   Adapter Claude odrzuca symlinki i komponenty spoza `skills/` w korzeniu pluginu,
+   zachowując obce pliki zamiast włączania ich hooks/MCP przy starcie sesji.
+3. Aktualizacja, rollback, własność po restarcie, idempotencja, błąd zapisu
+   manifestu, odtworzenie przerwanego swapu, zachowanie równoczesnej edycji/backupów.
+   Test sześciu rzeczywistych celów skilla z 7 MiB zasobów i równoczesnym driftem
+   potwierdza limit raportu oraz udostępnienie odroczonego diffu po rozwiązaniu
+   wcześniejszego konfliktu, bez nadpisania lokalnych zmian.
+   Usunięcie zachowuje obce skille, prywatne pliki i puste katalogi; istniejącego
+   folderu ani symlinku nie można przejąć. Usunięty element z driftem nadal
+   wymaga świeżego rozstrzygnięcia.
+4. Drift keep/stale CAS/overwrite/import, jednorazowość resolution, prywatność
+   dodatków, import przypięty tylko jednej maszynie, offline catch-up do najnowszej
+   wersji oraz owner scoping odczytu wersji, mutacji i resolutions.
+
+### UI, design i componentize
+
+Zastosowano `design` oraz osobny przebieg `componentize`. Wspólny TagInput używa
+Combobox kitu z multi-select, chipami, licznikami automatic/manual tags oraz
+tworzeniem tagu inline. AssignmentSummary współdzieli selektor z gatewayem.
+Wyodrębniono SkillUpload, SkillEditor, SkillOverrides, SkillsLibrary, ComputerSkills
+i SkillDiff; VersionComparison jest wspólny dla driftu instrukcji i skilli.
+
+Prawdziwa przeglądarka: **1280×800** i **390×844** CSS px, light i dark.
+Sprawdzono selekcję/usuwanie/tworzenie tagów i żywe podsumowanie, upload ZIP,
+Save and sync (wersja 2 i odczyt nowych bajtów w temp HOME), porównanie lokalnego
+driftu, Keep mine (status kept i zachowane bajty), następnie Overwrite (przywrócona
+treść biblioteki). Brak poziomego przepełnienia funkcji; długie ścieżki zawijają
+się, długie sugestie są celowo skrócone. Rozstrzygnięcie import potwierdzają testy
+integracyjne. Karta przeglądarki i procesy fixture'a zostały zamknięte.
+
+Zrzuty w `/home/nix/.cache/canopy-agent-environment-2/evidence/`:
+
+- `desktop-light.png`, `desktop-dark.png`
+- `phone-light.png`, `phone-dark.png`
+- `tag-picker-light.png`, `phone-tag-picker-light.png`
+- `skill-drift-dark.png`
+
+Fixture: osobny PostgreSQL, losowy port gRPC, web **18682**, wyłączone harnessy,
+domy wyłącznie pod `~/.cache/canopy-agent-environment-2/browser-final`.
+Nie dotykano domów CLI maintainera, jego portów, procesów ani Tailscale.
+
+`itsol-self-review`: owner scoping, walidacja ZIP i nazw, prawdziwe katalogi
+harnessów, capability gate, manifest, odzyskiwanie przerwanego swapu, CAS,
+zachowanie obcych plików, import z przypiętej wersji oraz blokowanie Save podczas
+odczytu/błędu uploadu. Kontrola wykonana lokalnie, bez delegowania.
+
+Granice dowodów: Linux; tag Windows jest symulowany. Nie wykonano natywnych testów
+Windows/macOS ani live sesji CLI/modeli. Portable zamiana katalogu ma dwa rename
+i krótkie okno braku ścieżki; nie ma transakcji obejmującej wiele celów. Przerwany
+staging sprzed journalu wymaga ręcznego przeglądu. Prywatne `~/.agents/skills`
+pozostają wykrywalne dla Codexa mimo izolowanego CODEX_HOME. Produkcyjny BFF
+wymaga `BODY_SIZE_LIMIT=50M` dla maksymalnego folderu. Git/skills.sh, update tracking,
+marketplace i linked library pozostają etapami 3–4.
+
+Lokalny commit: `feat(agents): sync versioned skills and add tag pickers`.
+Dokładny SHA znajduje się w raporcie końcowym zadania.
