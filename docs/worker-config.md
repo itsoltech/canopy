@@ -440,7 +440,7 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
 
 ### Środowisko agentów
 
-Settings → Agent environment przechowuje w DB wersjonowane dokumenty, skille i tagi;
+Settings → Agent environment przechowuje w DB wersjonowane dokumenty, skille, pluginy i tagi;
 to osobny oczekiwany stan z capability `agent_environment_v1`, nie pole konfiguracji
 CLI ani zmienna procesu. Instrukcje trafiają do domyślnych izolowanych domów i
 każdego domu instancji wyznaczonego przez `instanceShadowHome`, opcjonalnie również
@@ -456,7 +456,15 @@ urządzenia to `~/.agents/skills`, którego nie izoluje zmiana `CODEX_HOME`.
 Grok łączy disposable process home z trwałym `<actual home>/skills`. Manifest
 własności w `data_dir` pozwala usuwać tylko pliki Canopy; lokalne zmiany wymagają
 rozstrzygnięcia driftu. Nie instalujemy zależności ani nie uruchamiamy skryptów.
-Patrz [agent-environment.md](agent-environment.md).
+Pluginy Claude/Codex negocjują `agent_plugins_v1`. Worker zapisuje zatwierdzone
+bundle do `plugins/cache/canopy-<uuid>-<harness>/<name>/local` w tych samych
+rzeczywistych domach. Zarządza wyłącznie własnymi namespace w Claude settings
+i registry v2 oraz blokiem pluginów/marketplace w Codex `config.toml`.
+Nie włącza prywatnych user settings w SDK Claude. Drift plików/aktywacji blokuje
+nowe sesje; zgoda i commit są audytowane w gateway. Usunięcie przypisania usuwa
+własny kod/aktywację, zachowuje lokalne dodatki. Działający Codex app-server może
+wymagać restartu workera z UI po zakończeniu tur, aby odrzucić wcześniejszy cache.
+Patrz [agent-environment.md](agent-environment.md#marketplace-i-pluginy--protokół-etapu-4).
 
 ### 9.5. Logowanie z aplikacji
 

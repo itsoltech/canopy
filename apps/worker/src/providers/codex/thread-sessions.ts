@@ -6,6 +6,7 @@ import { codexPermissions } from "./permissions.ts";
 import { CodexThreadError, fail, type Entry, type CodexThreadContext } from "./thread-types.ts";
 import { registerThread } from "./thread-registry.ts";
 import { dynamicTools } from "./dynamic-tools.ts";
+import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 
 const NO_ROLLOUT = /no rollout found/i;
 
@@ -16,6 +17,9 @@ export function threadSessions(ctx: CodexThreadContext) {
     registerThread(ctx, platformId, codexId, rolloutPath);
 
   const threadParams = (spec: ThreadSpec) => {
+    const home = options.launch.env["CODEX_HOME"];
+
+    if (home) managedPlugins(home, "codex");
     connectorCatalog.set(spec.threadId, spec.connectorTools);
     const profile = options.profile(spec.providerProfileId);
 

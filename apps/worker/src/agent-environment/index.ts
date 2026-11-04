@@ -13,11 +13,14 @@ import { SkillLedger } from "./skill-ledger.ts";
 import { skillTargets } from "./skill-targets.ts";
 import { reconcileSkill } from "./skill-reconcile.ts";
 import { validateSkillFiles, SKILL_TOTAL_BYTES } from "@canopy/domain/skill-artifact";
+import { validatePluginFiles } from "@canopy/domain/plugin-artifact";
+import { WorkerPlugins } from "./plugins.ts";
 
 /** Reconcile only owner-approved immutable artifacts; never execute their scripts or install dependencies. */
 export class WorkerAgentEnvironment {
   readonly ledger: InstructionLedger;
   readonly skills: SkillLedger;
+  readonly plugins: WorkerPlugins;
   #desired: AgentEnvironmentDesired | undefined;
   #last = "";
   #timer: ReturnType<typeof setInterval>;
@@ -30,6 +33,7 @@ export class WorkerAgentEnvironment {
   ) {
     this.ledger = new InstructionLedger(options.homes().dataDir);
     this.skills = new SkillLedger(options.homes().dataDir);
+    this.plugins = new WorkerPlugins(options.homes().dataDir);
     this.#timer = setInterval(() => this.refresh(), 15_000);
     this.#timer.unref();
   }
@@ -50,7 +54,13 @@ export class WorkerAgentEnvironment {
       return;
 
     try {
-      if (desired.skills.length > 100 || desired.skillResolutions.length > 512) return;
+      if (
+        desired.skills.length > 100 ||
+        desired.skillResolutions.length > 512 ||
+        desired.plugins.length > 100 ||
+        desired.pluginResolutions.length > 512
+      )
+        return;
       let total = 0;
 
       for (const skill of desired.skills) {
@@ -70,6 +80,26 @@ export class WorkerAgentEnvironment {
         if (total > SKILL_TOTAL_BYTES) return;
         // Use verified per-file checksums, never those supplied by a remote caller.
         skill.artifact = validated;
+      }
+
+      let pluginBytes = 0;
+
+      for (const plugin of desired.plugins) {
+        if (
+          !plugin.artifact ||
+          !/^[a-f0-9-]{36}$/.test(plugin.id) ||
+          !plugin.version ||
+          !plugin.harnesses.length ||
+          plugin.harnesses.some((h) => !["claude", "codex"].includes(h))
+        )
+          return;
+        const validated = validatePluginFiles(plugin.artifact.files);
+
+        if (validated.checksum !== plugin.artifact.checksum || validated.name !== plugin.artifact.name) return;
+        plugin.artifact = validated;
+        pluginBytes += validated.files.reduce((sum, f) => sum + f.content.length, 0);
+
+        if (pluginBytes > SKILL_TOTAL_BYTES) return;
       }
     } catch {
       return;
@@ -106,8 +136,6 @@ export class WorkerAgentEnvironment {
     }
 
     try {
-      let comparisonBytes = 0;
-
       for (const target of skillTargets(desired, this.options.homes(), this.skills)) {
         const status = reconcileSkill(
           target,
@@ -115,17 +143,6 @@ export class WorkerAgentEnvironment {
           desired.skillResolutions.find((r) => r.targetId === target.targetId),
         );
 
-        const size = Buffer.byteLength(JSON.stringify(toJson(EnvironmentSkillStatusSchema, status)));
-
-        // A skill can appear in many homes. Keep the complete report below the gateway's 128 MiB bound.
-        if ((status.managedFiles.length || status.desiredFiles.length) && comparisonBytes + size > 96 * 1024 * 1024) {
-          status.managedFiles = [];
-          status.desiredFiles = [];
-          status.importable = false;
-          status.status = "error";
-          status.detail =
-            "Other skill comparisons fill this report. Resolve those conflicts first to compare this skill. Its files were preserved.";
-        } else comparisonBytes += size;
         report.skills.push(status);
       }
     } catch (error) {
@@ -141,9 +158,23 @@ export class WorkerAgentEnvironment {
       );
     }
 
+    try {
+      report.plugins = this.plugins.reconcile(desired, this.options.homes());
+    } catch {
+      report.plugins = [
+        create(EnvironmentSkillStatusSchema, {
+          status: "error",
+          detail:
+            "Couldn't reconcile plugins. Existing files were preserved; check the ownership journal and destinations.",
+        }),
+      ];
+    }
+
+    boundComparisons([...report.skills, ...report.plugins]);
     // Resolutions authorize one attempt against previewed bytes, never future local edits.
     desired.resolutions = [];
     desired.skillResolutions = [];
+    desired.pluginResolutions = [];
 
     const checksum = environmentDigest(JSON.stringify(toJson(AgentEnvironmentReportSchema, report)));
 
@@ -155,5 +186,23 @@ export class WorkerAgentEnvironment {
 
   stop(): void {
     clearInterval(this.#timer);
+  }
+}
+
+/** Skills and plugins share one report bound even when the same bundle targets many homes. */
+function boundComparisons(statuses: AgentEnvironmentReport["skills"]): void {
+  let bytes = 0;
+
+  for (const status of statuses) {
+    const size = Buffer.byteLength(JSON.stringify(toJson(EnvironmentSkillStatusSchema, status)));
+
+    if ((status.managedFiles.length || status.desiredFiles.length) && bytes + size > 96 * 1024 * 1024) {
+      status.managedFiles = [];
+      status.desiredFiles = [];
+      status.importable = false;
+      status.status = "error";
+      status.detail =
+        "Other comparisons fill this report. Resolve those conflicts first to compare this item. Its files were preserved.";
+    } else bytes += size;
   }
 }

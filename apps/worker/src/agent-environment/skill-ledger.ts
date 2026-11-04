@@ -29,8 +29,8 @@ export class SkillLedger {
   readonly entries = new Map<string, ManagedSkill>();
   readonly path: string;
   problem = "";
-  constructor(dataDir: string) {
-    this.path = join(dataDir, "agent-environment", "skills.json");
+  constructor(dataDir: string, filename = "skills.json") {
+    this.path = join(dataDir, "agent-environment", filename);
 
     try {
       if (!existsSync(this.path)) return;

@@ -3,6 +3,7 @@ import { claudeExecutable } from "./executable.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import { claudeProfileOptions } from "./profile.ts";
 import { claudeSkillPlugins } from "./skill-plugin.ts";
+import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 
 import type { ClaudeInstanceRuntime, ClaudeThreadContext } from "./thread-types.ts";
 
@@ -23,7 +24,7 @@ export function claudeRuntime(ctx: ClaudeThreadContext) {
     ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: runtime.home }),
     pathToClaudeCodeExecutable: claudeExecutable(runtime.executable, options.baseEnv),
     ...(runtime.extraArgs && Object.keys(runtime.extraArgs).length > 0 && { extraArgs: runtime.extraArgs }),
-    plugins: claudeSkillPlugins(runtime.home),
+    plugins: [...claudeSkillPlugins(runtime.home), ...managedPlugins(runtime.home, "claude")],
   });
 
   /**

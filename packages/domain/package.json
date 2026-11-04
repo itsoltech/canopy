@@ -10,6 +10,8 @@
     "./json": "./src/json.ts",
     "./agent-environment": "./src/agent-environment.ts",
     "./skill-artifact": "./src/skill-artifact.ts",
+    "./plugin-artifact": "./src/plugin-artifact.ts",
+    "./plugin-components": "./src/plugin-components.ts",
     "./skill-source": "./src/skill-source.ts",
     "./environment-selectors": "./src/environment-selectors.ts",
     "./background-tasks": "./src/background-tasks/index.ts",

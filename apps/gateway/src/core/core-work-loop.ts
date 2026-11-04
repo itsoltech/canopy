@@ -262,7 +262,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
   },
 
   async stopSweep(this: GatewayCore): Promise<void> {
-    const sourcesStopped = this.environment.sources.stop();
+    const sourcesStopped = Promise.all([this.environment.sources.stop(), this.environment.marketplaces.stop()]);
     this.cli.stop();
     this.connectors.stop();
     this.secrets.stop();

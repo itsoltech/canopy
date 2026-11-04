@@ -48,6 +48,8 @@ message EnvironmentWorker {
   string composition_error = 10;
   bool skills_supported = 11;
   repeated string skill_ids = 12;
+  bool plugins_supported = 13;
+  repeated string plugin_ids = 14;
 }
 
 message AgentEnvironmentRequest {}
@@ -56,6 +58,57 @@ message AgentEnvironmentSnapshot {
   repeated InstructionDocument documents = 2;
   repeated EnvironmentWorker workers = 3;
   repeated LibrarySkill skills = 4;
+  repeated EnvironmentMarketplace marketplaces = 5;
+  repeated LibraryPlugin plugins = 6;
+}
+
+message MarketplacePlugin {
+  canopy.worker.v1.SkillArtifact artifact = 1;
+  repeated string harnesses = 2;
+  string unavailable_reason = 3;
+}
+message EnvironmentMarketplace {
+  string id = 1;
+  string name = 2;
+  SkillSource source = 3;
+  repeated MarketplacePlugin plugins = 4;
+}
+message MarketplacePreview {
+  string id = 1;
+  EnvironmentMarketplace marketplace = 2;
+  string expires_at = 3;
+  string base_commit = 4;
+}
+message LibraryPlugin {
+  LibrarySkill assignment = 1;
+  string marketplace_id = 2;
+  string marketplace_name = 3;
+  string commit = 4;
+}
+message PreviewMarketplaceRequest {
+  string command = 1; // repo reference or fixed /plugin marketplace add recipe
+  string id = 2; // check an existing marketplace's tracked ref
+  string credential_account_id = 3;
+}
+message SaveMarketplaceRequest {
+  string preview_id = 1;
+  uint64 expected_revision = 2;
+}
+message DeleteMarketplaceRequest {
+  string id = 1;
+  uint64 expected_revision = 2;
+}
+message SaveLibraryPluginRequest {
+  string marketplace_id = 1;
+  string plugin_name = 2; // accepts /plugin install name@marketplace
+  LibrarySkill assignment = 3;
+  string confirmed_checksum = 4; // explicit consent to exactly these reviewed bytes
+  uint64 expected_revision = 5;
+  bool use_latest = 6; // otherwise retain the selected immutable version
+}
+message DeleteLibraryPluginRequest {
+  string id = 1;
+  uint64 expected_revision = 2;
 }
 
 message SkillMachineOverride {

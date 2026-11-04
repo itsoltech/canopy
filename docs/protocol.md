@@ -269,6 +269,15 @@ i związane z checksumem całego katalogu. Worker bez tej capability nadal dosta
 instrukcje, bez skilli. Szczegóły limitów, katalogów, wersji i odzyskiwania swapu:
 [protokół etapu 2](agent-environment.md#umiejętności--konkretny-protokół-etapu-2).
 
+Etap 4 negocjuje `agent_plugins_v1`: `AgentEnvironmentDesired.plugins=6`,
+`plugin_resolutions=7`, `AgentEnvironmentReport.plugins=4`. Reużywa koperty
+artefaktu/statusu skilla; `skill_id` w raporcie pluginów oznacza ID pluginu,
+pusty ID oznacza plik aktywacji. Keep/Overwrite są jednorazowe, import niedostępny.
+UI RPC Preview/Save/DeleteMarketplace, Save/DeleteLibraryPlugin i ResolvePluginDrift
+są owner-scoped; SaveLibraryPlugin wymaga checksumu jawnej zgody na kod.
+Źródła i credentials pozostają w gateway. Bez zmiany `WORKER_LINK_PROTOCOL`.
+Szczegóły: [etap 4](agent-environment.md#marketplace-i-pluginy--protokół-etapu-4).
+
 ## Kontrola przepływu
 
 - HTTP/2 ma flow control na poziomie strumienia. Dodatkowo worker ogranicza liczbę niepotwierdzonych zdarzeń (np. 1000). Po przekroczeniu buforuje tylko w dzienniku.

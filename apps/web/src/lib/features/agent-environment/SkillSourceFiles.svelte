@@ -23,6 +23,10 @@
 
   const paths = $derived([...new Set([...artifact.files, ...(before?.files ?? [])].map((f) => f.path))].sort());
 
+  $effect(() => {
+    if (!paths.includes(path)) path = paths[0] ?? "";
+  });
+
   function text(files: readonly SkillFile[] = []): string {
     const file = files.find((f) => f.path === path);
 

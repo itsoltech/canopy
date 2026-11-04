@@ -57,6 +57,7 @@ import mobileNetwork from "./0056_mobile_network.sql" with { type: "text" };
 import agentEnvironment from "./0057_agent_environment.sql" with { type: "text" };
 import agentSkills from "./0058_agent_skills.sql" with { type: "text" };
 import agentSkillSources from "./0059_agent_skill_sources.sql" with { type: "text" };
+import agentPlugins from "./0060_agent_plugins.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -130,6 +131,7 @@ export const migrations = Migrator.fromRecord({
   "0057_agent_environment": sqlFile(agentEnvironment),
   "0058_agent_skills": sqlFile(agentSkills),
   "0059_agent_skill_sources": sqlFile(agentSkillSources),
+  "0060_agent_plugins": sqlFile(agentPlugins),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
