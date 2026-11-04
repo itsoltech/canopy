@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { CliInstallMethod } from "@canopy/contracts";
+import { processGovernor, killProcessTree } from "@canopy/process-governor";
 import type { DiscoveredCli } from "./discovery.ts";
 import { planRecipe, type Recipe, type RecipeTools } from "./recipes.ts";
 
@@ -151,28 +152,46 @@ async function run(
   timeoutMs: number,
   line: (text: string) => void,
 ): Promise<number | null> {
-  const child = Bun.spawn([...argv], { cwd, env, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
-  let timedOut = false;
+  return processGovernor.run({ kind: "install" }, async () => {
+    processGovernor.invalidate();
 
-  const timer = setTimeout(() => {
-    timedOut = true;
-    child.kill("SIGTERM");
-    setTimeout(() => child.kill("SIGKILL"), 5_000).unref();
-  }, timeoutMs);
+    const child = Bun.spawn([...argv], {
+      cwd,
+      env,
+      detached: process.platform !== "win32",
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
 
-  try {
-    await Promise.all([pump(child.stdout, line), pump(child.stderr, line)]);
-    const code = await child.exited;
+    let timedOut = false;
 
-    return timedOut ? null : code;
-  } finally {
-    clearTimeout(timer);
-  }
+    const timer = setTimeout(() => {
+      timedOut = true;
+      void killProcessTree(child.pid);
+    }, timeoutMs);
+
+    try {
+      await Promise.all([pump(child.stdout, line), pump(child.stderr, line)]);
+      const code = await child.exited;
+
+      return timedOut ? null : code;
+    } finally {
+      clearTimeout(timer);
+      processGovernor.invalidate();
+    }
+  });
 }
 
 export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
   const { before, target, tools } = input;
   const { env, secrets } = installEnv(input.env ?? process.env);
+
+  const rediscover = () => {
+    processGovernor.invalidate();
+
+    return input.rediscover();
+  };
 
   const emit = (text: string) => {
     const line = redactLine(text, secrets);
@@ -219,7 +238,7 @@ export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
     rmSync(scriptDir, { recursive: true, force: true });
   }
 
-  let after = await input.rediscover();
+  let after = await rediscover();
 
   if (!failure) {
     if (!after.path) failure = `${before.spec.label} was not found after the install`;
@@ -252,7 +271,7 @@ export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
       emit(`Could not restore the launcher: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    after = await input.rediscover();
+    after = await rediscover();
   }
 
   if (
@@ -270,7 +289,7 @@ export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
       emit(`Rollback failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    after = await input.rediscover();
+    after = await rediscover();
   }
 
   const kept = after.version === before.version && existsSync(after.path);

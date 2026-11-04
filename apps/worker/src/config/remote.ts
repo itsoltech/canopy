@@ -22,6 +22,35 @@ import {
   type ProviderProfileConfig,
 } from "../providers/index.ts";
 import { findCli } from "../cli-tools/discovery.ts";
+import { processKey, runProcess } from "@canopy/process-governor";
+
+/** Async preparation keeps configuration validation synchronous and test probes deterministic. */
+export async function prepareSystemProbe(config: WorkerConfig): Promise<DeviceProbe> {
+  const executables = new Set<string>();
+
+  for (const name of ["claude", "codex", "grok"] as const) {
+    const executable = config[name]?.executablePath || findCli(name);
+
+    if (config[name]?.enabled && executable) executables.add(executable);
+  }
+
+  for (const profile of config.profiles) if (profile.executablePath) executables.add(profile.executablePath);
+  const versions = new Map<string, string | undefined>();
+  await Promise.all(
+    [...executables].map(async (executable) => {
+      const command = { argv: [executable, "--version"], timeoutMs: 10_000, maxBytes: 64 * 1024 };
+
+      try {
+        const result = await runProcess(command, { kind: "probe", key: processKey(command), ttlMs: 60_000 });
+        versions.set(executable, result.code === 0 ? result.stdout.trim().split("\n")[0] : undefined);
+      } catch {
+        versions.set(executable, undefined);
+      }
+    }),
+  );
+
+  return { ...systemProbe, version: (executable) => versions.get(executable) };
+}
 
 /**
  * Applies the remote WorkerConfig (docs/worker-config.md). Validation happens here, on the device,
@@ -109,11 +138,7 @@ export function instanceShadowHome(
 export const systemProbe: DeviceProbe = {
   // PATH, then where the official installers put CLIs (a service's PATH often lacks ~/.local/bin).
   which: (command) => findCli(command),
-  version: (executable) => {
-    const result = Bun.spawnSync([executable, "--version"], { stdout: "pipe", stderr: "ignore", timeout: 10_000 });
-
-    return result.exitCode === 0 ? result.stdout.toString().trim().split("\n")[0] : undefined;
-  },
+  version: () => undefined,
   realDirectory: (path) => {
     if (!existsSync(path)) return undefined;
     const real = realpathSync(path);

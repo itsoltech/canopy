@@ -1,6 +1,7 @@
 import { lstatSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fuzzyRank } from "@canopy/domain";
+import { processKey, runProcess } from "@canopy/process-governor";
 
 /**
  * File search for "@" mentions in the composer (docs/ui-api.md, "Wzmianki"): ranked fuzzy matches of paths inside the
@@ -110,29 +111,17 @@ function depth(path: string): number {
 }
 
 async function gitListing(root: string, now: number): Promise<Listing | undefined> {
-  let proc: Bun.Subprocess<"ignore", "pipe", "ignore">;
-
   try {
-    // -c core.quotePath=false keeps non-ASCII names as they are; -z separates with NUL.
-    proc = Bun.spawn(
-      ["git", "-c", "core.quotePath=false", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-      {
-        cwd: root,
-        stdout: "pipe",
-        stderr: "ignore",
-        stdin: "ignore",
-      },
-    );
-  } catch {
-    return undefined; // no git on this machine
-  }
+    const command = {
+      argv: ["git", "-c", "core.quotePath=false", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+      cwd: root,
+      timeoutMs: GIT_TIMEOUT_MS,
+    };
 
-  const timer = setTimeout(() => proc.kill(), GIT_TIMEOUT_MS);
+    const result = await runProcess(command, { kind: "git", key: processKey(command), ttlMs: 1_000 });
+    const out = result.stdout;
 
-  try {
-    const out = await new Response(proc.stdout).text();
-
-    if ((await proc.exited) !== 0) return undefined; // not a git work tree
+    if (result.code !== 0) return undefined; // not a git work tree
     const files = [...new Set(out.split("\0").filter(Boolean))];
     const truncated = files.length > MAX_FILES;
     const kept = files.slice(0, MAX_FILES);
@@ -148,8 +137,8 @@ async function gitListing(root: string, now: number): Promise<Listing | undefine
       source: "git",
       at: now,
     };
-  } finally {
-    clearTimeout(timer);
+  } catch {
+    return undefined;
   }
 }
 

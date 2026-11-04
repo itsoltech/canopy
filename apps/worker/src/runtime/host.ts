@@ -9,7 +9,7 @@ import {
   type ThreadEvent,
   type WorkerConfig,
 } from "@canopy/contracts";
-import { applyWorkerConfig, type AppliedConfig, systemProbe } from "../config/remote.ts";
+import { applyWorkerConfig, type AppliedConfig, prepareSystemProbe } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { Journal } from "../journal/index.ts";
 import { reconcileTurn, WORKER_RESTARTED } from "../providers/reconcile.ts";
@@ -202,7 +202,8 @@ export class WorkerHost {
   }
 
   async applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit> {
-    const result = applyWorkerConfig(message, this.#ctx.state.options.probe ?? systemProbe, this.#ctx.ops.homes());
+    const probe = this.#ctx.state.options.probe ?? (await prepareSystemProbe(message));
+    const result = applyWorkerConfig(message, probe, this.#ctx.ops.homes());
 
     if (result.applied) {
       this.#ctx.state.received = message;

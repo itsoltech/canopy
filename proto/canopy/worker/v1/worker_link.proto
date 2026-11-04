@@ -1480,6 +1480,8 @@ message WorktreeTarget {
 message ScanWorktrees {
   repeated WorktreeTarget targets = 1;
   bool fetch = 2;
+  // Scheduled cleanup yields to interactive work and drops stale queued commands.
+  bool background = 3;
 }
 
 message WorktreeStatus {

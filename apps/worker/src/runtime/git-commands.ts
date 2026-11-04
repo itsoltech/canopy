@@ -7,7 +7,8 @@ import { existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { isWithin } from "../git/worktrees.ts";
 import { recoverRemoval } from "../git/remove-worktree.ts";
-import { gitOk, GitError } from "../git/git.ts";
+import { freshGit, gitOk, GitError } from "../git/git.ts";
+import { runProcess, withProcessPriority } from "@canopy/process-governor";
 import { listGitRefs } from "../git/refs.ts";
 import { createWorktree, managedWorktreesRoot, renameWorktreeBranch } from "../git/worktrees.ts";
 
@@ -42,7 +43,7 @@ export class GitCommands {
 
       const key = realpathSync(common.trim());
       const previous = this.#creating.get(key) ?? Promise.resolve();
-      const next = previous.then(() => createWorktree(this.worktreesRoot, kind.value));
+      const next = previous.then(() => freshGit(() => createWorktree(this.worktreesRoot, kind.value)));
 
       const settled = next.then(
         () => {},
@@ -60,7 +61,7 @@ export class GitCommands {
   }
 
   async renameWorktreeBranch(kind: Extract<Command["kind"], { case: "renameWorktreeBranch" }>): Promise<CommandOutput> {
-    return { worktree: await gitStep(() => renameWorktreeBranch(this.worktreesRoot, kind.value)) };
+    return { worktree: await gitStep(() => freshGit(() => renameWorktreeBranch(this.worktreesRoot, kind.value))) };
   }
 
   async scanWorktrees(kind: Extract<Command["kind"], { case: "scanWorktrees" }>): Promise<CommandOutput> {
@@ -68,7 +69,11 @@ export class GitCommands {
 
     for (const target of kind.value.targets) {
       try {
-        statuses.push(await scanWorktree(this.worktreesRoot, target, kind.value.fetch));
+        statuses.push(
+          await withProcessPriority(kind.value.background ? "background" : "user", () =>
+            scanWorktree(this.worktreesRoot, target, kind.value.fetch),
+          ),
+        );
       } catch (error) {
         if (!(error instanceof GitError)) throw error;
         statuses.push(
@@ -121,7 +126,9 @@ export class GitCommands {
 
         await idle();
 
-        return { worktreeBranchDeleted: await removeWorktree(this.worktreesRoot, kind.value, idle, receipt) };
+        return {
+          worktreeBranchDeleted: await freshGit(() => removeWorktree(this.worktreesRoot, kind.value, idle, receipt)),
+        };
       } finally {
         this.ctx.state.removingPaths.delete(path);
       }
@@ -134,24 +141,16 @@ export class GitCommands {
 
       const args = revealArgs(path);
 
-      let proc: Bun.Subprocess;
-
       try {
-        proc = Bun.spawn(args, { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
+        const result = await runProcess({ argv: args, timeoutMs: 5_000 }, { kind: "utility" });
+
+        if (result.code !== 0)
+          throw new GitError("REVEAL_FAILED", "The file manager could not open the folder. Copy the path instead.");
       } catch {
         throw new GitError(
           "REVEAL_UNAVAILABLE",
           "No file manager is available on this computer. Copy the path instead.",
         );
-      }
-
-      const timer = setTimeout(() => proc.kill(), 5000);
-
-      try {
-        if ((await proc.exited) !== 0)
-          throw new GitError("REVEAL_FAILED", "The file manager could not open the folder. Copy the path instead.");
-      } finally {
-        clearTimeout(timer);
       }
 
       return {};

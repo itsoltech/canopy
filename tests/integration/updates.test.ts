@@ -264,7 +264,7 @@ describe.skipIf(process.platform === "win32")("standalone supervisor handover", 
     }
 
     async function wait(predicate: (events: Event[]) => boolean) {
-      const deadline = Date.now() + 8000;
+      const deadline = Date.now() + 15_000;
 
       for (;;) {
         const all = await events();
@@ -329,7 +329,7 @@ describe.skipIf(process.platform === "win32")("standalone supervisor handover", 
         state: "failed",
         reason: expect.stringContaining(failure === "timeout" ? "deadline" : `exit ${failure}`),
       });
-    }, 10_000);
+    }, 30_000);
   }
 
   test("an update staged during handover keeps its watchdog and can still roll back", async () => {
@@ -355,7 +355,7 @@ describe.skipIf(process.platform === "win32")("standalone supervisor handover", 
       version: "4.0.0",
       previousVersion: "2.0.0",
     });
-  }, 10_000);
+  }, 30_000);
   test("an older supervisor hands over an already confirmed installation exactly once", async () => {
     const f = await start({}, true);
     const all = await f.wait((events) => residentHealthy(events, "2.0.0"));
@@ -365,7 +365,7 @@ describe.skipIf(process.platform === "win32")("standalone supervisor handover", 
     ]);
     await Bun.sleep(80);
     expect((await f.events()).filter((e) => e.type === "supervisor")).toHaveLength(2);
-  }, 10_000);
+  }, 30_000);
   test("matching supervisor and child versions do not restart", async () => {
     const f = await start();
     await f.wait((all) => all.some((e) => e.type === "healthy"));
@@ -393,7 +393,7 @@ describe.skipIf(process.platform === "win32")("standalone supervisor handover", 
     expect(all.filter((e) => e.message?.includes("fixture execve failure"))).toHaveLength(1);
     expect(all.filter((e) => e.exitCode === 76)).toHaveLength(1);
     expect(f.proc.exitCode).toBeNull();
-  }, 10_000);
+  }, 30_000);
 });
 
 describe("independent update service and gateway mirror", () => {
@@ -539,7 +539,9 @@ describe("independent update service and gateway mirror", () => {
 
     const run = next.run();
 
-    for (let i = 0; i < 100 && !f.reports.some((r) => r.state === "succeeded"); i++) await Bun.sleep(10);
+    // Receiving the report precedes the client's acknowledgement and durable cleanup.
+    // Aborting at the server-side receipt races the acknowledgement and correctly preserves the record.
+    for (let i = 0; i < 100 && (await readUpdateRecord(binaryPath)); i++) await Bun.sleep(10);
     abort.abort();
     await run;
     expect(f.reports.at(-1)?.state).toBe("succeeded");

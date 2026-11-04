@@ -1,4 +1,5 @@
 import { create, fromBinary } from "@bufbuild/protobuf";
+import { currentProcessPriority } from "@canopy/process-governor";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { CommandSchema, WorktreeTargetSchema, ui, type Command, type WorktreeStatus } from "@canopy/contracts";
 import type { WorktreeLifecycleRow } from "../store/worktree-lifecycle.ts";
@@ -75,7 +76,11 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
       row.worker_id,
       {
         case: "scanWorktrees",
-        value: { targets: [worktreeTarget(row, settings)], fetch },
+        value: {
+          targets: [worktreeTarget(row, settings)],
+          fetch,
+          background: currentProcessPriority() === "background",
+        },
       },
       60_000,
     );
