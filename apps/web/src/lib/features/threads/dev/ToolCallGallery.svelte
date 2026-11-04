@@ -2,7 +2,8 @@
   import { provideMemoryScope, UiMemory } from "#lib/shared/ui/memory.ts";
   import ItemView from "../components/items/ItemView.svelte";
   import { provideThreadDirectory } from "../thread-directory.ts";
-  import { GALLERY_THREAD_ID, galleryThreads, toolGallery } from "./tool-fixtures.ts";
+  import { galleryThreads, toolGallery } from "./tool-fixtures.ts";
+  import { GALLERY_THREAD_ID } from "./tool-fixture-kit.ts";
 
   /** Dev gallery: every kind of tool call the timeline renders, with fixture data (`/dev/tool-calls`). */
   const threads = new Map(galleryThreads().map((t) => [t.id, t]));
