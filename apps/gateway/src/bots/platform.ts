@@ -249,7 +249,7 @@ async function listBotModels(core: GatewayCore, turn: BotTurn, { string, optiona
     const config = (await core.bots.get(turn.bot_id)).configuration!;
 
     return await core.bots.run((s) =>
-      s.apiModels(
+      s.harnessModels(
         requested ? legacyProvider(requested) : config.provider,
         optional("provider_instance") || config.providerInstance,
         config.workerId,

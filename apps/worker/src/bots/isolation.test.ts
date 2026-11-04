@@ -7,6 +7,7 @@ import { grokBus } from "../providers/grok/bus.ts";
 import { resolveProfiles } from "../providers/profiles.ts";
 import { runClaudeBot } from "./claude.ts";
 import { runCodexBot } from "./codex.ts";
+import { runGrokBot } from "./grok.ts";
 import { botSession } from "./session.ts";
 
 const temp = tempDirs();
@@ -14,12 +15,13 @@ const temp = tempDirs();
 const Tool = Schema.Struct({
   name: Schema.optionalKey(Schema.String),
   tools: Schema.optionalKey(Schema.Array(Schema.Struct({ name: Schema.String }))),
+  function: Schema.optionalKey(Schema.Struct({ name: Schema.String })),
 });
 
 const Inference = Schema.Struct({ tools: Schema.optionalKey(Schema.Array(Tool)) });
 
-for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
-  const name = provider === Provider.CLAUDE ? "claude" : "codex";
+for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
+  const name = provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : "grok";
   test.skipIf(!Bun.which(name))(
     `${name} offers only Canopy MCP schemas to the model`,
     async () => {
@@ -32,7 +34,10 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
         hostname: "127.0.0.1",
         port: 0,
         fetch: async (request) => {
-          if (request.method === "POST" && /\/(messages|responses)$/.test(new URL(request.url).pathname)) {
+          if (
+            request.method === "POST" &&
+            /\/(messages|responses|chat\/completions)$/.test(new URL(request.url).pathname)
+          ) {
             const body = await request.json();
             const parsed = Schema.decodeUnknownSync(Inference)(body);
             requests.push(parsed);
@@ -52,7 +57,12 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
         turnId: crypto.randomUUID(),
         provider,
         profileId: "fixture",
-        model: provider === Provider.CLAUDE ? "claude-haiku-5-5" : "gpt-6.1-sol",
+        model:
+          provider === Provider.CLAUDE
+            ? "claude-haiku-5-5"
+            : provider === Provider.CODEX
+              ? "gpt-6.1-sol"
+              : "fixture-grok",
         effort: "low",
         instructions: "Use only Canopy tools.",
         historyJson: "[]",
@@ -95,7 +105,13 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
         noteHarness: async () => {},
       };
 
-      const done = (provider === Provider.CLAUDE ? runClaudeBot(context) : runCodexBot(context)).catch(() => undefined);
+      const done = (
+        provider === Provider.CLAUDE
+          ? runClaudeBot(context)
+          : provider === Provider.CODEX
+            ? runCodexBot(context)
+            : runGrokBot(context)
+      ).catch(() => undefined);
 
       const timer = setTimeout(() => {
         abort.abort();
@@ -107,7 +123,7 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
         expect(tools.length).toBeGreaterThan(0);
 
         if (provider === Provider.CLAUDE) expect(tools.map((t) => t.name)).toEqual(["mcp__canopy__fixture_only"]);
-        else {
+        else if (provider === Provider.CODEX) {
           expect(tools.map((t) => t.name).sort()).toEqual([
             "list_mcp_resource_templates",
             "list_mcp_resources",
@@ -115,7 +131,7 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
             "read_mcp_resource",
           ]);
           expect(tools.find((t) => t.name === "mcp__canopy")?.tools?.map((t) => t.name)).toEqual(["fixture_only"]);
-        }
+        } else expect(tools.map((t) => t.function?.name).sort()).toEqual(["search_tool", "use_tool"]);
 
         expect(
           requests
@@ -127,7 +143,9 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
                 "list_mcp_resources",
                 "mcp__canopy",
                 "read_mcp_resource",
-              ].includes(t.name ?? ""),
+                "search_tool",
+                "use_tool",
+              ].includes(t.name ?? t.function?.name ?? ""),
             ),
         ).toBe(true);
       } finally {

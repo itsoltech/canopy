@@ -42,11 +42,6 @@ export interface ModelReply {
   calls: ModelToolCall[];
 }
 
-/** A reply whose tool arguments are already decoded (the direct provider APIs). */
-export interface DecodedReply extends ModelReply {
-  calls: ToolCall[];
-}
-
 export interface ModelInput {
   turn?: BotTurn;
   configuration: bots.BotConfiguration;

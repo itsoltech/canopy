@@ -30,7 +30,7 @@ Powiązane dokumenty:
 Platforma do zarządzania agentami AI dla wielu użytkowników:
 
 - uruchamianie agentów kodujących (Claude Agent SDK, Codex app-server) na wielu maszynach i w wielu katalogach, opcjonalnie przez CLIProxyAPI,
-- zwykli agenci czatowi uruchamiani bezpośrednio na gateway,
+- boty czatowe z ukrytymi, izolowanymi sesjami harnessów na workerach i trwałą kolejką w gatewayu,
 - agenci globalni (dla wszystkich) i prywatni (dla właściciela),
 - projekty z wątkami przypiętymi do dostawcy, workera i katalogu; wątki boczne w tym samym katalogu z opcjonalnym forkiem historii,
 - rozmowy agent ↔ agent jako wątki boczne (szyna agentów: tworzenie, follow-upy, statusy), które użytkownik może podejrzeć i kontrolować; natywni subagenci dostawców domyślnie wyłączeni.
@@ -44,7 +44,7 @@ Platforma do zarządzania agentami AI dla wielu użytkowników:
 | **Gateway** | serwer centralny (Bun) | Jedyny punkt kontaktu UI. Auth, autoryzacja, API, persystencja, routing komend do workerów, runtime agentów czatowych, szyna agent ↔ agent. |
 | **Worker** | edge device: Linux, Omarchy, macOS, Windows (Bun) | Uruchamia wątki agentów SDK w dozwolonych katalogach, wznawia je i forkuje. Normalizuje zdarzenia SDK i strumieniuje je do gateway. |
 | **PostgreSQL** | obok gateway | Użytkownicy, projekty, agenci, workery, wątki, tury, transkrypty, outbox, audyt. |
-| **Dostawcy LLM** | zewnętrznie | Anthropic / OpenAI. Worker łączy się przez SDK, gateway przez API dla agentów czatowych. |
+| **Dostawcy LLM** | zewnętrznie | Anthropic / OpenAI / xAI. Inferencję wykonują oficjalne CLI/SDK na workerze, również dla botów. |
 
 Tylko gateway łączy się z bazą. Worker nie ma dostępu do bazy i nie przyjmuje połączeń przychodzących.
 
@@ -96,7 +96,6 @@ flowchart LR
     W1 --- A2
     W2 --- A3
     A1 & A2 & A3 -- "HTTPS (poświadczenia urządzenia)" --> LLM
-    GW -- "HTTPS (agenci czatowi)" --> LLM
 ```
 
 ### Tabela połączeń
@@ -111,7 +110,6 @@ flowchart LR
 | Worker → Gateway (aktualizacje) | osobny gRPC `canopy.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |
 | Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Poświadczenia zostają na urządzeniu (login Claude Code / Codex lub klucz API). |
-| Gateway → LLM | HTTPS | Gateway | Tylko agenci czatowi. Klucze trzyma gateway. |
 
 ### Dlaczego worker inicjuje połączenie
 
@@ -121,18 +119,20 @@ Edge device zwykle stoi za NAT-em, ma dynamiczne IP lub jest laptopem. Gateway n
 
 | Cecha | Agent SDK (`kind = sdk`) | Agent czatowy (`kind = chat`) |
 |---|---|---|
-| Runtime wątku | Worker na edge device (`runtime = worker`) | Gateway (`runtime = gateway`) |
-| Silnik | `@anthropic-ai/claude-agent-sdk` lub `codex app-server` (JSON-RPC po stdio) | Bezpośrednie API LLM (np. Anthropic Messages / OpenAI Responses) |
+| Runtime wątku | Worker na edge device (`runtime = worker`) | Ukryta sesja na przypiętym workerze; kolejka i rozmowa w gatewayu |
+| Silnik | Claude Agent SDK, Codex app-server, Grok CLI przez ACP | Te same oficjalne harnessy, z usuniętymi narzędziami lokalnymi i Canopy MCP |
 | Dostęp do plików i shella | Tak, w `cwd` wątku (w dozwolonych katalogach workera) | Nie |
-| Miejsce uruchomienia | wątek: worker + workspace + `cwd`, niezmienne | brak |
-| Poświadczenia | Urządzenia (worker): logowanie CLI albo profil CLIProxyAPI | Gateway |
-| Transkrypt | Worker → gRPC → gateway → DB + UI | Gateway → DB + UI |
+| Miejsce uruchomienia | wątek: worker + workspace + `cwd`, niezmienne | Runs on + izolowany home i pusty scratch per bot/instancja |
+| Poświadczenia | Urządzenia (worker): logowanie CLI albo profil CLIProxyAPI | Login instancji lub proxy obsługiwane przez harness; brak credentiali w kontekście bota |
+| Transkrypt | Worker → gRPC → gateway → DB + UI | Worker journal → gRPC → `bot_harness_events` → rozmowa bota |
 
 Agent to szablon bez miejsca uruchomienia. Wątek przypina agenta (snapshot konfiguracji) do dostawcy, workera i katalogu. Szczegóły: [threads.md](threads.md).
 
 Oba tryby zapisują transkrypt w tym samym formacie (`thread_events`). UI nie musi rozróżniać trybów przy wyświetlaniu.
 
-Gateway ma jeden interfejs runtime'u wątków, implementowany dwukrotnie (serwisy Effect):
+Wątki używają komend workera; boty mają osobną trwałą komendę `RunBotTurn`, bez
+sztucznego projektu lub wątku. Gateway wykonuje narzędzia i autoryzuje efekty;
+nie ma klienta HTTP inferencji. Interfejs runtime'u wątków:
 
 ```ts
 interface ThreadRuntime {
@@ -142,7 +142,6 @@ interface ThreadRuntime {
   unload(threadId: ThreadId): Effect<void, ThreadError>;
 }
 // WorkerThreadRuntime  — zapisuje komendę w outboxie, dostarcza ją przez strumień gRPC do workera
-// GatewayChatRuntime   — tura jako zadanie z dzierżawą, wywołuje API LLM w procesie gateway
 ```
 
 ## 5. Przepływy danych

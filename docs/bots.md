@@ -1,12 +1,11 @@
 # Boty
 
-Grok jest dostępny w `start_thread` oraz jako model bota na instancji CLIProxyAPI (chat completions/function tools). Live potwierdził tani `grok-3-mini-fast`, wywołanie narzędzia i kolejną odpowiedź po jego wyniku. Bot nie uruchamia CLI ani lokalnych narzędzi. [Konfiguracja Groka](grok-adapter.md).
-
-Etap 1 migracji na harnessy: Claude i Codex wykonują inferencję na przypiętym workerze,
-przez oficjalne CLI/SDK, z izolowaną sesją i wyłącznie narzędziami Canopy. Gateway
+Claude, Codex i Grok wykonują inferencję na przypiętym workerze przez oficjalne
+CLI/SDK: Claude Agent SDK, Codex app-server i Grok CLI przez ACP. Każdy bot ma
+izolowaną sesję i wyłącznie narzędzia Canopy. Gateway
 zachowuje rozmowę, outbox, zgody i wykonawców narzędzi. Ustawienie **Runs on** wybiera
 workera; offline wiadomości czekają. Native/device login i proxy są obsługiwane przez
-harness. Grok pozostaje w dotychczasowym runtime API do etapu 2. Pełna decyzja,
+harness. Gateway nie wywołuje API modelu. Pełna decyzja,
 ograniczenia i plan stosu: [bots-harness.md](bots-harness.md).
 
 Kod: `apps/gateway/src/bots`, `apps/worker/src/bots`; kontrakty: boty UI i WorkerLink.
@@ -61,7 +60,7 @@ anulujemy generację i zwalniamy kolejkę z notatką deterministyczną, także g
 ignoruje anulowanie. Restart nie odnawia limitu. Czas oczekiwania na już aktywną zwykłą
 turę podlega jej dotychczasowemu limitowi 10 minut; handoff nie wydłuża go o nowe 90 s.
 Niedostępna/usunięta stara instancja, odwołany klucz, nieistniejący model, pusta odpowiedź
-lub błąd API także uruchamiają fallback. Log i baza przechowują wyłącznie bezpieczny kod
+lub błąd harnessu także uruchamiają fallback. Log i baza przechowują wyłącznie bezpieczny kod
 `source_unavailable_or_failed` lub `deadline_exceeded`, bez treści błędu dostawcy.
 
 Fallback nie wywołuje modelu. Składa stare instrukcje (3000 znaków), aktualny stan
@@ -192,18 +191,23 @@ z reduced motion; mobilny dialog korzysta ze wspólnego ruchu dolnego panelu.
 
 ## 1. Decyzja o wykonaniu
 
-Decyzja maintenera zastępuje wariant B: **oficjalny harness na workerze**.
-Claude/Codex nie mają fallbacku do bezpośredniego API. Runtime B pozostaje przejściowo
-wyłącznie dla Groka; musi zniknąć w etapie 2 przed scaleniem całego stosu.
-
-| Wariant | Korzyść | Koszt i decyzja |
-|---|---|---|
-| A: Claude Agent SDK / Codex app-server na hoście gateway | Logowania subskrypcyjne harnessu, gotowy kontekst i sesje | Można usunąć narzędzia, ale proces dostawcy nadal działa na hoście. Wznowienie wymaga plików sesji i pogodzenia historii harnessu z zatwierdzeniami w PostgreSQL. Aktualizacja katalogu lub CLI może zmienić zestaw narzędzi. Nie jest runtime'em Bots w fazie 1. |
-| B: API i jawne funkcje | Pełny checkpoint pętli w bazie | Wycofywany: brak wsparcia logowania subskrypcyjnego oficjalnego harnessu. |
-
-Instancje `native` Claude/Codex są dostępne dla botów. Login jest linkowany do
+Runtime bota to **oficjalny harness na przypiętym workerze**. Wszystkie trzy
+rodziny providerów obsługują instancje `native` i proxy. Login jest udostępniany do
 izolowanego home na workerze zgodnie z konfiguracją instancji. Proxy trafia do oficjalnego
 CLI, a nie klienta HTTP Canopy. Nie uruchamiamy harnessów na hoście gateway.
+
+Bez zapisanego workera pierwsza tura wybiera własny desktop obsługujący instancję,
+a następnie pierwszy dostępny worker online; wybór zostaje zapisany. Brak kandydata
+daje `Waiting for a worker`; offline przypiętego workera daje `Waiting for ‹worker›`.
+Nie ma automatycznego failoveru. Istniejące boty zachowują identyfikatory i historię;
+następna tura tworzy ukrytą sesję na podstawie transkryptu gatewaya.
+
+Grok ma prywatne sesje per bot i instancja, wznawiane przez `session/load`.
+Curated profil oraz `--tools search_tool,use_tool` usuwają lokalne narzędzia,
+pozostawiając obsługę MCP. Proces nie dziedziczy skilli, launch args ani MCP
+urządzenia. Każdy callback zgody ACP jest odrzucany; zgody narzędzi Canopy pozostają
+w gatewayu. Utrata sesji odtwarza kontekst bez ponawiania historycznych narzędzi.
+Czytnik własnego `updates.jsonl` Groka odzyskuje tekst i zapisany koniec tury po awarii.
 
 ### Izolowane generowanie tekstu i dowód dla sesji botów
 
@@ -279,9 +283,10 @@ i `BotMessage.setting_changes` mają numer **430** w swoich komunikatach.
 2. Gateway przejmuje najstarszą niezakończoną turę bota przez `FOR UPDATE SKIP LOCKED`.
    Jedna rozmowa ma najwyżej jednego wykonawcę. Lease trwa 30 s i odnawia się co 5 s.
    Token lease i jego ważność są sprawdzane przy każdym zapisie checkpointu lub wyniku.
-3. Odpowiedź modelu, wraz z całą listą funkcji, jest zapisywana **przed** wykonaniem
-   narzędzi. Każda funkcja ma kanoniczny identyfikator zachowany w checkpointcie.
-   Zatwierdzone wyniki narzędzi są ponownie odczytywane zamiast wykonywane.
+3. Komenda harnessu trafia do trwałego outboxa. Worker zapisuje zdarzenia w journalu
+   przed publikacją; gateway deduplikuje je i potwierdza po commicie. Wywołanie MCP
+   przechodzi przez szynę z identyfikatorem bota i tury, kontrolą właściciela,
+   przypięcia workera i lease. Zatwierdzone wyniki są odczytywane zamiast wykonywane.
 4. Utworzenie wątku, pierwszej tury, komendy workera, subskrypcji wyniku i zapis wyniku
    funkcji platformy są jedną transakcją. Kolejkowanie kolejnej wiadomości do wątku
    również zatwierdza turę i subskrypcję razem. `steer` obserwuje dostarczenie do aktywnej
@@ -294,9 +299,10 @@ i `BotMessage.setting_changes` mają numer **430** w swoich komunikatach.
    ten wynik, a nie ponowione żądanie MCP. Dokładnie jednokrotnego wykonania obcego
    serwera HTTP nie można obiecać bez jego własnego klucza idempotencji.
 
-Checkpoint i końcowa wiadomość są trwałe. Awaria podczas samej generacji może wymagać
-ponownego wywołania modelu (i ponownego kosztu), ale nie tworzy drugiej wiadomości ani
-drugiego zatwierdzonego działania. Stary wykonawca nie może zatwierdzić wyniku po utracie
+Checkpoint i końcowa wiadomość są trwałe. Restart gatewaya dołącza do tej samej komendy.
+Restart workera odczytuje koniec z transkryptu harnessu; brak zapisanego końca przerywa
+turę systemowo. Jawne Retry tworzy nową komendę, bez automatycznego powtarzania
+niepewnych efektów MCP. Stary wykonawca nie może zatwierdzić wyniku po utracie
 lease. Łagodne zatrzymanie anuluje zapytania i oddaje lease; twarda awaria wymaga jego
 wygaśnięcia. Oczekiwanie na zgodę nie trzyma procesu ani połączenia z modelem.
 
@@ -419,7 +425,7 @@ z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez no
 | `get_settings` | Domyślne ustawienia wątków i generacji tekstu, wersje użytkownika i projektów; bez wyglądu | R |
 | `update_settings` | Zastąpienie podanych sekcji, optimistic version; zagnieżdżone pola w protobuf JSON | P dla text generation; A dla thread defaults (mogą zmieniać permissions) |
 | `list_bots` | Boty właściciela | R |
-| `create_bot` | Nowy bot na istniejącej instancji endpointowej, bez sekretów/MCP | A |
+| `create_bot` | Nowy bot na istniejącej instancji harnessu, bez sekretów/MCP | A |
 | `send_bot_message` | Wiadomość do innego bota właściciela, odpowiedź jako follow-up | P |
 | `ask_user` | Trwałe pytanie i do sześciu opcji | Karta pytania |
 
@@ -620,22 +626,12 @@ Przy odczycie historii runtime dodaje `quotesNote` przed tekstem użytkownika or
 `send_bot_message`, także gdy dwa boty mają tę samą nazwę. Snapshoty i checkpointy
 zachowują te dane; ponowienie `client_request_id` zwraca pierwotną turę.
 
-### Model API, nie alias harnessu
+### Modele harnessu
 
-Bot wywołuje API dostawcy bezpośrednio, więc alias Claude Code (`default`, `opus`, `sonnet`,
-`haiku`, `best`, `opusplan`, także z `[1m]`) kończył każdą odpowiedź HTTP 400. Teraz:
-
-- `CreateBot`/`UpdateBot` zapisują model, na który alias rozwiązuje się w katalogu workera
-  dla tej instancji (`ModelInfo.resolved_model`, np. `default` → `claude-opus-5-5`).
-  Alias bez rozwiązania jest odrzucany z czytelnym błędem; model spoza **kompletnego**
-  katalogu również. `CreateBot` i `create_bot` wymagają modelu z katalogu API tej instancji
-  lub jawnie skonfigurowanego własnego modelu. `UpdateBot` i runtime zachowują obsługę
-  niedostępnego katalogu (wtedy o obsłudze modelu decyduje endpoint).
-- Runtime rozwiązuje model przed każdym wywołaniem, więc boty zapisane wcześniej z aliasem
-  (np. „Kropek” na stosie) działają bez migracji danych; przy następnym `UpdateBot` model
-  zostaje zapisany już jako konkretny.
-- Wizard (`botWizardInstances`) oferuje alias jako model, na który się rozwiązuje, a aliasów
-  bez rozwiązania nie pokazuje wcale.
+`CreateBot`/`UpdateBot` zachowują identyfikator modelu wybranego harnessu, w tym aliasy
+Claude Code (`default`, `opus`, `sonnet` itd.). Modele i efforts pochodzą z katalogu
+workera i instancji; własne modele są jawnie konfigurowane w Settings → Providers.
+Nie ma mapowania nazw na modele API ani ograniczenia botów Groka do instancji proxy.
 
 ### Zgody, pytania i edycja
 
@@ -718,9 +714,8 @@ JSON i składanych logów pracy.
   (`TouchTarget`) na urządzeniach dotykowych.
 - **Tworzenie**: „Create bot” otwiera `CreateBotWizard`; `oncreate` zapisuje `CreateBot` i otwiera
   rozmowę. Adapter `botWizardInstances` (`features/bots/live.ts`) wybiera dostępność według
-  aktualnego połączenia, nie id (klucz `CLAUDE:id` / `CODEX:id` / `GROK:id`). Device login
-  pozostaje widoczny jako niedostępny z powodem i linkiem do zmiany tej instancji na Proxy.
-  Własne modele z Settings → Providers działają bez workera. Otwarcie kreatora pobiera
+  katalogu harnessu (klucz `CLAUDE:id` / `CODEX:id` / `GROK:id`). Native i proxy
+  są dostępne; wykonanie wymaga workera. Otwarcie kreatora pobiera
   definicje i katalogi ponownie; podczas pobierania pokazuje stan ładowania. Zmiany instancji,
   modeli i wersji konfiguracji odświeżają dane bez przechodzenia do Threads.
   API komponentów: [bots-wizard.md](bots-wizard.md).
@@ -733,7 +728,7 @@ JSON i składanych logów pracy.
 - **Ustawienia** (`settings/BotSettingsHost`, jeden host w głównym layoucie): kliknięcie
   awatara/nazwy w nagłówku lub **Edit bot…** w menu nagłówka i sidebara otwiera dialog,
   na telefonie dolny panel. Sekcje: Appearance (wspólne `EditBotAppearance`, własny hex),
-  Instructions, Model (endpoint, model API, effort), Permissions, Connections i Danger zone.
+  Instructions, Model (instancja, model harnessu, effort, Runs on), Permissions, Connections i Danger zone.
   Zapis `UpdateBot` optymistycznie aktualizuje wspólną listę, nagłówek i awatar; błąd cofa
   podgląd i zostaje przy formularzu. Niedostępny katalog nie zmienia modelu przy edycji wyglądu.
   Connections pokazuje konta dostępne dla bota i link do Settings → Connectors.
@@ -764,9 +759,14 @@ wynik i odpowiedź bota po follow-upie.
 Izolowany PostgreSQL, gateway, prawdziwy worker oraz katalogi testowe; bez prywatnego stacka live
 i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozytorium.
 
-- Jednostkowe: `apps/gateway/src/bots/{policy,model}.test.ts`; decyzje zgód,
-  przeskoki, opis statusu, protokoły, odrzucenie lokalnych możliwości oraz rozwiązywanie
-  aliasów (`apiModel`).
+- Jednostkowe: `apps/gateway/src/bots/policy.test.ts`; decyzje zgód,
+  przeskoki, opis statusu i odrzucenie lokalnych możliwości.
+- Harnessy: `tests/integration/bots-harness.test.ts` — rzeczywisty WorkerHost i fake
+  CLI wszystkich trzech providerów, MCP ze zgodą, offline/reconnect, restart,
+  deduplikacja, retry, utrata sesji oraz przejście starego bota na workera.
+  `apps/worker/src/bots/{isolation,grok-transcript}.test.ts` przechwytują schematy
+  rzeczywistych CLI i sprawdzają natywny transkrypt Groka bez zewnętrznej inferencji.
+  `tools/direct-inference.test.ts` chroni źródła przed ponownym dodaniem HTTP inferencji.
 - Integracyjne: `tests/integration/bots.test.ts`, prawdziwy PostgreSQL, skryptowany
   model i worker, lokalny serwer HTTP MCP wyłącznie w teście. Tworzenie i deduplikacja,
   wznowienie generacji, przerwane MCP bez powtórzenia, zgody/odrzucenie/pytania z opcjami,
@@ -782,7 +782,7 @@ i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozy
 - Live: `tests/integration/bots.live.test.ts` przez `useLiveProxy`: **Claude i Codex**
   odpowiadają na czacie, odmawiają lokalnego `ls`, tworzą wątek na prawdziwym workerze
   stosu testowego i dostają jego wynik jako nową turę. `bots-alias.live.test.ts`: prawdziwy
-  katalog Claude przez CLIProxyAPI, wizard oferuje model rozwiązany z `default`, bot
+  katalog Claude przez CLIProxyAPI, wizard zachowuje alias `default`, bot
   utworzony z `default` odpowiada, a bot z aliasem zapisanym w bazie również. Izolowane porty
   i katalogi przez `@canopy/testing`; istniejący prywatny stack live i jego porty nie są używane.
   `bots-settings.live.test.ts`: prawdziwy model przez `useLiveProxy` zmienia swoją nazwę

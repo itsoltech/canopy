@@ -37,7 +37,6 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     fenced: core.fenced,
     servers: core.servers,
     resolvedServer: core.resolvedServer,
-    resolveModel: core.resolveModel,
     ...queue.routines,
     ...botMethods(sql, core),
     ...botSelfUpdate(sql, core),

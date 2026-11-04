@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { create } from "@bufbuild/protobuf";
-import { AgentToolCallSchema, bots, Provider } from "@canopy/contracts";
+import { create, toJson } from "@bufbuild/protobuf";
+import { AgentToolCallSchema, bots, Provider, ProviderProfileKind } from "@canopy/contracts";
 import { GatewayCore } from "@canopy/gateway/core";
 import { startGrpcServer } from "@canopy/transport";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
@@ -49,7 +49,7 @@ describe("bots through official worker harnesses", () => {
   beforeAll(async () => {
     f = await startInstanceFixture(true);
 
-    for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
+    for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
       await f.save(provider, "bot-native");
       await f.gw.api.setInstanceModels({ harness: provider, id: "native", models: { custom: ["fixture-model"] } });
     }
@@ -61,7 +61,7 @@ describe("bots through official worker harnesses", () => {
     await f?.close();
   });
 
-  for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
+  for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
     test(`${Provider[provider]} round trip and hidden session resume`, async () => {
       const bot = await add(provider);
       await send(bot.id, "Hello");
@@ -74,7 +74,7 @@ describe("bots through official worker harnesses", () => {
       expect(turns).toHaveLength(2);
       expect(turns[0]?.session).toBe(turns[1]?.session);
       const evidence = readFileSync(join(f.dir, "bots.jsonl"), "utf8");
-      expect(evidence).toContain(`"provider":"${provider === Provider.CLAUDE ? "claude" : "codex"}","isolated":true`);
+      expect(evidence).toContain(`"provider":"${Provider[provider].toLowerCase()}","isolated":true`);
     });
 
     test(`${Provider[provider]} Canopy tool waits for approval and runs in the gateway`, async () => {
@@ -136,8 +136,28 @@ describe("bots through official worker harnesses", () => {
     }, 15_000);
   }
 
+  test("Grok with native id and Proxy connection runs through the pinned worker harness", async () => {
+    await f.save(Provider.GROK, "bot-proxy", ProviderProfileKind.CLIPROXYAPI);
+
+    try {
+      const bot = await add(Provider.GROK);
+      await send(bot.id, "Hello through Proxy");
+      expect((await settled(bot.id)).messages.at(-1)).toMatchObject({ text: "FIXTURE_OK", failed: false });
+      const instances = (await f.gw.api.getBotProviderInstances({ botId: bot.id })).instances;
+      expect(instances.find((instance) => instance.harness === Provider.GROK && instance.id === "native")?.kind).toBe(
+        ProviderProfileKind.CLIPROXYAPI,
+      );
+      const turns = f.records().filter((record) => record.event === "turn" && record.home.includes(`/bots/${bot.id}/`));
+      expect(turns).toHaveLength(1);
+      expect(turns[0]).toMatchObject({ harness: "grok", proxy: true, credentialMatches: true });
+      expect((await f.gw.api.getBot({ botId: bot.id })).bot?.configuration?.workerId).toBe(f.workerId);
+    } finally {
+      await f.save(Provider.GROK, "bot-native");
+    }
+  });
+
   test("gateway restart preserves a pending approval and never reruns inference", async () => {
-    const bot = await add(Provider.CLAUDE, "always");
+    const bot = await add(Provider.GROK, "always");
     await send(bot.id, "TOOL:create_project");
 
     const pending = await eventually(
@@ -184,8 +204,92 @@ describe("bots through official worker harnesses", () => {
     expect(result.messages.filter((m) => m.senderId === bot.id)).toHaveLength(1);
   });
 
+  test("Grok recovers a saved CLI end after a process crash", async () => {
+    const bot = await add(Provider.GROK);
+    await send(bot.id, "CRASH_AFTER_TRANSCRIPT");
+    const result = await settled(bot.id);
+    expect(result.messages.at(-1)?.text).toBe("FIXTURE_OK");
+    expect(result.messages.filter((m) => m.senderId === bot.id)).toHaveLength(1);
+  });
+
+  test("Grok refuses built-in permissions while Canopy tools keep gateway approvals", async () => {
+    const bot = await add(Provider.GROK, "always");
+    await send(bot.id, "BUILTIN_PERMISSION");
+    const result = await settled(bot.id);
+    expect(result.messages.at(-1)?.text).toBe("BUILTIN_DENIED");
+    expect(result.approvals).toHaveLength(0);
+  });
+
+  test("an existing API-era Grok bot pins a worker on its next turn and retains its history", async () => {
+    const id = crypto.randomUUID();
+
+    const configuration = create(bots.BotConfigurationSchema, {
+      name: "Migrated Grok",
+      shape: "round",
+      color: "#22aaff",
+      provider: Provider.GROK,
+      providerInstance: "native",
+      model: "fixture-model",
+      approvalPolicy: "safe",
+    });
+
+    await f.query(
+      "INSERT INTO bots(id, owner_user_id, client_request_id, provider, provider_instance, configuration) VALUES ($1::uuid,$2::uuid,$3,'grok','native',$4::jsonb)",
+      [id, f.gw.userId, crypto.randomUUID(), JSON.stringify(toJson(bots.BotConfigurationSchema, configuration))],
+    );
+    await send(id, "Before migration");
+    expect((await settled(id)).messages.at(-1)?.text).toBe("FIXTURE_OK");
+    expect((await f.gw.api.getBot({ botId: id })).bot?.configuration?.workerId).toBe(f.workerId);
+    await send(id, "After migration");
+    expect((await settled(id)).messages.map((m) => m.text)).toEqual([
+      "Before migration",
+      "FIXTURE_OK",
+      "After migration",
+      "FIXTURE_OK",
+    ]);
+  });
+
+  test("an unpinned bot waits clearly when no eligible worker is online", async () => {
+    const bot = await add(Provider.GROK, "safe", "");
+    await f.disconnect();
+    await send(bot.id, "Waiting for an eligible worker");
+
+    const pending = await eventually(
+      () => read(bot.id),
+      (r) => r.statusLine === "Waiting for a worker",
+    );
+
+    expect(pending.working).toBe(true);
+    await f.gw.core.bots.interrupt(bot.id);
+    closeReconnect = await f.reconnect();
+  });
+
+  test("Grok loses no history when its local session disappears, and retries explicitly", async () => {
+    const bot = await add(Provider.GROK);
+    await send(bot.id, "Original context");
+    await settled(bot.id);
+    const before = f.records().find((r) => r.event === "turn" && r.home.includes(`/bots/${bot.id}/`))!;
+    rmSync(join(before.home, `${before.session}.json`));
+    await send(bot.id, "Continue after session loss");
+    expect((await settled(bot.id)).messages.at(-1)?.text).toBe("FIXTURE_OK");
+    const turns = f.records().filter((r) => r.event === "turn" && r.home.includes(`/bots/${bot.id}/`));
+    expect(turns.at(-1)?.session).not.toBe(before.session);
+    const failedId = await send(bot.id, "FAIL_ONCE");
+    expect((await settled(bot.id)).messages.at(-1)).toMatchObject({
+      failed: true,
+      errorCode: "stream_cut_off",
+      errorSource: "harness",
+    });
+    expect((await f.gw.core.bots.run((s) => s.harnessTurn(failedId)))?.error_code).toBe("max_tokens");
+    await f.gw.core.bots.retry(bot.id);
+    await eventually(
+      () => read(bot.id),
+      (r) => !r.working && r.messages.at(-1)?.text === "FIXTURE_OK",
+    );
+  });
+
   test("worker restart preserves the session and command deduplication", async () => {
-    const bot = await add(Provider.CODEX);
+    const bot = await add(Provider.GROK);
     await send(bot.id, "Before worker restart");
     expect((await settled(bot.id)).messages.at(-1)?.text).toBe("FIXTURE_OK");
     await f.restartWorker();
@@ -197,7 +301,7 @@ describe("bots through official worker harnesses", () => {
   }, 15_000);
 
   test("offline pinned worker keeps the outbox, reconnect delivers once", async () => {
-    const bot = await add(Provider.CLAUDE);
+    const bot = await add(Provider.GROK);
     await f.disconnect();
     await send(bot.id, "Queued while offline");
 
@@ -216,7 +320,7 @@ describe("bots through official worker harnesses", () => {
   });
 
   test("a cancelled offline turn is never launched on reconnect", async () => {
-    const bot = await add(Provider.CLAUDE);
+    const bot = await add(Provider.GROK);
     await f.disconnect();
     await send(bot.id, "Cancel before delivery");
     await eventually(

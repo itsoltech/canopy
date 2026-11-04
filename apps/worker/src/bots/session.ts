@@ -53,7 +53,7 @@ export function botSession(input: RunBotTurn, options: { dataDir: string; source
       linkDeviceLogin: options.linkLogin,
       deviceClaudeHome: options.sourceHome,
     });
-  else
+  else if (input.provider === Provider.CODEX)
     prepareCodexHome({
       dataDir: path,
       path: home,
@@ -64,6 +64,8 @@ export function botSession(input: RunBotTurn, options: { dataDir: string; source
   return {
     cwd,
     home,
+    sourceHome: options.sourceHome,
+    linkLogin: options.linkLogin,
     id: saved?.key === key ? saved.id : "",
     save(id: string) {
       writeFileSync(`${sessionPath}.new`, JSON.stringify({ id, key }), { mode: 0o600 });

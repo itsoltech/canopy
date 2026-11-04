@@ -1,5 +1,5 @@
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
-import { Provider, ProviderProfileKind, type bots, type ui } from "@canopy/contracts";
+import { Provider, type bots, type ui } from "@canopy/contracts";
 import { modelOption, type ModelOption } from "#lib/features/models/catalog.ts";
 import { instanceKeyOf, instanceName } from "#lib/features/providers/instances.ts";
 import type { BotProviderInstance } from "./wizard/draft.ts";
@@ -204,7 +204,8 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
           color: proposal.color,
           model: proposal.model,
           effort: proposal.effort,
-          provider: proposal.provider === Provider.CLAUDE ? "Claude" : "Codex",
+          provider:
+            proposal.provider === Provider.CLAUDE ? "Claude" : proposal.provider === Provider.GROK ? "Grok" : "Codex",
           instance: proposal.providerInstance,
           approvalPolicy: proposal.approvalPolicy,
           instructions: proposal.instructions,
@@ -227,11 +228,7 @@ export function botWizardInstances(
   catalogs: readonly ui.WorkerModels[],
 ): BotProviderInstance[] {
   return instances.flatMap((instance) => {
-    if (
-      (instance.harness === Provider.GROK && instance.kind !== ProviderProfileKind.CLIPROXYAPI) ||
-      ![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(instance.harness)
-    )
-      return [];
+    if (![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(instance.harness)) return [];
 
     const provider =
       instance.harness === Provider.CLAUDE ? "CLAUDE" : instance.harness === Provider.GROK ? "GROK" : "CODEX";
@@ -243,7 +240,7 @@ export function botWizardInstances(
       const profile = catalog.profiles.find((p) => p.provider === instance.harness && p.profileId === instance.id);
 
       for (const info of profile?.models ?? []) {
-        const id = instance.harness === Provider.GROK ? info.resolvedModel || info.id : info.id;
+        const id = info.id;
 
         if (info.hidden || !id || models.has(id)) continue;
         models.set(id, modelOption(provider, instance.id, name, id, catalog, "catalog"));
@@ -268,10 +265,6 @@ export function botWizardInstances(
         id: instanceKeyOf(instance),
         name,
         provider,
-        ...(instance.kind !== ProviderProfileKind.CLIPROXYAPI && {
-          disabledReason: "Bots call the model API from the gateway — use a proxy connection",
-          settingsHref: `/settings/providers?instance=${encodeURIComponent(instanceKeyOf(instance))}`,
-        }),
         models: [...models.values()].sort((a, b) => rank(a.model) - rank(b.model)),
         modelsByWorker: new Map(
           catalogs.map((catalog) => {

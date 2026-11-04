@@ -1,6 +1,7 @@
 # Boty przez oficjalne harnessy
 
-Status: projekt do realizacji etapami; etap 1 obejmuje Claude i Codex.
+Status: etapy 1–2 implementują Claude, Codex i Groka. Osobna migracja generowania
+tytułów Groka trafiła na dev w #101; etap 2 jest na niej oparty.
 Decyzja maintenera zastępuje wariant B z [bots.md](bots.md). Canopy docelowo
 nie wysyła żadnych żądań inferencji HTTP. Claude działa przez Agent SDK i oficjalny
 `claude`, Codex przez oficjalny `codex app-server`, Grok przez CLI i adapter ACP.
@@ -53,7 +54,7 @@ bez ustawień, pluginów, skilli i instrukcji katalogu użytkownika. Nie przyjmu
 ścieżki projektu z komendy bota.
 
 Claude zapisuje sesję i wznawia ją przez `resume`, Codex przez `thread/resume`,
-docelowo Grok przez `session/load`. Identyfikator sesji jest cache'em. Transkrypt
+Grok przez `session/load`. Identyfikator sesji jest cache'em. Transkrypt
 gatewaya pozostaje źródłem prawdy, także dla rutyn i handoffów. Nowa sesja dostaje
 historię jako jawnie oznaczone dane oraz bieżące instrukcje, czas i tożsamość modelu.
 Zaginiona lub przeniesiona sesja jest odbudowywana bez powtarzania narzędzi z historii.
@@ -84,8 +85,10 @@ zasobów. Nie dają one dostępu do lokalnych plików. Dowodem izolacji obu CLI
 jest przechwycona lista schematów w `apps/worker/src/bots/isolation.test.ts`.
 Boty używają executable, środowiska i logowania instancji, ale pomijają jej
 launch args: dowolne flagi mogłyby dołączyć lokalne narzędzia lub obcy MCP.
-Grok wymaga osobnego dowodu usunięcia wszystkich lokalnych narzędzi; samo
-`readOnly` i odmowy ACP nie wystarczają, dlatego nie deklarujemy go w etapie 1.
+Grok używa curated profilu z `tools: search_tool, use_tool` i takiej samej allowlisty
+`--tools`, bez launch args i skilli instancji. Pozostaje tylko transport Canopy MCP;
+callbacki ACP odmawiają każdego lokalnego uprawnienia. Przechwycenie schematów
+prawdziwego CLI jest częścią `isolation.test.ts`, obok Claude i Codexa.
 
 Serwer MCP Canopy na workerze jest transportem schematów i wywołań, a nie
 wykonawcą akcji. Schematy istniejących `bots/tools/*` i przyznanych connectorów
@@ -132,9 +135,8 @@ Nowa migracja ma numer po najwyższym istniejącym pliku; przed scaleniem trzeba
 sprawdzić numer ponownie. Historia botów, identyfikatory, rutyny, wakeupy i handoffy
 pozostają. Pierwsza następna tura wybiera/pamięta worker i tworzy sesję z historią.
 Nie potrzebujemy przenoszenia sesji API, bo dotychczas nie istniała.
-Obecna migracja `0069_bot_harness.sql` koliduje numerem z przygotowywaną
-`0069_bot_errors.sql` w równoległej gałęzi; pierwsza scalona zajmuje numer,
-druga musi zostać przenumerowana przed scaleniem. Nie edytujemy migracji zastosowanej.
+`0069_bot_errors.sql` jest już na `origin/dev`; migracja tego stosu została
+przenumerowana na `0070_bot_harness.sql`. Nie edytujemy migracji zastosowanej.
 
 Proto rozszerzamy addytywnie. `bot_harness_v1` negocjuje nową funkcję; starszy
 worker nie dostanie komendy. `WORKER_LINK_PROTOCOL` i zamrożone
@@ -148,20 +150,23 @@ Wyszukiwanie produkcyjnego kodu po endpointach `messages`, `responses`,
 
 | Miejsce | Obecne zachowanie | Docelowe działanie |
 | --- | --- | --- |
-| `apps/gateway/src/bots/model.ts` | Bezpośrednia inferencja trzech dostawców | Claude/Codex przez worker w etapie 1; Grok i usunięcie kodu w etapie 2 |
-| `apps/worker/src/providers/grok/generate-text.ts` | Bezpośredni Chat Completions dla tytułów | Izolowana sesja CLI/ACP; bezpośrednia ścieżka usunięta w etapie 2 |
+| Gateway botów | Wyłącznie worker/harness; `model.ts` usunięty | Gotowe w etapie 2 |
+| `apps/worker/src/providers/grok/generate-text.ts` | Krótkotrwały Grok CLI/ACP dla tytułów | Osobne zadanie `fix/grok-text-generation`, scalone w #101 i uwzględnione przez rebase |
 | `apps/worker/src/providers/generate-text.ts` | Izolowane oficjalne Claude SDK/Codex | Wzorzec izolacji do ponownego użycia |
 | Testy przechwytujące HTTP | Kontrolowany endpoint modelu | To fixtures harnessów, nie runtime inferencji Canopy |
 
 `Test connection` proxy wykonuje tylko `GET /v1/models`, a katalogi mogą również
 czytać `/v1beta/models`. To nie są wywołania LLM i pozostają dozwolone.
+`tools/direct-inference.test.ts` skanuje źródła aplikacji i pakietów poza testami,
+fixtures i wygenerowanym kodem. Endpointy inferencji oraz klienci HTTP SDK powodują
+błąd CI; generowanie tytułów nie ma wyjątku.
 
 ## Stos etapów
 
 1. `feat/bots-harness-1` → `dev`: pionowa ścieżka Claude/Codex, Runs on,
    sesje, MCP, outbox/journal, istniejący czat, migracja i testy. Bez fallbacku
    Claude/Codex do bezpośredniego API.
-2. `feat/bots-harness-2` → etap 1: Grok CLI/ACP dla botów i tytułów,
+2. `feat/bots-harness-2` → etap 1: Grok CLI/ACP dla botów,
    dowód pustych lokalnych narzędzi, usunięcie `directModel` oraz całego
    bezpośredniego runtime'u i aktualizacja pozostałych testów/procedur.
 3. `feat/bots-harness-3` → etap 2: wspólna walidacja regresji, konflikty

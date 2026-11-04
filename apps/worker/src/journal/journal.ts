@@ -54,7 +54,7 @@ export interface OpenBackgroundTask {
 
 /** Where the harness of a turn keeps its own record of it (docs/durability.md, "Rekoncyliacja z transkryptu harnessu"). */
 export interface TurnHarness {
-  readonly harness: "codex" | "claude";
+  readonly harness: "codex" | "claude" | "grok";
   /** Codex: the rollout file (Thread.path); Claude: the config dir (CLAUDE_CONFIG_DIR) holding projects/<cwd>/<session>.jsonl. */
   readonly transcript: string;
   /** Codex thread id or Claude session id. */

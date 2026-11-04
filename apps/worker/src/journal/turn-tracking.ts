@@ -58,7 +58,7 @@ export function turnTracking(
 
   const selectHarness = db.query<
     {
-      harness: "codex" | "claude";
+      harness: "codex" | "claude" | "grok";
       transcript: string;
       session_id: string;
       start_offset: number;

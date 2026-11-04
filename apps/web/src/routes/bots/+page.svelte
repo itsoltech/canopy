@@ -130,7 +130,7 @@
     {#if error}<p role="alert" class="text-sm text-red-500">{error}</p>{/if}
     <Button variant="primary" onclick={openWizard}>Create bot</Button>
     {#if loading}<p role="status" class="text-sm text-zinc-500">Loading providers and models…</p>
-    {:else if loaded && (!options.length || options.every((i) => i.disabledReason || !i.models.length))}
+    {:else if loaded && (!options.length || options.every((i) => !i.models.length))}
       <p class="max-w-md text-sm text-zinc-500">
         Enable a provider instance on a worker in <a href="/settings/providers" class="underline"
           >Settings → Providers</a

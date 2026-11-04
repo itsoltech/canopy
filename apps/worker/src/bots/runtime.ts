@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { Match } from "effect";
 import { AgentToolCallSchema, Provider, TurnEndSource, TurnOutcome, type RunBotTurn } from "@canopy/contracts";
 import { instanceShadowHome } from "../config/remote.ts";
 import { Journal, type ThreadEventInit } from "../journal/index.ts";
@@ -9,6 +10,7 @@ import type { HostContext } from "../runtime/host-context.ts";
 import { botSession } from "./session.ts";
 import { runClaudeBot } from "./claude.ts";
 import { runCodexBot } from "./codex.ts";
+import { runGrokBot } from "./grok.ts";
 import { BotHarnessFailure } from "./types.ts";
 
 /** Hidden bot sessions own no project workspace and expose only gateway-executed MCP. */
@@ -20,7 +22,13 @@ export class BotTurns {
     const config = this.ctx.state.config;
 
     const provider =
-      input.provider === Provider.CLAUDE ? "claude" : input.provider === Provider.CODEX ? "codex" : undefined;
+      input.provider === Provider.CLAUDE
+        ? "claude"
+        : input.provider === Provider.CODEX
+          ? "codex"
+          : input.provider === Provider.GROK
+            ? "grok"
+            : undefined;
 
     const profile = config?.profiles.find(
       (p) => p.resolved?.id === input.profileId && provider && usableBy(p.resolved, provider),
@@ -38,7 +46,7 @@ export class BotTurns {
 
     const sourceHome = runtime.ownLogin
       ? instanceShadowHome(this.ctx.state.options.dataDir, provider, profile.id, runtime)!
-      : runtime.homePath || this.ctx.state.deviceHomes[provider];
+      : runtime.homePath || this.ctx.state.deviceHomes[provider] || "";
 
     const session = botSession(input, {
       dataDir: this.ctx.state.options.dataDir,
@@ -102,7 +110,13 @@ export class BotTurns {
         ),
     };
 
-    const done = (provider === "claude" ? runClaudeBot(context) : runCodexBot(context))
+    const done = Match.value(provider)
+      .pipe(
+        Match.when("claude", () => runClaudeBot(context)),
+        Match.when("codex", () => runCodexBot(context)),
+        Match.when("grok", () => runGrokBot(context)),
+        Match.exhaustive,
+      )
       .then(
         () => record({ body: { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } } }),
         async (error) => {

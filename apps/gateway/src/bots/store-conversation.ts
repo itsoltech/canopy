@@ -4,7 +4,6 @@ import { bots, connectors } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
-import { harnessOf, type InstanceRow } from "../store/instance-config.ts";
 import { modelInput, storedMentions } from "./mentions.ts";
 import { nextHop } from "./policy.ts";
 import type { BotTurn, McpConnection, ModelMessage, StoredCall } from "./types.ts";
@@ -152,20 +151,11 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
   };
 }
 
-/** The bot's provider secret and MCP servers. */
+/** Connector connections and credentials stay in the gateway. */
 export function botMcp(sql: SqlClient.SqlClient, core: BotCore) {
-  const { connections, owned, secret, server, resolvedServer, servers } = core;
+  const { connections, owned, server, resolvedServer, servers } = core;
 
   return {
-    provider: (user: string, config: bots.BotConfiguration) =>
-      Effect.gen(function* () {
-        const instance =
-          (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance} AND kind = 'endpoint'`)[0];
-
-        if (!instance) return yield* Effect.fail(new Invalid("provider endpoint unavailable"));
-
-        return { url: instance.base_url, key: instance.api_key ? yield* secret(user, instance.api_key.secretRef) : "" };
-      }),
     connected: (user: string, botId: string) =>
       Effect.gen(function* () {
         yield* owned(user, botId);

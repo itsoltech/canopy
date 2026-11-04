@@ -1,8 +1,7 @@
 /**
  * Live (CANOPY_LIVE=1): a Claude bot created the way the wizard does it, with the instance's default model, replies
- * through CLIProxyAPI. The worker's real Claude catalog names that model `default` (a Claude Code alias the
- * Messages API refuses); CreateBot stores the concrete model it resolves to (the wizard offers that one too), and a
- * bot saved earlier with the alias is resolved at runtime.
+ * through its worker harness. The worker's real Claude catalog names that model `default`;
+ * CreateBot preserves that harness alias, including for an existing saved bot.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
@@ -67,7 +66,7 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAva
       await gw?.close();
     });
 
-    test("the default model resolves to the concrete API model, at creation and for a bot saved with the alias", async () => {
+    test("the default harness alias works at creation and for an existing bot", async () => {
       // What the worker reports for the proxy: `default` with the model it resolves to.
       const catalogs = await eventually(
         async () => (await gw.api.listModels({})).workers,
@@ -106,7 +105,7 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAva
         })
       ).bot!;
 
-      expect(bot.configuration?.model).toBe(resolved);
+      expect(bot.configuration?.model).toBe("default");
 
       const ask = async (text: string) => {
         await gw.api.sendBotMessage({ botId: bot.id, text, clientRequestId: Bun.randomUUIDv7() });
