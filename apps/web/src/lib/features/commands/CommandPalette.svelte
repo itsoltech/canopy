@@ -6,8 +6,9 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import KeyHint from "#lib/shared/ui/KeyHint.svelte";
   import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
+  import { keybindings } from "./keybindings.svelte.ts";
   import { exitDuration, pageIn } from "#lib/shared/ui/motion.ts";
-  import { PALETTE_HOTKEY, type PaletteState } from "./commands.svelte.ts";
+  import type { PaletteState } from "./commands.svelte.ts";
   import CommandCrumb from "./CommandCrumb.svelte";
   import CommandRow from "./CommandRow.svelte";
   import {
@@ -244,9 +245,9 @@
   const hasModifier = (hotkey: string) => /(^|\+)(mod|ctrl|meta|alt)\+/i.test(hotkey);
 
   function onWindowKeydown(event: KeyboardEvent) {
-    if (event.defaultPrevented || event.isComposing || event.repeat) return;
+    if (event.defaultPrevented || event.isComposing || event.repeat || keybindings.recording) return;
 
-    if (matchesHotkey(event, PALETTE_HOTKEY)) {
+    if (keybindings.matches(event, "command-palette")) {
       event.preventDefault();
       palette.toggle();
 
@@ -254,12 +255,19 @@
     }
 
     if (palette.open || document.querySelector("dialog:modal")) return;
-    const command = registry.list().find((c) => c.hotkey && matchesHotkey(event, c.hotkey));
+    const command = registry.bindings().find((c) => c.hotkeys?.some((k) => matchesHotkey(event, k)));
 
-    if (!command || actionOf(command) !== "run") return;
+    if (!command || command.disabled) return;
 
-    if (isEditable(event.target) && !hasModifier(command.hotkey!)) return;
+    if (isEditable(event.target) && !command.hotkeys?.some((k) => matchesHotkey(event, k) && hasModifier(k))) return;
     event.preventDefault();
+
+    if (command.children) {
+      palette.show();
+      void tick().then(() => setLevel(enterLevel([], command, ""), "", 1));
+
+      return;
+    }
 
     if (command.run) void command.run();
     else if (command.href) void goto(command.href);

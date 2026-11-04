@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Attachment } from "svelte/attachments";
-  import { formatHotkey, matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
+  import { formatHotkey } from "#lib/shared/ui/hotkeys.ts";
+  import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import CiteButton from "./CiteButton.svelte";
@@ -21,7 +22,7 @@
   let { threadId, root, avoid }: { threadId: string; root: HTMLElement | undefined; avoid?: HTMLElement | undefined } =
     $props();
 
-  const CITE_HOTKEY = "Alt+Q";
+  const CITE_HOTKEY = $derived(keybindings.get("message:quote")[0] ?? "");
   const drafts = useQuoteDrafts();
   let quote = $state.raw<SelectedQuote>();
   let editing = $state(false);
@@ -91,7 +92,7 @@
     const onkeydown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
 
-      if (matchesHotkey(event, CITE_HOTKEY)) {
+      if (keybindings.matches(event, "message:quote")) {
         if (!quote) read();
 
         if (!quote) return;

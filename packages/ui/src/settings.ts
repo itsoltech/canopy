@@ -26,6 +26,13 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "theme color scheme dark light accent chat width device",
   },
   {
+    href: "/settings/keybindings",
+    label: "Keybindings",
+    icon: "command-line",
+    group: "General",
+    keywords: "keyboard shortcuts hotkeys commands bindings record conflicts",
+  },
+  {
     href: "/settings/threads",
     label: "Threads",
     icon: "chat-bubble-left-right",
