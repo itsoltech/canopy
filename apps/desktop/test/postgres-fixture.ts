@@ -38,6 +38,14 @@ export async function postgresRegistry(bytes: Buffer, interruptFirst = false) {
   let unavailable = false;
 
   const server = createServer((request, response) => {
+    // Only the package download counts: local tools probe new loopback ports with `GET /`.
+    if (!request.url?.endsWith(".tgz")) {
+      response.writeHead(404);
+      response.end();
+
+      return;
+    }
+
     ranges.push(request.headers.range);
 
     if (unavailable) {
