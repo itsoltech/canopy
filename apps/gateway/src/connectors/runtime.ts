@@ -1,10 +1,7 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import {
-  AgentToolResultSchema,
   ConnectorToolSchema,
   connectors,
-  InteractionKind,
-  InteractionRequestSchema,
   ui,
   type AgentToolCall,
   type ConnectorTool,
@@ -16,7 +13,6 @@ import { Effect, Schema } from "effect";
 import { GatewayStore } from "../store/store.ts";
 import type { CoreRuntime } from "../core/core.ts";
 import { mcpCall, mcpTools } from "../bots/mcp.ts";
-import { isJsonObject } from "../bots/json.ts";
 import type { McpConnection, ToolSpec } from "../bots/types.ts";
 import { CONNECTOR_TYPES, connectorType, connectorUrl } from "./catalog.ts";
 import {
@@ -28,12 +24,10 @@ import {
   type ExecutionSource,
 } from "./store.ts";
 import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
+import { connectorPermission, failed, handleConnectorCall } from "./calls.ts";
 
 /** Catalog input schemas are stored as the JSON text of the object the MCP server sent. */
 const inputSchema = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.JsonObject));
-
-/** MCP tool results report failure in-band. */
-const failed = (result: JsonValue) => isJsonObject(result) && Boolean(result["isError"]);
 
 export class ConnectorsRuntime {
   readonly #active = new Map<string, { fingerprint: string; promise: Promise<JsonValue> }>();
@@ -433,124 +427,26 @@ export class ConnectorsRuntime {
 
     return result;
   }
-  async #permission(
-    source: ExecutionSource,
-    callId: string,
-    tool: ConnectorTool,
-    args: JsonObject,
-    signal: AbortSignal,
-  ): Promise<void> {
-    const facts = await this.options.runtime.runPromise(
-      GatewayStore.use((s) =>
-        Effect.gen(function* () {
-          const thread = yield* s.thread(source.threadId!);
-          const turn = yield* s.runningTurn(thread.id);
-
-          if (!turn || source.turnId !== turn.id)
-            return yield* Effect.fail(new ConnectorFailure("Connector call requires the active turn"));
-
-          return { mode: turn.permission_mode || thread.settings.permissionMode || "ASK", turnId: turn.id };
-        }),
-      ),
+  #permission(source: ExecutionSource, callId: string, tool: ConnectorTool, args: JsonObject, signal: AbortSignal) {
+    return connectorPermission(
+      {
+        runtime: this.options.runtime,
+        run: (use) => this.run(use),
+        interaction: (interaction) => this.options.interaction(interaction),
+        stopped: () => this.#stopped,
+      },
+      source,
+      callId,
+      tool,
+      args,
+      signal,
     );
-
-    if (tool.readOnly) return;
-
-    if (facts.mode === "READ_ONLY")
-      throw new ConnectorFailure("Read-only threads cannot call connector tools that may write");
-
-    if (facts.mode === "FULL_AUTO") return;
-
-    const credentials = await this.run((s) =>
-      s.owned(source.userId, source.accountId).pipe(Effect.flatMap(s.credentials)),
-    );
-
-    const interaction = await this.options.runtime.runPromise(
-      GatewayStore.use((s) =>
-        s.recordInteraction(
-          create(InteractionRequestSchema, {
-            requestId: callId,
-            threadId: source.threadId!,
-            turnId: facts.turnId,
-            itemId: callId,
-            kind: InteractionKind.PERMISSION,
-            toolName: tool.name,
-            requestJson: redactConnector(
-              JSON.stringify({
-                tool_name: `${connectorType(tool.connectorType)?.name} · ${tool.accountName} · ${tool.remoteName}`,
-                description: "Allow this connector action?",
-                connector_account_id: tool.accountId,
-                input: args,
-              }),
-              credentials,
-            ),
-          }),
-        ),
-      ),
-    );
-
-    await this.options.interaction(interaction);
-
-    for (;;) {
-      signal.throwIfAborted();
-
-      if (this.#stopped) throw new ConnectorFailure("Gateway stopped");
-      const answer = await this.options.runtime.runPromise(GatewayStore.use((s) => s.interactionAnswer(callId)));
-
-      if (answer) {
-        if (!answer.answer.allow || answer.answer.cancelled)
-          throw new ConnectorFailure("The user declined this connector action. Do not retry it.");
-
-        return;
-      }
-
-      const running = await this.options.runtime.runPromise(GatewayStore.use((s) => s.runningTurn(source.threadId!)));
-
-      if (running?.id !== facts.turnId) throw new ConnectorFailure("The turn ended before connector approval");
-      await Bun.sleep(250);
-    }
   }
-  async handle(request: AgentToolCall, workerId: string) {
-    let source: ExecutionSource | undefined;
-
-    try {
-      if (!request.connectorAccountId || request.argumentsJson.length > 100_000)
-        throw new ConnectorFailure("Invalid connector call");
-      const thread = await this.options.runtime.runPromise(GatewayStore.use((s) => s.thread(request.threadId)));
-
-      if (thread.worker_id !== workerId) throw new ConnectorFailure("Connector access denied");
-      source = {
-        userId: thread.owner_user_id,
-        accountId: request.connectorAccountId,
-        workerId,
-        threadId: thread.id,
-        turnId: request.turnId,
-      };
-      const args: JsonValue = JSON.parse(request.argumentsJson);
-
-      if (!isJsonObject(args)) throw new ConnectorFailure("Invalid connector arguments");
-
-      const result = await this.call(source, request.callId, request.toolName, args, AbortSignal.timeout(300_000));
-      const isError = failed(result);
-
-      return create(AgentToolResultSchema, {
-        callId: request.callId,
-        isError,
-        content: JSON.stringify(result),
-        resultJson: JSON.stringify(result),
-      });
-    } catch {
-      if (source) await this.run((s) => s.audit(source!, request.toolName, "denied_or_failed")).catch(() => undefined);
-
-      const message =
-        "Connector call refused or failed. Check account access, connection status, permission mode and approval. No automatic write retry.";
-
-      return create(AgentToolResultSchema, {
-        callId: request.callId,
-        isError: true,
-        content: message,
-        resultJson: JSON.stringify({ error: message }),
-      });
-    }
+  handle(request: AgentToolCall, workerId: string) {
+    return handleConnectorCall(
+      { runtime: this.options.runtime, run: (use) => this.run(use), call: (...input) => this.call(...input) },
+      request,
+      workerId,
+    );
   }
 }
