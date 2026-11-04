@@ -1,14 +1,16 @@
 # Jakość kodu: lint, formatter, limity rozmiaru
 
-Status: **faza 1 — konfiguracja i przebieg mechaniczny wykonane** (2026-11-04).
-Gałąź narzędziowa została zrebase'owana na `origin/dev` @ `85867472bd860df93e1dab9231464b59a16691f0`,
-po scaleniu ośmiu etapów połączonych komputerów oraz zmian desktop/worker. Jedyny konflikt dotyczył `bun.lock`:
-zachowano zależności aktualnego `dev`, a Bun dopisał przypięte zależności narzędziowe.
+Status: **wszystkie fazy zakończone** (2026-11-04). Cały kod przechodzi `bun run lint` (oxlint + anti-slop + limity
+rozmiaru) i `bun run format:check` (oxfmt); CI (`.github/workflows/ci.yml`) i root `check` wymuszają oba, a AGENTS.md
+opisuje zasady dla nowego kodu.
 
-Pomiar dotyczy sformatowanego drzewa z commita `28347c5fd09396d5aef4ed408f1f0ea22cca0b2f` i przyjętej
-konfiguracji. **1798 naruszeń w 376 plikach**: 1713 do fazy 2 i 85 zgłoszeń rozmiaru do fazy 3.
-`format:check` przechodzi; `lint` celowo kończy się błędem. **CI i root `check` pozostają bez zmian** do zakończenia
-wszystkich poprawek. Pełny pomiar: [code-quality-baseline.json](code-quality-baseline.json).
+- Faza 1 (#29): narzędzia, przyjęta polityka reguł i mechaniczne formatowanie całego repo (`acd67d2`, w `.git-blame-ignore-revs`).
+- Faza 2 (#39–#43, #46): poprawki reguł w sześciu rozłącznych obszarach, bez wyłączeń poza uzasadnionymi przypadkami.
+- Faza 3 (#47–#52): podział plików ponad 400 linii kodu i funkcji ponad 120 linii, wyłącznie przeniesienia kodu.
+- Faza 4: kroki Lint i Formatting w CI, `lint` i `format:check` w root `check`, sekcja „Code quality” w AGENTS.md.
+
+Sekcje poniżej opisują przebieg i pomiary z czasu refaktoru (stan historyczny), w tym zasady reguł, które dalej obowiązują.
+Lokalnie: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
 ## Narzędzia i polecenia
 

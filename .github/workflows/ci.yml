@@ -44,6 +44,13 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      # oxlint with the vendored anti-slop rules and the size limits (docs/code-quality.md).
+      - name: Lint
+        run: bun run lint
+
+      - name: Formatting
+        run: bun run format:check
+
       # Integration tests start throwaway PostgreSQL containers (packages/db/src/testing.ts); the runner has Docker.
       - name: Pull the test database image
         run: docker pull --quiet postgres:17
