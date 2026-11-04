@@ -21,7 +21,7 @@
 </script>
 
 <svelte:head><title>Proxies · Canopy</title></svelte:head>
-<div class="grid min-w-0 gap-6">
+<div class="settings-stack">
   <SettingsHeading
     title="Proxies"
     description="Save a connection once, then choose it in any compatible provider instance."
@@ -35,7 +35,7 @@
       >{/snippet}
   </SettingsHeading>
   {#if proxies.length === 0}
-    <div class="grid gap-2 py-8">
+    <div class="grid gap-2 py-4">
       <h2 class="text-lg font-semibold text-balance text-zinc-950 dark:text-white">One connection for your agents</h2>
       <p class="max-w-prose text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         Add CLIProxyAPI, a fork, or an Anthropic/OpenAI-compatible endpoint. Its secret stays encrypted in the gateway.

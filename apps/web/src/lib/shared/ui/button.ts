@@ -4,7 +4,7 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "md" | "sm";
 
 const base =
-  "relative inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap focus-ring disabled:cursor-not-allowed disabled:opacity-50";
+  "ui-button relative inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap focus-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 const variants: Record<ButtonVariant, string> = {
   primary: "bg-brand-600 text-white not-disabled:hover:bg-brand-500",

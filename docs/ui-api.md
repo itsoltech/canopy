@@ -586,6 +586,20 @@ Popraw oba miejsca.
 
 ## 4. Frontend (`apps/web`)
 
+**Gęstość Settings.** `features/settings/density.css` definiuje tokeny ograniczone do
+`SettingsDialog`: tekst i etykiety 13 px na desktopie, 15 px na telefonie, opisy 13 px,
+nagłówki sekcji 14 px i stron 18 px. Odstęp sekcji wynosi 20/24 px (desktop/telefon),
+pionowy padding wiersza 8/10 px, kontrolki i cele kliknięcia co najmniej 32/44 px.
+Pola tekstowe na telefonie zachowują 16 px, aby nie uruchamiać automatycznego zoomu.
+Treść ma maksymalnie 1024 px, nawigacja 216 px. `SettingsRow` układa tytuł i opis po
+lewej, kontrolkę po prawej; na telefonie przechodzi na jedną kolumnę. `Field layout="row"`
+zachowuje powiązania etykiety, opisu i błędu z kontrolką; w `settings-form` przechodzi
+na dwie kolumny od szerokości 448 px. Wspólne `Fieldset`, `ChoiceCard` i kontrolki
+zestawu dziedziczą skalę wyłącznie wewnątrz ustawień. Providers ma zakres nad zwartym
+nagłówkiem, listę z wersją, pojedynczym statusem i przełącznikiem oraz definicję
+w wierszach. Przełącznik w All workers włącza instancję na wszystkich workerach lub
+usuwa wszystkie przypisania; zakres pojedynczego workera zmienia tylko jego przypisanie.
+
 **Background tasks w panelu wątku.** `BackgroundTasksSection` pokazuje własne itemy `background_task`, także bez `turn_id`: najpierw działające, potem trzy ostatnio utworzone zakończone, w każdej grupie od najnowszych (`first_seq`). „Show N more” odsłania resztę. Wiersz, chip nad kompozytorem i „Open output” w itemie otwierają wspólny `BackgroundTaskDialog` (880 px na desktopie, pełny ekran telefonu). Współdzielony `ui/Terminal` jest ciemny w obu motywach: pasek okna zawiera krótki tytuł (opis harnessu albo program i argument po zdjęciu wrapperów powłoki), skrócone cwd, status z czasem i akcje Stop, Copy command, Copy output. Prompt z kolorowaniem Shiki zawija komendę do trzech wierszy; „Show full command” rozwija resztę we własnym obszarze. Przy kilku działających zadaniach chip najpierw pokazuje menu wyboru. Widoki używają tego samego stanu SSE co oś czasu; bez dodatkowego pollingu. Stop czeka na potwierdzenie workera, błąd pozwala ponowić.
 
 `ui/TerminalOutput` używa `LineReveal` i wirtualizacji wierszy o wysokości 20 px (widok + po 8 wierszy zapasu). Nowy output trzyma dół, przewinięcie w górę zwalnia pin; „Jump to latest”, End w obszarze wyjścia albo ręczny powrót na dół przypina ponownie. Esc zamyka natywny Dialog. Parser ANSI renderuje kolory SGR (16/256/truecolour) i podstawowe atrybuty tekstu; pozostałe sekwencje sterujące są usuwane. Copy output kopiuje cały dostępny strumień jako czysty tekst. Log przewija się poziomo wyłącznie we własnym obszarze, dialog nie przewija się poziomo. Oczekiwanie jest przygaszonym wierszem terminala; po zakończeniu pojawia się wiersz statusu wyjścia. Animacje korzystają z tokenów zestawu (`t-modal`, `t-pulse`, reduced motion).

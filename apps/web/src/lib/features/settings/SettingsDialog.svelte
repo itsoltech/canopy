@@ -7,6 +7,7 @@
   import { useSettings } from "./settings-state.svelte.ts";
   import SettingsNav from "./SettingsNav.svelte";
   import { windowModal } from "#lib/shared/ui/window-modal.ts";
+  import "./density.css";
 
   /**
    * Settings as a large modal panel (T3 layout): searchable section nav on the left, the section on the
@@ -54,6 +55,7 @@
 
 <dialog
   use:windowModal
+  class:settings-density={true}
   bind:this={dialog}
   open
   aria-labelledby="settings-title"
@@ -69,20 +71,20 @@
 >
   <div class="flex h-full flex-col lg:flex-row">
     <div
-      class="shrink-0 border-zinc-950/5 bg-zinc-50 px-3 pt-3 pb-2 lg:w-64 lg:overflow-y-auto lg:border-r lg:pb-4 dark:border-white/8 dark:bg-white/2"
+      class="shrink-0 border-zinc-950/5 bg-zinc-50 px-3 pt-3 pb-2 lg:w-(--settings-nav-width) lg:overflow-y-auto lg:border-r lg:pb-3 dark:border-white/8 dark:bg-white/2"
     >
       <SettingsNav />
     </div>
     <div class="flex min-h-0 min-w-0 flex-1 flex-col">
       <div
-        class="flex h-12 shrink-0 items-center gap-2 border-b border-zinc-950/5 pr-2 pl-5 dark:border-white/8"
+        class="flex min-h-11 shrink-0 items-center gap-2 border-b border-zinc-950/5 pr-2 pl-4 dark:border-white/8"
         data-window-drag
       >
         <SettingsBreadcrumb class="flex-1" />
         <IconButton icon="x-mark" label="Close settings" onclick={onclose} />
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto">
-        <div class="mx-auto grid max-w-3xl grid-cols-1 gap-10 px-4 py-6 sm:px-8 lg:py-8">
+        <div class="settings-content mx-auto grid grid-cols-1 px-4 py-4 sm:px-6 lg:py-5">
           {#if settings.notice}
             <Alert tone={settings.notice.tone}>
               {settings.notice.text}

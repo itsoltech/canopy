@@ -28,7 +28,7 @@
   <!-- A rendered legend is not a grid item: the layout lives in the wrapper below it. -->
   <legend class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">{legend}</legend>
   {#if description}<p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">{description}</p>{/if}
-  <div class="mt-2 grid gap-2">
+  <div class="ui-fieldset-content mt-2 grid gap-2">
     {@render children()}
     <FieldError message={error} />
   </div>

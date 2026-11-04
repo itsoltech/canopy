@@ -68,13 +68,13 @@
   }
 </script>
 
-<form class={["grid gap-8", className]} onsubmit={submit} novalidate>
+<form class={["settings-form settings-stack", className]} onsubmit={submit} novalidate>
   <SettingsSection title="Identity">
-    <div class="grid gap-4 sm:grid-cols-2">
-      <Field label="Display name" error={shown.label}>
+    <div>
+      <Field layout="row" label="Display name" description="Shown in lists and the model picker." error={shown.label}>
         <Input name="label" bind:value={draft.label} placeholder={kindLabel(draft.kind)} autocomplete="off" />
       </Field>
-      <Field label="Instance ID" description="Fixed: threads store it.">
+      <Field layout="row" label="Instance ID" description="Fixed: threads store it.">
         <Input name="id" value={instance.id} readonly class="font-mono text-zinc-500" />
       </Field>
     </div>
@@ -83,7 +83,7 @@
 
   <SettingsSection
     title="Connection"
-    description="Changes apply to the next turn. Running turns and background tasks finish with their current settings; existing threads keep their sessions."
+    description="Applies next turn. Running tasks finish with their current settings; threads keep their sessions."
   >
     <ConnectionFields
       harness={instance.harness}

@@ -22,7 +22,7 @@
 </script>
 
 <svelte:head><title>Desktop · Settings · Canopy</title></svelte:head>
-<div class="grid gap-6">
+<div class="settings-stack">
   {#if status}
     <WorkerStatus {status} />
     <div class="flex flex-wrap items-center gap-2">

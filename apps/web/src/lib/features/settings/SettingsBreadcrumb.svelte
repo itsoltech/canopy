@@ -31,7 +31,8 @@
         : [{ label: section?.label ?? "Settings" }],
   );
 
-  const linkClass = "rounded-sm hover:text-zinc-950 focus-ring dark:hover:text-white";
+  const linkClass =
+    "inline-flex min-h-(--settings-target) items-center rounded-sm hover:text-zinc-950 focus-ring dark:hover:text-white";
 </script>
 
 <nav aria-label="Breadcrumb" class={["min-w-0", className]}>

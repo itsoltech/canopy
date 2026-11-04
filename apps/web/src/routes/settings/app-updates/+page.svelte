@@ -5,4 +5,4 @@
 
 <svelte:head><title>App updates · Settings · Canopy</title></svelte:head>
 <AppUpdates />
-<div class="mt-8"><QuitShortcutSettings /></div>
+<QuitShortcutSettings />

@@ -18,7 +18,7 @@
   id={field?.id}
   aria-describedby={field?.describedBy}
   aria-invalid={field?.invalid || undefined}
-  class={[controlClasses, resize ? "resize-y" : "resize-none", className]}
+  class={[controlClasses, "ui-control", resize ? "resize-y" : "resize-none", className]}
   bind:value
   bind:this={element}
   {...rest}></textarea>

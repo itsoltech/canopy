@@ -42,7 +42,7 @@
     id={field?.id}
     aria-describedby={field?.describedBy}
     aria-invalid={field?.invalid || undefined}
-    class={[bare ? bareControlClasses : controlClasses, className]}
+    class={[!bare && "ui-control", bare ? bareControlClasses : controlClasses, className]}
     bind:value
     {...rest}
   />

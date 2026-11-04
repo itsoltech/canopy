@@ -24,7 +24,7 @@
   let open = $state(false);
 </script>
 
-<div class={["grid gap-8", className]}>
+<div class={["settings-stack", className]}>
   {#if shared.snapshot.conflicts.length}
     <SettingsGroup
       title="Needs your decision"
