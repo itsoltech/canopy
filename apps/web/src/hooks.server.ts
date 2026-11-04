@@ -13,6 +13,15 @@ export const init: ServerInit = () => {
  * their first paint. The short cached lookup has a deadline, including when the gateway is down.
  */
 export const handle: Handle = async ({ event, resolve }) => {
+  const desktopOrigin = process.env["CANOPY_WEB_ORIGIN"];
+
+  if (
+    desktopOrigin &&
+    (event.request.headers.get("host") !== new URL(desktopOrigin).host ||
+      (event.request.headers.get("origin") && event.request.headers.get("origin") !== desktopOrigin) ||
+      event.request.headers.get("sec-fetch-site") === "cross-site")
+  )
+    return new Response("Untrusted desktop origin", { status: 403 });
   const page = !event.isDataRequest && !event.url.pathname.startsWith("/api/");
   const appearance = page && event.url.pathname !== "/desktop" ? shellAppearance() : undefined;
 

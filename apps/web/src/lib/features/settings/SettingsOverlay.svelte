@@ -15,6 +15,10 @@
     type SettingsRoute,
   } from "./settings-route.ts";
   import SettingsDialog from "./SettingsDialog.svelte";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import AlertCompatibility from "#lib/features/desktop/GatewayCompatibility.svelte";
+
+  const capabilities = useGatewayCapabilities();
 
   /**
    * Shows Settings over the app (docs/ui-api.md §4). Any link or `goto` to a page under `/settings`
@@ -151,7 +155,9 @@
 
 {#if shown}
   <SettingsDialog {open} onclose={close} onexited={() => !view && (last = undefined)}>
-    {#if !shown.key}
+    {#if capabilities && !capabilities.supports(shown.url.pathname)}
+      <AlertCompatibility message="Update Canopy on your gateway to use this feature" />
+    {:else if !shown.key}
       {@render route()}
     {:else if overlay.bridging?.key === shown.key && !overlay.bridging.ready}
       <!-- Handing over: the route's content just left, the same page mounts once the page underneath is in. -->

@@ -2,22 +2,14 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { join } from "node:path";
 import { dirname, delimiter } from "node:path";
 import { hostname } from "node:os";
-import { createHash } from "node:crypto";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { ui } from "@canopy/contracts";
-import type { JsonObject, JsonValue } from "@canopy/domain";
+import type { JsonObject } from "@canopy/domain";
 import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
-import { enrollWorker } from "../../../worker/src/enroll.ts";
-import {
-  configuration,
-  freePort,
-  initialStatus,
-  serviceEnvironment,
-  isString,
-  isWorkerStatus,
-  isWorkerConfiguration,
-} from "./config.ts";
+import { remoteWorkerDirectory, type DesktopClientCredential } from "../remote-client.ts";
+import { remoteEnrollment, startDesktopWorker } from "./worker-runtime.ts";
+import { configuration, freePort, initialStatus, serviceEnvironment, isWorkerStatus } from "./config.ts";
 import { startDatabase } from "./database.ts";
 import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from "./postgres-install.ts";
 import { Logs } from "./log.ts";
@@ -105,7 +97,7 @@ export class DesktopRuntime {
         });
     });
   }
-  private async startWeb(gatewayUrl: string) {
+  private async startWeb(gatewayUrl: string, client?: DesktopClientCredential) {
     await this.web.stop();
     this.web = this.makeSupervisor();
     // The local BFF owns no durable state. Browser keep-alive/SSE connections must not delay quit.
@@ -120,7 +112,15 @@ export class DesktopRuntime {
         PORT: String(this.webPort),
         CANOPY_WEB_ORIGIN: this.setupOrigin,
         GATEWAY_URL: gatewayUrl,
+        // A local random token satisfies BFF env validation; remote RPCs use only client.token.
         GATEWAY_SERVICE_TOKEN: this.secrets.serviceToken,
+        ...(client && {
+          CANOPY_DESKTOP_CLIENT_TOKEN: client.token,
+          CANOPY_DESKTOP_GATEWAY_ROUTES: JSON.stringify({
+            fingerprint: client.fingerprint,
+            addresses: client.addresses,
+          }),
+        }),
         BODY_SIZE_LIMIT: "50M",
       },
       restart: true,
@@ -140,12 +140,12 @@ export class DesktopRuntime {
 
     return this.setupOrigin;
   }
-  async restore() {
+  async restore(client?: DesktopClientCredential) {
     const saved = join(this.directory, "desktop.json");
 
     if (existsSync(saved)) {
       try {
-        await this.configure(configuration(JSON.parse(readFileSync(saved, "utf8"))));
+        await this.configure(configuration(JSON.parse(readFileSync(saved, "utf8"))), client);
       } catch (error) {
         this.publish({ phase: "error", error: error instanceof Error ? error.message : "Desktop startup failed" });
       }
@@ -275,7 +275,7 @@ export class DesktopRuntime {
 
     return { gatewayUrl, webUrl: this.setupOrigin, workerDirectory, token };
   }
-  async configure(raw: DesktopConfiguration) {
+  async configure(raw: DesktopConfiguration, client?: DesktopClientCredential) {
     const config = configuration(raw);
     this.generation++;
     this.configured = false;
@@ -289,7 +289,12 @@ export class DesktopRuntime {
       worker: "offline",
       error: undefined,
       database: undefined,
-      ...(config.mode === "remote" && { gatewayUrl: config.gatewayUrl, webUrl: config.webUrl }),
+      needsPairing: false,
+      ...(config.mode === "remote" && {
+        gatewayUrl: config.gatewayUrl,
+        webUrl: this.setupOrigin,
+        workerGatewayUrl: config.workerGatewayUrl ?? config.gatewayUrl,
+      }),
     });
     await this.services.stop();
     this.services = this.makeSupervisor();
@@ -303,58 +308,35 @@ export class DesktopRuntime {
       if (config.mode === "local") {
         ({ gatewayUrl, webUrl, workerDirectory, token } = await this.startLocal(installing.signal));
       } else {
-        gatewayUrl = config.gatewayUrl;
-        webUrl = config.webUrl;
-        workerDirectory = join(
-          this.directory,
-          "remote-workers",
-          createHash("sha256").update(gatewayUrl).digest("hex").slice(0, 24),
-        );
+        gatewayUrl = client?.addresses[0] ?? config.gatewayUrl;
+        webUrl = this.setupOrigin;
+        workerDirectory = remoteWorkerDirectory(this.directory, config);
         token = config.enrollmentToken;
-        // The setup BFF never receives a remote service token or uses a remote gRPC endpoint.
-        await this.startWeb("http://127.0.0.1:1");
+
+        if (client) {
+          this.logs.protect(client.token);
+
+          if (!token) {
+            const enrollment = await remoteEnrollment(client, workerDirectory, this.logs);
+            token = enrollment?.token;
+            gatewayUrl = enrollment?.gatewayUrl || gatewayUrl;
+          }
+        }
+
+        await this.startWeb(client ? gatewayUrl : "http://127.0.0.1:1", client);
       }
 
-      mkdirSync(workerDirectory, { recursive: true, mode: 0o700 });
-      const configPath = join(workerDirectory, "worker.json");
-
-      if (token) {
-        this.logs.protect(token);
-
-        const enrolled = await enrollWorker({
-          gateway: gatewayUrl,
-          ...(config.mode === "remote" && config.gatewayFingerprint && { fingerprint: config.gatewayFingerprint }),
-          token,
-          configPath,
-          dataDir: join(workerDirectory, "data"),
-          force: existsSync(configPath),
-        });
-
-        this.logs.protect(enrolled.credential);
-      } else if (!existsSync(configPath))
-        throw new Error("Paste an enrollment token from Settings → Workers → Add worker");
-      // Local ports change between launches; preserve the enrolled worker's identity and journal.
-      const local: JsonValue = JSON.parse(readFileSync(configPath, "utf8"));
-
-      if (!isWorkerConfiguration(local)) throw new Error("Invalid worker configuration");
-
-      if (isString(local["credential"])) this.logs.protect(local["credential"]);
-
-      if (config.mode === "local") this.writeJson(configPath, { ...local, gateway_url: gatewayUrl });
-      this.workerStatusFile = join(workerDirectory, "status.json");
-      this.writeJson(this.workerStatusFile, { status: "offline", time: Date.now() });
-      const launch = this.command(this.paths.worker);
-      this.services.start({
-        name: "worker",
-        ...launch,
-        args: [...launch.args, "--config", configPath],
-        cwd: dirname(this.paths.worker),
-        env: {
-          ...this.env,
-          CANOPY_WORKER_STATUS_FILE: this.workerStatusFile,
-          CANOPY_LOCAL_WORKER: config.mode === "local" ? "1" : "0",
-        },
-        restart: true,
+      this.workerStatusFile = await startDesktopWorker({
+        directory: workerDirectory,
+        gatewayUrl: config.mode === "remote" && config.enrollmentToken ? config.gatewayUrl : gatewayUrl,
+        token,
+        fingerprint: config.mode === "remote" ? config.gatewayFingerprint || client?.fingerprint : undefined,
+        local: config.mode === "local",
+        logs: this.logs,
+        services: this.services,
+        bun: this.paths.bun,
+        entry: this.paths.worker,
+        env: this.env,
       });
       this.publish({
         mode: config.mode,
@@ -367,18 +349,34 @@ export class DesktopRuntime {
           codex: Boolean(Bun.which("codex", { PATH: this.env["PATH"]! })),
           grok: Boolean(Bun.which("grok", { PATH: this.env["PATH"]! })),
         },
-        worker: "connecting",
+        worker: this.workerStatusFile ? "connecting" : "offline",
       });
 
-      // Remote web can report gateway availability immediately; the worker reconnects independently.
+      // The bundled frontend starts without waiting for a remote gateway or worker.
       if (config.mode === "local")
         await until(async () => {
           this.readWorkerStatus();
 
           return this.state.worker === "online";
         }, 30_000);
+
       // Never persist the one-time token. A failed attempt leaves the last working selection intact.
-      const saved = config.mode === "remote" ? { mode: config.mode, gatewayUrl, webUrl } : config;
+      if (config.mode === "remote" && !client) {
+        this.publish({
+          phase: "error",
+          needsPairing: true,
+          error:
+            "Automatic migration is unavailable. Update Canopy on your gateway and enable Network access, or paste a desktop invitation from Settings → Devices.",
+        });
+
+        return;
+      }
+
+      const saved =
+        config.mode === "remote"
+          ? { mode: config.mode, gatewayUrl, workerGatewayUrl: config.workerGatewayUrl ?? config.gatewayUrl }
+          : config;
+
       this.writeJson(join(this.directory, "desktop.json"), saved);
       this.configured = true;
       this.publish({ phase: "running" });

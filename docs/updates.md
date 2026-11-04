@@ -1,5 +1,11 @@
 # Aktualizacje Canopy
 
+Zdalne polecenie aktualizacji **całej aplikacji desktopowej** (Electron, runtime i
+worker) jest zaplanowane jako etap 2 [lokalnego frontendu desktopu](desktop-remote-frontend.md).
+Etap 1 nie dodaje tej akcji: `installKind=desktop` nadal podlega updaterowi aplikacji,
+nie wymianie samej binarki workera. Plan zachowuje kanał desktopu i macOS Developer ID,
+zakazuje downgrade oraz wymaga audytu, postępu na żywo i oczekiwania na idle.
+
 Gateway i worker używają jednej wersji aplikacji z `CANOPY_VERSION` (wstrzykiwanej
 podczas kompilacji; bez niej `0.0.0-dev`). `--version` wypisuje tę wersję bez
 uruchamiania usług. Wersja aplikacji nie jest numerem protokołu.

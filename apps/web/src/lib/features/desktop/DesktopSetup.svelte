@@ -2,8 +2,7 @@
   import { onMount } from "svelte";
   import type { DesktopMode, DesktopStatus } from "@canopy/ui/desktop";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Field from "#lib/shared/ui/Field.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
+  import RemoteGatewayFields from "./RemoteGatewayFields.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ModeChoice from "./ModeChoice.svelte";
   import WorkerStatus from "./WorkerStatus.svelte";
@@ -25,7 +24,8 @@
 
   let message = $state("");
   let gatewayUrl = $state("");
-  let webUrl = $state("");
+  let pairingInvitation = $state("");
+  let workerGatewayUrl = $state<string>();
   let enrollmentToken = $state("");
   let gatewayFingerprint = $state("");
   let revealed = $state(false);
@@ -44,7 +44,7 @@
 
         if (value.mode === "remote") {
           gatewayUrl = value.gatewayUrl ?? "";
-          webUrl = value.webUrl ?? "";
+          workerGatewayUrl = value.workerGatewayUrl;
         }
       })
       .then(() => bridge.readyForEnrollment())
@@ -60,7 +60,6 @@
       mode = "remote";
       gatewayUrl = value.gatewayUrl;
       gatewayFingerprint = value.gatewayFingerprint ?? "";
-      webUrl = value.webUrl;
       enrollmentToken = value.enrollmentToken;
     });
 
@@ -84,12 +83,14 @@
           : {
               mode,
               gatewayUrl,
-              webUrl,
               gatewayFingerprint,
+              pairingInvitation,
+              ...(workerGatewayUrl && { workerGatewayUrl }),
               ...(enrollmentToken.trim() && { enrollmentToken: enrollmentToken.trim() }),
             },
       );
       enrollmentToken = "";
+      pairingInvitation = "";
     } catch (error) {
       message = error instanceof Error ? error.message : "Canopy could not connect. Check the addresses and try again.";
     } finally {
@@ -130,7 +131,7 @@
             />
             <ModeChoice
               title="Connect to a Canopy gateway"
-              description="Add this computer as a worker and open your existing Canopy."
+              description="Use your gateway with this app’s local frontend and a separate worker link."
               icon="link"
               selected={mode === "remote"}
               onclick={() => (mode = "remote")}
@@ -139,47 +140,14 @@
           </div>
           <div class="t-panel-slide grid gap-5 [--panel-translate-y:12px]" data-open={revealed}>
             {#if mode === "remote"}
-              <Field label="Gateway address" description="The gRPC address from Settings → Workers → Add worker."
-                ><Input
-                  name="gateway"
-                  type="url"
-                  placeholder="https://gateway.example.com:7443"
-                  bind:value={gatewayUrl}
-                  required
-                  disabled={busy}
-                /></Field
-              >
-              <Field label="Canopy web address"
-                ><Input
-                  name="web"
-                  type="url"
-                  placeholder="https://canopy.example.com"
-                  bind:value={webUrl}
-                  required
-                  disabled={busy}
-                /></Field
-              >
-              <Field
-                label="Enrollment token"
-                description="A one-time token from Settings → Workers → Add worker. Leave empty to reconnect an enrolled worker."
-                ><Input
-                  name="token"
-                  type="password"
-                  autocomplete="off"
-                  bind:value={enrollmentToken}
-                  disabled={busy}
-                /></Field
-              >
-              <Field
-                label="Gateway certificate fingerprint"
-                description="Copy the full fingerprint from Settings → Network access on the gateway computer. Leave empty for a server using a public certificate."
-                ><Input
-                  name="gateway-fingerprint"
-                  bind:value={gatewayFingerprint}
-                  maxlength={64}
-                  disabled={busy}
-                /></Field
-              >
+              <RemoteGatewayFields
+                bind:invitation={pairingInvitation}
+                bind:gatewayUrl
+                bind:enrollmentToken
+                bind:fingerprint={gatewayFingerprint}
+                migrating={status?.needsPairing}
+                disabled={busy}
+              />
             {:else}
               <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
                 Your data stays on this computer. No database installation or account is needed. Phones, linked

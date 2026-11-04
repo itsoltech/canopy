@@ -3,6 +3,8 @@ import { homedir } from "node:os";
 import { delimiter } from "node:path";
 import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
 import type { JsonObject, JsonValue } from "@canopy/domain";
+import { fromJsonString } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
 
 export function isWorkerStatus(value: unknown): value is { status?: string; time?: number } {
   return (
@@ -38,6 +40,8 @@ export interface ConfigurationInput {
   webUrl?: unknown;
   enrollmentToken?: unknown;
   gatewayFingerprint?: unknown;
+  pairingInvitation?: unknown;
+  workerGatewayUrl?: unknown;
 }
 
 function isConfigurationInput(value: ConfigurationInput | null | undefined): value is ConfigurationInput {
@@ -82,15 +86,32 @@ export function configuration(value: ConfigurationInput | null | undefined): Des
     if (token !== undefined && (!isString(token) || token.length < 16 || token.length > 4096))
       throw new Error("Invalid enrollment token");
 
-    if (!isString(c.gatewayUrl)) throw new Error("Invalid Gateway address");
-    const gatewayUrl = origin(c.gatewayUrl, "Gateway address");
+    if (c.pairingInvitation !== undefined && (!isString(c.pairingInvitation) || c.pairingInvitation.length > 16384))
+      throw new Error("Invalid desktop pairing invitation");
+    let invited: string | undefined;
 
-    if (!isString(c.webUrl)) throw new Error("Invalid Web address");
+    try {
+      if (isString(c.pairingInvitation) && c.pairingInvitation.trim())
+        invited = fromJsonString(ui.CreateMobilePairingResponseSchema, c.pairingInvitation, {
+          ignoreUnknownFields: true,
+        }).routes?.addresses[0];
+    } catch {
+      throw new Error("Paste a desktop invitation from gateway Settings → Devices");
+    }
+
+    if (!isString(c.gatewayUrl)) throw new Error("Invalid Gateway address");
+    const gatewayUrl = origin(c.gatewayUrl || invited, "Gateway address");
+
+    if (c.webUrl !== undefined && !isString(c.webUrl)) throw new Error("Invalid Web address");
+
+    if (c.workerGatewayUrl !== undefined && !isString(c.workerGatewayUrl)) throw new Error("Invalid worker address");
 
     return {
       mode: "remote",
       gatewayUrl,
-      webUrl: origin(c["webUrl"], "Web address"),
+      ...(isString(c.webUrl) && { webUrl: origin(c.webUrl, "Web address") }),
+      ...(isString(c.pairingInvitation) && { pairingInvitation: c.pairingInvitation }),
+      ...(isString(c.workerGatewayUrl) && { workerGatewayUrl: origin(c.workerGatewayUrl, "Worker address") }),
       ...(isString(token) && { enrollmentToken: token }),
       ...(isString(fingerprint) && fingerprint && { gatewayFingerprint: fingerprint.toLowerCase() }),
     };

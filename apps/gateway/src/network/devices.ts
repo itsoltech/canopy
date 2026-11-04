@@ -15,13 +15,12 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
       core.mobile.routes(router);
       uiRoutes(core)(router);
     },
-    grpc: false,
     interceptors: [serviceTokenAuth(serviceToken, core.mobile)],
     readMaxBytes: 32 * 1024 * 1024,
   });
 
   const workers = connectNodeAdapter({
-    routes: (router) => workerRoutes(core, router),
+    routes: (router) => workerRoutes(core, router, true),
     readMaxBytes: 32 * 1024 * 1024,
   });
 
@@ -37,7 +36,11 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
 
     const path = request.url?.split("?")[0] ?? "";
 
-    if (path.startsWith("/canopy.worker.v1.") || path.startsWith("/canopy.update.v1."))
+    if (
+      path.startsWith("/canopy.worker.v1.") ||
+      path.startsWith("/canopy.update.v1.") ||
+      path.startsWith("/canopy.ui.v1.DesktopMigrationService/")
+    )
       return workers(request, response);
 
     return adapter(request, response);

@@ -47,15 +47,17 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
 ## Granice i zgodność
 
 Tryb lokalny korzysta ze zwykłego `CreateWorkerEnrollment` i `enrollWorker`, zamiast
-tworzyć poświadczenia bezpośrednio w bazie. Tryb zdalny wymaga dwóch adresów:
-gRPC gatewaya i web Canopy. Uruchamia tylko worker (oraz lokalny ekran konfiguracji);
-okno aplikacji ładuje podany zdalny web. Token usługi BFF nigdy nie jest potrzebny
-do enrollment zdalnego workera ani przekazywany rendererowi. Token jednorazowy
-nie trafia do `desktop.json`; reconnect używa istniejącego `worker.json`.
-Każdy zdalny origin gatewaya ma własny katalog tożsamości workera. Niedostępny
-gateway powoduje ponawianie połączenia przez workera; otwarcie zdalnego webu nie czeka
-na połączenie workera. Niedostępny web przy starcie pokazuje lokalny ekran błędu
-z ponowieniem i otwarciem ustawień. Zmiana trybu zatrzymuje lokalnie wykonywane zadania.
+tworzyć poświadczenia bezpośrednio w bazie. Oba tryby ładują dołączony frontend
+z lokalnego BFF na loopback. Tryb zdalny uruchamia BFF i worker, bez gatewaya/bazy;
+BFF używa osobnego poświadczenia desktopu przez przypięty TLS Network access.
+Token usługi serwera nie opuszcza serwera. Nowe urządzenie paruje się zaproszeniem
+z Settings → Devices; stara instalacja automatycznie migruje przez zapisane
+uwierzytelnienie własnego desktopowego workera. Szczegóły, ograniczenia i kolejne
+etapy: [desktop-remote-frontend.md](desktop-remote-frontend.md).
+Poświadczenie klienta jest ciphertext `safeStorage` w `desktop-client.enc` obok
+zachowanego `worker.json`. Token enrollmentu nie trafia do `desktop.json`.
+Otwarcie lokalnego UI nie czeka na gateway ani worker; ustawienia desktopu i
+aktualizacje są dostępne offline. Zmiana trybu zatrzymuje lokalnie wykonywane zadania.
 
 CLI agentów są wymaganiami komputera: **Claude Code (`claude`), Codex (`codex`),
 Grok (`grok`)** instaluje i aktualizuje użytkownik. Desktop ani żadna dystrybucja
@@ -73,19 +75,19 @@ contextIsolation i wyłączoną integrację Node. Linki zewnętrzne otwierają s
 przeglądarkę. `canopy://enroll` jedynie wypełnia formularz — nie zużywa tokenu bez akcji użytkownika.
 Format: `canopy://enroll?gateway=<encoded-origin>&web=<encoded-origin>&token=<encoded-token>`.
 Formularz potwierdza gotowość przez IPC przed dostarczeniem sekretu z linku.
-Wybrany remote web ma też dostęp do wyboru kanału, sprawdzenia i restartu aktualizacji;
+Lokalny frontend ma też dostęp do wyboru kanału, sprawdzenia i restartu aktualizacji;
 zgodę na downgrade wyświetla natywny dialog main, z domyślnym Cancel.
 Konfigurację trybu oraz odbiór tokenu
 może wykonać wyłącznie lokalna strona `/desktop`.
 
 Polityka CSP dopuszcza skrypty z wybranego originu i hashe skryptów startowych
 SvelteKit, bez `unsafe-eval` i `unsafe-inline` dla skryptów. Przy przeładowaniu dokumentu
-main ponownie pobiera HTML, aby policzyć hashe. Zdalny web musi być osiągalnym originem
-HTTP(S), bez prefiksu ścieżki i bez zewnętrznego przekierowania logowania.
+main ponownie pobiera lokalny HTML, aby policzyć hashe. Okno nie ładuje zdalnego webu.
 Hooki `webRequest` mają filtr `types: ["mainFrame"]`: skrypty, fetch i fonty nie czekają
 na proces main, który na macOS obsługuje też wejście z klawiatury i myszy.
 
-Bez migracji DB ani zmian proto. `packages/ui/desktop` jest nowym, opcjonalnym
+Migracja 0057 dodaje rodzaj klienta i jednorazowe migracje desktopów; proto rozszerza
+parowanie i handshake addytywnie. `packages/ui/desktop` jest opcjonalnym
 kontraktem typów. Mobile i przeglądarka nie muszą go implementować. Root workspaces
 już obejmuje `apps/*`, więc nowa aplikacja nie wymaga zmiany konfiguracji workspaces.
 
@@ -392,7 +394,7 @@ Ikona zależy od **zainstalowanego buildu**: stable zachowuje źródłowy PNG, b
 bursztynowa, nightly fioletowa. Kolor nie wpływa na bundle ID, podpis ani schemat.
 Zmiana preferencji nie zmienia ikony przed instalacją. Sidebar oznacza wersję
 uruchomionego web buildu; sekcja App updates pokazuje wersję i kanał samego Electrona,
-także gdy okno ładuje web ze zdalnego gatewaya o innej wersji.
+także gdy lokalny frontend łączy się ze zdalnym gatewayem o innej wersji.
 
 ### Przejście ze starych Canopy Beta / Canopy Nightly
 
@@ -589,7 +591,7 @@ Developer ID oraz kontrolą architektury. Linux/Windows nie kompilują ani nie �
 **Dostarczenie UI:** main wysyła `canopy:quit-guard` do okna głównego i Settings.
 Bundlowany preload subskrybuje od początku i zapamiętuje ostatni stan dla późnego
 `QuitGuardOverlay.onMount`. Aktualny layout web montuje overlay także na `/desktop`.
-Gdy strona nie subskrybuje `onQuitGuard` z wersją overlay `1` (np. starszy gateway w trybie remote),
+Gdy strona nie subskrybuje `onQuitGuard` z wersją overlay `1` (np. podczas błędu ładowania UI),
 preload pokazuje własną wskazówkę w izolowanym Shadow DOM. Nie wymaga aktualizacji
 gatewaya, sieci, zgody na powiadomienia ani poluzowania CSP; style są constructed
 stylesheet. Stary, niewersjonowany overlay dostaje `cancel`, aby nie pokazywał
@@ -637,7 +639,7 @@ Przed wydaniem na prawdziwym Macu, w podpisanym buildzie:
 3. Sprawdź Repeat Off i długi delay; Hold ma wyjaśnić fallback do Press twice
    lub wymagać trzymania przez wydłużone okno. Sprawdź także domyślne ustawienia
    systemu bez ręcznie zapisanych wartości `defaults`.
-4. Powtórz w oknie głównym i Settings, w local oraz remote, także ze starszym web UI;
+4. Powtórz w oknie głównym i Settings, w local oraz remote, także z gatewayem o starszym protokole;
    sprawdź brak podwójnej wskazówki i oba rodzaje `feedback` w `desktop.log`.
 5. Sprawdź Immediate, kliknięcie Quit w menu, tray Quit i restart aktualizacji;
    nie powinny wymagać potwierdzenia. Zweryfikuj ładowanie podpisanego adaptera

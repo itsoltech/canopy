@@ -11,6 +11,10 @@ export const UPDATE_PROTOCOL = 1;
 export const COMPUTER_LINK_PROTOCOL = 1;
 export const MIN_COMPUTER_LINK_PROTOCOL = 1;
 
+/** Bundled desktop BFF ↔ remote UI API. Build versions do not affect compatibility. */
+export const DESKTOP_CLIENT_PROTOCOL = 1;
+export const MIN_DESKTOP_CLIENT_PROTOCOL = 1;
+
 export function workerLinkCompatible(min: number, max: number): boolean {
   return (
     Number.isInteger(min) &&

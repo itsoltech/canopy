@@ -41,6 +41,8 @@ service GatewayService {
   rpc TestProxy(ProxyIdRequest) returns (TestProxyResponse);
   // Move stored endpoint variables without returning their values to the client.
   rpc MoveInstanceToProxy(MoveInstanceToProxyRequest) returns (SaveProviderInstanceResponse);
+  rpc GetClientCapabilities(ClientCapabilitiesRequest) returns (ClientCapabilities);
+  rpc CreateDesktopPairing(CreateMobilePairingRequest) returns (CreateMobilePairingResponse);
   // Safe model picker metadata for a bot, resolved at its home. No credentials or connector grants.
   rpc GetBotProviderInstances(GetBotRequest) returns (ListProviderInstancesResponse);
   rpc GetComputers(ComputersRequest) returns (ComputersSnapshot);

@@ -27,33 +27,39 @@
     oncopy: () => void;
     class?: ClassValue;
   } = $props();
+
+  const desktop = $derived(invitation?.pairing?.clientKind === "desktop");
 </script>
 
 <Dialog
   bind:open
   class={className}
-  title="Pair a phone"
-  description="Open Canopy on your phone and scan this QR code. Use a network both devices can reach."
+  title={desktop ? "Pair a desktop app" : "Pair a phone"}
+  description={desktop
+    ? "Copy this invitation into Desktop settings → Connect to a Canopy gateway. It grants full access to your gateway’s UI."
+    : "Open Canopy on your phone and scan this QR code. Use a network both devices can reach."}
 >
   <div class="grid min-w-0 justify-items-center gap-5">
-    {#if paired}<Alert tone="info">Phone paired. You can close this window.</Alert>
+    {#if paired}<Alert tone="info">Device paired. You can close this window.</Alert>
     {:else if !usable}<Alert tone="warning"
         >This code expired or was revoked. Close this window and create a new code.</Alert
       >
     {:else}
-      <img
-        src={qr}
-        alt="One-time Canopy pairing QR code"
-        width="260"
-        height="260"
-        class="h-auto max-w-full rounded-xl bg-white"
-      />
+      {#if !desktop}<img
+          src={qr}
+          alt="One-time Canopy pairing QR code"
+          width="260"
+          height="260"
+          class="h-auto max-w-full rounded-xl bg-white"
+        />{/if}
       <div class="grid justify-items-center gap-2">
         <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          Or enter the code, an address and fingerprint
+          {desktop
+            ? "Keep this invitation private. It can be used once."
+            : "Or enter the code, an address and fingerprint"}
         </p>
         <p class="font-mono text-xl tracking-wide select-all">{invitation?.code}</p>
-        <Button size="sm" onclick={oncopy}>{copied ? "Copied" : "Copy code"}</Button>
+        <Button size="sm" onclick={oncopy}>{copied ? "Copied" : desktop ? "Copy invitation" : "Copy code"}</Button>
       </div>
       <div class="grid w-full min-w-0 gap-3">
         {#each invitation?.routes?.addresses ?? [] as address (address)}

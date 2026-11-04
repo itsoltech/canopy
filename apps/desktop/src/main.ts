@@ -16,6 +16,7 @@ import { configuration, initialStatus, origin, serviceEnvironment, type Configur
 import type { ControllerArguments, ControllerResult } from "./controller.ts";
 import { ControllerConnection } from "./controller-connection.ts";
 import { loadSecrets } from "./vault.ts";
+import { remoteClient, savedRemoteClient } from "./client-vault.ts";
 import { Logs } from "./runtime/log.ts";
 import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
 import { desktopIdentity } from "./identity.ts";
@@ -418,8 +419,15 @@ function registerIpc() {
 
     try {
       if (config.mode === "remote" && config.enrollmentToken) logs.protect(config.enrollmentToken);
-      await rpc("configure", { configuration: config });
-      await openApplication();
+      const client = config.mode === "remote" ? await remoteClient(app.getPath("userData"), config) : undefined;
+
+      if (client) logs.protect(client.token);
+      await rpc("configure", {
+        configuration: { ...config, ...(config.mode === "remote" && { pairingInvitation: undefined }) },
+        remoteClient: client,
+      });
+
+      if (status.phase === "running") await openApplication();
     } finally {
       busy = false;
     }
@@ -453,7 +461,11 @@ async function start() {
   busy = true;
 
   try {
-    await rpc("restore");
+    // Vault failures leave startup/settings available; configure can retry after keychain unlock.
+    const client = await savedRemoteClient(app.getPath("userData")).catch(() => undefined);
+
+    if (client) logs.protect(client.token);
+    await rpc("restore", { remoteClient: client });
 
     if (status.phase === "running") await openApplication();
   } finally {

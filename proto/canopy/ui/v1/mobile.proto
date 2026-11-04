@@ -8,6 +8,32 @@ service MobilePairingService {
   rpc ExchangeMobilePairing(ExchangeMobilePairingRequest) returns (ExchangeMobilePairingResponse);
 }
 
+// Separate exchange: a phone invitation can never mint a full UI credential.
+service DesktopPairingService {
+  rpc ExchangeDesktopPairing(ExchangeMobilePairingRequest) returns (ExchangeMobilePairingResponse);
+}
+
+// Routes may be discovered over the worker's existing authenticated endpoint.
+// Credential minting is mounted only on Network access and happens once per worker.
+service DesktopMigrationService {
+  rpc GetDesktopMigrationRoutes(DesktopMigrationRequest) returns (MobileRoutes);
+  rpc MigrateDesktopClient(DesktopMigrationRequest) returns (ExchangeMobilePairingResponse);
+}
+message DesktopMigrationRequest {
+  string worker_id = 1;
+  string platform = 2;
+}
+
+message ClientCapabilitiesRequest {}
+message ClientCapabilities {
+  string gateway_version = 1;
+  string gateway_name = 2;
+  uint32 min_protocol = 3;
+  uint32 max_protocol = 4;
+  repeated string methods = 5;
+  MobileRoutes routes = 6;
+}
+
 message MobileDevice {
   string id = 1;
   string name = 2;
@@ -16,6 +42,8 @@ message MobileDevice {
   google.protobuf.Timestamp last_seen_at = 5;
   google.protobuf.Timestamp revoked_at = 6;
   uint32 pairing_version = 7;
+  // mobile | desktop. Empty from older gateways means mobile.
+  string client_kind = 8;
 }
 message MobilePairing {
   string id = 1;
@@ -23,6 +51,7 @@ message MobilePairing {
   google.protobuf.Timestamp used_at = 3;
   google.protobuf.Timestamp revoked_at = 4;
   string device_id = 5;
+  string client_kind = 6;
 }
 message GetMobileDevicesRequest {}
 message GetMobileDevicesResponse {

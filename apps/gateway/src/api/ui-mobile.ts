@@ -4,14 +4,33 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { type GatewayCore } from "../core/core.ts";
 import { mobileGuard, mobileIdentity } from "../core/mobile-devices.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { DESKTOP_CLIENT_PROTOCOL, MIN_DESKTOP_CLIENT_PROTOCOL } from "@canopy/domain/release/protocol";
 
 export function mobileHandlers(
   core: GatewayCore,
 ): Pick<
   UiHandlers,
-  "getMobileDevices" | "createMobilePairing" | "revokeMobilePairing" | "revokeMobileDevice" | "unpairMobileDevice"
+  | "getMobileDevices"
+  | "createMobilePairing"
+  | "createDesktopPairing"
+  | "getClientCapabilities"
+  | "revokeMobilePairing"
+  | "revokeMobileDevice"
+  | "unpairMobileDevice"
 > {
   return {
+    getClientCapabilities: async () =>
+      create(ui.ClientCapabilitiesSchema, {
+        gatewayVersion: CANOPY_VERSION,
+        gatewayName: (await core.computers?.snapshot())?.self?.name ?? "your gateway",
+        minProtocol: MIN_DESKTOP_CLIENT_PROTOCOL,
+        maxProtocol: DESKTOP_CLIENT_PROTOCOL,
+        methods: ui.GatewayService.methods.map((method) => method.name),
+        routes: core.mobile.networkRoutes(),
+      }),
+
+    createDesktopPairing: () => mobileGuard(() => core.mobile.create("desktop")),
     getMobileDevices: () => mobileGuard(() => core.mobile.list()),
 
     createMobilePairing: () => mobileGuard(() => core.mobile.create()),

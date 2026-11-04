@@ -89,10 +89,10 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     href: "/settings/mobile",
-    label: "Mobile devices",
+    label: "Devices",
     icon: "link",
     group: "Connections",
-    keywords: "phone iphone android pairing qr tailscale device revoke mobile",
+    keywords: "phone iphone android pairing qr tailscale device revoke mobile desktop app",
   },
   {
     href: "/settings/computers",

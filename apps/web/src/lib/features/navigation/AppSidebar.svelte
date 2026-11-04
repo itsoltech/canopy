@@ -11,6 +11,9 @@
   import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
   import SidebarThreads from "./SidebarThreads.svelte";
   import SidebarProjectFilter from "./SidebarProjectFilter.svelte";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+
+  const capabilities = useGatewayCapabilities();
 
   /**
    * App sidebar: logo and the section's "new" action, the Threads | Bots switch (follows the route;
@@ -50,7 +53,11 @@
     {/if}
   </SidebarHeader>
 
-  <SectionSwitch active={section} attention={{ threads: threadsAttention }} class="px-3 pb-2" />
+  {#if capabilities?.supports("/bots") ?? true}<SectionSwitch
+      active={section}
+      attention={{ threads: threadsAttention }}
+      class="px-3 pb-2"
+    />{/if}
 
   <div class="flex items-center gap-1 px-3 pb-2">
     <label

@@ -1,5 +1,11 @@
 # API dla UI i architektura frontendu
 
+Desktop w obu trybach używa dołączonego lokalnego BFF. W remote uwierzytelnia się
+owner-scoped poświadczeniem desktopu przez przypięty TLS Network access, bez
+tokenu usługi zdalnego webu. `GetClientCapabilities` negocjuje protokół oraz metody;
+brakujące funkcje są ukryte lub pokazują stan aktualizacji. Różnica numerów buildów
+przy zgodnym protokole nie jest błędem. [Projekt i migracja](desktop-remote-frontend.md).
+
 ## Canopy mobile
 
 Natywny klient `apps/mobile` korzysta z tego samego `GatewayService` przez Connect
@@ -8,15 +14,18 @@ Wspólny listener Network access obsługuje telefony i połączone komputery;
 przeglądarka nadal komunikuje się wyłącznie z BFF. Telefon nigdy nie otrzymuje
 `CANOPY_UI_SERVICE_TOKEN`.
 
-Settings → Mobile devices tworzy 10-minutowy kod/QR, listuje urządzenia i odwołuje
+Settings → Devices tworzy 10-minutowy kod/QR, listuje urządzenia i odwołuje
 zaproszenia/tokeny przez BFF `/api/mobile-devices` i `/api/mobile-devices/:id`.
 RPC administracyjne to `GetMobileDevices`, `CreateMobilePairing`, `RevokeMobilePairing`
-i `RevokeMobileDevice`; są dostępne tylko z service tokenem. Publiczne
+i `RevokeMobileDevice`; są dostępne z service tokenem lub pełnym poświadczeniem
+desktopu, a niedostępne dla telefonu. Publiczne
 `MobilePairingService.ExchangeMobilePairing` jednorazowo wymienia kod na revocable
 token urządzenia, przechowywany jako hash w DB i w SecureStore na telefonie.
 `UnpairMobileDevice` odwołuje wyłącznie bieżące urządzenie z context auth.
 
-Token urządzenia daje dostęp właściciela do pozostałych RPC GatewayService.
+Token telefonu daje dostęp właściciela do pozostałych RPC GatewayService z
+ograniczeniami administracji opisanymi w `mobile.md`; nie pozwala tworzyć enrollmentu
+ani rotować poświadczeń workera, które umożliwiałyby migrację do pełnego zakresu UI.
 `WatchOverviewRequest.include_snapshot` (762) żąda początkowego
 `OverviewUpdate.mobile_snapshot` (763: overview i wątki), aby odtworzyć stan po
 reconnect. `mobile_device` (760) i `mobile_pairing` (761) zawierają tylko metadane,

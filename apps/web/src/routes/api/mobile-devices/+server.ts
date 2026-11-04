@@ -10,10 +10,18 @@ const headers = { "cache-control": "no-store" };
 export const GET: RequestHandler = async () =>
   json(encode(ui.GetMobileDevicesResponseSchema, await call((api) => api.getMobileDevices({}))), { headers });
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, url }) => {
   const body = await readMessage(request, ui.CreateMobilePairingRequestSchema);
 
-  return json(encode(ui.CreateMobilePairingResponseSchema, await call((api) => api.createMobilePairing(body))), {
-    headers,
-  });
+  return json(
+    encode(
+      ui.CreateMobilePairingResponseSchema,
+      await call((api) =>
+        url.searchParams.get("kind") === "desktop" ? api.createDesktopPairing(body) : api.createMobilePairing(body),
+      ),
+    ),
+    {
+      headers,
+    },
+  );
 };

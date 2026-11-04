@@ -25,6 +25,7 @@
     "@canopy/db": "workspace:*",
     "@canopy/testing": "workspace:*",
     "@canopy/ui": "workspace:*",
+    "@canopy/transport": "workspace:*",
     "@connectrpc/connect": "2.3.0",
     "@connectrpc/connect-node": "2.3.0",
     "electron-updater": "6.8.3",

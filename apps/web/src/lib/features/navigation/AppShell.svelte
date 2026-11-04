@@ -34,8 +34,18 @@
   import { SharedConfigState, provideSharedConfig } from "#lib/features/computers/shared-config.svelte.ts";
   import { ThreadActions, provideThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
   import ThreadActionDialogs from "#lib/features/threads/components/ThreadActionDialogs.svelte";
+  import {
+    GatewayCapabilities,
+    provideGatewayCapabilities,
+  } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import GatewayCompatibility from "#lib/features/desktop/GatewayCompatibility.svelte";
 
   let { children }: { children: Snippet } = $props();
+  const capabilities = new GatewayCapabilities();
+
+  provideGatewayCapabilities(capabilities);
+
+  $effect(() => capabilities.connect());
 
   // One overview per tab. Its first SSE connection fetches the current state, then follows changes.
   const overview = new OverviewState(undefined);
@@ -183,7 +193,11 @@
     {/if}
     <main class="min-h-0 flex-1">
       <!-- A settings page loaded on its own shows in the settings dialog, until it goes over the new thread. -->
-      {#if overview.resyncs === 0 && overview.connection === "unavailable" && !page.error}
+      {#if capabilities.incompatible}
+        <GatewayCompatibility message={capabilities.message} />
+      {:else if !capabilities.supports(page.url.pathname)}
+        <GatewayCompatibility message="Update Canopy on your gateway to use this feature" />
+      {:else if overview.resyncs === 0 && overview.connection === "unavailable" && !page.error}
         <GatewayUnavailable retry={() => location.reload()} />
       {:else if !ready && !page.error}
         <div class="flex h-full flex-col gap-4 p-6" role="status" aria-label="Loading application">
@@ -196,7 +210,7 @@
     </main>
   </div>
 </div>
-{#if ready}<SettingsOverlay route={children} />{/if}
+{#if ready && !capabilities.incompatible}<SettingsOverlay route={children} />{/if}
 <CommandPalette registry={commands} {palette} />
 <Toaster />
 <BotSettingsHost />

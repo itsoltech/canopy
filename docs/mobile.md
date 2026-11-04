@@ -56,7 +56,7 @@ aplikacja i Connect nie wymagają globalnego `crypto.getRandomValues`.
 
 ## Parowanie i granica uprawnień
 
-1. W web otwórz **Settings → Mobile devices → Pair a phone**. BFF wywołuje
+1. W web otwórz **Settings → Devices → Pair a phone**. BFF wywołuje
    `CreateMobilePairing` swoim dotychczasowym service tokenem. Telefon go nie otrzymuje.
 2. Gateway generuje 64 losowe bity jako kod `XXXX-XXXX-XXXX-XXXX`, ważny 10 minut.
    QR zawiera lokalnie wygenerowany JSON `{type:"canopy-pair",version:2,addresses,fingerprint,code}`,
@@ -88,8 +88,12 @@ nie zapewnia relaya ani przejścia przez NAT.
 Token urządzenia autoryzuje GatewayService jako **obecnego pojedynczego właściciela**.
 To pełny dostęp właściciela, nie osobna rola read-only. Interceptor zapisuje identity
 urządzenia w context i porównuje właściciela w DB z użytkownikiem core. Zarządzanie
-urządzeniami i zaproszeniami (`GetMobileDevices`, create/revoke) jest dostępne tylko BFF;
+urządzeniami i zaproszeniami (`GetMobileDevices`, create/revoke) jest dostępne BFF
+z service tokenem i sparowanemu desktopowi, a niedostępne telefonowi;
 telefon ma osobne `UnpairMobileDevice`, odnoszące się do jego własnej identity.
+Telefon nie tworzy enrollmentu ani nie rotuje poświadczeń workera: taki credential
+mógłby posłużyć do migracji desktopu do pełnego zakresu UI. Rodzaj `desktop` ustala
+gateway podczas tworzenia zaproszenia; kod telefonu nie działa w wymianie desktopowej.
 Przyszłe logowanie/multi-user musi zastąpić to mapowanie, nie rozszerzyć współdzielony token.
 
 Web pokazuje metadane i pozwala odwołać kod lub token. Revoke kończy otwarte streamy
@@ -106,7 +110,7 @@ usunięcie aplikacji nie zastępuje odwołania urządzenia na serwerze.
 
 ## Parowanie bez konfiguracji serwera
 
-Otwórz **Settings → Mobile devices → Pair a phone**. Jeśli dostęp sieciowy jest wyłączony,
+Otwórz **Settings → Devices → Pair a phone**. Jeśli dostęp sieciowy jest wyłączony,
 przycisk włącza go i generuje QR jednym kliknięciem. Port zostaje zapisany; wykryte adresy
 LAN i VPN odświeżają się automatycznie. Nazwy DNS i porty przekierowane dodaje się w
 **Settings → Network access → Add hostname**. W kontenerze opublikuj port TCP według
@@ -204,7 +208,7 @@ Adres Metro i adres gatewaya to dwa różne połączenia. Nie używaj publiczneg
    `bunx expo start --dev-client --lan` w tej samej sieci co telefon lub wpisz
    `http://TAILSCALE_IP_KOMPUTERA:8081` w development launcherze. Włącz Tailscale
    na iPhonie i użyj w Canopy **HTTPS** Serve z poprawnym certyfikatem.
-5. W web otwórz **Settings → Mobile devices → Pair a phone**. W Canopy zeskanuj QR
+5. W web otwórz **Settings → Devices → Pair a phone**. W Canopy zeskanuj QR
    (zgoda na kamerę jest potrzebna tylko przy skanowaniu) lub wklej kod i adres.
    Potwierdź nazwę i adres, a następnie **Pair this phone**.
 
@@ -256,7 +260,7 @@ Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta pra
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.
 
 Settings ma kolejność web: Appearance, Threads, Text generation, Scheduled tasks,
-Projects, Providers, Connectors, Workers, Mobile devices. Edytowalne są Appearance,
+Projects, Providers, Connectors, Workers, Devices. Edytowalne są Appearance,
 running delivery i instrukcje tytułów; pozostałe sekcje prezentują dane i odsyłają do web
 po zarządzanie. Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
