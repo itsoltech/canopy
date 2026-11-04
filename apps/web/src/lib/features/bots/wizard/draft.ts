@@ -8,6 +8,8 @@ export interface BotProviderInstance {
   readonly name: string;
   readonly provider: ProviderKey;
   readonly models: readonly ModelOption[];
+  readonly disabledReason?: string;
+  readonly settingsHref?: string;
 }
 
 export interface BotAppearanceDraft extends BotAppearance {
@@ -62,7 +64,7 @@ export function selectionError(
 ): string | undefined {
   const instance = instances.find((i) => i.id === instanceId);
 
-  if (!instance || !option || !instance.models.some((m) => m.key === option.key))
+  if (!instance || instance.disabledReason || !option || !instance.models.some((m) => m.key === option.key))
     return "Choose an available provider instance and model.";
 
   if (effort !== undefined && !option.efforts.some((e) => e.id === effort))

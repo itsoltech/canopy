@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ProviderProfileKind, ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { enabledOn, modelsRule, providerOf, type InstanceRow, type StoredOverrides } from "./instance-config.ts";
@@ -77,6 +77,10 @@ export function instanceModels(
                   available: reported?.available ?? false,
                   detail: reported ? reported.detail : "not reported by the worker yet",
                   favorites: row.favorites,
+                  kind:
+                    assignment?.proxy_id || row.kind === "endpoint"
+                      ? ProviderProfileKind.CLIPROXYAPI
+                      : ProviderProfileKind.NATIVE,
                 });
               }),
             ] as const;

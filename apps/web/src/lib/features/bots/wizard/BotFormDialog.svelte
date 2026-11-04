@@ -27,6 +27,9 @@
     initial,
     oncreate,
     onsave,
+    loading = false,
+    loadError = "",
+    onreload,
     class: className,
   }: {
     open?: boolean;
@@ -35,6 +38,9 @@
     initial?: BotAppearanceDraft;
     oncreate?: (draft: CreateBotDraft) => Promise<void>;
     onsave?: (draft: BotAppearanceDraft) => Promise<void>;
+    loading?: boolean;
+    loadError?: string;
+    onreload?: () => void;
     class?: ClassValue;
   } = $props();
 
@@ -75,7 +81,7 @@
   async function submit(event: SubmitEvent) {
     event.preventDefault();
 
-    if (busy) return;
+    if (busy || (!editing && (loading || loadError))) return;
     submitted = true;
     error = appearanceError({ name, shape, color }, existingNames, initial?.name);
 
@@ -166,7 +172,13 @@
           {submitted}
           disabled={busy}
         />
-        {#if !editing}<ProviderModelFields {instances} bind:instanceId bind:option bind:effort disabled={busy} />{/if}
+        {#if !editing}
+          {#if loading}<p role="status" class="text-sm text-zinc-500 dark:text-zinc-400">
+              Loading providers and models…
+            </p>
+          {:else if loadError}<Alert tone="error">{loadError}</Alert><Button onclick={onreload}>Try again</Button>
+          {:else}<ProviderModelFields {instances} bind:instanceId bind:option bind:effort disabled={busy} />{/if}
+        {/if}
       {/key}
       {#if error}<Alert tone="error">{error}</Alert>{/if}
     </div>
@@ -177,7 +189,7 @@
         {busy ? (editing ? "Saving appearance…" : "Creating your bot…") : ""}
       </div>
       <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
-      <Button type="submit" variant="primary" loading={busy} disabled={!editing && !option}
+      <Button type="submit" variant="primary" loading={busy} disabled={!editing && (loading || !!loadError || !option)}
         >{editing ? "Save changes" : "Create Bot"}</Button
       >
     </div>

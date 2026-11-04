@@ -32,6 +32,13 @@ export async function coreConfigsChanged(hostContext: GatewayCore, workerIds: re
   }
 
   await coreBroadcastWorkers(hostContext);
+  coreProvidersChanged(hostContext);
+}
+
+export function coreProvidersChanged(hostContext: GatewayCore): void {
+  hostContext.hub.publishOverview(
+    create(ui.OverviewUpdateSchema, { change: { case: "providerInstancesChanged", value: true } }),
+  );
 }
 
 export function coreInstances<A, E>(
@@ -126,6 +133,7 @@ export const coreProvidersMethods: CoreProvidersMethods = {
     await coreInstances(this, (s) => s.setModels(request));
     await corePublishModels(this, await coreModels(this, (s) => s.catalogs([])));
     await coreBroadcastWorkers(this);
+    coreProvidersChanged(this);
 
     return coreInstance(this, request.harness, request.id);
   },

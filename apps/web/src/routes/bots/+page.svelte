@@ -1,8 +1,8 @@
 <script lang="ts">
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
-  import { onMount } from "svelte";
-  import { goto, replaceState } from "$app/navigation";
+  import { onMount, untrack } from "svelte";
+  import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { create } from "@bufbuild/protobuf";
   import { bots, ui } from "@canopy/contracts";
@@ -10,6 +10,7 @@
   import { decode, encode } from "#lib/shared/wire.ts";
   import { instanceKeyOf } from "#lib/features/providers/instances.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { botWizardInstances } from "#lib/features/bots/live.ts";
   import CreateBotWizard, { type CreateBotDraft } from "#lib/features/bots/wizard/CreateBotWizard.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -19,27 +20,67 @@
   let open = $state(false);
   let loaded = $state(false);
   let error = $state("");
+  let loading = $state(true);
+  let request = 0;
+  const overview = useOverview();
   const catalogs = useModelCatalog();
   const options = $derived(botWizardInstances(instances, [...catalogs.workers.values()]));
   const requestId = crypto.randomUUID();
 
+  const availabilityVersion = $derived(
+    `${overview.resyncs}:${overview.ownWorkers
+      .map((worker) => `${worker.id}:${worker.configVersion}:${worker.appliedVersion}`)
+      .join(",")}`,
+  );
+
   $effect(() => {
-    if (loaded && page.url.searchParams.get("create") === "1") {
-      open = true;
-      replaceState("/bots", page.state);
-    }
+    if (page.url.searchParams.get("create") !== "1") return;
+    // SvelteKit's shallow replaceState updates page.state, not page.url. Reading that
+    // state in this effect used to retrigger it forever while create=1 remained set.
+    untrack(() => {
+      openWizard();
+      void goto("/bots", { replace: true, reset: false });
+    });
   });
 
+  async function refresh() {
+    const current = ++request;
+    loading = true;
+    error = "";
+
+    try {
+      const [providers, list] = await Promise.all([
+        requestJson("GET", "/api/providers"),
+        requestJson("GET", "/api/bots"),
+        catalogs.reload(),
+      ]);
+
+      if (current !== request) return;
+      instances = decode(ui.ListProviderInstancesResponseSchema, providers).instances;
+      existing = decode(bots.ListBotsResponseSchema, list).bots;
+      loaded = true;
+    } catch {
+      if (current === request) error = "Could not load bots and provider instances. Try again.";
+    } finally {
+      if (current === request) loading = false;
+    }
+  }
+
+  function openWizard() {
+    open = true;
+    void refresh();
+  }
+
   onMount(() => {
-    void Promise.all([requestJson("GET", "/api/providers"), requestJson("GET", "/api/bots")])
-      .then(([providers, list]) => {
-        instances = decode(ui.ListProviderInstancesResponseSchema, providers).instances;
-        existing = decode(bots.ListBotsResponseSchema, list).bots;
-        loaded = true;
-      })
-      .catch(() => {
-        error = "Could not load bots and provider instances";
-      });
+    return overview.subscribe((update) => {
+      if (update.change.case === "providerInstancesChanged") void refresh();
+    });
+  });
+
+  $effect(() => {
+    // ConfigApplied and configuration bumps invalidate availability, including older gateways.
+    void availabilityVersion;
+    untrack(() => void refresh());
   });
 
   async function oncreate(result: CreateBotDraft) {
@@ -86,11 +127,13 @@
       A conversation with a bot that remembers your messages and can work with your connected services and agents.
     </p>
     {#if error}<p role="alert" class="text-sm text-red-500">{error}</p>{/if}
-    <Button variant="primary" disabled={!loaded} onclick={() => (open = true)}>Create bot</Button>
-    {#if loaded && (!options.length || options.every((i) => !i.models.length))}
+    <Button variant="primary" onclick={openWizard}>Create bot</Button>
+    {#if loading}<p role="status" class="text-sm text-zinc-500">Loading providers and models…</p>
+    {:else if loaded && (!options.length || options.every((i) => i.disabledReason || !i.models.length))}
       <p class="max-w-md text-sm text-zinc-500">
-        Add an endpoint provider and models in <a href="/settings/providers" class="underline">Settings → Providers</a>.
-        Custom model IDs also work without a connected worker.
+        Add a connection in <a href="/settings/proxies" class="underline">Settings → Proxies</a>, then choose it for an
+        instance in <a href="/settings/providers" class="underline">Settings → Providers</a> and add models. Custom model
+        IDs also work without a connected worker.
       </p>
     {/if}
   </div>
@@ -98,6 +141,9 @@
 <CreateBotWizard
   bind:open
   instances={options}
+  {loading}
+  loadError={error}
+  onreload={() => void refresh()}
   existingNames={existing.map((b) => b.configuration?.name ?? "")}
   {oncreate}
 />

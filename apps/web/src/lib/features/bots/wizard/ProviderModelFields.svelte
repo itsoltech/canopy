@@ -28,12 +28,16 @@
 
   let modelOpen = $state(false);
   let effortOpen = $state(false);
-  const choices = $derived(instances.map((i) => ({ value: i.id, label: i.name, provider: i.provider })));
+
+  const choices = $derived(
+    instances.filter((i) => !i.disabledReason).map((i) => ({ value: i.id, label: i.name, provider: i.provider })),
+  );
+
   const instance = $derived(instances.find((i) => i.id === instanceId));
 
   // Availability can change while the dialog is open. Keep the selection inside the supplied catalog.
   $effect(() => {
-    const available = instances;
+    const available = instances.filter((i) => !i.disabledReason);
     const id = instanceId;
     untrack(() => {
       if (!available.some((i) => i.id === id))
@@ -62,6 +66,17 @@
 
 <div class={["grid gap-3 border-t border-zinc-950/10 pt-5 dark:border-white/10", className]}>
   <h3 class="text-base font-medium sm:text-sm">Provider instance</h3>
+  {#each instances.filter((instance) => instance.disabledReason) as unavailable (unavailable.id)}
+    <div class="grid gap-1 text-base/6 sm:text-sm/6">
+      <p aria-disabled="true" class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
+        <ProviderIcon provider={unavailable.provider} />{unavailable.name} · Device login
+      </p>
+      <p class="text-pretty text-zinc-500 dark:text-zinc-400">{unavailable.disabledReason}</p>
+      <p>
+        <a href={unavailable.settingsHref} class="rounded-md underline focus-ring">Switch this instance to a proxy</a>
+      </p>
+    </div>
+  {/each}
   {#if choices.length > 0}
     <ChoiceGrid
       label="Provider instance"
@@ -128,7 +143,9 @@
     {/if}
   {:else}
     <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
-      No provider instances are available. Connect a provider to create a bot.
+      No proxy connections are available. Add a connection in <a href="/settings/proxies" class="underline"
+        >Settings → Proxies</a
+      >, then choose it for a provider instance.
     </p>
   {/if}
 </div>
