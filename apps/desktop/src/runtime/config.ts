@@ -3,6 +3,24 @@ import { homedir } from "node:os";
 import { isIP } from "node:net";
 import { delimiter } from "node:path";
 import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
+import type { JsonObject, JsonValue } from "@canopy/domain";
+
+export function isWorkerStatus(value: unknown): value is { status?: string; time?: number } {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    (!("status" in value) || value.status === undefined || isString(value.status)) &&
+    (!("time" in value) || value.time === undefined || typeof value.time === "number")
+  );
+}
+
+export function isLinkPort(value: unknown): value is { port: number } {
+  return !!value && typeof value === "object" && "port" in value && typeof value.port === "number";
+}
+
+export function isWorkerConfiguration(value: JsonValue): value is JsonObject {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
 
 export const initialStatus = (): DesktopStatus => ({
   mode: null,

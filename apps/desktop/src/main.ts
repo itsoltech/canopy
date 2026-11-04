@@ -62,6 +62,7 @@ let quitting = false;
 let stopped = false;
 let busy = false;
 let installingUpdate = false;
+let startupError = "";
 
 const updates = new DesktopUpdates(broadcast, () => {
   installingUpdate = true;
@@ -147,7 +148,11 @@ function showMain() {
 
   if (!window || window.isDestroyed()) {
     window = createWindow();
-    void window.loadURL(status.phase === "running" && status.webUrl ? status.webUrl : `${setupOrigin}/desktop`);
+    void window.loadURL(`${setupOrigin}/desktop`).then(() => {
+      if (status.phase === "running") void openApplication();
+    });
+
+    return;
   }
 
   window.show();
@@ -176,18 +181,31 @@ function openSettings() {
     return;
   }
 
-  if (window && new URL(window.webContents.getURL() || setupOrigin).pathname === "/desktop") {
-    window.show();
-    window.focus();
-
-    return;
-  }
-
   settingsWindow = createWindow();
   settingsWindow.on("closed", () => {
     settingsWindow = undefined;
   });
-  void settingsWindow.loadURL(`${setupOrigin}/desktop`);
+  void settingsWindow.loadURL(`${setupOrigin}/desktop?settings=1`);
+}
+
+async function openApplication() {
+  if (!status.webUrl || quitting) return;
+
+  try {
+    await policy.prepare(status.webUrl);
+
+    if (!window || window.isDestroyed()) window = createWindow();
+    await window.loadURL(status.webUrl);
+    settingsWindow?.close();
+  } catch {
+    startupError = "Gateway unavailable. Check your connection and the Canopy web address, then try again.";
+    status = { ...status, phase: "error", error: startupError };
+    logs.write("desktop", "Web application unavailable; showing startup recovery");
+    broadcast();
+
+    if (window && !window.isDestroyed() && window.webContents.getURL() !== `${setupOrigin}/desktop`)
+      await window.loadURL(`${setupOrigin}/desktop`);
+  }
 }
 
 function enrollment(link: string) {
@@ -302,7 +320,7 @@ function startController() {
     controller,
     logs,
     (next) => {
-      status = next;
+      status = startupError ? { ...next, phase: "error", error: startupError } : next;
       broadcast();
     },
     () => {
@@ -393,16 +411,12 @@ function registerIpc() {
     if (busy) throw new Error("Desktop configuration is already in progress");
     const config = configuration(raw);
     busy = true;
+    startupError = "";
 
     try {
       if (config.mode === "remote" && config.enrollmentToken) logs.protect(config.enrollmentToken);
       await rpc("configure", { configuration: config });
-      await policy.prepare(status.webUrl!);
-      setTimeout(() => {
-        if (!window || window.isDestroyed()) window = createWindow();
-        void window.loadURL(status.webUrl!);
-        settingsWindow?.close();
-      }, 100);
+      await openApplication();
     } finally {
       busy = false;
     }
@@ -423,16 +437,6 @@ async function start() {
   registerIpc();
   window = createWindow();
   await policy.prepare(`${setupOrigin}/desktop`);
-  let initialUrl = `${setupOrigin}/desktop`;
-
-  if (status.phase === "running" && status.webUrl) {
-    try {
-      await policy.prepare(status.webUrl);
-      initialUrl = status.webUrl;
-    } catch {
-      logs.write("desktop", "Web application unavailable; opening desktop settings while the worker reconnects");
-    }
-  }
 
   policy.attach(window.webContents.session, () => [setupOrigin, status.webUrl]);
   const image = nativeImage.createFromPath(iconPath).resize({ width: 20, height: 20 });
@@ -441,22 +445,14 @@ async function start() {
   app.setAsDefaultProtocolClient(identity.scheme);
   void updates.start();
   broadcast();
-  await window.loadURL(initialUrl);
-  // Show setup before restoring: an updated app may need a new database runtime.
-  // Its download status must be visible while the controller prepares local mode.
+  await window.loadURL(`${setupOrigin}/desktop`);
+  // The local startup screen stays visible while restoring services or downloading PostgreSQL.
   busy = true;
 
   try {
     await rpc("restore");
 
-    if (status.phase === "running" && status.webUrl) {
-      try {
-        await policy.prepare(status.webUrl);
-        await window.loadURL(status.webUrl);
-      } catch {
-        logs.write("desktop", "Web application unavailable; keeping desktop settings open");
-      }
-    }
+    if (status.phase === "running") await openApplication();
   } finally {
     busy = false;
   }

@@ -9,11 +9,21 @@ import { ui } from "@canopy/contracts";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
 import { enrollWorker } from "../../../worker/src/enroll.ts";
-import { configuration, freePort, initialStatus, serviceEnvironment, isString } from "./config.ts";
+import {
+  configuration,
+  freePort,
+  initialStatus,
+  serviceEnvironment,
+  isString,
+  isWorkerStatus,
+  isLinkPort,
+  isWorkerConfiguration,
+} from "./config.ts";
 import { startDatabase } from "./database.ts";
 import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from "./postgres-install.ts";
 import { Logs } from "./log.ts";
 import { Supervisor, until } from "./process.ts";
+import { savedStatus } from "./saved-status.ts";
 
 export interface Secrets {
   databasePassword: string;
@@ -27,23 +37,6 @@ export interface RuntimePaths {
   worker: string;
   web: string;
   postgres: string;
-}
-
-function isWorkerStatus(value: unknown): value is { status?: string; time?: number } {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    (!("status" in value) || value.status === undefined || isString(value.status)) &&
-    (!("time" in value) || value.time === undefined || typeof value.time === "number")
-  );
-}
-
-function isLinkPort(value: unknown): value is { port: number } {
-  return !!value && typeof value === "object" && "port" in value && typeof value.port === "number";
-}
-
-function isWorkerConfiguration(value: JsonValue): value is JsonObject {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 export class DesktopRuntime {
@@ -136,6 +129,7 @@ export class DesktopRuntime {
     await until(async () => (await fetch(`${this.setupOrigin}/desktop`, { signal: AbortSignal.timeout(1000) })).ok);
   }
   async initialize(restore = true) {
+    this.publish(savedStatus(this.directory));
     this.webPort = await freePort();
     this.setupOrigin = `http://127.0.0.1:${this.webPort}`;
     await this.startWeb("http://127.0.0.1:1");
@@ -236,6 +230,7 @@ export class DesktopRuntime {
     );
 
     const binaries = await installer.ensure(signal);
+    this.publish({ database: { phase: "ready", message: "Starting the local database…" } });
 
     const databaseUrl = await startDatabase({
       directory: join(this.directory, "postgres"),
@@ -244,6 +239,8 @@ export class DesktopRuntime {
       supervisor: this.services,
       env: this.env,
     });
+
+    this.publish({ database: undefined });
 
     installer.cleanup();
     const gatewayPort = await freePort();
@@ -303,7 +300,14 @@ export class DesktopRuntime {
     this.cancelStartup();
     const installing = new AbortController();
     this.installing = installing;
-    this.publish({ mode: config.mode, phase: "starting", worker: "offline", error: undefined, database: undefined });
+    this.publish({
+      mode: config.mode,
+      phase: "starting",
+      worker: "offline",
+      error: undefined,
+      database: undefined,
+      ...(config.mode === "remote" && { gatewayUrl: config.gatewayUrl, webUrl: config.webUrl }),
+    });
     await this.services.stop();
     this.services = this.makeSupervisor();
 
@@ -377,20 +381,13 @@ export class DesktopRuntime {
         worker: "connecting",
       });
 
-      const connected = until(
-        async () => {
+      // Remote web can report gateway availability immediately; the worker reconnects independently.
+      if (config.mode === "local")
+        await until(async () => {
           this.readWorkerStatus();
 
           return this.state.worker === "online";
-        },
-        config.mode === "local" ? 30_000 : 10_000,
-      );
-
-      if (config.mode === "local") await connected;
-      else
-        await connected.catch(() =>
-          this.logs.write("worker", "Remote gateway unavailable; enrolled worker will keep reconnecting"),
-        );
+        }, 30_000);
       // Never persist the one-time token. A failed attempt leaves the last working selection intact.
       const saved = config.mode === "remote" ? { mode: config.mode, gatewayUrl, webUrl } : config;
       this.writeJson(join(this.directory, "desktop.json"), saved);

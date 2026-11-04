@@ -5,7 +5,7 @@ export class DocumentPolicy {
   private readonly scriptHashes = new Map<string, Set<string>>();
 
   async prepare(url: string) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(10_000), redirect: "error" });
+    const response = await fetch(url, { signal: AbortSignal.timeout(3000), redirect: "error" });
 
     if (!response.ok) throw new Error("The Canopy web address did not return an application page");
     const html = await response.text();

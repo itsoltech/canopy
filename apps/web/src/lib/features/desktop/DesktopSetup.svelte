@@ -1,5 +1,4 @@
 <script lang="ts">
-  import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
   import { onMount } from "svelte";
   import type { DesktopMode, DesktopStatus } from "@canopy/ui/desktop";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -10,12 +9,20 @@
   import WorkerStatus from "./WorkerStatus.svelte";
   import AppUpdates from "./AppUpdates.svelte";
   import QuitShortcutSettings from "./QuitShortcutSettings.svelte";
+  import DesktopStartup from "./DesktopStartup.svelte";
+
+  let { settings = false }: { settings?: boolean } = $props();
 
   let mode = $state<DesktopMode>("local");
   let status = $state<DesktopStatus>();
-  let available = $state(false);
+  let available = $state<boolean>();
   let busy = $state(false);
   const working = $derived(busy || status?.phase === "starting");
+
+  const startup = $derived(
+    available !== false && (!status || busy || (!settings && (status.mode !== null || status.phase !== "setup"))),
+  );
+
   let message = $state("");
   let gatewayUrl = $state("");
   let webUrl = $state("");
@@ -27,9 +34,9 @@
   onMount(() => {
     revealed = true;
     const bridge = window.canopyDesktop;
+    available = Boolean(bridge);
 
     if (!bridge) return;
-    available = true;
     void bridge
       .status()
       .then((value) => {
@@ -43,7 +50,10 @@
           webUrl = value.webUrl ?? "";
         }
       })
-      .then(() => bridge.readyForEnrollment());
+      .then(() => bridge.readyForEnrollment())
+      .catch(() => {
+        message = "Desktop status is unavailable. Restart Canopy to try again.";
+      });
 
     const offStatus = bridge.onStatus((value) => {
       status = value;
@@ -62,8 +72,8 @@
     };
   });
 
-  async function submit(event: SubmitEvent) {
-    event.preventDefault();
+  async function submit(event?: SubmitEvent) {
+    event?.preventDefault();
 
     if (!window.canopyDesktop || working) return;
     busy = true;
@@ -84,141 +94,141 @@
   }
 </script>
 
-<svelte:head><title>Set up Canopy</title></svelte:head>
+<svelte:head><title>{startup ? "Starting Canopy" : "Set up Canopy"}</title></svelte:head>
 <!-- On macOS the window has no title bar: the top of the screen moves it (routes/layout.css). -->
 <div class="fixed inset-x-0 top-0 hidden h-12 macos:block" data-window-drag></div>
 <main
   class="isolate flex min-h-dvh items-center bg-white pt-[max(3rem,var(--window-safe-top))] pb-12 text-zinc-950 dark:bg-black dark:text-white"
 >
-  <div class="mx-auto grid w-full max-w-2xl gap-8 px-6 sm:px-10">
-    <div class="grid gap-3">
-      <img src="/icon-192.png" alt="" width="48" height="48" class="size-12 shrink-0" />
-      <h1 class="text-3xl font-semibold tracking-tight text-balance">Your agents, on your terms</h1>
-      <p class="text-base/7 text-pretty text-zinc-500 dark:text-zinc-400">
-        Run Canopy here, or bring this computer to your existing gateway.
-      </p>
-    </div>
-    {#if !available}
-      <Alert title="Open Canopy Desktop">This screen is available in the Canopy desktop app.</Alert>
-    {:else}
-      <form onsubmit={submit} class="grid gap-6">
-        <div class="grid gap-3 sm:grid-cols-2" aria-label="Canopy mode">
-          <ModeChoice
-            title="Run Canopy on this computer"
-            description="A private gateway and worker. Downloads PostgreSQL once for local mode."
-            icon="server"
-            selected={mode === "local"}
-            onclick={() => (mode = "local")}
-            disabled={working}
-          />
-          <ModeChoice
-            title="Connect to a Canopy gateway"
-            description="Add this computer as a worker and open your existing Canopy."
-            icon="link"
-            selected={mode === "remote"}
-            onclick={() => (mode = "remote")}
-            disabled={working}
-          />
-        </div>
-        <div class="t-panel-slide grid gap-5 [--panel-translate-y:12px]" data-open={revealed}>
-          {#if mode === "remote"}
-            <Field label="Gateway address" description="The gRPC address from Settings → Workers → Add worker."
-              ><Input
-                name="gateway"
-                type="url"
-                placeholder="https://gateway.example.com:7443"
-                bind:value={gatewayUrl}
-                required
-                disabled={busy}
-              /></Field
-            >
-            <Field label="Canopy web address"
-              ><Input
-                name="web"
-                type="url"
-                placeholder="https://canopy.example.com"
-                bind:value={webUrl}
-                required
-                disabled={busy}
-              /></Field
-            >
-            <Field
-              label="Enrollment token"
-              description="A one-time token from Settings → Workers → Add worker. Leave empty to reconnect an enrolled worker."
-              ><Input
-                name="token"
-                type="password"
-                autocomplete="off"
-                bind:value={enrollmentToken}
-                disabled={busy}
-              /></Field
-            >
-          {:else}
-            <label class="flex items-start gap-3 text-base/6 sm:text-sm/6"
-              ><Input
-                name="allow-network"
-                type="checkbox"
-                choice
-                checked={allowNetwork}
-                onchange={(event) => {
-                  allowNetwork = event.currentTarget.checked;
-                  if (allowNetwork && bindHost === "127.0.0.1") bindHost = "";
-                }}
-                disabled={busy}
-              /><span>Allow other machines to connect</span></label
-            >
-            {#if allowNetwork}
-              <Field
-                label="Network interface address"
-                description="An IPv4 address of this computer on a trusted private network. Only the worker gRPC port is exposed."
+  {#if startup}
+    <DesktopStartup {status} {message} retrying={busy} onretry={() => void submit()} />
+  {:else}
+    <div class="mx-auto grid w-full max-w-2xl gap-8 px-6 sm:px-10">
+      <div class="grid gap-3">
+        <img src="/icon-192.png" alt="" width="48" height="48" class="size-12 shrink-0" />
+        <h1 class="text-3xl font-semibold tracking-tight text-balance">Your agents, on your terms</h1>
+        <p class="text-base/7 text-pretty text-zinc-500 dark:text-zinc-400">
+          Run Canopy here, or bring this computer to your existing gateway.
+        </p>
+      </div>
+      {#if !available}
+        <Alert title="Open Canopy Desktop">This screen is available in the Canopy desktop app.</Alert>
+      {:else}
+        <form onsubmit={submit} class="grid gap-6">
+          <div class="grid gap-3 sm:grid-cols-2" aria-label="Canopy mode">
+            <ModeChoice
+              title="Run Canopy on this computer"
+              description="A private gateway and worker. Downloads PostgreSQL once for local mode."
+              icon="server"
+              selected={mode === "local"}
+              onclick={() => (mode = "local")}
+              disabled={working}
+            />
+            <ModeChoice
+              title="Connect to a Canopy gateway"
+              description="Add this computer as a worker and open your existing Canopy."
+              icon="link"
+              selected={mode === "remote"}
+              onclick={() => (mode = "remote")}
+              disabled={working}
+            />
+          </div>
+          <div class="t-panel-slide grid gap-5 [--panel-translate-y:12px]" data-open={revealed}>
+            {#if mode === "remote"}
+              <Field label="Gateway address" description="The gRPC address from Settings → Workers → Add worker."
                 ><Input
-                  name="interface"
-                  placeholder="100.x.x.x"
-                  bind:value={bindHost}
+                  name="gateway"
+                  type="url"
+                  placeholder="https://gateway.example.com:7443"
+                  bind:value={gatewayUrl}
                   required
                   disabled={busy}
                 /></Field
               >
-              <Alert tone="warning"
-                >Worker traffic uses HTTP on this interface. Use a trusted private network or configure TLS before
-                exposing the gateway publicly.</Alert
+              <Field label="Canopy web address"
+                ><Input
+                  name="web"
+                  type="url"
+                  placeholder="https://canopy.example.com"
+                  bind:value={webUrl}
+                  required
+                  disabled={busy}
+                /></Field
+              >
+              <Field
+                label="Enrollment token"
+                description="A one-time token from Settings → Workers → Add worker. Leave empty to reconnect an enrolled worker."
+                ><Input
+                  name="token"
+                  type="password"
+                  autocomplete="off"
+                  bind:value={enrollmentToken}
+                  disabled={busy}
+                /></Field
               >
             {:else}
-              <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-                Your data stays on this computer. No database installation or account is needed.
-              </p>
+              <label class="flex items-start gap-3 text-base/6 sm:text-sm/6"
+                ><Input
+                  name="allow-network"
+                  type="checkbox"
+                  choice
+                  checked={allowNetwork}
+                  onchange={(event) => {
+                    allowNetwork = event.currentTarget.checked;
+                    if (allowNetwork && bindHost === "127.0.0.1") bindHost = "";
+                  }}
+                  disabled={busy}
+                /><span>Allow other machines to connect</span></label
+              >
+              {#if allowNetwork}
+                <Field
+                  label="Network interface address"
+                  description="An IPv4 address of this computer on a trusted private network. Only the worker gRPC port is exposed."
+                  ><Input
+                    name="interface"
+                    placeholder="100.x.x.x"
+                    bind:value={bindHost}
+                    required
+                    disabled={busy}
+                  /></Field
+                >
+                <Alert tone="warning"
+                  >Worker traffic uses HTTP on this interface. Use a trusted private network or configure TLS before
+                  exposing the gateway publicly.</Alert
+                >
+              {:else}
+                <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+                  Your data stays on this computer. No database installation or account is needed.
+                </p>
+              {/if}
             {/if}
-          {/if}
-          {#if message || status?.error}<Alert tone="error">{message || status?.error}</Alert>{/if}
-          {#if working}
-            <p role="status" class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-              {status?.database?.message ?? "Starting services and connecting your worker…"}
+            {#if message || status?.error}<Alert tone="error">{message || status?.error}</Alert>{/if}
+            <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+              Install Claude Code, Codex or Grok on this computer to use that provider. Canopy does not install agent
+              CLIs.
             </p>
-            {#if status?.database?.phase === "downloading" && status.database.progress !== undefined}
-              <ProgressBar label="PostgreSQL download" value={status.database.progress} />
-            {/if}
-          {/if}
-          <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-            Install Claude Code, Codex or Grok on this computer to use that provider. Canopy does not install agent
-            CLIs.
-          </p>
-          <div class="flex flex-wrap items-center gap-3">
-            <Button variant="primary" type="submit" loading={working}
-              >{status?.phase === "error" ? "Try again" : status?.mode ? "Save and open Canopy" : "Open Canopy"}</Button
-            >
+            <div class="flex flex-wrap items-center gap-3">
+              <Button variant="primary" type="submit" loading={working}
+                >{status?.phase === "error"
+                  ? "Try again"
+                  : status?.mode
+                    ? "Save and open Canopy"
+                    : "Open Canopy"}</Button
+              >
+            </div>
           </div>
-        </div>
-      </form>
-      {#if status?.mode}<div class="grid gap-3 border-t border-zinc-950/5 pt-6 dark:border-white/10">
-          <WorkerStatus {status} />
-          <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-            Saving these settings restarts this computer’s services and stops its running agents.
-          </p>
-        </div>{/if}
-      <AppUpdates />
-      <QuitShortcutSettings />
-    {/if}
-  </div>
+        </form>
+        {#if status?.mode}<div class="grid gap-3 border-t border-zinc-950/5 pt-6 dark:border-white/10">
+            <WorkerStatus {status} />
+            <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+              Saving these settings restarts this computer’s services and stops its running agents.
+            </p>
+          </div>{/if}
+        <AppUpdates />
+        <QuitShortcutSettings />
+      {/if}
+    </div>
+  {/if}
 </main>
 
 <style>
