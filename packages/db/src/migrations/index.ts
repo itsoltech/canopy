@@ -44,6 +44,7 @@ import workerEnrollment from "./0044_worker_enrollment.sql" with { type: "text" 
 import botHandoffs from "./0045_bot_handoffs.sql" with { type: "text" };
 import mobileDevices from "./0046_mobile_devices.sql" with { type: "text" };
 import workerSsh from "./0047_worker_ssh.sql" with { type: "text" };
+import linkedComputers from "./0048_linked_computers.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -104,6 +105,7 @@ export const migrations = Migrator.fromRecord({
   "0045_bot_handoffs": sqlFile(botHandoffs),
   "0046_mobile_devices": sqlFile(mobileDevices),
   "0047_worker_ssh": sqlFile(workerSsh),
+  "0048_linked_computers": sqlFile(linkedComputers),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

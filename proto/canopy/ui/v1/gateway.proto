@@ -11,8 +11,13 @@ import "canopy/ui/v1/bots.proto";
 import "canopy/ui/v1/quotes.proto";
 import "canopy/ui/v1/connectors.proto";
 import "canopy/ui/v1/mobile.proto";
+import "canopy/ui/v1/computers.proto";
 
 service GatewayService {
+  rpc GetComputers(ComputersRequest) returns (ComputersSnapshot);
+  rpc CreateComputerPairing(CreateComputerPairingRequest) returns (ComputerPairing);
+  rpc LinkComputer(LinkComputerRequest) returns (ComputersSnapshot);
+  rpc ManageComputer(ComputerOperationRequest) returns (ComputersSnapshot);
   rpc FetchWorkerInstall(FetchWorkerInstallRequest) returns (stream WorkerInstallChunk);
   rpc WorkerSsh(WorkerSshRequest) returns (stream WorkerSshEvent);
   rpc GetUpdates(UpdatesRequest) returns (UpdatesSnapshot);

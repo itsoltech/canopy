@@ -33,9 +33,10 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    `basic_text` jest odrzucany; aplikacja wymaga działającego magazynu kluczy.
    `worker.json` zachowuje istniejący format enrollment i uprawnienia 0600.
 4. **Porty:** losowe wolne porty; Postgres, web i domyślnie gRPC na `127.0.0.1`.
-   Opcja „Allow other machines to connect” dotyczy wyłącznie dodatkowego listenera
-   worker link/enrollment gRPC; pełne UI/API pozostaje na loopback.
-   wymaga świadomego wybrania interfejsu. Nie wystawia BFF ani bazy. HTTP bez TLS
+   Opcja „Allow other machines to connect” pozwala uruchomić dodatkowy listener
+   worker link/enrollment gRPC oraz osobny listener mTLS połączonych komputerów;
+   pełne UI/API pozostaje na loopback.
+   Wymaga świadomego wybrania interfejsu. Nie wystawia BFF ani bazy. HTTP bez TLS
    nadaje się wyłącznie do zaufanej sieci prywatnej; publiczne udostępnienie wymaga TLS.
 5. **Pakowanie:** electron-builder, AppImage + deb na Linuxie, dmg + zip na macOS, NSIS
    na Windows x64.
@@ -171,6 +172,7 @@ secrets.enc                 # ciphertext OS keychain; 0600 na POSIX
 desktop.json                # tryb/adresy; bez tokenu enrollment
 app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
 app-shortcuts.json          # quitShortcut; zapis atomowy w main, bez gatewaya
+computer-link.json          # stały port mTLS wybrany losowo przy pierwszym włączeniu
 postgres/data/              # pełny klaster PostgreSQL
 postgres/versions/<pin>/    # zweryfikowany runtime; installed.json oznacza pełną instalację
 postgres/versions/*.download/ # częściowe pobranie do wznowienia; nigdy nie służy do startu
@@ -178,6 +180,28 @@ local-worker/worker.json    # credential; 0600 na POSIX
 remote-workers/<hash>/      # osobna tożsamość dla każdego gatewaya
 logs/                       # redakcja sekretów; 5 MiB + 3 rotacje na usługę
 ```
+
+### Settings → Linked computers
+
+Tryb lokalny może dodatkowo sparować swój gateway z innym własnym komputerem;
+to nie nowy tryb pracy. Włącz „Allow other machines to connect” w Desktop settings
+i wybierz interfejs. Settings → Linked computers pokazuje tożsamość oraz osobny
+przełącznik listenera. Przełącznik zapisuje się w bazie, działa też z przeglądarki
+i nie zmienia ustawień workera. Wyłączenie nadrzędnego allowNetwork zatrzymuje
+udostępnianie sieciowe przy rekonfiguracji; wychodzące łącza nadal mogą działać.
+
+Listener używa wyłącznie przypiętego mTLS (TLS 1.3), bez plaintext i bez CA sieci.
+To osobny port od worker enrollment; firewall musi przepuszczać TCP na ten port.
+Wybrany raz port jest zapisany w `computer-link.json`, żeby peer mógł wrócić po
+restarcie aplikacji. Zajęty zapisany port powoduje błąd startu, zamiast cichej zmiany
+adresu. Nie usuwaj pliku w celu rozwiązywania konfliktu bez ponownego ustawienia tras/parowania.
+Kod jednorazowy i lista adresów są w „Link a computer”; druga strona wybiera „Enter code”.
+Porównanie odcisków obu certyfikatów jest dostępne na liście.
+
+Electron ogłasza sleep/resume oraz quit/update prywatnym kanałem do kontrolera,
+który wywołuje lokalne API gatewaya. Sekrety i klucze pozostają w gatewayu.
+Ogłoszenie sleep jest best effort: system może uśpić proces przed wysłaniem;
+wtedy peer pokaże Unreachable. Implementacja i zakres etapów: [linked-computers.md](linked-computers.md).
 
 Menu aplikacji otwiera ustawienia i katalog logów; tray pokazuje stan workera
 i znalezione CLI. macOS używa hidden-inset z miejscem na traffic lights w sidebarze;

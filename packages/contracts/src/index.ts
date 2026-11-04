@@ -7,3 +7,4 @@ export * as ui from "./ui.ts";
 export * as bots from "./gen/canopy/ui/v1/bots_pb.ts";
 export * as connectors from "./gen/canopy/ui/v1/connectors_pb.ts";
 export * as update from "./gen/canopy/update/v1/update_pb.ts";
+export * as computerLink from "./gen/canopy/link/v1/link_pb.ts";

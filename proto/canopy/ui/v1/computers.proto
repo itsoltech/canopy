@@ -1,0 +1,40 @@
+syntax = "proto3";
+package canopy.ui.v1;
+
+message LinkedComputer {
+  string node_id = 1;
+  string name = 2;
+  repeated string addresses = 3;
+  string fingerprint = 4;
+  string app_version = 5;
+  uint32 min_protocol = 6;
+  uint32 max_protocol = 7;
+  string status = 8;
+  int64 status_since_ms = 9;
+  int64 last_seen_ms = 10;
+  int64 linked_at_ms = 11;
+  string update_node_id = 12;
+  string display_name = 13;
+}
+message ComputersRequest {}
+message ComputersSnapshot {
+  LinkedComputer self = 1;
+  repeated LinkedComputer peers = 2;
+  bool listener_enabled = 3;
+  bool listener_available = 4;
+}
+message CreateComputerPairingRequest {}
+message ComputerPairing {
+  string id = 1;
+  string code = 2;
+  int64 expires_at_ms = 3;
+  repeated string addresses = 4;
+}
+message LinkComputerRequest { string address = 1; string code = 2; }
+message ComputerOperationRequest {
+  // rename, unlink, listener, revoke_pairing, presence. Empty node_id is self.
+  string action = 1;
+  string node_id = 2;
+  string name = 3;
+  bool enabled = 4;
+}

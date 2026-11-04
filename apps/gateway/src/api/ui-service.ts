@@ -7,11 +7,21 @@ import { Invalid, InstanceConflict, NotFound, QueueConflict, ScheduleConflict, S
 import { workerGuard } from "../core/worker-administration.ts";
 import { mobileGuard, mobileIdentity } from "../core/mobile-devices.ts";
 import { workerInstall } from "../updates/install.ts";
+import { computerGuard } from "../computers/runtime.ts";
+
+function computers(core: GatewayCore) {
+  if (!core.computers) throw new ConnectError("Linked computers are not initialized", Code.FailedPrecondition);
+  return core.computers;
+}
 
 /** GatewayService for the UI (docs/ui-api.md). Thin: validation and state live in the core and the store. */
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
   return (router) =>
     router.service(ui.GatewayService, {
+      getComputers: () => computerGuard(() => computers(core).snapshot()),
+      createComputerPairing: () => computerGuard(() => computers(core).createPairing()),
+      linkComputer: (r) => computerGuard(() => computers(core).pair(r.address, r.code)),
+      manageComputer: (r) => computerGuard(() => computers(core).manage(r)),
       fetchWorkerInstall: (request, context) => workerInstall(core.updates, request, context.signal),
       workerSsh: (request, context) => core.workerSsh.run(request, context.signal),
       getUpdates: () => core.updates.snapshot(),

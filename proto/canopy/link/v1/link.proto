@@ -1,0 +1,40 @@
+syntax = "proto3";
+package canopy.link.v1;
+
+// Pair is the only RPC open to a certificate without a pin. The invitation
+// authenticates the server certificate before its secret is sent.
+service ComputerLinkService {
+  rpc Pair(PairRequest) returns (PairResponse);
+  rpc Connect(stream LinkFrame) returns (stream LinkFrame);
+}
+
+message NodeHello {
+  string node_id = 1;
+  string name = 2;
+  repeated string addresses = 3;
+  string app_version = 4;
+  uint32 min_protocol = 5;
+  uint32 max_protocol = 6;
+  repeated string capabilities = 7;
+}
+message PairRequest { string secret = 1; NodeHello hello = 2; }
+message PairResponse { NodeHello hello = 1; }
+message LinkWelcome {
+  NodeHello hello = 1;
+  uint32 protocol = 2;
+  // Zero protocol forbids application messages; the control channel remains
+  // available for update verdicts, presence and unlink.
+  string update_node_id = 3;
+}
+message Presence { string state = 1; int64 announced_at_ms = 2; }
+message Heartbeat { int64 sent_at_ms = 1; }
+message Unlinked {}
+message LinkFrame {
+  oneof body {
+    NodeHello hello = 1;
+    LinkWelcome welcome = 2;
+    Heartbeat heartbeat = 3;
+    Presence presence = 4;
+    Unlinked unlinked = 5;
+  }
+}

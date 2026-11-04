@@ -1,0 +1,33 @@
+<script lang="ts">
+  import type { ClassValue } from "svelte/elements";
+  import type { ui } from "@canopy/contracts";
+  import Button from "#lib/shared/ui/Button.svelte";
+  let { computer, self = false, busy = false, onrename, onunlink, class: className }: {
+    computer: ui.LinkedComputer; self?: boolean; busy?: boolean; onrename: () => void; onunlink?: () => void; class?: ClassValue;
+  } = $props();
+  const date = (value: bigint) => value ? new Date(Number(value)).toLocaleString() : "Never";
+  const status = $derived(computer.status === "connected" ? "Connected" : computer.status === "needs_update" ?
+    (computer.updateNodeId === computer.nodeId ? `${computer.displayName || computer.name} needs an update` : "This computer needs an update") :
+    computer.status === "updating" ? "Updating…" : computer.status === "sleeping" ? "Going to sleep" : computer.status === "shutting_down" ? "Shutting down" :
+    computer.status === "pairing_required" ? "Certificate changed or pairing was removed. Unlink and pair again." : "Unreachable");
+</script>
+
+<div class={["grid min-w-0 gap-4 p-4", className]}>
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="min-w-0 flex-1">
+      <h3 class="break-words text-base font-semibold text-zinc-950 dark:text-white">{computer.displayName || computer.name}</h3>
+      <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{self ? "This computer" : status}</p>
+      {#if !self && computer.status !== "connected"}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Since {date(computer.statusSinceMs)}</p>{/if}
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <Button size="sm" variant="ghost" disabled={busy} onclick={onrename}>Rename</Button>
+      {#if onunlink}<Button size="sm" variant="ghost" disabled={busy} onclick={onunlink}>Unlink</Button>{/if}
+    </div>
+  </div>
+  <dl class="grid min-w-0 gap-3 text-base/6 sm:text-sm/6">
+    <div><dt class="text-zinc-500 dark:text-zinc-400">Version</dt><dd class="text-zinc-950 dark:text-white">{computer.appVersion || "Not connected yet"} · Link {computer.minProtocol}–{computer.maxProtocol}</dd></div>
+    <div class="min-w-0"><dt class="text-zinc-500 dark:text-zinc-400">Certificate fingerprint · SHA-256</dt><dd class="break-all font-mono text-zinc-700 dark:text-zinc-300">{computer.fingerprint.match(/.{1,4}/g)?.join(" ")}</dd></div>
+    <div class="min-w-0"><dt class="text-zinc-500 dark:text-zinc-400">Addresses</dt><dd class="break-all text-zinc-700 dark:text-zinc-300">{computer.addresses.join(" · ") || "Listener is off or no address is advertised."}</dd></div>
+    {#if !self}<div><dt class="text-zinc-500 dark:text-zinc-400">Last seen</dt><dd class="tabular-nums text-zinc-700 dark:text-zinc-300">{date(computer.lastSeenMs)}</dd></div>{/if}
+  </dl>
+</div>

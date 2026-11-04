@@ -26,7 +26,7 @@ lines.on("line", (line) => {
   queue = queue.then(async () => {
     let id: number | undefined;
     try {
-      const request = JSON.parse(line) as { id: number; action: string; directory: string; paths: RuntimePaths; secrets: Secrets; configuration: unknown };
+      const request = JSON.parse(line) as { id: number; action: string; directory: string; paths: RuntimePaths; secrets: Secrets; configuration: unknown; state: string };
       id = request.id;
       if (ending) throw new Error("Desktop is stopping");
       if (request.action === "initialize" && !runtime) {
@@ -39,6 +39,9 @@ lines.on("line", (line) => {
       } else if (request.action === "configure" && runtime) {
         await runtime.configure(request.configuration);
         send({ id, result: { pids: runtime.pids } });
+      } else if (request.action === "presence" && runtime) {
+        await runtime.presence(request.state);
+        send({ id, result: {} });
       } else throw new Error("Invalid desktop controller request");
     } catch (error) { send({ id, error: runtime?.logs.redact(error instanceof Error ? error.message : "Desktop operation failed") ?? "Desktop startup failed" }); }
   });

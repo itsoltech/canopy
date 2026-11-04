@@ -103,6 +103,7 @@ import { GatewayUpdates, type GatewayUpdatesOptions } from "../updates/runtime.t
 import { UpdatePersistence } from "../updates/persistence.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools, type CliLatestOptions } from "./cli-tools.ts";
+import type { LinkedComputers } from "../computers/runtime.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -178,6 +179,7 @@ const HARNESS_ERROR_CODES: ReadonlySet<string> = new Set(["HARNESS_ERROR"]);
 const MAX_OBJECTIVE = 4000;
 
 export class GatewayCore {
+  computers?: LinkedComputers;
   readonly updates: GatewayUpdates;
   readonly mobile: MobileDevices;
   readonly workers: WorkerAdministration;
