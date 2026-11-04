@@ -1,14 +1,14 @@
 import { create, fromJson } from "@bufbuild/protobuf";
 import { CommandSchema, CommandResultSchema, TurnOutcome } from "@canopy/contracts";
+import { classifyFailure, ProviderFailure } from "@canopy/domain";
 import { BotStore } from "../bots/store.ts";
 import type { ModelInput, ModelReply } from "../bots/types.ts";
 import { coreState } from "./core-context.ts";
-import { coreRun } from "./core-broadcast.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreDeliver, coreDispatch } from "./core-commands.ts";
+import { coreRun } from "./core-broadcast.ts";
 import type { GatewayCore } from "./core.ts";
 
-/** Welcome for a worker link: journal cursors of its threads and of its bot harness turns. */
 export async function workerJournalWelcome(core: GatewayCore, workerId: string, journalId: string) {
   core[coreState].journalIds.set(workerId, journalId);
   const persisted = journalId ? await coreRun(core, (s) => s.journalCursors(workerId, journalId)) : [];
@@ -106,14 +106,24 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
       job = await run((s) => s.harnessTurn(turn.id));
 
       if (job?.outcome !== null && job?.outcome !== undefined) {
-        if (job.outcome !== TurnOutcome.COMPLETED) throw new Error(job.error_code || "HARNESS_ERROR");
+        if (job.outcome !== TurnOutcome.COMPLETED)
+          throw new ProviderFailure(
+            classifyFailure("", job.error_code || "HARNESS_ERROR"),
+            "Bot harness could not finish this turn",
+            "harness",
+          );
 
         return { text: job.text, calls: [] };
       }
 
       const failure = await run((s) => s.harnessCommandFailure(turn.id));
 
-      if (failure) throw new Error(fromJson(CommandResultSchema, failure).errorCode || "HARNESS_ERROR");
+      if (failure)
+        throw new ProviderFailure(
+          classifyFailure("", fromJson(CommandResultSchema, failure).errorCode || "HARNESS_ERROR"),
+          "Bot worker could not start this turn",
+          "harness",
+        );
       const connection = core.link.connections.get(workerId);
 
       if (connection?.isOpen && !connection.hello.capabilities.includes("bot_harness_v1"))

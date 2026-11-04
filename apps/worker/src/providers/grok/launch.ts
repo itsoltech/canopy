@@ -12,6 +12,31 @@ interface GrokLaunch {
   cleanup(): void;
 }
 
+/** Keep optional device capabilities out of hidden bot processes. */
+function isolateBotEnv(env: NodeJS.ProcessEnv): void {
+  for (const name of [
+    "GROK_CLAUDE_AGENTS_ENABLED",
+    "GROK_CURSOR_AGENTS_ENABLED",
+    "GROK_PLUGINS_ENABLED",
+    "GROK_MEMORY",
+    "GROK_CLAUDE_HOOKS_ENABLED",
+    "GROK_CURSOR_HOOKS_ENABLED",
+    "GROK_CLAUDE_SKILLS_ENABLED",
+    "GROK_CURSOR_SKILLS_ENABLED",
+    "GROK_SUBAGENT_BUNDLE",
+    "GROK_BACKEND_SEARCH",
+    "GROK_WEB_FETCH",
+    "GROK_SESSION_SEARCH",
+    "GROK_ASK_USER_QUESTION",
+    "GROK_AUTO_WAKE",
+    "GROK_TITLE_REFRESH",
+    "GROK_TURN_SUMMARY",
+  ])
+    env[name] = "0";
+
+  env["GROK_DISABLE_EXPERIMENTS"] = "1";
+}
+
 /** Isolated configuration per process; durable sessions per instance. Keys never enter config or argv. */
 export function grokLaunch(options: {
   dataDir: string;
@@ -25,6 +50,8 @@ export function grokLaunch(options: {
   linkDeviceLogin?: boolean;
   textOnly?: boolean;
   temporaryDir?: string;
+  /** Hidden bot runtime: no device skills, user launch flags or local tools. */
+  bot?: { cwd: string; instructions: string; sourceHome: string };
 }): GrokLaunch {
   const { profile } = options;
   const runtime = profile.runtime ?? {};
@@ -40,12 +67,13 @@ export function grokLaunch(options: {
   const skillHome =
     instanceShadowHome(options.dataDir, "grok", profile.id, runtime) ?? join(options.dataDir, "grok-home");
 
-  const skills = join(skillHome, "skills");
+  if (!options.bot && !options.textOnly) {
+    const skills = join(skillHome, "skills");
+    instructionDirectory(skills, true);
+    // Bot processes never inherit reconciled instance skills.
+    symlinkSync(skills, join(home, "skills"), process.platform === "win32" ? "junction" : "dir");
+  }
 
-  if (!options.textOnly) instructionDirectory(skills, true);
-
-  // The process home is disposable. Skills remain in the reconciled, durable instance home.
-  if (!options.textOnly) symlinkSync(skills, join(home, "skills"), process.platform === "win32" ? "junction" : "dir");
   const env: NodeJS.ProcessEnv = { ...(options.baseEnv ?? process.env), ...profile.env };
 
   // Ignore device configuration: it can carry another account, endpoint, permissions or MCP servers.
@@ -77,6 +105,8 @@ export function grokLaunch(options: {
   env["GROK_DEFAULT_SELECTED_PERMISSION"] = "reject";
   env["RUST_LOG"] = "off";
 
+  if (options.bot) isolateBotEnv(env);
+
   if (options.readOnly) env["GROK_SANDBOX"] = "read-only";
   else if (options.fullAuto) env["GROK_SANDBOX"] = "workspace";
   else delete env["GROK_SANDBOX"];
@@ -88,8 +118,14 @@ export function grokLaunch(options: {
 
   // Grok auto-allows mkdir/touch before asking ACP. Explicit denies also cover workspaces under /tmp.
   if (options.textOnly) config += textOnlyConfig(env, home);
-  else if (options.readOnly)
+  else if (options.readOnly && !options.bot)
     config += '\n[permission]\nrules = [{ action = "deny", tool = "edit" }, { action = "deny", tool = "bash" }]\n';
+
+  if (options.bot)
+    config +=
+      '\n[permission]\ndeny = ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "WebFetch(*)", "WebSearch(*)", "Agent(*)"]\n';
+
+  if (options.bot) config += "\n[compat.codex]\nskills = false\n";
 
   if (profile.kind === "cliproxyapi") {
     delete env["XAI_API_KEY"];
@@ -101,21 +137,33 @@ export function grokLaunch(options: {
     const model = options.model || "grok-4.6";
     config += `\n[model.${JSON.stringify(model)}]\nmodel = ${JSON.stringify(model)}\nbase_url = ${JSON.stringify(base)}\nenv_key = "CANOPY_GROK_API_KEY"\napi_backend = "chat_completions"\n`;
   } else if (options.linkDeviceLogin !== false || runtime.ownLogin) {
-    const source = runtime.ownLogin
-      ? runtime.shadowHomePath || join(options.dataDir, "homes", `grok-${profile.id}`)
-      : runtime.homePath || (options.baseEnv ?? process.env)["GROK_HOME"] || join(homedir(), ".grok");
+    const source =
+      options.bot?.sourceHome ??
+      (runtime.ownLogin
+        ? runtime.shadowHomePath || join(options.dataDir, "homes", `grok-${profile.id}`)
+        : runtime.homePath || (options.baseEnv ?? process.env)["GROK_HOME"] || join(homedir(), ".grok"));
 
     env["GROK_AUTH_PATH"] = join(source, "auth.json");
   }
 
   writeFileSync(join(home, "config.toml"), config, { mode: 0o600 });
 
+  const agent = join(home, "bot.md");
+
+  if (options.bot)
+    writeFileSync(
+      agent,
+      `---\nname: canopy-bot\ndescription: Canopy conversational bot\ntools: search_tool, use_tool\n---\n${options.bot.instructions}\n`,
+      { mode: 0o600 },
+    );
+
   const args = [
+    ...(options.bot ? ["--tools", "search_tool,use_tool"] : []),
     "agent",
     "--no-leader",
     ...(options.model ? ["--model", options.model] : []),
     ...(options.effort ? ["--reasoning-effort", options.effort] : []),
-    ...(options.textOnly ? [] : (runtime.launchArgs ?? [])),
+    ...(options.bot ? ["--agent-profile", agent] : options.textOnly ? [] : (runtime.launchArgs ?? [])),
     "stdio",
   ];
 
@@ -124,6 +172,7 @@ export function grokLaunch(options: {
       executable: runtime.executablePath || options.executable || "grok",
       args,
       env,
+      ...(options.bot && { cwd: options.bot.cwd }),
       secrets: [
         ...(profile.kind === "cliproxyapi" ? [profile.apiKey, profile.baseUrl.href, profile.baseUrl.host] : []),
         ...Object.values(profile.env),

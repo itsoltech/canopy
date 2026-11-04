@@ -4,9 +4,9 @@ Komponenty w `apps/web/src/lib/features/bots/wizard` są prezentacyjne. Integrac
 
 Produkcyjna sekcja `/bots` podłącza `CreateBotWizard` do `CreateBot` przez BFF.
 Adapter instancji i modeli jest w `features/bots/live.ts`; szczegóły runtime'u i API:
-[bots.md](bots.md). Gateway wymaga konkretnego ID modelu API, więc adapter nie oferuje pustej
-opcji domyślnego modelu harnessu, a alias z katalogu (`default`, `opus`…) pokazuje jako model,
-na który się rozwiązuje (`resolved_model`). Aliasy bez rozwiązania są pomijane.
+[bots.md](bots.md). Adapter zachowuje ID modeli i aliasy harnessu (`default`, `opus`…),
+oferuje native i proxy dla Claude, Codex i Groka. Wykonanie tury wymaga workera
+z włączoną instancją; bez przypięcia pierwsza tura stosuje regułę domyślnego wyboru.
 
 ## API
 
@@ -18,7 +18,7 @@ na który się rozwiązuje (`resolved_model`). Aliasy bez rozwiązania są pomij
   } from "#lib/features/bots/wizard/CreateBotWizard.svelte";
 
   let open = $state(false);
-  // Z adaptera backendu: instancje z własnymi ModelOption[] i opcjonalnym powodem blokady.
+  // Z adaptera backendu: instancje z własnymi ModelOption[] i katalogami workerów.
   let instances: readonly BotProviderInstance[] = [];
   let existingNames: readonly string[] = [];
 
@@ -30,12 +30,11 @@ na który się rozwiązuje (`resolved_model`). Aliasy bez rozwiązania są pomij
 <CreateBotWizard bind:open {instances} {existingNames} oncreate={create} />
 ```
 
-`BotProviderInstance` ma pola `{ id, name, provider, models, disabledReason?, settingsHref? }`.
+`BotProviderInstance` ma pola `{ id, name, provider, models, modelsByWorker? }`.
 `provider` to `ProviderKey` (`CODEX | CLAUDE | GROK`), a `models` to istniejące
 `readonly ModelOption[]`. `id` jest identyfikatorem instancji zwracanym w szkicu;
 nie wynika z etykiety ani modelu. Adapter odpowiada za spójność modeli z instancją.
-Device login ma `disabledReason` i link `settingsHref` do zmiany połączenia tej instancji.
-Wbudowane id `native` nie oznacza Device login: po przełączeniu na Proxy jest wybieralne.
+Device login i proxy są równoprawne. `modelsByWorker` zawęża modele po wyborze Runs on.
 Instancja bez modeli jest widoczna, ale nie pozwala utworzyć bota.
 
 Opcjonalne `loading`, `loadError` i `onreload` obsługują ładowanie oraz ponowienie pobrania.
@@ -52,6 +51,7 @@ workera i resynchronizacji strumienia. Dopiero zakończone pobranie może pokaza
   shape: MascotShapeId;           // stabilny id z mascotShapes
   color: string;                 // nieprzezroczysty #rrggbb
   providerInstanceId: string;
+  workerId: string;              // "" = automatyczny wybór przy pierwszej turze
   model: string;                 // ModelOption.model, także "" = domyślny model
   effort: string | undefined;    // undefined = domyślny effort modelu
 }
@@ -72,11 +72,11 @@ workera i resynchronizacji strumienia. Dopiero zakończone pobranie może pokaza
 
 ## Wygląd i interakcje
 
-Tworzenie zaczyna się od gotowości modelu i wyboru instancji oraz modelu/effortu. Brak dostępnego modelu pokazuje od razu jeden komunikat i link do Settings → Providers; stopka wyjaśnia blokadę tworzenia. Instancje z modelami są pierwsze, a niedostępne instancje trafiają do jednej opcjonalnej sekcji. Powtarzające się powody blokady są wyświetlane raz, z osobnymi linkami konfiguracji instancji. Pola pozostają niezależne od runtime’u: przyszły wybór „Runs on” może poprzedzać model, bez zmiany kontraktu wyglądu.
+Tworzenie zaczyna się od gotowości modelu i wyboru instancji oraz modelu/effortu. Brak dostępnego modelu pokazuje od razu jeden komunikat i link do Settings → Providers; stopka wyjaśnia blokadę tworzenia. Instancje z modelami są pierwsze. Wybór „Runs on” zawęża listę do instancji dostępnych na wybranym workerze; kontrakt wyglądu się nie zmienia.
 
 Podgląd 64 px sąsiaduje z nazwą. Tworzenie ukrywa 14 kształtów, 11 kolorów i picker HSV/HEX za „Customise appearance”; edycja samego wyglądu pokazuje je od razu, bez pól modelu. Niepoprawny kolor przy zatwierdzeniu rozwija sekcję i kieruje fokus do pola HEX. Siatka kształtów ma pięć kolumn na telefonie i siedem od `sm`. Stopka z akcjami pozostaje przy dolnej krawędzi. Telefon używa istniejącego bottom sheet `Dialog`; własne wrappery kontrolują odstępy bez nadpisywania pozycjonowania/paddingu pickerów.
 
-`AppearanceFields`, `ChoiceGrid`, `CustomColorPicker` i `MascotPreview` są współdzielone przez tworzenie i edycję. `UnavailableProviders` grupuje niedostępne instancje w kreatorze i współdzielonych polach ustawień bota. Sekcje korzystają z kitowego `Disclosure`, jego tokenów ruchu i obsługi reduced motion. `MascotFace` renderuje te same ścieżki SVG w podglądzie i `BotAvatar` (opcjonalny prop `appearance`). Stary hash oraz siedem dotychczasowych kształtów pozostają niezmienione, więc istniejące generowane awatary zachowują tożsamość.
+`AppearanceFields`, `ChoiceGrid`, `CustomColorPicker` i `MascotPreview` są współdzielone przez tworzenie i edycję. Sekcje korzystają z kitowego `Disclosure`, jego tokenów ruchu i obsługi reduced motion. `MascotFace` renderuje te same ścieżki SVG w podglądzie i `BotAvatar` (opcjonalny prop `appearance`). Stary hash oraz siedem dotychczasowych kształtów pozostają niezmienione, więc istniejące generowane awatary zachowują tożsamość.
 
 Podgląd używa crossfade ze skalą według przepisu icon swap z `transitions-dev` i istniejących tokenów ruchu. Kolor przechodzi płynnie; wpisanie nazwy powoduje małe podbicie; oczy mrugają co 5,5 s. `prefers-reduced-motion` wyłącza te animacje. Oczy wybierają biały lub ciemny kolor według kontrastu luminancji sRGB, niezależnie od motywu.
 

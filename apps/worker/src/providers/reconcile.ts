@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { Journal, type OpenTurn, type ThreadEventInit } from "../journal/index.ts";
 import { readClaudeTurn } from "./claude/transcript.ts";
 import { readCodexTurn } from "./codex/transcript.ts";
+import { readGrokTurn } from "./grok/transcript.ts";
 import type { HarnessRecord, TurnEnd } from "./harness-record.ts";
 
 /**
@@ -39,6 +40,9 @@ export async function readHarnessRecord(open: OpenTurn): Promise<HarnessRecord |
   if (!harness) return undefined;
 
   try {
+    if (harness.harness === "grok")
+      return await readGrokTurn(harness.transcript, harness.sessionId, harness.offset, open.turnId);
+
     return harness.harness === "codex"
       ? await readCodexTurn(harness.transcript, harness.offset, harness.providerTurn, open.turnId)
       : await readClaudeTurn(harness.transcript, harness.sessionId, harness.offset);

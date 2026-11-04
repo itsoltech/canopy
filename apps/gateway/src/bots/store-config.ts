@@ -1,10 +1,9 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
-import { bots, Provider, ProfileModelsSchema, type ProfileModels } from "@canopy/contracts";
+import { bots, ProfileModelsSchema, type ProfileModels } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import { harnessOf, type InstanceRow } from "../store/instance-config.ts";
-import { apiModel } from "./model.ts";
 import { nextHop } from "./policy.ts";
 import type { BotRow } from "./types.ts";
 import { MAX_BOTS_PER_USER, botConfiguration, botView, uuid } from "./store-views.ts";
@@ -64,10 +63,6 @@ function botValidate(
 
       if (!instances[0]) return yield* Effect.fail(new Invalid("choose an existing provider instance"));
 
-      // Grok keeps the direct gateway runtime until its ACP adapter lands in stage 2.
-      if (config.provider === Provider.GROK && instances[0].kind !== "endpoint")
-        return yield* Effect.fail(new Invalid("Grok bots require a gateway-accessible endpoint provider instance"));
-
       if (config.workerId) {
         const workers =
           yield* sql`SELECT w.id FROM workers w JOIN provider_instances i ON i.harness = ${harnessOf(config.provider)} AND i.id = ${config.providerInstance}
@@ -82,17 +77,10 @@ function botValidate(
       for (const id of config.mcpServerIds) yield* server(user, id);
       const catalog = yield* catalogs(config);
 
-      const model =
-        config.provider === Provider.GROK
-          ? apiModel(config.model, catalog, instances[0].custom_models)
-          : { model: config.model };
-
-      if ("problem" in model) return yield* Effect.fail(new Invalid(model.problem));
-
       if (
         (requireCatalog || catalog.some((p) => p.models.length > 0)) &&
-        !instances[0].custom_models.includes(model.model) &&
-        !catalog.some((p) => p.models.some((m) => m.id === model.model || m.resolvedModel === model.model))
+        !instances[0].custom_models.includes(config.model) &&
+        !catalog.some((p) => p.models.some((m) => m.id === config.model || m.resolvedModel === config.model))
       )
         return yield* Effect.fail(
           new Invalid(
@@ -102,7 +90,7 @@ function botValidate(
 
       const efforts = catalog
         .flatMap((p) => p.models)
-        .filter((m) => m.id === config.model || m.id === model.model || m.resolvedModel === model.model)
+        .filter((m) => m.id === config.model || m.resolvedModel === config.model)
         .flatMap((m) => m.efforts);
 
       if (config.effort && efforts.length && !efforts.includes(config.effort))
@@ -110,7 +98,6 @@ function botValidate(
 
       return create(bots.BotConfigurationSchema, {
         ...config,
-        model: model.model,
         name: config.name.trim().normalize("NFC"),
         color: config.color.toLowerCase(),
         approvalPolicy: config.approvalPolicy || "safe",
@@ -118,7 +105,7 @@ function botValidate(
     });
 }
 
-/** Bot configurations: validation, the concrete model and saving. */
+/** Bot configurations: validation, harness catalog and saving. */
 export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
   const { handoffs, owned, server } = access;
 
@@ -135,17 +122,6 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
     );
 
   const validate = botValidate(sql, { server }, catalogs);
-
-  /** The concrete API model of a saved bot; bots saved before validation may still name an alias. */
-  const resolveModel = (config: bots.BotConfiguration) =>
-    Effect.gen(function* () {
-      if (config.provider !== Provider.GROK) return { model: config.model };
-
-      const instance =
-        (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance} AND kind = 'endpoint'`)[0];
-
-      return apiModel(config.model, yield* catalogs(config), instance?.custom_models ?? []);
-    });
 
   const save = (user: string, config: bots.BotConfiguration, options: { id?: string; requestId?: string }) =>
     sql.withTransaction(
@@ -237,5 +213,5 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
       catch: () => new Invalid("Bot hop limit reached; a new user message is required"),
     });
 
-  return { catalogs, validate, resolveModel, save, creationHop };
+  return { catalogs, validate, save, creationHop };
 }

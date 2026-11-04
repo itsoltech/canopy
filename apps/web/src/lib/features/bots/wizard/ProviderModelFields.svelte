@@ -7,7 +7,6 @@
   import type { ModelOption } from "#lib/features/models/catalog.ts";
   import ChoiceGrid from "./ChoiceGrid.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import UnavailableProviders from "./UnavailableProviders.svelte";
   import type { BotProviderInstance } from "./draft.ts";
 
   let {
@@ -33,7 +32,6 @@
 
   const choices = $derived(
     instances
-      .filter((i) => !i.disabledReason)
       .toSorted((a, b) => Number(b.models.length > 0) - Number(a.models.length > 0))
       .map((i) => ({ value: i.id, label: i.name, provider: i.provider })),
   );
@@ -42,7 +40,7 @@
 
   // Availability can change while the dialog is open. Keep the selection inside the supplied catalog.
   $effect(() => {
-    const available = instances.filter((i) => !i.disabledReason);
+    const available = instances;
     const id = instanceId;
     untrack(() => {
       if (!available.some((i) => i.id === id))
@@ -71,7 +69,7 @@
 
 <div class={["grid min-w-0 gap-3", className]}>
   <h3 class="text-base font-medium sm:text-sm">Model</h3>
-  {#if !instances.some((i) => !i.disabledReason && i.models.length > 0)}
+  {#if !instances.some((i) => i.models.length > 0)}
     <Alert title="Set up a model first">
       Your bot needs an available provider instance with a model before it can be created.
       <a href="/settings/providers" class="rounded-md underline focus-ring">Set up a provider in Settings → Providers</a
@@ -140,11 +138,10 @@
     {:else}
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
         No models are available for this instance.
-        <a href={instance?.settingsHref ?? "/settings/providers"} class="rounded-md underline focus-ring"
+        <a href="/settings/providers" class="rounded-md underline focus-ring"
           >Configure models in Settings → Providers</a
         >.
       </p>
     {/if}
   {/if}
-  <UnavailableProviders {instances} />
 </div>

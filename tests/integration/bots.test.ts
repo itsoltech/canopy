@@ -420,7 +420,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     suite.model = async (i) => {
       models.push(i.configuration.model);
 
-      if (fail) throw new Error("Model endpoint returned HTTP 400");
+      if (fail) throw new Error("HARNESS_ERROR");
 
       return reply("Back again");
     };
@@ -428,7 +428,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     await send(saved.id, "hello alias");
     const failed = await settled(saved.id);
     expect(models).toEqual(["default"]);
-    expect(failed.messages.at(-1)).toMatchObject({ failed: true, text: "Model endpoint returned HTTP 400" });
+    expect(failed.messages.at(-1)).toMatchObject({ failed: true, text: "Bot could not finish this turn" });
     expect((await suite.current.bots.list()).find((b) => b.id === saved.id)?.lastMessage?.failed).toBe(true);
     fail = false;
     await suite.gw.api.retryBot({ botId: saved.id });

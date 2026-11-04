@@ -1,113 +1,22 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { bots, Provider, ProviderProfileKind, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import { toJsonString } from "@bufbuild/protobuf";
 import { dockerAvailable } from "@canopy/db/testing";
-import { Match, Schema } from "effect";
+import { Match } from "effect";
 import { ProviderFailure } from "@canopy/domain";
-import { directModel } from "../../apps/gateway/src/bots/model.ts";
 import { botsSuite } from "./support/bots.ts";
-import { eventually, failure, watchUntil } from "./support/gateway.ts";
-
-const Request = Schema.Struct({
-  model: Schema.String,
-  stream: Schema.Boolean,
-  max_tokens: Schema.optionalKey(Schema.Number),
-  messages: Schema.Array(Schema.Struct({ role: Schema.String, content: Schema.NullOr(Schema.String) })),
-});
+import { eventually, watchUntil } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("actionable errors across gateway APIs", () => {
   const { suite, add, send, settled } = botsSuite();
-  let endpoint: ReturnType<typeof Bun.serve>;
-  let requests = 0;
-
-  const faults = new Map([
-    ["auth", { status: 401, code: "auth_required" }],
-    ["model", { status: 404, code: "model_unavailable" }],
-    ["usage", { status: 429, code: "usage_limit" }],
-  ]);
-
   beforeAll(async () => {
-    endpoint = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      fetch: async (request) => {
-        expect(new URL(request.url).pathname).toBe("/v1/chat/completions");
-        const body = Schema.decodeUnknownSync(Request)(await request.json());
-        expect(body.model).toBe("grok-4.7");
-        expect(body.stream).toBe(false);
-        requests++;
-        const prompt = body.messages.findLast((message) => message.role === "user")?.content ?? "";
-        const fault = faults.get(prompt);
-
-        if (fault)
-          return Response.json({ error: { message: "never expose echoed-key-or-prompt" } }, { status: fault.status });
-
-        if (prompt === "length" || body.max_tokens === 4096)
-          return Response.json({ choices: [{ finish_reason: "length", message: { content: null } }] });
-
-        if (prompt === "malformed") return Response.json({ unexpected: true });
-
-        if (prompt === "truncated") return new Response('{"choices":[');
-
-        return Response.json({ choices: [{ finish_reason: "stop", message: { content: "GROK_BOT_OK" } }] });
-      },
-    });
-    suite.model = directModel((input) =>
-      suite.current.bots.run((store) => store.provider(suite.gw.userId, input.configuration)),
-    );
-
-    const native = (await suite.gw.api.listProviderInstances({})).instances.find(
-      (instance) => instance.harness === Provider.GROK && instance.id === "native",
-    )!;
-
-    await suite.gw.api.saveProviderInstance({
-      harness: Provider.GROK,
-      id: "native",
-      kind: ProviderProfileKind.CLIPROXYAPI,
-      label: "Grok proxy",
-      baseUrl: endpoint.url.href,
-      apiKey: "fixture-only-key",
-      expectedRevision: native.revision,
-    });
     await suite.gw.api.setInstanceModels({ harness: Provider.GROK, id: "native", models: { custom: ["grok-4.7"] } });
   }, 30_000);
-
-  afterAll(async () => {
-    await endpoint?.stop(true);
-  });
 
   const grokBot = (name: string) =>
     add(name, { provider: Provider.GROK, providerInstance: "native", model: "grok-4.7" });
 
-  test("Grok bot with native id and Proxy connection uses the gateway API without a reasoning-starving cap", async () => {
-    const bot = await grokBot("Grok API");
-    await send(bot.id, "hello");
-    expect((await settled(bot.id)).messages.at(-1)).toMatchObject({ text: "GROK_BOT_OK", failed: false });
-    expect(requests).toBeGreaterThan(0);
-    const instances = (await suite.gw.api.getBotProviderInstances({ botId: bot.id })).instances;
-    expect(instances.find((instance) => instance.harness === Provider.GROK && instance.id === "native")?.kind).toBe(
-      ProviderProfileKind.CLIPROXYAPI,
-    );
-    await suite.gw.api.saveProviderInstance({
-      harness: Provider.GROK,
-      id: "proxy-looking",
-      label: "Device login",
-      create: true,
-      kind: ProviderProfileKind.NATIVE,
-    });
-    await suite.gw.api.setInstanceModels({
-      harness: Provider.GROK,
-      id: "proxy-looking",
-      models: { custom: ["grok-4.7"] },
-    });
-    expect(
-      await failure(
-        add("Device cannot be bot", { provider: Provider.GROK, providerInstance: "proxy-looking", model: "grok-4.7" }),
-      ),
-    ).toContain("gateway-accessible");
-  });
-
-  test("bot failure classes survive storage, gRPC snapshots, list previews and retry without leaking provider bodies", async () => {
+  test("bot harness failure classes survive storage, gRPC snapshots, list previews and retry", async () => {
     const bot = await grokBot("Failure classes");
 
     for (const [prompt, code] of [
@@ -118,9 +27,18 @@ describe.skipIf(!dockerAvailable)("actionable errors across gateway APIs", () =>
       ["truncated", "stream_cut_off"],
       ["malformed", "internal"],
     ] as const) {
+      suite.model = async () => {
+        throw new ProviderFailure(
+          code,
+          "Bot harness failed at https://private.invalid/api?token=fixture-redaction-token; Bearer fixture-redaction-key",
+          "harness",
+        );
+      };
+
       await send(bot.id, prompt);
       const saved = await settled(bot.id);
-      expect(saved.messages.at(-1)).toMatchObject({ failed: true, errorCode: code, errorSource: "provider" });
+      expect(saved.messages.at(-1)).toMatchObject({ failed: true, errorCode: code, errorSource: "harness" });
+      expect(saved.messages.at(-1)?.text).toContain("[redacted]");
       const controller = new AbortController();
 
       try {
@@ -129,16 +47,18 @@ describe.skipIf(!dockerAvailable)("actionable errors across gateway APIs", () =>
           { signal: controller.signal },
         )) {
           expect(snapshot.messages.at(-1)?.errorCode).toBe(code);
-          expect(toJsonString(bots.BotConversationSchema, snapshot)).not.toContain("echoed-key-or-prompt");
+
+          for (const privateValue of ["private.invalid", "fixture-redaction-token", "fixture-redaction-key"])
+            expect(toJsonString(bots.BotConversationSchema, snapshot)).not.toContain(privateValue);
+
           break;
         }
       } finally {
         controller.abort();
       }
 
-      expect((await suite.gw.api.listBots({})).bots.find((item) => item.id === bot.id)?.lastMessage?.errorCode).toBe(
-        code,
-      );
+      const preview = (await suite.gw.api.listBots({})).bots.find((item) => item.id === bot.id)?.lastMessage;
+      expect(preview).toMatchObject({ errorCode: code, errorSource: "harness", text: saved.messages.at(-1)?.text });
     }
 
     // A pluggable model can also report an executable failure through the same boundary.
@@ -151,17 +71,16 @@ describe.skipIf(!dockerAvailable)("actionable errors across gateway APIs", () =>
       errorCode: "process_exit",
       errorSource: "harness",
     });
-    suite.model = directModel(async () => {
+    suite.model = async () => {
       throw new Error("private internal diagnostics");
-    });
+    };
+
     await send(bot.id, "internal error");
     expect((await settled(bot.id)).messages.at(-1)).toMatchObject({
       errorCode: "internal",
       text: "Bot could not finish this turn",
     });
-    suite.model = directModel((input) =>
-      suite.current.bots.run((store) => store.provider(suite.gw.userId, input.configuration)),
-    );
+    suite.model = async () => ({ text: "GROK_BOT_OK", calls: [] });
     await suite.gw.api.retryBot({ botId: bot.id });
     expect((await settled(bot.id)).messages.at(-1)).toMatchObject({
       text: "GROK_BOT_OK",
@@ -261,7 +180,7 @@ describe.skipIf(!dockerAvailable)("actionable errors across gateway APIs", () =>
             harness: Provider.CLAUDE,
             id: "native",
             kind: ProviderProfileKind.CLIPROXYAPI,
-            baseUrl: endpoint.url.href,
+            baseUrl: "https://proxy.invalid",
             expectedRevision: native.revision,
           }),
         () =>

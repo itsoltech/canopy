@@ -4,7 +4,6 @@ import { Effect, Predicate } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import { harnessOf, providerOf, type InstanceRow } from "../store/instance-config.ts";
-import { apiModel } from "./model.ts";
 import { proposedBot } from "./creation.ts";
 import type { BotRow, BotTurn, StoredCall } from "./types.ts";
 import {
@@ -36,9 +35,13 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
       sql<{
         label: string;
       }>`SELECT label FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance}`.pipe(
-        Effect.map((rows) => rows[0]?.label ?? config.providerInstance),
+        Effect.flatMap((rows) =>
+          rows[0]
+            ? Effect.succeed(rows[0].label || config.providerInstance)
+            : Effect.fail(new Invalid("Bot provider instance is unavailable")),
+        ),
       ),
-    apiModels: (provider: Provider, instanceId: string, workerId = "") =>
+    harnessModels: (provider: Provider, instanceId: string, workerId = "") =>
       Effect.gen(function* () {
         const instance =
           (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(provider)} AND id = ${instanceId}`)[0];
@@ -52,22 +55,13 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
         const models = profiles
           .flatMap((p) => p.models)
           .filter((m) => !m.hidden)
-          .flatMap((m) => {
-            const resolved =
-              provider === Provider.GROK ? apiModel(m.id, profiles, instance.custom_models) : { model: m.id };
-
-            return "problem" in resolved
-              ? []
-              : [
-                  {
-                    id: resolved.model,
-                    name: m.displayName || resolved.model,
-                    default: m.isDefault,
-                    efforts: m.efforts,
-                    default_effort: m.defaultEffort,
-                  },
-                ];
-          });
+          .map((m) => ({
+            id: m.id,
+            name: m.displayName || m.id,
+            default: m.isDefault,
+            efforts: m.efforts,
+            default_effort: m.defaultEffort,
+          }));
 
         for (const id of instance.custom_models)
           if (!models.some((m) => m.id === id))

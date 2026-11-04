@@ -1,10 +1,23 @@
 #!/usr/bin/env bun
 /** ACP fixture with durable sessions behind disposable process homes. */
-import { existsSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { recordProbe, releaseProbe } from "./instance-probe.ts";
+import { arg, botEvidence, botTool } from "./bot-probe.ts";
+
+const servers = new Map<string, { url: string; headers: Record<string, string> }>();
+const permissions = new Map<string, (denied: boolean) => void>();
+
+function transcript(session: string, update: JsonObject) {
+  const dir = join(process.env["GROK_HOME"]!, "sessions", "fixture", session);
+  mkdirSync(dir, { recursive: true });
+  appendFileSync(
+    join(dir, "updates.jsonl"),
+    JSON.stringify({ method: "session/update", params: { sessionId: session, update } }) + "\n",
+  );
+}
 
 if (process.argv.includes("--version")) {
   console.log("grok 1.0.70");
@@ -17,13 +30,43 @@ recordProbe("grok", "spawn");
 
 async function turn(id: number, params: { sessionId: string; prompt: { text?: string }[] }): Promise<void> {
   recordProbe("grok", "turn", params.sessionId);
-  await releaseProbe(params.prompt.map((p) => p.text ?? "").join("\n"));
+  const text = params.prompt.map((p) => p.text ?? "").join("\n");
+  transcript(params.sessionId, { sessionUpdate: "user_message_chunk", content: { type: "text", text } });
+  await releaseProbe(text);
+  const marker = join(process.env["GROK_HOME"]!, "sessions", "failed-once");
+
+  if (text.includes("FAIL_ONCE") && !existsSync(marker)) {
+    writeFileSync(marker, "failed");
+    send({ id, result: { stopReason: "max_tokens" } });
+
+    return;
+  }
+
+  let answer: string;
+
+  if (text.includes("BUILTIN_PERMISSION")) {
+    const denied = new Promise<boolean>((resolve) => permissions.set("fixture-permission", resolve));
+    send({
+      id: "fixture-permission",
+      method: "session/request_permission",
+      params: {
+        sessionId: params.sessionId,
+        toolCall: { toolCallId: "local", title: "run_terminal_command", kind: "execute" },
+        options: [{ optionId: "allow", kind: "allow_once", name: "Allow" }],
+      },
+    });
+    answer = (await denied) ? "BUILTIN_DENIED" : "BUILTIN_ALLOWED";
+  } else answer = await botTool(text, servers.get(params.sessionId));
+  transcript(params.sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: answer } });
+  transcript(params.sessionId, { sessionUpdate: "turn_completed", stop_reason: "end_turn" });
+
+  if (text.includes("CRASH_AFTER_TRANSCRIPT")) process.exit(1);
   recordProbe("grok", "finish", params.sessionId);
   send({
     method: "session/update",
     params: {
       sessionId: params.sessionId,
-      update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "FIXTURE_OK" } },
+      update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: answer } },
     },
   });
   send({ id, result: { stopReason: "end_turn" } });
@@ -33,7 +76,10 @@ for await (const line of createInterface({ input: process.stdin })) {
   const message = JSON.parse(line);
   const { id, params } = message;
 
-  if (message.method === "initialize")
+  if (permissions.has(id)) {
+    permissions.get(id)!(params?.outcome?.optionId !== "allow" && message.result?.outcome?.optionId !== "allow");
+    permissions.delete(id);
+  } else if (message.method === "initialize")
     send({
       id,
       result: { protocolVersion: 1, agentCapabilities: { loadSession: true, mcpCapabilities: { http: true } } },
@@ -48,6 +94,18 @@ for await (const line of createInterface({ input: process.stdin })) {
     }
 
     writeFileSync(file, "{}");
+
+    if (process.env["BOT_TRACE"]) {
+      botEvidence("grok", arg("--tools") === "search_tool,use_tool" && !!arg("--agent-profile"));
+      const server = params.mcpServers?.[0];
+
+      if (server)
+        servers.set(session, {
+          url: server.url,
+          headers: Object.fromEntries(server.headers.map((h: { name: string; value: string }) => [h.name, h.value])),
+        });
+    }
+
     recordProbe("grok", message.method, session);
     send({ id, result: { sessionId: session } });
   } else if (message.method === "session/prompt") void turn(id, params);

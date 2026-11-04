@@ -93,7 +93,13 @@ Native pobiera modele/efforts z `_meta.modelState` odpowiedzi initialize, bez p�
 
 Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synchronizację na workery co pozostałe harnessy. Enum `PROVIDER_GROK=3`, `WorkerConfig.grok=640`, migracja `0043_grok_provider.sql` (przy merge przenumerowana z 0042). Picker, sidebar, ustawienia providerów i karty subagentów mają markę Groka ([LobeHub icons, MIT i notice](third-party-notices.md#lobehub-icons--znak-xaigrok)).
 
-`spawn_thread` obsługuje `grok/<instance>` w obu kierunkach z Claude/Codex. Botowe `start_thread` przyjmuje `provider: grok`. Bezpośrednie API pozostało w `apps/gateway/src/bots/model.ts`; zastąpienie runtime botów oficjalnymi harnessami jest osobnym projektem. Nie należy używać go do nowych wywołań modeli.
+`spawn_thread` obsługuje `grok/<instance>` w obu kierunkach z Claude/Codex. Botowe
+`start_thread` przyjmuje `provider: grok`. Boty native i proxy działają wyłącznie przez
+CLI/ACP na przypiętym workerze, z osobnym home, `session/load` i Canopy MCP przez
+szynę. Curated agent i `--tools search_tool,use_tool` usuwają lokalne narzędzia;
+callbacki zgód ACP zawsze odmawiają. Zgody na efekty Canopy wykonuje gateway.
+Czytnik `grok/transcript.ts` odtwarza odpowiedź oraz `turn_completed` z własnego
+`updates.jsonl` CLI po awarii. Szczegóły: [bots.md](bots.md).
 
 Tytuły i semantyczne nazwy gałęzi używają wspólnego `GenerateText`: gateway wybiera instancję i mały model z jej katalogu, a worker uruchamia krótkotrwały Grok CLI przez ACP. Natywny login i proxy są równoprawne; nie ma ograniczenia do `grok-3-mini`. Automatyczny dobór preferuje mini, potem fast/flash/lite i najnowszą wersję w danej rodzinie; jawny wybór użytkownika wygrywa. Canopy nie wykonuje tutaj żądań inferencji HTTP.
 
@@ -128,7 +134,10 @@ Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi
 - SDK: deterministyczny fake ACP, framing Unicode, kolejne tury/load, permission deny, cancel/reuse, crash/redakcja, timeout, nieposłuszne anulowanie i abort callbacka.
 - `tests/integration/grok-provider.test.ts`: prawdziwy gateway/PostgreSQL + WorkerHost + fake Grok, native i endpoint instance, MCP, itemy, zgody/odmowy, interrupt, steer→queue, restart/load.
 - `apps/worker/src/providers/grok/generate-text.test.ts` i `tests/integration/grok-text-generation.test.ts`: izolowana generacja, odmowy, limity, sprzątanie i pełna ścieżka tytułu/nazwy gałęzi. Test z rzeczywistym CLI przechwytuje request na lokalnym endpointcie bez inferencji i sprawdza brak schematów narzędzi.
-- Opt-in `CANOPY_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`, `apps/gateway/src/bots/grok.live.test.ts`. Env testowe: `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `CANOPY_LIVE_GROK_MODEL`, `CANOPY_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
+- Boty: `tests/integration/bots-harness.test.ts`, fake ACP przez rzeczywisty WorkerHost;
+  izolację schematów i format transkryptu prawdziwego CLI bez płatnej inferencji
+  pokrywają `apps/worker/src/bots/{isolation,grok-transcript}.test.ts`.
+- Opt-in `CANOPY_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`. Env testowe: `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `CANOPY_LIVE_GROK_MODEL`, `CANOPY_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
 - Odbiór Chromium opisuje [grok-verification.md](grok-verification.md). Nie dodano web UI testów.
 
-Ograniczenia: brak ACP fork i goals (odrzucane w gatewayu, kontrolki ukryte), brak native background-task lifecycle/stopTask i automatycznego settlement z transkryptu Groka po awarii; przerwana tura po restarcie korzysta ze wspólnego fallbacku workera, sesja jest nadal wznawialna. Nie odtwarzamy niezgłoszonych tokenów input/output ani nie zgadujemy usage z context occupancy. Natywny płatny smoke pominięto z powodu braku loginu. Live nie obejmował obrazów, rzeczywistych diffów CLI ani mieszanego spawn Claude/Codex↔Grok; obrazy/diffy mają fake integrację, a wybór spawn test resolvera. ASK ma fake round-trip zgody/odmowy/anulowania; live proxy pracował w FULL_AUTO, bez pełnej macierzy READ_ONLY/ACCEPT_EDITS/FULL_AUTO. Nie należy deklarować pełnego live parytetu.
+Ograniczenia: brak ACP fork i goals (odrzucane w gatewayu, kontrolki ukryte), brak native background-task lifecycle/stopTask. Ukryte sesje botów odzyskują zapisany koniec tury z transkryptu; wątki projektowe nadal korzystają ze wspólnego fallbacku workera po awarii, a sesja pozostaje wznawialna. Nie odtwarzamy niezgłoszonych tokenów input/output ani nie zgadujemy usage z context occupancy. Natywny płatny smoke pominięto z powodu braku loginu. Live nie obejmował obrazów, rzeczywistych diffów CLI ani mieszanego spawn Claude/Codex↔Grok; obrazy/diffy mają fake integrację, a wybór spawn test resolvera. ASK ma fake round-trip zgody/odmowy/anulowania; live proxy pracował w FULL_AUTO, bez pełnej macierzy READ_ONLY/ACCEPT_EDITS/FULL_AUTO. Nie należy deklarować pełnego live parytetu.

@@ -5,7 +5,6 @@ import { Effect, Schema } from "effect";
 import type { CoreRuntime } from "../core/core.ts";
 import { Invalid } from "../store/store.ts";
 import { SettingsStore } from "../store/settings.ts";
-import { directModel } from "./model.ts";
 import { HANDOFF_PROMPT } from "./handoffs.ts";
 import { PLATFORM_TOOLS } from "./policy.ts";
 import { botConfiguration, botView, BotStore } from "./store.ts";
@@ -16,9 +15,6 @@ import { HarnessTools } from "./harness-tools.ts";
 
 /** Model implementations are pluggable; whatever they return becomes stored JSON only as an object. */
 const toolArguments = Schema.decodeUnknownSync(Schema.JsonObject);
-
-/** A failure whose message is safe and useful to show (the UI turns it into a friendly line). */
-class BotFailure extends Error {}
 
 export interface BotRuntimeOptions {
   runtime: CoreRuntime;
@@ -55,22 +51,16 @@ export class BotsRuntime {
       (id) => [...this.#active.values()].find((task) => task.turn.id === id),
       (id, waiting) => this.waiting(id, waiting),
     );
-    const direct = directModel((input) => this.run((s) => s.provider(options.userId, input.configuration)));
     this.#model =
-      options.model ??
-      ((input) =>
-        input.configuration.provider === Provider.GROK
-          ? direct(input)
-          : options.harness
-            ? options.harness(input)
-            : Promise.reject(new Error("Bot worker runtime is unavailable")));
+      options.model ?? options.harness ?? (() => Promise.reject(new Error("Bot worker runtime is unavailable")));
   }
   now(): Date {
     return this.#options.now?.() ?? new Date();
   }
   async #reply(botId: string, input: ModelInput, instanceLabel?: string) {
     const config = input.configuration;
-    const label = instanceLabel ?? (await this.run((s) => s.instanceLabel(config)));
+    const currentLabel = await this.run((s) => s.instanceLabel(config));
+    const label = instanceLabel ?? currentLabel;
     const handoff = await this.run((s) => s.latestHandoff(botId));
     input.signal.throwIfAborted();
 
@@ -96,13 +86,6 @@ export class BotsRuntime {
       } else {
         if (remaining <= 0) throw new Error("handoff deadline exceeded");
 
-        // Availability is checked even with an injected model; credentials never enter context.
-        if (this.#options.model || config.provider === Provider.GROK)
-          await this.run((s) => s.provider(this.#options.userId, config));
-        const resolved = await this.run((s) => s.resolveModel(config));
-
-        if ("problem" in resolved) throw new Error("source model unavailable");
-        config.model = resolved.model;
         const context = await this.run((s) => s.handoffContext(turn));
 
         const timezone =
@@ -247,10 +230,6 @@ export class BotsRuntime {
 
       const row = await this.run((s) => s.owned(this.#options.userId, turn.bot_id));
       const config = botConfiguration(row);
-      const model = await this.run((s) => s.resolveModel(config));
-
-      if ("problem" in model) throw new BotFailure(model.problem);
-      config.model = model.model;
 
       const tools = PLATFORM_TOOLS.filter((t) =>
         turn.routine_id
@@ -320,11 +299,7 @@ export class BotsRuntime {
       else {
         const known =
           error instanceof Error &&
-          (error instanceof ProviderFailure ||
-            error instanceof BotFailure ||
-            /Model endpoint returned HTTP|Model endpoint unreachable|limit reached|incomplete response/.test(
-              error.message,
-            ))
+          (error instanceof ProviderFailure || /limit reached|incomplete response/.test(error.message))
             ? error
             : undefined;
 
