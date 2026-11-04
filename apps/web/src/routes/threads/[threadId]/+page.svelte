@@ -415,6 +415,11 @@
     untrack(() => folds.update(turns, view.ownEntries, view.notices, feed));
   });
 
+  $effect.pre(() => {
+    const current = rows;
+    untrack(() => folds.keepFlat(current));
+  });
+
   // The thread's actions in the command palette (the same as its menu, plus Interrupt while it works).
   contributeCommands(() =>
     thread
