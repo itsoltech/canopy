@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { Provider, ProviderProfileKind } from "@canopy/contracts";
-  import Checkbox from "#lib/shared/ui/Checkbox.svelte";
+  import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import Switch from "#lib/shared/ui/Switch.svelte";
   import Fieldset from "#lib/shared/ui/Fieldset.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import ChoiceCard from "#lib/shared/ui/ChoiceCard.svelte";
@@ -35,7 +36,7 @@
     {
       value: ProviderProfileKind.CLIPROXYAPI,
       label: "Proxy",
-      description: "A saved CLIProxyAPI or compatible connection. Manage connections in Settings → Proxies.",
+      description: "A saved compatible connection.",
     },
     {
       value: ProviderProfileKind.NATIVE,
@@ -44,23 +45,25 @@
         harness === Provider.GROK
           ? "Grok CLI's login on the device (grok login), or XAI_API_KEY in its variables."
           : harness === Provider.CODEX
-            ? "Codex's own login: the device's, or sign in with ChatGPT from here."
+            ? "Use the device's login or sign in here."
             : "Claude Code's login on the device (or a key in its variables).",
     },
   ]);
 </script>
 
-<div class={["grid gap-4", className]}>
+<div class={["grid gap-3", className]}>
   <Fieldset legend="Connection">
-    {#each options as option (option.value)}
-      <ChoiceCard
-        name="{prefix}-kind"
-        checked={kind === option.value}
-        title={option.label}
-        description={option.description}
-        onchange={() => (kind = option.value)}
-      />
-    {/each}
+    <div class="grid gap-2 sm:grid-cols-2">
+      {#each options as option (option.value)}
+        <ChoiceCard
+          name="{prefix}-kind"
+          checked={kind === option.value}
+          title={option.label}
+          description={option.description}
+          onchange={() => (kind = option.value)}
+        />
+      {/each}
+    </div>
   </Fieldset>
   {#if endpoint}
     <GrowIn class="grid gap-4">
@@ -68,12 +71,16 @@
     </GrowIn>
   {:else if harness === Provider.CODEX}
     <GrowIn>
-      <Checkbox
-        name="{prefix}-own-login"
-        label="Own login (sign in with ChatGPT)"
-        description="Keeps its own login in a separate session home; sign in once it runs on a worker. Changing this home may start fresh sessions for existing threads."
-        bind:checked={ownLogin}
-      />
+      <SettingsRow
+        title="Own login"
+        description="Sign in with ChatGPT in a separate session home. Changing this home may start fresh sessions."
+      >
+        {#snippet control()}<Switch
+            name="{prefix}-own-login"
+            label="Own login (sign in with ChatGPT)"
+            bind:checked={ownLogin}
+          />{/snippet}
+      </SettingsRow>
     </GrowIn>
   {/if}
 </div>

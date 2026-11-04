@@ -88,7 +88,7 @@
   }
 </script>
 
-<form class={["grid gap-8", className]} onsubmit={submit} novalidate>
+<form class={["settings-form settings-stack", className]} onsubmit={submit} novalidate>
   {#if endpoint}
     <SettingsSection
       title="Connection on {worker.name}"

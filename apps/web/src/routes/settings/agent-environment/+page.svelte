@@ -41,7 +41,7 @@
   });
 </script>
 
-<div class="grid min-w-0 gap-7">
+<div class="settings-stack">
   <SettingsHeading
     title="Agent environment"
     description="Instructions, skills and plugins that follow your computers. Assign by tag and see exactly what each agent receives."
@@ -107,7 +107,7 @@
   <SkillsLibrary environment={state} />
   <MarketplaceLibrary environment={state} />
   <section
-    class="grid min-w-0 gap-5 border-t border-zinc-950/10 pt-6 dark:border-white/10"
+    class="grid min-w-0 gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10"
     aria-label="Environment computers"
   >
     <div class="flex flex-wrap items-center justify-between gap-2">

@@ -9,6 +9,7 @@
   import { instanceKeyOf, instanceName, providerCall } from "#lib/features/providers/instances.ts";
   import { ProvidersState } from "#lib/features/providers/providers-state.svelte.ts";
   import ScopeBar from "#lib/features/providers/ScopeBar.svelte";
+  import ProviderUpdates from "#lib/features/providers/ProviderUpdates.svelte";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -87,16 +88,21 @@
   }
 
   async function toggle(instance: ui.ProviderInstance, enabled: boolean) {
-    if (!worker) return;
     toggling = instanceKeyOf(instance);
     failure = undefined;
 
     try {
       providers.put(
-        (await providerCall("worker", { harness: instance.harness, id: instance.id, workerId: worker.id, enabled }))
-          .instance,
+        (
+          await providerCall(
+            worker ? "worker" : "workers",
+            worker
+              ? { harness: instance.harness, id: instance.id, workerId: worker.id, enabled }
+              : { harness: instance.harness, id: instance.id, allWorkers: enabled, workerIds: [] },
+          )
+        ).instance,
       );
-      toast(`${instanceName(instance)} turned ${enabled ? "on" : "off"} on ${worker.name}`);
+      toast(`${instanceName(instance)} turned ${enabled ? "on" : "off"} on ${worker?.name ?? "all workers"}`);
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
       await providers.reload().catch(() => {});
@@ -118,18 +124,16 @@
 
 <svelte:head><title>Providers · Settings · Canopy</title></svelte:head>
 
-<SettingsHeading
-  title="Providers"
-  description="Agent harnesses and how they reach their models. Defined once, synced to the workers you choose."
->
+<ScopeBar {workers} bind:scope />
+<SettingsHeading title="Providers">
   {#snippet actions()}
     <span class="text-sm/5 text-zinc-500 max-sm:hidden dark:text-zinc-400" role="status">
       {providers.refreshing ? "Checking…" : providers.checkedAt ? "Checked just now" : ""}
     </span>
     <Button icon="arrow-path" loading={providers.refreshing} onclick={refresh}>Refresh</Button>
     <Button
-      variant="primary"
       icon="plus"
+      aria-label="Add provider"
       onclick={() => {
         adding = true;
       }}>Add</Button
@@ -137,15 +141,15 @@
   {/snippet}
 </SettingsHeading>
 
-<div class="grid grid-cols-1 gap-4">
-  <ScopeBar {workers} bind:scope />
+<div class="settings-stack">
+  <ProviderUpdates {workers} />
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}
   {#if providers.skipped.length > 0}<Alert tone="info">Not checked: {providers.skipped.join("; ")}</Alert>{/if}
   {#if worker && !worker.online}<Alert tone="info"
       >{worker.name} is offline. Changes are saved and reach it when it connects.</Alert
     >{/if}
 
-  <div class="grid grid-cols-1 gap-6 md:grid-cols-[16rem_minmax(0,1fr)] md:items-start">
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-[15rem_minmax(0,1fr)] md:items-start">
     <nav aria-label="Provider instances" class={["md:sticky md:top-0", pane === "detail" && "max-md:hidden"]}>
       <InsetList>
         {#each providers.instances as instance (instanceKeyOf(instance))}
@@ -169,7 +173,7 @@
           <div class="col-start-1 row-start-1 grid min-w-0 grid-cols-1 gap-4" in:pageSlide>
             <button
               type="button"
-              class="-ml-1 flex items-center gap-1 justify-self-start rounded-md px-1 text-base/6 text-zinc-600 focus-ring hover:text-zinc-950 md:hidden dark:text-zinc-400 dark:hover:text-white"
+              class="-ml-1 flex min-h-(--settings-target) items-center gap-1 justify-self-start rounded-md px-1 text-base/6 text-zinc-600 focus-ring hover:text-zinc-950 md:hidden dark:text-zinc-400 dark:hover:text-white"
               onclick={() => (pane = "list")}>← All providers</button
             >
             <InstanceDetail

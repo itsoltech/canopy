@@ -22,7 +22,10 @@
 
 <section
   aria-labelledby={id}
-  class={["grid gap-4 border-t border-zinc-950/5 pt-6 first:border-t-0 first:pt-0 dark:border-white/8", className]}
+  class={[
+    "grid gap-(--settings-field-gap,0.75rem) border-t border-zinc-950/5 pt-4 first:border-t-0 first:pt-0 dark:border-white/8",
+    className,
+  ]}
 >
   <div class="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
     <div class="min-w-0">

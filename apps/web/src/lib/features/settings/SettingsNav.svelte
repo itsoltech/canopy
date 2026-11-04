@@ -61,7 +61,7 @@
   const active = (href: string) => route.url.pathname === href || route.url.pathname.startsWith(`${href}/`);
 
   const itemClass =
-    "flex shrink-0 items-center gap-2.5 rounded-lg whitespace-nowrap px-2.5 py-2 text-base/6 text-zinc-600 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring aria-[current=page]:bg-zinc-950/5 aria-[current=page]:text-zinc-950 sm:py-1.5 sm:text-sm/6 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/8 dark:aria-[current=page]:text-white";
+    "flex min-h-(--settings-target) shrink-0 items-center gap-2 rounded-lg whitespace-nowrap px-2.5 py-1 text-base/5 text-zinc-600 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring aria-[current=page]:bg-zinc-950/5 aria-[current=page]:text-zinc-950 sm:text-sm/5 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/8 dark:aria-[current=page]:text-white";
 </script>
 
 <nav aria-label="Settings" class="grid grid-cols-1 gap-3">
@@ -87,7 +87,7 @@
     {/each}
   </ul>
 
-  <div class="grid grid-cols-1 gap-5 max-lg:hidden">
+  <div class="grid grid-cols-1 gap-3 max-lg:hidden">
     {#each settingsGroups as group (group)}
       {@const items = visible.filter((s) => s.group === group)}
       {#if items.length > 0}

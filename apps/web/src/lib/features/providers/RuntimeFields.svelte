@@ -37,8 +37,8 @@
     inherited ? value || `Definition: ${fallback}` : fallback;
 </script>
 
-<div class={["grid gap-4 sm:grid-cols-2", className]}>
-  <Field label="Binary path" description="Empty: {binary} from the worker's settings or PATH.">
+<div class={["settings-form", className]}>
+  <Field layout="row" label="Binary path" description="Empty: {binary} from the worker's settings or PATH.">
     <Input
       name="{prefix}-binary"
       bind:value={binaryPath}
@@ -49,6 +49,7 @@
     />
   </Field>
   <Field
+    layout="row"
     label={harness === Provider.GROK ? "GROK_HOME path" : codex ? "CODEX_HOME path" : "Claude config dir"}
     description="The device's CLI home the login is linked from."
   >
@@ -62,6 +63,7 @@
     />
   </Field>
   <Field
+    layout="row"
     label="Shadow home path"
     description={harness === Provider.GROK
       ? "Login home for an instance with its own login. ACP sessions live in the worker's data directory."
@@ -77,6 +79,7 @@
     />
   </Field>
   <Field
+    layout="row"
     label="Launch arguments"
     description={harness === Provider.GROK
       ? "Agent flags before stdio, e.g. --reasoning-effort low."

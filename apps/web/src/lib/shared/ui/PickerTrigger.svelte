@@ -27,7 +27,7 @@
   id={rest.id ?? field?.id}
   aria-describedby={rest["aria-describedby"] ?? field?.describedBy}
   aria-invalid={rest["aria-invalid"] ?? (field?.invalid || undefined)}
-  class={[controlClasses, "relative flex items-center gap-2 text-left pointer-coarse:min-h-12", className]}
+  class={[controlClasses, "ui-control relative flex items-center gap-2 text-left pointer-coarse:min-h-12", className]}
 >
   {#if leadingIcon}<Icon name={leadingIcon} />{/if}
   <span class="min-w-0 flex-1 truncate">{text}</span>

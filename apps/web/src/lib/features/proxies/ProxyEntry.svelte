@@ -50,7 +50,7 @@
 
 <section
   aria-label={proxy.name}
-  class={["grid min-w-0 gap-4 border-t border-zinc-950/10 py-6 first:border-0 dark:border-white/10", className]}
+  class={["grid min-w-0 gap-3 border-t border-zinc-950/10 py-3 first:border-0 dark:border-white/10", className]}
 >
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div class="min-w-0">

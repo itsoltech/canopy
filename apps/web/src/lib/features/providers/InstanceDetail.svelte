@@ -83,11 +83,11 @@
   }
 </script>
 
-<div class={["grid grid-cols-1 gap-8", className]}>
+<div class={["settings-stack", className]}>
   <header class="flex items-start gap-3">
-    <InstanceMark {instance} class="size-10" />
+    <InstanceMark {instance} />
     <div class="min-w-0 flex-1">
-      <h2 class="truncate text-xl/7 font-semibold text-zinc-950 dark:text-white">{instanceName(instance)}</h2>
+      <h2 class="truncate text-base/6 font-semibold text-zinc-950 dark:text-white">{instanceName(instance)}</h2>
       <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         <span>{harnessName(instance.harness)}</span><span aria-hidden="true">·</span><span class="font-mono"
           >{instance.id}</span
@@ -124,13 +124,14 @@
       <InsetList label="Status on each worker">
         {#each instance.workers as w (w.workerId)}
           {@const status = statusOn(w, onlineOf(w.workerId))}
-          <li class="flex items-center gap-3 px-3 py-2.5">
-            <span class="min-w-0 flex-1 truncate text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white"
+          <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+            <span
+              class="min-w-0 flex-1 basis-full truncate text-base/6 text-zinc-950 sm:basis-auto sm:text-sm/6 dark:text-white"
               >{nameOf(w.workerId)}</span
             >
             {#if w.version}<span class="shrink-0 font-mono text-sm/5 text-zinc-500 sm:text-xs/5">v{w.version}</span
               >{/if}
-            <StatusLine {status} class="shrink-0 text-sm/5 text-zinc-600 dark:text-zinc-400" />
+            <StatusLine {status} class="min-w-0 text-sm/5 text-zinc-600 sm:max-w-[70%] dark:text-zinc-400" />
           </li>
         {:else}
           <li class="px-3 py-2.5 text-base/6 text-zinc-500 sm:text-sm/6">No workers yet.</li>

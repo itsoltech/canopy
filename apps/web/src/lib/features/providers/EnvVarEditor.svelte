@@ -45,69 +45,66 @@
   }
 </script>
 
-<div class={["grid gap-3", className]}>
+<div class={["@container grid gap-3", className]}>
   {#if rows.length > 0}
-    <ul role="list" class="grid gap-3">
+    <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/8">
       {#each rows as row, index (row.key)}
         {@const problem = problems[row.key]}
         <li
-          class="grid gap-2 rounded-xl bg-zinc-950/2.5 p-3 dark:bg-white/2.5"
+          class="grid gap-1 py-2 first:pt-0 last:pb-0"
           transition:expand
           animate:flip={{ duration: duration("fast") }}
         >
-          <div class="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] sm:items-start">
-            <Input
-              name="env-name-{index}"
-              bind:value={row.name}
-              aria-label="Variable {index + 1} name"
-              aria-invalid={Boolean(problem) || undefined}
-              placeholder="NAME"
-              autocomplete="off"
-              spellcheck="false"
-              autocapitalize="characters"
-              data-env-name={row.key}
-              class="font-mono"
-            />
-            {#if row.secret}
-              <SecretValue
-                set={Boolean(row.storedName)}
-                bind:action={() => (row.keep ? "keep" : "replace"), (next) => (row.keep = next === "keep")}
-                bind:value={row.value}
-                name="env-value-{index}"
-                label="Variable {index + 1} value"
-                placeholder="Secret value"
-              />
-            {:else}
+          <div
+            class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 @xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto_auto]"
+          >
+            <div class="col-span-2 min-w-0 @xl:col-span-1">
               <Input
-                name="env-value-{index}"
-                bind:value={row.value}
-                aria-label="Variable {index + 1} value"
-                placeholder="value"
+                name="env-name-{index}"
+                bind:value={row.name}
+                aria-label="Variable {index + 1} name"
+                aria-invalid={Boolean(problem) || undefined}
+                placeholder="NAME"
                 autocomplete="off"
                 spellcheck="false"
+                autocapitalize="characters"
+                data-env-name={row.key}
                 class="font-mono"
               />
-            {/if}
-            <IconButton
-              icon="trash"
-              label="Remove {row.name || 'variable'}"
-              class="max-sm:hidden"
-              onclick={() => (rows = rows.filter((r) => r !== row))}
-            />
-          </div>
-          <div class="flex items-center justify-between gap-3">
+            </div>
+            <div class="col-span-2 min-w-0 @xl:col-span-1">
+              {#if row.secret}
+                <SecretValue
+                  set={Boolean(row.storedName)}
+                  bind:action={() => (row.keep ? "keep" : "replace"), (next) => (row.keep = next === "keep")}
+                  bind:value={row.value}
+                  name="env-value-{index}"
+                  label="Variable {index + 1} value"
+                  placeholder="Secret value"
+                />
+              {:else}
+                <Input
+                  name="env-value-{index}"
+                  bind:value={row.value}
+                  aria-label="Variable {index + 1} value"
+                  placeholder="value"
+                  autocomplete="off"
+                  spellcheck="false"
+                  class="font-mono"
+                />
+              {/if}
+            </div>
             <Checkbox
               name="env-secret-{index}"
               label="Secret"
               bind:checked={() => row.secret, (secret) => setSecret(row, secret)}
             />
-            <Button
-              size="sm"
-              variant="ghost"
+            <IconButton
               icon="trash"
-              class="sm:hidden"
-              onclick={() => (rows = rows.filter((r) => r !== row))}>Remove</Button
-            >
+              label="Remove {row.name || 'variable'}"
+              class="justify-self-end"
+              onclick={() => (rows = rows.filter((r) => r !== row))}
+            />
           </div>
           <FieldError message={problem} />
         </li>

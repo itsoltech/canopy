@@ -18,9 +18,9 @@
   } = $props();
 </script>
 
-<div class={["flex flex-wrap items-start justify-between gap-4", className]}>
+<div class={["flex flex-wrap items-start justify-between gap-2", className]}>
   <div class="min-w-0">
-    <div class="flex min-w-0 items-center gap-3">
+    <div class="flex min-w-0 items-center gap-2">
       {@render leading?.()}
       <h1 class="truncate text-2xl font-semibold tracking-tight text-zinc-950 dark:text-white">{title}</h1>
     </div>

@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import type { ui } from "@canopy/contracts";
-  import Checkbox from "#lib/shared/ui/Checkbox.svelte";
+  import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import Switch from "#lib/shared/ui/Switch.svelte";
   import Fieldset from "#lib/shared/ui/Fieldset.svelte";
 
   /**
@@ -34,30 +35,32 @@
   {disabled}
   class={className}
 >
-  <Checkbox
-    name="all-workers"
-    label="All workers"
-    description="Including workers registered later."
-    bind:checked={
-      () => allWorkers, (all) => onchange({ allWorkers: all, workerIds: all ? [] : workers.map((w) => w.id) })
-    }
-  />
+  <SettingsRow title="All workers" description="Including workers registered later.">
+    {#snippet control()}<Switch
+        name="all-workers"
+        label="All workers"
+        bind:checked={
+          () => allWorkers, (all) => onchange({ allWorkers: all, workerIds: all ? [] : workers.map((w) => w.id) })
+        }
+      />{/snippet}
+  </SettingsRow>
   {#if !allWorkers}
-    <div class="grid gap-2 pl-8 sm:pl-7">
+    <div class="divide-y divide-zinc-950/5 dark:divide-white/8">
       {#each workers as worker (worker.id)}
-        <Checkbox
-          name="worker-{worker.id}"
-          label={worker.name}
-          description={worker.hostname || worker.id.slice(-8)}
-          bind:checked={
-            () => workerIds.includes(worker.id),
-            (on) =>
-              onchange({
-                allWorkers: false,
-                workerIds: on ? [...workerIds, worker.id] : workerIds.filter((id) => id !== worker.id),
-              })
-          }
-        />
+        <SettingsRow title={worker.name} description={worker.hostname || worker.id.slice(-8)}>
+          {#snippet control()}<Switch
+              name="worker-{worker.id}"
+              label={worker.name}
+              bind:checked={
+                () => workerIds.includes(worker.id),
+                (on) =>
+                  onchange({
+                    allWorkers: false,
+                    workerIds: on ? [...workerIds, worker.id] : workerIds.filter((id) => id !== worker.id),
+                  })
+              }
+            />{/snippet}
+        </SettingsRow>
       {/each}
     </div>
   {/if}

@@ -7,7 +7,7 @@
 
 <svelte:head><title>Text generation · Settings · Canopy</title></svelte:head>
 
-<div class="grid gap-6">
+<div class="settings-stack">
   <TextGenerationFields />
 
   <SharingGroup>

@@ -51,7 +51,7 @@
   }
 </script>
 
-<div class="grid min-w-0 gap-7">
+<div class="settings-stack">
   <SettingsHeading
     title="Connectors"
     description="Connect your apps once. Choose which workers and bots can use each account."
@@ -76,7 +76,7 @@
             selected = entry.id;
             connecting = true;
           }}
-          class="relative flex min-w-0 items-center gap-2.5 rounded-xl px-3 py-3 text-left text-base/5 ring-1 ring-zinc-950/10 focus-ring hover:bg-zinc-950/4 sm:text-sm/5 dark:ring-white/10 dark:hover:bg-white/5"
+          class="relative flex min-h-(--settings-target) min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-base/5 ring-1 ring-zinc-950/10 focus-ring hover:bg-zinc-950/4 sm:text-sm/5 dark:ring-white/10 dark:hover:bg-white/5"
           ><ConnectorIcon type={entry.id} class="shrink-0" /><span class="min-w-0 text-pretty">{entry.name}</span
           ></button
         >

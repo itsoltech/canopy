@@ -66,7 +66,7 @@
   }
 </script>
 
-<div class={["grid gap-6", className]}>
+<div class={["settings-stack", className]}>
   <SettingsGroup title="Text generation">
     {#snippet actions()}
       <Button

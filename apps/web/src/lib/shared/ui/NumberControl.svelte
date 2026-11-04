@@ -83,7 +83,7 @@
   });
 </script>
 
-<div class={["flex min-w-0 items-center gap-2", className]}>
+<div class={["ui-number-control flex min-w-0 items-center gap-2", className]}>
   <input
     {...rest}
     bind:this={input}
@@ -98,7 +98,7 @@
     aria-valuenow={parsed}
     aria-describedby={rest["aria-describedby"] ?? field?.describedBy}
     aria-invalid={invalid || rest["aria-invalid"] || field?.invalid || undefined}
-    class={[controlClasses, "min-w-0 flex-1 tabular-nums pointer-coarse:min-h-12"]}
+    class={[controlClasses, "ui-control min-w-0 flex-1 tabular-nums pointer-coarse:min-h-12"]}
     bind:value={raw}
     oninput={(event) => {
       const next = parseNumber(event.currentTarget.value);

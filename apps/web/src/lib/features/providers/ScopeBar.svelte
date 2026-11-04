@@ -20,10 +20,7 @@
 </script>
 
 <div
-  class={[
-    "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-zinc-950/2.5 px-3 py-2 dark:bg-white/2.5",
-    className,
-  ]}
+  class={["flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-950/5 pb-3 dark:border-white/8", className]}
 >
   <label for="provider-scope" class="text-base/6 text-zinc-600 sm:text-sm/6 dark:text-zinc-400"
     >Applying settings on</label
@@ -32,7 +29,7 @@
     id="provider-scope"
     name="provider-scope"
     bind:value={() => scope ?? "", (next: string) => (scope = next || undefined)}
-    class="min-w-0 flex-1 basis-40 sm:max-w-xs"
+    class="min-w-0 flex-1 basis-40 sm:max-w-56"
     options={[
       { value: "", label: "All workers" },
       ...workers.map((worker) => ({

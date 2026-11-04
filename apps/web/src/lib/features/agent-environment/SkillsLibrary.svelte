@@ -16,7 +16,7 @@
 </script>
 
 <section
-  class={["grid min-w-0 gap-4 border-t border-zinc-950/10 pt-6 dark:border-white/10", className]}
+  class={["grid min-w-0 gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10", className]}
   aria-label="Skill library"
 >
   <div class="flex flex-wrap items-center justify-between gap-2">

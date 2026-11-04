@@ -91,11 +91,11 @@ export function statusAcross(instance: ui.ProviderInstance): InstanceStatus {
 
   if (enabled.length === 0) return { label: "Not on any worker", tone: "neutral" };
   const usable = enabled.filter((w) => w.available).length;
-  const of = instance.allWorkers ? "all workers" : `${enabled.length} worker${enabled.length === 1 ? "" : "s"}`;
+  const of = `${enabled.length} worker${enabled.length === 1 ? "" : "s"}`;
 
-  if (usable === enabled.length) return { label: `Available on ${of}`, tone: "emerald" };
+  if (usable === enabled.length) return { label: `Ready on ${of}`, tone: "emerald" };
 
-  return { label: `Available on ${usable} of ${of}`, tone: usable === 0 ? "rose" : "amber" };
+  return { label: `${usable}/${enabled.length} workers ready`, tone: usable === 0 ? "rose" : "amber" };
 }
 
 /** Versions reported for the instance ("v0.166.0", several when workers differ). */

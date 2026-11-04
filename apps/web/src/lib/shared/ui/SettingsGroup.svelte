@@ -16,7 +16,7 @@
 
 <section class={className} aria-labelledby={title ? id : undefined}>
   {#if title || actions}
-    <div class="mb-3 flex items-end justify-between gap-4 px-1">
+    <div class="settings-group-header mb-3 flex flex-wrap items-end justify-between gap-2 px-1">
       <div class="min-w-0">
         {#if title}<h2 {id} class="text-base/7 font-semibold text-zinc-950 dark:text-white">{title}</h2>{/if}
         {#if description}<p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
@@ -27,7 +27,7 @@
     </div>
   {/if}
   <div
-    class="divide-y divide-zinc-950/5 overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:ring-white/10"
+    class="settings-group-body divide-y divide-zinc-950/5 overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:ring-white/10"
   >
     {@render children()}
   </div>

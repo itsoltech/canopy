@@ -75,7 +75,7 @@
   ];
 
   const cardClass =
-    "group relative grid cursor-pointer gap-2 rounded-2xl p-2 ring-1 ring-zinc-950/10 hover:ring-zinc-950/20 has-checked:ring-2 has-checked:ring-brand-500 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-brand-500 dark:ring-white/10 dark:hover:ring-white/20 dark:has-checked:ring-brand-500";
+    "group relative min-h-(--settings-target) cursor-pointer gap-2 rounded-xl p-2 ring-1 ring-zinc-950/10 hover:ring-zinc-950/20 has-checked:ring-2 has-checked:ring-brand-500 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-brand-500 dark:ring-white/10 dark:hover:ring-white/20 dark:has-checked:ring-brand-500";
 </script>
 
 <svelte:head><title>Appearance · Settings · Canopy</title></svelte:head>
@@ -83,9 +83,9 @@
 <section aria-labelledby="scheme-title">
   <h2 id="scheme-title" class="mb-3 px-1 text-base/7 font-semibold">Color scheme</h2>
   <div class="@container">
-    <div class="grid grid-cols-3 gap-2 @md:gap-3" role="radiogroup" aria-labelledby="scheme-title">
+    <div class="grid max-w-xl grid-cols-3 gap-2" role="radiogroup" aria-labelledby="scheme-title">
       {#each schemes as option (option.value)}
-        <label class={cardClass}>
+        <label class={[cardClass, "grid"]}>
           <input
             type="radio"
             name="scheme"
@@ -95,7 +95,7 @@
             onchange={() => settings.updateAppearance({ colorScheme: schemeNames[option.value] })}
           />
           <div
-            class="relative aspect-[16/9] overflow-hidden rounded-[calc(var(--radius-2xl)-var(--spacing)*2)] ring-1 ring-zinc-950/5 dark:ring-white/5"
+            class="relative aspect-[20/9] overflow-hidden rounded-[calc(var(--radius-2xl)-var(--spacing)*2)] ring-1 ring-zinc-950/5 dark:ring-white/5"
           >
             {#if option.value === "system"}
               <SchemePreview mode="light" class="absolute inset-0" />
@@ -122,7 +122,7 @@
   <div class="@container">
     <div class="grid grid-cols-2 gap-3 @lg:grid-cols-3" role="radiogroup" aria-labelledby="themes-title">
       {#each accents as option (option.value)}
-        <label class={[cardClass, "p-4"]}>
+        <label class={[cardClass, "flex items-center gap-3"]}>
           <input
             type="radio"
             name="accent"
@@ -131,11 +131,9 @@
             checked={accent === option.value}
             onchange={() => settings.updateAppearance({ accent: accentNames[option.value] })}
           />
-          <span class="flex justify-center gap-3 py-2" aria-hidden="true">
-            <span class={["size-12 rounded-full shadow-inner ring-1 ring-zinc-950/10 dark:ring-white/10", option.light]}
-            ></span>
-            <span class={["size-12 rounded-full shadow-inner ring-1 ring-zinc-950/10 dark:ring-white/10", option.dark]}
-            ></span>
+          <span class="flex shrink-0 gap-1" aria-hidden="true">
+            <span class={["size-6 rounded-full ring-1 ring-zinc-950/10 dark:ring-white/10", option.light]}></span>
+            <span class={["size-6 rounded-full ring-1 ring-zinc-950/10 dark:ring-white/10", option.dark]}></span>
           </span>
           <span class="text-base/6 font-medium sm:text-sm/6">{option.label}</span>
         </label>

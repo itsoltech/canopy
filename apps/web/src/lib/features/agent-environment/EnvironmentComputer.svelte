@@ -21,7 +21,7 @@
   const kept = $derived(worker.report?.files.some((f) => f.status === "kept"));
 </script>
 
-<div class={["grid min-w-0 gap-6", className]}>
+<div class={["settings-stack", className]}>
   <div class="grid gap-3">
     <div class="flex flex-wrap gap-1.5" aria-label="Worker tags">
       {#each worker.automaticTags as tag (tag)}<Badge class="max-w-full break-all whitespace-normal">{tag}</Badge

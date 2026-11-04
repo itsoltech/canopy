@@ -49,7 +49,7 @@
 
 <svelte:head><title>Worktrees · Settings · Canopy</title></svelte:head>
 
-<div class="grid gap-6">
+<div class="settings-stack">
   <WorktreeScopeBar {scope} disabled={settingsState.saving > 0} onchange={(next) => (scope = next)} />
   {#if settingsState.error}<Alert tone="error">{settingsState.error}</Alert>{/if}
 
