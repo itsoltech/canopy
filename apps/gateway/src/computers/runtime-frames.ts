@@ -233,12 +233,9 @@ async function receiveHandshake(
       name: () => hostContext[computersState].names.get(nodeId) ?? "The other computer",
       allowed: async () => Boolean(await hostContext.store.peer(nodeId)),
     });
-  connection.ready = true;
-  // A successful handshake ends the failure streak, including when the
-  // eventual disconnect arrives as an exception rather than a clean EOF.
-  hostContext[computersState].retry.delete(nodeId);
-  await computersStatus(hostContext, nodeId, protocol ? "connected" : "needs_update", updateNodeId);
 
+  // Queue the welcome before callers or mirror subscriptions can use this link.
+  // Persisting status below can yield to a remote call while the peer still awaits its handshake.
   if (body.case === "hello") {
     connection.send({ body: { case: "welcome", value: { hello: local, protocol, updateNodeId } } });
 
@@ -250,6 +247,12 @@ async function receiveHandshake(
         },
       });
   }
+
+  connection.ready = true;
+  // A successful handshake ends the failure streak, including when the
+  // eventual disconnect arrives as an exception rather than a clean EOF.
+  hostContext[computersState].retry.delete(nodeId);
+  await computersStatus(hostContext, nodeId, protocol ? "connected" : "needs_update", updateNodeId);
 
   // Both sides offer everything they share after each handshake; offline edits meet here.
   if (protocol && computersSharesConfig(hostContext) && hello.capabilities.includes(SHARED_CONFIG))
