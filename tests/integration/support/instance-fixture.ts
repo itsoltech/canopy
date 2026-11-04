@@ -14,7 +14,25 @@ import { probeRecords } from "../fixtures/instance-probe.ts";
 
 const tempDir = tempDirs();
 
+/** Provider settings of whoever runs the tests (a developer shell, an agent session). */
+const CALLER_PROVIDER_ENV = /^(ANTHROPIC_|CLAUDE|CODEX_|OPENAI_|XAI_|GROK_)/;
+
+/**
+ * The in-process worker hands its own environment to native harnesses. Remove the caller's provider variables for the
+ * fixture's lifetime, so native turns see only what the instance configures; the returned function restores them.
+ */
+function isolateProviderEnv(): () => void {
+  const inherited = Object.entries(process.env).filter(([name]) => CALLER_PROVIDER_ENV.test(name));
+
+  for (const [name] of inherited) delete process.env[name];
+
+  return () => {
+    for (const [name, value] of inherited) process.env[name] = value;
+  };
+}
+
 export async function startInstanceFixture(bots = false, gatewayOptions: Parameters<typeof startTestGateway>[0] = {}) {
+  const restoreEnv = isolateProviderEnv();
   const dir = tempDir("canopy-instance-switch-");
   const dataDir = join(dir, "data");
   const trace = join(dir, "probe.jsonl");
@@ -267,6 +285,7 @@ export async function startInstanceFixture(bots = false, gatewayOptions: Paramet
       await runtime.dispose();
       proxyServer.stop(true);
       await gw.close();
+      restoreEnv();
     },
   };
 }
