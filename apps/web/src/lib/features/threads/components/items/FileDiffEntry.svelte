@@ -9,6 +9,11 @@
   import Diff from "../Diff.svelte";
   import DiffCounts from "./DiffCounts.svelte";
   import { diffCounts } from "./tools/changes.ts";
+  import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
+
+  let expanded = $state<boolean>();
+  const shown = $derived(expanded ?? device.values.diffFileState === "expanded");
 
   /** One changed file: what happened to it, its path, lines added and removed, and its diff (highlighted by file type). */
   let {
@@ -40,6 +45,13 @@
 
 <div class="grid gap-1.5">
   <div class="flex min-w-0 items-center gap-2 text-sm/5">
+    <IconButton
+      size="sm"
+      icon={shown ? "chevron-down" : "chevron-right"}
+      aria-expanded={shown}
+      label={`${shown ? "Collapse" : "Expand"} ${path}`}
+      onclick={() => (expanded = !shown)}
+    />
     <Badge tone={look.tone}>{look.label}</Badge>
     <code class="truncate font-mono text-xs text-zinc-950 dark:text-white" title={path}
       >{path}{movePath ? ` → ${movePath}` : ""}</code
@@ -48,9 +60,9 @@
       <DiffCounts {...counts} />
     {/if}
   </div>
-  {#if diff}
+  {#if diff && shown}
     <Diff data-quote-kind="diff" {diff} label="Diff of {path}" lang={languageOfPath(movePath || path)} />
-  {:else if diffBlob}
+  {:else if diffBlob && shown}
     <FileAvailability entityId={directory.currentId} name="Diff ({formatBytes(diffBlob.sizeBytes)})">
       <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         Diff ({formatBytes(diffBlob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.

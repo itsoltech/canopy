@@ -3,7 +3,7 @@
 ## Nawigacja
 
 General: **General → Appearance → Threads → Text generation → Scheduled tasks**.
-Code: **Projects → Worktrees → Agent environment**.
+Code: **Projects → Worktrees → Diffs → Agent environment**.
 Connections: **Providers → Connectors → Proxies → Workers → Network access → Devices → Linked computers → Desktop → App updates**.
 Ostatnie dwie strony tylko w desktopie, Linked computers według capability gatewaya.
 
@@ -28,8 +28,18 @@ Reset strony przywraca wyłącznie jej preferencje urządzenia, bez cofania zgó
 | General / Display | Time format | urządzenie | System | Godziny w znacznikach czasu web/desktop: system, 12h lub 24h |
 | General / Display | Time zone | konto, odczyt z urządzenia | IANA urządzenia, fallback UTC | Istniejąca synchronizacja dla botów i harmonogramów; przeniesiona z Appearance, bez zmiany semantyki |
 | Appearance / Colors | Color scheme; Light theme; Dark theme | konto | System; Birch; Birch | Pełne palety, w tym Ash, niezależne dla obu trybów |
-| Appearance / Interface | Chat width | konto | Comfortable | Istniejąca szerokość rozmowy i kompozytora |
+| Appearance / Interface | Contrast | urządzenie | Standard | Wzmocnienie kontrastu tekstu pomocniczego i obrysów w obu schematach |
+| Appearance / Interface | Thread width | konto | Comfortable | Szerokość wątku i kompozytora |
+| Appearance / Interface | Effort display | urządzenie | Name | Nazwa lub paski w kontrolkach wysiłku modelu, z dostępną nazwą |
+| Appearance / Interface | Render math | urządzenie | On | LaTeX w wiadomościach; wyłączenie pokazuje źródło |
 | Appearance / Interface | Animated mascots | urządzenie | On | Istniejąca animacja botów, respektuje reduced motion |
+| Appearance / Typography | Interface font; Interface size | urządzenie | Canopy (Inter); 14 px | Rodzina i skala typografii interfejsu web/desktop |
+| Appearance / Typography | Monospace font; Monospace size | urządzenie | System mono; 13 px | Kod, diffy, wyjście terminala; podgląd wiadomości, diffu i terminala |
+| Appearance / Typography | Wrap code blocks; Wrap diffs | urządzenie | Off; Off | Zawijanie długich linii na odpowiednich powierzchniach |
+| Diffs / Viewer | Layout | urządzenie | Stacked | Stacked albo side by side; zmiana również na pasku diffu |
+| Diffs / Viewer | Hide whitespace changes | urządzenie | Off | Ukrycie wyłącznie zmian różniących się białymi znakami |
+| Diffs / Viewer | Default file state | urządzenie | Expanded | Początkowy stan pliku; ręczny wybór obowiązuje w zamontowanym widoku |
+| Diffs / Viewer | Diff colors | urządzenie | Red & green | Także Blue & orange; znaki +/− pozostają |
 | General / Desktop app | Quit shortcut | urządzenie, store Electron | Press twice | Tylko desktop: sposób reagowania na skrót zamykania (dwukrotne naciśnięcie, przytrzymanie, natychmiast); reset pojedynczy i całej strony General |
 | App updates / App updates | Update check frequency | urządzenie/store Electron | Every 6 hours | Rzeczywisty timer procesu main; Hourly / 6h / Daily / Weekly / Never. Never wyłącza automatyczne sprawdzanie i pobieranie, ręczne sprawdzanie działa; ostatni/następny termin i trwałość po restarcie |
 | Workers / Agent CLI updates | Agent CLI update check frequency | konto/DB | Every 6 hours | Pobieranie najnowszych wersji Claude Code, Codex i Grok przez gateway; te same interwały i Never; nigdy nie instaluje CLI |
@@ -82,3 +92,4 @@ centrum aktualizacji służy wykonywaniu aktualizacji.
 - Canopy ma wykrywanie GitHub PR/merge do sprzątania worktree, ale nie ma własnego widoku ani procesu przeglądu PR. Nie dodajemy fikcyjnych preferencji PR.
 - „Last user message” nie jest dostępne w indeksie projektów/wątków; używamy istniejącej, prawdziwej aktywności drzewa.
 - Brak push/background service worker: alerty działają wyłącznie przy otwartej aplikacji, bez serwerowej dystrybucji dźwięków lub treści.
+- Fonty są lokalnymi stosami systemowymi, bez pobierania fontów od stron trzecich.

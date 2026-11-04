@@ -1,16 +1,12 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import CodeTokens from "./CodeTokens.svelte";
-  import { languageOfDiff, parseDiff, type DiffLineKind } from "./diff.ts";
+  import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
+  import { languageOfDiff, parseDiff } from "./diff.ts";
+  import { visibleDiffLines, splitDiffLines } from "./diff-layout.ts";
+  import DiffLine from "./DiffLine.svelte";
   import { Highlight } from "./highlight.svelte.ts";
   import type { LanguageId } from "./languages.ts";
 
-  /**
-   * The lines of a unified diff: added and removed lines on green and red, hunk headers in sky. The code
-   * is syntax-highlighted in `lang` (by default the language of the file the diff names), each side of
-   * the change as its own text so strings and comments carry across lines; the +/- sign keeps the line's
-   * tone. Plain text when it is not a diff. While `streaming`, each new line resolves in (`t-stream-line`).
-   */
   let {
     diff,
     lang,
@@ -31,37 +27,30 @@
     () => language,
   );
 
-  const background: Partial<Record<DiffLineKind, string>> = { add: "bg-emerald-500/10", del: "bg-rose-500/10" };
-
-  const color: Record<DiffLineKind, string> = {
-    add: "text-emerald-900 dark:text-emerald-200",
-    del: "text-rose-900 dark:text-rose-200",
-    hunk: "text-sky-700 dark:text-sky-400",
-    file: "text-zinc-500 dark:text-zinc-400",
-    ctx: "text-zinc-700 dark:text-zinc-300",
-  };
-
-  const sign: Partial<Record<DiffLineKind, string>> = {
-    add: "text-emerald-700 dark:text-emerald-400",
-    del: "text-rose-700 dark:text-rose-400",
-  };
+  const lines = $derived(visibleDiffLines(parsed.lines, device.values.hideWhitespace === "on"));
+  const split = $derived(device.values.diffLayout === "split");
+  const rows = $derived(splitDiffLines(lines));
 </script>
 
-<div class={["inline-block min-w-full", className]}>
-  {#each parsed.lines as line, index (index)}
-    {@const found = line.at < 0 ? undefined : (line.kind === "del" ? old : next).lines[line.at]}
-    {@const highlighted = line.text && found?.text === line.code ? found : undefined}
-    <!-- One line each: the surface keeps whitespace. -->
-    <div
-      class={[
-        "px-3",
-        background[line.kind],
-        highlighted ? "text-(--code-fg)" : color[line.kind],
-        streaming && "t-stream-line",
-      ]}
-    >
-      {#if highlighted}<span class={sign[line.kind]}>{line.text.slice(0, line.text.length - line.code.length)}</span
-        ><CodeTokens tokens={highlighted.tokens} />{:else}{line.text || " "}{/if}
+<div class={["min-w-full text-(--code-fg)", className]}>
+  {#if lines.length < parsed.lines.length}<p class="px-3 font-sans text-xs/5 whitespace-normal text-zinc-500">
+      Whitespace-only changes hidden.
+    </p>{/if}
+  {#if split}
+    <div class="diff-split" aria-label="Side-by-side diff: original left, updated right">
+      {#each rows as row, index (index)}
+        {#if row.full}<div class="col-span-2 text-zinc-500"><DiffLine line={row.full} {old} {next} {streaming} /></div>
+        {:else}<DiffLine line={row.left} {old} {next} {streaming} /><DiffLine
+            line={row.right}
+            {old}
+            {next}
+            {streaming}
+          />{/if}
+      {/each}
     </div>
-  {/each}
+  {:else}
+    <div class="inline-block min-w-full">
+      {#each lines as line, index (index)}<DiffLine {line} {old} {next} {streaming} />{/each}
+    </div>
+  {/if}
 </div>

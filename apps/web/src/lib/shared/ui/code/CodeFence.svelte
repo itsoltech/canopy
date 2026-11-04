@@ -20,7 +20,7 @@
   const language = $derived(languageOf(lang));
 </script>
 
-<CodeFrame class={className}>
+<CodeFrame class={["code-fence", className]}>
   {#snippet header()}
     <p class="min-w-0 truncate pl-3 font-mono text-xs/5 text-zinc-500 dark:text-zinc-400">{lang}</p>
     <CopyButton text={code} label="Copy code" />
@@ -28,7 +28,7 @@
   {#if language === "diff"}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
-      class="max-h-[32rem] code-surface py-2 focus-ring"
+      class="diff-surface max-h-[32rem] code-surface py-2 focus-ring"
       tabindex="0"
       role="region"
       aria-label="Diff"

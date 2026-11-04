@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Token, Tokens } from "marked";
+  import Math from "./Math.svelte";
+  import { isMathToken } from "./math-token.ts";
   import MarkdownInline from "./MarkdownInline.svelte";
   import { splitSentinels, useInlineElements } from "./inline-elements.ts";
   import { safeHref } from "./safe-url.ts";
@@ -9,7 +11,9 @@
 </script>
 
 {#each tokens as token, index (index)}
-  {#if token.type === "strong"}
+  {#if isMathToken(token)}
+    <Math text={token.text} raw={token.raw} display={token.display} />
+  {:else if token.type === "strong"}
     <strong class="font-semibold text-zinc-950 dark:text-white"
       ><MarkdownInline tokens={(token as Tokens.Strong).tokens} /></strong
     >

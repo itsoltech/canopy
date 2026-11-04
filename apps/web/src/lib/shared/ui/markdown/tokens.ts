@@ -1,8 +1,12 @@
-import { Lexer, type Token, type Tokens } from "marked";
+import { Marked, type Token, type Tokens } from "marked";
+import { mathExtensions } from "./math-token.ts";
 import { isString } from "#lib/shared/json.ts";
 
 /** `breaks`: a single newline is a line break (people's messages), not a soft wrap (agents' markdown). */
-export const lexMarkdown = (text: string, breaks = false): Token[] => Lexer.lex(text, { gfm: true, breaks });
+const markdown = new Marked({ extensions: mathExtensions });
+
+export const lexMarkdown = (text: string, breaks = false): Token[] =>
+  markdown.lexer(text, { ...markdown.defaults, gfm: true, breaks });
 
 /**
  * The new token tree with every block, list item and table row that did not change replaced by the

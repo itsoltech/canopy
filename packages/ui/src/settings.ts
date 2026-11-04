@@ -68,6 +68,13 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "provider instance codex claude cliproxyapi endpoint key login models favorites environment",
   },
   {
+    href: "/settings/diffs",
+    label: "Diffs",
+    icon: "code-bracket",
+    group: "Code",
+    keywords: "diff layout side by side stacked whitespace colors wrap collapsed files",
+  },
+  {
     href: "/settings/agent-environment",
     label: "Agent environment",
     icon: "sparkles",

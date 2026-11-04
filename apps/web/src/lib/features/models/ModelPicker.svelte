@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EffortLabel from "./EffortLabel.svelte";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import type { ProviderKey } from "#lib/features/threads/providers.ts";
@@ -176,7 +177,13 @@
     >
       {#if selected}<ProviderIcon provider={selected.provider} class="size-3.5" />{/if}
       <span class="truncate text-zinc-800 dark:text-zinc-200">{selected?.name ?? "Choose a model"}</span>
-      {#if effort}<span class="shrink-0 text-zinc-500 dark:text-zinc-400">{effort}</span>{/if}
+      {#if effort}<span class="shrink-0 text-zinc-500 dark:text-zinc-400"
+          ><EffortLabel
+            label={effort}
+            rank={Math.max(0, selected?.efforts.findIndex((e) => e.id === effort) ?? 0)}
+            total={selected?.efforts.length ?? 5}
+          /></span
+        >{/if}
     </PillButton>
   {/snippet}
 

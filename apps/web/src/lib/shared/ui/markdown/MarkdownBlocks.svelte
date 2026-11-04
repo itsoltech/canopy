@@ -1,5 +1,7 @@
 <script lang="ts">
   import ChoiceControl from "../ChoiceControl.svelte";
+  import MathView from "./Math.svelte";
+  import { isMathToken } from "./math-token.ts";
   import type { Token, Tokens } from "marked";
   import CodeFence from "../code/CodeFence.svelte";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
@@ -24,7 +26,9 @@
 </script>
 
 {#each tokens as token, index (index)}
-  {#if token.type === "paragraph"}
+  {#if isMathToken(token)}
+    <MathView text={token.text} raw={token.raw} display={token.display} />
+  {:else if token.type === "paragraph"}
     <p><MarkdownInline tokens={inline(token as Tokens.Paragraph)} /></p>
   {:else if token.type === "heading"}
     {@const heading = token as Tokens.Heading}

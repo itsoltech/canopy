@@ -5,12 +5,13 @@
   import OptionTile from "#lib/shared/ui/OptionTile.svelte";
   import ThemePreview from "./ThemePreview.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
 
   const settings = useSettings();
   const modes: ThemeMode[] = ["light", "dark"];
 </script>
 
-<SettingsGroup title="Themes" description="Your color scheme decides which palette Canopy shows.">
+<SettingsGroup title="Themes" description="Account · Your color scheme decides which palette Canopy shows.">
   <div class="@container p-(--settings-row-x)">
     <div class="grid grid-cols-2 gap-3 sm:gap-4">
       {#each modes as mode (mode)}
@@ -22,6 +23,15 @@
           <p class="col-span-full flex flex-wrap justify-between gap-x-2 text-base/6 font-medium sm:text-sm/6">
             <span>{mode === "light" ? "Light" : "Dark"}</span>
             <span class="text-muted">{themes[themeOf(settings.appearance, mode)].label}</span>
+            {#if themeOf(settings.appearance, mode) !== "birch"}<IconButton
+                icon="arrow-path"
+                size="sm"
+                label="Reset {mode} theme to default"
+                onclick={() =>
+                  settings.updateAppearance(
+                    mode === "light" ? { lightTheme: colorThemes.birch } : { darkTheme: colorThemes.birch },
+                  )}
+              />{/if}
           </p>
           {#each themeNames as name (name)}
             <OptionTile
