@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
+  import { isString } from "#lib/shared/json.ts";
   import type { ClassValue } from "svelte/elements";
   import type { ModelOption } from "#lib/features/models/catalog.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -99,7 +100,7 @@
       open = false;
     } catch (cause) {
       error =
-        (cause instanceof Error ? cause.message : typeof cause === "string" ? cause : "") ||
+        (cause instanceof Error ? cause.message : isString(cause) ? cause : "") ||
         "Could not save your bot. Please try again.";
     } finally {
       busy = false;

@@ -7,7 +7,13 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { settingsOverlay as overlay } from "./settings-overlay.svelte.ts";
-  import { isSettingsRoute, overlayKey, provideSettingsRoute, type SettingsRoute } from "./settings-route.ts";
+  import {
+    isSettingsRoute,
+    overlayKey,
+    provideSettingsRoute,
+    type SettingsForm,
+    type SettingsRoute,
+  } from "./settings-route.ts";
   import SettingsDialog from "./SettingsDialog.svelte";
 
   /**
@@ -73,10 +79,10 @@
   });
 
   // The form action result of the settings page (`page.form` is the page's, underneath, too).
-  let form = $state.raw<Record<string, unknown> | null>(null);
+  let form = $state.raw<SettingsForm>(null);
 
   $effect(() => {
-    const result = page.form as Record<string, unknown> | null;
+    const result: SettingsForm = page.form;
     untrack(() => (form = result));
   });
 

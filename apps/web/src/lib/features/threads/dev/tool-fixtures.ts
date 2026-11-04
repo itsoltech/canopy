@@ -1,5 +1,6 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { InteractionKind, ItemSchema, ItemStatus, ui, type Item } from "@canopy/contracts";
+import { isString, type JsonObject, type JsonValue } from "#lib/shared/json.ts";
 
 type ItemContent = MessageInitShape<typeof ItemSchema>["content"];
 
@@ -17,7 +18,7 @@ const item = (id: string, content: ItemContent, status = ItemStatus.COMPLETED): 
 const tool = (
   id: string,
   name: string,
-  input: unknown,
+  input: JsonValue,
   output: string,
   extra: { server?: string; isError?: boolean; status?: ItemStatus } = {},
 ): Item =>
@@ -39,8 +40,8 @@ const tool = (
 const bus = (
   id: string,
   toolName: string,
-  args: unknown,
-  result: unknown,
+  args: JsonValue,
+  result: JsonValue,
   extra: { isError?: boolean; status?: ItemStatus; target?: string } = {},
 ): Item =>
   item(
@@ -51,7 +52,7 @@ const bus = (
         callId: id,
         toolName,
         argumentsJson: JSON.stringify(args),
-        resultJson: typeof result === "string" ? result : JSON.stringify(result),
+        resultJson: isString(result) ? result : JSON.stringify(result),
         isError: extra.isError ?? false,
         targetThreadId: extra.target ?? "",
       },
@@ -74,7 +75,7 @@ const numbered = (text: string, start = 1) =>
     .map((line, i) => `${String(start + i).padStart(6)}\t${line}`)
     .join("\n");
 
-const summary = (title: string, status: string, last: string, extra: Record<string, unknown> = {}) => ({
+const summary = (title: string, status: string, last: string, extra: JsonObject = {}) => ({
   thread_id: title === "Lister" ? SIDE : OTHER,
   title,
   kind: "side",

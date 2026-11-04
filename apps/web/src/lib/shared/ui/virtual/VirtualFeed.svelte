@@ -144,7 +144,7 @@
 
     if (viewport === 0)
       return index.tail(
-        typeof innerHeight !== "number" ? INITIAL_HEIGHT : Math.min(INITIAL_HEIGHT, innerHeight + 2 * COLD_OVERSCAN),
+        "innerHeight" in globalThis ? Math.min(INITIAL_HEIGHT, innerHeight + 2 * COLD_OVERSCAN) : INITIAL_HEIGHT,
       );
     const overscan = Math.min(fullOverscan, overscanLimit);
     // Reading above: the window follows the anchor row, also when rows were added or resized above it

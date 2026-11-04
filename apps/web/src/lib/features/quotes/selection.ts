@@ -220,7 +220,7 @@ export function selectedQuote(selection: Selection | null): SelectedQuote | unde
 
   if (!source || !element) return undefined;
   const pre = element.closest("pre, .code-surface") !== null;
-  const text = visibleText(range.cloneContents() as unknown as QuoteNode, pre);
+  const text = visibleText(range.cloneContents(), pre);
 
   if (!text.trim()) return undefined;
   const rects = [...range.getClientRects()].filter((r) => r.width > 0 || r.height > 0);

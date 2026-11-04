@@ -227,6 +227,7 @@ export function botWizardInstances(
       ![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(instance.harness)
     )
       return [];
+
     const provider =
       instance.harness === Provider.CLAUDE ? "CLAUDE" : instance.harness === Provider.GROK ? "GROK" : "CODEX";
 

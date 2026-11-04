@@ -48,11 +48,11 @@ const scopeKey = (scope: MentionScope | undefined) =>
     ? `${scope.threadId ?? ""}|${scope.workspaceId ?? ""}|${scope.provider ?? 0}|${scope.providerProfileId ?? ""}|${scope.cwd ?? ""}`
     : "";
 
-export function problemOf(error: unknown): string {
-  if (error instanceof HttpError && error.status === 503)
-    return error.message.charAt(0).toUpperCase() + error.message.slice(1);
+export function problemOf(cause: unknown): string {
+  if (cause instanceof HttpError && cause.status === 503)
+    return cause.message.charAt(0).toUpperCase() + cause.message.slice(1);
 
-  return error instanceof Error ? error.message : String(error);
+  return cause instanceof Error ? cause.message : String(cause);
 }
 
 export interface CatalogState {

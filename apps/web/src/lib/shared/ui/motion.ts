@@ -273,7 +273,7 @@ export function stagger(index: number, cap = 7): number {
  * Error state shake (12): replays the shake (motion.css `t-shake`) whenever the attachment is created
  * with a truthy `trigger`, e.g. `{@attach shake(error)}` on the field that refused its value.
  */
-export function shake(trigger: unknown = true): Attachment<HTMLElement> {
+export function shake(trigger: string | boolean | undefined = true): Attachment<HTMLElement> {
   return (node) => {
     if (!trigger) return;
     node.classList.remove("t-shake");

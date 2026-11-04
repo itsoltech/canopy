@@ -1,16 +1,18 @@
-import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { toJson, type JsonValue as ProtoJson } from "@bufbuild/protobuf";
 import { MentionSchema, type Mention } from "@canopy/contracts";
+import { isJsonArray, isString, parseJson, type JsonValue } from "#lib/shared/json.ts";
+import { decode } from "#lib/shared/wire.ts";
 
 /** Mentions across the BFF (JSON body of a message, a hidden form field of a new thread): protobuf JSON. */
-export const mentionsToWire = (mentions: readonly Mention[]): JsonValue[] =>
+export const mentionsToWire = (mentions: readonly Mention[]): ProtoJson[] =>
   mentions.map((m) => toJson(MentionSchema, m));
 
 /** Throws on anything that is not a mention (the route answers 400). At most 50, like the gateway. */
-export function mentionsFromWire(value: unknown): Mention[] {
+export function mentionsFromWire(value: FormDataEntryValue | readonly JsonValue[] | null | undefined): Mention[] {
   if (value === undefined || value === null || value === "") return [];
-  const list = typeof value === "string" ? (JSON.parse(value) as unknown) : value;
+  const list = value instanceof File ? undefined : isString(value) ? parseJson(value) : value;
 
-  if (!Array.isArray(list) || list.length > 50) throw new Error("mentions: up to 50 mentions");
+  if (!isJsonArray(list) || list.length > 50) throw new Error("mentions: up to 50 mentions");
 
-  return list.map((m) => fromJson(MentionSchema, m as JsonValue));
+  return list.map((m) => decode(MentionSchema, m));
 }

@@ -55,7 +55,7 @@ export async function tokenizer(
     const lines = codeToTokensBase(instance, text, {
       lang: name,
       theme: theme.name,
-      grammarState: state as GrammarState | undefined,
+      grammarState: state,
       tokenizeMaxLineLength: 2000,
       tokenizeTimeLimit: timeLimitMs,
     });
@@ -66,7 +66,9 @@ export async function tokenizer(
           ? { content: token.content, color: token.color }
           : { content: token.content },
       ),
-      state: getLastGrammarState(instance, lines),
+      // SAFETY: the state is the GrammarState instance codeToTokensBase built for these lines; @shikijs/types
+      // declares only its public interface, not the class codeToTokensBase takes back.
+      state: getLastGrammarState(instance, lines) as GrammarState | undefined,
     };
   };
 }

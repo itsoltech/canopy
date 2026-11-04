@@ -29,9 +29,9 @@ export const isJsonObject = (value: JsonValue | undefined): value is JsonObject 
 
 export const isJsonArray = (value: JsonValue | undefined): value is readonly JsonValue[] => Array.isArray(value);
 
-export const isString = (value: JsonValue | undefined): value is string => typeof value === "string";
+export const isString = <T>(value: T): value is T & string => typeof value === "string";
 
-export const isNumber = (value: JsonValue | undefined): value is number => typeof value === "number";
+export const isNumber = <T>(value: T): value is T & number => typeof value === "number";
 
 /** Parses a JSON object; anything else (invalid, array, scalar) gives an empty object. */
 export const parseObject = (json: string): JsonObject => objectOf(parseJson(json));

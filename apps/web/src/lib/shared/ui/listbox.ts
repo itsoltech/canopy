@@ -19,7 +19,7 @@ export interface SelectOption {
   readonly disabled?: boolean | undefined;
 }
 
-export function selectedIndex(options: readonly SelectOption[], value: unknown): number {
+export function selectedIndex(options: readonly SelectOption[], value: string | undefined): number {
   const index = options.findIndex((option) => option.value === value && !option.disabled);
 
   return index >= 0 ? index : options.findIndex((option) => !option.disabled);

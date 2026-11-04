@@ -64,6 +64,34 @@ export type Connection = "connecting" | "live" | "reconnecting";
  * Items are folded with the same reducer the gateway uses for thread_items, so live view and
  * reload show the same thing. A (re)connect starts with a snapshot that replaces everything.
  */
+const OUTCOME_STATUS = new Map([
+  [TurnOutcome.COMPLETED, "completed"],
+  [TurnOutcome.INTERRUPTED, "interrupted"],
+  [TurnOutcome.FAILED, "failed"],
+]);
+
+const END_SOURCE = new Map([
+  [TurnEndSource.USER, "user"],
+  [TurnEndSource.SYSTEM, "system"],
+  [TurnEndSource.PLATFORM, "platform"],
+  [TurnEndSource.HARNESS, "harness"],
+]);
+
+/** Why a finished turn ended, until the gateway's turn update brings the stored values. */
+function endFields(status: string | undefined, finished: TurnFinished) {
+  // Who interrupted it or where its error came from.
+  const source = END_SOURCE.get(finished.source) ?? "";
+
+  switch (status) {
+    case "failed":
+      return { error: finished.reason, errorSource: source || "harness", errorCode: finished.errorCode };
+    case "interrupted":
+      return { interruptReason: finished.reason, interruptSource: source || "user" };
+    default:
+      return {};
+  }
+}
+
 export class ThreadState {
   thread = $state.raw<ui.Thread | undefined>(undefined);
   turns = $state.raw<ui.Turn[]>([]);
@@ -349,29 +377,9 @@ export class ThreadState {
     this.turnResults = new Map(this.turnResults).set(turnId, { usage: finished.usage, reason: finished.reason });
     const index = this.turns.findIndex((t) => t.id === turnId && t.status === "running");
 
-    const status = {
-      [TurnOutcome.COMPLETED]: "completed",
-      [TurnOutcome.INTERRUPTED]: "interrupted",
-      [TurnOutcome.FAILED]: "failed",
-    }[finished.outcome as number];
-
+    const status = OUTCOME_STATUS.get(finished.outcome);
     const turn = this.turns[index];
-
-    // Who interrupted it or where its error came from, until the gateway's turn update brings the stored values.
-    const source =
-      {
-        [TurnEndSource.USER]: "user",
-        [TurnEndSource.SYSTEM]: "system",
-        [TurnEndSource.PLATFORM]: "platform",
-        [TurnEndSource.HARNESS]: "harness",
-      }[finished.source as number] ?? "";
-
-    const end =
-      status === "failed"
-        ? { error: finished.reason, errorSource: source || "harness", errorCode: finished.errorCode }
-        : status === "interrupted"
-          ? { interruptReason: finished.reason, interruptSource: source || "user" }
-          : {};
+    const end = endFields(status, finished);
 
     if (turn && status)
       this.turns = this.turns.with(index, { ...turn, status, ...end, ...(at && { completedAt: at }) });

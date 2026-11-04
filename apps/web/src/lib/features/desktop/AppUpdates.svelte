@@ -49,7 +49,7 @@
     return off;
   });
 
-  async function run(operation: () => Promise<unknown>) {
+  async function run<T>(operation: () => Promise<T>) {
     if (pending) return;
     pending = true;
     error = "";

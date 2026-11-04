@@ -1,4 +1,5 @@
 import { Lexer, type Token, type Tokens } from "marked";
+import { isString } from "#lib/shared/json.ts";
 
 /** `breaks`: a single newline is a line break (people's messages), not a soft wrap (agents' markdown). */
 export const lexMarkdown = (text: string, breaks = false): Token[] => Lexer.lex(text, { gfm: true, breaks });
@@ -100,7 +101,7 @@ export function snippetTokens(text: string): Token[] {
       } else if ("tokens" in token && Array.isArray(token.tokens)) {
         space();
         out.push(...inline(token.tokens));
-      } else if ("text" in token && typeof token.text === "string") {
+      } else if ("text" in token && isString(token.text)) {
         space();
         out.push({ type: "text", raw: token.text, text: token.text } as Tokens.Text);
       }

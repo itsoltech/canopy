@@ -1,5 +1,6 @@
 import { ui } from "@canopy/contracts";
 import { DEFAULT_ATTACHMENT_LIMITS, extensionOf, formatSize, type AttachmentLimits } from "@canopy/domain";
+import { isJsonObject, isString, type JsonValue } from "#lib/shared/json.ts";
 import { decode } from "#lib/shared/wire.ts";
 
 /**
@@ -50,6 +51,9 @@ export function limitsOf(limits: ui.AttachmentLimits | undefined): AttachmentLim
     maxFiles: limits.maxFiles,
   };
 }
+
+const uploadFailure = (status: number): string =>
+  status === 413 ? "The file is too large." : `Upload failed (${status}).`;
 
 export class AttachmentDraft {
   files = $state<DraftFile[]>([]);
@@ -174,14 +178,11 @@ export class AttachmentDraft {
         draft.progress = 1;
         draft.status = "ready";
       } else {
-        const message = (request.response as { message?: unknown } | null)?.message;
+        // `responseType` is "json": the body as JSON, or null.
+        const response: JsonValue = request.response;
+        const message = isJsonObject(response) ? response["message"] : undefined;
         draft.status = "failed";
-        draft.error =
-          typeof message === "string"
-            ? message
-            : request.status === 413
-              ? "The file is too large."
-              : `Upload failed (${request.status}).`;
+        draft.error = isString(message) ? message : uploadFailure(request.status);
       }
     };
 
