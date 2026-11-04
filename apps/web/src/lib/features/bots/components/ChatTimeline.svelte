@@ -6,6 +6,7 @@
   import type { BotStatusView, ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
   import ApprovalCard, { type ApprovalAnswer, type ApprovalPolicy } from "./ApprovalCard.svelte";
   import BotStatusRow from "./BotStatusRow.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   import ChatBubble from "./ChatBubble.svelte";
   import ChatDateLine from "./ChatDateLine.svelte";
   import ChatErrorLine from "./ChatErrorLine.svelte";
@@ -37,6 +38,7 @@
     onpolicy,
     onretry,
     onchangemodel,
+    onchangeworker,
     onreact,
     onreply,
     class: className,
@@ -59,6 +61,7 @@
     onpolicy?: ((policy: ApprovalPolicy) => void) | undefined;
     onretry?: (() => void) | undefined;
     onchangemodel?: (() => void) | undefined;
+    onchangeworker?: (() => void) | undefined;
     onreact?: ((message: ChatMessageView) => void) | undefined;
     onreply?: ((message: ChatMessageView) => void) | undefined;
     class?: ClassValue;
@@ -111,6 +114,7 @@
           {retrying}
           onretry={watching ? undefined : onretry}
           onchangemodel={watching ? undefined : onchangemodel}
+          onchangeworker={watching ? undefined : onchangeworker}
         />
       </li>
     {:else if row.kind === "question"}
@@ -168,6 +172,14 @@
   {#if status}
     <li class="pt-3" in:rise out:rise={{}}>
       <BotStatusRow bot={status.bot} text={status.text} waiting={status.waiting} />
+      {#if !status.waiting && status.text.startsWith("Waiting for") && onchangeworker && !watching}
+        <div class="pl-9">
+          <Button size="sm" variant="ghost" onclick={onchangeworker}>Pick another worker (Runs on)</Button>
+          <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">
+            To use another worker for this message, stop this reply, change Runs on, then send the message again.
+          </p>
+        </div>
+      {/if}
     </li>
   {/if}
 </ol>

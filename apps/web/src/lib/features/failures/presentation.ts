@@ -30,8 +30,5 @@ export function failurePresentation(message: string, code: string, proxy: boolea
     model: kind === "model_unavailable" || kind === "stream_cut_off",
     settings: ["auth_required", "cli_missing", "configuration", "process_exit", "usage_limit"].includes(kind),
     proxy: proxy && ["auth_required", "configuration", "network", "provider_unavailable"].includes(kind),
-    retry: ["usage_limit", "network", "stream_cut_off", "process_exit", "provider_unavailable", "internal"].includes(
-      kind,
-    ),
   };
 }

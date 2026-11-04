@@ -1,7 +1,9 @@
 # Boty przez oficjalne harnessy
 
-Status: etapy 1–2 implementują Claude, Codex i Groka. Osobna migracja generowania
-tytułów Groka trafiła na dev w #101; etap 2 jest na niej oparty.
+Status: etapy 1–2 implementują Claude, Codex i Groka (draft PR-y #97 i #104,
+stos #105). Etap 3 dodaje wspólne klasy błędów z #94, akcje naprawy i regresje
+całego runtime'u. Osobna migracja generowania tytułów Groka trafiła na dev w #101;
+etap 2 jest na niej oparty.
 Decyzja maintenera zastępuje wariant B z [bots.md](bots.md). Canopy docelowo
 nie wysyła żadnych żądań inferencji HTTP. Claude działa przez Agent SDK i oficjalny
 `claude`, Codex przez oficjalny `codex app-server`, Grok przez CLI i adapter ACP.
@@ -120,11 +122,10 @@ niepewnych efektów MCP. Przerwanie/anulowanie unieważnia możliwość nowych e
 Istniejący snapshot rozmowy dostaje tekst bieżącej odpowiedzi i status, bez
 technicznych itemów narzędzi. Rutyny i handoffy zachowują niewidoczność. Końcowa
 odpowiedź ma jeden wpis czatu. Błąd używa `TurnOutcome`, `TurnEndSource` i
-`error_code`, tak jak wątki. Integracja z równoległą gałęzią
-`fix/bots-wizard-and-errors` powinna korzystać z jej klasyfikatora i komunikatów,
-bez parsowania surowych endpointów lub ujawniania stderr.
-Etap 1 zachowuje kody końca Claude i `codexErrorCode` z adapterów wątków
-w journalu i gatewayu; ogólny komunikat czatu zastąpi wspólny klasyfikator.
+`error_code`, tak jak wątki. Etap 3 korzysta z `classifyFailure` i wspólnego
+wiersza błędu z #94. `TurnFinished.error_class` zachowuje klasę przed usunięciem
+prozy providera. Kody końca Claude i `codexErrorCode` pozostają w journalu
+i gatewayu; UI dostaje klasę i bezpieczny komunikat, bez endpointów i stderr.
 Oczekiwanie na zgodę lub offline nie ma limitu czasu generacji.
 Takie tury utrzymują lease, ale nie zajmują limitu czterech aktywnych inferencji
 gatewaya; pozostałe boty mogą odpowiadać podczas oczekiwania.
@@ -136,7 +137,8 @@ sprawdzić numer ponownie. Historia botów, identyfikatory, rutyny, wakeupy i ha
 pozostają. Pierwsza następna tura wybiera/pamięta worker i tworzy sesję z historią.
 Nie potrzebujemy przenoszenia sesji API, bo dotychczas nie istniała.
 `0069_bot_errors.sql` jest już na `origin/dev`; migracja tego stosu została
-przenumerowana na `0070_bot_harness.sql`. Nie edytujemy migracji zastosowanej.
+przenumerowana na `0070_bot_harness.sql`. Etap 3 dodaje
+`0071_bot_harness_errors.sql`. Nie edytujemy migracji zastosowanej.
 
 Proto rozszerzamy addytywnie. `bot_harness_v1` negocjuje nową funkcję; starszy
 worker nie dostanie komendy. `WORKER_LINK_PROTOCOL` i zamrożone
@@ -190,3 +192,26 @@ check:tmp oraz web build. Bez testów UI. Przegląd w prawdziwej przeglądarce:
 Runs on i rozmowa, jasny/ciemny, desktop/telefon; screenshoty poza repo w
 `~/.cache/canopy-bots-harness-1/`. Brak wykonania któregoś sprawdzenia musi być
 jawnie opisany w przekazaniu, nie zastąpiony deklaracją sukcesu.
+
+## Regresje etapu 3
+
+`bots-harness-errors.test.ts` sprawdza przez WorkerLink i kontrolowane CLI każdą
+klasę awarii Claude/Codex/Grok, brak pliku wykonywalnego i skuteczne ponowienie,
+wyłączenie instancji przypiętego workera oraz brak sekretów w zapisie i snapshotach.
+`bots-harness-regressions.test.ts` obejmuje rutyny, wakeupy, ukryte handoffy bez
+narzędzi, granty i zgody MCP przez gateway, tworzenie Groka oraz wiele wzmianek
+i wiadomości bot–bot. `bots-harness-defaults.test.ts` sprawdza wybór desktop/server
+i trwałość przypięcia. Dotychczasowy `bots-harness.test.ts` nadal obejmuje offline,
+reconnect, restarty, owner scoping i izolację.
+
+Poprawione regresje: `create_bot` odrzucał jawny wybór Groka mimo poprawnego schematu;
+awaria startu instancji Codexa mogła przerwać obsługę konfiguracji WorkerLink.
+Błąd SDK Claude w wiadomości assistant jest błędem tury, a nie tekstem odpowiedzi.
+
+Desktop ładuje wspólny web UI, a aplikacja mobilna używa tego samego UI API
+i snapshotów rozmowy; zmiana runtime'u nie wymaga nowego transportu klienta.
+Repozytorium nie implementuje kanałów Telegram/Discord/WhatsApp dla botów.
+Przegląd przeglądarkowy etapu 3 obejmuje wiersze błędów i pusty Runs on w jasnym
+i ciemnym motywie przy szerokościach desktop/telefon. Dowody są poza repo:
+`~/.cache/canopy-bots-harness-3/`. Nie zastępuje to uruchomienia natywnych powłok
+Electron/iOS/Android ani opt-in testów na płatnych modelach.

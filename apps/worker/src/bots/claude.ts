@@ -82,6 +82,12 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
         });
 
       if (message.type === "assistant") {
+        if (message.error)
+          throw new BotHarnessFailure(
+            message.error,
+            message.message.content.map((block) => (block.type === "text" ? block.text : "")).join(""),
+          );
+
         for (const [index, block] of message.message.content.entries()) {
           if (block.type !== "text") continue;
           await ctx.record({
@@ -101,7 +107,10 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
 
       if (message.type === "result") {
         if (message.subtype !== "success" || message.is_error)
-          throw new BotHarnessFailure(message.subtype === "success" ? "error_result" : message.subtype);
+          throw new BotHarnessFailure(
+            message.subtype === "success" ? "error_result" : message.subtype,
+            message.subtype === "success" ? message.result : message.errors.join("; "),
+          );
 
         return;
       }

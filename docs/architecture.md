@@ -238,7 +238,7 @@ sequenceDiagram
     W->>SDK: zwróć odpowiedź
 ```
 
-### 5.4 Agent czatowy na gateway
+### 5.4 Bot: kolejka na gatewayu, harness na workerze
 
 ```mermaid
 sequenceDiagram
@@ -246,17 +246,20 @@ sequenceDiagram
     participant UI as Web UI
     participant GW as Gateway (dowolna instancja)
     participant DB as PostgreSQL
-    participant LLM as API LLM
+    participant W as Worker + oficjalny harness
 
-    UI->>GW: SendMessage(thread_id, tekst, client_request_id)
-    GW->>DB: insert turns (queued)
+    UI->>GW: SendBotMessage(bot_id, tekst, client_request_id)
+    GW->>DB: insert bot_turns (queued)
     GW->>DB: przejęcie tury: FOR UPDATE SKIP LOCKED, lease_until
-    GW->>LLM: stream (historia z thread_events + instrukcje + narzędzia)
+    GW->>DB: worker_commands(RunBotTurn), bot_harness_turns
+    GW->>W: RunBotTurn (historia + instrukcje + schematy MCP)
     loop delty
-        LLM-->>GW: delta
-        GW-->>UI: event (live)
+        W-->>GW: ThreadEvent z journalu
+        GW->>DB: bot_harness_events + projekcja tekstu
+        GW-->>UI: snapshot rozmowy (live)
     end
-    GW->>DB: thread_events (wiadomość, wywołania narzędzi z wynikami), turns.status = completed
+    W-->>GW: TurnFinished (wynik, źródło, kod i klasa błędu)
+    GW->>DB: bot_messages, bot_turns.status = completed lub failed
 ```
 
 ### 5.5 Agent ↔ agent: szyna agentów

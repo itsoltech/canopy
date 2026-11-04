@@ -6,7 +6,7 @@ import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { Schema } from "effect";
 import { recordProbe, releaseProbe } from "./instance-probe.ts";
-import { botTool, claudeBotConfig } from "./bot-probe.ts";
+import { botFailure, botTool, claudeBotConfig } from "./bot-probe.ts";
 
 if (process.argv.includes("--version")) {
   console.log("Claude Code 2.1.316");
@@ -43,6 +43,37 @@ async function turn(text: string): Promise<void> {
     cwd: process.cwd(),
   });
   await releaseProbe(text);
+  const failure = process.env["BOT_TRACE"] ? botFailure(text) : undefined;
+
+  if (failure) {
+    if (text.includes("FAIL:exit")) process.exit(7);
+
+    if (text.includes("FAIL:auth"))
+      send({
+        type: "assistant",
+        session_id: session,
+        uuid: crypto.randomUUID(),
+        parent_tool_use_id: null,
+        error: "authentication_failed",
+        message: {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: [{ type: "text", text: failure.message }],
+        },
+      });
+
+    send({
+      type: "result",
+      subtype: "error_during_execution",
+      is_error: true,
+      errors: [failure.message],
+      usage: {},
+      session_id: session,
+    });
+
+    return;
+  }
+
   const answer = await botTool(text, botMcp);
 
   const user = {

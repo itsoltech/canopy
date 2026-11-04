@@ -735,6 +735,8 @@ message TurnFinished {
   // Krótki kod błędu, jeśli jest (np. Codex codexErrorInfo „http_connection_failed:401”, Claude subtype „error_max_turns”,
   // „process_exit”, „transcript”).
   string error_code = 6;
+  // Wspólna klasa błędu UI; error_code zachowuje natywny kod harnessu.
+  string error_class = 7;
 }
 
 enum ThreadStatus {

@@ -2,7 +2,7 @@ import { create, fromJson } from "@bufbuild/protobuf";
 import { CommandSchema, CommandResultSchema, TurnOutcome } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure } from "@canopy/domain";
 import { BotStore } from "../bots/store.ts";
-import type { ModelInput, ModelReply } from "../bots/types.ts";
+import type { BotTurn, ModelInput, ModelReply } from "../bots/types.ts";
 import { coreState } from "./core-context.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreDeliver, coreDispatch } from "./core-commands.ts";
@@ -17,15 +17,7 @@ export async function workerJournalWelcome(core: GatewayCore, workerId: string, 
   return { heartbeatIntervalSeconds: 15, persisted: [...persisted, ...botCursors] };
 }
 
-/** A model call attaches to a durable worker command, including after a gateway restart. */
-export async function runBotHarness(core: GatewayCore, input: ModelInput): Promise<ModelReply> {
-  const turn = input.turn;
-
-  if (!turn) throw new Error("Bot turn is required");
-  const run: GatewayCore["bots"]["run"] = (use) => core[coreState].options.runtime.runPromise(BotStore.use(use));
-  let job = await run((s) => s.harnessTurn(turn.id));
-  let workerId = job?.worker_id || input.configuration.workerId;
-
+async function botWorker(core: GatewayCore, input: ModelInput, turn: BotTurn, workerId: string): Promise<string> {
   while (!workerId) {
     input.signal.throwIfAborted();
     const workers = await coreWorkers(core);
@@ -43,27 +35,51 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
         ),
     );
 
-    candidates.sort(
-      (a, b) =>
-        Number(core.link.connections.get(b.id)?.hello.environmentKind === "desktop") -
-        Number(core.link.connections.get(a.id)?.hello.environmentKind === "desktop"),
-    );
+    if (core.role === "desktop")
+      candidates.sort(
+        (a, b) =>
+          Number(core.link.connections.get(b.id)?.hello.environmentKind === "desktop") -
+          Number(core.link.connections.get(a.id)?.hello.environmentKind === "desktop"),
+      );
     workerId = candidates[0]?.id || "";
 
     if (!workerId) {
       core.bots.waiting(turn.id, true);
-      await run((s) => s.status(turn, "Waiting for a worker"));
+      await core.bots.run((s) => s.status(turn, "Waiting for a worker"));
       await Bun.sleep(500);
     }
   }
 
+  return workerId;
+}
+
+/** A model call attaches to a durable worker command, including after a gateway restart. */
+export async function runBotHarness(core: GatewayCore, input: ModelInput): Promise<ModelReply> {
+  const turn = input.turn;
+
+  if (!turn) throw new Error("Bot turn is required");
+  const run: GatewayCore["bots"]["run"] = (use) => core[coreState].options.runtime.runPromise(BotStore.use(use));
+  let job = await run((s) => s.harnessTurn(turn.id));
+  const workerId = await botWorker(core, input, turn, job?.worker_id || input.configuration.workerId);
   core.bots.waiting(turn.id, false);
 
   if (!job) {
     const connection = core.link.connections.get(workerId);
 
     if (connection?.isOpen && !connection.hello.capabilities.includes("bot_harness_v1"))
-      throw new Error("WORKER_UPGRADE_REQUIRED");
+      throw new ProviderFailure("configuration", "Update this worker to run bots, or pick another worker.", "platform");
+    const worker = (await coreWorkers(core)).find((w) => w.id === workerId);
+
+    if (
+      !worker?.providerInstances.some(
+        (i) => i.harness === input.configuration.provider && i.id === input.configuration.providerInstance && i.enabled,
+      )
+    )
+      throw new ProviderFailure(
+        "configuration",
+        "The bot's provider instance is not enabled on its pinned worker. Enable it in provider settings or pick another worker in Runs on.",
+        "platform",
+      );
     await run((s) => s.assignWorker(core[coreState].options.userId, turn.bot_id, workerId));
 
     const command = await run((s) =>
@@ -108,7 +124,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
       if (job?.outcome !== null && job?.outcome !== undefined) {
         if (job.outcome !== TurnOutcome.COMPLETED)
           throw new ProviderFailure(
-            classifyFailure("", job.error_code || "HARNESS_ERROR"),
+            classifyFailure(job.reason, job.error_class || job.error_code || "HARNESS_ERROR"),
             "Bot harness could not finish this turn",
             "harness",
           );
@@ -118,16 +134,23 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
 
       const failure = await run((s) => s.harnessCommandFailure(turn.id));
 
-      if (failure)
+      if (failure) {
+        const result = fromJson(CommandResultSchema, failure);
         throw new ProviderFailure(
-          classifyFailure("", fromJson(CommandResultSchema, failure).errorCode || "HARNESS_ERROR"),
+          classifyFailure(result.errorMessage, result.errorCode || "HARNESS_ERROR"),
           "Bot worker could not start this turn",
           "harness",
         );
+      }
+
       const connection = core.link.connections.get(workerId);
 
       if (connection?.isOpen && !connection.hello.capabilities.includes("bot_harness_v1"))
-        throw new Error("WORKER_UPGRADE_REQUIRED");
+        throw new ProviderFailure(
+          "configuration",
+          "Update this worker to run bots, or pick another worker.",
+          "platform",
+        );
 
       const status = connection?.isOpen
         ? ""

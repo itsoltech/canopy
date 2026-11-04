@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Provider, ProviderProfileKind } from "@canopy/contracts";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -14,13 +14,13 @@ import { probeRecords } from "../fixtures/instance-probe.ts";
 
 const tempDir = tempDirs();
 
-export async function startInstanceFixture(bots = false) {
+export async function startInstanceFixture(bots = false, gatewayOptions: Parameters<typeof startTestGateway>[0] = {}) {
   const dir = tempDir("canopy-instance-switch-");
   const dataDir = join(dir, "data");
   const trace = join(dir, "probe.jsonl");
   const repo = join(dir, "repo");
   mkdirSync(repo);
-  const gw = await startTestGateway();
+  const gw = await startTestGateway(gatewayOptions);
 
   const added = await gw.addWorker("Instance fixture");
   const executable = (harness: string) => resolve(import.meta.dir, `../fixtures/instance-${harness}.ts`);
@@ -53,7 +53,7 @@ export async function startInstanceFixture(bots = false) {
       },
       probe: {
         which: (name) => executable(name),
-        version: () => "1.0.70",
+        version: (path) => (existsSync(path) ? "1.0.70" : undefined),
         realDirectory: (path) => path,
         login: () => "fixture login",
       },
@@ -67,6 +67,7 @@ export async function startInstanceFixture(bots = false) {
     hello: {
       workerId: added.workerId,
       capabilities: ["bot_harness_v1"],
+      environmentKind: "desktop",
       ...(await runtime.runPromise(journalHello())),
     },
   });
@@ -224,6 +225,7 @@ export async function startInstanceFixture(bots = false) {
         hello: {
           workerId: added.workerId,
           capabilities: ["bot_harness_v1"],
+          environmentKind: "desktop",
           ...(await runtime.runPromise(journalHello())),
         },
       });
@@ -241,6 +243,7 @@ export async function startInstanceFixture(bots = false) {
         hello: {
           workerId: added.workerId,
           capabilities: ["bot_harness_v1"],
+          environmentKind: "desktop",
           ...(await runtime.runPromise(journalHello())),
         },
       });

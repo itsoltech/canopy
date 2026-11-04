@@ -30,6 +30,10 @@ function botCodexLaunch(ctx: BotHarnessContext) {
   return { ...base, command: [...base.command, ...codexTextOverrides(catalog)] };
 }
 
+function codexFailure(error: import("@canopy/codex-protocol").v2.TurnError | null | undefined) {
+  return new BotHarnessFailure(codexErrorCode(decodeJson(error?.codexErrorInfo)) || "HARNESS_ERROR", error?.message);
+}
+
 /** Dedicated official app-server; a minimal catalog removes every model-supplied local tool. */
 function codexBotProgram(ctx: BotHarnessContext) {
   const { input, session } = ctx;
@@ -78,12 +82,7 @@ function codexBotProgram(ctx: BotHarnessContext) {
           if (event.method === "turn/completed")
             return event.params.turn.status === "completed"
               ? Deferred.succeed(done, undefined)
-              : Deferred.fail(
-                  done,
-                  new BotHarnessFailure(
-                    codexErrorCode(decodeJson(event.params.turn.error?.codexErrorInfo)) || "HARNESS_ERROR",
-                  ),
-                );
+              : Deferred.fail(done, codexFailure(event.params.turn.error));
 
           return Effect.void;
         }),
