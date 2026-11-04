@@ -120,11 +120,53 @@ describe("Codex rollout", () => {
       query: "q",
     });
   });
+
+  test("unrelated records and a null command duration preserve the recovered turn and an empty error", async () => {
+    const path = join(tempDir("canopy-rollout-"), "rollout.jsonl");
+
+    const records = [
+      null,
+      { type: "metadata", payload: [] },
+      { type: "turn_context", payload: { turn_id: "turn" } },
+      {
+        type: "event_msg",
+        payload: {
+          type: "item_completed",
+          turn_id: "turn",
+          item: { type: "CommandExecution", id: "cmd", command: "pwd", duration: null },
+        },
+      },
+      { type: "event_msg", payload: { type: "task_complete", turn_id: "turn", error: { message: "" } } },
+    ];
+
+    writeFileSync(path, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
+    const record = await readCodexTurn(path, 0, "turn", "platform-turn");
+
+    expect(summary(record!.items)).toEqual([["cmd", "COMPLETED", "commandExecution"]]);
+    expect(record!.items[0]!.content).toMatchObject({ case: "commandExecution", value: { command: "pwd" } });
+    expect(record?.end).toMatchObject({ outcome: TurnOutcome.FAILED, reason: "" });
+  });
 });
 
 describe("Claude session transcript", () => {
   const content = readFileSync(fixture("claude-session.jsonl"), "utf8");
   const home = claudeHome("5e55-1", content);
+
+  test("unrelated metadata and sidechain messages do not prevent recovery", async () => {
+    const skipped = [
+      null,
+      { type: "metadata", message: "not an assistant message" },
+      { type: "assistant", isSidechain: true, message: { content: 42 } },
+    ]
+      .map((record) => JSON.stringify(record))
+      .join("\n");
+
+    const transcript = `${skipped}\n${content.slice(0, content.indexOf('{"type":"last-prompt"'))}`;
+    const recovered = await readClaudeTurn(claudeHome("mixed", transcript), "mixed", 0);
+
+    expect(recovered?.end).toMatchObject({ outcome: TurnOutcome.COMPLETED, providerTurnRef: "as-4" });
+    expect(recovered?.items).toHaveLength(4);
+  });
 
   test("a turn the harness completed: blocks under their live ids, tool results, completed", async () => {
     const record = await readClaudeTurn(home, "5e55-1", 0);

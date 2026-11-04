@@ -89,10 +89,13 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
 
   const answer = (turnId: string) =>
     published
-      .filter((e) => e.turnId === turnId && e.body.case === "itemCompleted")
-      .map((e) => (e.body.case === "itemCompleted" ? e.body.value.item?.content : undefined))
-      .filter((c) => c?.case === "agentMessage" && c.value.phase === "final_answer")
-      .map((c) => (c?.case === "agentMessage" ? c.value.text : ""))
+      .flatMap((e) => {
+        const content = e.body.case === "itemCompleted" ? e.body.value.item?.content : undefined;
+
+        return e.turnId === turnId && content?.case === "agentMessage" && content.value.phase === "final_answer"
+          ? [content.value.text]
+          : [];
+      })
       .join("\n");
 
   const ask = (threads: CodexThreads["Service"], s: ThreadSpec, turnId: string, text: string) =>
@@ -152,17 +155,17 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
     expect(resumed.answer.toUpperCase()).toContain("PAPAYA");
 
     // Everything went through the journal: thread_ready for both threads, increasing journal_seq per thread.
-    const ready = published.filter((e) => e.body.case === "threadReady").map((e) => e.threadId);
+    const ready = published.flatMap((e) => (e.body.case === "threadReady" ? [e.threadId] : []));
     expect(ready).toEqual([mainId, forkId]);
 
     for (const threadId of [mainId, forkId]) {
-      const seqs = published.filter((e) => e.threadId === threadId).map((e) => Number(e.journalSeq));
+      const seqs = published.flatMap((e) => (e.threadId === threadId ? [Number(e.journalSeq)] : []));
       expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
       expect(new Set(seqs).size).toBe(seqs.length);
     }
 
     // Turn ids are the platform's, bound through clientUserMessageId / pending turns.
-    expect(published.filter((e) => e.body.case === "turnStarted").map((e) => e.turnId)).toEqual([
+    expect(published.flatMap((e) => (e.body.case === "turnStarted" ? [e.turnId] : []))).toEqual([
       "turn-1",
       "turn-2",
       "turn-3",
@@ -205,8 +208,12 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
         }).pipe(Effect.provide(worker())),
       );
       const events = published.filter((e) => e.threadId === threadId);
+
       // What the mapper read, for the fixture (consecutive events of one notification share raw_json).
-      const raw = events.map((e) => e.rawJson).filter((json, i, all) => json && json !== all[i - 1]);
+      const raw = events.flatMap((event, i) =>
+        event.rawJson && event.rawJson !== events[i - 1]?.rawJson ? [event.rawJson] : [],
+      );
+
       mkdirSync(recordDir, { recursive: true });
       writeFileSync(join(recordDir, "commands-turn.jsonl"), raw.join("\n") + "\n");
 
@@ -221,13 +228,16 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
         }
 
         // Each command is a command item, or part of a code-mode cell with its result (exit code included).
-        const shown = [...items.values()].map((item) =>
-          item.content.case === "commandExecution"
-            ? `${item.content.value.command} => exit ${item.content.value.exitCode} ${item.content.value.output}`
-            : item.content.case === "toolCall"
-              ? `${item.content.value.inputJson} => ${item.content.value.output}`
-              : "",
-        );
+        const shown = [...items.values()].map((item) => {
+          switch (item.content.case) {
+            case "commandExecution":
+              return `${item.content.value.command} => exit ${item.content.value.exitCode} ${item.content.value.output}`;
+            case "toolCall":
+              return `${item.content.value.inputJson} => ${item.content.value.output}`;
+            default:
+              return "";
+          }
+        });
 
         for (const command of ["ping -c 4 8.8.8.8", "ls -lah", "git status"]) {
           expect(shown.some((text) => text.includes(command))).toBe(true);
@@ -291,9 +301,9 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("Codex threads (live)", () => {
     expect(second.fork.answer.toUpperCase()).toContain("MANGO");
 
     // The empty thread got a new Codex thread, announced as replacing the old one.
-    const replaced = published
-      .filter((e) => e.threadId === emptyId && e.body.case === "threadReady")
-      .map((e) => e.body.case === "threadReady" && e.body.value);
+    const replaced = published.flatMap((e) =>
+      e.threadId === emptyId && e.body.case === "threadReady" ? [e.body.value] : [],
+    );
 
     expect(replaced).toHaveLength(2);
     const fresh = replaced[1] && replaced[1].providerThreadId;

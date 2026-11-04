@@ -13,6 +13,10 @@ import {
   type ItemSchema,
 } from "@canopy/contracts";
 import { isAgentBusTool, isPlatformServer, VIEW_IMAGE_TOOL } from "@canopy/domain";
+import type { JsonObject, JsonValue } from "@canopy/domain";
+import { Schema } from "effect";
+import { decodeJson, decodeJsonObject, isString, isNumber, jsonObject, jsonString } from "../json.ts";
+import type { TurnEnd } from "../harness-record.ts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**
@@ -111,7 +115,7 @@ export class CodexEventMapper {
     const event = (codexTurnId: string | null | undefined, body: ThreadEventInit["body"]): ThreadEventInit => {
       const turnId = codexTurnId ? this.#ctx.turnId(codexTurnId) : undefined;
 
-      return { ...(turnId ? { turnId } : {}), ...(body ? { body } : {}), rawJson } as ThreadEventInit;
+      return { ...(turnId && { turnId }), ...(body && { body }), rawJson };
     };
 
     switch (notification.method) {
@@ -266,7 +270,7 @@ export class CodexEventMapper {
             value: {
               level: willRetry ? NoticeLevel.WARNING : NoticeLevel.ERROR,
               code: error.codexErrorInfo
-                ? typeof error.codexErrorInfo === "string"
+                ? isString(error.codexErrorInfo)
                   ? error.codexErrorInfo
                   : (Object.keys(error.codexErrorInfo)[0] ?? "error")
                 : "error",
@@ -302,9 +306,11 @@ export class CodexEventMapper {
         return this.#responseItem(event, notification.params.turnId, notification.params.item);
       default: {
         // Hooks, read state, moderation metadata, diffs, ...: kept raw for the timeline and later projections.
-        const turnId = (notification.params as { turnId?: unknown } | undefined)?.turnId;
+        const turnId = Schema.decodeUnknownSync(Schema.Struct({ turnId: Schema.optionalKey(Schema.String) }))(
+          notification.params,
+        ).turnId;
 
-        return [event(typeof turnId === "string" ? turnId : undefined, undefined)];
+        return [event(turnId, undefined)];
       }
     }
   }
@@ -385,7 +391,7 @@ export class CodexEventMapper {
                   sourceItemId: item.id,
                   endedAt: timestampNow(),
                   ...(item.exitCode !== null && { exitCode: item.exitCode }),
-                  ...(stopped ? { stopReason: "stopped_by_user" } : failed ? { stopReason: "error" } : {}),
+                  ...((stopped || failed) && { stopReason: stopped ? "stopped_by_user" : "error" }),
                 },
               },
             },
@@ -486,10 +492,7 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
         content: {
           case: "userMessage",
           value: {
-            text: item.content
-              .map((part) => (part.type === "text" ? part.text : ""))
-              .filter(Boolean)
-              .join("\n"),
+            text: item.content.flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n"),
             // turn/start and turn/steer send the platform's id (turn id, steer input id) as clientUserMessageId.
             ...(item.clientId && { clientId: item.clientId }),
           },
@@ -533,7 +536,7 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
               path: change.path,
               kind: change.kind.type === "update" && change.kind.move_path ? "move" : change.kind.type,
               diff: change.diff,
-              ...(change.kind.type === "update" && change.kind.move_path ? { movePath: change.kind.move_path } : {}),
+              ...(change.kind.type === "update" && change.kind.move_path && { movePath: change.kind.move_path }),
             })),
           },
         },
@@ -558,7 +561,7 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
 
       // The platform's view_image (namespace "canopy"): an image item; the preview comes from its result.
       if (item.tool === VIEW_IMAGE_TOOL && isPlatformServer(item.namespace)) {
-        const path = (item.arguments as { path?: unknown } | null)?.path;
+        const path = jsonObject(decodeJson(item.arguments ?? null))?.["path"];
 
         return {
           ...base,
@@ -566,7 +569,7 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
           content: {
             case: "image",
             value: {
-              path: typeof path === "string" ? path : "",
+              path: jsonString(path),
               source: VIEW_IMAGE_TOOL,
               ...(item.success === false && { detail: output }),
             },
@@ -669,22 +672,21 @@ function shellCommandItem(
   callId: string,
   call: { name: string; arguments: string; output?: FunctionCallOutputBody },
 ): ItemInit {
-  let args: { cmd?: unknown; command?: unknown; workdir?: unknown } = {};
+  let args: JsonObject = {};
 
   try {
-    args = JSON.parse(call.arguments);
+    args = decodeJsonObject(JSON.parse(call.arguments));
   } catch {
     // Not JSON: shown as the command below.
   }
 
-  const command =
-    typeof args.cmd === "string"
-      ? args.cmd
-      : Array.isArray(args.command)
-        ? args.command.join(" ")
-        : typeof args.command === "string"
-          ? args.command
-          : call.arguments;
+  const command = isString(args["cmd"])
+    ? args["cmd"]
+    : Array.isArray(args["command"])
+      ? args["command"].join(" ")
+      : isString(args["command"])
+        ? args["command"]
+        : call.arguments;
 
   const text = call.output === undefined ? "" : outputText(call.output);
   const exit = /Process exited with code (-?\d+)/.exec(text);
@@ -698,7 +700,7 @@ function shellCommandItem(
       case: "commandExecution",
       value: {
         command,
-        cwd: typeof args.workdir === "string" ? args.workdir : "",
+        cwd: jsonString(args["workdir"]),
         output: marker >= 0 ? text.slice(marker + "Output:\n".length) : text,
         ...(exitCode !== undefined && { exitCode }),
       },
@@ -707,7 +709,7 @@ function shellCommandItem(
 }
 
 function outputText(body: FunctionCallOutputBody): string {
-  return typeof body === "string"
+  return isString(body)
     ? body
     : body.map((part) => (part.type === "input_text" ? part.text : `[${part.type}]`)).join("\n");
 }
@@ -726,12 +728,12 @@ function toolStatus(status: "inProgress" | "completed" | "failed" | "declined"):
 }
 
 /** Where a turn's end came from: Codex's errors are the harness's; an interruption is the user's when asked for. */
-function turnEndSource(turn: v2.Turn, asked: boolean): { source: TurnEndSource; errorCode?: string } {
+function turnEndSource(turn: v2.Turn, asked: boolean): Pick<TurnEnd, "source" | "errorCode"> {
   switch (turn.status) {
     case "failed":
       return {
         source: TurnEndSource.HARNESS,
-        ...(turn.error?.codexErrorInfo && { errorCode: codexErrorCode(turn.error.codexErrorInfo) }),
+        ...(turn.error?.codexErrorInfo && { errorCode: codexErrorCode(decodeJson(turn.error.codexErrorInfo)) }),
       };
     case "interrupted":
       return { source: asked ? TurnEndSource.USER : TurnEndSource.SYSTEM };
@@ -741,18 +743,19 @@ function turnEndSource(turn: v2.Turn, asked: boolean): { source: TurnEndSource; 
 }
 
 /** e.g. `{ httpConnectionFailed: { httpStatusCode: 401 } }` -> "httpConnectionFailed:401"; a string stays as is. */
-export function codexErrorCode(info: unknown): string {
-  if (typeof info === "string") return info;
+export function codexErrorCode(info: JsonValue | undefined): string {
+  if (isString(info)) return info;
 
-  if (!info || typeof info !== "object") return "";
-  const [key, detail] = Object.entries(info)[0] ?? [];
+  const object = jsonObject(info);
+
+  if (!object) return "";
+  const [key, detail] = Object.entries(object)[0] ?? [];
 
   if (!key) return "";
 
-  const status =
-    detail && typeof detail === "object" ? Object.entries(detail).find(([k]) => /status/i.test(k))?.[1] : undefined;
+  const status = jsonObject(detail) ? Object.entries(detail ?? {}).find(([k]) => /status/i.test(k))?.[1] : undefined;
 
-  return typeof status === "number" ? `${key}:${status}` : key;
+  return isNumber(status) ? `${key}:${status}` : key;
 }
 
 function turnOutcome(status: v2.TurnStatus): TurnOutcome {

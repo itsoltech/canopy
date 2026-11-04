@@ -3,10 +3,11 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@canopy/testing";
 import { RolloutTail } from "./rollout.ts";
+import type { JsonObject } from "@canopy/domain";
 
 const dir = tempDir("canopy-rollout-");
 
-const line = (type: string, payload: object) =>
+const line = (type: string, payload: JsonObject) =>
   JSON.stringify({ timestamp: "2026-11-01T20:00:00.000Z", type, payload }) + "\n";
 
 describe("RolloutTail", () => {

@@ -19,7 +19,8 @@ import {
 } from "@canopy/contracts";
 import { agentBusToolSpecs, agentBusToolsFor, isPlatformServer, PLATFORM_SERVER, viewImageSpec } from "@canopy/domain";
 import type { ViewImageResult } from "../../images/index.ts";
-import { Context, Effect, Layer, Schema, Stream } from "effect";
+import { Context, Effect, Layer, Predicate, Schema, Stream } from "effect";
+import { decodeJson, jsonObject, jsonString } from "../json.ts";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
 import { pickDefaultEffort } from "../default-effort.ts";
 import { codexModel, codexProxyModels, proxyModels, type ModelInit } from "../models.ts";
@@ -97,7 +98,7 @@ export function codexViewImageTool(): v2.DynamicToolSpec {
         type: "function",
         name: CODEX_VIEW_IMAGE_TOOL,
         description: spec.description,
-        inputSchema: spec.inputSchema as v2.DynamicToolFunctionSpec["inputSchema"],
+        inputSchema: decodeJson(spec.inputSchema),
       },
     ],
   };
@@ -114,7 +115,7 @@ export function codexAgentBusTools(depth: number): v2.DynamicToolSpec[] {
     type: "function" as const,
     name: tool.name,
     description: tool.description,
-    inputSchema: tool.inputSchema as v2.DynamicToolFunctionSpec["inputSchema"],
+    inputSchema: decodeJson(tool.inputSchema),
   }));
 }
 
@@ -127,7 +128,7 @@ function dynamicTools(spec: ThreadSpec, viewImage: boolean): { dynamicTools?: v2
       type: "function",
       name: t.name,
       description: t.description,
-      inputSchema: JSON.parse(t.inputSchemaJson) as v2.DynamicToolFunctionSpec["inputSchema"],
+      inputSchema: decodeJson(JSON.parse(t.inputSchemaJson)),
     })),
   ];
 
@@ -238,16 +239,16 @@ export function withUserMentions(
 
   if (!found) return init;
 
-  return {
-    ...init,
-    body: {
-      ...body,
-      value: {
-        ...body.value,
-        item: { ...body.value?.item, content: { ...content, value: { ...content.value, mentions: [...found] } } },
-      },
-    },
-  } as ThreadEventInit;
+  const enriched = structuredClone(init);
+  const updated = enriched.body;
+
+  if (updated?.case === "itemStarted" || updated?.case === "itemCompleted") {
+    const user = updated.value.item?.content;
+
+    if (user?.case === "userMessage") user.value.mentions = [...found];
+  }
+
+  return enriched;
 }
 
 /** thread/resume of a thread without a rollout file (it never had a turn): "no rollout found for thread id …". */
@@ -456,8 +457,11 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     yield* Effect.forkScoped(
       codex.notifications.pipe(
         Stream.runForEach((notification) => {
-          const threadId = (notification.params as { threadId?: unknown } | undefined)?.threadId;
-          const entry = typeof threadId === "string" ? byCodex.get(threadId) : undefined;
+          const threadId = Schema.decodeUnknownSync(Schema.Struct({ threadId: Schema.optionalKey(Schema.String) }))(
+            notification.params,
+          ).threadId;
+
+          const entry = threadId ? byCodex.get(threadId) : undefined;
 
           return entry ? record(entry, notification).pipe(Effect.ignore) : Effect.void;
         }),
@@ -465,10 +469,13 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     );
 
     setRoute(async (request) => {
-      const params = request.params as { threadId?: string; turnId?: string; itemId?: string } & Record<
-        string,
-        unknown
-      >;
+      const params = Schema.decodeUnknownSync(
+        Schema.Struct({
+          threadId: Schema.optionalKey(Schema.String),
+          turnId: Schema.optionalKey(Schema.String),
+          itemId: Schema.optionalKey(Schema.String),
+        }),
+      )(request.params);
 
       const entry = params.threadId ? byCodex.get(params.threadId) : undefined;
 
@@ -509,7 +516,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
 
         case "item/permissions/requestApproval": {
           const answer = await interact(InteractionKind.PERMISSION, "permissions");
-          const requested = (request.params as v2.PermissionsRequestApprovalParams).permissions;
+          const requested = request.params.permissions;
 
           return { permissions: answer.allow ? requested : {}, scope: answer.allowForSession ? "session" : "turn" };
         }
@@ -530,11 +537,11 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
 
         case "item/tool/call": {
           if (!entry) throw new RpcError(request.method, -32602, "unknown thread");
-          const call = request.params as v2.DynamicToolCallParams;
+          const call = request.params;
 
           if (isViewImageCall(call) && options.viewImage) {
-            const args = (call.arguments ?? {}) as { path?: unknown };
-            const viewed = await options.viewImage(entry.platformId, typeof args.path === "string" ? args.path : "");
+            const args = jsonObject(decodeJson(call.arguments ?? {}));
+            const viewed = await options.viewImage(entry.platformId, jsonString(args?.["path"]));
 
             return (
               viewed.ok
@@ -673,7 +680,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
 
         const params = yield* Effect.try({
           try: () => threadParams(spec),
-          catch: (e) => fail(spec.threadId, "resume")(e as Error),
+          catch: (cause) => fail(spec.threadId, "resume")(cause instanceof Error ? cause : new Error(String(cause))),
         });
 
         const resumed = yield* codex.request("thread/resume", { threadId: spec.providerThreadId, ...params }).pipe(
@@ -700,7 +707,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       create: Effect.fn("CodexThreads.create")(function* (spec: ThreadSpec, fork?: ForkSpec) {
         const params = yield* Effect.try({
           try: () => threadParams(spec),
-          catch: (e) => fail(spec.threadId, "create")(e as Error),
+          catch: (cause) => fail(spec.threadId, "create")(cause instanceof Error ? cause : new Error(String(cause))),
         });
 
         const response = fork
@@ -930,6 +937,4 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     });
   });
 
-function isAppServerError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && (error as { _tag?: unknown })._tag === "CodexAppServerError";
-}
+const isAppServerError = Predicate.isTagged("CodexAppServerError");

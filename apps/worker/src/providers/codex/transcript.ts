@@ -1,8 +1,21 @@
-import type { ResponseItem, ServerNotification, v2 } from "@canopy/codex-protocol";
+import type { v2 } from "@canopy/codex-protocol";
 import { ItemStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 import { readJsonl, type HarnessRecord, type TurnEnd } from "../harness-record.ts";
 import { CodexEventMapper, codexErrorCode } from "./mapping.ts";
+import { Schema } from "effect";
+import type { JsonObject, JsonValue } from "@canopy/domain";
+import { isBoolean, isNumber, isString, jsonObject, jsonString } from "../json.ts";
+import { decodeResponseItem } from "./rollout.ts";
+
+const TokenUsage = Schema.Struct({
+  input_tokens: Schema.optionalKey(Schema.Number),
+  cached_input_tokens: Schema.optionalKey(Schema.Number),
+  output_tokens: Schema.optionalKey(Schema.Number),
+  reasoning_output_tokens: Schema.optionalKey(Schema.Number),
+});
+
+type TokenUsage = typeof TokenUsage.Type;
 
 /**
  * One turn as Codex recorded it in its rollout (docs/durability.md, "Rekoncyliacja z transkryptu harnessu").
@@ -20,7 +33,7 @@ export async function readCodexTurn(
   codexTurnId: string,
   platformTurnId: string,
 ): Promise<HarnessRecord | undefined> {
-  const records = (await readJsonl(path, offset)) as RolloutRecord[];
+  const records = await readJsonl(path, offset);
   let target = codexTurnId || undefined;
   let current: string | undefined;
 
@@ -35,15 +48,16 @@ export async function readCodexTurn(
   let usage: TokenUsage | undefined;
   let seen = false;
 
-  for (const record of records) {
-    const payload = record.payload;
+  for (const raw of records) {
+    const record = jsonObject(raw);
+    const payload = jsonObject(record?.["payload"]);
 
-    if (!payload || typeof payload !== "object") continue;
-    const turnOf = typeof payload.turn_id === "string" ? payload.turn_id : undefined;
+    if (!record || !payload) continue;
+    const turnOf = isString(payload["turn_id"]) ? payload["turn_id"] : undefined;
 
     if (turnOf && turnOf === target) seen = true;
 
-    if (record.type === "turn_context" || (record.type === "event_msg" && payload.type === "task_started")) {
+    if (record["type"] === "turn_context" || (record["type"] === "event_msg" && payload["type"] === "task_started")) {
       current = turnOf;
       // Without the Codex turn id, the first turn after the offset is this one (one turn at a time per thread).
       target ??= current;
@@ -54,37 +68,39 @@ export async function readCodexTurn(
 
     if (!target) continue;
 
-    if (record.type === "event_msg" && payload.type === "item_completed" && turnOf === target) {
+    if (record["type"] === "event_msg" && payload["type"] === "item_completed" && turnOf === target) {
       const item = threadItem(payload["item"]);
 
       if (item)
         events.push(
           ...mapper.map({
             method: "item/completed",
-            params: { threadId: "", turnId: target, item },
-          } as ServerNotification),
+            params: { threadId: "", turnId: target, item, completedAtMs: 0 },
+          }),
         );
-    } else if (record.type === "response_item" && current === target) {
+    } else if (record["type"] === "response_item" && current === target) {
       events.push(
         ...mapper.map({
           method: "rawResponseItem/completed",
-          params: { threadId: "", turnId: target, item: payload as unknown as ResponseItem },
+          params: { threadId: "", turnId: target, item: decodeResponseItem(payload) },
         }),
       );
-    } else if (record.type === "event_msg" && payload.type === "token_count" && current === target) {
-      usage = (payload["info"] as { total_token_usage?: TokenUsage } | null | undefined)?.total_token_usage ?? usage;
-    } else if (record.type === "event_msg" && payload.type === "task_complete" && turnOf === target) {
-      const error = payload["error"] as { message?: string; codex_error_info?: unknown } | null | undefined;
+    } else if (record["type"] === "event_msg" && payload["type"] === "token_count" && current === target) {
+      const total = jsonObject(payload["info"])?.["total_token_usage"];
+
+      if (total != null) usage = Schema.decodeUnknownSync(TokenUsage)(total);
+    } else if (record["type"] === "event_msg" && payload["type"] === "task_complete" && turnOf === target) {
+      const error = jsonObject(payload["error"]);
       end = error
         ? {
             outcome: TurnOutcome.FAILED,
             source: TurnEndSource.HARNESS,
-            reason: error.message ?? "the turn failed",
-            errorCode: codexErrorCode(error.codex_error_info),
+            reason: isString(error["message"]) ? error["message"] : "the turn failed",
+            errorCode: codexErrorCode(error["codex_error_info"]),
           }
         : { outcome: TurnOutcome.COMPLETED, source: TurnEndSource.UNSPECIFIED, reason: "" };
-    } else if (record.type === "event_msg" && payload.type === "turn_aborted" && turnOf === target) {
-      const reason = typeof payload["reason"] === "string" ? payload["reason"] : "aborted";
+    } else if (record["type"] === "event_msg" && payload["type"] === "turn_aborted" && turnOf === target) {
+      const reason = isString(payload["reason"]) ? payload["reason"] : "aborted";
       // "interrupted": the client (the platform, for its user) asked; anything else Codex decided itself.
       end = {
         outcome: TurnOutcome.INTERRUPTED,
@@ -95,8 +111,20 @@ export async function readCodexTurn(
   }
 
   if (!target || !seen) return undefined;
+
   // Shell calls Codex reported no item for come out at the turn's end, like live.
-  const turn = { id: target, items: [], status: "interrupted", error: null } as unknown as v2.Turn;
+  const turn = {
+    id: target,
+    rootTurnId: null,
+    items: [],
+    itemsView: "full",
+    status: "interrupted",
+    error: null,
+    startedAt: null,
+    completedAt: null,
+    durationMs: null,
+  } satisfies v2.Turn;
+
   events.push(
     ...mapper
       .map({ method: "turn/completed", params: { threadId: "", turn } })
@@ -119,18 +147,6 @@ export async function readCodexTurn(
       },
     }),
   };
-}
-
-interface RolloutRecord {
-  readonly type?: string;
-  readonly payload?: { readonly type?: string; readonly turn_id?: unknown; readonly [key: string]: unknown };
-}
-
-interface TokenUsage {
-  readonly input_tokens?: number;
-  readonly cached_input_tokens?: number;
-  readonly output_tokens?: number;
-  readonly reasoning_output_tokens?: number;
 }
 
 /** Last state of every item the events touch, in first-seen order (deltas are not in the rollout). */
@@ -158,16 +174,23 @@ function itemsOf(events: ThreadEventInit[]): HarnessRecord["items"] {
  * A rollout item (Codex's internal turn item: PascalCase type, snake_case fields) as the app-server item the mapper
  * reads. Unknown types are kept whole (provider_item).
  */
-export function threadItem(raw: unknown): v2.ThreadItem | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const item = raw as Record<string, unknown> & { type?: unknown; id?: unknown };
+export function threadItem(raw: JsonValue | undefined): v2.ThreadItem | undefined {
+  const item = jsonObject(raw);
 
-  if (typeof item.type !== "string" || typeof item.id !== "string") return undefined;
-  const id = item.id;
+  if (!item) return undefined;
+
+  if (!isString(item["type"]) || !isString(item["id"])) return undefined;
+  const id = item["id"];
   const status = camelStatus(item["status"]);
-  const as = (value: Record<string, unknown>) => ({ id, ...value }) as unknown as v2.ThreadItem;
 
-  switch (item.type) {
+  const as = (value: JsonObject) => {
+    // SAFETY: This rollout adapter normalizes every field read by mapItem below. Other generated
+    // app-server metadata is absent from rollouts and is never read by the mapper. Unknown types
+    // only use the checked id/type and their original JSON in its providerItem fallback.
+    return { id, ...value } as v2.ThreadItem;
+  };
+
+  switch (item["type"]) {
     case "UserMessage":
       return as({
         type: "userMessage",
@@ -179,7 +202,11 @@ export function threadItem(raw: unknown): v2.ThreadItem | undefined {
     case "Reasoning":
       return as({ type: "reasoning", summary: strings(item["summary_text"]), content: strings(item["raw_content"]) });
     case "CommandExecution": {
-      const duration = item["duration"] as { secs?: number; nanos?: number } | undefined;
+      const duration = Schema.decodeUnknownSync(
+        Schema.NullishOr(
+          Schema.Struct({ secs: Schema.optionalKey(Schema.Number), nanos: Schema.optionalKey(Schema.Number) }),
+        ),
+      )(item["duration"]);
 
       return as({
         type: "commandExecution",
@@ -187,26 +214,27 @@ export function threadItem(raw: unknown): v2.ThreadItem | undefined {
         cwd: fileUri(str(item["cwd"])),
         processId: str(item["process_id"]) || null,
         status,
-        aggregatedOutput: typeof item["aggregated_output"] === "string" ? item["aggregated_output"] : null,
-        exitCode: typeof item["exit_code"] === "number" ? item["exit_code"] : null,
+        aggregatedOutput: isString(item["aggregated_output"]) ? item["aggregated_output"] : null,
+        exitCode: isNumber(item["exit_code"]) ? item["exit_code"] : null,
         durationMs: duration ? Math.round((duration.secs ?? 0) * 1000 + (duration.nanos ?? 0) / 1e6) : null,
       });
     }
 
     case "FileChange": {
-      const changes =
-        item["changes"] && typeof item["changes"] === "object"
-          ? Object.entries(item["changes"] as Record<string, Record<string, unknown>>)
-          : [];
+      const changes = jsonObject(item["changes"]) ? Object.entries(jsonObject(item["changes"]) ?? {}) : [];
 
       return as({
         type: "fileChange",
         status,
-        changes: changes.map(([path, change]) => ({
-          path,
-          kind: { type: str(change["type"]) || "update", move_path: str(change["move_path"]) || null },
-          diff: str(change["unified_diff"]) || str(change["content"]),
-        })),
+        changes: changes.map(([path, value]) => {
+          const change = jsonObject(value) ?? {};
+
+          return {
+            path,
+            kind: { type: str(change["type"]) || "update", move_path: str(change["move_path"]) || null },
+            diff: str(change["unified_diff"]) || str(change["content"]),
+          };
+        }),
       });
     }
 
@@ -222,10 +250,7 @@ export function threadItem(raw: unknown): v2.ThreadItem | undefined {
         result: item["result"] ?? null,
         error: error
           ? {
-              message:
-                typeof error === "string"
-                  ? error
-                  : str((error as { message?: unknown }).message) || JSON.stringify(error),
+              message: isString(error) ? error : str(jsonObject(error)?.["message"]) || JSON.stringify(error),
             }
           : null,
       });
@@ -239,7 +264,7 @@ export function threadItem(raw: unknown): v2.ThreadItem | undefined {
         arguments: item["arguments"] ?? null,
         status,
         contentItems: Array.isArray(item["content_items"]) ? item["content_items"] : null,
-        success: typeof item["success"] === "boolean" ? item["success"] : null,
+        success: isBoolean(item["success"]) ? item["success"] : null,
       });
     case "ImageView":
       return as({ type: "imageView", path: fileUri(str(item["path"])) });
@@ -252,11 +277,11 @@ export function threadItem(raw: unknown): v2.ThreadItem | undefined {
 
       return as({ ...item, type: "extension" });
     default:
-      return as({ ...item, type: item.type.charAt(0).toLowerCase() + item.type.slice(1) });
+      return as({ ...item, type: item["type"].charAt(0).toLowerCase() + item["type"].slice(1) });
   }
 }
 
-function camelStatus(value: unknown): string {
+function camelStatus(value: JsonValue | undefined): string {
   switch (value) {
     case "in_progress":
     case "inProgress":
@@ -270,31 +295,27 @@ function camelStatus(value: unknown): string {
   }
 }
 
-function str(value: unknown): string {
-  return typeof value === "string" ? value : "";
+function str(value: JsonValue | undefined): string {
+  return jsonString(value);
 }
 
-function strings(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.map((v) => (typeof v === "string" ? v : str((v as { text?: unknown } | null)?.text)))
-    : [];
+function strings(value: JsonValue | undefined): string[] {
+  return Array.isArray(value) ? value.map((v) => (isString(v) ? v : str(jsonObject(v)?.["text"]))) : [];
 }
 
-function texts(content: unknown): string {
-  return Array.isArray(content)
-    ? content.map((c: { type?: string; text?: string }) => (typeof c?.text === "string" ? c.text : "")).join("")
-    : "";
+function texts(content: JsonValue | undefined): string {
+  return Array.isArray(content) ? content.map((c) => jsonString(jsonObject(c)?.["text"])).join("") : "";
 }
 
 /** argv as app-server shows it: shell-quoted words joined by spaces. */
-function commandText(command: unknown): string {
-  if (typeof command === "string") return command;
+function commandText(command: JsonValue | undefined): string {
+  if (isString(command)) return command;
 
   if (!Array.isArray(command)) return "";
 
   return command
     .map((word) =>
-      typeof word === "string" && /^[\w@%+=:,./-]+$/.test(word) ? word : `'${String(word).replaceAll("'", `'\\''`)}'`,
+      isString(word) && /^[\w@%+=:,./-]+$/.test(word) ? word : `'${String(word).replaceAll("'", `'\\''`)}'`,
     )
     .join(" ");
 }

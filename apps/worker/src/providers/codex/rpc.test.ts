@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { AsyncChannel } from "@canopy/transport";
 import { JsonRpcPeer, RpcClosedError, RpcError, readLines, type RpcHandlers } from "./rpc.ts";
+import type { JsonValue } from "@canopy/domain";
 
 /** In-memory server side: lines the client wrote, and a channel to push server lines. */
 function fakeServer(handlers: Partial<RpcHandlers> = {}) {
@@ -17,7 +18,7 @@ function fakeServer(handlers: Partial<RpcHandlers> = {}) {
   );
 
   const running = peer.run();
-  const push = (message: unknown) => incoming.push(JSON.stringify(message));
+  const push = (message: JsonValue) => incoming.push(JSON.stringify(message));
   const pushRaw = (line: string) => incoming.push(line);
 
   return { peer, written, push, pushRaw, notifications, close: () => incoming.close(), running };
@@ -42,7 +43,7 @@ describe("JsonRpcPeer", () => {
     const server = fakeServer();
     const pending = server.peer.request("thread/goal/set", {});
     server.push({ id: 1, error: { code: -32600, message: "no goal" } });
-    const error = await pending.catch((e: unknown) => e);
+    const error = await pending.catch((cause: unknown) => cause);
     expect(error).toBeInstanceOf(RpcError);
     expect((error as RpcError).method).toBe("thread/goal/set");
     expect((error as RpcError).code).toBe(-32600);
@@ -80,8 +81,8 @@ describe("JsonRpcPeer", () => {
     const pending = server.peer.request("turn/start", {});
     server.close();
     await server.running;
-    expect(await pending.catch((e: unknown) => e)).toBeInstanceOf(RpcClosedError);
-    expect(await server.peer.request("x", {}).catch((e: unknown) => e)).toBeInstanceOf(RpcClosedError);
+    expect(await pending.catch((cause: unknown) => cause)).toBeInstanceOf(RpcClosedError);
+    expect(await server.peer.request("x", {}).catch((cause: unknown) => cause)).toBeInstanceOf(RpcClosedError);
   });
 });
 

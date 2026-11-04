@@ -31,7 +31,7 @@ export function codexAppServerLaunch(
 ): CodexAppServerLaunch {
   const command = [codexBin, "app-server", ...codexNativeToolOverrides(nativeTools), ...extraArgs];
 
-  const env: Record<string, string | undefined> = {
+  const env: NodeJS.ProcessEnv = {
     ...baseEnv,
     ...profileEnv,
     ...(codexHome !== undefined && { CODEX_HOME: codexHome }),
@@ -42,14 +42,14 @@ export function codexAppServerLaunch(
     const provider = codexModelProviderId(profile);
     const keyEnv = `${provider.toUpperCase()}_API_KEY`;
 
-    const settings: Record<string, string | boolean> = {
+    const settings = {
       name: `CLIProxyAPI (${profile.id})`,
       base_url: new URL("v1", withTrailingSlash(profile.baseUrl)).href,
       wire_api: "responses",
       // Sent as `Authorization: Bearer $KEY`. The key goes through env, never argv.
       env_key: keyEnv,
       requires_openai_auth: false,
-    };
+    } satisfies Record<string, string | boolean>;
 
     for (const [key, value] of Object.entries(settings)) {
       command.push("-c", `model_providers.${provider}.${key}=${tomlValue(value)}`);
@@ -77,5 +77,5 @@ function withTrailingSlash(url: URL): URL {
 
 /** TOML literal for `-c key=value`. JSON string escapes are valid TOML basic strings. */
 function tomlValue(value: string | boolean): string {
-  return typeof value === "boolean" ? String(value) : JSON.stringify(value);
+  return JSON.stringify(value);
 }

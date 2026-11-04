@@ -1,4 +1,4 @@
-import { Context, Effect, Exit, Fiber, Layer, Scope, Stream } from "effect";
+import { Context, Effect, Exit, Fiber, Layer, Option, Scope, Stream } from "effect";
 import { CodexAppServer } from "./app-server.ts";
 import type { CodexAppServerLaunch } from "./launch.ts";
 import { withDeadline } from "../deadline.ts";
@@ -65,7 +65,7 @@ export async function startCodexDeviceLogin(options: {
         if (outcome === "timeout") return { success: false, error: "the sign-in code expired" };
 
         const params =
-          outcome._tag === "Some" && outcome.value.method === "account/login/completed"
+          Option.isSome(outcome) && outcome.value.method === "account/login/completed"
             ? outcome.value.params
             : undefined;
 
