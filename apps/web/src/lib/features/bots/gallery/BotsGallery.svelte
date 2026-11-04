@@ -117,7 +117,7 @@
 <svelte:head><title>Bots gallery · Canopy</title></svelte:head>
 
 <div class={["flex h-full flex-col", className]}>
-  <TopBar><Crumb>Dev</Crumb><Crumb>Bots gallery</Crumb></TopBar>
+  <TopBar><Crumb current={false}>Dev</Crumb><Crumb>Bots gallery</Crumb></TopBar>
   <div class="min-h-0 flex-1 overflow-y-auto">
     <div class="mx-auto grid max-w-6xl gap-10 px-4 pt-4 pb-16 sm:px-6">
       <div class="grid gap-2">

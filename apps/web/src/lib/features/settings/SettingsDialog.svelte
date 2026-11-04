@@ -11,7 +11,7 @@
 
   /**
    * Settings as a large modal panel: searchable section nav on the left, the section on the
-   * right; a full-screen sheet on phones. A native modal `<dialog>`: the page underneath is inert, focus
+   * right; a full-screen sheet on phones, where a section menu in the top row takes the nav's place. A native modal `<dialog>`: the page underneath is inert, focus
    * stays inside and goes back to the opener on close. Escape, the close button or a click on the
    * backdrop ask to close (`onclose`); `open` going false plays the exit (motion.css `t-modal`), then
    * `onexited`. On macOS its top row is a title strip (routes/layout.css).
@@ -69,9 +69,9 @@
   }}
   class="t-modal fixed inset-x-0 top-(--window-safe-top) bottom-0 m-0 h-(--window-safe-height) max-h-none w-full max-w-none overflow-hidden bg-white p-0 text-zinc-950 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-[2px] sm:m-auto sm:h-[min(var(--window-safe-height)-3rem,60rem)] sm:w-[min(100vw-3rem,76rem)] sm:rounded-2xl sm:shadow-2xl sm:ring-1 sm:ring-zinc-950/10 dark:bg-zinc-950 dark:text-white dark:backdrop:bg-black/70 dark:sm:shadow-none dark:sm:ring-white/10"
 >
-  <div class="flex h-full flex-col lg:flex-row">
+  <div class="flex h-full">
     <div
-      class="shrink-0 border-zinc-950/5 bg-zinc-50 px-3 pt-3 pb-2 lg:w-(--settings-nav-width) lg:overflow-y-auto lg:border-r lg:pb-3 dark:border-white/8 dark:bg-white/2"
+      class="w-(--settings-nav-width) shrink-0 overflow-y-auto border-r border-zinc-950/5 bg-zinc-50 p-3 max-lg:hidden dark:border-white/8 dark:bg-white/2"
     >
       <SettingsNav />
     </div>

@@ -9,7 +9,8 @@
 
   /**
    * One action of a `DropdownMenu`. Choosing it runs `onselect` and closes the menu (unless
-   * `keepOpen`). With `href` it is a link. `shortcut` shows a hint (bind the hotkey yourself).
+   * `keepOpen`). With `href` it is a link;
+   * `current` marks it as the page shown (a check mark, `aria-current`). `shortcut` shows a hint (bind the hotkey yourself).
    *
    *   <MenuItem icon="link" shortcut="Mod+Shift+C" onselect={copyLink}>Copy link</MenuItem>
    */
@@ -20,6 +21,7 @@
     description,
     disabled = false,
     danger = false,
+    current = false,
     keepOpen = false,
     onselect,
     class: className,
@@ -31,6 +33,7 @@
     description?: string | undefined;
     disabled?: boolean;
     danger?: boolean;
+    current?: boolean;
     keepOpen?: boolean;
     onselect?: (() => void) | undefined;
     class?: ClassValue;
@@ -60,6 +63,7 @@
   {/if}
   <MenuItemText {description}>{@render children()}</MenuItemText>
   {#if shortcut}<span class="flex h-lh items-center"><Kbd hotkey={shortcut} /></span>{/if}
+  {#if current}<Icon name="check" class="h-lh text-brand-600 dark:text-brand-400" />{/if}
 {/snippet}
 
 {#if href && !disabled}
@@ -68,6 +72,7 @@
     role="menuitem"
     tabindex="-1"
     data-menu-item
+    aria-current={current ? "page" : undefined}
     class={[menuRowClasses, danger && "text-rose-700 dark:text-rose-400", className]}
     onclick={choose}
     {onpointermove}

@@ -198,10 +198,11 @@
 
 <div class="flex h-full flex-col">
   <TopBar>
-    <Crumb
-      ><span class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400"
-        ><ProjectMark name={project?.name ?? "No project"} kind={project?.kind} />{project?.name ?? "No project"}</span
-      ></Crumb
+    <Crumb current={false}
+      >{#snippet mark()}<ProjectMark
+          name={project?.name ?? "No project"}
+          kind={project?.kind}
+        />{/snippet}{project?.name ?? "No project"}</Crumb
     >
     <Crumb>New thread</Crumb>
   </TopBar>
