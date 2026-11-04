@@ -18,7 +18,7 @@ import { BotStore } from "../../apps/gateway/src/bots/store.ts";
 import { botPlatform } from "../../apps/gateway/src/bots/platform.ts";
 import { PLATFORM_TOOLS } from "../../apps/gateway/src/bots/policy.ts";
 import type { BotModel } from "../../apps/gateway/src/bots/types.ts";
-import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () => {
   let gw: TestGateway;
@@ -171,7 +171,7 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     await invoke("rename_project", { project_id: projectId, name: "Provisioned renamed" });
     await invoke("update_workspace", { workspace_id: workspaceId, label: "Renamed workspace" });
 
-    const started = await invoke<{ thread_id: string }>("start_thread", {
+    const started = await invoke<{ thread_id: string; turn_id: string }>("start_thread", {
       project_id: projectId,
       workspace_id: workspaceId,
       provider: "codex",
@@ -182,9 +182,14 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     });
 
     threadId = started.thread_id;
-    await eventually(
-      () => gw.api.getThread({ threadId }),
-      (s) => s.thread?.status === "idle",
+    // threadReady also makes the thread idle, before the initial turn starts.
+    const completed = (turn: ui.Turn) => turn.id === started.turn_id && turn.status === "completed";
+    await watchUntil(gw.api, threadId, (updates) =>
+      updates.some(
+        ({ change }) =>
+          (change.case === "snapshot" && change.value.turns.some(completed)) ||
+          (change.case === "turn" && completed(change.value)),
+      ),
     );
     expect((await gw.api.getThread({ threadId })).thread).toMatchObject({
       projectId,
