@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/mobile.proto.
  */
 export const file_canopy_ui_v1_mobile: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvdWkvdjEvbW9iaWxlLnByb3RvEgxjYW5vcHkudWkudjEizAEKDE1vYmlsZURldmljZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBsYXRmb3JtGAMgASgJEi4KCmNyZWF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3Rfc2Vlbl9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcmV2b2tlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiuwEKDU1vYmlsZVBhaXJpbmcSCgoCaWQYASABKAkSLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoHdXNlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcmV2b2tlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJZGV2aWNlX2lkGAUgASgJIhkKF0dldE1vYmlsZURldmljZXNSZXF1ZXN0IosBChhHZXRNb2JpbGVEZXZpY2VzUmVzcG9uc2USEwoLZ2F0ZXdheV91cmwYASABKAkSKwoHZGV2aWNlcxgCIAMoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVEZXZpY2USLQoIcGFpcmluZ3MYAyADKAsyGy5jYW5vcHkudWkudjEuTW9iaWxlUGFpcmluZyIcChpDcmVhdGVNb2JpbGVQYWlyaW5nUmVxdWVzdCJuChtDcmVhdGVNb2JpbGVQYWlyaW5nUmVzcG9uc2USLAoHcGFpcmluZxgBIAEoCzIbLmNhbm9weS51aS52MS5Nb2JpbGVQYWlyaW5nEgwKBGNvZGUYAiABKAkSEwoLZ2F0ZXdheV91cmwYAyABKAkiHQoPTW9iaWxlSWRSZXF1ZXN0EgoKAmlkGAEgASgJIhkKF01vYmlsZU9wZXJhdGlvblJlc3BvbnNlIhsKGVVucGFpck1vYmlsZURldmljZVJlcXVlc3QiTAocRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVxdWVzdBIMCgRjb2RlGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcGxhdGZvcm0YAyABKAkiYQodRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVzcG9uc2USKgoGZGV2aWNlGAEgASgLMhouY2Fub3B5LnVpLnYxLk1vYmlsZURldmljZRIUCgxkZXZpY2VfdG9rZW4YAiABKAkyiAEKFE1vYmlsZVBhaXJpbmdTZXJ2aWNlEnAKFUV4Y2hhbmdlTW9iaWxlUGFpcmluZxIqLmNhbm9weS51aS52MS5FeGNoYW5nZU1vYmlsZVBhaXJpbmdSZXF1ZXN0GisuY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlYgZwcm90bzM", [file_google_protobuf_timestamp]);
+  fileDesc("ChljYW5vcHkvdWkvdjEvbW9iaWxlLnByb3RvEgxjYW5vcHkudWkudjEi5QEKDE1vYmlsZURldmljZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBsYXRmb3JtGAMgASgJEi4KCmNyZWF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3Rfc2Vlbl9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcmV2b2tlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFwoPcGFpcmluZ192ZXJzaW9uGAcgASgNIrsBCg1Nb2JpbGVQYWlyaW5nEgoKAmlkGAEgASgJEi4KCmV4cGlyZXNfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB3VzZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnJldm9rZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCWRldmljZV9pZBgFIAEoCSIZChdHZXRNb2JpbGVEZXZpY2VzUmVxdWVzdCK3AQoYR2V0TW9iaWxlRGV2aWNlc1Jlc3BvbnNlEhMKC2dhdGV3YXlfdXJsGAEgASgJEisKB2RldmljZXMYAiADKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlRGV2aWNlEi0KCHBhaXJpbmdzGAMgAygLMhsuY2Fub3B5LnVpLnYxLk1vYmlsZVBhaXJpbmcSKgoGcm91dGVzGAQgASgLMhouY2Fub3B5LnVpLnYxLk1vYmlsZVJvdXRlcyIcChpDcmVhdGVNb2JpbGVQYWlyaW5nUmVxdWVzdCKaAQobQ3JlYXRlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlEiwKB3BhaXJpbmcYASABKAsyGy5jYW5vcHkudWkudjEuTW9iaWxlUGFpcmluZxIMCgRjb2RlGAIgASgJEhMKC2dhdGV3YXlfdXJsGAMgASgJEioKBnJvdXRlcxgEIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVSb3V0ZXMiHQoPTW9iaWxlSWRSZXF1ZXN0EgoKAmlkGAEgASgJIhkKF01vYmlsZU9wZXJhdGlvblJlc3BvbnNlIhsKGVVucGFpck1vYmlsZURldmljZVJlcXVlc3QiTAocRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVxdWVzdBIMCgRjb2RlGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcGxhdGZvcm0YAyABKAkijQEKHUV4Y2hhbmdlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlEioKBmRldmljZRgBIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVEZXZpY2USFAoMZGV2aWNlX3Rva2VuGAIgASgJEioKBnJvdXRlcxgDIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVSb3V0ZXMiNgoMTW9iaWxlUm91dGVzEhMKC2ZpbmdlcnByaW50GAEgASgJEhEKCWFkZHJlc3NlcxgCIAMoCTKIAQoUTW9iaWxlUGFpcmluZ1NlcnZpY2UScAoVRXhjaGFuZ2VNb2JpbGVQYWlyaW5nEiouY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1JlcXVlc3QaKy5jYW5vcHkudWkudjEuRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVzcG9uc2ViBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message canopy.ui.v1.MobileDevice
@@ -47,6 +47,11 @@ export type MobileDevice = Message<"canopy.ui.v1.MobileDevice"> & {
    * @generated from field: google.protobuf.Timestamp revoked_at = 6;
    */
   revokedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: uint32 pairing_version = 7;
+   */
+  pairingVersion: number;
 };
 
 /**
@@ -124,6 +129,11 @@ export type GetMobileDevicesResponse = Message<"canopy.ui.v1.GetMobileDevicesRes
    * @generated from field: repeated canopy.ui.v1.MobilePairing pairings = 3;
    */
   pairings: MobilePairing[];
+
+  /**
+   * @generated from field: canopy.ui.v1.MobileRoutes routes = 4;
+   */
+  routes?: MobileRoutes | undefined;
 };
 
 /**
@@ -166,6 +176,11 @@ export type CreateMobilePairingResponse = Message<"canopy.ui.v1.CreateMobilePair
    * @generated from field: string gateway_url = 3;
    */
   gatewayUrl: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.MobileRoutes routes = 4;
+   */
+  routes?: MobileRoutes | undefined;
 };
 
 /**
@@ -260,6 +275,11 @@ export type ExchangeMobilePairingResponse = Message<"canopy.ui.v1.ExchangeMobile
    * @generated from field: string device_token = 2;
    */
   deviceToken: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.MobileRoutes routes = 3;
+   */
+  routes?: MobileRoutes | undefined;
 };
 
 /**
@@ -268,6 +288,30 @@ export type ExchangeMobilePairingResponse = Message<"canopy.ui.v1.ExchangeMobile
  */
 export const ExchangeMobilePairingResponseSchema: GenMessage<ExchangeMobilePairingResponse> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_mobile, 10);
+
+/**
+ * Addresses are hints; only the out-of-band certificate fingerprint grants trust.
+ *
+ * @generated from message canopy.ui.v1.MobileRoutes
+ */
+export type MobileRoutes = Message<"canopy.ui.v1.MobileRoutes"> & {
+  /**
+   * @generated from field: string fingerprint = 1;
+   */
+  fingerprint: string;
+
+  /**
+   * @generated from field: repeated string addresses = 2;
+   */
+  addresses: string[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.MobileRoutes.
+ * Use `create(MobileRoutesSchema)` to create a new message.
+ */
+export const MobileRoutesSchema: GenMessage<MobileRoutes> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 11);
 
 /**
  * Public, rate-limited exchange. No service token is ever sent to a phone.

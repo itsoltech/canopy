@@ -15,6 +15,7 @@ message MobileDevice {
   google.protobuf.Timestamp created_at = 4;
   google.protobuf.Timestamp last_seen_at = 5;
   google.protobuf.Timestamp revoked_at = 6;
+  uint32 pairing_version = 7;
 }
 message MobilePairing {
   string id = 1;
@@ -28,6 +29,7 @@ message GetMobileDevicesResponse {
   string gateway_url = 1;
   repeated MobileDevice devices = 2;
   repeated MobilePairing pairings = 3;
+  MobileRoutes routes = 4;
 }
 message CreateMobilePairingRequest {}
 message CreateMobilePairingResponse {
@@ -35,6 +37,7 @@ message CreateMobilePairingResponse {
   // Shown once. Never persisted as plaintext. Valid for ten minutes.
   string code = 2;
   string gateway_url = 3;
+  MobileRoutes routes = 4;
 }
 message MobileIdRequest { string id = 1; }
 message MobileOperationResponse {}
@@ -48,4 +51,11 @@ message ExchangeMobilePairingRequest {
 message ExchangeMobilePairingResponse {
   MobileDevice device = 1;
   string device_token = 2;
+  MobileRoutes routes = 3;
+}
+
+// Addresses are hints; only the out-of-band certificate fingerprint grants trust.
+message MobileRoutes {
+  string fingerprint = 1;
+  repeated string addresses = 2;
 }

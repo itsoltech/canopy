@@ -3,7 +3,7 @@ import type { AddressInfo, Socket } from "node:net";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import type { GrpcServerOptions, RunningGrpcServer } from "./server.ts";
 
-/** Connect + gRPC-Web over HTTP/1.1. Bind to loopback behind private Tailscale Serve. */
+/** Loopback Connect + gRPC-Web over HTTP/1.1 for local tooling. Devices use the pinned Network access listener. */
 export async function startConnectHttpServer(options: Omit<GrpcServerOptions, "tls">): Promise<RunningGrpcServer> {
   const handler = connectNodeAdapter({
     routes: options.routes,

@@ -8,12 +8,15 @@
   import { decode } from "#lib/shared/wire.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import PhonePairingDialog from "#lib/features/network/PhonePairingDialog.svelte";
+  import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
+  import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
 
   const overview = useOverview();
+  const network = useNetworkAccess();
   let setup = $state.raw(create(ui.GetMobileDevicesResponseSchema));
   let invitation = $state<ui.CreateMobilePairingResponse>();
   let open = $state(false);
@@ -72,6 +75,8 @@
 
   $effect(() => {
     if (!open) {
+      if (invitation?.pairing && !activePairing?.usedAt && !activePairing?.revokedAt)
+        void requestJson("DELETE", `/api/mobile-devices/${invitation.pairing.id}?kind=pairing`, {}).catch(() => {});
       invitation = undefined;
       qr = "";
       copied = false;
@@ -83,12 +88,29 @@
     error = "";
 
     try {
-      invitation = decode(ui.CreateMobilePairingResponseSchema, await requestJson("POST", "/api/mobile-devices", {}));
+      if (network.status.state !== "on") await network.update("set_enabled", { enabled: true });
+
+      if (network.status.state !== "on") throw new Error(network.status.error || "Network access is unavailable.");
+
+      const nextInvitation = decode(
+        ui.CreateMobilePairingResponseSchema,
+        await requestJson("POST", "/api/mobile-devices", {}),
+      );
+
       // Data only: never put the one-time secret in a URL, analytics or an external QR service.
-      qr = await QRCode.toDataURL(
-        JSON.stringify({ type: "canopy-pair", version: 1, gatewayUrl: invitation.gatewayUrl, code: invitation.code }),
+      const nextQr = await QRCode.toDataURL(
+        JSON.stringify({
+          type: "canopy-pair",
+          version: 2,
+          addresses: nextInvitation.routes?.addresses,
+          fingerprint: nextInvitation.routes?.fingerprint,
+          code: nextInvitation.code,
+        }),
         { width: 260, margin: 2, errorCorrectionLevel: "M" },
       );
+
+      invitation = nextInvitation;
+      qr = nextQr;
       open = true;
       await reload();
     } catch (e) {
@@ -127,11 +149,11 @@
   <div class="min-w-0">
     <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Mobile devices</h1>
     <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      Your Canopy, with you. Connect a phone over your private Tailscale network.
+      Your Canopy, with you. Pair once and connect on any Wi-Fi or VPN you share with this computer.
     </p>
   </div>
-  <Button variant="primary" disabled={!loaded || !setup.gatewayUrl || busy} loading={busy} onclick={() => void pair()}
-    >Pair a phone</Button
+  <Button variant="primary" disabled={!loaded || !network.loaded || busy} loading={busy} onclick={() => void pair()}
+    >{network.status.enabled ? "Pair a phone" : "Turn on network access and pair a phone"}</Button
   >
 </div>
 {#if error}<Alert tone="error"
@@ -143,17 +165,25 @@
       }}>Retry</Button
     ></Alert
   >{/if}
-{#if loaded && !setup.gatewayUrl}<Alert tone="warning"
-    >Set CANOPY_MOBILE_PORT and CANOPY_MOBILE_GATEWAY_URL on the gateway, then configure private Tailscale Serve. See
-    docs/mobile.md.</Alert
-  >{/if}
+<NetworkAccessSummary
+  status={network.status}
+  loaded={network.loaded}
+  busy={busy || network.busy}
+  onenable={() =>
+    void network.update("set_enabled", { enabled: true }).catch((e) => {
+      error = e instanceof Error ? e.message : "Could not enable network access";
+    })}
+/>
 <SettingsGroup title="Paired devices">
   {#each setup.devices as device (device.id)}
     <SettingsRow
       title={device.name}
-      description={`${device.platform} · ${device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${timestampDate(device.lastSeenAt).toLocaleString()}` : "Not connected yet"}`}
+      description={`${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${timestampDate(device.lastSeenAt).toLocaleString()}` : "Not connected yet"}`}
     >
-      {#snippet control()}{#if !device.revokedAt}<Button
+      {#snippet control()}{#if device.pairingVersion < 2}<Button size="sm" disabled={busy} onclick={() => void pair()}
+            >Pair again</Button
+          >
+        {:else if !device.revokedAt}<Button
             size="sm"
             variant="ghost"
             disabled={busy}
@@ -182,25 +212,13 @@
     {/each}
   </SettingsGroup>
 {/if}
-<Dialog bind:open title="Pair a phone" description="Open Canopy on your phone and scan this QR code.">
-  <div class="grid justify-items-center gap-5 text-center">
-    {#if activePairing?.usedAt}<Alert tone="info">Phone paired. You can close this window.</Alert>
-    {:else if !usable}<Alert tone="warning"
-        >This code expired or was revoked. Close this window and create a new code.</Alert
-      >
-    {:else}
-      <img src={qr} alt="One-time Canopy pairing QR code" width="260" height="260" class="rounded-xl bg-white" />
-      <div class="grid gap-2">
-        <p class="text-base/6 text-zinc-500 dark:text-zinc-400">Or enter this code in the app</p>
-        <p class="font-mono text-xl tracking-wide select-all">{invitation?.code}</p>
-        <Button size="sm" onclick={() => void copy()}>{copied ? "Copied" : "Copy code"}</Button>
-      </div>
-      <p class="max-w-full text-base/6 break-all text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        {invitation?.gatewayUrl}
-      </p>
-      <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        One use · expires in {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
-      </p>
-    {/if}
-  </div>
-</Dialog>
+<PhonePairingDialog
+  bind:open
+  {invitation}
+  {qr}
+  {usable}
+  {seconds}
+  {copied}
+  paired={!!activePairing?.usedAt}
+  oncopy={() => void copy()}
+/>

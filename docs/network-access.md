@@ -2,7 +2,7 @@
 
 Jeden przełącznik na komputer: **Settings → Network access → „Let phones and other computers connect”**.
 Włączony otwiera jeden listener TLS na wszystkich interfejsach; z niego korzystają połączone komputery
-(i, od etapu 2, telefony). Nie ma wyboru interfejsu, nie ma zmiennych środowiskowych do ustawienia
+i telefony. Nie ma wyboru interfejsu, nie ma zmiennych środowiskowych do ustawienia
 na desktopie i nie trzeba nic zmieniać po przejściu do innej sieci. Granicą bezpieczeństwa jest
 przypięty certyfikat tego komputera i parowanie, nie sieć.
 
@@ -100,7 +100,7 @@ Pole `note` pojawia się tylko, gdy coś wymaga działania:
 | `CANOPY_NETWORK_PORT` | a | nowe, opcjonalne: port opublikowany przez kontener |
 | `CANOPY_LINK_HOST`, `CANOPY_LINK_PORT`, `CANOPY_LINK_ADDRESSES` | b | **usunięte** → Network access (etap 1) |
 | `CANOPY_LINK_DISCOVERY` | b | opcjonalne nadpisanie serwera; przełącznik „Find linked computers on this network” jest w UI |
-| `CANOPY_MOBILE_PORT`, `CANOPY_MOBILE_GATEWAY_URL` | b | do usunięcia w etapie 2 (telefony przez Network access) |
+| `CANOPY_MOBILE_PORT`, `CANOPY_MOBILE_GATEWAY_URL` | b | **usunięte** → telefony przez Network access (etap 2) |
 | `CANOPY_WORKER_HOST`, `CANOPY_WORKER_PORT`, `CANOPY_PUBLIC_GATEWAY_URL` | b | etap 3 (workery przez Network access; adres w Settings → Workers) |
 | `CANOPY_ATTACHMENT_MAX_FILE_MB`, `…_MAX_MESSAGE_MB`, `…_MAX_FILES` | b | etap 3 (ustawienia w bazie i UI) |
 

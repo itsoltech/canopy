@@ -177,7 +177,7 @@ export class GatewayCore {
     this.mobile = new MobileDevices({
       runtime: options.runtime,
       userId: options.userId,
-      ...(options.mobileGatewayUrl && { gatewayUrl: options.mobileGatewayUrl }),
+      network: () => this.network,
       publish: (update) => this.hub.publishOverview(update),
     });
     this.connectors = new ConnectorsRuntime({

@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["CanopyPinnedFetchModule"]
+  },
+  "android": {
+    "modules": ["app.canopy.pinnedfetch.CanopyPinnedFetchModule"]
+  }
+}

@@ -14,7 +14,7 @@ export function gatewayOrigin(value: string, development = false): string {
     url.search ||
     url.hash
   ) {
-    throw new Error("Use your private Tailscale HTTPS address, without a path or credentials.");
+    throw new Error("Use an HTTPS address from Network access, without a path or credentials.");
   }
 
   return url.origin;
@@ -47,10 +47,11 @@ export function mobileClient(options: {
   return { api: createClient(ui.GatewayService, transport), pairing: createClient(ui.MobilePairingService, transport) };
 }
 
-interface PairingQr {
+export interface PairingQr {
   type: "canopy-pair";
-  version: 1;
-  gatewayUrl: string;
+  version: 2;
+  addresses: string[];
+  fingerprint: string;
   code: string;
 }
 
@@ -61,22 +62,45 @@ function isPairingQr(value: unknown): value is PairingQr {
     "type" in value &&
     value.type === "canopy-pair" &&
     "version" in value &&
-    value.version === 1 &&
-    "gatewayUrl" in value &&
-    typeof value.gatewayUrl === "string" &&
+    value.version === 2 &&
+    "addresses" in value &&
+    Array.isArray(value.addresses) &&
+    value.addresses.length > 0 &&
+    value.addresses.length <= 32 &&
+    value.addresses.every(isGatewayAddress) &&
+    "fingerprint" in value &&
+    typeof value.fingerprint === "string" &&
+    /^[a-f0-9]{64}$/i.test(value.fingerprint) &&
     "code" in value &&
     typeof value.code === "string" &&
     /^[a-f\d\s-]{16,24}$/i.test(value.code)
   );
 }
 
+/** Parse untrusted QR/storage addresses at the boundary, before they become route candidates. */
+export function isGatewayAddress(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+
+  try {
+    gatewayOrigin(value);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function readPairingQr(raw: string) {
-  if (raw.length > 2048) throw new Error("This QR code is not a Canopy pairing code.");
+  if (raw.length > 8192) throw new Error("This QR code is not a Canopy pairing code.");
   const value: unknown = JSON.parse(raw);
 
   if (!isPairingQr(value)) {
-    throw new Error("This QR code is not a Canopy pairing code.");
+    throw new Error("Create a new pairing QR code in Settings → Mobile devices and pair again.");
   }
 
-  return { gatewayUrl: value.gatewayUrl, code: value.code };
+  return {
+    addresses: value.addresses.map((a) => gatewayOrigin(a)),
+    fingerprint: value.fingerprint.toLowerCase(),
+    code: value.code,
+  };
 }

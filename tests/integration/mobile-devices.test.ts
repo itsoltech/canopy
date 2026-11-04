@@ -4,19 +4,27 @@ import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { serviceTokenAuth, uiRoutes } from "@canopy/gateway/api";
-import { startConnectHttpServer, type RunningGrpcServer } from "@canopy/transport";
 import { Effect } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
-import { mobileClient } from "../../apps/mobile/src/api/client.ts";
+import { readPairingQr } from "../../apps/mobile/src/api/client.ts";
+import { routedMobileClient, type MobileConnection } from "../../apps/mobile/src/api/routes.ts";
+import { nodePinnedTransport } from "./support/phone.ts";
+import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
+import { mountMobileNetwork } from "../../apps/gateway/src/network/devices.ts";
+import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
+import { openListener } from "../../apps/gateway/src/network/listener.ts";
+import { create } from "@bufbuild/protobuf";
 import { SERVICE_TOKEN, eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
-describe.skipIf(!dockerAvailable)("mobile pairing + native app Connect client over HTTP/1.1", () => {
+describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect client", () => {
   let gw: TestGateway;
-  let http: RunningGrpcServer;
+  let network: NetworkAccess;
+  let unmount: () => void;
+  const transport = nodePinnedTransport();
 
-  const client = (token?: string) =>
-    mobileClient({ gatewayUrl: http.url, ...(token && { token }), fetch: globalThis.fetch, development: true });
+  const client = (token?: string, connection: MobileConnection = gw.core.mobile.networkRoutes()) =>
+    routedMobileClient({ connection, ...(token && { token }), transport });
 
   const query = (text: string, params: unknown[] = []) =>
     gw.runtime.runPromise(
@@ -34,21 +42,24 @@ describe.skipIf(!dockerAvailable)("mobile pairing + native app Connect client ov
 
   beforeAll(async () => {
     gw = await startTestGateway();
-    http = await startConnectHttpServer({
-      routes: (router) => {
-        gw.core.mobile.routes(router);
-        uiRoutes(gw.core)(router);
-      },
-      interceptors: [serviceTokenAuth(SERVICE_TOKEN, gw.core.mobile)],
-    });
+    network = new NetworkAccess({ store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey), host: "127.0.0.1" });
+    gw.core.network = network;
+    unmount = mountMobileNetwork(gw.core, network, SERVICE_TOKEN);
+    await network.start();
+    await network.update(create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }));
   }, 60_000);
   afterAll(async () => {
-    await http?.close(100);
+    unmount?.();
+    await network?.close();
     await gw?.close();
   });
 
   test("code exchanges atomically once; only hashes persist, with owner/name/platform metadata", async () => {
     const invitation = await invite();
+    expect(invitation.routes?.fingerprint).toBe(network.fingerprint);
+    expect(
+      readPairingQr(JSON.stringify({ type: "canopy-pair", version: 2, code: invitation.code, ...invitation.routes })),
+    ).toMatchObject({ addresses: network.origins(), fingerprint: network.fingerprint });
     expect(invitation.code).toMatch(/^[A-F0-9]{4}(?:-[A-F0-9]{4}){3}$/);
     const expires = Number(invitation.pairing!.expiresAt!.seconds) * 1000;
     expect(expires - Date.now()).toBeGreaterThan(590_000);
@@ -182,8 +193,133 @@ describe.skipIf(!dockerAvailable)("mobile pairing + native app Connect client ov
     const invalidBff = createClient(ui.GatewayService, createGrpcTransport({ baseUrl: gw.grpcUrl }));
     expect(await failure(invalidBff.getOverview({}))).toContain("token");
     expect(
-      (await fetch(http.url, { method: "OPTIONS", headers: { Origin: "https://untrusted.example" } })).status,
+      (
+        await transport.fetch(
+          network.origins()[0]!,
+          { method: "OPTIONS", headers: { Origin: "https://untrusted.example" } },
+          network.fingerprint,
+        )
+      ).status,
     ).toBe(403);
+  });
+
+  test("multiple addresses fall back before sending; last success wins and authenticated address pushes update the route list", async () => {
+    await network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_hostnames", hostnames: ["localhost"] }),
+    );
+    const invitation = await invite();
+    expect(invitation.routes?.addresses).toHaveLength(2);
+    const routes = { fingerprint: network.fingerprint, addresses: ["https://127.0.0.1:1", ...network.origins()] };
+
+    const paired = await client(undefined, routes).pairing.exchangeMobilePairing({
+      code: invitation.code,
+      name: "Route phone",
+      platform: "android",
+    });
+
+    const phone = client(paired.deviceToken, routes);
+    await phone.api.getOverview({});
+    expect(phone.connection().lastAddress).toBe(network.origins()[0]);
+    const controller = new AbortController();
+    const updates = phone.api.watchOverview({ includeSnapshot: true }, { signal: controller.signal });
+    let received = false;
+
+    try {
+      for await (const update of updates) {
+        if (update.change.case === "mobileSnapshot")
+          await network.update(
+            create(ui.UpdateNetworkAccessRequestSchema, {
+              action: "set_hostnames",
+              hostnames: ["localhost", "phone.example.test"],
+            }),
+          );
+
+        if (
+          update.change.case === "mobileRoutes" &&
+          update.change.value.addresses.some((a) => a.includes("phone.example.test"))
+        ) {
+          phone.update(update.change.value);
+          received = true;
+          break;
+        }
+      }
+    } finally {
+      controller.abort();
+    }
+
+    expect(received).toBe(true);
+    expect(phone.connection().addresses).toEqual(network.origins());
+    phone.update({ fingerprint: "0".repeat(64), addresses: ["https://attacker.invalid"] });
+    expect(phone.connection().fingerprint).toBe(network.fingerprint);
+    expect(phone.connection().addresses).toEqual(network.origins());
+  }, 15_000);
+
+  test("a wrong certificate pin cannot exchange or authorize a device", async () => {
+    const invitation = await invite();
+    const wrong = client(undefined, { fingerprint: "0".repeat(64), addresses: [network.origins()[0]!] });
+    expect(
+      await failure(wrong.pairing.exchangeMobilePairing({ code: invitation.code, name: "Wrong pin", platform: "ios" })),
+    ).toContain("securely");
+    expect((await exchange(invitation.code)).deviceToken).toStartWith("canopy_device_");
+  });
+
+  test("a false route receives no pairing secret and a real route still works", async () => {
+    let requests = 0;
+
+    const falseRoute = await openListener({
+      host: "127.0.0.1",
+      port: 0,
+      identity: await generateIdentity(),
+      route: () => (_request, response) => {
+        requests++;
+        response.end();
+      },
+    });
+
+    try {
+      const invitation = await invite();
+
+      const phone = client(undefined, {
+        fingerprint: network.fingerprint,
+        addresses: [`https://127.0.0.1:${falseRoute.port}`, ...network.origins()],
+      });
+
+      expect(
+        (await phone.pairing.exchangeMobilePairing({ code: invitation.code, name: "Pinned phone", platform: "ios" }))
+          .deviceToken,
+      ).toStartWith("canopy_device_");
+      expect(requests).toBe(0);
+    } finally {
+      await falseRoute.close();
+    }
+  });
+
+  test("a lost exchange response is not replayed on another route", async () => {
+    const invitation = await invite();
+    let requests = 0;
+
+    const phone = routedMobileClient({
+      connection: gw.core.mobile.networkRoutes(),
+      transport: {
+        probe: transport.probe,
+        async fetch(...args) {
+          requests++;
+          const response = await transport.fetch(...args);
+          await response.body?.cancel();
+          throw new Error("Response lost after the server committed");
+        },
+      },
+    });
+
+    expect(
+      await failure(
+        phone.pairing.exchangeMobilePairing({ code: invitation.code, name: "One exchange", platform: "android" }),
+      ),
+    ).toContain("Response lost");
+    expect(requests).toBe(1);
+    expect(
+      (await gw.api.getMobileDevices({})).pairings.find((p) => p.id === invitation.pairing?.id)?.usedAt,
+    ).toBeDefined();
   });
 
   test("exchange rate limit cannot be bypassed by changing code or forwarding headers", async () => {

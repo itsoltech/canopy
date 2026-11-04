@@ -2,10 +2,11 @@ import { useRef, useState } from "react";
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { fetch } from "expo/fetch";
 import * as Device from "expo-device";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { mobileClient, readPairingQr } from "../../api/client";
+import { readPairingQr } from "../../api/client";
+import { routedMobileClient } from "../../api/routes";
+import { pinnedTransport } from "../../api/pinned";
 import { useSession } from "../../state/session";
 import { Button, Field, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
@@ -13,6 +14,8 @@ import { styles, useColors } from "../../ui/theme";
 function usePairing() {
   const { session, ready, pair, error: sessionError } = useSession();
   const [gatewayUrl, setUrl] = useState("");
+  const [fingerprint, setFingerprint] = useState("");
+  const [addresses, setAddresses] = useState<string[]>([]);
   const [code, setCode] = useState("");
   const [name, setName] = useState(Device.deviceName ?? (Platform.OS === "ios" ? "My iPhone" : "My Android"));
   const [scanning, setScanning] = useState(false);
@@ -43,7 +46,9 @@ function usePairing() {
 
     try {
       const qr = readPairingQr(data);
-      setUrl(qr.gatewayUrl);
+      setUrl(qr.addresses[0]!);
+      setAddresses(qr.addresses);
+      setFingerprint(qr.fingerprint);
       setCode(qr.code);
       setError("");
     } catch {
@@ -58,11 +63,12 @@ function usePairing() {
     setError("");
 
     try {
-      const client = mobileClient({
-        gatewayUrl,
-        // SAFETY: Connect uses Expo's Fetch call signature, never Bun's static preconnect member.
-        fetch: fetch as typeof globalThis.fetch,
-        development: __DEV__,
+      const client = routedMobileClient({
+        connection: {
+          fingerprint: fingerprint.replace(/[\s:]/g, "").toLowerCase(),
+          addresses: [...new Set([gatewayUrl, ...addresses])],
+        },
+        transport: pinnedTransport,
       });
 
       const response = await client.pairing.exchangeMobilePairing(
@@ -72,22 +78,23 @@ function usePairing() {
 
       if (!response.device || !response.deviceToken) throw new Error("Invalid pairing response");
 
+      if (response.routes) client.update(response.routes);
+
       // Persist before navigation. A storage failure must not leave the UI pretending it is paired.
       try {
         await pair({
-          gatewayUrl: gatewayUrl.trim().replace(/\/$/, ""),
+          gatewayUrl: client.connection().lastAddress ?? gatewayUrl.trim().replace(/\/$/, ""),
           deviceId: response.device.id,
           deviceName: response.device.name,
           token: response.deviceToken,
+          ...client.connection(),
         });
       } catch {
         // Exchange is single-use. Revoke the credential if secure storage failed.
-        await mobileClient({
-          gatewayUrl,
+        await routedMobileClient({
+          connection: client.connection(),
           token: response.deviceToken,
-          // SAFETY: Connect uses Expo's Fetch call signature, never Bun's static preconnect member.
-          fetch: fetch as typeof globalThis.fetch,
-          development: __DEV__,
+          transport: pinnedTransport,
         })
           .api.unpairMobileDevice({}, { timeoutMs: 5000 })
           .catch(() => undefined);
@@ -99,7 +106,7 @@ function usePairing() {
     } catch (e) {
       setError(
         e instanceof TypeError
-          ? "Cannot reach this gateway. Check Tailscale and the HTTPS address."
+          ? "Cannot reach this computer. Connect to the same Wi-Fi or VPN and try again."
           : e instanceof Error
             ? e.message
             : "Pairing failed. Create a new code in web Settings.",
@@ -115,6 +122,8 @@ function usePairing() {
     ready,
     sessionError,
     gatewayUrl,
+    fingerprint,
+    setFingerprint,
     setUrl,
     code,
     setCode,
@@ -139,6 +148,8 @@ export default function PairScreen() {
     ready,
     sessionError,
     gatewayUrl,
+    fingerprint,
+    setFingerprint,
     setUrl,
     code,
     setCode,
@@ -178,7 +189,7 @@ export default function PairScreen() {
           <View style={{ gap: 12 }}>
             <Text style={[styles.heading, { color: c.text }]}>Pair with your Canopy</Text>
             <Text style={[styles.body, { color: c.muted }]}>
-              On the web, open Settings → Mobile devices → Pair a phone. Connect this phone to Tailscale first.
+              On your computer, open Settings → Mobile devices → Pair a phone. Use the same Wi-Fi or VPN.
             </Text>
           </View>
           {(error || sessionError) && <Notice error>{error || sessionError}</Notice>}
@@ -207,7 +218,16 @@ export default function PairScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
-            placeholder="https://canopy.your-tailnet.ts.net:8443"
+            placeholder="https://computer:port"
+            editable={!busy}
+          />
+          <Field
+            label="Certificate fingerprint"
+            value={fingerprint}
+            onChangeText={setFingerprint}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="Scan QR or paste the SHA-256 fingerprint"
             editable={!busy}
           />
           <Field
@@ -225,7 +245,7 @@ export default function PairScreen() {
             title="Pair this phone"
             secondary
             onPress={() => void connect()}
-            disabled={!gatewayUrl.trim() || !code.trim() || !name.trim()}
+            disabled={!gatewayUrl.trim() || !fingerprint.trim() || !code.trim() || !name.trim()}
             busy={busy}
           />
           <Text style={[styles.meta, { color: c.muted }]}>

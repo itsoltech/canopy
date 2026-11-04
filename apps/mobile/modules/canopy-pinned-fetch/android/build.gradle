@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.canopy'
+version = '1.0.0'
+
+android {
+  namespace "app.canopy.pinnedfetch"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // The OkHttp that React Native already ships.
+  implementation 'com.squareup.okhttp3:okhttp:4.9.2'
+}

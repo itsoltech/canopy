@@ -15,7 +15,7 @@ Powiązane dokumenty:
 - [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`
 - [grok-adapter.md](grok-adapter.md) — własny SDK ACP stdio Grok CLI, native/CLIProxyAPI i MCP narzędzi platformy
 - [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
-- [mobile.md](mobile.md) — Canopy iOS/Android, Connect przez streaming fetch, parowanie i prywatny Tailscale HTTPS
+- [mobile.md](mobile.md) — Canopy iOS/Android, Connect przez przypięty TLS, parowanie i automatyczne trasy
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
 - [transcript.md](transcript.md) — zapis wszystkich zdarzeń, itemy, oś czasu dla frontendu
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity
@@ -60,7 +60,6 @@ flowchart LR
         GW["Gateway (Bun)<br/>API · Auth · Router<br/>Chat runtime · Agent bus"]
         PG[("PostgreSQL")]
         BFF["SvelteKit BFF"]
-        TS["Tailscale Serve<br/>prywatny HTTPS"]
     end
 
     subgraph Edge1["Edge: serwer Linux"]
@@ -78,8 +77,7 @@ flowchart LR
 
     UI -- "HTTP: JSON / SSE" --> BFF
     BFF -- "gRPC HTTP/2, service token" --> GW
-    M -- "Connect + device token" --> TS
-    TS -- "HTTP/1.1 loopback, CANOPY_MOBILE_PORT" --> GW
+    M -- "Connect + device token<br/>przypięty TLS, Network access" --> GW
     GW -- "SQL (TLS)" --> PG
     W1 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW
     W2 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW
@@ -96,7 +94,7 @@ flowchart LR
 |---|---|---|---|
 | Przeglądarka ⇄ SvelteKit (BFF) | HTTPS (HTTP/1.1): strony, akcje, JSON; SSE dla zmian na żywo | przeglądarka | Prywatny adres BFF i token usługi zostają na serwerze; UI pokazuje publiczny adres gRPC dla workerów i jednorazowe sekrety enrollment/rotacji ([ui-api.md](ui-api.md)). |
 | SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. |
-| Mobile → Tailscale Serve → Gateway | HTTPS Connect, dalej HTTP/1.1 loopback | aplikacja | Unary i server streaming przez `expo/fetch`. Jednorazowe parowanie, osobny odwoływalny token urządzenia; administracja urządzeniami tylko przez BFF. |
+| Mobile → Gateway | HTTPS Connect, przypięty certyfikat | aplikacja | Unary i server streaming przez natywny transport TLS. Jeden listener Network access, automatyczne trasy i osobny odwoływalny token urządzenia; administracja urządzeniami tylko przez BFF. |
 | Gateway ⇄ połączony komputer | gRPC HTTP/2, wzajemny przypięty TLS 1.3, port [dostępu sieciowego](network-access.md) | oba | Jeden przełącznik Settings → Network access; adresy wykrywane i ogłaszane łączem ([linked-computers.md](linked-computers.md)). |
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Działa za NAT-em i firewallem. Szczegóły: [protocol.md](protocol.md). |
 | Worker → Gateway (aktualizacje) | osobny gRPC `canopy.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |

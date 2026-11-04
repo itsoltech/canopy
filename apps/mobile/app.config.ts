@@ -12,7 +12,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ...config.ios?.infoPlist,
       NSAppTransportSecurity: {
         NSAllowsArbitraryLoads: false,
-        NSAllowsLocalNetworking: process.env.CANOPY_DEV_HTTP === "1",
+        NSAllowsLocalNetworking: true,
       },
     },
   },

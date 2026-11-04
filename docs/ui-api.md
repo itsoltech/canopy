@@ -3,8 +3,8 @@
 ## Canopy mobile
 
 Natywny klient `apps/mobile` korzysta z tego samego `GatewayService` przez Connect
-z binarnym protobuf i streaming `expo/fetch`. Osobny HTTP/1.1 listener
-`CANOPY_MOBILE_PORT` na loopback działa za prywatnym Tailscale Serve HTTPS;
+z binarnym protobuf i natywnym streamingiem HTTPS przypiętym do certyfikatu komputera.
+Wspólny listener Network access obsługuje telefony i połączone komputery;
 przeglądarka nadal komunikuje się wyłącznie z BFF. Telefon nigdy nie otrzymuje
 `CANOPY_UI_SERVICE_TOKEN`.
 
@@ -20,7 +20,8 @@ Token urządzenia daje dostęp właściciela do pozostałych RPC GatewayService.
 `WatchOverviewRequest.include_snapshot` (762) żąda początkowego
 `OverviewUpdate.mobile_snapshot` (763: overview i wątki), aby odtworzyć stan po
 reconnect. `mobile_device` (760) i `mobile_pairing` (761) zawierają tylko metadane,
-bez sekretów. Revoke kończy otwarte streamy w procesie gatewaya.
+bez sekretów. `mobile_routes` (764) przekazuje aktualne adresy i ten sam pin.
+Revoke kończy otwarte streamy w procesie gatewaya. Starsze parowania wymagają ponownego QR.
 [Transport, model uprawnień, development builds i dokładne komendy](mobile.md).
 
 ## Connectors

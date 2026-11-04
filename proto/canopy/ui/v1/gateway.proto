@@ -596,6 +596,7 @@ message OverviewUpdate {
     MobileDevice mobile_device = 760;
     MobilePairing mobile_pairing = 761;
     MobileOverviewSnapshot mobile_snapshot = 763;
+    MobileRoutes mobile_routes = 764;
     string worker_removed = 700;
     WorkerEnrollment enrollment = 701;
     Worker worker = 1;
