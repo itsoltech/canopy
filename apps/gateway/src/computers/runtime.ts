@@ -33,6 +33,8 @@ type Connection = {
   send: (frame: MessageInitShape<typeof link.LinkFrameSchema>) => void;
   close: () => void;
   seen: number;
+  /** When this link last wrote the peer's last_seen. */
+  stored?: number;
   ready: boolean;
   protocol?: number;
   capabilities?: Set<string>;
@@ -103,6 +105,9 @@ const peerMessage = (p: PeerRow, capabilities: string[] = [], routes: RouteRow[]
 
 const WILDCARD = new Set(["0.0.0.0", "::"]);
 
+/** last_seen is shown, not used for liveness: a heartbeat writes it at most this often. */
+const LAST_SEEN_WRITE_MS = 5000;
+
 const STATE_TEXT: Record<string, string> = {
   updating: "is updating",
   sleeping: "went to sleep",
@@ -137,6 +142,7 @@ export class LinkedComputers {
   #retry = new Map<string, { at: number; delay: number }>();
   #addresses: string[] = [];
   #tickRunning = false;
+  #pulsed = 0;
   #listeners = new Set<(change: ComputerChange) => void>();
   #names = new Map<string, string>();
   #capabilities = new Map<string, string[]>();
@@ -277,6 +283,7 @@ export class LinkedComputers {
     await this.#listen();
     await this.#discovery();
     this.#timer = setInterval(() => {
+      this.#pulse();
       void this.#tick().catch(() => {});
     }, this.options.heartbeatMs ?? 5000);
     await this.#tick();
@@ -641,8 +648,27 @@ export class LinkedComputers {
       await this.relay.refresh();
     };
   }
+  /**
+   * Frames are handled one after another: a heartbeat must not wait for the database each time, or a slow
+   * database holds up the frames behind it until the link looks dead.
+   */
+  async #heartbeat(nodeId: string, connection: Connection) {
+    connection.seen = Date.now();
+
+    if (connection.seen - (connection.stored ?? 0) < LAST_SEEN_WRITE_MS) return;
+    connection.stored = connection.seen;
+
+    const known = await this.store.query(
+      "UPDATE computer_peers SET last_seen=now() WHERE owner_user_id=$1::uuid AND node_id=$2 RETURNING node_id",
+      [this.store.owner, nodeId],
+    );
+
+    if (!known.length) connection.send({ body: { case: "unlinked", value: {} } });
+  }
   async #receive(nodeId: string, frame: link.LinkFrame, connection: Connection) {
     const body = frame.body;
+
+    if (body.case === "heartbeat" && connection.ready) return this.#heartbeat(nodeId, connection);
 
     if (body.case === "remoteRequest" || body.case === "remoteResponse" || body.case === "remoteCancel") {
       // Only after a handshake with a common protocol; the peer was verified then and unlink closes the stream.
@@ -852,6 +878,24 @@ export class LinkedComputers {
       await release();
     }
   }
+  /**
+   * Heartbeats and dead links, on every interval and without the database: a slow tick must not silence a live
+   * link. A late interval means this process stalled, and the peer's frames may still wait unread: no verdict then.
+   */
+  #pulse() {
+    const heartbeat = this.options.heartbeatMs ?? 5000;
+    const now = Date.now();
+    const stalled = this.#pulsed > 0 && now - this.#pulsed > heartbeat * 2;
+    this.#pulsed = now;
+
+    if (this.#stopped || this.#paused) return;
+
+    for (const set of this.#active.values())
+      for (const c of set) {
+        if (!stalled && now - c.seen > heartbeat * 4) c.close();
+        else if (c.ready) c.send({ body: { case: "heartbeat", value: { sentAtMs: BigInt(now) } } });
+      }
+  }
   async #tick() {
     if (this.#tickRunning || this.#stopped || this.#paused) return;
     this.#tickRunning = true;
@@ -871,14 +915,7 @@ export class LinkedComputers {
         this.#syncMirror(peer.node_id);
         const active = this.#active.get(peer.node_id);
 
-        if (active?.size) {
-          for (const c of active) {
-            if (Date.now() - c.seen > (this.options.heartbeatMs ?? 5000) * 4) c.close();
-            else if (c.ready) c.send({ body: { case: "heartbeat", value: { sentAtMs: BigInt(Date.now()) } } });
-          }
-
-          continue;
-        }
+        if (active?.size) continue;
 
         if (this.#dialing.has(peer.node_id) || (this.#retry.get(peer.node_id)?.at ?? 0) > Date.now()) continue;
         const controller = new AbortController();
