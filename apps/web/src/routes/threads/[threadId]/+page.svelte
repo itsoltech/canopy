@@ -54,8 +54,6 @@
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
-  import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
@@ -513,19 +511,6 @@
                 label="Thread actions"
                 {...props}
               />{/snippet}
-            <MenuItem icon="arrows-right-left" disabled={!canBranch} onselect={openSide}>New side thread</MenuItem>
-            <MenuItem icon="arrow-turn-up-right" disabled={!forkPoint} onselect={forkThread}>Fork thread</MenuItem>
-            <MenuItem icon="clock" disabled={!canSchedule} onselect={openSchedule}>Schedule a task</MenuItem>
-            <MenuItem icon="cpu-chip" disabled={closed} onselect={() => (modelOpen = true)}>Model and effort…</MenuItem>
-            <MenuItem icon="shield-check" disabled={closed} onselect={() => (permissionsOpen = true)}
-              >Permissions…</MenuItem
-            >
-            {#if goalsHere}
-              <MenuItem icon="flag" disabled={!canGoal} onselect={setGoalLater}
-                >{openGoal ? "Replace the goal…" : "Set a goal…"}</MenuItem
-              >
-            {/if}
-            <MenuSeparator />
             <ThreadMenuItems {thread} />
           </DropdownMenu>
         {/if}
