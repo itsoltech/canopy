@@ -6,9 +6,10 @@ import { createHash } from "node:crypto";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { ui } from "@canopy/contracts";
+import type { JsonObject, JsonValue } from "@canopy/domain";
 import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
 import { enrollWorker } from "../../../worker/src/enroll.ts";
-import { configuration, freePort, initialStatus, serviceEnvironment } from "./config.ts";
+import { configuration, freePort, initialStatus, serviceEnvironment, isString } from "./config.ts";
 import { startDatabase } from "./database.ts";
 import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from "./postgres-install.ts";
 import { Logs } from "./log.ts";
@@ -26,6 +27,23 @@ export interface RuntimePaths {
   worker: string;
   web: string;
   postgres: string;
+}
+
+function isWorkerStatus(value: unknown): value is { status?: string; time?: number } {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    (!("status" in value) || value.status === undefined || isString(value.status)) &&
+    (!("time" in value) || value.time === undefined || typeof value.time === "number")
+  );
+}
+
+function isLinkPort(value: unknown): value is { port: number } {
+  return !!value && typeof value === "object" && "port" in value && typeof value.port === "number";
+}
+
+function isWorkerConfiguration(value: JsonValue): value is JsonObject {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 export class DesktopRuntime {
@@ -143,7 +161,9 @@ export class DesktopRuntime {
     if (!this.workerStatusFile || !this.services.alive("worker")) return;
 
     try {
-      const value = JSON.parse(readFileSync(this.workerStatusFile, "utf8")) as { status?: string; time?: number };
+      const value: unknown = JSON.parse(readFileSync(this.workerStatusFile, "utf8"));
+
+      if (!isWorkerStatus(value)) throw new Error("Invalid worker status");
 
       const worker =
         Date.now() - (value.time ?? 0) >= 45_000 || value.status === "offline"
@@ -207,7 +227,7 @@ export class DesktopRuntime {
       this.checkingHealth = false;
     }
   }
-  async configure(raw: unknown) {
+  async configure(raw: DesktopConfiguration) {
     const config = configuration(raw);
     this.generation++;
     this.configured = false;
@@ -249,9 +269,8 @@ export class DesktopRuntime {
         // Unlike loopback sidecars, peers need a stable reachable port after restart.
         const linkPortFile = join(this.directory, "computer-link.json");
 
-        const savedLinkPort = existsSync(linkPortFile)
-          ? (JSON.parse(readFileSync(linkPortFile, "utf8")) as { port: number }).port
-          : undefined;
+        const savedLink = existsSync(linkPortFile) ? JSON.parse(readFileSync(linkPortFile, "utf8")) : undefined;
+        const savedLinkPort = isLinkPort(savedLink) ? savedLink.port : undefined;
 
         const linkPort = config.allowNetwork ? (savedLinkPort ?? (await freePort(config.bindHost))) : undefined;
 
@@ -321,11 +340,12 @@ export class DesktopRuntime {
       } else if (!existsSync(configPath))
         throw new Error("Paste an enrollment token from Settings → Workers → Add worker");
       // Local ports change between launches; preserve the enrolled worker's identity and journal.
-      const local = JSON.parse(readFileSync(configPath, "utf8")) as Record<string, string>;
+      const local: JsonValue = JSON.parse(readFileSync(configPath, "utf8"));
 
-      if (local["credential"]) this.logs.protect(local["credential"]);
-      local["gateway_url"] = gatewayUrl;
-      this.writeJson(configPath, local);
+      if (!isWorkerConfiguration(local)) throw new Error("Invalid worker configuration");
+
+      if (isString(local["credential"])) this.logs.protect(local["credential"]);
+      this.writeJson(configPath, { ...local, gateway_url: gatewayUrl });
       this.workerStatusFile = join(workerDirectory, "status.json");
       this.writeJson(this.workerStatusFile, { status: "offline", time: Date.now() });
       const launch = this.command(this.paths.worker);
@@ -397,7 +417,7 @@ export class DesktopRuntime {
       }),
     );
   }
-  private writeJson(path: string, data: unknown) {
+  private writeJson(path: string, data: DesktopConfiguration | JsonObject) {
     const temporary = `${path}.new`;
     writeFileSync(temporary, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
     renameSync(temporary, path);

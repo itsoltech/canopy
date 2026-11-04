@@ -6,6 +6,14 @@ export function isQuitShortcut(value: unknown): value is QuitShortcut {
   return value === "press-twice" || value === "hold" || value === "immediately";
 }
 
+function isShortcutSettings(value: unknown): value is { quitShortcut: unknown } {
+  return !!value && typeof value === "object" && "quitShortcut" in value;
+}
+
+function isMissingFile(cause: unknown): cause is NodeJS.ErrnoException {
+  return cause instanceof Error && "code" in cause && cause.code === "ENOENT";
+}
+
 /** Local desktop preference, independent of gateway credentials and update channel. */
 export class QuitSettings {
   private readonly path: string;
@@ -15,11 +23,11 @@ export class QuitSettings {
   read(): QuitShortcut {
     try {
       const value: unknown = JSON.parse(readFileSync(this.path, "utf8"));
-      const shortcut = value && typeof value === "object" && "quitShortcut" in value ? value.quitShortcut : undefined;
+      const shortcut = isShortcutSettings(value) ? value.quitShortcut : undefined;
 
       return isQuitShortcut(shortcut) ? shortcut : "press-twice";
     } catch (error) {
-      if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === "ENOENT") return "press-twice";
+      if (error instanceof SyntaxError || isMissingFile(error)) return "press-twice";
       throw error;
     }
   }

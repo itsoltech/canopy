@@ -65,6 +65,7 @@ export default function Pair() {
     try {
       const client = mobileClient({
         gatewayUrl,
+        // SAFETY: Connect uses Expo's Fetch call signature, never Bun's static preconnect member.
         fetch: fetch as typeof globalThis.fetch,
         development: __DEV__,
       });
@@ -89,6 +90,7 @@ export default function Pair() {
         await mobileClient({
           gatewayUrl,
           token: response.deviceToken,
+          // SAFETY: Connect uses Expo's Fetch call signature, never Bun's static preconnect member.
           fetch: fetch as typeof globalThis.fetch,
           development: __DEV__,
         })

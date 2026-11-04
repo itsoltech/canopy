@@ -12,8 +12,7 @@ export interface KeyRepeatTiming {
 
 export interface QuitClock {
   now(): number;
-  setTimeout(callback: () => void, delayMs: number): unknown;
-  clearTimeout(timer: unknown): void;
+  setTimeout(callback: () => void, delayMs: number): () => void;
 }
 
 export interface QuitMachineOptions {
@@ -50,7 +49,7 @@ export function macKeyRepeatTiming(
 
 /** No Electron, wall clock or input inference: callers supply the native repeat bit. */
 export class QuitMachine {
-  private timer: unknown;
+  private timer: (() => void) | undefined;
   private armedAt: number | undefined;
   private hold: { startedAt: number; deadline: number; durationMs: number; timing: KeyRepeatTiming } | undefined;
 
@@ -60,7 +59,7 @@ export class QuitMachine {
   ) {}
 
   private clearTimer() {
-    if (this.timer !== undefined) this.options.clock.clearTimeout(this.timer);
+    this.timer?.();
     this.timer = undefined;
   }
 

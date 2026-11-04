@@ -29,6 +29,52 @@ export type App = keyof typeof APPS;
 const root = resolve(import.meta.dir, "..");
 const cache = join(root, ".tmp/release-native");
 
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isPackageVersion(value: unknown): value is { version: string } {
+  return !!value && typeof value === "object" && "version" in value && isString(value.version);
+}
+
+interface SharpPackage {
+  version: string;
+  optionalDependencies: Record<string, string>;
+}
+
+function isSharpPackage(value: unknown): value is SharpPackage {
+  return (
+    isPackageVersion(value) &&
+    "optionalDependencies" in value &&
+    !!value.optionalDependencies &&
+    typeof value.optionalDependencies === "object" &&
+    !Array.isArray(value.optionalDependencies) &&
+    Object.values(value.optionalDependencies).every(isString)
+  );
+}
+
+function isNpmDistribution(value: unknown): value is { dist: { tarball: string; integrity: string } } {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "dist" in value &&
+    !!value.dist &&
+    typeof value.dist === "object" &&
+    "tarball" in value.dist &&
+    isString(value.dist.tarball) &&
+    "integrity" in value.dist &&
+    isString(value.dist.integrity)
+  );
+}
+
+function isTarget(value: string): value is Target {
+  return TARGETS.some((target) => target === value);
+}
+
+function isApp(value: string): value is App {
+  return value === "gateway" || value === "worker";
+}
+
 /** `canopy-gateway-linux-x64`, `canopy-worker-windows-x64.exe` (the release asset names). */
 export const binaryName = (app: App, target: Target) =>
   `canopy-${app}-${target}${target.startsWith("windows") ? ".exe" : ""}`;
@@ -36,11 +82,10 @@ export const binaryName = (app: App, target: Target) =>
 /** sharp's npm platform name for a target. */
 const sharpPlatform = (target: Target) => target.replace("windows", "win32");
 
-function sharpVersions(): { sharp: string; libvips: string } {
-  const pkg = JSON.parse(readFileSync(join(root, "node_modules/sharp/package.json"), "utf8")) as {
-    version: string;
-    optionalDependencies: Record<string, string>;
-  };
+function sharpVersions() {
+  const pkg: unknown = JSON.parse(readFileSync(join(root, "node_modules/sharp/package.json"), "utf8"));
+
+  if (!isSharpPackage(pkg)) throw new Error("Invalid sharp package metadata");
 
   const libvips = pkg.optionalDependencies["@img/sharp-libvips-linux-x64"];
 
@@ -53,20 +98,26 @@ function sharpVersions(): { sharp: string; libvips: string } {
 async function npmPackage(name: string, version: string): Promise<string> {
   const installed = join(root, "node_modules", name);
 
-  if (
-    existsSync(join(installed, "package.json")) &&
-    (JSON.parse(readFileSync(join(installed, "package.json"), "utf8")) as { version: string }).version === version
-  )
-    return installed;
+  if (existsSync(join(installed, "package.json"))) {
+    const pkg: unknown = JSON.parse(readFileSync(join(installed, "package.json"), "utf8"));
+
+    if (isPackageVersion(pkg) && pkg.version === version) return installed;
+  }
+
   const directory = join(cache, `${name.replace("/", "+")}@${version}`);
 
   if (existsSync(join(directory, "package/package.json"))) return join(directory, "package");
   const meta = await fetch(`https://registry.npmjs.org/${name.replace("/", "%2f")}/${version}`);
 
   if (!meta.ok) throw new Error(`npm registry: ${name}@${version}: HTTP ${meta.status}`);
-  const { dist } = (await meta.json()) as { dist: { tarball: string; integrity: string } };
+  const distribution: unknown = await meta.json();
+
+  if (!isNpmDistribution(distribution)) throw new Error(`npm registry: invalid distribution for ${name}@${version}`);
+  const { dist } = distribution;
   const tarball = new Uint8Array(await (await fetch(dist.tarball)).arrayBuffer());
-  const [algorithm, expected] = dist.integrity.split("-", 2) as [string, string];
+  const [algorithm, expected] = dist.integrity.split("-", 2);
+
+  if (!algorithm || !expected) throw new Error(`${name}@${version}: integrity mismatch`);
 
   if (createHash(algorithm).update(tarball).digest("base64") !== expected)
     throw new Error(`${name}@${version}: integrity mismatch`);
@@ -85,13 +136,13 @@ async function npmPackage(name: string, version: string): Promise<string> {
 async function sharpFiles(target: Target): Promise<[string, string][]> {
   const { sharp, libvips } = sharpVersions();
   const platform = sharpPlatform(target);
-  const packages = [[`@img/sharp-${platform}`, sharp]];
+  const packages: [string, string][] = [[`@img/sharp-${platform}`, sharp]];
 
   // Windows ships libvips inside the sharp package; elsewhere it is a separate package found through the rpath.
   if (!target.startsWith("windows")) packages.push([`@img/sharp-libvips-${platform}`, libvips]);
   const files: [string, string][] = [];
 
-  for (const [name, version] of packages as [string, string][]) {
+  for (const [name, version] of packages) {
     const directory = await npmPackage(name, version);
 
     for (const file of readdirSync(join(directory, "lib"), { recursive: true, encoding: "utf8" })) {
@@ -169,7 +220,7 @@ export async function compile(entry: string, outfile: string, target: Target, ve
     minify: { syntax: true, whitespace: true },
     sourcemap: "none",
     define: { "process.env.CANOPY_VERSION": JSON.stringify(version) },
-    compile: { target: `bun-${target}` as Bun.Build.CompileTarget, outfile },
+    compile: { target: `bun-${target}`, outfile },
     plugins: [
       noAgentClis,
       {
@@ -224,19 +275,27 @@ if (import.meta.main) {
   });
 
   const host = `${process.platform.replace("win32", "windows")}-${process.arch}`;
-  const targets = values.target === "all" ? [...TARGETS] : (values.target ?? host).split(",");
-  const apps = (values.app ?? Object.keys(APPS).join(",")).split(",");
+  const targetNames = values.target === "all" ? [...TARGETS] : (values.target ?? host).split(",");
+  const appNames = (values.app ?? Object.keys(APPS).join(",")).split(",");
 
-  for (const target of targets)
-    if (!TARGETS.includes(target as Target)) throw new Error(`Unknown target ${target} (${TARGETS.join(", ")})`);
+  const targets = targetNames.map((target) => {
+    if (!isTarget(target)) throw new Error(`Unknown target ${target} (${TARGETS.join(", ")})`);
 
-  for (const app of apps) if (!(app in APPS)) throw new Error(`Unknown app ${app} (${Object.keys(APPS).join(", ")})`);
+    return target;
+  });
+
+  const apps = appNames.map((app) => {
+    if (!isApp(app)) throw new Error(`Unknown app ${app} (${Object.keys(APPS).join(", ")})`);
+
+    return app;
+  });
+
   const version = process.env["CANOPY_VERSION"] || currentVersion().version;
   const outdir = resolve(values.outdir ?? join(root, "dist/release"));
   mkdirSync(outdir, { recursive: true });
 
-  for (const target of targets as Target[]) {
-    for (const app of apps as App[]) {
+  for (const target of targets) {
+    for (const app of apps) {
       const started = performance.now();
       const file = await buildBinary(app, target, { outdir, version });
       console.info(

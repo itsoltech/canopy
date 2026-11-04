@@ -11,8 +11,15 @@ import {
 } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { noAgentClis } from "../../../scripts/agent-clis.ts";
+import type { JsonObject, JsonValue } from "@canopy/domain";
+import { isString } from "../src/runtime/config.ts";
 
+// SAFETY: This repository-owned CommonJS module exports thinMachOFiles with the signature declared below.
 const { thinMachOFiles } = require("./macho.cjs") as { thinMachOFiles(directory: string, arch: string): void };
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
 
 const root = resolve(import.meta.dir, "../../..");
 const desktop = join(root, "apps/desktop");
@@ -82,7 +89,8 @@ chmodSync(join(runtime, `bun${suffix}`), 0o755);
 
 const pgName = target.replace("win32", "windows");
 const pgPackage = resolve(dirname(realpathSync(require.resolve(`@embedded-postgres/${pgName}`))), "..");
-const pgVersion = (JSON.parse(readFileSync(join(pgPackage, "package.json"), "utf8")) as { version: string }).version;
+const pgManifest: JsonValue = JSON.parse(readFileSync(join(pgPackage, "package.json"), "utf8"));
+const pgVersion = isJsonObject(pgManifest) ? pgManifest["version"] : undefined;
 
 if (pgVersion !== "18.6.0-beta.19") throw new Error("Unexpected PostgreSQL binary version");
 
@@ -112,13 +120,19 @@ for (const name of externalPackages) {
 // downloaded: users install claude/codex/grok on their own machine.
 const packageName = `@embedded-postgres/${pgName}`;
 const version = pgVersion;
-const lock = Bun.JSONC.parse(readFileSync(join(root, "bun.lock"), "utf8")) as { packages: Record<string, unknown[]> };
-const pinned = lock.packages[packageName];
+
+// SAFETY: Bun.JSONC.parse produces JSON data; the object and package-entry shapes are checked below.
+const lock = Bun.JSONC.parse(readFileSync(join(root, "bun.lock"), "utf8")) as JsonValue;
+
+if (!isJsonObject(lock) || !isJsonObject(lock["packages"])) throw new Error("Invalid bun.lock packages");
+
+const entry = lock["packages"][packageName];
+const pinned = Array.isArray(entry) ? entry : undefined;
 const integrity = pinned?.at(-1);
 
 if (
   pinned?.[0] !== `${packageName}@${version}` ||
-  typeof integrity !== "string" ||
+  !isString(integrity) ||
   !/^sha512-[A-Za-z0-9+/]{86}==$/.test(integrity)
 )
   throw new Error("PostgreSQL distribution is not pinned with SHA-512 in bun.lock");

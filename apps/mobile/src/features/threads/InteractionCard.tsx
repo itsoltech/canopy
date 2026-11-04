@@ -3,25 +3,67 @@ import { InteractionKind, ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 
+interface InteractionRequest {
+  questions?: unknown;
+  reason?: unknown;
+  command?: unknown;
+  prompt?: unknown;
+  question?: unknown;
+}
+
+interface QuestionOption {
+  label?: string;
+  description?: string;
+}
+
+interface Question {
+  header?: string;
+  question?: string;
+  options?: QuestionOption[];
+}
+
+function isInteractionRequest(value: unknown): value is InteractionRequest {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isQuestionOption(value: unknown): value is QuestionOption {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    (!("label" in value) || value.label === undefined || typeof value.label === "string") &&
+    (!("description" in value) || value.description === undefined || typeof value.description === "string")
+  );
+}
+
+function isQuestion(value: unknown): value is Question {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    (!("header" in value) || value.header === undefined || typeof value.header === "string") &&
+    (!("question" in value) || value.question === undefined || typeof value.question === "string") &&
+    (!("options" in value) ||
+      value.options === undefined ||
+      (Array.isArray(value.options) && value.options.every(isQuestionOption)))
+  );
+}
+
+function isQuestions(value: unknown): value is Question[] {
+  return Array.isArray(value) && value.every(isQuestion);
+}
+
 export function InteractionCard({ interaction }: { interaction: ui.Interaction }) {
   const c = useColors();
-  let request: Record<string, unknown> = {};
+  let request: InteractionRequest = {};
 
   try {
     const value: unknown = JSON.parse(interaction.requestJson);
 
-    if (value && typeof value === "object" && !Array.isArray(value)) request = value as Record<string, unknown>;
+    if (isInteractionRequest(value)) request = value;
   } catch {
     /* Non-JSON provider prompts remain readable. */
   }
 
-  const questions = Array.isArray(request.questions)
-    ? (request.questions as {
-        header?: string;
-        question?: string;
-        options?: { label?: string; description?: string }[];
-      }[])
-    : [];
+  const questions = isQuestions(request.questions) ? request.questions : [];
 
   const permission = interaction.kind === InteractionKind.PERMISSION;
 

@@ -13,8 +13,25 @@ export const initialStatus = (): DesktopStatus => ({
   bindHost: "127.0.0.1",
 });
 
-export function origin(value: unknown, label: string) {
-  if (typeof value !== "string" || value.length > 2048) throw new Error(`Invalid ${label}`);
+export function isString<T>(value: T): value is T & string {
+  return typeof value === "string";
+}
+
+export interface ConfigurationInput {
+  mode?: unknown;
+  allowNetwork?: unknown;
+  bindHost?: unknown;
+  gatewayUrl?: unknown;
+  webUrl?: unknown;
+  enrollmentToken?: unknown;
+}
+
+function isConfigurationInput(value: ConfigurationInput | null | undefined): value is ConfigurationInput {
+  return !!value && typeof value === "object";
+}
+
+export function origin(value: string | null | undefined, label: string) {
+  if (!isString(value) || value.length > 2048) throw new Error(`Invalid ${label}`);
   const url = new URL(value);
 
   if (
@@ -30,15 +47,15 @@ export function origin(value: unknown, label: string) {
   return url.origin;
 }
 
-export function configuration(value: unknown): DesktopConfiguration {
-  if (!value || typeof value !== "object") throw new Error("Invalid desktop configuration");
-  const c = value as Record<string, unknown>;
+export function configuration(value: ConfigurationInput | null | undefined): DesktopConfiguration {
+  if (!isConfigurationInput(value)) throw new Error("Invalid desktop configuration");
+  const c = value;
 
   if (c["mode"] === "local") {
     const allowNetwork = c["allowNetwork"] === true;
     const bindHost = allowNetwork ? c["bindHost"] : "127.0.0.1";
 
-    if (typeof bindHost !== "string" || isIP(bindHost) !== 4) throw new Error("Choose an IPv4 interface address");
+    if (!isString(bindHost) || isIP(bindHost) !== 4) throw new Error("Choose an IPv4 interface address");
 
     if (allowNetwork && (bindHost === "0.0.0.0" || bindHost.startsWith("127.")))
       throw new Error("Choose this computer's private network interface address");
@@ -49,14 +66,19 @@ export function configuration(value: unknown): DesktopConfiguration {
   if (c["mode"] === "remote") {
     const token = c["enrollmentToken"];
 
-    if (token !== undefined && (typeof token !== "string" || token.length < 16 || token.length > 4096))
+    if (token !== undefined && (!isString(token) || token.length < 16 || token.length > 4096))
       throw new Error("Invalid enrollment token");
+
+    if (!isString(c.gatewayUrl)) throw new Error("Invalid Gateway address");
+    const gatewayUrl = origin(c.gatewayUrl, "Gateway address");
+
+    if (!isString(c.webUrl)) throw new Error("Invalid Web address");
 
     return {
       mode: "remote",
-      gatewayUrl: origin(c["gatewayUrl"], "Gateway address"),
+      gatewayUrl,
       webUrl: origin(c["webUrl"], "Web address"),
-      ...(typeof token === "string" && { enrollmentToken: token }),
+      ...(isString(token) && { enrollmentToken: token }),
     };
   }
 
@@ -70,7 +92,7 @@ export function freePort(host = "127.0.0.1"): Promise<number> {
     server.listen(0, host, () => {
       const address = server.address();
 
-      if (!address || typeof address === "string") {
+      if (!address || isString(address)) {
         server.close();
         reject(new Error("Port allocation failed"));
 

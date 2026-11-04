@@ -1,8 +1,39 @@
 import { createInterface } from "node:readline";
 import { DesktopRuntime, type RuntimePaths, type Secrets } from "./runtime/runtime.ts";
+import type { DesktopStatus } from "@canopy/ui/desktop";
+import { configuration, type ConfigurationInput } from "./runtime/config.ts";
+
+export interface ControllerArguments {
+  directory?: string;
+  paths?: RuntimePaths;
+  secrets?: Secrets;
+  configuration?: ConfigurationInput;
+  state?: string;
+}
+
+type ControllerRequest = { id: number } & (
+  | { action: "initialize"; directory: string; paths: RuntimePaths; secrets: Secrets }
+  | { action: "restore" }
+  | { action: "configure"; configuration: ConfigurationInput }
+  | { action: "presence"; state: string }
+);
+
+export interface ControllerResult {
+  origin?: string;
+  status?: DesktopStatus;
+  pids?: number[];
+}
+
+export interface ControllerResponse {
+  event?: "status";
+  status?: DesktopStatus;
+  id?: number | undefined;
+  result?: ControllerResult;
+  error?: string;
+}
 
 // stdout is a private protocol pipe. Sidecar stdout/stderr only goes to redacted files.
-const send = (message: unknown) => process.stdout.write(JSON.stringify(message) + "\n");
+const send = (message: ControllerResponse) => process.stdout.write(JSON.stringify(message) + "\n");
 let runtime: DesktopRuntime | undefined;
 let ending = false;
 let queue = Promise.resolve();
@@ -39,15 +70,8 @@ lines.on("line", (line) => {
     let id: number | undefined;
 
     try {
-      const request = JSON.parse(line) as {
-        id: number;
-        action: string;
-        directory: string;
-        paths: RuntimePaths;
-        secrets: Secrets;
-        configuration: unknown;
-        state: string;
-      };
+      // SAFETY: stdin is a private pipe from the bundled Electron main process, which constructs ControllerRequest.
+      const request = JSON.parse(line) as ControllerRequest;
 
       id = request.id;
 
@@ -63,7 +87,7 @@ lines.on("line", (line) => {
         await runtime.restore();
         send({ id, result: { status: runtime.status } });
       } else if (request.action === "configure" && runtime) {
-        await runtime.configure(request.configuration);
+        await runtime.configure(configuration(request.configuration));
         send({ id, result: { pids: runtime.pids } });
       } else if (request.action === "presence" && runtime) {
         await runtime.presence(request.state);

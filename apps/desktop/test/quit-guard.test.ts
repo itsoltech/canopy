@@ -15,10 +15,9 @@ class Clock implements QuitClock {
     const id = ++this.sequence;
     this.timers.set(id, { at: this.time + delay, callback });
 
-    return id;
-  }
-  clearTimeout(timer: unknown) {
-    this.timers.delete(timer as number);
+    return () => {
+      this.timers.delete(id);
+    };
   }
   advance(to: number) {
     while (true) {
@@ -252,7 +251,7 @@ function fakeWindow() {
   const target = new EventEmitter() as EventEmitter & { webContents: EventEmitter };
   target.webContents = new EventEmitter();
 
-  return { target, window: target as unknown as BrowserWindow };
+  return { target, window: target as BrowserWindow };
 }
 
 describe("Electron input adapter and preload delivery", () => {

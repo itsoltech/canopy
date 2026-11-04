@@ -16,7 +16,7 @@ function Inline({ tokens }: { tokens: Token[] }) {
       {tokens.map((token, i) => {
         const nested =
           "tokens" in token && token.tokens ? (
-            <Inline tokens={token.tokens as Token[]} />
+            <Inline tokens={token.tokens} />
           ) : "text" in token ? (
             String(token.text)
           ) : (
@@ -139,7 +139,7 @@ function Block({ token }: { token: Token }) {
         </View>
       </ScrollView>
     );
-  const tokens = "tokens" in token ? (token.tokens as Token[] | undefined) : undefined;
+  const tokens = "tokens" in token ? token.tokens : undefined;
 
   return (
     <Text

@@ -55,9 +55,9 @@ for (const [source, target] of [
   } catch {
     git("merge", "--abort");
 
-    const existing = api<{ number: number }[]>(
-      `repos/${repo}/pulls?state=open&base=${target}&head=${repo.split("/")[0]}:${source}`,
-    );
+    const existing = api(`repos/${repo}/pulls?state=open&base=${target}&head=${repo.split("/")[0]}:${source}`);
+
+    if (!Array.isArray(existing)) throw new Error("Invalid pull request list");
 
     if (!existing.length)
       api(`repos/${repo}/pulls`, "POST", {

@@ -8,13 +8,13 @@ import { styles, useColors } from "../../ui/theme";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { useAppearance } from "../../state/appearance";
 
-export const permissionLabels: Record<number, string> = {
+export const permissionLabels = {
   0: "Ask first",
   1: "Ask first",
   2: "Accept edits",
   3: "Read only",
   4: "Full auto",
-};
+} satisfies Record<PermissionMode, string>;
 
 export function MessageComposer({
   thread,

@@ -55,14 +55,18 @@ export function classify(name: string): Pick<ManifestAsset, "app" | "os" | "arch
     if ((binary[2] === "windows") !== (binary[4] === ".exe")) return undefined;
 
     return {
+      // SAFETY: BINARY's capture groups enumerate exactly the app, OS and architecture unions below.
       app: binary[1] as "gateway" | "worker",
+      // SAFETY: BINARY's second group is exactly linux|darwin|windows.
       os: binary[2] as ManifestAsset["os"],
+      // SAFETY: BINARY's third group is exactly x64|arm64.
       arch: binary[3] as ManifestAsset["arch"],
     };
   }
 
   const desktop = name.match(DESKTOP);
 
+  // SAFETY: DESKTOP's first and second groups enumerate the OS and architecture unions exactly.
   return desktop
     ? { app: "desktop", os: desktop[1] as ManifestAsset["os"], arch: desktop[2] as ManifestAsset["arch"] }
     : undefined;
@@ -76,6 +80,7 @@ async function protocolVersions(): Promise<ReleaseManifest["protocol"]> {
   const path = join(root, "packages/domain/src/release/protocol.ts");
 
   if (!existsSync(path)) return { worker_link: 1, update: 1 };
+  // SAFETY: The existing path is our repository-owned protocol module with these numeric constant exports.
   const constants = (await import(path)) as { WORKER_LINK_PROTOCOL?: number; UPDATE_PROTOCOL?: number };
 
   return { worker_link: constants.WORKER_LINK_PROTOCOL ?? 1, update: constants.UPDATE_PROTOCOL ?? 1 };

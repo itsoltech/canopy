@@ -15,8 +15,9 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
-import type { DesktopStatus } from "@canopy/ui/desktop";
-import { configuration, initialStatus, origin, serviceEnvironment } from "./runtime/config.ts";
+import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
+import { configuration, initialStatus, origin, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
+import type { ControllerArguments, ControllerResponse, ControllerResult } from "./controller.ts";
 import { loadSecrets } from "./vault.ts";
 import { Logs } from "./runtime/log.ts";
 import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
@@ -73,7 +74,7 @@ const enrollmentReady = new Set<number>();
 
 const requests = new Map<
   number,
-  { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
+  { resolve: (value: ControllerResult) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
 >();
 
 const resources = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
@@ -92,8 +93,11 @@ const quitGuard = new QuitGuard(
   {
     clock: {
       now: () => performance.now(),
-      setTimeout: (callback, delay) => setTimeout(callback, delay),
-      clearTimeout: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
+      setTimeout: (callback, delay) => {
+        const timer = setTimeout(callback, delay);
+
+        return () => clearTimeout(timer);
+      },
     },
     shortcut: process.platform === "darwin" ? "⌘Q" : "Ctrl+Q",
     repeatTiming: quitKey.timing,
@@ -126,8 +130,8 @@ async function preparePolicy(url: string) {
   scriptHashes.set(origin, hashes);
 }
 
-function rpc(action: string, args: Record<string, unknown> = {}) {
-  return new Promise<unknown>((resolveRequest, reject) => {
+function rpc(action: string, args: ControllerArguments = {}) {
+  return new Promise<ControllerResult>((resolveRequest, reject) => {
     if (!controller?.stdin.writable) {
       reject(new Error("Desktop services are unavailable; restart Canopy"));
 
@@ -478,13 +482,8 @@ async function start() {
   controller.stderr.on("data", logs.stream("controller"));
   createInterface({ input: controller.stdout }).on("line", (line) => {
     try {
-      const message = JSON.parse(line) as {
-        event?: string;
-        status?: DesktopStatus;
-        id?: number;
-        result?: unknown;
-        error?: string;
-      };
+      // SAFETY: stdout is the private protocol pipe of our spawned, bundled controller; send uses ControllerResponse.
+      const message = JSON.parse(line) as ControllerResponse;
 
       if (message.event === "status" && message.status) {
         status = message.status;
@@ -501,7 +500,7 @@ async function start() {
         clearTimeout(request.timer);
 
         if (message.error) request.reject(new Error(message.error));
-        else request.resolve(message.result);
+        else request.resolve(message.result ?? {});
       }
     } catch {
       logs.write("controller", "Invalid controller message");
@@ -524,10 +523,9 @@ async function start() {
     }
   });
 
-  const initialized = (await rpc("initialize", { directory: app.getPath("userData"), secrets, paths })) as {
-    origin: string;
-    status: DesktopStatus;
-  };
+  const initialized = await rpc("initialize", { directory: app.getPath("userData"), secrets, paths });
+
+  if (!initialized.origin || !initialized.status) throw new Error("Invalid desktop initialization response");
 
   setupOrigin = initialized.origin;
   status = initialized.status;
@@ -550,10 +548,9 @@ async function start() {
 
     return quitGuard.mode;
   });
-  ipcMain.on("canopy:quit-guard-delivered", (event, phase: unknown, surface: unknown) => {
+  ipcMain.on("canopy:quit-guard-delivered", (event, phase: QuitGuardState["phase"], surface: "web" | "shell") => {
     if (
       !isTrusted(event) ||
-      typeof phase !== "string" ||
       !["hint", "holding", "cancel"].includes(phase) ||
       (surface !== "web" && surface !== "shell")
     )
@@ -562,7 +559,7 @@ async function start() {
       `feedback phase=${phase} surface=${surface} window=${event.sender === settingsWindow?.webContents ? "settings" : "main"}`,
     );
   });
-  ipcMain.handle("canopy:set-quit-shortcut", (event, value: unknown) => {
+  ipcMain.handle("canopy:set-quit-shortcut", (event, value: QuitShortcut) => {
     authorize(event);
 
     if (!isQuitShortcut(value)) throw new Error("Invalid quit shortcut");
@@ -580,7 +577,7 @@ async function start() {
 
     return updates.status();
   });
-  ipcMain.handle("canopy:update-channel", (event, channel: unknown) => {
+  ipcMain.handle("canopy:update-channel", (event, channel: string) => {
     authorize(event);
 
     return updates.setChannel(channel);
@@ -600,7 +597,7 @@ async function start() {
 
     if (pendingLink) enrollment(pendingLink);
   });
-  ipcMain.handle("canopy:configure", async (event, raw: unknown) => {
+  ipcMain.handle("canopy:configure", async (event, raw: ConfigurationInput) => {
     authorize(event, true);
 
     if (busy) throw new Error("Desktop configuration is already in progress");
@@ -698,8 +695,8 @@ if (ownsInstance)
   void app
     .whenReady()
     .then(start)
-    .catch((error: unknown) => {
-      const message = logs.redact(error instanceof Error ? error.message : "Canopy startup failed");
+    .catch((cause: unknown) => {
+      const message = logs.redact(cause instanceof Error ? cause.message : "Canopy startup failed");
       logs.write("desktop", message);
       dialog.showErrorBox("Canopy could not start", message);
       app.quit();

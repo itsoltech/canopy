@@ -4,6 +4,19 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { Secrets } from "./runtime/runtime.ts";
 
+function isSecrets(value: unknown): value is Secrets {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "databasePassword" in value &&
+    typeof value.databasePassword === "string" &&
+    "secretsKey" in value &&
+    typeof value.secretsKey === "string" &&
+    "serviceToken" in value &&
+    typeof value.serviceToken === "string"
+  );
+}
+
 export async function loadSecrets(directory: string): Promise<Secrets> {
   if (
     !(await safeStorage.isAsyncEncryptionAvailable()) ||
@@ -21,21 +34,14 @@ export async function loadSecrets(directory: string): Promise<Secrets> {
     const decrypted = await safeStorage.decryptStringAsync(readFileSync(path));
     const secrets: unknown = JSON.parse(decrypted.result);
 
-    if (
-      !secrets ||
-      typeof secrets !== "object" ||
-      !["databasePassword", "secretsKey", "serviceToken"].every(
-        (key) => typeof (secrets as Record<string, unknown>)[key] === "string",
-      )
-    )
-      throw new Error("Invalid desktop secrets file; restore it from your backup");
+    if (!isSecrets(secrets)) throw new Error("Invalid desktop secrets file; restore it from your backup");
 
     if (decrypted.shouldReEncrypt) {
       writeFileSync(`${path}.new`, await safeStorage.encryptStringAsync(decrypted.result), { mode: 0o600 });
       renameSync(`${path}.new`, path);
     }
 
-    return secrets as Secrets;
+    return secrets;
   }
 
   const secrets: Secrets = {

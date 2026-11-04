@@ -1,6 +1,10 @@
 import Svg, { Path } from "react-native-svg";
-import { icons, lineIcons, type IconName, type SolidIconName } from "@canopy/ui/icons";
+import { icons, lineIcons, type IconName } from "@canopy/ui/icons";
 import { useColors } from "./theme";
+
+function isLineIcon(name: IconName): name is keyof typeof lineIcons {
+  return name in lineIcons;
+}
 
 export function Icon({
   name,
@@ -14,7 +18,7 @@ export function Icon({
   label?: string;
 }) {
   const c = useColors();
-  const line = name in lineIcons;
+  const line = isLineIcon(name);
 
   return (
     <Svg
@@ -29,9 +33,9 @@ export function Icon({
       accessibilityLabel={label}
       accessible={Boolean(label)}
     >
-      {line
-        ? lineIcons[name as keyof typeof lineIcons].map((d) => <Path key={d} d={d} />)
-        : icons[name as SolidIconName].map((p) => (
+      {isLineIcon(name)
+        ? lineIcons[name].map((d) => <Path key={d} d={d} />)
+        : icons[name].map((p) => (
             <Path
               key={p.d}
               d={p.d}

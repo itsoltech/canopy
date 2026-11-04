@@ -42,7 +42,7 @@ export function resolveVersion(input: {
   const release = input.tag?.match(RELEASE_TAG);
 
   if (input.tag && release) {
-    const [, major, minor, patch, pre] = release;
+    const [, major, minor, , pre] = release;
     const version = input.tag.slice(1);
 
     const channel =
@@ -132,6 +132,8 @@ if (import.meta.main) {
   const field = args[args.indexOf("--field") + 1];
 
   if (args.includes("--field") && field) {
+    if (!Object.hasOwn(info, field)) throw new Error(`Unknown field ${field}`);
+    // SAFETY: info is a CanopyVersion, and the own-key check above establishes field is one of its metadata keys.
     const value = info[field as keyof CanopyVersion];
 
     if (value === undefined) throw new Error(`Unknown field ${field}`);

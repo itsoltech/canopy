@@ -159,13 +159,15 @@ test.skipIf(!existsSync(paths.gateway))(
       if (message.id) replies.get(message.id)?.(message);
     });
 
-    async function request(id: number, action: string, args: Record<string, unknown>) {
+    async function request(id: number, action: string, args: import("../src/controller.ts").ControllerArguments) {
       const reply = new Promise<{ pids: number[] }>((resolveReply, reject) => {
         const timer = setTimeout(() => reject(new Error("Guardian RPC timed out")), 90_000);
         replies.set(id, (message) => {
           clearTimeout(timer);
           replies.delete(id);
-          message.error ? reject(new Error(message.error)) : resolveReply(message.result!);
+
+          if (message.error) reject(new Error(message.error));
+          else resolveReply(message.result!);
         });
       });
 
@@ -214,12 +216,14 @@ test.skipIf(!existsSync(paths.gateway))(
         if (message.id) replies.get(message.id)?.(message);
       });
 
-      const request = (id: number, action: string, args: Record<string, unknown>) =>
+      const request = (id: number, action: string, args: import("../src/controller.ts").ControllerArguments) =>
         new Promise<{ pids: number[] }>((resolveReply, reject) => {
           const timer = setTimeout(() => reject(new Error("Guardian RPC timed out")), 90_000);
           replies.set(id, (message) => {
             clearTimeout(timer);
-            message.error ? reject(new Error(message.error)) : resolveReply(message.result!);
+
+            if (message.error) reject(new Error(message.error));
+            else resolveReply(message.result!);
           });
           child.stdin.write(JSON.stringify({ id, action, ...args }) + "\n");
         });

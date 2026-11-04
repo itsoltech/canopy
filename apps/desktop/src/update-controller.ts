@@ -78,7 +78,7 @@ export class UpdateController {
     this.enabled = !reason;
     this.publish({ phase: reason ? "disabled" : "idle", message: reason ?? "Ready to check for updates" });
   }
-  async setChannel(raw: unknown) {
+  async setChannel(raw: string) {
     if (!isDesktopChannel(raw)) throw new Error("Invalid update channel");
 
     if (this.running || this.state.changingChannel) throw new Error("Wait for the current update operation to finish");

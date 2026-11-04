@@ -38,6 +38,7 @@ export function mobileClient(options: {
     useBinaryFormat: true,
     // Never forward browser cookies or follow redirects carrying a bearer token.
     // Bun also declares a static fetch.preconnect; Connect only calls the fetch function itself.
+    // SAFETY: Connect invokes only the Fetch call signature; it never accesses Bun's static preconnect member.
     fetch: ((input, init) =>
       options.fetch(input, { ...init, credentials: "omit", redirect: "error" })) as typeof globalThis.fetch,
     interceptors: [auth],
@@ -46,23 +47,34 @@ export function mobileClient(options: {
   return { api: createClient(ui.GatewayService, transport), pairing: createClient(ui.MobilePairingService, transport) };
 }
 
-export function readPairingQr(raw: string): { gatewayUrl: string; code: string } {
+interface PairingQr {
+  type: "canopy-pair";
+  version: 1;
+  gatewayUrl: string;
+  code: string;
+}
+
+function isPairingQr(value: unknown): value is PairingQr {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "type" in value &&
+    value.type === "canopy-pair" &&
+    "version" in value &&
+    value.version === 1 &&
+    "gatewayUrl" in value &&
+    typeof value.gatewayUrl === "string" &&
+    "code" in value &&
+    typeof value.code === "string" &&
+    /^[a-f\d\s-]{16,24}$/i.test(value.code)
+  );
+}
+
+export function readPairingQr(raw: string) {
   if (raw.length > 2048) throw new Error("This QR code is not a Canopy pairing code.");
   const value: unknown = JSON.parse(raw);
 
-  if (
-    !value ||
-    typeof value !== "object" ||
-    !("type" in value) ||
-    value.type !== "canopy-pair" ||
-    !("version" in value) ||
-    value.version !== 1 ||
-    !("gatewayUrl" in value) ||
-    typeof value.gatewayUrl !== "string" ||
-    !("code" in value) ||
-    typeof value.code !== "string" ||
-    !/^[a-f\d\s-]{16,24}$/i.test(value.code)
-  ) {
+  if (!isPairingQr(value)) {
     throw new Error("This QR code is not a Canopy pairing code.");
   }
 
