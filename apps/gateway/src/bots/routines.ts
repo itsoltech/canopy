@@ -80,6 +80,46 @@ export const routineView = (r: RoutineRow) =>
 export const originOf = (turn: Pick<BotTurn, "routine_id" | "routine_title"> | undefined): RoutineOrigin =>
   turn?.routine_id ? { routineId: turn.routine_id, routineTitle: turn.routine_title } : {};
 
+const checked = (patch: RoutinePatch, now: Date) =>
+  Effect.try({
+    try: () => {
+      const title = patch.title?.trim() ?? "";
+      const instructions = patch.instructions?.trim() ?? "";
+      const cron = patch.cron?.trim().replace(/\s+/g, " ") ?? "";
+      const timezone = patch.timezone?.trim() || "UTC";
+
+      // oxlint-disable-next-line no-control-regex -- a routine title is one line of visible text
+      if (!title || title.length > 120 || /[\x00-\x1f]/.test(title))
+        throw new Invalid("title is required (at most 120 characters, one line)");
+
+      if (!instructions || instructions.length > 32_000)
+        throw new Invalid("instructions are required (at most 32000 characters)");
+
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: timezone }).format(now);
+      } catch {
+        throw new Invalid("unknown IANA timezone");
+      }
+
+      const problem = cronProblem(cron, timezone, ROUTINE_MIN_MINUTES, now);
+
+      if (problem) throw new Invalid(problem);
+      const next = nextCronRun(cron, timezone, now);
+
+      if (!next) throw new Invalid("cron has no future runs");
+
+      return {
+        title,
+        instructions,
+        cron,
+        timezone,
+        next,
+        schedule: cronstrue.toString(cron, { use24HourTimeFormat: true, throwExceptionOnParseError: true }),
+      };
+    },
+    catch: (e) => (e instanceof Invalid ? e : new Invalid("invalid cron expression")),
+  });
+
 /** Called inside BotStore's transactions: bot -> routine -> turn is the lock order. */
 export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
   const rows = (botId: string) =>
@@ -99,46 +139,6 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
       if (stopped.length) yield* sql`UPDATE bot_routines SET last_outcome = 'Stopped' WHERE id = ${id}::uuid`;
       yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE status = 'pending'
       AND turn_id IN (SELECT id FROM bot_turns WHERE routine_id = ${id}::uuid AND status = 'interrupted')`;
-    });
-
-  const checked = (patch: RoutinePatch, now: Date) =>
-    Effect.try({
-      try: () => {
-        const title = patch.title?.trim() ?? "";
-        const instructions = patch.instructions?.trim() ?? "";
-        const cron = patch.cron?.trim().replace(/\s+/g, " ") ?? "";
-        const timezone = patch.timezone?.trim() || "UTC";
-
-        // oxlint-disable-next-line no-control-regex -- a routine title is one line of visible text
-        if (!title || title.length > 120 || /[\x00-\x1f]/.test(title))
-          throw new Invalid("title is required (at most 120 characters, one line)");
-
-        if (!instructions || instructions.length > 32_000)
-          throw new Invalid("instructions are required (at most 32000 characters)");
-
-        try {
-          new Intl.DateTimeFormat("en", { timeZone: timezone }).format(now);
-        } catch {
-          throw new Invalid("unknown IANA timezone");
-        }
-
-        const problem = cronProblem(cron, timezone, ROUTINE_MIN_MINUTES, now);
-
-        if (problem) throw new Invalid(problem);
-        const next = nextCronRun(cron, timezone, now);
-
-        if (!next) throw new Invalid("cron has no future runs");
-
-        return {
-          title,
-          instructions,
-          cron,
-          timezone,
-          next,
-          schedule: cronstrue.toString(cron, { use24HourTimeFormat: true, throwExceptionOnParseError: true }),
-        };
-      },
-      catch: (e) => (e instanceof Invalid ? e : new Invalid("invalid cron expression")),
     });
 
   const update = (user: string, botId: string, id: string, patch: RoutinePatch, now: Date) =>

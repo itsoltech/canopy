@@ -150,35 +150,8 @@ export async function botPlatform(
           provider: Provider[i.harness],
           kind: i.kind,
         }));
-      case "list_models": {
-        const requested = optional("provider");
-
-        if (requested && !["claude", "codex", "grok"].includes(requested)) throw new Invalid("unknown provider");
-
-        if (!optional("worker_id")) {
-          const config = (await core.bots.get(turn.bot_id)).configuration!;
-
-          return await core.bots.run((s) =>
-            s.apiModels(
-              requested ? legacyProvider(requested) : config.provider,
-              optional("provider_instance") || config.providerInstance,
-            ),
-          );
-        }
-
-        if (!(await core.overview()).workers.some((w) => w.id === string("worker_id")))
-          throw new NotFound("worker not found");
-
-        const provider = legacyProvider(string("provider"));
-
-        return (await botModels(core, string("worker_id"), provider, string("provider_instance"))).map((m) => ({
-          id: m.id,
-          name: m.displayName || m.id,
-          default: m.isDefault,
-          efforts: m.efforts,
-          default_effort: m.defaultEffort,
-        }));
-      }
+      case "list_models":
+        return await listBotModels(core, turn, { string, optional });
 
       case "list_bots":
         return (await core.bots.list()).map((b) => ({ id: b.id, name: b.configuration?.name }));
@@ -213,49 +186,8 @@ export async function botPlatform(
               .slice(-100);
           }),
         );
-      case "start_thread": {
-        const permission = legacyPermission(optional("permission") || "ask");
-
-        if (!permission || !["claude", "codex", "grok"].includes(string("provider")))
-          throw new Invalid("unknown provider or permission");
-
-        const provider = legacyProvider(string("provider"));
-
-        // Without a model: the instance's default on the workspace's worker (bots must not guess model names).
-        let model = optional("model");
-
-        if (!model) {
-          const workerId = (await core.overview()).projects
-            .flatMap((p) => p.workspaces)
-            .find((w) => w.id === string("workspace_id"))?.workerId;
-
-          if (!workerId) throw new Invalid("workspace not found; use list_projects");
-          const models = await botModels(core, workerId, provider, string("provider_instance"));
-          model = (models.find((m) => m.isDefault) ?? models[0])?.id ?? "";
-
-          if (!model)
-            throw new Invalid(
-              "this provider instance reports no models on that worker; use list_models or another instance",
-            );
-        }
-
-        return await core.startBotThread(
-          turn,
-          call,
-          create(ui.CreateThreadRequestSchema, {
-            projectId: string("project_id"),
-            workspaceId: string("workspace_id"),
-            provider,
-            providerProfileId: string("provider_instance"),
-            model: model.slice(0, 200),
-            effort: optional("effort"),
-            permissionMode: permission,
-            initialMessage: string("prompt"),
-            title: optional("title"),
-            clientRequestId: call.id,
-          }),
-        );
-      }
+      case "start_thread":
+        return await startThread(core, turn, call, { string, optional });
 
       case "send_message": {
         return await core.sendBotThreadMessage(
@@ -301,6 +233,82 @@ export async function botPlatform(
     // Validation messages (bad model, offline worker, unknown thread) go back so the bot can correct itself.
     return platformError(error);
   }
+}
+
+type Args = Pick<ReturnType<typeof context>, "string" | "optional">;
+
+/** list_models: an instance's API models (no worker), or the visible models of one on a worker. */
+async function listBotModels(core: GatewayCore, turn: BotTurn, { string, optional }: Args) {
+  const requested = optional("provider");
+
+  if (requested && !["claude", "codex", "grok"].includes(requested)) throw new Invalid("unknown provider");
+
+  if (!optional("worker_id")) {
+    const config = (await core.bots.get(turn.bot_id)).configuration!;
+
+    return await core.bots.run((s) =>
+      s.apiModels(
+        requested ? legacyProvider(requested) : config.provider,
+        optional("provider_instance") || config.providerInstance,
+      ),
+    );
+  }
+
+  if (!(await core.overview()).workers.some((w) => w.id === string("worker_id")))
+    throw new NotFound("worker not found");
+
+  const provider = legacyProvider(string("provider"));
+
+  return (await botModels(core, string("worker_id"), provider, string("provider_instance"))).map((m) => ({
+    id: m.id,
+    name: m.displayName || m.id,
+    default: m.isDefault,
+    efforts: m.efforts,
+    default_effort: m.defaultEffort,
+  }));
+}
+
+/** start_thread: a thread the bot starts in a workspace, with the instance's default model when none is given. */
+async function startThread(core: GatewayCore, turn: BotTurn, call: StoredCall, { string, optional }: Args) {
+  const permission = legacyPermission(optional("permission") || "ask");
+
+  if (!permission || !["claude", "codex", "grok"].includes(string("provider")))
+    throw new Invalid("unknown provider or permission");
+
+  const provider = legacyProvider(string("provider"));
+
+  // Without a model: the instance's default on the workspace's worker (bots must not guess model names).
+  let model = optional("model");
+
+  if (!model) {
+    const workerId = (await core.overview()).projects
+      .flatMap((p) => p.workspaces)
+      .find((w) => w.id === string("workspace_id"))?.workerId;
+
+    if (!workerId) throw new Invalid("workspace not found; use list_projects");
+    const models = await botModels(core, workerId, provider, string("provider_instance"));
+    model = (models.find((m) => m.isDefault) ?? models[0])?.id ?? "";
+
+    if (!model)
+      throw new Invalid("this provider instance reports no models on that worker; use list_models or another instance");
+  }
+
+  return await core.startBotThread(
+    turn,
+    call,
+    create(ui.CreateThreadRequestSchema, {
+      projectId: string("project_id"),
+      workspaceId: string("workspace_id"),
+      provider,
+      providerProfileId: string("provider_instance"),
+      model: model.slice(0, 200),
+      effort: optional("effort"),
+      permissionMode: permission,
+      initialMessage: string("prompt"),
+      title: optional("title"),
+      clientRequestId: call.id,
+    }),
+  );
 }
 
 /** Visible models of one provider instance on a worker, from its last catalog report. */
