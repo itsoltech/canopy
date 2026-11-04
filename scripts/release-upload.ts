@@ -23,13 +23,44 @@ interface Release {
   assets: { id: number; name: string }[];
 }
 
+function isAsset(value: unknown): value is Release["assets"][number] {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "id" in value &&
+    typeof value.id === "number" &&
+    "name" in value &&
+    typeof value.name === "string"
+  );
+}
+
+function isRelease<T>(value: T): value is T & Release {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "id" in value &&
+    typeof value.id === "number" &&
+    "tag_name" in value &&
+    typeof value.tag_name === "string" &&
+    "draft" in value &&
+    typeof value.draft === "boolean" &&
+    "prerelease" in value &&
+    typeof value.prerelease === "boolean" &&
+    "assets" in value &&
+    Array.isArray(value.assets) &&
+    value.assets.every(isAsset)
+  );
+}
+
 function gh(...args: string[]): void {
   execFileSync("gh", args, { stdio: ["ignore", "inherit", "inherit"] });
 }
 
 function release(repo: string, tag: string): Release | undefined {
   try {
-    return api<Release>(`repos/${repo}/releases/tags/${tag}`);
+    const value = api(`repos/${repo}/releases/tags/${tag}`);
+
+    return isRelease(value) ? value : undefined;
   } catch {
     return undefined;
   }

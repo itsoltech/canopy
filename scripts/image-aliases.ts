@@ -8,6 +8,22 @@ import { compareTags, resolveVersion } from "./version.ts";
 
 const VERSION_ANNOTATION = "org.opencontainers.image.version";
 
+function isIndex(value: unknown): value is { annotations?: Record<string, string> } {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    (!("annotations" in value) ||
+      value.annotations === undefined ||
+      (!!value.annotations &&
+        typeof value.annotations === "object" &&
+        Object.values(value.annotations).every(isString)))
+  );
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
 /** Version annotated on the image index of `reference`; null when the tag does not exist, "" when unannotated. */
 function aliasVersion(reference: string): string | null {
   const result = spawnSync("docker", ["buildx", "imagetools", "inspect", "--format", "{{json .Manifest}}", reference], {
@@ -19,7 +35,9 @@ function aliasVersion(reference: string): string | null {
     throw new Error(`Cannot inspect ${reference}: ${result.stderr.trim()}`);
   }
 
-  const index = JSON.parse(result.stdout) as { annotations?: Record<string, string> };
+  const index: unknown = JSON.parse(result.stdout);
+
+  if (!isIndex(index)) throw new Error(`Cannot inspect ${reference}: invalid image index`);
 
   return index.annotations?.[VERSION_ANNOTATION] ?? "";
 }

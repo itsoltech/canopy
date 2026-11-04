@@ -8,7 +8,6 @@
  * Anything newer than the grace period stays, as does any version carrying another tag or targeted by an alias.
  * Env: GH_TOKEN (or GITHUB_TOKEN), GITHUB_REPOSITORY; GITHUB_API_URL and CANOPY_REGISTRY_URL default to GitHub's.
  */
-
 const NIGHTLY = /^v\d+\.\d+\.\d+-nightly\.\d+$/;
 const KEEP_COMPLETE = 10;
 export const GRACE_MS = 6 * 60 * 60 * 1000;
@@ -27,7 +26,7 @@ const MANIFEST_TYPES = [
   "application/vnd.docker.distribution.manifest.v2+json",
 ];
 
-interface Release {
+export interface Release {
   id: number;
   tag_name: string;
   draft: boolean;
@@ -49,6 +48,95 @@ interface Manifest {
   mediaType?: string;
   manifests?: { digest: string }[];
   annotations?: Record<string, string>;
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isAsset(value: unknown): value is Release["assets"][number] {
+  return !!value && typeof value === "object" && "name" in value && isString(value.name);
+}
+
+function isRelease(value: unknown): value is Release {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "id" in value &&
+    typeof value.id === "number" &&
+    "tag_name" in value &&
+    isString(value.tag_name) &&
+    "draft" in value &&
+    typeof value.draft === "boolean" &&
+    "prerelease" in value &&
+    typeof value.prerelease === "boolean" &&
+    "created_at" in value &&
+    isString(value.created_at) &&
+    "published_at" in value &&
+    (value.published_at === null || isString(value.published_at)) &&
+    "assets" in value &&
+    Array.isArray(value.assets) &&
+    value.assets.every(isAsset)
+  );
+}
+
+function isMetadata(value: unknown): value is NonNullable<PackageVersion["metadata"]> {
+  if (!value || typeof value !== "object") return false;
+
+  if (!("container" in value) || value.container === undefined) return true;
+  const container = value.container;
+
+  return (
+    !!container &&
+    typeof container === "object" &&
+    (!("tags" in container) ||
+      container.tags === undefined ||
+      (Array.isArray(container.tags) && container.tags.every(isString)))
+  );
+}
+
+function isPackageVersion(value: unknown): value is PackageVersion {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "id" in value &&
+    typeof value.id === "number" &&
+    "name" in value &&
+    isString(value.name) &&
+    "created_at" in value &&
+    isString(value.created_at) &&
+    "updated_at" in value &&
+    isString(value.updated_at) &&
+    (!("metadata" in value) || value.metadata === undefined || isMetadata(value.metadata))
+  );
+}
+
+function isManifestReference(value: unknown): value is NonNullable<Manifest["manifests"]>[number] {
+  return !!value && typeof value === "object" && "digest" in value && isString(value.digest);
+}
+
+function isAnnotations(value: unknown): value is NonNullable<Manifest["annotations"]> {
+  return !!value && typeof value === "object" && !Array.isArray(value) && Object.values(value).every(isString);
+}
+
+function isManifest(value: unknown): value is Manifest {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    (!("mediaType" in value) || value.mediaType === undefined || isString(value.mediaType)) &&
+    (!("manifests" in value) ||
+      value.manifests === undefined ||
+      (Array.isArray(value.manifests) && value.manifests.every(isManifestReference))) &&
+    (!("annotations" in value) || value.annotations === undefined || isAnnotations(value.annotations))
+  );
+}
+
+function isRegistryToken(value: unknown): value is { token: string } {
+  return !!value && typeof value === "object" && "token" in value && isString(value.token);
+}
+
+function isErrorResponse(value: unknown): value is { message: string } {
+  return !!value && typeof value === "object" && "message" in value && isString(value.message);
 }
 
 export interface HygieneOptions {
@@ -112,10 +200,15 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
     });
 
     if (!response.ok) {
-      const message = await response.json().then(
-        (body) => (body as { message?: string }).message ?? "",
-        () => "",
-      );
+      let message = "";
+
+      try {
+        const body: unknown = await response.json();
+
+        if (isErrorResponse(body)) message = body.message;
+      } catch {
+        // A non-JSON error response still reports its HTTP status below.
+      }
 
       throw new HttpError(
         response.status,
@@ -126,13 +219,16 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
     return response;
   }
 
-  async function pages<T>(path: string): Promise<T[]> {
+  async function pages<T>(path: string, isItem: (value: unknown) => value is T): Promise<T[]> {
     const items: T[] = [];
     let url: string | undefined = `${options.apiUrl}/${path}`;
 
     while (url) {
       const response = await call(url);
-      items.push(...((await response.json()) as T[]));
+      const body: unknown = await response.json();
+
+      if (!Array.isArray(body) || !body.every(isItem)) throw new Error(`Invalid API page: ${path}`);
+      items.push(...body);
       url = response.headers.get("link")?.match(/<([^>]+)>;\s*rel="next"/)?.[1];
     }
 
@@ -144,7 +240,7 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
   }
 
   // 1. GitHub releases.
-  const nightlies = (await pages<Release>(`repos/${options.repository}/releases?per_page=100`))
+  const nightlies = (await pages(`repos/${options.repository}/releases?per_page=100`, isRelease))
     .filter((release) => !release.draft && release.prerelease && NIGHTLY.test(release.tag_name))
     .sort((a, b) => compareNightly(b.tag_name, a.tag_name));
 
@@ -203,7 +299,7 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
 
   async function prunePackage(name: string): Promise<string[]> {
     const base = `orgs/${owner}/packages/container/${name}/versions`;
-    const versions = await pages<PackageVersion>(`${base}?per_page=100&state=active`);
+    const versions = await pages(`${base}?per_page=100&state=active`, isPackageVersion);
     const registry = await registryClient(name);
     const manifests = new Map<string, Manifest | null>();
 
@@ -305,7 +401,10 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
       },
     );
 
-    const { token } = (await auth.json()) as { token: string };
+    const authorization: unknown = await auth.json();
+
+    if (!isRegistryToken(authorization)) throw new Error("Invalid registry token response");
+    const { token } = authorization;
 
     return async (digest) => {
       const response = await fetch(`${options.registryUrl}/v2/${repo}/manifests/${digest}`, {
@@ -315,7 +414,9 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
       if (response.status === 404) return null;
 
       if (!response.ok) throw new HttpError(response.status, `GET manifest ${digest} → HTTP ${response.status}`);
-      const body = (await response.json()) as Manifest;
+      const body: unknown = await response.json();
+
+      if (!isManifest(body)) throw new Error(`Invalid registry manifest: ${digest}`);
       const type = body.mediaType ?? response.headers.get("content-type") ?? "";
 
       return INDEX_TYPES.some((index) => type.startsWith(index)) ? body : { ...body, manifests: [] };

@@ -1,27 +1,32 @@
 /** Shared Actions API client. Uses gh's GH_TOKEN authentication without constructing credentialed URLs. */
 import { execFileSync } from "node:child_process";
+import type { JsonValue } from "@canopy/domain";
 
 export function git(...args: string[]): string {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
 }
 
-export function api<T>(path: string, method = "GET", body?: unknown): T {
+export function api(path: string, method = "GET", body?: JsonValue): JsonValue | undefined {
   const args = ["api", path, "--method", method];
 
   if (body !== undefined) args.push("--input", "-");
 
   const output = execFileSync("gh", args, {
     encoding: "utf8",
-    ...(body !== undefined ? { input: JSON.stringify(body) } : {}),
+    ...(body !== undefined && { input: JSON.stringify(body) }),
   });
 
-  return output ? (JSON.parse(output) as T) : (undefined as T);
+  return output ? JSON.parse(output) : undefined;
 }
 
-export function pages<T>(path: string): T[] {
+export function pages(path: string): JsonValue[] {
   const output = execFileSync("gh", ["api", "--paginate", "--slurp", path], { encoding: "utf8" });
 
-  return (JSON.parse(output) as T[][]).flat();
+  const result: JsonValue = JSON.parse(output);
+
+  if (!Array.isArray(result) || !result.every(Array.isArray)) throw new Error("Invalid paginated GitHub response");
+
+  return result.flat();
 }
 
 export function repository(): string {

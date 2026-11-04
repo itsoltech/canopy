@@ -1,6 +1,6 @@
 /** Nightly hygiene against a fake GitHub API and registry: exactly which releases and GHCR versions go. */
 import { afterAll, expect, test } from "bun:test";
-import { runHygiene } from "./prune-nightly.ts";
+import { runHygiene, type Release } from "./prune-nightly.ts";
 
 const NOW = Date.parse("2026-11-03T12:00:00Z");
 const ago = (hours: number) => new Date(NOW - hours * 3_600_000).toISOString();
@@ -10,7 +10,7 @@ const IMAGE = "application/vnd.oci.image.manifest.v1+json";
 function releases() {
   let id = 0;
 
-  const release = (tag: string, complete: boolean, hours = 48, extra: Record<string, unknown> = {}) => ({
+  const release = (tag: string, complete: boolean, hours = 48, extra: Partial<Release> = {}) => ({
     id: ++id,
     tag_name: tag,
     draft: false,
@@ -37,7 +37,7 @@ function gatewayVersions() {
   const index = (children: string[], version?: string) => ({
     mediaType: INDEX,
     manifests: children.map((digest) => ({ digest })),
-    ...(version ? { annotations: { "org.opencontainers.image.version": version } } : {}),
+    ...(version && { annotations: { "org.opencontainers.image.version": version } }),
   });
 
   const image = { mediaType: IMAGE, layers: [] };
