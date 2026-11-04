@@ -118,6 +118,141 @@ function write(c: Character, group: SVGGElement, value: string, index: number): 
   c.transforms[index] = value;
 }
 
+/** Measures the visible characters and, for waiting ones, the composer they look at. */
+function measure(): void {
+  const composers = new Map<Element, DOMRect>();
+
+  for (const c of characters.values())
+    if (c.visible) {
+      c.rect = c.node.getBoundingClientRect();
+
+      if (c.options.state === "waiting") {
+        const composer = c.node.closest("[data-mascot-chat]")?.querySelector("textarea");
+
+        if (composer) {
+          const rect = composers.get(composer) ?? composer.getBoundingClientRect();
+          composers.set(composer, rect);
+          c.userTarget = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+        }
+      }
+    }
+
+  geometryDirty = false;
+}
+
+/** One frame of one awake character: gaze, blink, breath and attention, written as transforms. */
+function animate(c: Character, now: number, dt: number): void {
+  if (!c.active) {
+    c.active = true;
+    c.blinkAt = now + idleDelay("blink");
+    c.glanceAt = now + idleDelay("glance");
+  }
+
+  if (c.pending) {
+    attention(c, c.pending, now);
+    c.pending = undefined;
+  }
+
+  const state = c.options.state ?? "idle";
+  const working = state === "working" || state === "typing";
+  const limit = eyeLimits(c.options.shape, c.options.pupils);
+  let target: EyeOffset = { x: 0, y: 0 };
+  const recentPointer = now - pointer.at < (pointer.touch ? timings.glance : 5000);
+
+  if (c.hovered || (recentPointer && !working && state !== "waiting")) {
+    target = eyeOffset(
+      pointer.x - (c.rect.x + c.rect.width / 2),
+      pointer.y - (c.rect.y + c.rect.height / 2),
+      c.options.shape,
+      c.options.pupils,
+    );
+  } else if (working) target = clampEyes({ x: -limit.x * 0.7, y: limit.y * 0.65 }, limit);
+  else if (state === "waiting") {
+    target = c.userTarget
+      ? eyeOffset(
+          c.userTarget.x - (c.rect.x + c.rect.width / 2),
+          c.userTarget.y - (c.rect.y + c.rect.height / 2),
+          c.options.shape,
+          c.options.pupils,
+        )
+      : clampEyes({ x: 0, y: limit.y }, limit);
+  } else if (now - pointer.at > 5000 && now >= c.glanceAt) {
+    c.glance = clampEyes({ x: (Math.random() - 0.5) * limit.x, y: (Math.random() - 0.5) * limit.y }, limit);
+    c.glanceUntil = now + timings.glance;
+    c.glanceAt = now + idleDelay("glance");
+  }
+
+  if (!working && state === "idle" && !c.hovered && !recentPointer && now < c.glanceUntil) target = c.glance;
+  const ease = 1 - Math.exp(-dt / timings.ease);
+  c.gaze.x += (target.x - c.gaze.x) * ease;
+  c.gaze.y += (target.y - c.gaze.y) * ease;
+  write(c, c.eyes, `translate(${c.gaze.x.toFixed(2)} ${c.gaze.y.toFixed(2)})`, 0);
+
+  if (now >= c.blinkAt && !c.blinkStart) {
+    c.blinkStart = now;
+    c.blinkAt = now + idleDelay("blink");
+  }
+
+  const blinkProgress = c.blinkStart ? (now - c.blinkStart) / timings.blink : 1;
+  let lid = blinkProgress < 1 ? 1 - 0.92 * Math.sin(blinkProgress * Math.PI) ** 2 : 1;
+
+  if (blinkProgress >= 1) c.blinkStart = 0;
+  const breath = Math.sin((now / timings.breath) * Math.PI * 2 + c.phase);
+  let scaleX = 1 + breath * 0.006;
+  let scaleY = scaleX;
+  let y = working ? breath * 0.18 : 0;
+  let x = 0;
+  let angle = 0;
+
+  if (c.attention) {
+    const p = Math.min(1, (now - c.attention.start) / c.attention.ms);
+    const wave = Math.sin(p * Math.PI);
+
+    switch (c.attention.kind) {
+      case "squash":
+        scaleX += wave * 0.016;
+        scaleY -= wave * 0.02;
+        break;
+      case "wobble":
+        angle = Math.sin(p * Math.PI * 4) * (1 - p) * 3;
+        break;
+      case "error":
+        x = Math.sin(p * Math.PI * 6) * (1 - p) * 0.65;
+        break;
+      case "hop":
+        y -= wave * 0.7;
+        break;
+      case "lift":
+        y -= wave * 0.45;
+        break;
+      case "happy":
+        lid = Math.min(lid, 1 - wave * 0.7);
+        break;
+    }
+
+    if (p === 1) {
+      c.attention = undefined;
+
+      if (attentionOwner === c) attentionOwner = undefined;
+    }
+  }
+
+  // Rounded to steps no screen shows (0.01 of the 40-unit drawing, 0.1% of its size): every changed
+  // attribute costs the page a style and layout pass, so breathing writes a few times a second, not every frame.
+  write(
+    c,
+    c.lids,
+    `translate(20 ${c.options.shape.eyeY}) scale(1 ${lid.toFixed(3)}) translate(-20 ${-c.options.shape.eyeY})`,
+    1,
+  );
+  write(
+    c,
+    c.body,
+    `translate(${x.toFixed(2)} ${y.toFixed(2)}) translate(20 24) rotate(${angle.toFixed(2)}) scale(${scaleX.toFixed(3)} ${scaleY.toFixed(3)}) translate(-20 -24)`,
+    2,
+  );
+}
+
 function tick(now: number): void {
   frame = 0;
 
@@ -126,26 +261,7 @@ function tick(now: number): void {
   lastFrame = now;
 
   // Read all geometry before writing any transforms; scroll/resize merely invalidate the cache.
-  if (geometryDirty) {
-    const composers = new Map<Element, DOMRect>();
-
-    for (const c of characters.values())
-      if (c.visible) {
-        c.rect = c.node.getBoundingClientRect();
-
-        if (c.options.state === "waiting") {
-          const composer = c.node.closest("[data-mascot-chat]")?.querySelector("textarea");
-
-          if (composer) {
-            const rect = composers.get(composer) ?? composer.getBoundingClientRect();
-            composers.set(composer, rect);
-            c.userTarget = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-          }
-        }
-      }
-
-    geometryDirty = false;
-  }
+  if (geometryDirty) measure();
 
   let count = 0;
 
@@ -156,116 +272,7 @@ function tick(now: number): void {
     }
 
     count++;
-
-    if (!c.active) {
-      c.active = true;
-      c.blinkAt = now + idleDelay("blink");
-      c.glanceAt = now + idleDelay("glance");
-    }
-
-    if (c.pending) {
-      attention(c, c.pending, now);
-      c.pending = undefined;
-    }
-
-    const state = c.options.state ?? "idle";
-    const working = state === "working" || state === "typing";
-    const limit = eyeLimits(c.options.shape, c.options.pupils);
-    let target: EyeOffset = { x: 0, y: 0 };
-    const recentPointer = now - pointer.at < (pointer.touch ? timings.glance : 5000);
-
-    if (c.hovered || (recentPointer && !working && state !== "waiting")) {
-      target = eyeOffset(
-        pointer.x - (c.rect.x + c.rect.width / 2),
-        pointer.y - (c.rect.y + c.rect.height / 2),
-        c.options.shape,
-        c.options.pupils,
-      );
-    } else if (working) target = clampEyes({ x: -limit.x * 0.7, y: limit.y * 0.65 }, limit);
-    else if (state === "waiting") {
-      target = c.userTarget
-        ? eyeOffset(
-            c.userTarget.x - (c.rect.x + c.rect.width / 2),
-            c.userTarget.y - (c.rect.y + c.rect.height / 2),
-            c.options.shape,
-            c.options.pupils,
-          )
-        : clampEyes({ x: 0, y: limit.y }, limit);
-    } else if (now - pointer.at > 5000 && now >= c.glanceAt) {
-      c.glance = clampEyes({ x: (Math.random() - 0.5) * limit.x, y: (Math.random() - 0.5) * limit.y }, limit);
-      c.glanceUntil = now + timings.glance;
-      c.glanceAt = now + idleDelay("glance");
-    }
-
-    if (!working && state === "idle" && !c.hovered && !recentPointer && now < c.glanceUntil) target = c.glance;
-    const ease = 1 - Math.exp(-dt / timings.ease);
-    c.gaze.x += (target.x - c.gaze.x) * ease;
-    c.gaze.y += (target.y - c.gaze.y) * ease;
-    write(c, c.eyes, `translate(${c.gaze.x.toFixed(2)} ${c.gaze.y.toFixed(2)})`, 0);
-
-    if (now >= c.blinkAt && !c.blinkStart) {
-      c.blinkStart = now;
-      c.blinkAt = now + idleDelay("blink");
-    }
-
-    const blinkProgress = c.blinkStart ? (now - c.blinkStart) / timings.blink : 1;
-    let lid = blinkProgress < 1 ? 1 - 0.92 * Math.sin(blinkProgress * Math.PI) ** 2 : 1;
-
-    if (blinkProgress >= 1) c.blinkStart = 0;
-    const breath = Math.sin((now / timings.breath) * Math.PI * 2 + c.phase);
-    let scaleX = 1 + breath * 0.006;
-    let scaleY = scaleX;
-    let y = working ? breath * 0.18 : 0;
-    let x = 0;
-    let angle = 0;
-
-    if (c.attention) {
-      const p = Math.min(1, (now - c.attention.start) / c.attention.ms);
-      const wave = Math.sin(p * Math.PI);
-
-      switch (c.attention.kind) {
-        case "squash":
-          scaleX += wave * 0.016;
-          scaleY -= wave * 0.02;
-          break;
-        case "wobble":
-          angle = Math.sin(p * Math.PI * 4) * (1 - p) * 3;
-          break;
-        case "error":
-          x = Math.sin(p * Math.PI * 6) * (1 - p) * 0.65;
-          break;
-        case "hop":
-          y -= wave * 0.7;
-          break;
-        case "lift":
-          y -= wave * 0.45;
-          break;
-        case "happy":
-          lid = Math.min(lid, 1 - wave * 0.7);
-          break;
-      }
-
-      if (p === 1) {
-        c.attention = undefined;
-
-        if (attentionOwner === c) attentionOwner = undefined;
-      }
-    }
-
-    // Rounded to steps no screen shows (0.01 of the 40-unit drawing, 0.1% of its size): every changed
-    // attribute costs the page a style and layout pass, so breathing writes a few times a second, not every frame.
-    write(
-      c,
-      c.lids,
-      `translate(20 ${c.options.shape.eyeY}) scale(1 ${lid.toFixed(3)}) translate(-20 ${-c.options.shape.eyeY})`,
-      1,
-    );
-    write(
-      c,
-      c.body,
-      `translate(${x.toFixed(2)} ${y.toFixed(2)}) translate(20 24) rotate(${angle.toFixed(2)}) scale(${scaleX.toFixed(3)} ${scaleY.toFixed(3)}) translate(-20 -24)`,
-      2,
-    );
+    animate(c, now, dt);
   }
 
   if (count) frame = requestAnimationFrame(tick);
