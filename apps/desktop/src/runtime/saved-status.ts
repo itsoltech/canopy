@@ -1,7 +1,13 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { configuration, initialStatus } from "./config.ts";
-import type { DesktopStatus } from "@canopy/ui/desktop";
+import type { DesktopSavedConfiguration, DesktopStatus } from "@canopy/ui/desktop";
+
+export function writeConfiguration(directory: string, config: DesktopSavedConfiguration) {
+  const path = join(directory, "desktop.json");
+  writeFileSync(`${path}.new`, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+  renameSync(`${path}.new`, path);
+}
 
 /** Resolve the startup surface before the first renderer can ask for status. */
 export function savedStatus(directory: string): DesktopStatus {
@@ -17,6 +23,14 @@ export function savedStatus(directory: string): DesktopStatus {
       ...state,
       phase: "starting",
       mode: config.mode,
+      configuration:
+        config.mode === "local"
+          ? config
+          : {
+              mode: config.mode,
+              gatewayUrl: config.gatewayUrl,
+              workerGatewayUrl: config.workerGatewayUrl ?? config.gatewayUrl,
+            },
       ...(config.mode === "remote" && { gatewayUrl: config.gatewayUrl }),
       allowNetwork: config.mode === "local" && config.allowNetwork,
       bindHost: config.mode === "local" ? config.bindHost : "127.0.0.1",

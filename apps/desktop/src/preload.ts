@@ -30,6 +30,7 @@ const bridge: DesktopBridge = {
   status: () => ipcRenderer.invoke("canopy:status"),
   configure: (configuration) => ipcRenderer.invoke("canopy:configure", configuration),
   openSettings: () => ipcRenderer.invoke("canopy:settings"),
+  closeSettings: () => ipcRenderer.invoke("canopy:close-settings"),
   quitShortcut: () => ipcRenderer.invoke("canopy:quit-shortcut"),
   setQuitShortcut: (shortcut) => ipcRenderer.invoke("canopy:set-quit-shortcut", shortcut),
   onQuitShortcut: (listener) => subscribe<QuitShortcut>("canopy:quit-shortcut", listener),
