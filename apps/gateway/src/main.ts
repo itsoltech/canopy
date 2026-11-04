@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
-import { startConnectHttpServer, startGrpcServer } from "@canopy/transport";
+import { startGrpcServer } from "@canopy/transport";
 import { remoteServe, serviceTokenAuth, sharedHost, uiHandlers, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { healthcheck } from "./healthcheck.ts";
@@ -19,6 +19,7 @@ import { LinkedComputers } from "./computers/runtime.ts";
 import { lanUnavailable, multicastTransport } from "./computers/lan-transport.ts";
 import { ComputerStore } from "./computers/store.ts";
 import { NetworkAccess } from "./network/network.ts";
+import { mountMobileNetwork } from "./network/devices.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
 
 const env = Bun.env;
@@ -60,14 +61,12 @@ if ((env["CANOPY_MIGRATE"] ?? "1") === "1") {
 const userId = await ensureDevUser(runtime, env["CANOPY_DEV_USER_EMAIL"] ?? "dev@localhost");
 
 const publicGatewayUrl = env["CANOPY_PUBLIC_GATEWAY_URL"];
-const mobileGatewayUrl = env["CANOPY_MOBILE_GATEWAY_URL"];
 
 const core = new GatewayCore({
   runtime,
   instanceId: `${process.pid}@${Bun.env["HOSTNAME"] ?? "gateway"}`,
   userId,
   ...(publicGatewayUrl && { publicGatewayUrl }),
-  ...(mobileGatewayUrl && { mobileGatewayUrl }),
   log: (m) => console.info(m),
   attachmentLimits: attachmentLimits(env),
   updates: {
@@ -115,6 +114,8 @@ const network = new NetworkAccess({
 
 core.network = network;
 
+const unmountMobile = mountMobileNetwork(core, network, serviceToken);
+
 core.computers = new LinkedComputers({
   store: computerStore,
   network,
@@ -141,7 +142,6 @@ const server = await startGrpcServer({
     core.link.routes(router);
     core.workers.routes(router);
     core.updates.service.routes(router);
-    core.mobile.routes(router);
     uiRoutes(core)(router);
   },
   interceptors: [serviceTokenAuth(serviceToken, core.mobile)],
@@ -175,23 +175,6 @@ const workerServer =
 
 if (workerServer) console.info(`worker-only listener on ${workerServer.url}`);
 
-const mobilePort = env["CANOPY_MOBILE_PORT"];
-
-const mobileServer = mobilePort
-  ? await startConnectHttpServer({
-      // WorkerLink remains on HTTP/2. Phones only need unary + server-streaming UI RPCs.
-      routes: (router) => {
-        core.mobile.routes(router);
-        uiRoutes(core)(router);
-      },
-      interceptors: [serviceTokenAuth(serviceToken, core.mobile)],
-      host: "127.0.0.1",
-      port: Number(mobilePort),
-    })
-  : undefined;
-
-if (mobileServer) console.info(`mobile Connect listener on ${mobileServer.url} (private TLS proxy required)`);
-
 core.scheduler.start();
 
 // Open items of finished turns, threads stuck in a busy or failed look: fixed now and every few minutes.
@@ -206,6 +189,7 @@ await core.updates.start();
 
 async function stop(presence = "shutting_down") {
   await core.computers?.close(presence);
+  unmountMobile();
   await network.close();
   core.updates.close();
   core.secrets.stop();
@@ -214,7 +198,6 @@ async function stop(presence = "shutting_down") {
   core.backgroundTasks.stop();
   await core.bots.stop();
   await core.link.shutdown();
-  await mobileServer?.close();
   await workerServer?.close();
   await server.close();
   await runtime.dispose();

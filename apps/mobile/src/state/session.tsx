@@ -1,22 +1,26 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
-import { fetch as expoFetch } from "expo/fetch";
 import { useNetworkState } from "expo-network";
-import { mobileClient } from "../api/client";
-import { deleteSession, loadSession, saveSession, type DeviceSession } from "../storage/session";
+import { routedMobileClient } from "../api/routes";
+import { pinnedTransport } from "../api/pinned";
+import { SessionPersistence, type DeviceSession } from "../storage/session";
 
 function useSessionState() {
   const [session, setSession] = useState<DeviceSession | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
+  const [persistence] = useState(() => new SessionPersistence());
   const [active, setActive] = useState(AppState.currentState !== "background");
   const network = useNetworkState();
   useEffect(() => {
-    void loadSession()
+    void persistence
+      .load()
       .then(setSession)
-      .catch(() => setError("Could not read secure storage. Pair this phone again."))
+      .catch((cause) =>
+        setError(cause instanceof Error ? cause.message : "Could not read secure storage. Pair this phone again."),
+      )
       .finally(() => setReady(true));
-  }, []);
+  }, [persistence]);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => setActive(s === "active"));
 
@@ -26,15 +30,18 @@ function useSessionState() {
   const client = useMemo(
     () =>
       session
-        ? mobileClient({
-            gatewayUrl: session.gatewayUrl,
+        ? routedMobileClient({
+            connection: session,
             token: session.token,
-            // SAFETY: Expo implements native streaming Fetch; Connect never uses Bun's static preconnect.
-            fetch: expoFetch as typeof globalThis.fetch,
-            development: __DEV__,
+            transport: pinnedTransport,
+            changed(connection) {
+              void persistence
+                .update(session.deviceId, connection)
+                .catch(() => setError("Could not save the latest network addresses. Reconnect and try again."));
+            },
           })
         : null,
-    [session],
+    [session, persistence],
   );
 
   return {
@@ -46,18 +53,18 @@ function useSessionState() {
     // A private tailnet gateway may be reachable even when public internet probes fail.
     online: network.isConnected !== false,
     async pair(value: DeviceSession) {
-      await saveSession(value);
+      await persistence.save(value);
       setSession(value);
       setError("");
     },
     async forget() {
-      await deleteSession();
+      await persistence.forget();
       setSession(null);
       setError("");
     },
     async expired() {
       try {
-        await deleteSession();
+        await persistence.forget();
       } catch {
         /* The revoked credential cannot authorize another RPC. */
       }

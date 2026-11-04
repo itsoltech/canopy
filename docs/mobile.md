@@ -9,26 +9,23 @@ Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.
 Natywne gRPC wymaga HTTP/2 i dostępu do trailers; fetch React Native nie udostępnia
 takiego interfejsu. Nie używamy natywnego transportu gRPC ani biblioteki Node w telefonie.
 `@connectrpc/connect-web@2.3.0` wysyła **Connect z binarnym protobuf** przez jawnie
-przekazany `expo/fetch`. Gateway już korzysta z `connectNodeAdapter`, więc obsługuje ten
+przekazany transport z `src/api/pinned.ts`. Gateway korzysta z `connectNodeAdapter`, więc obsługuje ten
 sam `ui.GatewayService` bez translacji DTO i bez pośrednictwa BFF. gRPC-Web również
 jest obsługiwany przez serwer, ale aplikacja wybiera Connect. Unary i server streaming
 działają po HTTP/1.1; bidirectional streaming WorkerLink nadal wymaga HTTP/2.
 
-`expo/fetch` w SDK 58 ma streaming `ReadableStream`, `response.body.getReader()`
-i anulowanie przez AbortSignal. Jest też domyślnym fetch na native w tym SDK,
-ale import jawny chroni aplikację przed `EXPO_PUBLIC_USE_RN_FETCH=1`.
-`WatchOverview` i `WatchThread` nie czekają na zakończenie całej odpowiedzi.
-Test pod Bun sprawdza prawdziwy transport z modułu aplikacji i żywe wiadomości gatewaya.
-Streaming `expo/fetch` sprawdzono również na iOS Simulator i Android Emulator:
-wysłanie wiadomości, częściowa odpowiedź i zakończenie tury.
+Lokalny moduł Expo `modules/canopy-pinned-fetch` używa URLSession/Network na iOS oraz
+OkHttp/SSLSocket na Androidzie. Weryfikuje dokładny SHA-256 certyfikatu komputera przed
+wysłaniem kodu lub tokenu; nie ufa systemowym CA ani nazwie hosta. Odrzuca przekierowania,
+nie używa cookies i przekazuje porcje odpowiedzi do `ReadableStream` z anulowaniem.
+`WatchOverview` i `WatchThread` nie czekają na zakończenie całej odpowiedzi. Moduł wymaga
+nowego development buildu; poprzedni build z samym `expo/fetch` nie wystarczy.
 
-Cleartext listener gatewaya na `CANOPY_PORT` to h2c (`http2.createServer`), nie HTTP/1.1.
-Telefon nie potrafi użyć tego portu przez fetch. `CANOPY_MOBILE_PORT` dodaje osobny
-HTTP/1.1 listener **wyłącznie na 127.0.0.1**, z GatewayService i MobilePairingService,
-bez WorkerLink. Tailscale Serve kończy TLS i proxyuje do niego HTTP/1.1. Port gatewaya
-z własnym TLS również obsługuje HTTP/1.1 przez istniejące `allowHTTP1: true`.
-HTTPS ma poprawny certyfikat systemowy, więc nie trzeba wyjątków ATS ani własnego CA.
-Listener mobilny odrzuca żądania z `Origin`; przeglądarka nadal korzysta wyłącznie z BFF.
+Telefon korzysta z tego samego listenera [Network access](network-access.md), co połączone
+komputery, bez certyfikatu klienta. Ten listener obsługuje HTTP/1.1 i HTTP/2, GatewayService
+i MobilePairingService. Żądania z `Origin` są odrzucane; przeglądarka używa BFF.
+Nie wymaga Tailscale Serve, systemowego CA, konfiguracji portu mobilnego ani proxy HTTPS.
+VPN jest opcjonalną trasą między sieciami; TLS musi kończyć sam Canopy.
 
 ## Wersje i Bun workspace
 
@@ -62,13 +59,13 @@ aplikacja i Connect nie wymagają globalnego `crypto.getRandomValues`.
 1. W web otwórz **Settings → Mobile devices → Pair a phone**. BFF wywołuje
    `CreateMobilePairing` swoim dotychczasowym service tokenem. Telefon go nie otrzymuje.
 2. Gateway generuje 64 losowe bity jako kod `XXXX-XXXX-XXXX-XXXX`, ważny 10 minut.
-   QR zawiera lokalnie wygenerowany JSON `{type:"canopy-pair",version:1,gatewayUrl,code}`,
+   QR zawiera lokalnie wygenerowany JSON `{type:"canopy-pair",version:2,addresses,fingerprint,code}`,
    nie URL z sekretem. Kod nie trafia do zewnętrznego serwisu QR.
-3. Telefon skanuje kod przez expo-camera albo użytkownik wkleja kod i HTTPS URL.
+3. Telefon skanuje kod przez expo-camera albo użytkownik wkleja kod, HTTPS URL i pełny odcisk SHA-256.
    Po skanie użytkownik potwierdza adres i nazwę przyciskiem **Pair this phone**.
 4. Publiczny `MobilePairingService.ExchangeMobilePairing` atomowo zużywa kod i zwraca
    token urządzenia `canopy_device_…` (256 losowych bitów). Baza przechowuje tylko SHA-256.
-5. `expo-secure-store` zapisuje token i adres. Na iOS używa
+5. `expo-secure-store` zapisuje token, pin, listę tras i ostatnią działającą trasę. Na iOS używa
    `WHEN_UNLOCKED_THIS_DEVICE_ONLY`; Android backup wyklucza klucze SecureStore.
    Nie ma logowania tokenu, cookies, storage przeglądarki ani service tokenu w aplikacji.
 
@@ -78,6 +75,15 @@ Transakcja z blokadą wiersza i ponownym sprawdzeniem czasu zapobiega podwójnej
 wyścigowi z revoke i zużyciu po wygaśnięciu. Maksymalnie 20 aktywnych zaproszeń właściciela.
 Wymiana ma wspólny limit 30 prób/min na proces; zmiana kodu/IP/forwarded headers nie resetuje go.
 Restarty resetują licznik. Architektura zakłada jeden proces gatewaya.
+
+Migracja **0056_mobile_network** odwołuje starsze tokeny i niewykorzystane kody. Urządzenia
+z `pairing_version=1` mają w Settings jasne „Pair again”; zapis telefonu bez pinu prowadzi
+na ekran ponownego parowania. Nowe urządzenia mają `pairing_version=2`.
+`OverviewUpdate.mobile_routes` (764) ogłasza nowe adresy i nazwy hostów. Telefon zapisuje
+je wyłącznie przy zgodnym pinie. Próbuje trasy według ostatniego sukcesu, sprawdzając TLS
+bez HTTP przed wybraniem trasy. Nie ponawia RPC po wysłaniu, aby nie dublować komend.
+Bez żadnej znanej działającej trasy potrzebny jest wspólny VPN lub nowy QR — sama aplikacja
+nie zapewnia relaya ani przejścia przez NAT.
 
 Token urządzenia autoryzuje GatewayService jako **obecnego pojedynczego właściciela**.
 To pełny dostęp właściciela, nie osobna rola read-only. Interceptor zapisuje identity
@@ -98,36 +104,14 @@ Gdy gateway jest niedostępny, **Forget pairing locally** wymaga potwierdzenia i
 informuje o konieczności revoke w web. iOS Keychain może przetrwać reinstalację aplikacji;
 usunięcie aplikacji nie zastępuje odwołania urządzenia na serwerze.
 
-## Gateway i Tailscale po scaleniu
+## Parowanie bez konfiguracji serwera
 
-Na maszynie gatewaya zachowaj istniejące `CANOPY_DATABASE_URL`, `CANOPY_SECRETS_KEY`,
-`CANOPY_UI_SERVICE_TOKEN` i konfigurację workera/BFF. Dodaj do środowiska usługi:
-
-```dotenv
-CANOPY_MOBILE_PORT=7444
-CANOPY_MOBILE_GATEWAY_URL=https://GATEWAY.TAILNET.ts.net:8443
-```
-
-Zastąp `GATEWAY.TAILNET.ts.net` pełną nazwą MagicDNS tej maszyny. Wykonaj standardowe
-migracje (main domyślnie ma `CANOPY_MIGRATE=1`) i zrestartuj gateway oraz web BFF.
-Nie zmieniaj istniejącego portu h2c/BFF. W logu ma pojawić się listener mobilny
-`http://127.0.0.1:7444`. Port 7444 nie potrzebuje wystawiania w firewallu ani na routerze.
-
-**Poniższe polecenie uruchamia użytkownik, nie agent**, na maszynie gatewaya:
-
-```bash
-tailscale serve --bg --https=8443 http://127.0.0.1:7444
-```
-
-To Serve dostępny tylko w tailnecie, **nigdy Funnel**. Tailscale może poprosić o
-włączenie HTTPS/certyfikatów w panelu administracyjnym. Telefon musi należeć do
-tego samego tailnetu, mieć aktywny Tailscale i zgodę ACL/grants na TCP 8443.
-W app/QR adresem jest dokładnie `https://GATEWAY.TAILNET.ts.net:8443`, nie port web BFF,
-nie h2c, nie `http://100.x.y.z`. HTTPS Serve nie wymaga `CANOPY_TLS_CERT`/`CANOPY_TLS_KEY` w gatewayu.
-
-Jeśli gateway działa w kontenerze, Serve i listener muszą być w tej samej przestrzeni
-sieciowej: listener binduje loopback. Ta iteracja zakłada gateway jako proces na hoście;
-samo opublikowanie kontenerowego portu nie udostępni listenera z 127.0.0.1 kontenera.
+Otwórz **Settings → Mobile devices → Pair a phone**. Jeśli dostęp sieciowy jest wyłączony,
+przycisk włącza go i generuje QR jednym kliknięciem. Port zostaje zapisany; wykryte adresy
+LAN i VPN odświeżają się automatycznie. Nazwy DNS i porty przekierowane dodaje się w
+**Settings → Network access → Add hostname**. W kontenerze opublikuj port TCP według
+[deploy.md](deploy.md#dostęp-sieciowy-telefony-i-połączone-komputery).
+Na telefonie i komputerze musi istnieć przynajmniej jedna wspólna trasa sieciowa.
 
 ## Android emulator: lokalny development build
 

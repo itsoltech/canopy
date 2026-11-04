@@ -6,6 +6,7 @@ import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "./core.ts";
+import type { NetworkAccess } from "../network/network.ts";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -18,6 +19,7 @@ type DeviceRow = {
   created_at: Date;
   last_seen_at: Date | null;
   revoked_at: Date | null;
+  pairing_version: number;
 };
 
 type PairingRow = {
@@ -33,6 +35,7 @@ const device = (row: DeviceRow) =>
     id: row.id,
     name: row.name,
     platform: row.platform,
+    pairingVersion: row.pairing_version,
     createdAt: timestampFromDate(new Date(row.created_at)),
     ...(row.last_seen_at && { lastSeenAt: timestampFromDate(new Date(row.last_seen_at)) }),
     ...(row.revoked_at && { revokedAt: timestampFromDate(new Date(row.revoked_at)) }),
@@ -65,17 +68,18 @@ export class MobileDevices {
     readonly options: {
       runtime: CoreRuntime;
       userId: string;
-      gatewayUrl?: string;
+      network: () => NetworkAccess | undefined;
       publish: (update: ui.OverviewUpdate) => void;
     },
-  ) {
-    if (options.gatewayUrl) {
-      const url = new URL(options.gatewayUrl);
+  ) {}
 
-      if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-        throw new Error("CANOPY_MOBILE_GATEWAY_URL must be an HTTPS origin (private Tailscale Serve URL)");
-      }
-    }
+  networkRoutes() {
+    const network = this.options.network();
+
+    return create(ui.MobileRoutesSchema, {
+      fingerprint: network?.fingerprint ?? "",
+      addresses: network?.origins() ?? [],
+    });
   }
 
   routes = (router: ConnectRouter) =>
@@ -84,7 +88,8 @@ export class MobileDevices {
     });
 
   async list() {
-    const { runtime, userId, gatewayUrl } = this.options;
+    const { runtime, userId } = this.options;
+    const routes = this.networkRoutes();
 
     return runtime.runPromise(
       Effect.gen(function* () {
@@ -97,7 +102,8 @@ export class MobileDevices {
         AND created_at > now() - interval '1 day' ORDER BY created_at DESC LIMIT 100`;
 
         return create(ui.GetMobileDevicesResponseSchema, {
-          gatewayUrl: gatewayUrl ?? "",
+          gatewayUrl: routes.addresses[0] ?? "",
+          routes,
           devices: devices.map(device),
           pairings: pairings.map(pairing),
         });
@@ -106,7 +112,14 @@ export class MobileDevices {
   }
 
   async create() {
-    const { runtime, userId, gatewayUrl } = this.options;
+    const { runtime, userId } = this.options;
+    const routes = this.networkRoutes();
+
+    if (!routes.addresses.length)
+      throw new ConnectError(
+        "Turn on Network access and connect this computer to a network, or add a hostname.",
+        Code.FailedPrecondition,
+      );
     // Hex avoids modulo bias and is easy to type: 16 characters = 64 random bits.
     const raw = randomBytes(8).toString("hex").toUpperCase();
     const code = raw.match(/.{4}/g)!.join("-");
@@ -139,7 +152,12 @@ export class MobileDevices {
     const value = pairing(row);
     this.options.publish(create(ui.OverviewUpdateSchema, { change: { case: "mobilePairing", value } }));
 
-    return create(ui.CreateMobilePairingResponseSchema, { pairing: value, code, gatewayUrl: gatewayUrl ?? "" });
+    return create(ui.CreateMobilePairingResponseSchema, {
+      pairing: value,
+      code,
+      gatewayUrl: routes.addresses[0] ?? "",
+      routes,
+    });
   }
 
   async exchange(request: ui.ExchangeMobilePairingRequest) {
@@ -188,8 +206,8 @@ export class MobileDevices {
             if (!eligible.length) return undefined;
 
             const devices =
-              yield* sql<DeviceRow>`INSERT INTO mobile_devices (id, owner_user_id, name, platform, token_hash, last_seen_at)
-          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${name}, ${request.platform}, ${digest(token)}, now()) RETURNING *`;
+              yield* sql<DeviceRow>`INSERT INTO mobile_devices (id, owner_user_id, name, platform, token_hash, last_seen_at, pairing_version)
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${name}, ${request.platform}, ${digest(token)}, now(), 2) RETURNING *`;
 
             const paired =
               yield* sql<PairingRow>`UPDATE mobile_pairings SET used_at = clock_timestamp(), device_id = ${devices[0]!.id}::uuid
@@ -208,7 +226,11 @@ export class MobileDevices {
     this.options.publish(create(ui.OverviewUpdateSchema, { change: { case: "mobilePairing", value: result.pairing } }));
     this.options.publish(create(ui.OverviewUpdateSchema, { change: { case: "mobileDevice", value: result.device } }));
 
-    return create(ui.ExchangeMobilePairingResponseSchema, { device: result.device, deviceToken: token });
+    return create(ui.ExchangeMobilePairingResponseSchema, {
+      device: result.device,
+      deviceToken: token,
+      routes: this.networkRoutes(),
+    });
   }
 
   async authenticate(token: string) {
@@ -222,7 +244,7 @@ export class MobileDevices {
 
           // Check revocation on every RPC; only write last_seen once per minute.
           const rows = yield* sql<{ id: string }>`SELECT id FROM mobile_devices WHERE token_hash = ${digest(token)}
-        AND owner_user_id = ${userId}::uuid AND revoked_at IS NULL`;
+        AND owner_user_id = ${userId}::uuid AND revoked_at IS NULL AND pairing_version = 2`;
 
           const row = rows[0];
 

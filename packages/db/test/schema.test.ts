@@ -67,6 +67,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "53_computer_relay",
       "54_computer_moves",
       "55_network_access",
+      "56_mobile_network",
     ]);
   }, 60_000);
 

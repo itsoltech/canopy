@@ -170,7 +170,7 @@ cd apps/mobile
 bun run android   # or: bun run ios
 ```
 
-The gateway needs `CANOPY_MOBILE_PORT` and an HTTPS proxy in front of that listener (for example a tailnet-only Tailscale Serve); see `docs/mobile.md`.
+Open Settings → Mobile devices and choose “Turn on network access and pair a phone”. The app pins this computer's certificate and tries its available addresses; see `docs/mobile.md`.
 
 ## Configuration
 
@@ -188,8 +188,7 @@ The gateway needs `CANOPY_MOBILE_PORT` and an HTTPS proxy in front of that liste
 | `CANOPY_DEV_USER_EMAIL` | `dev@localhost` | Owner account created on start (until user login exists). |
 | `CANOPY_PUBLIC_GATEWAY_URL` | — | Gateway address workers should use; prefills the Add worker wizard (also editable in Settings). |
 | `CANOPY_WORKER_HOST`, `CANOPY_WORKER_PORT` | — | Optional extra listener that serves only worker RPCs. |
-| `CANOPY_MOBILE_PORT` | — | Enables the loopback HTTP/1.1 listener for the mobile app. |
-| `CANOPY_MOBILE_GATEWAY_URL` | — | HTTPS address of that listener, embedded in pairing codes. |
+| `CANOPY_NETWORK_PORT` | selected in the app | Optional fixed port for server/container deployments of Network access. |
 | `CANOPY_ATTACHMENT_MAX_FILE_MB`, `CANOPY_ATTACHMENT_MAX_MESSAGE_MB`, `CANOPY_ATTACHMENT_MAX_FILES` | built-in limits | Attachment limits. |
 
 ### Web (BFF)

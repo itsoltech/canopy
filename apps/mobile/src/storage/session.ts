@@ -1,6 +1,8 @@
 import * as SecureStore from "expo-secure-store";
+import type { MobileConnection } from "../api/routes";
+import { isGatewayAddress } from "../api/client";
 
-export interface DeviceSession {
+export interface DeviceSession extends MobileConnection {
   gatewayUrl: string;
   deviceId: string;
   deviceName: string;
@@ -20,7 +22,15 @@ function isDeviceSession(value: unknown): value is DeviceSession {
     "deviceName" in value &&
     typeof value.deviceName === "string" &&
     "token" in value &&
-    typeof value.token === "string"
+    typeof value.token === "string" &&
+    "fingerprint" in value &&
+    typeof value.fingerprint === "string" &&
+    /^[a-f0-9]{64}$/.test(value.fingerprint) &&
+    "addresses" in value &&
+    Array.isArray(value.addresses) &&
+    value.addresses.length > 0 &&
+    value.addresses.length <= 32 &&
+    value.addresses.every(isGatewayAddress)
   );
 }
 
@@ -30,7 +40,10 @@ export async function loadSession(): Promise<DeviceSession | null> {
   if (!raw) return null;
   const value: unknown = JSON.parse(raw);
 
-  if (!isDeviceSession(value)) throw new Error("Saved pairing is invalid. Pair this phone again.");
+  if (!isDeviceSession(value))
+    throw new Error(
+      "This pairing needs a computer certificate. Open Settings → Mobile devices on your computer and pair this phone again.",
+    );
 
   return value;
 }
@@ -41,3 +54,49 @@ export const saveSession = (value: DeviceSession) =>
   });
 
 export const deleteSession = () => SecureStore.deleteItemAsync(key);
+
+/** Serialize route saves and unpairing so an old save cannot restore a forgotten token. */
+export class SessionPersistence {
+  #current: DeviceSession | null = null;
+  #writing: Promise<void> = Promise.resolve();
+
+  async load() {
+    this.#current = await loadSession();
+
+    return this.#current;
+  }
+
+  save(value: DeviceSession) {
+    return this.#serial(async () => {
+      await saveSession(value);
+      this.#current = value;
+    });
+  }
+
+  update(deviceId: string, connection: MobileConnection) {
+    return this.#serial(async () => {
+      const current = this.#current;
+
+      if (!current || current.deviceId !== deviceId) return;
+      const next = { ...current, ...connection, gatewayUrl: connection.lastAddress ?? current.gatewayUrl };
+      await saveSession(next);
+      this.#current = next;
+    });
+  }
+
+  forget() {
+    this.#current = null;
+
+    return this.#serial(async () => {
+      await deleteSession();
+      this.#current = null;
+    });
+  }
+
+  #serial(run: () => Promise<void>) {
+    const next = this.#writing.then(run, run);
+    this.#writing = next.catch(() => {});
+
+    return next;
+  }
+}

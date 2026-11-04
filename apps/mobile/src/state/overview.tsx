@@ -17,6 +17,8 @@ function useOverviewState() {
     (update: ui.OverviewUpdate) => {
       const change = update.change;
 
+      if (change.case === "mobileRoutes") client?.update(change.value);
+
       if (change.case === "mobileSnapshot") {
         setProjects(change.value.overview?.projects ?? []);
         setWorkers(change.value.overview?.workers ?? []);

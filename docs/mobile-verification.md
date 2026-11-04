@@ -77,5 +77,6 @@ are read-only; bot cards support replies, but those cards had no pending fixture
 this device session. Goals, routines and advanced settings administration stay in web.
 There are no attachments, push notifications or durable offline message storage.
 
-Setup, exact device/build commands, SDK troubleshooting and private Tailscale Serve
-configuration are in [mobile.md](mobile.md).
+Setup, exact device/build commands and SDK troubleshooting are in [mobile.md](mobile.md).
+This historical device session predates pinned Network access; native pinning and pairing v2
+still require iPhone/Android verification.
