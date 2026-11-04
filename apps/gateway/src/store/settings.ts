@@ -43,6 +43,83 @@ interface Stored {
   sidebar?: JsonValue;
 }
 
+const appearance = (stored: Stored) =>
+  stored.appearance
+    ? fromJson(ui.AppearanceSettingsSchema, stored.appearance, { ignoreUnknownFields: true })
+    : create(ui.AppearanceSettingsSchema, {});
+
+const threadDefaults = (stored: Stored) =>
+  stored.threadDefaults
+    ? fromJson(ui.ThreadDefaultsSchema, stored.threadDefaults, { ignoreUnknownFields: true })
+    : create(ui.ThreadDefaultsSchema, {});
+
+const modelFavorites = (stored: Stored) =>
+  stored.modelFavorites
+    ? fromJson(ui.ModelFavoritesSchema, stored.modelFavorites, { ignoreUnknownFields: true })
+    : create(ui.ModelFavoritesSchema, {});
+
+const composer = (stored: Stored) =>
+  stored.composer
+    ? fromJson(ui.ComposerSettingsSchema, stored.composer, { ignoreUnknownFields: true })
+    : create(ui.ComposerSettingsSchema, {});
+
+const toUser = (row: Row | undefined) => {
+  const stored = row?.settings ?? {};
+
+  return create(ui.UserSettingsSchema, {
+    workerGatewayUrl: stored.workerGatewayUrl ?? "",
+    timezone: stored.timezone ?? "",
+    appearance: appearance(stored),
+    threadDefaults: threadDefaults(stored),
+    modelFavorites: modelFavorites(stored),
+    composer: composer(stored),
+    sidebar: stored.sidebar
+      ? fromJson(ui.SidebarSettingsSchema, stored.sidebar, { ignoreUnknownFields: true })
+      : create(ui.SidebarSettingsSchema),
+    textGeneration: stored.textGeneration
+      ? fromJson(ui.TextGenerationSettingsSchema, stored.textGeneration, { ignoreUnknownFields: true })
+      : create(ui.TextGenerationSettingsSchema),
+    version: BigInt(row?.version ?? 0),
+    ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
+  });
+};
+
+const toProject = (projectId: string, row: Row | undefined) =>
+  create(ui.ProjectSettingsSchema, {
+    projectId,
+    threadDefaults: threadDefaults(row?.settings ?? {}),
+    version: BigInt(row?.version ?? 0),
+    ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
+  });
+
+/** Writes `next` if the stored version is still `expected` (0 = nothing stored yet). */
+const write = <R extends Row>(input: {
+  current: R | undefined;
+  expected: bigint;
+  next: Stored;
+  insert: (settings: string) => Effect.Effect<readonly R[], SqlError.SqlError>;
+  update: (settings: string, version: bigint) => Effect.Effect<readonly R[], SqlError.SqlError>;
+}) =>
+  Effect.gen(function* () {
+    const version = BigInt(input.current?.version ?? 0);
+
+    if (version !== input.expected)
+      return yield* Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"));
+    const settings = JSON.stringify(input.next);
+    const rows = input.current ? yield* input.update(settings, version) : yield* input.insert(settings);
+
+    if (!rows[0]) return yield* Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"));
+
+    return rows[0];
+  }).pipe(
+    // Two first writes at once: the loser sees the primary key taken.
+    Effect.catchTag("SqlError", (error): Effect.Effect<never, SettingsConflict | SqlError.SqlError> =>
+      isUniqueViolation(error)
+        ? Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"))
+        : Effect.fail(error),
+    ),
+  );
+
 export class SettingsStore extends Context.Service<
   SettingsStore,
   {
@@ -72,83 +149,6 @@ export class SettingsStore extends Context.Service<
     SettingsStore,
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-
-      const appearance = (stored: Stored) =>
-        stored.appearance
-          ? fromJson(ui.AppearanceSettingsSchema, stored.appearance, { ignoreUnknownFields: true })
-          : create(ui.AppearanceSettingsSchema, {});
-
-      const threadDefaults = (stored: Stored) =>
-        stored.threadDefaults
-          ? fromJson(ui.ThreadDefaultsSchema, stored.threadDefaults, { ignoreUnknownFields: true })
-          : create(ui.ThreadDefaultsSchema, {});
-
-      const modelFavorites = (stored: Stored) =>
-        stored.modelFavorites
-          ? fromJson(ui.ModelFavoritesSchema, stored.modelFavorites, { ignoreUnknownFields: true })
-          : create(ui.ModelFavoritesSchema, {});
-
-      const composer = (stored: Stored) =>
-        stored.composer
-          ? fromJson(ui.ComposerSettingsSchema, stored.composer, { ignoreUnknownFields: true })
-          : create(ui.ComposerSettingsSchema, {});
-
-      const toUser = (row: Row | undefined) => {
-        const stored = row?.settings ?? {};
-
-        return create(ui.UserSettingsSchema, {
-          workerGatewayUrl: stored.workerGatewayUrl ?? "",
-          timezone: stored.timezone ?? "",
-          appearance: appearance(stored),
-          threadDefaults: threadDefaults(stored),
-          modelFavorites: modelFavorites(stored),
-          composer: composer(stored),
-          sidebar: stored.sidebar
-            ? fromJson(ui.SidebarSettingsSchema, stored.sidebar, { ignoreUnknownFields: true })
-            : create(ui.SidebarSettingsSchema),
-          textGeneration: stored.textGeneration
-            ? fromJson(ui.TextGenerationSettingsSchema, stored.textGeneration, { ignoreUnknownFields: true })
-            : create(ui.TextGenerationSettingsSchema),
-          version: BigInt(row?.version ?? 0),
-          ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
-        });
-      };
-
-      const toProject = (projectId: string, row: Row | undefined) =>
-        create(ui.ProjectSettingsSchema, {
-          projectId,
-          threadDefaults: threadDefaults(row?.settings ?? {}),
-          version: BigInt(row?.version ?? 0),
-          ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
-        });
-
-      /** Writes `next` if the stored version is still `expected` (0 = nothing stored yet). */
-      const write = <R extends Row>(input: {
-        current: R | undefined;
-        expected: bigint;
-        next: Stored;
-        insert: (settings: string) => Effect.Effect<readonly R[], SqlError.SqlError>;
-        update: (settings: string, version: bigint) => Effect.Effect<readonly R[], SqlError.SqlError>;
-      }) =>
-        Effect.gen(function* () {
-          const version = BigInt(input.current?.version ?? 0);
-
-          if (version !== input.expected)
-            return yield* Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"));
-          const settings = JSON.stringify(input.next);
-          const rows = input.current ? yield* input.update(settings, version) : yield* input.insert(settings);
-
-          if (!rows[0]) return yield* Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"));
-
-          return rows[0];
-        }).pipe(
-          // Two first writes at once: the loser sees the primary key taken.
-          Effect.catchTag("SqlError", (error): Effect.Effect<never, SettingsConflict | SqlError.SqlError> =>
-            isUniqueViolation(error)
-              ? Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"))
-              : Effect.fail(error),
-          ),
-        );
 
       const store: SettingsStore["Service"] = {
         user: (userId) =>
