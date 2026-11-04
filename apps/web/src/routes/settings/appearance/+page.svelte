@@ -60,16 +60,6 @@
 <ThemePicker />
 
 <SettingsGroup title="Interface">
-  <SettingsRow
-    title="Time zone"
-    description={settings.user.timezone
-      ? "Taken from this device. Bots use it for local times and scheduled tasks."
-      : "Bots use it for local times and scheduled tasks."}
-  >
-    {#snippet control()}<p class="text-base/6 wrap-anywhere text-ink sm:text-sm/6">
-        {settings.user.timezone || "UTC"}
-      </p>{/snippet}
-  </SettingsRow>
   <AnimatedMascotsSetting />
   <SettingsRow title="Chat width" description="How wide the conversation and the message box are.">
     {#snippet control()}
@@ -91,5 +81,4 @@
     label="Appearance"
     local="Color scheme, light and dark themes, and chat width. Panel and sidebar layout stay on each computer."
   />
-  <ShareSetting itemKey={sharedKey.settings("timezone")} label="Time zone" />
 </SharingGroup>

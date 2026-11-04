@@ -2,6 +2,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { onMount } from "svelte";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
+  import { formatTime } from "#lib/shared/format.ts";
   import WorkerRow from "#lib/features/workers/WorkerRow.svelte";
   import AddWorkerWizard from "#lib/features/workers/AddWorkerWizard.svelte";
   import { WorkerSetup } from "#lib/features/workers/worker-setup.svelte.ts";
@@ -13,6 +14,7 @@
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import UpdatesPanel from "#lib/features/workers/UpdatesPanel.svelte";
   import CliUpdatesSummary from "#lib/features/workers/CliUpdatesSummary.svelte";
+  import CliCheckSettings from "#lib/features/workers/CliCheckSettings.svelte";
   import WorkerSshKey from "#lib/features/workers/WorkerSshKey.svelte";
   import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
   import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
@@ -104,12 +106,15 @@
       })}
 />
 <CliUpdatesSummary workers={overview.workers} />
+<SettingsGroup title="Agent CLI updates" description="Account · Workers can override this schedule."
+  ><CliCheckSettings /></SettingsGroup
+>
 {#if pending.length}
   <SettingsGroup title="Pending enrollments">
     {#each pending as enrollment (enrollment.id)}
       <SettingsRow
         title={enrollment.name}
-        description={`Waiting for enrollment · expires ${enrollment.expiresAt ? timestampDate(enrollment.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "soon"}`}
+        description={`Waiting for enrollment · expires ${formatTime(enrollment.expiresAt) || "soon"}`}
       >
         {#snippet control()}<Button variant="ghost" size="sm" onclick={() => void revoke(enrollment.id)}>Revoke</Button
           >{/snippet}

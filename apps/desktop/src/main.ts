@@ -25,7 +25,7 @@ import { DesktopUpdates } from "./updates.ts";
 import { QuitGuard } from "./quit-guard.ts";
 import { quitKeyEvent } from "./quit-key-event.ts";
 import { isQuitShortcut, QuitSettings } from "./quit-settings.ts";
-import { windowState, registerAppearanceIpc } from "./window-chrome.ts";
+import { windowState, registerWindowPreferencesIpc } from "./window-chrome.ts";
 import { updateDesktopMenus } from "./desktop-menu.ts";
 import { createDesktopWindow, isTrustedDesktopEvent } from "./desktop-window.ts";
 import { DocumentPolicy } from "./document-policy.ts";
@@ -339,7 +339,7 @@ function startController() {
 }
 
 function registerIpc() {
-  registerAppearanceIpc(authorize);
+  registerWindowPreferencesIpc(authorize);
   ipcMain.handle("canopy:status", (event) => {
     authorize(event);
 

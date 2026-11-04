@@ -8,6 +8,9 @@ import { isEntityId } from "@canopy/domain/computers";
 import { checkFavorites, coreState, InvalidError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreRun } from "./core-broadcast.ts";
+import { isCheckInterval } from "@canopy/domain/update-checks";
+import { coreConfigsChanged } from "./core-providers.ts";
+import { SqlClient } from "effect/sql";
 
 /** Defaults must point at the user's own workspace (in the project, for project settings). */
 export async function coreCheckThreadDefaults(
@@ -65,6 +68,11 @@ export const coreSettingsMethods: CoreSettingsMethods = {
 
   /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
   async updateUserSettings(this: GatewayCore, request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
+    const interval = request.cliUpdates?.intervalMinutes;
+
+    if (interval !== undefined && !isCheckInterval(interval))
+      throw new InvalidError("invalid CLI update check interval");
+
     if (request.workerGatewayUrl !== undefined) checkWorkerGatewayUrl(request.workerGatewayUrl);
 
     if (request.attachmentLimits) {
@@ -94,6 +102,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
     }
 
     if (request.sidebar) {
+      if (!(request.sidebar.projectOrder in ui.ProjectOrder)) throw new InvalidError("unknown project order");
       const ids = [...request.sidebar.projectIds, ...request.sidebar.pinnedThreadIds, ...request.sidebar.pinnedBotIds];
 
       if (ids.length > 1000 || ids.some((id) => !isEntityId(id))) throw new InvalidError("invalid sidebar ids");
@@ -134,6 +143,8 @@ export const coreSettingsMethods: CoreSettingsMethods = {
         ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
         ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),
         ...(request.composer && { composer: request.composer }),
+        ...(request.general && { general: request.general }),
+        ...(request.cliUpdates && { cliUpdates: request.cliUpdates }),
         ...(request.textGeneration && { textGeneration: request.textGeneration }),
         ...(request.sidebar && {
           sidebar: {
@@ -148,6 +159,27 @@ export const coreSettingsMethods: CoreSettingsMethods = {
     );
 
     this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "userSettings", value: settings } }));
+
+    if (request.cliUpdates) {
+      const userId = this[coreState].options.userId;
+
+      const changed = await this[coreState].options.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+
+          return yield* sql<{ worker_id: string }>`UPDATE worker_configs c SET version = c.version + 1,
+          updated_by = ${userId}::uuid, updated_at = now() FROM workers w
+          WHERE w.id = c.worker_id AND w.owner_user_id = ${userId}::uuid
+            AND NOT (c.config ? 'cliUpdateCheckMinutes') RETURNING c.worker_id`;
+        }),
+      );
+
+      await coreConfigsChanged(
+        this,
+        changed.map((row) => row.worker_id),
+      );
+      void this.cli.checks.tick().catch(() => undefined);
+    }
 
     return settings;
   },

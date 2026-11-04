@@ -28,6 +28,7 @@ import {
 } from "./host-types.ts";
 import { HostState } from "./host-state.ts";
 import { HostContext } from "./host-context.ts";
+import { UpdateCheckTimer } from "@canopy/domain/update-checks";
 
 export type { WorkerHostOptions } from "./host-types.ts";
 /**
@@ -70,10 +71,8 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "revealWorktree",
 ]);
 
-/** How often provider CLIs are looked at again without a reason (connect, check, install). */
-const CLI_REPORT_INTERVAL_MS = 6 * 60 * 60_000;
-
 export class WorkerHost {
+  readonly #cliChecks: UpdateCheckTimer;
   readonly #commands = new Map<string, Promise<CommandResultInit | undefined>>();
   readonly secrets: ThreadSecretFiles;
   readonly cli: CliTools;
@@ -93,6 +92,7 @@ export class WorkerHost {
     return this.#ctx.state.config;
   }
   constructor(options: WorkerHostOptions) {
+    this.#cliChecks = new UpdateCheckTimer(options.cliCheckClock);
     const state = new HostState(options);
     this.#ctx = new HostContext(state, {
       applyConfig: (message) => this.applyConfig(message),
@@ -124,11 +124,6 @@ export class WorkerHost {
       log: (message) => this.#ctx.ops.log(message),
       ...(options.cliEnv && { env: options.cliEnv }),
     });
-    this.#ctx.state.cliTimer = setInterval(
-      () => void this.#ctx.state.cli.report().catch(() => undefined),
-      CLI_REPORT_INTERVAL_MS,
-    );
-    this.#ctx.state.cliTimer.unref();
   }
   setUpdateDraining(value: boolean): void {
     this.#ctx.state.updateDraining = value;
@@ -208,6 +203,9 @@ export class WorkerHost {
 
     if (result.applied) {
       this.#ctx.state.received = message;
+      this.#cliChecks.start(message.cliUpdateCheckMinutes ?? 360, this.#cliChecks.clock.now(), async () => {
+        await this.cli.report().catch(() => undefined);
+      });
       this.#ctx.state.config = result.config;
       this.environment.refresh();
       await this.#ctx.ops.reconcileRuntimes();
@@ -324,7 +322,7 @@ export class WorkerHost {
     await this.#ctx.state.accounts.close();
     this.#ctx.ops.wakeRuntimes();
     await this.#ctx.state.runtimeReconcile;
-    clearInterval(this.#ctx.state.cliTimer);
+    this.#cliChecks.stop();
     this.environment.stop();
 
     try {

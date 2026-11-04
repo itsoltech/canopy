@@ -39,6 +39,8 @@
     provideGatewayCapabilities,
   } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import GatewayCompatibility from "#lib/features/desktop/GatewayCompatibility.svelte";
+  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
+  import { watchThreadNotifications } from "#lib/features/settings/thread-notifications.ts";
 
   let { children }: { children: Snippet } = $props();
   const capabilities = new GatewayCapabilities();
@@ -62,6 +64,10 @@
   );
 
   provideSettings(settings);
+
+  onMount(() => devicePreferences.connect());
+
+  onMount(() => watchThreadNotifications(overview, () => page.params.threadId));
 
   // What is shared with linked computers: badges and questions on every settings page.
   const shared = new SharedConfigState();

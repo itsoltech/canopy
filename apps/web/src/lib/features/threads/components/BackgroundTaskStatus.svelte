@@ -2,7 +2,7 @@
   import { ItemStatus } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { timestampFromMs } from "@bufbuild/protobuf/wkt";
-  import { formatRelative, formatSpan } from "#lib/shared/format.ts";
+  import { formatRelative, formatSpan, formatLocalDateTime } from "#lib/shared/format.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { backgroundStatus, backgroundTimes, type BackgroundEntry } from "../background-tasks.ts";
 
@@ -57,6 +57,6 @@
   {#if ended}<span aria-hidden="true">·</span><time
       class="tabular-nums"
       datetime={new Date(times.endedAt ?? 0).toISOString()}
-      title={new Date(times.endedAt ?? 0).toLocaleString()}>ended {formatRelative(ended)}</time
+      title={formatLocalDateTime(new Date(times.endedAt ?? 0))}>ended {formatRelative(ended)}</time
     >{/if}
 </span>

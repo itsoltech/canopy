@@ -18,6 +18,7 @@ import type { DeviceProbe } from "../config/remote.ts";
 import { Journal } from "../journal/index.ts";
 import type { ProfileRuntimeConfig, ResolvedProfile } from "../providers/profiles.ts";
 import type { CliProbe } from "../cli-tools/discovery.ts";
+import type { CheckClock } from "@canopy/domain/update-checks";
 
 export type CommandResultInit = MessageInitShape<typeof CommandResultSchema>;
 
@@ -49,6 +50,8 @@ export interface WorkerHostOptions {
   readonly probe?: DeviceProbe;
   /** Provider CLI discovery (docs/provider-cli.md); default: this device. */
   readonly cliProbe?: CliProbe;
+  /** Injectable timer for CLI check scheduling. */
+  readonly cliCheckClock?: CheckClock;
   /** Environment of CLI installs (default: the worker's, without secret-looking variables). */
   readonly cliEnv?: Readonly<Record<string, string | undefined>>;
   /**

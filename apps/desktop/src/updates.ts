@@ -6,10 +6,17 @@ import { desktopIdentity, type DesktopChannel } from "./identity.ts";
 import { DesktopUpdateFeed } from "./update-feed.ts";
 import { UpdateController } from "./update-controller.ts";
 import { UpdateSettings } from "./update-settings.ts";
+import { UpdateCheckSettings } from "./update-check-settings.ts";
+import { UpdateCheckTimer, nextUpdateCheck } from "@canopy/domain/update-checks";
 
 export class DesktopUpdates {
   private controller?: UpdateController;
-  private timer?: ReturnType<typeof setInterval>;
+  private readonly timer = new UpdateCheckTimer();
+  private checkSettings?: UpdateCheckSettings;
+  private enabled = false;
+  private get schedule() {
+    return (this.checkSettings ??= new UpdateCheckSettings(app.getPath("userData")));
+  }
   private readonly identity = desktopIdentity();
   private readonly feed = new DesktopUpdateFeed();
 
@@ -43,6 +50,7 @@ export class DesktopUpdates {
           ).response === 1,
         prepare: (channel, downgrade) => this.prepare(channel, downgrade),
         changed: this.changed,
+        checking: () => this.schedule.save(this.schedule.minutes, Date.now()),
         downloaded: () => {
           if (!Notification.isSupported()) return;
 
@@ -60,16 +68,55 @@ export class DesktopUpdates {
     return this.controller;
   }
   status() {
-    return this.control.status();
+    return {
+      ...this.control.status(),
+      checkIntervalMinutes: this.schedule.minutes,
+      lastCheckedAt: this.schedule.lastChecked,
+      ...(this.enabled &&
+        this.control.status().phase !== "downloaded" &&
+        this.schedule.minutes !== 0 && {
+          nextCheckAt: nextUpdateCheck(this.schedule.lastChecked, this.schedule.minutes, Date.now()),
+        }),
+    };
   }
-  setChannel(channel: string) {
-    return this.control.setChannel(channel);
+  setCheckInterval(minutes: number) {
+    this.schedule.save(minutes);
+    this.control.setAutomaticUpdates(minutes !== 0);
+    this.reschedule();
+    this.changed();
+
+    return this.status();
   }
-  check() {
-    return this.control.check();
+  private reschedule() {
+    this.timer.stop();
+
+    if (this.enabled && this.control.status().phase !== "downloaded")
+      this.timer.start(this.schedule.minutes, this.schedule.lastChecked, async () => {
+        await this.control.checkAutomatically();
+
+        if (this.control.status().phase === "downloaded") this.timer.stop();
+      });
   }
-  checkRemote() {
-    return this.control.checkRemote();
+  async setChannel(channel: string) {
+    await this.control.setChannel(channel);
+    this.reschedule();
+    this.changed();
+
+    return this.status();
+  }
+  async check() {
+    await this.control.check();
+    this.reschedule();
+    this.changed();
+
+    return this.status();
+  }
+  async checkRemote() {
+    await this.control.checkRemote();
+    this.reschedule();
+    this.changed();
+
+    return this.status();
   }
   restartIfReady() {
     if (this.status().phase === "downloaded" && !this.status().changingChannel) this.restart();
@@ -118,13 +165,14 @@ export class DesktopUpdates {
     }
 
     this.control.enable();
-    await this.check();
-    this.timer = setInterval(() => void this.check(), 6 * 60 * 60 * 1000);
-    this.timer.unref();
+    this.enabled = true;
+    this.control.setAutomaticUpdates(this.schedule.minutes !== 0);
+    this.reschedule();
   }
 
   stop() {
-    if (this.timer) clearInterval(this.timer);
+    this.enabled = false;
+    this.timer.stop();
   }
   install() {
     if (this.status().phase !== "downloaded") return;

@@ -61,7 +61,8 @@ workerów pozostają widoczne. Linie postępu są tylko w pamięci gatewaya (ost
 | `OTHER` | cokolwiek innego |
 | `NOT_INSTALLED` | brak pliku |
 
-Raport idzie po każdym połączeniu, po `ProbeProviders` („Check for updates”), po każdej instalacji i co 6 godzin.
+Raport idzie po każdym połączeniu, po `ProbeProviders` („Check for updates”), po każdej instalacji
+i zgodnie z efektywnym `WorkerConfig.cli_update_check_minutes` (domyślnie 360; 0 wyłącza timer).
 Bez ciągłego odpytywania.
 
 ## Najnowsze wersje (gateway)
@@ -72,7 +73,16 @@ Bez ciągłego odpytywania.
 | Codex | `https://registry.npmjs.org/-/package/@openai/codex/dist-tags` → `latest` |
 | Grok | `https://x.ai/cli/stable` (kanał stable oficjalnego instalatora) |
 
-Cache 6 godzin (`startSweep` uruchamia sprawdzanie i timer), odświeżenie na żądanie w `CheckCliUpdates`. Tylko
+Settings → Workers ustawia częstotliwość konta (`UserSettings.cli_updates.interval_minutes`),
+a Agent CLIs przy workerze opcjonalne nadpisanie (`SetWorkerCliUpdateSettings`, kontrola wersji konfiguracji).
+Wybory: 60, 360 (domyślnie), 1440, 10080 minut lub 0 (Never). Gateway dostarcza efektywną wartość
+w konfiguracji workera. Najnowszych wersji szuka gateway: osobny trwały snapshot i ostatni termin
+sprawdzenia w `workers.capabilities.cliUpdateChecks` każdego własnego workera. Timer oraz raport workera
+sprawdzają termin; samo raportowanie lokalnej wersji nie omija Never. Lookup uruchomiony raportem
+pracuje w tle: nawet niedostępny rejestr nie zatrzymuje tur, zgód ani odpowiedzi na komendy workera.
+Ręczny `CheckCliUpdates` omija
+harmonogram. Zmiana częstotliwości konta nie modyfikuje cudzych workerów ani jawnych nadpisań.
+UI pokazuje ostatni/następny termin, przy Never „manual only”. Nic nie instaluje się automatycznie. Tylko
 HTTPS, odpowiedź ≤ 256 KiB, poprawny semver. Błąd zostawia poprzednią wersję i pokazuje „Couldn't check for
 updates: …”; nic nie blokuje. Adresy można podmienić wyłącznie opcją `GatewayCoreOptions.cliLatest` (testy,
 `allowHttpForTests`), nigdy zmienną środowiskową.

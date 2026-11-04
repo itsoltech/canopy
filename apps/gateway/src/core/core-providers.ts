@@ -80,6 +80,7 @@ export interface CoreProvidersMethods extends CoreProxyMethods {
   refreshProviders(request: ui.RefreshProvidersRequest): Promise<ui.RefreshProvidersResponse>;
   installCli(request: ui.InstallCliRequest): Promise<ui.InstallCliResponse>;
   checkCliUpdates(request: ui.CheckCliUpdatesRequest): Promise<ui.CheckCliUpdatesResponse>;
+  setWorkerCliUpdateSettings(request: ui.SetWorkerCliUpdateSettingsRequest): Promise<void>;
   startProviderLogin(request: ui.StartProviderLoginRequest): Promise<ui.StartProviderLoginResponse>;
   syncProviderInstances(): Promise<void>;
 }
@@ -194,6 +195,12 @@ export const coreProvidersMethods: CoreProvidersMethods = {
   /** Latest CLI versions now, and the owner's online workers report their CLIs again. */
   async checkCliUpdates(this: GatewayCore, request: ui.CheckCliUpdatesRequest): Promise<ui.CheckCliUpdatesResponse> {
     return this.cli.check(request, await coreWorkers(this));
+  },
+
+  async setWorkerCliUpdateSettings(this: GatewayCore, request: ui.SetWorkerCliUpdateSettingsRequest): Promise<void> {
+    await this.cli.checks.setWorker(request);
+    await coreConfigsChanged(this, [request.workerId]);
+    void this.cli.checks.tick(request.workerId).catch(() => undefined);
   },
 
   /** Login of an instance through the harness's API (Codex: ChatGPT device code); the worker finishes it. */

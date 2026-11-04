@@ -184,6 +184,7 @@ service GatewayService {
   // CLI dostawców na workerach (docs/provider-cli.md): instalacja/aktualizacja na kliknięcie i najnowsze wersje.
   rpc InstallCli(InstallCliRequest) returns (InstallCliResponse);
   rpc CheckCliUpdates(CheckCliUpdatesRequest) returns (CheckCliUpdatesResponse);
+  rpc SetWorkerCliUpdateSettings(SetWorkerCliUpdateSettingsRequest) returns (WorkerOperationResponse);
 
   // Załączniki (sekcja na końcu pliku): plik użytkownika do wiadomości, jego bajty i podglądy obrazów z transkryptu.
   rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse);
@@ -361,9 +362,14 @@ message Worker {
   canopy.worker.v1.NetworkRouteStatus network_route_status = 803;
   // Worker obsługuje git worktrees (capability "worktrees", docs/worktrees.md).
   bool worktrees = 804;
+  optional uint32 cli_update_check_minutes = 900; // nadpisanie; brak = konto
+  uint32 effective_cli_update_check_minutes = 901;
+  google.protobuf.Timestamp cli_updates_checked_at = 902;
+  google.protobuf.Timestamp cli_updates_next_check_at = 903;
 }
 
 message Project {
+  google.protobuf.Timestamp created_at = 900;
   string id = 1;
   string name = 2;
   string slug = 3;
@@ -1161,6 +1167,25 @@ message UserSettings {
   ComposerSettings composer = 160;
   TextGenerationSettings text_generation = 200;
   SidebarSettings sidebar = 270;
+  GeneralSettings general = 900;
+  CliUpdateSettings cli_updates = 901;
+}
+
+message CliUpdateSettings {
+  optional uint32 interval_minutes = 1; // brak = 360; 0 = nigdy; 60, 360, 1440, 10080
+}
+
+// Preferencje interfejsu właściciela, wspólne dla webu i desktopu.
+message GeneralSettings {
+  bool confirm_unpin = 1;
+  bool confirm_archive = 2;
+  optional bool confirm_delete = 3; // brak = true
+}
+
+enum ProjectOrder {
+  PROJECT_ORDER_ACTIVITY = 0;
+  PROJECT_ORDER_NAME = 1;
+  PROJECT_ORDER_CREATED = 2;
 }
 
 message SidebarSettings {
@@ -1169,6 +1194,9 @@ message SidebarSettings {
   repeated string pinned_thread_ids = 2;
   bool archived = 3 [deprecated = true]; // dawny widok; ignorowany przez nowy sidebar
   bool archived_expanded = 310;
+  bool group_by_project = 900;
+  ProjectOrder project_order = 901;
+  bool working_section = 902;
 }
 
 // Globalne ustawienie użytkownika. Pusty model = automatyczny wybór z instancji wątku.
@@ -1218,6 +1246,8 @@ message UpdateUserSettingsRequest {
   ComposerSettings composer = 160;
   TextGenerationSettings text_generation = 200;
   SidebarSettings sidebar = 270;
+  GeneralSettings general = 900;
+  CliUpdateSettings cli_updates = 901;
 }
 
 message UpdateUserSettingsResponse {
@@ -1743,6 +1773,12 @@ message InstallCliResponse {
 message CheckCliUpdatesRequest {
   // Pusty = wszystkie workery online właściciela.
   string worker_id = 1;
+}
+
+message SetWorkerCliUpdateSettingsRequest {
+  string worker_id = 1;
+  optional uint32 interval_minutes = 2; // brak = dziedzicz z konta
+  uint64 expected_config_version = 3;
 }
 
 message CheckCliUpdatesResponse {

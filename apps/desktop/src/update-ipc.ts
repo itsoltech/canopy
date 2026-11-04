@@ -57,6 +57,11 @@ export function registerUpdateIpc(
 
     return updates.check();
   });
+  ipcMain.handle("canopy:update-check-interval", (event, minutes: number) => {
+    authorize(event);
+
+    return updates.setCheckInterval(minutes);
+  });
   ipcMain.handle("canopy:update-install", (event) => {
     authorize(event);
 

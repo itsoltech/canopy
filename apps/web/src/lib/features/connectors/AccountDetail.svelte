@@ -1,7 +1,7 @@
 <script lang="ts">
   import { connectors, type ConnectorTool } from "@canopy/contracts";
   import { untrack } from "svelte";
-  import { timestampMs } from "@bufbuild/protobuf/wkt";
+  import { formatDateTime } from "#lib/shared/format.ts";
   import type { ClassValue } from "svelte/elements";
   import { requestJson } from "#lib/shared/http.ts";
   import type { JsonObject } from "#lib/shared/json.ts";
@@ -119,7 +119,7 @@
         {accountStatus(account.status)}
       </p>
       <p class="text-zinc-500 dark:text-zinc-400">
-        Last used: {account.lastUsedAt ? new Date(timestampMs(account.lastUsedAt)).toLocaleString() : "Not yet"}
+        Last used: {formatDateTime(account.lastUsedAt) || "Not yet"}
       </p>
     </div>
     <div class="flex flex-wrap gap-2">

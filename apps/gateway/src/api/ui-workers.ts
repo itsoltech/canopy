@@ -25,6 +25,7 @@ export function workersHandlers(
   | "archiveWorker"
   | "installCli"
   | "checkCliUpdates"
+  | "setWorkerCliUpdateSettings"
 > {
   const snapshot = async () => {
     const value = await updatesSnapshot(core);
@@ -113,5 +114,11 @@ export function workersHandlers(
     installCli: (request) => guard(() => core.installCli(request)),
 
     checkCliUpdates: (request) => guard(() => core.checkCliUpdates(request)),
+    setWorkerCliUpdateSettings: (request) =>
+      guard(async () => {
+        await core.setWorkerCliUpdateSettings(request);
+
+        return create(ui.WorkerOperationResponseSchema);
+      }),
   };
 }

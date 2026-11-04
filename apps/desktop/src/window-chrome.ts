@@ -1,7 +1,13 @@
-import { BrowserWindow, type MenuItemConstructorOptions } from "electron";
+import { BrowserWindow, type MenuItemConstructorOptions, type IpcMainInvokeEvent } from "electron";
 import type { DesktopWindowState } from "@canopy/ui/desktop";
 
-export { registerAppearanceIpc } from "./window-appearance.ts";
+import { registerAppearanceIpc } from "./window-appearance.ts";
+import { registerThreadNotifications } from "./thread-notifications.ts";
+
+export function registerWindowPreferencesIpc(authorize: (event: IpcMainInvokeEvent) => void): void {
+  registerAppearanceIpc(authorize);
+  registerThreadNotifications(authorize);
+}
 
 export function windowState(target: BrowserWindow): DesktopWindowState {
   return { zoomFactor: target.webContents.getZoomFactor(), fullscreen: target.isFullScreen() };

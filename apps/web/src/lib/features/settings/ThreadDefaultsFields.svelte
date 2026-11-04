@@ -6,7 +6,7 @@
   import { isProviderKey, instancesFor, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
   import ModelIdField from "#lib/features/models/ModelIdField.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
-  import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import PreferenceRow from "./PreferenceRow.svelte";
   import { modelFor, withModel } from "./thread-defaults.ts";
 
   /**
@@ -45,8 +45,10 @@
   const workerName = (ws: ui.Workspace) => overview.worker(ws.workerId)?.name ?? "Unknown worker";
 </script>
 
-<SettingsRow
+<PreferenceRow
   title={inherited ? "Worker" : "Project and worker"}
+  changed={!!value.workspaceId}
+  onreset={() => set({ workspaceId: "" })}
   description={inherited
     ? "Where new threads of this project start."
     : "Where new threads start, unless you start them from a project."}
@@ -66,10 +68,12 @@
       ]}
     />
   {/snippet}
-</SettingsRow>
-<SettingsRow
+</PreferenceRow>
+<PreferenceRow
   title="Agent"
-  description="Claude, Codex or Grok. New threads offer only the agents on the workspace's worker."
+  description="New threads use an agent available on the workspace's worker."
+  changed={value.provider !== Provider.UNSPECIFIED}
+  onreset={() => set({ provider: Provider.UNSPECIFIED, providerProfileId: "" })}
 >
   {#snippet control()}
     <Select
@@ -87,9 +91,14 @@
       ]}
     />
   {/snippet}
-</SettingsRow>
+</PreferenceRow>
 {#if provider}
-  <SettingsRow title="Profile" description="How the agent reaches its model.">
+  <PreferenceRow
+    title="Profile"
+    description="New threads use this profile to reach the provider."
+    changed={!!value.providerProfileId}
+    onreset={() => set({ providerProfileId: "" })}
+  >
     {#snippet control()}
       <Select
         name="profileId"
@@ -100,8 +109,13 @@
         options={[{ value: "", label: "First available" }, ...profiles.map((id) => ({ value: id, label: id }))]}
       />
     {/snippet}
-  </SettingsRow>
-  <SettingsRow title="Model" description="Leave empty to use the profile's default.">
+  </PreferenceRow>
+  <PreferenceRow
+    title="Model"
+    description="Leave empty to use the profile's default for new threads."
+    changed={!!modelFor(value, value.provider)}
+    onreset={() => set({ models: withModel(value.models, value.provider, "") })}
+  >
     {#snippet control()}
       <ModelIdField
         {provider}
@@ -111,11 +125,14 @@
         class="w-56 sm:w-48"
       />
     {/snippet}
-  </SettingsRow>
+  </PreferenceRow>
 {/if}
-<SettingsRow
+<PreferenceRow
   title="Permissions"
-  description={permissionModes.find((m) => PermissionMode[m.value] === value.permissionMode)?.description}
+  description="New threads use this approval policy unless the project overrides it."
+  changed={value.permissionMode !== PermissionMode.UNSPECIFIED &&
+    (inherited !== undefined || value.permissionMode !== PermissionMode.ASK)}
+  onreset={() => set({ permissionMode: PermissionMode.UNSPECIFIED })}
 >
   {#snippet control()}
     <Select
@@ -139,4 +156,4 @@
       ]}
     />
   {/snippet}
-</SettingsRow>
+</PreferenceRow>

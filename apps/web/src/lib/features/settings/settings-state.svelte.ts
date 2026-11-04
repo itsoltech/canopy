@@ -11,7 +11,15 @@ export interface SettingsNotice {
   readonly text: string;
 }
 
-type UserSection = "appearance" | "threadDefaults" | "modelFavorites" | "composer" | "textGeneration" | "sidebar";
+type UserSection =
+  | "appearance"
+  | "threadDefaults"
+  | "modelFavorites"
+  | "composer"
+  | "textGeneration"
+  | "sidebar"
+  | "general"
+  | "cliUpdates";
 
 const userSchemas = {
   appearance: ui.AppearanceSettingsSchema,
@@ -20,6 +28,8 @@ const userSchemas = {
   composer: ui.ComposerSettingsSchema,
   textGeneration: ui.TextGenerationSettingsSchema,
   sidebar: ui.SidebarSettingsSchema,
+  general: ui.GeneralSettingsSchema,
+  cliUpdates: ui.CliUpdateSettingsSchema,
 } as const;
 
 interface ServerSettings {
@@ -70,6 +80,20 @@ export class SettingsState {
 
   get sidebar(): ui.SidebarSettings {
     return this.user.sidebar ?? create(ui.SidebarSettingsSchema);
+  }
+
+  get general(): ui.GeneralSettings {
+    return this.user.general ?? create(ui.GeneralSettingsSchema);
+  }
+
+  updateGeneral(change: Partial<Omit<ui.GeneralSettings, "$typeName">>): Promise<void> {
+    return this.#writeUser("general", (current) => ({ ...current, ...change }));
+  }
+
+  updateCliUpdates(intervalMinutes: number | undefined): Promise<void> {
+    return this.#writeUser("cliUpdates", () =>
+      create(ui.CliUpdateSettingsSchema, { ...(intervalMinutes !== undefined && { intervalMinutes }) }),
+    );
   }
 
   updateSidebar(change: Partial<Omit<ui.SidebarSettings, "$typeName">>): Promise<void> {

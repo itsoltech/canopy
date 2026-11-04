@@ -86,8 +86,13 @@ export function workerConfigStore(sql: SqlClient.SqlClient, secretsKey: Buffer):
       Effect.gen(function* () {
         const rows = yield* sql<{
           config: JsonValue | null;
+          version: bigint;
+          check_minutes: number;
         }>`
-                SELECT config FROM worker_configs WHERE worker_id = ${workerId}::uuid`;
+                SELECT c.config, c.version, COALESCE((c.config->>'cliUpdateCheckMinutes')::int,
+                  (s.settings#>>'{cliUpdates,intervalMinutes}')::int, 360) AS check_minutes
+                FROM worker_configs c JOIN workers w ON w.id = c.worker_id
+                LEFT JOIN user_settings s ON s.user_id = w.owner_user_id WHERE c.worker_id = ${workerId}::uuid`;
 
         const config = rows[0]?.config ? Option.getOrThrow(storedWorkerConfig(rows[0].config)) : undefined;
 
@@ -129,10 +134,15 @@ export function workerConfigStore(sql: SqlClient.SqlClient, secretsKey: Buffer):
           );
         }
 
-        return fromJsonString(
+        const resolved = fromJsonString(
           WorkerConfigSchema,
           JSON.stringify(config.profiles ? Object.assign({}, config, { profiles }) : config),
         );
+
+        resolved.cliUpdateCheckMinutes = rows[0]!.check_minutes;
+        resolved.version = BigInt(rows[0]!.version);
+
+        return resolved;
       }),
 
     configApplied: (workerId, report) =>

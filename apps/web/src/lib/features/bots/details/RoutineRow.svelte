@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
+  import type { Timestamp } from "@bufbuild/protobuf/wkt";
+  import { formatDateTime } from "#lib/shared/format.ts";
   import type { bots } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
@@ -24,14 +25,7 @@
     class?: ClassValue;
   } = $props();
 
-  const date = (at: Timestamp) =>
-    timestampDate(at).toLocaleString("en", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: routine.timezone,
-    });
+  const date = (at: Timestamp) => formatDateTime(at, routine.timezone);
 
   const next = $derived(
     routine.enabled && routine.nextRunAt ? `Next run ${date(routine.nextRunAt)} · ${routine.timezone}` : "Paused",

@@ -26,6 +26,9 @@ export interface DesktopWindowState {
 }
 
 export interface DesktopUpdateStatus {
+  checkIntervalMinutes?: number;
+  lastCheckedAt?: number;
+  nextCheckAt?: number | undefined;
   version: string;
   buildChannel: DesktopUpdateChannel;
   channel: DesktopUpdateChannel;
@@ -120,6 +123,13 @@ export function sameDesktopConfiguration(
 }
 
 export interface DesktopBridge {
+  /** Fixed status-only alerts; no message text, paths or arbitrary navigation. */
+  showThreadNotification?(notice: {
+    threadId: string;
+    event: "completed" | "failed" | "input";
+    sound: boolean;
+  }): Promise<boolean>;
+  onThreadNotificationClick?(listener: (threadId: string) => void): () => void;
   readonly platform: string;
   /** Read-only startup cache, used by the bundled setup page before its first paint. */
   readonly startupAppearance?: {
@@ -145,6 +155,7 @@ export interface DesktopBridge {
   onQuitGuard(listener: (state: QuitGuardState) => void, overlayVersion?: 1): () => void;
   updates(): Promise<DesktopUpdateStatus>;
   setUpdateChannel(channel: DesktopUpdateChannel): Promise<DesktopUpdateStatus>;
+  setUpdateCheckInterval?(minutes: number): Promise<DesktopUpdateStatus>;
   checkForUpdates(): Promise<DesktopUpdateStatus>;
   restartToUpdate(): Promise<void>;
   onUpdates(listener: (status: DesktopUpdateStatus) => void): () => void;
