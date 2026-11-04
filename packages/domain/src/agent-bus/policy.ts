@@ -1,3 +1,5 @@
+import { Result } from "effect";
+
 import { agentBusToolsFor, SPAWN_PERMISSION_MODES, type AgentBusCall, type SpawnPermissionMode } from "./tools.ts";
 
 /**
@@ -169,9 +171,9 @@ export function authorizeBusCall(
     case "send_message": {
       const target = sameOwner(facts, call.args.thread_id);
 
-      if (typeof target === "string") return deny(target);
+      if (Result.isFailure(target)) return deny(target.failure);
 
-      if (target.archived) return deny("target thread is archived");
+      if (target.success.archived) return deny("target thread is archived");
 
       return withHops(call.args.notify);
     }
@@ -180,7 +182,7 @@ export function authorizeBusCall(
       for (const id of call.args.thread_ids) {
         const target = inTree(facts, id);
 
-        if (typeof target === "string") return deny(target);
+        if (Result.isFailure(target)) return deny(target.failure);
       }
 
       return allow;
@@ -190,14 +192,14 @@ export function authorizeBusCall(
     case "read_thread": {
       const target = sameOwner(facts, call.args.thread_id);
 
-      return typeof target === "string" ? deny(target) : allow;
+      return Result.isFailure(target) ? deny(target.failure) : allow;
     }
 
     case "interrupt_thread":
     case "close_thread": {
       const target = descendant(facts, call.args.thread_id);
 
-      return typeof target === "string" ? deny(target) : allow;
+      return Result.isFailure(target) ? deny(target.failure) : allow;
     }
 
     case "answer_interaction": {
@@ -207,7 +209,7 @@ export function authorizeBusCall(
         return deny(`interaction ${call.args.request_id} not found`);
       const owner = descendant(facts, interaction.threadId);
 
-      if (typeof owner === "string") return deny(`interaction ${interaction.id} not found`);
+      if (Result.isFailure(owner)) return deny(`interaction ${interaction.id} not found`);
 
       if (interaction.routedTo !== "parent") return deny("this interaction is answered by the user");
 
@@ -229,7 +231,7 @@ export function authorizeBusCall(
     case "schedule_wakeup": {
       const target = scheduleTarget(facts, call.args.thread_id, limits);
 
-      if (typeof target === "string") return deny(target);
+      if (Result.isFailure(target)) return deny(target.failure);
       const { delay_seconds: delay, at } = call.args;
 
       if ((delay === undefined) === (at === undefined)) return deny("set exactly one of delay_seconds or at");
@@ -249,7 +251,7 @@ export function authorizeBusCall(
     case "schedule_recurring": {
       const target = scheduleTarget(facts, call.args.thread_id, limits);
 
-      if (typeof target === "string") return deny(target);
+      if (Result.isFailure(target)) return deny(target.failure);
       const cron = checkCron(call.args.cron, limits.minCronMinutes);
 
       if (cron) return deny(cron);
@@ -283,7 +285,7 @@ export function authorizeBusCall(
       if (id === undefined || id === caller.id) return allow;
       const target = sameOwner(facts, id);
 
-      return typeof target === "string" ? deny(target) : allow;
+      return Result.isFailure(target) ? deny(target.failure) : allow;
     }
 
     case "stop_background_task": {
@@ -292,7 +294,7 @@ export function authorizeBusCall(
       if (id === undefined || id === caller.id) return allow;
       const target = descendant(facts, id);
 
-      return typeof target === "string" ? deny(target) : allow;
+      return Result.isFailure(target) ? deny(target.failure) : allow;
     }
 
     case "cancel_schedule": {
@@ -304,7 +306,7 @@ export function authorizeBusCall(
       if (schedule.threadId === caller.id) return allow;
       const owner = descendant(facts, schedule.threadId);
 
-      return typeof owner === "string" ? deny(`schedule ${schedule.id} not found`) : allow;
+      return Result.isFailure(owner) ? deny(`schedule ${schedule.id} not found`) : allow;
     }
   }
 }
@@ -315,44 +317,46 @@ export function permissionRank(mode: SpawnPermissionMode): number {
 }
 
 /** Target in the caller's tree, or the reason why not. Unknown and foreign threads look the same. */
-function inTree(facts: BusFacts, id: string): ThreadNode | string {
-  if (id === facts.caller.id) return "a thread cannot address itself";
+function inTree(facts: BusFacts, id: string): Result.Result<ThreadNode, string> {
+  if (id === facts.caller.id) return Result.fail("a thread cannot address itself");
   const target = facts.targets.get(id);
 
-  if (!target || target.rootId !== facts.caller.rootId) return `thread ${id} not found in your thread tree`;
+  if (!target || target.rootId !== facts.caller.rootId)
+    return Result.fail(`thread ${id} not found in your thread tree`);
 
-  return target;
+  return Result.succeed(target);
 }
 
 /** Any thread of the caller's owner (the user writes to any of them; so may their agents), or the reason why not. */
-function sameOwner(facts: BusFacts, id: string): ThreadNode | string {
-  if (id === facts.caller.id) return "a thread cannot address itself";
+function sameOwner(facts: BusFacts, id: string): Result.Result<ThreadNode, string> {
+  if (id === facts.caller.id) return Result.fail("a thread cannot address itself");
   const target = facts.targets.get(id);
 
-  if (!target || target.ownerId !== facts.caller.ownerId) return `thread ${id} not found`;
+  if (!target || target.ownerId !== facts.caller.ownerId) return Result.fail(`thread ${id} not found`);
 
-  return target;
+  return Result.succeed(target);
 }
 
-function descendant(facts: BusFacts, id: string): ThreadNode | string {
+function descendant(facts: BusFacts, id: string): Result.Result<ThreadNode, string> {
   const target = inTree(facts, id);
 
-  if (typeof target === "string") return target;
+  if (Result.isFailure(target)) return target;
 
-  if (!target.ancestorIds.includes(facts.caller.id)) return "you can only control threads you spawned";
+  if (!target.success.ancestorIds.includes(facts.caller.id))
+    return Result.fail("you can only control threads you spawned");
 
   return target;
 }
 
-function scheduleTarget(facts: BusFacts, id: string | undefined, limits: BusLimits): ThreadNode | string {
-  const target = id === undefined || id === facts.caller.id ? facts.caller : descendant(facts, id);
+function scheduleTarget(facts: BusFacts, id: string | undefined, limits: BusLimits): Result.Result<ThreadNode, string> {
+  const target = id === undefined || id === facts.caller.id ? Result.succeed(facts.caller) : descendant(facts, id);
 
-  if (typeof target === "string") return target;
+  if (Result.isFailure(target)) return target;
 
-  if (target.archived) return "target thread is archived";
+  if (target.success.archived) return Result.fail("target thread is archived");
 
   if ((facts.targetSchedules ?? 0) >= limits.maxSchedulesPerThread) {
-    return `schedule limit (${limits.maxSchedulesPerThread}) reached for this thread`;
+    return Result.fail(`schedule limit (${limits.maxSchedulesPerThread}) reached for this thread`);
   }
 
   return target;

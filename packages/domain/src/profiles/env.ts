@@ -74,7 +74,7 @@ export function envNameProblem(kind: ProfileKind, name: string): string | undefi
   const upper = name.toUpperCase();
 
   if (deniedEnvNames(kind).includes(upper)) {
-    return (ENDPOINT_DENIED as readonly string[]).includes(upper)
+    return ENDPOINT_DENIED.some((denied) => denied === upper)
       ? `${name} is set by the profile's endpoint and key`
       : `${name} is controlled by the worker`;
   }

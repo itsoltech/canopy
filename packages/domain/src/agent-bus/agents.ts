@@ -5,6 +5,8 @@
  * list_agents alike.
  */
 
+import { Result } from "effect";
+
 export type Harness = "claude" | "codex" | "grok";
 
 export interface SpawnModel {
@@ -52,8 +54,8 @@ export type SpawnResolution =
 export const agentKey = (target: Pick<SpawnTarget, "harness" | "instance">): string =>
   `${target.harness}/${target.instance || "native"}`;
 
-const HARNESSES: readonly Harness[] = ["claude", "codex", "grok"];
-const isHarness = (value: string): value is Harness => (HARNESSES as readonly string[]).includes(value);
+const HARNESS_NAMES = { claude: "Claude", codex: "Codex", grok: "Grok" } as const satisfies Record<Harness, string>;
+const isHarness = (value: string): value is Harness => Object.hasOwn(HARNESS_NAMES, value);
 
 /**
  * The target of spawn_thread. Without `provider` (or naming the caller's own instance) the subagent runs where the
@@ -82,8 +84,8 @@ export function resolveSpawnTarget(
   if (args.provider !== undefined) {
     const found = findInstance(args.provider.trim().toLowerCase(), own, instances);
 
-    if (typeof found === "string") return fail(found);
-    chosen = found;
+    if (Result.isFailure(found)) return fail(found.failure);
+    chosen = found.success;
   }
 
   const same = !chosen || (chosen.harness === own.harness && chosen.id === own.instance);
@@ -127,7 +129,7 @@ function findInstance(
   wanted: string,
   own: { harness: Harness; instance: string },
   instances: readonly SpawnInstance[] | undefined,
-): SpawnInstance | string {
+): Result.Result<SpawnInstance, string> {
   const [first = "", second] = wanted.split(/[/:]/, 2);
 
   const isOwn =
@@ -136,43 +138,47 @@ function findInstance(
       : first === own.harness && second === own.instance;
 
   if (isOwn)
-    return (
+    return Result.succeed(
       instances?.find((i) => i.harness === own.harness && i.id === own.instance) ?? {
         harness: own.harness,
         id: own.instance,
         label: "",
         available: true,
         complete: false,
-      }
+      },
     );
 
   if (!instances)
-    return `the worker has not reported its providers yet: omit provider to start a copy of yourself (${agentKey(own)})`;
+    return Result.fail(
+      `the worker has not reported its providers yet: omit provider to start a copy of yourself (${agentKey(own)})`,
+    );
   const unknown = `no provider "${wanted}" on this worker; call list_agents for the ones you can start`;
 
-  if (second !== undefined) {
-    if (!isHarness(first)) return unknown;
+  const found = (instance: SpawnInstance | undefined) =>
+    instance === undefined ? Result.fail(unknown) : Result.succeed(instance);
 
-    return instances.find((i) => i.harness === first && i.id === second) ?? unknown;
+  if (second !== undefined) {
+    if (!isHarness(first)) return Result.fail(unknown);
+
+    return found(instances.find((i) => i.harness === first && i.id === second));
   }
 
   if (isHarness(first)) {
     const ofHarness = instances.filter((i) => i.harness === first);
 
-    return (
-      ofHarness.find((i) => i.id === "native" && i.available) ??
-      ofHarness.find((i) => i.available) ??
-      ofHarness[0] ??
-      unknown
+    return found(
+      ofHarness.find((i) => i.id === "native" && i.available) ?? ofHarness.find((i) => i.available) ?? ofHarness[0],
     );
   }
 
   const byId = instances.filter((i) => i.id === first);
 
   if (byId.length > 1)
-    return `"${wanted}" is an instance of several providers: say ${byId.map((i) => agentKey({ harness: i.harness, instance: i.id })).join(" or ")}`;
+    return Result.fail(
+      `"${wanted}" is an instance of several providers: say ${byId.map((i) => agentKey({ harness: i.harness, instance: i.id })).join(" or ")}`,
+    );
 
-  return byId[0] ?? unknown;
+  return found(byId[0]);
 }
 
 function findModel(instance: SpawnInstance, model: string): SpawnModel | undefined {
@@ -199,7 +205,6 @@ function modelProblem(instance: SpawnInstance, model: string, effort: string): s
 /** list_agents: what spawn_thread can start, compact enough for a model to choose from. */
 export function agentCatalog(caller: SpawnTarget, instances: readonly SpawnInstance[] | undefined) {
   const you = agentKey({ harness: caller.harness, instance: caller.instance });
-  const harnessName = (h: Harness) => (h === "claude" ? "Claude" : h === "grok" ? "Grok" : "Codex");
 
   const agents = (instances ?? [])
     .filter((i) => i.available)
@@ -208,7 +213,7 @@ export function agentCatalog(caller: SpawnTarget, instances: readonly SpawnInsta
 
       return {
         provider: agentKey({ harness: i.harness, instance: i.id }),
-        name: `${harnessName(i.harness)} · ${i.label || (i.id === "native" ? "device login" : i.id)}`,
+        name: `${HARNESS_NAMES[i.harness]} · ${i.label || (i.id === "native" ? "device login" : i.id)}`,
         models: models.slice(0, 40).map((m) => ({
           id: m.id,
           ...(m.label && m.label !== m.id && { name: m.label }),

@@ -29,6 +29,7 @@ export function safeFileName(name: string): string {
 
   let clean = base
     .normalize("NFC")
+    // oxlint-disable-next-line no-control-regex -- the sanitizer strips C0/C1 control characters from file names on purpose.
     .replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, "")
     .replace(/[<>:"|?*]/g, "_")
     .replace(/\s+/g, " ")

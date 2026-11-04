@@ -1,4 +1,4 @@
-import { Result, Schema } from "effect";
+import { Match, Result, Schema } from "effect";
 
 const Text = (max: number) => Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(max));
 
@@ -94,6 +94,11 @@ const Answer = Schema.Union([
 
 export type UserAnswer = Schema.Schema.Type<typeof Answer>;
 
+const Answers = Schema.Struct({ answers: Schema.Array(Answer) });
+
+/** Stored answers: written only after decodeUserAnswers accepted them. */
+const decodeStoredAnswers = Schema.decodeUnknownSync(Schema.fromJsonString(Answers));
+
 export function decodeUserAnswers(
   json: string,
   questions: readonly UserQuestion[],
@@ -106,7 +111,7 @@ export function decodeUserAnswers(
     return Result.fail("answers must be valid JSON");
   }
 
-  const decoded = Schema.decodeUnknownResult(Schema.Struct({ answers: Schema.Array(Answer) }))(value, {
+  const decoded = Schema.decodeUnknownResult(Answers)(value, {
     onExcessProperty: "error",
   });
 
@@ -140,10 +145,14 @@ export function decodeUserAnswers(
 export function questionResult(id: string, status: string, response: { answerJson?: string } | null) {
   return {
     question_set_id: id,
-    status: status === "pending" ? "pending" : status === "cancelled" ? "dismissed" : "answered",
+    status: Match.value(status).pipe(
+      Match.when("pending", () => "pending" as const),
+      Match.when("cancelled", () => "dismissed" as const),
+      Match.orElse(() => "answered" as const),
+    ),
     answers:
       status === "answered" && response?.answerJson
-        ? (JSON.parse(response.answerJson) as { answers: UserAnswer[] }).answers.map((answer) =>
+        ? decodeStoredAnswers(response.answerJson).answers.map((answer) =>
             answer.kind === "choice" ? { ...answer, labels: [...answer.labels] } : { ...answer },
           )
         : [],
@@ -169,8 +178,13 @@ export function questionAnswerInput(
           .map((answer) => {
             const header = questions.find((q) => q.id === answer.id)?.header ?? answer.id;
 
-            const value =
-              answer.kind === "choice" ? answer.labels.join(", ") : answer.kind === "text" ? answer.text : "Skipped";
+            const value = Match.value(answer).pipe(
+              Match.discriminatorsExhaustive("kind")({
+                choice: (choice) => choice.labels.join(", "),
+                text: (text) => text.text,
+                skipped: () => "Skipped",
+              }),
+            );
 
             return `${header}: ${value}`;
           })

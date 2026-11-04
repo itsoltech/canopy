@@ -63,7 +63,7 @@ export function goalStatusFromHarness(
     return current === "paused" && status === "active" ? "paused" : status;
   }
 
-  switch (nativeStatus as ClaudeGoalStatus) {
+  switch (nativeStatus) {
     case "met":
       return "achieved";
     case "failed":

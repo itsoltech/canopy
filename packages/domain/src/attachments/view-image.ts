@@ -30,19 +30,17 @@ export function viewImageSpec(): ToolJsonSpec {
   return {
     name: VIEW_IMAGE_TOOL,
     description: VIEW_IMAGE_DESCRIPTION,
-    inputSchema: document.schema as Record<string, unknown>,
+    inputSchema: document.schema,
   };
 }
 
-export function decodeViewImage(argumentsJson: string | unknown): Result.Result<ViewImageArgs, string> {
-  let raw: unknown = argumentsJson;
+export function decodeViewImage(argumentsJson: string): Result.Result<ViewImageArgs, string> {
+  let raw: unknown;
 
-  if (typeof argumentsJson === "string") {
-    try {
-      raw = argumentsJson.trim() === "" ? {} : JSON.parse(argumentsJson);
-    } catch {
-      return Result.fail(`${VIEW_IMAGE_TOOL}: arguments are not valid JSON`);
-    }
+  try {
+    raw = argumentsJson.trim() === "" ? {} : JSON.parse(argumentsJson);
+  } catch {
+    return Result.fail(`${VIEW_IMAGE_TOOL}: arguments are not valid JSON`);
   }
 
   const decoded = Schema.decodeUnknownResult(ViewImage)(raw, { onExcessProperty: "error" });

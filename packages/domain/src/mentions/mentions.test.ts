@@ -6,15 +6,17 @@ import { checkMentions, composeMessage, MentionError, mentionLabel, mentionPlace
 
 const THREAD = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
 
+type Part = string | { kind: MentionKind; name: string; label?: string; path?: string; source?: string };
+
+const isText = (part: Part): part is string => typeof part === "string";
+
 /** Builds a message from parts: strings are text, objects are mentions placed at their position. */
-function message(
-  ...parts: (string | { kind: MentionKind; name: string; label?: string; path?: string; source?: string })[]
-): { text: string; mentions: Mention[] } {
+function message(...parts: Part[]) {
   let text = "";
   const mentions: Mention[] = [];
 
   for (const part of parts) {
-    if (typeof part === "string") {
+    if (isText(part)) {
       text += part;
       continue;
     }
