@@ -19,6 +19,10 @@ export class GatewayCapabilities {
   message = $state("");
   methods = $state<string[]>();
   linkedComputers = $state(false);
+  /** The gateway runs inside this desktop app (local mode): only the desktop role offers linked computers. */
+  get ownGateway() {
+    return this.linkedComputers;
+  }
   get incompatible() {
     return ["gateway-update", "app-update", "pairing"].includes(this.state);
   }
