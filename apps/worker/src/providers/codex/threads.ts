@@ -457,9 +457,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     yield* Effect.forkScoped(
       codex.notifications.pipe(
         Stream.runForEach((notification) => {
-          const threadId = Schema.decodeUnknownSync(Schema.Struct({ threadId: Schema.optionalKey(Schema.String) }))(
-            notification.params,
-          ).threadId;
+          const threadId = jsonString(jsonObject(decodeJson(notification.params ?? null))?.["threadId"]);
 
           const entry = threadId ? byCodex.get(threadId) : undefined;
 

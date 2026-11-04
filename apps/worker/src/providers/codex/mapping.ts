@@ -14,7 +14,6 @@ import {
 } from "@canopy/contracts";
 import { isAgentBusTool, isPlatformServer, VIEW_IMAGE_TOOL } from "@canopy/domain";
 import type { JsonObject, JsonValue } from "@canopy/domain";
-import { Schema } from "effect";
 import { decodeJson, decodeJsonObject, isString, isNumber, jsonObject, jsonString } from "../json.ts";
 import type { TurnEnd } from "../harness-record.ts";
 import type { ThreadEventInit } from "../../journal/index.ts";
@@ -306,11 +305,9 @@ export class CodexEventMapper {
         return this.#responseItem(event, notification.params.turnId, notification.params.item);
       default: {
         // Hooks, read state, moderation metadata, diffs, ...: kept raw for the timeline and later projections.
-        const turnId = Schema.decodeUnknownSync(Schema.Struct({ turnId: Schema.optionalKey(Schema.String) }))(
-          notification.params,
-        ).turnId;
+        const turnId = jsonObject(decodeJson(notification.params ?? null))?.["turnId"];
 
-        return [event(turnId, undefined)];
+        return [event(isString(turnId) ? turnId : undefined, undefined)];
       }
     }
   }
