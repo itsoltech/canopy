@@ -98,7 +98,10 @@
       "entitlements": "resources/entitlements.mac.plist",
       "entitlementsInherit": "resources/entitlements.inherit.plist",
       "preAutoEntitlements": false,
-      "strictVerify": true
+      "strictVerify": true,
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Canopy finds your linked computers on this network to connect to them directly."
+      }
     },
     "win": {
       "target": [{

@@ -165,7 +165,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode",
       "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage", "22_thread_titles", "23_agent_senders",
       "24_background_task_notes", "25_ask_user", "26_sidebar_threads", "27_schedules_new_thread", "28_archive_cascade", "29_schedule_edit", "30_bus_notify_delivery",
-      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider", "44_worker_enrollment", "45_bot_handoffs", "46_mobile_devices", "47_worker_ssh", "48_linked_computers", "49_thread_mirrors", "50_shared_config", "51_linked_agents",
+      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider", "44_worker_enrollment", "45_bot_handoffs", "46_mobile_devices", "47_worker_ssh", "48_linked_computers", "49_thread_mirrors", "50_shared_config", "51_linked_agents", "52_computer_routes",
     ]);
   }, 60_000);
 
@@ -803,6 +803,21 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(await query(`SELECT 1 FROM computer_shared_acks WHERE owner_user_id = $1`, [w.user])).toHaveLength(0);
       expect(await query(`SELECT 1 FROM computer_shared_conflicts WHERE owner_user_id = $1`, [w.user])).toHaveLength(0);
       expect(await query(`SELECT shared FROM computer_shared_items WHERE owner_user_id = $1`, [w.user])).toEqual([{ shared: true }]);
+    });
+  });
+
+  describe("computer routes (0052)", () => {
+    test("routes have a known source, belong to a linked computer and go away with it", async () => {
+      const w = await world();
+      const node = `peer-${id()}`;
+      await query(`INSERT INTO computer_peers (owner_user_id, node_id, name, certificate, fingerprint) VALUES ($1, $2, 'B', 'c', 'f')`, [w.user, node]);
+      const insert = `INSERT INTO computer_routes (owner_user_id, node_id, address, source) VALUES ($1, $2, $3, $4)`;
+      await query(insert, [w.user, node, "https://192.168.1.20:4100", "lan"]);
+      await query(insert, [w.user, node, "https://laptop.example:4100", "manual"]);
+      expect(await failure(insert, [w.user, node, "https://10.0.0.2:4100", "guessed"])).toContain("computer_routes_source_check");
+      expect(await failure(insert, [w.user, "unknown", "https://10.0.0.2:4100", "lan"])).toContain("foreign key");
+      await query(`DELETE FROM computer_peers WHERE owner_user_id = $1 AND node_id = $2`, [w.user, node]);
+      expect(await query(`SELECT 1 FROM computer_routes WHERE owner_user_id = $1`, [w.user])).toHaveLength(0);
     });
   });
 

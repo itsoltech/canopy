@@ -17,6 +17,18 @@ message LinkedComputer {
   string display_name = 13;
   // Features of the live connection (stage 2: "remote_threads"); empty while not connected.
   repeated string capabilities = 14;
+  // Stage 6: every known way to reach this computer, in the order connecting tries them.
+  repeated ComputerRoute routes = 15;
+}
+message ComputerRoute {
+  string address = 1;
+  // manual, lan (found on the local network), announced (sent by the computer over the link)
+  string source = 2;
+  int64 added_at_ms = 3;
+  int64 last_success_ms = 4;
+  int64 last_failure_ms = 5;
+  // Duration of the last successful pinned TLS handshake; 0 when unknown.
+  uint32 latency_ms = 6;
 }
 message ComputersRequest {}
 message ComputersSnapshot {
@@ -24,6 +36,12 @@ message ComputersSnapshot {
   repeated LinkedComputer peers = 2;
   bool listener_enabled = 3;
   bool listener_available = 4;
+  // Stage 6: local network discovery of linked computers (a setting of this computer).
+  bool lan_discovery_enabled = 5;
+  // active, off, unavailable
+  string lan_discovery_state = 6;
+  // Why discovery is unavailable or limited, in the words the UI shows.
+  string lan_discovery_note = 7;
 }
 message CreateComputerPairingRequest {}
 message ComputerPairing {
@@ -34,11 +52,14 @@ message ComputerPairing {
 }
 message LinkComputerRequest { string address = 1; string code = 2; }
 message ComputerOperationRequest {
-  // rename, unlink, listener, revoke_pairing, presence. Empty node_id is self.
+  // rename, unlink, listener, revoke_pairing, presence, lan_discovery, add_route, remove_route.
+  // Empty node_id is self.
   string action = 1;
   string node_id = 2;
   string name = 3;
   bool enabled = 4;
+  // add_route / remove_route: an HTTPS origin of the linked computer.
+  string address = 5;
 }
 
 // Stage 4: configuration shared between linked computers. Items are opt-in; everything else stays

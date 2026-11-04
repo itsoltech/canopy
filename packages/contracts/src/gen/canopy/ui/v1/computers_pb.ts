@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/computers.proto.
  */
 export const file_canopy_ui_v1_computers: GenFile = /*@__PURE__*/
-  fileDesc("ChxjYW5vcHkvdWkvdjEvY29tcHV0ZXJzLnByb3RvEgxjYW5vcHkudWkudjEisQIKDkxpbmtlZENvbXB1dGVyEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglhZGRyZXNzZXMYAyADKAkSEwoLZmluZ2VycHJpbnQYBCABKAkSEwoLYXBwX3ZlcnNpb24YBSABKAkSFAoMbWluX3Byb3RvY29sGAYgASgNEhQKDG1heF9wcm90b2NvbBgHIAEoDRIOCgZzdGF0dXMYCCABKAkSFwoPc3RhdHVzX3NpbmNlX21zGAkgASgDEhQKDGxhc3Rfc2Vlbl9tcxgKIAEoAxIUCgxsaW5rZWRfYXRfbXMYCyABKAMSFgoOdXBkYXRlX25vZGVfaWQYDCABKAkSFAoMZGlzcGxheV9uYW1lGA0gASgJEhQKDGNhcGFiaWxpdGllcxgOIAMoCSISChBDb21wdXRlcnNSZXF1ZXN0IqIBChFDb21wdXRlcnNTbmFwc2hvdBIqCgRzZWxmGAEgASgLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyEisKBXBlZXJzGAIgAygLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyEhgKEGxpc3RlbmVyX2VuYWJsZWQYAyABKAgSGgoSbGlzdGVuZXJfYXZhaWxhYmxlGAQgASgIIh4KHENyZWF0ZUNvbXB1dGVyUGFpcmluZ1JlcXVlc3QiVQoPQ29tcHV0ZXJQYWlyaW5nEgoKAmlkGAEgASgJEgwKBGNvZGUYAiABKAkSFQoNZXhwaXJlc19hdF9tcxgDIAEoAxIRCglhZGRyZXNzZXMYBCADKAkiNAoTTGlua0NvbXB1dGVyUmVxdWVzdBIPCgdhZGRyZXNzGAEgASgJEgwKBGNvZGUYAiABKAkiWgoYQ29tcHV0ZXJPcGVyYXRpb25SZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIPCgdub2RlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSDwoHZW5hYmxlZBgEIAEoCCK0AQoQU2hhcmVkQ29uZmlnSXRlbRILCgNrZXkYASABKAkSDAoEa2luZBgCIAEoCRINCgVsYWJlbBgDIAEoCRIOCgZzaGFyZWQYBCABKAgSDwoHdmVyc2lvbhgFIAEoBBIaChJjaGFuZ2VkX2J5X25vZGVfaWQYBiABKAkSFQoNY2hhbmdlZF9hdF9tcxgHIAEoAxIMCgRub3RlGAggASgJEhQKDG5vdGVfbm9kZV9pZBgJIAEoCSJAChFTaGFyZWRDb25maWdGaWVsZBIMCgRuYW1lGAEgASgJEg0KBWxvY2FsGAIgASgJEg4KBnJlbW90ZRgDIAEoCSK4AQoUU2hhcmVkQ29uZmlnQ29uZmxpY3QSCwoDa2V5GAEgASgJEgwKBGtpbmQYAiABKAkSDQoFbGFiZWwYAyABKAkSDwoHbm9kZV9pZBgEIAEoCRIWCg5kZXRlY3RlZF9hdF9tcxgFIAEoAxIcChRyZW1vdGVfY2hhbmdlZF9hdF9tcxgGIAEoAxIvCgZmaWVsZHMYByADKAsyHy5jYW5vcHkudWkudjEuU2hhcmVkQ29uZmlnRmllbGQimwEKFFNoYXJlZENvbmZpZ1NuYXBzaG90Ei0KBWl0ZW1zGAEgAygLMh4uY2Fub3B5LnVpLnYxLlNoYXJlZENvbmZpZ0l0ZW0SNQoJY29uZmxpY3RzGAIgAygLMiIuY2Fub3B5LnVpLnYxLlNoYXJlZENvbmZpZ0NvbmZsaWN0Eh0KFW5lZWRzX3VwZGF0ZV9ub2RlX2lkcxgDIAMoCSIVChNTaGFyZWRDb25maWdSZXF1ZXN0IkUKFVNoYXJlZENvbmZpZ09wZXJhdGlvbhIOCgZhY3Rpb24YASABKAkSCwoDa2V5GAIgASgJEg8KB25vZGVfaWQYAyABKAliBnByb3RvMw");
+  fileDesc("ChxjYW5vcHkvdWkvdjEvY29tcHV0ZXJzLnByb3RvEgxjYW5vcHkudWkudjEi3gIKDkxpbmtlZENvbXB1dGVyEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglhZGRyZXNzZXMYAyADKAkSEwoLZmluZ2VycHJpbnQYBCABKAkSEwoLYXBwX3ZlcnNpb24YBSABKAkSFAoMbWluX3Byb3RvY29sGAYgASgNEhQKDG1heF9wcm90b2NvbBgHIAEoDRIOCgZzdGF0dXMYCCABKAkSFwoPc3RhdHVzX3NpbmNlX21zGAkgASgDEhQKDGxhc3Rfc2Vlbl9tcxgKIAEoAxIUCgxsaW5rZWRfYXRfbXMYCyABKAMSFgoOdXBkYXRlX25vZGVfaWQYDCABKAkSFAoMZGlzcGxheV9uYW1lGA0gASgJEhQKDGNhcGFiaWxpdGllcxgOIAMoCRIrCgZyb3V0ZXMYDyADKAsyGy5jYW5vcHkudWkudjEuQ29tcHV0ZXJSb3V0ZSKLAQoNQ29tcHV0ZXJSb3V0ZRIPCgdhZGRyZXNzGAEgASgJEg4KBnNvdXJjZRgCIAEoCRITCgthZGRlZF9hdF9tcxgDIAEoAxIXCg9sYXN0X3N1Y2Nlc3NfbXMYBCABKAMSFwoPbGFzdF9mYWlsdXJlX21zGAUgASgDEhIKCmxhdGVuY3lfbXMYBiABKA0iEgoQQ29tcHV0ZXJzUmVxdWVzdCL6AQoRQ29tcHV0ZXJzU25hcHNob3QSKgoEc2VsZhgBIAEoCzIcLmNhbm9weS51aS52MS5MaW5rZWRDb21wdXRlchIrCgVwZWVycxgCIAMoCzIcLmNhbm9weS51aS52MS5MaW5rZWRDb21wdXRlchIYChBsaXN0ZW5lcl9lbmFibGVkGAMgASgIEhoKEmxpc3RlbmVyX2F2YWlsYWJsZRgEIAEoCBIdChVsYW5fZGlzY292ZXJ5X2VuYWJsZWQYBSABKAgSGwoTbGFuX2Rpc2NvdmVyeV9zdGF0ZRgGIAEoCRIaChJsYW5fZGlzY292ZXJ5X25vdGUYByABKAkiHgocQ3JlYXRlQ29tcHV0ZXJQYWlyaW5nUmVxdWVzdCJVCg9Db21wdXRlclBhaXJpbmcSCgoCaWQYASABKAkSDAoEY29kZRgCIAEoCRIVCg1leHBpcmVzX2F0X21zGAMgASgDEhEKCWFkZHJlc3NlcxgEIAMoCSI0ChNMaW5rQ29tcHV0ZXJSZXF1ZXN0Eg8KB2FkZHJlc3MYASABKAkSDAoEY29kZRgCIAEoCSJrChhDb21wdXRlck9wZXJhdGlvblJlcXVlc3QSDgoGYWN0aW9uGAEgASgJEg8KB25vZGVfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRIPCgdlbmFibGVkGAQgASgIEg8KB2FkZHJlc3MYBSABKAkitAEKEFNoYXJlZENvbmZpZ0l0ZW0SCwoDa2V5GAEgASgJEgwKBGtpbmQYAiABKAkSDQoFbGFiZWwYAyABKAkSDgoGc2hhcmVkGAQgASgIEg8KB3ZlcnNpb24YBSABKAQSGgoSY2hhbmdlZF9ieV9ub2RlX2lkGAYgASgJEhUKDWNoYW5nZWRfYXRfbXMYByABKAMSDAoEbm90ZRgIIAEoCRIUCgxub3RlX25vZGVfaWQYCSABKAkiQAoRU2hhcmVkQ29uZmlnRmllbGQSDAoEbmFtZRgBIAEoCRINCgVsb2NhbBgCIAEoCRIOCgZyZW1vdGUYAyABKAkiuAEKFFNoYXJlZENvbmZpZ0NvbmZsaWN0EgsKA2tleRgBIAEoCRIMCgRraW5kGAIgASgJEg0KBWxhYmVsGAMgASgJEg8KB25vZGVfaWQYBCABKAkSFgoOZGV0ZWN0ZWRfYXRfbXMYBSABKAMSHAoUcmVtb3RlX2NoYW5nZWRfYXRfbXMYBiABKAMSLwoGZmllbGRzGAcgAygLMh8uY2Fub3B5LnVpLnYxLlNoYXJlZENvbmZpZ0ZpZWxkIpsBChRTaGFyZWRDb25maWdTbmFwc2hvdBItCgVpdGVtcxgBIAMoCzIeLmNhbm9weS51aS52MS5TaGFyZWRDb25maWdJdGVtEjUKCWNvbmZsaWN0cxgCIAMoCzIiLmNhbm9weS51aS52MS5TaGFyZWRDb25maWdDb25mbGljdBIdChVuZWVkc191cGRhdGVfbm9kZV9pZHMYAyADKAkiFQoTU2hhcmVkQ29uZmlnUmVxdWVzdCJFChVTaGFyZWRDb25maWdPcGVyYXRpb24SDgoGYWN0aW9uGAEgASgJEgsKA2tleRgCIAEoCRIPCgdub2RlX2lkGAMgASgJYgZwcm90bzM");
 
 /**
  * @generated from message canopy.ui.v1.LinkedComputer
@@ -87,6 +87,13 @@ export type LinkedComputer = Message<"canopy.ui.v1.LinkedComputer"> & {
    * @generated from field: repeated string capabilities = 14;
    */
   capabilities: string[];
+
+  /**
+   * Stage 6: every known way to reach this computer, in the order connecting tries them.
+   *
+   * @generated from field: repeated canopy.ui.v1.ComputerRoute routes = 15;
+   */
+  routes: ComputerRoute[];
 };
 
 /**
@@ -95,6 +102,52 @@ export type LinkedComputer = Message<"canopy.ui.v1.LinkedComputer"> & {
  */
 export const LinkedComputerSchema: GenMessage<LinkedComputer> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_computers, 0);
+
+/**
+ * @generated from message canopy.ui.v1.ComputerRoute
+ */
+export type ComputerRoute = Message<"canopy.ui.v1.ComputerRoute"> & {
+  /**
+   * @generated from field: string address = 1;
+   */
+  address: string;
+
+  /**
+   * manual, lan (found on the local network), announced (sent by the computer over the link)
+   *
+   * @generated from field: string source = 2;
+   */
+  source: string;
+
+  /**
+   * @generated from field: int64 added_at_ms = 3;
+   */
+  addedAtMs: bigint;
+
+  /**
+   * @generated from field: int64 last_success_ms = 4;
+   */
+  lastSuccessMs: bigint;
+
+  /**
+   * @generated from field: int64 last_failure_ms = 5;
+   */
+  lastFailureMs: bigint;
+
+  /**
+   * Duration of the last successful pinned TLS handshake; 0 when unknown.
+   *
+   * @generated from field: uint32 latency_ms = 6;
+   */
+  latencyMs: number;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ComputerRoute.
+ * Use `create(ComputerRouteSchema)` to create a new message.
+ */
+export const ComputerRouteSchema: GenMessage<ComputerRoute> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 1);
 
 /**
  * @generated from message canopy.ui.v1.ComputersRequest
@@ -107,7 +160,7 @@ export type ComputersRequest = Message<"canopy.ui.v1.ComputersRequest"> & {
  * Use `create(ComputersRequestSchema)` to create a new message.
  */
 export const ComputersRequestSchema: GenMessage<ComputersRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 1);
+  messageDesc(file_canopy_ui_v1_computers, 2);
 
 /**
  * @generated from message canopy.ui.v1.ComputersSnapshot
@@ -132,6 +185,27 @@ export type ComputersSnapshot = Message<"canopy.ui.v1.ComputersSnapshot"> & {
    * @generated from field: bool listener_available = 4;
    */
   listenerAvailable: boolean;
+
+  /**
+   * Stage 6: local network discovery of linked computers (a setting of this computer).
+   *
+   * @generated from field: bool lan_discovery_enabled = 5;
+   */
+  lanDiscoveryEnabled: boolean;
+
+  /**
+   * active, off, unavailable
+   *
+   * @generated from field: string lan_discovery_state = 6;
+   */
+  lanDiscoveryState: string;
+
+  /**
+   * Why discovery is unavailable or limited, in the words the UI shows.
+   *
+   * @generated from field: string lan_discovery_note = 7;
+   */
+  lanDiscoveryNote: string;
 };
 
 /**
@@ -139,7 +213,7 @@ export type ComputersSnapshot = Message<"canopy.ui.v1.ComputersSnapshot"> & {
  * Use `create(ComputersSnapshotSchema)` to create a new message.
  */
 export const ComputersSnapshotSchema: GenMessage<ComputersSnapshot> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 2);
+  messageDesc(file_canopy_ui_v1_computers, 3);
 
 /**
  * @generated from message canopy.ui.v1.CreateComputerPairingRequest
@@ -152,7 +226,7 @@ export type CreateComputerPairingRequest = Message<"canopy.ui.v1.CreateComputerP
  * Use `create(CreateComputerPairingRequestSchema)` to create a new message.
  */
 export const CreateComputerPairingRequestSchema: GenMessage<CreateComputerPairingRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 3);
+  messageDesc(file_canopy_ui_v1_computers, 4);
 
 /**
  * @generated from message canopy.ui.v1.ComputerPairing
@@ -184,7 +258,7 @@ export type ComputerPairing = Message<"canopy.ui.v1.ComputerPairing"> & {
  * Use `create(ComputerPairingSchema)` to create a new message.
  */
 export const ComputerPairingSchema: GenMessage<ComputerPairing> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 4);
+  messageDesc(file_canopy_ui_v1_computers, 5);
 
 /**
  * @generated from message canopy.ui.v1.LinkComputerRequest
@@ -206,14 +280,15 @@ export type LinkComputerRequest = Message<"canopy.ui.v1.LinkComputerRequest"> & 
  * Use `create(LinkComputerRequestSchema)` to create a new message.
  */
 export const LinkComputerRequestSchema: GenMessage<LinkComputerRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 5);
+  messageDesc(file_canopy_ui_v1_computers, 6);
 
 /**
  * @generated from message canopy.ui.v1.ComputerOperationRequest
  */
 export type ComputerOperationRequest = Message<"canopy.ui.v1.ComputerOperationRequest"> & {
   /**
-   * rename, unlink, listener, revoke_pairing, presence. Empty node_id is self.
+   * rename, unlink, listener, revoke_pairing, presence, lan_discovery, add_route, remove_route.
+   * Empty node_id is self.
    *
    * @generated from field: string action = 1;
    */
@@ -233,6 +308,13 @@ export type ComputerOperationRequest = Message<"canopy.ui.v1.ComputerOperationRe
    * @generated from field: bool enabled = 4;
    */
   enabled: boolean;
+
+  /**
+   * add_route / remove_route: an HTTPS origin of the linked computer.
+   *
+   * @generated from field: string address = 5;
+   */
+  address: string;
 };
 
 /**
@@ -240,7 +322,7 @@ export type ComputerOperationRequest = Message<"canopy.ui.v1.ComputerOperationRe
  * Use `create(ComputerOperationRequestSchema)` to create a new message.
  */
 export const ComputerOperationRequestSchema: GenMessage<ComputerOperationRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 6);
+  messageDesc(file_canopy_ui_v1_computers, 7);
 
 /**
  * Stage 4: configuration shared between linked computers. Items are opt-in; everything else stays
@@ -308,7 +390,7 @@ export type SharedConfigItem = Message<"canopy.ui.v1.SharedConfigItem"> & {
  * Use `create(SharedConfigItemSchema)` to create a new message.
  */
 export const SharedConfigItemSchema: GenMessage<SharedConfigItem> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 7);
+  messageDesc(file_canopy_ui_v1_computers, 8);
 
 /**
  * @generated from message canopy.ui.v1.SharedConfigField
@@ -335,7 +417,7 @@ export type SharedConfigField = Message<"canopy.ui.v1.SharedConfigField"> & {
  * Use `create(SharedConfigFieldSchema)` to create a new message.
  */
 export const SharedConfigFieldSchema: GenMessage<SharedConfigField> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 8);
+  messageDesc(file_canopy_ui_v1_computers, 9);
 
 /**
  * @generated from message canopy.ui.v1.SharedConfigConflict
@@ -384,7 +466,7 @@ export type SharedConfigConflict = Message<"canopy.ui.v1.SharedConfigConflict"> 
  * Use `create(SharedConfigConflictSchema)` to create a new message.
  */
 export const SharedConfigConflictSchema: GenMessage<SharedConfigConflict> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 9);
+  messageDesc(file_canopy_ui_v1_computers, 10);
 
 /**
  * @generated from message canopy.ui.v1.SharedConfigSnapshot
@@ -413,7 +495,7 @@ export type SharedConfigSnapshot = Message<"canopy.ui.v1.SharedConfigSnapshot"> 
  * Use `create(SharedConfigSnapshotSchema)` to create a new message.
  */
 export const SharedConfigSnapshotSchema: GenMessage<SharedConfigSnapshot> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 10);
+  messageDesc(file_canopy_ui_v1_computers, 11);
 
 /**
  * @generated from message canopy.ui.v1.SharedConfigRequest
@@ -426,7 +508,7 @@ export type SharedConfigRequest = Message<"canopy.ui.v1.SharedConfigRequest"> & 
  * Use `create(SharedConfigRequestSchema)` to create a new message.
  */
 export const SharedConfigRequestSchema: GenMessage<SharedConfigRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 11);
+  messageDesc(file_canopy_ui_v1_computers, 12);
 
 /**
  * @generated from message canopy.ui.v1.SharedConfigOperation
@@ -457,5 +539,5 @@ export type SharedConfigOperation = Message<"canopy.ui.v1.SharedConfigOperation"
  * Use `create(SharedConfigOperationSchema)` to create a new message.
  */
 export const SharedConfigOperationSchema: GenMessage<SharedConfigOperation> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_computers, 12);
+  messageDesc(file_canopy_ui_v1_computers, 13);
 

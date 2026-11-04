@@ -14,6 +14,8 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import SharedConfigOverview from "#lib/features/computers/SharedConfigOverview.svelte";
+  import AddRouteDialog from "#lib/features/computers/AddRouteDialog.svelte";
+  import LanDiscoveryRow from "#lib/features/computers/LanDiscoveryRow.svelte";
 
   let setup = $state.raw(create(ui.ComputersSnapshotSchema));
   let loaded = $state(false);
@@ -31,6 +33,8 @@
   let remove = $state<ui.LinkedComputer>();
   let removeOpen = $state(false);
   let copied = $state("");
+  let routeFor = $state<ui.LinkedComputer>();
+  let routeOpen = $state(false);
   let now = $state(Date.now());
   const remaining = $derived(Math.max(0, Math.ceil((Number(invitation?.expiresAtMs ?? 0n) - now) / 1000)));
   async function run(action: () => Promise<void>) {
@@ -79,20 +83,23 @@
   </div>
   <Button variant="primary" disabled={!loaded || busy} onclick={() => { error = ""; open = true; }}>Link a computer</Button>
 </div>
-{#if (error || refreshError) && !open && !renameOpen && !removeOpen}<Alert tone="error">{error || refreshError}<Button size="sm" onclick={() => void run(reload)}>Retry</Button></Alert>{/if}
+{#if (error || refreshError) && !open && !renameOpen && !removeOpen && !routeOpen}<Alert tone="error">{error || refreshError}<Button size="sm" onclick={() => void run(reload)}>Retry</Button></Alert>{/if}
 <SettingsGroup title="This computer">
   {#if setup.self}<ComputerDetails computer={setup.self} self {busy} onrename={() => setup.self && edit(setup.self)} />
   {:else}<SettingsRow title="Loading computer identity…" />{/if}
   <SettingsRow title="Allow linked computers to connect" description="Opens a dedicated encrypted listener. Access requires pairing; your web interface and database stay private.">
     {#snippet control()}<Switch name="link-listener" label="Allow linked computers to connect" checked={setup.listenerEnabled} disabled={busy || !setup.listenerAvailable} onchange={(enabled) => void run(() => manage("listener", { enabled }))} />{/snippet}
   </SettingsRow>
+  {#if setup.self}<LanDiscoveryRow {setup} disabled={busy} onchange={(enabled) => void run(() => manage("lan_discovery", { enabled }))} />{/if}
 </SettingsGroup>
 {#if loaded && !setup.listenerAvailable}
   <Alert tone="info">In the desktop app, enable “Allow other machines to connect” and choose an interface in Desktop settings. On a server, configure CANOPY_LINK_HOST and advertised addresses.</Alert>
 {/if}
 <SettingsGroup title="Linked computers" description="Pairing grants full access between your computers. Only link computers you own.">
   {#each setup.peers as computer (computer.nodeId)}
-    <ComputerDetails {computer} {busy} onrename={() => edit(computer)} onunlink={() => { error = ""; remove = computer; removeOpen = true; }} />
+    <ComputerDetails {computer} {busy} {now} onrename={() => edit(computer)} onunlink={() => { error = ""; remove = computer; removeOpen = true; }}
+      onaddroute={() => { error = ""; routeFor = computer; routeOpen = true; }}
+      onremoveroute={(address) => void run(() => manage("remove_route", { nodeId: computer.nodeId, address }))} />
   {:else}<SettingsRow title={loaded ? "No computers linked yet" : "Loading linked computers…"} description="Generate a code here, or enter a code from your other computer." />{/each}
 </SettingsGroup>
 {#if setup.peers.length}<SharedConfigOverview />{/if}
@@ -144,3 +151,4 @@
     <Button variant="primary" disabled={busy} loading={busy} onclick={() => void run(async () => { await manage("unlink", { nodeId: remove!.nodeId }); removeOpen = false; })}>Unlink computer</Button>
   </div>
 </Dialog>
+<AddRouteDialog bind:open={routeOpen} computer={routeFor} {busy} {error} onsubmit={(address) => void run(async () => { await manage("add_route", { nodeId: routeFor!.nodeId, address }); routeOpen = false; })} />

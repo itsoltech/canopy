@@ -3,9 +3,11 @@
   import type { ui } from "@canopy/contracts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
+  import RouteList from "#lib/features/computers/RouteList.svelte";
   import { needsThreadUpdate, needsMirrorUpdate } from "#lib/features/computers/computers.ts";
-  let { computer, self = false, busy = false, onrename, onunlink, class: className }: {
-    computer: ui.LinkedComputer; self?: boolean; busy?: boolean; onrename: () => void; onunlink?: () => void; class?: ClassValue;
+  let { computer, self = false, busy = false, now = Date.now(), onrename, onunlink, onaddroute, onremoveroute, class: className }: {
+    computer: ui.LinkedComputer; self?: boolean; busy?: boolean; now?: number; onrename: () => void; onunlink?: () => void;
+    onaddroute?: () => void; onremoveroute?: (address: string) => void; class?: ClassValue;
   } = $props();
   const date = (value: bigint) => value ? new Date(Number(value)).toLocaleString() : "Never";
   const status = $derived(computer.status === "connected" ? "Connected" : computer.status === "needs_update" ?
@@ -34,7 +36,8 @@
   <dl class="grid min-w-0 gap-3 text-base/6 sm:text-sm/6">
     <div><dt class="text-zinc-500 dark:text-zinc-400">Version</dt><dd class="text-zinc-950 dark:text-white">{computer.appVersion || "Not connected yet"} · Link {computer.minProtocol}–{computer.maxProtocol}</dd></div>
     <div class="min-w-0"><dt class="text-zinc-500 dark:text-zinc-400">Certificate fingerprint · SHA-256</dt><dd class="break-all font-mono text-zinc-700 dark:text-zinc-300">{computer.fingerprint.match(/.{1,4}/g)?.join(" ")}</dd></div>
-    <div class="min-w-0"><dt class="text-zinc-500 dark:text-zinc-400">Addresses</dt><dd class="break-all text-zinc-700 dark:text-zinc-300">{computer.addresses.join(" · ") || "Listener is off or no address is advertised."}</dd></div>
+    {#if self}<div class="min-w-0"><dt class="text-zinc-500 dark:text-zinc-400">Addresses</dt><dd class="break-all text-zinc-700 dark:text-zinc-300">{computer.addresses.join(" · ") || "Listener is off or no address is advertised."}</dd></div>{/if}
     {#if !self}<div><dt class="text-zinc-500 dark:text-zinc-400">Last seen</dt><dd class="tabular-nums text-zinc-700 dark:text-zinc-300">{date(computer.lastSeenMs)}</dd></div>{/if}
   </dl>
+  {#if !self && onaddroute && onremoveroute}<RouteList {computer} {now} {busy} onadd={onaddroute} onremove={onremoveroute} />{/if}
 </div>

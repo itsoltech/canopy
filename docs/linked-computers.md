@@ -1,12 +1,13 @@
 # Połączone komputery (projekt)
 
-Status: **etapy 1–5 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
+Status: **etapy 1–6 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
 wersjonowanie, obecność i Settings → Linked computers. Etap 2: zsumowany overview i zdalne wątki
 (lista, odczyt na żywo, pisanie, steer, kolejka, przerwanie, zgody i tworzenie wątku na workerze
 partnera, trasowane do domu). Etap 3: trwałe lustra wątków do odczytu offline, kursor i pełna
 resynchronizacja. Etap 4: wspólna konfiguracja (oznaczanie elementów, sekrety, konflikty, znaczki).
 Etap 5: zdalne boty z odczytem offline oraz szyna agentów między domami (spawn, wiadomości,
-pytania i raporty). Etapy 6–8 poniżej pozostają projektem; cały stos PR-ów pozostaje draftem.
+pytania i raporty). Etap 6: trasy (źródło, ostatni sukces, opóźnienie) i wykrywanie już połączonych
+komputerów w sieci lokalnej. Etapy 7–8 poniżej pozostają projektem; cały stos PR-ów pozostaje draftem.
 
 ## Cel
 
@@ -199,7 +200,7 @@ zapisuje stan listenera w bazie; możliwość wystawienia go jest dodatkowo ogra
 desktopowe „Allow other machines to connect”. Wyłączenie listenera nie odwołuje partnerów
 ani nie zamyka niezależnych połączeń wychodzących. Zmiana adresu interfejsu wymaga co najmniej
 jednej działającej trasy; przy zmianie wszystkich tras obu stron jednocześnie potrzebne jest
-ponowne parowanie po podaniu nowego adresu. Wykrywanie LAN jest etapem 6.
+ponowne parowanie po podaniu nowego adresu. Wykrywanie LAN i ogłaszanie zmian adresów opisuje etap 6.
 
 TLS co najmniej 1.3, HTTP/2 gRPC. Ruch nie przechodzi przez TLS-terminujący proxy: proxy musi
 przekazywać TCP/TLS bez zakończenia sesji. VPN/Tailscale są wyłącznie trasą, nie źródłem zaufania.
@@ -766,3 +767,120 @@ odmowę mieszania domów, podwyższenia permissions i forka, fallback steera, od
 offline, natychmiastową odmowę bez późniejszego wykonania, porzucenie raportu offline, starszego
 partnera i odłączenie relacji przy Unlink. Migracja 0051 jest w oczekiwanej liście schematu.
 Brak testów UI; wygląd i blokady sprawdzamy ręcznie na własnych stosach.
+
+## Konkretny protokół etapu 6
+
+Implementacja: `apps/gateway/src/computers/routes.ts` (trasy), `lan.ts` (identyfikatory i mDNS),
+`lan-transport.ts` (gniazdo multicast i wykrywanie środowiska), runtime łącza; migracja
+**0052_computer_routes**; ramka `LinkFrame.routes` (9) i capability **`lan_routes`**; UI:
+`RouteList`, `RouteRow`, `AddRouteDialog`, `LanDiscoveryRow` w `apps/web/src/lib/features/computers`.
+`COMPUTER_LINK_PROTOCOL` zostaje 1: zmiany proto są addytywne. Nie ma przechodniości ani przenoszenia.
+
+### Trasy
+
+`computer_routes(owner, node_id, address, source, added_at, last_success, last_failure, latency_ms)`
+zastępuje listę `computer_peers.addresses` z etapu 1 (migracja przenosi ją z zachowaniem kolejności jako
+`announced`, a kolumnę usuwa). Klucz obcy z `ON DELETE CASCADE`: Unlink usuwa trasy razem z partnerem.
+Źródła:
+
+| Źródło | Skąd | UI |
+|---|---|---|
+| `manual` | adres wpisany przy parowaniu albo „Add route” | „Added by you” |
+| `lan` | wykryty w podsieci i potwierdzony przypiętym handshake'iem | „Local network” |
+| `announced` | `NodeHello.addresses` albo ramka `routes` partnera | „Announced” |
+
+Ten sam adres ma jedno źródło; wpis ręczny zawsze staje się `manual`. Limity na źródło: 16 ręcznych,
+16 ogłoszonych, 8 wykrytych (najmniej użyteczne odpadają). Łączenie próbuje tras w kolejności
+**ostatniego sukcesu**; trasa, która zawiodła po swoim ostatnim sukcesie, idzie za działające, więc
+martwa najlepsza trasa kosztuje jedną próbę. Sukces zapisuje czas i opóźnienie (czas przypiętego
+handshake'u TLS), porażka — czas. Niezgodny pin na trasie `lan` usuwa ją (adres ma teraz inne
+urządzenie); na trasie `manual` zachowuje znaczenie z etapu 1 („must be paired again”); na `announced`
+to tylko porażka. Settings → Linked computers pokazuje trasy partnera w tej kolejności z „Worked 3 minutes
+ago · 4 ms” / „Failed … · last worked …” / „Not tried yet”, pozwala dodać trasę ręczną (HTTPS origin)
+i usunąć dowolną (`ManageComputer` akcje `add_route`/`remove_route`, pole `address` 5).
+
+### Ogłaszanie adresów przez łącze
+
+Komputer z listenerem na wszystkich interfejsach (`0.0.0.0`/`::`) i włączonym wykrywaniem dodaje do
+ogłaszanych adresów swoje bieżące adresy LAN; pozostałe ogłaszają adresy skonfigurowane jak dotąd.
+Zmiana listy (nowe IP, listener wł./wył.) jest wysyłana od razu ramką `RouteAnnouncement {addresses}`
+każdemu połączeniu z wynegocjowanym protokołem i capability `lan_routes`. Odbiorca waliduje je jak
+`NodeHello` (najwyżej 16 originów HTTPS) i dopisuje jako `announced`. Ogłoszony adres nie daje
+zaufania: używa się go wyłącznie przez przypięty mTLS.
+
+### Klucz i identyfikatory
+
+Każda para komputerów wylicza **klucz wykrywania** bez nowej wymiany i bez zapisu: statyczny ECDH
+P-256 własnego klucza węzła z kluczem publicznym z przypiętego certyfikatu partnera, a potem
+HKDF-SHA256 (sól: posortowane id obu węzłów, info `canopy computer link: lan discovery v1`). Klucz
+nie trafia do bazy, logów ani łącza; ponowne parowanie z nowym kluczem daje nowy. Klucz węzła służy
+też do podpisu TLS; separację zapewnia HKDF z osobną etykietą, a wynik jest wyłącznie kluczem HMAC
+nieprzezroczystych nazw (nie szyfruje danych). Alternatywą był losowy sekret wymieniany łączem —
+wymagałby przechowywania i synchronizacji, a nie działałby dla partnerów jeszcze niepołączonych
+po aktualizacji.
+
+Czas jest dzielony na okna 10 minut. Komputer X ogłasza się partnerowi Y w oknie `w` nazwami z
+`HMAC-SHA256(klucz, "announce|<id X>|<w>")`: typ usługi `_<15 znaków>._tcp.local` (litera na początku,
+base32, RFC 6335) i instancja `<26 znaków base32>.<typ>`, cel SRV `<instancja>.local`. Kierunek jest
+częścią wejścia, więc X i Y mają różne nazwy. Każda strona liczy oczekiwane nazwy partnerów dla okien
+`w-1`, `w`, `w+1` (tolerancja różnicy zegarów) i odpowiada na pytania o własne nazwy z tych okien.
+Nazwy z innego okna, cudze nazwy i rekordy nieodpowiadające oczekiwanej instancji są ignorowane.
+
+### Rekordy i prywatność
+
+Rekordy: PTR (typ → instancja), SRV (port listenera łącza, cel `<instancja>.local`), pusty TXT, A
+(adres interfejsu, przez który idzie odpowiedź). **Nie ma** nazwy aplikacji, hosta, id węzła, nazwy
+komputera, wersji ani stałego typu usługi. Rozważony stały typ (np. `_canopy._tcp`) albo stały,
+„ogólny” typ pozwalałby każdemu, kto zna kod, rozpoznać aplikację w sieci; ogólny typ istniejących
+usług (np. `_http._tcp`) zaśmiecałby przeglądarki usług i tak samo byłby rozpoznawalny po wzorcu.
+Typ i instancja zmieniają się co okno, więc obcy (kawiarnia) widzi losowo wyglądające usługi bez
+możliwości śledzenia komputera między oknami. Ujawnia się tylko to, co widać i tak (adres IP/MAC),
+liczba partnerów (jedno PTR na partnera) oraz to, że jakaś aplikacja używa losowych typów.
+
+Ogłoszenie bez pytania idzie przy starcie, zmianie okna, partnerów lub sieci; pytania (PTR o
+oczekiwane typy) co 60 s na każdym interfejsie LAN. Odpowiedź na to samo imię najwyżej raz na sekundę
+(RFC 6762) i tylko na interfejsie w podsieci pytającego; komputer z listenerem tylko na loopbacku nie
+ogłasza się (UI: „only looks for its linked computers”), ale szuka partnerów. IPv4 (224.0.0.251:5353,
+`SO_REUSEADDR` obok systemowego respondera); IPv6 i adresy link-local są odroczone.
+
+### Test połączenia i limity
+
+Znaleziony adres musi być w podsieci któregoś z interfejsów tego komputera; inaczej jest ignorowany
+(nie ma ścieżki do dowolnego hosta w internecie). Kandydat to tylko droga: gateway wykonuje **zwykły
+przypięty handshake mTLS** (`discoverCertificate` z pinem partnera, TLS 1.3, certyfikat klienta) i
+zapisuje trasę `lan` z czasem i opóźnieniem dopiero po zgodności pełnego odcisku certyfikatu. Nic nie
+jest automatycznie zaufane; powtórzone (podsłuchane) ogłoszenie wskazujące inny adres kończy się
+nieudanym handshake'iem i niczego nie zapisuje. Limity: jeden test na adres i 60 s, najwyżej 20 testów
+na minutę, a trasa z sukcesem w ostatnich 10 minutach nie jest testowana ponownie. Po nowej trasie
+niepołączony partner jest wybierany od razu (bez czekania na backoff). Logi nie zawierają kluczy ani
+nazw.
+
+### Ustawienie i środowisko
+
+`computer_identity.lan_discovery` (domyślnie włączone) — przełącznik „Find linked computers on this
+network” w Settings → Linked computers (`ManageComputer` `lan_discovery`). Wyłączenie zamyka gniazdo:
+brak ogłoszeń, pytań i odpowiedzi, lokalne adresy LAN znikają z ogłaszanych, a trasy `lan` są usuwane.
+`ComputersSnapshot` ma `lan_discovery_enabled`, `lan_discovery_state` (`active`, `off`, `unavailable`)
+i `lan_discovery_note`. „Unavailable”: zajęte/niedostępne gniazdo UDP 5353, `CANOPY_LINK_DISCOVERY=off`
+albo kontener bez sieci hosta (`/.dockerenv` i same interfejsy `eth*`; `on` pomija heurystykę) —
+patrz [deploy.md](deploy.md#połączone-komputery-wykrywanie-w-sieci-lokalnej). Interfejsy wirtualne
+(loopback, Tailscale, WireGuard, utun, mostki Dockera/VM) nie biorą udziału w wykrywaniu. Desktop na
+macOS deklaruje `NSLocalNetworkUsageDescription` ([desktop.md](desktop.md)).
+
+### Weryfikacja
+
+`tests/integration/lan-routes.test.ts`: dwa prawdziwe gatewaye z osobnymi bazami PostgreSQL i
+przypiętym mTLS; transport multicast zastąpiony siecią w pamięci na granicy (prawdziwe kodowanie mDNS,
+adresy loopback jako „LAN”). Obejmuje trasy po parowaniu (ręczna z sukcesem, ogłoszone), wykrycie
+partnera bez znanego adresu i zapis trasy `lan` z opóźnieniem po przypiętym handshake'u oraz
+połączenie przez nią, brak nazwy aplikacji/hosta/id w pakietach i rotację nazw między oknami
+i kierunkami, akceptację okna sąsiedniego, ignorowanie okien ±2, obcych identyfikatorów i adresów
+spoza podsieci, limit jednej próby dla serii powtórzonych ogłoszeń oraz brak zapisu fałszywego
+punktu końcowego, ogłoszenie nowego adresu przez łącze, kolejność i przejęcie przez następną trasę
+po śmierci najlepszej, ręczne dodanie/usunięcie, wyłączone wykrywanie (cisza, usunięte trasy `lan`,
+trwałe ustawienie) i Unlink. `linked-computers.test.ts` sprawdza dalej fałszywą trasę z niezgodnym
+pinem. `schema.test.ts` obejmuje 0052. Ręcznie: dwa gatewaye w osobnych procesach na tym samym
+hoście Linux znalazły się przez prawdziwy multicast na interfejsie LAN (trasa `lan`, 6 ms), UI
+obejrzane w jasnym i ciemnym motywie, na desktopie i telefonie. Wymaga jeszcze sprawdzenia na dwóch
+fizycznych maszynach w jednej sieci, na macOS (pytanie o sieć lokalną, współistnienie z
+mDNSResponder) i Windows.

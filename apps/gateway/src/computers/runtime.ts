@@ -4,12 +4,14 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { AsyncChannel } from "@canopy/transport";
 import { MIN_COMPUTER_LINK_PROTOCOL, COMPUTER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
-import { AGENT_BUS, NODE_REF_LENGTH, REMOTE_BOTS, REMOTE_THREADS, SHARED_CONFIG, THREAD_MIRROR } from "@canopy/domain/computers";
+import { AGENT_BUS, LAN_ROUTES, NODE_REF_LENGTH, REMOTE_BOTS, REMOTE_THREADS, SHARED_CONFIG, THREAD_MIRROR } from "@canopy/domain/computers";
 import { ThreadMirror } from "./mirror.ts";
 import { BOT_METHODS, RemoteCalls, type RemoteServe } from "./remote.ts";
 import { BotMirror } from "./bot-mirror.ts";
 import { SharedConfig, type SharedHost } from "./shared.ts";
 import { ComputerStore, type PeerRow } from "./store.ts";
+import { Routes, type RouteRow } from "./routes.ts";
+import { LanDiscovery, type LanTransportFactory } from "./lan.ts";
 import { certificateIdentity, computerName, linkAddress } from "./identity.ts";
 import { discoverCertificate, linkClient, listenLink, remoteCertificate, type LinkIdentity } from "./transport.ts";
 
@@ -23,13 +25,17 @@ type Options = { store: ComputerStore; host?: string; port?: number; addresses?:
   /** The owner's IANA zone for "unreachable since 19:42". */
   zone?: () => Promise<string | undefined>;
   /** Overrides the advertised capabilities (tests of older computers). */
-  capabilities?: string[] };
+  capabilities?: string[];
+  /** Local network discovery of linked computers (stage 6). Without it discovery is unavailable. */
+  discovery?: { transport: LanTransportFactory; unavailable?: string; now?: () => number; queryIntervalMs?: number; testIntervalMs?: number } };
 /** A peer changed (presence, name, capabilities) or was removed. */
 export type ComputerChange = { nodeId: string; removed: boolean };
 const ms = (date: Date | null) => date ? BigInt(new Date(date).getTime()) : 0n;
-const peerMessage = (p: PeerRow, capabilities: string[] = []) => create(ui.LinkedComputerSchema, { nodeId: p.node_id, name: p.name, displayName: p.display_name,
+const peerMessage = (p: PeerRow, capabilities: string[] = [], routes: RouteRow[] = []) => create(ui.LinkedComputerSchema, { nodeId: p.node_id, name: p.name, displayName: p.display_name,
   addresses: p.addresses, fingerprint: p.fingerprint, appVersion: p.app_version, minProtocol: p.min_protocol, maxProtocol: p.max_protocol,
-  status: p.status, statusSinceMs: ms(p.status_since), lastSeenMs: ms(p.last_seen), linkedAtMs: ms(p.linked_at), updateNodeId: p.update_node_id, capabilities });
+  status: p.status, statusSinceMs: ms(p.status_since), lastSeenMs: ms(p.last_seen), linkedAtMs: ms(p.linked_at), updateNodeId: p.update_node_id, capabilities,
+  routes: routes.map((r) => ({ address: r.address, source: r.source, addedAtMs: ms(r.added_at), lastSuccessMs: ms(r.last_success), lastFailureMs: ms(r.last_failure), latencyMs: r.latency_ms ?? 0 })) });
+const WILDCARD = new Set(["0.0.0.0", "::"]);
 const STATE_TEXT: Record<string, string> = { updating: "is updating", sleeping: "went to sleep", shutting_down: "shut down", unreachable: "is unreachable", pairing_required: "must be paired again" };
 
 export async function computerGuard<A>(run: () => Promise<A>): Promise<A> {
@@ -59,10 +65,18 @@ export class LinkedComputers {
   #mirroring = new Map<string, AbortController>();
   #botMirroring = new Map<string, AbortController>();
   #sharing = false;
+  #routes: Routes;
+  #lan: LanDiscovery | undefined;
+  #lanError = "";
+  #advertised: string[] = [];
+  #network = "";
+  #tested = new Map<string, number>();
+  #testBudget = { start: 0, count: 0 };
   readonly mirror: ThreadMirror;
   readonly botMirror: BotMirror;
   readonly shared: SharedConfig | undefined;
   constructor(readonly options: Options) {
+    this.#routes = new Routes(options.store);
     this.mirror = new ThreadMirror(options.store);
     this.botMirror = new BotMirror(options.store);
     this.shared = options.shared && options.serve ? new SharedConfig(options.store, options.shared, {
@@ -75,9 +89,9 @@ export class LinkedComputers {
   get store() { return this.options.store; }
   get identity(): LinkIdentity { return this.#identity; }
   get addresses() { return this.#addresses; }
-  hello() { return create(link.NodeHelloSchema, { nodeId: this.#identity.node_id, name: this.#identity.name, addresses: this.#addresses,
+  hello() { return create(link.NodeHelloSchema, { nodeId: this.#identity.node_id, name: this.#identity.name, addresses: this.#advertised,
     appVersion: CANOPY_VERSION, minProtocol: this.options.minProtocol ?? MIN_COMPUTER_LINK_PROTOCOL, maxProtocol: this.options.maxProtocol ?? COMPUTER_LINK_PROTOCOL,
-    capabilities: this.options.capabilities ?? ["presence", "unlink", ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS] : []), ...(this.shared ? [SHARED_CONFIG] : [])] }); }
+    capabilities: this.options.capabilities ?? ["presence", "unlink", LAN_ROUTES, ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS] : []), ...(this.shared ? [SHARED_CONFIG] : [])] }); }
   #sharesConfig() { return Boolean(this.shared) && this.hello().capabilities.includes(SHARED_CONFIG); }
   async start() {
     this.#identity = await this.store.identity();
@@ -86,6 +100,7 @@ export class LinkedComputers {
     // A process restart never claims an old connection is still alive.
     await this.store.query("UPDATE computer_peers SET status='unreachable',status_since=now() WHERE owner_user_id=$1::uuid AND status IN ('connected','needs_update')", [this.store.owner]);
     await this.#listen();
+    await this.#discovery();
     this.#timer = setInterval(() => { void this.#tick().catch(() => {}); }, this.options.heartbeatMs ?? 5000);
     await this.#tick();
   }
@@ -93,12 +108,88 @@ export class LinkedComputers {
     if (this.#listener || !this.options.host || !this.#identity.listener_enabled || this.#stopped || this.#paused) return;
     this.#listener = await listenLink({ host: this.options.host, port: this.options.port ?? 0, identity: this.#identity, routes: this.routes });
     const host = this.options.host.includes(":") ? `[${this.options.host}]` : this.options.host;
-    this.#addresses = this.options.addresses?.map(linkAddress) ?? (this.options.host === "0.0.0.0" || this.options.host === "::" ? [] : [`https://${host}:${this.#listener.port}`]);
+    this.#addresses = this.options.addresses?.map(linkAddress) ?? (WILDCARD.has(this.options.host) ? [] : [`https://${host}:${this.#listener.port}`]);
+    this.#advertise();
+  }
+  // ------------------------------------------------------------------ stage 6: routes and LAN discovery
+
+  /** Addresses sent to partners: the configured ones and, for a listener on every interface with
+   * discovery on, this computer's current local network addresses. A change is announced over the link. */
+  #advertise() {
+    const port = this.#listener?.port;
+    const interfaces = this.#lan?.transport?.interfaces() ?? [];
+    const local = port && this.options.host && WILDCARD.has(this.options.host) ? interfaces.map((i) => `https://${i.address}:${port}`) : [];
+    const next = this.#listener ? [...new Set([...this.#addresses, ...local])].slice(0, 16) : [];
+    // A new network or listener: announce on the local network at once, not at the next window.
+    const network = `${port ?? ""}|${interfaces.map((i) => i.address).join()}`;
+    if (network !== this.#network) { this.#network = network; void this.#lan?.tick(true).catch(() => {}); }
+    if (next.join() === this.#advertised.join()) return;
+    this.#advertised = next;
+    for (const set of this.#active.values()) for (const c of set) {
+      if (c.ready && c.protocol && c.capabilities?.has(LAN_ROUTES)) c.send({ body: { case: "routes", value: { addresses: next } } });
+    }
+  }
+  async #discovery() {
+    const enabled = Boolean(this.options.discovery && !this.options.discovery.unavailable && this.#identity.lan_discovery && !this.#stopped);
+    if (!enabled) {
+      const lan = this.#lan; this.#lan = undefined;
+      await lan?.close();
+    } else if (!this.#lan) {
+      const { transport, now, queryIntervalMs } = this.options.discovery!;
+      const lan = new LanDiscovery({ transport, ...(now && { now }), ...(queryIntervalMs && { queryIntervalMs }),
+        self: () => ({ nodeId: this.#identity.node_id, privateKey: this.#identity.privateKey }), partners: () => this.store.peers(),
+        listener: () => this.#listener && this.options.host ? { port: this.#listener.port, host: this.options.host } : undefined,
+        found: (nodeId, address) => void this.#found(nodeId, address).catch(() => {}) });
+      this.#lan = lan;
+      try { await lan.start(); this.#lanError = ""; } catch {
+        this.#lan = undefined; await lan.close();
+        this.#lanError = "Could not open the local network discovery socket (UDP 5353). Add routes manually.";
+      }
+    }
+    this.#advertise();
+  }
+  #lanState() {
+    if (!this.#identity.lan_discovery) return { state: "off", note: "" };
+    const unavailable = !this.options.discovery ? "Local network discovery isn't available on this gateway." : this.options.discovery.unavailable || this.#lanError;
+    if (unavailable || !this.#lan) return { state: "unavailable", note: unavailable || "Starting…" };
+    const host = this.options.host;
+    const reachable = this.#listener && host && (WILDCARD.has(host) || this.#lan.transport?.interfaces().some((i) => i.address === host));
+    return { state: "active", note: reachable ? "" : this.#listener ? "The link listener isn't on a local network interface, so this computer only looks for its linked computers." : "This computer looks for its linked computers. Turn on the listener so they can find it too." };
+  }
+  /** A partner announced itself on the local network. Trust never comes from the network: the address
+   * is kept only after the normal pinned handshake proves it reaches the partner's own key. */
+  async #found(nodeId: string, address: string) {
+    if (this.#stopped || this.#paused || !this.#identity.lan_discovery) return;
+    const now = Date.now();
+    const key = `${nodeId} ${address}`;
+    // Rate limits, checked and taken before any await so that a burst of answers makes one test:
+    // one test per address and interval, and at most 20 tests a minute in total.
+    if ((this.#tested.get(key) ?? 0) > now - (this.options.discovery?.testIntervalMs ?? 60_000)) return;
+    if (now - this.#testBudget.start > 60_000) this.#testBudget = { start: now, count: 0 };
+    if (this.#testBudget.count >= 20) return;
+    this.#tested.delete(key); this.#tested.set(key, now);
+    if (this.#tested.size > 256) this.#tested.delete(this.#tested.keys().next().value!);
+    const budget = this.#testBudget; budget.count++;
+    // A route that worked within ten minutes needs no new test (and gives its budget back).
+    const known = (await this.#routes.list(nodeId)).find((r) => r.address === address);
+    if (known?.last_success && new Date(known.last_success).getTime() > now - 600_000) { budget.count--; return; }
+    const peer = await this.store.peer(nodeId);
+    if (!peer) return;
+    const started = performance.now();
+    try { await discoverCertificate(address, peer.fingerprint, this.#identity); } catch {
+      if (known) await this.#routes.failure(nodeId, address);
+      return;
+    }
+    await this.#routes.add(nodeId, [address], "lan");
+    await this.#routes.success(nodeId, address, performance.now() - started);
+    this.#emit(nodeId);
+    if (!this.#active.get(nodeId)?.size) { this.#retry.delete(nodeId); void this.#tick().catch(() => {}); }
   }
   routes = (router: ConnectRouter) => router.service(link.ComputerLinkService, {
     pair: async (request, context) => computerGuard(async () => {
       if (!request.hello || request.hello.nodeId === this.#identity.node_id) throw new ConnectError("Choose another computer", Code.InvalidArgument);
       await this.store.pair(request.secret, request.hello, context.values.get(remoteCertificate));
+      void this.#lan?.refresh().catch(() => {});
       for (const c of this.#active.get(request.hello.nodeId) ?? []) c.close();
       this.#retry.delete(request.hello.nodeId);
       return create(link.PairResponseSchema, { hello: this.hello() });
@@ -106,9 +197,13 @@ export class LinkedComputers {
     connect: (request, context) => this.#accept(request, context),
   });
   async snapshot() {
+    const routes = await this.#routes.list();
+    const lan = this.#lanState();
     return create(ui.ComputersSnapshotSchema, { self: { nodeId: this.#identity.node_id, name: this.#identity.name, fingerprint: this.#identity.fingerprint,
-      addresses: this.#addresses, appVersion: CANOPY_VERSION, minProtocol: this.hello().minProtocol, maxProtocol: this.hello().maxProtocol },
-      peers: (await this.store.peers()).map((p) => peerMessage(p, this.capabilities(p.node_id))), listenerEnabled: Boolean(this.#listener), listenerAvailable: Boolean(this.options.host) });
+      addresses: this.#advertised, appVersion: CANOPY_VERSION, minProtocol: this.hello().minProtocol, maxProtocol: this.hello().maxProtocol },
+      peers: (await this.store.peers()).map((p) => peerMessage(p, this.capabilities(p.node_id), routes.filter((r) => r.node_id === p.node_id))),
+      listenerEnabled: Boolean(this.#listener), listenerAvailable: Boolean(this.options.host),
+      lanDiscoveryEnabled: this.#identity.lan_discovery, lanDiscoveryState: lan.state, lanDiscoveryNote: lan.note });
   }
   async createPairing() {
     if (!this.#listener || !this.#addresses.length) throw new ConnectError("Enable the link listener and configure at least one advertised address first", Code.FailedPrecondition);
@@ -118,12 +213,15 @@ export class LinkedComputers {
     address = linkAddress(address);
     const raw = code.replace(/[\s-]/g, "").toLowerCase();
     if (!/^[a-f0-9]{96}$/.test(raw)) throw new ConnectError("Paste the complete pairing code from the other computer", Code.InvalidArgument);
+    const started = performance.now();
     const certificate = await discoverCertificate(address, raw.slice(0, 64), this.#identity);
+    const latency = performance.now() - started;
     if (certificateIdentity(certificate).nodeId === this.#identity.node_id) throw new ConnectError("Choose another computer", Code.InvalidArgument);
     const response = await linkClient(address, certificate, this.#identity).pair({ secret: raw.slice(64), hello: this.hello() }, { timeoutMs: 10_000 });
     if (!response.hello) throw new ConnectError("The computer did not return an identity", Code.Unauthenticated);
-    await this.store.remember(response.hello, certificate, address);
+    await this.store.remember(response.hello, certificate, address, latency);
     this.#retry.delete(response.hello.nodeId);
+    void this.#lan?.refresh().catch(() => {});
     void this.#tick().catch(() => {});
     return this.snapshot();
   }
@@ -153,6 +251,7 @@ export class LinkedComputers {
       for (const connection of this.#active.get(nodeId) ?? []) connection.close();
       this.#dialing.get(nodeId)?.abort();
       this.#retry.delete(nodeId);
+      void this.#lan?.refresh().catch(() => {});
     } else if (action === "revoke_pairing") {
       await this.store.query("UPDATE computer_pairings SET revoked_at=now() WHERE owner_user_id=$1::uuid AND used_at IS NULL", [this.store.owner]);
     } else if (action === "listener") {
@@ -163,8 +262,23 @@ export class LinkedComputers {
       } else {
         this.#identity.listener_enabled = false;
         await this.#listener?.close(); this.#listener = undefined; this.#addresses = [];
+        this.#advertise();
       }
       await this.store.query("UPDATE computer_identity SET listener_enabled=$2 WHERE owner_user_id=$1::uuid", [this.store.owner, request.enabled]);
+    } else if (action === "lan_discovery") {
+      await this.store.query("UPDATE computer_identity SET lan_discovery=$2 WHERE owner_user_id=$1::uuid", [this.store.owner, request.enabled]);
+      this.#identity.lan_discovery = request.enabled;
+      // Off: nothing is announced or asked for, and paths found on a network are forgotten.
+      if (!request.enabled) await this.#routes.forgetLan();
+      await this.#discovery();
+    } else if (action === "add_route" || action === "remove_route") {
+      if (!await this.store.peer(nodeId)) throw new ConnectError("Computer not found", Code.NotFound);
+      const address = linkAddress(request.address);
+      if (action === "add_route") {
+        await this.#routes.add(nodeId, [address], "manual");
+        this.#retry.delete(nodeId);
+      } else if (!await this.#routes.remove(nodeId, address)) throw new ConnectError("Route not found", Code.NotFound);
+      this.#emit(nodeId);
     } else if (action === "presence") await this.announce(request.name);
     else throw new ConnectError("Unknown computer operation", Code.InvalidArgument);
     return this.snapshot();
@@ -211,9 +325,9 @@ export class LinkedComputers {
       const protocol = hello.minProtocol > 0 && hello.maxProtocol >= hello.minProtocol &&
         Math.max(local.minProtocol, hello.minProtocol) <= Math.min(local.maxProtocol, hello.maxProtocol) ? Math.min(local.maxProtocol, hello.maxProtocol) : 0;
       const updateNodeId = protocol ? "" : (hello.maxProtocol < local.minProtocol ? nodeId : local.nodeId);
-      await this.store.query(`UPDATE computer_peers SET name=$3,app_version=$4,min_protocol=$5,max_protocol=$6,addresses=$7::jsonb,capabilities=$8::jsonb
-        WHERE owner_user_id=$1::uuid AND node_id=$2`, [this.store.owner, nodeId, hello.name, hello.appVersion, hello.minProtocol, hello.maxProtocol,
-        JSON.stringify([...new Set([...hello.addresses, ...peer.addresses])].slice(0, 16)), JSON.stringify(hello.capabilities)]);
+      await this.store.query(`UPDATE computer_peers SET name=$3,app_version=$4,min_protocol=$5,max_protocol=$6,capabilities=$7::jsonb
+        WHERE owner_user_id=$1::uuid AND node_id=$2`, [this.store.owner, nodeId, hello.name, hello.appVersion, hello.minProtocol, hello.maxProtocol, JSON.stringify(hello.capabilities)]);
+      await this.#routes.add(nodeId, hello.addresses.map(linkAddress), "announced");
       connection.protocol = protocol;
       connection.capabilities = new Set(hello.capabilities);
       this.#capabilities.set(nodeId, hello.capabilities);
@@ -250,6 +364,11 @@ export class LinkedComputers {
     } else if (body.case === "presence") {
       if (!["updating", "sleeping", "shutting_down", "connected"].includes(body.value.state)) throw new ConnectError("Unknown presence state", Code.InvalidArgument);
       await this.#status(nodeId, body.value.state === "connected" && peer.update_node_id ? "needs_update" : body.value.state, peer.update_node_id);
+    } else if (body.case === "routes") {
+      // The partner's addresses changed. Only over a negotiated link; they are routes like any other, used through the pin.
+      if (!connection.protocol || body.value.addresses.length > 16) throw new ConnectError("Unsupported route announcement", Code.InvalidArgument);
+      await this.#routes.add(nodeId, body.value.addresses.map(linkAddress), "announced");
+      this.#emit(nodeId);
     } else if (body.case === "heartbeat") {
       await this.store.query("UPDATE computer_peers SET last_seen=now() WHERE owner_user_id=$1::uuid AND node_id=$2", [this.store.owner, nodeId]);
     } else throw new ConnectError("Unsupported link message", Code.InvalidArgument);
@@ -287,6 +406,7 @@ export class LinkedComputers {
     if (this.#tickRunning || this.#stopped || this.#paused) return;
     this.#tickRunning = true;
     try {
+      this.#advertise();
       if (this.shared && !this.#sharing) {
         this.#sharing = true;
         void this.configChanged().finally(() => { this.#sharing = false; });
@@ -313,17 +433,20 @@ export class LinkedComputers {
     } finally { this.#tickRunning = false; }
   }
   async #dial(peer: PeerRow, controller: AbortController) {
-    for (const address of peer.addresses) {
+    for (const route of await this.#routes.list(peer.node_id)) {
+      const { address } = route;
       if (controller.signal.aborted || this.#stopped || this.#paused || this.#active.get(peer.node_id)?.size) return;
       const output = new AsyncChannel<link.LinkFrame>();
       const routeController = new AbortController();
       const connection: Connection = { send: (f) => { output.push(create(link.LinkFrameSchema, f)); }, close: () => { output.close(); routeController.abort(); connection.remote?.close(); }, seen: Date.now(), ready: false };
       const release = this.#track(peer.node_id, connection);
+      let greeted = false;
       try {
         connection.send({ body: { case: "hello", value: this.hello() } });
         // Queued hello is sent only after verification. No heartbeat may precede it.
+        const started = performance.now();
         await discoverCertificate(address, peer.fingerprint, this.#identity);
-        let greeted = false;
+        const latency = performance.now() - started;
         const deadline = setTimeout(() => { if (!greeted) routeController.abort(); }, 8000);
         try {
           for await (const frame of linkClient(address, peer.certificate, this.#identity).connect(output, { signal: AbortSignal.any([controller.signal, routeController.signal]) })) {
@@ -333,17 +456,18 @@ export class LinkedComputers {
             }
             greeted = true; clearTimeout(deadline);
             await this.#receive(peer.node_id, frame, connection);
-            if (frame.body.case === "welcome") {
-              const current = await this.store.peer(peer.node_id);
-              if (current) await this.store.query("UPDATE computer_peers SET addresses=$3::jsonb WHERE owner_user_id=$1::uuid AND node_id=$2", [this.store.owner, peer.node_id, JSON.stringify([address, ...current.addresses.filter((a) => a !== address)])]);
-            }
+            if (frame.body.case === "welcome") await this.#routes.success(peer.node_id, address, latency);
             if (controller.signal.aborted) break;
           }
         } finally { clearTimeout(deadline); }
         if (greeted) { this.#retry.delete(peer.node_id); break; }
       } catch (error) {
-        if (error instanceof ConnectError && error.code === Code.Unauthenticated) await this.#status(peer.node_id, "pairing_required");
-        // A pin mismatch never changes trust. Try other known routes.
+        const mismatch = error instanceof ConnectError && error.code === Code.Unauthenticated;
+        // A pin mismatch never changes trust. Another device now has a discovered address: forget that path.
+        // An address the user entered keeps the stage 1 meaning: the computer must be paired again.
+        if (mismatch && route.source === "manual") await this.#status(peer.node_id, "pairing_required");
+        if (mismatch && route.source === "lan") await this.#routes.remove(peer.node_id, address);
+        else if (!greeted && !controller.signal.aborted) await this.#routes.failure(peer.node_id, address);
       }
       finally { output.close(); await release(); }
     }
@@ -474,6 +598,7 @@ export class LinkedComputers {
     await this.announce(state === "shutting_down" && this.#announced === "updating" ? "updating" : state);
     clearInterval(this.#timer);
     this.shared?.close();
+    await this.#lan?.close(); this.#lan = undefined;
     for (const controller of this.#dialing.values()) controller.abort();
     for (const controller of this.#mirroring.values()) controller.abort();
     for (const controller of this.#botMirroring.values()) controller.abort();

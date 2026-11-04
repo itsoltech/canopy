@@ -198,6 +198,16 @@ adresu. Nie usuwaj pliku w celu rozwiązywania konfliktu bez ponownego ustawieni
 Kod jednorazowy i lista adresów są w „Link a computer”; druga strona wybiera „Enter code”.
 Porównanie odcisków obu certyfikatów jest dostępne na liście.
 
+Gdy oba komputery są w tej samej podsieci, znajdują się przez mDNS i zapisują nową trasę
+(źródło „Local network”) dopiero po przypiętym handshake'u; ogłoszenie zawiera wyłącznie rotowany,
+nieprzezroczysty identyfikator ([etap 6](linked-computers.md#konkretny-protokół-etapu-6)).
+Przełącznik „Find linked computers on this network” wyłącza to dla danego komputera. Na macOS
+pierwsze ogłoszenie wywołuje systemowe pytanie o dostęp do sieci lokalnej: `Info.plist` zawiera
+`NSLocalNetworkUsageDescription`. `NSBonjourServices` nie jest potrzebne, bo gateway używa gniazda
+UDP, nie API Bonjour, a typy usług są losowe i rotowane. Odmowa dostępu wyłącza tylko wykrywanie;
+trasy ręczne i ogłaszane działają dalej. Listener związany z interfejsem LAN jest potrzebny, żeby
+inne komputery mogły znaleźć ten; z samym loopbackiem komputer tylko szuka partnerów.
+
 Electron ogłasza sleep/resume oraz quit/update prywatnym kanałem do kontrolera,
 który wywołuje lokalne API gatewaya. Sekrety i klucze pozostają w gatewayu.
 Ogłoszenie sleep jest best effort: system może uśpić proces przed wysłaniem;
