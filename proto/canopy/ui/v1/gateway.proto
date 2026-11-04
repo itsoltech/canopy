@@ -544,6 +544,8 @@ message Turn {
   string interrupt_source = 73;
   // Krótki kod błędu (np. „http_connection_failed:401”, „error_max_turns”, „process_exit”), jeśli jest.
   string error_code = 74;
+  // Stable actionable class; native error_code remains available for diagnostics.
+  string error_class = 822;
 
   // Numery od 90: tryb uprawnień tury. Nadpisanie z wiadomości (UNSPECIFIED = domyślny wątku); od startu tury
   // tryb faktycznie wysłany do workera.

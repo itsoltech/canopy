@@ -18,6 +18,27 @@ Grok obsługuje backendy `chat_completions` (domyślnie), `responses`, `messages
 
 Instancja CLIProxyAPI używa odizolowanego `GROK_HOME` i konfiguracji modelu z `env_key`, kluczem wyłącznie w env procesu. Nie przekazujemy klucza w argv, logach, repozytorium ani globalnej konfiguracji użytkownika. Tymczasowe pliki mają 0600, katalog 0700; cleanup po zakończeniu procesu. Live potwierdził backend `chat_completions` na `/v1/chat/completions`, katalog `/v1/models`, modele `grok-4.7-build-fast` oraz `grok-composer-2.5-fast`. Własny endpoint ma pierwszeństwo przed loginem urządzenia. Guard auth CLI wymaga dodatkowo `XAI_API_KEY` z tym samym kluczem; samo `env_key` nie wystarcza do utworzenia sesji.
 
+## Boty: badanie błędu „answer got cut off” (2026-11-04)
+
+Boty w wariancie B wykonują żądanie w gateway (`bots/model.ts`), nie przez ACP ani
+CLI workera. Grok otrzymuje `/v1/chat/completions`, `stream: false` i model zapisany
+w konfiguracji bota (np. `grok-4.7`). Gateway wymaga aktualnego połączenia Proxy;
+id `native` jest dozwolone po przełączeniu na Proxy, a Device login o dowolnym id
+jest odrzucane. Nie odczytywano konfiguracji ani odpowiedzi prywatnego stosu nightly.32,
+więc konkretna przyczyna raportu pozostaje niepotwierdzona.
+
+Kod narzucał `max_tokens: 4096`. W modelu rozumującym wspólny budżet może skończyć się
+przed odpowiedzią lub wywołaniem funkcji. Usunięto ten limit, pozostawiając domyślny
+budżet modelu. Dodatkowo stara obsługa mapowała nieznany/brakujący `finish_reason`
+i nieprawidłową kopertę tak samo jak faktycznie uciętą odpowiedź. Wspólna klasyfikacja
+rozróżnia teraz `length`, niepełny JSON, błędy HTTP i nieoczekiwany format. To nie jest
+problem mapowania streamingu ACP: botowe żądanie nie używa streamingu.
+
+Kontrolowany endpoint potwierdza trasę i zachowanie limitu; fake ACP osobno sprawdza
+propagację auth, braku modelu, limitu użycia i zakończenia procesu w wątkach.
+Nie wprowadzono dodatkowych funkcji bezpośredniego API. Zastąpienie runtime botów
+oficjalnymi harnessami na workerze jest osobnym projektem.
+
 ## SDK
 
 `packages/grok-acp` posiada proces CLI i jego grupę procesów, inicjalizację, typowane sesje, wybór modelu/trybu i asynchroniczny strumień promptu. Żądania mają unikalne ID i timeouty; obsługa callbacków nie blokuje odbioru odpowiedzi. Zapis czeka na flush stdin, kolejka zdarzeń i ramki są ograniczone. Crash/EOF/nieprawidłowa ramka kończą oczekujące żądania. Dispose wysyła TERM, następnie KILL i czeka na zebranie procesu; przerwany konsument nie pozostawia działającej tury. Stderr jest ograniczony i redagowany. Możliwości fs i terminal są ogłaszane wyłącznie, gdy klient dostarcza ich implementację.

@@ -673,11 +673,16 @@ JSON i składanych logów pracy.
   ‹B›”, „Message from ‹A›”, „N messages with ‹A›”. Chip prowadzi do widoku wymiany
   „A ⇄ B”: wiadomości z nazwami i awatarami po lewej, separatory czasu, „Close chat” (i Esc)
   wraca do czatu bota. Odpowiedź bota dla Ciebie pozostaje zwykłym dymkiem.
-- **Błędy** (`ChatErrorLine`, `errors.ts`): zamiast „Model endpoint returned HTTP 400” linia
-  „Kropek couldn't reply — the model isn't available.”, szczegół w tooltipie ikony i dla
-  czytników ekranu. Przy ostatniej turze: **Retry** (`RetryBot`) i — gdy przyczyną jest
-  model — **Change model** (`ChangeModelDialog`, `UpdateBot`). Lista boczna pokazuje
-  „Couldn't reply”.
+- **Błędy** (`ChatErrorLine`, wspólny `FailureNotice` dla botów i wątków): klasa błędu
+  określa wyjaśnienie i akcje: logowanie, ustawienia instancji, zmiana modelu, test proxy
+  lub ponowienie. **Show details** pokazuje źródło, kod i bezpieczny komunikat z kopiowaniem.
+  `BotMessage.error_code/error_source` są utrwalane w migracji `0069_bot_errors`.
+  Klasy domenowe obejmują auth, brak CLI, model, limity, sieć, uciętą odpowiedź,
+  zakończenie procesu, konfigurację, niedostępnego dostawcę i błąd wewnętrzny.
+  Wątki zachowują natywny `error_code` harnessu; dodatkowe `error_class` służy UI.
+  Granica `ProviderFailure` przenosi klasę i źródło także dla przyszłego runtime harnessów.
+  Szczegóły redagują URL i rozpoznane sekrety; treści błędów HTTP modeli nie są zapisywane.
+  Lista boczna pokazuje „Couldn't reply”.
 - **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (załączniki — na razie
   niedostępne z podpowiedzią), wspólny `MentionEditor` z Threads zamiast textarea.
   Markdown na żywo: pogrubienie, kursywa, kod inline i bloki kodu; wklejanie jako czysty tekst.

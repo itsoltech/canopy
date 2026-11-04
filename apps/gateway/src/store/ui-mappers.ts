@@ -3,6 +3,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { InteractionKind, PermissionMode, UsageSchema, ui } from "@canopy/contracts";
 import { fromJson } from "@bufbuild/protobuf";
 import { Match, Predicate } from "effect";
+import { classifyFailure, safeFailureDetail } from "@canopy/domain";
 import { toUiAttachment } from "./attachments.ts";
 import { toUiQuote } from "./quotes.ts";
 import { mentionsFromJson } from "../core/mentions.ts";
@@ -153,10 +154,11 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     status: row.status,
     trigger: row.trigger,
     inputText: row.input?.text ?? "",
-    error: row.error ?? "",
+    error: safeFailureDetail(row.error ?? ""),
     interruptReason: row.status === "interrupted" ? (row.interrupt_reason ?? "") : "",
     errorSource: row.status === "failed" ? (row.error_source ?? "") : "",
     errorCode: row.status === "failed" ? (row.error_code ?? "") : "",
+    errorClass: row.status === "failed" ? classifyFailure(row.error ?? "", row.error_code ?? "") : "",
     interruptSource: row.status === "interrupted" ? (row.interrupt_source ?? "") : "",
     queuedAt: timestampFromDate(new Date(row.queued_at)),
     ...(row.started_at && { startedAt: timestampFromDate(new Date(row.started_at)) }),

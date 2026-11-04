@@ -28,6 +28,8 @@ export interface MessageRow {
   created_at: Date;
   message_key?: string;
   turn_status?: string;
+  error_code?: string;
+  error_source?: string;
   setting_changes?: bots.BotSettingChange[];
   mentions: JsonValue[];
   quotes: StoredQuote[];
@@ -83,6 +85,8 @@ export const messageView = (row: MessageRow) =>
     exchangeId: row.exchange_id ?? "",
     createdAt: timestampFromDate(new Date(row.created_at)),
     failed: row.kind === "event" && row.message_key === "answer" && row.turn_status === "failed",
+    errorCode: row.error_code ?? "",
+    errorSource: row.error_source ?? "",
     settingChanges: row.setting_changes ?? [],
     mentions: storedMentions(row.mentions),
     quotes: row.quotes.map(toUiQuote),
