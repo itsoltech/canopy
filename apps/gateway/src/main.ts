@@ -167,7 +167,7 @@ async function stop(presence = "shutting_down") {
   core.updates.close();
   core.secrets.stop();
   await core.scheduler.stop();
-  core.stopSweep();
+  await core.stopSweep();
   core.backgroundTasks.stop();
   await core.bots.stop();
   await core.link.shutdown();

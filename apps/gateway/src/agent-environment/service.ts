@@ -19,14 +19,26 @@ import { resolveDrift } from "./drift.ts";
 import { skills } from "./skill-database.ts";
 import { EnvironmentSkills } from "./skills.ts";
 import { skillApplies } from "./skill-assignment.ts";
+import { EnvironmentSources } from "./sources.ts";
+import type { SourceOptions } from "./source-discovery.ts";
 
 export class AgentEnvironment {
   readonly db: EnvironmentDatabase;
   readonly skills: EnvironmentSkills;
+  readonly sources: EnvironmentSources;
 
-  constructor(readonly options: { runtime: CoreRuntime; userId: string; link: WorkerLink; changed: () => void }) {
+  constructor(
+    readonly options: {
+      runtime: CoreRuntime;
+      userId: string;
+      link: WorkerLink;
+      changed: () => void;
+      sources?: SourceOptions;
+    },
+  ) {
     this.db = new EnvironmentDatabase(options.runtime, options.userId);
     this.skills = new EnvironmentSkills(this);
+    this.sources = new EnvironmentSources(this, options.sources);
   }
 
   async snapshot(): Promise<ui.AgentEnvironmentSnapshot> {

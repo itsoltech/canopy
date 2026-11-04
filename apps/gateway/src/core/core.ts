@@ -237,6 +237,7 @@ export class GatewayCore {
       log: (message) => coreLog(this, message),
     });
     this.environment = new AgentEnvironment({
+      ...(options.skillSources && { sources: options.skillSources }),
       runtime: options.runtime,
       userId: options.userId,
       link: this.link,

@@ -689,7 +689,7 @@ GATEWAY_SERVICE_TOKEN=$CANOPY_UI_SERVICE_TOKEN bun run dev                     #
 bun run build && GATEWAY_SERVICE_TOKEN=... PORT=3000 node build/index.js    # produkcyjnie
 ```
 
-Załączniki idą przez BFF: `adapter-node` ma domyślnie `BODY_SIZE_LIMIT=512K`, więc w produkcji trzeba ustawić co najmniej limit pliku gateway, np. `BODY_SIZE_LIMIT=25M`.
+Załączniki idą przez BFF: `adapter-node` ma domyślnie `BODY_SIZE_LIMIT=512K`, więc w produkcji ustawiamy `BODY_SIZE_LIMIT=50M`, również dla folderu skilla 25 MiB kodowanego base64. Desktop i Docker mają już ten limit; reverse proxy musi go dopuścić.
 
 `adapter-node` przyjmuje `https`, jeśli nie zna protokołu. Za reverse proxy ustawić `PROTOCOL_HEADER=x-forwarded-proto` (i `HOST_HEADER`, jeśli proxy zmienia host). Inaczej kontrola `Origin` odrzuci formularze. Build nie potrzebuje sekretów.
 
@@ -718,7 +718,7 @@ Zmiana dla skryptu restartu stacka:
    ```bash
    GATEWAY_SERVICE_TOKEN="$CANOPY_UI_SERVICE_TOKEN" \
    GATEWAY_URL=http://127.0.0.1:17443 HOST=127.0.0.1 PORT=5180 \
-   BODY_SIZE_LIMIT=25M PROTOCOL_HEADER=x-forwarded-proto \
+   BODY_SIZE_LIMIT=50M PROTOCOL_HEADER=x-forwarded-proto \
    bun "$web_release/index.js"
    ```
 
@@ -739,9 +739,15 @@ Powłoka odpowiada 200 także bez gateway; początkowy HTML zawiera szkielet z w
 Settings → Agent environment korzysta z `GetAgentEnvironment`,
 `SaveInstructionDocument`, `DeleteInstructionDocument`, `SetEnvironmentTags`,
 `PreviewAgentEnvironment`, `ResolveEnvironmentDrift`, `SaveLibrarySkill`,
-`DeleteLibrarySkill` i `ResolveSkillDrift`. BFF udostępnia
+`DeleteLibrarySkill`, `ResolveSkillDrift`, `PreviewSkillSource`, `AddSkillSource`,
+`CheckSkillSource` i `ApplySkillSource`. BFF udostępnia
 `/api/agent-environment` (GET/POST/DELETE), `/tags`, `/preview`, `/resolve` (POST).
 Skille: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
+Źródła: `/api/agent-environment/skills/source/{preview,add,check,apply}` (POST).
+Preview/check mają deadline 125 s (resolver 120 s), nie zwykłe 3 s klienta BFF.
+Preview zamraża commit i pliki przez 30 minut; add/apply wymagają jawnego
+zatwierdzenia i bieżącej rewizji. Check zapisuje metadane kandydata i zmienia
+rewizję; klient pobiera ją przed apply także przy równoczesnym odświeżeniu SSE.
 Upload folderu używa base64 w JSON, więc produkcyjny web oraz proxy wymagają
 `BODY_SIZE_LIMIT=50M` dla limitu 25 MiB plików. ZIP ma osobny limit 10 MiB.
 Każda mutacja wymaga bieżącej `expected_revision`; konflikt daje HTTP 409 i nie

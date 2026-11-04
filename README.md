@@ -151,7 +151,7 @@ cd apps/web
 GATEWAY_SERVICE_TOKEN=$CANOPY_UI_SERVICE_TOKEN bun run dev   # http://localhost:5173
 ```
 
-For a production build, run `bun run build`, then `GATEWAY_SERVICE_TOKEN=… PORT=3000 bun run start`. Behind a reverse proxy, set `PROTOCOL_HEADER=x-forwarded-proto` (and `HOST_HEADER` if the proxy changes the host). For attachments, raise `BODY_SIZE_LIMIT` (for example `25M`).
+For a production build, run `bun run build`, then `GATEWAY_SERVICE_TOKEN=… PORT=3000 BODY_SIZE_LIMIT=50M bun run start`. Behind a reverse proxy, set `PROTOCOL_HEADER=x-forwarded-proto` (and `HOST_HEADER` if the proxy changes the host). The `50M` body limit fits a 25 MiB skill folder encoded as base64 JSON. Desktop and Docker set it by default; it is server bootstrap configuration. Gateway skill sources require Git and HTTPS network access.
 
 Model access is configured in the UI under **Settings → Providers** (CLI login on the worker, or an API-compatible endpoint with a key).
 

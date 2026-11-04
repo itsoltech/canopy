@@ -336,7 +336,7 @@ describe.skipIf(!dockerAvailable)("thread secrets (gateway ↔ scripted worker, 
       async () => gw.core.online.has(gw.workerId),
       (online) => !online,
     );
-    gw.core.stopSweep();
+    await gw.core.stopSweep();
     const fresh = new GatewayCore({ runtime: gw.runtime, instanceId: "restart-secrets", userId: gw.userId });
     const server = await startGrpcServer({ routes: (router) => fresh.link.routes(router) });
     let restored: ScriptedWorker | undefined;
@@ -377,7 +377,7 @@ describe.skipIf(!dockerAvailable)("thread secrets (gateway ↔ scripted worker, 
     } finally {
       restored?.link.close();
       restored?.secrets?.close();
-      fresh.stopSweep();
+      await fresh.stopSweep();
       await fresh.bots.stop();
       await fresh.link.shutdown();
       await server.close();

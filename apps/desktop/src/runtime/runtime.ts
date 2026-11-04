@@ -121,7 +121,7 @@ export class DesktopRuntime {
         CANOPY_WEB_ORIGIN: this.setupOrigin,
         GATEWAY_URL: gatewayUrl,
         GATEWAY_SERVICE_TOKEN: this.secrets.serviceToken,
-        BODY_SIZE_LIMIT: "32M",
+        BODY_SIZE_LIMIT: "50M",
       },
       restart: true,
       stopSignal: "SIGKILL",

@@ -218,7 +218,7 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
 export interface CoreWorkLoopMethods {
   sweep(): Promise<string[]>;
   startSweep(intervalMs?: number): void;
-  stopSweep(): void;
+  stopSweep(): Promise<void>;
   pump(threadId: string): Promise<void>;
 }
 
@@ -258,15 +258,18 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
     run();
     this[coreState].sweepTimer ??= setInterval(run, intervalMs);
     this.cli.start();
+    this.environment.sources.start();
   },
 
-  stopSweep(this: GatewayCore): void {
+  async stopSweep(this: GatewayCore): Promise<void> {
+    const sourcesStopped = this.environment.sources.stop();
     this.cli.stop();
     this.connectors.stop();
     this.secrets.stop();
 
     if (this[coreState].sweepTimer) clearInterval(this[coreState].sweepTimer);
     this[coreState].sweepTimer = undefined;
+    await sourcesStopped;
   },
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */

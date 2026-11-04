@@ -37,13 +37,15 @@ export class EnvironmentState {
         });
   }
 
-  async refresh(): Promise<void> {
+  async refresh(): Promise<ui.AgentEnvironmentSnapshot | undefined> {
     const sequence = ++this.#refresh;
 
     try {
       const result = decode(ui.AgentEnvironmentSnapshotSchema, await requestJson("GET", "/api/agent-environment"));
 
       if (sequence === this.#refresh && result.revision >= this.snapshot.revision) this.snapshot = result;
+
+      return result;
     } catch (error) {
       this.error = error instanceof Error ? error.message : "Couldn't refresh the environment.";
     }

@@ -74,6 +74,52 @@ message LibrarySkill {
   bool platform_home = 8;
   canopy.worker.v1.SkillArtifact artifact = 9;
   repeated uint64 versions = 10;
+  SkillSource source = 11;
+}
+message SkillSource {
+  string url = 1;
+  string ref = 2;
+  string path = 3;
+  string commit = 4;
+  string credential_account_id = 5;
+  bool auto_update = 6;
+  bool pinned = 7;
+  string checked_at = 8;
+  string available_commit = 9;
+  string update_preview_id = 10;
+  string error = 11;
+}
+message ResolvedSourceSkill {
+  string path = 1;
+  canopy.worker.v1.SkillArtifact artifact = 2;
+}
+message SkillSourcePreview {
+  string id = 1;
+  SkillSource source = 2;
+  repeated ResolvedSourceSkill skills = 3;
+  repeated string notices = 4;
+  repeated string harnesses = 5;
+  bool device_home = 6;
+  string skill_id = 7; // set only for an update of an existing item
+  string expires_at = 8;
+  string base_checksum = 9;
+  string license = 10;
+}
+message PreviewSkillSourceRequest {
+  string command = 1;
+  string credential_account_id = 2;
+}
+message AddSkillSourceRequest {
+  string preview_id = 1;
+  repeated string paths = 2;
+  LibrarySkill assignment = 3;
+  uint64 expected_revision = 4;
+}
+message CheckSkillSourceRequest { string id = 1; }
+message ApplySkillSourceRequest {
+  string id = 1;
+  string preview_id = 2;
+  uint64 expected_revision = 3;
 }
 message SaveLibrarySkillRequest {
   LibrarySkill skill = 1;
