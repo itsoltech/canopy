@@ -114,8 +114,7 @@
 >
   <div class="grid min-w-0 gap-5">
     {#if step === 1}<NetworkAccessSummary
-        status={network.status}
-        loaded={network.loaded}
+        {network}
         busy={network.busy}
         onenable={() =>
           void network
@@ -183,8 +182,16 @@
               incoming ports.
             </p>
             <div class="flex justify-end">
-              <Button variant="primary" type="submit" loading={busy} disabled={!name.trim() || !setup.loaded}
-                >{!setup.gatewayUrl ? "Turn on network access and continue" : "Continue"}</Button
+              <Button
+                variant="primary"
+                type="submit"
+                loading={busy}
+                disabled={!name.trim() ||
+                  !setup.loaded ||
+                  (!setup.gatewayUrl && (!network.loaded || !!network.error || network.status.state === "error"))}
+                >{!setup.gatewayUrl && network.loaded && !network.error && network.status.state === "off"
+                  ? "Turn on network access and continue"
+                  : "Continue"}</Button
               >
             </div>
           </form>

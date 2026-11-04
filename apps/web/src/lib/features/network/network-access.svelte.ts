@@ -1,44 +1,37 @@
 import { create } from "@bufbuild/protobuf";
+import { onMount } from "svelte";
 import { ui } from "@canopy/contracts";
 import { requestJson, type JsonBody } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
+import { useConnectionRequest } from "./connection-request.svelte.ts";
 
 /** This computer's network access for a settings page: loaded, refreshed while visible (addresses
  * follow the network) and changed through the BFF. Errors stay with the caller's dialog or alert. */
 export function useNetworkAccess(refreshMs = 5000) {
-  let status = $state.raw(create(ui.NetworkAccessSchema));
-  let loaded = $state(false);
-  let busy = $state(false);
-  let error = $state("");
+  const request = useConnectionRequest(create(ui.NetworkAccessSchema), async () =>
+    decode(ui.NetworkAccessSchema, await requestJson("GET", "/api/network")),
+  );
 
-  async function reload() {
-    try {
-      status = decode(ui.NetworkAccessSchema, await requestJson("GET", "/api/network"));
-      loaded = true;
-      error = "";
-    } catch (e) {
-      error = e instanceof Error ? e.message : "Could not load network access";
-    }
-  }
+  let busy = $state(false);
 
   /** Throws the gateway's message (a busy port, an invalid hostname) to the caller. */
   async function update(action: string, extra: { [key: string]: JsonBody } = {}) {
     busy = true;
 
     try {
-      status = decode(ui.NetworkAccessSchema, await requestJson("PUT", "/api/network", { action, ...extra }));
+      request.set(decode(ui.NetworkAccessSchema, await requestJson("PUT", "/api/network", { action, ...extra })));
 
-      return status;
+      return request.data;
     } finally {
       busy = false;
     }
   }
 
-  $effect(() => {
-    void reload();
+  onMount(() => {
+    void request.reload();
 
     const timer = setInterval(() => {
-      if (!busy && !document.hidden) void reload();
+      if (!busy && !document.hidden) void request.reload();
     }, refreshMs);
 
     return () => clearInterval(timer);
@@ -46,18 +39,21 @@ export function useNetworkAccess(refreshMs = 5000) {
 
   return {
     get status() {
-      return status;
+      return request.data;
     },
     get loaded() {
-      return loaded;
+      return request.loaded;
+    },
+    get loading() {
+      return request.loading;
     },
     get busy() {
       return busy;
     },
     get error() {
-      return error;
+      return request.error;
     },
-    reload,
+    reload: request.reload,
     update,
   };
 }

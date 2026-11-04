@@ -831,6 +831,18 @@ Symlink wybiera wydanie dla **następnego procesu**; działający serwer nadal u
 
 Powłoka odpowiada 200 także bez gateway; początkowy HTML zawiera szkielet z właściwym schematem i geometrią. BFF zwraca szybko 502/503 dla niedostępnego gateway, a widoki błędów tras i nakładki ponawiają dane co 3 s w widocznej karcie oraz mają Try again. Przy istniejących danych aplikacja zachowuje ostatni stan i szkic podczas ponawiania SSE. Wywołania celowo czekające na worker, np. odświeżanie modeli i logowanie dostawcy, mają osobne dłuższe deadline'y.
 
+Ustawienia Network access, Linked computers i Devices oddzielają wynik ostatniego
+żądania od stanu usługi. Początkowy błąd kończy etykiety ładowania, wskazuje
+niedostępne dane i udostępnia Retry; ponawianie blokuje przycisk do zakończenia
+żądania. Nieudane odświeżenie zachowuje poprzedni snapshot z ostrzeżeniem, że może
+być nieaktualny. Udana odpowiedź usuwa błąd. Wspólne podsumowanie Network access
+przekazuje ten sam stan również na liście workerów i w kreatorze dodawania workera.
+Instrukcja włączenia sieci wymaga potwierdzonego stanu off; nie zastępuje błędu
+odczytu ani błędu uruchomienia usługi. Odczyty jednego zasobu nie nakładają się,
+a spóźniony odczyt nie nadpisuje wyniku udanej zmiany ustawień.
+Przerwa w połączeniu zachowuje również ostatnio potwierdzone capabilities gatewaya,
+aby widoku błędu odczytu nie zastępować nieuzasadnionym żądaniem aktualizacji.
+
 ### Agent environment
 
 Settings → Agent environment korzysta z `GetAgentEnvironment`,
