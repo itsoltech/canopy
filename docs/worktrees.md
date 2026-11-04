@@ -135,6 +135,10 @@ bez menedżera zwraca komunikat z zaleceniem skopiowania ścieżki.
   następuje, gdy gałąź ma już upstream (agent zdążył ją wypchnąć) albo nie jest już wybrana w worktree.
   Tworzenie wątku nie czeka na model.
 
+  Generowanie semantycznej nazwy przechodzi wyłącznie przez oficjalny harness workera, także
+  dla Groka native i proxy (izolowana sesja CLI przez ACP, bez narzędzi i kontekstu repozytorium).
+  CLIProxyAPI może być konfiguracją harnessu; gateway ani worker nie wywołuje bezpośrednio API modelu.
+
 ## Przepływy UI
 
 ### Settings → Worktrees (sekcja Code)

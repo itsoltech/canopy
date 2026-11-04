@@ -93,7 +93,11 @@ Native pobiera modele/efforts z `_meta.modelState` odpowiedzi initialize, bez p�
 
 Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synchronizację na workery co pozostałe harnessy. Enum `PROVIDER_GROK=3`, `WorkerConfig.grok=640`, migracja `0043_grok_provider.sql` (przy merge przenumerowana z 0042). Picker, sidebar, ustawienia providerów i karty subagentów mają markę Groka ([LobeHub icons, MIT i notice](third-party-notices.md#lobehub-icons--znak-xaigrok)).
 
-`spawn_thread` obsługuje `grok/<instance>` w obu kierunkach z Claude/Codex. Botowe `start_thread` przyjmuje `provider: grok`. Boty mogą też działać bez CLI przez endpoint chat completions; live `grok-3-mini-fast` potwierdził function calling i odczyt wyniku narzędzia w następnej turze. Generowanie tytułów przez Groka jest dozwolone wyłącznie dla proxy `grok-3-mini` / `grok-3-mini-fast` (max 120 tokenów, bez tools/workspace); native i drogie modele pozostają wyłączone dla tej funkcji.
+`spawn_thread` obsługuje `grok/<instance>` w obu kierunkach z Claude/Codex. Botowe `start_thread` przyjmuje `provider: grok`. Bezpośrednie API pozostało w `apps/gateway/src/bots/model.ts`; zastąpienie runtime botów oficjalnymi harnessami jest osobnym projektem. Nie należy używać go do nowych wywołań modeli.
+
+Tytuły i semantyczne nazwy gałęzi używają wspólnego `GenerateText`: gateway wybiera instancję i mały model z jej katalogu, a worker uruchamia krótkotrwały Grok CLI przez ACP. Natywny login i proxy są równoprawne; nie ma ograniczenia do `grok-3-mini`. Automatyczny dobór preferuje mini, potem fast/flash/lite i najnowszą wersję w danej rodzinie; jawny wybór użytkownika wygrywa. Canopy nie wykonuje tutaj żądań inferencji HTTP.
+
+Każda generacja ma osobny home i pusty cwd, bez trwałych sesji, skills, MCP i narzędzi klienta. Pełna definicja agenta ACP wyłącza wstrzykiwanie narzędzi domyślnych i jawnie usuwa narzędzia rdzenia: samo puste `tools` w CLI oznacza zestaw domyślny. Worker odmawia każdej zgody, a reguły CLI blokują wszystkie klasy narzędzi. Argumenty startowe instancji są pomijane w tym trybie; executable, model, effort i login/proxy nadal pochodzą z instancji. Limit czasu wynosi 30 s łącznie z inicjalizacją, limit tekstu odpowiedzi i rozumowania 16 KiB. Wynik wymaga `end_turn`; błędy i limity nie zwracają częściowego tekstu. Proces, jego grupa i scratch są sprzątane również przy anulowaniu. Szczegóły: [thread-titles.md](thread-titles.md).
 
 ## Włączenie na stosie użytkownika
 
@@ -101,7 +105,7 @@ Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synch
 2. W zdalnym WorkerConfig włącz `grok: { enabled: true, executablePath: "/home/nix/.local/bin/grok" }`. Przy natywnym loginie zostaw `deviceLogin` domyślne; dla wyłącznie proxy ustaw `deviceLogin: NONE`. Istniejący worker potrzebuje jawnego włączenia tego harnessu. Nowy `worker add` włącza już wszystkie trzy.
 3. Native: wykonaj `grok login` jako użytkownik OS workera; domyślnie czytane jest `~/.grok/auth.json`. Alternatywnie instancja native może mieć sekretny `XAI_API_KEY`. Przy innym koncie ustaw Home path na katalog tego loginu. Logowanie Groka odbywa się w CLI, bez formularza OAuth w Canopy. Nie kopiuj tokenów do repo.
 4. Proxy: dodaj połączenie CLIProxyAPI lub OpenAI-compatible w Settings → Proxies, potem Settings → Providers → Add → Grok → Proxy i wybierz zapisane połączenie oraz worker. URL może być bazowy lub kończyć się `/v1`; gateway normalizuje oba warianty. Model wybierz z katalogu, np. sprawdzony `grok-4.7-build-fast`. Worker sam ustawia prywatny home, custom model, `CANOPY_GROK_API_KEY` i `XAI_API_KEY`; nie wymaga dodatkowych env. [Mapowania i sekrety](proxies.md).
-5. Zaczekaj na Agents → Grok 1.0.70 oraz dostępność instancji. Utwórz wątek z Grokiem i wybranym modelem. Dla tanich tytułów wybierz osobno mini w Text generation; bot może używać tej samej instancji proxy i mini-fast.
+5. Zaczekaj na Agents → Grok 1.0.70 oraz dostępność instancji. Utwórz wątek z Grokiem i wybranym modelem. Text generation automatycznie wybiera mały/szybki model; możesz też jawnie wskazać model instancji native lub proxy.
 
 Przy ręcznej rejestracji nowego workera istniejące polecenie `worker add --cliproxy-url <URL> --cliproxy-key-env <NAZWA_ENV>` rejestruje też instancję Groka. Wartości są pobierane z prywatnego środowiska; nie umieszczaj ich w skryptach repo ani logach. Na istniejącym workerze użyj instancji i zdalnego configu; nie rejestruj kolejnego workera tylko po to, aby dodać Groka.
 
@@ -123,6 +127,7 @@ Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi
 
 - SDK: deterministyczny fake ACP, framing Unicode, kolejne tury/load, permission deny, cancel/reuse, crash/redakcja, timeout, nieposłuszne anulowanie i abort callbacka.
 - `tests/integration/grok-provider.test.ts`: prawdziwy gateway/PostgreSQL + WorkerHost + fake Grok, native i endpoint instance, MCP, itemy, zgody/odmowy, interrupt, steer→queue, restart/load.
+- `apps/worker/src/providers/grok/generate-text.test.ts` i `tests/integration/grok-text-generation.test.ts`: izolowana generacja, odmowy, limity, sprzątanie i pełna ścieżka tytułu/nazwy gałęzi. Test z rzeczywistym CLI przechwytuje request na lokalnym endpointcie bez inferencji i sprawdza brak schematów narzędzi.
 - Opt-in `CANOPY_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`, `apps/gateway/src/bots/grok.live.test.ts`. Env testowe: `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `CANOPY_LIVE_GROK_MODEL`, `CANOPY_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
 - Odbiór Chromium opisuje [grok-verification.md](grok-verification.md). Nie dodano web UI testów.
 

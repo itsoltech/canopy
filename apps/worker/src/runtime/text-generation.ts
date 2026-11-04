@@ -61,7 +61,18 @@ export class TextGeneration {
       const chosen = { ...input, model };
 
       const text = await Match.value(provider).pipe(
-        Match.when("grok", () => generateGrokText(chosen, profile, abort.signal)),
+        Match.when("grok", () =>
+          generateGrokText(
+            chosen,
+            {
+              profile,
+              executable,
+              dataDir: this.ctx.state.options.dataDir,
+              linkDeviceLogin: config.grok.linkDeviceLogin,
+            },
+            abort.signal,
+          ),
+        ),
         Match.when("claude", () =>
           generateClaudeText(
             chosen,

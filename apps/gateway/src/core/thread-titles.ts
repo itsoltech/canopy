@@ -7,7 +7,8 @@ export function titleModel(catalog: ProfileModels | undefined, fallback: string)
 
     if (catalog?.provider === Provider.CLAUDE) return /haiku/.test(name) ? 0 : Infinity;
 
-    if (catalog?.provider === Provider.GROK) return /^grok-3-mini(?:-fast)?$/.test(m.id) ? 0 : Infinity;
+    if (catalog?.provider === Provider.GROK)
+      return /\bmini\b/.test(name) ? 0 : /\b(fast|flash|lite)\b/.test(name) ? 1 : Infinity;
 
     return /\bnano\b/.test(name)
       ? 0

@@ -12,13 +12,14 @@ import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
+import { titleModel } from "../../apps/gateway/src/core/thread-titles.ts";
 
 const tempDir = tempDirs();
 const proxyUrl = process.env["CANOPY_LIVE_CLIPROXYAPI_URL"];
 const proxyKey = process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"];
 
 describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || !dockerAvailable)(
-  "one-shot text through both live harness SDKs",
+  "one-shot text through all three live harnesses",
   () => {
     let gw: TestGateway;
     let workerId = "";
@@ -35,7 +36,12 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
       );
 
       workerId = worker.workerId;
-      await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
+      await useLiveProxy(gw, workerId, {
+        url: proxyUrl!,
+        key: proxyKey!,
+        allowedRoots: [repo],
+        harnesses: [Provider.CLAUDE, Provider.CODEX, Provider.GROK],
+      });
       runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
       host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "live" });
 
@@ -53,7 +59,7 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
         await runtime.dispose();
       };
 
-      await liveProxyReady(gw, workerId);
+      await liveProxyReady(gw, workerId, [Provider.CLAUDE, Provider.CODEX, Provider.GROK]);
     }, 120_000);
     afterAll(async () => {
       await stop();
@@ -67,16 +73,23 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
         model: process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5",
       },
       { provider: Provider.CODEX, name: "Codex", model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol" },
+      { provider: Provider.GROK, name: "Grok", model: process.env["CANOPY_LIVE_GROK_MODEL"] ?? "" },
     ]) {
       test(`${c.name}: returns plain text without platform threads, turns, journal records or transcripts`, async () => {
         const before = await runtime.runPromise(journalHello());
         const connection = gw.core.link.connections.get(workerId)!;
 
+        const catalog = (await gw.api.listModels({ workerId })).workers
+          .find((w) => w.workerId === workerId)
+          ?.profiles.find((p) => p.provider === c.provider && p.profileId === "cliproxyapi");
+
+        const choice = titleModel(catalog, catalog?.models.find((m) => m.isDefault)?.id ?? "");
+
         const request = {
           provider: c.provider,
           profileId: "cliproxyapi",
-          model: c.model,
-          effort: "low",
+          model: c.model || choice.model,
+          effort: c.model ? "low" : choice.effort,
           prompt: "Generate a short Polish title for this task: naprawić logowanie. Return only the title.",
         };
 

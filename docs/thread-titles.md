@@ -1,6 +1,6 @@
 # Generowanie tytułów wątków
 
-Grok może generować tytuły przez API instancji CLIProxyAPI wyłącznie modelami `grok-3-mini` / `grok-3-mini-fast`, z limitem 120 tokenów i bez narzędzi. Natywny login i drogie modele Groka nie są używane do tej funkcji. [Adapter Grok](grok-adapter.md).
+Wszystkie wywołania modeli do generowania tekstu przechodzą przez oficjalne harnessy na workerze: Claude Agent SDK, Codex app-server albo Grok CLI przez ACP. Canopy nie wysyła bezpośrednich żądań inferencji HTTP. Grok obsługuje zarówno natywny login, jak i instancję proxy; CLIProxyAPI jest wyłącznie konfiguracją procesu CLI. [Adapter Grok](grok-adapter.md).
 
 Tytuł powstaje asynchronicznie po pierwszej wiadomości użytkownika albo pierwszym celu nowego wątku. Gateway wysyła nietrwałą komendę `GenerateText` do połączonego workera z wybraną instancją dostawcy; preferuje worker wątku. Zwykła tura nie czeka na odpowiedź modelu. Wynik aktualizuje istniejące strumienie wątku i overview.
 
@@ -12,11 +12,11 @@ Katalog nie zawiera cen ani opóźnień. Domyślnie używana jest jawna heurysty
 
 1. Claude: rodzina Haiku.
 2. Codex: kolejno nano, mini/luna, spark/flash/lite.
-3. W tej samej rodzinie wygrywa najnowsza wersja według numerycznego sortowania identyfikatora modelu.
+3. Grok: kolejno mini, fast/flash/lite; bez sztywnej listy wersji ani ograniczenia do proxy.
 4. Bez rozpoznanej rodziny używany jest model wątku (przy pustym modelu — domyślny model katalogu workera).
 5. Effort: `low`, jeśli wspierany; inaczej `none`, `minimal`, wspierany domyślny effort lub brak effort. Model bez poziomów nie otrzymuje effort.
 
-Nie jest to obietnica najniższej ceny. Heurystyka jest w `apps/gateway/src/core/thread-titles.ts`, z testami jednostkowymi. Jawny wybór w ustawieniach ma pierwszeństwo.
+W tej samej rodzinie wygrywa najnowsza wersja według numerycznego sortowania identyfikatora modelu. Nie jest to obietnica najniższej ceny. Heurystyka jest w `apps/gateway/src/core/thread-titles.ts`. Jawny wybór w ustawieniach ma pierwszeństwo.
 
 ## Źródło i wyścigi
 
@@ -46,11 +46,14 @@ Claude używa Agent SDK `query`, jednej tury, pustej listy narzędzi/MCP/plugin�
 
 Codex używa osobnego app-servera, ephemeral thread, read-only sandboxa, approvals `never` i pustej listy narzędzi dynamicznych. Minimalny katalog modelu i jawne wyłączenia narzędzi/feature flags usuwają także narzędzia wbudowane (w tym goals). Tymczasowy CODEX_HOME udostępnia tylko login wybranej instancji; jej env, profil API i executable są takie jak dla zwykłych tur. Scratch jest usuwany po sukcesie, błędzie i anulowaniu. Test przechwytujący request modelu sprawdza pustą tablicę `tools`.
 
+Grok uruchamia osobny `grok agent --no-leader … stdio` i nową sesję ACP dla każdego żądania. Tymczasowy home nie współdzieli sesji ani skills instancji; cwd jest pustym katalogiem scratch, bez workspace'u. Jedynym współdzielonym plikiem jest wskazany login instancji. Proxy i klucz trafiają wyłącznie do konfiguracji/env CLI. Pełny profil ACP wyłącza domyślne narzędzia, skills i jawnie blokuje narzędzia rdzenia (samo `tools: []` przywraca domyślny zestaw CLI). Brak MCP oraz callbacków plików/terminala; każda prośba o zgodę otrzymuje odmowę albo anulowanie, gdy CLI nie oferuje odmowy. Reguły CLI dodatkowo zabraniają wszystkich klas narzędzi. Własne argumenty startowe instancji są pomijane dla generacji tekstu, aby nie włączyły pluginów ani automatycznych zgód. Limit 30 s obejmuje także handshake; limit 16 KiB obejmuje tekst odpowiedzi i rozumowania. Zwracany jest wyłącznie tekst odpowiedzi po `end_turn`. Błąd, narzędzie, timeout lub przekroczenie limitu odrzuca częściowy wynik. Cleanup zbiera proces i jego grupę oraz usuwa scratch.
+
 Prompt zawiera ograniczony tekst użytkownika, nazwy załączników, references i cytaty jako dane; nie rozszerzony prompt harnessu. Początkowe komendy platformy, np. `/goal`, są usuwane. Model ma opisać zadanie w języku wiadomości. Sanitizer usuwa markdown, otaczającą interpunkcję i znaki kontrolne, zostawia jedną linię do 60 punktów kodowych Unicode.
 
 ## Weryfikacja
 
-- `apps/gateway/src/core/thread-titles.test.ts`: prompt, sanitizer, dobór modelu i effort.
 - `apps/worker/src/providers/generate-text.test.ts`: zgodność konfiguracji Codexa i request bez narzędzi.
+- `apps/worker/src/providers/grok/generate-text.test.ts`: fake ACP, izolacja native/proxy, odmowy, limity, timeout handshake/promptu, anulowanie i sprzątanie procesów; lokalny endpoint przechwytuje request rzeczywistego Grok CLI i sprawdza pustą listę narzędzi, bez płatnej inferencji.
 - `tests/integration/thread-titles.test.ts`: scripted worker, asynchroniczna generacja, strumienie, rename, explicit title, regeneracja, ustawienia i błędy.
-- `tests/integration/text-generation.live.test.ts`: oba SDK przez CLIProxyAPI, wynik i brak platformowej persystencji/transkryptów. Używa `useLiveProxy`; sekrety pozostają poza repo.
+- `tests/integration/grok-text-generation.test.ts`: gateway ↔ rzeczywisty worker ↔ fake ACP, tytuł i semantyczna nazwa gałęzi, automatyczny mały model oraz jawny wybór native poza dawną listą mini.
+- `tests/integration/text-generation.live.test.ts`: trzy harnessy przez CLIProxyAPI, wynik i brak platformowej persystencji/transkryptów. Opt-in `CANOPY_LIVE=1`, używa `useLiveProxy`; sekrety pozostają poza repo.

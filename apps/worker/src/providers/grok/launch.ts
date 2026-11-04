@@ -5,6 +5,7 @@ import type { GrokOptions } from "@canopy/grok-acp";
 import type { ResolvedProfile } from "../profiles.ts";
 import { instanceShadowHome } from "../../config/remote.ts";
 import { instructionDirectory } from "../../agent-environment/files.ts";
+import { textOnlyConfig } from "./text-agent.ts";
 
 interface GrokLaunch {
   options: GrokOptions;
@@ -15,30 +16,36 @@ interface GrokLaunch {
 export function grokLaunch(options: {
   dataDir: string;
   profile: ResolvedProfile;
-  executable?: string;
+  executable?: string | undefined;
   model?: string;
   effort?: string;
   readOnly?: boolean;
   fullAuto?: boolean;
   baseEnv?: NodeJS.ProcessEnv;
   linkDeviceLogin?: boolean;
+  textOnly?: boolean;
+  temporaryDir?: string;
 }): GrokLaunch {
   const { profile } = options;
   const runtime = profile.runtime ?? {};
-  const root = join(options.dataDir, "grok", profile.id);
+  const root = options.temporaryDir ?? join(options.dataDir, "grok", profile.id);
   mkdirSync(root, { recursive: true, mode: 0o700 });
   const sessions = join(root, "sessions");
-  mkdirSync(sessions, { recursive: true, mode: 0o700 });
+
+  if (!options.textOnly) mkdirSync(sessions, { recursive: true, mode: 0o700 });
   const home = mkdtempSync(join(root, "process-"));
-  symlinkSync(sessions, join(home, "sessions"), "dir");
+
+  if (!options.textOnly) symlinkSync(sessions, join(home, "sessions"), "dir");
 
   const skillHome =
     instanceShadowHome(options.dataDir, "grok", profile.id, runtime) ?? join(options.dataDir, "grok-home");
 
   const skills = join(skillHome, "skills");
-  instructionDirectory(skills, true);
+
+  if (!options.textOnly) instructionDirectory(skills, true);
+
   // The process home is disposable. Skills remain in the reconciled, durable instance home.
-  symlinkSync(skills, join(home, "skills"), process.platform === "win32" ? "junction" : "dir");
+  if (!options.textOnly) symlinkSync(skills, join(home, "skills"), process.platform === "win32" ? "junction" : "dir");
   const env: NodeJS.ProcessEnv = { ...(options.baseEnv ?? process.env), ...profile.env };
 
   // Ignore device configuration: it can carry another account, endpoint, permissions or MCP servers.
@@ -80,7 +87,8 @@ export function grokLaunch(options: {
   config += '\n[ui]\npermission_mode = "ask"\nremember_tool_approvals = false\n';
 
   // Grok auto-allows mkdir/touch before asking ACP. Explicit denies also cover workspaces under /tmp.
-  if (options.readOnly)
+  if (options.textOnly) config += textOnlyConfig(env, home);
+  else if (options.readOnly)
     config += '\n[permission]\nrules = [{ action = "deny", tool = "edit" }, { action = "deny", tool = "bash" }]\n';
 
   if (profile.kind === "cliproxyapi") {
@@ -107,7 +115,7 @@ export function grokLaunch(options: {
     "--no-leader",
     ...(options.model ? ["--model", options.model] : []),
     ...(options.effort ? ["--reasoning-effort", options.effort] : []),
-    ...(runtime.launchArgs ?? []),
+    ...(options.textOnly ? [] : (runtime.launchArgs ?? [])),
     "stdio",
   ];
 
