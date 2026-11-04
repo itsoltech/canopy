@@ -60,9 +60,18 @@ Short rules for agents working in this repository. Details live in `docs/` (most
   - `bun install`
   - `bun run gen:check`
   - `bun run typecheck`
+  - `bun run lint` and `bun run format:check`
   - `bun run check:tmp` (full test run that also checks nothing is left in the temp dir)
   - the web build
 - Look at UI changes yourself in a real browser: light + dark, desktop + phone width.
+
+## Code quality
+
+- Lint is oxlint with the vendored anti-slop rules (`tools/oxlint/anti-slop`, `oxlint.config.ts`); formatting is oxfmt. CI enforces both. Details and rule notes: `docs/code-quality.md`.
+- Run `bun run format` after editing. Fix lint findings properly: parse data at boundaries instead of `typeof` checks and casts, use real types instead of `unknown`, keep assertions only with a `// SAFETY:` comment that states the invariant.
+- Size limits: 400 code lines per file and 120 per function (tests: 800 per file). Split by responsibility; never disable the size rules.
+- `oxlint-disable-next-line <rule> -- <reason>` only when the fix would be wrong, with a precise reason.
+- Never run plain `oxlint --fix` on the whole repo; use `bun run lint:spacing` for the spacing autofix.
 
 ## UI rules
 

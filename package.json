@@ -14,7 +14,7 @@
     "gen:codex": "bun run --filter @canopy/codex-protocol gen",
     "typecheck": "bun run --filter '*' typecheck && tsc -p scripts/tsconfig.json && tsc -p tools/tsconfig.json",
     "test": "bun test",
-    "check": "bun run gen:check && bun run typecheck && bun run check:tmp",
+    "check": "bun run gen:check && bun run typecheck && bun run lint && bun run format:check && bun run check:tmp",
     "gen:check": "bun run gen && git diff --exit-code -- packages/contracts/src/gen && bun run --filter @canopy/ui gen:check",
     "check:tmp": "bun packages/testing/src/check-temp.ts",
     "lint": "oxlint",
