@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { bots, ProfileModelsSchema, Provider } from "@canopy/contracts";
+import type { JsonObject } from "@canopy/domain";
 import { anthropicRequest, apiModel, directModel, grokRequest, openaiRequest } from "./model.ts";
 import { PLATFORM_TOOLS } from "./policy.ts";
 import type { ModelInput } from "./types.ts";
@@ -28,13 +29,13 @@ test("both wire protocols send only function tools and carry durable tool result
 
 for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK])
   test(`${Provider[provider]}: direct API receives no tools that execute ls, and never dispatches a hosted tool`, async () => {
-    let captured: Record<string, unknown> = {};
+    let captured: JsonObject = {};
 
     const server = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
       fetch: async (request) => {
-        captured = (await request.json()) as Record<string, unknown>;
+        captured = (await request.json()) as JsonObject;
 
         return Response.json(
           provider === Provider.CLAUDE

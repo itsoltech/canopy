@@ -109,6 +109,7 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
         const cron = patch.cron?.trim().replace(/\s+/g, " ") ?? "";
         const timezone = patch.timezone?.trim() || "UTC";
 
+        // oxlint-disable-next-line no-control-regex -- a routine title is one line of visible text
         if (!title || title.length > 120 || /[\x00-\x1f]/.test(title))
           throw new Invalid("title is required (at most 120 characters, one line)");
 

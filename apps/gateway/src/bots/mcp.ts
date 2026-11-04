@@ -2,7 +2,14 @@ import { createHash } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { JsonObject } from "@canopy/domain";
+import { Schema } from "effect";
 import type { McpConnection, ToolSpec } from "./types.ts";
+
+type McpResult = Awaited<ReturnType<Client["callTool"]>> | { error: string };
+
+/** The SDK has already parsed the wire JSON; this only states it in the gateway's JSON type. */
+const toolSchema = Schema.decodeUnknownSync(Schema.JsonObject);
 
 /** Only the two remote transports are imported. No stdio or process launcher exists here. */
 export async function withMcp<A>(
@@ -85,7 +92,7 @@ export async function mcpTools(server: McpConnection, signal: AbortSignal): Prom
             ? `${server.namespace.slice(0, 39)}__${suffix}`
             : `mcp_${createHash("sha256").update(`${server.id}/${t.name}`).digest("hex").slice(0, 24)}`,
           description: `${server.name}: ${t.description ?? t.name}`.slice(0, 8000),
-          parameters: t.inputSchema,
+          parameters: toolSchema(t.inputSchema),
           source: "mcp",
           serverId: server.id,
           serverName: server.name,
@@ -107,9 +114,9 @@ export async function mcpTools(server: McpConnection, signal: AbortSignal): Prom
 export async function mcpCall(
   server: McpConnection,
   tool: ToolSpec,
-  args: Record<string, unknown>,
+  args: JsonObject,
   signal: AbortSignal,
-): Promise<unknown> {
+): Promise<McpResult> {
   return withMcp(server, signal, async (client) => {
     const result = await client.callTool({ name: tool.remoteName!, arguments: args }, undefined, {
       signal,

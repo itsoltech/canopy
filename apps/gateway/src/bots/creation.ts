@@ -1,6 +1,8 @@
 import { randomInt } from "node:crypto";
 import { create } from "@bufbuild/protobuf";
 import { bots, Provider } from "@canopy/contracts";
+import type { JsonObject } from "@canopy/domain";
+import { Predicate } from "effect";
 import { Invalid } from "../store/store.ts";
 
 // Same choices as the appearance wizard. No UI dependency in the gateway.
@@ -48,28 +50,33 @@ const fields = [
 ];
 
 /** Resolved once, then durably stored with the approval; retries never reroll appearance or defaults. */
-export function proposedBot(args: Record<string, unknown>, own: bots.BotConfiguration): bots.BotConfiguration {
+export function proposedBot(args: JsonObject, own: bots.BotConfiguration): bots.BotConfiguration {
+  const given = new Map<string, string>();
+
   for (const [key, value] of Object.entries(args)) {
     if (!fields.includes(key)) throw new Invalid(`unknown field ${key}`);
 
-    if (typeof value !== "string") throw new Invalid(`${key} must be a string`);
+    if (!Predicate.isString(value)) throw new Invalid(`${key} must be a string`);
+    given.set(key, value);
   }
 
-  if (typeof args["name"] !== "string") throw new Invalid("name is required");
+  const name = given.get("name");
+  const provider = given.get("provider");
 
-  if (args["provider"] !== undefined && !["codex", "claude"].includes(args["provider"] as string))
+  if (name === undefined) throw new Invalid("name is required");
+
+  if (provider !== undefined && provider !== "codex" && provider !== "claude")
     throw new Invalid("provider must be claude or codex");
 
   return create(bots.BotConfigurationSchema, {
-    name: args["name"],
-    shape: (args["shape"] as string | undefined) ?? shapes[randomInt(shapes.length)]!,
-    color: (args["color"] as string | undefined) ?? colors[randomInt(colors.length)]!,
-    provider:
-      args["provider"] === undefined ? own.provider : args["provider"] === "claude" ? Provider.CLAUDE : Provider.CODEX,
-    providerInstance: (args["provider_instance"] as string | undefined) ?? own.providerInstance,
-    model: (args["model"] as string | undefined) ?? own.model,
-    effort: (args["effort"] as string | undefined) ?? own.effort,
-    instructions: (args["instructions"] as string | undefined) ?? "",
-    approvalPolicy: (args["approval_policy"] as string | undefined) ?? own.approvalPolicy,
+    name,
+    shape: given.get("shape") ?? shapes[randomInt(shapes.length)]!,
+    color: given.get("color") ?? colors[randomInt(colors.length)]!,
+    provider: provider === undefined ? own.provider : provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
+    providerInstance: given.get("provider_instance") ?? own.providerInstance,
+    model: given.get("model") ?? own.model,
+    effort: given.get("effort") ?? own.effort,
+    instructions: given.get("instructions") ?? "",
+    approvalPolicy: given.get("approval_policy") ?? own.approvalPolicy,
   });
 }

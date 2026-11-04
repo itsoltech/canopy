@@ -1,4 +1,5 @@
 import { auth, type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
+import { Predicate } from "effect";
 import type { Credentials } from "./store.ts";
 import { oauthFetch } from "./catalog.ts";
 
@@ -79,8 +80,10 @@ export async function authorizeOAuth(
 }
 
 export async function revokeOAuth(value: Credentials): Promise<boolean> {
-  const endpoint = (value.discovery?.authorizationServerMetadata as { revocation_endpoint?: string } | undefined)
-    ?.revocation_endpoint;
+  // RFC 7009 metadata the SDK passes through without declaring it.
+  const metadata = value.discovery?.authorizationServerMetadata;
+  const revocation = Predicate.hasProperty(metadata, "revocation_endpoint") ? metadata.revocation_endpoint : undefined;
+  const endpoint = Predicate.isString(revocation) ? revocation : undefined;
 
   if (!endpoint || !value.client || !value.tokens) return false;
   let success = true;

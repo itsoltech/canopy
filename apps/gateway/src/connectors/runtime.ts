@@ -11,10 +11,12 @@ import {
   type ThreadEvent,
 } from "@canopy/contracts";
 import { randomBytes } from "node:crypto";
-import { Effect } from "effect";
+import type { JsonObject } from "@canopy/domain";
+import { Effect, Schema } from "effect";
 import { GatewayStore } from "../store/store.ts";
 import type { CoreRuntime } from "../core/core.ts";
 import { mcpCall, mcpTools } from "../bots/mcp.ts";
+import { isJsonObject } from "../bots/json.ts";
 import type { McpConnection, ToolSpec } from "../bots/types.ts";
 import { CONNECTOR_TYPES, connectorType, connectorUrl } from "./catalog.ts";
 import {
@@ -26,6 +28,12 @@ import {
   type ExecutionSource,
 } from "./store.ts";
 import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
+
+/** Catalog input schemas are stored as the JSON text of the object the MCP server sent. */
+const inputSchema = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.JsonObject));
+
+/** MCP tool results report failure in-band. */
+const failed = (result: JsonValue) => isJsonObject(result) && Boolean(result["isError"]);
 
 export class ConnectorsRuntime {
   readonly #active = new Map<string, { fingerprint: string; promise: Promise<JsonValue> }>();
@@ -276,7 +284,7 @@ export class ConnectorsRuntime {
     return (await this.tools(this.options.userId, { botId })).map((t) => ({
       name: t.name,
       description: t.description,
-      parameters: JSON.parse(t.inputSchemaJson) as Record<string, unknown>,
+      parameters: inputSchema(t.inputSchemaJson),
       source: "mcp",
       serverId: t.accountId,
       serverName: `${connectorType(t.connectorType)?.name ?? t.connectorType} · ${t.accountName}`,
@@ -330,7 +338,7 @@ export class ConnectorsRuntime {
     source: ExecutionSource,
     callId: string,
     toolName: string,
-    args: Record<string, unknown>,
+    args: JsonObject,
     signal: AbortSignal,
   ): Promise<JsonValue> {
     // Authorization precedes even replay lookup, so a revoked account cannot disclose old results.
@@ -357,7 +365,7 @@ export class ConnectorsRuntime {
     source: ExecutionSource,
     callId: string,
     toolName: string,
-    args: Record<string, unknown>,
+    args: JsonObject,
     fingerprint: string,
     signal: AbortSignal,
   ): Promise<JsonValue> {
@@ -407,7 +415,7 @@ export class ConnectorsRuntime {
         signal,
       );
 
-      result = JSON.parse(redactConnector(JSON.stringify(output), connection.value)) as JsonValue;
+      result = JSON.parse(redactConnector(JSON.stringify(output), connection.value));
     } catch {
       result = {
         isError: true,
@@ -420,7 +428,7 @@ export class ConnectorsRuntime {
       };
     }
 
-    const isError = !!(result && typeof result === "object" && !Array.isArray(result) && result["isError"]);
+    const isError = failed(result);
     await this.run((s) => s.finishExecution(callId, source, tool.remoteName, result, isError));
 
     return result;
@@ -429,7 +437,7 @@ export class ConnectorsRuntime {
     source: ExecutionSource,
     callId: string,
     tool: ConnectorTool,
-    args: Record<string, unknown>,
+    args: JsonObject,
     signal: AbortSignal,
   ): Promise<void> {
     const facts = await this.options.runtime.runPromise(
@@ -518,20 +526,12 @@ export class ConnectorsRuntime {
         threadId: thread.id,
         turnId: request.turnId,
       };
-      const args: unknown = JSON.parse(request.argumentsJson);
+      const args: JsonValue = JSON.parse(request.argumentsJson);
 
-      if (!args || typeof args !== "object" || Array.isArray(args))
-        throw new ConnectorFailure("Invalid connector arguments");
+      if (!isJsonObject(args)) throw new ConnectorFailure("Invalid connector arguments");
 
-      const result = await this.call(
-        source,
-        request.callId,
-        request.toolName,
-        args as Record<string, unknown>,
-        AbortSignal.timeout(300_000),
-      );
-
-      const isError = !!(result && typeof result === "object" && !Array.isArray(result) && result["isError"]);
+      const result = await this.call(source, request.callId, request.toolName, args, AbortSignal.timeout(300_000));
+      const isError = failed(result);
 
       return create(AgentToolResultSchema, {
         callId: request.callId,

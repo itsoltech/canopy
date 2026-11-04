@@ -1,9 +1,10 @@
-import { DEFAULT_BUS_LIMITS } from "@canopy/domain";
+import { DEFAULT_BUS_LIMITS, type JsonObject, type JsonValue } from "@canopy/domain";
+import { Predicate } from "effect";
 import type { ToolSpec } from "./types.ts";
 import { areaTool, areaTools } from "./tools/index.ts";
 
 /** An allowlist of descriptors, never a model-supplied tool name, grants capability. */
-export function needsApproval(tool: ToolSpec, policy: string, args: Record<string, unknown> = {}): boolean {
+export function needsApproval(tool: ToolSpec, policy: string, args: JsonObject = {}): boolean {
   if (tool.source === "platform" && tool.name === "ask_user") return true;
 
   // Full auto: the user chose no approval cards at all (a question to them is not an approval).
@@ -37,17 +38,17 @@ export function nextHop(hops: number): number {
 }
 
 /** Reviewable cards show the destination and proposed content as prose, never a tool-call JSON block. */
-export function approvalPrompt(tool: ToolSpec, args: Record<string, unknown>, phrase: string): string {
+export function approvalPrompt(tool: ToolSpec, args: JsonObject, phrase: string): string {
   const heading = (key: string) => key.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 
-  const value = (input: unknown, depth = 0): string => {
-    if (typeof input === "string") return input.length > 8000 ? `${input.slice(0, 8000)}… (preview truncated)` : input;
+  const value = (input: JsonValue | undefined, depth = 0): string => {
+    if (Predicate.isString(input)) return input.length > 8000 ? `${input.slice(0, 8000)}… (preview truncated)` : input;
 
-    if (typeof input === "boolean") return input ? "Yes" : "No";
+    if (Predicate.isBoolean(input)) return input ? "Yes" : "No";
 
     if (input === null || input === undefined) return "None";
 
-    if (typeof input === "number") return String(input);
+    if (Predicate.isNumber(input)) return String(input);
 
     if (depth >= 2) return "Additional nested details";
 
@@ -57,7 +58,7 @@ export function approvalPrompt(tool: ToolSpec, args: Record<string, unknown>, ph
         .map((v) => value(v, depth + 1))
         .join(", ");
 
-    return Object.entries(input as Record<string, unknown>)
+    return Object.entries(input)
       .slice(0, 16)
       .map(([k, v]) => `${heading(k)}: ${value(v, depth + 1)}`)
       .join("; ");
@@ -78,11 +79,12 @@ export function approvalPrompt(tool: ToolSpec, args: Record<string, unknown>, ph
     .slice(0, 100_000);
 }
 
-export function statusPhrase(tool: ToolSpec, args: Record<string, unknown> = {}): string {
+export function statusPhrase(tool: ToolSpec, args: JsonObject = {}): string {
   if (tool.source === "platform" && areaTool.has(tool.name)) return areaTool.get(tool.name)!.phrase(args);
 
-  const label = (value: unknown, fallback: string) =>
-    typeof value === "string" ? value.replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 80) : fallback;
+  const label = (value: JsonValue | undefined, fallback: string) =>
+    // oxlint-disable-next-line no-control-regex -- strips control characters from a one-line status label
+    Predicate.isString(value) ? value.replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 80) : fallback;
 
   if (tool.source === "mcp") {
     const verb = /search|find|query/i.test(tool.remoteName ?? "")
@@ -142,7 +144,7 @@ const str = { type: "string" };
 function tool(
   name: string,
   description: string,
-  properties: Record<string, unknown> = {},
+  properties: JsonObject = {},
   required: string[] = [],
   dangerous = false,
 ): ToolSpec {
@@ -250,8 +252,8 @@ const legacyTools: ToolSpec[] = [
 ];
 
 export const PLATFORM_TOOLS: ToolSpec[] = [
-  ...legacyTools
-    .filter((t) => !areaTool.has(t.name))
-    .map((t) => ({ ...t, readOnly: ["list_models", "list_bots"].includes(t.name) })),
+  ...legacyTools.flatMap((t) =>
+    areaTool.has(t.name) ? [] : [{ ...t, readOnly: ["list_models", "list_bots"].includes(t.name) }],
+  ),
   ...areaTools.map((t) => t.spec),
 ];

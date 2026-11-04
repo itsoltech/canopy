@@ -1,10 +1,12 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
-import { BotStore } from "../store.ts";
+import { Schema } from "effect";
+import { BotStore, type WakeupRow } from "../store.ts";
 import { Invalid, NotFound } from "../../store/store.ts";
 import {
   bool,
+  decoded,
   define,
   json,
   object,
@@ -51,10 +53,25 @@ function date(value: string) {
   return timestampFromDate(new Date(value));
 }
 
+const NewThread = Schema.Struct({
+  project_id: Schema.String,
+  placement: Schema.optional(Schema.String),
+  workspace_id: Schema.optional(Schema.String),
+  provider: Schema.optional(Schema.Json),
+  provider_instance: Schema.String,
+  model: Schema.optional(Schema.String),
+  effort: Schema.optional(Schema.String),
+  permission: Schema.optional(Schema.Json),
+  title: Schema.optional(Schema.String),
+});
+
+/** A wakeup as the model reads it: the timestamp in the ISO form `JSON.stringify` gives a Date. */
+export const wakeupView = (w: WakeupRow) => ({ ...w, run_at: w.run_at.toISOString() });
+
 async function configuration(c: ToolContext) {
   if (Boolean(c.optional("run_at")) === Boolean(c.optional("cron")))
     throw new Invalid("provide exactly one of run_at or cron");
-  const n = c.args["new_thread"] as Record<string, unknown> | undefined;
+  const n = c.args["new_thread"] === undefined ? undefined : decoded(NewThread, c.args["new_thread"]);
 
   return create(ui.CreateScheduleRequestSchema, {
     threadId: c.optional("thread_id"),
@@ -66,20 +83,20 @@ async function configuration(c: ToolContext) {
       : { case: "cron", value: c.string("cron") },
     timezone: c.optional("timezone") || (await c.core.settings()).user?.timezone || "UTC",
     ...(c.optional("until") && { until: date(c.string("until")) }),
-    maxRuns: (c.args["max_runs"] as number) ?? 0,
+    maxRuns: c.integer("max_runs") ?? 0,
     missedPolicy: c.optional("missed_policy"),
     concurrency: c.optional("concurrency"),
     ...(n && {
       newThread: {
-        projectId: n["project_id"] as string,
-        placement: (n["placement"] as string) ?? "any",
-        workspaceId: (n["workspace_id"] as string) ?? "",
-        provider: provider(n["provider"]),
-        providerProfileId: n["provider_instance"] as string,
-        model: (n["model"] as string) ?? "",
-        effort: (n["effort"] as string) ?? "",
-        permissionMode: permission(n["permission"] ?? "ask"),
-        title: (n["title"] as string) ?? "",
+        projectId: n.project_id,
+        placement: n.placement ?? "any",
+        workspaceId: n.workspace_id ?? "",
+        provider: provider(n.provider),
+        providerProfileId: n.provider_instance,
+        model: n.model ?? "",
+        effort: n.effort ?? "",
+        permissionMode: permission(n.permission ?? "ask"),
+        title: n.title ?? "",
       },
     }),
   });
@@ -115,7 +132,8 @@ export const scheduleTools = [
                 }),
               )
             ).map((s) => json(ui.ScheduleSchema, s)),
-      wakeups: optional("scope") === "platform" ? [] : await core.bots.run((s) => s.wakeups(turn.bot_id)),
+      wakeups:
+        optional("scope") === "platform" ? [] : (await core.bots.run((s) => s.wakeups(turn.bot_id))).map(wakeupView),
     }),
     "read",
   ),
@@ -135,7 +153,7 @@ export const scheduleTools = [
           await c.core.updateSchedule(
             create(ui.UpdateScheduleRequestSchema, {
               scheduleId: c.string("schedule_id"),
-              expectedVersion: c.args["expected_version"] as number,
+              expectedVersion: c.integer("expected_version") ?? 0,
               configuration: await configuration(c),
             }),
           ),
@@ -166,7 +184,7 @@ export const scheduleTools = [
       const id = c.string("schedule_id");
       const owned = await c.core.bots.run((s) => s.wakeups(c.turn.bot_id));
 
-      if (c.optional("scope") !== "platform" && owned.some((w) => w["id"] === id))
+      if (c.optional("scope") !== "platform" && owned.some((w) => w.id === id))
         return c.options.runtime.runPromise(
           BotStore.use((s) => s.action(c.turn, c.call, s.cancelWakeup(c.turn.bot_id, id))),
         );
