@@ -12,11 +12,12 @@ import {
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { join, resolve } from "node:path";
 import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
-import { configuration, initialStatus, origin, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
+import { initialStatus, origin, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
 import type { ControllerArguments, ControllerResult } from "./controller.ts";
 import { ControllerConnection } from "./controller-connection.ts";
 import { loadSecrets } from "./vault.ts";
-import { remoteClient, savedRemoteClient } from "./client-vault.ts";
+import { savedRemoteClient } from "./client-vault.ts";
+import { closeModeChooser, configureDesktopMode, openModeChooser } from "./mode-configuration.ts";
 import { Logs } from "./runtime/log.ts";
 import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
 import { desktopIdentity } from "./identity.ts";
@@ -183,18 +184,14 @@ function createWindow() {
 function openSettings() {
   if (!setupOrigin || quitting) return;
 
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.show();
-    settingsWindow.focus();
-
-    return;
-  }
-
-  settingsWindow = createWindow();
-  settingsWindow.on("closed", () => {
-    settingsWindow = undefined;
+  settingsWindow = openModeChooser({
+    current: settingsWindow,
+    create: createWindow,
+    origin: setupOrigin,
+    closed: () => {
+      settingsWindow = undefined;
+    },
   });
-  void settingsWindow.loadURL(`${setupOrigin}/desktop?settings=1`);
 }
 
 async function openApplication() {
@@ -397,28 +394,31 @@ function registerIpc() {
 
     if (busy) throw new Error("Desktop configuration is already in progress");
 
-    if (remoteUpdate?.active) throw new Error("Wait for the requested app update to finish.");
-    const config = configuration(raw);
     busy = true;
-    startupError = "";
 
     try {
-      if (config.mode === "remote" && config.enrollmentToken) logs.protect(config.enrollmentToken);
-      const client = config.mode === "remote" ? await remoteClient(app.getPath("userData"), config) : undefined;
+      return await configureDesktopMode(event, raw, {
+        status,
+        directory: app.getPath("userData"),
+        remoteUpdate,
+        logs,
+        closeSettings: () => closeModeChooser(settingsWindow, window),
+        apply: async (config, client) => {
+          startupError = "";
+          await rpc("configure", { configuration: config, remoteClient: client });
 
-      if (client) logs.protect(client.token);
+          if (status.phase === "running") await openApplication();
 
-      if (client) remoteUpdate?.selectDevice(client.deviceId);
-      await remoteUpdate?.publish();
-      await rpc("configure", {
-        configuration: { ...config, ...(config.mode === "remote" && { pairingInvitation: undefined }) },
-        remoteClient: client,
+          if (status.phase === "error") throw new Error(status.error ?? "Could not save desktop mode");
+        },
       });
-
-      if (status.phase === "running") await openApplication();
     } finally {
       busy = false;
     }
+  });
+  ipcMain.handle("canopy:close-settings", (event) => {
+    authorize(event, true);
+    closeModeChooser(settingsWindow, window);
   });
 }
 

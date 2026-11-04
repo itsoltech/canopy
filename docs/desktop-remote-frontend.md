@@ -81,7 +81,10 @@ BFF; adres i tożsamość już istniejącego workera zostają zachowane.
 Nowa konfiguracja może dodatkowo przyjąć dotychczasowy token enrollmentu
 workera; jego link, journal, status i aktualizacje pozostają osobnym mechanizmem.
 Nie wymagamy połączenia workera do otwarcia UI. Zmiana trybu nadal restartuje
-własne usługi. Tryb lokalny oraz połączone komputery nie zmieniają semantyki.
+własne usługi po potwierdzeniu rzeczywistej zmiany. Zapis niezmienionego trybu
+i adresów oraz powrót do Settings (przycisk lub Escape) nie zapisują konfiguracji
+ani nie restartują usług. Nowe zaproszenie lub enrollment wymagają potwierdzenia.
+Tryb lokalny oraz połączone komputery nie zmieniają semantyki.
 
 ## Zgodność wersji
 

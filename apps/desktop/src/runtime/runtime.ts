@@ -1,12 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { dirname, delimiter } from "node:path";
 import { hostname } from "node:os";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { ui } from "@canopy/contracts";
-import type { JsonObject } from "@canopy/domain";
-import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
+import { sameDesktopConfiguration, type DesktopConfiguration, type DesktopStatus } from "@canopy/ui/desktop";
 import { remoteWorkerDirectory, type DesktopClientCredential } from "../remote-client.ts";
 import { desktopWorkerIdle, remoteEnrollment, startDesktopWorker } from "./worker-runtime.ts";
 import { configuration, freePort, initialStatus, serviceEnvironment, isWorkerStatus } from "./config.ts";
@@ -14,7 +13,7 @@ import { startDatabase } from "./database.ts";
 import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from "./postgres-install.ts";
 import { Logs } from "./log.ts";
 import { Supervisor, until } from "./process.ts";
-import { savedStatus } from "./saved-status.ts";
+import { savedStatus, writeConfiguration } from "./saved-status.ts";
 
 export interface Secrets {
   databasePassword: string;
@@ -48,6 +47,7 @@ export class DesktopRuntime {
   private healthTimer: ReturnType<typeof setInterval> | undefined;
   private checkingHealth = false;
   private configured = false;
+  private activeClient: DesktopClientCredential | undefined;
   private generation = 0;
   private healthFailures = new Map<string, number>();
   private state = initialStatus();
@@ -282,8 +282,16 @@ export class DesktopRuntime {
 
     return { gatewayUrl, webUrl: this.setupOrigin, workerDirectory, token };
   }
+  configurationUnchanged(config: DesktopConfiguration, client?: DesktopClientCredential) {
+    if (!this.configured || this.state.phase === "error" || (client && client.token !== this.activeClient?.token))
+      return false;
+
+    return sameDesktopConfiguration(config, this.state.configuration);
+  }
   async configure(raw: DesktopConfiguration, client?: DesktopClientCredential) {
     const config = configuration(raw);
+
+    if (this.configurationUnchanged(config, client)) return;
     this.generation++;
     this.configured = false;
     this.remoteConnection = undefined;
@@ -385,12 +393,13 @@ export class DesktopRuntime {
           ? { mode: config.mode, gatewayUrl, workerGatewayUrl: config.workerGatewayUrl ?? config.gatewayUrl }
           : config;
 
-      this.writeJson(join(this.directory, "desktop.json"), saved);
+      writeConfiguration(this.directory, saved);
       this.configured = true;
+      this.activeClient = client;
 
       if (config.mode === "remote" && client && this.workerStatusFile)
         this.remoteConnection = { client, directory: workerDirectory };
-      this.publish({ phase: "running" });
+      this.publish({ phase: "running", configuration: saved });
     } catch (error) {
       await this.services.stop();
       const message = this.logs.redact(error instanceof Error ? error.message : "Desktop configuration failed");
@@ -417,11 +426,6 @@ export class DesktopRuntime {
         ],
       }),
     );
-  }
-  private writeJson(path: string, data: DesktopConfiguration | JsonObject) {
-    const temporary = `${path}.new`;
-    writeFileSync(temporary, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
-    renameSync(temporary, path);
   }
   killOwned() {
     this.services.killOwned();

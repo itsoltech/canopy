@@ -60,8 +60,9 @@ Otwarcie lokalnego UI nie czeka na gateway ani worker; ustawienia desktopu i
 aktualizacje są dostępne offline. Zmiana trybu zatrzymuje lokalnie wykonywane zadania.
 
 CLI agentów są wymaganiami komputera: **Claude Code (`claude`), Codex (`codex`),
-Grok (`grok`)** instaluje i aktualizuje użytkownik. Desktop ani żadna dystrybucja
-workera nie zawiera ani nie pobiera CLI. Claude Agent SDK pozostaje biblioteką JS;
+Grok (`grok`)** instaluje i aktualizuje użytkownik, także przyciskiem w ustawieniach
+workera. Desktop ani dystrybucja workera nie zawierają CLI; pobranie wymaga jawnej
+akcji użytkownika. Claude Agent SDK pozostaje biblioteką JS;
 każde wywołanie otrzymuje `pathToClaudeCodeExecutable` z PATH lub konfiguracji instancji.
 Brak Claude daje status „Claude Code is not installed on this computer” w istniejącym
 sondowaniu providerów. Własne pliki wykonywalne, loginy i profile native są zachowane.
@@ -151,7 +152,15 @@ status połączenia ze zdalnym hostem lub startu usług lokalnych, a przy pobier
 PostgreSQL pasek postępu. Błędy udostępniają „Try again” i „Open desktop settings”.
 Niepoprawny plik konfiguracji również prowadzi do odzyskiwania, zamiast do pierwszego uruchomienia.
 Formularz wyboru trybu pojawia się tylko bez konfiguracji albo po jawnym otwarciu
-ustawień (`/desktop?settings=1`); zapis ustawień na czas operacji pokazuje ekran startu.
+wyboru trybu (`/desktop?settings=1`). Ekran zawiera wyłącznie wybór local/remote
+i pola połączenia. Aktualizacje oraz skrót Quit pozostają w Settings → App updates.
+„Back to Settings” i Escape zamykają osobne okno wyboru, przywracając poprzedni
+widok Settings bez zapisu ani przeładowania; pierwsze uruchomienie nie ma przycisku powrotu.
+Zapis niezmienionych pól tylko wraca. Main i kontroler również pomijają wtedy
+zapis, parowanie i restart usług. Nowe zaproszenie lub enrollment są zmianą.
+Wyłącznie rzeczywista zmiana zapisanej konfiguracji pokazuje ostrzeżenie o zatrzymaniu
+agentów oraz natywne potwierdzenie z domyślnym Cancel. Postęp i błąd zapisu są inline;
+pierwszy start usług nadal pokazuje ekran startu.
 Okno pozostaje ukryte do `ready-to-show`, a natywne tło odpowiada jasnemu/ciemnemu
 motywowi systemu także podczas nawigacji. Ekran startu ma ten sam pasek przeciągania
 i `--window-safe-top` co konfiguracja; wskaźnik respektuje ograniczenie ruchu.
@@ -239,7 +248,8 @@ wersji PostgreSQL potrzebny jest eksport i jawna procedura migracji.
 
 Wymagania środowiska budującego: Bun **1.4.4**, Node **24 lub nowszy**, natywny host
 zgodny z docelowym OS/arch. Aplikacja zawiera jeden Bun; PostgreSQL pobiera osobno
-dla trybu lokalnego. CLI agentów trzeba zainstalować samodzielnie.
+dla trybu lokalnego. CLI agentów instaluje się osobno: ręcznie albo przyciskiem
+w ustawieniach workera.
 Linux potrzebuje zwykłych bibliotek Electron i odblokowanego Secret Service/KWallet;
 nie stosujemy fallbacku plaintext ani `--no-sandbox`.
 Narzędzie fpm do deb potrzebuje `libcrypt.so.1` (na Arch: `libxcrypt-compat`).
@@ -532,7 +542,7 @@ przez gateway i dopiero potem zamyka WorkerLink. Po flush nie czeka bez końca n
 odpowiedź zdalnego serwera na half-close. Niepotwierdzone zdarzenia zostają w SQLite
 i są wysyłane po kolejnym starcie ([durability.md](durability.md)).
 
-**Desktop settings → Desktop shortcuts → Quit shortcut** (również Settings → App updates)
+**Settings → App updates → Desktop shortcuts → Quit shortcut**
 wybiera zachowanie `⌘Q` na macOS i `Ctrl+Q` na Linux/Windows:
 
 - **Press twice** (domyślnie): wymagane są dwa osobne naciśnięcia w oknie krótszym
@@ -657,7 +667,7 @@ zachowuje zrzuty. Smoke Linux nie potwierdza natywnego menu ani adaptera macOS.
 ## Automatyczne aktualizacje desktopu
 
 `electron-updater` **6.8.3** sprawdza publiczne GitHub Releases przy starcie i co
-6 godzin. Settings → **App updates** oraz lokalny ekran Desktop settings pokazują
+6 godzin. Settings → **App updates** pokazuje
 wersję/kanał buildu, własny combobox Stable/Beta/Nightly, Check for updates,
 procent pobierania i Restart to update. Sekcja istnieje wyłącznie przy obecności
 bridge desktopu. Wybór jest atomowo zapisany w `userData/app-updates.json` przez main;

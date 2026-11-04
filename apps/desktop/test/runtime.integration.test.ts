@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { cpSync, copyFileSync, readFileSync, existsSync, readdirSync, writeFileSync } from "node:fs";
+import { cpSync, copyFileSync, readFileSync, existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -63,7 +63,7 @@ function gone(pid: number) {
 }
 
 test.skipIf(!existsSync(paths.web))(
-  "paired remote UI works when its worker cannot enroll",
+  "paired remote UI works without worker enrollment and unchanged saves preserve its processes",
   async () => {
     const directory = noWorkerData;
     const identity = await generateIdentity();
@@ -84,19 +84,27 @@ test.skipIf(!existsSync(paths.web))(
 
     const desktop = new DesktopRuntime(directory, paths, secrets());
 
+    const client: DesktopClientCredential = {
+      token: "test-desktop-client",
+      deviceId: "test-device",
+      fingerprint: identity.fingerprint,
+      addresses: ["https://127.0.0.1:1", server.url],
+    };
+
     try {
       await desktop.initialize(false);
-      await desktop.configure(
-        { mode: "remote", gatewayUrl: server.url },
-        {
-          token: "test-desktop-client",
-          deviceId: "test-device",
-          fingerprint: identity.fingerprint,
-          addresses: ["https://127.0.0.1:1", server.url],
-        },
-      );
+      await desktop.configure({ mode: "remote", gatewayUrl: server.url }, client);
       expect(desktop.status).toMatchObject({ phase: "running", worker: "offline", webUrl: desktop.origin });
       expect(desktop.pids).toHaveLength(1);
+      const pids = desktop.pids;
+      const saved = statSync(join(directory, "desktop.json")).mtimeMs;
+      const selected = desktop.status.configuration;
+
+      if (selected?.mode !== "remote") throw new Error("Remote configuration was not saved");
+      await desktop.configure({ ...selected, gatewayUrl: `${selected.gatewayUrl}/` }, client);
+      await desktop.configure(selected);
+      expect(desktop.pids).toEqual(pids);
+      expect(statSync(join(directory, "desktop.json")).mtimeMs).toBe(saved);
       expect((await fetch(`${desktop.origin}/api/overview`)).ok).toBe(true);
       expect(existsSync(join(directory, "postgres"))).toBe(false);
     } finally {
@@ -130,6 +138,12 @@ test.skipIf(!existsSync(paths.gateway))(
       local.pids.forEach((pid) => owned.add(pid));
       expect(local.status.worker).toBe("online");
       expect(local.pids).toHaveLength(4);
+      const pidsBeforeSave = local.pids;
+      const configBeforeSave = statSync(join(data, "desktop.json")).mtimeMs;
+      await local.configure({ mode: "local", allowNetwork: false, bindHost: "127.0.0.1" });
+      expect(local.pids).toEqual(pidsBeforeSave);
+      expect(local.status.phase).toBe("running");
+      expect(statSync(join(data, "desktop.json")).mtimeMs).toBe(configBeforeSave);
       const api = local.client();
       const online = (await api.getOverview({})).workers;
       expect(online.filter((worker) => worker.online)).toHaveLength(1);
@@ -306,6 +320,9 @@ test.skipIf(!existsSync(paths.gateway))(
         await request(2, "configure", { configuration: { mode: "local", allowNetwork: false, bindHost: "127.0.0.1" } })
       ).pids;
       expect(pids).toHaveLength(4);
+      const savedAt = statSync(join(directory, "desktop.json")).mtimeMs;
+      expect((await request(3, "configure", { configuration: { mode: "local" } })).pids).toEqual(pids);
+      expect(statSync(join(directory, "desktop.json")).mtimeMs).toBe(savedAt);
       child.stdin.destroy(); // Same EOF the guardian receives after an Electron crash.
       await exited;
       expect(child.exitCode).toBe(0);

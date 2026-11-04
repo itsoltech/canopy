@@ -1,14 +1,18 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { DesktopMode, DesktopStatus } from "@canopy/ui/desktop";
+  import { goto } from "$app/navigation";
+  import {
+    sameDesktopConfiguration,
+    type DesktopConfiguration,
+    type DesktopMode,
+    type DesktopStatus,
+  } from "@canopy/ui/desktop";
   import Button from "#lib/shared/ui/Button.svelte";
   import RemoteGatewayFields from "./RemoteGatewayFields.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ModeChoice from "./ModeChoice.svelte";
-  import WorkerStatus from "./WorkerStatus.svelte";
-  import AppUpdates from "./AppUpdates.svelte";
-  import QuitShortcutSettings from "./QuitShortcutSettings.svelte";
   import DesktopStartup from "./DesktopStartup.svelte";
+  import { rise } from "#lib/shared/ui/motion.ts";
 
   let { settings = false }: { settings?: boolean } = $props();
 
@@ -16,10 +20,10 @@
   let status = $state<DesktopStatus>();
   let available = $state<boolean>();
   let busy = $state(false);
-  const working = $derived(busy || status?.phase === "starting");
+  const working = $derived(busy || (!settings && status?.phase === "starting"));
 
   const startup = $derived(
-    available !== false && (!status || busy || (!settings && (status.mode !== null || status.phase !== "setup"))),
+    available !== false && (!status || (!settings && (busy || status.mode !== null || status.phase !== "setup"))),
   );
 
   let message = $state("");
@@ -28,10 +32,31 @@
   let workerGatewayUrl = $state<string>();
   let enrollmentToken = $state("");
   let gatewayFingerprint = $state("");
-  let revealed = $state(false);
+  const canGoBack = $derived(settings && Boolean(status?.configuration));
+
+  const selection = $derived<DesktopConfiguration>(
+    mode === "local"
+      ? { mode, allowNetwork: false, bindHost: "127.0.0.1" }
+      : {
+          mode,
+          gatewayUrl,
+          gatewayFingerprint,
+          pairingInvitation,
+          ...(workerGatewayUrl && { workerGatewayUrl }),
+          ...(enrollmentToken.trim() && { enrollmentToken: enrollmentToken.trim() }),
+        },
+  );
+
+  const unchanged = $derived(sameDesktopConfiguration(selection, status?.configuration));
+
+  async function back() {
+    if (!canGoBack || busy) return;
+
+    if (window.canopyDesktop?.closeSettings) await window.canopyDesktop.closeSettings();
+    else await goto("/settings/desktop");
+  }
 
   onMount(() => {
-    revealed = true;
     const bridge = window.canopyDesktop;
     available = Boolean(bridge);
 
@@ -40,11 +65,12 @@
       .status()
       .then((value) => {
         status = value;
-        mode = value.mode ?? "local";
+        const saved = value.configuration;
+        mode = saved?.mode ?? value.mode ?? "local";
 
-        if (value.mode === "remote") {
-          gatewayUrl = value.gatewayUrl ?? "";
-          workerGatewayUrl = value.workerGatewayUrl;
+        if (saved?.mode === "remote" || value.mode === "remote") {
+          gatewayUrl = saved?.mode === "remote" ? saved.gatewayUrl : (value.gatewayUrl ?? "");
+          workerGatewayUrl = saved?.mode === "remote" ? saved.workerGatewayUrl : value.workerGatewayUrl;
         }
       })
       .then(() => bridge.readyForEnrollment())
@@ -73,22 +99,20 @@
     event?.preventDefault();
 
     if (!window.canopyDesktop || working) return;
+
+    if (canGoBack && unchanged) {
+      await back();
+
+      return;
+    }
+
     busy = true;
     message = "";
 
     try {
-      await window.canopyDesktop.configure(
-        mode === "local"
-          ? { mode, allowNetwork: false, bindHost: "127.0.0.1" }
-          : {
-              mode,
-              gatewayUrl,
-              gatewayFingerprint,
-              pairingInvitation,
-              ...(workerGatewayUrl && { workerGatewayUrl }),
-              ...(enrollmentToken.trim() && { enrollmentToken: enrollmentToken.trim() }),
-            },
-      );
+      const saved = await window.canopyDesktop.configure(selection);
+
+      if (saved === false) return;
       enrollmentToken = "";
       pairingInvitation = "";
     } catch (error) {
@@ -100,6 +124,13 @@
 </script>
 
 <svelte:head><title>{startup ? "Starting Canopy" : "Set up Canopy"}</title></svelte:head>
+<svelte:window
+  onkeydown={(event) => {
+    if (event.key !== "Escape" || event.defaultPrevented || !canGoBack || busy) return;
+    event.preventDefault();
+    void back();
+  }}
+/>
 <!-- On macOS the window has no title bar: the top of the screen moves it (routes/layout.css). -->
 <div class="fixed inset-x-0 top-0 hidden h-12 macos:block" data-window-drag></div>
 <main
@@ -109,6 +140,12 @@
     <DesktopStartup {status} {message} retrying={busy} onretry={() => void submit()} />
   {:else}
     <div class="mx-auto grid w-full max-w-2xl gap-8 px-6 sm:px-10">
+      {#if canGoBack}
+        <div>
+          <Button variant="ghost" icon="arrow-left" onclick={() => void back()} disabled={busy}>Back to Settings</Button
+          >
+        </div>
+      {/if}
       <div class="grid gap-3">
         <img src="/icon-192.png" alt="" width="48" height="48" class="size-12 shrink-0" />
         <h1 class="text-3xl font-semibold tracking-tight text-balance">Your agents, on your terms</h1>
@@ -138,7 +175,7 @@
               disabled={working}
             />
           </div>
-          <div class="t-panel-slide grid gap-5 [--panel-translate-y:12px]" data-open={revealed}>
+          <div class="grid gap-5" in:rise>
             {#if mode === "remote"}
               <RemoteGatewayFields
                 bind:invitation={pairingInvitation}
@@ -154,68 +191,21 @@
                 computers and remote workers connect through Settings → Network access.
               </p>
             {/if}
-            {#if message || status?.error}<Alert tone="error">{message || status?.error}</Alert>{/if}
-            <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-              Install Claude Code, Codex or Grok on this computer to use that provider. Canopy does not install agent
-              CLIs.
-            </p>
+            {#if message}<Alert tone="error">{message}</Alert>{/if}
+            {#if status?.configuration && !unchanged}
+              <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+                Saving restarts this computer’s services and stops its running agents. You’ll be asked to confirm.
+              </p>
+            {/if}
             <div class="flex flex-wrap items-center gap-3">
               <Button variant="primary" type="submit" loading={working}
-                >{status?.phase === "error"
-                  ? "Try again"
-                  : status?.mode
-                    ? "Save and open Canopy"
-                    : "Open Canopy"}</Button
+                >{status?.configuration ? "Save and open Canopy" : "Open Canopy"}</Button
               >
+              {#if busy}<p role="status" class="text-sm text-zinc-500 dark:text-zinc-400">Saving mode settings…</p>{/if}
             </div>
           </div>
         </form>
-        {#if status?.mode}<div class="grid gap-3 border-t border-zinc-950/5 pt-6 dark:border-white/10">
-            <WorkerStatus {status} />
-            <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-              Saving these settings restarts this computer’s services and stops its running agents.
-            </p>
-          </div>{/if}
-        <AppUpdates />
-        <QuitShortcutSettings />
       {/if}
     </div>
   {/if}
 </main>
-
-<style>
-  :global(:root) {
-    --panel-open-dur: 400ms;
-    --panel-close-dur: 350ms;
-    --panel-translate-y: 100px;
-    --panel-blur: 2px;
-    --panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .t-panel-slide {
-    transform: translateY(var(--panel-translate-y));
-    opacity: 0;
-    filter: blur(var(--panel-blur));
-    pointer-events: none;
-    transition:
-      transform var(--panel-close-dur) var(--panel-ease),
-      opacity var(--panel-close-dur) var(--panel-ease),
-      filter var(--panel-close-dur) var(--panel-ease);
-    will-change: transform, opacity, filter;
-  }
-  .t-panel-slide[data-open="true"] {
-    transform: translateY(0);
-    opacity: 1;
-    filter: blur(0);
-    pointer-events: auto;
-    transition:
-      transform var(--panel-open-dur) var(--panel-ease),
-      opacity var(--panel-open-dur) var(--panel-ease),
-      filter var(--panel-open-dur) var(--panel-ease);
-    will-change: transform, opacity, filter;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .t-panel-slide {
-      transition: none !important;
-    }
-  }
-</style>

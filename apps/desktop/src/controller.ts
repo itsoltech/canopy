@@ -116,9 +116,14 @@ lines.on("line", (line) => {
         connectControl();
         send({ id, result: { status: runtime.status } });
       } else if (request.action === "configure" && runtime) {
-        control?.stop();
-        await runtime.configure(configuration(request.configuration), request.remoteClient);
-        connectControl();
+        const config = configuration(request.configuration);
+
+        if (!runtime.configurationUnchanged(config, request.remoteClient)) {
+          control?.stop();
+          await runtime.configure(config, request.remoteClient);
+          connectControl();
+        }
+
         send({ id, result: { pids: runtime.pids } });
       } else if (request.action === "presence" && runtime) {
         await runtime.presence(request.state);
