@@ -69,7 +69,7 @@
 
 <section bind:this={panel} class={["min-w-0", className]} aria-label="Questions from the agent">
   <ComposerPanelHeader {expanded} controls="{id}-body" onclick={(wasExpanded) => (session.collapsed = wasExpanded)}>
-    <Icon name="question-mark-circle" size="sm" class="fill-amber-600 dark:fill-amber-400" />
+    <Icon name="question-mark-circle" size="sm" class="text-amber-600 dark:text-amber-400" />
     <span class="truncate font-medium text-zinc-950 dark:text-white">{question.header || "Question"}</span>
     <span class="shrink-0 text-zinc-500 tabular-nums dark:text-zinc-400" aria-live="polite"
       >{session.step + 1} of {session.questions.length}</span

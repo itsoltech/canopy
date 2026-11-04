@@ -95,7 +95,7 @@
         >{/if}
       {#if thread.spawnedByAgent}<Icon
           name="sparkles"
-          class="size-3.5 fill-violet-500 dark:fill-violet-400"
+          class="size-3.5 text-violet-500 dark:text-violet-400"
           label="Started by an agent"
         />{/if}
       {#if provider}<span

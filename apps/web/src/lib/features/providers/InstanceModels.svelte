@@ -128,7 +128,7 @@
                 size="sm"
                 label={row.favorite ? `Remove ${row.name} from favorites` : `Add ${row.name} to favorites`}
                 aria-pressed={row.favorite}
-                iconClass={row.favorite ? "fill-amber-500" : "fill-zinc-300 dark:fill-zinc-600"}
+                iconClass={row.favorite ? "text-amber-500" : "fill-zinc-300 dark:fill-zinc-600"}
                 onclick={() => change(withFavorite(current, row.id, !row.favorite))}
               />
               <div class="min-w-0 flex-1">

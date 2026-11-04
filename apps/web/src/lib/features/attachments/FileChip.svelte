@@ -27,7 +27,7 @@
 {#snippet body()}
   <Icon
     name={failed ? "exclamation-circle" : "document-text"}
-    class={["shrink-0", failed ? "fill-rose-600 dark:fill-rose-400" : "fill-zinc-400 dark:fill-zinc-500"]}
+    class={["shrink-0", failed ? "text-rose-600 dark:text-rose-400" : "fill-zinc-400 dark:fill-zinc-500"]}
   />
   <div class="min-w-0">
     <p class="truncate text-sm/5 font-medium text-zinc-950 sm:text-xs/5 dark:text-white">{name}</p>

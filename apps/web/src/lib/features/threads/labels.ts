@@ -54,7 +54,7 @@ export function permissionLook(mode: PermissionMode | PermissionModeKey): {
   return isFullAuto(mode)
     ? {
         icon: "shield-exclamation",
-        iconClass: "fill-amber-600 dark:fill-amber-400",
+        iconClass: "text-amber-600 dark:text-amber-400",
         textClass: "text-amber-700 dark:text-amber-400",
       }
     : {

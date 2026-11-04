@@ -15,7 +15,7 @@
     size?: ButtonSize;
     /** Replaces the icon with a spinner and disables the button (an action in progress). */
     loading?: boolean;
-    /** Icon colour (`fill-*`), e.g. a filled star. */
+    /** Icon colour (`text-*`), e.g. an amber star. */
     iconClass?: ClassValue;
     /** Tooltip placement, shortcut hint, … (its text is always `label`). */
     tooltipOptions?: TooltipOptions;

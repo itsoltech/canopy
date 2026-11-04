@@ -91,7 +91,7 @@
           ]}
           style:--swatch={option.value === "custom" ? undefined : option.value}
         >
-          {#if option.value === "custom"}<Icon name="plus" class="fill-white" />{/if}
+          {#if option.value === "custom"}<Icon name="plus" class="text-white" />{/if}
         </span>
       {/snippet}
     </ChoiceGrid>

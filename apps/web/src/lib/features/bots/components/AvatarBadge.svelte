@@ -32,7 +32,7 @@
       className,
     ]}
   >
-    <Icon name="star" class={["fill-white", star[size].icon]} />
+    <Icon name="star" class={["text-white", star[size].icon]} />
   </span>
 {:else}
   <span class={["absolute right-0 bottom-0 size-1/4 min-w-2 rounded-full bg-emerald-500", avatarRing, className]}

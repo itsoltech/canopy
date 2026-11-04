@@ -33,7 +33,7 @@
 <div class={["flex flex-col gap-2 pl-9 sm:flex-row sm:items-center sm:gap-3", className]}>
   <p class="flex min-w-0 items-start gap-1.5 text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
     <span class="flex h-lh shrink-0 items-center" {@attach tooltip(error.detail)}>
-      <Icon name="exclamation-circle" class="fill-rose-500 dark:fill-rose-400" />
+      <Icon name="exclamation-circle" class="text-rose-500 dark:text-rose-400" />
     </span>
     <span
       >{sender?.name ?? "The bot"} couldn't reply — {failure.reason}.<span class="sr-only">

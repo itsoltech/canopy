@@ -46,6 +46,6 @@
     </div>
   {/if}
   <div class="flex h-lh shrink-0 items-center">
-    <Icon name="check" class={["fill-brand-600 dark:fill-brand-400", !selected && "invisible"]} />
+    <Icon name="check" class={["text-brand-600 dark:text-brand-400", !selected && "invisible"]} />
   </div>
 </div>

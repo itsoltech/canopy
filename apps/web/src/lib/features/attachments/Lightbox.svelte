@@ -71,7 +71,7 @@
               download={name}
               class="relative inline-flex items-center gap-1 rounded-md py-1.5 pr-2.5 pl-2 font-medium text-white focus-ring hover:bg-white/10"
             >
-              <Icon name="arrow-down" class="shrink-0 fill-white" />Download
+              <Icon name="arrow-down" class="shrink-0 text-white" />Download
             </a>
           {/if}
           <button
@@ -80,7 +80,7 @@
             aria-label="Close"
             onclick={() => (open = false)}
           >
-            <Icon name="x-mark" class="fill-white" />
+            <Icon name="x-mark" class="text-white" />
             <TouchTarget />
           </button>
         </span>

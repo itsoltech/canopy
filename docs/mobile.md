@@ -234,7 +234,7 @@ z jitterem rośnie od około 1 do 30 sekund; powrót z tła lub odzyskanie sieci
 Wysłanie po timeout używa tego samego client_request_id do czasu zmiany treści/trybu,
 więc ręczny retry nie dubluje tury.
 
-`packages/ui` współdzieli z web dane ikon Lucide/providerów, kształty i kolory mascotów,
+`packages/ui` współdzieli z web geometrię ikon Tabler outline i osobne logotypy providerów, kształty i kolory mascotów,
 nazwy/kolejność Settings i akcentów. `tokens.ts` opisuje skalę typografii, spacing, radii
 i statusy według `apps/web/src/app.css` oraz `shared/ui/status.ts`. Paleta RN jest generowana
 z dokładnie tej samej wersji Tailwind co web: `bun --cwd packages/ui gen`. Konwersja

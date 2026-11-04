@@ -83,13 +83,13 @@
         : `Add ${option.name} (${option.profileName}) to favorites`}
       aria-pressed={starred}
       class={popping ? "t-pop" : undefined}
-      iconClass={starred ? "fill-amber-500" : ["fill-zinc-300 dark:fill-zinc-600", !active && "pointer-fine:invisible"]}
+      iconClass={starred ? "text-amber-500" : ["fill-zinc-300 dark:fill-zinc-600", !active && "pointer-fine:invisible"]}
       onclick={(event) => {
         event.stopPropagation();
         if (!starred) pop();
         onstar();
       }}
     />
-    <Icon name="check" class={["fill-brand-600 dark:fill-brand-400", !selected && "invisible"]} />
+    <Icon name="check" class={["text-brand-600 dark:text-brand-400", !selected && "invisible"]} />
   {/if}
 </div>

@@ -13,7 +13,7 @@
     <li class="flex gap-2.5">
       <span class="flex h-lh shrink-0 items-center">
         {#if step.status === "completed"}
-          <Icon name="check-circle" class="fill-emerald-600 dark:fill-emerald-400" label="Done" />
+          <Icon name="check-circle" class="text-emerald-600 dark:text-emerald-400" label="Done" />
         {:else if step.status === "in_progress"}
           <Spinner class="text-sky-600 dark:text-sky-400" /><span class="sr-only">In progress</span>
         {:else}

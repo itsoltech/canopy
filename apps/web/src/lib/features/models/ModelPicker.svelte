@@ -199,7 +199,7 @@
           {@attach tooltip(label, { placement: "right" })}
         >
           {#if target === "favorites"}
-            <Icon name="star" class={pressed ? "fill-amber-500" : "fill-zinc-400 dark:fill-zinc-500"} />
+            <Icon name="star" class={pressed ? "text-amber-500" : "fill-zinc-400 dark:fill-zinc-500"} />
           {:else}
             <ProviderIcon provider={target} class={pressed ? undefined : "opacity-60 grayscale"} />
           {/if}

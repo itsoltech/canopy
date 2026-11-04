@@ -70,7 +70,7 @@
 <ItemFrame icon={look.icon} {status} tone={failed ? "rose" : "neutral"}>
   {#snippet lead()}{#if call.connectorAccountId}<ConnectorIcon type={call.connectorType} />{:else}<Icon
         name={look.icon}
-        class={failed ? "fill-rose-500 dark:fill-rose-400" : "fill-zinc-400 dark:fill-zinc-500"}
+        class={failed ? "text-rose-500 dark:text-rose-400" : "fill-zinc-400 dark:fill-zinc-500"}
       />{/if}{/snippet}
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">

@@ -220,6 +220,8 @@ copyFileSync(join(desktop, "THIRD_PARTY_NOTICES.md"), join(runtime, "THIRD_PARTY
 
 cpSync(join(desktop, "licenses"), join(runtime, "licenses"), { recursive: true });
 
+copyFileSync(join(root, "packages/ui/THIRD_PARTY_NOTICES.md"), join(runtime, "licenses/Tabler-LICENSE.md"));
+
 copyFileSync(join(pgPackage, "LICENSE.md"), join(runtime, "licenses/postgres-distribution-LICENSE.md"));
 
 if (process.platform === "darwin") thinMachOFiles(runtime, process.arch);

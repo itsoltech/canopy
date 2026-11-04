@@ -36,9 +36,9 @@
 
   const iconClass = $derived(
     tone === "violet"
-      ? "fill-violet-500 dark:fill-violet-400"
+      ? "text-violet-500 dark:text-violet-400"
       : tone === "rose" || status === ItemStatus.FAILED
-        ? "fill-rose-500 dark:fill-rose-400"
+        ? "text-rose-500 dark:text-rose-400"
         : "fill-zinc-400 dark:fill-zinc-500",
   );
 </script>

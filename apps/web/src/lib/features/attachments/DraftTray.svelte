@@ -54,7 +54,7 @@
             {/if}
             {#if file.image && file.status === "failed"}
               <span class="absolute inset-0 grid place-items-center bg-rose-50/80 dark:bg-rose-950/70"
-                ><Icon name="exclamation-circle" class="fill-rose-600 dark:fill-rose-400" /></span
+                ><Icon name="exclamation-circle" class="text-rose-600 dark:text-rose-400" /></span
               >
             {/if}
             {#if file.status === "uploading"}

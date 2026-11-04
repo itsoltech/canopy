@@ -72,7 +72,7 @@
   ]}
 >
   <div class="flex min-w-0 items-center gap-2">
-    <Icon name="sparkles" class="shrink-0 fill-violet-500 dark:fill-violet-400" />
+    <Icon name="sparkles" class="shrink-0 text-violet-500 dark:text-violet-400" />
     <p class="min-w-0 flex-1 truncate text-base/6 font-medium text-zinc-900 sm:text-sm/6 dark:text-zinc-100">
       {thread?.title || title}
     </p>

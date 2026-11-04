@@ -37,7 +37,7 @@
   class={[!embedded && "rounded-t-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10", className]}
 >
   <ComposerPanelHeader {expanded} controls="{id}-list" onclick={(wasExpanded) => (open = !wasExpanded)}>
-    <Icon name="sparkles" size="sm" class="fill-violet-500 dark:fill-violet-400" />
+    <Icon name="sparkles" size="sm" class="text-violet-500 dark:text-violet-400" />
     <p
       id="{id}-summary"
       class="min-w-0 flex-1 truncate text-zinc-700 tabular-nums dark:text-zinc-300"

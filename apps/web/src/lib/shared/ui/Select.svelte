@@ -254,7 +254,7 @@
                 </div>
                 <Icon
                   name="check"
-                  class={["fill-brand-600 dark:fill-brand-400", option.value !== value && "invisible"]}
+                  class={["text-brand-600 dark:text-brand-400", option.value !== value && "invisible"]}
                 />
                 <TouchTarget />
               </li>

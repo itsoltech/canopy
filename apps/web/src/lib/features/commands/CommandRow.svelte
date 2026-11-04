@@ -65,7 +65,7 @@
       </span>
     {/if}
   </span>
-  {#if command.checked}<Icon name="check" class="fill-brand-600 dark:fill-brand-400" label="Current" />{/if}
+  {#if command.checked}<Icon name="check" class="text-brand-600 dark:text-brand-400" label="Current" />{/if}
   {#if command.hotkey}<Kbd hotkey={command.hotkey} />{/if}
   {#if thread?.activityAt}<span
       class="shrink-0 self-start text-sm/6 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400"

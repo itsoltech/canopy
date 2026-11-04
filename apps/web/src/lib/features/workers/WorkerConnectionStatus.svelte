@@ -18,7 +18,7 @@
   aria-live="polite"
 >
   <div class="pt-1">
-    {#if worker?.online}<Icon name="check-circle" class="fill-emerald-600 dark:fill-emerald-400" />{:else}<Spinner
+    {#if worker?.online}<Icon name="check-circle" class="text-emerald-600 dark:text-emerald-400" />{:else}<Spinner
       />{/if}
   </div>
   <div class="min-w-0 text-base/6 sm:text-sm/6">
