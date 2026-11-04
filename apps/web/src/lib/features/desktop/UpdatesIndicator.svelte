@@ -3,7 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import Popover from "#lib/shared/ui/Popover.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import UpdateProgress from "#lib/features/workers/UpdateProgress.svelte";
+  import ProgressRing from "#lib/shared/ui/ProgressRing.svelte";
   import { DesktopUpdatesState } from "./desktop-updates.svelte.ts";
   import { UpdatesState } from "#lib/features/workers/updates.svelte.ts";
   import { updateIndicator } from "#lib/features/workers/update-indicator.ts";
@@ -85,8 +85,8 @@
             (phase === "error" || updates.error) && "text-rose-600 dark:text-rose-400",
           ]}
         />
-        {#if phase === "downloading"}<div class="pointer-events-none absolute inset-x-2 bottom-1">
-            <UpdateProgress label="Update progress" value={summary.progress} />
+        {#if phase === "downloading"}<div class="pointer-events-none absolute inset-0 grid place-items-center">
+            <ProgressRing label="Update progress" value={summary.progress} class="size-7" />
           </div>{/if}
       </div>
     {/snippet}
