@@ -14,22 +14,21 @@
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import type { Mention } from "@canopy/contracts";
-  import ComposerNotice from "#lib/features/threads/components/ComposerNotice.svelte";
   import { findOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
   import { permissionKey, type PermissionModeKey } from "#lib/features/threads/labels.ts";
   import { profileIdValue, providerKeyOf } from "#lib/features/threads/providers.ts";
-  import PillText from "#lib/shared/ui/PillText.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
-  import TextLink from "#lib/shared/ui/TextLink.svelte";
+  import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import RefPicker from "#lib/features/worktrees/RefPicker.svelte";
   import WorkspacePicker from "#lib/features/worktrees/WorkspacePicker.svelte";
+  import ComposerContextRow from "#lib/features/threads/components/ComposerContextRow.svelte";
   import { WorkspaceDraft } from "#lib/features/worktrees/workspace-draft.svelte.ts";
   import type { PageProps } from "./$types";
 
@@ -169,6 +168,30 @@
 
     return undefined;
   });
+
+  const workerNote = $derived(
+    blocker === "no-worker"
+      ? project?.kind === "scratch"
+        ? "Choose a worker with an allowed directory to start a scratch thread. Configure a worker in Settings."
+        : `${project?.name} is not on any worker yet, so there is nowhere to run the thread. Add it to a worker in project settings.`
+      : blocker === "offline"
+        ? `${worker?.name ?? "This worker"} is offline. Start it or choose another worker to send.`
+        : blocker === "no-agent"
+          ? `${worker?.name} reports no available agents. Check the worker in Settings.`
+          : undefined,
+  );
+
+  const workspaceNote = $derived(
+    place.loading
+      ? "Loading workspace options…"
+      : place.error
+        ? `${place.error}. Using the current checkout.`
+        : worker?.nodeId && project?.kind !== "scratch"
+          ? "Worktrees on linked computers are not supported yet. Open Canopy on the workspace's home computer to use one."
+          : undefined,
+  );
+
+  const blockedReason = $derived(workerNote ?? (place.loading ? workspaceNote : undefined) ?? draft.blocker);
 </script>
 
 <svelte:head><title>New thread · Canopy</title></svelte:head>
@@ -207,7 +230,7 @@
           action="?/createThread"
           class="grid gap-3"
           use:enhance={({ cancel }) => {
-            if (draft.blocker) return cancel();
+            if (blockedReason) return cancel();
             busy = true;
             return async ({ update }) => {
               await update({ reset: false });
@@ -234,6 +257,7 @@
             {sources}
             sending={busy}
             canSend={!blocker && !draft.blocker}
+            {blockedReason}
             autofocus
             label="Task for the agent"
             {draft}
@@ -247,80 +271,63 @@
                   {workerId}
                   class="flex-1 justify-end"
                 />
-              {:else if worker?.online}
-                <PillText class="flex-1 text-right">No agent available</PillText>
               {/if}
             {/snippet}
             {#snippet meta()}
-              <span class="-ml-2 flex min-w-0 flex-wrap items-center gap-0.5">
-                <ProjectPicker
-                  projects={overview.projects}
-                  value={project.id}
-                  onselect={pickProject}
-                  class="max-w-48 sm:max-w-56"
-                />
-                <WorkerPicker {project} value={workspace?.id} onselect={pickWorkspace} />
-              </span>
-              {#if place.gitRefs}
-                <span class="flex min-w-0 flex-wrap items-center gap-0.5">
-                  <WorkspacePicker
-                    choice={place.choice}
-                    worktrees={place.worktrees}
-                    onselect={(choice) => place.choose(choice)}
+              <ComposerContextRow hasWorkspace={Boolean(place.gitRefs)}>
+                {#snippet projectControl()}
+                  <ProjectPicker
+                    projects={overview.projects}
+                    value={project.id}
+                    onselect={pickProject}
+                    class="w-full max-w-full"
                   />
-                  <RefPicker
-                    refs={place.gitRefs}
-                    branch={place.branch}
-                    editable={place.choice.kind === "new"}
-                    onselect={(ref) => place.chooseBase(ref.name)}
-                  />
-                </span>
-              {/if}
-              <PermissionPicker
-                value={permissionMode}
-                onselect={(mode) => (permission = mode)}
-                class="-mr-1.5 shrink-0"
-              />
+                {/snippet}
+                {#snippet computerControl()}
+                  <div class="flex min-w-0 items-center">
+                    <WorkerPicker
+                      {project}
+                      value={workspace?.id}
+                      onselect={pickWorkspace}
+                      warning={workerNote}
+                      class="min-w-0 flex-1"
+                    />
+                    {#if workspaceNote && !place.gitRefs}<HintIcon
+                        label="Workspace information"
+                        text={workspaceNote}
+                        warning={Boolean(place.error)}
+                      />{/if}
+                  </div>
+                {/snippet}
+                {#snippet workspaceControl()}
+                  {#if place.gitRefs}
+                    <WorkspacePicker
+                      choice={place.choice}
+                      worktrees={place.worktrees}
+                      onselect={(choice) => place.choose(choice)}
+                      class="w-full max-w-full"
+                      note={workspaceNote}
+                      warning={Boolean(place.error)}
+                    />
+                  {/if}
+                {/snippet}
+                {#snippet branchControl()}
+                  {#if place.gitRefs}
+                    <RefPicker
+                      refs={place.gitRefs}
+                      branch={place.branch}
+                      editable={place.choice.kind === "new"}
+                      onselect={(ref) => place.chooseBase(ref.name)}
+                      class="w-full max-w-full"
+                    />
+                  {/if}
+                {/snippet}
+                {#snippet permissionControl()}
+                  <PermissionPicker value={permissionMode} onselect={(mode) => (permission = mode)} />
+                {/snippet}
+              </ComposerContextRow>
             {/snippet}
           </ComposerBox>
-          {#if draft.blocker && !blocker}
-            <ComposerNotice>{draft.blocker}</ComposerNotice>
-          {/if}
-          {#if place.loading}
-            <ComposerNotice>Loading workspace options…</ComposerNotice>
-          {:else if place.error}
-            <ComposerNotice tone="warning">{place.error}. Using the current checkout.</ComposerNotice>
-          {/if}
-          {#if worker?.nodeId && project.kind !== "scratch"}
-            <ComposerNotice
-              >Worktrees on linked computers are not supported yet. Open Canopy on the workspace's home computer to use
-              one.</ComposerNotice
-            >
-          {/if}
-          {#if blocker === "no-worker"}
-            <ComposerNotice>
-              {#if project.kind === "scratch"}
-                Choose a worker with an allowed directory to start a scratch thread.
-                <TextLink href="/settings/workers">Configure a worker</TextLink>
-              {:else}
-                {project.name} is not on any worker yet, so there is nowhere to run the thread.
-                <TextLink href="/settings/projects/{project.id}">Add it to a worker</TextLink>
-              {/if}
-            </ComposerNotice>
-          {:else if blocker === "offline"}
-            <ComposerNotice tone="warning">
-              {worker?.name ?? "This worker"} is offline. Start it or choose another worker to send.
-            </ComposerNotice>
-          {:else if blocker === "no-agent"}
-            <ComposerNotice tone="warning"
-              >{worker?.name} reports no available agents. Check the worker in Settings.</ComposerNotice
-            >
-          {/if}
-          {#if project.kind === "scratch" && workspace && !blocker}
-            <ComposerNotice
-              >A dedicated scratch directory is created when you send. Files are kept until you remove them manually.</ComposerNotice
-            >
-          {/if}
         </form>
       {/if}
     </div>

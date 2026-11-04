@@ -128,6 +128,13 @@
         disabled={disabled || session.busy}
         sending={session.busy}
         canSend={Boolean(session.answer)}
+        blockedReason={disabled
+          ? note
+          : session.busy
+            ? "Submitting your answer…"
+            : !session.answer
+              ? "Choose an option or type an answer to submit."
+              : undefined}
         allowEmpty={Boolean(session.labels.length)}
         sendLabel="Submit"
         secret={session.question.secret}

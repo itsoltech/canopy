@@ -60,7 +60,9 @@
     >
   {:else}
     <span class="grid min-w-0 flex-1">
-      <span class="truncate font-medium" title={option.model || undefined}>{option.name}</span>
+      <span class="font-medium [overflow-wrap:anywhere] whitespace-normal" title={option.model || undefined}
+        >{option.name}</span
+      >
       {#if detail}
         <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
           {#if providerMark}<ProviderIcon provider={option.provider} class="size-3" />{/if}
@@ -69,7 +71,9 @@
               style:background-color={option.accent}
               aria-hidden="true"
             ></span>{/if}
-          <span class="truncate" title={option.description || undefined}>{detail}</span>
+          <span class="min-w-0 [overflow-wrap:anywhere] whitespace-normal" title={option.description || undefined}
+            >{detail}</span
+          >
         </span>
       {/if}
     </span>

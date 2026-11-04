@@ -3,6 +3,7 @@
   import type { ClassValue, HTMLButtonAttributes } from "svelte/elements";
   import Icon from "./Icon.svelte";
   import TouchTarget from "./TouchTarget.svelte";
+  import { tooltip } from "./tooltip.ts";
 
   /**
    * Low-key button that opens a menu or picker (T3's composer pills): content, then a chevron. Spread
@@ -14,7 +15,7 @@
     children: Snippet;
   };
 
-  let { class: className, chevron = true, type = "button", children, ...rest }: Props = $props();
+  let { class: className, chevron = true, type = "button", children, title, ...rest }: Props = $props();
 </script>
 
 <button
@@ -24,6 +25,7 @@
     className,
   ]}
   {...rest}
+  {@attach tooltip(title ?? rest["aria-label"] ?? undefined)}
 >
   {@render children()}
   {#if chevron}<Icon name="chevron-down" class="size-3.5 fill-zinc-400 dark:fill-zinc-500" />{/if}

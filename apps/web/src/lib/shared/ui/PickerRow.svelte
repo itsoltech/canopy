@@ -35,9 +35,12 @@
 <div class={["flex items-start gap-2.5", className]}>
   {#if leading}<div class="flex h-lh shrink-0 items-center">{@render leading()}</div>{/if}
   <div class="grid min-w-0 flex-1">
-    <p class="truncate font-medium">{title}</p>
+    <p class="font-medium [overflow-wrap:anywhere] whitespace-normal">{title}</p>
     {#if detail}<p
-        class={["truncate text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400", detailClass]}
+        class={[
+          "text-sm/5 [overflow-wrap:anywhere] whitespace-normal text-zinc-500 sm:text-xs/4 dark:text-zinc-400",
+          detailClass,
+        ]}
         title={detail}
       >
         {detail}
@@ -46,8 +49,10 @@
   {#if trailing}
     <div class="flex h-lh shrink-0 items-center gap-1">{@render trailing()}</div>
   {:else if status}
-    <div class="flex h-lh shrink-0 items-center">
-      <p class="text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{status}</p>
+    <div class="flex min-h-lh max-w-24 shrink-0 items-center">
+      <p class="text-sm/5 [overflow-wrap:anywhere] whitespace-normal text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
+        {status}
+      </p>
     </div>
   {/if}
   <div class="flex h-lh shrink-0 items-center">
