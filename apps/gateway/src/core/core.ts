@@ -17,6 +17,8 @@ import { MobileDevices } from "./mobile-devices.ts";
 import { DesktopControl } from "../desktop-updates/control.ts";
 import { DesktopUpdateStore } from "../desktop-updates/store.ts";
 import { GatewayUpdates } from "../updates/runtime.ts";
+import { UpdateCenter } from "../updates/center.ts";
+import { createUpdateCenter } from "../updates/center-composition.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools } from "./cli-tools.ts";
 import { AgentEnvironment } from "../agent-environment/service.ts";
@@ -158,6 +160,7 @@ export class GatewayCore {
   network?: NetworkAccess;
 
   readonly updates: GatewayUpdates;
+  readonly updateCenter: UpdateCenter;
 
   readonly mobile: MobileDevices;
   readonly desktopControl: DesktopControl;
@@ -312,6 +315,7 @@ export class GatewayCore {
     // Ticks only after start() (main.ts); tests drive tick() directly.
     this.scheduler = createCoreScheduler(this, options);
     this.worktreeCleanup = new WorktreeCleanupSchedule(this);
+    this.updateCenter = createUpdateCenter(this);
   }
 
   get online(): ReadonlySet<string> {

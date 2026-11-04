@@ -21,6 +21,34 @@ nie twierdzi, że aplikacja jest aktualna. Dotyczyło to `v0.2.0-nightly.33`:
 2026-11-04 release miał tylko binaria serwera/workerów, a przebieg Release
 `41890651151` zakończył błędem pakowanie macOS i `publish-desktop`.
 
+Ten sam popover zawiera centrum gatewaya, workerów binarnych, CLI i sparowanych
+zdalnych desktopów. Wersja serwerowa UI pokazuje centrum bez własnej aplikacji.
+Odnośniki prowadzą do Settings → Workers oraz App updates. Gateway/workery i
+zdalne aplikacje pokazują notatki Canopy dla swojego kanału; Claude Code i Codex
+korzystają z publicznych Releases dostawców. Grok nie wskazuje takiego źródła,
+więc panel pokazuje to ograniczenie oraz istniejące wyjście instalatora.
+
+**Update all** zapisuje kolejkę w prywatnym `user_settings.settings.updateRun`.
+Nie zmienia zamrożonego UpdateService ani nie wymaga migracji. Kolejność:
+gateway → workery binarne na wersję uruchomionego gatewaya → zainstalowane CLI
+→ zdalne aplikacje z nowszą dostępną wersją. Brakujące CLI instaluje się osobnym
+przyciskiem Install. Własną aplikację desktopową restartuje się niezależnie;
+jej dołączony gateway aktualizuje bundle, nie samodzielna wymiana binarki.
+
+Gateway odpytywany co 2 sekundy wznawia zapisaną kolejkę po restarcie. Potwierdzenie
+przyjęcia komendy nie kończy kroku: wymagany jest raport wyniku, nowa wersja i
+zgodny protokół workera. Każda akcja ponownie sprawdza dotychczasowe uprawnienia.
+Błąd lub utrata zgodności zatrzymuje kolejne kroki z przyczyną; Retry update all
+tworzy aktualny plan. Timeout kroku to 35 minut. Nie odtwarzamy w ciemno przerwanej
+instalacji CLI; bez raportu po 60 sekundach należy sprawdzić worker i ponowić akcję.
+Kolejka nie przyznaje force ani downgrade. Gateway Docker/source zatrzymuje ją
+na instrukcji ręcznej aktualizacji; po podmianie obrazu należy ponowić Update all.
+
+Publiczne notatki serwerowego centrum pobiera BFF z ustalonej listy repozytoriów,
+bez tokenów, z cache 60 sekund. Błąd pobierania ma przycisk Retry i nie blokuje
+samej aktualizacji. Rozpoczęty krok zachowuje wersję początkową i docelową,
+żeby zmiana najnowszego wydania nie zmieniła historii wybranej aktualizacji.
+
 Workers → Updates oferuje **Update Canopy app** dla `installKind=desktop`.
 Aktualizuje całą aplikację: Electron, dołączony runtime i worker. Desktop w trybie
 zdalnym musi być sparowany z gatewayem i obsługiwać kanał sterowania z

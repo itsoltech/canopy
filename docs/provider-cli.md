@@ -6,6 +6,13 @@ potrafi je jednak **zainstalować i aktualizować na żądanie**: dla każdego w
 wersję, sposób instalacji i dostępną aktualizację, a instalacja albo aktualizacja rusza wyłącznie po kliknięciu
 właściciela (jeden worker albo „Update all” dla dostawcy). Nic nie instaluje się samo.
 
+Centrum aktualizacji w stopce sidebara obejmuje te same akcje i logi instalatora.
+Jego „Update all” aktualizuje już zainstalowane CLI po gatewayu i binarnych workerach;
+brakujące CLI mają osobne „Install”. Każdy krok ponownie sprawdza właściciela,
+zgodność workera i blokady instalatora. Błąd zatrzymuje dalszą kolejkę. Historia
+Claude Code i Codexa pochodzi z publicznych GitHub Releases; Grok nie ma znanego
+źródła tych notatek, więc centrum pokazuje tę informację i wynik instalatora.
+
 Kod: `apps/worker/src/cli-tools/*` (wykrywanie, przepisy, instalator), `apps/gateway/src/core/cli-tools.ts`
 (najnowsze wersje, decyzje, RPC), UI w `apps/web/src/lib/features/workers/*Cli*`. Testy:
 `tests/integration/provider-cli.test.ts` (prawdziwy proces workera, fałszywe CLI, npm, instalator i rejestr) oraz

@@ -6,8 +6,14 @@
   let {
     releases,
     channel,
+    source = "canopy",
     class: className,
-  }: { releases: readonly DesktopReleaseNote[]; channel: string; class?: ClassValue } = $props();
+  }: {
+    releases: readonly DesktopReleaseNote[];
+    channel: string;
+    source?: "canopy" | "claude" | "codex";
+    class?: ClassValue;
+  } = $props();
 </script>
 
 <div class={["grid gap-5", className]}>
@@ -17,7 +23,7 @@
       <h4 class="text-base font-medium tabular-nums sm:text-sm">{release.version}</h4>
       <Markdown text={release.markdown} />
       <a
-        href={`https://github.com/itsoltech/canopy/releases/tag/v${encodeURIComponent(release.version)}`}
+        href={`https://github.com/${source === "claude" ? "anthropics/claude-code" : source === "codex" ? "openai/codex" : "itsoltech/canopy"}/releases/tag/${source === "codex" ? "rust-v" : "v"}${encodeURIComponent(release.version)}`}
         target="_blank"
         rel="noreferrer"
         class="w-fit text-brand-600 underline focus-ring dark:text-brand-400">View release on GitHub</a

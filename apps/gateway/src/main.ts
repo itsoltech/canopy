@@ -153,10 +153,13 @@ core.bots.start();
 
 await core.updates.start();
 
+core.updateCenter.start();
+
 async function stop(presence = "shutting_down") {
   await core.computers?.close(presence);
   unmountMobile();
   await network.close();
+  core.updateCenter.stop();
   core.updates.close();
   core.desktopControl.close();
   core.secrets.stop();

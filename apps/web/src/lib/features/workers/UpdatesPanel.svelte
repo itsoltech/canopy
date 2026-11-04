@@ -7,6 +7,7 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import ReleaseChannelField from "./ReleaseChannelField.svelte";
   import WorkerUpdateRow from "./WorkerUpdateRow.svelte";
+  import UpdateRun from "./UpdateRun.svelte";
   import { UpdatesState, updateBusy, updateStateLabel } from "./updates.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
@@ -47,6 +48,15 @@
           >{/snippet}</Alert
       >{/if}
     {#if snapshot}
+      <div class="flex flex-wrap gap-3">
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!!updates.pending || snapshot.run?.state === "running"}
+          onclick={() => void updates.manage({ action: "update_all" })}>Update all components</Button
+        >
+      </div>
+      {#if snapshot.run}<UpdateRun run={snapshot.run} />{/if}
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0 space-y-1">
           <p class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">
@@ -111,7 +121,7 @@
                     !updateBusy(w.state),
                 )}
               loading={updates.pending === "all"}
-              onclick={() => void updates.manage({ action: "all" })}>Update all</Button
+              onclick={() => void updates.manage({ action: "all" })}>Update binary workers</Button
             >
           </div>
         </div>

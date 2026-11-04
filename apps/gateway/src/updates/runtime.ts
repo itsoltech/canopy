@@ -57,6 +57,7 @@ export class GatewayUpdates {
   #reason = "";
   #checking: Promise<void> | undefined;
   #checkedAt = "";
+  #checkError = "";
   #timer: ReturnType<typeof setInterval> | undefined;
   #stopping = new AbortController();
   #draining = false;
@@ -150,6 +151,7 @@ export class GatewayUpdates {
     return (this.#checking ??= (async () => {
       try {
         this.#available = await this.source.resolve(this.#channel);
+        this.#checkError = "";
 
         if (!["waiting_idle", "downloading", "restarting", "failed"].includes(this.#state)) this.#reason = "";
 
@@ -159,6 +161,8 @@ export class GatewayUpdates {
           });
         }
       } catch (error) {
+        this.#checkError = error instanceof Error ? error.message : "Could not check releases";
+
         if (!["waiting_idle", "downloading", "restarting", "failed"].includes(this.#state))
           this.#reason = error instanceof Error ? error.message : "Could not check releases";
       } finally {
@@ -182,6 +186,7 @@ export class GatewayUpdates {
       gatewayVersion: this.version,
       channel: this.#channel,
       availableVersion: this.#available?.version ?? "",
+      gatewayUpdateAvailable: this.#ahead(this.#available?.version ?? ""),
       gatewayInstallKind: this.kind,
       gatewayState: this.#state,
       gatewayReason: [this.kind !== "binary" ? managedInstructions(this.kind) : "", this.#reason]
@@ -190,6 +195,7 @@ export class GatewayUpdates {
       admin: await this.options.persistence.admin(),
       checking: !!this.#checking,
       checkedAt: this.#checkedAt,
+      checkError: this.#checkError,
       workers: workers.map((w) => ({
         workerId: w.id,
         name: w.name,
@@ -397,6 +403,9 @@ export class GatewayUpdates {
     )
       return worker.command;
     const manifest = await this.service.options.mirror.manifest();
+
+    if (!workerLinkCompatible(manifest.protocol.worker_link, manifest.protocol.worker_link))
+      throw new ConnectError("Worker release is incompatible with this gateway protocol", Code.FailedPrecondition);
     releaseAsset(manifest, "worker", worker.os, worker.arch);
 
     const command = create(update.UpdateCommandSchema, {

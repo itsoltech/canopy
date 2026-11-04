@@ -666,6 +666,14 @@ zachowuje zrzuty. Smoke Linux nie potwierdza natywnego menu ani adaptera macOS.
 
 ## Automatyczne aktualizacje desktopu
 
+Trzecia ikona w stopce sidebara otwiera wspólne centrum aktualizacji. Dla własnej
+aplikacji pokazuje spoczynek, sprawdzanie, postęp pobierania oraz restart po
+pobraniu. Hover i kliknięcie otwierają ten sam przewijany popover (na telefonie
+sheet), z historią GitHub Releases między zainstalowaną a pobieraną wersją,
+najnowszą najpierw, według wybranego kanału. Sprawdzanie respektuje reduced motion.
+Brak feedu platformy dla nowszego wydania jest wyjaśniony osobnym komunikatem;
+nie oznacza braku nowej wersji serwera. Web bez bridge nie pokazuje sekcji własnej aplikacji.
+
 `electron-updater` **6.8.3** sprawdza publiczne GitHub Releases przy starcie i co
 6 godzin. Settings → **App updates** pokazuje
 wersję/kanał buildu, własny combobox Stable/Beta/Nightly, Check for updates,

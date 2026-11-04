@@ -278,7 +278,7 @@ message WorkerRequest { string worker_id = 1; }
 
 message UpdatesRequest {}
 message ManageUpdatesRequest {
-  string action = 1; // check | channel | gateway | worker | all
+  string action = 1; // check | channel | gateway | worker | all | desktop | update_all
   string channel = 2;
   string worker_id = 3;
   bool force = 4;
@@ -307,6 +307,28 @@ message UpdatesSnapshot {
   bool admin = 8;
   bool checking = 9;
   string checked_at = 10;
+  UpdateRun run = 11;
+  repeated Worker cli_workers = 12;
+  bool gateway_update_available = 13;
+  string check_error = 14;
+}
+// Owner-scoped durable orchestration. No URLs, credentials, force or downgrade grants.
+message UpdateRun {
+  string id = 1;
+  string state = 2; // running | succeeded | failed | blocked
+  string reason = 3;
+  repeated UpdateStep steps = 4;
+}
+message UpdateStep {
+  string kind = 1; // gateway | worker | cli | desktop
+  string worker_id = 2;
+  string label = 3;
+  string version = 4;
+  canopy.worker.v1.Provider provider = 5;
+  string state = 6; // queued | running | succeeded | failed | blocked
+  string reason = 7;
+  string started_at = 8;
+  string from_version = 9;
 }
 message RenameWorkerRequest { string worker_id = 1; string name = 2; }
 message RotateWorkerCredentialResponse { string credential = 1; }

@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { updateBusy, updateStateLabel } from "./updates.svelte.ts";
   import DesktopUpdateStatus from "./DesktopUpdateStatus.svelte";
@@ -12,6 +13,7 @@
     gatewayVersion,
     admin,
     pending,
+    disabled = false,
     onupdate,
     onforce,
     class: className,
@@ -20,6 +22,7 @@
     gatewayVersion: string;
     admin: boolean;
     pending: string;
+    disabled?: boolean;
     onupdate(): void;
     onforce(): void;
     class?: ClassValue;
@@ -37,7 +40,13 @@
       >
     </p>
     {#if worker.installKind === "desktop" && worker.desktop}
-      <DesktopUpdateStatus state={worker.desktop} pending={pending === worker.workerId} {onupdate} {onforce} />
+      <DesktopUpdateStatus
+        state={worker.desktop}
+        pending={pending === worker.workerId}
+        {disabled}
+        {onupdate}
+        {onforce}
+      />
     {:else}
       <div class="flex flex-wrap items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         {#key `${worker.state}/${worker.compatibility}`}
@@ -58,6 +67,7 @@
       {#if worker.reason}<p class="text-base/6 text-pretty break-words text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
           {worker.reason}
         </p>{/if}
+      {#if busy}<ProgressBar label={`${worker.name}: ${updateStateLabel(worker.state, true)}`} />{/if}
     {/if}
   </div>
   {#if worker.installKind === "binary" && admin}
@@ -65,7 +75,7 @@
       <Button
         size="sm"
         loading={pending === worker.workerId || busy}
-        disabled={!!pending || worker.version === gatewayVersion || worker.state === "ahead"}
+        disabled={disabled || !!pending || worker.version === gatewayVersion || worker.state === "ahead"}
         onclick={onupdate}>Update worker</Button
       >
     </div>

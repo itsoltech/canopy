@@ -1,8 +1,10 @@
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { type GatewayCore } from "../core/core.ts";
 import { workerGuard } from "../core/worker-administration.ts";
 import { workerInstall } from "../updates/install.ts";
+import { updatesSnapshot } from "../updates/center-composition.ts";
 import { guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 
@@ -25,18 +27,8 @@ export function workersHandlers(
   | "checkCliUpdates"
 > {
   const snapshot = async () => {
-    const value = await core.updates.snapshot();
-    const states = await core.desktopControl.states();
-
-    for (const worker of value.workers) {
-      if (worker.installKind !== "desktop") continue;
-      worker.desktop =
-        states.find((s) => s.workerId === worker.workerId) ??
-        create(ui.DesktopUpdateStateSchema, {
-          workerId: worker.workerId,
-          disabledReason: "Pair this desktop app, or update it manually to enable remote updates.",
-        });
-    }
+    const value = await updatesSnapshot(core);
+    value.run = await core.updateCenter.status();
 
     return value;
   };
@@ -48,6 +40,18 @@ export function workersHandlers(
     getUpdates: snapshot,
 
     manageUpdates: async (request) => {
+      if (request.action === "update_all") {
+        await core.updateCenter.begin();
+
+        return snapshot();
+      }
+
+      if (request.action !== "check" && (await core.updateCenter.status())?.state === "running")
+        throw new ConnectError(
+          "Update all is running. Wait for it to finish before starting another update.",
+          Code.FailedPrecondition,
+        );
+
       if (request.action === "desktop") {
         await core.desktopControl.manage(request);
 

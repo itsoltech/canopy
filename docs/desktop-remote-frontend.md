@@ -251,6 +251,12 @@ obsługi funkcji wyłącza akcję z powodem. Starszej aplikacji bez strumienia n
 się odróżnić od niesparowanej: komunikat wskazuje parowanie lub ręczną aktualizację.
 Kontrolki pochodzą z kitu; `DesktopUpdateStatus` skupia stan i dialog potwierdzenia.
 
+Ten sam stan i „Update Canopy app” są dostępne w centrum aktualizacji w stopce
+sidebara. „Update all” kolejkuje połączone, obsługiwane aplikacje z wykrytą nowszą
+wersją po gatewayu, binarnych workerach i CLI. Czeka na raport sukcesu po restarcie;
+nie wymusza przerwania pracy. Ręczne akcje w Workers pozostają dostępne poza
+trwającą kolejką. Własny desktop ma niezależny restart w tym samym centrum.
+
 **Tryb lokalny:** desktop połączony z innym gatewayem jako komputer nie otrzymuje
 tego kanału sterowania. Aktualizacje między połączonymi komputerami są możliwym
 późniejszym etapem, wymagającym osobnego zakresu uprawnień i protokołu.

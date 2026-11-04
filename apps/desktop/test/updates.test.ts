@@ -259,6 +259,30 @@ test("release notes include every intervening channel release, newest first, wit
   ]);
 });
 
+test("an incomplete desktop publication stays visible at the updater boundary instead of claiming up to date", async () => {
+  const updater = new FeedUpdater("0.2.0-nightly.32", tempDir("canopy-publishing-status-"));
+
+  const publishing =
+    "0.2.0-nightly.33 is not yet available for macOS. Desktop publishing may still be running or need a retry.";
+
+  const controller = new UpdateController(updater, {
+    version: "0.2.0-nightly.32",
+    buildChannel: "nightly",
+    channel: "nightly",
+    save() {},
+    confirmDowngrade: async () => false,
+    prepare: async () => ({ available: false, publishing, releases: [] }),
+    changed() {},
+    downloaded() {},
+  });
+
+  controller.enable();
+  const state = await controller.check();
+  expect(state).toMatchObject({ phase: "idle", message: publishing, publishing });
+  expect(updater.downloads).toHaveLength(0);
+  expect(state.updateVersion).toBeUndefined();
+});
+
 test.skipIf(process.platform !== "linux")(
   "downgrade needs confirmation and expires after one switch, including a failed download",
   async () => {
