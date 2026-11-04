@@ -24,6 +24,7 @@
   --color-action: var(--theme-action);
   --color-action-hover: var(--theme-action-hover);
   --color-on-accent: var(--theme-on-accent);
+  --color-on-control: var(--theme-on-control);
   --color-emerald-50: var(--theme-emerald-50);
   --color-emerald-100: var(--theme-emerald-100);
   --color-emerald-200: var(--theme-emerald-200);

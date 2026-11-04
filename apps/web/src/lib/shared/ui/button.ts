@@ -7,7 +7,7 @@ const base =
   "ui-button relative inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap focus-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-action text-on-accent not-disabled:hover:bg-action-hover",
+  primary: "bg-action text-on-accent not-disabled:hover:bg-action-hover not-disabled:active:bg-action-hover",
   secondary:
     "bg-white text-zinc-950 shadow-xs ring-1 ring-zinc-950/10 not-disabled:hover:bg-zinc-50 dark:bg-white/5 dark:text-white dark:shadow-none dark:ring-white/10 dark:not-disabled:hover:bg-white/10",
   ghost:
