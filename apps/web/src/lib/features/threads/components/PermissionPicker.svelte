@@ -39,10 +39,12 @@
         className,
       ]}
       aria-label="Permissions: {permissionLabel(value)}"
-      title={warn ? "Full auto: runs commands and edits without asking (sandboxed to the workspace)" : undefined}
+      title={warn
+        ? "Full auto: runs commands and edits without asking (sandboxed to the workspace)"
+        : `Permissions: ${permissionLabel(value)}`}
     >
       <Icon name={look.icon} class={["size-3.5", warn && look.iconClass]} />
-      <span class="max-sm:sr-only">{permissionLabel(value)}</span>
+      <span class="max-sm:sr-only @max-[34rem]/context:sr-only">{permissionLabel(value)}</span>
     </PillButton>
   {/snippet}
   {#each permissionModes as option (option.value)}

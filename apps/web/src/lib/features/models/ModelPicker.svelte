@@ -170,7 +170,9 @@
     <PillButton
       {...props}
       class={["pl-1.5", className]}
-      aria-label="Model: {selected?.name ?? 'none'}{effort ? `, ${effort} effort` : ''}"
+      aria-label="Model: {selected?.name ?? 'none'}{selected
+        ? ` · ${selected.profileName} · ${selected.model}`
+        : ''}{effort ? `, ${effort} effort` : ''}"
     >
       {#if selected}<ProviderIcon provider={selected.provider} class="size-3.5" />{/if}
       <span class="truncate text-zinc-800 dark:text-zinc-200">{selected?.name ?? "Choose a model"}</span>

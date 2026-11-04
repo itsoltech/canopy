@@ -219,13 +219,14 @@
     aria-label={label}
     class={[
       "grid grid-cols-1 content-start",
-      inline ? "min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5" : "p-1",
+      inline ? "min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5" : "px-1",
       listClass,
     ]}
   >
     {#each groups as group, g (g)}
       {#if group.label}
-        <!-- Sticky over the list's padding: a long group keeps its heading in view. The truncating box is
+        <!-- No vertical scroll padding: sticky top-0 must meet the search field without a see-through seam.
+             The truncating box is
              inside: a grid row of an overflow-hidden item may shrink to nothing in the scrolling list. -->
         <li role="presentation" class={[listboxHeadingClasses, inline ? "-mx-1.5 px-4" : "-mx-1 px-3.5"]}>
           <div class="truncate">{group.label}</div>

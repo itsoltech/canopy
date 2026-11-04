@@ -85,6 +85,8 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 - Motion follows the tokens in `motion.ts` / `motion.css` and respects `prefers-reduced-motion`.
 - Don't center with `-translate-*` on elements that also use a `rise`/`swap` transition: they animate `translate`. Use flex instead.
 - Keep components small and reusable; extract repeated UI.
+- Check UI with short, typical and long/worst-case texts (names, branches, labels) at desktop, narrow and phone widths, where it matters; truncation and wrapping must stay tidy. Use the `design`, `componentize` and `transitions-dev` skills for UI work.
+- Check overlays, sticky headers and scroll areas for gaps and see-through seams (stray padding, margins or offsets).
 
 ## Security
 

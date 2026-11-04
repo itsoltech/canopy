@@ -108,7 +108,7 @@
     id="{id}-list"
     role="listbox"
     aria-label={label}
-    class="grid grid-cols-1 content-start p-1"
+    class="grid grid-cols-1 content-start px-1"
     onpointerdown={preserveFocus}
     onpointermove={trackPress}
     onpointercancel={() => {

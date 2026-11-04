@@ -19,6 +19,7 @@
   import ComposerBox from "./ComposerBox.svelte";
   import type { ComposerActivity } from "./composer-compaction.ts";
   import PermissionPicker from "./PermissionPicker.svelte";
+  import ComposerContextRow from "./ComposerContextRow.svelte";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -182,28 +183,30 @@
 
 <form class={["grid grid-cols-1 gap-2", className]} onsubmit={submit}>
   {#if error}<Alert tone="error">{error}</Alert>{/if}
-  <fieldset {disabled} class="contents">
-    <ComposerBox
-      {compact}
-      {panelsLabel}
-      {onexpand}
-      bind:value={text}
-      bind:mentions
-      {sources}
-      placeholder={running ? "Steer the agent, or queue for the next turn…" : "Ask anything…"}
-      {disabled}
-      {sending}
-      {stopping}
-      onstop={running ? interrupt : undefined}
-      onqueue={running ? () => void send("queue") : undefined}
-      {primary}
-      onalternate={running ? () => void send("steer") : undefined}
-      {draft}
-      elementCount={quotes.length}
-      {ongoal}
-    >
-      {#snippet elements()}<QuoteTray threadId={thread.id} class="px-3 pt-3" />{/snippet}
-      {#snippet controls()}
+  <ComposerBox
+    {compact}
+    {panelsLabel}
+    {onexpand}
+    bind:value={text}
+    bind:mentions
+    {sources}
+    placeholder={running ? "Steer the agent, or queue for the next turn…" : "Ask anything…"}
+    {disabled}
+    {sending}
+    {stopping}
+    onstop={running ? interrupt : undefined}
+    onqueue={running ? () => void send("queue") : undefined}
+    {primary}
+    onalternate={running ? () => void send("steer") : undefined}
+    {draft}
+    blockedReason={disabled ? note : undefined}
+    deliveryNotice={outcome}
+    elementCount={quotes.length}
+    {ongoal}
+  >
+    {#snippet elements()}<QuoteTray threadId={thread.id} class="px-3 pt-3" />{/snippet}
+    {#snippet controls()}
+      <fieldset {disabled} class="contents">
         {#if option}
           <ModelControls
             options={offer.options}
@@ -216,18 +219,22 @@
         {:else}
           <PillText class="flex-1 text-right">{providerLabel(thread.provider)}</PillText>
         {/if}
-      {/snippet}
-      {#snippet meta()}
-        <WorkerHoverCard {worker} />
-        <PermissionPicker
-          value={mode}
-          inherited={threadMode}
-          onselect={(next) => (modeChoice = { threadId: thread.id, mode: next })}
-          class="-mr-1.5"
-        />
-      {/snippet}
-    </ComposerBox>
-  </fieldset>
-  {#if outcome}<p class="px-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">{outcome}</p>{/if}
-  {#if note}<p class="px-3 text-sm/5 text-amber-700 sm:text-xs/5 dark:text-amber-400" role="status">{note}</p>{/if}
+      </fieldset>
+    {/snippet}
+    {#snippet meta()}
+      <ComposerContextRow>
+        {#snippet computerControl()}<WorkerHoverCard {worker} {note} class="max-w-full" />{/snippet}
+        {#snippet permissionControl()}
+          <fieldset {disabled} class="contents">
+            <PermissionPicker
+              value={mode}
+              inherited={threadMode}
+              onselect={(next) => (modeChoice = { threadId: thread.id, mode: next })}
+            />
+          </fieldset>
+        {/snippet}
+      </ComposerContextRow>
+    {/snippet}
+  </ComposerBox>
+  {#if outcome}<p class="sr-only" role="status">{outcome}</p>{/if}
 </form>

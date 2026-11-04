@@ -6,7 +6,7 @@ import { duration } from "./motion.ts";
 /**
  * Tooltip as an attachment: a short label in the top layer, shown after a hover delay (instantly while
  * another tooltip was just open), at once on keyboard focus, hidden on leave, blur, Escape or press.
- * Touch screens have no hover: a long press shows it for a moment instead. It fades and scales in, leaves at
+ * Touch screens use a long press, or tap for dedicated help icons. It fades and scales in, leaves at
  * once, and shows without the appear while moving between neighbours (motion.css `t-tt`). It describes the element
  * (`aria-describedby`) unless the text already is its accessible name (`aria-label`).
  *
@@ -20,6 +20,8 @@ export interface TooltipOptions {
   readonly delay?: number;
   /** The element expands a region that is no menu (a sidebar): `aria-expanded` does not hide the tooltip. */
   readonly region?: boolean;
+  /** Dedicated help icons open on tap; picker triggers keep long press. */
+  readonly touch?: "press" | "tap";
 }
 
 let lastHidden = 0;
@@ -40,7 +42,7 @@ let counter = 0;
 
 export function tooltip(
   text: string | undefined,
-  { placement = "top", hotkey, delay, region = false }: TooltipOptions = {},
+  { placement = "top", hotkey, delay, region = false, touch = "press" }: TooltipOptions = {},
 ): Attachment<HTMLElement> {
   return (node) => {
     if (!text) return;
@@ -116,6 +118,7 @@ export function tooltip(
         return;
       }
 
+      if (touch === "tap") return;
       later(500, () => {
         show();
         later(1500, hide);
@@ -123,7 +126,18 @@ export function tooltip(
     };
 
     const onpointerup = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse" && touch === "tap") {
+        if (tip.matches(":popover-open")) hide();
+        else show();
+
+        return;
+      }
+
       if (event.pointerType !== "mouse" && !tip.matches(":popover-open")) clearTimeout(timer);
+    };
+
+    const outside = (event: PointerEvent) => {
+      if (touch === "tap" && event.target instanceof Node && !node.contains(event.target)) hide();
     };
 
     const onfocus = () => {
@@ -142,6 +156,7 @@ export function tooltip(
     node.addEventListener("focus", onfocus);
     node.addEventListener("blur", hide);
     node.addEventListener("keydown", onkeydown);
+    document.addEventListener("pointerdown", outside);
 
     return () => {
       hide();
@@ -156,6 +171,7 @@ export function tooltip(
       node.removeEventListener("focus", onfocus);
       node.removeEventListener("blur", hide);
       node.removeEventListener("keydown", onkeydown);
+      document.removeEventListener("pointerdown", outside);
     };
   };
 }

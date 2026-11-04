@@ -602,6 +602,22 @@ Popraw oba miejsca.
 
 ## 4. Frontend (`apps/web`)
 
+**Kontekst kompozytora.** `ComposerContextRow` oddziela miejsce uruchomienia od uprawnień:
+projekt i komputer zajmują pierwszą parę pól, workspace i gałąź drugą. Przy szerokości
+kompozytora od 44 rem pary mieszczą się w jednym wierszu, z naturalną szerokością
+kontrolek ograniczoną przez ich maksima i stałym małym odstępem; poniżej zajmują dwa wiersze siatki,
+niezależnie od długości nazw. Uprawnienia pozostają po prawej, przy górnym wierszu.
+Poniżej 34 rem etykieta workspace jest skrócona, a uprawnienia pokazują ikonę.
+Pełne nazwy są dostępne w dymkach i menu; gałąź zachowuje końcówkę przy skracaniu.
+Przełączenie workspace korzysta z tokenów `swap`/`pop`; zawinięte pary zachowują stałe pola.
+Wskazówki i ostrzeżenia są ikonami obok odpowiednich kontrolek (projekt, worker,
+workspace, załączniki), z pełnym opisem po najechaniu, fokusie lub tapnięciu.
+Ostrzeżenia mają `role=status`, a dymki `aria-describedby`. Zablokowany Send ma
+fokusowalny wrapper z konkretnym powodem blokady; Enter respektuje tę samą blokadę.
+Lista refów zachowuje kolejność workera wewnątrz dwóch grup: lokalnej i zdalnej.
+Nagłówki list zestawu mają nieprzezroczyste tło i przyklejają się do krawędzi obszaru
+przewijania bez pionowego paddingu między wyszukiwaniem a nagłówkiem.
+
 **Gęstość Settings.** `features/settings/density.css` definiuje tokeny ograniczone do
 `SettingsDialog`: tekst i etykiety 13 px na desktopie, 15 px na telefonie, opisy 13 px,
 nagłówki sekcji 14 px i stron 18 px. Odstęp sekcji wynosi 20/24 px (desktop/telefon),

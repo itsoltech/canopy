@@ -213,13 +213,13 @@
         icon="chevron-up-down"
       />
     {/snippet}
-    <ul id="{uid}-list" role="listbox" aria-label={rest["aria-label"] ?? name ?? "Options"} class="grid gap-0.5 p-1">
+    <ul id="{uid}-list" role="listbox" aria-label={rest["aria-label"] ?? name ?? "Options"} class="grid gap-0.5 px-1">
       {#each groups as group, groupIndex (groupIndex)}
         {#if groupIndex > 0}
           <li role="presentation" class="mx-2 my-1 h-px bg-zinc-950/5 dark:bg-white/10"></li>
         {/if}
         <li role={group.label ? "group" : "presentation"} aria-label={group.label}>
-          {#if group.label}<div class={[listboxHeadingClasses, "px-2.5"]}>{group.label}</div>{/if}
+          {#if group.label}<div class={[listboxHeadingClasses, "-mx-1 px-3.5"]}>{group.label}</div>{/if}
           <ul role="presentation" class="grid gap-0.5">
             {#each group.entries as { option, index } (option.value)}
               <!-- svelte-ignore a11y_click_events_have_key_events -->

@@ -17,7 +17,7 @@
   import Switch from "#lib/shared/ui/Switch.svelte";
   import { permissionKey, type PermissionModeKey } from "../labels.ts";
   import ComposerBox from "./ComposerBox.svelte";
-  import ComposerNotice from "./ComposerNotice.svelte";
+  import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import PermissionPicker from "./PermissionPicker.svelte";
   import SideThreadContext from "./SideThreadContext.svelte";
 
@@ -108,6 +108,11 @@
           autofocus
           label="Task for the side thread"
           sendLabel="Start side thread"
+          blockedReason={closed
+            ? "Reopen the main thread to start a side thread."
+            : !option
+              ? "The main thread's agent is unavailable."
+              : undefined}
         >
           {#snippet controls()}
             {#if option}
@@ -131,18 +136,14 @@
               />
               <span>Use main thread history</span>
             </label>
+            {#if !closed && worker && !worker.online}<HintIcon
+                warning
+                label="Computer offline"
+                text="This computer is offline. The side thread starts when it reconnects."
+              />{/if}
             <PermissionPicker value={mode} onselect={(next) => (permission = next)} class="-mr-1.5 shrink-0" />
           {/snippet}
         </ComposerBox>
-        {#if draft.blocker}<ComposerNotice>{draft.blocker}</ComposerNotice>{/if}
-        {#if closed}
-          <ComposerNotice tone="warning">Reopen the main thread to start a side thread.</ComposerNotice>
-        {:else if worker && !worker.online}
-          <ComposerNotice tone="warning"
-            >This computer is offline. The side thread starts when it reconnects.</ComposerNotice
-          >
-        {/if}
-        {#if !option}<ComposerNotice tone="warning">The main thread's agent is unavailable.</ComposerNotice>{/if}
       </form>
     </div>
   </div>

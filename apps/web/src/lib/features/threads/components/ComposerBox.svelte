@@ -11,6 +11,8 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
+  import DisabledControlHint from "#lib/shared/ui/DisabledControlHint.svelte";
+  import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import type { Mention } from "@canopy/contracts";
   import { filesOf, type AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
   import DraftTray from "#lib/features/attachments/DraftTray.svelte";
@@ -48,6 +50,8 @@
     placeholder = "Ask anything…",
     disabled = false,
     canSend = true,
+    blockedReason,
+    deliveryNotice,
     sending = false,
     stopping = false,
     autofocus = false,
@@ -77,6 +81,8 @@
     placeholder?: string;
     disabled?: boolean;
     canSend?: boolean;
+    blockedReason?: string | undefined;
+    deliveryNotice?: string | undefined;
     sending?: boolean;
     stopping?: boolean;
     autofocus?: boolean;
@@ -109,6 +115,19 @@
   const id = $props.id();
   const hasFiles = $derived((draft?.files.length ?? 0) > 0);
   const hasContent = $derived(Boolean(value.trim()) || hasFiles || elementCount > 0 || allowEmpty);
+
+  const sendBlocker = $derived(
+    blockedReason ??
+      draft?.blocker ??
+      (disabled
+        ? "Messaging is unavailable for this thread."
+        : !canSend
+          ? "Sending is unavailable."
+          : !hasContent
+            ? "Write a message or add an attachment to send."
+            : undefined),
+  );
+
   const onfiles = $derived(draft ? (files: File[]) => draft.add(files) : undefined);
   const stopMode = $derived(Boolean(onstop) && !hasContent);
 
@@ -156,7 +175,7 @@
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
 
-      if (!hasContent || !canSend) return;
+      if (sendBlocker || sending) return;
 
       if (onqueue && matchesHotkey(event, "Mod+Enter")) (primary === "queue" ? (onalternate ?? onqueue) : onqueue)();
       else submit();
@@ -257,19 +276,29 @@
             ontrigger={sources ? (char) => editor?.insertTrigger(char) : undefined}
           />
         {/if}
+        {#if draft?.notice || draft?.blocker}
+          <HintIcon
+            label="Attachment information"
+            text={draft.notice ?? draft.blocker ?? ""}
+            warning={Boolean(draft.notice)}
+          />
+        {/if}
         {@render controls?.()}
       </div>
     </ComposerFold>
-    <div class="absolute right-2.5 bottom-2.5" {@attach followSendWidth}>
+    <div class="absolute right-2.5 bottom-2.5 flex items-center gap-1" {@attach followSendWidth}>
+      {#if deliveryNotice}<HintIcon label="Message delivery information" text={deliveryNotice} />{/if}
       <ResizeSlot>
         {#if steerMode && onqueue}
-          <SteerSendButton
-            {sending}
-            {primary}
-            disabled={disabled || !canSend || !hasContent}
-            onsteer={primary === "queue" ? (onalternate ?? submit) : submit}
-            onqueue={primary === "queue" ? submit : onqueue}
-          />
+          <DisabledControlHint reason={sendBlocker}>
+            <SteerSendButton
+              {sending}
+              {primary}
+              disabled={Boolean(sendBlocker)}
+              onsteer={primary === "queue" ? (onalternate ?? submit) : submit}
+              onqueue={primary === "queue" ? submit : onqueue}
+            />
+          </DisabledControlHint>
         {:else if stopMode}
           <button
             type="button"
@@ -283,28 +312,28 @@
             <TouchTarget />
           </button>
         {:else}
-          <button
-            type="submit"
-            class="relative grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-accent focus-ring not-disabled:hover:bg-action-hover disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
-            aria-label={sendLabel}
-            {@attach tooltip(sendLabel, { hotkey: "Enter" })}
-            disabled={disabled || !canSend || sending || !hasContent}
-          >
-            {#if sending}<Spinner class="size-3.5" />{:else}<Icon
-                name={sendLabel === "Submit" ? "check" : "arrow-up"}
-                tone="inherit"
-              />{/if}
-            <TouchTarget />
-          </button>
+          <DisabledControlHint reason={sendBlocker}>
+            <button
+              type="submit"
+              class="relative grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-accent focus-ring not-disabled:hover:bg-action-hover disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
+              aria-label={sendLabel}
+              {@attach tooltip(sendLabel, { hotkey: "Enter" })}
+              disabled={Boolean(sendBlocker) || sending}
+            >
+              {#if sending}<Spinner class="size-3.5" />{:else}<Icon
+                  name={sendLabel === "Submit" ? "check" : "arrow-up"}
+                  tone="inherit"
+                />{/if}
+              <TouchTarget />
+            </button>
+          </DisabledControlHint>
         {/if}
       </ResizeSlot>
     </div>
   </div>
   {#if meta}
     <ComposerFold open={!compact}>
-      <div
-        class="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
-      >
+      <div class="min-w-0 px-1 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         {@render meta()}
       </div>
     </ComposerFold>

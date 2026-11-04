@@ -3,11 +3,13 @@
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { workerStatus } from "#lib/features/overview/workers.ts";
+  import { workerLabel } from "#lib/features/overview/worker-label.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import PickerRow from "#lib/shared/ui/PickerRow.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
   import SearchPicker from "#lib/shared/ui/SearchPicker.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
+  import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   /**
@@ -20,11 +22,13 @@
     value,
     onselect,
     class: className,
+    warning,
   }: {
     project: ui.Project;
     value: string | undefined;
     onselect: (workspace: ui.Workspace) => void;
     class?: ClassValue;
+    warning?: string | undefined;
   } = $props();
 
   const overview = useOverview();
@@ -34,51 +38,65 @@
   const selected = $derived(available.find((w) => w.id === value));
   const nameOf = (ws: ui.Workspace) => overview.worker(ws.workerId)?.name ?? "Unknown worker";
   const online = (ws: ui.Workspace) => overview.worker(ws.workerId)?.online ?? false;
+
+  const reason = $derived(
+    warning ??
+      (selected && !online(selected)
+        ? `${nameOf(selected)} is offline. Start it or choose another worker to send.`
+        : undefined),
+  );
 </script>
 
-<SearchPicker
-  label="Choose a worker"
-  searchLabel="Search workers"
-  placeholder="Search workers…"
-  items={available}
-  key={(w) => w.id}
-  text={(w) => nameOf(w)}
-  {value}
-  {onselect}
-  link={project.kind === "scratch"
-    ? { href: "/settings/workers", label: "Manage workers" }
-    : {
-        href: `/settings/projects/${project.id}`,
-        label: project.workspaces.length === 0 ? "Add it to a worker" : "Configure workers",
-      }}
->
-  {#snippet trigger(props)}
-    <PillButton
-      {...props}
-      class={["pl-1.5", className]}
-      aria-label={selected ? `Worker: ${nameOf(selected)}, ${online(selected) ? "online" : "offline"}` : "Worker: none"}
-    >
-      <Icon name="computer-desktop" class="size-3.5" />
-      {#if selected}
-        <span class="truncate text-zinc-800 dark:text-zinc-200">{nameOf(selected)}</span>
-        {#if !online(selected)}<StatusDot tone="neutral" /><span class="shrink-0">Offline</span>{/if}
-      {:else}
-        <span class="truncate">{project.workspaces.length === 0 ? "No worker" : "Choose a worker"}</span>
-      {/if}
-    </PillButton>
-  {/snippet}
-  {#snippet option(ws, state)}
-    <PickerRow
-      title={nameOf(ws)}
-      detail={project.nodeId ? `On ${overview.machine(project.nodeId)}` : undefined}
-      status={workerStatus(overview.worker(ws.workerId))}
-      selected={state.selected}
-    >
-      {#snippet leading()}<StatusDot tone={online(ws) ? "emerald" : "neutral"} />{/snippet}
-    </PickerRow>
-  {/snippet}
-  {#snippet empty(query)}
-    {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Connect a worker first.{:else}{project.name}
-      is not on any worker yet.{/if}
-  {/snippet}
-</SearchPicker>
+<div class={["flex min-w-0 items-center", className]}>
+  <SearchPicker
+    label="Choose a worker"
+    searchLabel="Search workers"
+    placeholder="Search workers…"
+    items={available}
+    key={(w) => w.id}
+    text={(w) => nameOf(w)}
+    {value}
+    {onselect}
+    link={project.kind === "scratch"
+      ? { href: "/settings/workers", label: "Manage workers" }
+      : {
+          href: `/settings/projects/${project.id}`,
+          label: project.workspaces.length === 0 ? "Add it to a worker" : "Configure workers",
+        }}
+  >
+    {#snippet trigger(props)}
+      <PillButton
+        {...props}
+        class="min-w-0 flex-1 pl-1.5"
+        aria-label={selected
+          ? `Worker: ${nameOf(selected)}, ${online(selected) ? "online" : "offline"}`
+          : "Worker: none"}
+      >
+        <Icon name="computer-desktop" class="size-3.5" />
+        {#if selected}
+          <span class="truncate text-zinc-800 dark:text-zinc-200">{workerLabel(nameOf(selected))}</span>
+          {#if !online(selected)}<StatusDot tone="neutral" /><span class="shrink-0 @max-[34rem]/context:sr-only"
+              >Offline</span
+            >{/if}
+        {:else}
+          <span class="truncate">{project.workspaces.length === 0 ? "No worker" : "Choose a worker"}</span>
+        {/if}
+      </PillButton>
+    {/snippet}
+    {#snippet option(ws, state)}
+      <PickerRow
+        title={nameOf(ws)}
+        detail={project.nodeId ? `On ${overview.machine(project.nodeId)}` : undefined}
+        status={workerStatus(overview.worker(ws.workerId))}
+        selected={state.selected}
+      >
+        {#snippet leading()}<StatusDot tone={online(ws) ? "emerald" : "neutral"} />{/snippet}
+      </PickerRow>
+    {/snippet}
+    {#snippet empty(query)}
+      {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Connect a worker first.{:else}{project.name}
+        is not on any worker yet.{/if}
+    {/snippet}
+  </SearchPicker>
+  {#if reason}<HintIcon label="Worker needs attention" text={reason} warning />{/if}
+</div>
