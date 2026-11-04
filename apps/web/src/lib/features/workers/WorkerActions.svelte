@@ -53,7 +53,7 @@
 
       if (action !== "rotate") open = false;
     } catch (e) {
-      error = e instanceof Error ? e.message : "Worker operation failed";
+      error = e instanceof Error ? e.message : "Could not change the worker. Try again.";
     } finally {
       busy = false;
     }
@@ -91,25 +91,23 @@
     {:else if action === "rotate"}
       {#if credential}
         <Alert tone="warning"
-          >Shown once. Replace the credential in this machine’s worker.json, keep mode 0600, and restart the worker.
-          Keep your existing data_dir and ca_file settings.</Alert
+          >This credential is shown only once. Put it in worker.json on that computer, keep mode 0600, and restart the
+          worker. Do not change data_dir or ca_file.</Alert
         >
         <CommandBlock text={config} label="worker.json · private" />
       {:else}<p class="text-base/6 text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
-          Disconnect <strong>{worker.name}</strong> and replace its credential. The old credential stops working immediately.
-          The new one is shown only here; copy it before closing.
+          This disconnects <strong>{worker.name}</strong> and replaces its credential. The old credential stops working now.
+          Copy the new one before you close this dialog.
         </p>{/if}
     {:else if action === "revoke"}
       <p class="text-base/6 text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
-        Revoke access for <strong>{worker.name}</strong>? The worker disconnects immediately and cannot reconnect.
-        Existing workspaces, conversations and files stay in place. Running processes on the device may continue; stop
-        the worker there. Add it again with a new enrollment to restore access as a new worker.
+        <strong>{worker.name}</strong> disconnects now and cannot reconnect. Its workspaces, threads and files stay. Processes
+        already running on that computer can continue, so stop the worker there. To use it again, add it as a new worker.
       </p>
     {:else}
       <p class="text-base/6 text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
-        Archive <strong>{worker.name}</strong>? Access is revoked and its project workspaces are archived, so no new
-        conversations can run there. Existing threads and their history remain readable but cannot run. Files on the
-        machine are kept. Stop the worker on the device; archiving does not stop its local processes.
+        This revokes access for <strong>{worker.name}</strong> and archives its workspaces. Its threads stay readable but
+        cannot run. Files on that computer stay. Archiving does not stop processes there, so stop the worker on that computer.
       </p>
     {/if}
     <div class="flex justify-end gap-2">

@@ -65,20 +65,20 @@
       <h2 class="text-sm font-semibold">Updates</h2>
       <p class="truncate text-xs/5 text-muted" role="status" title={summary.message}>
         {summary.phase === "error"
-          ? "Update needs attention"
+          ? "Update failed"
           : summary.phase === "quiet"
             ? "Up to date"
             : summary.phase === "available"
               ? "Updates available"
               : summary.phase === "ready"
-                ? "App ready to restart"
+                ? "Restart to finish the update"
                 : summary.message}
       </p>
     </div>
     <IconButton
       size="sm"
       icon="information-circle"
-      label="Update order: gateway, binary workers, installed agent CLIs, then remote Canopy apps. Each step waits for success."
+      label="Update all goes in order: gateway, binary workers, agent CLIs, then Canopy apps on other computers. Each step waits for the one before."
     />
     <IconButton
       size="sm"
@@ -91,7 +91,7 @@
     {#if snapshot && updatesAvailable(snapshot)}<IconButton
         size="sm"
         icon="arrow-up"
-        label={run && ["failed", "blocked"].includes(run.state) ? "Retry update all" : "Update all"}
+        label={run && ["failed", "blocked"].includes(run.state) ? "Retry updates" : "Update all"}
         disabled={busy || !snapshot || (summary.phase === "quiet" && !run)}
         loading={run?.state === "running"}
         onclick={() => void updates.manage({ action: "update_all" })}
@@ -102,7 +102,7 @@
     {#if run && run.state !== "succeeded"}
       <div class="border-b border-divider py-2 text-sm/5">
         <p role="status">
-          {run.state === "running" ? `Updating · ${completed}/${run.steps.length}` : "Update all stopped"}
+          {run.state === "running" ? `Updating · ${completed}/${run.steps.length}` : "Updates stopped"}
         </p>
         {#if run.state === "running"}<UpdateProgress
             label="Update all progress"
@@ -139,6 +139,6 @@
   </div>
   <footer class="flex shrink-0 flex-wrap gap-x-4 gap-y-1 border-t border-divider px-3 py-2 text-sm/5 text-muted">
     <a href="/settings/workers" class="rounded focus-ring hover:text-ink">Update details</a>
-    {#if app.status}<a href="/settings/app-updates" class="rounded focus-ring hover:text-ink">App settings</a>{/if}
+    {#if app.status}<a href="/settings/app-updates" class="rounded focus-ring hover:text-ink">App updates</a>{/if}
   </footer>
 </section>

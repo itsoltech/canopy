@@ -25,9 +25,9 @@
   );
 
   const options = [
-    { value: "stable", label: "Stable", description: "Stable releases." },
-    { value: "beta", label: "Beta", description: "Beta and stable releases." },
-    { value: "nightly", label: "Nightly", description: "Nightly, beta and stable releases." },
+    { value: "stable", label: "Stable", description: "Releases that passed beta." },
+    { value: "beta", label: "Beta", description: "New features earlier, plus stable releases." },
+    { value: "nightly", label: "Nightly", description: "A new build every day. Newest changes, more risk." },
   ] as const satisfies readonly SelectOption[];
 
   const label = (channel: string) => options.find((option) => option.value === channel)?.label ?? channel;
@@ -46,7 +46,7 @@
       .updates()
       .then(receive)
       .catch(() => {
-        error = "App update settings could not be loaded.";
+        error = "Could not load app update settings. Restart Canopy to try again.";
       });
 
     return off;
@@ -60,7 +60,7 @@
     try {
       await operation();
     } catch {
-      error = "The update operation failed. Please try again.";
+      error = "Could not finish this update action. Try again.";
     } finally {
       pending = false;
 
@@ -81,14 +81,14 @@
 {#if status}
   {@const current = status}
   <SettingsGroup title="App updates" description="Choose which releases this desktop app receives." class={className}>
-    <SettingsRow title="Installed version" description="The build currently running on this computer.">
+    <SettingsRow title="Installed version">
       {#snippet control()}<span class="text-base/6 tabular-nums sm:text-sm/6">{current.version}</span><Badge
           >{label(current.buildChannel)}</Badge
         >{/snippet}
     </SettingsRow>
     <SettingsRow
       title="Update channel"
-      description="Switching to a more stable channel asks for confirmation before allowing an older version."
+      description="A more stable channel can install an older version. Canopy asks first."
     >
       {#snippet control()}<div class="w-40">
           <Select aria-label="Update channel" {options} bind:value={choice} onchange={change} disabled={busy} />

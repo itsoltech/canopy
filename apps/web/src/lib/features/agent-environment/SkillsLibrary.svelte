@@ -107,7 +107,7 @@
       <div class="grid gap-2 rounded-xl bg-zinc-950/3 p-5 dark:bg-white/4">
         <h3 class="text-base font-medium text-balance">Give your agents a new skill</h3>
         <p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
-          Upload a skill folder or ZIP, choose its computers, and keep every installed version in sync.
+          Upload a skill folder or ZIP file and choose its computers. Canopy keeps every copy in sync.
         </p>
         <div><Button onclick={() => (choose = true)}>Add your first skill</Button></div>
       </div>

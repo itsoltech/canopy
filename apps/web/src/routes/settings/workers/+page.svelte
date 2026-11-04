@@ -78,8 +78,8 @@
 <SettingsGroup>
   {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} {environment} />
   {:else}<SettingsRow
-      title="Connect your first machine"
-      description="Add a worker to run Claude, Codex or Grok on a machine you control."
+      title="No workers yet"
+      description="Add a worker to run Claude, Codex or Grok on a computer you control."
     />{/each}
 </SettingsGroup>
 {#if environment.error}<Alert tone="error"

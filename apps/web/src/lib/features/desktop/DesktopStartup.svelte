@@ -32,7 +32,7 @@
         title={status?.needsPairing
           ? "Connect this app securely"
           : status?.mode === "remote"
-            ? "Gateway unavailable"
+            ? "Cannot reach the gateway"
             : "Canopy could not start"}
       >
         {message || status?.error}

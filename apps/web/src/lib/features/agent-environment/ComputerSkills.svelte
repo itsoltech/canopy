@@ -73,8 +73,6 @@
       {:else if file.status === "error"}<Alert tone="error">{file.detail}</Alert>{/if}
     </div>
   {:else}<p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
-      {worker.skillIds.length
-        ? "Assigned skills will appear after the first sync."
-        : "No skills assigned to this computer."}
+      {worker.skillIds.length ? "Assigned skills appear after the first sync." : "No skills assigned to this computer."}
     </p>{/each}
 </section>

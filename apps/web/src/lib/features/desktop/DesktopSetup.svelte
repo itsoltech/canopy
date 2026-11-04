@@ -74,7 +74,7 @@
       })
       .then(() => bridge.readyForEnrollment())
       .catch(() => {
-        message = "Desktop status is unavailable. Restart Canopy to try again.";
+        message = "Canopy could not read its status. Restart Canopy to try again.";
       });
 
     const offStatus = bridge.onStatus((value) => {
@@ -147,7 +147,7 @@
         <img src="/icon-192.png" alt="" width="48" height="48" class="size-12 shrink-0" />
         <h1 class="text-3xl font-semibold tracking-tight text-balance">Your agents, on your terms</h1>
         <p class="text-base/7 text-pretty text-zinc-500 dark:text-zinc-400">
-          Run Canopy here, or bring this computer to your existing gateway.
+          Choose where Canopy runs. You can change this later in Settings.
         </p>
       </div>
       {#if !available}
@@ -157,7 +157,7 @@
           <div class="grid gap-3 sm:grid-cols-2" aria-label="Canopy mode">
             <ModeChoice
               title="Run Canopy on this computer"
-              description="A private gateway and worker. Downloads PostgreSQL once for local mode."
+              description="The gateway and a worker run here. Your data stays on this computer."
               icon="server"
               selected={mode === "local"}
               onclick={() => (mode = "local")}
@@ -165,7 +165,7 @@
             />
             <ModeChoice
               title="Connect to a Canopy gateway"
-              description="Use your gateway with this app’s local frontend and a separate worker link."
+              description="Use a gateway on another computer. This computer joins it as a worker."
               icon="link"
               selected={mode === "remote"}
               onclick={() => (mode = "remote")}
@@ -184,14 +184,14 @@
               />
             {:else}
               <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-                Your data stays on this computer. No database installation or account is needed. Phones and remote
-                workers connect through Settings → Network access.
+                Canopy downloads PostgreSQL once and sets it up for you. You need no account. To connect phones or other
+                workers later, open Settings → Network access.
               </p>
             {/if}
             {#if message}<Alert tone="error">{message}</Alert>{/if}
             {#if status?.configuration && !unchanged}
               <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-                Saving restarts this computer’s services and stops its running agents. You’ll be asked to confirm.
+                Saving restarts Canopy on this computer and stops its running agents. Canopy asks you first.
               </p>
             {/if}
             <div class="flex flex-wrap items-center gap-3">
