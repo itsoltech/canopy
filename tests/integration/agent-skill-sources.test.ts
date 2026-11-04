@@ -182,8 +182,11 @@ describe("gateway skill source resolution and maintenance", () => {
   });
 
   test("skills.sh references use the local catalog without executing its payload; subpaths, refs, root preference and skills.sh.json discovery work", async () => {
+    const before = registry.requests("review");
+    // Local port probes must not count as catalog lookups; duplicate lookups during this preview still fail.
+    expect((await fetch(registry.url)).status).toBe(404);
     const catalog = await preview("https://skills.sh/fixture/collection/review");
-    expect(registry.requests()).toBe(1);
+    expect(registry.requests("review") - before).toBe(1);
     expect(catalog.skills.map((s) => s.artifact?.name)).toEqual(["review"]);
     registry.hostile(true);
     expect(await failure(preview("https://skills.sh/fixture/collection/review"))).toContain("catalog");
