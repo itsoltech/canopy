@@ -216,6 +216,9 @@ function enrollment(link: string) {
     const gatewayUrl = origin(url.searchParams.get("gateway"), "Gateway address");
     const webUrl = origin(url.searchParams.get("web"), "Web address");
     const enrollmentToken = url.searchParams.get("token") ?? "";
+    const gatewayFingerprint = url.searchParams.get("fingerprint") ?? "";
+
+    if (gatewayFingerprint && !/^[a-f0-9]{64}$/i.test(gatewayFingerprint)) return;
 
     if (enrollmentToken.length < 16 || enrollmentToken.length > 4096) return;
     pendingLink = link;
@@ -226,7 +229,7 @@ function enrollment(link: string) {
 
     if (target && enrollmentReady.has(target.webContents.id)) {
       pendingLink = undefined;
-      target.webContents.send("canopy:enrollment", { gatewayUrl, webUrl, enrollmentToken });
+      target.webContents.send("canopy:enrollment", { gatewayUrl, webUrl, enrollmentToken, gatewayFingerprint });
     }
   } catch {
     /* Never log deep links containing an enrollment secret. */

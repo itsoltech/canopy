@@ -5,15 +5,16 @@ umask 077
 set +x
 
 fail() { printf '%s\n' "Canopy: $*" >&2; exit 1; }
-gateway='' token='' name='' release_url='' checksum_url=''
+gateway='' token='' name='' release_url='' checksum_url='' fingerprint=''
 origin='CANOPY_INSTALL_ORIGIN_DEFAULT'
 service=yes force=no channel_fallback=no
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --gateway|--token|--name|--origin|--release-url|--checksum-url)
+    --gateway|--token|--name|--origin|--release-url|--checksum-url|--fingerprint)
       [ "$#" -ge 2 ] && [ -n "$2" ] || fail "Missing option value"
       case "$1" in
         --gateway) gateway=$2 ;; --token) token=$2 ;; --name) name=$2 ;;
+        --fingerprint) fingerprint=$2 ;;
         --origin) origin=$2 ;; --release-url) release_url=$2 ;; --checksum-url) checksum_url=$2 ;;
       esac
       shift 2 ;;
@@ -85,6 +86,7 @@ mv -f "$next" "$binary"
 next=''
 if [ "$reuse" = no ]; then
   set -- enroll --gateway "$gateway" --token "$token" --config "$config"
+  [ -z "$fingerprint" ] || set -- "$@" --fingerprint "$fingerprint"
   [ "$force" != yes ] || set -- "$@" --force
   # Name is attached to the invitation by the gateway, never passed as executable syntax.
   "$binary" "$@" >"$tmp/enroll" 2>&1 || fail "Enrollment failed. Check the gateway address and generate a fresh token"

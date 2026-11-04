@@ -338,6 +338,8 @@ export class SettingsState {
   #confirmUser(settings: ui.UserSettings): void {
     this.#server.user = settings;
     this.user = settings;
+
+    if (settings.attachmentLimits) this.attachmentLimits = settings.attachmentLimits;
   }
 
   #confirmProject(settings: ui.ProjectSettings): void {

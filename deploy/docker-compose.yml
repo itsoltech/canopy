@@ -1,7 +1,8 @@
 # Canopy on one host (docs/deploy.md): PostgreSQL + gateway + web, optionally a worker (profile "worker").
 #   cp .env.example .env   # fill in the secrets
 #   docker compose up -d
-# Put the web port behind a TLS reverse proxy; the gateway port is for workers (gRPC over HTTP/2).
+# Put the web port behind a TLS reverse proxy; keep the existing gateway port for workers and self-update.
+# Network access is optional: workers migrate after verifying it, or keep their original server endpoint.
 name: canopy
 
 services:
@@ -30,11 +31,13 @@ services:
       CANOPY_DATABASE_URL: postgres://canopy:${POSTGRES_PASSWORD}@postgres:5432/canopy
       CANOPY_UI_SERVICE_TOKEN: ${CANOPY_UI_SERVICE_TOKEN:?set CANOPY_UI_SERVICE_TOKEN in .env}
       CANOPY_SECRETS_KEY: ${CANOPY_SECRETS_KEY:?set CANOPY_SECRETS_KEY in .env}
-      CANOPY_PUBLIC_GATEWAY_URL: ${CANOPY_PUBLIC_GATEWAY_URL:-}
       CANOPY_DEV_USER_EMAIL: ${CANOPY_DEV_USER_EMAIL:-dev@localhost}
-      CANOPY_ATTACHMENT_MAX_FILE_MB: ${CANOPY_ATTACHMENT_MAX_FILE_MB:-}
+      CANOPY_NETWORK_PORT: ${CANOPY_NETWORK_PORT:-24443}
     ports:
+      # Bootstrap/compatibility: WorkerLink + Enrollment + frozen UpdateService remain here.
       - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-7443}:7443"
+      # Optional pinned route: enable Network access in Settings and add the host's reachable address.
+      - "${NETWORK_BIND:-0.0.0.0}:${CANOPY_NETWORK_PORT:-24443}:${CANOPY_NETWORK_PORT:-24443}"
 
   web:
     image: ghcr.io/itsoltech/canopy-web:${CANOPY_TAG:-latest}
@@ -48,7 +51,7 @@ services:
       # The reverse proxy tells the BFF the public scheme and host (form submissions check the origin).
       PROTOCOL_HEADER: x-forwarded-proto
       HOST_HEADER: x-forwarded-host
-      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-25M}
+      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-32M}
     ports:
       - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
 

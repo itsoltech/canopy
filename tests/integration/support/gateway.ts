@@ -31,6 +31,7 @@ import { migrate } from "@canopy/db";
 import { startPostgres, type TestPostgres } from "@canopy/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@canopy/gateway/api";
 import { GatewayCore, type GatewayCoreOptions } from "@canopy/gateway/core";
+import { workerRoutes } from "../../../apps/gateway/src/worker-link/routes.ts";
 import {
   AgentBusStore,
   AttachmentStore,
@@ -591,8 +592,7 @@ export async function startTestGateway(
 
   const grpc = await startGrpcServer({
     routes: (router) => {
-      core.link.routes(router);
-      core.workers.routes(router);
+      workerRoutes(core, router);
       uiRoutes(core)(router);
     },
     interceptors: [serviceTokenAuth(SERVICE_TOKEN)],

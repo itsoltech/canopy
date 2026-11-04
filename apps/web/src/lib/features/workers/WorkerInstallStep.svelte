@@ -13,6 +13,7 @@
   let {
     name,
     gatewayUrl,
+    fingerprint = "",
     token,
     version,
     channel,
@@ -24,6 +25,7 @@
   }: {
     name: string;
     gatewayUrl: string;
+    fingerprint?: string;
     token: string;
     version: string;
     channel: string;
@@ -61,15 +63,17 @@
   );
 
   const command = $derived(
-    enrollmentCommand({ origin, gatewayUrl, token, name, ...(metadata?.fallback && { releaseUrl }) }),
+    enrollmentCommand({ origin, gatewayUrl, fingerprint, token, name, ...(metadata?.fallback && { releaseUrl }) }),
   );
 
+  const pinOption = $derived(fingerprint ? ` --fingerprint ${shellQuote(fingerprint)}` : "");
+
   const manual = $derived(
-    `set -eu\nmkdir -p "$HOME/.local/share/canopy/bin"\ncd "$(mktemp -d)"\ncurl -fLO ${shellQuote(releaseUrl)}\ncurl -fLO ${shellQuote(releaseUrl.replace(/\/[^/]+$/, "/checksums.txt"))}\ngrep '  ${asset}$' checksums.txt | ${os === "darwin" ? "shasum -a 256" : "sha256sum"} -c -\ninstall -m 0755 ${asset} "$HOME/.local/share/canopy/bin/canopy-worker"\n"$HOME/.local/share/canopy/bin/canopy-worker" enroll --gateway ${shellQuote(gatewayUrl)} --token ${shellQuote(token)} --config "$HOME/.config/canopy/worker.json"\n"$HOME/.local/share/canopy/bin/canopy-worker" service --config "$HOME/.config/canopy/worker.json"`,
+    `set -eu\nmkdir -p "$HOME/.local/share/canopy/bin"\ncd "$(mktemp -d)"\ncurl -fLO ${shellQuote(releaseUrl)}\ncurl -fLO ${shellQuote(releaseUrl.replace(/\/[^/]+$/, "/checksums.txt"))}\ngrep '  ${asset}$' checksums.txt | ${os === "darwin" ? "shasum -a 256" : "sha256sum"} -c -\ninstall -m 0755 ${asset} "$HOME/.local/share/canopy/bin/canopy-worker"\n"$HOME/.local/share/canopy/bin/canopy-worker" enroll --gateway ${shellQuote(gatewayUrl)}${pinOption} --token ${shellQuote(token)} --config "$HOME/.config/canopy/worker.json"\n"$HOME/.local/share/canopy/bin/canopy-worker" service --config "$HOME/.config/canopy/worker.json"`,
   );
 
   const docker = $derived(
-    `docker volume create canopy-worker\ndocker run --rm -v canopy-worker:/home/canopy ${image} enroll --gateway ${shellQuote(gatewayUrl)} --token ${shellQuote(token)}\ndocker run -d --name canopy-worker --restart unless-stopped -v canopy-worker:/home/canopy ${image}`,
+    `docker volume create canopy-worker\ndocker run --rm -v canopy-worker:/home/canopy ${image} enroll --gateway ${shellQuote(gatewayUrl)}${pinOption} --token ${shellQuote(token)}\ndocker run -d --name canopy-worker --restart unless-stopped -v canopy-worker:/home/canopy ${image}`,
   );
 
   const compose = $derived(

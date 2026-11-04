@@ -33,12 +33,11 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    `basic_text` jest odrzucany; aplikacja wymaga działającego magazynu kluczy.
    `worker.json` zachowuje istniejący format enrollment i uprawnienia 0600.
 4. **Porty:** losowe wolne porty; Postgres, web i domyślnie gRPC na `127.0.0.1`.
-   Settings → Network access otwiera jeden listener TLS dla połączonych komputerów
+   Settings → Network access otwiera jeden listener TLS dla telefonów, połączonych komputerów i workerów
    na wszystkich interfejsach, z portem wybieranym i zapisywanym w bazie. Parowanie
    przypina certyfikat komputera; zmiany sieci odświeżają ogłaszane adresy.
-   Tymczasowa opcja „Let workers on other machines connect” dotyczy wyłącznie
-   workerów i wymaga wybrania prywatnego interfejsu (HTTP bez TLS). Zastąpi ją etap 3
-   [dostępu sieciowego](network-access.md). BFF i baza pozostają na loopback.
+   Dawny wybór interfejsu w Desktop settings został usunięty; zapisane stare ustawienia
+   nie otwierają listenera HTTP. BFF i baza pozostają na loopback.
 5. **Pakowanie:** electron-builder, AppImage + deb na Linuxie, dmg + zip na macOS, NSIS
    na Windows x64.
    Osobny build zasobów dla każdej pary OS/arch; Bun i natywne zależności nie mogą
@@ -121,8 +120,8 @@ przeciąganie i trafianie w kontrolki wymagają potwierdzenia na macOS.
 Zmiany wspólnego kodu są addytywne:
 
 - `packages/ui/desktop`: opcjonalne typy bridge, bez zmian protokołu gatewaya.
-- Gateway: opcjonalne `CANOPY_WORKER_HOST` + `CANOPY_WORKER_PORT`; istniejący listener
-  i listener mobile działają jak wcześniej, gdy tych zmiennych nie ma.
+- Gateway: telefony, połączone komputery i zdalne workery korzystają ze wspólnego TLS
+  w Settings → Network access. Bootstrap i lokalny worker pozostają na loopback.
 - Worker: opcjonalny `CANOPY_WORKER_STATUS_FILE`, raportujący stan linku bez sekretów.
 - Web: dotychczasowy shell wyodrębniony do `AppShell.svelte`, ekran `/desktop`
   i feature-detectowana sekcja Settings → Desktop. Normalna przeglądarka zachowuje UI.
@@ -216,8 +215,8 @@ Przełącznik „Find linked computers on this network” wyłącza to dla daneg
 pierwsze ogłoszenie wywołuje systemowe pytanie o dostęp do sieci lokalnej: `Info.plist` zawiera
 `NSLocalNetworkUsageDescription`. `NSBonjourServices` nie jest potrzebne, bo gateway używa gniazda
 UDP, nie API Bonjour, a typy usług są losowe i rotowane. Odmowa dostępu wyłącza tylko wykrywanie;
-trasy ręczne i ogłaszane działają dalej. Listener związany z interfejsem LAN jest potrzebny, żeby
-inne komputery mogły znaleźć ten; z samym loopbackiem komputer tylko szuka partnerów.
+trasy ręczne i ogłaszane działają dalej. Włączony Network access jest potrzebny, żeby
+inne komputery mogły znaleźć ten; przy wyłączonym komputer tylko szuka partnerów.
 
 Electron ogłasza sleep/resume oraz quit/update prywatnym kanałem do kontrolera,
 który wywołuje lokalne API gatewaya. Sekrety i klucze pozostają w gatewayu.

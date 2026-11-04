@@ -33,6 +33,7 @@ export const shellQuote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}
 export function enrollmentCommand(input: {
   origin: string;
   gatewayUrl: string;
+  fingerprint?: string;
   token: string;
   name: string;
   releaseUrl?: string;
@@ -41,5 +42,7 @@ export function enrollmentCommand(input: {
     ? ` --release-url ${shellQuote(input.releaseUrl)} --checksum-url ${shellQuote(input.releaseUrl.replace(/\/[^/]+$/, "/checksums.txt"))}`
     : "";
 
-  return `curl -fsSL ${shellQuote(`${input.origin}/install/worker.sh`)} | sh -s -- --gateway ${shellQuote(input.gatewayUrl)} --token ${shellQuote(input.token)} --name ${shellQuote(input.name)}${fallback}`;
+  const pin = input.fingerprint ? ` --fingerprint ${shellQuote(input.fingerprint)}` : "";
+
+  return `curl -fsSL ${shellQuote(`${input.origin}/install/worker.sh`)} | sh -s -- --gateway ${shellQuote(input.gatewayUrl)}${pin} --token ${shellQuote(input.token)} --name ${shellQuote(input.name)}${fallback}`;
 }

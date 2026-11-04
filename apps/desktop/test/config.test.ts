@@ -8,15 +8,19 @@ describe("desktop configuration boundary", () => {
     }
   });
 
-  test("local mode exposes only an explicitly chosen IPv4 network interface", () => {
+  test("local bootstrap stays on loopback even with old saved interface settings", () => {
     for (const bindHost of [null, 42, "::1", "0.0.0.0", "127.0.0.1", "127.1.2.3", "example.com"]) {
-      expect(() => configuration({ mode: "local", allowNetwork: true, bindHost })).toThrow();
+      expect(configuration({ mode: "local", allowNetwork: true, bindHost })).toEqual({
+        mode: "local",
+        allowNetwork: false,
+        bindHost: "127.0.0.1",
+      });
     }
 
     expect(configuration({ mode: "local", allowNetwork: true, bindHost: "192.168.1.10" })).toEqual({
       mode: "local",
-      allowNetwork: true,
-      bindHost: "192.168.1.10",
+      allowNetwork: false,
+      bindHost: "127.0.0.1",
     });
     expect(configuration({ mode: "local", allowNetwork: "true", bindHost: "0.0.0.0" })).toEqual({
       mode: "local",

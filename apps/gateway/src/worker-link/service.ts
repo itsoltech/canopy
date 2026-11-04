@@ -7,6 +7,7 @@ import {
   type GatewayMessage,
   type Hello,
   type WorkerMessage,
+  type ProbeNetworkRouteRequest,
 } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
@@ -24,7 +25,7 @@ export interface WorkerLinkOptions {
    */
   config?(workerId: string): Promise<MessageInitShape<typeof WorkerConfigSchema> | undefined>;
   /** Called after Welcome (and config) are queued. The connection is already registered. */
-  onConnected?(connection: WorkerConnection): void;
+  onConnected?(connection: WorkerConnection): void | Promise<void>;
   helloTimeoutMs?: number;
 }
 
@@ -52,10 +53,13 @@ export interface DrainOptions {
 
 export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
   const connections = new Map<string, WorkerConnection>();
+  const sessions = new Set<Promise<void>>();
   let credentialEpoch = 0;
+  let shuttingDown = false;
   const helloTimeoutMs = options.helloTimeoutMs ?? 10_000;
 
   async function* connect(requests: AsyncIterable<WorkerMessage>, ctx: HandlerContext): AsyncIterable<GatewayMessage> {
+    if (shuttingDown) throw new ConnectError("gateway shutting down", Code.Unavailable);
     const epoch = credentialEpoch;
     const credential = bearerToken(ctx.requestHeader.get("authorization"));
 
@@ -95,6 +99,8 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     // No await between this check and registration: a rotation/revoke cannot leave a stale handshake live.
     if (epoch !== credentialEpoch)
       throw new ConnectError("worker credentials changed; reconnect", Code.Unauthenticated);
+
+    if (shuttingDown) throw new ConnectError("gateway shutting down", Code.Unavailable);
     const connection = new WorkerConnection(workerId, hello, outbound);
     connections.get(workerId)?.close();
     connections.set(workerId, connection);
@@ -116,12 +122,31 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
       }
     })();
 
-    options.onConnected?.(connection);
+    const serving = Promise.resolve()
+      .then(() => options.onConnected?.(connection))
+      .catch(() => connection.close());
+
+    sessions.add(serving);
+    void serving.finally(() => sessions.delete(serving));
     yield* outbound;
   }
 
   return {
-    routes: (router) => router.service(WorkerLinkService, { connect }),
+    routes: (router) =>
+      router.service(WorkerLinkService, {
+        connect,
+        async probeNetworkRoute(request: ProbeNetworkRouteRequest, ctx: HandlerContext) {
+          const credential = bearerToken(ctx.requestHeader.get("authorization"));
+          const workerId = credential && (await options.authenticate(credential));
+
+          if (!workerId) throw new ConnectError("invalid worker credential", Code.Unauthenticated);
+
+          if (workerId !== request.workerId)
+            throw new ConnectError("worker id does not match credential", Code.PermissionDenied);
+
+          return {};
+        },
+      }),
     connections,
     disconnect: (workerId) => {
       credentialEpoch++;
@@ -137,6 +162,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
       return true;
     },
     shutdown: async ({ reason = "gateway shutting down", reconnectAfterMs = 1_000, jitterMs = 4_000 } = {}) => {
+      shuttingDown = true;
       const open = [...connections.values()];
 
       for (const connection of open) {
@@ -147,6 +173,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
       }
 
       await Promise.all(open.map((connection) => connection.closed));
+      await Promise.all(sessions);
     },
   };
 }

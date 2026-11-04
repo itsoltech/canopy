@@ -27,8 +27,7 @@
   let gatewayUrl = $state("");
   let webUrl = $state("");
   let enrollmentToken = $state("");
-  let allowNetwork = $state(false);
-  let bindHost = $state("127.0.0.1");
+  let gatewayFingerprint = $state("");
   let revealed = $state(false);
 
   onMount(() => {
@@ -42,8 +41,6 @@
       .then((value) => {
         status = value;
         mode = value.mode ?? "local";
-        allowNetwork = value.allowNetwork;
-        bindHost = value.bindHost;
 
         if (value.mode === "remote") {
           gatewayUrl = value.gatewayUrl ?? "";
@@ -62,6 +59,7 @@
     const offEnrollment = bridge.onEnrollment((value) => {
       mode = "remote";
       gatewayUrl = value.gatewayUrl;
+      gatewayFingerprint = value.gatewayFingerprint ?? "";
       webUrl = value.webUrl;
       enrollmentToken = value.enrollmentToken;
     });
@@ -82,8 +80,14 @@
     try {
       await window.canopyDesktop.configure(
         mode === "local"
-          ? { mode, allowNetwork, bindHost }
-          : { mode, gatewayUrl, webUrl, ...(enrollmentToken.trim() && { enrollmentToken: enrollmentToken.trim() }) },
+          ? { mode, allowNetwork: false, bindHost: "127.0.0.1" }
+          : {
+              mode,
+              gatewayUrl,
+              webUrl,
+              gatewayFingerprint,
+              ...(enrollmentToken.trim() && { enrollmentToken: enrollmentToken.trim() }),
+            },
       );
       enrollmentToken = "";
     } catch (error) {
@@ -166,42 +170,21 @@
                   disabled={busy}
                 /></Field
               >
-            {:else}
-              <label class="flex items-start gap-3 text-base/6 sm:text-sm/6"
+              <Field
+                label="Gateway certificate fingerprint"
+                description="Copy the full fingerprint from Settings → Network access on the gateway computer. Leave empty for a server using a public certificate."
                 ><Input
-                  name="allow-network"
-                  type="checkbox"
-                  choice
-                  checked={allowNetwork}
-                  onchange={(event) => {
-                    allowNetwork = event.currentTarget.checked;
-                    if (allowNetwork && bindHost === "127.0.0.1") bindHost = "";
-                  }}
+                  name="gateway-fingerprint"
+                  bind:value={gatewayFingerprint}
+                  maxlength={64}
                   disabled={busy}
-                /><span>Let workers on other machines connect</span></label
+                /></Field
               >
-              {#if allowNetwork}
-                <Field
-                  label="Network interface address"
-                  description="An IPv4 address of this computer on a trusted private network. Only the worker gRPC port is exposed."
-                  ><Input
-                    name="interface"
-                    placeholder="100.x.x.x"
-                    bind:value={bindHost}
-                    required
-                    disabled={busy}
-                  /></Field
-                >
-                <Alert tone="warning"
-                  >Worker traffic uses HTTP on this interface. Use a trusted private network or configure TLS before
-                  exposing the gateway publicly.</Alert
-                >
-              {:else}
-                <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-                  Your data stays on this computer. No database installation or account is needed. Phones and linked
-                  computers connect through Settings → Network access.
-                </p>
-              {/if}
+            {:else}
+              <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+                Your data stays on this computer. No database installation or account is needed. Phones, linked
+                computers and remote workers connect through Settings → Network access.
+              </p>
             {/if}
             {#if message || status?.error}<Alert tone="error">{message || status?.error}</Alert>{/if}
             <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">

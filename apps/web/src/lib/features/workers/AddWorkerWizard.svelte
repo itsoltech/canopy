@@ -15,6 +15,8 @@
   import WorkerProviderChoices from "./WorkerProviderChoices.svelte";
   import { workerAction } from "./actions.ts";
   import type { WorkerSetup } from "./worker-setup.svelte.ts";
+  import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
+  import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
 
   let {
     setup,
@@ -23,6 +25,7 @@
   }: { setup: WorkerSetup; open?: boolean; class?: ClassValue } = $props();
 
   const overview = useOverview();
+  const network = useNetworkAccess();
   let step = $state(1);
   let name = $state("");
   let address = $state("");
@@ -76,6 +79,12 @@
     error = "";
 
     try {
+      if (!setup.gatewayUrl) {
+        await network.update("set_enabled", { enabled: true });
+        await setup.reload();
+        address = setup.gatewayUrl;
+      }
+
       if (address.trim() !== setup.gatewayUrl) await setup.saveAddress(address);
 
       // Revoke the previous invitation first; a lost response is recoverable from Pending enrollments.
@@ -103,6 +112,18 @@
   class={className}
 >
   <div class="grid min-w-0 gap-5">
+    {#if step === 1}<NetworkAccessSummary
+        status={network.status}
+        loaded={network.loaded}
+        busy={network.busy}
+        onenable={() =>
+          void network
+            .update("set_enabled", { enabled: true })
+            .then(() => setup.reload())
+            .catch((e) => {
+              error = e instanceof Error ? e.message : "Could not enable network access";
+            })}
+      />{/if}
     <ol role="list" aria-label="Setup progress" class="grid grid-cols-4 gap-2">
       {#each ["Name", "Install", "Connect", "Providers"] as label, i}
         <li class="grid gap-2 text-xs/5 text-zinc-400 sm:text-sm/5" aria-current={step === i + 1 ? "step" : undefined}>
@@ -140,25 +161,21 @@
             >
             <Field
               label="Gateway address for workers"
-              description="The gRPC address this machine can reach, such as http://canopy-gateway:7443 over Tailscale. This is saved for future workers."
+              description="Chosen from Network access. Add a hostname there if this worker uses a different network."
               ><Input
                 name="gateway-address"
                 type="url"
                 bind:value={address}
-                placeholder="http://canopy-gateway:7443"
-                required
+                placeholder="Chosen automatically when network access is on"
               /></Field
             >
             <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-              Use the gateway’s gRPC port, not the web address. Use HTTPS on public networks or HTTP inside your trusted
-              Tailscale network. The worker connects out; it needs no incoming ports.
+              The worker verifies this computer's certificate before sending its token. It connects out and needs no
+              incoming ports.
             </p>
             <div class="flex justify-end">
-              <Button
-                variant="primary"
-                type="submit"
-                loading={busy}
-                disabled={!name.trim() || !address.trim() || !setup.loaded}>Continue</Button
+              <Button variant="primary" type="submit" loading={busy} disabled={!name.trim() || !setup.loaded}
+                >{!setup.gatewayUrl ? "Turn on network access and continue" : "Continue"}</Button
               >
             </div>
           </form>
@@ -166,6 +183,7 @@
           <WorkerInstallStep
             {name}
             gatewayUrl={setup.gatewayUrl}
+            fingerprint={setup.fingerprint}
             {token}
             version={setup.gatewayVersion}
             channel={setup.channel}

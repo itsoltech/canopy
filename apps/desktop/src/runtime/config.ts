@@ -1,6 +1,5 @@
 import { createServer } from "node:net";
 import { homedir } from "node:os";
-import { isIP } from "node:net";
 import { delimiter } from "node:path";
 import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
 import type { JsonObject, JsonValue } from "@canopy/domain";
@@ -38,6 +37,7 @@ export interface ConfigurationInput {
   gatewayUrl?: unknown;
   webUrl?: unknown;
   enrollmentToken?: unknown;
+  gatewayFingerprint?: unknown;
 }
 
 function isConfigurationInput(value: ConfigurationInput | null | undefined): value is ConfigurationInput {
@@ -66,18 +66,17 @@ export function configuration(value: ConfigurationInput | null | undefined): Des
   const c = value;
 
   if (c["mode"] === "local") {
-    const allowNetwork = c["allowNetwork"] === true;
-    const bindHost = allowNetwork ? c["bindHost"] : "127.0.0.1";
-
-    if (!isString(bindHost) || isIP(bindHost) !== 4) throw new Error("Choose an IPv4 interface address");
-
-    if (allowNetwork && (bindHost === "0.0.0.0" || bindHost.startsWith("127.")))
-      throw new Error("Choose this computer's private network interface address");
-
-    return { mode: "local", allowNetwork, bindHost };
+    return { mode: "local", allowNetwork: false, bindHost: "127.0.0.1" };
   }
 
   if (c["mode"] === "remote") {
+    const fingerprint = c.gatewayFingerprint;
+
+    if (
+      fingerprint !== undefined &&
+      (!isString(fingerprint) || (fingerprint !== "" && !/^[a-f0-9]{64}$/i.test(fingerprint)))
+    )
+      throw new Error("Use the full SHA-256 gateway fingerprint");
     const token = c["enrollmentToken"];
 
     if (token !== undefined && (!isString(token) || token.length < 16 || token.length > 4096))
@@ -93,6 +92,7 @@ export function configuration(value: ConfigurationInput | null | undefined): Des
       gatewayUrl,
       webUrl: origin(c["webUrl"], "Web address"),
       ...(isString(token) && { enrollmentToken: token }),
+      ...(isString(fingerprint) && fingerprint && { gatewayFingerprint: fingerprint.toLowerCase() }),
     };
   }
 

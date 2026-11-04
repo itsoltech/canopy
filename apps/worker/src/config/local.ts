@@ -10,6 +10,15 @@ import { Result, Schema } from "effect";
  *
  * The file holds the worker credential: like an SSH key it must not be readable by other users.
  */
+export const GatewayEndpoint = Schema.Struct({
+  gateway_url: Schema.String.check(Schema.isPattern(/^https?:\/\/[^\s/]+/)),
+  ca_file: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
+  gateway_certificate: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
+  gateway_fingerprint: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/))),
+});
+
+export type GatewayEndpoint = Schema.Schema.Type<typeof GatewayEndpoint>;
+
 export const LocalConfig = Schema.Struct({
   gateway_url: Schema.String.check(Schema.isPattern(/^https?:\/\/[^\s/]+/)).annotate({
     description: "Gateway base URL, e.g. https://agents.example.com (http only for local development).",
@@ -21,6 +30,10 @@ export const LocalConfig = Schema.Struct({
   allowed_roots: Schema.optionalKey(Schema.Unknown),
   /** Extra CA (PEM file) for a gateway with a private certificate. */
   ca_file: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
+  gateway_certificate: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
+  gateway_fingerprint: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/))),
+  /** Original authenticated server endpoint, retained across migration and restarts. */
+  gateway_fallback: Schema.optionalKey(GatewayEndpoint),
   /** Journal, blobs in flight, logs. Defaults to a per-OS data directory. */
   data_dir: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
   /** HTTP/2 PING interval; keeps NAT mappings alive and detects dead links. */

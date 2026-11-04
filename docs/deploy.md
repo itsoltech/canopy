@@ -79,7 +79,7 @@ nie test prawdziwego systemd/launchd; te wymagają sesji właściwego systemu.
 mkdir canopy && cd canopy
 curl -LO https://raw.githubusercontent.com/itsoltech/canopy/main/deploy/docker-compose.yml
 curl -L -o .env https://raw.githubusercontent.com/itsoltech/canopy/main/deploy/.env.example
-# uzupełnij .env: POSTGRES_PASSWORD, CANOPY_UI_SERVICE_TOKEN, CANOPY_SECRETS_KEY, CANOPY_PUBLIC_GATEWAY_URL, CANOPY_TAG
+# uzupełnij .env: POSTGRES_PASSWORD, CANOPY_UI_SERVICE_TOKEN, CANOPY_SECRETS_KEY, CANOPY_TAG
 docker compose up -d
 docker compose ps        # postgres, gateway, web: healthy
 ```
@@ -88,16 +88,20 @@ Wszystkie zmienne opisuje [`deploy/.env.example`](../deploy/.env.example). `CANO
 szyfruje klucze providerów i tokeny konektorów w bazie — zachowaj kopię; jego utrata oznacza
 ponowne wpisanie sekretów. Gateway przy starcie wykonuje migracje (`CANOPY_MIGRATE=0` wyłącza).
 
-Domyślnie porty są wystawione tylko na `127.0.0.1`:
+Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`:
 
 - **web** (`WEB_PORT`, 3000): postaw przed nim reverse proxy z TLS. BFF sprawdza origin formularzy
   i bez nagłówka przyjmuje `https`, dlatego compose ustawia `PROTOCOL_HEADER=x-forwarded-proto`
   i `HOST_HEADER=x-forwarded-host`. Uploady: `BODY_SIZE_LIMIT` ≥ limitu pliku gatewaya.
   Przykład Caddy: `canopy.example.com { reverse_proxy 127.0.0.1:3000 }` (Caddy ustawia `X-Forwarded-*`).
-- **gateway** (`GATEWAY_PORT`, 7443): gRPC po HTTP/2 dla workerów. Workery spoza hosta: wystaw port
-  w prywatnej sieci (`GATEWAY_BIND`, np. adres Tailscale) albo za proxy TLS obsługującym HTTP/2 do
-  upstreamu (h2c), i ustaw `CANOPY_PUBLIC_GATEWAY_URL` na adres widoczny dla workerów. Gateway sam
-  obsługuje też TLS (`CANOPY_TLS_CERT`, `CANOPY_TLS_KEY` — pliki zamontowane do kontenera).
+- **gateway** (`GATEWAY_PORT`, 7443; wewnątrz procesu `CANOPY_PORT`): port dla BFF i istniejących
+  lokalnych oraz zdalnych workerów. Nadal obsługuje WorkerLink, Enrollment i zamrożony UpdateService.
+  Zachowaj dotychczasowe publikowanie i przekazywanie TCP (również przez tailnet); aktualizacja
+  gatewaya ani workera nie wymaga zmiany konfiguracji lub ponownego enrollmentu.
+- **Network access** (`CANOPY_NETWORK_PORT`, domyślnie 24443 w compose): surowy TCP dla telefonów,
+  komputerów i zdalnych workerów. Włącz go w Settings → Network access i dodaj nazwę/IP hosta.
+  Nie kończ TLS na proxy; klient przypina certyfikat gatewaya. Adresy workerów i limity uploadów
+  zmieniaj w aplikacji. `CANOPY_TLS_CERT` i `CANOPY_TLS_KEY` dotyczą tylko portu procesu.
 
 Worker w kontenerze (opcjonalnie, profil `worker`) — token z Settings → Workers → Add worker:
 
@@ -173,6 +177,13 @@ bridge nie widzi adresów hosta; z `network_mode: host` wykrywa je sam). Firewal
 TCP na tym porcie. Na serwerze bez kontenera `CANOPY_NETWORK_PORT` nie jest potrzebne: port wybrany
 w aplikacji zostaje zapisany w bazie i można go zmienić w Settings.
 
+Ten port jest dodatkiem do istniejącego portu gatewaya, nie jego zamiennikiem. Nowe workery
+automatycznie sprawdzają przypiętą trasę ogłoszoną uwierzytelnionym łączem, zapisują konfigurację
+z kopią i przechodzą na nią, gdy działa. Bez publikacji portu, przy zablokowanym firewallu lub
+wyłączonym Network access dalej pracują i aktualizują się na dotychczasowym porcie. Starsze binarki
+również pozostają w pełni obsługiwane. Nie trzeba zmieniać istniejącego Compose ani konfiguracji
+systemd. Po udanej migracji późniejsza utrata trasy przywraca pierwotne połączenie także po restarcie.
+
 ### Połączone komputery: wykrywanie w sieci lokalnej
 
 Gateway z włączonym dostępem sieciowym wykrywa już sparowane komputery
@@ -216,7 +227,7 @@ CANOPY_UI_SERVICE_TOKEN=…        # openssl rand -hex 32, ten sam w web
 CANOPY_SECRETS_KEY=…             # openssl rand -base64 32
 CANOPY_HOST=0.0.0.0
 CANOPY_PORT=7443
-CANOPY_PUBLIC_GATEWAY_URL=https://gateway.example.com:7443
+CANOPY_NETWORK_PORT=24443
 ```
 
 `/etc/systemd/system/canopy-gateway.service`:

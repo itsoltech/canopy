@@ -6,6 +6,7 @@ import {
   type GatewayMessage,
   type Hello,
   type WorkerMessage,
+  type NetworkRouteStatus,
 } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { gatewayMessage, type GatewayPayloadInit } from "./messages.ts";
@@ -26,6 +27,7 @@ interface PendingCommand {
 export class WorkerConnection {
   readonly workerId: string;
   readonly hello: Hello;
+  networkRouteStatus: NetworkRouteStatus | undefined;
   /** Worker messages after the handshake. CommandResults matched by sendCommand() are not repeated here. */
   readonly messages: AsyncIterable<WorkerMessage>;
   /** Resolves when the stream ends, for any reason. */
@@ -39,6 +41,7 @@ export class WorkerConnection {
   constructor(workerId: string, hello: Hello, outbound: AsyncChannel<GatewayMessage>) {
     this.workerId = workerId;
     this.hello = hello;
+    this.networkRouteStatus = hello.networkRouteStatus;
     this.#outbound = outbound;
     this.messages = this.#inbound;
     this.closed = new Promise((resolve) => (this.#markClosed = resolve));

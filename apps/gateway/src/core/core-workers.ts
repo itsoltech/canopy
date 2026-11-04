@@ -12,6 +12,7 @@ import { corePublishSteer } from "./core-messages.ts";
 import { coreSaveModels } from "./core-models.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreBroadcastWorkers, coreLog, coreRun } from "./core-broadcast.ts";
 import { coreBroadcastGoal } from "./core-goals.ts";
+import { offerWorkerRoutes } from "../network/workers.ts";
 
 // ------------------------------------------------------------------ workers
 
@@ -21,6 +22,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
     s.workerConnected(workerId, hostContext[coreState].options.instanceId, connection.hello),
   );
   coreLog(hostContext, `worker ${workerId} connected`);
+  offerWorkerRoutes(hostContext, connection);
   await coreBroadcastWorkers(hostContext);
   await hostContext.secrets.sync(workerId, true);
   // The outbox is read first: the turns started below (queued behind a lost one) are delivered once.
@@ -42,6 +44,10 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
   try {
     for await (const message of connection.messages) {
       switch (message.payload.case) {
+        case "networkRouteStatus":
+          connection.networkRouteStatus = message.payload.value;
+          await coreBroadcastWorkers(hostContext);
+          break;
         case "threadSecretReceipt":
           await hostContext.secrets.receipt(workerId, message.payload.value);
           break;
@@ -101,6 +107,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
 
         case "heartbeat":
           await coreRun(hostContext, (s) => s.workerSeen(workerId));
+          offerWorkerRoutes(hostContext, connection);
           break;
         case "blobChunk":
           // Before the event that points to it (same stream, handled in order).

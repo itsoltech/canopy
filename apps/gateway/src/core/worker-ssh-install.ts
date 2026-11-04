@@ -154,7 +154,7 @@ export async function installWorker(session: SshInstallation, fail: (message: st
     });
     // Secrets travel through encrypted stdin, never the SSH command, logs or browser.
     stream.end(
-      `set -- --channel-fallback --origin ${quote(origin.origin)} --gateway ${quote(setup.gatewayUrl)} --token ${quote(session.token)} --name ${quote(session.request.name)}\n${installer}\n`,
+      `set -- --channel-fallback --origin ${quote(origin.origin)} --gateway ${quote(setup.gatewayUrl)}${setup.gatewayFingerprint ? ` --fingerprint ${quote(setup.gatewayFingerprint)}` : ""} --token ${quote(session.token)} --name ${quote(session.request.name)}\n${installer}\n`,
     );
   });
 }

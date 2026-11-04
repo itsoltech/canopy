@@ -31,10 +31,11 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
 
 ## Dodanie maszyny z UI
 
-1. W **Settings → Workers → Add worker** podaj nazwę i **Gateway address for workers**.
-   To origin portu **gRPC**, domyślnie `:7443`, a nie adres strony web. Gateway bierze
-   wartość początkową z `CANOPY_PUBLIC_GATEWAY_URL`; edytowalne nadpisanie należy do ustawień
-   użytkownika. Zmiana nie przeadresowuje istniejących plików `worker.json`.
+1. W **Settings → Workers → Add worker** podaj nazwę. Kreator może jednym kliknięciem
+   włączyć Network access i wybiera jego pierwszy adres. W Settings → Workers można zapisać
+   własny origin (np. nazwę z Network access); pusty przywraca wybór automatyczny.
+   Adres kreatora dotyczy nowych instalacji. Istniejące workery zachowują działający endpoint;
+   po włączeniu Network access przechodzą automatycznie na osiągalną trasę z pinem.
 2. Wybierz **Install script**, **Docker**, **Manual** albo **Over SSH**.
    Domyślny skrypt pobiera zweryfikowaną binarkę dokładnej wersji gatewaya, rejestruje
    worker i uruchamia usługę użytkownika. Nie wymaga Bun, Git ani źródeł Canopy.
@@ -49,14 +50,22 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
    globalnych instancji są synchronizowane przy enrollment. CLI dostawców i ich logowania
    instalujesz osobno (`claude`, `codex`, `grok`); brak loginu nie blokuje samego połączenia.
 
-Przykład Maca przez Tailscale: obie maszyny muszą być w tej samej zaufanej sieci, a ACL
-muszą pozwalać Macowi na TCP do `canopy-gateway:7443`. Gateway musi nasłuchiwać na interfejsie
-dostępnym z Tailscale (`CANOPY_HOST`, domyślnie `0.0.0.0`). Ustaw `CANOPY_PUBLIC_GATEWAY_URL=http://canopy-gateway:7443`
-albo zapisz taki adres w UI, wybierz **macOS** i wykonaj komendę na Macu. Połączenie HTTP
-jest h2c — używaj go wyłącznie lokalnie lub wewnątrz zaufanej szyfrowanej sieci. Poza nią
-używaj HTTPS/TLS; proxy musi obsługiwać gRPC HTTP/2 i długie strumienie. Nie otwieraj portu
-przychodzącego na Macu. Prywatny CA dodaj do systemowego magazynu zaufania przed enrollment;
-`ca_file` w gotowym `worker.json` obsługuje dodatkowy CA dla późniejszego połączenia.
+Przykład Maca przez Tailscale: ACL muszą pozwalać na TCP do portu Network access.
+Wybierz osiągalny adres tego komputera, **macOS** i wykonaj komendę na Macu. Wszystkie metody
+instalacji (skrypt, ręczna, Docker i SSH) przekazują `--fingerprint` z pełnym SHA-256.
+Enrollment najpierw wykonuje sam handshake TLS i porównuje pin; dopiero potem wysyła token.
+Plik 0600 zapisuje `gateway_certificate` i `gateway_fingerprint`; WorkerLink oraz niezależny
+UpdateService sprawdzają certyfikat i dokładny pin. Nie trzeba instalować systemowego CA.
+Listener procesu BFF/lokalnego workera nadal obsługuje dotychczasowe połączenia HTTP(S),
+a istniejące pliki z `ca_file` zachowują działanie.
+
+Aktualizacja nie wymaga ponownego enrollmentu. Capability `network_route_migration` pozwala gatewayowi
+przesłać zaufany pin i adresy dotychczasowym łączem. Worker weryfikuje nową trasę bez rozłączania starej,
+zapisuje atomowo plik z kopią `.bak` i zachowuje pierwotny endpoint w `gateway_fallback`.
+Nieudana weryfikacja lub zapis nie przerywa pracy; przyczyna jest widoczna w Settings → Workers.
+Wyłączony albo nieosiągalny Network access pozostawia WorkerLink i self-update na porcie serwera.
+Zapisana konfiguracja przetrwa restart, a utrata nowej trasy przywróci połączenie z pierwotnym serwerem.
+Desktop remote nie nadpisuje zmigrowanego adresu podczas startu; lokalny worker desktopu pomija migrację.
 
 ### Skrypt instalacyjny
 
