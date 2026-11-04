@@ -96,6 +96,7 @@ describe("claudeProfileOptions", () => {
       ...ENV,
       ANTHROPIC_BASE_URL: "http://127.0.0.1:8317",
       ANTHROPIC_AUTH_TOKEN: "sk-proxy",
+      ANTHROPIC_API_KEY: "",
       CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: "1",
     });
   });

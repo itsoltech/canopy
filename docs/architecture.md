@@ -280,7 +280,12 @@ Typy protokołu app-server generuje sam Codex (`codex app-server generate-ts`); 
 
 ## 8. Profile dostawców i CLIProxyAPI
 
-[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) to opcjonalny pośrednik zgodny z API Anthropic/OpenAI. Integracja to wyłącznie konfiguracja Claude Code i Codexa, bez zmian w protokole poza wyborem profilu.
+Połączenia są teraz definiowane w Settings → Proxies i wskazywane przez instancje
+providerów. Dane, migracja i mapowania: [proxies.md](proxies.md). Opis WorkerConfig
+poniżej pozostaje formatem dostawy do harnessów; gateway rozwiązuje współdzieloną
+referencję proxy przed wysłaniem konfiguracji.
+
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) to opcjonalny pośrednik zgodny z API Anthropic/OpenAI. Zapisane proxy konfiguruje połączenia Claude Code, Codexa i Groka; publiczne opcje transportu Codexa przechodzą przez `ProviderProfileConfig.proxy_codex`.
 
 **Profil dostawcy** opisuje, jak agent SDK łączy się z modelem. Profile są częścią zdalnej konfiguracji workera (`WorkerConfig.profiles`, [worker-config.md](worker-config.md)); kształt po stronie workera:
 
@@ -300,7 +305,7 @@ type ProviderProfileConfig =
 |---|---|---|
 | Gdzie | `query({ options })` per wątek | `-c` przy starcie procesu + `thread/start` per wątek |
 | Endpoint | `env.ANTHROPIC_BASE_URL = <baseUrl>` | `model_providers.canopy_<id>.base_url = "<baseUrl>/v1"`, `wire_api = "responses"` |
-| Klucz | `env.ANTHROPIC_AUTH_TOKEN` (usuwane `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`) | `env_key = "CANOPY_<ID>_API_KEY"`, wartość w env procesu, nie w argv |
+| Klucz | `env.ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY=""`, usuwane `CLAUDE_CODE_OAUTH_TOKEN` | `env_key = "CANOPY_<ID>_API_KEY"`, wartość w env procesu, nie w argv |
 | Wybór | per wątek | `thread/start { modelProvider: "canopy_<id>" }`; jeden proces obsługuje wątki natywne i przez proxy |
 | Model | `options.model` z agenta | `thread/start { model }` z agenta |
 

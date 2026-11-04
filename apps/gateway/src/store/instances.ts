@@ -4,6 +4,8 @@ import type { InstanceApi } from "./instance-checks.ts";
 import { instanceReads, instanceSync, instanceWrites } from "./instance-queries.ts";
 import { instanceMutations, instanceSave } from "./instance-save.ts";
 import { instanceModels } from "./instance-models.ts";
+import { proxyStore } from "./proxies.ts";
+import { proxyEnvMove } from "./proxy-env-move.ts";
 
 /**
  * Global provider instances (docs/worker-config.md, section 9). An instance (harness + id) is defined once here
@@ -24,14 +26,18 @@ export class InstanceStore extends Context.Service<InstanceStore, InstanceApi>()
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         const reads = instanceReads(sql);
-        const core = { ...reads, ...instanceWrites(sql, secretsKey, reads), ...instanceSync(sql, reads) };
+        const core = { ...reads, ...instanceWrites(sql, secretsKey, reads), ...instanceSync(sql, reads, secretsKey) };
+        const saves = instanceSave(sql, core, secretsKey);
+        const proxies = proxyStore(sql, secretsKey, core);
 
         return InstanceStore.of({
           list: core.list,
           get: core.get,
-          ...instanceSave(sql, core),
-          ...instanceMutations(sql, core),
+          ...saves,
+          ...instanceMutations(sql, core, secretsKey),
           ...instanceModels(sql, core),
+          ...proxies,
+          moveInstanceToProxy: proxyEnvMove(sql, secretsKey, core, { ...saves, ...proxies }),
         });
       }),
     );

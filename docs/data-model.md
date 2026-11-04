@@ -1,5 +1,13 @@
 # Model danych (PostgreSQL)
 
+## Połączenia proxy
+
+Migracja `0061_proxies` dodaje owner-scoped `proxies` z FK do zaszyfrowanego sekretu,
+rewizją i publicznymi opcjami transportu Codexa. Definicje instancji i nadpisania
+workerów wskazują proxy przez FK `proxy_id`; usunięcie używanego połączenia jest
+blokowane. Gateway transakcyjnie deduplikuje wcześniejsze endpointy po URL i kluczu
+podczas synchronizacji; SQL nie odszyfrowuje danych. Szczegóły: [proxies.md](proxies.md).
+
 ## Połączone komputery
 
 Migracja `0048_linked_computers` dodaje singleton `computer_identity` (id z SHA-256 klucza,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Provider, type ui } from "@canopy/contracts";
+  import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import ChoiceCard from "#lib/shared/ui/ChoiceCard.svelte";
@@ -35,6 +35,7 @@
     workers,
     scope,
     onadded,
+    prefill,
   }: {
     open?: boolean;
     instances: readonly ui.ProviderInstance[];
@@ -42,6 +43,7 @@
     /** The page's worker: the new instance runs there (else on all workers). */
     scope: string | undefined;
     onadded: (instance: ui.ProviderInstance | undefined) => void;
+    prefill?: ui.ProviderInstance | undefined;
   } = $props();
 
   const steps = ["Provider", "Identity", "Config"] as const;
@@ -54,8 +56,17 @@
 
   $effect.pre(() => {
     if (!open) return;
-    step = 0;
-    draft = newDraft(Provider.CODEX, scope ? [scope] : []);
+    step = prefill ? 1 : 0;
+    const initial = newDraft(prefill?.harness ?? Provider.CODEX, scope ? [scope] : []);
+
+    if (prefill) {
+      initial.kind = ProviderProfileKind.CLIPROXYAPI;
+      initial.label = `${harnessName(prefill.harness)} proxy`;
+      initial.id = idFromLabel(initial.label);
+      initial.accentColor = prefill.accentColor;
+    }
+
+    draft = initial;
     tried = -1;
     failure = undefined;
   });
@@ -75,11 +86,7 @@
   );
 
   const stepBlocked = (s: number) =>
-    s === 1
-      ? Boolean(problems.label || problems.id)
-      : s === 2
-        ? Boolean(problems.baseUrl || problems.apiKey || problems.workers)
-        : false;
+    s === 1 ? Boolean(problems.label || problems.id) : s === 2 ? Boolean(problems.proxyId || problems.workers) : false;
 
   function go(to: number) {
     direction = to > step ? 1 : -1;
@@ -211,10 +218,7 @@
             <ConnectionFields
               harness={draft.harness}
               bind:kind={draft.kind}
-              bind:baseUrl={draft.baseUrl}
-              apiKeySet={false}
-              bind:keyAction={draft.keyAction}
-              bind:apiKey={draft.apiKey}
+              bind:proxyId={draft.proxyId}
               bind:ownLogin={draft.ownLogin}
               errors={shown}
               prefix="new"

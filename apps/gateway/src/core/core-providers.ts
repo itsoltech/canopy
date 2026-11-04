@@ -6,6 +6,7 @@ import { coreState, describeError, InvalidError, UnavailableError } from "./core
 import type { GatewayCore } from "./core.ts";
 import { coreModels, corePublishModels } from "./core-models.ts";
 import { coreBroadcastWorkers, coreRun } from "./core-broadcast.ts";
+import { coreProxyMethods, type CoreProxyMethods } from "./core-proxies.ts";
 
 export async function coreInstance(
   hostContext: GatewayCore,
@@ -16,7 +17,7 @@ export async function coreInstance(
 
   if (!name) throw new InvalidError("choose Claude or Codex");
 
-  return coreInstances(hostContext, (s) => s.get(name, id));
+  return coreInstances(hostContext, (s) => s.get(name, id, hostContext[coreState].options.userId));
 }
 
 /** The stored configurations go to the workers (each answers ConfigApplied and a new model catalog). */
@@ -57,7 +58,7 @@ export async function coreWorkers(hostContext: GatewayCore): Promise<ui.Worker[]
   return workers;
 }
 
-export interface CoreProvidersMethods {
+export interface CoreProvidersMethods extends CoreProxyMethods {
   listProviderInstances(): Promise<ui.ProviderInstance[]>;
   saveProviderInstance(request: ui.SaveProviderInstanceRequest): Promise<ui.ProviderInstance>;
   deleteProviderInstance(request: ui.DeleteProviderInstanceRequest): Promise<void>;
@@ -72,11 +73,12 @@ export interface CoreProvidersMethods {
 }
 
 export const coreProvidersMethods: CoreProvidersMethods = {
+  ...coreProxyMethods,
   // ------------------------------------------------------------------ provider instances
 
   /** Every global instance with its state on every worker; no secret values, only whether they are set. */
   async listProviderInstances(this: GatewayCore): Promise<ui.ProviderInstance[]> {
-    return coreInstances(this, (s) => s.list());
+    return coreInstances(this, (s) => s.list(this[coreState].options.userId));
   },
 
   /** New or changed instance: new configuration versions for the workers it runs on, sent to the online ones. */
@@ -91,6 +93,7 @@ export const coreProvidersMethods: CoreProvidersMethods = {
   },
 
   async deleteProviderInstance(this: GatewayCore, request: ui.DeleteProviderInstanceRequest): Promise<void> {
+    await coreInstance(this, request.harness, request.id);
     await coreConfigsChanged(
       this,
       await coreInstances(this, (s) => s.remove({ userId: this[coreState].options.userId, request })),
@@ -98,6 +101,7 @@ export const coreProvidersMethods: CoreProvidersMethods = {
   },
 
   async setInstanceWorkers(this: GatewayCore, request: ui.SetInstanceWorkersRequest): Promise<ui.ProviderInstance> {
+    await coreInstance(this, request.harness, request.id);
     await coreConfigsChanged(
       this,
       await coreInstances(this, (s) => s.setWorkers({ userId: this[coreState].options.userId, request })),
@@ -107,6 +111,7 @@ export const coreProvidersMethods: CoreProvidersMethods = {
   },
 
   async setInstanceWorker(this: GatewayCore, request: ui.SetInstanceWorkerRequest): Promise<ui.ProviderInstance> {
+    await coreInstance(this, request.harness, request.id);
     await coreConfigsChanged(
       this,
       await coreInstances(this, (s) => s.setWorker({ userId: this[coreState].options.userId, request })),
@@ -117,6 +122,7 @@ export const coreProvidersMethods: CoreProvidersMethods = {
 
   /** Favorites, visibility and custom models: pickers change at once, the workers' configurations do not. */
   async setInstanceModels(this: GatewayCore, request: ui.SetInstanceModelsRequest): Promise<ui.ProviderInstance> {
+    await coreInstance(this, request.harness, request.id);
     await coreInstances(this, (s) => s.setModels(request));
     await corePublishModels(this, await coreModels(this, (s) => s.catalogs([])));
     await coreBroadcastWorkers(this);

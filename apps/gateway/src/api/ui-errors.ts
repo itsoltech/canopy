@@ -20,6 +20,26 @@ export async function guard<A>(run: () => Promise<A>): Promise<A> {
   }
 }
 
+/** Provider credentials: unexpected failures must never log SQL parameters or request data. */
+export async function credentialGuard<A>(run: () => Promise<A>): Promise<A> {
+  try {
+    return await run();
+  } catch (cause) {
+    const error = unwrap(cause);
+
+    if (error instanceof Invalid || error instanceof InvalidError)
+      throw new ConnectError(error.message, Code.InvalidArgument);
+
+    if (error instanceof NotFound) throw new ConnectError(error.message, Code.NotFound);
+
+    if (error instanceof InstanceConflict) throw new ConnectError(error.message, Code.FailedPrecondition);
+
+    if (error instanceof UnavailableError) throw new ConnectError(error.message, Code.Unavailable);
+
+    throw new ConnectError("Provider operation failed; check the configuration and try again", Code.Internal);
+  }
+}
+
 /** Credential boundaries never log raw causes, including SQL bound parameters. */
 export async function connectorGuard<A>(run: () => Promise<A>): Promise<A> {
   try {
@@ -74,7 +94,8 @@ export function unwrap(cause: unknown) {
       current instanceof UnavailableError ||
       current instanceof SettingsConflict ||
       current instanceof ScheduleConflict ||
-      current instanceof QueueConflict
+      current instanceof QueueConflict ||
+      current instanceof InstanceConflict
     ) {
       return current;
     }

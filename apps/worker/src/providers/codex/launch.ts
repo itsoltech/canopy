@@ -47,14 +47,19 @@ export function codexAppServerLaunch(
     const settings = {
       name: `CLIProxyAPI (${profile.id})`,
       base_url: new URL("v1", withTrailingSlash(profile.baseUrl)).href,
-      wire_api: "responses",
+      wire_api: profile.codex?.wireApi || "responses",
       // Sent as `Authorization: Bearer $KEY`. The key goes through env, never argv.
       env_key: keyEnv,
       requires_openai_auth: false,
+      ...(profile.codex && { supports_websockets: profile.codex.supportsWebsockets }),
     } satisfies Record<string, string | boolean>;
 
     for (const [key, value] of Object.entries(settings)) {
       command.push("-c", `model_providers.${provider}.${key}=${tomlValue(value)}`);
+    }
+
+    for (const [header, value] of Object.entries(profile.codex?.extraHeaders ?? {})) {
+      command.push("-c", `model_providers.${provider}.http_headers.${JSON.stringify(header)}=${tomlValue(value)}`);
     }
 
     env[keyEnv] = profile.apiKey;

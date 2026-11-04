@@ -13,6 +13,7 @@
   import { draftOf, draftProblems, hasProblems, providerCall, saveRequest } from "./instances.ts";
   import RuntimeFields from "./RuntimeFields.svelte";
   import SettingsSection from "./SettingsSection.svelte";
+  import MoveEnvironment from "./MoveEnvironment.svelte";
 
   /**
    * The global definition of an instance (scope "All workers"): name and color, connection, runtime and variables.
@@ -22,10 +23,12 @@
   let {
     instance,
     onsaved,
+    onaddproxy,
     class: className,
   }: {
     instance: ui.ProviderInstance;
     onsaved: (instance: ui.ProviderInstance | undefined) => void;
+    onaddproxy: () => void;
     class?: ClassValue;
   } = $props();
 
@@ -90,22 +93,20 @@
     title="Connection"
     description={locked
       ? instance.builtIn
-        ? "The built-in device login keeps its connection."
+        ? "To use a proxy, add an instance. The built-in device login keeps its connection."
         : "Threads use this instance: it keeps its kind of connection."
       : undefined}
   >
     <ConnectionFields
       harness={instance.harness}
       bind:kind={draft.kind}
-      bind:baseUrl={draft.baseUrl}
-      apiKeySet={draft.apiKeySet}
-      bind:keyAction={draft.keyAction}
-      bind:apiKey={draft.apiKey}
+      bind:proxyId={draft.proxyId}
       bind:ownLogin={draft.ownLogin}
       kindLocked={locked}
       errors={shown}
       prefix="def"
     />
+    {#if instance.builtIn}<div><Button size="sm" onclick={onaddproxy}>Add instance with a proxy</Button></div>{/if}
   </SettingsSection>
 
   <SettingsSection title="Runtime" description="For every worker; a worker can override paths for its system.">
@@ -123,6 +124,7 @@
     title="Environment"
     description="Variables of the harness process. A secret is stored encrypted and never shown again."
   >
+    <MoveEnvironment {instance} {onsaved} />
     <EnvVarEditor bind:rows={draft.env} kind={draft.kind} problems={shown.env} />
   </SettingsSection>
 

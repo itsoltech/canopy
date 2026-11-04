@@ -285,6 +285,15 @@ message ProviderProfileConfig {
   // Własne logowanie instancji w jej izolowanym katalogu (np. ChatGPT przez StartLogin), bez dowiązania
   // logowania właściciela urządzenia.
   bool own_login = 13;
+  // Public transport options; keys remain in api_key, never in headers or argv.
+  ProxyCodexOptions proxy_codex = 14;
+}
+
+message ProxyCodexOptions {
+  // Current Codex supports responses. Empty uses that default.
+  string wire_api = 1;
+  bool supports_websockets = 2;
+  map<string, string> extra_headers = 3;
 }
 
 message ProfileEnvVar {

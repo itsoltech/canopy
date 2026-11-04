@@ -67,6 +67,13 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "github slack outlook microsoft notion linear google atlassian mcp oauth accounts integrations access",
   },
   {
+    href: "/settings/proxies",
+    label: "Proxies",
+    icon: "link",
+    group: "Connections",
+    keywords: "proxy cliproxyapi anthropic openai endpoint secret key connection",
+  },
+  {
     href: "/settings/workers",
     label: "Workers",
     icon: "server",

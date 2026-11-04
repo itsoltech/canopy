@@ -1,5 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { Provider, ProviderProfileKind, type ProviderProfileSchema } from "@canopy/contracts";
+import { Provider, ProviderProfileKind, type ProviderProfileSchema, type ProxyCodexOptions } from "@canopy/contracts";
 import { envListProblems } from "@canopy/domain";
 import { Match } from "effect";
 
@@ -50,6 +50,7 @@ export interface NativeProfileConfig extends ProfileConfigBase {
 }
 
 export interface CliProxyApiProfileConfig extends ProfileConfigBase {
+  readonly codex?: Omit<ProxyCodexOptions, "$typeName">;
   readonly kind: "cliproxyapi";
   /** CLIProxyAPI root, e.g. http://127.0.0.1:8317 (Claude uses the root, Codex `<root>/v1`). */
   readonly baseUrl: string;
@@ -70,7 +71,12 @@ interface ResolvedBase {
 /** A profile with its secrets resolved. Lives only in worker memory. */
 export type ResolvedProfile =
   | (ResolvedBase & { readonly kind: "native" })
-  | (ResolvedBase & { readonly kind: "cliproxyapi"; readonly baseUrl: URL; readonly apiKey: string });
+  | (ResolvedBase & {
+      readonly kind: "cliproxyapi";
+      readonly baseUrl: URL;
+      readonly apiKey: string;
+      readonly codex?: Omit<ProxyCodexOptions, "$typeName">;
+    });
 
 export const NATIVE_PROFILE: NativeProfileConfig = { kind: "native", id: "native" };
 
@@ -151,6 +157,8 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[]): Prof
       if (baseUrl.username || baseUrl.password) {
         throw new ProfileError(`profile "${config.id}": put credentials in api_key, not in base_url`);
       }
+
+      baseUrl.pathname = baseUrl.pathname.replace(/\/+$/, "").replace(/\/v1$/, "") || "/";
     }
 
     const vars = config.env ?? [];
@@ -173,7 +181,16 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[]): Prof
 
     if (!config.apiKey) return { config, problem: "api_key is not set" };
 
-    return { config, resolved: { kind: "cliproxyapi", ...base, baseUrl: baseUrl!, apiKey: config.apiKey } };
+    return {
+      config,
+      resolved: {
+        kind: "cliproxyapi",
+        ...base,
+        baseUrl: baseUrl!,
+        apiKey: config.apiKey,
+        ...(config.codex && { codex: config.codex }),
+      },
+    };
   });
 }
 

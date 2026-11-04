@@ -19,6 +19,7 @@ const methods = {
   models: "setInstanceModels",
   refresh: "refreshProviders",
   login: "startProviderLogin",
+  move: "moveInstanceToProxy",
 } as const satisfies Record<ProviderAction, string>;
 
 const isProviderAction = (action: string): action is ProviderAction => Object.hasOwn(methods, action);
