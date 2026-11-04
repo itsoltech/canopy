@@ -3,7 +3,16 @@
   import type { ClassValue } from "svelte/elements";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
-  import { focusItem, hoverFocus, menuIconClasses, menuKeydown, menuRowClasses, provideMenu, useMenu } from "./menu.ts";
+  import {
+    focusItem,
+    hoverFocus,
+    menuIconClasses,
+    menuKeydown,
+    menuRowClasses,
+    provideMenu,
+    useMenu,
+    type MenuContext,
+  } from "./menu.ts";
   import Popover from "./Popover.svelte";
 
   /**
@@ -21,7 +30,7 @@
 
   const id = $props.id();
   const parent = useMenu();
-  const menu = $state({ openSub: undefined as string | undefined, closeAll: () => parent.closeAll() });
+  const menu = $state<MenuContext>({ openSub: undefined, closeAll: () => parent.closeAll() });
 
   provideMenu(menu);
 

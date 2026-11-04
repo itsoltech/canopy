@@ -35,8 +35,17 @@ export const chatWidthNames: Record<ChatWidthName, ui.ChatWidth> = {
   full: ui.ChatWidth.FULL,
 };
 
+/** The names of a name table (`schemeNames`, `accentNames`, `chatWidthNames`), in its order. */
+export const namesOf = <N extends string, V>(table: Readonly<Record<N, V>>): N[] =>
+  // SAFETY: the name tables are object literals typed with exactly their name union, so their own keys are N.
+  Object.keys(table) as N[];
+
+/** A name of the table (a data attribute, a query value), told apart from any other text. */
+const isName = <N extends string, V>(table: Readonly<Record<N, V>>, value: string | undefined): value is N =>
+  value !== undefined && Object.hasOwn(table, value);
+
 const nameOf = <N extends string, V>(table: Record<N, V>, value: V, fallback: N): N =>
-  (Object.keys(table) as N[]).find((name) => table[name] === value) ?? fallback;
+  namesOf(table).find((name) => table[name] === value) ?? fallback;
 
 /** Unspecified values are the defaults: system scheme, default accent, comfortable width. */
 export const schemeOf = (appearance: ui.AppearanceSettings | undefined): SchemeName =>
@@ -67,11 +76,12 @@ export function documentAttributes(appearance: ui.AppearanceSettings | undefined
 /** Seed the SPA from the shell's gateway settings, before any client fetch or effect can change geometry. */
 export function appearanceFromDocument(): ui.AppearanceSettings {
   const data = document.documentElement.dataset;
+  const { colorScheme, accent, chatWidth } = data;
 
   return create(ui.AppearanceSettingsSchema, {
-    colorScheme: schemeNames[data["colorScheme"] as SchemeName] ?? ui.ColorScheme.SYSTEM,
-    accent: accentNames[data["accent"] as AccentName] ?? ui.AccentTheme.DEFAULT,
-    chatWidth: chatWidthNames[data["chatWidth"] as ChatWidthName] ?? ui.ChatWidth.COMFORTABLE,
+    colorScheme: isName(schemeNames, colorScheme) ? schemeNames[colorScheme] : ui.ColorScheme.SYSTEM,
+    accent: isName(accentNames, accent) ? accentNames[accent] : ui.AccentTheme.DEFAULT,
+    chatWidth: isName(chatWidthNames, chatWidth) ? chatWidthNames[chatWidth] : ui.ChatWidth.COMFORTABLE,
     sidebarWidth: Number(data["sidebarWidth"]) || SIDEBAR_WIDTH.default,
     sidebarCollapsed: data["sidebarCollapsed"] === "true",
     threadPanelCollapsed: data["threadPanelCollapsed"] === "true",
@@ -104,7 +114,7 @@ export const schemeLabels: Record<SchemeName, string> = {
   dark: "Dark",
 };
 
-export const accentLabels = Object.fromEntries(accents.map((a) => [a.name, a.label])) as Record<AccentName, string>;
+export const accentLabel = (name: AccentName): string => accents.find((a) => a.name === name)?.label ?? name;
 
 export const chatWidthLabels: Record<ChatWidthName, string> = {
   comfortable: "Comfortable",

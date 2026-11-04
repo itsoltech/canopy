@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import type { Placement } from "./floating.ts";
-  import { focusItem, menuKeydown, provideMenu } from "./menu.ts";
+  import { focusItem, menuKeydown, provideMenu, type MenuContext } from "./menu.ts";
   import Popover, { type PopoverTriggerProps } from "./Popover.svelte";
 
   /**
@@ -41,8 +41,8 @@
 
   let start = $state<"first" | "last">("first");
 
-  const menu = $state({
-    openSub: undefined as string | undefined,
+  const menu = $state<MenuContext>({
+    openSub: undefined,
     closeAll: () => (open = false),
   });
 

@@ -1,8 +1,9 @@
 import type { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import {
-  accentLabels,
+  accentLabel,
   accentNames,
+  namesOf,
   accentOf,
   chatWidthLabels,
   chatWidthNames,
@@ -143,9 +144,9 @@ export function appCommands(context: AppCommandContext): CommandSource {
         rank: 11,
         searchChildren: true,
         children: () =>
-          (Object.keys(accentNames) as (keyof typeof accentNames)[]).map((name) => ({
+          namesOf(accentNames).map((name) => ({
             id: name,
-            title: accentLabels[name],
+            title: accentLabel(name),
             group: "actions",
             keywords: "theme accent",
             checked: accentOf(appearance) === name,
@@ -162,7 +163,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
         rank: 12,
         searchChildren: true,
         children: () =>
-          (Object.keys(schemeNames) as (keyof typeof schemeNames)[]).map((name) => ({
+          namesOf(schemeNames).map((name) => ({
             id: name,
             title: schemeLabels[name],
             group: "actions",
@@ -181,7 +182,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
         rank: 13,
         searchChildren: true,
         children: () =>
-          (Object.keys(chatWidthNames) as (keyof typeof chatWidthNames)[]).map((name) => ({
+          namesOf(chatWidthNames).map((name) => ({
             id: name,
             title: chatWidthLabels[name],
             group: "actions",

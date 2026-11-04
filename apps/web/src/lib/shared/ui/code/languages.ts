@@ -123,6 +123,8 @@ const aliases = new Map<string, LanguageId>([
   ["yml", "yaml"],
 ]);
 
+const isLanguageId = (word: string): word is LanguageId => Object.hasOwn(grammars, word);
+
 /**
  * The grammar a fence's info string asks for (`ts`, `TypeScript`, `language-ts`, `py title="x"`), or
  * undefined when there is none we know: the block stays plain.
@@ -136,7 +138,7 @@ export function languageOf(info: string | undefined): LanguageId | undefined {
 
   if (!word) return undefined;
 
-  if (Object.hasOwn(grammars, word)) return word as LanguageId;
+  if (isLanguageId(word)) return word;
 
   return aliases.get(word);
 }
@@ -222,7 +224,8 @@ export const LANGUAGES: ReadonlyArray<{
   readonly id: LanguageId;
   readonly name: string;
   readonly words: readonly string[];
-}> = (Object.keys(grammars) as LanguageId[])
+}> = Object.keys(grammars)
+  .filter(isLanguageId)
   .map((id) => ({
     id,
     name: LANGUAGE_NAMES[id],

@@ -109,9 +109,9 @@
 
   function keydown(event: KeyboardEvent) {
     if (event.isComposing || event.defaultPrevented) return;
-    const target = event.target as HTMLElement;
+    const target = event.target;
 
-    if (target.closest("[popover]")) return;
+    if (!(target instanceof Element) || target.closest("[popover]")) return;
 
     if (event.key === "Tab" && form) {
       const controls = focusables(form).filter((el) => el.tabIndex >= 0);

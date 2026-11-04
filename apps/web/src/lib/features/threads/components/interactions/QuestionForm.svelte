@@ -39,15 +39,16 @@
       event.altKey ||
       event.metaKey ||
       event.ctrlKey ||
-      !panel?.contains(event.target as Node)
+      !(event.target instanceof Element) ||
+      !panel?.contains(event.target)
     )
       return;
-    const target = event.target as HTMLElement;
+    const target = event.target;
 
     if (target.closest('button, textarea, [contenteditable="true"], input[type="text"], input[type="password"]'))
       return;
     const inputs = [...panel.querySelectorAll<HTMLInputElement>('input[type="radio"], input[type="checkbox"]')];
-    const index = inputs.indexOf(target as HTMLInputElement);
+    const index = inputs.findIndex((input) => input === target);
     const number = /^[1-9]$/.test(event.key) ? Number(event.key) - 1 : -1;
 
     if (number >= 0 && question.options[number]) {

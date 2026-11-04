@@ -40,7 +40,8 @@
 
   $effect(() => {
     async function edit(event: Event) {
-      const nextId = (event as CustomEvent<string>).detail;
+      if (!(event instanceof CustomEvent)) return;
+      const nextId = String(event.detail);
       const version = ++generation;
       id = nextId;
       loadError = "";
@@ -60,7 +61,8 @@
     }
 
     const remove = (event: Event) => {
-      id = (event as CustomEvent<string>).detail;
+      if (!(event instanceof CustomEvent)) return;
+      id = String(event.detail);
       deleting = true;
       deleteError = "";
     };

@@ -30,8 +30,8 @@ export class QueueDrag {
 
   start(event: PointerEvent, id: string): void {
     const list = this.#list();
-    const handle = event.currentTarget as HTMLElement;
-    const row = handle.closest<HTMLElement>("[data-queue-row]");
+    const handle = event.currentTarget;
+    const row = handle instanceof Element ? handle.closest<HTMLElement>("[data-queue-row]") : null;
 
     if (!list || !row || event.button !== 0 || this.id) return;
     event.preventDefault();

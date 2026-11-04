@@ -112,7 +112,8 @@ export function hotkeys(map: HotkeyMap, { global = false }: { global?: boolean }
     const target: HTMLElement | Window = global ? window : node;
 
     const onkeydown = (event: Event) => {
-      const keyboard = event as KeyboardEvent;
+      if (!(event instanceof KeyboardEvent)) return;
+      const keyboard = event;
 
       if (keyboard.isComposing || keyboard.defaultPrevented) return;
 

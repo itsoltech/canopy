@@ -21,7 +21,9 @@ export function setAnimatedMascots(enabled: boolean): void {
 }
 
 export function watchAnimatedMascots(callback: (enabled: boolean) => void): () => void {
-  const local = (event: Event) => callback((event as CustomEvent<boolean>).detail);
+  const local = (event: Event) => {
+    if (event instanceof CustomEvent) callback(event.detail === true);
+  };
 
   const storage = (event: StorageEvent) => {
     if (event.key === key || event.key === null) callback(animatedMascots());

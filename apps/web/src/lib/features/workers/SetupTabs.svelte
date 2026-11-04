@@ -16,7 +16,7 @@
     class?: ClassValue;
   } = $props();
 
-  function keydown(event: KeyboardEvent) {
+  function keydown(event: KeyboardEvent & { currentTarget: HTMLElement }) {
     const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
 
     if (!keys.includes(event.key)) return;
@@ -31,7 +31,7 @@
           : (current + (event.key === "ArrowRight" ? 1 : -1) + options.length) % options.length;
 
     value = options[next]!.value;
-    (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
+    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
   }
 </script>
 

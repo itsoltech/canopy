@@ -28,8 +28,8 @@
     ),
   );
 
-  function navigate(event: KeyboardEvent, index: number) {
-    const button = event.currentTarget as HTMLButtonElement;
+  function navigate(event: KeyboardEvent & { currentTarget: HTMLButtonElement }, index: number) {
+    const button = event.currentTarget;
     const group = button.parentElement!;
     const columns = getComputedStyle(group).gridTemplateColumns.split(" ").length;
 

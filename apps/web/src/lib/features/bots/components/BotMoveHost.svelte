@@ -12,7 +12,8 @@
 
   onMount(() => {
     const move = (event: Event) => {
-      botId = String((event as CustomEvent<string>).detail);
+      if (!(event instanceof CustomEvent)) return;
+      botId = String(event.detail);
       name = botList.list.find((b) => b.id === botId)?.configuration?.name || "Bot";
       open = true;
     };

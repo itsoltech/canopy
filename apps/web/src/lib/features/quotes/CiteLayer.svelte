@@ -78,7 +78,7 @@
     const onpointerdown = (event: PointerEvent) => {
       touch = event.pointerType === "touch";
 
-      if (button?.contains(event.target as Node)) return;
+      if (event.target instanceof Node && button?.contains(event.target)) return;
       pointerDown = event.pointerType === "mouse";
     };
 

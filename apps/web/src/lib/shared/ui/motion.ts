@@ -308,7 +308,7 @@ function followContent(node: HTMLElement, axis: "width" | "height") {
   let first = true;
 
   const observer = new ResizeObserver(() => {
-    const content = node.firstElementChild as HTMLElement | null;
+    const content = node.firstElementChild instanceof HTMLElement ? node.firstElementChild : null;
     const size = content ? (axis === "width" ? content.offsetWidth : content.offsetHeight) : 0;
 
     if (first) {

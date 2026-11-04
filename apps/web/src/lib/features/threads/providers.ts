@@ -9,8 +9,7 @@ const PROVIDER_NAMES = { CLAUDE: "Claude", CODEX: "Codex", GROK: "Grok" } satisf
 
 export const providerName = (provider: ProviderKey): string => PROVIDER_NAMES[provider];
 
-export const isProviderKey = (value: string): value is ProviderKey =>
-  (providerKeys as readonly string[]).includes(value);
+export const isProviderKey = (value: string): value is ProviderKey => providerKeys.some((key) => key === value);
 
 export const providerKeyOf = (provider: Provider): ProviderKey | undefined =>
   provider === Provider.CLAUDE
