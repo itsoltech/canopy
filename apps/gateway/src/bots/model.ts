@@ -1,15 +1,79 @@
 import { Provider, type ProfileModels } from "@canopy/contracts";
-import type { BotModel, ModelInput, ModelReply, ToolCall } from "./types.ts";
+import type { JsonObject } from "@canopy/domain";
+import { Option, Schema } from "effect";
+import type { DecodedReply, ModelInput, ToolCall } from "./types.ts";
 
 type Endpoint = { url: string; key: string };
 
-const argumentsOf = (raw: unknown): Record<string, unknown> => {
-  const value: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
+const isText = Schema.is(Schema.String);
+const decodeArguments = Schema.decodeUnknownOption(Schema.JsonObject);
 
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid model tool arguments");
+/** Tool arguments arrive as an object (Messages API) or as its JSON text (Responses, chat completions). */
+const argumentsOf = (raw: Schema.Json | undefined): JsonObject =>
+  Option.getOrThrowWith(
+    decodeArguments(isText(raw) ? JSON.parse(raw) : raw),
+    () => new Error("invalid model tool arguments"),
+  );
 
-  return value as Record<string, unknown>;
-};
+const incomplete = () => new Error("Model returned an incomplete response");
+
+/** A reply envelope of another shape is incomplete. Unknown blocks inside it are skipped, not rejected. */
+const complete = <A>(reply: Option.Option<A>): A => Option.getOrThrowWith(reply, incomplete);
+
+const blockDecoder = <S extends Schema.ConstraintDecoder<unknown>>(schema: S) => Schema.decodeUnknownOption(schema);
+
+const GrokResponse = Schema.Struct({
+  choices: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        finish_reason: Schema.optional(Schema.String),
+        message: Schema.optional(
+          Schema.Struct({
+            content: Schema.optional(Schema.NullOr(Schema.String)),
+            tool_calls: Schema.optional(
+              Schema.Array(
+                Schema.Struct({
+                  id: Schema.String,
+                  function: Schema.Struct({ name: Schema.String, arguments: Schema.Json }),
+                }),
+              ),
+            ),
+          }),
+        ),
+      }),
+    ),
+  ),
+});
+
+const AnthropicResponse = Schema.Struct({
+  content: Schema.Array(Schema.Json),
+  stop_reason: Schema.optional(Schema.Json),
+});
+
+const OpenaiResponse = Schema.Struct({ output: Schema.Array(Schema.Json), status: Schema.optional(Schema.Json) });
+const TextBlock = blockDecoder(Schema.Struct({ type: Schema.Literals(["text", "output_text"]), text: Schema.String }));
+
+const AnthropicToolUse = blockDecoder(
+  Schema.Struct({
+    type: Schema.Literal("tool_use"),
+    id: Schema.String,
+    name: Schema.String,
+    input: Schema.optional(Schema.Json),
+  }),
+);
+
+const OpenaiFunctionCall = blockDecoder(
+  Schema.Struct({
+    type: Schema.Literal("function_call"),
+    call_id: Schema.String,
+    name: Schema.String,
+    arguments: Schema.optional(Schema.Json),
+  }),
+);
+
+const OpenaiMessage = blockDecoder(
+  Schema.Struct({ type: Schema.Literal("message"), content: Schema.Array(Schema.Json) }),
+);
 
 /** Claude Code model aliases: names the harness resolves, which the Messages API does not accept. */
 const HARNESS_ALIAS = /^(default|best|opus|sonnet|haiku|fable|opusplan)(\[1m\])?$/i;
@@ -44,8 +108,10 @@ export function apiModel(
 }
 
 /** Explicit function schemas only. No provider-hosted tools, CLI, shell, browser or local SDK. */
-export function directModel(resolve: (input: ModelInput) => Promise<Endpoint>): BotModel {
-  return async (input): Promise<ModelReply> => {
+export function directModel(
+  resolve: (input: ModelInput) => Promise<Endpoint>,
+): (input: ModelInput) => Promise<DecodedReply> {
+  return async (input): Promise<DecodedReply> => {
     const endpoint = await resolve(input);
     const base = endpoint.url.replace(/\/+$/, "").replace(/\/v1$/, "");
     const claude = input.configuration.provider === Provider.CLAUDE;
@@ -66,10 +132,10 @@ export function directModel(resolve: (input: ModelInput) => Promise<Endpoint>): 
       signal: input.signal,
       redirect: "error",
       body: JSON.stringify(claude ? anthropicRequest(input) : grok ? grokRequest(input) : openaiRequest(input)),
-    }).catch((error: unknown) => {
+    }).catch((cause: unknown) => {
       // A connection that never reached the provider (DNS, refused, timeout): say so, without the URL.
-      if (input.signal?.aborted) throw error;
-      throw new Error("Model endpoint unreachable", { cause: error });
+      if (input.signal?.aborted) throw cause;
+      throw new Error("Model endpoint unreachable", { cause });
     });
 
     // Provider errors can echo credentials or input; persist only the status.
@@ -78,9 +144,13 @@ export function directModel(resolve: (input: ModelInput) => Promise<Endpoint>): 
       throw new Error(`Model endpoint returned HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as Record<string, unknown>;
+    const data = await response.json();
 
-    return claude ? anthropicReply(data) : grok ? grokReply(data) : openaiReply(data);
+    return claude
+      ? anthropicReply(complete(Schema.decodeUnknownOption(AnthropicResponse)(data)))
+      : grok
+        ? grokReply(complete(Schema.decodeUnknownOption(GrokResponse)(data)))
+        : openaiReply(complete(Schema.decodeUnknownOption(OpenaiResponse)(data)));
   };
 }
 
@@ -115,21 +185,10 @@ export function grokRequest(input: ModelInput) {
   };
 }
 
-function grokReply(data: Record<string, unknown>): ModelReply {
-  const choices = data["choices"] as
-    | {
-        finish_reason?: string;
-        message?: {
-          content?: string | null;
-          tool_calls?: { id: string; function: { name: string; arguments: string } }[];
-        };
-      }[]
-    | undefined;
+function grokReply(reply: typeof GrokResponse.Type): DecodedReply {
+  const choice = reply.choices?.[0];
 
-  const choice = choices?.[0];
-
-  if (!choice?.message || !["stop", "tool_calls"].includes(choice.finish_reason ?? ""))
-    throw new Error("Model returned an incomplete response");
+  if (!choice?.message || !["stop", "tool_calls"].includes(choice.finish_reason ?? "")) throw incomplete();
 
   return {
     text: choice.message.content ?? "",
@@ -198,40 +257,41 @@ export function openaiRequest(input: ModelInput) {
   };
 }
 
-function anthropicReply(data: Record<string, unknown>): ModelReply {
-  const content = data["content"];
-
-  if (!Array.isArray(content) || data["stop_reason"] === "max_tokens")
-    throw new Error("Model returned an incomplete response");
+function anthropicReply(reply: typeof AnthropicResponse.Type): DecodedReply {
+  if (reply.stop_reason === "max_tokens") throw incomplete();
   const calls: ToolCall[] = [];
   const text: string[] = [];
 
-  for (const block of content as Record<string, unknown>[]) {
-    if (block["type"] === "text" && typeof block["text"] === "string") text.push(block["text"]);
+  for (const content of reply.content) {
+    const textBlock = TextBlock(content);
+    const toolUse = AnthropicToolUse(content);
 
-    if (block["type"] === "tool_use" && typeof block["id"] === "string" && typeof block["name"] === "string")
-      calls.push({ id: block["id"], name: block["name"], arguments: argumentsOf(block["input"]) });
+    if (Option.isSome(textBlock) && textBlock.value.type === "text") text.push(textBlock.value.text);
+
+    if (Option.isSome(toolUse))
+      calls.push({ id: toolUse.value.id, name: toolUse.value.name, arguments: argumentsOf(toolUse.value.input) });
   }
 
   return { text: text.join("\n"), calls };
 }
 
-function openaiReply(data: Record<string, unknown>): ModelReply {
-  const output = data["output"];
-
-  if (!Array.isArray(output) || (data["status"] && data["status"] !== "completed"))
-    throw new Error("Model returned an incomplete response");
+function openaiReply(reply: typeof OpenaiResponse.Type): DecodedReply {
+  if (reply.status && reply.status !== "completed") throw incomplete();
   const calls: ToolCall[] = [];
   const text: string[] = [];
 
-  for (const block of output as Record<string, unknown>[]) {
-    if (block["type"] === "function_call" && typeof block["call_id"] === "string" && typeof block["name"] === "string")
-      calls.push({ id: block["call_id"], name: block["name"], arguments: argumentsOf(block["arguments"]) });
+  for (const output of reply.output) {
+    const call = OpenaiFunctionCall(output);
+    const message = OpenaiMessage(output);
 
-    if (block["type"] === "message" && Array.isArray(block["content"]))
-      for (const part of block["content"] as Record<string, unknown>[]) {
-        if (part["type"] === "output_text" && typeof part["text"] === "string") text.push(part["text"]);
-      }
+    if (Option.isSome(call))
+      calls.push({ id: call.value.call_id, name: call.value.name, arguments: argumentsOf(call.value.arguments) });
+
+    for (const part of Option.isSome(message) ? message.value.content : []) {
+      const textBlock = TextBlock(part);
+
+      if (Option.isSome(textBlock) && textBlock.value.type === "output_text") text.push(textBlock.value.text);
+    }
   }
 
   return { text: text.join("\n"), calls };

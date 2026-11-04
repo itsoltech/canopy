@@ -1,12 +1,14 @@
 import { create } from "@bufbuild/protobuf";
 import { ItemSchema, ui } from "@canopy/contracts";
-import { decodeUserAnswers, type UserAnswer, type UserQuestion } from "@canopy/domain";
-import { Result } from "effect";
-import { GatewayStore, Invalid, NotFound } from "../../store/store.ts";
+import { decodeUserAnswers, type JsonObject, type JsonValue, type UserAnswer, type UserQuestion } from "@canopy/domain";
+import { Match, Result } from "effect";
+import { Invalid, NotFound } from "../../store/store.ts";
+import { isJsonArray, isJsonObject } from "../json.ts";
 import {
   define,
   bool,
   json,
+  jsonObject,
   label,
   object,
   permission,
@@ -21,12 +23,12 @@ async function snapshot(c: ToolContext) {
   return c.core.linkedAgents.snapshot(c.string("thread_id"));
 }
 
-const threadPhrase = (verb: string) => (a: Record<string, unknown>) => `${verb} ${label(a["thread_name"], "a thread")}`;
+const threadPhrase = (verb: string) => (a: JsonObject) => `${verb} ${label(a["thread_name"], "a thread")}`;
 
 /** Pending interactions with their request parsed, and for questions the exact answer shape. */
 function interactionView(i: ui.Interaction) {
-  const { requestJson: _, ...rest } = json(ui.InteractionSchema, i) as Record<string, unknown>;
-  let request: unknown = undefined;
+  const { requestJson: _, ...rest } = jsonObject(ui.InteractionSchema, i);
+  let request: JsonValue | undefined = undefined;
 
   try {
     request = JSON.parse(i.requestJson);
@@ -44,11 +46,14 @@ function interactionView(i: ui.Interaction) {
   };
 }
 
-function questionsOf(i: ui.Interaction): UserQuestion[] | undefined {
+function questionsOf(i: ui.Interaction): readonly UserQuestion[] | undefined {
   try {
-    const questions = (JSON.parse(i.requestJson) as { questions?: unknown }).questions;
+    const request: JsonValue = JSON.parse(i.requestJson);
+    const questions = isJsonObject(request) ? request["questions"] : undefined;
 
-    return Array.isArray(questions) ? (questions as UserQuestion[]) : undefined;
+    // SAFETY: only the array is checked, as before: ask_user stores AskUser-decoded question sets and provider
+    // user-input requests use the same id/question/options fields; answerJson re-validates every answer against them.
+    return isJsonArray(questions) ? (questions as readonly UserQuestion[]) : undefined;
   } catch {
     return undefined;
   }
@@ -60,16 +65,22 @@ const answerSchema = object(
 );
 
 /** The structured answer the UI would send, validated against the question set before any approval card. */
-function answerJson(c: ToolContext, questions: readonly UserQuestion[]): string {
-  const answers = (c.args["answers"] as Record<string, unknown>[] | undefined) ?? [];
+/** The answers as sent to the interaction and as decoded against its questions. */
+interface CheckedAnswers {
+  json: string;
+  answers: readonly UserAnswer[];
+}
+
+function answerJson(c: ToolContext, questions: readonly UserQuestion[]): CheckedAnswers {
+  const answers = c.args["answers"];
 
   const value = JSON.stringify({
-    answers: answers.map((a) =>
-      a["kind"] === "choice"
-        ? { id: a["id"], kind: "choice", labels: a["labels"] ?? [] }
-        : a["kind"] === "text"
-          ? { id: a["id"], kind: "text", text: a["text"] ?? "" }
-          : { id: a["id"], kind: "skipped" },
+    answers: (isJsonArray(answers) ? answers.filter(isJsonObject) : []).map((a) =>
+      Match.value(a["kind"]).pipe(
+        Match.when("choice", () => ({ id: a["id"], kind: "choice", labels: a["labels"] ?? [] })),
+        Match.when("text", () => ({ id: a["id"], kind: "text", text: a["text"] ?? "" })),
+        Match.orElse(() => ({ id: a["id"], kind: "skipped" })),
+      ),
     ),
   });
 
@@ -86,7 +97,7 @@ function answerJson(c: ToolContext, questions: readonly UserQuestion[]): string 
     throw new Invalid(`answers rejected: ${decoded.failure}. Expected one entry per question: ${expected}`);
   }
 
-  return value;
+  return { json: value, answers: decoded.success };
 }
 
 async function pendingInteraction(c: ToolContext) {
@@ -130,7 +141,7 @@ const answerInteraction: PlatformTool = {
               allow: c.args["allow"] === true,
               allowForSession: c.args["allow_for_session"] === true,
               message: c.optional("message"),
-              answerJson: questions && !cancelled ? answerJson(c, questions) : "",
+              answerJson: questions && !cancelled ? answerJson(c, questions).json : "",
               cancelled,
             }),
             c.turn.bot_id,
@@ -149,15 +160,21 @@ const answerInteraction: PlatformTool = {
       return { prompt: `${head}\nDismiss the ${questions ? "questions" : "request"} without answering` };
 
     if (questions) {
-      const answers = JSON.parse(answerJson(c, questions)) as { answers: UserAnswer[] };
+      const { answers } = answerJson(c, questions);
 
       return {
         prompt: [
           head,
           ...questions.map((q) => {
-            const a = answers.answers.find((x) => x.id === q.id)!;
+            const a = answers.find((x) => x.id === q.id)!;
 
-            return `${q.question}\nAnswer: ${a.kind === "choice" ? a.labels.join(", ") : a.kind === "text" ? a.text : "Skipped"}`;
+            const answer = Match.value(a).pipe(
+              Match.when({ kind: "choice" }, (choice) => choice.labels.join(", ")),
+              Match.when({ kind: "text" }, (text) => text.text),
+              Match.orElse(() => "Skipped"),
+            );
+
+            return `${q.question}\nAnswer: ${answer}`;
           }),
         ].join("\n\n"),
       };
@@ -189,9 +206,9 @@ export const threadTools = [
       limit: { type: "integer", minimum: 1 },
     }),
     "Checking threads",
-    async ({ core, optional, args }) => {
+    async ({ core, optional, list, args }) => {
       const query = optional("query").toLocaleLowerCase();
-      const statuses = args["statuses"] as string[] | undefined;
+      const statuses = list("statuses");
 
       return (await core.listThreads(optional("project_id"), args["include_archived"] === true))
         .filter(
@@ -308,7 +325,7 @@ export const threadTools = [
       ["thread_id", "action"],
     ),
     threadPhrase("Updating the goal in"),
-    ({ core, string, optional, args, action }) =>
+    ({ core, string, optional, integer, action }) =>
       action(async () =>
         json(
           ui.GoalSchema,
@@ -317,7 +334,7 @@ export const threadTools = [
               threadId: string("thread_id"),
               action: string("action"),
               objective: optional("objective"),
-              tokenBudget: BigInt((args["token_budget"] as number) ?? 0),
+              tokenBudget: BigInt(integer("token_budget") ?? 0),
             }),
           ),
         ),
@@ -363,7 +380,7 @@ export const threadTools = [
     async (c) => ({
       tasks: (await snapshot(c)).items
         .filter((i) => i.item?.content.case === "backgroundTask")
-        .map((i) => ({ item_id: i.item!.itemId, ...(json(ItemSchema, i.item!) as object) })),
+        .map((i) => ({ item_id: i.item!.itemId, ...jsonObject(ItemSchema, i.item!) })),
     }),
     "read",
   ),

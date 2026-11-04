@@ -24,6 +24,7 @@ import {
   type StoredEnvVar,
   type StoredOverrides,
   type StoredRuntime,
+  storedProvider,
 } from "./instance-config.ts";
 import { encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { Invalid, NotFound } from "./store.ts";
@@ -64,7 +65,8 @@ interface WorkerRow {
 
 interface ConfigRow {
   worker_id: string;
-  config: { version?: string; profiles?: unknown[]; [key: string]: unknown };
+  /** jsonb: WorkerConfig in protobuf JSON form (see worker-config-json.ts). */
+  config: { version?: string; profiles?: JsonValue[]; [key: string]: JsonValue | undefined };
   version: bigint | number;
 }
 
@@ -587,7 +589,7 @@ export class InstanceStore extends Context.Service<
 
                 const scheduled =
                   yield* sql`SELECT 1 FROM schedules WHERE target = 'new_thread' AND status IN ('active', 'paused')
-                  AND new_thread->>'provider' = ${harness === "claude" ? "PROVIDER_CLAUDE" : harness === "grok" ? "PROVIDER_GROK" : "PROVIDER_CODEX"}
+                  AND new_thread->>'provider' = ${storedProvider(harness)}
                   AND coalesce(nullif(new_thread->>'providerProfileId', ''), 'native') = ${row.id} LIMIT 1`;
 
                 if (scheduled.length)

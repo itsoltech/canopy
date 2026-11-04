@@ -13,8 +13,8 @@ import {
 } from "@canopy/contracts";
 import { ConnectorFailure, connectorStore } from "../connectors/store.ts";
 import { connectorType } from "../connectors/catalog.ts";
-import { checkMentions, mentionPlaceholder } from "@canopy/domain";
-import { Context, Effect, Layer } from "effect";
+import { checkMentions, mentionPlaceholder, type JsonObject } from "@canopy/domain";
+import { Context, Effect, Layer, Predicate } from "effect";
 import { SqlClient } from "effect/sql";
 import { decryptSecret } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
@@ -27,7 +27,15 @@ import { nextHop } from "./policy.ts";
 import { proposedBot } from "./creation.ts";
 import { originOf, routineStore, type RoutineOrigin } from "./routines.ts";
 import { handoffStore } from "./handoffs.ts";
-import type { BotRow, BotTurn, McpConnection, ModelMessage, StoredCall, ToolSpec } from "./types.ts";
+import type { BotRow, BotTurn, McpConnection, ModelMessage, StoredCall, ToolResult, ToolSpec } from "./types.ts";
+
+export interface WakeupRow {
+  id: string;
+  prompt: string;
+  run_at: Date;
+  cancelled: boolean;
+  delivered: boolean;
+}
 
 interface MessageRow {
   id: string;
@@ -60,7 +68,7 @@ interface ApprovalRow {
   routine_title?: string;
 }
 
-export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration as JsonValue);
+export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration);
 
 export const botView = (row: BotRow) =>
   create(bots.BotSchema, {
@@ -124,10 +132,10 @@ const approvalView = (row: ApprovalRow) =>
 const uuid = () => Bun.randomUUIDv7();
 export const MAX_BOTS_PER_USER = 50;
 
-export function requiredString(args: Record<string, unknown>, key: string, max = 100_000): string {
+export function requiredString(args: JsonObject, key: string, max = 100_000): string {
   const value = args[key];
 
-  if (typeof value !== "string" || !value.trim() || value.length > max)
+  if (!Predicate.isString(value) || !value.trim() || value.length > max)
     throw new Invalid(`${key} is required (at most ${max} characters)`);
 
   return value.trim();
@@ -171,7 +179,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         row.archived_at
           ? Effect.fail(new Invalid("this bot is archived; unarchive it first"))
           : // Frozen for a move to another computer (docs/linked-computers.md, stage 8): nothing new starts here.
-            (row as { moved_to?: string | null }).moved_to
+            row.moved_to
             ? Effect.fail(new Invalid("this bot is moving to another computer"))
             : Effect.succeed(row),
       ),
@@ -254,6 +262,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       if (
         !config.name.trim() ||
         config.name.length > 80 ||
+        // oxlint-disable-next-line no-control-regex -- a bot name is one line of visible text
         /[\x00-\x1f\x7f]/.test(config.name) ||
         ![
           "round",
@@ -474,7 +483,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
 
         const quotes = yield* Effect.try({
           try: () => checkedQuotes(options.quotes ?? [], (message) => new Invalid(message)),
-          catch: (error) => error as Invalid,
+          catch: (cause) => (cause instanceof Invalid ? cause : new Invalid(String(cause))),
         });
 
         if (!input.trim() && quotes.length === 0) return yield* Effect.fail(new Invalid("text or quotes are required"));
@@ -746,11 +755,12 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         } as const;
 
         const allowed = [...Object.keys(fields), "provider", "append_instructions"];
+        const given = new Map<string, string>();
 
-        if (
-          !Object.keys(args).length ||
-          Object.keys(args).some((k) => !allowed.includes(k) || typeof args[k] !== "string")
-        )
+        for (const [key, value] of Object.entries(args))
+          if (allowed.includes(key) && Predicate.isString(value)) given.set(key, value);
+
+        if (!given.size || given.size !== Object.keys(args).length)
           return yield* Effect.fail(new Invalid("update_self accepts only your own supported setting fields"));
 
         if (Object.hasOwn(args, "instructions") && Object.hasOwn(args, "append_instructions"))
@@ -770,34 +780,39 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         const before = botConfiguration(row);
         const next = create(bots.BotConfigurationSchema, { ...before });
 
-        for (const [arg, field] of Object.entries(fields))
-          if (Object.hasOwn(args, arg)) next[field as (typeof fields)[keyof typeof fields]] = args[arg] as string;
+        for (const [arg, field] of Object.entries(fields)) {
+          const value = given.get(arg);
 
-        if (Object.hasOwn(args, "provider")) {
-          if (!["claude", "codex", "grok"].includes(args["provider"] as string))
-            return yield* Effect.fail(new Invalid("unknown provider"));
-          next.provider = providerOf(args["provider"] as string);
+          if (value !== undefined) next[field] = value;
         }
 
-        if (Object.hasOwn(args, "append_instructions"))
-          next.instructions = [before.instructions, args["append_instructions"]].filter(Boolean).join("\n");
+        const provider = given.get("provider");
+        const appended = given.get("append_instructions");
+
+        if (provider !== undefined) {
+          if (!["claude", "codex", "grok"].includes(provider))
+            return yield* Effect.fail(new Invalid("unknown provider"));
+          next.provider = providerOf(provider);
+        }
+
+        if (appended !== undefined) next.instructions = [before.instructions, appended].filter(Boolean).join("\n");
         const saved = (yield* save(user, next, { id: turn.bot_id })).configuration!;
 
-        const labels: Record<string, string> = {
-          name: "name",
-          shape: "shape",
-          color: "colour",
-          instructions: "instructions",
-          model: "model",
-          effort: "reasoning effort",
-          providerInstance: "provider instance",
-          approvalPolicy: "approval policy",
-          provider: "provider",
-        };
+        const labels = [
+          ["name", "name"],
+          ["shape", "shape"],
+          ["color", "colour"],
+          ["instructions", "instructions"],
+          ["model", "model"],
+          ["effort", "reasoning effort"],
+          ["providerInstance", "provider instance"],
+          ["approvalPolicy", "approval policy"],
+          ["provider", "provider"],
+        ] as const satisfies readonly (readonly [keyof bots.BotConfiguration, string])[];
 
-        const changes = Object.entries(labels).flatMap(([field, label]) => {
-          const previous = String(before[field as keyof typeof before] ?? "");
-          const after = String(saved[field as keyof typeof saved] ?? "");
+        const changes = labels.flatMap(([field, label]) => {
+          const previous = String(before[field] ?? "");
+          const after = String(saved[field] ?? "");
 
           return previous === after ? [] : [{ field: label, before: previous, after }];
         });
@@ -982,7 +997,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
           yield* sql`UPDATE bot_turns SET checkpoint = ${JSON.stringify(messages)}::jsonb WHERE id = ${turn.id}::uuid`;
         }),
       ),
-    planCall: (turn: BotTurn, callKey: string, tool: ToolSpec, args: Record<string, unknown>) =>
+    planCall: (turn: BotTurn, callKey: string, tool: ToolSpec, args: JsonObject) =>
       sql.withTransaction(
         Effect.gen(function* () {
           yield* fenced(turn);
@@ -1004,7 +1019,12 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
           const saved =
             (yield* sql<StoredCall>`SELECT * FROM bot_tool_calls WHERE id = ${call.id}::uuid FOR UPDATE`)[0]!;
 
-          if (saved.status === "completed" || saved.status === "interrupted") return saved.result as A;
+          if (saved.status === "completed" || saved.status === "interrupted") {
+            // SAFETY: a completed call stores this same action's earlier result (in its JSON form); a replay returns
+            // it instead of running the action twice.
+            return saved.result as A;
+          }
+
           const result = yield* effect;
           yield* sql`UPDATE bot_tool_calls SET status = 'completed', result = ${JSON.stringify(result ?? null)}::jsonb WHERE id = ${call.id}::uuid`;
 
@@ -1018,7 +1038,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
           yield* sql`UPDATE bot_tool_calls SET status = 'running', linked_remote = ${linked} WHERE id = ${call.id}::uuid AND status = 'pending'`;
         }),
       ),
-    remoteResult: (turn: BotTurn, call: StoredCall, result: unknown) =>
+    remoteResult: (turn: BotTurn, call: StoredCall, result: ToolResult) =>
       sql.withTransaction(
         Effect.gen(function* () {
           yield* fenced(turn);
@@ -1241,7 +1261,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         return { schedule_id: call.id };
       }),
     wakeups: (botId: string) =>
-      sql`SELECT id, prompt, run_at, cancelled, delivered FROM bot_wakeups WHERE bot_id = ${botId}::uuid ORDER BY run_at`,
+      sql<WakeupRow>`SELECT id, prompt, run_at, cancelled, delivered FROM bot_wakeups WHERE bot_id = ${botId}::uuid ORDER BY run_at`,
     cancelReminder: (user: string, botId: string, id: string) =>
       sql.withTransaction(
         Effect.gen(function* () {

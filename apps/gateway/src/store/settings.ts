@@ -21,7 +21,8 @@ export class SettingsConflict extends Error {
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | SettingsConflict>;
 
 interface Row {
-  settings: JsonValue;
+  /** jsonb written only by this store. */
+  settings: Stored;
   version: bigint | number;
   updated_at: Date;
 }
@@ -93,7 +94,7 @@ export class SettingsStore extends Context.Service<
           : create(ui.ComposerSettingsSchema, {});
 
       const toUser = (row: Row | undefined) => {
-        const stored = (row?.settings ?? {}) as Stored;
+        const stored = row?.settings ?? {};
 
         return create(ui.UserSettingsSchema, {
           workerGatewayUrl: stored.workerGatewayUrl ?? "",
@@ -116,7 +117,7 @@ export class SettingsStore extends Context.Service<
       const toProject = (projectId: string, row: Row | undefined) =>
         create(ui.ProjectSettingsSchema, {
           projectId,
-          threadDefaults: threadDefaults((row?.settings ?? {}) as Stored),
+          threadDefaults: threadDefaults(row?.settings ?? {}),
           version: BigInt(row?.version ?? 0),
           ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
         });
@@ -179,7 +180,7 @@ export class SettingsStore extends Context.Service<
               const current =
                 (yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid FOR UPDATE`)[0];
 
-              const stored = (current?.settings ?? {}) as Stored;
+              const stored = current?.settings ?? {};
 
               const next: Stored = {
                 ...stored,
@@ -220,7 +221,7 @@ export class SettingsStore extends Context.Service<
               const current =
                 (yield* sql<Row>`SELECT settings, version, updated_at FROM project_settings WHERE project_id = ${projectId}::uuid FOR UPDATE`)[0];
 
-              const stored = (current?.settings ?? {}) as Stored;
+              const stored = current?.settings ?? {};
 
               const next: Stored = {
                 ...stored,

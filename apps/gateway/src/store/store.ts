@@ -3,6 +3,7 @@ import {
   create,
   fromBinary,
   fromJson,
+  fromJsonString,
   toBinary,
   toJson,
   type JsonValue,
@@ -29,8 +30,9 @@ import {
   type ThreadSpec,
   type WorkerConfig,
 } from "@canopy/contracts";
-import { Context, Effect, Layer, Result } from "effect";
-import { decodeUserAnswers, type UserQuestion } from "@canopy/domain";
+import { Context, Effect, Layer, Match, Option, Predicate, Result, Schema } from "effect";
+import { decodeUserAnswers } from "@canopy/domain";
+import { storedQuestions } from "./questions.ts";
 import { writeInteractionTimeline } from "./interaction-timeline.ts";
 import { SqlClient, type SqlError } from "effect/sql";
 import {
@@ -48,6 +50,7 @@ import { toUiQuote, type StoredQuote } from "./quotes.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 import { threadLifecycle, type ThreadLifecycle } from "./thread-lifecycle.ts";
 import { archivedPage } from "./archived-pagination.ts";
+import { storedWorkerConfig, type StoredProfile, type StoredWorkerConfig } from "./worker-config-json.ts";
 import { threadSecretsStore, type ThreadSecretsStore } from "./thread-secrets.ts";
 import { harnessOf, providerOf } from "./instance-config.ts";
 import { connectorStore } from "../connectors/store.ts";
@@ -546,9 +549,9 @@ export class GatewayStore extends Context.Service<
 
                 const version = (rows[0] ? BigInt(rows[0].version) : 0n) + 1n;
 
-                const document = toJson(WorkerConfigSchema, create(WorkerConfigSchema, { ...config, version })) as {
-                  profiles?: { id?: string; apiKey?: unknown; env?: { secret?: boolean; value?: unknown }[] }[];
-                };
+                const document = Option.getOrThrow(
+                  storedWorkerConfig(toJson(WorkerConfigSchema, create(WorkerConfigSchema, { ...config, version }))),
+                );
 
                 for (const profile of document.profiles ?? []) {
                   if (profile.apiKey)
@@ -559,13 +562,20 @@ export class GatewayStore extends Context.Service<
                     return yield* Effect.fail(
                       new Invalid(`profile ${profile.id}: secret variables go through the profile settings`),
                     );
-                  const ref = profile.id ? secretRefs[profile.id] : undefined;
-
-                  if (ref) profile.apiKey = { secretRef: ref };
                 }
 
+                const stored: StoredWorkerConfig = document.profiles
+                  ? Object.assign({}, document, {
+                      profiles: document.profiles.map((profile) => {
+                        const ref = profile.id ? secretRefs[profile.id] : undefined;
+
+                        return ref ? Object.assign({}, profile, { apiKey: { secretRef: ref } }) : profile;
+                      }),
+                    })
+                  : document;
+
                 yield* sql`
-                  INSERT INTO worker_configs (worker_id, version, config, updated_by) VALUES (${workerId}::uuid, ${version}, ${JSON.stringify(document)}::jsonb, ${updatedBy}::uuid)
+                  INSERT INTO worker_configs (worker_id, version, config, updated_by) VALUES (${workerId}::uuid, ${version}, ${JSON.stringify(stored)}::jsonb, ${updatedBy}::uuid)
                   ON CONFLICT (worker_id) DO UPDATE SET version = EXCLUDED.version, config = EXCLUDED.config, updated_by = EXCLUDED.updated_by, updated_at = now()`;
                 yield* sql`DELETE FROM worker_config_secrets WHERE worker_id = ${workerId}::uuid`;
 
@@ -591,18 +601,18 @@ export class GatewayStore extends Context.Service<
           workerConfig: (workerId) =>
             Effect.gen(function* () {
               const rows = yield* sql<{
-                config: { profiles?: { apiKey?: unknown; env?: { value?: unknown }[] }[] } & Record<string, unknown>;
+                config: JsonValue | null;
               }>`
                 SELECT config FROM worker_configs WHERE worker_id = ${workerId}::uuid`;
 
-              const config = rows[0]?.config;
+              const config = rows[0]?.config ? Option.getOrThrow(storedWorkerConfig(rows[0].config)) : undefined;
 
               if (!config) return undefined;
 
               // Resolve {"secretRef": id} placeholders right before sending; plaintext never touches the table.
-              const resolve = (value: unknown) =>
+              const resolve = (value: Schema.Json) =>
                 Effect.gen(function* () {
-                  const ref = (value as { secretRef?: string } | undefined)?.secretRef;
+                  const ref = Predicate.hasProperty(value, "secretRef") ? value.secretRef : undefined;
 
                   if (!ref) return value;
 
@@ -613,13 +623,32 @@ export class GatewayStore extends Context.Service<
                   return secret[0] ? decryptSecret(secretsKey, secret[0].ciphertext) : "";
                 });
 
-              for (const profile of config.profiles ?? []) {
-                if (profile.apiKey) profile.apiKey = yield* resolve(profile.apiKey);
+              const profiles: StoredProfile[] = [];
 
-                for (const variable of profile.env ?? []) variable.value = yield* resolve(variable.value);
+              for (const profile of config.profiles ?? []) {
+                const env: NonNullable<StoredProfile["env"]>[number][] = [];
+
+                for (const variable of profile.env ?? [])
+                  env.push(
+                    variable.value === undefined
+                      ? variable
+                      : Object.assign({}, variable, { value: yield* resolve(variable.value) }),
+                  );
+
+                profiles.push(
+                  Object.assign(
+                    {},
+                    profile,
+                    profile.apiKey ? { apiKey: yield* resolve(profile.apiKey) } : {},
+                    profile.env ? { env } : {},
+                  ),
+                );
               }
 
-              return fromJson(WorkerConfigSchema, config as JsonValue);
+              return fromJsonString(
+                WorkerConfigSchema,
+                JSON.stringify(config.profiles ? Object.assign({}, config, { profiles }) : config),
+              );
             }),
 
           configApplied: (workerId, report) =>
@@ -655,7 +684,7 @@ export class GatewayStore extends Context.Service<
                   ? fromJson(ConfigAppliedSchema, r.apply_report, { ignoreUnknownFields: true })
                   : undefined;
 
-                const config = r.config as { profiles?: { id?: string; displayName?: string }[] } | null;
+                const config = r.config ? Option.getOrUndefined(storedWorkerConfig(r.config)) : undefined;
 
                 // Names the user gave: the configuration knows them before the worker reports (older workers never do).
                 for (const profile of report?.profiles ?? []) {
@@ -1023,7 +1052,7 @@ export class GatewayStore extends Context.Service<
             Effect.gen(function* () {
               const page = yield* Effect.try({
                 try: () => archivedPage(ownerUserId, request),
-                catch: (cause) => new Invalid((cause as Error).message),
+                catch: (cause) => new Invalid(cause instanceof Error ? cause.message : String(cause)),
               });
 
               const where = `WHERE t.owner_user_id = $1::uuid AND t.deleted_at IS NULL AND t.archived_at IS NOT NULL
@@ -1350,10 +1379,8 @@ export class GatewayStore extends Context.Service<
 
           enqueueCommand: ({ workerId, threadId, turnId, command, ttlSeconds }) =>
             Effect.gen(function* () {
-              const message = create(CommandSchema, {
-                ...command,
-                commandId: command.commandId || Bun.randomUUIDv7(),
-              } as MessageInitShape<typeof CommandSchema>);
+              const message = create(CommandSchema, { ...command });
+              message.commandId ||= Bun.randomUUIDv7();
 
               yield* sql`
                 INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at)
@@ -1422,10 +1449,7 @@ export class GatewayStore extends Context.Service<
                   return yield* Effect.fail(new Invalid(`interaction is already ${current.status}`));
 
                 if (current.question_call_id && !answer.cancelled) {
-                  const decoded = decodeUserAnswers(
-                    answer.answerJson,
-                    (current.request as unknown as { questions: UserQuestion[] }).questions,
-                  );
+                  const decoded = decodeUserAnswers(answer.answerJson, storedQuestions(current.request));
 
                   if (Result.isFailure(decoded)) return yield* Effect.fail(new Invalid(decoded.failure));
                 }
@@ -1484,7 +1508,7 @@ export class GatewayStore extends Context.Service<
 
                 return {
                   threadId: row.thread_id,
-                  answer: create(ui.AnswerInteractionRequestSchema, { requestId, ...(row.response as object) }),
+                  answer: create(ui.AnswerInteractionRequestSchema, { requestId, ...row.response }),
                 };
               }),
             ),
@@ -1493,6 +1517,15 @@ export class GatewayStore extends Context.Service<
         return GatewayStore.of(store);
       }),
     );
+}
+
+/** jsonb written when an interaction is answered (`answerInteraction`). */
+export interface InteractionResponse {
+  allow?: boolean;
+  allowForSession?: boolean;
+  message?: string;
+  answerJson?: string;
+  cancelled?: boolean;
 }
 
 export interface InteractionRow {
@@ -1505,7 +1538,7 @@ export interface InteractionRow {
   request: JsonValue;
   status: string;
   routed_to: string;
-  response: JsonValue | null;
+  response: InteractionResponse | null;
   created_at: Date;
   answered_by?: string | null;
   answered_by_thread_id?: string | null;
@@ -1522,12 +1555,11 @@ export function toInteraction(row: InteractionRow): ui.Interaction {
     threadId: row.thread_id,
     turnId: row.turn_id ?? "",
     itemId: row.item_id ?? "",
-    kind:
-      row.kind === "permission"
-        ? InteractionKind.PERMISSION
-        : row.kind === "question"
-          ? InteractionKind.QUESTION
-          : InteractionKind.ELICITATION,
+    kind: Match.value(row.kind).pipe(
+      Match.when("permission", () => InteractionKind.PERMISSION),
+      Match.when("question", () => InteractionKind.QUESTION),
+      Match.orElse(() => InteractionKind.ELICITATION),
+    ),
     toolName: row.tool_name,
     requestJson: JSON.stringify(row.request),
     status: row.status,
@@ -1546,8 +1578,12 @@ function interactionKind(kind: InteractionKind): string {
 }
 
 /** A stored mode (PermissionMode enum name, as in threads.settings); '' or unknown = UNSPECIFIED. */
+const permissionModes = new Map(
+  Object.entries(PermissionMode).flatMap(([name, mode]) => (Predicate.isNumber(mode) ? [[name, mode] as const] : [])),
+);
+
 export function permissionModeOf(name: string | undefined): PermissionMode {
-  const mode = PermissionMode[(name ?? "") as keyof typeof PermissionMode];
+  const mode = permissionModes.get(name ?? "");
 
   return mode === undefined || mode === PermissionMode.UNSPECIFIED ? PermissionMode.UNSPECIFIED : mode;
 }

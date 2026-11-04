@@ -1,30 +1,29 @@
 import type { JsonValue } from "@bufbuild/protobuf";
+import { Predicate } from "effect";
+import { isJsonArray, isJsonObject } from "../bots/json.ts";
 
 export const finishedTurn = (status: string): boolean =>
   ["completed", "interrupted", "failed", "cancelled"].includes(status);
 
 /** Only explicit result reads consume reports. Listing threads and unfinished/partial reads do not. */
 export function observedSummaryTurns(tool: string, result: JsonValue | undefined): string[] {
-  const object = (value: JsonValue | undefined) =>
-    value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
-
+  const object = (value: JsonValue | undefined) => (isJsonObject(value) ? value : undefined);
   const root = object(result);
+  const threads = root?.["threads"];
 
   const summaries =
-    tool === "get_thread"
-      ? [root]
-      : tool === "wait_threads" && Array.isArray(root?.["threads"])
-        ? root["threads"].map(object)
-        : [];
+    tool === "get_thread" ? [root] : tool === "wait_threads" && isJsonArray(threads) ? threads.map(object) : [];
 
   return summaries.flatMap((summary) => {
     const turn = object(summary?.["last_turn"]);
+    const turnId = turn?.["turn_id"];
+    const status = turn?.["status"];
 
-    return typeof summary?.["last_message"] === "string" &&
-      typeof turn?.["turn_id"] === "string" &&
-      typeof turn["status"] === "string" &&
-      finishedTurn(turn["status"])
-      ? [turn["turn_id"]]
+    return Predicate.isString(summary?.["last_message"]) &&
+      Predicate.isString(turnId) &&
+      Predicate.isString(status) &&
+      finishedTurn(status)
+      ? [turnId]
       : [];
   });
 }

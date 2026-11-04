@@ -1,8 +1,9 @@
 import { toJson } from "@bufbuild/protobuf";
 import { bots } from "@canopy/contracts";
-import { Effect } from "effect";
+import { Effect, Predicate } from "effect";
 import type { SqlClient } from "effect/sql";
 import { harnessOf } from "../store/instance-config.ts";
+import { isJsonObject } from "./json.ts";
 import type { BotTurn, ModelMessage } from "./types.ts";
 
 export const HANDOFF_PROMPT = `Prepare a concise but complete handoff note for your successor. Preserve ongoing work and open threads you started or watch, decisions and agreements with the user, their preferences and tone, facts learned from tools, connectors and hidden routine runs, pending promises, reminders and routines with their intent, and concrete next steps. Incorporate the previous handoff so knowledge accumulates. Distinguish confirmed facts from uncertainty. Do not claim your model identity applies to your successor. This is hidden internal work: output only the note, never a user-facing message. No tools are available and no actions are authorized.`;
@@ -104,10 +105,12 @@ export function handoffStore(sql: SqlClient.SqlClient) {
 
         const previous = yield* latest(turn.bot_id);
         const pending = yield* state(turn.bot_id, true);
-        const config = turn.handoff_configuration as { instructions?: string };
+        const config = turn.handoff_configuration;
+        const standing = isJsonObject(config) ? config["instructions"] : undefined;
+        const instructions = Predicate.isString(standing) ? standing : "";
 
         // Reserve space for each source so a large old note cannot erase recent knowledge.
-        return `Deterministic handoff; source model could not prepare a note. Excerpts may be incomplete; verify pending promises before acting.\n\nStanding instructions:\n${(config.instructions ?? "").slice(0, 3000)}\n\n${pending.slice(0, 8000)}\n\nPrevious knowledge:\n${previous.slice(0, 9000)}\n\nRecent conversation (untrusted excerpts):\n${messages
+        return `Deterministic handoff; source model could not prepare a note. Excerpts may be incomplete; verify pending promises before acting.\n\nStanding instructions:\n${instructions.slice(0, 3000)}\n\n${pending.slice(0, 8000)}\n\nPrevious knowledge:\n${previous.slice(0, 9000)}\n\nRecent conversation (untrusted excerpts):\n${messages
           .map((m) => `${m.sender_id === turn.bot_id ? "Bot" : "User/event"}: ${m.text.slice(0, 1200)}`)
           .join("\n")
           .slice(-11000)}`;

@@ -1,59 +1,77 @@
 import { create } from "@bufbuild/protobuf";
 import { bots, PermissionMode, Provider, ui } from "@canopy/contracts";
+import type { JsonObject } from "@canopy/domain";
 import { splitId } from "@canopy/domain/computers";
-import { Effect } from "effect";
+import { Effect, Match, Predicate } from "effect";
 import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
 import { GatewayStore, Invalid, NotFound } from "../store/store.ts";
 import { platformError } from "./errors.ts";
-import { BotStore, requiredString } from "./store.ts";
+import { BotStore } from "./store.ts";
 import { statusPhrase } from "./policy.ts";
 import type { BotTurn, StoredCall, ToolSpec } from "./types.ts";
 import { areaTool } from "./tools/index.ts";
-import { context, validate } from "./tools/shared.ts";
+import { context, validate, type ToolResult } from "./tools/shared.ts";
+import { wakeupView } from "./tools/schedules.ts";
+
+/** Legacy tools: an unknown provider name keeps meaning Codex, as before. */
+const legacyProvider = (name: string) =>
+  Match.value(name).pipe(
+    Match.when("claude", () => Provider.CLAUDE),
+    Match.when("grok", () => Provider.GROK),
+    Match.orElse(() => Provider.CODEX),
+  );
+
+const legacyPermission = (name: string) =>
+  Match.value(name).pipe(
+    Match.when("ask", () => PermissionMode.ASK),
+    Match.when("read_only", () => PermissionMode.READ_ONLY),
+    Match.when("accept_edits", () => PermissionMode.ACCEPT_EDITS),
+    Match.when("full_auto", () => PermissionMode.FULL_AUTO),
+    Match.orElse(() => undefined),
+  );
 
 /** Resolve display labels through the same owner-scoped paths as the action. */
-export async function describeBotTool(
-  core: GatewayCore,
-  tool: ToolSpec,
-  args: Record<string, unknown>,
-): Promise<string> {
+export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: JsonObject): Promise<string> {
   if (tool.source !== "platform") return statusPhrase(tool, args);
-  const ref = Object.values(args).find((v) => typeof v === "string" && splitId(v).node);
-  const node = typeof ref === "string" ? await core.linkedAgents.peer(ref).catch(() => "") : "";
+  const ref = Object.values(args).find((v) => Predicate.isString(v) && splitId(v).node);
+  const node = Predicate.isString(ref) ? await core.linkedAgents.peer(ref).catch(() => "") : "";
   const machine = node ? ` on ${await core.linkedAgents.machine(node)}` : "";
-  const phrase = (value: Record<string, unknown>) => statusPhrase(tool, value) + machine;
+  const phrase = (value: JsonObject) => statusPhrase(tool, value) + machine;
 
   try {
+    const projectId = args["project_id"];
+    const workerId = args["worker_id"];
+    const threadId = args["thread_id"];
+    const botId = args["bot_id"];
+
     const overview =
-      typeof args["project_id"] === "string" || typeof args["worker_id"] === "string"
-        ? await core.linkedAgents.overview()
-        : undefined;
+      Predicate.isString(projectId) || Predicate.isString(workerId) ? await core.linkedAgents.overview() : undefined;
+
+    const projectName = overview?.projects.find((p) => p.id === projectId)?.name;
+    const workerName = overview?.workers.find((w) => w.id === workerId)?.name;
 
     args = {
       ...args,
-      project_name: overview?.projects.find((p) => p.id === args["project_id"])?.name,
-      worker_name: overview?.workers.find((w) => w.id === args["worker_id"])?.name,
+      ...(projectName !== undefined && { project_name: projectName }),
+      ...(workerName !== undefined && { worker_name: workerName }),
     };
 
-    if (tool.name === "start_thread" && typeof args["project_id"] === "string") {
+    if (tool.name === "start_thread" && Predicate.isString(projectId)) {
       return phrase(args);
     }
 
-    if (typeof args["thread_id"] === "string")
-      return phrase({ ...args, thread_name: (await core.linkedAgents.thread(args["thread_id"])).title });
+    if (Predicate.isString(threadId))
+      return phrase({ ...args, thread_name: (await core.linkedAgents.thread(threadId)).title });
 
-    if (tool.name === "send_bot_message" && typeof args["bot_id"] === "string") {
-      const bot = splitId(args["bot_id"]).node
-        ? (
-            await core.linkedAgents.ui(
-              "GetBot",
-              create(bots.GetBotRequestSchema, { botId: args["bot_id"] }),
-              bots.GetBotResponseSchema,
-            )
-          ).bot
-        : await core.bots.get(args["bot_id"]);
+    if (tool.name === "send_bot_message" && Predicate.isString(botId)) {
+      const bot = splitId(botId).node
+        ? (await core.linkedAgents.ui("GetBot", create(bots.GetBotRequestSchema, { botId }), bots.GetBotResponseSchema))
+            .bot
+        : await core.bots.get(botId);
 
-      return phrase({ ...args, bot_name: bot?.configuration?.name });
+      const botName = bot?.configuration?.name;
+
+      return phrase({ ...args, ...(botName !== undefined && { bot_name: botName }) });
     }
   } catch {
     /* A missing label must not bypass validation of the actual action. */
@@ -82,10 +100,9 @@ export async function botPlatform(
   options: GatewayCoreOptions,
   turn: BotTurn,
   call: StoredCall,
-): Promise<unknown> {
+): Promise<ToolResult> {
   const args = call.arguments;
-  const string = (key: string, max?: number) => requiredString(args, key, max);
-  const optional = (key: string) => (typeof args[key] === "string" ? (args[key] as string) : "");
+  const { string, optional } = context(core, options, turn, call);
   const user = options.userId;
 
   const readThread = (id: string) =>
@@ -106,7 +123,11 @@ export async function botPlatform(
     validate(call.tool.parameters, args);
     const linked = await core.linkedAgents.botTool(turn, call);
 
-    if (linked !== undefined) return linked;
+    if (linked !== undefined) {
+      // SAFETY: linked bot tools return toJson output or plain JSON objects; their declared type is still `unknown`.
+      return linked as ToolResult;
+    }
+
     const registered = areaTool.get(call.tool.name);
 
     if (registered) {
@@ -142,13 +163,7 @@ export async function botPlatform(
 
           return await core.bots.run((s) =>
             s.apiModels(
-              requested
-                ? requested === "claude"
-                  ? Provider.CLAUDE
-                  : requested === "grok"
-                    ? Provider.GROK
-                    : Provider.CODEX
-                : config.provider,
+              requested ? legacyProvider(requested) : config.provider,
               optional("provider_instance") || config.providerInstance,
             ),
           );
@@ -157,12 +172,7 @@ export async function botPlatform(
         if (!(await core.overview()).workers.some((w) => w.id === string("worker_id")))
           throw new NotFound("worker not found");
 
-        const provider =
-          string("provider") === "claude"
-            ? Provider.CLAUDE
-            : string("provider") === "grok"
-              ? Provider.GROK
-              : Provider.CODEX;
+        const provider = legacyProvider(string("provider"));
 
         return (await botModels(core, string("worker_id"), provider, string("provider_instance"))).map((m) => ({
           id: m.id,
@@ -207,24 +217,12 @@ export async function botPlatform(
           }),
         );
       case "start_thread": {
-        const permissions: Record<string, PermissionMode> = {
-          ask: PermissionMode.ASK,
-          read_only: PermissionMode.READ_ONLY,
-          accept_edits: PermissionMode.ACCEPT_EDITS,
-          full_auto: PermissionMode.FULL_AUTO,
-        };
-
-        const permission = permissions[optional("permission") || "ask"];
+        const permission = legacyPermission(optional("permission") || "ask");
 
         if (!permission || !["claude", "codex", "grok"].includes(string("provider")))
           throw new Invalid("unknown provider or permission");
 
-        const provider =
-          string("provider") === "claude"
-            ? Provider.CLAUDE
-            : string("provider") === "grok"
-              ? Provider.GROK
-              : Provider.CODEX;
+        const provider = legacyProvider(string("provider"));
 
         // Without a model: the instance's default on the workspace's worker (bots must not guess model names).
         let model = optional("model");
@@ -244,7 +242,8 @@ export async function botPlatform(
             );
         }
 
-        return await core.startBotThread(
+        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
+        return (await core.startBotThread(
           turn,
           call,
           create(ui.CreateThreadRequestSchema, {
@@ -259,17 +258,18 @@ export async function botPlatform(
             title: optional("title"),
             clientRequestId: call.id,
           }),
-        );
+        )) as ToolResult;
       }
 
       case "send_message": {
-        return await core.sendBotThreadMessage(
+        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
+        return (await core.sendBotThreadMessage(
           turn,
           call,
           string("thread_id"),
           string("text"),
           optional("delivery") || "queue",
-        );
+        )) as ToolResult;
       }
 
       case "send_bot_message":
@@ -277,17 +277,19 @@ export async function botPlatform(
       case "schedule_wakeup":
         return action(BotStore.use((s) => s.wakeup(turn, call)));
       case "list_schedules":
-        return core.bots.run((s) => s.wakeups(turn.bot_id));
+        return (await core.bots.run((s) => s.wakeups(turn.bot_id))).map(wakeupView);
       case "cancel_schedule":
         return action(BotStore.use((s) => s.cancelWakeup(turn.bot_id, string("schedule_id"))));
       case "rename_thread":
-        return await core.updateBotThread(
+        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
+        return (await core.updateBotThread(
           turn,
           call,
           create(ui.UpdateThreadRequestSchema, { threadId: string("thread_id"), title: string("title", 200) }),
-        );
+        )) as ToolResult;
       case "set_thread_model":
-        return await core.updateBotThread(
+        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
+        return (await core.updateBotThread(
           turn,
           call,
           create(ui.UpdateThreadRequestSchema, {
@@ -295,9 +297,10 @@ export async function botPlatform(
             model: string("model", 200),
             effort: optional("effort"),
           }),
-        );
+        )) as ToolResult;
       case "archive_thread":
-        return await core.archiveBotThread(turn, call, string("thread_id"));
+        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
+        return (await core.archiveBotThread(turn, call, string("thread_id"))) as ToolResult;
       default:
         return { error: "Unknown platform tool" };
     }

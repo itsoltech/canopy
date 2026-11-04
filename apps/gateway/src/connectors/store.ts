@@ -66,8 +66,11 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
       )
       .pipe(Effect.flatMap((r) => (r[0] ? Effect.succeed(r[0]) : fail("Connector account not found"))));
 
-  const unseal = (row: AccountRow): Credentials =>
-    row.credentials ? (JSON.parse(decryptSecret(key, row.credentials)) as Credentials) : {};
+  // SAFETY: only this store writes sealed columns: JSON of the declared type, encrypted with AES-256-GCM under
+  // `key`. Decryption rejects any other ciphertext, so the plaintext is that JSON.
+  const opened = <T>(sealed: Parameters<typeof decryptSecret>[1]): T => JSON.parse(decryptSecret(key, sealed)) as T;
+
+  const unseal = (row: AccountRow): Credentials => (row.credentials ? opened<Credentials>(row.credentials) : {});
 
   const seal = (value: Credentials) => encryptSecret(key, JSON.stringify(value));
 
@@ -212,6 +215,7 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
           const type = connectorType(old?.connector_type ?? request.connectorType);
           const name = request.name.trim().normalize("NFC");
 
+          // oxlint-disable-next-line no-control-regex -- an account name is one line of visible text
           if (!type || !name || name.length > 80 || /[\x00-\x1f\x7f]/.test(name))
             return yield* fail("Choose a connector type and an account name (up to 80 characters)");
           const url = yield* checked(() => connectorUrl(request.url || old?.url || type.url));
@@ -324,9 +328,7 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
       sql<{
         credentials: Uint8Array;
       }>`SELECT credentials FROM connector_oauth_apps WHERE owner_user_id=${user}::uuid AND connector_type=${type}`.pipe(
-        Effect.map((r) =>
-          r[0] ? (JSON.parse(decryptSecret(key, r[0].credentials)) as OAuthClientInformationMixed) : undefined,
-        ),
+        Effect.map((r) => (r[0] ? opened<OAuthClientInformationMixed>(r[0].credentials) : undefined)),
       ),
     appTypes: (user: string) =>
       sql<{
@@ -378,7 +380,7 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
           return {
             accountId: row.account_id,
             revision: BigInt(row.account_revision),
-            value: JSON.parse(decryptSecret(key, row.credentials)) as Credentials,
+            value: opened<Credentials>(row.credentials),
           };
         }),
       ),

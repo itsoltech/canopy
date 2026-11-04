@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { define, json, label, object, str } from "./shared.ts";
+import { define, json, jsonObject, label, object, str } from "./shared.ts";
 
 export const projectTools = [
   define(
@@ -11,7 +11,7 @@ export const projectTools = [
     async ({ core }) =>
       Promise.all(
         (await core.linkedAgents.overview()).projects.map(async (p) => ({
-          ...(json(ui.ProjectSchema, p) as object),
+          ...jsonObject(ui.ProjectSchema, p),
           machine: await core.linkedAgents.machine(p.nodeId),
         })),
       ),
@@ -71,7 +71,7 @@ export const projectTools = [
     "Projects: change a workspace label or directory on the same worker. Existing threads retain their cwd; a new root_path must be absolute, exist and be accessible on the online worker.",
     object({ workspace_id: str, root_path: str, label: str }, ["workspace_id"]),
     "Updating a workspace",
-    ({ core, string, args, action }) =>
+    ({ core, string, optional, args, action }) =>
       action(async () =>
         json(
           ui.WorkspaceSchema,
@@ -79,7 +79,7 @@ export const projectTools = [
             create(ui.UpdateWorkspaceRequestSchema, {
               workspaceId: string("workspace_id"),
               ...(args["root_path"] !== undefined && { rootPath: string("root_path") }),
-              ...(args["label"] !== undefined && { label: args["label"] as string }),
+              ...(args["label"] !== undefined && { label: optional("label") }),
             }),
           ),
         ),

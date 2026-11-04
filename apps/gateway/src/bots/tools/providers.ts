@@ -40,7 +40,7 @@ export const providerTools = [
       "enabled",
     ]),
     "Updating provider availability",
-    ({ core, string, args, action }) =>
+    ({ core, string, flag, args, action }) =>
       action(async () => {
         const workers = new Set((await core.overview()).workers.map((w) => w.id));
 
@@ -52,7 +52,7 @@ export const providerTools = [
               harness: provider(args["provider"]),
               id: string("provider_instance"),
               workerId: string("worker_id"),
-              enabled: args["enabled"] as boolean,
+              enabled: flag("enabled") === true,
             }),
           ),
           workers,
@@ -68,7 +68,7 @@ export const providerTools = [
       "provider_instance",
     ]),
     "Updating model selections",
-    ({ core, string, args, action }) =>
+    ({ core, string, list, args, action }) =>
       action(async () => {
         const harness = provider(args["provider"]);
 
@@ -79,9 +79,9 @@ export const providerTools = [
         if (!current) throw new NotFound("provider instance not found");
 
         const models = create(ui.InstanceModelsSchema, {
-          favorites: (args["favorites"] as string[]) ?? current.models?.favorites ?? [],
-          hidden: (args["hidden"] as string[]) ?? current.models?.hidden ?? [],
-          shown: (args["shown"] as string[]) ?? current.models?.shown ?? [],
+          favorites: list("favorites") ?? current.models?.favorites ?? [],
+          hidden: list("hidden") ?? current.models?.hidden ?? [],
+          shown: list("shown") ?? current.models?.shown ?? [],
           custom: current.models?.custom ?? [],
         });
 

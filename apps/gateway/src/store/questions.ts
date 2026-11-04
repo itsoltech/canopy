@@ -1,11 +1,18 @@
 import { create, toBinary, type JsonValue } from "@bufbuild/protobuf";
 import { CommandSchema, type ui } from "@canopy/contracts";
-import { questionAnswerInput, questionResult, type AgentBusArgs, type UserQuestion } from "@canopy/domain";
+import {
+  questionAnswerInput,
+  questionResult,
+  type AgentBusArgs,
+  type JsonValue as Json,
+  type UserQuestion,
+} from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import { Invalid, NotFound, toInteraction, type InteractionRow, type TurnRow } from "./store.ts";
 import type { CallSource } from "./agent-bus.ts";
 import { writeInteractionTimeline } from "./interaction-timeline.ts";
+import { isJsonArray, isJsonObject } from "../bots/json.ts";
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | Invalid>;
 
@@ -19,6 +26,14 @@ export interface QuestionStore {
   askUser(source: CallSource, args: AgentBusArgs["ask_user"], hops: number): Fx<ui.Interaction>;
   getAnswers(source: CallSource, id: string, consume: boolean): Fx<JsonValue>;
   deliverAnswers(): Fx<QuestionDelivery[]>;
+}
+
+/** The question set of a question interaction (question_call_id set); none for other requests. */
+export function storedQuestions(request: Json): readonly UserQuestion[] {
+  const questions = isJsonObject(request) ? request["questions"] : undefined;
+
+  // SAFETY: question rows store the AskUser-decoded arguments of ask_user, so their questions are UserQuestions.
+  return isJsonArray(questions) ? (questions as readonly UserQuestion[]) : [];
 }
 
 export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
@@ -68,7 +83,7 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
           const row = rows[0];
 
           if (!row) return yield* Effect.fail(new NotFound("question set not found in this thread"));
-          const result = questionResult(row.id, row.status, row.response as { answerJson?: string } | null);
+          const result = questionResult(row.id, row.status, row.response);
 
           const alive =
             yield* sql`SELECT id FROM turns WHERE id = ${source.turnId || null}::uuid AND thread_id = ${source.threadId}::uuid AND status = 'running'`;
@@ -124,12 +139,7 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
               // onTurnFinished / restart reconciliation / the sweep delivers it here as a new turn.
               if (row.question_wait && row.asking_status === "running") return undefined;
 
-              const input = questionAnswerInput(
-                row.id,
-                row.status,
-                row.response as { answerJson?: string } | null,
-                (row.request as unknown as { questions: UserQuestion[] }).questions,
-              );
+              const input = questionAnswerInput(row.id, row.status, row.response, storedQuestions(row.request));
 
               const running = yield* sql<{
                 id: string;

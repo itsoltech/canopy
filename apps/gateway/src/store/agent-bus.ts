@@ -14,7 +14,7 @@ import {
   type SpawnTarget,
   type ThreadNode,
 } from "@canopy/domain";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Match, Predicate } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { GatewayStore, Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";
 import { questionStore, type QuestionStore } from "./questions.ts";
@@ -84,7 +84,7 @@ export interface ThreadSummary {
 export function busPermissionMode(stored: string | undefined): SpawnPermissionMode {
   const mode = (stored ?? "ASK").toLowerCase();
 
-  return (SPAWN_PERMISSION_MODES as readonly string[]).includes(mode) ? (mode as SpawnPermissionMode) : "ask";
+  return SPAWN_PERMISSION_MODES.find((known) => known === mode) ?? "ask";
 }
 
 export interface Notification {
@@ -416,12 +416,13 @@ export class AgentBusStore extends Context.Service<
             SELECT id, status, error, error_source, interrupt_reason, interrupt_source FROM turns
              WHERE thread_id = ${row.id}::uuid AND status IN ('completed', 'interrupted', 'failed', 'cancelled') ORDER BY ordinal DESC LIMIT 1`)[0];
 
-          const reason =
-            ended?.status === "failed"
-              ? [ended.error_source, ended.error].filter(Boolean).join(": ")
-              : ended?.status === "interrupted"
-                ? [ended.interrupt_source, ended.interrupt_reason].filter(Boolean).join(": ")
-                : "";
+          const reason = Match.value(ended?.status).pipe(
+            Match.when("failed", () => [ended?.error_source, ended?.error].filter(Boolean).join(": ")),
+            Match.when("interrupted", () =>
+              [ended?.interrupt_source, ended?.interrupt_reason].filter(Boolean).join(": "),
+            ),
+            Match.orElse(() => ""),
+          );
 
           return {
             thread_id: row.id,
@@ -431,7 +432,11 @@ export class AgentBusStore extends Context.Service<
             ...(row.remote_parent_ref && { parent_detached: row.remote_parent_detached }),
             status: row.status,
             provider: agentKey({
-              harness: row.provider === "claude" ? "claude" : row.provider === "grok" ? "grok" : "codex",
+              harness: Match.value(row.provider).pipe(
+                Match.when("claude", () => "claude" as const),
+                Match.when("grok", () => "grok" as const),
+                Match.orElse(() => "codex" as const),
+              ),
               instance: row.provider_profile_id ?? "",
             }),
             project: row.project ?? "",
@@ -1424,25 +1429,18 @@ export function truncate(text: string, max: number): string {
 
 /** Long strings inside an item (command output, diffs) are cut so a read stays small. */
 function truncateJson(value: Record<string, JsonValue>): Record<string, JsonValue> {
-  const cut = (v: JsonValue): JsonValue =>
-    typeof v === "string"
-      ? truncate(v, 8_000)
-      : Array.isArray(v)
-        ? v.map(cut)
-        : v && typeof v === "object"
-          ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, cut(x)]))
-          : v;
+  const entries = (object: Record<string, JsonValue>) =>
+    Object.fromEntries(Object.entries(object).map(([k, x]) => [k, cut(x)]));
 
-  return cut(value) as Record<string, JsonValue>;
+  const cut = (v: JsonValue): JsonValue =>
+    Predicate.isString(v) ? truncate(v, 8_000) : Array.isArray(v) ? v.map(cut) : Predicate.isObject(v) ? entries(v) : v;
+
+  return entries(value);
 }
 
 export function isUniqueViolation(error: SqlError.SqlError): boolean {
-  for (
-    let current: unknown = error, i = 0;
-    i < 5 && current && typeof current === "object";
-    i++, current = (current as { cause?: unknown }).cause
-  ) {
-    if ((current as { code?: unknown }).code === "23505") return true;
+  for (let current: unknown = error, i = 0; i < 5 && Predicate.isObject(current); i++, current = current["cause"]) {
+    if (current["code"] === "23505") return true;
   }
 
   return false;
