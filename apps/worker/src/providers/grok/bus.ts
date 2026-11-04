@@ -37,7 +37,7 @@ interface GrokBus {
 }
 
 /** Stateless Streamable HTTP MCP bound to loopback, authenticated and scoped to a single thread. */
-export function grokBus(options: {
+export interface GrokBusOptions {
   threadId: string;
   depth: number;
   agentBus?: boolean;
@@ -47,7 +47,9 @@ export function grokBus(options: {
   toolUseId?(tool: string, args: JsonValue): string | undefined;
   turnId(): string;
   callTool(call: AgentToolCall): Promise<AgentToolResult>;
-}): GrokBus {
+}
+
+export function grokBus(options: GrokBusOptions): GrokBus {
   const token = crypto.randomUUID();
 
   const tools = [
@@ -95,97 +97,8 @@ export function grokBus(options: {
         return Response.json({ jsonrpc: "2.0", id: rpc.id, error: { code: -32601, message: "Unknown tool" } });
 
       if (!options.turnId()) return reply({ content: [{ type: "text", text: "No active turn" }], isError: true });
-      const itemId = options.toolUseId?.(rpc.params!.name!, rpc.params?.arguments ?? {}) ?? crypto.randomUUID();
-      const turnId = options.turnId();
-      const argumentsJson = JSON.stringify(rpc.params?.arguments ?? {});
-      const connector = options.connectorTools?.find((t) => t.name === rpc.params!.name);
 
-      const record = (status: ItemStatus, resultJson = "", isError = false) =>
-        options.record?.({
-          turnId,
-          body: {
-            case: status === ItemStatus.IN_PROGRESS ? "itemStarted" : "itemCompleted",
-            value: {
-              item: {
-                itemId,
-                status,
-                content: connector
-                  ? {
-                      case: "toolCall",
-                      value: {
-                        name: connector.remoteName,
-                        server: connector.accountName,
-                        inputJson: argumentsJson,
-                        output: resultJson,
-                        isError,
-                        connectorAccountId: connector.accountId,
-                        connectorType: connector.connectorType,
-                        connectorAccountName: connector.accountName,
-                      },
-                    }
-                  : {
-                      case: "agentBusCall",
-                      value: { toolName: rpc.params!.name!, argumentsJson, resultJson, isError },
-                    },
-              },
-            },
-          },
-        });
-
-      try {
-        if (rpc.params?.name === VIEW_IMAGE_TOOL && options.viewImage) {
-          const path = jsonString(jsonObject(rpc.params.arguments)?.["path"]);
-          const image = await options.viewImage(path);
-
-          const result = image.ok
-            ? {
-                content: [
-                  { type: "image", data: image.base64, mimeType: image.mimeType },
-                  { type: "text", text: image.summary },
-                ],
-              }
-            : { content: [{ type: "text", text: image.message }], isError: true };
-
-          await options.record?.({
-            turnId,
-            rawJson: JSON.stringify({ result }),
-            body: {
-              case: "itemCompleted",
-              value: {
-                item: {
-                  itemId,
-                  status: image.ok ? ItemStatus.COMPLETED : ItemStatus.FAILED,
-                  content: { case: "image", value: { path, source: VIEW_IMAGE_TOOL } },
-                },
-              },
-            },
-          });
-
-          return reply(result);
-        }
-
-        await record(ItemStatus.IN_PROGRESS);
-
-        const result = await options.callTool(
-          create(AgentToolCallSchema, {
-            callId: toolCallId(options.threadId, itemId),
-            threadId: options.threadId,
-            turnId,
-            itemId,
-            toolName: rpc.params!.name!,
-            argumentsJson,
-            connectorAccountId: connector?.accountId ?? "",
-          }),
-        );
-
-        await record(result.isError ? ItemStatus.FAILED : ItemStatus.COMPLETED, result.content, result.isError);
-
-        return reply({ content: [{ type: "text", text: result.content }], isError: result.isError });
-      } catch {
-        await record(ItemStatus.FAILED, "Platform tool failed", true);
-
-        return reply({ content: [{ type: "text", text: "Platform tool failed" }], isError: true });
-      }
+      return callTool(options, rpc, reply);
     },
     idleTimeout: 0,
   });
@@ -208,4 +121,102 @@ export function platformToolName(name: string): string | undefined {
   const match = /^(.+?)__(.+)$/.exec(name);
 
   return match && isPlatformServer(match[1]) ? match[2] : undefined;
+}
+
+async function callTool(
+  options: GrokBusOptions,
+  rpc: typeof McpRequest.Type,
+  reply: (result: JsonValue) => Response,
+): Promise<Response> {
+  const itemId = options.toolUseId?.(rpc.params!.name!, rpc.params?.arguments ?? {}) ?? crypto.randomUUID();
+  const turnId = options.turnId();
+  const argumentsJson = JSON.stringify(rpc.params?.arguments ?? {});
+  const connector = options.connectorTools?.find((t) => t.name === rpc.params!.name);
+
+  const record = (status: ItemStatus, resultJson = "", isError = false) =>
+    options.record?.({
+      turnId,
+      body: {
+        case: status === ItemStatus.IN_PROGRESS ? "itemStarted" : "itemCompleted",
+        value: {
+          item: {
+            itemId,
+            status,
+            content: connector
+              ? {
+                  case: "toolCall",
+                  value: {
+                    name: connector.remoteName,
+                    server: connector.accountName,
+                    inputJson: argumentsJson,
+                    output: resultJson,
+                    isError,
+                    connectorAccountId: connector.accountId,
+                    connectorType: connector.connectorType,
+                    connectorAccountName: connector.accountName,
+                  },
+                }
+              : {
+                  case: "agentBusCall",
+                  value: { toolName: rpc.params!.name!, argumentsJson, resultJson, isError },
+                },
+          },
+        },
+      },
+    });
+
+  try {
+    if (rpc.params?.name === VIEW_IMAGE_TOOL && options.viewImage) {
+      const path = jsonString(jsonObject(rpc.params.arguments)?.["path"]);
+      const image = await options.viewImage(path);
+
+      const result = image.ok
+        ? {
+            content: [
+              { type: "image", data: image.base64, mimeType: image.mimeType },
+              { type: "text", text: image.summary },
+            ],
+          }
+        : { content: [{ type: "text", text: image.message }], isError: true };
+
+      await options.record?.({
+        turnId,
+        rawJson: JSON.stringify({ result }),
+        body: {
+          case: "itemCompleted",
+          value: {
+            item: {
+              itemId,
+              status: image.ok ? ItemStatus.COMPLETED : ItemStatus.FAILED,
+              content: { case: "image", value: { path, source: VIEW_IMAGE_TOOL } },
+            },
+          },
+        },
+      });
+
+      return reply(result);
+    }
+
+    await record(ItemStatus.IN_PROGRESS);
+
+    const result = await options.callTool(
+      create(AgentToolCallSchema, {
+        callId: toolCallId(options.threadId, itemId),
+        threadId: options.threadId,
+        turnId,
+        itemId,
+        toolName: rpc.params!.name!,
+        argumentsJson,
+        connectorAccountId: connector?.accountId ?? "",
+      }),
+    );
+
+    await record(result.isError ? ItemStatus.FAILED : ItemStatus.COMPLETED, result.content, result.isError);
+
+    return reply({ content: [{ type: "text", text: result.content }], isError: result.isError });
+  } catch {
+    await record(ItemStatus.FAILED, "Platform tool failed", true);
+
+    return reply({ content: [{ type: "text", text: "Platform tool failed" }], isError: true });
+  }
 }

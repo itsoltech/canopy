@@ -1,21 +1,15 @@
-import type { MessageInitShape } from "@bufbuild/protobuf";
+import { mapItem, providerToolCall, shellCommandItem, outputText } from "./item-mapping.ts";
+
+export { mapItem } from "./item-mapping.ts";
+
+import { turnEndSource, turnOutcome, threadStatus, usageOf, snake } from "./status-mapping.ts";
+
+export { codexErrorCode } from "./status-mapping.ts";
+
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@canopy/codex-protocol";
-import {
-  BackgroundTaskKind,
-  ItemDeltaField,
-  ItemStatus,
-  NoticeLevel,
-  ThreadStatus,
-  TurnEndSource,
-  TurnOrigin,
-  TurnOutcome,
-  type ItemSchema,
-} from "@canopy/contracts";
-import { isAgentBusTool, isPlatformServer, VIEW_IMAGE_TOOL } from "@canopy/domain";
-import type { JsonObject, JsonValue } from "@canopy/domain";
-import { decodeJson, decodeJsonObject, isString, isNumber, jsonObject, jsonString } from "../json.ts";
-import type { TurnEnd } from "../harness-record.ts";
+import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnOrigin } from "@canopy/contracts";
+import { decodeJson, isString, jsonObject } from "../json.ts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**
@@ -31,8 +25,6 @@ import type { ThreadEventInit } from "../../journal/index.ts";
  * `bg:<command item id>` (output so far, then every later delta, outside the turn); the command item keeps
  * what the turn showed and completes, like the background item, when the process exits.
  */
-
-type ItemInit = MessageInitShape<typeof ItemSchema>;
 
 type CodexItem = v2.ThreadItem;
 
@@ -222,6 +214,22 @@ export class CodexEventMapper {
         return [this.#delta(event, notification.params, ItemDeltaField.OUTPUT)];
       }
 
+      case "rawResponseItem/completed":
+        return this.#responseItem(event, notification.params.turnId, notification.params.item);
+      default: {
+        const mapped = this.#metadata(notification, event);
+
+        if (mapped) return mapped;
+        // Hooks, read state, moderation metadata, diffs, ...: kept raw for the timeline and later projections.
+        const turnId = jsonObject(decodeJson(notification.params ?? null))?.["turnId"];
+
+        return [event(isString(turnId) ? turnId : undefined, undefined)];
+      }
+    }
+  }
+
+  #metadata(notification: ServerNotification, event: EventOf): ThreadEventInit[] | undefined {
+    switch (notification.method) {
       case "turn/plan/updated": {
         const { turnId, explanation, plan } = notification.params;
 
@@ -301,14 +309,9 @@ export class CodexEventMapper {
 
       case "thread/goal/cleared":
         return [event(undefined, { case: "goalState", value: { cleared: true } })];
-      case "rawResponseItem/completed":
-        return this.#responseItem(event, notification.params.turnId, notification.params.item);
-      default: {
-        // Hooks, read state, moderation metadata, diffs, ...: kept raw for the timeline and later projections.
-        const turnId = jsonObject(decodeJson(notification.params ?? null))?.["turnId"];
 
-        return [event(isString(turnId) ? turnId : undefined, undefined)];
-      }
+      default:
+        return undefined;
     }
   }
 
@@ -475,320 +478,4 @@ export class CodexEventMapper {
   ): ThreadEventInit {
     return event(params.turnId, { case: "itemDelta", value: { itemId: params.itemId, field, chunk: params.delta } });
   }
-}
-
-export function mapItem(item: CodexItem, completed: boolean): ItemInit {
-  const base = { itemId: item.id };
-  const lifecycle = completed ? ItemStatus.COMPLETED : ItemStatus.IN_PROGRESS;
-
-  switch (item.type) {
-    case "userMessage":
-      return {
-        ...base,
-        status: lifecycle,
-        content: {
-          case: "userMessage",
-          value: {
-            text: item.content.flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n"),
-            // turn/start and turn/steer send the platform's id (turn id, steer input id) as clientUserMessageId.
-            ...(item.clientId && { clientId: item.clientId }),
-          },
-        },
-      };
-    case "agentMessage":
-      return {
-        ...base,
-        status: lifecycle,
-        content: { case: "agentMessage", value: { text: item.text, phase: item.phase ?? "" } },
-      };
-    case "reasoning":
-      return {
-        ...base,
-        status: lifecycle,
-        content: { case: "reasoning", value: { text: item.content.join("\n"), summary: item.summary.join("\n") } },
-      };
-    case "commandExecution":
-      return {
-        ...base,
-        status: toolStatus(item.status),
-        content: {
-          case: "commandExecution",
-          value: {
-            command: item.command,
-            cwd: item.cwd,
-            output: item.aggregatedOutput ?? "",
-            ...(item.exitCode !== null && { exitCode: item.exitCode }),
-            ...(item.durationMs !== null && { durationMs: BigInt(item.durationMs) }),
-          },
-        },
-      };
-    case "fileChange":
-      return {
-        ...base,
-        status: toolStatus(item.status),
-        content: {
-          case: "fileChange",
-          value: {
-            changes: item.changes.map((change) => ({
-              path: change.path,
-              kind: change.kind.type === "update" && change.kind.move_path ? "move" : change.kind.type,
-              diff: change.diff,
-              ...(change.kind.type === "update" && change.kind.move_path && { movePath: change.kind.move_path }),
-            })),
-          },
-        },
-      };
-    case "mcpToolCall":
-      return {
-        ...base,
-        status: toolStatus(item.status),
-        content: {
-          case: "toolCall",
-          value: {
-            server: item.server,
-            name: item.tool,
-            inputJson: JSON.stringify(item.arguments ?? null),
-            output: item.error ? item.error.message : item.result ? JSON.stringify(item.result.content) : "",
-            isError: item.error !== null || item.status === "failed",
-          },
-        },
-      };
-    case "dynamicToolCall": {
-      const output = (item.contentItems ?? []).map((c) => (c.type === "inputText" ? c.text : `[${c.type}]`)).join("\n");
-
-      // The platform's view_image (namespace "canopy"): an image item; the preview comes from its result.
-      if (item.tool === VIEW_IMAGE_TOOL && isPlatformServer(item.namespace)) {
-        const path = jsonObject(decodeJson(item.arguments ?? null))?.["path"];
-
-        return {
-          ...base,
-          status: toolStatus(item.status),
-          content: {
-            case: "image",
-            value: {
-              path: jsonString(path),
-              source: VIEW_IMAGE_TOOL,
-              ...(item.success === false && { detail: output }),
-            },
-          },
-        };
-      }
-
-      if (isAgentBusTool(item.tool)) {
-        return {
-          ...base,
-          status: toolStatus(item.status),
-          content: {
-            case: "agentBusCall",
-            value: {
-              callId: item.id,
-              toolName: item.tool,
-              argumentsJson: JSON.stringify(item.arguments ?? null),
-              resultJson: output,
-              isError: item.success === false,
-            },
-          },
-        };
-      }
-
-      return {
-        ...base,
-        status: toolStatus(item.status),
-        content: {
-          case: "toolCall",
-          value: {
-            server: item.namespace ?? "",
-            name: item.tool,
-            inputJson: JSON.stringify(item.arguments ?? null),
-            output,
-            isError: item.success === false,
-          },
-        },
-      };
-    }
-
-    case "webSearch":
-      return { ...base, status: lifecycle, content: { case: "webSearch", value: { query: item.query } } };
-    case "plan":
-      return { ...base, status: lifecycle, content: { case: "plan", value: { text: item.text } } };
-    case "imageView":
-      // Codex's own view_image: the worker reads the file for the preview (images/previews.ts).
-      return { ...base, status: lifecycle, content: { case: "image", value: { path: item.path, source: "native" } } };
-    case "imageGeneration":
-      return {
-        ...base,
-        status: item.failure ? ItemStatus.FAILED : lifecycle,
-        content: {
-          case: "image",
-          value: { path: item.savedPath ?? "", prompt: item.revisedPrompt ?? "", source: "generated" },
-        },
-      };
-    case "contextCompaction":
-      return { ...base, status: lifecycle, content: { case: "contextCompaction", value: {} } };
-    case "collabAgentToolCall":
-      return {
-        ...base,
-        status: lifecycle,
-        content: {
-          case: "subagent",
-          value: {
-            agentType: item.tool,
-            prompt: item.prompt ?? "",
-            model: item.model ?? "",
-            providerThreadId: item.receiverThreadIds[0] ?? "",
-          },
-        },
-      };
-    default:
-      // hookPrompt, review mode, sleep, functionCallOutput, subAgentActivity, and future types: kept whole.
-      return {
-        ...base,
-        status: lifecycle,
-        content: { case: "providerItem", value: { type: item.type, json: JSON.stringify(item) } },
-      };
-  }
-}
-
-function providerToolCall(
-  callId: string,
-  call: { name: string; inputJson: string; outputs: string[] },
-  completed: boolean,
-): ItemInit {
-  return {
-    itemId: callId,
-    status: completed ? ItemStatus.COMPLETED : ItemStatus.IN_PROGRESS,
-    content: {
-      case: "toolCall",
-      value: { name: call.name, inputJson: call.inputJson, output: call.outputs.join("\n") },
-    },
-  };
-}
-
-/** A `commandExecution`-like item from the call and its output ("Process exited with code N ... Output:\n..."). */
-function shellCommandItem(
-  callId: string,
-  call: { name: string; arguments: string; output?: FunctionCallOutputBody },
-): ItemInit {
-  let args: JsonObject = {};
-
-  try {
-    args = decodeJsonObject(JSON.parse(call.arguments));
-  } catch {
-    // Not JSON: shown as the command below.
-  }
-
-  const command = isString(args["cmd"])
-    ? args["cmd"]
-    : Array.isArray(args["command"])
-      ? args["command"].join(" ")
-      : isString(args["command"])
-        ? args["command"]
-        : call.arguments;
-
-  const text = call.output === undefined ? "" : outputText(call.output);
-  const exit = /Process exited with code (-?\d+)/.exec(text);
-  const marker = text.indexOf("Output:\n");
-  const exitCode = exit ? Number(exit[1]) : undefined;
-
-  return {
-    itemId: callId,
-    status: exitCode !== undefined && exitCode !== 0 ? ItemStatus.FAILED : ItemStatus.COMPLETED,
-    content: {
-      case: "commandExecution",
-      value: {
-        command,
-        cwd: jsonString(args["workdir"]),
-        output: marker >= 0 ? text.slice(marker + "Output:\n".length) : text,
-        ...(exitCode !== undefined && { exitCode }),
-      },
-    },
-  };
-}
-
-function outputText(body: FunctionCallOutputBody): string {
-  return isString(body)
-    ? body
-    : body.map((part) => (part.type === "input_text" ? part.text : `[${part.type}]`)).join("\n");
-}
-
-function toolStatus(status: "inProgress" | "completed" | "failed" | "declined"): ItemStatus {
-  switch (status) {
-    case "inProgress":
-      return ItemStatus.IN_PROGRESS;
-    case "completed":
-      return ItemStatus.COMPLETED;
-    case "failed":
-      return ItemStatus.FAILED;
-    case "declined":
-      return ItemStatus.DECLINED;
-  }
-}
-
-/** Where a turn's end came from: Codex's errors are the harness's; an interruption is the user's when asked for. */
-function turnEndSource(turn: v2.Turn, asked: boolean): Pick<TurnEnd, "source" | "errorCode"> {
-  switch (turn.status) {
-    case "failed":
-      return {
-        source: TurnEndSource.HARNESS,
-        ...(turn.error?.codexErrorInfo && { errorCode: codexErrorCode(decodeJson(turn.error.codexErrorInfo)) }),
-      };
-    case "interrupted":
-      return { source: asked ? TurnEndSource.USER : TurnEndSource.SYSTEM };
-    default:
-      return { source: TurnEndSource.UNSPECIFIED };
-  }
-}
-
-/** e.g. `{ httpConnectionFailed: { httpStatusCode: 401 } }` -> "httpConnectionFailed:401"; a string stays as is. */
-export function codexErrorCode(info: JsonValue | undefined): string {
-  if (isString(info)) return info;
-
-  const object = jsonObject(info);
-
-  if (!object) return "";
-  const [key, detail] = Object.entries(object)[0] ?? [];
-
-  if (!key) return "";
-
-  const status = jsonObject(detail) ? Object.entries(detail ?? {}).find(([k]) => /status/i.test(k))?.[1] : undefined;
-
-  return isNumber(status) ? `${key}:${status}` : key;
-}
-
-function turnOutcome(status: v2.TurnStatus): TurnOutcome {
-  switch (status) {
-    case "completed":
-      return TurnOutcome.COMPLETED;
-    case "interrupted":
-      return TurnOutcome.INTERRUPTED;
-    case "failed":
-      return TurnOutcome.FAILED;
-    case "inProgress":
-      return TurnOutcome.UNSPECIFIED;
-  }
-}
-
-function threadStatus(status: v2.ThreadStatus): ThreadStatus | undefined {
-  switch (status.type) {
-    case "idle":
-      return ThreadStatus.IDLE;
-    case "active":
-      return status.activeFlags.length > 0 ? ThreadStatus.WAITING_INPUT : ThreadStatus.RUNNING;
-    case "systemError":
-      return ThreadStatus.FAILED;
-    case "notLoaded":
-      return undefined;
-  }
-}
-
-function usageOf(usage: v2.TokenUsageBreakdown) {
-  return {
-    inputTokens: BigInt(usage.inputTokens),
-    outputTokens: BigInt(usage.outputTokens + usage.reasoningOutputTokens),
-    cachedInputTokens: BigInt(usage.cachedInputTokens),
-  };
-}
-
-function snake(value: string): string {
-  return value.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }

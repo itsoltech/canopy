@@ -1,0 +1,122 @@
+import type { MessageInitShape } from "@bufbuild/protobuf";
+import {
+  BackgroundTaskKind,
+  Provider,
+  type Command,
+  type DirectoryEntrySchema,
+  type CommandResultSchema,
+  ConfigAppliedSchema,
+  type Item,
+  type ProfileModelsSchema,
+  type MentionCatalogSchema,
+  type FileSearchResultSchema,
+} from "@canopy/contracts";
+import { Context, Scope, type ManagedRuntime } from "effect";
+import type { DeviceProbe } from "../config/remote.ts";
+import { Journal } from "../journal/index.ts";
+import type { ProfileRuntimeConfig, ResolvedProfile } from "../providers/profiles.ts";
+import type { CliProbe } from "../cli-tools/discovery.ts";
+
+export type CommandResultInit = MessageInitShape<typeof CommandResultSchema>;
+
+export type ConfigAppliedInit = MessageInitShape<typeof ConfigAppliedSchema>;
+
+export type DirectoryEntryInit = MessageInitShape<typeof DirectoryEntrySchema>;
+
+export type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
+
+export interface CommandOutput {
+  readonly directoryPath?: string;
+  readonly generatedText?: string;
+  readonly entries?: DirectoryEntryInit[];
+  readonly models?: ProfileModelsInit[];
+  readonly login?: { verificationUrl: string; userCode: string; loginId: string };
+  readonly mentionCatalog?: MessageInitShape<typeof MentionCatalogSchema>;
+  readonly fileSearch?: MessageInitShape<typeof FileSearchResultSchema>;
+}
+
+export interface WorkerHostOptions {
+  readonly runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
+  readonly dataDir: string;
+  readonly clientVersion: string;
+  readonly probe?: DeviceProbe;
+  /** Provider CLI discovery (docs/provider-cli.md); default: this device. */
+  readonly cliProbe?: CliProbe;
+  /** Environment of CLI installs (default: the worker's, without secret-looking variables). */
+  readonly cliEnv?: Readonly<Record<string, string | undefined>>;
+  /**
+   * The device owner's Claude and Codex homes (login, default effort). Default: $CLAUDE_CONFIG_DIR / $CODEX_HOME
+   * of the worker process at start, else ~/.claude and ~/.codex.
+   */
+  readonly deviceHomes?: { readonly claude: string; readonly codex: string };
+  readonly log?: (message: string) => void;
+}
+
+export interface ProviderRuntimeHandle<S> {
+  readonly key: string;
+  readonly scope: Scope.Closeable;
+  readonly context: Context.Context<S>;
+}
+
+export class CommandError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    /** Deterministic failures are remembered for redelivery; transient ones are not. */
+    readonly final: boolean,
+  ) {
+    super(message);
+  }
+}
+
+export function kindOf(item: Item): BackgroundTaskKind | undefined {
+  return item.content.case === "backgroundTask" ? item.content.value.kind : undefined;
+}
+
+export function taskOf(item: Item): string | undefined {
+  return item.content.case === "backgroundTask" ? item.content.value.taskId : undefined;
+}
+
+/** A profile serves the providers it lists (both by default). */
+export function usableBy(profile: ResolvedProfile, provider: "claude" | "codex" | "grok"): boolean {
+  return profile.providers.includes(provider);
+}
+
+/** The Codex process for profiles without their own variables. */
+export const SHARED_CODEX = "shared";
+
+export interface CodexGroup {
+  /** Settings of the process: a change restarts it. */
+  readonly key: string;
+  readonly profiles: ResolvedProfile[];
+  /** Variables of the process (a profile's own). */
+  readonly env: Readonly<Record<string, string>>;
+  /** The instance's own runtime (executable, homes, launch arguments); empty for the shared process. */
+  readonly runtime: ProfileRuntimeConfig;
+  /** The instance a process of its own serves. */
+  readonly id?: string;
+}
+
+export function codexProfileGroup(profileId: string): string {
+  return `profile:${profileId}`;
+}
+
+export function hasEnv(profile: ResolvedProfile): boolean {
+  return Object.keys(profile.env).length > 0;
+}
+
+/** The provider a command starts work for (admission: turns wait for an install of its CLI). */
+export function commandProvider(command: Command): Provider | undefined {
+  const kind = command.kind;
+
+  switch (kind.case) {
+    case "startTurn":
+    case "createThread":
+    case "setGoal":
+      return kind.value.thread?.provider || undefined;
+    case "generateText":
+      return kind.value.provider || undefined;
+    default:
+      return undefined;
+  }
+}
