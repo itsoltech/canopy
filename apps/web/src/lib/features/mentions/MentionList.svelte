@@ -144,7 +144,7 @@
               <!-- Harness icons are often dark glyphs on transparency: in dark mode they sit on a light tile to stay visible. -->
               <img src={icon} alt="" class="size-4 rounded-sm object-contain dark:bg-zinc-200 dark:p-px" />
             {:else}
-              <Icon name={kindLook(option.data).icon} class="fill-brand-600 dark:fill-brand-400" />
+              <Icon name={kindLook(option.data).icon} class="text-brand-600 dark:text-brand-400" />
             {/if}
           </div>
           <div class="grid min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">

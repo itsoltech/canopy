@@ -55,13 +55,13 @@
           name="hand-raised"
           class={[
             glyph,
-            state === "needs" ? "fill-amber-600 dark:fill-amber-400" : "fill-violet-600 dark:fill-violet-400",
+            state === "needs" ? "text-amber-600 dark:text-amber-400" : "text-violet-600 dark:text-violet-400",
           ]}
         />
       {:else if state === "starting" || state === "running"}
         <Spinner class={[glyph, "text-sky-600 dark:text-sky-400"]} />
       {:else if state === "background"}
-        <Icon name="bolt" class={[glyph, "t-pulse fill-sky-600 dark:fill-sky-400"]} />
+        <Icon name="bolt" class={[glyph, "t-pulse text-sky-600 dark:text-sky-400"]} />
       {:else}
         {@render idle()}
       {/if}

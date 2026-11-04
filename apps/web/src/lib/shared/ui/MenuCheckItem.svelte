@@ -56,6 +56,6 @@
   {onpointermove}
 >
   <MenuItemText {description}>{@render children()}</MenuItemText>
-  <Icon name="check" class={["h-lh fill-brand-600 dark:fill-brand-400", !checked && "invisible"]} />
+  <Icon name="check" class={["h-lh text-brand-600 dark:text-brand-400", !checked && "invisible"]} />
   <TouchTarget />
 </button>

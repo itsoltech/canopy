@@ -25,7 +25,7 @@
     <Icon
       name={schedule.createdBy === "agent" ? "sparkles" : schedule.kind === "once" ? "clock" : "arrow-path"}
       class={schedule.createdBy === "agent"
-        ? "fill-violet-500 dark:fill-violet-400"
+        ? "text-violet-500 dark:text-violet-400"
         : "fill-zinc-400 dark:fill-zinc-500"}
     />
   </div>

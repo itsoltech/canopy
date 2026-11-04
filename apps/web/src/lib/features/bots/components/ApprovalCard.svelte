@@ -168,7 +168,7 @@
       <p class="flex items-center gap-1.5 px-4 pt-3 pb-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         {#if approval.status === "approved"}<Icon
             name="check"
-            class="size-4 fill-emerald-600 dark:fill-emerald-400"
+            class="size-4 text-emerald-600 dark:text-emerald-400"
           />{/if}
         {approval.status === "pending" ? "Waiting for approval." : outcome[approval.status]}
       </p>

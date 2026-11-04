@@ -56,7 +56,7 @@
 
 {#snippet body()}
   {#if icon}
-    <Icon name={icon} class={danger ? "h-lh fill-rose-600 dark:fill-rose-400" : menuIconClasses} />
+    <Icon name={icon} class={danger ? "h-lh text-rose-600 dark:text-rose-400" : menuIconClasses} />
   {/if}
   <MenuItemText {description}>{@render children()}</MenuItemText>
   {#if shortcut}<span class="flex h-lh items-center"><Kbd hotkey={shortcut} /></span>{/if}

@@ -1,7 +1,7 @@
 import { MentionKind, type Mention } from "@canopy/contracts";
 import { mentionLabel } from "@canopy/domain";
 import { connectorMarks } from "#lib/features/connectors/marks.ts";
-import { icons, type IconName } from "#lib/shared/ui/icons.ts";
+import { icons, iconStyle, type IconName } from "#lib/shared/ui/icons.ts";
 
 /**
  * Inline elements of the composer (docs/ui-api.md, "Wzmianki"): how each kind looks as a chip, in the editor
@@ -48,25 +48,18 @@ export function kindLook(m: Pick<Mention, "kind" | "isDir">): KindLook {
 export const CHIP_CLASS =
   "mention-chip inline-flex max-w-full items-baseline gap-1 rounded-md bg-brand-600/8 py-px pr-1.5 pl-1 align-baseline font-medium text-brand-700 select-none dark:bg-brand-400/12 dark:text-brand-300";
 
-export const CHIP_ICON_CLASS = "size-4 shrink-0 self-center fill-brand-600 dark:fill-brand-400";
+export const CHIP_ICON_CLASS =
+  "size-4 shrink-0 self-center fill-brand-600 text-brand-600 dark:fill-brand-400 dark:text-brand-400";
+
 export const CHIP_IMAGE_CLASS = "size-4 shrink-0 self-center rounded-sm object-contain";
 
 const escape = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function iconSvg(name: IconName): string {
-  const icon = icons[name];
+  const paths = icons[name].map((d) => `<path d="${d}" fill="none"/>`).join("");
 
-  const paths = icon.paths
-    .map(
-      (p) =>
-        `<path d="${p.d}"${icon.fill === "none" ? ' fill="none"' : ""}${p.evenodd ? ' fill-rule="evenodd" clip-rule="evenodd"' : ""}/>`,
-    )
-    .join("");
-
-  const stroke = icon.stroke ? ` stroke="${icon.stroke}" stroke-width="${icon.strokeWidth}"` : "";
-
-  return `<svg viewBox="${icon.viewBox}" fill="${icon.fill}"${stroke} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
+  return `<svg viewBox="${iconStyle.viewBox}" fill="none" stroke="currentColor" stroke-width="${iconStyle.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
 }
 
 /** Only data: images and https URLs are shown (catalog icons); anything else falls back to the kind's icon. */

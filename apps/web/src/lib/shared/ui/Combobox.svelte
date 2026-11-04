@@ -252,7 +252,7 @@
             <span class="flex items-center gap-2"
               ><span class="min-w-0 flex-1 truncate">{text(item)}</span>{#if selected}<Icon
                   name="check"
-                  class="fill-brand-600 dark:fill-brand-400"
+                  class="text-brand-600 dark:text-brand-400"
                 />{/if}</span
             >
           {/if}

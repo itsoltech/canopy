@@ -64,7 +64,7 @@
     <span class="flex h-lh items-center text-base/6"
       ><Icon
         name={interaction.kind === InteractionKind.PERMISSION ? "hand-raised" : "question-mark-circle"}
-        class="fill-amber-500 dark:fill-amber-400"
+        class="text-amber-500 dark:text-amber-400"
       /></span
     >
     <div class="min-w-0 flex-1">

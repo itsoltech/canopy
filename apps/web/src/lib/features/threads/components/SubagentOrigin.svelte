@@ -13,7 +13,7 @@
 </script>
 
 <AgentWell class={["flex items-start gap-2", className]}>
-  <Icon name="sparkles" class="mt-1 shrink-0 fill-violet-500 dark:fill-violet-400" />
+  <Icon name="sparkles" class="mt-1 shrink-0 text-violet-500 dark:text-violet-400" />
   <div class="grid min-w-0 gap-1">
     <p
       class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300"

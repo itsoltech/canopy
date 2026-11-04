@@ -32,7 +32,7 @@
 >
   <Icon
     name={icons[link.kind]}
-    class={link.kind === "pull_request" ? "fill-emerald-600 dark:fill-emerald-400" : "fill-zinc-500 dark:fill-zinc-400"}
+    class={link.kind === "pull_request" ? "text-emerald-600 dark:text-emerald-400" : "fill-zinc-500 dark:fill-zinc-400"}
   />
   <span class="min-w-0 truncate font-medium text-zinc-900 dark:text-zinc-100">{link.title}</span>
   {#if subtitle}<span class="shrink-0 text-zinc-500 dark:text-zinc-400">{subtitle}</span>{/if}

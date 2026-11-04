@@ -107,7 +107,7 @@
             `Could not join the running turn${fallback.reason ? ` (${fallback.reason})` : ""}; it runs at its place in the queue.`,
           )}
         >
-          <Icon name="exclamation-circle" class="fill-amber-500" label="Could not join the running turn" />
+          <Icon name="exclamation-circle" class="text-amber-500" label="Could not join the running turn" />
         </span>
       {/if}
       {#if hints.length > 0}

@@ -87,7 +87,7 @@
         <dt class="sr-only">Set by</dt>
         {#if schedule.createdBy === "agent"}
           <dd class="flex min-w-0 items-center gap-1">
-            <Icon name="sparkles" class="size-3.5 shrink-0 fill-violet-500 dark:fill-violet-400" />
+            <Icon name="sparkles" class="size-3.5 shrink-0 text-violet-500 dark:text-violet-400" />
             <span class="shrink-0">Agent</span>
             {#if schedule.createdByThreadId && schedule.createdByThreadId !== schedule.threadId}
               <span class="shrink-0">in</span>

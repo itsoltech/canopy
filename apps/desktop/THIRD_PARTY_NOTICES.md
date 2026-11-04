@@ -18,6 +18,7 @@ relocatable database distribution and its bundled libraries.
 | embedded-postgres relocatable binary distribution | 18.6.0-beta.19 | MIT packaging; Apache-2.0 Zonky distribution; https://github.com/leinelissen/embedded-postgres and https://github.com/zonkyio/embedded-postgres-binaries |
 | PostgreSQL bundled libraries | per target binary distribution | OpenSSL, ICU, zlib, libxml2, libxslt, liblzma, ossp-uuid; sources and build recipes: https://github.com/zonkyio/embedded-postgres-binaries |
 | sharp / libvips | 0.35.5 | Apache-2.0 / LGPL-2.1-or-later and included library notices |
+| Tabler outline icons | @iconify-json/tabler 1.2.43 | MIT; https://github.com/tabler/tabler-icons; full notice in `licenses/Tabler-LICENSE.md` |
 | Claude Agent SDK | 0.3.316 | Anthropic's license/terms in the npm package; not relicensed by Canopy |
 
 PostgreSQL distribution pins are recorded separately for linux-x64, linux-arm64,

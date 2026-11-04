@@ -152,7 +152,7 @@
     {#if isSide(thread)}
       <PanelRow
         icon="hand-raised"
-        iconClass={thread.interactionRoute === "parent" ? "fill-violet-500 dark:fill-violet-400" : undefined}
+        iconClass={thread.interactionRoute === "parent" ? "text-violet-500 dark:text-violet-400" : undefined}
       >
         {#if thread.interactionRoute === "parent"}
           <span

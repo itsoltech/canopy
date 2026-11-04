@@ -36,7 +36,7 @@
       {:else}
         <Icon
           name={entry.tone === "error" ? "exclamation-circle" : "information-circle"}
-          class={entry.tone === "error" ? "fill-rose-400" : "fill-sky-400"}
+          class={entry.tone === "error" ? "text-rose-400" : "text-sky-400"}
         />
       {/if}
       {entry.text}

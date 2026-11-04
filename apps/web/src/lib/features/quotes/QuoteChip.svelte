@@ -47,7 +47,7 @@
       icon="pencil-square"
       label={quote.comment ? "Edit the comment" : "Add a comment"}
       size="sm"
-      iconClass={quote.comment ? "fill-brand-600 dark:fill-brand-400" : undefined}
+      iconClass={quote.comment ? "text-brand-600 dark:text-brand-400" : undefined}
       aria-haspopup="dialog"
       aria-expanded={editing}
       onclick={(event) => onedit(event.currentTarget)}

@@ -31,7 +31,7 @@ export interface SideMark {
 
 /** The mark of a side thread in lists: violet sparkles when an agent started it, a copy for a fork, else a turn arrow. */
 export function sideMark(thread: ui.Thread): SideMark {
-  if (thread.spawnedByAgent) return { icon: "sparkles", iconClass: "fill-violet-500 dark:fill-violet-400" };
+  if (thread.spawnedByAgent) return { icon: "sparkles", iconClass: "text-violet-500 dark:text-violet-400" };
 
   return {
     icon: thread.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right",
