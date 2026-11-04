@@ -3,6 +3,7 @@ import { ui, type EnvironmentFileStatus } from "@canopy/contracts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import type { JsonValue } from "#lib/shared/json.ts";
+import { revealEnvironmentItem } from "./environment-feedback.ts";
 
 export class EnvironmentState {
   snapshot = $state.raw<ui.AgentEnvironmentSnapshot>(create(ui.AgentEnvironmentSnapshotSchema));
@@ -57,6 +58,8 @@ export class EnvironmentState {
 
   async save(): Promise<void> {
     if (!this.draft || this.editConflict) return;
+    const previousIds = new Set(this.snapshot.documents.map((d) => d.id));
+    const id = this.draft.id;
 
     const body = create(ui.SaveInstructionDocumentRequestSchema, {
       document: this.draft,
@@ -66,6 +69,7 @@ export class EnvironmentState {
     if (await this.mutate("POST", "", encode(ui.SaveInstructionDocumentRequestSchema, body))) {
       this.draft = undefined;
       this.notice = "Saved. Assigned computers will sync, including those currently offline.";
+      void revealEnvironmentItem(id || this.snapshot.documents.find((d) => !previousIds.has(d.id))?.id || "");
     } else if (this.snapshot.revision !== this.#editRevision) {
       this.editConflict = true;
     }
