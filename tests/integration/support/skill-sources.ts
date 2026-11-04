@@ -123,20 +123,20 @@ export function sourceGitHttp(root: string) {
 }
 
 export function skillRegistry() {
-  let requests = 0;
+  const requests = new Map<string, number>();
   let hostile = false;
 
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
     fetch: (request) => {
-      requests++;
-
       if (request.headers.has("authorization")) throw new Error("Registry received credentials.");
       const url = new URL(request.url);
+      const query = url.searchParams.get("q");
 
-      if (url.pathname !== "/api/search" || !url.searchParams.get("q"))
+      if (request.method !== "GET" || url.pathname !== "/api/search" || !query)
         return new Response("Not found", { status: 404 });
+      requests.set(query, (requests.get(query) ?? 0) + 1);
 
       return Response.json({
         skills: [{ name: "review", source: hostile ? "attacker/repo" : "fixture/collection", installs: 1 }],
@@ -146,7 +146,7 @@ export function skillRegistry() {
 
   return {
     url: server.url.origin,
-    requests: () => requests,
+    requests: (query: string) => requests.get(query) ?? 0,
     hostile: (value: boolean) => {
       hostile = value;
     },
