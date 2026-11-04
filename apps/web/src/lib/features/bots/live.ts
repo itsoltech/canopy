@@ -10,7 +10,7 @@ export function botParticipant(bot: bots.Bot): BotView {
 }
 export function botConversation(bot: bots.Bot, pinnedIds: readonly string[] = []): ConversationView {
   const last = bot.lastMessage;
-  return { id: bot.id, kind: "direct", bots: [botParticipant(bot)], unread: bot.unreadCount, archived: bot.archived, pinned: !bot.archived && pinnedIds.includes(bot.id), pinOrder: pinnedIds.indexOf(bot.id),
+  return { id: bot.id, nodeId: bot.nodeId, kind: "direct", bots: [botParticipant(bot)], unread: bot.unreadCount, archived: bot.archived, pinned: !bot.archived && pinnedIds.includes(bot.id), pinOrder: pinnedIds.indexOf(bot.id),
     ...(last && { lastMessage: { senderId: last.senderId === "user" ? "me" : last.senderId, text: displayText(last), at: dateOf(last.createdAt), failed: last.failed } }),
   };
 }

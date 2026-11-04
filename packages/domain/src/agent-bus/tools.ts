@@ -1,6 +1,7 @@
 import { Result, Schema } from "effect";
 import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
 import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
+import { isEntityId } from "../computers.ts";
 
 /**
  * Agent bus tools: how agents delegate work to each other as side threads (docs/agent-bus.md).
@@ -18,8 +19,8 @@ import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
  *   (apps/worker/src/providers/native-tools.ts), so descriptions say when to use them for delegation.
  */
 
-const ThreadId = Schema.String.check(Schema.isUUID()).annotate({ description: "Thread id returned by spawn_thread or list_threads." });
-const AnyThreadId = Schema.String.check(Schema.isUUID()).annotate({
+const ThreadId = Schema.String.check(Schema.makeFilter(isEntityId)).annotate({ description: "Thread id returned by spawn_thread or list_threads, including its computer suffix." });
+const AnyThreadId = Schema.String.check(Schema.makeFilter(isEntityId)).annotate({
   description: "Thread id: from spawn_thread, list_threads (scope all finds any of the user's threads by title) or a thread the user mentioned.",
 });
 const Prompt = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(100_000));
@@ -44,6 +45,8 @@ export const SPAWN_PERMISSION_MODES = ["read_only", "ask", "accept_edits", "full
 export type SpawnPermissionMode = (typeof SPAWN_PERMISSION_MODES)[number];
 
 export const SpawnThread = Schema.Struct({
+  workspace_id: Schema.optionalKey(ThreadId.annotate({ description: "A linked computer's workspace from list_agents. Creates the child at that home. Required for a remote spawn; fork is unavailable across computers." })),
+  project_id: Schema.optionalKey(ThreadId),
   title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)).annotate({
     description: "Short label of the subagent's task, shown to the user (like a task name or description).",
   }),
@@ -93,6 +96,7 @@ export const SpawnThread = Schema.Struct({
 
 export const SendMessage = Schema.Struct({
   thread_id: AnyThreadId,
+  target_kind: Schema.optionalKey(Schema.Literals(["thread", "bot"]).annotate({ description: "thread (default), or bot using a bot id from list_agents." })),
   prompt: Prompt.annotate({ description: "Follow-up message for the target thread." }),
   delivery: Schema.optionalKey(
     Schema.Literals(["queue", "steer"]).annotate({
@@ -147,7 +151,7 @@ export const CloseThread = Schema.Struct({ thread_id: ThreadId });
 export const ListInteractions = Schema.Struct({});
 
 export const AnswerInteraction = Schema.Struct({
-  request_id: Schema.String.check(Schema.isUUID()).annotate({ description: "Interaction id from list_interactions or a notification." }),
+  request_id: ThreadId.annotate({ description: "Interaction id from list_interactions or a notification, including its computer suffix." }),
   response: Schema.Literals(["allow", "deny", "answer", "cancel"]).annotate({
     description: "allow/deny for permission prompts, answer for questions and forms, cancel to dismiss.",
   }),
@@ -213,7 +217,7 @@ export const AGENT_BUS_TOOLS = {
     name: "list_agents",
     description:
       "List what you can start as a subagent with spawn_thread: the providers on this worker (Claude, Codex and Grok instances) with their " +
-      "models and reasoning efforts. A subagent may run on any of them, not only on yours.",
+      "models and reasoning efforts. Includes linked computers by machine name, their projects/workspaces, workers and bots. Remote operations fail immediately if their computer is unreachable or needs an update.",
     args: ListAgents,
     mutates: false,
   }),

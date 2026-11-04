@@ -224,7 +224,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     yield* fenced(turn);
     const bot = (yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.bot_id}::uuid FOR UPDATE`)[0]!;
     if (text && !turn.routine_id && !turn.handoff_configuration) yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id)
-      VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.reply_to_bot_id ?? "user"}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid)
+      VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.reply_to_bot_id ?? turn.remote_recipient_ref ?? "user"}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid)
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
     yield* sql`UPDATE bot_turns SET status = ${status}, lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = ${turn.id}::uuid`;
     yield* sql`UPDATE bots SET status_line = '', revision = revision + 1, updated_at = now() WHERE id = ${turn.bot_id}::uuid`;
@@ -370,7 +370,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         reminders: reminders.map((r) => create(bots.BotReminderSchema, { id: r.id, prompt: r.prompt, runAt: timestampFromDate(new Date(r.run_at)) })) });
     })),
     exchange: (user: string, id: string) => sql<MessageRow>`SELECT m.* FROM bot_messages m JOIN bots b ON b.id = m.bot_id JOIN bot_turns t ON t.id = m.turn_id
-      WHERE m.exchange_id = ${id}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND t.reply_to_bot_id IS NOT NULL AND m.message_key IN ('input','answer') ORDER BY m.seq`
+      WHERE m.exchange_id = ${id}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND (t.reply_to_bot_id IS NOT NULL OR t.remote_recipient_ref IS NOT NULL) AND m.message_key IN ('input','answer') ORDER BY m.seq`
       .pipe(Effect.map((r) => r.map(messageView))),
     history: (turn: BotTurn) => sql<MessageRow>`SELECT * FROM (SELECT m.*, t.created_at AS turn_created, t.id AS turn_order FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
       WHERE m.bot_id = ${turn.bot_id}::uuid AND m.sender_id <> 'self' AND (${Boolean(turn.handoff_configuration)} OR (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid))
@@ -392,7 +392,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         WHERE id = ${rows[0].next_turn_id}::uuid RETURNING *`;
       const turn = turns[0]!;
       // A remote side effect may already have happened. Never repeat it after a crash.
-      yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote MCP call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND tool ->> 'source' = 'mcp'`;
+      yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND (tool ->> 'source' = 'mcp' OR linked_remote)`;
       yield* sql`UPDATE bots SET status_line = ${turn.routine_id || turn.handoff_configuration ? '' : 'Typing…'}, revision = revision + 1 WHERE id = ${id}::uuid`;
       return turn;
     })),
@@ -420,9 +420,9 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       yield* sql`UPDATE bot_tool_calls SET status = 'completed', result = ${JSON.stringify(result ?? null)}::jsonb WHERE id = ${call.id}::uuid`;
       return result;
     })),
-    remoteStarted: (turn: BotTurn, call: StoredCall) => sql.withTransaction(Effect.gen(function* () {
+    remoteStarted: (turn: BotTurn, call: StoredCall, linked = false) => sql.withTransaction(Effect.gen(function* () {
       yield* fenced(turn);
-      yield* sql`UPDATE bot_tool_calls SET status = 'running' WHERE id = ${call.id}::uuid AND status = 'pending'`;
+      yield* sql`UPDATE bot_tool_calls SET status = 'running', linked_remote = ${linked} WHERE id = ${call.id}::uuid AND status = 'pending'`;
     })),
     remoteResult: (turn: BotTurn, call: StoredCall, result: unknown) => sql.withTransaction(Effect.gen(function* () {
       yield* fenced(turn);

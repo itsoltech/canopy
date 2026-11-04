@@ -48,6 +48,7 @@
     onclose,
     onattach,
     actions,
+    notice,
     archived,
     class: className,
   }: {
@@ -75,6 +76,8 @@
     onclose?: (() => void) | undefined;
     onattach?: (() => void) | undefined;
     actions?: Snippet;
+    /** Availability or migration notices scroll below the window's conversation header. */
+    notice?: Snippet;
     archived?: Snippet;
     class?: ClassValue;
   } = $props();
@@ -178,6 +181,7 @@
       {@attach openAtUnread}
     >
       <div bind:this={content}>
+        {@render notice?.()}
         <ChatTimeline
           {conversation}
           {entries}

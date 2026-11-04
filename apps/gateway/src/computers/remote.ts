@@ -1,6 +1,6 @@
 import { fromBinary, toBinary, ScalarType, type DescMessage, type DescMethod, type Message, type MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { computerLink as link, ui } from "@canopy/contracts";
+import { computerLink as link, MentionKind, ui } from "@canopy/contracts";
 import { qualifyId, splitId, nodeRef } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 
@@ -15,30 +15,41 @@ const MAX_MESSAGE = 48 * 1024 * 1024;
 /** Calls one connection may run on this gateway at the same time. */
 const MAX_SERVED = 64;
 
-/** What a linked computer may do with this computer's threads. Settings, credentials, connectors, bots,
- * secrets and administration never cross the link in this stage. */
+/** Explicit home operations for threads and bots, plus capability-gated internal services.
+ * Credential and connector administration are never exposed through this allowlist. */
 export const SERVED = new Set([
   "GetOverview", "WatchOverview", "ListThreads", "GetThread", "WatchThread", "CreateThread", "SendMessage", "InterruptThread",
   "AnswerInteraction", "UpdateThread", "RegenerateTitle", "SetGoal", "StopBackgroundTask", "MarkThreadSeen", "SetThreadRead",
   "SetThreadArchived", "DeleteThread", "RestoreThread", "ListModels", "ListDirectory", "GetAttachment", "UploadAttachment",
   "GetThreadBlob", "ReorderQueuedTurns", "EditQueuedTurn", "DeleteQueuedTurn", "RestoreQueuedTurn", "SteerQueuedTurn",
   "ListMentionCatalog", "SearchFiles", "WatchThreadMirror", "PushSharedConfig",
+  "ListBots", "GetBot", "WatchBotConversation", "SendBotMessage", "AnswerBotApproval", "UpdateBot",
+  "InterruptBot", "RetryBot", "MarkBotRead", "ArchiveBot", "UnarchiveBot", "DeleteBot", "ReadBotExchange",
+  "SetBotRoutineEnabled", "DeleteBotRoutine", "CancelBotReminder", "WatchBotMirror", "CallAgentBus", "GetBotProviderInstances",
 ]);
 export const methodNamed = (name: string) => ui.GatewayService.methods.find((m) => m.name === name)
-  ?? link.ThreadMirrorService.methods.find((m) => m.name === name) ?? link.SharedConfigService.methods.find((m) => m.name === name);
+  ?? link.ThreadMirrorService.methods.find((m) => m.name === name) ?? link.SharedConfigService.methods.find((m) => m.name === name)
+  ?? link.LinkedAgentsService.methods.find((m) => m.name === name);
 
-export type RemoteServe = (method: DescMethod, request: Message, signal: AbortSignal) => AsyncIterable<Message>;
+export const BOT_METHODS = new Set(["ListBots", "GetBot", "WatchBotConversation", "SendBotMessage", "AnswerBotApproval", "UpdateBot",
+  "InterruptBot", "RetryBot", "MarkBotRead", "ArchiveBot", "UnarchiveBot", "DeleteBot", "ReadBotExchange",
+  "SetBotRoutineEnabled", "DeleteBotRoutine", "CancelBotReminder", "WatchBotMirror", "GetBotProviderInstances"]);
+
+export type RemoteServe = (method: DescMethod, request: Message, signal: AbortSignal, peerNodeId?: string) => AsyncIterable<Message>;
 type Frame = MessageInitShape<typeof link.LinkFrameSchema>;
 
 // ------------------------------------------------------------------ ids
 
 const idField = (name: string) => name === "id" || name.endsWith("_id") || name.endsWith("_ids");
-const STAMPED = new Set(["canopy.ui.v1.Thread", "canopy.ui.v1.Worker", "canopy.ui.v1.Project"]);
+const STAMPED = new Set(["canopy.ui.v1.Thread", "canopy.ui.v1.Worker", "canopy.ui.v1.Project", "canopy.ui.v1.Bot"]);
 
 /** Rewrites every id-like string field (`id`, `*_id`, `*_ids`) of a message in place, recursively. */
 export function mapIds(desc: DescMessage, message: Message, map: (id: string, field: string) => string, visit?: (desc: DescMessage, message: Record<string, unknown>) => void): void {
   const record = message as unknown as Record<string, unknown>;
   visit?.(desc, record);
+  if (desc.typeName === "canopy.worker.v1.Mention" && [MentionKind.BOT, MentionKind.THREAD, MentionKind.CONNECTOR].includes(record["kind"] as MentionKind)) {
+    record["name"] = map(String(record["name"]), "mention_id");
+  }
   for (const field of desc.fields) {
     let holder = record; let key = field.localName;
     if (field.oneof) {

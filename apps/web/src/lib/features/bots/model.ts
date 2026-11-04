@@ -38,6 +38,7 @@ export interface ConversationPreview {
 }
 
 export interface ConversationView {
+  nodeId?: string | undefined;
   id: string;
   kind: ConversationKind;
   /** Groups have a name; direct and watched chats are named after their bots. */

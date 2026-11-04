@@ -29,6 +29,8 @@ import { cronProblem, nextCronRun } from "./cron.ts";
  */
 
 export interface BusHost {
+  linked?(request: AgentToolCall, call: AgentBusCall, caller: ThreadRow): Promise<JsonValue | undefined>;
+  extend?(call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue>;
   run<A, E>(effect: Effect.Effect<A, E, GatewayStore | AgentBusStore>): Promise<A>;
   /** Sends CreateThread for a new thread (with its fork point) and announces it. */
   startThread(row: ThreadRow): Promise<void>;
@@ -87,6 +89,15 @@ export class AgentBus {
     const call = decoded.success;
     const calling = await this.#host.run(GatewayStore.use((s) => s.thread(request.threadId))).catch(() => undefined);
     if (calling && workerId !== undefined && calling.worker_id !== workerId) return failure(request.callId, `thread ${request.threadId} not found`);
+    if (calling && this.#host.linked) {
+      try {
+        const result = await this.#host.linked(request, call, calling);
+        if (result !== undefined) {
+          await this.#host.run(AgentBusStore.use((s) => s.recordCall({ source, tool: call.tool, args: call.args, ok: true, result, observedTurnIds: [] })));
+          return ok(request.callId, result);
+        }
+      } catch (error) { return refuse(error instanceof Error && error.name === "ConnectError" ? error.message : "Linked agent action rejected or unavailable", call.args); }
+    }
     // Where a subagent runs: resolved first, so the fork rule can judge it; a problem is reported after the
     // bus rules (a side thread hears that it cannot spawn at all, not that the model is wrong).
     let spawn: SpawnResolution | undefined;
@@ -110,7 +121,8 @@ export class AgentBus {
     const hops = decision.hops ?? facts.callerHops + 1;
 
     try {
-      const result = await this.#execute(call, source, caller, hops, spawn?.ok ? spawn.target : callerTarget(caller));
+      let result = await this.#execute(call, source, caller, hops, spawn?.ok ? spawn.target : callerTarget(caller));
+      if (this.#host.extend) result = await this.#host.extend(call, caller, result);
       if (!STORES_ITS_CALL.has(call.tool)) {
         await this.#host.run(AgentBusStore.use((s) => s.recordCall({ source, tool: call.tool, args: call.args, ok: true, result })));
       }

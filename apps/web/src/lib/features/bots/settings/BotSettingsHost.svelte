@@ -14,6 +14,7 @@
   import { botWizardInstances } from "../live.ts";
   import BotSettingsDialog from "./BotSettingsDialog.svelte";
   import { archiveBot } from "./lifecycle.ts";
+  import { nodeRef, splitId } from "@canopy/domain/computers";
   const catalogs = useModelCatalog();
   const settings = useSettings();
   let id = $state('');
@@ -26,7 +27,7 @@
   let deleteError = $state('');
   let generation = 0;
   const bot = $derived(botList.list.find((b) => b.id === id));
-  const instances = $derived(botWizardInstances(providers, [...catalogs.workers.values()]));
+  const instances = $derived(botWizardInstances(providers, [...catalogs.workers.values()].filter((w) => splitId(w.workerId).node === (bot?.nodeId ? nodeRef(bot.nodeId) : undefined))));
   $effect(() => {
     async function edit(event: Event) {
       const nextId = (event as CustomEvent<string>).detail;
@@ -35,7 +36,7 @@
       loadError = '';
       loading = true;
       try {
-        const instancesJson = await requestJson('GET', '/api/providers');
+        const instancesJson = await requestJson('GET', `/api/bots/${nextId}/providers`);
         if (generation !== version) return;
         providers = decode(ui.ListProviderInstancesResponseSchema, instancesJson).instances;
         open = true;

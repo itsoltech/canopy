@@ -1,5 +1,6 @@
 import { MentionKind, type bots } from "@canopy/contracts";
 import { fuzzyRank } from "@canopy/domain";
+import { splitId } from "@canopy/domain/computers";
 import type { TriggerChar } from "#lib/features/mentions/editor.ts";
 import type { MentionOption, MentionResults, MentionSourceSet } from "#lib/features/mentions/sources.svelte.ts";
 import { INLINE_RENDERERS } from "#lib/features/mentions/kinds.ts";
@@ -30,7 +31,7 @@ export class BotMentionSources implements MentionSourceSet {
     this.#bots = list;
     this.#current = current;
     this.registry = {
-      bots: [{ search: (query) => fuzzyRank(query, this.#bots().filter((b) => b.id !== this.#current() && !b.archived), (b) => [b.configuration?.name ?? ""], 40).map(({ item, match }) => ({
+      bots: [{ search: (query) => fuzzyRank(query, this.#bots().filter((b) => b.id !== this.#current() && !b.archived && splitId(b.id).node === splitId(this.#current()).node), (b) => [b.configuration?.name ?? ""], 40).map(({ item, match }) => ({
         key: `bot:${item.id}`,
         data: { kind: MentionKind.BOT, name: item.id, label: item.configuration?.name ?? "Bot", path: "", source: "", isDir: false },
         title: item.configuration?.name ?? "Bot", detail: item.configuration?.model ?? "", group: "Bots", indices: match.indices,

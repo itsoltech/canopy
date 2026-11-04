@@ -2,6 +2,33 @@ syntax = "proto3";
 package canopy.link.v1;
 
 import "canopy/ui/v1/gateway.proto";
+import "canopy/ui/v1/bots.proto";
+
+// Stage 5. Internal, negotiated methods over the pinned link, never public RPCs.
+service LinkedAgentsService {
+  rpc WatchBotMirror(MirrorRequest) returns (stream BotMirrorUpdate);
+  rpc CallAgentBus(LinkedAgentCall) returns (LinkedAgentResult);
+}
+message BotMirrorUpdate {
+  string cursor = 1;
+  // A replacement batch consists of start, one conversation per frame, then commit.
+  bool start = 2;
+  bool commit = 3;
+  canopy.ui.v1.BotConversation conversation = 4;
+  bool conversation_start = 5;
+  bool conversation_end = 6;
+}
+message LinkedAgentCall {
+  // Closed operation set validated by the receiving gateway.
+  string operation = 1;
+  string call_id = 2;
+  string actor_id = 3;
+  string actor_kind = 4; // thread | bot
+  // Validated operation arguments, never credentials. No onward routing.
+  string arguments_json = 5;
+  uint32 hops = 6;
+}
+message LinkedAgentResult { string result_json = 1; }
 
 // Internal subscription over RemoteRequest/RemoteResponse, only with thread_mirror.
 // It is not registered on the public gateway or pairing listener.

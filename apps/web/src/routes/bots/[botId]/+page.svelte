@@ -25,6 +25,9 @@
   import { archiveBot, reportLifecycleError } from '#lib/features/bots/settings/lifecycle.ts';
   import { decode, encode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
+  import Alert from "#lib/shared/ui/Alert.svelte";
+  import { useBotHome } from "#lib/features/bots/home.svelte.ts";
+  import { nodeRef, splitId } from "@canopy/domain/computers";
 
   let { data }: PageProps = $props();
   const settings = useSettings();
@@ -45,6 +48,8 @@
   let observedBotId: string | undefined;
 
   const bot = $derived(botList.list.find((b) => b.id === data.bot.id) ?? snapshot.bot ?? data.bot);
+  const home = useBotHome(() => bot.nodeId);
+  const canAct = $derived(!bot.archived && !home.reason);
   const config = $derived(bot.configuration ?? create(bots.BotConfigurationSchema));
   const conversation = $derived(botConversation(bot, settings.sidebar.pinnedBotIds));
   const directory = $derived(botList.list.filter((b) => b.id !== bot.id).map(botParticipant));
@@ -61,12 +66,12 @@
     snapshot.working ? { bot: botParticipant(bot), text: snapshot.statusLine || (waiting ? "Waiting for you" : "Typing…"), waiting } : undefined,
   );
   const policy = $derived<ApprovalPolicy>(config.approvalPolicy === "always" || config.approvalPolicy === "full_auto" ? config.approvalPolicy : "safe");
-  const modelInstances = $derived(botWizardInstances(instances, [...catalogs.workers.values()]));
+  const modelInstances = $derived(botWizardInstances(instances, [...catalogs.workers.values()].filter((w) => splitId(w.workerId).node === (bot.nodeId ? nodeRef(bot.nodeId) : undefined))));
 
   $effect(() => botList.use());
   function markVisibleRead() {
     const last = snapshot.messages.at(-1)?.seq;
-    if (snapshot.bot && last && last > snapshot.bot.lastReadSeq && document.visibilityState === 'visible') {
+    if (!home.reason && snapshot.bot && last && last > snapshot.bot.lastReadSeq && document.visibilityState === 'visible') {
       void botList.markRead(snapshot.bot.id, last).catch(() => undefined);
     }
   }
@@ -105,6 +110,7 @@
     }
   }
   function send(text: string, mentions: Mention[], quotes: ui.Quote[]) {
+    if (!canAct) return;
     const item = { id: crypto.randomUUID(), text, mentions, quotes, at: new Date(), baseline: yours.length, failed: false };
     pending = [...pending, item];
     void deliver(item);
@@ -117,6 +123,7 @@
   }
 
   async function reply(id: string, body: { approve: boolean; answer: string }, mark: string) {
+    if (!canAct) return;
     answering = { ...answering, [id]: mark };
     try {
       await requestJson("POST", `/api/bot-approvals/${id}`, encode(bots.AnswerBotApprovalRequestSchema, create(bots.AnswerBotApprovalRequestSchema, { approvalId: id, ...body })));
@@ -154,7 +161,7 @@
   }
   async function openChangeModel() {
     try {
-      instances = decode(ui.ListProviderInstancesResponseSchema, await requestJson("GET", "/api/providers")).instances;
+      instances = decode(ui.ListProviderInstancesResponseSchema, await requestJson("GET", `/api/bots/${bot.id}/providers`)).instances;
       changingModel = true;
     } catch {
       connection = "Could not load your provider instances";
@@ -188,24 +195,32 @@
       {answering}
       {retrying}
       {policy}
-      onanswer={bot.archived ? undefined : answer}
-      onapprove={bot.archived ? undefined : approve}
-      onpolicy={bot.archived ? undefined : setPolicy}
+      composerDisabledReason={home.reason}
+      onanswer={canAct ? answer : undefined}
+      onapprove={canAct ? approve : undefined}
+      onpolicy={canAct ? setPolicy : undefined}
       exchangeHref={(segment) => `/bots/${data.bot.id}/exchanges/${segment.exchangeId}`}
       onsend={send}
-      onretry={bot.archived ? undefined : retry}
-      onchangemodel={bot.archived ? undefined : openChangeModel}
+      onretry={canAct ? retry : undefined}
+      onchangemodel={canAct ? openChangeModel : undefined}
       class="flex-1"
     >
+      {#snippet notice()}
+        {#if home.reason}
+          <div class="px-4 py-2 sm:px-6">
+            <Alert tone="warning" banner title="Read only for now">{home.reason} You can read the synced conversation. Messages, approvals and settings are unavailable; nothing is queued.</Alert>
+          </div>
+        {/if}
+      {/snippet}
       {#snippet actions()}
-        {#if snapshot.working}<Button size="sm" variant="ghost" icon="stop" onclick={interrupt}>Stop</Button>{/if}
+        {#if snapshot.working}<Button size="sm" variant="ghost" icon="stop" disabled={!canAct} onclick={interrupt}>Stop</Button>{/if}
         <IconButton icon="information-circle" label="Bot details" aria-expanded={detailsLayout?.isExpanded() ?? false} onclick={(event) => { detailsToggle = event.currentTarget; detailsLayout?.toggle(); }} />
         <DropdownMenu label="Bot actions" placement="bottom-end">
           {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="Bot actions" {...props} />{/snippet}
-          <MenuItem icon="pencil-square" onselect={() => openBotSettings(bot.id)}>Edit bot…</MenuItem>
+          <MenuItem icon="pencil-square" disabled={Boolean(home.reason)} onselect={() => openBotSettings(bot.id)}>Edit bot…</MenuItem>
           {#if !bot.archived}<MenuItem icon="star" onselect={() => { void settings.pinBot(bot.id, !conversation.pinned); }}>{conversation.pinned ? 'Unpin' : 'Pin to top'}</MenuItem>{/if}
-          <MenuItem icon="archive-box" onselect={() => { void archiveBot(bot, !bot.archived).then(() => settings.pinBot(bot.id, false)).catch(reportLifecycleError); }}>{bot.archived ? 'Unarchive bot' : 'Archive bot'}</MenuItem>
-          {#if bot.archived}<MenuItem icon="trash" onselect={() => window.dispatchEvent(new CustomEvent('delete-bot', { detail: bot.id }))}>Delete bot…</MenuItem>{/if}
+          <MenuItem icon="archive-box" disabled={Boolean(home.reason)} onselect={() => { void archiveBot(bot, !bot.archived).then(() => settings.pinBot(bot.id, false)).catch(reportLifecycleError); }}>{bot.archived ? 'Unarchive bot' : 'Archive bot'}</MenuItem>
+          {#if bot.archived}<MenuItem icon="trash" disabled={Boolean(home.reason)} onselect={() => window.dispatchEvent(new CustomEvent('delete-bot', { detail: bot.id }))}>Delete bot…</MenuItem>{/if}
         </DropdownMenu>
       {/snippet}
       {#snippet archived()}

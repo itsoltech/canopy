@@ -14,6 +14,8 @@ import "canopy/ui/v1/mobile.proto";
 import "canopy/ui/v1/computers.proto";
 
 service GatewayService {
+  // Safe model picker metadata for a bot, resolved at its home. No credentials or connector grants.
+  rpc GetBotProviderInstances(GetBotRequest) returns (ListProviderInstancesResponse);
   rpc GetComputers(ComputersRequest) returns (ComputersSnapshot);
   rpc CreateComputerPairing(CreateComputerPairingRequest) returns (ComputerPairing);
   rpc LinkComputer(LinkComputerRequest) returns (ComputersSnapshot);

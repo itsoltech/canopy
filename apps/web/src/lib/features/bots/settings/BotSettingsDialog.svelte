@@ -19,6 +19,8 @@
   import ProviderModelFields from "../wizard/ProviderModelFields.svelte";
   import BotConnections from "./BotConnections.svelte";
   import SettingsSection from "./SettingsSection.svelte";
+  import BotHome from "../components/BotHome.svelte";
+  import { useBotHome } from "../home.svelte.ts";
 
   let { open = $bindable(false), bot, providers, instances, onarchive, ondelete, class: className }: {
     open?: boolean; bot: bots.Bot; providers: readonly ui.ProviderInstance[]; instances: readonly BotProviderInstance[];
@@ -37,6 +39,7 @@
   let wasOpen = false;
   let session = $state(0);
   const existingNames = $derived(botList.list.map((b) => b.configuration?.name ?? ''));
+  const home = useBotHome(() => bot.nodeId);
   $effect(() => {
     if (open && !wasOpen) untrack(() => {
       const c = bot.configuration!;
@@ -55,7 +58,7 @@
   });
   async function save(event: SubmitEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || home.reason) return;
     error = appearanceError(appearance, existingNames, originalName) ?? '';
     if (error) return;
     // An unavailable existing model need not prevent an appearance/instructions edit.
@@ -73,6 +76,7 @@
     finally { busy = false; }
   }
   async function archive() {
+    if (home.reason) return;
     busy = true;
     try { await onarchive(); open = false; }
     catch (cause) { error = cause instanceof Error ? cause.message : 'Could not archive this bot.'; }
@@ -87,6 +91,7 @@
       <IconButton icon="x-mark" label="Close settings" size="sm" disabled={busy} onclick={() => (open = false)} />
     </div>
     <div class="px-5 sm:px-6">
+      <BotHome nodeId={bot.nodeId} banner />
       {#key session}
         <SettingsSection title="Appearance"><EditBotAppearance inline bind:value={appearance} {existingNames} {originalName} disabled={busy} /></SettingsSection>
         <SettingsSection title="Instructions" description="Give your bot a role, context, or preferences to remember. Changes apply from its next turn.">
@@ -103,12 +108,12 @@
           ]} /></Field>
         </SettingsSection>
         <SettingsSection title="Connections" description="Connector accounts granted to this bot. Available tools follow the approval policy above.">
-          <BotConnections botId={bot.id} />
+          {#if bot.nodeId}<p class="text-zinc-500 dark:text-zinc-400">Connections belong to {home.name}. Manage account authorization on that computer.</p>{:else}<BotConnections botId={bot.id} />{/if}
         </SettingsSection>
         <SettingsSection title="Danger zone" description="Archive to keep the conversation and settings. Delete removes this bot and its conversation from Canopy.">
           <div class="flex flex-wrap gap-2">
-            <Button disabled={busy} onclick={archive}>{bot.archived ? 'Unarchive bot' : 'Archive bot'}</Button>
-            <Button variant="danger" disabled={busy} onclick={ondelete}>Delete bot…</Button>
+            <Button disabled={busy || Boolean(home.reason)} onclick={archive}>{bot.archived ? 'Unarchive bot' : 'Archive bot'}</Button>
+            <Button variant="danger" disabled={busy || Boolean(home.reason)} onclick={ondelete}>Delete bot…</Button>
           </div>
         </SettingsSection>
       {/key}
@@ -117,7 +122,7 @@
     <div class="sticky bottom-0 flex items-center justify-end gap-2 border-t border-zinc-950/10 bg-white px-5 pt-3 pb-[max(--spacing(4),env(safe-area-inset-bottom))] sm:px-6 dark:border-white/10 dark:bg-zinc-950">
       <div class="mr-auto text-sm text-zinc-500 dark:text-zinc-400" role="status">{busy ? 'Saving…' : ''}</div>
       <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
-      <Button type="submit" variant="primary" loading={busy}>Save changes</Button>
+      <Button type="submit" variant="primary" disabled={Boolean(home.reason)} loading={busy}>Save changes</Button>
     </div>
   </form>
 </Dialog>

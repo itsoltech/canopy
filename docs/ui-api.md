@@ -152,6 +152,16 @@ także po archiwizacji lub soft delete; panel szczegółów opisuje ręczne sprz
 
 ## Bots
 
+Boty bezpośrednich partnerów mają kwalifikowane id i `Bot.node_id` (800). `ListBots` sumuje
+domy, pozostałe dozwolone akcje trasują do domu; `WatchBotConversation` zachowuje strumień
+kart i odpowiedzi. `GetBotProviderInstances(GetBotRequest)` / `GET /api/bots/:botId/providers`
+dostarcza bezsekretowy katalog providerów domu do edytora i zmiany modelu. Online `ReadBotExchange`
+pobiera rozmowę między botami z domu odbiorcy, offline z pełnego lustra. `remote_bots` obejmuje
+trwałe lustra rozmów z kartami i metadanymi rutyn/przypomnień. Po utracie łącza lista i odczyt
+zostają, UI pokazuje maszynę i przyczynę, blokuje composer, karty, edycję i akcje. Connectory
+autoryzuje się w domu bota; lokalne konta nie są jego katalogiem. Szczegóły capability,
+allowlisty i błędów: [etap 5](linked-computers.md#konkretny-protokół-etapu-5).
+
 Rutyny bota są częścią `BotConversation.routines` (pole 560), jednorazowe pobudki
 `reminders` (561). Ten sam strumień SSE aktualizuje panel bez wpisów technicznych
 w rozmowie. `SetBotRoutineEnabled` / `DeleteBotRoutine` i `CancelBotReminder` sprawdzają

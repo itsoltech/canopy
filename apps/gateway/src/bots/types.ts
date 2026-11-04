@@ -42,6 +42,7 @@ export interface BotTurn {
   id: string; bot_id: string; input: string; hops: number;
   status: string; checkpoint: ModelMessage[]; lease_token: string;
   reply_to_bot_id: string | null; exchange_id: string | null;
+  remote_recipient_ref?: string | null;
   routine_id: string | null; routine_title: string;
   handoff_configuration: unknown | null;
   handoff_instance_label: string | null;

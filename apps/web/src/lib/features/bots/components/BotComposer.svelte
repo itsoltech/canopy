@@ -3,6 +3,7 @@
   import { create } from "@bufbuild/protobuf";
   import { MentionKind, ui, type Mention } from "@canopy/contracts";
   import { fuzzyRank } from "@canopy/domain";
+  import { splitId } from "@canopy/domain/computers";
   import { connectorLabel } from "#lib/features/connectors/api.ts";
   import { useConnectorAccounts } from "#lib/features/connectors/accounts.svelte.ts";
   import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
@@ -55,7 +56,7 @@
   const id = $props.id();
   let box = $state<HTMLDivElement>();
   let editor = $state<{ insertTrigger(char: TriggerChar): void; focus(): void }>();
-  const connectorCatalog = useConnectorAccounts(() => ({ botId }));
+  const connectorCatalog = useConnectorAccounts(() => splitId(botId).node ? undefined : { botId });
   const sources = new BotMentionSources(() => botList.list, () => botId, [{ search: (query) => fuzzyRank(query, connectorCatalog.accounts.filter((a) => a.status === 'connected'), (a) => [connectorLabel(a, connectorCatalog.types)], 40).map(({ item, match }) => ({
     key: `connector:${item.id}`, data: { kind: MentionKind.CONNECTOR, name: item.id, label: connectorLabel(item, connectorCatalog.types), source: item.connectorType, path: '', isDir: false },
     title: connectorLabel(item, connectorCatalog.types), detail: 'Use this connector account', group: 'Connectors', indices: match.indices,

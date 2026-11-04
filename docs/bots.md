@@ -500,6 +500,31 @@ mogą zacząć nową turę.
 
 ## 5. Bot ↔ bot i powiadomienia
 
+### Boty na połączonych komputerach
+
+Bot ma jeden dom: gateway, na którym go utworzono. Rozmowa, model, rutyny, przypomnienia,
+notatki handoff i granty wykonują się tylko tam. Inny gateway sumuje `ListBots`, oznacza dom
+przez `Bot.node_id` (800) i kwalifikuje id (`<uuid>~<node16>`); odczyt na żywo, wiadomości,
+edycja, karty i akcje rutyn idą do domu przez przypięte łącze z capability `remote_bots`.
+`GetBotProviderInstances` zwraca bezsekretowy katalog domu do edytora; connectory autoryzuje się
+na komputerze domu. UI nie podpowiada kont z innego gatewaya.
+
+Capability `agent_bus` pozwala `start_thread` użyć workspace'u partnera oraz `send_message`,
+`send_bot_message` i `answer_interaction` adresować kwalifikowane id. Katalogi pokazują nazwy
+komputerów. **Polityka zgód bota jest sprawdzana u niego przed wysłaniem operacji**; karta
+wskazuje komputer docelowy. Zdalny gateway waliduje swój workspace, workera i modele. Wątek
+mieszka na komputerze workera i ma odwołanie do bota-rodzica w jego domu. Pytania i raporty
+wracają łączem, zachowując `hops`; odpowiedź narzędzia na pytanie nadal wymaga zgody bota.
+Wynik pochodzący z rutyny wraca jako jej ukryte wykonanie na domu, bez przenoszenia crona.
+
+Rozmowy (włącznie z kartami, rutynami i przypomnieniami) są pełnymi, atomowo podmienianymi
+lustrami do odczytu offline. UI blokuje composer, zgody i ustawienia oraz pokazuje powód
+niedostępności z czasem. Nie kolejkuje pisania na później. Narzędzie dostaje od razu czytelny
+błąd; starszy partner — „needs an update”. Raport przy niedostępnym rodzicu jest porzucany,
+pozostaje do odczytu w domu wykonania. Unlink usuwa lustro i odłącza relacje między domami,
+nie usuwa lokalnych botów ani ich historii. Szczegóły i kontrakty:
+[protokół etapu 5](linked-computers.md#konkretny-protokół-etapu-5).
+
 `send_bot_message` zapisuje adresata, wymianę i nową turę docelowego bota. Jego odpowiedź
 pozostaje w jego jednej rozmowie i jest też follow-upem nadawcy. W czacie nadawcy
 pojawiają się linie `Messaged ‹Bot›` i `Message from ‹Bot›`. `exchange_id` łączy wpisy;

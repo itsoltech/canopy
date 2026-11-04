@@ -1,10 +1,10 @@
 import { clone, create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { Code, ConnectError, createContextValues, type HandlerContext } from "@connectrpc/connect";
-import { ui } from "@canopy/contracts";
-import { qualifyId, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
+import { bots, computerLink as link, ui } from "@canopy/contracts";
+import { nodeRef, qualifyId, REMOTE_BOTS, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import type { GatewayCore } from "../core/core.ts";
-import { globalize, methodNamed, nodesOf, qualify, SERVED, unqualify, type RemoteServe } from "../computers/remote.ts";
+import { globalize, mapIds, methodNamed, nodesOf, qualify, SERVED, unqualify, type RemoteServe } from "../computers/remote.ts";
 import type { SharedHost } from "../computers/shared.ts";
 import { toConnectError, type UiHandlers } from "./ui-service.ts";
 
@@ -86,6 +86,12 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   }
   const routedOne = handlers as Record<string, Handler>;
   const overrides: Partial<UiHandlers> = {
+    readBotExchange: async (request) => {
+      const response = create(bots.ReadBotExchangeResponseSchema, { messages: await core.linkedAgents.exchange(request.exchangeId) });
+      const self = core.computers && nodeRef(core.computers.hello().nodeId);
+      if (self) mapIds(bots.ReadBotExchangeResponseSchema, response, (id) => splitId(id).node === self ? splitId(id).id : id);
+      return response;
+    },
     getOverview: async (request, context) => {
       const [overview, snapshot, remote] = await Promise.all([
         unary(own["getOverview"]!, request, context) as Promise<ui.GetOverviewResponse>,
@@ -107,6 +113,14 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
       if (target(methodNamed("ListModels")!, request)) return unary(routedOne["listModels"]!, request, context) as Promise<ui.ListModelsResponse>;
       const [list, remote] = await Promise.all([unary(handler("listModels"), request, context) as Promise<ui.ListModelsResponse>, gather<ui.ListModelsResponse>(core, "ListModels", request, context.signal)]);
       for (const other of remote) list.workers.push(...other.workers);
+      return list;
+    },
+    listBots: async (request, context) => {
+      const [list, others] = await Promise.all([
+        unary(handler("listBots"), request, context) as Promise<bots.ListBotsResponse>,
+        gather<bots.ListBotsResponse>(core, "ListBots", request, context.signal),
+      ]);
+      for (const other of others) list.bots.push(...other.bots);
       return list;
     },
     // The archive is paged per computer; other computers' archived threads stay on them in this stage.
@@ -132,6 +146,8 @@ async function* forward(core: GatewayCore, nodeId: string, method: DescMethod, r
   const global = globalIds(core);
   for await (const message of home(core, nodeId, method, request, signal, global)) {
     globalize(method.output, message, global);
+    const self = core.computers && nodeRef(core.computers.hello().nodeId);
+    if (self) mapIds(method.output, message, (id) => splitId(id).node === self ? splitId(id).id : id);
     yield message;
   }
 }
@@ -140,6 +156,27 @@ async function* forward(core: GatewayCore, nodeId: string, method: DescMethod, r
 async function* home(core: GatewayCore, nodeId: string, method: DescMethod, request: Message, signal: AbortSignal, global: ReadonlySet<string>): AsyncGenerator<Message> {
   const computers = core.computers;
   if (!computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
+  if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(REMOTE_BOTS)) {
+    if (method.name === "ListBots" || method.name === "GetBot" || method.name === "WatchBotConversation") {
+      const snapshots = await computers.botMirror.conversations(nodeId);
+      if (method.name === "ListBots") {
+        yield create(bots.ListBotsResponseSchema, { bots: snapshots.flatMap((c) => c.bot && ((request as bots.ListBotsRequest).includeArchived || !c.bot.archived) ? [c.bot] : []) });
+      } else {
+        const id = (request as bots.GetBotRequest).botId;
+        const snapshot = snapshots.find((s) => s.bot?.id === id);
+        if (!snapshot) throw new ConnectError("This bot has not been synced yet. Connect its computer to read it.", Code.Unavailable);
+        if (method.name === "GetBot") yield create(bots.GetBotResponseSchema, { bot: snapshot.bot });
+        else {
+          const changes = new AsyncChannel<void>();
+          const unsubscribe = computers.subscribe((c) => { if (c.nodeId === nodeId) changes.close(); });
+          const abort = () => changes.close(); signal.addEventListener("abort", abort, { once: true });
+          try { yield snapshot; if (!signal.aborted && !computers.reachable().includes(nodeId)) for await (const _ of changes) { /* wait for reconnect */ } }
+          finally { unsubscribe(); signal.removeEventListener("abort", abort); }
+        }
+      }
+      return;
+    }
+  }
   if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(THREAD_MIRROR)) {
     if (method.name === "GetThread" || method.name === "WatchThread") {
       const threadId = splitId((request as ui.GetThreadRequest).threadId).id;
@@ -199,8 +236,8 @@ async function gather<A extends Message>(core: GatewayCore, name: string, reques
   const method = methodNamed(name)!;
   if (!computers) return [];
   const nodes = new Set(computers.reachable());
-  if (name === "GetOverview" || name === "ListThreads") for (const peer of (await computers.snapshot()).peers)
-    if (peer.capabilities.includes(THREAD_MIRROR)) nodes.add(peer.nodeId);
+  if (name === "GetOverview" || name === "ListThreads" || name === "ListBots") for (const peer of (await computers.snapshot()).peers)
+    if (peer.capabilities.includes(name === "ListBots" ? REMOTE_BOTS : THREAD_MIRROR)) nodes.add(peer.nodeId);
   const results = await Promise.allSettled([...nodes].map((nodeId) =>
     single<A>(forward(core, nodeId, method, request, AbortSignal.any([signal, AbortSignal.timeout(GATHER_TIMEOUT_MS)])))));
   return results.flatMap((r) => r.status === "fulfilled" ? [r.value] : []);
@@ -315,9 +352,15 @@ async function* watchOverview(core: GatewayCore, own: Record<string, Handler>, r
 }
 
 /** Serves a linked computer's call with this computer's own handlers: no routing onward, no aggregation. */
-export function remoteServe(local: UiHandlers): RemoteServe {
+export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe {
   const own = local as unknown as Record<string, Handler>;
-  return async function* (method, request, signal) {
+  return async function* (method, request, signal, peerNodeId) {
+    if (method.name === "CallAgentBus") {
+      if (!core || !peerNodeId) throw new ConnectError("Linked agent bus unavailable", Code.Unimplemented);
+      try { yield create(link.LinkedAgentResultSchema, { resultJson: JSON.stringify(await core.linkedAgents.receive(peerNodeId, request as link.LinkedAgentCall)) }); }
+      catch (error) { throw toConnectError(error); }
+      return;
+    }
     const context = { signal, values: createContextValues(), requestHeader: new Headers(), responseHeader: new Headers(), responseTrailer: new Headers(),
       method, service: ui.GatewayService, protocolName: "canopy.link", requestMethod: "POST", url: "" } as unknown as HandlerContext;
     try {

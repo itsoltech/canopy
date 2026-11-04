@@ -216,6 +216,20 @@ Weryfikacja: `questions.test.ts` domeny i UI, `tests/integration/ask-user.test.t
 
 ## 4. Interakcje w wątkach bocznych
 
+**Połączone komputery (etap 5).** `list_agents` pokazuje bezpośrednich partnerów z nazwami,
+workspace'ami, workerami, botami i modelami. `spawn_thread` z kwalifikowanym `workspace_id`
+tworzy dziecko w domu tego workera; opcjonalny `project_id` musi wskazywać ten sam dom albo
+wspólny projekt. Rodzic zostaje u siebie jako jawne odwołanie. Brak zdalnego forka i wnuków;
+sufit permissions, limity i `hops` są sprawdzane przed wysłaniem. `send_message` adresuje
+kwalifikowany wątek lub bota (`target_kind: "bot"`). `get_thread`/`read_thread`, oczekiwanie,
+odpowiedź na interakcję i sterowanie własnym dzieckiem korzystają z tego samego łącza.
+Pytania `ask_user` i dostawcy wracają do rodzica z kwalifikowanymi id; raport zakończenia
+wraca do źródła. Gateway domu stosuje własność i walidacje, bot źródłowy także własną politykę
+zgód. Offline narzędzie od razu zwraca powód; brak capability — „needs an update”. Nie ma
+kolejki dla partnera. Unlink odłącza relacje, zachowując dane wykonania. Pełny kontrakt,
+idempotencja i zasady porzucania powiadomień:
+[etap 5](linked-computers.md#konkretny-protokół-etapu-5).
+
 Gdy dostawca w wątku bocznym prosi o zgodę albo zadaje pytanie ([execution.md](execution.md#6-interakcje-z-użytkownikiem)), o adresacie decyduje `threads.interaction_route`, ustawiane przy tworzeniu wątku:
 
 | `interaction_route` | Domyślnie dla | Kto odpowiada |

@@ -60,6 +60,9 @@ export interface ThreadRow {
   owner_user_id: string;
   kind: "main" | "side";
   parent_thread_id: string | null;
+  remote_parent_ref?: string | null;
+  remote_parent_kind?: string | null;
+  remote_parent_detached?: boolean;
   root_thread_id: string;
   depth: number;
   origin: string;
@@ -794,7 +797,7 @@ export class GatewayStore extends Context.Service<
               // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
               enableAgentBus: row.runtime === "worker",
               providerThreadId: row.provider_thread_id ?? "",
-              depth: row.depth,
+              depth: row.remote_parent_ref ? 1 : row.depth,
             }),
 
           setThreadStatus: (threadId, status, detail) =>
@@ -1137,8 +1140,8 @@ export function toUiThread(row: ThreadRow): ui.Thread {
   return create(ui.ThreadSchema, {
     id: row.id,
     projectId: row.project_id,
-    kind: row.kind === "side" ? ui.ThreadKind.SIDE : ui.ThreadKind.MAIN,
-    parentThreadId: row.parent_thread_id ?? "",
+    kind: row.kind === "side" || row.remote_parent_ref ? ui.ThreadKind.SIDE : ui.ThreadKind.MAIN,
+    parentThreadId: row.parent_thread_id ?? (row.remote_parent_kind === "thread" ? row.remote_parent_ref ?? "" : ""),
     title: row.title,
     titleSource: row.title_source,
     provider: providerOf(row.provider),

@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
-import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import { bots, PermissionMode, Provider, ui } from "@canopy/contracts";
+import { splitId } from "@canopy/domain/computers";
 import { Effect } from "effect";
 import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
 import { GatewayStore, Invalid, NotFound } from "../store/store.ts";
@@ -13,18 +14,24 @@ import { context, validate } from "./tools/shared.ts";
 /** Resolve display labels through the same owner-scoped paths as the action. */
 export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: Record<string, unknown>): Promise<string> {
   if (tool.source !== "platform") return statusPhrase(tool, args);
+  const ref = Object.values(args).find((v) => typeof v === "string" && splitId(v).node);
+  const node = typeof ref === "string" ? await core.linkedAgents.peer(ref).catch(() => "") : "";
+  const machine = node ? ` on ${await core.linkedAgents.machine(node)}` : "";
+  const phrase = (value: Record<string, unknown>) => statusPhrase(tool, value) + machine;
   try {
-    const overview = typeof args["project_id"] === "string" || typeof args["worker_id"] === "string" ? await core.overview() : undefined;
+    const overview = typeof args["project_id"] === "string" || typeof args["worker_id"] === "string" ? await core.linkedAgents.overview() : undefined;
     args = { ...args, project_name: overview?.projects.find((p) => p.id === args["project_id"])?.name,
       worker_name: overview?.workers.find((w) => w.id === args["worker_id"])?.name };
     if (tool.name === "start_thread" && typeof args["project_id"] === "string") {
-      const project = (await core.overview()).projects.find((p) => p.id === args["project_id"]);
-      return statusPhrase(tool, { ...args, project_name: project?.name });
+      return phrase(args);
     }
-    if (typeof args["thread_id"] === "string") return statusPhrase(tool, { ...args, thread_name: (await core.getThread(args["thread_id"])).title });
-    if (tool.name === "send_bot_message" && typeof args["bot_id"] === "string") return statusPhrase(tool, { ...args, bot_name: (await core.bots.get(args["bot_id"])).configuration?.name });
+    if (typeof args["thread_id"] === "string") return phrase({ ...args, thread_name: (await core.linkedAgents.thread(args["thread_id"])).title });
+    if (tool.name === "send_bot_message" && typeof args["bot_id"] === "string") {
+      const bot = splitId(args["bot_id"]).node ? (await core.linkedAgents.ui("GetBot", create(bots.GetBotRequestSchema, { botId: args["bot_id"] }), bots.GetBotResponseSchema)).bot : await core.bots.get(args["bot_id"]);
+      return phrase({ ...args, bot_name: bot?.configuration?.name });
+    }
   } catch { /* A missing label must not bypass validation of the actual action. */ }
-  return statusPhrase(tool, args);
+  return phrase(args);
 }
 
 /** A tool's own pre-approval check (see PlatformTool.prepare); throws errors the model can act on. */
@@ -48,6 +55,8 @@ export async function botPlatform(core: GatewayCore, options: GatewayCoreOptions
   const action = <A, E>(effect: Effect.Effect<A, E, GatewayStore | BotStore>) => options.runtime.runPromise(BotStore.use((s) => s.action(turn, call, effect)));
   try {
     validate(call.tool.parameters, args);
+    const linked = await core.linkedAgents.botTool(turn, call);
+    if (linked !== undefined) return linked;
     const registered = areaTool.get(call.tool.name);
     if (registered) {
       validate(registered.spec.parameters, args);
