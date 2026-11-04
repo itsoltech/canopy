@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import type { SelectOption } from "#lib/shared/ui/listbox.ts";
   import type { ClassValue } from "svelte/elements";
   import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
@@ -25,7 +26,7 @@
     { value: "stable", label: "Stable", description: "Stable releases." },
     { value: "beta", label: "Beta", description: "Beta and stable releases." },
     { value: "nightly", label: "Nightly", description: "Nightly, beta and stable releases." },
-  ];
+  ] as const satisfies readonly SelectOption[];
 
   const label = (channel: string) => options.find((option) => option.value === channel)?.label ?? channel;
 
@@ -66,11 +67,7 @@
   }
 
   function change(value: string) {
-    const channel = options.find((option) => option.value === value)?.value as
-      | "stable"
-      | "beta"
-      | "nightly"
-      | undefined;
+    const channel = options.find((option) => option.value === value)?.value;
 
     if (channel)
       void run(async () => {

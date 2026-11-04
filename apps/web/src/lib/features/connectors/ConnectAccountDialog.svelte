@@ -4,6 +4,7 @@
   import type { ClassValue } from "svelte/elements";
   import { page } from "$app/state";
   import { requestJson } from "#lib/shared/http.ts";
+  import { objectOf, str } from "#lib/shared/json.ts";
   import { decode } from "#lib/shared/wire.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -83,11 +84,9 @@
       onsave(saved);
 
       if (authKind === "oauth") {
-        const response = (await requestJson("POST", `/api/connectors/${saved.id}/oauth`, { scope }, 65000)) as {
-          authorizationUrl: string;
-        };
+        const response = objectOf(await requestJson("POST", `/api/connectors/${saved.id}/oauth`, { scope }, 65000));
 
-        window.location.assign(response.authorizationUrl);
+        window.location.assign(str(response["authorizationUrl"]));
       } else open = false;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Could not connect this account.";

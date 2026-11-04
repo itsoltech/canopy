@@ -25,15 +25,12 @@ async function readJson(request: Request): Promise<JsonValue> {
 }
 
 /** Strict JSON body decoding for BFF endpoints: unknown fields and wrong types are 400s. */
-export async function readBody<S extends Schema.Codec<unknown>>(
-  request: Request,
-  schema: S,
-): Promise<Schema.Schema.Type<S>> {
+export async function readBody<S extends Schema.Codec<unknown>>(request: Request, schema: S): Promise<S["Type"]> {
   const decoded = Schema.decodeUnknownResult(schema)(await readJson(request), { onExcessProperty: "error" });
 
   if (Result.isFailure(decoded)) error(400, decoded.failure.message);
 
-  return decoded.success as Schema.Schema.Type<S>;
+  return decoded.success;
 }
 
 /** A body that is a contract message in protobuf JSON (strict: unknown fields are 400s). */

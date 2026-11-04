@@ -12,6 +12,8 @@ import { awayReason, computerName } from "./computers.ts";
  */
 export type MoveRef = { kind: "thread" | "bot"; id: string };
 
+export const isMoveKind = (kind: string): kind is MoveRef["kind"] => kind === "thread" || kind === "bot";
+
 export type MoveRequest = { nodeId: string; items?: MoveRef[]; everything?: boolean };
 
 export const previewMove = async (request: MoveRequest) =>

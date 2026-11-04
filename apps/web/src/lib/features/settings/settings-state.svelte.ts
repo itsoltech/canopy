@@ -248,9 +248,12 @@ export class SettingsState {
     section: S,
     patch: (current: ui.UserSettings[S] & {}) => ui.UserSettings[S] & {},
   ): Promise<void> {
-    const schema = userSchemas[section] as DescMessage;
-    const current = () => (this.user[section] ?? create(schema)) as ui.UserSettings[S] & {};
-    const confirmed = () => (this.#server.user[section] ?? create(schema)) as ui.UserSettings[S] & {};
+    const schema: DescMessage = userSchemas[section];
+    // SAFETY: `userSchemas` lists every section with the message type of that ui.UserSettings field, so a message of
+    // `userSchemas[section]` is a value of `ui.UserSettings[S]`.
+    const blank = () => create(schema) as ui.UserSettings[S] & {};
+    const current = () => this.user[section] ?? blank();
+    const confirmed = () => this.#server.user[section] ?? blank();
     const show = () => (this.user = { ...this.user, [section]: patch(current()) });
     show();
 

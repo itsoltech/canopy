@@ -5,7 +5,7 @@
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
-  import { permissionLabel } from "../../labels.ts";
+  import { isPermissionModeName, permissionLabel } from "../../labels.ts";
   import { useThreadDirectory } from "../../thread-directory.ts";
   import ProviderModel from "../ProviderModel.svelte";
 
@@ -33,11 +33,18 @@
   const model = $derived(thread?.model || spawned.model);
   const effort = $derived(thread?.effort || spawned.effort);
 
+  // The bus names the mode in lower case ("full_auto"); an unknown one reads as unspecified (Ask first).
+  const spawnedMode = (mode: string) => {
+    const name = mode.toUpperCase();
+
+    return isPermissionModeName(name) ? PermissionMode[name] : PermissionMode.UNSPECIFIED;
+  };
+
   const permission = $derived(
     thread
       ? permissionLabel(thread.permissionMode)
       : spawned.permissionMode
-        ? permissionLabel(PermissionMode[spawned.permissionMode.toUpperCase() as keyof typeof PermissionMode])
+        ? permissionLabel(spawnedMode(spawned.permissionMode))
         : "",
   );
 

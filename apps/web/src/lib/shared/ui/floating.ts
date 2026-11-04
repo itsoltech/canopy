@@ -31,10 +31,19 @@ export interface Position {
 
 const opposite: Record<Side, Side> = { top: "bottom", bottom: "top", left: "right", right: "left" };
 
-function split(placement: Placement): [Side, "start" | "center" | "end"] {
-  const [side, align] = placement.split("-") as [Side, "start" | "end" | undefined];
+type Align = "start" | "center" | "end";
 
-  return [side, align ?? "center"];
+/** Every placement, as its side and its alignment along that side. */
+const PLACEMENTS = new Map<Placement, readonly [Side, Align]>(
+  (["top", "bottom", "left", "right"] as const).flatMap((side) => [
+    [side, [side, "center"]],
+    [`${side}-start`, [side, "start"]],
+    [`${side}-end`, [side, "end"]],
+  ]),
+);
+
+function split(placement: Placement): readonly [Side, Align] {
+  return PLACEMENTS.get(placement) ?? ["bottom", "start"];
 }
 
 /** Pure placement maths: anchor rectangle, floating size and viewport size in, coordinates out. */
@@ -84,7 +93,7 @@ export function computePosition(
 }
 
 /** The coordinate for an alignment: the anchor's start edge, its end edge or its center. */
-function aligned(align: "start" | "center" | "end", start: number, end: number, center: number): number {
+function aligned(align: Align, start: number, end: number, center: number): number {
   switch (align) {
     case "start":
       return start;

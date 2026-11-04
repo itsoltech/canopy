@@ -102,11 +102,8 @@ export function ensureCaret(root: HTMLElement): void {
 
 /** The caret where something was dropped (when the browser can tell). */
 export function caretAtPoint(root: HTMLElement, x: number, y: number): void {
-  const doc = document as Document & {
-    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-  };
-
-  const point = doc.caretPositionFromPoint?.(x, y);
+  // Not in every browser yet (Safari before 18.2).
+  const point = "caretPositionFromPoint" in document ? document.caretPositionFromPoint(x, y) : null;
 
   if (!point || !root.contains(point.offsetNode)) return;
   const range = document.createRange();

@@ -68,7 +68,7 @@ export class CodeBlocks {
           onexit: (side: "before" | "after") => this.#host.exit(block, side),
           onremove: () => this.#host.remove(block),
         },
-      }) as Field;
+      });
 
       this.#fields.set(block, field);
     }

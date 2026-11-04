@@ -9,11 +9,11 @@ const SLICE_MS = 6;
 const MAX_LINES = 5000;
 const MAX_CHARS = 300_000;
 
-const yieldToMain = (): Promise<void> => {
-  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
-
-  return scheduler?.yield ? scheduler.yield() : new Promise((resolve) => setTimeout(resolve, 0));
-};
+// `scheduler.yield` is not in every browser yet (Safari, Firefox before 142).
+const yieldToMain = (): Promise<void> =>
+  "scheduler" in globalThis && "yield" in scheduler
+    ? scheduler.yield()
+    : new Promise((resolve) => setTimeout(resolve, 0));
 
 /**
  * Syntax highlighting of a code text that may still be growing, for rendering line by line. Until the

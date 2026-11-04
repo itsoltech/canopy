@@ -14,18 +14,19 @@ export const cliLabel = (provider: Provider): string =>
         ? "Grok"
         : "Agent CLI";
 
-export const methodLabel = (method: CliInstallMethod): string =>
-  (<Partial<Record<CliInstallMethod, string>>>{
-    [CliInstallMethod.NATIVE]: "Native installer",
-    [CliInstallMethod.NPM]: "npm global",
-    [CliInstallMethod.BUN]: "Bun global",
-    [CliInstallMethod.HOMEBREW]: "Homebrew",
-    [CliInstallMethod.MISE]: "mise",
-    [CliInstallMethod.ASDF]: "asdf",
-    [CliInstallMethod.DOCKER]: "Container image",
-    [CliInstallMethod.OTHER]: "Other install",
-    [CliInstallMethod.NOT_INSTALLED]: "Not installed",
-  })[method] ?? "Unknown";
+const METHOD_LABELS = new Map([
+  [CliInstallMethod.NATIVE, "Native installer"],
+  [CliInstallMethod.NPM, "npm global"],
+  [CliInstallMethod.BUN, "Bun global"],
+  [CliInstallMethod.HOMEBREW, "Homebrew"],
+  [CliInstallMethod.MISE, "mise"],
+  [CliInstallMethod.ASDF, "asdf"],
+  [CliInstallMethod.DOCKER, "Container image"],
+  [CliInstallMethod.OTHER, "Other install"],
+  [CliInstallMethod.NOT_INSTALLED, "Not installed"],
+]);
+
+export const methodLabel = (method: CliInstallMethod): string => METHOD_LABELS.get(method) ?? "Unknown";
 
 /** Workers that can update a provider now, and the version they would get. */
 export function providerUpdates(

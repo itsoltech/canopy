@@ -24,6 +24,8 @@ export function fileResponse(
 
   const name = options.name ?? "attachment";
 
+  // SAFETY: the bytes come from a decoded gRPC message, whose byte fields are views of ordinary ArrayBuffers
+  // (protobuf-es and the Node transport never allocate SharedArrayBuffers).
   return new Response(data as Uint8Array<ArrayBuffer>, {
     headers: {
       "content-type": type,

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import type { SelectOption } from "#lib/shared/ui/listbox.ts";
   import type { QuitShortcut } from "@canopy/ui/desktop";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
@@ -19,7 +20,7 @@
       description: "Hold for at least 1 second. Requires key repeat; otherwise press twice.",
     },
     { value: "immediately", label: "Quit immediately", description: "Quit on the first press." },
-  ];
+  ] as const satisfies readonly SelectOption[];
 
   function receive(value: QuitShortcut) {
     saved = value;
@@ -42,12 +43,14 @@
   });
 
   async function change(value: string) {
-    if (pending || !options.some((option) => option.value === value)) return;
+    const option = options.find((candidate) => candidate.value === value);
+
+    if (pending || !option) return;
     pending = true;
     error = "";
 
     try {
-      receive(await window.canopyDesktop!.setQuitShortcut(value as QuitShortcut));
+      receive(await window.canopyDesktop!.setQuitShortcut(option.value));
     } catch {
       choice = saved ?? "press-twice";
       error = "The quit shortcut could not be saved. Please try again.";

@@ -1,4 +1,4 @@
-import { create, type DescMessage, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
+import { create, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
@@ -18,16 +18,13 @@ export async function workerAction<K extends WorkerAction>(
   action: K,
   input: MessageInitShape<(typeof workerActions)[K][0]>,
 ): Promise<MessageShape<(typeof workerActions)[K][1]>> {
-  const [requestSchema, responseSchema] = workerActions[action];
+  const requestSchema: (typeof workerActions)[K][0] = workerActions[action][0];
+  const responseSchema: (typeof workerActions)[K][1] = workerActions[action][1];
 
   return decode(
-    responseSchema as DescMessage,
-    await requestJson(
-      "POST",
-      `/api/workers/manage/${action}`,
-      encode(requestSchema as DescMessage, create(requestSchema as DescMessage, input as never)),
-    ),
-  ) as never;
+    responseSchema,
+    await requestJson("POST", `/api/workers/manage/${action}`, encode(requestSchema, create(requestSchema, input))),
+  );
 }
 
 /** POSIX shells on both Linux and macOS; user-controlled URLs/paths never become shell syntax. */

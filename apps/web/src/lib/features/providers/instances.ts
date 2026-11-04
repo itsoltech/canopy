@@ -617,17 +617,12 @@ export async function providerCall<A extends ProviderAction>(
   request: MessageInitShape<RequestOf<A>>,
   timeoutMs = 30_000,
 ): Promise<import("@bufbuild/protobuf").MessageShape<ResponseOf<A>>> {
-  const [requestSchema, responseSchema] = actions[action];
-  const message = create(requestSchema as DescMessage, request as never);
+  const requestSchema: RequestOf<A> = actions[action][0];
+  const responseSchema: ResponseOf<A> = actions[action][1];
+  const message = create(requestSchema, request);
+  const json = await requestJson("POST", `/api/providers/${action}`, encode(requestSchema, message), timeoutMs);
 
-  const json = await requestJson(
-    "POST",
-    `/api/providers/${action}`,
-    encode(requestSchema as DescMessage, message),
-    timeoutMs,
-  );
-
-  return decode(responseSchema as DescMessage, json) as never;
+  return decode(responseSchema, json);
 }
 
 export async function listInstances(): Promise<ui.ProviderInstance[]> {

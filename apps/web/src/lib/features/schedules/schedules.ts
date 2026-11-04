@@ -48,7 +48,7 @@ export function describeCron(cron: string): string {
   const fields = cron.trim().split(/\s+/);
 
   if (fields.length !== 5) return cron;
-  const [minute, hour, day, month, weekday] = fields as [string, string, string, string, string];
+  const [minute = "", hour = "", day = "", month = "", weekday = ""] = fields;
   const number = /^\d+$/;
   const at = number.test(minute) && number.test(hour) ? `${pad(hour)}:${pad(minute)}` : undefined;
   const every = /^\*\/(\d+)$/.exec(minute);

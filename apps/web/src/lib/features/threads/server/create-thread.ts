@@ -3,6 +3,7 @@ import { PermissionMode, Provider, type ui } from "@canopy/contracts";
 import { attempt, failed } from "#lib/server/gateway.ts";
 import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { isProviderKey, providerKeyOf } from "../providers.ts";
+import { isPermissionModeName } from "../labels.ts";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
@@ -26,7 +27,7 @@ export async function createThreadFromForm(
   if (!workspaceId) return fail(400, { action, error: "Choose a worker" });
   const mode = text(form, "permissionMode") || "ASK";
 
-  if (!(mode in PermissionMode)) return fail(400, { action, error: "Unknown permission mode" });
+  if (!isPermissionModeName(mode)) return fail(400, { action, error: "Unknown permission mode" });
   const requested = text(form, "provider");
   const provider = parent ? providerKeyOf(parent.provider) : isProviderKey(requested) ? requested : undefined;
 
@@ -52,7 +53,7 @@ export async function createThreadFromForm(
       providerProfileId: profileId,
       model: text(form, "model"),
       effort: text(form, "effort"),
-      permissionMode: PermissionMode[mode as keyof typeof PermissionMode],
+      permissionMode: PermissionMode[mode],
       initialMessage,
       parentThreadId: parent?.id ?? "",
       fork: Boolean(parent) && form.get("fork") === "on",
