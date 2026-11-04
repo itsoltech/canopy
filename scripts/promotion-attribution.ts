@@ -20,7 +20,18 @@ function ignoredRevisions(commit: PromotionCommit, git: GitReader): string[] {
   if (!git("ls-tree", "--format=%(objectname)", commit.parent, "--", path)) return [];
   const contents = git("show", `${commit.parent}:${path}`);
 
-  return [...contents.matchAll(/^([a-f0-9]{40})[ \t]*(?:#.*)?$/gm)].flatMap((match) => ["--ignore-rev", match[1]!]);
+  // Older versions of the list may name commits that no longer exist (e.g. pre-squash SHAs); blame rejects those.
+  return [...contents.matchAll(/^([a-f0-9]{40})[ \t]*(?:#.*)?$/gm)].flatMap((match) =>
+    commitExists(match[1]!, git) ? ["--ignore-rev", match[1]!] : [],
+  );
+}
+
+function commitExists(sha: string, git: GitReader): boolean {
+  try {
+    return git("cat-file", "-t", sha).trim() === "commit";
+  } catch {
+    return false;
+  }
 }
 
 function preimageRanges(diff: string): PreimageRange[] {
