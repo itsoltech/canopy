@@ -92,10 +92,12 @@ export function applyThread(state: ui.ThreadSnapshot | undefined, update: ui.Thr
   }
 }
 
-export function threadStatus(thread: ui.Thread): {
+interface ThreadStatus {
   label: string;
   tone: "active" | "attention" | "muted";
-} {
+}
+
+export function threadStatus(thread: ui.Thread): ThreadStatus {
   if (thread.pendingInteractions || thread.status === "waiting_input")
     return { label: "Needs input", tone: "attention" };
 

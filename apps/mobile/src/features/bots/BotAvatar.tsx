@@ -3,12 +3,21 @@ import { defaultAppearance, eyeColor, mascotFor, mascotShapes, normalizeColor } 
 import type { bots } from "@canopy/contracts";
 import { palette } from "@canopy/ui";
 
+function isPaletteTone(tone: string | undefined): tone is keyof typeof palette {
+  return tone !== undefined && tone in palette;
+}
+
 export function BotAvatar({ bot, size = 40 }: { bot: bots.Bot; size?: number }) {
   const config = bot.configuration;
   const legacy = !config?.color ? mascotFor(bot.id, config?.shape) : undefined;
   const body = legacy?.shape ?? mascotShapes.find((s) => s.id === config?.shape) ?? mascotShapes[0];
-  const tone = legacy?.tone.body.split("-")[1] as keyof typeof palette | undefined;
-  const fill = normalizeColor(config?.color ?? "") ?? (tone && palette[tone]?.[400]) ?? defaultAppearance.color;
+  const tone = legacy?.tone.body.split("-")[1];
+
+  const fill =
+    normalizeColor(config?.color ?? "") ??
+    (isPaletteTone(tone) ? palette[tone]?.[400] : undefined) ??
+    defaultAppearance.color;
+
   const eyes = eyeColor(fill);
 
   return (

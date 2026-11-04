@@ -29,6 +29,7 @@ function useSessionState() {
         ? mobileClient({
             gatewayUrl: session.gatewayUrl,
             token: session.token,
+            // SAFETY: Expo implements native streaming Fetch; Connect never uses Bun's static preconnect.
             fetch: expoFetch as typeof globalThis.fetch,
             development: __DEV__,
           })
