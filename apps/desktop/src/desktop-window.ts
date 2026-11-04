@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, nativeTheme, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
 import type { QuitGuard } from "./quit-guard.ts";
 import { attachWindowChrome } from "./window-chrome.ts";
@@ -58,6 +58,7 @@ export function createDesktopWindow(options: WindowOptions) {
     title: options.productName,
     icon: options.iconPath,
     show: false,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#000000" : "#ffffff",
     ...(process.platform === "darwin" && {
       titleBarStyle: "hiddenInset" as const,
       trafficLightPosition: { x: 18, y: 18 },
@@ -75,6 +76,9 @@ export function createDesktopWindow(options: WindowOptions) {
 
   options.quitGuard.attach(target);
   attachWindowChrome(target);
+  const updateBackground = () => target.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#000000" : "#ffffff");
+  nativeTheme.on("updated", updateBackground);
+  target.once("closed", () => nativeTheme.removeListener("updated", updateBackground));
   target.once("ready-to-show", () => {
     if (!options.quitting()) target.show();
   });

@@ -2,17 +2,18 @@
   import type { ClassValue } from "svelte/elements";
 
   /**
-   * Determinate progress: a rounded track with a filled part. `value` is 0–100 and is clamped; `label` names what is
-   * progressing for assistive tech. `inset` drops the rounding for bars pinned to the edge of a card.
+   * Progress: a rounded track with a filled part. `value` is 0–100 and is clamped; without a value the bar is full and
+   * reports no amount (the size is not known yet). `label` names what is progressing for assistive tech. `inset` drops
+   * the rounding for bars pinned to the edge of a card.
    */
   let {
     value,
     label,
     inset = false,
     class: className,
-  }: { value: number; label: string; inset?: boolean; class?: ClassValue } = $props();
+  }: { value?: number; label: string; inset?: boolean; class?: ClassValue } = $props();
 
-  const percent = $derived(Math.min(100, Math.max(0, Math.round(value))));
+  const percent = $derived(value === undefined ? undefined : Math.min(100, Math.max(0, Math.round(value))));
 </script>
 
 <div
@@ -28,6 +29,6 @@
       "h-full w-(--progress) bg-zinc-950 transition-[width] duration-(--duration-fast) ease-smooth-out motion-reduce:transition-none dark:bg-white",
       !inset && "rounded-full",
     ]}
-    style:--progress={`${percent}%`}
+    style:--progress={`${percent ?? 100}%`}
   ></div>
 </div>

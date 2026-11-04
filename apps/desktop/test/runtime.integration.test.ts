@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { cpSync, copyFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { cpSync, copyFileSync, readFileSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -62,7 +62,7 @@ test.skipIf(!existsSync(paths.gateway))(
     const keys = secrets();
     let local = new DesktopRuntime(data, paths, keys, () => {}, registry);
 
-    const remote = new DesktopRuntime(
+    let remote = new DesktopRuntime(
       remoteData,
       { ...paths, postgres: "remote-must-not-read-postgres-manifest" },
       secrets(),
@@ -74,6 +74,7 @@ test.skipIf(!existsSync(paths.gateway))(
 
     try {
       await local.initialize(false);
+      expect(local.status).toMatchObject({ mode: null, phase: "setup" });
       await local.configure({ mode: "local", allowNetwork: false, bindHost: "127.0.0.1" });
       local.pids.forEach((pid) => owned.add(pid));
       expect(local.status.worker).toBe("online");
@@ -100,6 +101,7 @@ test.skipIf(!existsSync(paths.gateway))(
       remote.pids.forEach((pid) => owned.add(pid));
       expect(remote.pids).toHaveLength(2); // worker and setup BFF; no gateway or DB
       expect((await formAction(remote.origin)).body).toContain("Choose a project");
+      await until(async () => (await api.getOverview({})).workers.filter((worker) => worker.online).length === 2);
       expect((await api.getOverview({})).workers.filter((worker) => worker.online)).toHaveLength(2);
       const enrollment = await api.getWorkerSetup({});
       expect(enrollment.enrollments.filter((invite) => invite.usedAt)).toHaveLength(2);
@@ -116,7 +118,9 @@ test.skipIf(!existsSync(paths.gateway))(
       for (const pid of owned) expect(gone(pid)).toBe(true);
       local = new DesktopRuntime(data, paths, keys, () => {}, registry);
       registry.offline(true);
-      await local.initialize();
+      await local.initialize(false);
+      expect(local.status).toMatchObject({ mode: "local", phase: "starting" });
+      await local.restore();
       registry.offline(false);
       expect(registry.ranges.length).toBe(beforeRemote);
       local.pids.forEach((pid) => owned.add(pid));
@@ -134,6 +138,17 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(Number(readFileSync(join(data, "postgres/data/postmaster.pid"), "utf8").split("\n")[0])).not.toBe(
         postgresPid,
       );
+      await local.stop();
+      const remoteWebUrl = remote.status.webUrl;
+      remote = new DesktopRuntime(remoteData, paths, secrets(), () => {}, registry);
+      await remote.initialize(false);
+      expect(remote.status).toMatchObject({ mode: "remote", phase: "starting", webUrl: remoteWebUrl });
+      const reconnectStarted = performance.now();
+      await remote.restore();
+      expect(remote.status.phase).toBe("running");
+      expect(performance.now() - reconnectStarted).toBeLessThan(5000);
+      expect(existsSync(join(remoteData, "postgres"))).toBe(false);
+      remote.pids.forEach((pid) => owned.add(pid));
     } finally {
       registry.offline(false);
       await remote.stop();
@@ -143,6 +158,33 @@ test.skipIf(!existsSync(paths.gateway))(
     for (const pid of owned) expect(gone(pid)).toBe(true);
   },
   180_000,
+);
+
+test.skipIf(!existsSync(paths.web))(
+  "failed restoration preserves saved mode and configuration for startup recovery",
+  async () => {
+    const directory = tempDir("canopy-desktop-startup-failure-");
+    const saved = JSON.stringify({ mode: "local", allowNetwork: false, bindHost: "127.0.0.1" });
+    writeFileSync(join(directory, "desktop.json"), saved);
+
+    const desktop = new DesktopRuntime(
+      directory,
+      { ...paths, postgres: join(directory, "missing-manifest") },
+      secrets(),
+    );
+
+    try {
+      await desktop.initialize(false);
+      expect(desktop.status).toMatchObject({ mode: "local", phase: "starting" });
+      await desktop.restore();
+      expect(desktop.status).toMatchObject({ mode: "local", phase: "error", worker: "offline" });
+      expect(desktop.status.error).toBeTruthy();
+      expect(readFileSync(join(directory, "desktop.json"), "utf8")).toBe(saved);
+      expect(desktop.pids).toHaveLength(1);
+    } finally {
+      await desktop.stop();
+    }
+  },
 );
 
 test.skipIf(!existsSync(paths.gateway))(

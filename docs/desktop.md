@@ -53,8 +53,9 @@ okno aplikacji ładuje podany zdalny web. Token usługi BFF nigdy nie jest potrz
 do enrollment zdalnego workera ani przekazywany rendererowi. Token jednorazowy
 nie trafia do `desktop.json`; reconnect używa istniejącego `worker.json`.
 Każdy zdalny origin gatewaya ma własny katalog tożsamości workera. Niedostępny
-gateway powoduje ponawianie połączenia przez workera. Niedostępny web przy starcie
-otwiera lokalny ekran ustawień. Zmiana trybu zatrzymuje lokalnie wykonywane zadania.
+gateway powoduje ponawianie połączenia przez workera; otwarcie zdalnego webu nie czeka
+na połączenie workera. Niedostępny web przy starcie pokazuje lokalny ekran błędu
+z ponowieniem i otwarciem ustawień. Zmiana trybu zatrzymuje lokalnie wykonywane zadania.
 
 CLI agentów są wymaganiami komputera: **Claude Code (`claude`), Codex (`codex`),
 Grok (`grok`)** instaluje i aktualizuje użytkownik. Desktop ani żadna dystrybucja
@@ -139,6 +140,22 @@ Dotyczy to również Windows; nie używamy named pipes ani poleceń powłoki do 
 Postgres sam sprawdza `postmaster.pid` po awarii i odtwarza WAL. Aplikacja nigdy
 nie kasuje pliku PID w ciemno; konflikt z żywym serwerem kończy się błędem.
 Niepełne `initdb` również zgłasza błąd zamiast usuwać istniejące dane.
+
+### Ekran uruchamiania
+
+Kontroler odczytuje zapisany tryb z `desktop.json` przed otwarciem pierwszego okna.
+Skonfigurowana aplikacja ładuje `/desktop` jako ekran startu: logo Canopy, krótki
+status połączenia ze zdalnym hostem lub startu usług lokalnych, a przy pobieraniu
+PostgreSQL pasek postępu. Błędy udostępniają „Try again” i „Open desktop settings”.
+Niepoprawny plik konfiguracji również prowadzi do odzyskiwania, zamiast do pierwszego uruchomienia.
+Formularz wyboru trybu pojawia się tylko bez konfiguracji albo po jawnym otwarciu
+ustawień (`/desktop?settings=1`); zapis ustawień na czas operacji pokazuje ekran startu.
+Okno pozostaje ukryte do `ready-to-show`, a natywne tło odpowiada jasnemu/ciemnemu
+motywowi systemu także podczas nawigacji. Ekran startu ma ten sam pasek przeciągania
+i `--window-safe-top` co konfiguracja; wskaźnik respektuje ograniczenie ruchu.
+Zdalny web ma 3-sekundowy limit sondy dokumentu. Jeśli działa, otwiera się od razu,
+a niedostępny gateway obsługuje istniejący ekran webu; jeśli sam web nie odpowiada,
+lokalny ekran startu pokazuje błąd i działania naprawcze.
 
 Procesy uruchamiają się w kolejności: baza → migracje/start gatewaya → enrollment
 → worker. Lokalny BFF służy także jako ekran konfiguracji przed uruchomieniem bazy.
