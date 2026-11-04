@@ -1509,6 +1509,8 @@ export class LinkedComputers {
   async close(state = "shutting_down") {
     if (this.#stopped) return;
     this.#stopped = true;
+    // No move starts settling while the presence goes out: a stopping computer only finishes what runs.
+    const moves = this.moves?.close();
     await this.announce(state === "shutting_down" && this.#announced === "updating" ? "updating" : state);
     clearInterval(this.#timer);
     this.shared?.close();
@@ -1525,7 +1527,7 @@ export class LinkedComputers {
     for (const set of this.#active.values()) for (const c of set) c.close();
     await this.#listener?.close();
     this.#listener = undefined;
-    await this.moves?.close();
+    await moves;
     await Promise.allSettled(this.#tasks);
   }
 }

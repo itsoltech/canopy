@@ -649,7 +649,11 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     // The source restarts right after its commit: the restart tells C, which applies it.
     const t1 = await thread(a, aProject, aWorkspace, "After commit", "four");
     hooks.set(a, async (phase) => {
-      if (phase === "committed") throw new MoveCrash();
+      // A crash: A stops, so its own heartbeat cannot tell C either.
+      if (phase === "committed") {
+        void stop(a);
+        throw new MoveCrash();
+      }
     });
     const first = await move([{ kind: "thread", id: t1 }]);
     const id1 = first.moves[0]!.id;
