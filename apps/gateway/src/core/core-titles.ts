@@ -1,4 +1,4 @@
-import { Provider, ui } from "@canopy/contracts";
+import { ui } from "@canopy/contracts";
 import { toUiThread, turnEffort, type ThreadRow } from "../store/index.ts";
 import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt } from "./thread-titles.ts";
 import { providerOf } from "../store/instance-config.ts";
@@ -92,9 +92,6 @@ export async function coreGenerateText(
   const choice = explicit
     ? { model: settings!.model, effort: turnEffort(listed, settings!.model, settings!.effort) }
     : titleModel(listed, thread.settings.model ?? "");
-
-  if (provider === Provider.GROK && !/^grok-3-mini(?:-fast)?$/.test(choice.model))
-    throw new InvalidError("Choose grok-3-mini or grok-3-mini-fast for inexpensive Grok titles");
 
   const result = await connection.sendCommand(
     {
