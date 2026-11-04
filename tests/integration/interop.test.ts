@@ -162,6 +162,8 @@ describe.each([
       // Worker half-closes (e.g. draining); the Node gateway answers by ending the call with OK.
       link.close();
       expect(await link.closed).toEqual({});
+      // gRPC trailers and the peer's stdout arrive on independent streams.
+      await peer.waitFor("clientEnd");
       expect(peer.lines.map((l) => l.step)).toEqual(["listening", "hello", "commandResult", "events", "clientEnd"]);
       expect(peer.lines[1]).toMatchObject({ workerId: "worker-1", hostname: "test-host" });
     } finally {
