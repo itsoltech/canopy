@@ -11,6 +11,24 @@ const directory = process.env["CANOPY_QUIT_SMOKE_DIR"]!;
 
 app.setPath("userData", join(directory, "data"));
 
+function registerSmokeIpc(guard: QuitGuard, delivered: { phase: string; surface: string }[]) {
+  ipcMain.on("canopy:quit-guard-delivered", (_event, phase: string, surface: string) =>
+    delivered.push({ phase, surface }),
+  );
+  ipcMain.handle("canopy:status", () => initialStatus());
+  ipcMain.handle("canopy:window-state", () => ({ zoomFactor: 1, fullscreen: false }));
+  ipcMain.handle("canopy:quit-shortcut", () => guard.mode);
+  ipcMain.handle("canopy:enrollment-ready", () => {});
+  ipcMain.handle("canopy:updates", () => ({
+    version: "smoke",
+    buildChannel: "nightly",
+    channel: "nightly",
+    phase: "disabled",
+    message: "Smoke check",
+    changingChannel: false,
+  }));
+}
+
 async function smoke() {
   await app.whenReady();
   const windows: BrowserWindow[] = [];
@@ -41,21 +59,7 @@ async function smoke() {
     "linux",
   );
 
-  ipcMain.on("canopy:quit-guard-delivered", (_event, phase: string, surface: string) =>
-    delivered.push({ phase, surface }),
-  );
-  ipcMain.handle("canopy:status", () => initialStatus());
-  ipcMain.handle("canopy:window-state", () => ({ zoomFactor: 1, fullscreen: false }));
-  ipcMain.handle("canopy:quit-shortcut", () => guard.mode);
-  ipcMain.handle("canopy:enrollment-ready", () => {});
-  ipcMain.handle("canopy:updates", () => ({
-    version: "smoke",
-    buildChannel: "nightly",
-    channel: "nightly",
-    phase: "disabled",
-    message: "Smoke check",
-    changingChannel: false,
-  }));
+  registerSmokeIpc(guard, delivered);
 
   for (const name of ["main", "settings"]) {
     const target = new BrowserWindow({
@@ -143,6 +147,15 @@ async function smoke() {
   assert.equal(quits, 2, "Two real presses within 500 ms quit");
   guard.cancel();
 
+  await checkProductionOverlay(windows, guard);
+  console.info(
+    "Electron quit smoke passed: Ctrl+Q, repeats, both windows, late subscription, strict-CSP shell fallback and production QuitGuardOverlay",
+  );
+}
+
+async function checkProductionOverlay(windows: BrowserWindow[], guard: QuitGuard) {
+  const target = windows[1]!;
+
   // Mount the actual production Svelte layout, including QuitGuardOverlay.
   for (const win of windows) {
     await win.loadURL(`${process.env["CANOPY_QUIT_SMOKE_WEB"]}/desktop`);
@@ -194,9 +207,6 @@ async function smoke() {
   guard.release();
   await delay(400);
   assert.equal(await target.webContents.executeJavaScript("document.body.innerText.includes('Keep holding…')"), false);
-  console.info(
-    "Electron quit smoke passed: Ctrl+Q, repeats, both windows, late subscription, strict-CSP shell fallback and production QuitGuardOverlay",
-  );
 }
 
 void smoke().then(
