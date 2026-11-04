@@ -36,9 +36,23 @@ if (cliArgs[0] === "run") cliArgs.shift();
 const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";
 let cli;
 
+// Bind each option to its value: an enrollment token may start with "-", which parseArgs would read as a flag.
+const valueOptions = new Set(["--gateway", "--token", "--config", "--data-dir"]);
+const boundArgs: string[] = [];
+
+for (let index = 0; index < cliArgs.length; index++) {
+  const arg = cliArgs[index]!;
+  const value = cliArgs[index + 1];
+
+  if (valueOptions.has(arg) && value !== undefined) {
+    boundArgs.push(`${arg}=${value}`);
+    index++;
+  } else boundArgs.push(arg);
+}
+
 try {
   cli = parseArgs({
-    args: cliArgs,
+    args: boundArgs,
     strict: true,
     options: {
       gateway: { type: "string" },
