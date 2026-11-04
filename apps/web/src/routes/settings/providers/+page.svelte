@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ui } from "@canopy/contracts";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import AddInstanceDialog from "#lib/features/providers/AddInstanceDialog.svelte";
@@ -24,6 +25,7 @@
    */
   let { data }: PageProps = $props();
   const overview = useOverview();
+  const route = useSettingsRoute();
   const catalog = useModelCatalog();
 
   // svelte-ignore state_referenced_locally (seeded once; the page keeps it current itself)
@@ -40,6 +42,15 @@
   let adding = $state(false);
   let toggling = $state<string>();
   let failure = $state<string>();
+
+  $effect(() => {
+    const instance = route.url.searchParams.get("instance");
+
+    if (!instance) return;
+    selectedKey = instance;
+    scope = route.url.searchParams.get("worker") || undefined;
+    pane = "detail";
+  });
 
   const workers = $derived(overview.ownWorkers);
   const worker = $derived(workers.find((w) => w.id === scope));

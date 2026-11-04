@@ -10,7 +10,7 @@
   import AccentPicker from "./AccentPicker.svelte";
   import ConnectionFields from "./ConnectionFields.svelte";
   import EnvVarEditor from "./EnvVarEditor.svelte";
-  import { draftOf, draftProblems, hasProblems, providerCall, saveRequest } from "./instances.ts";
+  import { draftOf, draftProblems, hasProblems, kindLabel, providerCall, saveRequest } from "./instances.ts";
   import RuntimeFields from "./RuntimeFields.svelte";
   import SettingsSection from "./SettingsSection.svelte";
   import MoveEnvironment from "./MoveEnvironment.svelte";
@@ -72,12 +72,7 @@
   <SettingsSection title="Identity">
     <div class="grid gap-4 sm:grid-cols-2">
       <Field label="Display name" error={shown.label}>
-        <Input
-          name="label"
-          bind:value={draft.label}
-          placeholder={instance.builtIn ? "Device login" : "Team proxy"}
-          autocomplete="off"
-        />
+        <Input name="label" bind:value={draft.label} placeholder={kindLabel(draft.kind)} autocomplete="off" />
       </Field>
       <Field label="Instance ID" description="Fixed: threads store it.">
         <Input name="id" value={instance.id} readonly class="font-mono text-zinc-500" />

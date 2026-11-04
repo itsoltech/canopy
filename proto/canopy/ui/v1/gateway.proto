@@ -667,6 +667,8 @@ message OverviewUpdate {
     // Etap 4: wspólna konfiguracja (znaczki, konflikty) się zmieniła.
     SharedConfigSnapshot shared_config = 803;
     bool agent_environment_changed = 820;
+    // Provider definitions or model choices changed, including instances without workers.
+    bool provider_instances_changed = 821;
   }
 }
 
@@ -1499,6 +1501,7 @@ message WorkerInstance {
   bool available = 6;
   string detail = 7;
   repeated string favorites = 8;
+  canopy.worker.v1.ProviderProfileKind kind = 9;
 }
 
 message ListProviderInstancesRequest {}

@@ -403,9 +403,11 @@ Per worker, profil i dostawca użytkownik wybiera, które modele katalogu (`work
 ## 9. Globalne instancje dostawców
 
 Połączenie instancji wybiera zapisane **Proxy** z Settings → Proxies, zamiast
-osobnego URL i klucza. Nadpisanie workera również może wybrać proxy. Wbudowany
-login pozostaje natywny; przycisk dodaje nową instancję, a **Move to a proxy**
-przenosi ręczne zmienne połączenia po stronie gateway. Migracja `0057`, deduplikacja,
+osobnego URL i klucza. Nadpisanie workera również może wybrać proxy. Wbudowana
+instancja może przełączać Device login ↔ Proxy bez zmiany id, także z istniejącymi
+wątkami; **Move to a proxy** przenosi ręczne zmienne połączenia po stronie gateway.
+Etykiety połączenia i placeholder nazwy wynikają z aktualnego rodzaju połączenia,
+na workerze z uwzględnieniem nadpisania proxy. Migracja `0061`, deduplikacja,
 sekrety i dokładne mapowania Claude/Codex/Grok: [proxies.md](proxies.md).
 
 Status: **zaimplementowane** (migracja `0018_global_providers`; gateway `store/instances.ts`, `store/instance-config.ts`; kontrakt UI: `ListProviderInstances`, `SaveProviderInstance`, `DeleteProviderInstance`, `SetInstanceWorkers`, `SetInstanceWorker`, `SetInstanceModels`, `RefreshProviders`, `StartProviderLogin`, `Worker.provider_instances`; kontrakt workera: `ProviderProfileConfig.executable_path/home_path/shadow_home_path/launch_args/own_login`, `ProviderProfile.version/auth/authenticated`, komendy `ProbeProviders`, `StartLogin`; worker `config/remote.ts`, `runtime/host.ts`, `providers/codex/login.ts`; UI Settings → Providers).

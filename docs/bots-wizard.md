@@ -18,7 +18,7 @@ na który się rozwiązuje (`resolved_model`). Aliasy bez rozwiązania są pomij
   } from "#lib/features/bots/wizard/CreateBotWizard.svelte";
 
   let open = $state(false);
-  // Z adaptera backendu: tylko dostępne instancje, każda z własnymi ModelOption[].
+  // Z adaptera backendu: instancje z własnymi ModelOption[] i opcjonalnym powodem blokady.
   let instances: readonly BotProviderInstance[] = [];
   let existingNames: readonly string[] = [];
 
@@ -30,7 +30,19 @@ na który się rozwiązuje (`resolved_model`). Aliasy bez rozwiązania są pomij
 <CreateBotWizard bind:open {instances} {existingNames} oncreate={create} />
 ```
 
-`BotProviderInstance` ma pola `{ id, name, provider, models }`. `provider` to obecny `ProviderKey` (`CODEX | CLAUDE`), a `models` to istniejące `readonly ModelOption[]`. `id` jest identyfikatorem instancji, który wraca w szkicu; nie jest wyliczany z etykiety, modelu ani `profileId`. Adapter wywołującego odpowiada za spójność modeli z instancją. Instancja bez modeli jest widoczna, ale nie pozwala utworzyć bota. Brak instancji pokazuje pusty stan.
+`BotProviderInstance` ma pola `{ id, name, provider, models, disabledReason?, settingsHref? }`.
+`provider` to `ProviderKey` (`CODEX | CLAUDE | GROK`), a `models` to istniejące
+`readonly ModelOption[]`. `id` jest identyfikatorem instancji zwracanym w szkicu;
+nie wynika z etykiety ani modelu. Adapter odpowiada za spójność modeli z instancją.
+Device login ma `disabledReason` i link `settingsHref` do zmiany połączenia tej instancji.
+Wbudowane id `native` nie oznacza Device login: po przełączeniu na Proxy jest wybieralne.
+Instancja bez modeli jest widoczna, ale nie pozwala utworzyć bota.
+
+Opcjonalne `loading`, `loadError` i `onreload` obsługują ładowanie oraz ponowienie pobrania.
+Podczas ładowania i błędu pobrania wybór providerów jest zastąpiony odpowiednim stanem,
+a zapis zablokowany również przy Enter. Strona pobiera definicje i katalog modeli przy
+otwarciu oraz po zdarzeniu `provider_instances_changed`, zmianie wersji konfiguracji
+workera i resynchronizacji strumienia. Dopiero zakończone pobranie może pokazać pustą listę.
 
 `CreateBotDraft`:
 

@@ -2,7 +2,7 @@
   import type { ClassValue } from "svelte/elements";
   import type { ui } from "@canopy/contracts";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
-  import { harnessKey, harnessName } from "#lib/features/providers/instances.ts";
+  import { harnessKey, harnessName, kindLabel } from "#lib/features/providers/instances.ts";
 
   let { instance, class: className }: { instance: ui.WorkerInstance; class?: ClassValue } = $props();
 
@@ -27,7 +27,7 @@
 >
   <div class="flex h-lh shrink-0 items-center"><ProviderIcon provider={harnessKey(instance.harness)} /></div>
   <p class="min-w-0 break-words">
-    {harnessName(instance.harness)} · {instance.id === "native" ? "Native" : instance.label || instance.id}{problem
+    {harnessName(instance.harness)}{instance.label ? ` · ${instance.label}` : ""} · {kindLabel(instance.kind)}{problem
       ? ` — ${problem}`
       : ""}
   </p>

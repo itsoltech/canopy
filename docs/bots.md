@@ -197,7 +197,8 @@ klucz wyłącznie na czas żądania. Nie używa nadpisań workera ani nie kopiuj
 | A: Claude Agent SDK / Codex app-server na hoście gateway | Logowania subskrypcyjne harnessu, gotowy kontekst i sesje | Można usunąć narzędzia, ale proces dostawcy nadal działa na hoście. Wznowienie wymaga plików sesji i pogodzenia historii harnessu z zatwierdzeniami w PostgreSQL. Aktualizacja katalogu lub CLI może zmienić zestaw narzędzi. Nie jest runtime'em Bots w fazie 1. |
 | B: API i jawne funkcje | Brak lokalnego wykonawcy; pełny checkpoint pętli w bazie, ta sama polityka obu dostawców | Wymaga endpointu dostępnego z gateway i jego klucza; własne limity kontekstu i formatowanie historii. Wybrane. |
 
-**Ograniczenie logowania:** tworzenie bota na `native` jest odrzucane. Login Claude/Codex
+**Ograniczenie logowania:** tworzenie bota na połączeniu Device login jest odrzucane,
+niezależnie od id instancji. Wbudowana instancja `native` przełączona na Proxy jest dozwolona. Login Claude/Codex
 na workerze nie stanowi poświadczenia gateway. Dla subskrypcji należy skonfigurować
 instancję endpointową przez CLIProxyAPI. Pola `runtime` i dowolne zmienne środowiskowe
 instancji są opcjami procesu harnessu, więc runtime API Bots ich nie wykonuje ani nie
@@ -707,13 +708,19 @@ JSON i składanych logów pracy.
   regiony nazwane pytaniem/akcją, litery opcji jako skróty, cele dotykowe 48 px
   (`TouchTarget`) na urządzeniach dotykowych.
 - **Tworzenie**: „Create bot” otwiera `CreateBotWizard`; `oncreate` zapisuje `CreateBot` i otwiera
-  rozmowę. Adapter `botWizardInstances` (`features/bots/live.ts`) przekazuje tylko instancje
-  endpointowe z modelami API (klucz `CLAUDE:id` / `CODEX:id`); własne modele z Settings →
-  Providers działają bez workera. API komponentów: [bots-wizard.md](bots-wizard.md).
+  rozmowę. Adapter `botWizardInstances` (`features/bots/live.ts`) wybiera dostępność według
+  aktualnego połączenia, nie id (klucz `CLAUDE:id` / `CODEX:id` / `GROK:id`). Device login
+  pozostaje widoczny jako niedostępny z powodem i linkiem do zmiany tej instancji na Proxy.
+  Własne modele z Settings → Providers działają bez workera. Otwarcie kreatora pobiera
+  definicje i katalogi ponownie; podczas pobierania pokazuje stan ładowania. Zmiany instancji,
+  modeli i wersji konfiguracji odświeżają dane bez przechodzenia do Threads.
+  API komponentów: [bots-wizard.md](bots-wizard.md).
 - **Sidebar**: przypięte boty jako duże awatary z gwiazdką i nazwą, potem rozmowy (awatar,
   nazwa, czas, podgląd przez `MarkdownSnippet`). Jedna wspólna lista (`bot-list.svelte.ts`,
   odświeżanie co 5 s i po `bots-changed`) dla sidebara i czatu. Pusty stan ma akcję
-  „Create your first bot” (`/bots?create=1` otwiera wizard).
+  „Create your first bot” (`/bots?create=1` otwiera ten sam wizard co akcja na stronie,
+  po czym zwykła nawigacja zastępuje URL). Shallow `replaceState` nie usuwało parametru
+  z reaktywnego `page.url` i tworzyło cykl efektu.
 - **Ustawienia** (`settings/BotSettingsHost`, jeden host w głównym layoucie): kliknięcie
   awatara/nazwy w nagłówku lub **Edit bot…** w menu nagłówka i sidebara otwiera dialog,
   na telefonie dolny panel. Sekcje: Appearance (wspólne `EditBotAppearance`, własny hex),

@@ -1,7 +1,7 @@
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { Provider, ProviderProfileKind, type bots, type ui } from "@canopy/contracts";
 import { modelOption, type ModelOption } from "#lib/features/models/catalog.ts";
-import { instanceKeyOf } from "#lib/features/providers/instances.ts";
+import { instanceKeyOf, instanceName } from "#lib/features/providers/instances.ts";
 import type { BotProviderInstance } from "./wizard/draft.ts";
 import type { ApprovalView, BotView, ChatEntry, ConversationView, QuestionView } from "./model.ts";
 
@@ -222,16 +222,12 @@ export function botWizardInstances(
   catalogs: readonly ui.WorkerModels[],
 ): BotProviderInstance[] {
   return instances.flatMap((instance) => {
-    if (
-      instance.kind !== ProviderProfileKind.CLIPROXYAPI ||
-      ![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(instance.harness)
-    )
-      return [];
+    if (![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(instance.harness)) return [];
 
     const provider =
       instance.harness === Provider.CLAUDE ? "CLAUDE" : instance.harness === Provider.GROK ? "GROK" : "CODEX";
 
-    const name = instance.label || instance.id;
+    const name = instanceName(instance);
     const models = new Map<string, ModelOption>();
 
     for (const catalog of catalogs) {
@@ -264,6 +260,10 @@ export function botWizardInstances(
         id: instanceKeyOf(instance),
         name,
         provider,
+        ...(instance.kind !== ProviderProfileKind.CLIPROXYAPI && {
+          disabledReason: "Bots call the model API from the gateway — use a proxy connection",
+          settingsHref: `/settings/providers?instance=${encodeURIComponent(instanceKeyOf(instance))}`,
+        }),
         models: [...models.values()].sort((a, b) => rank(a.model) - rank(b.model)),
       },
     ];

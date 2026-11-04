@@ -13,14 +13,20 @@
     instances,
     existingNames,
     oncreate,
+    loading = false,
+    loadError = "",
+    onreload,
     class: className,
   }: {
     open?: boolean;
     instances: readonly BotProviderInstance[];
     existingNames: readonly string[];
     oncreate: (draft: CreateBotDraft) => Promise<void>;
+    loading?: boolean;
+    loadError?: string;
+    onreload?: () => void;
     class?: ClassValue;
   } = $props();
 </script>
 
-<BotFormDialog bind:open {instances} {existingNames} {oncreate} class={className} />
+<BotFormDialog bind:open {instances} {existingNames} {oncreate} {loading} {loadError} {onreload} class={className} />
