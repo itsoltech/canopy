@@ -152,10 +152,12 @@
 <svelte:window bind:innerWidth={sidebar.viewport} />
 <ThreadActionDialogs />
 
-<!-- `data-sidebar`: whether the sidebar clears the page header from the native window controls. -->
+<!-- `data-sidebar`: whether the sidebar clears the page header from the native window controls. While the column
+     eases (`data-sidebar-settling`), the header's clearance eases with it (layout.css), so the toggle never jumps. -->
 <div
   class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white"
-  data-sidebar={wide.current && !sidebar.collapsed && !sidebar.settling ? "shown" : "hidden"}
+  data-sidebar={wide.current && !sidebar.collapsed ? "shown" : "hidden"}
+  data-sidebar-settling={sidebar.settling || undefined}
 >
   <SidebarColumn {sidebar}>
     {#if wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}

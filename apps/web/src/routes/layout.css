@@ -45,6 +45,17 @@ html[data-canopy-platform="darwin"] .canopy-sidebar-header {
 html[data-canopy-platform="darwin"] [data-sidebar="hidden"] [data-window-titlebar]:not([data-window-offset] *) {
   padding-left: calc(var(--window-controls-inset) + 8px);
 }
+/* A toggled sidebar column eases its width (motion.css `t-sidebar`): the header's clearance eases on the same
+ * duration and curve, so the header's left edge moves smoothly between the column edge and the clearance and
+ * never comes closer to the window controls than the clearance. */
+html[data-canopy-platform="darwin"] [data-sidebar-settling] [data-window-titlebar]:not([data-window-offset] *) {
+  transition: padding-left var(--duration-medium) var(--ease-smooth-out);
+}
+html[data-canopy-platform="darwin"]
+  [data-sidebar="shown"][data-sidebar-settling]
+  [data-window-titlebar]:not([data-window-offset] *) {
+  transition-duration: var(--duration-slow);
+}
 html[data-canopy-platform="darwin"]:not(:has(:popover-open, [data-window-no-drag])) {
   &:not(:has(dialog:modal)) :is([data-window-drag], [data-window-titlebar]):not(dialog *, [inert] *),
   & [data-window-modal-top]:modal :is([data-window-drag], [data-window-titlebar]):not([inert] *) {

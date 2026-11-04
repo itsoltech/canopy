@@ -314,7 +314,7 @@
   opacity: 0;
   transition-duration: var(--duration-medium);
 }
-/* Window-control clearance changes immediately: animating it puts controls under the native lights. */
+/* Reduced motion: the column and the window-control clearance change at once (layout.css). */
 @media (prefers-reduced-motion: reduce) {
   .t-sidebar,
   .t-sidebar-panel,
