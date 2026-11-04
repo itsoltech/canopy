@@ -1,4 +1,7 @@
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { Schema } from "effect";
+
+const StatusFile = Schema.Struct({ status: Schema.optionalKey(Schema.String) });
 
 /** Optional status sink for the desktop supervisor; never contains credentials or provider output. */
 export function desktopStatus(status: "connecting" | "online" | "offline") {
@@ -21,7 +24,7 @@ export function workerOnline(env: Readonly<Record<string, string | undefined>>):
   if (!path) return false;
 
   try {
-    return (JSON.parse(readFileSync(path, "utf8")) as { status?: unknown }).status === "online";
+    return Schema.decodeUnknownSync(StatusFile)(JSON.parse(readFileSync(path, "utf8"))).status === "online";
   } catch {
     return false;
   }

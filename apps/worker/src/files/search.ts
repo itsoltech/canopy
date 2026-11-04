@@ -110,7 +110,7 @@ function depth(path: string): number {
 }
 
 async function gitListing(root: string, now: number): Promise<Listing | undefined> {
-  let proc: ReturnType<typeof Bun.spawn>;
+  let proc: Bun.Subprocess<"ignore", "pipe", "ignore">;
 
   try {
     // -c core.quotePath=false keeps non-ASCII names as they are; -z separates with NUL.
@@ -130,7 +130,7 @@ async function gitListing(root: string, now: number): Promise<Listing | undefine
   const timer = setTimeout(() => proc.kill(), GIT_TIMEOUT_MS);
 
   try {
-    const out = await new Response(proc.stdout as ReadableStream).text();
+    const out = await new Response(proc.stdout).text();
 
     if ((await proc.exited) !== 0) return undefined; // not a git work tree
     const files = [...new Set(out.split("\0").filter(Boolean))];

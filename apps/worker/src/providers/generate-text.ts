@@ -2,7 +2,6 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import { claudeExecutable } from "./claude/executable.ts";
-import type { ReasoningEffort } from "@canopy/codex-protocol";
 import { Deferred, Effect, Stream } from "effect";
 import { CodexAppServer } from "./codex/app-server.ts";
 import { codexThreadProvider, type CodexAppServerLaunch } from "./codex/launch.ts";
@@ -47,7 +46,7 @@ export function codexTextCatalog(model: string, effort: string) {
 }
 
 export function codexTextOverrides(catalog: string): string[] {
-  const overrides: Record<string, string | boolean> = {
+  const overrides = {
     model_catalog_json: catalog,
     web_search: "disabled",
     "agents.enabled": false,
@@ -72,7 +71,7 @@ export function codexTextOverrides(catalog: string): string[] {
     "features.memory_tool": false,
     "features.plugins": false,
     "features.goals": false,
-  };
+  } satisfies Record<string, string | boolean>;
 
   return Object.entries(overrides).flatMap(([key, value]) => ["-c", `${key}=${JSON.stringify(value)}`]);
 }
@@ -204,7 +203,7 @@ export async function generateCodexText(
       yield* server.request("turn/start", {
         threadId,
         input: [{ type: "text", text: input.prompt, text_elements: [] }],
-        ...(input.effort && { effort: input.effort as ReasoningEffort }),
+        ...(input.effort && { effort: input.effort }),
         approvalPolicy: "never",
         sandboxPolicy: { type: "readOnly", networkAccess: false },
       });

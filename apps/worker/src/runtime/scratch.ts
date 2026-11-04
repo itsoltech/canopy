@@ -30,7 +30,7 @@ export function ensureScratchDirectory(cwd: string, scratchRoot: string): void {
     try {
       mkdirSync(next, { mode: 0o700 });
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
     }
 
     const stat = lstatSync(next);

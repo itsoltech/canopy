@@ -80,8 +80,8 @@ export class WorkerUpdates {
             this.options.log?.(`update channel: ${event.gateway.reason}`);
 
           if (event.command)
-            void this.apply(event.command).catch((error: unknown) =>
-              this.options.log?.(`update failed: ${error instanceof Error ? error.message : "unknown error"}`),
+            void this.apply(event.command).catch((cause: unknown) =>
+              this.options.log?.(`update failed: ${cause instanceof Error ? cause.message : "unknown error"}`),
             );
           await this.#reportResult();
         }

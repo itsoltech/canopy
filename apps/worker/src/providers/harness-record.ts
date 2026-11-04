@@ -1,5 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { ItemSchema, TurnEndSource, TurnOutcome, UsageSchema } from "@canopy/contracts";
+import type { JsonValue } from "@canopy/domain";
+import { decodeJson } from "./json.ts";
 
 /**
  * What a harness wrote down about one turn in its own transcript (docs/durability.md, "Rekoncyliacja z transkryptu
@@ -23,7 +25,7 @@ export interface TurnEnd {
 }
 
 /** Complete lines of a JSONL file from a byte offset (a partly written last line is left out). */
-export async function readJsonl(path: string, offset: number): Promise<unknown[]> {
+export async function readJsonl(path: string, offset: number): Promise<JsonValue[]> {
   const file = Bun.file(path);
 
   if (!(await file.exists())) return [];
@@ -35,7 +37,7 @@ export async function readJsonl(path: string, offset: number): Promise<unknown[]
     if (!line.trim()) return [];
 
     try {
-      return [JSON.parse(line) as unknown];
+      return [decodeJson(JSON.parse(line))];
     } catch {
       return [];
     }

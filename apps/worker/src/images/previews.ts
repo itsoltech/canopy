@@ -12,7 +12,9 @@ import {
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { BlobRefSchema, ItemSchema, type ThreadEvent } from "@canopy/contracts";
-import { INLINE_IMAGE_TYPES, previewRefs } from "@canopy/domain";
+import { INLINE_IMAGE_TYPES, previewRefs, type JsonValue, type JsonObject } from "@canopy/domain";
+import { decodeJsonObject, isString, jsonObject } from "../providers/json.ts";
+import type { GatewayLink } from "../gateway-link/index.ts";
 import sharp from "sharp";
 import type { ThreadEventInit } from "../journal/index.ts";
 import { forTranscript, MAX_SOURCE_BYTES } from "./normalize.ts";
@@ -32,8 +34,6 @@ import { readLimited } from "./view-image.ts";
  */
 
 type BlobRefInit = MessageInitShape<typeof BlobRefSchema>;
-
-type ItemInit = MessageInitShape<typeof ItemSchema>;
 
 const CHUNK_BYTES = 256 * 1024;
 
@@ -88,7 +88,7 @@ export class PreviewStore {
 
   /** Sends the previews an event points to over `link` (once per link), before the event itself. */
   sendFor(
-    link: object,
+    link: GatewayLink,
     event: ThreadEvent,
     send: (chunk: { sha256: string; offset: bigint; data: Uint8Array; last: boolean; mimeType: string }) => void,
   ): void {
@@ -137,7 +137,7 @@ export class PreviewStore {
     const kind = body.value.item.content?.case;
 
     if (kind !== "image" && kind !== "toolCall") return init;
-    const item = create(ItemSchema, body.value.item as ItemInit);
+    const item = create(ItemSchema, body.value.item);
     const done = () => ({ ...init, body: { case: "itemCompleted" as const, value: { item } } });
 
     try {
@@ -222,59 +222,64 @@ interface InlineImage {
  */
 export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
   if (!rawJson || !rawJson.includes("image")) return [];
-  let raw: unknown;
+  let raw: JsonObject;
 
   try {
-    raw = JSON.parse(rawJson);
+    raw = decodeJsonObject(JSON.parse(rawJson));
   } catch {
     return [];
   }
 
   const out: InlineImage[] = [];
 
-  const fromBlock = (block: unknown) => {
-    if (!block || typeof block !== "object") return;
-    const b = block as Record<string, unknown>;
-    const source = b["source"] as Record<string, unknown> | undefined;
+  const fromBlock = (block: JsonValue) => {
+    const b = jsonObject(block);
 
-    if (b["type"] === "image" && source?.["type"] === "base64" && typeof source["data"] === "string") {
+    if (!b) return;
+    const source = jsonObject(b["source"]);
+
+    if (b["type"] === "image" && source?.["type"] === "base64" && isString(source["data"])) {
       out.push({ mimeType: String(source["media_type"] ?? "image/png"), base64: source["data"] });
-    } else if (b["type"] === "image" && typeof b["data"] === "string") {
+    } else if (b["type"] === "image" && isString(b["data"])) {
       out.push({ mimeType: String(b["mimeType"] ?? "image/png"), base64: b["data"] });
-    } else if (b["type"] === "inputImage" && typeof b["imageUrl"] === "string") {
+    } else if (b["type"] === "inputImage" && isString(b["imageUrl"])) {
       const match = /^data:([^;,]+);base64,(.*)$/s.exec(b["imageUrl"]);
 
       if (match) out.push({ mimeType: match[1]!, base64: match[2]! });
     }
   };
 
-  const r = raw as Record<string, unknown>;
+  const r = raw;
   // Grok: the owned HTTP MCP handler records the result before returning it to the CLI.
-  const direct = r["result"] as { content?: unknown } | undefined;
+  const direct = jsonObject(r["result"]);
 
-  if (Array.isArray(direct?.content)) for (const block of direct.content) fromBlock(block);
+  if (Array.isArray(direct?.["content"])) for (const block of direct["content"]) fromBlock(block);
   // Claude: a user message with tool results.
-  const message = r["message"] as { content?: unknown } | undefined;
+  const message = jsonObject(r["message"]);
 
-  if (r["type"] === "user" && Array.isArray(message?.content)) {
-    for (const block of message.content as Record<string, unknown>[]) {
+  if (r["type"] === "user" && Array.isArray(message?.["content"])) {
+    for (const value of message["content"]) {
+      const block = jsonObject(value);
+
+      if (!block) continue;
+
       if (block["type"] !== "tool_result" || block["tool_use_id"] !== itemId || !Array.isArray(block["content"]))
         continue;
 
-      for (const inner of block["content"] as unknown[]) fromBlock(inner);
+      for (const inner of block["content"]) fromBlock(inner);
     }
 
     return out;
   }
 
   // Codex: item/completed.
-  const item = (r["params"] as { item?: Record<string, unknown> } | undefined)?.item;
+  const item = jsonObject(jsonObject(r["params"])?.["item"]);
 
   if (item && item["id"] === itemId) {
-    if (Array.isArray(item["contentItems"])) for (const c of item["contentItems"] as unknown[]) fromBlock(c);
-    const result = item["result"] as { content?: unknown } | null | undefined;
+    if (Array.isArray(item["contentItems"])) for (const c of item["contentItems"]) fromBlock(c);
+    const result = jsonObject(item["result"]);
 
-    if (Array.isArray(result?.content)) for (const c of result.content as unknown[]) fromBlock(c);
+    if (Array.isArray(result?.["content"])) for (const c of result["content"]) fromBlock(c);
   }
 
   return out;

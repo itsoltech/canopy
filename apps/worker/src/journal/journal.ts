@@ -191,7 +191,7 @@ function makeJournal(db: Database): Journal["Service"] {
   const attempt = <A>(operation: string, run: () => A) =>
     Effect.try({ try: run, catch: (cause) => new JournalError({ operation, cause }) });
 
-  const journalId = (db.query("SELECT value FROM meta WHERE key = 'journal_id'").get() as { value: string }).value;
+  const journalId = db.query<{ value: string }, []>("SELECT value FROM meta WHERE key = 'journal_id'").get()!.value;
 
   const nextSeq = db.query<{ last_seq: number }, { thread: string }>(
     `INSERT INTO thread_seq (thread_id, last_seq) VALUES ($thread, 1)
@@ -303,13 +303,15 @@ function makeJournal(db: Database): Journal["Service"] {
   const appendTx = db.transaction((threadId: string, event: ThreadEventInit) => {
     const seq = BigInt(nextSeq.get({ thread: threadId })!.last_seq);
 
+    const { $typeName: _, ...fields } = event;
+
     const init: MessageInitShape<typeof ThreadEventSchema> = {
-      ...event,
+      ...fields,
       threadId,
       journalSeq: seq,
       eventId: Bun.randomUUIDv7(),
       occurredAt: event.occurredAt ?? timestampNow(),
-    } as MessageInitShape<typeof ThreadEventSchema>;
+    };
 
     const full = create(ThreadEventSchema, init);
 

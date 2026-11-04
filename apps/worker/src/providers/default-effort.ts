@@ -1,6 +1,38 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Env } from "./profiles.ts";
+import { Effect, Option, Schema } from "effect";
+import { isString } from "./json.ts";
+
+// Invalid settings are ignored independently, so they cannot hide a valid global fallback.
+function optionalSetting<S extends Schema.Top>(schema: S) {
+  return Schema.UndefinedOr(schema).pipe(Schema.catchDecoding(() => Effect.succeed(Option.some(undefined))));
+}
+
+const SettingText = optionalSetting(Schema.String);
+const EffortSettings = optionalSetting(Schema.Struct({ effortLevel: Schema.optionalKey(SettingText) }));
+
+const ClaudeSettings = Schema.Struct({
+  effortLevel: Schema.optionalKey(SettingText),
+  modelSettings: Schema.optionalKey(optionalSetting(Schema.Record(Schema.String, EffortSettings))),
+});
+
+const CodexSettings = Schema.Struct({
+  profile: Schema.optionalKey(SettingText),
+  model_reasoning_effort: Schema.optionalKey(SettingText),
+  profiles: Schema.optionalKey(
+    optionalSetting(
+      Schema.Record(
+        Schema.String,
+        optionalSetting(
+          Schema.Struct({
+            model_reasoning_effort: Schema.optionalKey(SettingText),
+          }),
+        ),
+      ),
+    ),
+  ),
+});
 
 /**
  * The reasoning effort the device owner set as their default in each harness (docs/protocol.md#modele-effort-i-steer).
@@ -30,16 +62,15 @@ export function pickDefaultEffort(
 
 /** Codex config.toml text → its default effort. Unreadable TOML = none. */
 export function codexConfiguredEffort(configToml: string): string | undefined {
-  let config: Record<string, unknown>;
+  let config: typeof CodexSettings.Type;
 
   try {
-    config = Bun.TOML.parse(configToml) as Record<string, unknown>;
+    config = Schema.decodeUnknownSync(CodexSettings)(Bun.TOML.parse(configToml));
   } catch {
     return undefined;
   }
 
-  const profiles = record(config["profiles"]);
-  const profile = typeof config["profile"] === "string" ? record(profiles?.[config["profile"]]) : undefined;
+  const profile = config.profile ? config.profiles?.[config.profile] : undefined;
 
   return text(profile?.["model_reasoning_effort"]) ?? text(config["model_reasoning_effort"]);
 }
@@ -54,17 +85,21 @@ export function readCodexConfiguredEffort(codexHome: string): string | undefined
  * Claude Code's default effort for a model, known by its names (id, alias target). `modelSettings` keys match
  * a name without the `[1m]` suffix and the date (`claude-sonnet-4-5-20250929` = `claude-sonnet-4-5`).
  */
-export function claudeConfiguredEffort(settings: unknown, env: Env, names: readonly string[]): string | undefined {
+export function claudeConfiguredEffort(
+  settings: typeof ClaudeSettings.Type | undefined,
+  env: Env,
+  names: readonly string[],
+): string | undefined {
   const fromEnv = env["CLAUDE_CODE_EFFORT_LEVEL"]?.trim().toLowerCase();
 
   if (fromEnv === "auto" || fromEnv === "unset") return undefined;
 
   if (fromEnv) return fromEnv;
-  const user = record(settings);
-  const wanted = new Set(names.filter(Boolean).map(canonicalClaudeModel));
+  const user = settings;
+  const wanted = new Set(names.flatMap((name) => (name ? [canonicalClaudeModel(name)] : [])));
 
-  for (const [key, value] of Object.entries(record(user?.["modelSettings"]) ?? {})) {
-    const level = text(record(value)?.["effortLevel"]);
+  for (const [key, value] of Object.entries(user?.modelSettings ?? {})) {
+    const level = text(value?.effortLevel);
 
     if (level && wanted.has(canonicalClaudeModel(key))) return level;
   }
@@ -73,13 +108,13 @@ export function claudeConfiguredEffort(settings: unknown, env: Env, names: reado
 }
 
 /** The device owner's Claude user settings; missing or invalid JSON = none. */
-export function readClaudeUserSettings(claudeHome: string): unknown {
+export function readClaudeUserSettings(claudeHome: string): typeof ClaudeSettings.Type | undefined {
   const json = readText(join(claudeHome, "settings.json"));
 
   if (json === undefined) return undefined;
 
   try {
-    return JSON.parse(json) as unknown;
+    return Schema.decodeUnknownSync(ClaudeSettings)(JSON.parse(json));
   } catch {
     return undefined;
   }
@@ -101,12 +136,6 @@ function readText(path: string): string | undefined {
   }
 }
 
-function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function text(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim().toLowerCase() : undefined;
+function text(value: string | undefined): string | undefined {
+  return isString(value) && value.trim() ? value.trim().toLowerCase() : undefined;
 }
