@@ -6,7 +6,8 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createSdkMcpServer, forkSession, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, forkSession, query, type Options, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { decodeJsonObject } from "../json.ts";
 import { tempDir } from "@canopy/testing";
 import { z } from "zod";
 import { resolveProfiles } from "../profiles.ts";
@@ -46,7 +47,8 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("claude agent sdk (live recordi
           required: ["token"],
           additionalProperties: false,
         }) as never,
-        handler: async (args: Record<string, unknown>) => {
+        handler: async (rawArgs) => {
+          const args = decodeJsonObject(rawArgs);
           tokens.push(String(args["token"]));
 
           return { content: [{ type: "text" as const, text: "recorded" }] };
@@ -55,7 +57,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("claude agent sdk (live recordi
     ],
   });
 
-  const run = async (name: string, prompt: string, extra: Record<string, unknown>) => {
+  const run = async (name: string, prompt: string, extra: Partial<Options>) => {
     const messages: SDKMessage[] = [];
 
     for await (const message of query({

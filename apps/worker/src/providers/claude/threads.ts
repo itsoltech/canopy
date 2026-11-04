@@ -31,6 +31,8 @@ import {
 } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { Context, Effect, Layer, Schema } from "effect";
+import type { JsonValue } from "@canopy/domain";
+import { decodeJson, decodeJsonObject, isJsonObject, isNumber, isString, jsonObject } from "../json.ts";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
 import {
   claudeAgentModels,
@@ -131,8 +133,8 @@ export interface ClaudeInstanceRuntime {
 }
 
 /** Launch arguments as the SDK takes them: `--name value` pairs and bare flags. */
-export function claudeExtraArgs(args: readonly string[]): Record<string, string | null> {
-  const extra: Record<string, string | null> = {};
+export function claudeExtraArgs(args: readonly string[]): NonNullable<Options["extraArgs"]> {
+  const extra: NonNullable<Options["extraArgs"]> = {};
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -230,8 +232,12 @@ interface SessionTurn {
 /** How long a turn waits after a result for a steered message Claude Code has not taken yet. */
 const STEER_GRACE_MS = 60_000;
 
-const userMessage = (text: string, extra: Partial<SDKUserMessage> = {}): SDKUserMessage =>
-  ({ type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, ...extra }) as SDKUserMessage;
+const userMessage = (text: string, extra: Partial<SDKUserMessage> = {}): SDKUserMessage => ({
+  type: "user",
+  message: { role: "user", content: text },
+  parent_tool_use_id: null,
+  ...extra,
+});
 
 const make = (options: ClaudeThreadsOptions) =>
   Effect.gen(function* () {
@@ -286,8 +292,8 @@ const make = (options: ClaudeThreadsOptions) =>
       return next;
     };
 
-    const fail = (threadId: string, operation: string) => (error: unknown) =>
-      new ClaudeThreadError({ threadId, operation, message: error instanceof Error ? error.message : String(error) });
+    const fail = (threadId: string, operation: string) => (cause: unknown) =>
+      new ClaudeThreadError({ threadId, operation, message: cause instanceof Error ? cause.message : String(cause) });
 
     const record = async (threadId: string, init: ThreadEventInit) => {
       const enriched = options.enrich ? await options.enrich(init) : init;
@@ -398,7 +404,7 @@ const make = (options: ClaudeThreadsOptions) =>
         if (answer.cancelled) return { behavior: "deny", message: "cancelled by the user", interrupt: true };
 
         if (question) {
-          const answers = answer.answerJson ? (JSON.parse(answer.answerJson) as unknown) : {};
+          const answers = answer.answerJson ? decodeJson(JSON.parse(answer.answerJson)) : {};
 
           return { behavior: "allow", updatedInput: { ...input, answers } };
         }
@@ -573,6 +579,8 @@ const make = (options: ClaudeThreadsOptions) =>
         // (`sandbox: null` leaves the one from the start in place and sandboxed Bash stays auto-allowed).
         type FlagSandbox = NonNullable<Parameters<Query["applyFlagSettings"]>[0]["sandbox"]>;
 
+        // SAFETY: claudePermissions constructs sandbox settings with defined properties only;
+        // applyFlagSettings uses the same settings contract with stricter optional-property declarations.
         const sandbox = (next.options.sandbox ?? { enabled: false }) as FlagSandbox;
         await session.query.applyFlagSettings({ sandbox });
       }
@@ -719,7 +727,14 @@ const make = (options: ClaudeThreadsOptions) =>
 
           if (deferredResult && session.turn) mapper.continueTurn(session.turn.turnId);
           deferredResult = undefined;
-          const lifecycle = message as unknown as { type: string; command_uuid?: string; state?: string };
+
+          const lifecycle = Schema.decodeUnknownSync(
+            Schema.Struct({
+              type: Schema.String,
+              command_uuid: Schema.optionalKey(Schema.String),
+              state: Schema.optionalKey(Schema.String),
+            }),
+          )(message);
 
           const steer =
             lifecycle.type === "command_lifecycle" && lifecycle.state === "started" && lifecycle.command_uuid
@@ -749,7 +764,7 @@ const make = (options: ClaudeThreadsOptions) =>
                 block.name === CLAUDE_VIEW_IMAGE_TOOL
               )
                 continue;
-              const key = callKey(block.name.slice(`mcp__${BUS_SERVER}__`.length), block.input);
+              const key = callKey(block.name.slice(`mcp__${BUS_SERVER}__`.length), decodeJson(block.input));
               session.busCalls.set(key, [...(session.busCalls.get(key) ?? []), block.id]);
             }
           }
@@ -967,7 +982,22 @@ const make = (options: ClaudeThreadsOptions) =>
         // The uuid names the message in command_lifecycle (queued -> started -> completed).
         if (
           !session.input.push(
-            userMessage(input.text, { uuid: inputId as SDKUserMessage["uuid"] & string, priority: "next" }),
+            userMessage(input.text, {
+              uuid: Schema.decodeUnknownSync(
+                Schema.TemplateLiteral([
+                  Schema.String,
+                  "-",
+                  Schema.String,
+                  "-",
+                  Schema.String,
+                  "-",
+                  Schema.String,
+                  "-",
+                  Schema.String,
+                ]),
+              )(inputId),
+              priority: "next",
+            }),
           )
         ) {
           return yield* new SteerError({ code: "STEER_NOT_RUNNING", message: "the turn's input is closed" });
@@ -1109,18 +1139,18 @@ export function goalVerdictOf(line: string): GoalVerdict | undefined {
   if (!line.includes('"goal_status"')) return undefined;
 
   try {
-    const entry = JSON.parse(line) as { type?: string; attachment?: { type?: string } & Partial<GoalVerdict> };
-    const a = entry.attachment;
+    const entry = decodeJsonObject(JSON.parse(line));
+    const a = jsonObject(entry["attachment"]);
 
-    if (entry.type !== "attachment" || a?.type !== "goal_status" || typeof a.condition !== "string") return undefined;
+    if (entry["type"] !== "attachment" || a?.["type"] !== "goal_status" || !isString(a["condition"])) return undefined;
 
     return {
-      met: a.met === true,
-      condition: a.condition,
-      ...(a.failed && { failed: true }),
-      ...(a.sentinel && { sentinel: true }),
-      ...(typeof a.reason === "string" && { reason: a.reason }),
-      ...(typeof a.iterations === "number" && { iterations: a.iterations }),
+      met: a["met"] === true,
+      condition: a["condition"],
+      ...(a["failed"] && { failed: true }),
+      ...(a["sentinel"] && { sentinel: true }),
+      ...(isString(a["reason"]) && { reason: a["reason"] }),
+      ...(isNumber(a["iterations"]) && { iterations: a["iterations"] }),
     };
   } catch {
     return undefined;
@@ -1153,11 +1183,11 @@ function readFrom(path: string, offset: number): Uint8Array {
 }
 
 /** Tool name and arguments with sorted keys: the MCP handler gets the arguments in schema order. */
-function callKey(tool: string, args: unknown): string {
-  const sorted = (value: unknown): unknown =>
+function callKey(tool: string, args: JsonValue): string {
+  const sorted = (value: JsonValue): JsonValue =>
     Array.isArray(value)
       ? value.map(sorted)
-      : value && typeof value === "object"
+      : isJsonObject(value)
         ? Object.fromEntries(
             Object.entries(value)
               .sort(([a], [b]) => a.localeCompare(b))

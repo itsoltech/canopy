@@ -3,6 +3,27 @@ import { join } from "node:path";
 import { ItemStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import { readJsonl, type HarnessRecord, type TurnEnd } from "../harness-record.ts";
 import { resultText, toolContent, withOutput } from "./mapping.ts";
+import { Schema } from "effect";
+import type { JsonObject } from "@canopy/domain";
+import { isString, jsonObject } from "../json.ts";
+
+const TranscriptEntry = Schema.Struct({
+  type: Schema.optionalKey(Schema.String),
+  uuid: Schema.optionalKey(Schema.String),
+  isSidechain: Schema.optionalKey(Schema.Boolean),
+  isApiErrorMessage: Schema.optionalKey(Schema.Boolean),
+  error: Schema.optionalKey(Schema.String),
+  apiError: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  message: Schema.optionalKey(
+    Schema.Struct({
+      id: Schema.optionalKey(Schema.String),
+      stop_reason: Schema.optionalKey(Schema.NullOr(Schema.String)),
+      content: Schema.optionalKey(Schema.Json),
+    }),
+  ),
+});
+
+const decodeBlocks = Schema.decodeUnknownSync(Schema.Array(Schema.JsonObject));
 
 /**
  * One turn as Claude Code recorded it in the session transcript (docs/durability.md, "Rekoncyliacja z transkryptu
@@ -26,7 +47,7 @@ export async function readClaudeTurn(
   const path = transcriptPath(home, sessionId);
 
   if (!path) return undefined;
-  const entries = (await readJsonl(path, offset)) as TranscriptEntry[];
+  const entries = await readJsonl(path, offset);
   const items = new Map<string, HarnessRecord["items"][number]>();
   const tools = new Map<string, NonNullable<HarnessRecord["items"][number]["content"]>>();
   const blocks = new Map<string, number>();
@@ -34,18 +55,23 @@ export async function readClaudeTurn(
   let interrupted = false;
   let seen = false;
 
-  for (const entry of entries) {
-    if (entry.isSidechain || (entry.type !== "assistant" && entry.type !== "user") || !entry.message) continue;
+  for (const raw of entries) {
+    const record = jsonObject(raw);
+
+    if (!record || record["isSidechain"] || (record["type"] !== "assistant" && record["type"] !== "user")) continue;
+    const entry = Schema.decodeUnknownSync(TranscriptEntry)(record);
+
+    if (!entry.message) continue;
     seen = true;
     const content = entry.message.content;
 
     if (entry.type === "assistant") {
       interrupted = false;
       const messageId = entry.message.id ?? entry.uuid ?? "";
-      const list = Array.isArray(content) ? (content as Block[]) : [];
+      const list = Array.isArray(content) ? decodeBlocks(content) : [];
 
       if (entry.isApiErrorMessage) {
-        const text = list.map((b) => (b.type === "text" ? String(b["text"] ?? "") : "")).join("");
+        const text = list.map((b) => (b["type"] === "text" ? String(b["text"] ?? "") : "")).join("");
         last = {
           stopReason: entry.message.stop_reason ?? null,
           uuid: entry.uuid ?? "",
@@ -58,8 +84,8 @@ export async function readClaudeTurn(
         const index = blocks.get(messageId) ?? 0;
         blocks.set(messageId, index + 1);
 
-        if (block.type === "text" || block.type === "thinking") {
-          const text = String(block.type === "text" ? block["text"] : block["thinking"]);
+        if (block["type"] === "text" || block["type"] === "thinking") {
+          const text = String(block["type"] === "text" ? block["text"] : block["thinking"]);
 
           if (!text) continue;
           const itemId = `${messageId}:${index}`;
@@ -67,11 +93,11 @@ export async function readClaudeTurn(
             itemId,
             status: ItemStatus.COMPLETED,
             content:
-              block.type === "text"
+              block["type"] === "text"
                 ? { case: "agentMessage", value: { text } }
                 : { case: "reasoning", value: { text } },
           });
-        } else if (block.type === "tool_use") {
+        } else if (block["type"] === "tool_use") {
           const id = String(block["id"]);
           const started = toolContent(String(block["name"]), block["input"]);
           tools.set(id, started);
@@ -84,18 +110,17 @@ export async function readClaudeTurn(
     }
 
     // user: tool results, an interruption, or a prompt (the worker journals prompts itself).
-    const list =
-      typeof content === "string"
-        ? [{ type: "text", text: content }]
-        : Array.isArray(content)
-          ? (content as Block[])
-          : [];
+    const list: readonly JsonObject[] = isString(content)
+      ? [{ type: "text", text: content }]
+      : Array.isArray(content)
+        ? decodeBlocks(content)
+        : [];
 
     for (const block of list) {
-      if (block.type === "text" && /^\[Request interrupted by user/.test(String(block["text"] ?? "")))
+      if (block["type"] === "text" && String(block["text"] ?? "").startsWith("[Request interrupted by user"))
         interrupted = true;
 
-      if (block.type !== "tool_result") continue;
+      if (block["type"] !== "tool_result") continue;
       const id = String(block["tool_use_id"]);
       const started = tools.get(id);
 
@@ -134,21 +159,6 @@ export async function readClaudeTurn(
 }
 
 const STOPPED: ReadonlySet<string> = new Set(["end_turn", "stop_sequence", "max_tokens", "refusal"]);
-
-interface TranscriptEntry {
-  readonly type?: string;
-  readonly uuid?: string;
-  readonly isSidechain?: boolean;
-  readonly isApiErrorMessage?: boolean;
-  readonly error?: string;
-  readonly apiError?: string | null;
-  readonly message?: { readonly id?: string; readonly stop_reason?: string | null; readonly content?: unknown };
-}
-
-interface Block {
-  readonly type: string;
-  readonly [key: string]: unknown;
-}
 
 /** Session transcript of Claude Code: <config dir>/projects/<project dir>/<session id>.jsonl. */
 export function transcriptPath(home: string, sessionId: string): string | undefined {

@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { forkSession, getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
 import { readClaudeTurn } from "./transcript.ts";
+import { Schema } from "effect";
+import { isString, jsonObject, jsonString } from "../json.ts";
 
 /**
  * Fork from a turn (docs/claude-adapter.md, "Fork"): the turn's provider ref is the last entry Claude Code wrote
@@ -17,7 +19,7 @@ const projectDir = join(home, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"));
 afterAll(() => rmSync(home, { recursive: true, force: true }));
 
 /** A session Claude Code writes turn by turn: `next(word)` appends one turn and returns the offset it starts at. */
-function session(): { sessionId: string; next: (word: string) => number } {
+function session() {
   const sessionId = crypto.randomUUID();
   const lines: string[] = [];
   let bytes = 0;
@@ -77,12 +79,14 @@ function session(): { sessionId: string; next: (word: string) => number } {
 
 const texts = (messages: Awaited<ReturnType<typeof getSessionMessages>>) =>
   messages.map((m) => {
-    const content = (m.message as { content?: unknown } | undefined)?.content;
+    const content = Schema.decodeUnknownSync(Schema.Struct({ content: Schema.optionalKey(Schema.Json) }))(
+      m.message,
+    ).content;
 
-    return typeof content === "string"
+    return isString(content)
       ? content
       : Array.isArray(content)
-        ? content.map((b: { text?: string }) => b.text ?? "").join("")
+        ? content.map((b) => jsonString(jsonObject(b)?.["text"])).join("")
         : "";
   });
 
