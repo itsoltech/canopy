@@ -331,6 +331,11 @@ a kompletny zestaw notaryzacji włącza wbudowane `mac.notarize` i stapling prze
 Kontrola CI sprawdza app przez `codesign --verify --deep --strict`, każdy runtime Mach-O
 oddzielnie, Developer ID przez requirement i `spctl -a -vv` dla podpisanych buildów.
 Notaryzowany build musi przejść Gatekeeper i `xcrun stapler validate`.
+Patch Bun do `@electron/notarize@2.5.0` ponawia samo `staple` z walidacją do pięciu
+razy (15/30/60/60 s), przed utworzeniem zip/dmg. Nie ponawia zgłoszenia ani nie
+pomija notaryzacji; trwały błąd nadal zatrzymuje job. Szczegóły: [desktop.md](desktop.md#podpisywanie-macos-i-gatekeeper).
+Scalanie feedów przyjmuje zarówno katalogi per cel, jak i płaski wynik
+`download-artifact@v5`, gdy tylko jeden cel desktopu zakończył się powodzeniem.
 Bez notaryzacji odmowa `spctl` jest oczekiwana i raportowana; sam podpis musi być poprawny.
 
 ### Sekrety podpisywania desktop

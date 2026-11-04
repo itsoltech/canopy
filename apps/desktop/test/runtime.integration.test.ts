@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { once } from "node:events";
+import { Result } from "effect";
 import { ui } from "@canopy/contracts";
 import { startGrpcServer } from "@canopy/transport";
 import { generateIdentity } from "../../gateway/src/computers/identity.ts";
@@ -15,6 +16,7 @@ import { until } from "../src/runtime/process.ts";
 import { postgresArchive, postgresRegistry } from "./postgres-fixture.ts";
 import { migrateDesktopClient } from "../src/client-migration.ts";
 import { remoteWorkerDirectory, type DesktopClientCredential } from "../src/remote-client.ts";
+import { parseLocalConfig } from "../../worker/src/config/local.ts";
 
 const data = tempDir("canopy-desktop-local-");
 const remoteData = tempDir("canopy-desktop-remote-");
@@ -171,11 +173,29 @@ test.skipIf(!existsSync(paths.gateway))(
 
         return Boolean(client);
       });
-      const workerBefore = readFileSync(join(remoteWorkerDirectory(remoteData, oldConfig), "worker.json"), "utf8");
+      const workerPath = join(remoteWorkerDirectory(remoteData, oldConfig), "worker.json");
+      const readWorker = () => Result.getOrThrow(parseLocalConfig(readFileSync(workerPath, "utf8")));
+      const workerBefore = readWorker();
+      // Initial pairing restarts services. The worker may independently migrate to a pinned
+      // Network access route, but must preserve its enrollment and durable data directory.
       await remote.configure(oldConfig, client);
+      const workerAfter = readWorker();
       expect(
-        readFileSync(join(remoteWorkerDirectory(remoteData, oldConfig), "worker.json"), "utf8") === workerBefore,
+        workerAfter.worker_id === workerBefore.worker_id &&
+          workerAfter.credential === workerBefore.credential &&
+          workerAfter.data_dir === workerBefore.data_dir,
       ).toBe(true);
+      await until(async () => Boolean(readWorker().gateway_fallback));
+      const pairedConfig = remote.status.configuration!;
+      const pairedPids = remote.pids;
+      const savedAt = statSync(join(remoteData, "desktop.json")).mtimeMs;
+      const migratedWorker = readFileSync(workerPath, "utf8");
+      const workerSavedAt = statSync(workerPath).mtimeMs;
+      await remote.configure(pairedConfig, client);
+      expect(remote.pids).toEqual(pairedPids);
+      expect(statSync(join(remoteData, "desktop.json")).mtimeMs).toBe(savedAt);
+      expect(statSync(workerPath).mtimeMs).toBe(workerSavedAt);
+      expect(readFileSync(workerPath, "utf8") === migratedWorker).toBe(true);
       expect(remote.status.webUrl).toBe(remote.origin);
       expect(remote.status.webUrl).not.toBe(local.status.webUrl);
       expect((await fetch(`${remote.origin}/api/overview`)).ok).toBe(true);
