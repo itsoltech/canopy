@@ -73,13 +73,11 @@ export function safeIcon(url: string | undefined): string | undefined {
   return url && (url.startsWith("data:image/") || url.startsWith("https://")) ? url : undefined;
 }
 
-export const INLINE_RENDERERS: {
-  readonly [T in InlineElement["type"]]: { html(element: Extract<InlineElement, { type: T }>): string };
-} = {
+export const INLINE_RENDERERS = {
   mention: {
     html: ({ mention }) => {
       const icon = safeIcon(mention.icon);
-      const mark = mention.kind === MentionKind.CONNECTOR ? connectorMarks[mention.source] : undefined;
+      const mark = mention.kind === MentionKind.CONNECTOR ? connectorMarks.get(mention.source) : undefined;
 
       const glyph = mark
         ? `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="${CHIP_ICON_CLASS}"><path d="${mark}"/></svg>`
@@ -92,6 +90,8 @@ export const INLINE_RENDERERS: {
       return `<span contenteditable="false" data-element="mention" data-mention="${data}" class="${CHIP_CLASS}" title="${escape(chipTitle(mention))}">${glyph}<span class="truncate">${escape(mentionLabel(mention))}</span></span>`;
     },
   },
+} satisfies {
+  readonly [T in InlineElement["type"]]: { html(element: Extract<InlineElement, { type: T }>): string };
 };
 
 /** Hover text: what the chip stands for (a file's whole path, a command with its slash). */

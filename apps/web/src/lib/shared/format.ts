@@ -96,7 +96,11 @@ export function formatDay(timestamp: Timestamp | undefined, now = new Date()): s
   const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((midnight(now) - midnight(at)) / 86_400_000);
 
-  return days === 0 ? "Today" : days === 1 ? "Yesterday" : date.format(at);
+  if (days === 0) return "Today";
+
+  if (days === 1) return "Yesterday";
+
+  return date.format(at);
 }
 
 export const isoDateTime = (timestamp: Timestamp | undefined): string =>
@@ -112,19 +116,6 @@ export function prettyJson(json: string): string {
     return json;
   }
 }
-
-/** Parses a JSON object; anything else (invalid, array, scalar) gives an empty record. */
-export function parseObject(json: string): Record<string, unknown> {
-  try {
-    const value: unknown = JSON.parse(json);
-
-    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-}
-
-export const str = (value: unknown): string => (typeof value === "string" ? value : "");
 
 /** Last segment of a path in either separator style. */
 export const basename = (path: string): string => path.split(/[/\\]/).filter(Boolean).at(-1) ?? path;

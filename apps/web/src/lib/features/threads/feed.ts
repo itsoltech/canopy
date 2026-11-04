@@ -74,26 +74,26 @@ export const feedInserted = (row: FeedRow): "unfold" | "reveal" | undefined =>
       ? "unfold"
       : undefined;
 
-const ESTIMATES: Record<string, number> = {
-  "history-head": 56,
-  "history-part": 36,
-  forked: 32,
-  working: 36,
-  steer: 96,
-  "turn-start": 24,
-  input: 96,
-  notice: 44,
-  "turn-end": 40,
-  work: 36,
-  "work-group": 44,
-  answer: 160,
-  "item:userMessage": 96,
-  "item:agentMessage": 160,
-  "item:subagent": 44,
-};
+const ESTIMATES = new Map<string, number>([
+  ["history-head", 56],
+  ["history-part", 36],
+  ["forked", 32],
+  ["working", 36],
+  ["steer", 96],
+  ["turn-start", 24],
+  ["input", 96],
+  ["notice", 44],
+  ["turn-end", 40],
+  ["work", 36],
+  ["work-group", 44],
+  ["answer", 160],
+  ["item:userMessage", 96],
+  ["item:agentMessage", 160],
+  ["item:subagent", 44],
+]);
 
 /** First guess of a group's height (px) until one of its rows is measured. */
-export const feedEstimate = (group: string): number => ESTIMATES[group.replace(/:history$/, "")] ?? 44;
+export const feedEstimate = (group: string): number => ESTIMATES.get(group.replace(/:history$/, "")) ?? 44;
 
 /**
  * Builds the feed, reusing the previous row objects (and item nodes) that did not change, so a streaming

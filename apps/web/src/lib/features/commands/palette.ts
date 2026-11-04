@@ -124,8 +124,13 @@ export const enterLevel = (stack: readonly PaletteLevel[], command: Command, que
   { command, query },
 ];
 
+export interface LeftLevel {
+  stack: PaletteLevel[];
+  query: string;
+}
+
 /** One level up: the stack without the last submenu and the query to restore. */
-export function leaveLevel(stack: readonly PaletteLevel[]): { stack: PaletteLevel[]; query: string } {
+export function leaveLevel(stack: readonly PaletteLevel[]): LeftLevel {
   return { stack: stack.slice(0, -1), query: stack.at(-1)?.query ?? "" };
 }
 

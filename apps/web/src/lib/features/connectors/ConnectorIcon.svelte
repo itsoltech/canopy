@@ -6,8 +6,8 @@
   let { type, class: className }: { type: string; class?: ClassValue } = $props();
 </script>
 
-{#if connectorMarks[type]}
+{#if connectorMarks.get(type)}
   <svg viewBox="0 0 24 24" aria-hidden="true" class={["size-4 shrink-0 fill-current", className]}
-    ><path d={connectorMarks[type]} /></svg
+    ><path d={connectorMarks.get(type)} /></svg
   >
 {:else}<Icon name="link" class={className} />{/if}

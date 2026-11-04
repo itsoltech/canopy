@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { str } from "#lib/shared/format.ts";
+  import { str } from "#lib/shared/json.ts";
   import CodeView from "#lib/shared/ui/code/CodeView.svelte";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import type { ToolBodyProps } from "./body.ts";

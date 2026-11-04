@@ -1,4 +1,15 @@
-import { basename, parseObject, str } from "#lib/shared/format.ts";
+import { basename } from "#lib/shared/format.ts";
+import {
+  isJsonArray,
+  isNumber,
+  isString,
+  listOf,
+  objectsOf,
+  parseObject,
+  str,
+  type JsonObject,
+  type JsonValue,
+} from "#lib/shared/json.ts";
 import { humanizeEnum, humanizeServer, humanizeToolName, isOpaqueId, plural } from "#lib/shared/humanize.ts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 import {
@@ -59,19 +70,16 @@ export interface ToolLook {
   readonly body: ToolBody;
 }
 
-type Describe = (
-  call: ToolCallFacts,
-  input: Record<string, unknown>,
-) => Partial<ToolLook> & Pick<ToolLook, "title" | "body">;
+type Describe = (call: ToolCallFacts, input: JsonObject) => Partial<ToolLook> & Pick<ToolLook, "title" | "body">;
 
 const verb = (call: ToolCallFacts, doing: string, done: string) => (call.running ? doing : done);
 
-const num = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+const num = (value: JsonValue | undefined): number | undefined =>
+  isNumber(value) && Number.isFinite(value) ? value : undefined;
 
 const path = (value: string) => ({ subject: basename(value), subjectTitle: value, mono: true });
 
-function readDetail(call: ToolCallFacts, input: Record<string, unknown>): string {
+function readDetail(call: ToolCallFacts, input: JsonObject): string {
   const offset = num(input["offset"]);
   const limit = num(input["limit"]);
 
@@ -89,7 +97,7 @@ function readDetail(call: ToolCallFacts, input: Record<string, unknown>): string
   return parsed ? plural(parsed.lines.length, "line") : "";
 }
 
-function grepDetail(call: ToolCallFacts, input: Record<string, unknown>): string {
+function grepDetail(call: ToolCallFacts, input: JsonObject): string {
   if (call.running || call.isError) return "";
   const mode = str(input["output_mode"]) || "files_with_matches";
   const files = parseGrepOutput(call.output, mode);
@@ -102,7 +110,7 @@ function grepDetail(call: ToolCallFacts, input: Record<string, unknown>): string
   return `${plural(matches, "match", "matches")} in ${plural(files.length, "file")}`;
 }
 
-function todoDetail(input: Record<string, unknown>): string {
+function todoDetail(input: JsonObject): string {
   const items = todos(input);
 
   if (items.length === 0) return "";
@@ -110,13 +118,16 @@ function todoDetail(input: Record<string, unknown>): string {
   return `${items.filter((t) => t.status === "completed").length} of ${items.length} done`;
 }
 
-/** TodoWrite `todos` or Codex update_plan `plan`, as checklist steps. */
-export function todos(input: Record<string, unknown>): { text: string; status: string }[] {
-  const list = Array.isArray(input["todos"]) ? input["todos"] : Array.isArray(input["plan"]) ? input["plan"] : [];
+export interface TodoStep {
+  readonly text: string;
+  readonly status: string;
+}
 
-  return list.flatMap((entry: unknown) => {
-    if (!entry || typeof entry !== "object") return [];
-    const record = entry as Record<string, unknown>;
+/** TodoWrite `todos` or Codex update_plan `plan`, as checklist steps. */
+export function todos(input: JsonObject): TodoStep[] {
+  const list = isJsonArray(input["todos"]) ? input["todos"] : input["plan"];
+
+  return objectsOf(list).flatMap((record) => {
     const text = str(record["content"]) || str(record["step"]) || str(record["text"]);
 
     return text ? [{ text, status: str(record["status"]) }] : [];
@@ -124,15 +135,15 @@ export function todos(input: Record<string, unknown>): { text: string; status: s
 }
 
 /** The command of a shell-like call (`cmd`, `command` as text or argv). */
-export function shellCommand(input: Record<string, unknown>): string {
+export function shellCommand(input: JsonObject): string {
   const command = input["cmd"] ?? input["command"];
 
-  if (Array.isArray(command)) return command.filter((part) => typeof part === "string").join(" ");
+  if (Array.isArray(command)) return listOf(command).filter(isString).join(" ");
 
   return str(command);
 }
 
-function scriptSubject(call: ToolCallFacts, input: Record<string, unknown>): Partial<ToolLook> {
+function scriptSubject(call: ToolCallFacts, input: JsonObject): Partial<ToolLook> {
   const calls = parseScriptCalls(str(input["code"]));
   const first = calls[0];
   const wall = call.running ? undefined : parseScriptOutput(call.output)?.wallSeconds;
@@ -182,168 +193,170 @@ const TODO: Describe = (call, input) => ({
   body: "todo",
 });
 
-const REGISTRY: Record<string, Describe> = {
-  // Claude Code
-  Read: (call, input) => ({
-    title: verb(call, "Reading", "Read"),
-    ...path(str(input["file_path"])),
-    detail: readDetail(call, input),
-    icon: "document-text",
-    body: "read",
-  }),
-  Grep: (call, input) => ({
-    title: verb(call, "Searching for", "Searched for"),
-    subject: str(input["pattern"]),
-    subjectTitle: str(input["pattern"]),
-    mono: true,
-    detail: grepDetail(call, input),
-    icon: "magnifying-glass",
-    body: "search",
-  }),
-  Glob: (call, input) => {
-    const files = call.running || call.isError ? undefined : parseFileList(call.output);
-
-    return {
-      title: verb(call, "Finding files", "Found files"),
+const REGISTRY = new Map<string, Describe>(
+  Object.entries({
+    // Claude Code
+    Read: (call, input) => ({
+      title: verb(call, "Reading", "Read"),
+      ...path(str(input["file_path"])),
+      detail: readDetail(call, input),
+      icon: "document-text",
+      body: "read",
+    }),
+    Grep: (call, input) => ({
+      title: verb(call, "Searching for", "Searched for"),
       subject: str(input["pattern"]),
       subjectTitle: str(input["pattern"]),
       mono: true,
-      detail: files ? (files.length > 0 ? plural(files.length, "file") : "none") : "",
+      detail: grepDetail(call, input),
+      icon: "magnifying-glass",
+      body: "search",
+    }),
+    Glob: (call, input) => {
+      const files = call.running || call.isError ? undefined : parseFileList(call.output);
+
+      return {
+        title: verb(call, "Finding files", "Found files"),
+        subject: str(input["pattern"]),
+        subjectTitle: str(input["pattern"]),
+        mono: true,
+        detail: files ? (files.length > 0 ? plural(files.length, "file") : "none") : "",
+        icon: "folder-open",
+        body: "files",
+      };
+    },
+    LS: (call, input) => ({
+      title: verb(call, "Listing", "Listed"),
+      ...path(str(input["path"])),
       icon: "folder-open",
       body: "files",
-    };
-  },
-  LS: (call, input) => ({
-    title: verb(call, "Listing", "Listed"),
-    ...path(str(input["path"])),
-    icon: "folder-open",
-    body: "files",
-  }),
-  WebFetch: (call, input) => ({
-    title: verb(call, "Fetching", "Fetched"),
-    subject: shortUrl(str(input["url"])),
-    subjectTitle: str(input["url"]),
-    icon: "globe-alt",
-    body: "fetch",
-  }),
-  WebSearch: (call, input) => ({
-    title: verb(call, "Searching the web for", "Searched the web for"),
-    subject: str(input["query"]),
-    icon: "globe-alt",
-    body: "web-search",
-  }),
-  TodoWrite: TODO,
-  Write: (call, input) => ({
-    title: verb(call, "Writing", "Wrote"),
-    ...path(str(input["file_path"])),
-    icon: "pencil-square",
-    body: "edit",
-  }),
-  Edit: EDIT,
-  MultiEdit: (call, input) => ({
-    ...EDIT(call, input),
-    detail: Array.isArray(input["edits"]) ? plural(input["edits"].length, "edit") : "",
-  }),
-  NotebookEdit: EDIT,
-  Skill: (call, input) => ({
-    title: verb(call, "Using the skill", "Used the skill"),
-    subject: str(input["skill"]) || str(input["command"]),
-    icon: "bolt",
-    body: "markdown",
-  }),
-  ToolSearch: (call, input) => ({
-    title: verb(call, "Looking up tools", "Looked up tools"),
-    subject: str(input["query"]),
-    icon: "magnifying-glass",
-    body: "generic",
-  }),
-  ExitPlanMode: (call) => ({
-    title: verb(call, "Proposing a plan", "Proposed a plan"),
-    icon: "queue-list",
-    body: "markdown",
-  }),
-  BashOutput: (call) => ({
-    title: verb(call, "Reading background output", "Read background output"),
-    icon: "command-line",
-    body: "generic",
-  }),
-  TaskOutput: (call) => ({
-    title: verb(call, "Reading background output", "Read background output"),
-    icon: "command-line",
-    body: "generic",
-  }),
-  KillShell: (call) => ({
-    title: verb(call, "Stopping a background task", "Stopped a background task"),
-    icon: "stop",
-    body: "generic",
-  }),
-  KillBash: (call) => ({
-    title: verb(call, "Stopping a background task", "Stopped a background task"),
-    icon: "stop",
-    body: "generic",
-  }),
-  TaskStop: (call) => ({
-    title: verb(call, "Stopping a background task", "Stopped a background task"),
-    icon: "stop",
-    body: "generic",
-  }),
-  Bash: SHELL,
-  // Codex
-  exec: (call, input) => ({
-    title: verb(call, "Running a script", "Ran a script"),
-    icon: "code-bracket",
-    body: "script",
-    ...scriptSubject(call, input),
-  }),
-  wait: (call) => ({
-    title: verb(call, "Waiting for the script", "Waited for the script"),
-    icon: "clock",
-    body: "script",
-  }),
-  exec_command: SHELL,
-  shell: SHELL,
-  shell_command: SHELL,
-  local_shell: SHELL,
-  apply_patch: (call, input) => {
-    const files = parsePatch(str(input["input"]) || str(input["patch"]));
-
-    return {
-      title: verb(call, "Editing", "Edited"),
-      subject: files.map((f) => basename(f.path)).join(", "),
-      subjectTitle: files.map((f) => f.path).join("\n"),
-      mono: true,
-      detail: files.length > 1 ? plural(files.length, "file") : "",
+    }),
+    WebFetch: (call, input) => ({
+      title: verb(call, "Fetching", "Fetched"),
+      subject: shortUrl(str(input["url"])),
+      subjectTitle: str(input["url"]),
+      icon: "globe-alt",
+      body: "fetch",
+    }),
+    WebSearch: (call, input) => ({
+      title: verb(call, "Searching the web for", "Searched the web for"),
+      subject: str(input["query"]),
+      icon: "globe-alt",
+      body: "web-search",
+    }),
+    TodoWrite: TODO,
+    Write: (call, input) => ({
+      title: verb(call, "Writing", "Wrote"),
+      ...path(str(input["file_path"])),
       icon: "pencil-square",
-      body: "patch",
-    };
-  },
-  update_plan: TODO,
-  web_search: (call, input) => ({
-    title: verb(call, "Searching the web for", "Searched the web for"),
-    subject: str(input["query"]),
-    icon: "globe-alt",
-    body: "web-search",
-  }),
-  view_image: (call, input) => ({
-    title: verb(call, "Viewing an image", "Viewed an image"),
-    ...path(str(input["path"])),
-    icon: "photo",
-    body: "generic",
-  }),
-  get_goal: (call) => ({ title: verb(call, "Checking the goal", "Checked the goal"), icon: "flag", body: "generic" }),
-  create_goal: (call) => ({ title: verb(call, "Setting a goal", "Set a goal"), icon: "flag", body: "generic" }),
-  update_goal: (call, input) => ({
-    title: verb(call, "Updating the goal", "Updated the goal"),
-    subject: humanizeEnum(str(input["status"])),
-    icon: "flag",
-    body: "generic",
-  }),
-};
+      body: "edit",
+    }),
+    Edit: EDIT,
+    MultiEdit: (call, input) => ({
+      ...EDIT(call, input),
+      detail: Array.isArray(input["edits"]) ? plural(input["edits"].length, "edit") : "",
+    }),
+    NotebookEdit: EDIT,
+    Skill: (call, input) => ({
+      title: verb(call, "Using the skill", "Used the skill"),
+      subject: str(input["skill"]) || str(input["command"]),
+      icon: "bolt",
+      body: "markdown",
+    }),
+    ToolSearch: (call, input) => ({
+      title: verb(call, "Looking up tools", "Looked up tools"),
+      subject: str(input["query"]),
+      icon: "magnifying-glass",
+      body: "generic",
+    }),
+    ExitPlanMode: (call) => ({
+      title: verb(call, "Proposing a plan", "Proposed a plan"),
+      icon: "queue-list",
+      body: "markdown",
+    }),
+    BashOutput: (call) => ({
+      title: verb(call, "Reading background output", "Read background output"),
+      icon: "command-line",
+      body: "generic",
+    }),
+    TaskOutput: (call) => ({
+      title: verb(call, "Reading background output", "Read background output"),
+      icon: "command-line",
+      body: "generic",
+    }),
+    KillShell: (call) => ({
+      title: verb(call, "Stopping a background task", "Stopped a background task"),
+      icon: "stop",
+      body: "generic",
+    }),
+    KillBash: (call) => ({
+      title: verb(call, "Stopping a background task", "Stopped a background task"),
+      icon: "stop",
+      body: "generic",
+    }),
+    TaskStop: (call) => ({
+      title: verb(call, "Stopping a background task", "Stopped a background task"),
+      icon: "stop",
+      body: "generic",
+    }),
+    Bash: SHELL,
+    // Codex
+    exec: (call, input) => ({
+      title: verb(call, "Running a script", "Ran a script"),
+      icon: "code-bracket",
+      body: "script",
+      ...scriptSubject(call, input),
+    }),
+    wait: (call) => ({
+      title: verb(call, "Waiting for the script", "Waited for the script"),
+      icon: "clock",
+      body: "script",
+    }),
+    exec_command: SHELL,
+    shell: SHELL,
+    shell_command: SHELL,
+    local_shell: SHELL,
+    apply_patch: (call, input) => {
+      const files = parsePatch(str(input["input"]) || str(input["patch"]));
+
+      return {
+        title: verb(call, "Editing", "Edited"),
+        subject: files.map((f) => basename(f.path)).join(", "),
+        subjectTitle: files.map((f) => f.path).join("\n"),
+        mono: true,
+        detail: files.length > 1 ? plural(files.length, "file") : "",
+        icon: "pencil-square",
+        body: "patch",
+      };
+    },
+    update_plan: TODO,
+    web_search: (call, input) => ({
+      title: verb(call, "Searching the web for", "Searched the web for"),
+      subject: str(input["query"]),
+      icon: "globe-alt",
+      body: "web-search",
+    }),
+    view_image: (call, input) => ({
+      title: verb(call, "Viewing an image", "Viewed an image"),
+      ...path(str(input["path"])),
+      icon: "photo",
+      body: "generic",
+    }),
+    get_goal: (call) => ({ title: verb(call, "Checking the goal", "Checked the goal"), icon: "flag", body: "generic" }),
+    create_goal: (call) => ({ title: verb(call, "Setting a goal", "Set a goal"), icon: "flag", body: "generic" }),
+    update_goal: (call, input) => ({
+      title: verb(call, "Updating the goal", "Updated the goal"),
+      subject: humanizeEnum(str(input["status"])),
+      icon: "flag",
+      body: "generic",
+    }),
+  } satisfies Record<string, Describe>),
+);
 
 /** The first short, readable argument (not an id, not a flag): what a call without an entry is about. */
-export function hintOf(input: Record<string, unknown>): string {
+export function hintOf(input: JsonObject): string {
   for (const value of Object.values(input)) {
-    if (typeof value !== "string") continue;
+    if (!isString(value)) continue;
     const text = value.trim();
 
     if (text && text.length < 200 && !text.includes("\n") && !isOpaqueId(text)) return text;
@@ -356,7 +369,7 @@ export function hintOf(input: Record<string, unknown>): string {
 export function describeTool(call: ToolCallFacts): ToolLook {
   const input = parseObject(call.inputJson);
   // MCP tools are matched by name only within the built-in set (no server).
-  const entry = call.server ? undefined : REGISTRY[call.name];
+  const entry = call.server ? undefined : REGISTRY.get(call.name);
 
   const base: ToolLook = {
     title: call.server
@@ -382,4 +395,4 @@ export function describeTool(call: ToolCallFacts): ToolLook {
 }
 
 /** Known tool names (for tests and the dev gallery). */
-export const registeredTools = (): string[] => Object.keys(REGISTRY);
+export const registeredTools = (): string[] => [...REGISTRY.keys()];

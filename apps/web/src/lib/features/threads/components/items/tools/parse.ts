@@ -4,6 +4,17 @@
  * undefined (or an empty result) when the text has another shape; the view then shows the text itself.
  */
 
+import {
+  isJsonArray,
+  isJsonObject,
+  isNumber,
+  isString,
+  objectsOf,
+  parseJson,
+  str,
+  type JsonValue,
+} from "#lib/shared/json.ts";
+
 /** Claude adds reminders for the model to some results and wraps errors in a tag; neither is for people. */
 export function stripReminders(text: string): string {
   return text
@@ -137,11 +148,9 @@ function stringLiteral(literal: string): string {
     ? `"${literal.slice(1, -1).replace(/\\'/g, "'").replace(/"/g, '\\"')}"`
     : literal;
 
-  try {
-    return JSON.parse(body) as string;
-  } catch {
-    return literal.slice(1, -1);
-  }
+  const parsed = parseJson(body);
+
+  return isString(parsed) ? parsed : literal.slice(1, -1);
 }
 
 export interface ScriptResult {
@@ -160,7 +169,7 @@ export type ScriptPart =
       readonly exitCode: number | undefined;
       readonly running: boolean;
     }
-  | { readonly kind: "json"; readonly value: unknown }
+  | { readonly kind: "json"; readonly value: JsonValue }
   | { readonly kind: "text"; readonly text: string };
 
 /**
@@ -206,34 +215,27 @@ export function parseScriptOutput(output: string): ScriptResult | undefined {
   };
 }
 
-function jsonLine(line: string): unknown {
+function jsonLine(line: string): JsonValue | undefined {
   const trimmed = line.trim();
 
-  if (!/^[[{]/.test(trimmed)) return undefined;
-
-  try {
-    return JSON.parse(trimmed) as unknown;
-  } catch {
-    return undefined;
-  }
+  return /^[[{]/.test(trimmed) ? parseJson(trimmed) : undefined;
 }
 
-function commandResult(value: unknown): ScriptPart | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const record = value as Record<string, unknown>;
+function commandResult(record: JsonValue): ScriptPart | undefined {
+  if (!isJsonObject(record)) return undefined;
+  const output = record["output"];
 
-  if (
-    typeof record["output"] !== "string" ||
-    !("wall_time_seconds" in record || "exit_code" in record || "chunk_id" in record)
-  )
+  if (!isString(output) || !("wall_time_seconds" in record || "exit_code" in record || "chunk_id" in record))
     return undefined;
+
+  const exitCode = record["exit_code"];
 
   return {
     kind: "command",
-    output: record["output"],
-    exitCode: typeof record["exit_code"] === "number" ? record["exit_code"] : undefined,
+    output,
+    exitCode: isNumber(exitCode) ? exitCode : undefined,
     // A session id without an exit code: the process still runs (it continues in the background).
-    running: typeof record["exit_code"] !== "number" && record["session_id"] !== undefined,
+    running: !isNumber(exitCode) && record["session_id"] !== undefined,
   };
 }
 
@@ -243,6 +245,11 @@ export interface PatchFile {
   readonly movePath: string;
   readonly diff: string;
 }
+
+const PATCH_KINDS = new Map<string, PatchFile["kind"]>([
+  ["Add", "add"],
+  ["Delete", "delete"],
+]);
 
 /** Codex apply_patch input ("*** Begin Patch / *** Update File: a.ts / @@ / -old / +new / *** End Patch") as files with diffs. */
 export function parsePatch(patch: string): PatchFile[] {
@@ -266,7 +273,7 @@ export function parsePatch(patch: string): PatchFile[] {
       push();
       current = {
         path: header[2]!.trim(),
-        kind: header[1] === "Add" ? "add" : header[1] === "Delete" ? "delete" : "update",
+        kind: PATCH_KINDS.get(header[1]!) ?? "update",
         movePath: "",
         lines: [],
       };
@@ -318,24 +325,21 @@ export function unwrapContent(output: string): string {
 
   if (!text.startsWith("[")) return output;
 
-  try {
-    const blocks: unknown = JSON.parse(text);
+  const blocks = parseJson(text);
 
-    if (!Array.isArray(blocks) || blocks.length === 0) return output;
+  if (!isJsonArray(blocks) || blocks.length === 0) return output;
 
-    const texts = blocks.map((block: unknown) => {
-      if (!block || typeof block !== "object") return undefined;
-      const record = block as Record<string, unknown>;
+  const texts = blocks.map((block) => {
+    if (!isJsonObject(block)) return undefined;
+    const type = block["type"];
+    const blockText = block["text"];
 
-      if (record["type"] === "text" && typeof record["text"] === "string") return record["text"];
+    if (type === "text" && isString(blockText)) return blockText;
 
-      return typeof record["type"] === "string" && record["type"] !== "text" ? `[${record["type"]}]` : undefined;
-    });
+    return isString(type) && type !== "text" ? `[${type}]` : undefined;
+  });
 
-    return texts.every((t) => t !== undefined) ? texts.join("\n\n") : output;
-  } catch {
-    return output;
-  }
+  return texts.every((t) => t !== undefined) ? texts.join("\n\n") : output;
 }
 
 export interface WebLink {
@@ -343,45 +347,39 @@ export interface WebLink {
   readonly url: string;
 }
 
+export interface WebResults {
+  readonly links: WebLink[];
+  readonly text: string;
+}
+
 /**
  * Web search results: a JSON list of `{title, url}`, or Claude's text with a `Links: [...]` line; the
  * links and whatever text remains (the summary).
  */
-export function parseWebResults(output: string): { links: WebLink[]; text: string } {
-  const toLinks = (value: unknown): WebLink[] =>
-    Array.isArray(value)
-      ? value.flatMap((entry: unknown) => {
-          if (!entry || typeof entry !== "object") return [];
-          const record = entry as Record<string, unknown>;
-          const url = typeof record["url"] === "string" ? record["url"] : "";
+export function parseWebResults(output: string): WebResults {
+  const toLinks = (value: JsonValue): WebLink[] =>
+    objectsOf(value).flatMap((record) => {
+      const url = str(record["url"]);
 
-          return url
-            ? [{ url, title: typeof record["title"] === "string" && record["title"] ? record["title"] : shortUrl(url) }]
-            : [];
-        })
-      : [];
+      return url ? [{ url, title: str(record["title"]) || shortUrl(url) }] : [];
+    });
 
   const text = stripReminders(output).trim();
+  const parsed = parseJson(text);
 
-  try {
-    const parsed: unknown = JSON.parse(text);
-
-    if (Array.isArray(parsed)) return { links: toLinks(parsed), text: "" };
-  } catch {
-    // Text: look for the links line below.
-  }
+  // Text: look for the links line below.
+  if (isJsonArray(parsed)) return { links: toLinks(parsed), text: "" };
 
   const links: WebLink[] = [];
 
   const rest = text
-    .replace(/^Links:\s*(\[.*\])\s*$/gm, (_, json: string) => {
-      try {
-        links.push(...toLinks(JSON.parse(json)));
+    .replace(/^Links:\s*(\[.*\])\s*$/gm, (line, json: string) => {
+      const list = parseJson(json);
 
-        return "";
-      } catch {
-        return _;
-      }
+      if (list === undefined) return line;
+      links.push(...toLinks(list));
+
+      return "";
     })
     .replace(/^Web search results for query:.*$/m, "")
     .trim();

@@ -90,8 +90,13 @@ export function movedProjects(preview: ui.MovePreview | undefined): { id: string
 export const finished = (move: ui.ComputerMove) =>
   move.state === "done" || move.state === "aborted" || move.state === "aborting";
 
+export interface MoveState {
+  label: string;
+  tone: Tone;
+}
+
 /** What a move's state means for the person who started it. */
-export function moveState(move: ui.ComputerMove): { label: string; tone: Tone } {
+export function moveState(move: ui.ComputerMove): MoveState {
   switch (move.state) {
     case "done":
       return { label: move.role === "target" ? "Arrived" : "Moved", tone: "emerald" };

@@ -85,10 +85,12 @@ export const useModelCatalog = () => getContext<ModelCatalogState>(KEY);
  * A thread's model options (its provider and profile) and its default model as an option, kept current
  * with the catalog and the thread. Call during component setup.
  */
-export function useThreadModels(source: () => { thread: ui.Thread; worker: ui.Worker | undefined }): {
+export interface ThreadModels {
   readonly options: ModelOption[];
   readonly current: ModelOption | undefined;
-} {
+}
+
+export function useThreadModels(source: () => { thread: ui.Thread; worker: ui.Worker | undefined }): ThreadModels {
   const overview = useOverview();
   const catalog = useModelCatalog();
 

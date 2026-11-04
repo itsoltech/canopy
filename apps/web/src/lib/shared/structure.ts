@@ -1,3 +1,4 @@
+import { isJsonArray, isJsonObject, isNumber, isString, parseJson, type JsonObject, type JsonValue } from "./json.ts";
 import { humanizeEnum, humanizeKey, isEnumToken, isIdKey, isIsoDateTime, isOpaqueId } from "./humanize.ts";
 
 /**
@@ -42,28 +43,25 @@ const isPath = (text: string) =>
   !/\s/.test(text) && (/^(\/|~\/|\.{1,2}\/)[^\s]*$/.test(text) || /^[\w.-]+(\/[\w.@-]+)+\.\w{1,8}$/.test(text));
 
 /** A JSON value (or a JSON text inside a string) as a node; `key` helps tell ids and enums apart. */
-export function structure(value: unknown, key = "", depth = 0): Node {
+export function structure(value: JsonValue | undefined, key = "", depth = 0): Node {
   if (value === null || value === undefined) return { kind: "empty" };
 
-  if (typeof value === "boolean") return { kind: "bool", value };
+  if (value === true || value === false) return { kind: "bool", value };
 
-  if (typeof value === "number" || typeof value === "bigint") return { kind: "number", text: GROUPED.format(value) };
+  if (isNumber(value)) return { kind: "number", text: GROUPED.format(value) };
 
-  if (typeof value === "string") return leaf(value, key, depth);
+  if (isString(value)) return leaf(value, key, depth);
 
   if (depth >= MAX_DEPTH) return { kind: "long", text: JSON.stringify(value) };
 
-  if (Array.isArray(value))
+  if (isJsonArray(value))
     return { kind: "list", items: value.map((item) => structure(item, singular(key), depth + 1)) };
 
-  if (typeof value === "object")
-    return { kind: "object", fields: fieldsOf(value as Record<string, unknown>, depth + 1) };
-
-  return { kind: "text", text: String(value) };
+  return { kind: "object", fields: fieldsOf(value, depth + 1) };
 }
 
 /** The fields of an object, in its order. */
-export function fieldsOf(record: Record<string, unknown>, depth = 0): Field[] {
+export function fieldsOf(record: JsonObject, depth = 0): Field[] {
   return Object.entries(record).map(([key, value]) => ({
     key,
     label: humanizeKey(key),
@@ -78,13 +76,10 @@ function leaf(text: string, key: string, depth: number): Node {
 
   // JSON inside a string (answer_json, nested tool output): its structure, not its text.
   if (/^[[{]/.test(trimmed) && depth < MAX_DEPTH) {
-    try {
-      const parsed: unknown = JSON.parse(trimmed);
+    const parsed = parseJson(trimmed);
 
-      if (parsed && typeof parsed === "object") return structure(parsed, key, depth + 1);
-    } catch {
-      // Not JSON: text below.
-    }
+    // Not JSON: text below.
+    if (isJsonObject(parsed) || isJsonArray(parsed)) return structure(parsed, key, depth + 1);
   }
 
   if (isOpaqueId(trimmed) || (isIdKey(key) && !/\s/.test(trimmed) && trimmed.length >= 8))
@@ -125,9 +120,9 @@ export function structureJson(json: string): Node {
 
   if (!text) return { kind: "empty" };
 
-  try {
-    return structure(JSON.parse(text));
-  } catch {
-    return text.includes("\n") || text.length > LONG ? { kind: "long", text: json } : { kind: "text", text };
-  }
+  const parsed = parseJson(text);
+
+  if (parsed !== undefined) return structure(parsed);
+
+  return text.includes("\n") || text.length > LONG ? { kind: "long", text: json } : { kind: "text", text };
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { str } from "#lib/shared/format.ts";
+  import { isNumber, str } from "#lib/shared/json.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
   import type { ToolBodyProps } from "./body.ts";
@@ -23,8 +23,8 @@
       str(input["type"]) && `Type ${str(input["type"])}`,
       input["-i"] === true && "Ignore case",
       input["multiline"] === true && "Multiline",
-      typeof input["head_limit"] === "number" && `First ${input["head_limit"]}`,
-    ].filter((f): f is string => typeof f === "string" && f !== ""),
+      isNumber(input["head_limit"]) && `First ${input["head_limit"]}`,
+    ].filter((f): f is string => f !== false && f !== ""),
   );
 
   const done = $derived(!streaming && !call.isError && call.output !== "");

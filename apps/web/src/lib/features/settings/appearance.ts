@@ -49,19 +49,19 @@ export const chatWidthOf = (appearance: ui.AppearanceSettings | undefined): Chat
   nameOf(chatWidthNames, appearance?.chatWidth, "comfortable");
 
 /** Values for the `%canopy.*%` placeholders of app.html. */
-export function documentAttributes(appearance: ui.AppearanceSettings | undefined): Record<string, string> {
+export function documentAttributes(appearance: ui.AppearanceSettings | undefined): Map<string, string> {
   const scheme = schemeOf(appearance);
 
-  return {
-    "%canopy.dark%": scheme === "dark" ? " dark" : "",
-    "%canopy.scheme%": scheme,
-    "%canopy.colorSchemeMeta%": scheme === "system" ? "light dark" : scheme,
-    "%canopy.accent%": accentOf(appearance),
-    "%canopy.chatWidth%": chatWidthOf(appearance),
-    "%canopy.sidebarWidth%": String(storedSidebarWidth(appearance?.sidebarWidth ?? 0) || SIDEBAR_WIDTH.default),
-    "%canopy.sidebarCollapsed%": String(appearance?.sidebarCollapsed ?? false),
-    "%canopy.threadPanelCollapsed%": String(appearance?.threadPanelCollapsed ?? false),
-  };
+  return new Map([
+    ["%canopy.dark%", scheme === "dark" ? " dark" : ""],
+    ["%canopy.scheme%", scheme],
+    ["%canopy.colorSchemeMeta%", scheme === "system" ? "light dark" : scheme],
+    ["%canopy.accent%", accentOf(appearance)],
+    ["%canopy.chatWidth%", chatWidthOf(appearance)],
+    ["%canopy.sidebarWidth%", String(storedSidebarWidth(appearance?.sidebarWidth ?? 0) || SIDEBAR_WIDTH.default)],
+    ["%canopy.sidebarCollapsed%", String(appearance?.sidebarCollapsed ?? false)],
+    ["%canopy.threadPanelCollapsed%", String(appearance?.threadPanelCollapsed ?? false)],
+  ]);
 }
 
 /** Seed the SPA from the shell's gateway settings, before any client fetch or effect can change geometry. */

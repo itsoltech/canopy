@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { str } from "#lib/shared/format.ts";
+  import { str } from "#lib/shared/json.ts";
   import ChecklistSteps from "../ChecklistSteps.svelte";
   import type { ToolBodyProps } from "./body.ts";
   import { todos } from "./registry.ts";

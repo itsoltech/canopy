@@ -151,7 +151,7 @@
         <Select
           name="placement"
           bind:value={placement}
-          options={Object.entries(placementLabels).map(([value, label]) => ({ value, label }))}
+          options={[...placementLabels].map(([value, label]) => ({ value, label }))}
         />
       </Field>{/if}
     {#if placement === "specific"}

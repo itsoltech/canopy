@@ -42,7 +42,7 @@ export interface AppCommandContext {
 const newThreadHref = (project: ui.Project) => `/?project=${encodeURIComponent(project.id)}`;
 
 /** Palette titles of the settings sections ("Threads" alone would read as the thread list). */
-const sectionTitles: Record<string, string> = { "/settings/threads": "Thread defaults" };
+const sectionTitles = new Map<string, string>([["/settings/threads", "Thread defaults"]]);
 
 /** Commands of the whole app: new threads, navigation, appearance, settings, every thread and project. */
 export function appCommands(context: AppCommandContext): CommandSource {
@@ -244,7 +244,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
 
     const sections: Command[] = settingsSections.map((section) => ({
       id: `settings:${section.href}`,
-      title: sectionTitles[section.href] ?? section.label,
+      title: sectionTitles.get(section.href) ?? section.label,
       group: "settings",
       icon: section.icon,
       keywords: `settings ${section.keywords}`,

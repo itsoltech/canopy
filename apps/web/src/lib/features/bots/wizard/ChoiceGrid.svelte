@@ -32,13 +32,23 @@
     const button = event.currentTarget as HTMLButtonElement;
     const group = button.parentElement!;
     const columns = getComputedStyle(group).gridTemplateColumns.split(" ").length;
-    const delta: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: columns, ArrowUp: -columns };
+    const delta = new Map<string, number>([
+      ["ArrowRight", 1],
+      ["ArrowLeft", -1],
+      ["ArrowDown", columns],
+      ["ArrowUp", -columns],
+    ]);
     let next: number;
 
     if (event.key === "Home") next = 0;
     else if (event.key === "End") next = options.length - 1;
-    else if (event.key in delta) next = (index + delta[event.key]! + options.length) % options.length;
-    else return;
+    else {
+      const step = delta.get(event.key);
+
+      if (step === undefined) return;
+      next = (index + step + options.length) % options.length;
+    }
+
     event.preventDefault();
     const option = options[next];
 

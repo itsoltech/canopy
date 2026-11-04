@@ -210,11 +210,13 @@ export function conversationTitle(conversation: ConversationView): string {
 export const byLatest = (conversations: readonly ConversationView[]): ConversationView[] =>
   [...conversations].sort((a, b) => (b.lastMessage?.at.getTime() ?? 0) - (a.lastMessage?.at.getTime() ?? 0));
 
-/** Pinned ones in pin order, then the rest by latest message. */
-export function arrangeConversations(conversations: readonly ConversationView[]): {
+export interface ArrangedConversations {
   pinned: ConversationView[];
   others: ConversationView[];
-} {
+}
+
+/** Pinned ones in pin order, then the rest by latest message. */
+export function arrangeConversations(conversations: readonly ConversationView[]): ArrangedConversations {
   const pinned = conversations.filter((c) => c.pinned).sort((a, b) => (a.pinOrder ?? 0) - (b.pinOrder ?? 0));
 
   return { pinned, others: byLatest(conversations.filter((c) => !c.pinned)) };

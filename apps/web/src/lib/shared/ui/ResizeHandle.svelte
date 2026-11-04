@@ -48,7 +48,12 @@
   let frame = 0;
   const range = $derived({ min, max, reset });
 
-  function sizeAt(x: number): { size: number; collapsed: boolean } {
+  interface Size {
+    size: number;
+    collapsed: boolean;
+  }
+
+  function sizeAt(x: number): Size {
     if (!drag) return { size: value, collapsed: false };
     const raw = drag.size + (grows === "right" ? x - drag.x : drag.x - x);
 

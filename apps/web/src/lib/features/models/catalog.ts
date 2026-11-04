@@ -72,19 +72,19 @@ export interface ModelSources {
   readonly only?: { readonly provider: ProviderKey; readonly profileId: string } | undefined;
 }
 
-const effortLabels: Record<string, string> = {
-  none: "None",
-  minimal: "Minimal",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  xhigh: "Extra high",
-  max: "Max",
-  ultra: "Ultra",
-};
+const effortLabels = new Map<string, string>([
+  ["none", "None"],
+  ["minimal", "Minimal"],
+  ["low", "Low"],
+  ["medium", "Medium"],
+  ["high", "High"],
+  ["xhigh", "Extra high"],
+  ["max", "Max"],
+  ["ultra", "Ultra"],
+]);
 
 export function effortLevel(id: string): EffortLevel {
-  const known = effortLabels[id];
+  const known = effortLabels.get(id);
 
   return { id, label: known ?? capitalize(id) };
 }
@@ -334,6 +334,11 @@ export function findOption(
   return onProfile.find((o) => o.model === model) ?? onProfile.find((o) => o.resolvedModel === model);
 }
 
+export interface ThreadModelOptions {
+  options: ModelOption[];
+  current: ModelOption | undefined;
+}
+
 /**
  * What a thread can switch to: models of its provider and profile (it keeps both for life), and its
  * default model as an option (`current`, listed or not; undefined for an unknown provider).
@@ -341,7 +346,7 @@ export function findOption(
 export function threadModelOptions(
   thread: ui.Thread,
   sources: Omit<ModelSources, "only" | "defaults">,
-): { options: ModelOption[]; current: ModelOption | undefined } {
+): ThreadModelOptions {
   const provider = providerKeyOf(thread.provider);
 
   if (!provider) return { options: [], current: undefined };
@@ -360,6 +365,11 @@ export function effectiveEffort(option: ModelOption, inherited: string | undefin
   return inherited && option.efforts.some((e) => e.id === inherited) ? inherited : option.defaultEffort;
 }
 
+export interface TurnOverride {
+  model?: string;
+  effort?: string;
+}
+
 /**
  * What a message sends for its turn (SendMessage): a model other than the thread's default (`current`),
  * the chosen effort; without one the thread's effort, unless the model does not take it (then the model's
@@ -370,7 +380,7 @@ export function turnOverride(
   current: ModelOption | undefined,
   effort: string | undefined,
   threadEffort: string,
-): { model?: string; effort?: string } {
+): TurnOverride {
   const model = option && current && option.key !== current.key ? option.model : undefined;
 
   const fallback =

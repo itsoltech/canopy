@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { parseObject, str } from "#lib/shared/format.ts";
+  import { isString, listOf, objectOf, parseObject, str, type JsonValue } from "#lib/shared/json.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
@@ -14,12 +14,12 @@
     $props();
 
   const request = $derived(parseObject(requestJson));
-  const schema = $derived(parseObject(JSON.stringify(request["requestedSchema"] ?? request["schema"] ?? {})));
-  const required = $derived(new Set(Array.isArray(schema["required"]) ? (schema["required"] as string[]) : []));
+  const schema = $derived(objectOf(request["requestedSchema"] ?? request["schema"]));
+  const required = $derived(new Set(listOf(schema["required"]).filter(isString)));
 
   const fields = $derived(
-    Object.entries(parseObject(JSON.stringify(schema["properties"] ?? {}))).map(([name, spec]) => {
-      const s = (spec ?? {}) as Record<string, unknown>;
+    Object.entries(objectOf(schema["properties"])).map(([name, spec]) => {
+      const s = objectOf(spec);
 
       return {
         name,
@@ -34,7 +34,7 @@
   let flags = $state<Record<string, boolean>>({});
 
   function content(): string {
-    const out: Record<string, unknown> = {};
+    const out: Record<string, JsonValue> = {};
 
     for (const field of fields) {
       if (field.type === "boolean") out[field.name] = flags[field.name] ?? false;

@@ -70,9 +70,9 @@
         <div class="flex min-w-0 items-center gap-1">
           <dt class="sr-only">Target</dt>
           <dd class="break-words">
-            New thread in {overview.project(schedule.projectId)?.name ?? "project"} · {placementLabels[
-              schedule.newThread.placement
-            ]} · {modelDisplayName(schedule.newThread.model)}
+            New thread in {overview.project(schedule.projectId)?.name ?? "project"} · {placementLabels.get(
+              schedule.newThread.placement,
+            )} · {modelDisplayName(schedule.newThread.model)}
           </dd>
         </div>
       {:else}

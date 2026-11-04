@@ -59,16 +59,18 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    const delta: Record<string, number> = {
-      ArrowRight: 1,
-      ArrowUp: 1,
-      PageUp: 1,
-      ArrowLeft: -1,
-      ArrowDown: -1,
-      PageDown: -1,
-    };
+    const delta = new Map<string, number>([
+      ["ArrowRight", 1],
+      ["ArrowUp", 1],
+      ["PageUp", 1],
+      ["ArrowLeft", -1],
+      ["ArrowDown", -1],
+      ["PageDown", -1],
+    ]);
 
-    if (event.key in delta) set(index + delta[event.key]!);
+    const step = delta.get(event.key);
+
+    if (step !== undefined) set(index + step);
     else if (event.key === "Home") set(0);
     else if (event.key === "End") set(steps.length - 1);
     else return;

@@ -10,11 +10,11 @@
   let { tokens, streaming = false }: { tokens: Token[]; streaming?: boolean } = $props();
   const elements = useInlineElements();
 
-  const headingSize: Record<number, string> = {
-    1: "text-lg/7 sm:text-base/7",
-    2: "text-base/7 sm:text-base/7",
-    3: "text-base/6 sm:text-sm/6",
-  };
+  const headingSize = new Map<number, string>([
+    [1, "text-lg/7 sm:text-base/7"],
+    [2, "text-base/7 sm:text-base/7"],
+    [3, "text-base/6 sm:text-sm/6"],
+  ]);
 
   const inline = (token: Tokens.Text | Tokens.Paragraph | Tokens.Heading | Tokens.TableCell): Token[] =>
     token.tokens ?? [{ type: "text", raw: token.text, text: token.text }];
@@ -29,7 +29,10 @@
   {:else if token.type === "heading"}
     {@const heading = token as Tokens.Heading}
     <p
-      class={["font-semibold text-zinc-950 dark:text-white", headingSize[heading.depth] ?? "text-base/6 sm:text-sm/6"]}
+      class={[
+        "font-semibold text-zinc-950 dark:text-white",
+        headingSize.get(heading.depth) ?? "text-base/6 sm:text-sm/6",
+      ]}
       role="heading"
       aria-level={Math.min(heading.depth + 2, 6)}
     >

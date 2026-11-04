@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ItemStatus, type AgentBusCall } from "@canopy/contracts";
-  import { parseObject, str } from "#lib/shared/format.ts";
+  import { parseObject, str } from "#lib/shared/json.ts";
   import { humanizeSeconds, plural } from "#lib/shared/humanize.ts";
   import { structure, structureJson } from "#lib/shared/structure.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";

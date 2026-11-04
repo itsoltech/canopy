@@ -55,6 +55,11 @@ export function problemOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export interface CatalogState {
+  loading: boolean;
+  error: string | undefined;
+}
+
 export class MentionSources implements MentionSourceSet {
   readonly #scope: () => MentionScope | undefined;
   readonly #threadId: () => string;
@@ -123,7 +128,7 @@ export class MentionSources implements MentionSourceSet {
   }
 
   /** The catalog's state for the open trigger (loading, offline). */
-  get catalogState(): { loading: boolean; error: string | undefined } {
+  get catalogState(): CatalogState {
     return {
       loading: this.catalog.loading,
       error:

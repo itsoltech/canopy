@@ -57,29 +57,35 @@ export function matchesHotkey(event: KeyboardEvent, hotkey: string): boolean {
   );
 }
 
-const appleSymbols: Record<string, string> = { mod: "⌘", meta: "⌘", ctrl: "⌃", shift: "⇧", alt: "⌥" };
+const appleSymbols = new Map<string, string>([
+  ["mod", "⌘"],
+  ["meta", "⌘"],
+  ["ctrl", "⌃"],
+  ["shift", "⇧"],
+  ["alt", "⌥"],
+]);
 
-const keyNames: Record<string, string> = {
-  ArrowUp: "↑",
-  ArrowDown: "↓",
-  ArrowLeft: "←",
-  ArrowRight: "→",
-  Enter: "↵",
-  Escape: "Esc",
-  " ": "Space",
-};
+const keyNames = new Map<string, string>([
+  ["ArrowUp", "↑"],
+  ["ArrowDown", "↓"],
+  ["ArrowLeft", "←"],
+  ["ArrowRight", "→"],
+  ["Enter", "↵"],
+  ["Escape", "Esc"],
+  [" ", "Space"],
+]);
 
 /** Keys of a hotkey for display, one string per key (`["⇧", "⌘", "F"]` or `["Ctrl", "Shift", "F"]`). */
 export function hotkeyKeys(hotkey: string): string[] {
   const { key, ...mods } = parse(hotkey);
   const apple = isApple();
-  const key_ = keyNames[key] ?? (key.length === 1 ? key.toUpperCase() : key);
+  const key_ = keyNames.get(key) ?? (key.length === 1 ? key.toUpperCase() : key);
 
   if (apple) {
     // Apple order: ⌃ ⌥ ⇧ ⌘.
     const order = (["ctrl", "alt", "shift", "mod", "meta"] as const).filter((m) => mods[m]);
 
-    return [...order.map((m) => appleSymbols[m] ?? m), key_];
+    return [...order.map((m) => appleSymbols.get(m) ?? m), key_];
   }
 
   const names = [

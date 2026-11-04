@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { str } from "#lib/shared/format.ts";
+  import { str } from "#lib/shared/json.ts";
   import { humanizeToolName, plural } from "#lib/shared/humanize.ts";
   import { structure } from "#lib/shared/structure.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";

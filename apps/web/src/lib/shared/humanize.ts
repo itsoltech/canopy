@@ -7,66 +7,66 @@
 import { isPlatformServer } from "@canopy/domain";
 
 /** Words that keep their own spelling inside a label. */
-const SPELLING: Record<string, string> = {
-  id: "ID",
-  ids: "IDs",
-  url: "URL",
-  urls: "URLs",
-  uri: "URI",
-  api: "API",
-  json: "JSON",
-  mcp: "MCP",
-  pid: "PID",
-  ui: "UI",
-  ai: "AI",
-  html: "HTML",
-  css: "CSS",
-  http: "HTTP",
-  https: "HTTPS",
-  sql: "SQL",
-  cli: "CLI",
-  ssh: "SSH",
-  cwd: "CWD",
-  os: "OS",
-  ip: "IP",
-  llm: "LLM",
-  pr: "PR",
-  ci: "CI",
-  github: "GitHub",
-  gitlab: "GitLab",
-  openai: "OpenAI",
-  ok: "OK",
-  utc: "UTC",
-  iso: "ISO",
-  js: "JS",
-  ts: "TS",
-};
+const SPELLING = new Map<string, string>([
+  ["id", "ID"],
+  ["ids", "IDs"],
+  ["url", "URL"],
+  ["urls", "URLs"],
+  ["uri", "URI"],
+  ["api", "API"],
+  ["json", "JSON"],
+  ["mcp", "MCP"],
+  ["pid", "PID"],
+  ["ui", "UI"],
+  ["ai", "AI"],
+  ["html", "HTML"],
+  ["css", "CSS"],
+  ["http", "HTTP"],
+  ["https", "HTTPS"],
+  ["sql", "SQL"],
+  ["cli", "CLI"],
+  ["ssh", "SSH"],
+  ["cwd", "CWD"],
+  ["os", "OS"],
+  ["ip", "IP"],
+  ["llm", "LLM"],
+  ["pr", "PR"],
+  ["ci", "CI"],
+  ["github", "GitHub"],
+  ["gitlab", "GitLab"],
+  ["openai", "OpenAI"],
+  ["ok", "OK"],
+  ["utc", "UTC"],
+  ["iso", "ISO"],
+  ["js", "JS"],
+  ["ts", "TS"],
+]);
 
 /** Whole keys with a better name than their words. */
-const KEY_LABELS: Record<string, string> = {
-  cwd: "Working directory",
-  workdir: "Working directory",
-  file_path: "File",
-  notebook_path: "Notebook",
-  old_string: "Replace",
-  new_string: "With",
-  replace_all: "Replace all",
-  head_limit: "Limit",
-  output_mode: "Show",
-  max_output_tokens: "Output limit",
-  yield_time_ms: "Wait",
-  timeout_seconds: "Timeout",
-  delay_seconds: "Delay",
-  max_runs: "Run limit",
-  next_run_at: "Next run",
-  run_at: "Runs at",
-  last_message: "Last message",
-  last_turn: "Last turn",
-  permission_mode: "Permissions",
-  waiting_for_parent: "Waiting for the parent agent",
-  waiting_for_user: "Waiting for you",
-  queued_turns: "Queued turns",
-};
+const KEY_LABELS = new Map<string, string>([
+  ["cwd", "Working directory"],
+  ["workdir", "Working directory"],
+  ["file_path", "File"],
+  ["notebook_path", "Notebook"],
+  ["old_string", "Replace"],
+  ["new_string", "With"],
+  ["replace_all", "Replace all"],
+  ["head_limit", "Limit"],
+  ["output_mode", "Show"],
+  ["max_output_tokens", "Output limit"],
+  ["yield_time_ms", "Wait"],
+  ["timeout_seconds", "Timeout"],
+  ["delay_seconds", "Delay"],
+  ["max_runs", "Run limit"],
+  ["next_run_at", "Next run"],
+  ["run_at", "Runs at"],
+  ["last_message", "Last message"],
+  ["last_turn", "Last turn"],
+  ["permission_mode", "Permissions"],
+  ["waiting_for_parent", "Waiting for the parent agent"],
+  ["waiting_for_user", "Waiting for you"],
+  ["queued_turns", "Queued turns"],
+]);
 
 /** Proto enum prefixes, longest first, stripped from SCREAMING keys (`PERMISSION_MODE_FULL_AUTO` → `FULL_AUTO`). */
 const ENUM_PREFIXES = [
@@ -101,7 +101,7 @@ function phrase(parts: readonly string[]): string {
   return parts
     .map((word, index) => {
       const lower = word.toLowerCase();
-      const spelled = SPELLING[lower];
+      const spelled = SPELLING.get(lower);
 
       if (spelled) return spelled;
 
@@ -112,7 +112,7 @@ function phrase(parts: readonly string[]): string {
 
 /** A field name as a label: `file_path` → "File", `afterSeq` → "After seq", `thread_ids` → "Thread IDs". */
 export function humanizeKey(key: string): string {
-  const known = KEY_LABELS[key] ?? KEY_LABELS[words(key).join("_").toLowerCase()];
+  const known = KEY_LABELS.get(key) ?? KEY_LABELS.get(words(key).join("_").toLowerCase());
 
   return known ?? phrase(words(key));
 }

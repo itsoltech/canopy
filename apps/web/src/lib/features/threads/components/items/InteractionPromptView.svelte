@@ -1,6 +1,6 @@
 <script lang="ts">
   import { InteractionKind, type InteractionPrompt, type ItemStatus } from "@canopy/contracts";
-  import { parseObject } from "#lib/shared/format.ts";
+  import { parseObject } from "#lib/shared/json.ts";
   import { humanizeToolName } from "#lib/shared/humanize.ts";
   import { isEmptyNode, structureJson } from "#lib/shared/structure.ts";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";

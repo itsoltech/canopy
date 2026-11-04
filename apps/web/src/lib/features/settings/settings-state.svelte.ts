@@ -22,6 +22,11 @@ const userSchemas = {
   sidebar: ui.SidebarSettingsSchema,
 } as const;
 
+interface ServerSettings {
+  user: ui.UserSettings;
+  projects: Map<string, ui.ProjectSettings>;
+}
+
 /**
  * The user's and projects' settings. The gateway keeps them (docs/ui-api.md); this is a client of it:
  * loaded through the BFF, changed by writes, and kept current by the overview stream
@@ -42,7 +47,7 @@ export class SettingsState {
   #queue: Promise<void> = Promise.resolve();
   #timezoneSynced = false;
   /** What the gateway last confirmed (without changes still being written). */
-  #server: { user: ui.UserSettings; projects: Map<string, ui.ProjectSettings> } = {
+  #server: ServerSettings = {
     user: create(ui.UserSettingsSchema),
     projects: new Map(),
   };
