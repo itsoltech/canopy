@@ -3,6 +3,7 @@ import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConfigAppliedSchema, Provider, ui, type Hello } from "@canopy/contracts";
 import { Effect, Option } from "effect";
+import { workerLinkCompatible } from "@canopy/domain/release/protocol";
 import type { SqlClient } from "effect/sql";
 import { one, type Fx } from "./errors.ts";
 import { storedWorkerConfig } from "./worker-config-json.ts";
@@ -67,6 +68,15 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                                    capabilities = capabilities || ${capabilities}::jsonb || ${JSON.stringify({ hostname: hello.host?.hostname ?? "" })}::jsonb,
                                    last_seen_at = now()
                  WHERE id = ${workerId}::uuid`;
+
+        // A healthy WorkerLink on the commanded version also proves restart success when the result report was lost.
+        if (hello.host?.workerVersion && workerLinkCompatible(hello.minWorkerLinkProtocol, hello.workerLinkProtocol)) {
+          yield* sql`UPDATE workers SET capabilities = jsonb_set(capabilities, '{update}', capabilities->'update' || '{"state":"succeeded","reason":""}'::jsonb)
+            WHERE id = ${workerId}::uuid AND capabilities->'update'->>'state' = 'restarting'
+              AND capabilities->'updateCommand'->>'version' = ${hello.host?.workerVersion ?? ""}
+              AND capabilities->'update'->>'targetVersion' = ${hello.host?.workerVersion ?? ""}`;
+        }
+
         yield* sql`
                 INSERT INTO worker_connections (worker_id, instance_id, epoch) VALUES (${workerId}::uuid, ${instanceId}, 1)
                 ON CONFLICT (worker_id) DO UPDATE SET instance_id = EXCLUDED.instance_id, epoch = worker_connections.epoch + 1, connected_at = now()`;

@@ -1,0 +1,144 @@
+<script lang="ts">
+  import type { ClassValue } from "svelte/elements";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import CompactAppUpdate from "#lib/features/desktop/CompactAppUpdate.svelte";
+  import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
+  import CompactWorkerUpdate from "./CompactWorkerUpdate.svelte";
+  import CompactCliUpdate from "./CompactCliUpdate.svelte";
+  import CompactGatewayUpdate from "./CompactGatewayUpdate.svelte";
+  import UpdateProgress from "./UpdateProgress.svelte";
+  import { appCurrent, cliCurrent, gatewayCurrent, workerCurrent, updatesAvailable } from "./compact-updates.ts";
+  import { cliActions } from "./cli-tools.svelte.ts";
+  import type { UpdatesState } from "./updates.svelte.ts";
+  import { updateIndicator } from "./update-indicator.ts";
+
+  let {
+    updates,
+    app,
+    class: className,
+  }: { updates: UpdatesState; app: DesktopUpdatesState; class?: ClassValue } = $props();
+
+  const cli = cliActions();
+  const snapshot = $derived(updates.snapshot);
+  const run = $derived(snapshot?.run);
+  const busy = $derived(run?.state === "running" || !!updates.pending);
+
+  const checking = $derived(
+    snapshot?.checking || updates.pending === "check" || cli.pending["check/"] || app.status?.phase === "checking",
+  );
+
+  const summary = $derived(updateIndicator(app.status, snapshot, app.error || updates.error, updates.pending));
+  const workers = $derived(snapshot?.workers ?? []);
+
+  const clis = $derived(
+    snapshot?.cliWorkers.flatMap((worker) =>
+      worker.cliTools.filter((item) => !!item.tool).map((item) => ({ worker, item })),
+    ) ?? [],
+  );
+
+  const currentGateway = $derived(!!snapshot && gatewayCurrent(snapshot));
+  const currentWorkers = $derived(workers.filter((worker) => workerCurrent(worker, snapshot?.gatewayVersion ?? "")));
+  const currentClis = $derived(clis.filter(({ item }) => cliCurrent(item)));
+  const currentApp = $derived(!app.error && appCurrent(app.status));
+
+  const currentCount = $derived(
+    Number(currentGateway) + currentWorkers.length + currentClis.length + Number(currentApp),
+  );
+
+  const error = $derived(updates.error || snapshot?.checkError || cli.errors["check/"] || "");
+  const completed = $derived(run?.steps.filter((step) => step.state === "succeeded").length ?? 0);
+
+  async function check() {
+    await Promise.all([
+      snapshot?.admin ? updates.manage({ action: "check" }) : updates.reload(),
+      cli.check(),
+      app.status && app.status.phase !== "downloaded" ? app.run() : Promise.resolve(),
+    ]);
+    await updates.reload();
+  }
+</script>
+
+<section class={["flex max-h-[min(70dvh,32rem)] min-h-0 flex-col", className]} aria-label="Updates center">
+  <header class="flex shrink-0 items-center gap-2 border-b border-divider px-3 py-2">
+    <div class="min-w-0 flex-1">
+      <h2 class="text-sm font-semibold">Updates</h2>
+      <p class="truncate text-xs/5 text-muted" role="status" title={summary.message}>
+        {summary.phase === "error"
+          ? "Update needs attention"
+          : summary.phase === "quiet"
+            ? "Up to date"
+            : summary.phase === "available"
+              ? "Updates available"
+              : summary.phase === "ready"
+                ? "App ready to restart"
+                : summary.message}
+      </p>
+    </div>
+    <IconButton
+      size="sm"
+      icon="information-circle"
+      label="Update order: gateway, binary workers, installed agent CLIs, then remote Canopy apps. Each step waits for success."
+    />
+    <IconButton
+      size="sm"
+      icon="arrow-path"
+      label="Check now"
+      disabled={busy || checking}
+      loading={checking}
+      onclick={() => void check()}
+    />
+    {#if snapshot && updatesAvailable(snapshot)}<IconButton
+        size="sm"
+        icon="arrow-up"
+        label={run && ["failed", "blocked"].includes(run.state) ? "Retry update all" : "Update all"}
+        disabled={busy || !snapshot || (summary.phase === "quiet" && !run)}
+        loading={run?.state === "running"}
+        onclick={() => void updates.manage({ action: "update_all" })}
+      />{/if}
+  </header>
+  <div class="min-h-0 overflow-y-auto overscroll-contain px-3 py-1">
+    {#if error}<p class="break-anywhere py-2 text-sm/5 text-rose-600 dark:text-rose-400" role="status">{error}</p>{/if}
+    {#if run && run.state !== "succeeded"}
+      <div class="border-b border-divider py-2 text-sm/5">
+        <p role="status">
+          {run.state === "running" ? `Updating · ${completed}/${run.steps.length}` : "Update all stopped"}
+        </p>
+        {#if run.state === "running"}<UpdateProgress
+            label="Update all progress"
+            value={run.steps.length ? (completed / run.steps.length) * 100 : 0}
+            class="mt-1"
+          />{/if}
+        {#if run.reason}<p class="break-anywhere line-clamp-2 text-rose-600 dark:text-rose-400" title={run.reason}>
+            {run.reason}
+          </p>{/if}
+      </div>
+    {/if}
+    {#if !currentApp && (app.status || app.error)}<CompactAppUpdate updates={app} />{/if}
+    {#if snapshot}
+      {#if !currentGateway}<CompactGatewayUpdate {updates} />{/if}
+      {#each workers.filter((worker) => !workerCurrent(worker, snapshot.gatewayVersion)) as worker (worker.workerId)}
+        <CompactWorkerUpdate {worker} {updates} />
+      {/each}
+      {#each clis.filter(({ item }) => !cliCurrent(item)) as entry (`${entry.worker.id}/${entry.item.tool?.provider}`)}
+        <CompactCliUpdate {...entry} disabled={busy} />
+      {/each}
+      {#if currentCount}
+        <Disclosure summaryClass="py-2 text-sm/5 text-muted" class="border-t border-divider">
+          {#snippet summary()}Up to date · {currentCount}{/snippet}
+          {#if currentApp}<CompactAppUpdate updates={app} />{/if}
+          {#if currentGateway}<CompactGatewayUpdate {updates} />{/if}
+          {#each currentWorkers as worker (worker.workerId)}<CompactWorkerUpdate {worker} {updates} />{/each}
+          {#each currentClis as entry (`${entry.worker.id}/${entry.item.tool?.provider}`)}<CompactCliUpdate
+              {...entry}
+              disabled={busy}
+            />{/each}
+        </Disclosure>
+      {/if}
+    {:else}<p class="py-2 text-sm/5 text-muted" role="status">Loading update status…</p>{/if}
+  </div>
+  <footer class="flex shrink-0 flex-wrap gap-x-4 gap-y-1 border-t border-divider px-3 py-2 text-sm/5 text-muted">
+    <a href="/settings/workers" class="rounded focus-ring hover:text-ink">Update details</a>
+    {#if app.status}<a href="/settings/app-updates" class="rounded focus-ring hover:text-ink">App settings</a>{/if}
+  </footer>
+</section>

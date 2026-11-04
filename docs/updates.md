@@ -8,6 +8,24 @@ oraz gotowość do restartu. Hover i klik otwierają ten sam przewijany popover;
 na telefonie jest to dolny panel. Animacja respektuje ograniczenie ruchu.
 Przeglądarka serwerowa nie pokazuje sekcji własnej aplikacji.
 
+Popover ma 352 px szerokości i wysokość zależną od zawartości (maksymalnie
+70% okna / 512 px); przewija się lista między nagłówkiem a odnośnikami.
+Nagłówek zawiera Check now i Update all. Każda pozycja ma zwarty wiersz
+z wersjami, stanem i akcją; postęp to cienki kolorowy pasek, a nie pełne
+wypełnienie udające 100%. Aktualne pozycje zwija „Up to date · N”. Instrukcje
+instalacji i kolejność aktualizacji są pod ikonami informacji. Długie nazwy
+i wersje mają skrót z pełną treścią w podpowiedzi; błędy można rozwinąć.
+„What’s new” otwiera osobno przewijane notatki. Pełne ustawienia, wymuszenie
+restartu i szczegóły instalatorów pozostają w Settings → Workers / App updates.
+
+Settings → Workers → Updates używa tych samych zwartych wierszy. Nagłówek
+pokazuje stan i czas sprawdzenia; Update all pojawia się tylko przy dostępnych
+aktualizacjach. Aktualne workery nie mają przycisku aktualizacji. Kanał zapisuje
+się po wyborze; przejście na starszy kanał lub starszą przypiętą wersję wymaga
+potwierdzenia. Wyniki przebiegu można rozwinąć tylko, gdy istnieją kroki.
+Brak notatek wydania (także pusty wynik lub niedostępne źródło) ukrywa
+„What’s new”; interfejs nie pokazuje pustych akordeonów ani objaśnień tego braku.
+
 Proces main pobiera publiczne GitHub Releases bez tokena, z paginacją i cache
 60 sekund. Notatki obejmują `(wersja zainstalowana, wersja pobierana]`, zgodnie
 z wybranym kanałem, w malejącej kolejności SemVer. Istniejący renderer Markdown
@@ -269,6 +287,10 @@ mechanizmu wymaga jednego ręcznego restartu usługi**, żeby załadować jego o
 Nie da się zmienić kodu procesu, który nie zna protokołu przekazania.
 
 Worker raportuje utrwalony sukces/błąd przed następnym Watch.
+Jeśli raport sukcesu zaginie, zgodny handshake WorkerLink na dokładnej wersji
+zapisanego polecenia i celu kończy utrwalone `restarting` jako `succeeded`.
+Sam reconnect UpdateService nie dowodzi zdrowego startu; inna wersja,
+niezgodny protokół i zapisany błąd/rollback nie są w ten sposób kasowane.
 Metadane UI i polecenia pozostają w istniejącym JSONB `workers.capabilities`
 (`update`, `updateCommand`); migracja schematu nie jest potrzebna.
 

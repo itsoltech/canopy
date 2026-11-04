@@ -60,11 +60,11 @@ export function releaseNotes(
   channel: DesktopChannel,
 ): DesktopReleaseNote[] {
   return channelReleases(releases, channel).flatMap((release) =>
-    gt(release.tag_name, current) && !gt(release.tag_name, target)
+    gt(release.tag_name, current) && !gt(release.tag_name, target) && release.body?.trim()
       ? [
           {
             version: valid(release.tag_name)!,
-            markdown: release.body || "No release notes were published for this version.",
+            markdown: release.body,
           },
         ]
       : [],

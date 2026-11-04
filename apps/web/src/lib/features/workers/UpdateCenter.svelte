@@ -98,7 +98,9 @@
       />
     </section>
     {#each snapshot.workers as worker (worker.workerId)}
-      {@const tools = snapshot.cliWorkers.find((w) => w.id === worker.workerId)?.cliTools ?? []}
+      {@const tools = (snapshot.cliWorkers.find((w) => w.id === worker.workerId)?.cliTools ?? []).filter(
+        (item) => !!item.tool,
+      )}
       {@const step = snapshot.run?.steps.find(
         (s) => s.workerId === worker.workerId && ["worker", "desktop"].includes(s.kind),
       )}
@@ -142,13 +144,7 @@
               {#each tools as item (item.tool?.provider)}
                 {#if item.tool}<div class="grid gap-3">
                     <CliToolRow workerId={worker.workerId} {item} disabled={busy} />
-                    {#if item.tool.provider === Provider.GROK}<p
-                        class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
-                      >
-                        Grok’s installer does not publish GitHub Release notes. Installer output is shown when
-                        available.
-                      </p>
-                    {:else}<UpdateNotes
+                    {#if item.tool.provider !== Provider.GROK}<UpdateNotes
                         current={item.tool.install?.previousVersion || item.tool.version}
                         target={item.tool.install?.targetVersion || item.latest?.version || ""}
                         channel="stable"

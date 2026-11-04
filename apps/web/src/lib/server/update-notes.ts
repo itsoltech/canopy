@@ -80,7 +80,8 @@ export async function updateNotes(
 
       if (prerelease ? !release.prerelease || !allowed.includes(prerelease) : release.prerelease) continue;
     } else if (release.prerelease) continue;
-    out.push({ version, markdown: release.body || "No release notes were published for this version." });
+
+    if (release.body?.trim()) out.push({ version, markdown: release.body });
   }
 
   return out.sort((a, b) => compareVersions(b.version, a.version));

@@ -5,7 +5,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { UpdatePersistence } from "../../apps/gateway/src/updates/persistence.ts";
-import { startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("durable update metadata and administrator authorization", () => {
   let gateway: TestGateway;
@@ -87,5 +87,74 @@ describe.skipIf(!dockerAvailable)("durable update metadata and administrator aut
       targetVersion: command.version,
       installKind: "binary",
     });
+  });
+  test("a healthy reconnect completes restarting only on the commanded version", async () => {
+    const command = create(update.UpdateCommandSchema, { id: "reconnect-command", version: "2.4.2" });
+    await store.saveCommand(gateway.workerId, command);
+    await store.report(
+      gateway.workerId,
+      create(update.ReportRequestSchema, {
+        commandId: command.id,
+        version: command.version,
+        state: "restarting",
+        reason: "Restarting worker",
+      }),
+    );
+    // UpdateService can reconnect before WorkerLink is healthy: that alone must not prove success.
+    await store.hello(
+      gateway.workerId,
+      create(update.CheckRequestSchema, { version: command.version, installKind: "binary" }),
+    );
+    expect((await store.workers()).find((w) => w.id === gateway.workerId)?.status.state).toBe("restarting");
+    await gateway.connect(gateway.workerId, gateway.workerCredential, undefined, {
+      hello: { host: { workerVersion: "2.4.1" } },
+    });
+    await eventually(
+      () => store.workers(),
+      (rows) => rows.some((w) => w.id === gateway.workerId && w.version === "2.4.1"),
+    );
+    expect((await store.workers()).find((w) => w.id === gateway.workerId)?.status.state).toBe("restarting");
+    await gateway.connect(gateway.workerId, gateway.workerCredential, undefined, {
+      hello: { host: { workerVersion: command.version } },
+    });
+    const reopened = new UpdatePersistence(gateway.runtime, gateway.userId);
+    await eventually(
+      () => reopened.workers(),
+      (rows) => rows.some((w) => w.id === gateway.workerId && w.status.state === "succeeded"),
+    );
+    expect((await reopened.workers()).find((w) => w.id === gateway.workerId)?.status).toMatchObject({
+      state: "succeeded",
+      reason: "",
+      targetVersion: command.version,
+    });
+    await store.report(
+      gateway.workerId,
+      create(update.ReportRequestSchema, {
+        commandId: command.id,
+        version: command.version,
+        state: "failed",
+        reason: "Rollback",
+      }),
+    );
+
+    const epoch = () =>
+      gateway.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+
+          const rows = yield* sql<{
+            epoch: number;
+          }>`SELECT epoch::int AS epoch FROM worker_connections WHERE worker_id = ${gateway.workerId}::uuid`;
+
+          return rows[0]?.epoch ?? 0;
+        }),
+      );
+
+    const before = await epoch();
+    await gateway.connect(gateway.workerId, gateway.workerCredential, undefined, {
+      hello: { host: { workerVersion: command.version } },
+    });
+    await eventually(epoch, (value) => value > before);
+    expect((await reopened.workers()).find((w) => w.id === gateway.workerId)?.status.reason).toBe("Rollback");
   });
 });
