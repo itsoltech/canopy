@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
   import { formatSize } from "@canopy/domain";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { pop, reorder } from "#lib/shared/ui/motion.ts";
@@ -60,19 +61,9 @@
               {#if file.image}<span class="absolute inset-0 grid place-items-center"
                   ><Spinner class="size-4 text-white drop-shadow" /></span
                 >{/if}
-              <span
-                class="absolute inset-x-0 bottom-0 h-1 bg-zinc-950/10 dark:bg-white/10"
-                role="progressbar"
-                aria-label="Uploading {file.name}"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(file.progress * 100)}
+              <span class="absolute inset-x-0 bottom-0"
+                ><ProgressBar inset label="Uploading {file.name}" value={file.progress * 100} /></span
               >
-                <span
-                  class="block h-full w-(--progress) bg-brand-600 transition-[width] duration-(--duration-fast) ease-smooth-out"
-                  style="--progress: {Math.round(file.progress * 100)}%"
-                ></span>
-              </span>
             {/if}
             <button
               type="button"
