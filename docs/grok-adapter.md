@@ -28,6 +28,8 @@ Testy fake agenta sprawdzają podzielone ramki UTF-8, kolejne tury, wznowienie, 
 
 `GrokThreads` ma operacje create/startTurn/interrupt/unload/listModels analogiczne do rejestrów pozostałych SDK. Jeden proces obsługuje jeden wątek. Worker zapisuje każdy event do trwałego journalu przed publikacją do gatewaya. Model, effort lub tryb zmieniony między turami powoduje restart procesu i `session/load`. Sesje są trwałe w `<data_dir>/grok/<instance>/sessions`; tymczasowy home procesu ma do nich symlink. Po restarcie workera `provider_thread_id` wskazuje sesję do załadowania. Live potwierdził load po usunięciu tymczasowego home i uruchomieniu nowego procesu. Replay historii podczas load nie tworzy duplikatów itemów.
 
+`StartTurn` ponowiony po zerwaniu łącza dla tej samej nadal działającej tury jest potwierdzany bez uruchamiania drugiego promptu. Dotyczy to także tury czekającej na zgodę: powrót łącza nie kończy jej błędem ani nie wygasza interakcji. Sprawdza to integracja `tests/integration/interaction-reconnect.test.ts` z prawdziwym workerem i fake agentem ACP.
+
 Nie ma sprawdzonego mid-turn steer w bazowym ACP: worker odrzuca go `STEER_REJECTED`, a istniejący gateway przenosi wejście do następnej tury. Cancel przerywa callbacki zgód i wysyła `session/cancel`; brak odpowiedzi przez 5 s kończy proces. Dispose zbiera proces oraz kończy jego grupę (TERM, po 1,5 s KILL). Bezczynne sesje są zwalniane według `idle_unload_seconds`. Gwałtowne SIGKILL całego workera nie daje szansy na wykonanie jego cleanup; nie należy zastępować nim normalnego shutdown.
 
 | ACP | Item / zdarzenie Canopy |

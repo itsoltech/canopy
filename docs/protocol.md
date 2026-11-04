@@ -119,7 +119,7 @@ Zasady:
 4. Użytkownik odpowiada. Gateway wysyła `InteractionResponse`.
 5. Worker zwraca odpowiedź dostawcy (Codex: `accept` / `acceptForSession` / `decline` / `cancel`).
 
-Zgoda bez decyzji w ustalonym czasie oznacza odmowę. Po zerwaniu połączenia oczekujące interakcje są wysyłane ponownie po `Welcome`. Szczegóły: [execution.md](execution.md#6-interakcje-z-użytkownikiem).
+Zgody, pytania i formularze nie mają własnego terminu odpowiedzi: czekają do decyzji albo zakończenia tury lub zatrzymania wątku. Samo zerwanie połączenia z gateway nie oznacza odmowy ani wygaśnięcia, dopóki tura nadal działa na workerze. Po `Welcome` ten sam proces workera ponownie wysyła oczekujące interakcje z tym samym `request_id`; gateway zachowuje jeden item na osi czasu. Odpowiedź zapisana w gateway podczas rozłączenia lub utracona w drodze jest odsyłana z bazy po ponowieniu prośby, a worker przekazuje ją dostawcy tylko raz. Szczegóły: [execution.md](execution.md#6-interakcje-z-użytkownikiem).
 
 ## Praca w tle i subagenci
 

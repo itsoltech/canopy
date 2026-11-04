@@ -29,7 +29,7 @@ Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [dat
 | Historia wątku agenta SDK | pliki dostawcy (`~/.claude/projects`, `~/.codex/sessions`) | Claude `resume`, Codex `thread/resume`; źródło prawdy o turze, której koniec worker przegapił ([3.5](#35-rekoncyliacja-z-transkryptu-harnessu)) |
 | Tury w toku na workerze: gdzie harness je zapisuje, ich itemy otwarte i skończone, prośby o przerwanie | SQLite workera (`open_turns`, `turn_harness`, `turn_items`, `turn_interrupts`) | rekoncyliacja z transkryptu harnessu |
 | Przetworzone `command_id` | SQLite workera `processed_commands` (TTL) | deduplikacja |
-| Interakcje (zgody, pytania, formularze) | PostgreSQL `interaction_requests` + SQLite workera | proces dostawcy zginął → `expired` |
+| Natywne interakcje (zgody, pytania, formularze) | PostgreSQL `interaction_requests` + pamięć procesu workera | utrata łącza nie wygasza; proces dostawcy zginął → `expired` |
 | Zadania w tle i subagenci w toku | itemy w `thread_items`; otwarte zadania w dzienniku workera (`background_tasks`); procesy tylko na workerze | `interrupted`: `worker_shutdown` (łagodne zatrzymanie, zapisane i wysłane przed zamknięciem łącza), `worker_lost` (awaria: zamknięte przy następnym starcie), `worker_restart` (restart runtime'u dostawcy); z czasem końca; output zostaje taki, jaki przyszedł deltami; agent dostaje notatkę o każdym końcu ([execution.md](execution.md#8-trwałość)) |
 | Cele | PostgreSQL `goals` (odbicie celu harnessu: ostatni raport w `native_state`) | gateway nie ustawia celu ponownie; Codex trzyma go w stanie wątku, cel Claude ginie z procesem ([goals.md](goals.md#6-trwałość)) |
 | Konfiguracja workera | PostgreSQL `worker_configs` (+ historia); w workerze tylko w pamięci (sekrety) | po starcie `Hello.config_version = 0`, gateway wysyła ją ponownie |
@@ -283,6 +283,7 @@ Szczegóły i ograniczenia zawartości plików: [etap 3 połączonych komputeró
 | Proces harnessu kończy się sam (Codex app-server, Claude Code), worker żyje | tura rozliczona z transkryptu: zapisany koniec albo `failed` przez harness (`process_exit`); następna komenda dostaje nowy proces harnessu, wątek wznawiany | reszta tury |
 | Restart PostgreSQL | gateway ponawia z backoffem, `readyz = false`; workery buforują w dzienniku | brak |
 | Zerwanie sieci worker ↔ gateway | ponowne połączenie, dosłanie dziennika | brak |
+| Zerwanie sieci przy oczekującej zgodzie/pytaniu | gdy ten sam proces workera nadal prowadzi turę, interakcja pozostaje `pending` bez własnego terminu; po `Welcome` worker ponawia prośbę z tym samym `request_id`, gateway zachowuje jeden item i odsyła zapisaną odpowiedź (także udzieloną offline lub utraconą w drodze), worker stosuje ją raz; sweep/settle nie wygasza interakcji działającej tury | brak przy zachowaniu procesu workera; restart procesu podlega regułom [3.4](#34-start-po-awarii) |
 | Aktualizacja CLI dostawcy na urządzeniu | nowe tury na nowej wersji (wznowienie wątku); restart Codex app-server przechodzi przez drain wątków | brak |
 | Restart lub zerwanie łącza w trakcie przeniesienia wątku/bota na inny komputer | przed decyzją ruch jest cofany, po decyzji kończony; trwałe rekordy po obu stronach ([etap 8](linked-computers.md#konkretny-protokół-etapu-8)) | brak; zawsze dokładnie jeden dom |
 
