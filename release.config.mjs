@@ -11,6 +11,9 @@ export default {
     // Refuses a version other than the one the workflow planned and built (no-op without EXPECTED_VERSION).
     "./scripts/release-expected-version.mjs",
     ["@semantic-release/release-notes-generator", { preset: "angular" }],
-    ["@semantic-release/github", { successComment: false, failComment: false, failTitle: false, releasedLabels: false }],
+    [
+      "@semantic-release/github",
+      { successComment: false, failComment: false, failTitle: false, releasedLabels: false },
+    ],
   ],
 };

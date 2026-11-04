@@ -26,12 +26,18 @@ import type { HarnessRecord, TurnEnd } from "./harness-record.ts";
 export type EndCause = Omit<TurnEnd, "providerTurnRef" | "usage">;
 
 /** The worker process that ran the turn is gone (this one started after it). */
-export const WORKER_RESTARTED: EndCause = { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM, reason: "worker restarted mid-turn" };
+export const WORKER_RESTARTED: EndCause = {
+  outcome: TurnOutcome.INTERRUPTED,
+  source: TurnEndSource.SYSTEM,
+  reason: "worker restarted mid-turn",
+};
 
 /** The harness's record of an open turn, or undefined (no transcript known, unreadable, or nothing of the turn in it). */
 export async function readHarnessRecord(open: OpenTurn): Promise<HarnessRecord | undefined> {
   const harness = open.harness;
+
   if (!harness) return undefined;
+
   try {
     return harness.harness === "codex"
       ? await readCodexTurn(harness.transcript, harness.offset, harness.providerTurn, open.turnId)
@@ -44,29 +50,54 @@ export async function readHarnessRecord(open: OpenTurn): Promise<HarnessRecord |
 /** The events that settle an open turn (items first, turn_finished last). */
 export function reconcileEvents(open: OpenTurn, record: HarnessRecord | undefined, cause: EndCause): ThreadEventInit[] {
   const { turnId } = open;
-  const rawJson = JSON.stringify({ reconciled: open.harness ? `${open.harness.harness} transcript` : "journal", found: record !== undefined });
-  const finished = (item: ThreadEventInit["body"] & { case: "itemCompleted" }): ThreadEventInit => ({ turnId, rawJson, body: item });
+
+  const rawJson = JSON.stringify({
+    reconciled: open.harness ? `${open.harness.harness} transcript` : "journal",
+    found: record !== undefined,
+  });
+
+  const finished = (item: ThreadEventInit["body"] & { case: "itemCompleted" }): ThreadEventInit => ({
+    turnId,
+    rawJson,
+    body: item,
+  });
+
   const journaled = new Map(open.items.map((i) => [i.item.itemId, i]));
   const events: ThreadEventInit[] = [];
   const seen = new Set<string>();
+
   for (const item of record?.items ?? []) {
     const id = item.itemId ?? "";
     seen.add(id);
+
     if (journaled.get(id)?.done) continue;
-    const status = item.status === ItemStatus.IN_PROGRESS ? ItemStatus.INTERRUPTED : (item.status ?? ItemStatus.COMPLETED);
+
+    const status =
+      item.status === ItemStatus.IN_PROGRESS ? ItemStatus.INTERRUPTED : (item.status ?? ItemStatus.COMPLETED);
+
     events.push(finished({ case: "itemCompleted", value: { item: { ...item, status } } }));
   }
+
   for (const { item, done } of open.items) {
     if (done || seen.has(item.itemId)) continue;
     const ended = clone(ItemSchema, item);
     ended.status = ItemStatus.INTERRUPTED;
     events.push(finished({ case: "itemCompleted", value: { item: ended } }));
   }
+
   const recorded = record?.end;
+
   const end: TurnEnd =
-    recorded?.outcome === TurnOutcome.INTERRUPTED && recorded.source !== TurnEndSource.SYSTEM && !open.interruptRequested
-      ? { ...recorded, source: TurnEndSource.SYSTEM, reason: `${cause.reason} (the harness stopped the turn: ${recorded.reason || "interrupted"})` }
+    recorded?.outcome === TurnOutcome.INTERRUPTED &&
+    recorded.source !== TurnEndSource.SYSTEM &&
+    !open.interruptRequested
+      ? {
+          ...recorded,
+          source: TurnEndSource.SYSTEM,
+          reason: `${cause.reason} (the harness stopped the turn: ${recorded.reason || "interrupted"})`,
+        }
       : (recorded ?? cause);
+
   events.push({
     turnId,
     rawJson,
@@ -82,6 +113,7 @@ export function reconcileEvents(open: OpenTurn, record: HarnessRecord | undefine
       },
     },
   });
+
   return events;
 }
 
@@ -91,6 +123,8 @@ export const reconcileTurn = (open: OpenTurn, cause: EndCause) =>
     const journal = yield* Journal;
     const record = yield* Effect.promise(() => readHarnessRecord(open));
     const out: ThreadEvent[] = [];
+
     for (const init of reconcileEvents(open, record, cause)) out.push(yield* journal.append(open.threadId, init));
+
     return { events: out, record };
   });

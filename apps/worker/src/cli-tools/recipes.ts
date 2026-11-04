@@ -40,49 +40,116 @@ export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeToo
   const { spec } = cli;
   const posix = tools.platform !== "win32";
   const pkg = `${spec.npm}@${version}`;
+
   const npmOf = (prefix?: string) => {
     const own = prefix && posix ? join(prefix, "bin", "npm") : undefined;
+
     return own && existsSync(own) ? own : tools.which("npm");
   };
-  const bun = () => tools.which("bun") ?? (existsSync(join(tools.home, ".bun", "bin", "bun")) ? join(tools.home, ".bun", "bin", "bun") : null);
+
+  const bun = () =>
+    tools.which("bun") ??
+    (existsSync(join(tools.home, ".bun", "bin", "bun")) ? join(tools.home, ".bun", "bin", "bun") : null);
+
   switch (cli.method) {
     case CliInstallMethod.DOCKER:
-      return { managedBy: "the image", detail: "Pull a newer worker image or extend it with the CLI version you want." };
+      return {
+        managedBy: "the image",
+        detail: "Pull a newer worker image or extend it with the CLI version you want.",
+      };
     case CliInstallMethod.HOMEBREW:
-      return { managedBy: "Homebrew", manualCommand: `brew upgrade ${cli.owner ?? (spec.name === "claude" ? "--cask claude-code" : spec.name)}` };
+      return {
+        managedBy: "Homebrew",
+        manualCommand: `brew upgrade ${cli.owner ?? (spec.name === "claude" ? "--cask claude-code" : spec.name)}`,
+      };
     case CliInstallMethod.MISE:
-      return { managedBy: "mise", manualCommand: cli.owner?.startsWith("npm-") || !cli.owner ? `mise upgrade npm:${spec.npm}` : `mise upgrade ${cli.owner}` };
+      return {
+        managedBy: "mise",
+        manualCommand:
+          cli.owner?.startsWith("npm-") || !cli.owner ? `mise upgrade npm:${spec.npm}` : `mise upgrade ${cli.owner}`,
+      };
     case CliInstallMethod.ASDF:
       return { managedBy: "asdf", manualCommand: `asdf install ${cli.owner ?? spec.name} latest` };
     case CliInstallMethod.OTHER:
-      return { detail: `Installed outside a known installer (${cli.resolvedPath || cli.path}). Update it the way you installed it.` };
+      return {
+        detail: `Installed outside a known installer (${cli.resolvedPath || cli.path}). Update it the way you installed it.`,
+      };
     case CliInstallMethod.NATIVE:
       if (spec.name === "claude") return { recipe: { kind: "run", argv: [cli.path, "install", version] } };
-      if (spec.script && posix) return { recipe: { kind: "script", url: spec.script, args: version === "latest" ? [] : [version] } };
+
+      if (spec.script && posix)
+        return { recipe: { kind: "script", url: spec.script, args: version === "latest" ? [] : [version] } };
+
       return { managedBy: "you", detail: "No recipe for this platform yet." };
     case CliInstallMethod.NPM: {
       const npm = npmOf(cli.owner);
-      if (!npm || !cli.owner) return { managedBy: "npm", manualCommand: `npm install -g ${pkg}`, detail: "npm was not found next to the package." };
-      return { recipe: { kind: "run", argv: [npm, "install", "--global", "--prefix", cli.owner, "--no-fund", "--no-audit", pkg] } };
+
+      if (!npm || !cli.owner)
+        return {
+          managedBy: "npm",
+          manualCommand: `npm install -g ${pkg}`,
+          detail: "npm was not found next to the package.",
+        };
+
+      return {
+        recipe: {
+          kind: "run",
+          argv: [npm, "install", "--global", "--prefix", cli.owner, "--no-fund", "--no-audit", pkg],
+        },
+      };
     }
+
     case CliInstallMethod.BUN: {
       const runtime = bun();
+
       if (!runtime) return { managedBy: "Bun", manualCommand: `bun add -g ${pkg}`, detail: "bun was not found." };
+
       return { recipe: { kind: "run", argv: [runtime, "add", "--global", pkg] } };
     }
+
     case CliInstallMethod.NOT_INSTALLED: {
       // The official user-level installer, into the home directory.
-      if (spec.script && posix) return { recipe: { kind: "script", url: spec.script, args: version === "latest" ? [] : [version] } };
+      if (spec.script && posix)
+        return { recipe: { kind: "script", url: spec.script, args: version === "latest" ? [] : [version] } };
+
       if (spec.name === "codex") {
         const npm = tools.which("npm");
-        if (npm) return { recipe: { kind: "run", argv: [npm, "install", "--global", "--prefix", join(tools.home, ".local"), "--no-fund", "--no-audit", pkg] } };
+
+        if (npm)
+          return {
+            recipe: {
+              kind: "run",
+              argv: [
+                npm,
+                "install",
+                "--global",
+                "--prefix",
+                join(tools.home, ".local"),
+                "--no-fund",
+                "--no-audit",
+                pkg,
+              ],
+            },
+          };
         const runtime = bun();
+
         if (runtime) return { recipe: { kind: "run", argv: [runtime, "add", "--global", pkg] } };
-        return { manualCommand: `npm install -g ${pkg}`, detail: "Codex installs with npm or Bun; neither was found on this machine." };
+
+        return {
+          manualCommand: `npm install -g ${pkg}`,
+          detail: "Codex installs with npm or Bun; neither was found on this machine.",
+        };
       }
-      if (spec.name === "claude") return { manualCommand: "irm https://claude.ai/install.ps1 | iex", detail: "Install Claude Code from PowerShell on this machine." };
+
+      if (spec.name === "claude")
+        return {
+          manualCommand: "irm https://claude.ai/install.ps1 | iex",
+          detail: "Install Claude Code from PowerShell on this machine.",
+        };
+
       return { detail: "No installer for this platform yet." };
     }
+
     default:
       return { detail: "Unknown install method." };
   }

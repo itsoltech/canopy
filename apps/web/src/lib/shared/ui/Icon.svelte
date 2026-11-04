@@ -7,7 +7,13 @@
    * `label` when the icon is the only content. Colour: solid ones from `fill-*` classes, line ones from the text
    * colour (`stroke` attribute); both default to the current text colour, as attributes so any class wins.
    */
-  let { name, label, size = "md", class: className }: { name: IconName; label?: string; size?: "xs" | "sm" | "md"; class?: ClassValue } = $props();
+  let {
+    name,
+    label,
+    size = "md",
+    class: className,
+  }: { name: IconName; label?: string; size?: "xs" | "sm" | "md"; class?: ClassValue } = $props();
+
   const dimensions = $derived(size === "xs" ? "size-3" : size === "sm" ? "size-3.5" : "size-4");
 </script>
 
@@ -38,7 +44,11 @@
     aria-label={label}
   >
     {#each icons[name as keyof typeof icons] as path (path.d)}
-      <path d={path.d} fill-rule={"evenodd" in path ? "evenodd" : undefined} clip-rule={"evenodd" in path ? "evenodd" : undefined} />
+      <path
+        d={path.d}
+        fill-rule={"evenodd" in path ? "evenodd" : undefined}
+        clip-rule={"evenodd" in path ? "evenodd" : undefined}
+      />
     {/each}
   </svg>
 {/if}

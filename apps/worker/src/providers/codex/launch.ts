@@ -30,11 +30,18 @@ export function codexAppServerLaunch(
   extraArgs: readonly string[] = [],
 ): CodexAppServerLaunch {
   const command = [codexBin, "app-server", ...codexNativeToolOverrides(nativeTools), ...extraArgs];
-  const env: Record<string, string | undefined> = { ...baseEnv, ...profileEnv, ...(codexHome !== undefined && { CODEX_HOME: codexHome }) };
+
+  const env: Record<string, string | undefined> = {
+    ...baseEnv,
+    ...profileEnv,
+    ...(codexHome !== undefined && { CODEX_HOME: codexHome }),
+  };
+
   for (const profile of profiles) {
     if (profile.kind !== "cliproxyapi" || !profile.providers.includes("codex")) continue;
     const provider = codexModelProviderId(profile);
     const keyEnv = `${provider.toUpperCase()}_API_KEY`;
+
     const settings: Record<string, string | boolean> = {
       name: `CLIProxyAPI (${profile.id})`,
       base_url: new URL("v1", withTrailingSlash(profile.baseUrl)).href,
@@ -43,11 +50,14 @@ export function codexAppServerLaunch(
       env_key: keyEnv,
       requires_openai_auth: false,
     };
+
     for (const [key, value] of Object.entries(settings)) {
       command.push("-c", `model_providers.${provider}.${key}=${tomlValue(value)}`);
     }
+
     env[keyEnv] = profile.apiKey;
   }
+
   return { command, env };
 }
 

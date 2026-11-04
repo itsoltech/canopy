@@ -7,5 +7,6 @@ import type { RequestHandler } from "./$types";
 
 export const POST: RequestHandler = async ({ request }) => {
   const body = await readMessage(request, ui.PreviewScheduleRequestSchema);
+
   return json(encode(ui.PreviewScheduleResponseSchema, await call((api) => api.previewSchedule(body))));
 };

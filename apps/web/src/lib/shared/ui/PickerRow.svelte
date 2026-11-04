@@ -33,10 +33,19 @@
   {#if leading}<div class="flex h-lh shrink-0 items-center">{@render leading()}</div>{/if}
   <div class="grid min-w-0 flex-1">
     <p class="truncate font-medium">{title}</p>
-    {#if detail}<p class={["truncate text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400", detailClass]} title={detail}>{detail}</p>{/if}
+    {#if detail}<p
+        class={["truncate text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400", detailClass]}
+        title={detail}
+      >
+        {detail}
+      </p>{/if}
   </div>
   {#if status}
-    <div class="flex h-lh shrink-0 items-center"><p class="text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{status}</p></div>
+    <div class="flex h-lh shrink-0 items-center">
+      <p class="text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{status}</p>
+    </div>
   {/if}
-  <div class="flex h-lh shrink-0 items-center"><Icon name="check" class={["fill-brand-600 dark:fill-brand-400", !selected && "invisible"]} /></div>
+  <div class="flex h-lh shrink-0 items-center">
+    <Icon name="check" class={["fill-brand-600 dark:fill-brand-400", !selected && "invisible"]} />
+  </div>
 </div>

@@ -12,20 +12,31 @@ export function ensureScratchDirectory(cwd: string, scratchRoot: string): void {
   if (!isAbsolute(cwd)) throw new Error("invalid scratch directory: path must be absolute");
   const match = IDS.exec(relative(scratchRoot, cwd));
   const previous = !match ? PREVIOUS.exec(cwd) : undefined;
-  if (!match && !previous) throw new Error("invalid scratch directory: expected <data_dir>/scratch/<owner-id>/<thread-id>");
+
+  if (!match && !previous)
+    throw new Error("invalid scratch directory: expected <data_dir>/scratch/<owner-id>/<thread-id>");
+
   // A previous scratch base remains valid only for an existing thread directory.
   // Never recreate missing previous trees elsewhere on the machine.
   if (previous) realpathSync(cwd);
   let parent = realpathSync(previous ? previous[1] || "/" : join(scratchRoot, ".."));
   const segments = ["scratch", ...(previous ? [previous[2]!, previous[3]!] : [match![1]!, match![2]!])];
+
   for (const segment of segments) {
     // Validate each parent before creating its child, so an existing symlink cannot cause
     // recursive mkdir to write through a symlink before the final cwd check.
     const next = join(parent, segment);
-    try { mkdirSync(next, { mode: 0o700 }); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+
+    try {
+      mkdirSync(next, { mode: 0o700 });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+
     const stat = lstatSync(next);
-    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error("scratch directory components must be real directories");
+
+    if (stat.isSymbolicLink() || !stat.isDirectory())
+      throw new Error("scratch directory components must be real directories");
     parent = realpathSync(next);
   }
 }

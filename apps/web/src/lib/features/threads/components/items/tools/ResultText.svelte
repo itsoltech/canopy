@@ -20,5 +20,12 @@
 {:else if node && (node.kind === "object" || node.kind === "list") && !isEmptyNode(node)}
   <StructuredView {node} />
 {:else}
-  <OutputBlock quoteKind="tool_call" output={text} blob={call.outputBlob} label="Result of {call.name}" empty={status === ItemStatus.IN_PROGRESS ? "Waiting for the result…" : "No result."} {streaming} />
+  <OutputBlock
+    quoteKind="tool_call"
+    output={text}
+    blob={call.outputBlob}
+    label="Result of {call.name}"
+    empty={status === ItemStatus.IN_PROGRESS ? "Waiting for the result…" : "No result."}
+    {streaming}
+  />
 {/if}

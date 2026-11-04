@@ -9,11 +9,14 @@ export function isQuitShortcut(value: unknown): value is QuitShortcut {
 /** Local desktop preference, independent of gateway credentials and update channel. */
 export class QuitSettings {
   private readonly path: string;
-  constructor(directory: string) { this.path = join(directory, "app-shortcuts.json"); }
+  constructor(directory: string) {
+    this.path = join(directory, "app-shortcuts.json");
+  }
   read(): QuitShortcut {
     try {
       const value: unknown = JSON.parse(readFileSync(this.path, "utf8"));
       const shortcut = value && typeof value === "object" && "quitShortcut" in value ? value.quitShortcut : undefined;
+
       return isQuitShortcut(shortcut) ? shortcut : "press-twice";
     } catch (error) {
       if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === "ENOENT") return "press-twice";

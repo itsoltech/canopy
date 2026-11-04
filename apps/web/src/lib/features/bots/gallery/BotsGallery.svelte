@@ -37,48 +37,76 @@
 
   function togglePin(conversation: ConversationView) {
     const nextOrder = Math.max(-1, ...list.filter((c) => c.pinned).map((c) => c.pinOrder ?? 0)) + 1;
-    list = list.map((c) => (c.id === conversation.id ? { ...c, pinned: !c.pinned, pinOrder: c.pinned ? undefined : nextOrder } : c));
+    list = list.map((c) =>
+      c.id === conversation.id ? { ...c, pinned: !c.pinned, pinOrder: c.pinned ? undefined : nextOrder } : c,
+    );
     log = `${conversation.pinned ? "Unpinned" : "Pinned"} ${conversation.title ?? conversation.bots.map((b) => b.name).join(" ⇄ ")}.`;
   }
+
   function markRead(conversation: ConversationView) {
     list = list.map((c) => (c.id === conversation.id ? { ...c, unread: 0 } : c));
     log = "Marked as read.";
   }
 
   type ChatKey = "direct" | "group" | "watch";
+
   let chat = $state<ChatKey>("direct");
   let frame = $state<"desktop" | "mobile">("desktop");
+
   const chats: Record<ChatKey, { conversation: ConversationView; firstUnreadId?: string }> = {
     direct: { conversation: conversations.find((c) => c.id === "c-canopy")!, firstUnreadId: "d10" },
     group: { conversation: conversations.find((c) => c.id === "c-launch")!, firstUnreadId: "g8" },
     watch: { conversation: conversations.find((c) => c.id === "c-watch")! },
   };
-  let entries = $state<Record<ChatKey, ChatEntry[]>>({ direct: structuredClone(directEntries), group: structuredClone(groupEntries), watch: structuredClone(watchEntries) });
+
+  let entries = $state<Record<ChatKey, ChatEntry[]>>({
+    direct: structuredClone(directEntries),
+    group: structuredClone(groupEntries),
+    watch: structuredClone(watchEntries),
+  });
+
   let answering = $state<Record<string, string>>({});
   let sending = $state(false);
 
   function send(text: string) {
     const key = chat;
     const id = `local-${Date.now()}`;
-    entries[key] = [...entries[key], { kind: "message", message: { id, senderId: me.id, at: new Date(), text, delivery: "sending" } }];
+    entries[key] = [
+      ...entries[key],
+      { kind: "message", message: { id, senderId: me.id, at: new Date(), text, delivery: "sending" } },
+    ];
     sending = true;
     setTimeout(() => {
-      entries[key] = entries[key].map((e) => (e.kind === "message" && e.message.id === id ? { kind: "message", message: { ...e.message, delivery: undefined } } : e));
+      entries[key] = entries[key].map((e) =>
+        e.kind === "message" && e.message.id === id
+          ? { kind: "message", message: { ...e.message, delivery: undefined } }
+          : e,
+      );
       sending = false;
     }, 800);
   }
+
   function answer(questionId: string, optionId: string) {
     const key = chat;
     answering = { ...answering, [questionId]: optionId };
     setTimeout(() => {
-      entries[key] = entries[key].map((e) => (e.kind === "question" && e.question.id === questionId ? { kind: "question", question: { ...e.question, answer: { optionId, at: new Date() } } } : e));
+      entries[key] = entries[key].map((e) =>
+        e.kind === "question" && e.question.id === questionId
+          ? { kind: "question", question: { ...e.question, answer: { optionId, at: new Date() } } }
+          : e,
+      );
       const { [questionId]: _, ...rest } = answering;
       answering = rest;
     }, 900);
   }
+
   const react = (message: ChatMessageView) => (log = `React to “${message.text.slice(0, 40)}”.`);
 
-  const mascotIds = Array.from({ length: 21 }, (_, i) => `bot-${["canopy", "t3", "release", "docs", "triage", "standup", "infra"][i % 7]}-${Math.floor(i / 7)}`);
+  const mascotIds = Array.from(
+    { length: 21 },
+    (_, i) => `bot-${["canopy", "t3", "release", "docs", "triage", "standup", "infra"][i % 7]}-${Math.floor(i / 7)}`,
+  );
+
   const sizes: AvatarSize[] = ["xs", "sm", "md", "lg", "xl"];
   const question = directEntries.find((e) => e.kind === "question")!;
   const answered = groupEntries.find((e) => e.kind === "question")!;
@@ -105,7 +133,10 @@
       <BehaviourGallery />
       <WizardGallery />
 
-      <GallerySection title="Avatars" description="Mascot shape, colour and eyes come from the bot id. A picture replaces the mascot; you get initials. Badges mark pinned and online.">
+      <GallerySection
+        title="Avatars"
+        description="Mascot shape, colour and eyes come from the bot id. A picture replaces the mascot; you get initials. Badges mark pinned and online."
+      >
         <div class="flex flex-wrap items-end gap-4">
           {#each sizes as size (size)}<BotAvatar participant={bots.canopy} {size} />{/each}
           <BotAvatar participant={pictureBot} size="lg" />
@@ -130,22 +161,45 @@
         description="Pinned chats on top as large avatars with a star; then 1:1, group and watched chats by latest message. Pin or unpin from a row's “…”, or right-click, Shift+F10 or long-press a pinned avatar. Search lists everything as rows."
       >
         <div class="flex flex-wrap items-start gap-6">
-          <div class="flex h-[36rem] w-72 flex-col rounded-xl bg-zinc-50 ring-1 ring-zinc-950/5 dark:bg-zinc-950 dark:ring-white/10">
+          <div
+            class="flex h-[36rem] w-72 flex-col rounded-xl bg-zinc-50 ring-1 ring-zinc-950/5 dark:bg-zinc-950 dark:ring-white/10"
+          >
             <div class="p-3">
-              <Input type="search" name="gallery-q" aria-label="Search bots" placeholder="Search bots" autocomplete="off" bind:value={query} />
+              <Input
+                type="search"
+                name="gallery-q"
+                aria-label="Search bots"
+                placeholder="Search bots"
+                autocomplete="off"
+                bind:value={query}
+              />
             </div>
             <div class="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-              <BotsNav conversations={list} hrefOf={(c) => `#${c.id}`} currentId={selectedId} {query} onTogglePin={togglePin} onMarkRead={markRead} />
+              <BotsNav
+                conversations={list}
+                hrefOf={(c) => `#${c.id}`}
+                currentId={selectedId}
+                {query}
+                onTogglePin={togglePin}
+                onMarkRead={markRead}
+              />
             </div>
           </div>
           <div class="grid w-72 gap-2">
             <p class="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Production today (no bots yet)</p>
-            <div class="rounded-xl bg-zinc-50 p-2 ring-1 ring-zinc-950/5 dark:bg-zinc-950 dark:ring-white/10"><BotsSectionEmpty /></div>
+            <div class="rounded-xl bg-zinc-50 p-2 ring-1 ring-zinc-950/5 dark:bg-zinc-950 dark:ring-white/10">
+              <BotsSectionEmpty />
+            </div>
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
           {#each list as conversation (conversation.id)}
-            <Button size="sm" variant={selectedId === conversation.id ? "primary" : "secondary"} aria-pressed={selectedId === conversation.id} onclick={() => (selectedId = conversation.id)}>
+            <Button
+              size="sm"
+              variant={selectedId === conversation.id ? "primary" : "secondary"}
+              aria-pressed={selectedId === conversation.id}
+              onclick={() => (selectedId = conversation.id)}
+            >
               Select {conversation.id}
             </Button>
           {/each}
@@ -168,19 +222,45 @@
             <ChatEventLine event={entry.event} />
           {/each}
           <div class="flex flex-wrap gap-2">
-            <LinkChip link={{ url: "https://github.com/example/canopy/pull/443", title: "Merge after CI", kind: "pull_request", subtitle: "canopy#443" }} />
-            <LinkChip link={{ url: "https://github.com/example/canopy/issues/12", title: "Composer loses focus", kind: "issue", subtitle: "canopy#12" }} />
-            <LinkChip link={{ url: "https://github.com/example/canopy/commit/1aa4d69", title: "1aa4d69", kind: "commit" }} />
+            <LinkChip
+              link={{
+                url: "https://github.com/example/canopy/pull/443",
+                title: "Merge after CI",
+                kind: "pull_request",
+                subtitle: "canopy#443",
+              }}
+            />
+            <LinkChip
+              link={{
+                url: "https://github.com/example/canopy/issues/12",
+                title: "Composer loses focus",
+                kind: "issue",
+                subtitle: "canopy#12",
+              }}
+            />
+            <LinkChip
+              link={{ url: "https://github.com/example/canopy/commit/1aa4d69", title: "1aa4d69", kind: "commit" }}
+            />
             <LinkChip link={{ url: "https://svelte.dev/docs/kit", title: "SvelteKit docs", kind: "web" }} />
-            <LinkChip link={{ url: "javascript:alert(1)", title: "Unsafe link stays text", kind: "web", subtitle: "blocked" }} />
+            <LinkChip
+              link={{ url: "javascript:alert(1)", title: "Unsafe link stays text", kind: "web", subtitle: "blocked" }}
+            />
           </div>
         </div>
       </GallerySection>
 
-      <GallerySection title="Question card" description="Open (click, Enter or the letter key), sending, answered, and read-only.">
+      <GallerySection
+        title="Question card"
+        description="Open (click, Enter or the letter key), sending, answered, and read-only."
+      >
         <div class="flex flex-wrap items-start gap-4">
           {#if question.kind === "question"}
-            <QuestionCard question={galleryAnswer ? { ...question.question, answer: { optionId: galleryAnswer, at: new Date() } } : question.question} onanswer={(id) => (galleryAnswer = id)} />
+            <QuestionCard
+              question={galleryAnswer
+                ? { ...question.question, answer: { optionId: galleryAnswer, at: new Date() } }
+                : question.question}
+              onanswer={(id) => (galleryAnswer = id)}
+            />
             <QuestionCard question={question.question} answering="now" onanswer={() => {}} />
             <QuestionCard question={question.question} />
           {/if}
@@ -188,17 +268,45 @@
         </div>
       </GallerySection>
 
-      <GallerySection title="Composer and read-only bar" description="Attachments and voice are not built yet, so “+” and the mic explain that. Typing turns the mic into send.">
+      <GallerySection
+        title="Composer and read-only bar"
+        description="Attachments and voice are not built yet, so “+” and the mic explain that. Typing turns the mic into send."
+      >
         <div class="grid max-w-xl gap-4">
-          <BotComposer botId="gallery" quoteKey="bot:gallery" bind:value={composerValue} onsend={(text) => (log = `Sent “${text}”.`)} />
-          <BotComposer botId="gallery" quoteKey="bot:gallery-sending" value="Sending this one…" sending onsend={() => {}} />
-          <BotComposer botId="gallery" quoteKey="bot:gallery-disabled" disabled disabledReason="Canopy Bot is unavailable right now" onsend={() => {}} />
-          <BotComposer botId="gallery" quoteKey="bot:gallery-attach" onsend={() => {}} onattach={() => (log = "Attach.")} />
+          <BotComposer
+            botId="gallery"
+            quoteKey="bot:gallery"
+            bind:value={composerValue}
+            onsend={(text) => (log = `Sent “${text}”.`)}
+          />
+          <BotComposer
+            botId="gallery"
+            quoteKey="bot:gallery-sending"
+            value="Sending this one…"
+            sending
+            onsend={() => {}}
+          />
+          <BotComposer
+            botId="gallery"
+            quoteKey="bot:gallery-disabled"
+            disabled
+            disabledReason="Canopy Bot is unavailable right now"
+            onsend={() => {}}
+          />
+          <BotComposer
+            botId="gallery"
+            quoteKey="bot:gallery-attach"
+            onsend={() => {}}
+            onattach={() => (log = "Attach.")}
+          />
           <WatchBar bots={chats.watch.conversation.bots} onclose={() => (log = "Close chat.")} />
         </div>
       </GallerySection>
 
-      <GallerySection title="Chats" description="Full chats with fixture data. Sending and answering resolve after a moment; actions write to the line at the top.">
+      <GallerySection
+        title="Chats"
+        description="Full chats with fixture data. Sending and answering resolve after a moment; actions write to the line at the top."
+      >
         <div class="flex flex-wrap gap-3">
           <Segmented
             label="Chat"
@@ -218,7 +326,12 @@
             ]}
           />
         </div>
-        <div class={["h-[46rem] overflow-hidden rounded-xl bg-white ring-1 ring-zinc-950/10 dark:bg-black dark:ring-white/10", frame === "mobile" ? "w-full max-w-[390px]" : "w-full"]}>
+        <div
+          class={[
+            "h-[46rem] overflow-hidden rounded-xl bg-white ring-1 ring-zinc-950/10 dark:bg-black dark:ring-white/10",
+            frame === "mobile" ? "w-full max-w-[390px]" : "w-full",
+          ]}
+        >
           {#key chat}
             <ChatView
               conversation={chats[chat].conversation}

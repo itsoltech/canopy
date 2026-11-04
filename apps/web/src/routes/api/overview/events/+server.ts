@@ -7,5 +7,10 @@ import type { RequestHandler } from "./$types";
 /** Live overview (workers, projects, thread statuses) as SSE. */
 export const GET: RequestHandler = async ({ request }) => {
   await call((api) => api.getOverview({}, { signal: request.signal }));
-  return sseResponse(request, (signal) => gateway().watchOverview({}, { signal, timeoutMs: 0 }), (update) => encode(ui.OverviewUpdateSchema, update));
+
+  return sseResponse(
+    request,
+    (signal) => gateway().watchOverview({}, { signal, timeoutMs: 0 }),
+    (update) => encode(ui.OverviewUpdateSchema, update),
+  );
 };

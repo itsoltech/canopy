@@ -19,7 +19,14 @@
     "platforms": ["ios", "android"],
     "plugins": [
       "expo-router",
-      ["expo-camera", { "cameraPermission": "Allow Canopy to scan a pairing QR code.", "microphonePermission": false, "recordAudioAndroid": false }],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Canopy to scan a pairing QR code.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       ["expo-secure-store", { "faceIDPermission": false }],
       [
         "expo-splash-screen",

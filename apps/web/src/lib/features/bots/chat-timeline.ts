@@ -30,7 +30,17 @@ export interface ExchangeSegment {
 export type ChatRow =
   | { kind: "date"; id: string; at: Date }
   | { kind: "unread"; id: string }
-  | { kind: "message"; id: string; message: ChatMessageView; sender: ParticipantView | undefined; side: "start" | "end"; mine: boolean; first: boolean; last: boolean; showName: boolean }
+  | {
+      kind: "message";
+      id: string;
+      message: ChatMessageView;
+      sender: ParticipantView | undefined;
+      side: "start" | "end";
+      mine: boolean;
+      first: boolean;
+      last: boolean;
+      showName: boolean;
+    }
   | { kind: "event"; id: string; event: ChatEventView }
   | { kind: "question"; id: string; question: QuestionView; sender: ParticipantView | undefined }
   | { kind: "approval"; id: string; approval: ApprovalView; sender: ParticipantView | undefined }
@@ -39,6 +49,7 @@ export type ChatRow =
 
 /** A run breaks after this long between two messages of the same sender. */
 const RUN_GAP_MS = 5 * 60_000;
+
 /** A new date line after this long without anything. */
 const DATE_GAP_MS = 60 * 60_000;
 
@@ -61,25 +72,38 @@ export function layoutChat({ entries, participants, me, kind, endSideId, firstUn
   for (const entry of sorted) {
     const id = entryId(entry);
     const at = entryAt(entry);
-    if (!previousAt || !sameDay(previousAt, at) || at.getTime() - previousAt.getTime() >= DATE_GAP_MS) rows.push({ kind: "date", id: `date:${id}`, at });
+
+    if (!previousAt || !sameDay(previousAt, at) || at.getTime() - previousAt.getTime() >= DATE_GAP_MS)
+      rows.push({ kind: "date", id: `date:${id}`, at });
+
     if (id === firstUnreadId) rows.push({ kind: "unread", id: `unread:${id}` });
     previousAt = at;
 
     if (entry.kind === "event") rows.push({ kind: "event", id, event: entry.event });
-    else if (entry.kind === "question") rows.push({ kind: "question", id, question: entry.question, sender: participants.get(entry.question.askedBy) });
-    else if (entry.kind === "approval") rows.push({ kind: "approval", id, approval: entry.approval, sender: participants.get(entry.approval.askedBy) });
-    else if (entry.kind === "error") rows.push({ kind: "error", id, error: entry.error, sender: participants.get(entry.error.botId) });
+    else if (entry.kind === "question")
+      rows.push({ kind: "question", id, question: entry.question, sender: participants.get(entry.question.askedBy) });
+    else if (entry.kind === "approval")
+      rows.push({ kind: "approval", id, approval: entry.approval, sender: participants.get(entry.approval.askedBy) });
+    else if (entry.kind === "error")
+      rows.push({ kind: "error", id, error: entry.error, sender: participants.get(entry.error.botId) });
     else if (entry.kind === "exchange") {
       const before = rows.at(-1);
-      const marker = before?.kind === "exchanges" ? before : { kind: "exchanges" as const, id: `exchanges:${id}`, segments: [] };
+
+      const marker =
+        before?.kind === "exchanges" ? before : { kind: "exchanges" as const, id: `exchanges:${id}`, segments: [] };
+
       if (marker !== before) rows.push(marker);
       addToSegments(marker.segments, entry.exchange, participants);
     } else {
       const message = entry.message;
       const mine = message.senderId === me;
       const before = rows.at(-1);
+
       const continues =
-        before?.kind === "message" && before.message.senderId === message.senderId && message.at.getTime() - before.message.at.getTime() < RUN_GAP_MS;
+        before?.kind === "message" &&
+        before.message.senderId === message.senderId &&
+        message.at.getTime() - before.message.at.getTime() < RUN_GAP_MS;
+
       if (continues) before.last = false;
       rows.push({
         kind: "message",
@@ -94,15 +118,28 @@ export function layoutChat({ entries, participants, me, kind, endSideId, firstUn
       });
     }
   }
+
   return rows;
 }
 
-function addToSegments(segments: ExchangeSegment[], exchange: ChatExchangeView, participants: ReadonlyMap<string, ParticipantView>) {
+function addToSegments(
+  segments: ExchangeSegment[],
+  exchange: ChatExchangeView,
+  participants: ReadonlyMap<string, ParticipantView>,
+) {
   let segment = segments.find((s) => s.exchangeId === exchange.exchangeId && s.botId === exchange.counterpartId);
+
   if (!segment) {
-    segment = { exchangeId: exchange.exchangeId, botId: exchange.counterpartId, bot: participants.get(exchange.counterpartId), sent: 0, received: 0 };
+    segment = {
+      exchangeId: exchange.exchangeId,
+      botId: exchange.counterpartId,
+      bot: participants.get(exchange.counterpartId),
+      sent: 0,
+      received: 0,
+    };
     segments.push(segment);
   }
+
   segment[exchange.direction]++;
 }
 
@@ -117,18 +154,22 @@ export type ExchangePhrase =
 
 export function exchangePhrases(segments: readonly ExchangeSegment[]): ExchangePhrase[] {
   const phrases: ExchangePhrase[] = [];
+
   for (const segment of segments) {
     const before = phrases.at(-1);
+
     if (segment.received === 0) {
       if (before?.kind === "sent") before.segments.push(segment);
       else phrases.push({ kind: "sent", segments: [segment] });
     } else if (segment.sent === 0 && segment.received === 1) phrases.push({ kind: "received", segment });
     else phrases.push({ kind: "both", segment, count: segment.sent + segment.received });
   }
+
   return phrases;
 }
 
-const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const sameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 const time = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" });
 const weekday = new Intl.DateTimeFormat("en", { weekday: "long" });
@@ -140,11 +181,19 @@ const full = new Intl.DateTimeFormat("en", { dateStyle: "full", timeStyle: "shor
 export function dateLineLabel(at: Date, now: number): string {
   const today = new Date(now);
   const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const days = Math.floor((startOfToday - new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime()) / 86_400_000);
+
+  const days = Math.floor(
+    (startOfToday - new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime()) / 86_400_000,
+  );
+
   const clock = time.format(at);
+
   if (days <= 0) return `Today ${clock}`;
+
   if (days === 1) return `Yesterday ${clock}`;
+
   if (days < 7) return `${weekday.format(at)} ${clock}`;
+
   return `${(at.getFullYear() === today.getFullYear() ? monthDay : fullDate).format(at)}, ${clock}`;
 }
 
@@ -159,8 +208,13 @@ const shortWeekday = new Intl.DateTimeFormat("en", { weekday: "short" });
 /** Time of the last message in a list: "8:44 PM" today, "Yesterday", "Mon", then "Oct 3". */
 export function listTimeLabel(at: Date, now: number): string {
   const label = dateLineLabel(at, now);
+
   if (label.startsWith("Today")) return time.format(at);
+
   if (label.startsWith("Yesterday")) return "Yesterday";
   const days = (now - at.getTime()) / 86_400_000;
-  return days < 7 ? shortWeekday.format(at) : (at.getFullYear() === new Date(now).getFullYear() ? monthDay : fullDate).format(at);
+
+  return days < 7
+    ? shortWeekday.format(at)
+    : (at.getFullYear() === new Date(now).getFullYear() ? monthDay : fullDate).format(at);
 }

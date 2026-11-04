@@ -1,5 +1,7 @@
 import palette from "./palette.json";
+
 export { palette };
+
 export const accents = [
   { name: "default", label: "Default", palette: "blue" },
   { name: "grove", label: "Grove", palette: "emerald" },
@@ -8,7 +10,9 @@ export const accents = [
   { name: "iris", label: "Iris", palette: "violet" },
   { name: "rose", label: "Rose", palette: "pink" },
 ] as const;
+
 export type AccentName = (typeof accents)[number]["name"];
+
 export const typography = {
   body: { fontSize: 16, lineHeight: 24 },
   small: { fontSize: 14, lineHeight: 20 },
@@ -16,6 +20,7 @@ export const typography = {
   heading: { fontSize: 18, lineHeight: 28 },
   title: { fontSize: 24, lineHeight: 32 },
 } as const;
+
 export const radius = {
   sm: 6,
   md: 8,
@@ -24,7 +29,9 @@ export const radius = {
   bubble: 20,
   full: 9999,
 } as const;
+
 export const space = (units: number) => units * 4;
+
 export const statusTones = {
   creating: "sky",
   running: "sky",

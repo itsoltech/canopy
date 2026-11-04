@@ -20,14 +20,24 @@
   <IconButton icon="bars-3" label="Open menu" class="lg:hidden" onclick={() => shell.openMenu()} />
   <SidebarToggle />
   <nav aria-label="Breadcrumb" class="min-w-0 flex-1">
-    <ol role="list" class="flex min-w-0 items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400 [&>li:last-child]:text-zinc-950 dark:[&>li:last-child]:text-white">
+    <ol
+      role="list"
+      class="flex min-w-0 items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400 [&>li:last-child]:text-zinc-950 dark:[&>li:last-child]:text-white"
+    >
       {@render children()}
     </ol>
   </nav>
   {#if palette || actions}
     <div class="flex shrink-0 items-center gap-1">
       {#if palette}
-        <IconButton icon="magnifying-glass" label="Search and commands" aria-haspopup="dialog" tooltipOptions={{ hotkey: PALETTE_HOTKEY }} class="lg:pointer-fine:hidden" onclick={() => palette.show()} />
+        <IconButton
+          icon="magnifying-glass"
+          label="Search and commands"
+          aria-haspopup="dialog"
+          tooltipOptions={{ hotkey: PALETTE_HOTKEY }}
+          class="lg:pointer-fine:hidden"
+          onclick={() => palette.show()}
+        />
       {/if}
       {@render actions?.()}
     </div>

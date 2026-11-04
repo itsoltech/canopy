@@ -26,16 +26,26 @@
     avatar,
     class: className,
     ...handlers
-  }: { conversation: ConversationView; href: string; current?: boolean; avatar: Snippet; class?: ClassValue } & ConversationHandlers = $props();
+  }: {
+    conversation: ConversationView;
+    href: string;
+    current?: boolean;
+    avatar: Snippet;
+    class?: ClassValue;
+  } & ConversationHandlers = $props();
 
   let menuOpen = $state(false);
   const title = $derived(conversationTitle(conversation));
   const home = useBotHome(() => conversation.nodeId);
   const items = $derived(conversationMenu(conversation, home.reason ? {} : handlers));
+
   // Who wrote the last message, when that is not the 1:1 chat's own bot: "You: …", "Notes: …".
   const author = $derived.by(() => {
     const last = conversation.lastMessage;
-    if (!last || last.failed || (conversation.kind === "direct" && last.senderId === conversation.bots[0]?.id)) return "";
+
+    if (!last || last.failed || (conversation.kind === "direct" && last.senderId === conversation.bots[0]?.id))
+      return "";
+
     return last.senderId === "me" ? "You" : (conversation.bots.find((b) => b.id === last.senderId)?.name ?? "");
   });
 </script>
@@ -63,14 +73,23 @@
       {#if conversation.lastMessage}
         <time
           datetime={conversation.lastMessage.at.toISOString()}
-          class={["shrink-0 text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400", items.length > 0 && "pointer-fine:group-hover:invisible group-has-[button:focus-visible]:invisible group-has-aria-expanded:invisible"]}
+          class={[
+            "shrink-0 text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400",
+            items.length > 0 &&
+              "group-has-aria-expanded:invisible group-has-[button:focus-visible]:invisible pointer-fine:group-hover:invisible",
+          ]}
         >
           {listTimeLabel(conversation.lastMessage.at, clock.now)}
         </time>
       {/if}
     </p>
     <p class="flex items-center gap-2">
-      <span class={["min-w-0 flex-1 truncate text-sm/5", conversation.unread > 0 ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-500 dark:text-zinc-400"]}>
+      <span
+        class={[
+          "min-w-0 flex-1 truncate text-sm/5",
+          conversation.unread > 0 ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-500 dark:text-zinc-400",
+        ]}
+      >
         {#if !conversation.lastMessage}
           No messages yet
         {:else if conversation.lastMessage.failed}

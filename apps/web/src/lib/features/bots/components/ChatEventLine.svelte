@@ -21,10 +21,18 @@
   };
 </script>
 
-<div class={["flex flex-wrap items-center justify-center gap-1.5 px-3 text-center text-sm/5 text-zinc-500 dark:text-zinc-400", className]} title={fullDateLabel(event.at)}>
+<div
+  class={[
+    "flex flex-wrap items-center justify-center gap-1.5 px-3 text-center text-sm/5 text-zinc-500 dark:text-zinc-400",
+    className,
+  ]}
+  title={fullDateLabel(event.at)}
+>
   <Icon name={icons[event.kind]} class="h-lh fill-zinc-400 dark:fill-zinc-500" />
   <span class="min-w-0 text-pretty">
-    {event.text}{#if event.detail}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span><span class="text-zinc-700 dark:text-zinc-300">{event.detail}</span>{/if}
+    {event.text}{#if event.detail}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span><span
+        class="text-zinc-700 dark:text-zinc-300">{event.detail}</span
+      >{/if}
   </span>
   {#if event.changes?.length}<Button size="sm" variant="ghost" onclick={() => (viewing = true)}>View</Button>{/if}
 </div>

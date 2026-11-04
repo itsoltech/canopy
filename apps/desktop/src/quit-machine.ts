@@ -5,12 +5,17 @@ export const HOLD_MS = 1_000;
 const HINT_MS = 2_500;
 const REPEAT_MARGIN_MS = 100;
 
-export interface KeyRepeatTiming { initialDelayMs: number; intervalMs: number }
+export interface KeyRepeatTiming {
+  initialDelayMs: number;
+  intervalMs: number;
+}
+
 export interface QuitClock {
   now(): number;
   setTimeout(callback: () => void, delayMs: number): unknown;
   clearTimeout(timer: unknown): void;
 }
+
 export interface QuitMachineOptions {
   clock: QuitClock;
   shortcut: string;
@@ -21,11 +26,25 @@ export interface QuitMachineOptions {
 }
 
 /** Prefer AppKit's effective timing (also works with unset defaults); ticks are a fallback. */
-export function macKeyRepeatTiming(initial: number, interval: number, effective?: KeyRepeatTiming): KeyRepeatTiming | null {
+export function macKeyRepeatTiming(
+  initial: number,
+  interval: number,
+  effective?: KeyRepeatTiming,
+): KeyRepeatTiming | null {
   // Respect an explicit Repeat Off sentinel even if AppKit still has cached timings.
   if (initial < 0 || interval < 0 || initial * 15 > 5_000 || interval * 15 > 500) return null;
   const timing = effective ?? { initialDelayMs: initial * 15, intervalMs: interval * 15 };
-  if (!Number.isFinite(timing.initialDelayMs) || !Number.isFinite(timing.intervalMs) || timing.initialDelayMs <= 0 || timing.intervalMs <= 0 || timing.initialDelayMs > 5_000 || timing.intervalMs > 500) return null;
+
+  if (
+    !Number.isFinite(timing.initialDelayMs) ||
+    !Number.isFinite(timing.intervalMs) ||
+    timing.initialDelayMs <= 0 ||
+    timing.intervalMs <= 0 ||
+    timing.initialDelayMs > 5_000 ||
+    timing.intervalMs > 500
+  )
+    return null;
+
   return timing;
 }
 
@@ -35,7 +54,10 @@ export class QuitMachine {
   private armedAt: number | undefined;
   private hold: { startedAt: number; deadline: number; durationMs: number; timing: KeyRepeatTiming } | undefined;
 
-  constructor(public mode: QuitShortcut, private readonly options: QuitMachineOptions) {}
+  constructor(
+    public mode: QuitShortcut,
+    private readonly options: QuitMachineOptions,
+  ) {}
 
   private clearTimer() {
     if (this.timer !== undefined) this.options.clock.clearTimeout(this.timer);
@@ -62,6 +84,7 @@ export class QuitMachine {
 
   release() {
     this.options.log("release");
+
     // A release separates presses, but must not disarm the double-press window.
     if (this.hold) this.cancel("release");
   }
@@ -80,33 +103,60 @@ export class QuitMachine {
   press(isRepeat: boolean) {
     const now = this.options.clock.now();
     this.options.log(isRepeat ? "repeat" : "press");
-    if (this.mode === "immediately") { this.quit(); return; }
+
+    if (this.mode === "immediately") {
+      this.quit();
+
+      return;
+    }
 
     if (this.hold) {
-      if (!isRepeat) { this.cancel("new-press"); }
-      else if (now >= this.hold.deadline) { this.cancel("repeat-timeout"); return; }
-      else {
+      if (!isRepeat) {
+        this.cancel("new-press");
+      } else if (now >= this.hold.deadline) {
+        this.cancel("repeat-timeout");
+
+        return;
+      } else {
         // Quit only on positive evidence of a held key, never from a duration timer.
-        if (now - this.hold.startedAt >= this.hold.durationMs) { this.quit(); return; }
+        if (now - this.hold.startedAt >= this.hold.durationMs) {
+          this.quit();
+
+          return;
+        }
+
         this.hold.deadline = now + this.hold.timing.intervalMs + REPEAT_MARGIN_MS;
         this.watchHold();
+
         return;
       }
     }
+
     // A repeat can neither arm nor confirm Press twice, nor restart a cancelled hold.
     if (isRepeat) return;
 
     const timing = this.options.repeatTiming();
+
     if (this.mode === "press-twice" || !timing) {
-      if (this.armedAt !== undefined && now - this.armedAt < DOUBLE_PRESS_MS) { this.quit(); return; }
+      if (this.armedAt !== undefined && now - this.armedAt < DOUBLE_PRESS_MS) {
+        this.quit();
+
+        return;
+      }
+
       this.cancel("first-press");
       this.armedAt = now;
-      if (this.mode === "hold") this.publish("hint", HINT_MS, `Hold needs key repeat. Press ${this.options.shortcut} twice to quit`);
+
+      if (this.mode === "hold")
+        this.publish("hint", HINT_MS, `Hold needs key repeat. Press ${this.options.shortcut} twice to quit`);
       this.timer = this.options.clock.setTimeout(() => {
         this.armedAt = undefined;
         this.options.log("timeout double-press");
-        this.hint(this.mode === "hold" ? `Hold needs key repeat. Press ${this.options.shortcut} twice to quit` : undefined);
+        this.hint(
+          this.mode === "hold" ? `Hold needs key repeat. Press ${this.options.shortcut} twice to quit` : undefined,
+        );
       }, DOUBLE_PRESS_MS);
+
       return;
     }
 

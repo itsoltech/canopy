@@ -5,10 +5,21 @@ import { claudeNativeToolOptions, codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_
 describe("native provider tools", () => {
   test("Claude: subagent and scheduling tools are disabled by default, each category can opt back in", () => {
     expect(claudeNativeToolOptions(DEFAULT_NATIVE_TOOL_POLICY).disallowedTools).toEqual([
-      "Agent", "Task", "Workflow", "ListAgents", "SendMessage", "SubagentHandback",
-      "ScheduleWakeup", "CronCreate", "CronDelete", "CronList", "RemoteTrigger",
+      "Agent",
+      "Task",
+      "Workflow",
+      "ListAgents",
+      "SendMessage",
+      "SubagentHandback",
+      "ScheduleWakeup",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "RemoteTrigger",
     ]);
-    expect(claudeNativeToolOptions({ nativeSubagents: true, nativeScheduling: false }).disallowedTools).not.toContain("Agent");
+    expect(claudeNativeToolOptions({ nativeSubagents: true, nativeScheduling: false }).disallowedTools).not.toContain(
+      "Agent",
+    );
     expect(claudeNativeToolOptions({ nativeSubagents: true, nativeScheduling: true }).disallowedTools).toEqual([]);
   });
 
@@ -21,15 +32,23 @@ describe("native provider tools", () => {
 
   test("Codex: every feature is pinned explicitly", () => {
     expect(codexNativeToolOverrides(DEFAULT_NATIVE_TOOL_POLICY)).toEqual([
-      "-c", "features.multi_agent=false",
-      "-c", "features.multi_agent_v2=false",
-      "-c", "features.in_app_local_automation=false",
-      "-c", "features.sleep_tool=false",
-      "-c", "features.apps=false",
-      "-c", "agents.enabled=false",
+      "-c",
+      "features.multi_agent=false",
+      "-c",
+      "features.multi_agent_v2=false",
+      "-c",
+      "features.in_app_local_automation=false",
+      "-c",
+      "features.sleep_tool=false",
+      "-c",
+      "features.apps=false",
+      "-c",
+      "agents.enabled=false",
     ]);
     // Opting back in to native subagents must not keep the catalog override that removes them.
-    expect(codexNativeToolOverrides({ ...DEFAULT_NATIVE_TOOL_POLICY, nativeSubagents: true })).not.toContain("agents.enabled=false");
+    expect(codexNativeToolOverrides({ ...DEFAULT_NATIVE_TOOL_POLICY, nativeSubagents: true })).not.toContain(
+      "agents.enabled=false",
+    );
   });
 
   // --print-startup-config does not reject unknown feature keys, so check the effective state instead:
@@ -41,6 +60,7 @@ describe("native provider tools", () => {
     const result = Bun.spawnSync([codexBin!, ...overrides, "features", "list"], { env: launch.env });
     expect(result.exitCode).toBe(0);
     const wanted = new Set(["multi_agent", "multi_agent_v2", "in_app_local_automation", "sleep_tool", "apps"]);
+
     const state = Object.fromEntries(
       result.stdout
         .toString()
@@ -49,6 +69,13 @@ describe("native provider tools", () => {
         .filter((cols) => wanted.has(cols[0] ?? ""))
         .map((cols) => [cols[0], cols.at(-1)]),
     );
-    expect(state).toEqual({ multi_agent: "false", multi_agent_v2: "false", in_app_local_automation: "false", sleep_tool: "false", apps: "false" });
+
+    expect(state).toEqual({
+      multi_agent: "false",
+      multi_agent_v2: "false",
+      in_app_local_automation: "false",
+      sleep_tool: "false",
+      apps: "false",
+    });
   });
 });

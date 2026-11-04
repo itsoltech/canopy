@@ -13,6 +13,7 @@
   const shown = $derived(parts.filter((p) => p.text.trim() !== ""));
   const memory = useRemembered<boolean>("raw");
   let open = $state(memory?.get() ?? false);
+
   $effect(() => memory?.set(open));
 </script>
 

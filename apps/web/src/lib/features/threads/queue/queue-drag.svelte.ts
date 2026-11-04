@@ -18,7 +18,11 @@ export class QueueDrag {
   readonly #onmove: (id: string, index: number) => void;
   readonly #ondrop: (id: string) => void;
 
-  constructor(options: { list: () => HTMLElement | undefined; onmove: (id: string, index: number) => void; ondrop: (id: string) => void }) {
+  constructor(options: {
+    list: () => HTMLElement | undefined;
+    onmove: (id: string, index: number) => void;
+    ondrop: (id: string) => void;
+  }) {
     this.#list = options.list;
     this.#onmove = options.onmove;
     this.#ondrop = options.ondrop;
@@ -28,6 +32,7 @@ export class QueueDrag {
     const list = this.#list();
     const handle = event.currentTarget as HTMLElement;
     const row = handle.closest<HTMLElement>("[data-queue-row]");
+
     if (!list || !row || event.button !== 0 || this.id) return;
     event.preventDefault();
     this.id = id;
@@ -37,11 +42,14 @@ export class QueueDrag {
     let pointerY = event.clientY;
 
     const rows = () => [...list.querySelectorAll<HTMLElement>("[data-queue-row]")];
+
     const place = () => {
       const top = pointerY - list.getBoundingClientRect().top - grab;
       this.offset = top - row.offsetTop;
+
       return top + row.offsetHeight / 2;
     };
+
     // On the window, not with pointer capture: moving the row in the DOM would release the capture.
     const move = (next: PointerEvent) => {
       if (next.pointerId !== event.pointerId) return;
@@ -49,11 +57,13 @@ export class QueueDrag {
       const middle = place();
       const others = rows().filter((r) => r !== row);
       const index = others.filter((r) => r.offsetTop + r.offsetHeight / 2 < middle).length;
+
       if (index !== rows().indexOf(row)) {
         this.#onmove(id, index);
         void tick().then(place);
       }
     };
+
     const end = (last: PointerEvent) => {
       if (last.pointerId !== event.pointerId) return;
       window.removeEventListener("pointermove", move);
@@ -63,6 +73,7 @@ export class QueueDrag {
       this.offset = 0;
       this.#ondrop(id);
     };
+
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);

@@ -25,23 +25,41 @@
   } = $props();
 
   let input = $state<HTMLInputElement>();
+
   const entries: { char: TriggerChar; label: string; description: string; kind: MentionKind }[] = [
     { char: "/", label: "Command", description: "Run a command of the agent", kind: MentionKind.COMMAND },
-    { char: "$", label: "Skill or plugin", description: "Point the agent to a skill or a plugin", kind: MentionKind.SKILL },
+    {
+      char: "$",
+      label: "Skill or plugin",
+      description: "Point the agent to a skill or a plugin",
+      kind: MentionKind.SKILL,
+    },
     { char: "@", label: "File", description: "A file or folder of the thread's workspace", kind: MentionKind.FILE },
     { char: "#", label: "Thread", description: "Another thread the agent can read", kind: MentionKind.THREAD },
   ];
+
   const offered = $derived(ontrigger ? entries.filter((e) => triggers.has(e.char)) : []);
 </script>
 
 <DropdownMenu label="Add to the message" placement="top-start">
-  {#snippet trigger(props)}<IconButton icon="plus" label="Add files, commands, skills…" size="sm" {disabled} {...props} />{/snippet}
+  {#snippet trigger(props)}<IconButton
+      icon="plus"
+      label="Add files, commands, skills…"
+      size="sm"
+      {disabled}
+      {...props}
+    />{/snippet}
   {#if onfiles}
     <MenuItem icon="paper-clip" onselect={() => input?.click()}>Attach files</MenuItem>
   {/if}
   {#if onfiles && offered.length > 0}<MenuSeparator />{/if}
   {#each offered as entry (entry.char)}
-    <MenuItem icon={kindLook({ kind: entry.kind, isDir: false }).icon} shortcut={entry.char} description={entry.description} onselect={() => ontrigger?.(entry.char)}>
+    <MenuItem
+      icon={kindLook({ kind: entry.kind, isDir: false }).icon}
+      shortcut={entry.char}
+      description={entry.description}
+      onselect={() => ontrigger?.(entry.char)}
+    >
       {entry.label}
     </MenuItem>
   {/each}

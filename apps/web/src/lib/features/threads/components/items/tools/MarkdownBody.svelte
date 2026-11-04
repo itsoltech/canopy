@@ -13,8 +13,19 @@
    * markdown, collapsed when long; short arguments as fields.
    */
   let { call, input, status, streaming }: ToolBodyProps = $props();
-  const prose = $derived(Object.entries(input).filter((entry): entry is [string, string] => typeof entry[1] === "string" && (entry[1].includes("\n") || entry[1].length > 120)));
-  const rest = $derived({ kind: "object" as const, fields: fieldsOf(input).filter((f) => !prose.some(([key]) => key === f.key) && !isEmptyNode(f.node)) });
+
+  const prose = $derived(
+    Object.entries(input).filter(
+      (entry): entry is [string, string] =>
+        typeof entry[1] === "string" && (entry[1].includes("\n") || entry[1].length > 120),
+    ),
+  );
+
+  const rest = $derived({
+    kind: "object" as const,
+    fields: fieldsOf(input).filter((f) => !prose.some(([key]) => key === f.key) && !isEmptyNode(f.node)),
+  });
+
   const result = $derived(stripReminders(unwrapContent(call.output)).trim());
 </script>
 

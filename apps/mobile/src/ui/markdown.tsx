@@ -5,11 +5,12 @@ import { font, styles, useColors } from "./theme";
 
 // Native text only: no HTML/WebView, embedded remote images, or executable URL schemes.
 function openLink(url: string) {
-  if (/^https?:\/\//i.test(url))
-    void Linking.openURL(url).catch(() => undefined);
+  if (/^https?:\/\//i.test(url)) void Linking.openURL(url).catch(() => undefined);
 }
+
 function Inline({ tokens }: { tokens: Token[] }) {
   const c = useColors();
+
   return (
     <>
       {tokens.map((token, i) => {
@@ -21,27 +22,28 @@ function Inline({ tokens }: { tokens: Token[] }) {
           ) : (
             token.raw
           );
+
         if (token.type === "strong")
           return (
             <Text key={i} style={{ fontFamily: font.semibold }}>
               {nested}
             </Text>
           );
+
         if (token.type === "em")
           return (
             <Text key={i} style={{ fontStyle: "italic" }}>
               {nested}
             </Text>
           );
+
         if (token.type === "codespan")
           return (
-            <Text
-              key={i}
-              style={{ fontFamily: "monospace", backgroundColor: c.inset }}
-            >
+            <Text key={i} style={{ fontFamily: "monospace", backgroundColor: c.inset }}>
               {token.text}
             </Text>
           );
+
         if (token.type === "link")
           return (
             <Text
@@ -53,23 +55,25 @@ function Inline({ tokens }: { tokens: Token[] }) {
               {nested}
             </Text>
           );
-        if (token.type === "image")
-          return <Text key={i}>[Image: {token.text || "attachment"}]</Text>;
+
+        if (token.type === "image") return <Text key={i}>[Image: {token.text || "attachment"}]</Text>;
+
         if (token.type === "br") return <Text key={i}>{"\n"}</Text>;
+
         return <Fragment key={i}>{nested}</Fragment>;
       })}
     </>
   );
 }
+
 function Block({ token }: { token: Token }) {
   const c = useColors();
+
   if (token.type === "space") return null;
+
   if (token.type === "code")
     return (
-      <ScrollView
-        horizontal
-        style={{ padding: 14, borderRadius: 10, backgroundColor: c.inset }}
-      >
+      <ScrollView horizontal style={{ padding: 14, borderRadius: 10, backgroundColor: c.inset }}>
         <Text
           selectable
           style={{
@@ -83,6 +87,7 @@ function Block({ token }: { token: Token }) {
         </Text>
       </ScrollView>
     );
+
   if (token.type === "list")
     return (
       <View style={{ gap: 6 }}>
@@ -100,6 +105,7 @@ function Block({ token }: { token: Token }) {
         ))}
       </View>
     );
+
   if (token.type === "blockquote")
     return (
       <View
@@ -115,16 +121,14 @@ function Block({ token }: { token: Token }) {
         ))}
       </View>
     );
-  if (token.type === "hr")
-    return <View style={{ height: 1, backgroundColor: c.line }} />;
+
+  if (token.type === "hr") return <View style={{ height: 1, backgroundColor: c.line }} />;
+
   if (token.type === "table")
     return (
       <ScrollView horizontal>
         <View style={{ gap: 8 }}>
-          <Text
-            selectable
-            style={[styles.body, { color: c.text, fontWeight: "600" }]}
-          >
+          <Text selectable style={[styles.body, { color: c.text, fontWeight: "600" }]}>
             {token.header.map((h: Tokens.TableCell) => h.text).join("   |   ")}
           </Text>
           {token.rows.map((row: Tokens.TableCell[], i: number) => (
@@ -135,8 +139,8 @@ function Block({ token }: { token: Token }) {
         </View>
       </ScrollView>
     );
-  const tokens =
-    "tokens" in token ? (token.tokens as Token[] | undefined) : undefined;
+  const tokens = "tokens" in token ? (token.tokens as Token[] | undefined) : undefined;
+
   return (
     <Text
       selectable
@@ -153,18 +157,14 @@ function Block({ token }: { token: Token }) {
           : null,
       ]}
     >
-      {tokens ? (
-        <Inline tokens={tokens} />
-      ) : "text" in token ? (
-        String(token.text)
-      ) : (
-        token.raw
-      )}
+      {tokens ? <Inline tokens={tokens} /> : "text" in token ? String(token.text) : token.raw}
     </Text>
   );
 }
+
 export function Markdown({ text }: { text: string }) {
   const tokens = useMemo(() => marked.lexer(text, { gfm: true }), [text]);
+
   return (
     <View style={{ gap: 12 }}>
       {tokens.map((token, i) => (

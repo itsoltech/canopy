@@ -11,4 +11,7 @@
   let { class: className, children }: { class?: ClassValue; children?: Snippet } = $props();
 </script>
 
-<span class={["t-resize flex shrink-0 justify-end overflow-clip [overflow-clip-margin:--spacing(1)]", className]} {@attach resizeToContent}>{@render children?.()}</span>
+<span
+  class={["t-resize flex shrink-0 justify-end overflow-clip [overflow-clip-margin:--spacing(1)]", className]}
+  {@attach resizeToContent}>{@render children?.()}</span
+>

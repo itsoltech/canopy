@@ -21,14 +21,21 @@
     kind,
     problems,
     class: className,
-  }: { rows: EnvVarDraft[]; kind: ProviderProfileKind; problems: Record<string, string>; class?: ClassValue } = $props();
+  }: {
+    rows: EnvVarDraft[];
+    kind: ProviderProfileKind;
+    problems: Record<string, string>;
+    class?: ClassValue;
+  } = $props();
 
   const reserved = $derived([...deniedEnvNames(ruleKind(kind)), ...deniedEnvPrefixes.map((p) => `${p}*`)].join(", "));
 
   function add() {
     rows = [...rows, envRow()];
     // Focus the new name field once it is in the DOM.
-    requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-env-name="${rows.at(-1)?.key}"]`)?.focus());
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLInputElement>(`[data-env-name="${rows.at(-1)?.key}"]`)?.focus(),
+    );
   }
 
   function setSecret(row: EnvVarDraft, secret: boolean) {
@@ -43,7 +50,11 @@
     <ul role="list" class="grid gap-3">
       {#each rows as row, index (row.key)}
         {@const problem = problems[row.key]}
-        <li class="grid gap-2 rounded-xl bg-zinc-950/2.5 p-3 dark:bg-white/2.5" transition:expand animate:flip={{ duration: duration("fast") }}>
+        <li
+          class="grid gap-2 rounded-xl bg-zinc-950/2.5 p-3 dark:bg-white/2.5"
+          transition:expand
+          animate:flip={{ duration: duration("fast") }}
+        >
           <div class="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] sm:items-start">
             <Input
               name="env-name-{index}"
@@ -67,9 +78,22 @@
                 placeholder="Secret value"
               />
             {:else}
-              <Input name="env-value-{index}" bind:value={row.value} aria-label="Variable {index + 1} value" placeholder="value" autocomplete="off" spellcheck="false" class="font-mono" />
+              <Input
+                name="env-value-{index}"
+                bind:value={row.value}
+                aria-label="Variable {index + 1} value"
+                placeholder="value"
+                autocomplete="off"
+                spellcheck="false"
+                class="font-mono"
+              />
             {/if}
-            <IconButton icon="trash" label="Remove {row.name || 'variable'}" class="max-sm:hidden" onclick={() => (rows = rows.filter((r) => r !== row))} />
+            <IconButton
+              icon="trash"
+              label="Remove {row.name || 'variable'}"
+              class="max-sm:hidden"
+              onclick={() => (rows = rows.filter((r) => r !== row))}
+            />
           </div>
           <div class="flex items-center justify-between gap-3">
             <Checkbox
@@ -77,7 +101,13 @@
               label="Secret"
               bind:checked={() => row.secret, (secret) => setSecret(row, secret)}
             />
-            <Button size="sm" variant="ghost" icon="trash" class="sm:hidden" onclick={() => (rows = rows.filter((r) => r !== row))}>Remove</Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="trash"
+              class="sm:hidden"
+              onclick={() => (rows = rows.filter((r) => r !== row))}>Remove</Button
+            >
           </div>
           <FieldError message={problem} />
         </li>
@@ -86,6 +116,8 @@
   {/if}
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
     <Button size="sm" icon="plus" onclick={add}>Add variable</Button>
-    <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">Reserved: <span class="font-mono">{reserved}</span></p>
+    <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
+      Reserved: <span class="font-mono">{reserved}</span>
+    </p>
   </div>
 </div>

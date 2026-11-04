@@ -16,9 +16,17 @@
     optional = false,
     class: className,
     children,
-  }: { label: string; description?: string; error?: string | undefined; optional?: boolean; class?: ClassValue; children: Snippet } = $props();
+  }: {
+    label: string;
+    description?: string;
+    error?: string | undefined;
+    optional?: boolean;
+    class?: ClassValue;
+    children: Snippet;
+  } = $props();
 
   const id = $props.id();
+
   provideField({
     id,
     get describedBy() {
@@ -31,11 +39,16 @@
 </script>
 
 <div class={["grid gap-1.5", className]}>
-  <label for={id} class="flex items-baseline justify-between gap-2 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">
+  <label
+    for={id}
+    class="flex items-baseline justify-between gap-2 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white"
+  >
     {label}
     {#if optional}<span class="text-sm/6 font-normal text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Optional</span>{/if}
   </label>
   <div class="grid gap-1.5" {@attach shake(error)}>{@render children()}</div>
-  {#if description}<p id="{id}-description" class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">{description}</p>{/if}
+  {#if description}<p id="{id}-description" class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
+      {description}
+    </p>{/if}
   <FieldError id="{id}-error" message={error} />
 </div>

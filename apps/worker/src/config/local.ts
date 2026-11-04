@@ -35,9 +35,15 @@ export type Platform = "linux" | "darwin" | "win32" | (string & {});
 const APP_DIR = "canopy";
 
 /** Default config file location per OS; CANOPY_WORKER_CONFIG overrides it. */
-export function defaultConfigPath(env: Readonly<Record<string, string | undefined>>, platform: Platform, home = homedir()): string {
+export function defaultConfigPath(
+  env: Readonly<Record<string, string | undefined>>,
+  platform: Platform,
+  home = homedir(),
+): string {
   const configured = env["CANOPY_WORKER_CONFIG"];
+
   if (configured) return configured;
+
   switch (platform) {
     case "win32":
       return join(env["APPDATA"] ?? join(home, "AppData", "Roaming"), APP_DIR, "worker.json");
@@ -48,7 +54,11 @@ export function defaultConfigPath(env: Readonly<Record<string, string | undefine
   }
 }
 
-export function defaultDataDir(env: Readonly<Record<string, string | undefined>>, platform: Platform, home = homedir()): string {
+export function defaultDataDir(
+  env: Readonly<Record<string, string | undefined>>,
+  platform: Platform,
+  home = homedir(),
+): string {
   switch (platform) {
     case "win32":
       return join(env["LOCALAPPDATA"] ?? join(home, "AppData", "Local"), APP_DIR);
@@ -62,26 +72,37 @@ export function defaultDataDir(env: Readonly<Record<string, string | undefined>>
 /** Decodes the file content strictly (unknown keys are errors: typos must not be ignored). */
 export function parseLocalConfig(text: string): Result.Result<LocalConfig, string> {
   let raw: unknown;
+
   try {
     raw = JSON.parse(text);
   } catch {
     return Result.fail("worker config is not valid JSON");
   }
+
   const decoded = Schema.decodeUnknownResult(LocalConfig)(raw, { onExcessProperty: "error" });
-  return Result.isSuccess(decoded) ? Result.succeed(decoded.success) : Result.fail(`worker config: ${decoded.failure.message}`);
+
+  return Result.isSuccess(decoded)
+    ? Result.succeed(decoded.success)
+    : Result.fail(`worker config: ${decoded.failure.message}`);
 }
 
 /** POSIX only: the credential file must not be readable or writable by group or others. */
 export function checkFilePermissions(path: string, platform: Platform): string | undefined {
   if (platform === "win32") return undefined; // ACLs are set by the installer
   const mode = statSync(path).mode & 0o777;
-  return (mode & 0o077) === 0 ? undefined : `${path} is accessible by other users (mode ${mode.toString(8)}); run chmod 600`;
+
+  return (mode & 0o077) === 0
+    ? undefined
+    : `${path} is accessible by other users (mode ${mode.toString(8)}); run chmod 600`;
 }
 
 export async function loadLocalConfig(path: string, platform: Platform): Promise<Result.Result<LocalConfig, string>> {
   const file = Bun.file(path);
+
   if (!(await file.exists())) return Result.fail(`worker config not found at ${path} (enroll the worker first)`);
   const permissions = checkFilePermissions(path, platform);
+
   if (permissions) return Result.fail(permissions);
+
   return parseLocalConfig(await file.text());
 }

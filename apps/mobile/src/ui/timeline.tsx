@@ -7,6 +7,7 @@ import { styles, useColors } from "./theme";
 
 function workLabel(item: Item) {
   const content = item.content;
+
   switch (content.case) {
     case "commandExecution":
       return content.value.command;
@@ -26,28 +27,29 @@ function workLabel(item: Item) {
       return content.case?.replace(/([A-Z])/g, " $1") ?? "Activity";
   }
 }
+
 function workDetail(item: Item) {
   const value = item.content.value;
+
   if (!value) return "";
+
   if ("output" in value) return String(value.output);
+
   if ("summary" in value && value.summary) return String(value.summary);
+
   if ("text" in value) return String(value.text);
+
   if ("changes" in value) return value.changes.map((c) => c.path).join("\n");
+
   return "";
 }
-export function UserMessageView({
-  text,
-  note,
-}: {
-  text: string;
-  note?: string;
-}) {
+
+export function UserMessageView({ text, note }: { text: string; note?: string }) {
   const c = useColors();
+
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
-      {note ? (
-        <Text style={[styles.meta, { color: c.muted }]}>{note}</Text>
-      ) : null}
+      {note ? <Text style={[styles.meta, { color: c.muted }]}>{note}</Text> : null}
       <View
         style={{
           maxWidth: "85%",
@@ -65,22 +67,16 @@ export function UserMessageView({
     </View>
   );
 }
-export function WorkGroup({
-  items,
-  duration,
-  working,
-}: {
-  items: Item[];
-  duration: number;
-  working: boolean;
-}) {
+
+export function WorkGroup({ items, duration, working }: { items: Item[]; duration: number; working: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
-  const running =
-    working || items.some((i) => i.status === ItemStatus.IN_PROGRESS);
+  const running = working || items.some((i) => i.status === ItemStatus.IN_PROGRESS);
+
   const label = running
     ? "Working…"
     : `Worked for ${duration >= 60 ? `${Math.floor(duration / 60)}m ${duration % 60}s` : `${duration}s`}`;
+
   return (
     <View style={{ gap: 4 }}>
       <Pressable
@@ -109,9 +105,11 @@ export function WorkGroup({
     </View>
   );
 }
+
 function ToolRow({ item }: { item: Item }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
+
   return (
     <View style={{ gap: 8 }}>
       <Pressable
@@ -128,12 +126,7 @@ function ToolRow({ item }: { item: Item }) {
           },
         ]}
       >
-        <Icon
-          name={
-            item.content.case === "commandExecution" ? "command-line" : "wrench"
-          }
-          size={14}
-        />
+        <Icon name={item.content.case === "commandExecution" ? "command-line" : "wrench"} size={14} />
         <Text
           numberOfLines={1}
           style={[
@@ -149,42 +142,29 @@ function ToolRow({ item }: { item: Item }) {
         <Icon name={open ? "chevron-down" : "chevron-right"} size={12} />
       </Pressable>
       {open && (
-        <Text
-          selectable
-          style={[
-            styles.meta,
-            { color: c.muted, fontFamily: "monospace", padding: 12 },
-          ]}
-        >
+        <Text selectable style={[styles.meta, { color: c.muted, fontFamily: "monospace", padding: 12 }]}>
           {workDetail(item).slice(0, 12000) || "No additional output."}
         </Text>
       )}
     </View>
   );
 }
-export function TimelineTurn({
-  turn,
-  entries,
-}: {
-  turn: ui.Turn;
-  entries: ui.TimelineItem[];
-}) {
+
+export function TimelineTurn({ turn, entries }: { turn: ui.Turn; entries: ui.TimelineItem[] }) {
   const c = useColors();
   const items = entries.flatMap((e) => (e.item ? [e.item] : []));
+
   const work = items.filter(
-    (i) =>
-      !["agentMessage", "userMessage", "interactionPrompt"].includes(
-        i.content.case ?? "",
-      ),
+    (i) => !["agentMessage", "userMessage", "interactionPrompt"].includes(i.content.case ?? ""),
   );
+
   const message = turn.messageText || turn.inputText;
+
   const duration = Math.max(
     0,
-    Number(
-      (turn.completedAt?.seconds ?? turn.startedAt?.seconds ?? 0n) -
-        (turn.startedAt?.seconds ?? 0n),
-    ),
+    Number((turn.completedAt?.seconds ?? turn.startedAt?.seconds ?? 0n) - (turn.startedAt?.seconds ?? 0n)),
   );
+
   return (
     <View style={{ gap: 16, paddingBottom: 28 }}>
       {message ? (
@@ -205,10 +185,7 @@ export function TimelineTurn({
         <WorkGroup
           items={work}
           duration={duration}
-          working={
-            turn.status === "running" ||
-            items.some((i) => i.status === ItemStatus.IN_PROGRESS)
-          }
+          working={turn.status === "running" || items.some((i) => i.status === ItemStatus.IN_PROGRESS)}
         />
       )}
       {items.map((item) =>
@@ -221,25 +198,17 @@ export function TimelineTurn({
             )}
             <Markdown text={item.content.value.text} />
             {item.status === ItemStatus.IN_PROGRESS && (
-              <Text
-                accessibilityLiveRegion="polite"
-                style={[styles.meta, { color: c.muted }]}
-              >
+              <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted }]}>
                 Working…
               </Text>
             )}
           </View>
-        ) : item.content.case === "userMessage" &&
-          item.content.value.text !== message ? (
+        ) : item.content.case === "userMessage" && item.content.value.text !== message ? (
           <UserMessageView key={item.itemId} text={item.content.value.text} />
         ) : null,
       )}
       {turn.error ? (
-        <Text
-          selectable
-          accessibilityRole="alert"
-          style={[styles.body, { color: c.danger }]}
-        >
+        <Text selectable accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>
           {turn.error}
         </Text>
       ) : null}

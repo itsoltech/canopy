@@ -7,10 +7,17 @@ import { connect } from "node:net";
 export function healthcheck(env: Readonly<Record<string, string | undefined>>): Promise<number> {
   const configured = env["CANOPY_HOST"] ?? "0.0.0.0";
   const host = configured === "0.0.0.0" || configured === "::" ? "127.0.0.1" : configured;
+
   return new Promise((done) => {
     const socket = connect({ host, port: Number(env["CANOPY_PORT"] ?? 7443), timeout: 3000 });
-    socket.once("connect", () => { socket.destroy(); done(0); });
-    socket.once("timeout", () => { socket.destroy(); done(1); });
+    socket.once("connect", () => {
+      socket.destroy();
+      done(0);
+    });
+    socket.once("timeout", () => {
+      socket.destroy();
+      done(1);
+    });
     socket.once("error", () => done(1));
   });
 }

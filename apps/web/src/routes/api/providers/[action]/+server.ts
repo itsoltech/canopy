@@ -22,11 +22,19 @@ const methods = {
 
 export const POST: RequestHandler = async ({ params, request }) => {
   const action = params.action as ProviderAction;
+
   if (!Object.hasOwn(methods, action)) error(404, "unknown action");
   const [requestSchema, responseSchema] = providerActions[action] as readonly [DescMessage, DescMessage];
   const body = await readMessage(request, requestSchema);
   const method = methods[action];
+
   // Refresh waits for the workers to check again (up to a minute).
-  const response = await call((api) => (api[method] as (r: unknown, o?: unknown) => Promise<never>)(body, action === "refresh" || action === "login" ? { timeoutMs: 70_000 } : undefined));
+  const response = await call((api) =>
+    (api[method] as (r: unknown, o?: unknown) => Promise<never>)(
+      body,
+      action === "refresh" || action === "login" ? { timeoutMs: 70_000 } : undefined,
+    ),
+  );
+
   return json(encode(responseSchema, response));
 };

@@ -17,7 +17,12 @@
     inherited,
     onselect,
     class: className,
-  }: { value: PermissionModeKey; inherited?: PermissionModeKey | undefined; onselect: (mode: PermissionModeKey) => void; class?: ClassValue } = $props();
+  }: {
+    value: PermissionModeKey;
+    inherited?: PermissionModeKey | undefined;
+    onselect: (mode: PermissionModeKey) => void;
+    class?: ClassValue;
+  } = $props();
 
   const warn = $derived(isFullAuto(value));
   const look = $derived(permissionLook(value));
@@ -29,7 +34,8 @@
       {...props}
       class={[
         "shrink-0 pl-1.5",
-        warn && "text-amber-700 hover:text-amber-800 aria-expanded:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 dark:aria-expanded:text-amber-300",
+        warn &&
+          "text-amber-700 hover:text-amber-800 aria-expanded:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 dark:aria-expanded:text-amber-300",
         className,
       ]}
       aria-label="Permissions: {permissionLabel(value)}"
@@ -40,7 +46,11 @@
     </PillButton>
   {/snippet}
   {#each permissionModes as option (option.value)}
-    <MenuCheckItem checked={option.value === value} description={option.description} onselect={() => onselect(option.value)}>
+    <MenuCheckItem
+      checked={option.value === value}
+      description={option.description}
+      onselect={() => onselect(option.value)}
+    >
       <PermissionModeTitle mode={option.value} note={option.value === inherited ? "Default" : undefined} />
     </MenuCheckItem>
   {/each}

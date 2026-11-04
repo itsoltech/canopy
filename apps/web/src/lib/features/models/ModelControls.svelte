@@ -37,13 +37,16 @@
   const models = useModelCatalog();
   let modelOpen = $state(false);
   let effortOpen = $state(false);
+
   const listed = $derived.by(() => {
     const current = option;
+
     return current && !options.some((o) => o.key === current.key) ? [...options, current] : options;
   });
 
   function select(next: ModelOption) {
     option = next;
+
     if (effort && !next.efforts.some((e) => e.id === effort)) effort = undefined;
   }
 </script>
@@ -64,7 +67,14 @@
   <!-- A model without efforts has no effort pill: its slot eases shut instead of the model pill jumping. -->
   <ResizeSlot>
     {#if option && option.efforts.length > 0}
-      <EffortPicker bind:open={effortOpen} bind:value={effort} {option} {inherited} onmodel={() => (modelOpen = true)} class="shrink-0" />
+      <EffortPicker
+        bind:open={effortOpen}
+        bind:value={effort}
+        {option}
+        {inherited}
+        onmodel={() => (modelOpen = true)}
+        class="shrink-0"
+      />
     {/if}
   </ResizeSlot>
 </span>

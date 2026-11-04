@@ -1,8 +1,21 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import IconButton from "./IconButton.svelte";
-  let { label, decrease, increase, decreaseDisabled = false, increaseDisabled = false, class: className }: {
-    label: string; decrease: () => void; increase: () => void; decreaseDisabled?: boolean; increaseDisabled?: boolean; class?: ClassValue;
+
+  let {
+    label,
+    decrease,
+    increase,
+    decreaseDisabled = false,
+    increaseDisabled = false,
+    class: className,
+  }: {
+    label: string;
+    decrease: () => void;
+    increase: () => void;
+    decreaseDisabled?: boolean;
+    increaseDisabled?: boolean;
+    class?: ClassValue;
   } = $props();
 </script>
 

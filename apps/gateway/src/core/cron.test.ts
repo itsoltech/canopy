@@ -6,7 +6,9 @@ const now = new Date("2026-11-01T18:07:00Z");
 describe("cron", () => {
   test("next run in a time zone (DST-aware)", () => {
     expect(nextCronRun("0 9 * * MON", "Europe/Warsaw", now)?.toISOString()).toBe("2026-11-02T08:00:00.000Z");
-    expect(nextCronRun("0 9 * * *", "Europe/Warsaw", new Date("2026-03-28T12:00:00Z"))?.toISOString()).toBe("2026-03-29T07:00:00.000Z");
+    expect(nextCronRun("0 9 * * *", "Europe/Warsaw", new Date("2026-03-28T12:00:00Z"))?.toISOString()).toBe(
+      "2026-03-29T07:00:00.000Z",
+    );
     expect(nextCronRun("*/30 * * * *", "UTC", now)?.toISOString()).toBe("2026-11-01T18:30:00.000Z");
   });
 

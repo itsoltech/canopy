@@ -19,6 +19,7 @@ export function codexSkillEntries(listed: v2.SkillsListResponse): { entries: Ent
   const entries: EntryInit[] = [];
   const notes: string[] = [];
   const seen = new Set<string>();
+
   for (const group of listed.data) {
     for (const skill of group.skills) {
       if (!skill.enabled || seen.has(skill.name)) continue;
@@ -35,13 +36,16 @@ export function codexSkillEntries(listed: v2.SkillsListResponse): { entries: Ent
         plugin: skill.pluginId ?? "",
       });
     }
+
     for (const error of group.errors) notes.push(`skill ${error.path}: ${error.message}`);
   }
+
   return { entries, notes };
 }
 
 export function codexPluginEntries(listed: v2.PluginListResponse): EntryInit[] {
   const entries: EntryInit[] = [];
+
   for (const marketplace of listed.marketplaces) {
     for (const plugin of marketplace.plugins) {
       if (!plugin.installed || !plugin.enabled) continue;
@@ -58,6 +62,7 @@ export function codexPluginEntries(listed: v2.PluginListResponse): EntryInit[] {
       });
     }
   }
+
   return entries;
 }
 
@@ -77,5 +82,11 @@ export function codexAppEntries(listed: v2.AppsListResponse): EntryInit[] {
 }
 
 function slug(name: string): string {
-  return name.toLowerCase().trim().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "") || "app";
+  return (
+    name
+      .toLowerCase()
+      .trim()
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-|-$/g, "") || "app"
+  );
 }

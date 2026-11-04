@@ -83,12 +83,18 @@
   // Only the thread id recreates it: a later `data` refresh (form actions invalidate) must not reconnect.
   const view = $derived.by(() => {
     const seed = untrack(() => (data.thread ? decode(ui.ThreadSchema, data.thread) : undefined));
+
     return seed?.id === threadId ? new ThreadState(seed) : new ThreadState();
   });
+
   $effect(() => view.connect(threadId));
 
   const thread = $derived(view.thread);
-  $effect(() => { if (thread?.deletedAt) void goto("/"); });
+
+  $effect(() => {
+    if (thread?.deletedAt) void goto("/");
+  });
+
   // An old link of a thread that moved to another computer: the gateway follows the move; open its new id (stage 8).
   $effect(() => {
     if (!thread || thread.id === threadId || thread.id.split("~")[0] !== threadId.split("~")[0]) return;
@@ -98,11 +104,22 @@
       void goto(`/threads/${thread.id}`, { replaceState: true });
     });
   });
+
   // A linked computer's project and worker leave the overview while it is away; the open thread keeps their names.
   let known: { project?: ui.Project; worker?: ui.Worker } = {};
-  const worker = $derived(overview.worker(thread?.workerId ?? "") ?? (known.worker?.id === thread?.workerId ? known.worker : undefined));
-  const project = $derived(overview.project(thread?.projectId ?? "") ?? (known.project?.id === thread?.projectId ? known.project : undefined));
-  $effect(() => { known = { ...(project && { project }), ...(worker && { worker }) }; });
+
+  const worker = $derived(
+    overview.worker(thread?.workerId ?? "") ?? (known.worker?.id === thread?.workerId ? known.worker : undefined),
+  );
+
+  const project = $derived(
+    overview.project(thread?.projectId ?? "") ?? (known.project?.id === thread?.projectId ? known.project : undefined),
+  );
+
+  $effect(() => {
+    known = { ...(project && { project }), ...(worker && { worker }) };
+  });
+
   // A thread whose home is a linked computer: read and driven there, unusable while that computer is away.
   const away = $derived(thread?.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
 
@@ -110,12 +127,18 @@
   // this thread's own stream is fresher for itself.
   const threads = $derived.by(() => {
     const all = [...overview.threads.values()].filter((t) => t.projectId === thread?.projectId);
+
     if (!thread) return all;
+
     return all.some((t) => t.id === thread.id) ? all.map((t) => (t.id === thread.id ? thread : t)) : [...all, thread];
   });
+
   const tree = $derived(thread ? treeOf(threads, thread) : undefined);
+
   provideThreadDirectory({
-    get readOnly() { return Boolean(away); },
+    get readOnly() {
+      return Boolean(away);
+    },
     get currentId() {
       return threadId;
     },
@@ -124,6 +147,7 @@
     goal: (id) => (view.goal?.id === id ? view.goal : undefined),
     turnEnded: (turnId) => {
       const turn = view.turns.find((t) => t.id === turnId);
+
       return turn !== undefined && isTerminal(turn.status);
     },
     steer: (id) => view.steers.find((s) => s.id === id),
@@ -137,22 +161,45 @@
 
   // Its latest result counts as seen once it has been on screen (the sidebar's "Completed" goes out everywhere).
   let atEnd = $state(true);
-  const compaction = $derived.by(() => { void threadId; return new ComposerCompaction(); });
+
+  const compaction = $derived.by(() => {
+    void threadId;
+
+    return new ComposerCompaction();
+  });
+
   let compact = $state(false);
+
   function expandComposer(activity?: ComposerActivity) {
     if (activity) compaction.interact(activity);
     else compaction.expand();
     compact = false;
   }
-  function readerScroll(scroll: ReaderScroll) { compaction.scroll(scroll); compact = compaction.compact; }
+
+  function readerScroll(scroll: ReaderScroll) {
+    compaction.scroll(scroll);
+    compact = compaction.compact;
+  }
+
   $effect(() => {
-    compaction.question(view.pending.some((q) => q.kind === InteractionKind.QUESTION && q.status === "pending" && !q.asynchronous));
+    compaction.question(
+      view.pending.some((q) => q.kind === InteractionKind.QUESTION && q.status === "pending" && !q.asynchronous),
+    );
+
     if (atEnd) compaction.expand();
     compact = compaction.compact;
   });
+
   trackSeen(() => {
     const live = overview.threads.get(threadId) ?? thread;
-    return { threadId, unseen: !away && Boolean(live?.unseenResult || live?.markedUnread), markedUnread: live?.markedUnread ?? false, lastSeq: live?.lastSeq ?? 0n, atEnd };
+
+    return {
+      threadId,
+      unseen: !away && Boolean(live?.unseenResult || live?.markedUnread),
+      markedUnread: live?.markedUnread ?? false,
+      lastSeq: live?.lastSeq ?? 0n,
+      atEnd,
+    };
   });
 
   // The subagents its agent started (spawn_thread), live from the thread index: the panel above the composer.
@@ -165,9 +212,11 @@
   // The feed: inherited history (folded), the thread's own timeline, the working indicator, steers on
   // their way (queued inputs are in the queue panel above the composer). One builder per thread keeps unchanged rows identical, so a delta re-renders one row.
   let historyOpen = $state(false);
+
   // Ended turns fold their work into "Worked for …"; which folds are open, per thread.
   const folds = $derived((void threadId, new WorkFolds()));
   const builder = $derived((void threadId, new FeedBuilder()));
+
   const rows = $derived(
     builder.build({
       entries: view.ownEntries,
@@ -184,18 +233,20 @@
       openGroups: folds.groups,
     }),
   );
+
   $effect(() => {
     void threadId;
     historyOpen = false;
   });
+
   const turnsOnRail = $derived(railTurns(rows));
   let feedViewport = $state<FeedViewport>({ start: 0, end: 0, height: 0 });
-
 
   // Queued messages above the composer (reorder, edit, delete, steer now); confirmed changes go into the
   // thread's state before the stream repeats them.
   const queue = $derived.by(() => {
     const state = view;
+
     return new QueueState(() => ({ threadId, turns: state.queued, steers: state.steers, running: state.running }), {
       turn: (turn) => state.upsertTurn(turn),
       steer: (steer) => state.upsertSteer(steer),
@@ -204,11 +255,18 @@
 
   const composerNote = $derived.by(() => {
     if (!thread) return undefined;
+
     if (thread.status === "failed") return "This thread failed to start and cannot take messages.";
+
     if (thread.status === "archived") return "This thread is archived.";
+
     if (away) return "Read only until it is connected again.";
-    if (worker && !worker.online) return `${worker.name} is offline. Messages wait and are delivered when it reconnects.`;
+
+    if (worker && !worker.online)
+      return `${worker.name} is offline. Messages wait and are delivered when it reconnects.`;
+
     if (thread.status === "creating") return "The thread is starting on the worker. Messages run once it is ready.";
+
     return undefined;
   });
 
@@ -216,6 +274,7 @@
   // on narrow ones.
   const panelOpen = $derived(!settings.appearance.threadPanelCollapsed);
   let panelSheet = $state(false);
+
   function togglePanel() {
     if (matchMedia("(min-width: 80rem)").matches) void settings.updateAppearance({ threadPanelCollapsed: panelOpen });
     else panelSheet = true;
@@ -223,21 +282,31 @@
 
   let sideOpen = $state(false);
   const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
+
   const openSide = () => {
     panelSheet = false;
     sideOpen = true;
   };
+
   // "Fork thread" forks after the latest ended turn; "Fork from here" (TurnDetails) after the one it is under.
-  const canFork = $derived(!away && thread?.runtime === "worker" && thread.provider !== Provider.GROK && thread.status !== "creating");
+  const canFork = $derived(
+    !away && thread?.runtime === "worker" && thread.provider !== Provider.GROK && thread.status !== "creating",
+  );
+
   const forkPoint = $derived(canFork ? lastForkPoint(view.ownTurns, view.inheritedTurns) : undefined);
   const forkThread = () => forkPoint && forkFrom(threadId, forkPoint.id);
   let scheduling = $state(false);
+
   // Schedules stay on each computer in this stage; a linked computer's thread has none here.
-  const canSchedule = $derived(Boolean(thread && !thread.nodeId && thread.status !== "archived" && thread.status !== "failed"));
+  const canSchedule = $derived(
+    Boolean(thread && !thread.nodeId && thread.status !== "archived" && thread.status !== "failed"),
+  );
+
   const openSchedule = () => {
     panelSheet = false;
     scheduling = true;
   };
+
   let modelOpen = $state(false);
   let permissionsOpen = $state(false);
 
@@ -245,57 +314,90 @@
   // or replaced from the thread's actions or the composer.
   let goalDialog = $state(false);
   let dismissedGoals = $state(new Set<string>());
+
   // A gateway thread has no harness goals: no goal controls at all.
   const goalsHere = $derived(Boolean(thread && takesGoals(thread)));
   const canGoal = $derived(Boolean(thread && goalsHere && !closed && thread.status !== "creating"));
   const openGoal = $derived(view.goal && !isFinishedGoal(view.goal.status) ? view.goal : undefined);
   const shownGoal = $derived(showsGoal(view.goal, dismissedGoals) ? view.goal : undefined);
+
   const setGoalLater = () => {
     panelSheet = false;
     goalDialog = true;
   };
 
   const allBackgroundTasks = $derived(backgroundTasks(view.ownEntries));
-  const runningBackgroundTasks = $derived(allBackgroundTasks.filter((entry) => entry.item.status === ItemStatus.IN_PROGRESS));
+
+  const runningBackgroundTasks = $derived(
+    allBackgroundTasks.filter((entry) => entry.item.status === ItemStatus.IN_PROGRESS),
+  );
+
   let outputId = $state<string>();
   let outputOpen = $state(false);
   const selectedTask = $derived(allBackgroundTasks.find((entry) => entry.id === outputId));
-  const openOutput = (id: string) => { outputId = id; outputOpen = true; };
-  provideBackgroundOutput(openOutput);
-  $effect(() => { void threadId; outputOpen = false; outputId = undefined; });
 
-  let feed = $state<FoldReader & {
-    reveal: (key: string) => Promise<boolean>;
-    scrollToRow: (index: number, options: { align: "start"; smooth?: boolean }) => Promise<boolean>;
-  }>();
+  const openOutput = (id: string) => {
+    outputId = id;
+    outputOpen = true;
+  };
+
+  provideBackgroundOutput(openOutput);
+
+  $effect(() => {
+    void threadId;
+    outputOpen = false;
+    outputId = undefined;
+  });
+
+  let feed = $state<
+    FoldReader & {
+      reveal: (key: string) => Promise<boolean>;
+      scrollToRow: (index: number, options: { align: "start"; smooth?: boolean }) => Promise<boolean>;
+    }
+  >();
 
   // A quote in a message shows where it came from: its item (in folded work or the inherited history: opened
   // first) scrolls into view and flashes (motion.css `data-flash`).
   let feedRegion = $state<HTMLElement>();
+
   // The sticky part at the feed's bottom (waiting cards, goal, composer): the Cite button keeps clear of it.
   let feedFooter = $state<HTMLElement>();
+
   async function revealQuote(itemId: string): Promise<boolean> {
     const own = view.ownEntries.find((e) => e.id === itemId);
     const inherited = own ? undefined : view.inheritedEntries.find((e) => e.id === itemId);
     const entry = own ?? inherited;
+
     if (!entry) return false;
     const top = topLevelEntry(own ? view.ownEntries : view.inheritedEntries, entry);
+
     if (inherited && !historyOpen) historyOpen = true;
+
     if (top.turnId && !folds.open.has(top.turnId)) folds.toggle(top.turnId, true);
     await tick();
     const group = rows.find((row) => row.kind === "work-group" && row.items.includes(`item:${top.id}`));
+
     if (group) folds.toggleGroup(group.key.replace(/^history:[^:]+:/, ""), true);
     await tick();
-    const target = rows.find((row) => (row.kind === "timeline" || row.kind === "answer") && row.row?.kind === "item" && row.row.node.entry.id === top.id);
+
+    const target = rows.find(
+      (row) =>
+        (row.kind === "timeline" || row.kind === "answer") &&
+        row.row?.kind === "item" &&
+        row.row.node.entry.id === top.id,
+    );
+
     if (!target || !(await feed?.reveal(target.key))) return false;
     await tick();
     const element = feedRegion?.querySelector<HTMLElement>(`[data-quote-item="${CSS.escape(entry.id)}"]`);
+
     if (!element) return true;
     element.scrollIntoView({ block: "nearest" });
     element.removeAttribute("data-flash");
     void element.offsetWidth; // replay when it is still flashing
     element.setAttribute("data-flash", "");
     setTimeout(() => element.removeAttribute("data-flash"), duration("very-slow") * 3);
+
     return true;
   }
 
@@ -303,6 +405,7 @@
     const turns = view.ownTurns;
     untrack(() => folds.update(turns, view.ownEntries, view.notices, feed));
   });
+
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -316,45 +419,177 @@
   contributeCommands(() => {
     if (!thread) return [];
     const current = thread;
+
     return [
-      { id: "thread:interrupt", title: "Interrupt", group: "actions", icon: "stop", keywords: "stop cancel turn", rank: -8, when: () => working, run: stop },
-      { id: "thread:side", title: "Side thread…", group: "actions", icon: "arrows-right-left", keywords: "new side branch fork", rank: -7, when: () => canBranch, run: openSide },
-      { id: "thread:fork", title: "Fork thread", group: "actions", icon: "arrow-turn-up-right", keywords: "fork branch copy duplicate new chat", rank: -7, when: () => Boolean(forkPoint), run: forkThread },
-      { id: "thread:schedule", title: "Schedule a task…", group: "actions", icon: "clock", keywords: "schedule later cron recurring", rank: -7, when: () => canSchedule, run: openSchedule },
-      { id: "thread:model", title: "Model and effort…", group: "actions", icon: "cpu-chip", keywords: "model reasoning effort", rank: -7, when: () => !closed, run: () => (modelOpen = true) },
-      { id: "thread:regenerate-title", title: "Regenerate title", group: "actions", icon: "arrow-path", keywords: "thread title generate name", rank: -7, when: () => !closed, run: () => requestTitleRegeneration(current.id) },
-      { id: "thread:permissions", title: "Permissions…", group: "actions", icon: "shield-check", keywords: "permission mode approvals sandbox", rank: -7, when: () => !closed, run: () => (permissionsOpen = true) },
-      { id: "thread:goal", title: openGoal ? "Replace the goal…" : "Set a goal…", group: "actions", icon: "flag", keywords: "goal objective", rank: -7, when: () => goalsHere, disabled: !canGoal, run: setGoalLater },
-      { id: "thread:details", title: "Toggle thread details", group: "actions", icon: "view-columns", keywords: "panel context sidebar", rank: -6, run: togglePanel },
-      { id: "thread:copy-link", title: "Copy thread link", group: "actions", icon: "link", keywords: "url share", rank: -6, run: () => copy(page.url.href) },
-      { id: "thread:copy-id", title: "Copy thread id", group: "actions", icon: "document-duplicate", keywords: "identifier", rank: -6, run: () => copy(current.id) },
-      { id: "thread:copy-cwd", title: "Copy working directory", group: "actions", icon: "folder", keywords: "path cwd", rank: -6, suggested: false, run: () => copy(current.cwd) },
+      {
+        id: "thread:interrupt",
+        title: "Interrupt",
+        group: "actions",
+        icon: "stop",
+        keywords: "stop cancel turn",
+        rank: -8,
+        when: () => working,
+        run: stop,
+      },
+      {
+        id: "thread:side",
+        title: "Side thread…",
+        group: "actions",
+        icon: "arrows-right-left",
+        keywords: "new side branch fork",
+        rank: -7,
+        when: () => canBranch,
+        run: openSide,
+      },
+      {
+        id: "thread:fork",
+        title: "Fork thread",
+        group: "actions",
+        icon: "arrow-turn-up-right",
+        keywords: "fork branch copy duplicate new chat",
+        rank: -7,
+        when: () => Boolean(forkPoint),
+        run: forkThread,
+      },
+      {
+        id: "thread:schedule",
+        title: "Schedule a task…",
+        group: "actions",
+        icon: "clock",
+        keywords: "schedule later cron recurring",
+        rank: -7,
+        when: () => canSchedule,
+        run: openSchedule,
+      },
+      {
+        id: "thread:model",
+        title: "Model and effort…",
+        group: "actions",
+        icon: "cpu-chip",
+        keywords: "model reasoning effort",
+        rank: -7,
+        when: () => !closed,
+        run: () => (modelOpen = true),
+      },
+      {
+        id: "thread:regenerate-title",
+        title: "Regenerate title",
+        group: "actions",
+        icon: "arrow-path",
+        keywords: "thread title generate name",
+        rank: -7,
+        when: () => !closed,
+        run: () => requestTitleRegeneration(current.id),
+      },
+      {
+        id: "thread:permissions",
+        title: "Permissions…",
+        group: "actions",
+        icon: "shield-check",
+        keywords: "permission mode approvals sandbox",
+        rank: -7,
+        when: () => !closed,
+        run: () => (permissionsOpen = true),
+      },
+      {
+        id: "thread:goal",
+        title: openGoal ? "Replace the goal…" : "Set a goal…",
+        group: "actions",
+        icon: "flag",
+        keywords: "goal objective",
+        rank: -7,
+        when: () => goalsHere,
+        disabled: !canGoal,
+        run: setGoalLater,
+      },
+      {
+        id: "thread:details",
+        title: "Toggle thread details",
+        group: "actions",
+        icon: "view-columns",
+        keywords: "panel context sidebar",
+        rank: -6,
+        run: togglePanel,
+      },
+      {
+        id: "thread:copy-link",
+        title: "Copy thread link",
+        group: "actions",
+        icon: "link",
+        keywords: "url share",
+        rank: -6,
+        run: () => copy(page.url.href),
+      },
+      {
+        id: "thread:copy-id",
+        title: "Copy thread id",
+        group: "actions",
+        icon: "document-duplicate",
+        keywords: "identifier",
+        rank: -6,
+        run: () => copy(current.id),
+      },
+      {
+        id: "thread:copy-cwd",
+        title: "Copy working directory",
+        group: "actions",
+        icon: "folder",
+        keywords: "path cwd",
+        rank: -6,
+        suggested: false,
+        run: () => copy(current.cwd),
+      },
     ];
   });
+
   async function stop() {
     if (!thread) return;
+
     try {
       await interruptThread(thread.id);
     } catch (cause) {
       toast(`Could not interrupt: ${cause instanceof Error ? cause.message : "unknown error"}`, { tone: "error" });
     }
   }
+
   const blockingQuestions = $derived(view.pending.filter((interaction) => !interaction.asynchronous).length);
-  const announcement = $derived(thread ? `Thread ${statusLook(thread.status).label.toLowerCase()}${blockingQuestions > 0 ? `, ${blockingQuestions} waiting for you` : ""}` : "");
+
+  const announcement = $derived(
+    thread
+      ? `Thread ${statusLook(thread.status).label.toLowerCase()}${blockingQuestions > 0 ? `, ${blockingQuestions} waiting for you` : ""}`
+      : "",
+  );
 </script>
 
 <svelte:head><title>{thread?.title ?? "Thread"} · Canopy</title></svelte:head>
 
 <!-- On xl the container reserves the details panel's column (it arrives before the panel, so nothing moves while
      the page loads) and eases it open or shut (motion.css `t-panel-column`). -->
-<div class="t-panel-column flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1" style:--panel-width={panelOpen ? "20rem" : "0rem"} data-collapsed={!panelOpen || undefined}>
+<div
+  class="t-panel-column flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1"
+  style:--panel-width={panelOpen ? "20rem" : "0rem"}
+  data-collapsed={!panelOpen || undefined}
+>
   <div class="flex min-w-0 flex-1 flex-col">
     <TopBar>
       {#if thread}
-        <Crumb href={project ? project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}` : undefined}><ProjectMark name={project?.name ?? "?"} kind={project?.kind} /><span class="truncate">{project?.name ?? "Project"}</span></Crumb>
-        {#if thread.nodeId}<li class="flex shrink-0 items-center"><MachineBadge nodeId={thread.nodeId} compact class="max-w-20 sm:max-w-40" /></li>{/if}
+        <Crumb
+          href={project
+            ? project.kind === "scratch"
+              ? "/settings/threads"
+              : `/settings/projects/${project.id}`
+            : undefined}
+          ><ProjectMark name={project?.name ?? "?"} kind={project?.kind} /><span class="truncate"
+            >{project?.name ?? "Project"}</span
+          ></Crumb
+        >
+        {#if thread.nodeId}<li class="flex shrink-0 items-center">
+            <MachineBadge nodeId={thread.nodeId} compact class="max-w-20 sm:max-w-40" />
+          </li>{/if}
         {#if tree && isSide(thread) && tree.main.id !== thread.id}
-          <Crumb href="/threads/{tree.main.id}"><span class="truncate max-sm:hidden">{tree.main.title}</span><span class="sm:hidden">…</span></Crumb>
+          <Crumb href="/threads/{tree.main.id}"
+            ><span class="truncate max-sm:hidden">{tree.main.title}</span><span class="sm:hidden">…</span></Crumb
+          >
         {/if}
         <Crumb><span class={["truncate", thread.titleGenerating && "shimmer"]}>{thread.title}</span></Crumb>
       {:else}
@@ -363,14 +598,22 @@
       {#snippet actions()}
         {#if thread}
           <DropdownMenu label="Thread actions" placement="bottom-end">
-            {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="Thread actions" {...props} />{/snippet}
+            {#snippet trigger(props)}<IconButton
+                icon="ellipsis-horizontal"
+                label="Thread actions"
+                {...props}
+              />{/snippet}
             <MenuItem icon="arrows-right-left" disabled={!canBranch} onselect={openSide}>New side thread</MenuItem>
             <MenuItem icon="arrow-turn-up-right" disabled={!forkPoint} onselect={forkThread}>Fork thread</MenuItem>
             <MenuItem icon="clock" disabled={!canSchedule} onselect={openSchedule}>Schedule a task</MenuItem>
             <MenuItem icon="cpu-chip" disabled={closed} onselect={() => (modelOpen = true)}>Model and effort…</MenuItem>
-            <MenuItem icon="shield-check" disabled={closed} onselect={() => (permissionsOpen = true)}>Permissions…</MenuItem>
+            <MenuItem icon="shield-check" disabled={closed} onselect={() => (permissionsOpen = true)}
+              >Permissions…</MenuItem
+            >
             {#if goalsHere}
-              <MenuItem icon="flag" disabled={!canGoal} onselect={setGoalLater}>{openGoal ? "Replace the goal…" : "Set a goal…"}</MenuItem>
+              <MenuItem icon="flag" disabled={!canGoal} onselect={setGoalLater}
+                >{openGoal ? "Replace the goal…" : "Set a goal…"}</MenuItem
+              >
             {/if}
             <MenuSeparator />
             <ThreadMenuItems {thread} />
@@ -393,10 +636,31 @@
       {#key threadId}
         {#if turnsOnRail.length >= 3}
           <div class="absolute inset-y-6 left-1 z-20 w-8 max-md:hidden">
-            <TurnRail turns={turnsOnRail} viewport={feedViewport} onjump={(row) => { void feed?.scrollToRow(row, { align: "start", smooth: true }); }} />
+            <TurnRail
+              turns={turnsOnRail}
+              viewport={feedViewport}
+              onjump={(row) => {
+                void feed?.scrollToRow(row, { align: "start", smooth: true });
+              }}
+            />
           </div>
         {/if}
-        <VirtualFeed bind:this={feed} bind:atEnd {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} inserted={feedInserted} label="Timeline" busy={working} onreaderscroll={readerScroll} onlatest={expandComposer} onviewport={(viewport) => { feedViewport = viewport; }}>
+        <VirtualFeed
+          bind:this={feed}
+          bind:atEnd
+          {rows}
+          key={(row: FeedRow) => row.key}
+          group={feedGroup}
+          estimate={feedEstimate}
+          inserted={feedInserted}
+          label="Timeline"
+          busy={working}
+          onreaderscroll={readerScroll}
+          onlatest={expandComposer}
+          onviewport={(viewport) => {
+            feedViewport = viewport;
+          }}
+        >
           {#snippet placeholder()}
             {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
           {/snippet}
@@ -409,25 +673,46 @@
               <EmptyState
                 icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
                 title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
-                description={thread?.status === "creating" ? `Setting up the agent on ${worker?.name ?? "the worker"}.` : closed ? "Nothing was said in this thread before it closed." : "Send the first message below to start a turn."}
+                description={thread?.status === "creating"
+                  ? `Setting up the agent on ${worker?.name ?? "the worker"}.`
+                  : closed
+                    ? "Nothing was said in this thread before it closed."
+                    : "Send the first message below to start a turn."}
                 class="mt-8"
               />
             {/if}
           {/snippet}
           {#snippet row(row: FeedRow)}
-            <FeedRowView {row} ontoggle={() => (historyOpen = !historyOpen)} onwork={(turnId) => folds.toggle(turnId)} ongroup={(key) => folds.toggleGroup(key)} />
+            <FeedRowView
+              {row}
+              ontoggle={() => (historyOpen = !historyOpen)}
+              onwork={(turnId) => folds.toggle(turnId)}
+              ongroup={(key) => folds.toggleGroup(key)}
+            />
           {/snippet}
           {#snippet footer()}
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
             <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
               {#if view.secrets.some((s) => s.status === "pending")}
-                <GrowIn class="pb-3"><ThreadSecretsPanel secrets={view.secrets.filter((s) => s.status === "pending")} onchange={(secret) => view.upsertSecret(secret)} /></GrowIn>
+                <GrowIn class="pb-3"
+                  ><ThreadSecretsPanel
+                    secrets={view.secrets.filter((s) => s.status === "pending")}
+                    onchange={(secret) => view.upsertSecret(secret)}
+                  /></GrowIn
+                >
               {/if}
               {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
                 <GrowIn class="pb-3">
-                  <div class={["grid max-h-[40dvh] gap-3 overflow-y-auto p-px", away && "opacity-60"]} role="region" aria-label="Waiting for you" inert={Boolean(away)}>
+                  <div
+                    class={["grid max-h-[40dvh] gap-3 overflow-y-auto p-px", away && "opacity-60"]}
+                    role="region"
+                    aria-label="Waiting for you"
+                    inert={Boolean(away)}
+                  >
                     {#each view.pending.filter((i) => i.kind !== InteractionKind.QUESTION) as interaction (interaction.requestId)}
-                      <div in:rise><InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} /></div>
+                      <div in:rise>
+                        <InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} />
+                      </div>
                     {/each}
                   </div>
                 </GrowIn>
@@ -453,37 +738,52 @@
                   </div>
                 {/if}
                 {#if subagents.length > 0}
-                  <div class="t-rise" out:subagentPresence|global><SubagentsPanel {subagents} {compact} embedded /></div>
+                  <div class="t-rise" out:subagentPresence|global>
+                    <SubagentsPanel {subagents} {compact} embedded />
+                  </div>
                 {/if}
                 <div inert={Boolean(away)} class={away ? "opacity-60" : undefined}>
-                  <QueuePanel {queue} {compact} embedded delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} />
+                  <QueuePanel
+                    {queue}
+                    {compact}
+                    embedded
+                    delivery={settings.runningDelivery}
+                    ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)}
+                  />
                 </div>
               {/snippet}
               {#if thread}
                 <ThreadComposerSlot {thread} {parent} {compact}>
-                <Composer
-                  {compact}
-                  panelsLabel={queue.rows.length > 0 || subagents.length > 0 ? `${subagents.length} agents · ${queue.rows.length} queued` : shownGoal ? "Goal" : undefined}
-                  onexpand={expandComposer}
-                  onfocuschange={(focused) => { compaction.focus(focused); compact = compaction.compact; }}
-                  class="relative"
-                  top={queue.rows.length > 0 || subagents.length > 0 || shownGoal ? composerPanels : undefined}
-                  questions={view.pending}
-                  {thread}
-                  {worker}
-                  running={view.running}
-                  disabled={closed || !view.loaded || Boolean(away)}
-                  note={composerNote}
-                  onsent={(response) => {
-                    if (response.steer) view.upsertSteer(response.steer);
-                  }}
-                >
-                  {#snippet leading()}
-                    {#if canGoal && !openGoal}
-                      <SetGoalPill onclick={() => (goalDialog = true)} />
-                    {/if}
-                  {/snippet}
-                </Composer>
+                  <Composer
+                    {compact}
+                    panelsLabel={queue.rows.length > 0 || subagents.length > 0
+                      ? `${subagents.length} agents · ${queue.rows.length} queued`
+                      : shownGoal
+                        ? "Goal"
+                        : undefined}
+                    onexpand={expandComposer}
+                    onfocuschange={(focused) => {
+                      compaction.focus(focused);
+                      compact = compaction.compact;
+                    }}
+                    class="relative"
+                    top={queue.rows.length > 0 || subagents.length > 0 || shownGoal ? composerPanels : undefined}
+                    questions={view.pending}
+                    {thread}
+                    {worker}
+                    running={view.running}
+                    disabled={closed || !view.loaded || Boolean(away)}
+                    note={composerNote}
+                    onsent={(response) => {
+                      if (response.steer) view.upsertSteer(response.steer);
+                    }}
+                  >
+                    {#snippet leading()}
+                      {#if canGoal && !openGoal}
+                        <SetGoalPill onclick={() => (goalDialog = true)} />
+                      {/if}
+                    {/snippet}
+                  </Composer>
                 </ThreadComposerSlot>
               {:else}
                 <Skeleton class="h-28 rounded-2xl" />
@@ -497,7 +797,12 @@
 
   <!-- Mounted while closed too, so it can ease out: the panel keeps its width on the column's left edge and fades, so
        its content never re-wraps; a closed panel is inert. -->
-  <aside class="relative min-w-0 overflow-hidden max-xl:hidden" aria-label="Thread details" inert={!panelOpen} data-collapsed={!panelOpen || undefined}>
+  <aside
+    class="relative min-w-0 overflow-hidden max-xl:hidden"
+    aria-label="Thread details"
+    inert={!panelOpen}
+    data-collapsed={!panelOpen || undefined}
+  >
     <div class="t-panel absolute inset-y-0 left-0 flex w-80 flex-col">
       <div class="hidden macos:block">
         {#if thread}<ThreadTitleActions {thread} titlebar />{:else}<div class="h-12" data-window-drag></div>{/if}
@@ -550,11 +855,23 @@
       class="-mx-1.5 shadow-none ring-0 dark:ring-0"
     />
   </Dialog>
-  {#if selectedTask}<BackgroundTaskDialog bind:open={outputOpen} entry={selectedTask} threadId={thread.id} cwd={thread.cwd} source={itemsById.get(selectedTask.item.content.value.sourceItemId)} />{/if}
+  {#if selectedTask}<BackgroundTaskDialog
+      bind:open={outputOpen}
+      entry={selectedTask}
+      threadId={thread.id}
+      cwd={thread.cwd}
+      source={itemsById.get(selectedTask.item.content.value.sourceItemId)}
+    />{/if}
   <SideThreadDialog bind:open={sideOpen} main={tree.main} {worker} />
   <ThreadModelDialog bind:open={modelOpen} {thread} {worker} />
   <ThreadPermissionsDialog bind:open={permissionsOpen} {thread} />
-  <GoalDialog bind:open={goalDialog} threadId={thread.id} provider={thread.provider} current={view.goal} onset={(goal) => view.upsertGoal(goal)} />
+  <GoalDialog
+    bind:open={goalDialog}
+    threadId={thread.id}
+    provider={thread.provider}
+    current={view.goal}
+    onset={(goal) => view.upsertGoal(goal)}
+  />
   <ScheduleDialog bind:open={scheduling} threadId={thread.id} oncreated={(schedule) => view.upsertSchedule(schedule)} />
 {/if}
 

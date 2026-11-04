@@ -18,7 +18,9 @@
     {#if status}<Badge tone={status.tone}>{status.label}</Badge>{/if}
   </p>
   {#if schedule.next || schedule.limits}
-    <p class="pl-6 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{[schedule.next && `Next run ${schedule.next}`, schedule.limits].filter(Boolean).join(" · ")}</p>
+    <p class="pl-6 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      {[schedule.next && `Next run ${schedule.next}`, schedule.limits].filter(Boolean).join(" · ")}
+    </p>
   {/if}
   {#if schedule.prompt}<LongText text={schedule.prompt} markdown lines={3} class="pl-6" />{/if}
 </div>

@@ -11,5 +11,11 @@ const Body = Schema.Struct({ turnId: EntityId });
 /** "Fork from here": a new main thread with this thread's history up to and including the ended turn (CreateThread.fork_at_turn_id). */
 export const POST: RequestHandler = async ({ request, params }) => {
   const { turnId } = await readBody(request, Body);
-  return json(encode(ui.CreateThreadResponseSchema, await call((api) => api.createThread({ forkThreadId: params.threadId, forkAtTurnId: turnId }))));
+
+  return json(
+    encode(
+      ui.CreateThreadResponseSchema,
+      await call((api) => api.createThread({ forkThreadId: params.threadId, forkAtTurnId: turnId })),
+    ),
+  );
 };

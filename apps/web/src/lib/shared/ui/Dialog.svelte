@@ -26,12 +26,24 @@
     onkeydown,
     class: className,
     children,
-  }: { open?: boolean; title: string; description?: string; size?: "md" | "lg" | "output"; fullscreen?: boolean; bare?: boolean; dismissible?: boolean; onkeydown?: ((event: KeyboardEvent) => void) | undefined; class?: ClassValue; children: Snippet } = $props();
+  }: {
+    open?: boolean;
+    title: string;
+    description?: string;
+    size?: "md" | "lg" | "output";
+    fullscreen?: boolean;
+    bare?: boolean;
+    dismissible?: boolean;
+    onkeydown?: ((event: KeyboardEvent) => void) | undefined;
+    class?: ClassValue;
+    children: Snippet;
+  } = $props();
 
   let dialog = $state<HTMLDialogElement>();
   const id = $props.id();
   let closing = $state(false);
   let closed: ReturnType<typeof setTimeout> | undefined;
+
   function exit() {
     if (!dialog) return;
     closing = true;
@@ -39,16 +51,19 @@
     // After `[open]` went away: the closing rule's duration.
     closed = setTimeout(() => (closing = false), exitDuration(dialog));
   }
+
   $effect(() => () => clearTimeout(closed));
 
   $effect(() => {
     if (!dialog) return;
+
     if (open && !dialog.open) {
       clearTimeout(closed);
       closing = false;
       dialog.showModal();
       dialog.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     }
+
     if (!open && dialog.open) {
       dialog.close();
       exit();
@@ -62,7 +77,9 @@
   {onkeydown}
   aria-labelledby="{id}-title"
   aria-describedby={description ? `${id}-description` : undefined}
-  oncancel={(event) => { if (!dismissible) event.preventDefault(); }}
+  oncancel={(event) => {
+    if (!dismissible) event.preventDefault();
+  }}
   onclose={() => {
     if (!open) return;
     open = false;
@@ -80,22 +97,39 @@
     className,
   ]}
 >
-  <SheetHandle onclose={() => { if (dismissible) open = false; }} class="absolute inset-x-0 top-0 sm:hidden" />
+  <SheetHandle
+    onclose={() => {
+      if (dismissible) open = false;
+    }}
+    class="absolute inset-x-0 top-0 sm:hidden"
+  />
   {#if bare}
     <h2 id="{id}-title" class="sr-only">{title}</h2>
     {#if open || closing}{@render children()}{/if}
   {:else}
-  <div class="p-5 pb-[max(--spacing(5),env(safe-area-inset-bottom))] sm:p-6">
-    <div class="flex items-start justify-between gap-4">
-      <div class="min-w-0">
-        <h2 id="{id}-title" class="text-lg/7 font-semibold text-balance">{title}</h2>
-        {#if description}<p id="{id}-description" class="mt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{description}</p>{/if}
+    <div class="p-5 pb-[max(--spacing(5),env(safe-area-inset-bottom))] sm:p-6">
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <h2 id="{id}-title" class="text-lg/7 font-semibold text-balance">{title}</h2>
+          {#if description}<p
+              id="{id}-description"
+              class="mt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
+            >
+              {description}
+            </p>{/if}
+        </div>
+        <IconButton
+          icon="x-mark"
+          label="Close"
+          size="sm"
+          class="-m-1"
+          disabled={!dismissible}
+          onclick={() => (open = false)}
+        />
       </div>
-      <IconButton icon="x-mark" label="Close" size="sm" class="-m-1" disabled={!dismissible} onclick={() => (open = false)} />
+      <div class="mt-5">
+        {#if open || closing}{@render children()}{/if}
+      </div>
     </div>
-    <div class="mt-5">
-      {#if open || closing}{@render children()}{/if}
-    </div>
-  </div>
   {/if}
 </dialog>

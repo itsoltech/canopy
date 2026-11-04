@@ -9,19 +9,43 @@ export const POST: RequestHandler = async ({ request, url }) => {
   const input = await readMessage(request, ui.WorkerSshRequestSchema);
   input.webOrigin = url.origin;
   const controller = new AbortController();
-  const iterator = gateway().workerSsh(input, { signal: AbortSignal.any([request.signal, controller.signal]), timeoutMs: 310_000 })[Symbol.asyncIterator]();
+
+  const iterator = gateway()
+    .workerSsh(input, { signal: AbortSignal.any([request.signal, controller.signal]), timeoutMs: 310_000 })
+    [Symbol.asyncIterator]();
+
   const encoder = new TextEncoder();
-  return new Response(new ReadableStream({
-    async pull(stream) {
-      try {
-        const next = await iterator.next();
-        if (next.done) { stream.close(); return; }
-        stream.enqueue(encoder.encode(JSON.stringify({ event: encode(ui.WorkerSshEventSchema, next.value) }) + "\n"));
-      } catch (error) {
-        stream.enqueue(encoder.encode(JSON.stringify({ error: error instanceof ConnectError ? error.rawMessage : "SSH installation unavailable" }) + "\n"));
-        stream.close(); controller.abort();
-      }
-    },
-    async cancel() { controller.abort(); await iterator.return?.(); },
-  }), { headers: { "content-type": "application/x-ndjson", "cache-control": "no-store", "x-accel-buffering": "no" } });
+
+  return new Response(
+    new ReadableStream({
+      async pull(stream) {
+        try {
+          const next = await iterator.next();
+
+          if (next.done) {
+            stream.close();
+
+            return;
+          }
+
+          stream.enqueue(encoder.encode(JSON.stringify({ event: encode(ui.WorkerSshEventSchema, next.value) }) + "\n"));
+        } catch (error) {
+          stream.enqueue(
+            encoder.encode(
+              JSON.stringify({
+                error: error instanceof ConnectError ? error.rawMessage : "SSH installation unavailable",
+              }) + "\n",
+            ),
+          );
+          stream.close();
+          controller.abort();
+        }
+      },
+      async cancel() {
+        controller.abort();
+        await iterator.return?.();
+      },
+    }),
+    { headers: { "content-type": "application/x-ndjson", "cache-control": "no-store", "x-accel-buffering": "no" } },
+  );
 };

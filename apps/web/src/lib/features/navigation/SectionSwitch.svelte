@@ -14,7 +14,12 @@
     active,
     attention = {},
     class: className,
-  }: { active: Section; attention?: Partial<Record<Section, "needs" | "unseen" | undefined>>; class?: ClassValue } = $props();
+  }: {
+    active: Section;
+    attention?: Partial<Record<Section, "needs" | "unseen" | undefined>>;
+    class?: ClassValue;
+  } = $props();
+
   const at = $derived(sections.findIndex((section) => section.id === active));
 </script>
 
@@ -22,13 +27,25 @@
   <ul role="list" class={["relative grid grid-cols-2", segmentedTrack]}>
     {#if at >= 0}
       <!-- Equal columns: the pill is one column wide and moves by whole columns plus the gap. -->
-      <li class={[segmentedPill, "t-tabs-pill w-[calc(50%-(--spacing(0.75)))] translate-x-[calc(var(--at)*(100%+(--spacing(0.5))))]"]} style:--at={at} aria-hidden="true"></li>
+      <li
+        class={[
+          segmentedPill,
+          "t-tabs-pill w-[calc(50%-(--spacing(0.75)))] translate-x-[calc(var(--at)*(100%+(--spacing(0.5))))]",
+        ]}
+        style:--at={at}
+        aria-hidden="true"
+      ></li>
     {/if}
     {#each sections as section (section.id)}
       {@const current = section.id === active}
       {@const dot = !current && attention[section.id]}
       <li>
-        <a href={sectionMemory.href(section.id)} aria-current={current ? "true" : undefined} data-active={current || undefined} class={segmentedLabel}>
+        <a
+          href={sectionMemory.href(section.id)}
+          aria-current={current ? "true" : undefined}
+          data-active={current || undefined}
+          class={segmentedLabel}
+        >
           {section.label}
           {#if dot === "needs"}
             <StatusDot tone="amber" /><span class="sr-only">, needs you</span>

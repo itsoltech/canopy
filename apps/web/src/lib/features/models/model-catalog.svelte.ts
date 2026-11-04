@@ -39,12 +39,20 @@ export class ModelCatalogState {
     if (this.refreshing.has(workerId)) return;
     this.refreshing = new Set(this.refreshing).add(workerId);
     this.errors = without(this.errors, workerId);
+
     try {
       // The gateway waits for the worker (up to 90 s).
-      const response = decode(ui.ListModelsResponseSchema, await requestJson("POST", "/api/models", { workerId }, 100_000));
+      const response = decode(
+        ui.ListModelsResponseSchema,
+        await requestJson("POST", "/api/models", { workerId }, 100_000),
+      );
+
       for (const worker of response.workers) this.#set(worker);
     } catch (cause) {
-      this.errors = new Map(this.errors).set(workerId, cause instanceof Error ? cause.message : "Could not refresh the models");
+      this.errors = new Map(this.errors).set(
+        workerId,
+        cause instanceof Error ? cause.message : "Could not refresh the models",
+      );
     } finally {
       const next = new Set(this.refreshing);
       next.delete(workerId);
@@ -65,6 +73,7 @@ function without<V>(map: ReadonlyMap<string, V>, key: string): ReadonlyMap<strin
   if (!map.has(key)) return map;
   const next = new Map(map);
   next.delete(key);
+
   return next;
 }
 
@@ -76,13 +85,23 @@ export const useModelCatalog = () => getContext<ModelCatalogState>(KEY);
  * A thread's model options (its provider and profile) and its default model as an option, kept current
  * with the catalog and the thread. Call during component setup.
  */
-export function useThreadModels(source: () => { thread: ui.Thread; worker: ui.Worker | undefined }): { readonly options: ModelOption[]; readonly current: ModelOption | undefined } {
+export function useThreadModels(source: () => { thread: ui.Thread; worker: ui.Worker | undefined }): {
+  readonly options: ModelOption[];
+  readonly current: ModelOption | undefined;
+} {
   const overview = useOverview();
   const catalog = useModelCatalog();
+
   const offer = $derived.by(() => {
     const { thread, worker } = source();
-    return threadModelOptions(thread, { worker, catalog: catalog.of(thread.workerId), threads: overview.threads.values() });
+
+    return threadModelOptions(thread, {
+      worker,
+      catalog: catalog.of(thread.workerId),
+      threads: overview.threads.values(),
+    });
   });
+
   return {
     get options() {
       return offer.options;

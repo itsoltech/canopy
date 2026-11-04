@@ -9,7 +9,13 @@
     class: className,
     leading,
     actions,
-  }: { title: string; description?: string | undefined; class?: ClassValue; leading?: Snippet; actions?: Snippet } = $props();
+  }: {
+    title: string;
+    description?: string | undefined;
+    class?: ClassValue;
+    leading?: Snippet;
+    actions?: Snippet;
+  } = $props();
 </script>
 
 <div class={["flex flex-wrap items-start justify-between gap-4", className]}>
@@ -18,7 +24,9 @@
       {@render leading?.()}
       <h1 class="truncate text-2xl font-semibold tracking-tight text-zinc-950 dark:text-white">{title}</h1>
     </div>
-    {#if description}<p class="mt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{description}</p>{/if}
+    {#if description}<p class="mt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+        {description}
+      </p>{/if}
   </div>
   {#if actions}<div class="flex shrink-0 items-center gap-2">{@render actions()}</div>{/if}
 </div>

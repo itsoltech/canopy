@@ -29,7 +29,10 @@ export class SharedConfigState {
     this.snapshot = decode(ui.SharedConfigSnapshotSchema, await requestJson("GET", "/api/computers/shared"));
   }
   async manage(action: "share" | "unshare" | "keep_local" | "keep_remote", key: string, nodeId = ""): Promise<void> {
-    this.snapshot = decode(ui.SharedConfigSnapshotSchema, await requestJson("PUT", "/api/computers/shared", { action, key, nodeId }));
+    this.snapshot = decode(
+      ui.SharedConfigSnapshotSchema,
+      await requestJson("PUT", "/api/computers/shared", { action, key, nodeId }),
+    );
   }
 }
 

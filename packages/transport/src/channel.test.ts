@@ -3,7 +3,9 @@ import { AsyncChannel } from "./channel.ts";
 
 async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
   const items: T[] = [];
+
   for await (const item of iterable) items.push(item);
+
   return items;
 }
 
@@ -38,6 +40,7 @@ describe("AsyncChannel", () => {
     const channel = new AsyncChannel<number>();
     channel.push(1);
     channel.push(2);
+
     for await (const _ of channel) break;
     expect(channel.closed).toBe(true);
     expect(channel.push(3)).toBe(false);

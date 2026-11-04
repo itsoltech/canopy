@@ -4,8 +4,8 @@ import { useAppearance } from "../state/appearance";
 
 export function colorsFor(dark: boolean, accent: AccentName = "default") {
   const z = palette.zinc;
-  const brand =
-    palette[accents.find((a) => a.name === accent)?.palette ?? "blue"];
+  const brand = palette[accents.find((a) => a.name === accent)?.palette ?? "blue"];
+
   return {
     dark,
     background: dark ? "#000000" : "#ffffff",
@@ -29,16 +29,21 @@ export function colorsFor(dark: boolean, accent: AccentName = "default") {
     botUserText: dark ? z[950] : "#ffffff",
   };
 }
+
 export type Colors = ReturnType<typeof colorsFor>;
+
 export function useColors() {
   const { dark, accent } = useAppearance();
+
   return colorsFor(dark, accent);
 }
+
 export const font = {
   regular: "Inter_400Regular",
   medium: "Inter_500Medium",
   semibold: "Inter_600SemiBold",
 };
+
 export const styles = StyleSheet.create({
   fill: { flex: 1 },
   page: {

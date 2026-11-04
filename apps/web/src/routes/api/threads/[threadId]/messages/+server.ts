@@ -38,13 +38,23 @@ const Body = Schema.Struct({
 });
 
 export const POST: RequestHandler = async ({ request, params }) => {
-  const { delivery, permissionMode, attachmentIds, mentions: rawMentions, quotes, ...body } = await readBody(request, Body);
+  const {
+    delivery,
+    permissionMode,
+    attachmentIds,
+    mentions: rawMentions,
+    quotes,
+    ...body
+  } = await readBody(request, Body);
+
   let mentions;
+
   try {
     mentions = mentionsFromWire(rawMentions);
   } catch (cause) {
     error(400, cause instanceof Error ? cause.message : "invalid mentions");
   }
+
   const response = await call((api) =>
     api.sendMessage({
       threadId: params.threadId,
@@ -56,5 +66,6 @@ export const POST: RequestHandler = async ({ request, params }) => {
       delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
     }),
   );
+
   return json(encode(ui.SendMessageResponseSchema, response));
 };

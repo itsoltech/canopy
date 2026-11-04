@@ -32,6 +32,7 @@ function hookExit(): void {
   if (hooked) return;
   hooked = true;
   process.once("exit", removeTempDirs);
+
   // A signal ends the process without "exit" handlers: clean up, then die of the same signal.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
     process.once(signal, () => {
@@ -45,6 +46,7 @@ function make(prefix: string): string {
   hookExit();
   const dir = mkdtempSync(join(tmpdir(), prefix));
   live.add(dir);
+
   return dir;
 }
 
@@ -69,7 +71,14 @@ const CHILD_GRACE_MS = 3_000;
 async function childrenExited(timeoutMs: number): Promise<void> {
   if (process.platform === "win32") return;
   const deadline = Date.now() + timeoutMs;
-  while (Bun.spawnSync(["pgrep", "-P", String(process.pid)]).stdout.toString().trim() !== "" && Date.now() < deadline) await Bun.sleep(100);
+
+  while (
+    Bun.spawnSync(["pgrep", "-P", String(process.pid)])
+      .stdout.toString()
+      .trim() !== "" &&
+    Date.now() < deadline
+  )
+    await Bun.sleep(100);
 }
 
 /**
@@ -80,6 +89,7 @@ async function childrenExited(timeoutMs: number): Promise<void> {
 export function tempDir(prefix: string): string {
   const dir = make(prefix);
   afterScope(() => remove(dir));
+
   return dir;
 }
 
@@ -92,9 +102,11 @@ export function tempDirs(): (prefix: string) => string {
   afterScope(() => {
     for (const dir of made.splice(0)) remove(dir);
   });
+
   return (prefix) => {
     const dir = make(prefix);
     made.push(dir);
+
     return dir;
   };
 }

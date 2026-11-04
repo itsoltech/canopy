@@ -17,13 +17,16 @@
     height = 0,
     class: className,
   }: { threadId: string; blob: BlobRef; name: string; width?: number; height?: number; class?: ClassValue } = $props();
+
   const src = $derived(`/api/threads/${encodeURIComponent(threadId)}/blobs/${blob.sha256}`);
   let failed = $state(false);
 </script>
 
 <FileAvailability entityId={threadId} {name} class={className}>
   {#if failed}
-    <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">The preview is not available ({formatSize(blob.sizeBytes)}, {blob.mimeType}).</p>
+    <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      The preview is not available ({formatSize(blob.sizeBytes)}, {blob.mimeType}).
+    </p>
   {:else}
     <ZoomableImage
       {src}

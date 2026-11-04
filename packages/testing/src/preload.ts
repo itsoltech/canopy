@@ -6,4 +6,3 @@ import { afterAll } from "bun:test";
 import { removeTempDirs } from "./temp.ts";
 
 afterAll(removeTempDirs);
-

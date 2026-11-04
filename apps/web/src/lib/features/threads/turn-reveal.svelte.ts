@@ -17,6 +17,7 @@ class TurnReveal {
 
   toggle(turnId: string): void {
     const next = new Set(this.pinned);
+
     if (!next.delete(turnId)) next.add(turnId);
     this.pinned = next;
   }
@@ -37,7 +38,11 @@ class TurnReveal {
 /** The turn a node belongs to: its row's `data-turn`, or the one inside a focused feed row (article). */
 function turnOf(target: EventTarget | null): string {
   if (!(target instanceof Element)) return "";
-  const row = target.closest<HTMLElement>("[data-turn]") ?? (target.matches("article[data-key]") ? target.querySelector<HTMLElement>("[data-turn]") : null);
+
+  const row =
+    target.closest<HTMLElement>("[data-turn]") ??
+    (target.matches("article[data-key]") ? target.querySelector<HTMLElement>("[data-turn]") : null);
+
   return row?.dataset.turn ?? "";
 }
 

@@ -16,8 +16,13 @@
    */
   let { row }: { row: TimelineRow } = $props();
   const directory = useThreadDirectory();
+
   // A steered message with quotes got them as a platform note: show its own text and the quotes instead.
-  const steer = $derived(row.kind === "item" && row.steer && row.node.entry.item.content.case === "userMessage" ? directory.steer?.(row.node.entry.item.content.value.clientId) : undefined);
+  const steer = $derived(
+    row.kind === "item" && row.steer && row.node.entry.item.content.case === "userMessage"
+      ? directory.steer?.(row.node.entry.item.content.value.clientId)
+      : undefined,
+  );
 </script>
 
 {#if row.kind === "turn-start"}
@@ -25,7 +30,11 @@
 {:else if row.kind === "input"}
   <TurnInput turn={row.turn} text={row.turn.inputText} />
 {:else if row.kind === "item" && row.inputOf && row.node.entry.item.content.case === "userMessage"}
-  <TurnInput turn={row.inputOf} text={row.node.entry.item.content.value.text} attachments={row.node.entry.item.content.value.attachments} />
+  <TurnInput
+    turn={row.inputOf}
+    text={row.node.entry.item.content.value.text}
+    attachments={row.node.entry.item.content.value.attachments}
+  />
 {:else if row.kind === "item" && row.steer && steer?.backgroundItemIds.length}
   <BackgroundNoteRow itemIds={steer.backgroundItemIds} />
 {:else if row.kind === "item" && row.steer && row.node.entry.item.content.case === "userMessage"}

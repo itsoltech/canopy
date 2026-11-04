@@ -10,6 +10,7 @@ const VALID = {
   worker_id: "0196f0c1-0000-7000-8000-000000000001",
   credential: "c".repeat(32),
 };
+
 const dir = tempDir("canopy-local-config-");
 
 describe("local worker config (connection only)", () => {
@@ -19,7 +20,9 @@ describe("local worker config (connection only)", () => {
     // Remote settings do not belong here: unknown keys are errors, not silently ignored.
     const extra = parseLocalConfig(JSON.stringify({ ...VALID, providers: [] }));
     expect(Result.isFailure(extra) && extra.failure).toContain("providers");
-    expect(Result.isSuccess(parseLocalConfig(JSON.stringify({ ...VALID, allowedRoots: ["missing"], allowed_roots: [] })))).toBe(true);
+    expect(
+      Result.isSuccess(parseLocalConfig(JSON.stringify({ ...VALID, allowedRoots: ["missing"], allowed_roots: [] }))),
+    ).toBe(true);
   });
 
   test("rejects bad values and invalid JSON", () => {
@@ -31,6 +34,7 @@ describe("local worker config (connection only)", () => {
     ]) {
       expect(Result.isFailure(parseLocalConfig(JSON.stringify(bad)))).toBe(true);
     }
+
     expect(Result.isFailure(parseLocalConfig("{"))).toBe(true);
   });
 
@@ -49,9 +53,12 @@ describe("local worker config (connection only)", () => {
     expect(defaultConfigPath({}, "linux", "/home/u")).toBe("/home/u/.config/canopy/worker.json");
     expect(defaultConfigPath({ XDG_CONFIG_HOME: "/x" }, "linux", "/home/u")).toBe("/x/canopy/worker.json");
     expect(defaultConfigPath({}, "darwin", "/Users/u")).toBe("/Users/u/Library/Application Support/canopy/worker.json");
-    expect(defaultConfigPath({ APPDATA: "C:/Users/u/AppData/Roaming" }, "win32")).toBe(join("C:/Users/u/AppData/Roaming", "canopy", "worker.json"));
-    expect(defaultConfigPath({ CANOPY_WORKER_CONFIG: "/etc/canopy/worker.json" }, "linux")).toBe("/etc/canopy/worker.json");
+    expect(defaultConfigPath({ APPDATA: "C:/Users/u/AppData/Roaming" }, "win32")).toBe(
+      join("C:/Users/u/AppData/Roaming", "canopy", "worker.json"),
+    );
+    expect(defaultConfigPath({ CANOPY_WORKER_CONFIG: "/etc/canopy/worker.json" }, "linux")).toBe(
+      "/etc/canopy/worker.json",
+    );
     expect(defaultDataDir({}, "linux", "/home/u")).toBe("/home/u/.local/share/canopy");
   });
-
 });

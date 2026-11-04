@@ -12,9 +12,17 @@
   const overview = useOverview();
   const route = useSettingsRoute();
 
-  const section = $derived(route.url.pathname === "/settings/desktop" ? { label: "Desktop" } : route.url.pathname === "/settings/app-updates" ? { label: "App updates" } : settingsSections.find((s) => route.url.pathname.startsWith(s.href)));
+  const section = $derived(
+    route.url.pathname === "/settings/desktop"
+      ? { label: "Desktop" }
+      : route.url.pathname === "/settings/app-updates"
+        ? { label: "App updates" }
+        : settingsSections.find((s) => route.url.pathname.startsWith(s.href)),
+  );
+
   const project = $derived(route.params.projectId ? overview.project(route.params.projectId) : undefined);
   const worker = $derived(route.params.workerId ? overview.worker(route.params.workerId) : undefined);
+
   const crumbs = $derived<{ label: string; href?: string }[]>(
     project
       ? [{ label: "Projects", href: "/settings/projects" }, { label: project.name }]
@@ -22,6 +30,7 @@
         ? [{ label: "Workers", href: "/settings/workers" }, { label: worker.name }]
         : [{ label: section?.label ?? "Settings" }],
   );
+
   const linkClass = "rounded-sm hover:text-zinc-950 focus-ring dark:hover:text-white";
 </script>
 

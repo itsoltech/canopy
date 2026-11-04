@@ -10,7 +10,16 @@ import {
   type Item,
   type ThreadEvent,
 } from "@canopy/contracts";
-import { DEFAULT_BUS_LIMITS, eventItemId, eventKind, itemStatus, itemType, previewRefs, reduceItem, stoppedByUser } from "@canopy/domain";
+import {
+  DEFAULT_BUS_LIMITS,
+  eventItemId,
+  eventKind,
+  itemStatus,
+  itemType,
+  previewRefs,
+  reduceItem,
+  stoppedByUser,
+} from "@canopy/domain";
 import { timestampDate, timestampNow } from "@bufbuild/protobuf/wkt";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
@@ -62,7 +71,11 @@ const ENDED = ["completed", "interrupted", "failed", "cancelled"];
 export class Ingest extends Context.Service<
   Ingest,
   {
-    ingest(workerId: string, journalId: string, events: readonly ThreadEvent[]): Effect.Effect<IngestResult, SqlError.SqlError>;
+    ingest(
+      workerId: string,
+      journalId: string,
+      events: readonly ThreadEvent[],
+    ): Effect.Effect<IngestResult, SqlError.SqlError>;
     /**
      * Closes what a finished turn left open (docs/durability.md, "Stany tury i wątku"): items still in progress in a
      * finished turn (or outside any turn while none runs) end as interrupted, except background tasks and the
@@ -70,7 +83,11 @@ export class Ingest extends Context.Service<
      * running turn, an interrupted one, a failed one that has a provider thread). `staleSeconds` (sweep): only a
      * thread unchanged that long counts as running without a turn (a turn_started may still be on its way).
      */
-    settle(threadId: string, reason: string, options?: { staleSeconds?: number }): Effect.Effect<SettleResult, SqlError.SqlError>;
+    settle(
+      threadId: string,
+      reason: string,
+      options?: { staleSeconds?: number },
+    ): Effect.Effect<SettleResult, SqlError.SqlError>;
     /** Threads settle() would change (the sweep). */
     unsettledThreads(staleSeconds: number): Effect.Effect<readonly string[], SqlError.SqlError>;
   }
@@ -92,6 +109,7 @@ export class Ingest extends Context.Service<
       const ensureTurn = (threadId: string, turnId: string, trigger: "provider" | "recovery") =>
         Effect.gen(function* () {
           const exists = yield* sql`SELECT 1 FROM turns WHERE id = ${turnId}::uuid`;
+
           if (exists.length > 0) return;
           yield* supersede(threadId, turnId);
           // A turn the harness starts while a goal is active works for it (e.g. Codex goal continuation).
@@ -113,26 +131,41 @@ export class Ingest extends Context.Service<
       const resolveTurn = (threadId: string, event: ThreadEvent) =>
         Effect.gen(function* () {
           if (!event.turnId) return event;
+
           if (event.body.case === "turnStarted") {
             yield* ensureTurn(threadId, event.turnId, "provider");
+
             return event;
           }
-          const exists = yield* sql`SELECT 1 FROM turns WHERE id = ${event.turnId}::uuid AND thread_id = ${threadId}::uuid`;
+
+          const exists =
+            yield* sql`SELECT 1 FROM turns WHERE id = ${event.turnId}::uuid AND thread_id = ${threadId}::uuid`;
+
           return exists.length > 0 ? event : create(ThreadEventSchema, { ...event, turnId: "" });
         });
 
       const applyItem = (threadId: string, seq: bigint, event: ThreadEvent) =>
         Effect.gen(function* () {
           const itemId = eventItemId(event.body);
+
           if (!itemId) return;
+
           const rows = yield* sql<{ content: JsonValue }>`
             SELECT content FROM thread_items WHERE thread_id = ${threadId}::uuid AND item_id = ${itemId} FOR UPDATE
           `;
+
           const current: Item | undefined = rows[0] ? fromJson(ItemSchema, rows[0].content) : undefined;
+
           // A background task's first end is its end (e.g. worker_shutdown with its time; a later close of the same
           // task by another process does not rewrite why it ended).
-          if (current?.content.case === "backgroundTask" && current.status !== ItemStatus.IN_PROGRESS && event.body.case === "itemCompleted") return;
+          if (
+            current?.content.case === "backgroundTask" &&
+            current.status !== ItemStatus.IN_PROGRESS &&
+            event.body.case === "itemCompleted"
+          )
+            return;
           const reduced = reduceItem(current, event.body);
+
           if (!reduced || reduced === current) return;
           const next = stampBackgroundTask(reduced, event);
           const content = JSON.stringify(toJson(ItemSchema, next));
@@ -145,9 +178,15 @@ export class Ingest extends Context.Service<
               SET type = EXCLUDED.type, status = EXCLUDED.status, content = EXCLUDED.content,
                   parent_item_id = EXCLUDED.parent_item_id, last_seq = EXCLUDED.last_seq
           `;
-          if (next.content.case === "backgroundTask" && next.status !== ItemStatus.IN_PROGRESS && (!current || current.status === ItemStatus.IN_PROGRESS)) {
+
+          if (
+            next.content.case === "backgroundTask" &&
+            next.status !== ItemStatus.IN_PROGRESS &&
+            (!current || current.status === ItemStatus.IN_PROGRESS)
+          ) {
             yield* noteBackgroundEnd(threadId, itemId, next);
           }
+
           // Previews the item shows (the worker sent them before the event): readable through this thread.
           for (const { sha256 } of previewRefs(next)) {
             yield* sql`INSERT INTO thread_blobs (thread_id, sha256) VALUES (${threadId}::uuid, ${sha256}) ON CONFLICT DO NOTHING`;
@@ -163,7 +202,11 @@ export class Ingest extends Context.Service<
         Effect.gen(function* () {
           if (item.content.case !== "backgroundTask") return;
           const task = item.content.value;
-          const natural = item.status === ItemStatus.COMPLETED || (item.status === ItemStatus.FAILED && (!task.stopReason || task.stopReason === "error"));
+
+          const natural =
+            item.status === ItemStatus.COMPLETED ||
+            (item.status === ItemStatus.FAILED && (!task.stopReason || task.stopReason === "error"));
+
           const endedAt = task.endedAt ? timestampDate(task.endedAt) : new Date();
           yield* sql`
             INSERT INTO background_task_notes (thread_id, item_id, wake, harness_wakes, ended_at, hops)
@@ -177,6 +220,7 @@ export class Ingest extends Context.Service<
       const applySideEffects = (threadId: string, seq: bigint, event: ThreadEvent) =>
         Effect.gen(function* () {
           const body = event.body;
+
           switch (body.case) {
             case "threadReady":
               // A new provider thread may replace the one stored (Codex: a thread without turns has no rollout to resume).
@@ -186,6 +230,7 @@ export class Ingest extends Context.Service<
                  WHERE id = ${threadId}::uuid
                    AND (provider_thread_id IS NULL OR provider_thread_id = ${body.value.replacesProviderThreadId || null})
               `;
+
               return;
             case "turnStarted":
               yield* supersede(threadId, event.turnId);
@@ -195,6 +240,7 @@ export class Ingest extends Context.Service<
                  WHERE id = ${event.turnId}::uuid AND thread_id = ${threadId}::uuid
               `;
               yield* sql`UPDATE threads SET status = 'running' WHERE id = ${threadId}::uuid AND status <> 'archived'`;
+
               return;
             case "turnFinished": {
               const end = turnEnd(body.value.outcome, body.value.source);
@@ -216,17 +262,24 @@ export class Ingest extends Context.Service<
                  WHERE id = ${threadId}::uuid AND status NOT IN ('archived', 'creating')
                    AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = ${threadId}::uuid AND r.status = 'running' AND r.id <> ${event.turnId || null}::uuid)
               `;
+
               return;
             }
+
             case "activity": {
               // Only what the thread does now; how a turn ended is the turn's (a provider's error state of the thread,
               // e.g. Codex systemError, does not make the thread unusable: the next turn resumes it).
               const status = threadStatus(body.value.status);
-              if (status) yield* sql`UPDATE threads SET status = ${status} WHERE id = ${threadId}::uuid AND status NOT IN ('archived', 'creating')`;
+
+              if (status)
+                yield* sql`UPDATE threads SET status = ${status} WHERE id = ${threadId}::uuid AND status NOT IN ('archived', 'creating')`;
+
               return;
             }
+
             case "goalState":
               yield* applyGoalState(sql, threadId, event.turnId, body.value);
+
               return;
             default:
               yield* applyItem(threadId, seq, event);
@@ -241,8 +294,10 @@ export class Ingest extends Context.Service<
         Effect.gen(function* () {
           const body = event.body;
           let steerId: string | undefined;
+
           if (body.case === "itemCompleted" && body.value.item?.content.case === "userMessage") {
             steerId = body.value.item.content.value.clientId;
+
             if (!steerId || !isUuid(steerId) || steerId === event.turnId) return;
             yield* sql`
               WITH s AS (
@@ -260,7 +315,10 @@ export class Ingest extends Context.Service<
               FROM turn_steers s WHERE s.id = ${steerId}::uuid AND s.thread_id = ${threadId}::uuid
                 AND s.status = 'delivered' AND s.notification_call_id = c.id AND c.notify_status = 'steering'`;
           } else if (body.case === "notice" && body.value.code === "steer_dropped") {
-            steerId = (JSON.parse(body.value.dataJson || "{}") as { input_id?: unknown }).input_id as string | undefined;
+            steerId = (JSON.parse(body.value.dataJson || "{}") as { input_id?: unknown }).input_id as
+              | string
+              | undefined;
+
             if (typeof steerId !== "string" || !isUuid(steerId)) return;
             yield* sql`
               UPDATE turn_steers SET status = 'dropped', reason = 'the turn ended before the message could join it', updated_at = now()
@@ -271,6 +329,7 @@ export class Ingest extends Context.Service<
 
       const insertEvent = (threadId: string, seq: bigint, event: ThreadEvent, origin: "worker" | "gateway") => {
         const payload = toJson(ThreadEventSchema, create(ThreadEventSchema, { ...event, rawJson: "" }));
+
         return sql`
           INSERT INTO thread_events (thread_id, seq, event_id, origin, turn_id, kind, item_id, payload, raw, occurred_at)
           VALUES (${threadId}::uuid, ${seq}, ${event.eventId}::uuid, ${origin}, ${event.turnId || null}::uuid, ${eventKind(event)},
@@ -281,7 +340,8 @@ export class Ingest extends Context.Service<
       };
 
       /** No turn of the thread runs. */
-      const idleTurns = (threadId: string) => sql`NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = ${threadId}::uuid AND r.status = 'running')`;
+      const idleTurns = (threadId: string) =>
+        sql`NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = ${threadId}::uuid AND r.status = 'running')`;
 
       /**
        * Items settle() closes: open, not a background task (those outlive turns; the worker ends them with their
@@ -309,13 +369,18 @@ export class Ingest extends Context.Service<
       const settleThread = (threadId: string, reason: string, staleSeconds: number) =>
         sql.withTransaction(
           Effect.gen(function* () {
-            const locked = yield* sql<{ last_seq: string }>`SELECT last_seq FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+            const locked = yield* sql<{
+              last_seq: string;
+            }>`SELECT last_seq FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+
             if (!locked[0]) return { stored: [], threadChanged: false };
             let last = BigInt(locked[0].last_seq);
             const stored: StoredEvent[] = [];
+
             for (const row of yield* openLeftovers(threadId)) {
               const item = fromJson(ItemSchema, row.content);
               item.status = ItemStatus.INTERRUPTED;
+
               const event = create(ThreadEventSchema, {
                 eventId: Bun.randomUUIDv7(),
                 threadId,
@@ -325,16 +390,20 @@ export class Ingest extends Context.Service<
                 rawJson: JSON.stringify({ settled_by: "gateway", reason }),
                 body: { case: "itemCompleted", value: { item } },
               });
+
               const seq = ++last;
               yield* insertEvent(threadId, seq, event, "gateway");
               yield* applyItem(threadId, seq, event);
               stored.push({ threadId, seq, event });
             }
+
             if (stored.length > 0) yield* sql`UPDATE threads SET last_seq = ${last} WHERE id = ${threadId}::uuid`;
+
             const changed = yield* sql`
               UPDATE threads t SET status = 'idle', status_detail = NULL
                WHERE t.id = ${threadId}::uuid AND ${stuckThread(staleSeconds)}
               RETURNING t.id`;
+
             return { stored, threadChanged: changed.length > 0 };
           }),
         );
@@ -342,16 +411,24 @@ export class Ingest extends Context.Service<
       const ingestThread = (workerId: string, journalId: string, threadId: string, events: readonly ThreadEvent[]) =>
         sql.withTransaction(
           Effect.gen(function* () {
-            const locked = yield* sql<{ last_seq: string }>`SELECT last_seq FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+            const locked = yield* sql<{
+              last_seq: string;
+            }>`SELECT last_seq FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+
             if (!locked[0]) return undefined;
             let last = BigInt(locked[0].last_seq);
             const ids = events.map((e) => e.eventId);
+
             const known = new Set(
-              (yield* sql<{ event_id: string }>`SELECT event_id FROM thread_events WHERE thread_id = ${threadId}::uuid AND event_id = ANY(${ids}::uuid[])`).map(
+              (yield* sql<{
+                event_id: string;
+              }>`SELECT event_id FROM thread_events WHERE thread_id = ${threadId}::uuid AND event_id = ANY(${ids}::uuid[])`).map(
                 (r) => r.event_id,
               ),
             );
+
             const stored: StoredEvent[] = [];
+
             for (const incoming of events) {
               if (known.has(incoming.eventId)) continue;
               known.add(incoming.eventId);
@@ -362,6 +439,7 @@ export class Ingest extends Context.Service<
               yield* applySteer(threadId, seq, event);
               stored.push({ threadId, seq, event });
             }
+
             yield* sql`UPDATE threads SET last_seq = ${last} WHERE id = ${threadId}::uuid`;
             const ack = events.reduce((max, e) => (e.journalSeq > max ? e.journalSeq : max), 0n);
             yield* sql`
@@ -369,6 +447,7 @@ export class Ingest extends Context.Service<
               VALUES (${workerId}::uuid, ${journalId}, ${threadId}::uuid, ${ack})
               ON CONFLICT (worker_id, journal_id, thread_id) DO UPDATE SET acked_seq = greatest(worker_journal_cursors.acked_seq, EXCLUDED.acked_seq)
             `;
+
             return { ack, stored };
           }),
         );
@@ -392,31 +471,45 @@ export class Ingest extends Context.Service<
                OR EXISTS (SELECT 1 FROM interaction_requests q JOIN turns u ON u.id = q.turn_id
                            WHERE q.thread_id = t.id AND q.status = 'pending' AND q.question_call_id IS NULL AND u.status = ANY(${ENDED}::text[])))
              ORDER BY t.id`;
+
           return rows.map((r) => r.id);
         }),
-        ingest: Effect.fn("Ingest.ingest")(function* (workerId: string, journalId: string, events: readonly ThreadEvent[]) {
+        ingest: Effect.fn("Ingest.ingest")(function* (
+          workerId: string,
+          journalId: string,
+          events: readonly ThreadEvent[],
+        ) {
           const byThread = new Map<string, ThreadEvent[]>();
-          for (const event of [...events].sort((a, b) => (a.journalSeq < b.journalSeq ? -1 : a.journalSeq > b.journalSeq ? 1 : 0))) {
+
+          for (const event of [...events].sort((a, b) =>
+            a.journalSeq < b.journalSeq ? -1 : a.journalSeq > b.journalSeq ? 1 : 0,
+          )) {
             byThread.set(event.threadId, [...(byThread.get(event.threadId) ?? []), event]);
           }
+
           const acks = new Map<string, bigint>();
           const stored: StoredEvent[] = [];
           const unknownThreads: string[] = [];
           const failedThreads: { threadId: string; error: SqlError.SqlError }[] = [];
+
           for (const [threadId, threadEvents] of byThread) {
             // One thread's failure must not stop the others (or the worker link): it is not acked, so the
             // worker keeps its events and resends them after reconnecting (the core asks it to).
             const result = yield* ingestThread(workerId, journalId, threadId, threadEvents).pipe(
               Effect.catchTag("SqlError", (error) => Effect.sync(() => void failedThreads.push({ threadId, error }))),
             );
+
             if (result === undefined && failedThreads.some((f) => f.threadId === threadId)) continue;
+
             if (!result) {
               unknownThreads.push(threadId);
               continue;
             }
+
             acks.set(threadId, result.ack);
             stored.push(...result.stored);
           }
+
           return { acks, stored, unknownThreads, failedThreads };
         }),
       });
@@ -431,14 +524,26 @@ export class Ingest extends Context.Service<
 export function turnEnd(
   outcome: TurnOutcome,
   source: TurnEndSource,
-): { status: "completed" | "interrupted" | "failed"; errorSource: "platform" | "harness" | null; interruptSource: "user" | "system" | null } {
+): {
+  status: "completed" | "interrupted" | "failed";
+  errorSource: "platform" | "harness" | null;
+  interruptSource: "user" | "system" | null;
+} {
   switch (outcome) {
     case TurnOutcome.COMPLETED:
       return { status: "completed", errorSource: null, interruptSource: null };
     case TurnOutcome.INTERRUPTED:
-      return { status: "interrupted", errorSource: null, interruptSource: source === TurnEndSource.SYSTEM ? "system" : "user" };
+      return {
+        status: "interrupted",
+        errorSource: null,
+        interruptSource: source === TurnEndSource.SYSTEM ? "system" : "user",
+      };
     default:
-      return { status: "failed", errorSource: source === TurnEndSource.PLATFORM ? "platform" : "harness", interruptSource: null };
+      return {
+        status: "failed",
+        errorSource: source === TurnEndSource.PLATFORM ? "platform" : "harness",
+        interruptSource: null,
+      };
   }
 }
 
@@ -447,12 +552,16 @@ function stampBackgroundTask(item: Item, event: ThreadEvent): Item {
   if (item.content.case !== "backgroundTask") return item;
   const task = item.content.value;
   const ended = item.status !== ItemStatus.IN_PROGRESS;
+
   if (task.startedAt && (!ended || task.endedAt)) return item;
   const stamped = clone(ItemSchema, item);
+
   if (stamped.content.case !== "backgroundTask") return item;
   const at = event.occurredAt ?? timestampNow();
   stamped.content.value.startedAt ??= at;
+
   if (ended) stamped.content.value.endedAt ??= at;
+
   return stamped;
 }
 
@@ -472,4 +581,3 @@ function threadStatus(status: ThreadStatus): string | undefined {
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
-

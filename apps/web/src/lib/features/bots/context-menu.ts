@@ -19,13 +19,16 @@ export function contextMenu(open: () => void): Attachment<HTMLElement> {
       timer = undefined;
       start = undefined;
     };
+
     const oncontextmenu = (event: MouseEvent) => {
       event.preventDefault();
       cancel();
       open();
     };
+
     const onpointerdown = (event: PointerEvent) => {
       fired = false;
+
       if (event.pointerType === "mouse") return;
       start = { x: event.clientX, y: event.clientY };
       timer = setTimeout(() => {
@@ -34,9 +37,11 @@ export function contextMenu(open: () => void): Attachment<HTMLElement> {
         open();
       }, LONG_PRESS_MS);
     };
+
     const onpointermove = (event: PointerEvent) => {
       if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > MOVE_TOLERANCE_PX) cancel();
     };
+
     const onclick = (event: MouseEvent) => {
       if (!fired) return;
       fired = false;
@@ -50,6 +55,7 @@ export function contextMenu(open: () => void): Attachment<HTMLElement> {
     node.addEventListener("pointerup", cancel);
     node.addEventListener("pointercancel", cancel);
     node.addEventListener("click", onclick, true);
+
     return () => {
       cancel();
       node.removeEventListener("contextmenu", oncontextmenu);

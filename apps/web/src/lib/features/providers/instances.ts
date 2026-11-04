@@ -15,23 +15,44 @@ import { decode, encode } from "#lib/shared/wire.ts";
  * when the user typed a new one.
  */
 
-export const instanceKeyOf = (instance: Pick<ui.ProviderInstance, "harness" | "id">): string => `${Provider[instance.harness]}:${instance.id}`;
-export const harnessName = (harness: Provider): string => (harness === Provider.CLAUDE ? "Claude" : harness === Provider.GROK ? "Grok" : "Codex");
+export const instanceKeyOf = (instance: Pick<ui.ProviderInstance, "harness" | "id">): string =>
+  `${Provider[instance.harness]}:${instance.id}`;
+
+export const harnessName = (harness: Provider): string =>
+  harness === Provider.CLAUDE ? "Claude" : harness === Provider.GROK ? "Grok" : "Codex";
+
 export const harnessKey = (harness: Provider): ProviderKey => providerKeyOf(harness) ?? "CODEX";
+
 /** Shared-configuration keys of an instance's definition and of its model lists (linked computers, stage 4). */
 export const sharedInstanceKeys = (instance: Pick<ui.ProviderInstance, "harness" | "id">) => {
   const harness = harnessKey(instance.harness).toLowerCase();
+
   return { definition: sharedKey.instance(harness, instance.id), models: sharedKey.models(harness, instance.id) };
 };
+
 /** The label, else the harness's name for the built-in device login (T3: "Codex", "Claude"), else the id. */
 export const instanceName = (instance: Pick<ui.ProviderInstance, "label" | "id" | "builtIn" | "harness">): string =>
   instance.label || (instance.builtIn ? harnessName(instance.harness) : instance.id);
-export const kindLabel = (kind: ProviderProfileKind): string => (kind === ProviderProfileKind.CLIPROXYAPI ? "API endpoint" : "Device login");
-export const ruleKind = (kind: ProviderProfileKind): ProfileKind => (kind === ProviderProfileKind.CLIPROXYAPI ? "endpoint" : "native");
+
+export const kindLabel = (kind: ProviderProfileKind): string =>
+  kind === ProviderProfileKind.CLIPROXYAPI ? "API endpoint" : "Device login";
+
+export const ruleKind = (kind: ProviderProfileKind): ProfileKind =>
+  kind === ProviderProfileKind.CLIPROXYAPI ? "endpoint" : "native";
+
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** Accent colors offered in the forms (shown as a marker in the model picker). */
-export const accentColors = ["#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0d9488"] as const;
+export const accentColors = [
+  "#2563eb",
+  "#7c3aed",
+  "#db2777",
+  "#dc2626",
+  "#ea580c",
+  "#ca8a04",
+  "#16a34a",
+  "#0d9488",
+] as const;
 
 // ------------------------------------------------------------------ status
 
@@ -43,30 +64,46 @@ export interface InstanceStatus {
 /** One line for an instance on a worker, as the list and the detail show it (T3: "Authenticated · ChatGPT"). */
 export function statusOn(on: ui.InstanceOnWorker | undefined, online: boolean): InstanceStatus {
   if (!on) return { label: "Unknown worker", tone: "neutral" };
+
   if (!on.enabled) return { label: "Turned off", tone: "neutral" };
-  if (!on.reported) return { label: online ? "Waiting for the worker" : "Applies when the worker connects", tone: "neutral" };
-  if (on.available) return { label: on.authenticated && on.auth ? `Authenticated · ${on.auth}` : "Available", tone: "emerald" };
+
+  if (!on.reported)
+    return { label: online ? "Waiting for the worker" : "Applies when the worker connects", tone: "neutral" };
+
+  if (on.available)
+    return { label: on.authenticated && on.auth ? `Authenticated · ${on.auth}` : "Available", tone: "emerald" };
   const detail = on.detail.toLowerCase();
+
   if (detail.includes("not found") || detail.includes("not runnable")) return { label: "Not installed", tone: "rose" };
+
   if (detail.includes("api_key")) return { label: "Missing key", tone: "amber" };
+
   if (detail.includes("not signed in") || detail.includes("login")) return { label: "Not signed in", tone: "amber" };
+
   if (detail === "disabled") return { label: "Turned off", tone: "neutral" };
+
   return { label: capitalize(on.detail || "Unavailable"), tone: "rose" };
 }
 
 /** In "All workers": how many workers run it, and how many of those report it usable. */
 export function statusAcross(instance: ui.ProviderInstance): InstanceStatus {
   const enabled = instance.workers.filter((w) => w.enabled);
+
   if (enabled.length === 0) return { label: "Not on any worker", tone: "neutral" };
   const usable = enabled.filter((w) => w.available).length;
   const of = instance.allWorkers ? "all workers" : `${enabled.length} worker${enabled.length === 1 ? "" : "s"}`;
+
   if (usable === enabled.length) return { label: `Available on ${of}`, tone: "emerald" };
+
   return { label: `Available on ${usable} of ${of}`, tone: usable === 0 ? "rose" : "amber" };
 }
 
 /** Versions reported for the instance ("v0.166.0", several when workers differ). */
 export function versionsOf(instance: ui.ProviderInstance, workerId: string | undefined): string {
-  const versions = new Set(instance.workers.filter((w) => (workerId ? w.workerId === workerId : w.enabled) && w.version).map((w) => w.version));
+  const versions = new Set(
+    instance.workers.filter((w) => (workerId ? w.workerId === workerId : w.enabled) && w.version).map((w) => w.version),
+  );
+
   return [...versions].map((v) => `v${v}`).join(", ");
 }
 
@@ -88,29 +125,49 @@ export interface EnvVarDraft {
 export type KeyAction = "keep" | "replace" | "clear";
 
 let rowKey = 0;
-export const envRow = (init: Partial<Omit<EnvVarDraft, "key">> = {}): EnvVarDraft => ({ key: `env-${++rowKey}`, name: "", value: "", secret: false, keep: false, storedName: "", ...init });
+
+export const envRow = (init: Partial<Omit<EnvVarDraft, "key">> = {}): EnvVarDraft => ({
+  key: `env-${++rowKey}`,
+  name: "",
+  value: "",
+  secret: false,
+  keep: false,
+  storedName: "",
+  ...init,
+});
 
 export const envDrafts = (env: readonly ui.ProfileEnvVarSettings[]): EnvVarDraft[] =>
-  env.map((v) => envRow({ name: v.name, value: v.value, secret: v.secret, keep: v.secret, storedName: v.secret ? v.name : "" }));
+  env.map((v) =>
+    envRow({ name: v.name, value: v.value, secret: v.secret, keep: v.secret, storedName: v.secret ? v.name : "" }),
+  );
 
 /** Rows as the gateway takes them: a kept secret goes without its value (the stored one stays). */
 export const envInput = (rows: readonly EnvVarDraft[]): MessageInitShape<typeof ui.ProfileEnvVarInputSchema>[] =>
-  rows.map((row) => ({ name: row.name.trim(), secret: row.secret, ...(!(row.secret && row.keep) && { value: row.value }) }));
+  rows.map((row) => ({
+    name: row.name.trim(),
+    secret: row.secret,
+    ...(!(row.secret && row.keep) && { value: row.value }),
+  }));
 
 /** Problems of variable rows by row key, with the same rules as the gateway and the worker. */
 export function envProblems(kind: ProviderProfileKind, rows: readonly EnvVarDraft[]): Record<string, string> {
   const problems: Record<string, string> = {};
   const seen = new Set<string>();
+
   for (const row of rows) {
     const name = row.name.trim();
+
     const problem =
       envNameProblem(ruleKind(kind), name) ??
       (seen.has(name.toUpperCase()) ? `${name} is listed twice.` : undefined) ??
       (row.secret && !row.keep && !row.value ? "Enter the secret value." : undefined) ??
       (row.keep && name !== row.storedName ? "Enter the value again to rename a secret." : undefined);
+
     seen.add(name.toUpperCase());
+
     if (problem) problems[row.key] = problem.endsWith(".") ? problem : `${capitalize(problem)}.`;
   }
+
   return problems;
 }
 
@@ -120,8 +177,10 @@ export function splitArgs(text: string): string[] {
   let current = "";
   let quote: string | undefined;
   let started = false;
+
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
+
     if (quote) {
       if (ch === quote) quote = undefined;
       else if (ch === "\\" && quote === '"' && i + 1 < text.length) current += text[++i];
@@ -138,17 +197,24 @@ export function splitArgs(text: string): string[] {
       started = true;
     }
   }
+
   if (started) args.push(current);
+
   return args;
 }
 
 /** The inverse of splitArgs for showing stored arguments. */
-export const joinArgs = (args: readonly string[]): string => args.map((a) => (a === "" || /[\s"'\\]/.test(a) ? `"${a.replace(/["\\]/g, "\\$&")}"` : a)).join(" ");
+export const joinArgs = (args: readonly string[]): string =>
+  args.map((a) => (a === "" || /[\s"'\\]/.test(a) ? `"${a.replace(/["\\]/g, "\\$&")}"` : a)).join(" ");
 
 export function urlProblem(value: string): string | undefined {
   const url = URL.canParse(value.trim()) ? new URL(value.trim()) : undefined;
-  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return "Enter an http(s) URL, e.g. http://127.0.0.1:8317.";
+
+  if (!url || (url.protocol !== "http:" && url.protocol !== "https:"))
+    return "Enter an http(s) URL, e.g. http://127.0.0.1:8317.";
+
   if (url.username || url.password) return "Put the key in the API key field, not in the URL.";
+
   return undefined;
 }
 
@@ -244,29 +310,53 @@ export interface DraftProblems {
   env: Record<string, string>;
 }
 
-export function draftProblems(draft: InstanceDraft, options: { builtIn: boolean; creating: boolean; takenIds: ReadonlySet<string> }): DraftProblems {
+export function draftProblems(
+  draft: InstanceDraft,
+  options: { builtIn: boolean; creating: boolean; takenIds: ReadonlySet<string> },
+): DraftProblems {
   const problems: DraftProblems = { env: envProblems(draft.kind, draft.env) };
+
   if (!options.builtIn && !draft.label.trim()) problems.label = "Give the instance a label.";
+
   if (options.creating) {
     const id = draft.id.trim();
+
     if (!INSTANCE_ID.test(id)) problems.id = "Use lowercase letters, digits, - and _ (start with a letter or digit).";
     else if (id === "native") problems.id = "“native” is the built-in device login.";
     else if (options.takenIds.has(id)) problems.id = `${harnessName(draft.harness)} already has an instance “${id}”.`;
-    if (!draft.allWorkers && draft.workerIds.length === 0) problems.workers = "Choose at least one worker, or all workers.";
+
+    if (!draft.allWorkers && draft.workerIds.length === 0)
+      problems.workers = "Choose at least one worker, or all workers.";
   }
+
   if (draft.kind === ProviderProfileKind.CLIPROXYAPI) {
     const problem = urlProblem(draft.baseUrl);
+
     if (problem) problems.baseUrl = problem;
-    if (draft.keyAction === "replace" && draft.apiKeySet && !draft.apiKey) problems.apiKey = "Enter the new key, or keep the current one.";
+
+    if (draft.keyAction === "replace" && draft.apiKeySet && !draft.apiKey)
+      problems.apiKey = "Enter the new key, or keep the current one.";
   }
+
   return problems;
 }
 
 export const hasProblems = (problems: DraftProblems): boolean =>
-  Boolean(problems.label || problems.id || problems.baseUrl || problems.apiKey || problems.workers || Object.keys(problems.env).length > 0);
+  Boolean(
+    problems.label ||
+    problems.id ||
+    problems.baseUrl ||
+    problems.apiKey ||
+    problems.workers ||
+    Object.keys(problems.env).length > 0,
+  );
 
-export function saveRequest(draft: InstanceDraft, options: { creating: boolean; expectedRevision: bigint }): ui.SaveProviderInstanceRequest {
+export function saveRequest(
+  draft: InstanceDraft,
+  options: { creating: boolean; expectedRevision: bigint },
+): ui.SaveProviderInstanceRequest {
   const endpoint = draft.kind === ProviderProfileKind.CLIPROXYAPI;
+
   return create(ui.SaveProviderInstanceRequestSchema, {
     harness: draft.harness,
     id: draft.id.trim(),
@@ -308,6 +398,7 @@ export interface OverrideDraft {
 
 export function overrideDraftOf(on: ui.InstanceOnWorker | undefined): OverrideDraft {
   const o = on?.overrides;
+
   return {
     binaryPath: o?.binaryPath,
     homePath: o?.homePath,
@@ -321,8 +412,13 @@ export function overrideDraftOf(on: ui.InstanceOnWorker | undefined): OverrideDr
   };
 }
 
-export function overrideRequest(instance: ui.ProviderInstance, workerId: string, draft: OverrideDraft): ui.SetInstanceWorkerRequest {
+export function overrideRequest(
+  instance: ui.ProviderInstance,
+  workerId: string,
+  draft: OverrideDraft,
+): ui.SetInstanceWorkerRequest {
   const endpoint = instance.kind === ProviderProfileKind.CLIPROXYAPI;
+
   return create(ui.SetInstanceWorkerRequestSchema, {
     harness: instance.harness,
     id: instance.id,
@@ -342,11 +438,16 @@ export function overrideRequest(instance: ui.ProviderInstance, workerId: string,
   });
 }
 
-export function overrideProblems(instance: ui.ProviderInstance, draft: OverrideDraft): { baseUrl?: string; apiKey?: string; env: Record<string, string> } {
+export function overrideProblems(
+  instance: ui.ProviderInstance,
+  draft: OverrideDraft,
+): { baseUrl?: string; apiKey?: string; env: Record<string, string> } {
   return {
     env: envProblems(instance.kind, draft.env),
     ...(draft.baseUrl !== undefined && urlProblem(draft.baseUrl) && { baseUrl: urlProblem(draft.baseUrl) }),
-    ...(draft.keyAction === "replace" && draft.apiKeySet && !draft.apiKey && { apiKey: "Enter the new key, or keep the current one." }),
+    ...(draft.keyAction === "replace" &&
+      draft.apiKeySet &&
+      !draft.apiKey && { apiKey: "Enter the new key, or keep the current one." }),
   };
 }
 
@@ -375,6 +476,7 @@ export function modelRows(catalog: readonly ModelInfo[], models: ui.InstanceMode
   const shown = new Set(models?.shown ?? []);
   const rows: ModelRow[] = [];
   const seen = new Set<string>();
+
   for (const info of catalog) {
     if (seen.has(info.id)) continue;
     seen.add(info.id);
@@ -389,13 +491,28 @@ export function modelRows(catalog: readonly ModelInfo[], models: ui.InstanceMode
       providerHidden: info.hidden,
     });
   }
+
   for (const id of models?.custom ?? []) {
     if (seen.has(id)) continue;
     seen.add(id);
-    rows.push({ id, name: id, description: "", tags: ["custom"], favorite: favorites.includes(id), hidden: hidden.has(id), custom: true, providerHidden: false });
+    rows.push({
+      id,
+      name: id,
+      description: "",
+      tags: ["custom"],
+      favorite: favorites.includes(id),
+      hidden: hidden.has(id),
+      custom: true,
+      providerHidden: false,
+    });
   }
+
   const rank = new Map(favorites.map((id, i) => [id, i]));
-  return [...rows.filter((r) => r.favorite).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!), ...rows.filter((r) => !r.favorite)];
+
+  return [
+    ...rows.filter((r) => r.favorite).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!),
+    ...rows.filter((r) => !r.favorite),
+  ];
 }
 
 const lists = (models: ui.InstanceModels | undefined) => ({
@@ -406,21 +523,29 @@ const lists = (models: ui.InstanceModels | undefined) => ({
 });
 
 /** The instance's choices with one model shown or hidden (the provider's own hidden flag needs an explicit "shown"). */
-export function withVisibility(models: ui.InstanceModels | undefined, row: Pick<ModelRow, "id" | "providerHidden">, visible: boolean): ui.InstanceModels {
+export function withVisibility(
+  models: ui.InstanceModels | undefined,
+  row: Pick<ModelRow, "id" | "providerHidden">,
+  visible: boolean,
+): ui.InstanceModels {
   const hidden = new Set(models?.hidden ?? []);
   const shown = new Set(models?.shown ?? []);
+
   if (visible) {
     hidden.delete(row.id);
+
     if (row.providerHidden) shown.add(row.id);
   } else {
     shown.delete(row.id);
     hidden.add(row.id);
   }
+
   return create(ui.InstanceModelsSchema, { ...lists(models), hidden: [...hidden], shown: [...shown] });
 }
 
 export function withFavorite(models: ui.InstanceModels | undefined, id: string, favorite: boolean): ui.InstanceModels {
   const favorites = (models?.favorites ?? []).filter((f) => f !== id);
+
   return create(ui.InstanceModelsSchema, { ...lists(models), favorites: favorite ? [...favorites, id] : favorites });
 }
 
@@ -429,24 +554,32 @@ export function withFavoriteMoved(models: ui.InstanceModels | undefined, id: str
   const favorites = [...(models?.favorites ?? [])];
   const from = favorites.indexOf(id);
   const to = from + by;
+
   if (from < 0 || to < 0 || to >= favorites.length) return create(ui.InstanceModelsSchema, lists(models));
   [favorites[from], favorites[to]] = [favorites[to]!, favorites[from]!];
+
   return create(ui.InstanceModelsSchema, { ...lists(models), favorites });
 }
 
 export function withCustom(models: ui.InstanceModels | undefined, id: string, add: boolean): ui.InstanceModels {
   const custom = (models?.custom ?? []).filter((c) => c !== id);
   const favorites = add ? (models?.favorites ?? []) : (models?.favorites ?? []).filter((f) => f !== id);
+
   return create(ui.InstanceModelsSchema, { ...lists(models), custom: add ? [...custom, id] : custom, favorites });
 }
 
 /** "Hide all" / "Show all" over the given rows. */
-export function withAllVisible(models: ui.InstanceModels | undefined, rows: readonly ModelRow[], visible: boolean): ui.InstanceModels {
+export function withAllVisible(
+  models: ui.InstanceModels | undefined,
+  rows: readonly ModelRow[],
+  visible: boolean,
+): ui.InstanceModels {
   return rows.reduce((acc, row) => withVisibility(acc, row, visible), create(ui.InstanceModelsSchema, lists(models)));
 }
 
 export const matchesModel = (row: ModelRow, query: string): boolean => {
   const q = query.trim().toLowerCase();
+
   return !q || `${row.id} ${row.name} ${row.description}`.toLowerCase().includes(q);
 };
 
@@ -464,9 +597,11 @@ const actions = {
 } as const satisfies Record<string, readonly [DescMessage, DescMessage]>;
 
 export type ProviderAction = keyof typeof actions;
+
 export const providerActions = actions;
 
 type RequestOf<A extends ProviderAction> = (typeof actions)[A][0];
+
 type ResponseOf<A extends ProviderAction> = (typeof actions)[A][1];
 
 export async function providerCall<A extends ProviderAction>(
@@ -476,7 +611,14 @@ export async function providerCall<A extends ProviderAction>(
 ): Promise<import("@bufbuild/protobuf").MessageShape<ResponseOf<A>>> {
   const [requestSchema, responseSchema] = actions[action];
   const message = create(requestSchema as DescMessage, request as never);
-  const json = await requestJson("POST", `/api/providers/${action}`, encode(requestSchema as DescMessage, message), timeoutMs);
+
+  const json = await requestJson(
+    "POST",
+    `/api/providers/${action}`,
+    encode(requestSchema as DescMessage, message),
+    timeoutMs,
+  );
+
   return decode(responseSchema as DescMessage, json) as never;
 }
 

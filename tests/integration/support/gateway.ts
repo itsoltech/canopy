@@ -30,7 +30,19 @@ import { migrate } from "@canopy/db";
 import { startPostgres, type TestPostgres } from "@canopy/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@canopy/gateway/api";
 import { GatewayCore, type GatewayCoreOptions } from "@canopy/gateway/core";
-import { AgentBusStore, AttachmentStore, BackgroundTaskStore, GatewayStore, GoalStore, Ingest, ModelStore, InstanceStore, QueueStore, SettingsStore, SteerStore } from "@canopy/gateway/store";
+import {
+  AgentBusStore,
+  AttachmentStore,
+  BackgroundTaskStore,
+  GatewayStore,
+  GoalStore,
+  Ingest,
+  ModelStore,
+  InstanceStore,
+  QueueStore,
+  SettingsStore,
+  SteerStore,
+} from "@canopy/gateway/store";
 import type { AttachmentLimits } from "@canopy/domain";
 import { startGrpcServer } from "@canopy/transport";
 import { applyWorkerConfig } from "@canopy/worker/config";
@@ -44,7 +56,19 @@ import type { BotModel } from "../../../apps/gateway/src/bots/types.ts";
 export const SERVICE_TOKEN = "t".repeat(48);
 
 export type TestRuntime = ManagedRuntime.ManagedRuntime<
-  GatewayStore | Ingest | AgentBusStore | SettingsStore | ModelStore | SteerStore | QueueStore | GoalStore | InstanceStore | AttachmentStore | BackgroundTaskStore | BotStore | SqlClient.SqlClient,
+  | GatewayStore
+  | Ingest
+  | AgentBusStore
+  | SettingsStore
+  | ModelStore
+  | SteerStore
+  | QueueStore
+  | GoalStore
+  | InstanceStore
+  | AttachmentStore
+  | BackgroundTaskStore
+  | BotStore
+  | SqlClient.SqlClient,
   unknown
 >;
 
@@ -57,15 +81,25 @@ export const SCRIPTED_MODELS: MessageInitShape<typeof ProfileModelsSchema>[] = [
     provider: Provider.CODEX,
     profileId: "native",
     models: [
-      { id: "gpt-6.1-sol", displayName: "GPT-6.1-Sol", isDefault: true, efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "low" },
+      {
+        id: "gpt-6.1-sol",
+        displayName: "GPT-6.1-Sol",
+        isDefault: true,
+        efforts: ["low", "medium", "high", "xhigh"],
+        defaultEffort: "low",
+      },
       { id: "gpt-5.5", displayName: "GPT-5.5", efforts: ["low", "medium", "high"], defaultEffort: "medium" },
     ],
   },
 ];
 
 type CommandKind = Command["kind"];
+
 /** Takes over a command kind; reply() answers the command. */
-export type CommandHandler = (value: NonNullable<CommandKind["value"]>, reply: (ok: boolean, extra?: Record<string, unknown>) => void) => void;
+export type CommandHandler = (
+  value: NonNullable<CommandKind["value"]>,
+  reply: (ok: boolean, extra?: Record<string, unknown>) => void,
+) => void;
 
 export interface ScriptedWorkerOptions {
   readonly secretsDataDir?: string;
@@ -74,7 +108,10 @@ export interface ScriptedWorkerOptions {
   /** Its model catalog (default SCRIPTED_MODELS: Codex only). */
   readonly models?: MessageInitShape<typeof ProfileModelsSchema>[];
   /** More Hello fields (e.g. capabilities and running_turns of a restarted worker). */
-  readonly hello?: Pick<MessageInitShape<typeof HelloSchema>, "capabilities" | "runningTurns" | "attachmentsRoot" | "scratchRoot" | "homeDirectory">;
+  readonly hello?: Pick<
+    MessageInitShape<typeof HelloSchema>,
+    "capabilities" | "runningTurns" | "attachmentsRoot" | "scratchRoot" | "homeDirectory"
+  >;
 }
 
 /** Plays a worker: answers commands and emits the events a real provider would. */
@@ -87,8 +124,15 @@ export class ScriptedWorker {
   readonly interactionAnswers: { requestId: string; allow: boolean }[] = [];
   /** Threads this worker was asked to create, with their cwd. */
   readonly created: {
-    threadId: string; cwd: string; enableAgentBus: boolean; depth: number; model: string; instructions: string; permissionMode: number;
-    provider: Provider; providerProfileId: string;
+    threadId: string;
+    cwd: string;
+    enableAgentBus: boolean;
+    depth: number;
+    model: string;
+    instructions: string;
+    permissionMode: number;
+    provider: Provider;
+    providerProfileId: string;
   }[] = [];
   /** Inputs of the turns this worker ran, per thread. */
   readonly inputs = new Map<string, string[]>();
@@ -114,7 +158,10 @@ export class ScriptedWorker {
   readonly #running = new Map<string, string>();
   readonly #seq = new Map<string, bigint>();
   readonly #toolResults = new Map<string, (result: AgentToolResult) => void>();
-  readonly #fetches = new Map<string, { chunks: Uint8Array[]; resolve: (result: { data?: Uint8Array; error?: string }) => void }>();
+  readonly #fetches = new Map<
+    string,
+    { chunks: Uint8Array[]; resolve: (result: { data?: Uint8Array; error?: string }) => void }
+  >();
   constructor(
     readonly link: GatewayLink,
     readonly options: ScriptedWorkerOptions = {},
@@ -124,20 +171,51 @@ export class ScriptedWorker {
     void this.#loop();
   }
 
-  emit(threadId: string, turnId: string, body: MessageInitShape<typeof ThreadEventSchema>["body"], rawJson = "{}"): void {
+  emit(
+    threadId: string,
+    turnId: string,
+    body: MessageInitShape<typeof ThreadEventSchema>["body"],
+    rawJson = "{}",
+  ): void {
     const journalSeq = (this.#seq.get(threadId) ?? 0n) + 1n;
     this.#seq.set(threadId, journalSeq);
-    this.link.send({ case: "threadEvent", value: create(ThreadEventSchema, { threadId, turnId, journalSeq, eventId: Bun.randomUUIDv7(), ...(body && { body }), rawJson }) });
+    this.link.send({
+      case: "threadEvent",
+      value: create(ThreadEventSchema, {
+        threadId,
+        turnId,
+        journalSeq,
+        eventId: Bun.randomUUIDv7(),
+        ...(body && { body }),
+        rawJson,
+      }),
+    });
   }
 
   /** What the provider does when the model calls an agent bus tool. */
-  callTool(input: { threadId: string; turnId?: string; tool: string; args: unknown; callId?: string; connectorAccountId?: string }): Promise<AgentToolResult> {
+  callTool(input: {
+    threadId: string;
+    turnId?: string;
+    tool: string;
+    args: unknown;
+    callId?: string;
+    connectorAccountId?: string;
+  }): Promise<AgentToolResult> {
     const callId = input.callId ?? Bun.randomUUIDv7();
+
     return new Promise((resolve) => {
       this.#toolResults.set(callId, resolve);
       this.link.send({
         case: "agentToolCall",
-        value: { callId, threadId: input.threadId, turnId: input.turnId ?? "", itemId: `tool-${callId.slice(-6)}`, toolName: input.tool, argumentsJson: JSON.stringify(input.args), connectorAccountId: input.connectorAccountId ?? '' },
+        value: {
+          callId,
+          threadId: input.threadId,
+          turnId: input.turnId ?? "",
+          itemId: `tool-${callId.slice(-6)}`,
+          toolName: input.tool,
+          argumentsJson: JSON.stringify(input.args),
+          connectorAccountId: input.connectorAccountId ?? "",
+        },
       });
     });
   }
@@ -147,14 +225,24 @@ export class ScriptedWorker {
     this.#running.delete(threadId);
     this.emit(threadId, turnId, {
       case: "itemCompleted",
-      value: { item: { itemId: `msg-${turnId}`, status: ItemStatus.COMPLETED, content: { case: "agentMessage", value: { text, phase: "final_answer" } } } },
+      value: {
+        item: {
+          itemId: `msg-${turnId}`,
+          status: ItemStatus.COMPLETED,
+          content: { case: "agentMessage", value: { text, phase: "final_answer" } },
+        },
+      },
     });
-    this.emit(threadId, turnId, { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: `ct-${turnId.slice(-4)}` } });
+    this.emit(threadId, turnId, {
+      case: "turnFinished",
+      value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: `ct-${turnId.slice(-4)}` },
+    });
   }
 
   /** FetchBlob like a real worker before a turn with attachments: the bytes, or the gateway's error. */
   fetchBlob(threadId: string, sha256: string): Promise<{ data?: Uint8Array; error?: string }> {
     const requestId = Bun.randomUUIDv7();
+
     return new Promise((resolve) => {
       this.#fetches.set(requestId, { chunks: [], resolve });
       this.link.send({ case: "fetchBlob", value: { requestId, threadId, sha256 } });
@@ -165,7 +253,16 @@ export class ScriptedWorker {
   uploadPreview(sha256: string, data: Uint8Array, mimeType: string, chunkBytes = 64 * 1024): void {
     for (let offset = 0; offset < data.length; offset += chunkBytes) {
       const end = Math.min(offset + chunkBytes, data.length);
-      this.link.send({ case: "blobChunk", value: { sha256, offset: BigInt(offset), data: data.subarray(offset, end), last: end === data.length, mimeType } });
+      this.link.send({
+        case: "blobChunk",
+        value: {
+          sha256,
+          offset: BigInt(offset),
+          data: data.subarray(offset, end),
+          last: end === data.length,
+          mimeType,
+        },
+      });
     }
   }
 
@@ -176,26 +273,44 @@ export class ScriptedWorker {
   /** The models of every Codex profile the last configuration made available. */
   #catalog(): MessageInitShape<typeof ProfileModelsSchema>[] {
     const native = this.models.filter((p) => p.provider === Provider.CODEX && p.profileId === "native");
+
     return [...this.models, ...this.#profiles.flatMap((profileId) => native.map((p) => ({ ...p, profileId })))];
   }
 
   async #loop(): Promise<void> {
     for await (const message of this.link.messages) {
       const payload = message.payload;
+
       if (payload.case === "threadSecretDelivery" && this.secrets) {
         this.link.send({ case: "threadSecretReceipt", value: this.secrets.apply(payload.value) });
         continue;
       }
+
       if (payload.case === "config") {
         this.configs.push(payload.value);
+
         // Profiles as the real worker validates and reports them (no CLI probing: the device runs nothing).
         const applied = applyWorkerConfig(payload.value, {
-          which: (command) => (command === "codex" || (command === "claude" && this.options.claude) ? `/usr/bin/${command}` : null),
+          which: (command) =>
+            command === "codex" || (command === "claude" && this.options.claude) ? `/usr/bin/${command}` : null,
           version: () => "0.164.0",
           realDirectory: (path) => path,
         });
-        const profiles = applied.report.profiles?.length ? applied.report.profiles : [{ id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CLAUDE, Provider.CODEX], available: true }];
-        this.#profiles = profiles.filter((p) => p.available && p.id !== "native" && p.providers?.includes(Provider.CODEX)).map((p) => p.id ?? "");
+
+        const profiles = applied.report.profiles?.length
+          ? applied.report.profiles
+          : [
+              {
+                id: "native",
+                kind: ProviderProfileKind.NATIVE,
+                providers: [Provider.CLAUDE, Provider.CODEX],
+                available: true,
+              },
+            ];
+
+        this.#profiles = profiles
+          .filter((p) => p.available && p.id !== "native" && p.providers?.includes(Provider.CODEX))
+          .map((p) => p.id ?? "");
         // Like a real worker: what this device offers (here Codex and its profiles; Claude missing).
         this.link.send({
           case: "configApplied",
@@ -211,77 +326,130 @@ export class ScriptedWorker {
             profiles,
           },
         });
-        this.link.send({ case: "modelCatalog", value: { configVersion: payload.value.version, profiles: this.#catalog() } });
+        this.link.send({
+          case: "modelCatalog",
+          value: { configVersion: payload.value.version, profiles: this.#catalog() },
+        });
       }
+
       if (payload.case === "blobChunk") {
         const fetch = this.#fetches.get(payload.value.requestId);
+
         if (!fetch) continue;
         fetch.chunks.push(payload.value.data);
+
         if (payload.value.last) {
           this.#fetches.delete(payload.value.requestId);
-          fetch.resolve(payload.value.error ? { error: payload.value.error } : { data: new Uint8Array(Buffer.concat(fetch.chunks)) });
+          fetch.resolve(
+            payload.value.error
+              ? { error: payload.value.error }
+              : { data: new Uint8Array(Buffer.concat(fetch.chunks)) },
+          );
         }
+
         continue;
       }
-      if (payload.case === "interactionResponse") this.interactionAnswers.push({ requestId: payload.value.requestId, allow: payload.value.allow });
+
+      if (payload.case === "interactionResponse")
+        this.interactionAnswers.push({ requestId: payload.value.requestId, allow: payload.value.allow });
+
       if (payload.case === "agentToolResult") {
         this.#toolResults.get(payload.value.callId)?.(payload.value);
         this.#toolResults.delete(payload.value.callId);
       }
+
       if (payload.case !== "command") continue;
       const { commandId, kind } = payload.value;
-      const reply = (ok: boolean, extra: Record<string, unknown> = {}) => this.link.send({ case: "commandResult", value: { commandId, ok, ...extra } });
+
+      const reply = (ok: boolean, extra: Record<string, unknown> = {}) =>
+        this.link.send({ case: "commandResult", value: { commandId, ok, ...extra } });
+
       this.commands.push(kind);
       const handler = kind.case ? this.handlers.get(kind.case) : undefined;
+
       if (handler && kind.value) {
         handler(kind.value, reply);
         continue;
       }
+
       switch (kind.case) {
         case "listDirectory":
-          if (kind.value.path.includes("missing")) reply(false, { errorCode: "CWD_NOT_FOUND", errorMessage: `${kind.value.path} does not exist` });
-          else reply(true, { directoryPath: kind.value.path || "/home/test", entries: [{ name: "repo-a", isDir: true, isGitRepo: true }] });
+          if (kind.value.path.includes("missing"))
+            reply(false, { errorCode: "CWD_NOT_FOUND", errorMessage: `${kind.value.path} does not exist` });
+          else
+            reply(true, {
+              directoryPath: kind.value.path || "/home/test",
+              entries: [{ name: "repo-a", isDir: true, isGitRepo: true }],
+            });
           break;
         case "createThread": {
           const spec = kind.value.thread!;
+
           if (spec.cwd.includes("forbidden")) {
             reply(false, { errorCode: "CWD_NOT_FOUND", errorMessage: `${spec.cwd} does not exist` });
             break;
           }
+
           this.created.push({
-            threadId: spec.threadId, cwd: spec.cwd, enableAgentBus: spec.enableAgentBus, depth: spec.depth,
-            model: spec.model, instructions: spec.instructions, permissionMode: spec.permissionMode,
-            provider: spec.provider, providerProfileId: spec.providerProfileId,
+            threadId: spec.threadId,
+            cwd: spec.cwd,
+            enableAgentBus: spec.enableAgentBus,
+            depth: spec.depth,
+            model: spec.model,
+            instructions: spec.instructions,
+            permissionMode: spec.permissionMode,
+            provider: spec.provider,
+            providerProfileId: spec.providerProfileId,
           });
           reply(true);
-          this.emit(spec.threadId, "", { case: "threadReady", value: { providerThreadId: `codex-${spec.threadId.slice(-4)}` } });
+          this.emit(spec.threadId, "", {
+            case: "threadReady",
+            value: { providerThreadId: `codex-${spec.threadId.slice(-4)}` },
+          });
           break;
         }
+
         case "listModels":
           reply(true, { models: this.#catalog() });
           break;
         case "steerTurn": {
           const { threadId, turnId, inputId, input } = kind.value;
+
           if (this.steerMode === "not_running" || this.#running.get(threadId) !== turnId) {
             reply(false, { errorCode: "STEER_NOT_RUNNING", errorMessage: "the turn is not running on this worker" });
             break;
           }
+
           this.steered.set(inputId, input!.text);
           this.started.set(inputId, input!);
           reply(true);
+
           if (this.steerMode === "drop") {
             this.emit(threadId, turnId, {
               case: "notice",
-              value: { level: NoticeLevel.WARNING, code: "steer_dropped", message: "the message did not join the turn before it ended", dataJson: JSON.stringify({ input_id: inputId }) },
+              value: {
+                level: NoticeLevel.WARNING,
+                code: "steer_dropped",
+                message: "the message did not join the turn before it ended",
+                dataJson: JSON.stringify({ input_id: inputId }),
+              },
             });
           } else {
             this.emit(threadId, turnId, {
               case: "itemCompleted",
-              value: { item: { itemId: `user-${inputId}`, status: ItemStatus.COMPLETED, content: { case: "userMessage", value: { text: input!.text, clientId: inputId } } } },
+              value: {
+                item: {
+                  itemId: `user-${inputId}`,
+                  status: ItemStatus.COMPLETED,
+                  content: { case: "userMessage", value: { text: input!.text, clientId: inputId } },
+                },
+              },
             });
           }
+
           break;
         }
+
         case "startTurn": {
           const { thread, turnId, input, model, effort, permissionMode } = kind.value;
           const threadId = thread!.threadId;
@@ -291,21 +459,37 @@ export class ScriptedWorker {
           this.turnSettings.set(turnId, { model, effort });
           this.turnModes.set(turnId, { turn: permissionMode, thread: thread!.permissionMode });
           reply(true);
-          this.emit(threadId, turnId, { case: "turnStarted", value: { providerTurnRef: `ct-${turnId.slice(-4)}`, origin: TurnOrigin.COMMAND } });
+          this.emit(threadId, turnId, {
+            case: "turnStarted",
+            value: { providerTurnRef: `ct-${turnId.slice(-4)}`, origin: TurnOrigin.COMMAND },
+          });
+
           if (this.holdTurns) {
             this.#running.set(threadId, turnId);
             break;
           }
+
           this.emit(threadId, turnId, {
             case: "itemCompleted",
-            value: { item: { itemId: `msg-${turnId}`, status: ItemStatus.COMPLETED, content: { case: "agentMessage", value: { text: `Echo: ${input!.text}`, phase: "final_answer" } } } },
+            value: {
+              item: {
+                itemId: `msg-${turnId}`,
+                status: ItemStatus.COMPLETED,
+                content: { case: "agentMessage", value: { text: `Echo: ${input!.text}`, phase: "final_answer" } },
+              },
+            },
           });
           this.emit(threadId, turnId, {
             case: "turnFinished",
-            value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: `ct-${turnId.slice(-4)}`, usage: { inputTokens: 10n, outputTokens: 2n } },
+            value: {
+              outcome: TurnOutcome.COMPLETED,
+              providerTurnRef: `ct-${turnId.slice(-4)}`,
+              usage: { inputTokens: 10n, outputTokens: 2n },
+            },
           });
           break;
         }
+
         default:
           reply(true);
       }
@@ -334,9 +518,20 @@ export interface TestGateway {
 }
 
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
-export async function startTestGateway(options: { cliLatest?: GatewayCoreOptions["cliLatest"]; updates?: GatewayCoreOptions["updates"]; attachmentLimits?: AttachmentLimits; backgroundGraceMs?: number; botModel?: BotModel; worker?: ScriptedWorkerOptions; secretTtlMs?: number } = {}): Promise<TestGateway> {
+export async function startTestGateway(
+  options: {
+    cliLatest?: GatewayCoreOptions["cliLatest"];
+    updates?: GatewayCoreOptions["updates"];
+    attachmentLimits?: AttachmentLimits;
+    backgroundGraceMs?: number;
+    botModel?: BotModel;
+    worker?: ScriptedWorkerOptions;
+    secretTtlMs?: number;
+  } = {},
+): Promise<TestGateway> {
   const pg = await startPostgres();
   const secretsKey = randomBytes(32);
+
   const runtime: TestRuntime = ManagedRuntime.make(
     Layer.mergeAll(
       GatewayStore.layer(secretsKey),
@@ -353,16 +548,41 @@ export async function startTestGateway(options: { cliLatest?: GatewayCoreOptions
       BotStore.layer(secretsKey),
     ).pipe(Layer.provideMerge(pg.layer)),
   );
+
   await runtime.runPromise(migrate);
   const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
+
   const addWorker = async (name: string, allowedRoots?: string[]) => {
     const added = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name, ownerUserId: userId })));
-    await runtime.runPromise(GatewayStore.use((s) => s.setWorkerConfig(added.workerId, { ...(allowedRoots && { allowedRoots }), codex: { enabled: true }, claude: { enabled: true } }, userId)));
+    await runtime.runPromise(
+      GatewayStore.use((s) =>
+        s.setWorkerConfig(
+          added.workerId,
+          { ...(allowedRoots && { allowedRoots }), codex: { enabled: true }, claude: { enabled: true } },
+          userId,
+        ),
+      ),
+    );
     // Its effective provider instances (the built-in native ones, all workers).
     await runtime.runPromise(InstanceStore.use((s) => s.sync(userId, [added.workerId])));
+
     return added;
   };
-  const core = new GatewayCore({ runtime, instanceId: "test", userId, sshSecretsKey: secretsKey, ...(options.cliLatest && { cliLatest: options.cliLatest }), ...(options.updates && { updates: options.updates }), ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }), ...(options.botModel && { botModel: options.botModel }), ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }), ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }), log: (m) => (process.env["CANOPY_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m) });
+
+  const core = new GatewayCore({
+    runtime,
+    instanceId: "test",
+    userId,
+    sshSecretsKey: secretsKey,
+    ...(options.cliLatest && { cliLatest: options.cliLatest }),
+    ...(options.updates && { updates: options.updates }),
+    ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }),
+    ...(options.botModel && { botModel: options.botModel }),
+    ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }),
+    ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }),
+    log: (m) => (process.env["CANOPY_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m),
+  });
+
   const grpc = await startGrpcServer({
     routes: (router) => {
       core.link.routes(router);
@@ -371,32 +591,58 @@ export async function startTestGateway(options: { cliLatest?: GatewayCoreOptions
     },
     interceptors: [serviceTokenAuth(SERVICE_TOKEN)],
   });
+
   const api = createClient(
     ui.GatewayService,
     createGrpcTransport({
       baseUrl: grpc.url,
-      interceptors: [(next) => (request) => (request.header.set("authorization", `Bearer ${SERVICE_TOKEN}`), next(request))],
+      interceptors: [
+        (next) => (request) => (request.header.set("authorization", `Bearer ${SERVICE_TOKEN}`), next(request)),
+      ],
     }),
   );
+
   const workers: ScriptedWorker[] = [];
+
   const connect = async (workerId: string, credential: string, os?: string, options?: ScriptedWorkerOptions) => {
     const worker = new ScriptedWorker(
       await openGatewayLink({
         baseUrl: grpc.url,
         credential,
-        hello: { workerId, journalId: `journal-${workerId.slice(-6)}`, attachmentsRoot: SCRIPTED_ATTACHMENTS_ROOT, scratchRoot: "/worker-data/scratch", homeDirectory: "/home/test", ...(os && { host: { os }, ...(os === "win32" && { scratchRoot: "C:\\worker-data\\scratch", homeDirectory: "C:\\Users\\test" }) }), ...options?.hello,
-          ...(options?.secretsDataDir && { capabilities: [...(options.hello?.capabilities ?? []), "thread_secrets"] }) },
+        hello: {
+          workerId,
+          journalId: `journal-${workerId.slice(-6)}`,
+          attachmentsRoot: SCRIPTED_ATTACHMENTS_ROOT,
+          scratchRoot: "/worker-data/scratch",
+          homeDirectory: "/home/test",
+          ...(os && {
+            host: { os },
+            ...(os === "win32" && { scratchRoot: "C:\\worker-data\\scratch", homeDirectory: "C:\\Users\\test" }),
+          }),
+          ...options?.hello,
+          ...(options?.secretsDataDir && { capabilities: [...(options.hello?.capabilities ?? []), "thread_secrets"] }),
+        },
       }),
       options,
     );
+
     workers.push(worker);
+
     return worker;
   };
+
   const laptop = await addWorker("laptop");
   const worker = await connect(laptop.workerId, laptop.credential, undefined, options.worker);
   // Directory validation can finish before configuration/catalog delivery. Return a ready fixture.
-  await eventually(() => api.getOverview({}), (o) => o.workers.some((w) => w.id === laptop.workerId && w.appliedVersion > 0n));
-  await eventually(() => api.listModels({}), (r) => r.workers.some((w) => w.workerId === laptop.workerId && w.configVersion > 0n));
+  await eventually(
+    () => api.getOverview({}),
+    (o) => o.workers.some((w) => w.id === laptop.workerId && w.appliedVersion > 0n),
+  );
+  await eventually(
+    () => api.listModels({}),
+    (r) => r.workers.some((w) => w.workerId === laptop.workerId && w.configVersion > 0n),
+  );
+
   return {
     pg,
     runtime,
@@ -413,7 +659,12 @@ export async function startTestGateway(options: { cliLatest?: GatewayCoreOptions
     close: async () => {
       core.stopSweep();
       await core.bots.stop();
-      for (const w of workers) { w.link.close(); w.secrets?.close(); }
+
+      for (const w of workers) {
+        w.link.close();
+        w.secrets?.close();
+      }
+
       await core.link.shutdown();
       await grpc.close();
       await runtime.dispose();
@@ -433,16 +684,19 @@ export async function watchUntil(
   const controller = new AbortController();
   const updates: ui.ThreadUpdate[] = [];
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     for await (const update of api.watchThread({ threadId }, { signal: controller.signal })) {
       updates.push(update);
       onUpdate?.(update);
+
       if (done(updates)) break;
     }
   } finally {
     clearTimeout(timeout);
     controller.abort();
   }
+
   return updates;
 }
 
@@ -450,7 +704,11 @@ export async function watchUntil(
 export const answers = (updates: ui.ThreadUpdate[]) =>
   [
     ...updates.flatMap((u) => (u.change.case === "snapshot" ? u.change.value.items.map((i) => i.item) : [])),
-    ...updates.flatMap((u) => (u.change.case === "event" && u.change.value.event?.body.case === "itemCompleted" ? [u.change.value.event.body.value.item] : [])),
+    ...updates.flatMap((u) =>
+      u.change.case === "event" && u.change.value.event?.body.case === "itemCompleted"
+        ? [u.change.value.event.body.value.item]
+        : [],
+    ),
   ].flatMap((item) => (item?.content.case === "agentMessage" ? [item.content.value.text] : []));
 
 /** Message of the error a call fails with ("" if it succeeds). `await expect(p).rejects` hangs on Connect calls in Bun 1.4. */
@@ -461,10 +719,16 @@ export const failure = (call: Promise<unknown>): Promise<string> =>
   );
 
 /** Polls until the predicate holds (5 s at most). */
-export async function eventually<A>(read: () => Promise<A>, done: (value: A) => boolean, timeoutMs = 5_000): Promise<A> {
+export async function eventually<A>(
+  read: () => Promise<A>,
+  done: (value: A) => boolean,
+  timeoutMs = 5_000,
+): Promise<A> {
   const deadline = Date.now() + timeoutMs;
+
   for (;;) {
     const value = await read();
+
     if (done(value) || Date.now() > deadline) return value;
     await Bun.sleep(25);
   }

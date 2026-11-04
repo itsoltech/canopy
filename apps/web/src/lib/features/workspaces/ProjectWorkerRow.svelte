@@ -30,7 +30,9 @@
 </script>
 
 <div class={["flex items-start gap-3 px-4 py-3.5", className]}>
-  <div class="flex h-lh shrink-0 items-center px-1 text-base/6 sm:text-sm/6"><StatusDot tone={worker.online ? "emerald" : "neutral"} /></div>
+  <div class="flex h-lh shrink-0 items-center px-1 text-base/6 sm:text-sm/6">
+    <StatusDot tone={worker.online ? "emerald" : "neutral"} />
+  </div>
   <div class="min-w-0 flex-1">
     <p class="truncate text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">{worker.name}</p>
     <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
@@ -41,7 +43,10 @@
         {#each workspaces as ws (ws.id)}
           <li class="flex min-w-0 items-center gap-2 text-zinc-700 dark:text-zinc-300">
             <Icon name="folder" class="fill-zinc-400 dark:fill-zinc-500" />
-            <code class="min-w-0 flex-1 font-mono text-sm/6 break-all sm:truncate sm:text-[0.8125rem]/6" title={ws.rootPath}>{ws.rootPath}</code>
+            <code
+              class="min-w-0 flex-1 font-mono text-sm/6 break-all sm:truncate sm:text-[0.8125rem]/6"
+              title={ws.rootPath}>{ws.rootPath}</code
+            >
             <IconButton
               icon="pencil-square"
               size="sm"

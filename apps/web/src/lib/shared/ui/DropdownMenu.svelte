@@ -40,11 +40,14 @@
   } = $props();
 
   let start = $state<"first" | "last">("first");
+
   const menu = $state({
     openSub: undefined as string | undefined,
     closeAll: () => (open = false),
   });
+
   provideMenu(menu);
+
   $effect(() => {
     if (!open) menu.openSub = undefined;
   });

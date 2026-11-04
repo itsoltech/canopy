@@ -21,25 +21,44 @@ export class WorkerSetup {
       this.enrollments = setup.enrollments;
       this.loaded = true;
       this.error = "";
-    } catch (e) { this.error = e instanceof Error ? e.message : "Could not load worker setup"; }
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : "Could not load worker setup";
+    }
   }
   apply(update: ui.OverviewUpdate) {
     if (update.change.case === "enrollment") {
       const value = update.change.value;
       this.enrollments = [value, ...this.enrollments.filter((e) => e.id !== value.id)];
     }
+
     if (update.change.case === "userSettings") void this.reload();
   }
   async saveAddress(address: string) {
     for (let attempt = 0; ; attempt++) {
       const current = decode(ui.GetSettingsResponseSchema, await requestJson("GET", "/api/settings"));
+
       try {
-        await requestJson("PUT", "/api/settings/user", encode(ui.UpdateUserSettingsRequestSchema,
-          create(ui.UpdateUserSettingsRequestSchema, { expectedVersion: current.user?.version ?? 0n, workerGatewayUrl: address.trim() })));
+        await requestJson(
+          "PUT",
+          "/api/settings/user",
+          encode(
+            ui.UpdateUserSettingsRequestSchema,
+            create(ui.UpdateUserSettingsRequestSchema, {
+              expectedVersion: current.user?.version ?? 0n,
+              workerGatewayUrl: address.trim(),
+            }),
+          ),
+        );
         await this.reload();
+
         return;
-      } catch (e) { if (attempt > 0 || !(e instanceof HttpError) || e.status !== 409) throw e; }
+      } catch (e) {
+        if (attempt > 0 || !(e instanceof HttpError) || e.status !== 409) throw e;
+      }
     }
   }
-  async revoke(id: string) { await workerAction("revoke-enrollment", { id }); await this.reload(); }
+  async revoke(id: string) {
+    await workerAction("revoke-enrollment", { id });
+    await this.reload();
+  }
 }

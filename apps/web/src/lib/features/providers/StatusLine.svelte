@@ -7,4 +7,6 @@
   let { status, class: className }: { status: InstanceStatus; class?: ClassValue } = $props();
 </script>
 
-<span class={["flex min-w-0 items-center gap-1.5", className]} title={status.label}><StatusDot tone={status.tone} /><span class="truncate">{status.label}</span></span>
+<span class={["flex min-w-0 items-center gap-1.5", className]} title={status.label}
+  ><StatusDot tone={status.tone} /><span class="truncate">{status.label}</span></span
+>

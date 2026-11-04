@@ -19,7 +19,12 @@ export class QueueConflict extends Error {
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | Invalid | QueueConflict>;
 
-type LockedTurn = TurnRow & { revision: number; withdrawn: string | null; author_user_id: string | null; started: boolean };
+type LockedTurn = TurnRow & {
+  revision: number;
+  withdrawn: string | null;
+  author_user_id: string | null;
+  started: boolean;
+};
 
 /** The turn has a live command (StartTurn): the scheduler took it, whatever its status says yet. */
 const DISPATCHED = `EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = u.id AND c.status IN ('pending', 'delivered', 'completed'))`;
@@ -38,7 +43,12 @@ export class QueueStore extends Context.Service<
      * A user's queued message gets a new input (composed by the caller like a sent message: its attachments note,
      * its mentions; overrides stay); `expectedRevision` as read.
      */
-    edit(input: { turnId: string; ownerUserId: string; input: TurnRow["input"]; expectedRevision: number }): Fx<TurnRow>;
+    edit(input: {
+      turnId: string;
+      ownerUserId: string;
+      input: TurnRow["input"];
+      expectedRevision: number;
+    }): Fx<TurnRow>;
     /** A user's queued message leaves the queue (cancelled, withdrawn = deleted). */
     remove(input: { turnId: string; ownerUserId: string }): Fx<TurnRow>;
     /** Undoes `remove`: back in the queue at its place. */
@@ -53,7 +63,10 @@ export class QueueStore extends Context.Service<
      * Runs `start` (record the settings, put StartTurn in the outbox) only while the turn is still the queue's
      * head with the revision the scheduler read; else nothing (undefined) and the scheduler reads the queue again.
      */
-    whileHead<A, E, R>(input: { threadId: string; turnId: string; revision: number }, start: Effect.Effect<A, E, R>): Effect.Effect<A | undefined, E | SqlError.SqlError, R>;
+    whileHead<A, E, R>(
+      input: { threadId: string; turnId: string; revision: number },
+      start: Effect.Effect<A, E, R>,
+    ): Effect.Effect<A | undefined, E | SqlError.SqlError, R>;
   }
 >()("canopy/gateway/QueueStore") {
   static readonly layer = Layer.effect(
@@ -62,7 +75,9 @@ export class QueueStore extends Context.Service<
       const sql = yield* SqlClient.SqlClient;
 
       const lockThread = (threadId: string, ownerUserId: string) =>
-        sql<{ id: string }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`.pipe(
+        sql<{
+          id: string;
+        }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`.pipe(
           Effect.flatMap((rows) => (rows[0] ? Effect.void : Effect.fail(new NotFound("thread not found")))),
         );
 
@@ -73,6 +88,7 @@ export class QueueStore extends Context.Service<
             FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id WHERE u.id = ANY(${`{${ids.join(",")}}`}::uuid[])`.pipe(
           Effect.map((rows) => ids.flatMap((id) => rows.filter((r) => r.id === id))),
         );
+
       const readOne = (id: string) => read([id]).pipe(Effect.map((rows) => rows[0]!));
 
       /** Locks the turn's thread, then the turn (only the owner's turns are found). */
@@ -81,9 +97,15 @@ export class QueueStore extends Context.Service<
           const owner = yield* sql<{ thread_id: string }>`
             SELECT u.thread_id FROM turns u JOIN threads t ON t.id = u.thread_id
              WHERE u.id = ${turnId}::uuid AND t.owner_user_id = ${ownerUserId}::uuid`;
+
           if (!owner[0]) return yield* Effect.fail(new NotFound("turn not found"));
           yield* lockThread(owner[0].thread_id, ownerUserId);
-          const rows = yield* sql.unsafe<LockedTurn>(`SELECT u.*, ${DISPATCHED} AS started FROM turns u WHERE u.id = $1::uuid FOR UPDATE`, [turnId]);
+
+          const rows = yield* sql.unsafe<LockedTurn>(
+            `SELECT u.*, ${DISPATCHED} AS started FROM turns u WHERE u.id = $1::uuid FOR UPDATE`,
+            [turnId],
+          );
+
           return rows[0]!;
         });
 
@@ -91,7 +113,13 @@ export class QueueStore extends Context.Service<
         turn.status === "running" || (turn.status === "queued" && turn.started)
           ? Effect.fail(new QueueConflict("this message already started running"))
           : turn.status !== "queued"
-            ? Effect.fail(new QueueConflict(turn.withdrawn ? "this message is no longer in the queue" : `this message is no longer queued (${turn.status})`))
+            ? Effect.fail(
+                new QueueConflict(
+                  turn.withdrawn
+                    ? "this message is no longer in the queue"
+                    : `this message is no longer queued (${turn.status})`,
+                ),
+              )
             : Effect.void;
 
       /** A queued message of the user (agents' and schedules' turns are only reordered). */
@@ -99,7 +127,10 @@ export class QueueStore extends Context.Service<
         Effect.gen(function* () {
           const turn = yield* lockTurn(turnId, ownerUserId);
           yield* stillQueued(turn);
-          if (turn.trigger !== "user") return yield* Effect.fail(new Invalid("only your own messages can be changed in the queue"));
+
+          if (turn.trigger !== "user")
+            return yield* Effect.fail(new Invalid("only your own messages can be changed in the queue"));
+
           return turn;
         });
 
@@ -107,15 +138,20 @@ export class QueueStore extends Context.Service<
         reorder: ({ threadId, ownerUserId, turnIds }) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              if (new Set(turnIds).size !== turnIds.length) return yield* Effect.fail(new Invalid("a turn is listed twice"));
+              if (new Set(turnIds).size !== turnIds.length)
+                return yield* Effect.fail(new Invalid("a turn is listed twice"));
               yield* lockThread(threadId, ownerUserId);
+
               if (turnIds.length === 0) return [];
               const ids = `{${turnIds.join(",")}}`;
+
               const rows = yield* sql.unsafe<LockedTurn>(
                 `SELECT u.*, ${DISPATCHED} AS started FROM turns u WHERE u.thread_id = $1::uuid AND u.id = ANY($2::uuid[]) FOR UPDATE`,
                 [threadId, ids],
               );
+
               if (rows.length !== turnIds.length) return yield* Effect.fail(new NotFound("turn not found"));
+
               for (const row of rows) yield* stillQueued(row);
               const slots = rows.map((r) => r.ordinal).sort((a, b) => a - b);
               // (thread_id, ordinal) is unique per statement: step aside first, then take the new places.
@@ -124,6 +160,7 @@ export class QueueStore extends Context.Service<
                 UPDATE turns u SET ordinal = v.ordinal
                   FROM unnest(${ids}::uuid[], ${`{${slots.join(",")}}`}::int[]) AS v(id, ordinal)
                  WHERE u.id = v.id`;
+
               return yield* read(turnIds);
             }),
           ),
@@ -139,12 +176,19 @@ export class QueueStore extends Context.Service<
           sql.withTransaction(
             Effect.gen(function* () {
               const turn = yield* lockUserMessage(turnId, ownerUserId);
-              if (turn.revision !== expectedRevision) return yield* Effect.fail(new QueueConflict("this message was changed elsewhere; edit the new version"));
+
+              if (turn.revision !== expectedRevision)
+                return yield* Effect.fail(
+                  new QueueConflict("this message was changed elsewhere; edit the new version"),
+                );
               const carries = (turn.input.attachments ?? []).length > 0 || (input.quotes ?? []).length > 0;
-              if (!(input.message ?? input.text ?? "").trim() && !carries) return yield* Effect.fail(new Invalid("message is empty"));
+
+              if (!(input.message ?? input.text ?? "").trim() && !carries)
+                return yield* Effect.fail(new Invalid("message is empty"));
               // The files stay the turn's (they are bound to it).
               const next = { ...input, ...(turn.input.attachments && { attachments: turn.input.attachments }) };
               yield* sql`UPDATE turns SET input = ${JSON.stringify(next)}::jsonb, revision = revision + 1 WHERE id = ${turnId}::uuid`;
+
               return yield* readOne(turnId);
             }),
           ),
@@ -154,6 +198,7 @@ export class QueueStore extends Context.Service<
             Effect.gen(function* () {
               yield* lockUserMessage(turnId, ownerUserId);
               yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'deleted', completed_at = now() WHERE id = ${turnId}::uuid`;
+
               return yield* readOne(turnId);
             }),
           ),
@@ -162,9 +207,13 @@ export class QueueStore extends Context.Service<
           sql.withTransaction(
             Effect.gen(function* () {
               const turn = yield* lockTurn(turnId, ownerUserId);
+
               if (turn.status === "queued" && !turn.withdrawn) return yield* readOne(turnId); // restored already
-              if (turn.withdrawn !== "deleted") return yield* Effect.fail(new QueueConflict("this message was not deleted from the queue"));
+
+              if (turn.withdrawn !== "deleted")
+                return yield* Effect.fail(new QueueConflict("this message was not deleted from the queue"));
               yield* sql`UPDATE turns SET status = 'queued', withdrawn = NULL, completed_at = NULL WHERE id = ${turnId}::uuid`;
+
               return yield* readOne(turnId);
             }),
           ),
@@ -173,11 +222,16 @@ export class QueueStore extends Context.Service<
           sql.withTransaction(
             Effect.gen(function* () {
               const turn = yield* lockUserMessage(turnId, ownerUserId);
-              if ((turn.input.attachments ?? []).length > 0) return yield* Effect.fail(new Invalid("a message with attachments runs as its own turn"));
+
+              if ((turn.input.attachments ?? []).length > 0)
+                return yield* Effect.fail(new Invalid("a message with attachments runs as its own turn"));
+
               const running = yield* sql<{ id: string; worker_id: string | null }>`
                 SELECT u.id, t.worker_id FROM turns u JOIN threads t ON t.id = u.thread_id
                  WHERE u.thread_id = ${turn.thread_id}::uuid AND u.status = 'running'`;
-              if (!running[0]?.worker_id) return yield* Effect.fail(new QueueConflict("no turn is running; the message stays in the queue"));
+
+              if (!running[0]?.worker_id)
+                return yield* Effect.fail(new QueueConflict("no turn is running; the message stays in the queue"));
               const id = Bun.randomUUIDv7();
               yield* sql`
                 INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, model, effort, permission_mode, from_turn_id)
@@ -185,6 +239,7 @@ export class QueueStore extends Context.Service<
                         ${turn.author_user_id}::uuid, ${turn.model ?? ""}, ${turn.effort ?? ""}, ${turn.permission_mode ?? ""}, ${turnId}::uuid)`;
               yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'steered', completed_at = now() WHERE id = ${turnId}::uuid`;
               const steer = (yield* sql<SteerRow>`SELECT * FROM turn_steers WHERE id = ${id}::uuid`)[0]!;
+
               return { steer, turn: yield* readOne(turnId) };
             }),
           ),
@@ -193,6 +248,7 @@ export class QueueStore extends Context.Service<
           sql.withTransaction(
             Effect.gen(function* () {
               yield* sql`SELECT id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+
               const head = yield* sql.unsafe<{ id: string }>(
                 `SELECT u.id FROM turns u
                   WHERE u.id = $1::uuid AND u.status = 'queued' AND u.revision = $2 AND NOT ${DISPATCHED}
@@ -200,11 +256,14 @@ export class QueueStore extends Context.Service<
                                       AND NOT EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = q.id AND c.status IN ('pending', 'delivered', 'completed')))`,
                 [turnId, revision],
               );
+
               if (!head[0]) return undefined;
+
               return yield* start;
             }),
           ),
       };
+
       return QueueStore.of(store);
     }),
   );

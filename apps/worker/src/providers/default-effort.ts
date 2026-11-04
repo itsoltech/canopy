@@ -18,26 +18,35 @@ import type { Env } from "./profiles.ts";
  */
 
 /** A level the model offers: the configured one, else the model's own default, else none. */
-export function pickDefaultEffort(efforts: readonly string[], configured: string | undefined, modelDefault?: string): string | undefined {
+export function pickDefaultEffort(
+  efforts: readonly string[],
+  configured: string | undefined,
+  modelDefault?: string,
+): string | undefined {
   if (configured && efforts.includes(configured)) return configured;
+
   return modelDefault && efforts.includes(modelDefault) ? modelDefault : undefined;
 }
 
 /** Codex config.toml text → its default effort. Unreadable TOML = none. */
 export function codexConfiguredEffort(configToml: string): string | undefined {
   let config: Record<string, unknown>;
+
   try {
     config = Bun.TOML.parse(configToml) as Record<string, unknown>;
   } catch {
     return undefined;
   }
+
   const profiles = record(config["profiles"]);
   const profile = typeof config["profile"] === "string" ? record(profiles?.[config["profile"]]) : undefined;
+
   return text(profile?.["model_reasoning_effort"]) ?? text(config["model_reasoning_effort"]);
 }
 
 export function readCodexConfiguredEffort(codexHome: string): string | undefined {
   const toml = readText(join(codexHome, "config.toml"));
+
   return toml === undefined ? undefined : codexConfiguredEffort(toml);
 }
 
@@ -47,21 +56,28 @@ export function readCodexConfiguredEffort(codexHome: string): string | undefined
  */
 export function claudeConfiguredEffort(settings: unknown, env: Env, names: readonly string[]): string | undefined {
   const fromEnv = env["CLAUDE_CODE_EFFORT_LEVEL"]?.trim().toLowerCase();
+
   if (fromEnv === "auto" || fromEnv === "unset") return undefined;
+
   if (fromEnv) return fromEnv;
   const user = record(settings);
   const wanted = new Set(names.filter(Boolean).map(canonicalClaudeModel));
+
   for (const [key, value] of Object.entries(record(user?.["modelSettings"]) ?? {})) {
     const level = text(record(value)?.["effortLevel"]);
+
     if (level && wanted.has(canonicalClaudeModel(key))) return level;
   }
+
   return text(user?.["effortLevel"]);
 }
 
 /** The device owner's Claude user settings; missing or invalid JSON = none. */
 export function readClaudeUserSettings(claudeHome: string): unknown {
   const json = readText(join(claudeHome, "settings.json"));
+
   if (json === undefined) return undefined;
+
   try {
     return JSON.parse(json) as unknown;
   } catch {
@@ -86,7 +102,9 @@ function readText(path: string): string | undefined {
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function text(value: unknown): string | undefined {

@@ -12,5 +12,6 @@ const Body = Schema.Struct({ status: Schema.Literals(["active", "paused", "cance
 export const POST: RequestHandler = async ({ request, params }) => {
   const { status } = await readBody(request, Body);
   const response = await call((api) => api.setScheduleStatus({ scheduleId: params.scheduleId, status }));
+
   return json(encode(ui.SetScheduleStatusResponseSchema, response));
 };

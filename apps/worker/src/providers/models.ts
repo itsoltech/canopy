@@ -21,6 +21,7 @@ export type ModelInit = MessageInitShape<typeof ModelInfoSchema>;
 
 /** Claude Code's effort levels (SDK EffortLevel). */
 export const CLAUDE_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+
 export type ClaudeEffort = (typeof CLAUDE_EFFORTS)[number];
 
 export function isClaudeEffort(effort: string): effort is ClaudeEffort {
@@ -30,6 +31,7 @@ export function isClaudeEffort(effort: string): effort is ClaudeEffort {
 export function codexModel(model: v2.Model, configuredEffort?: string): ModelInit {
   const efforts = model.supportedReasoningEfforts.map((e) => e.reasoningEffort);
   const defaultEffort = pickDefaultEffort(efforts, configuredEffort, model.defaultReasoningEffort);
+
   return {
     id: model.model || model.id,
     displayName: model.displayName,
@@ -45,6 +47,7 @@ export function codexModel(model: v2.Model, configuredEffort?: string): ModelIni
 export function claudeModel(model: ClaudeModelInfo, configuredEffort?: string): ModelInit {
   const efforts = model.supportsEffort === false ? [] : [...(model.supportedEffortLevels ?? [])];
   const defaultEffort = pickDefaultEffort(efforts, configuredEffort);
+
   return {
     id: model.value,
     ...(model.resolvedModel && model.resolvedModel !== model.value && { resolvedModel: model.resolvedModel }),
@@ -76,9 +79,29 @@ export interface ProxyModel extends ModelCapabilities {
  * no output modalities for the model (live, CLIProxyAPI reports none for most image, video and speech models).
  */
 const NON_AGENT_WORDS = new Set([
-  "image", "images", "imagine", "imagen", "dall", "sora", "veo", "video",
-  "tts", "voice", "audio", "speech", "transcribe", "transcription", "whisper", "realtime",
-  "embed", "embedding", "embeddings", "moderation", "rerank", "music", "lyria",
+  "image",
+  "images",
+  "imagine",
+  "imagen",
+  "dall",
+  "sora",
+  "veo",
+  "video",
+  "tts",
+  "voice",
+  "audio",
+  "speech",
+  "transcribe",
+  "transcription",
+  "whisper",
+  "realtime",
+  "embed",
+  "embedding",
+  "embeddings",
+  "moderation",
+  "rerank",
+  "music",
+  "lyria",
 ]);
 
 /**
@@ -88,10 +111,18 @@ const NON_AGENT_WORDS = new Set([
  */
 export function isAgentModel(names: readonly string[], capabilities: ModelCapabilities = {}): boolean {
   const methods = capabilities.generationMethods ?? [];
+
   if (methods.length > 0 && !methods.includes("generateContent")) return false;
   const outputs = capabilities.outputModalities ?? [];
+
   if (outputs.length > 0) return outputs.every((m) => m.toLowerCase() === "text");
-  return !names.some((name) => name.toLowerCase().split(/[^a-z0-9]+/).some((word) => NON_AGENT_WORDS.has(word)));
+
+  return !names.some((name) =>
+    name
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .some((word) => NON_AGENT_WORDS.has(word)),
+  );
 }
 
 /**
@@ -103,10 +134,13 @@ export async function proxyModels(profile: CliProxyProfile, fetchImpl: typeof fe
     proxyGet(profile, "v1/models", fetchImpl) as Promise<{ data?: { id?: unknown; owned_by?: unknown }[] }>,
     proxyCapabilities(profile, fetchImpl).catch((): ProxyCapabilities[] => []),
   ]);
+
   const byId = new Map(capabilities.map((c) => [c.id, c]));
+
   return (body.data ?? []).flatMap((m) => {
     if (typeof m.id !== "string" || !m.id) return [];
     const known = byId.get(m.id);
+
     return [{ ...known, id: m.id, ownedBy: typeof m.owned_by === "string" ? m.owned_by : "" }];
   });
 }
@@ -117,15 +151,26 @@ export interface ProxyCapabilities extends ModelCapabilities {
 }
 
 /** CLIProxyAPI's Gemini-style `GET /v1beta/models`: per model its display name, output modalities, methods. */
-export async function proxyCapabilities(profile: CliProxyProfile, fetchImpl: typeof fetch = fetch): Promise<ProxyCapabilities[]> {
+export async function proxyCapabilities(
+  profile: CliProxyProfile,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ProxyCapabilities[]> {
   const body = (await proxyGet(profile, "v1beta/models", fetchImpl)) as {
-    models?: { name?: unknown; displayName?: unknown; supportedOutputModalities?: unknown; supportedGenerationMethods?: unknown }[];
+    models?: {
+      name?: unknown;
+      displayName?: unknown;
+      supportedOutputModalities?: unknown;
+      supportedGenerationMethods?: unknown;
+    }[];
   };
+
   return (body.models ?? []).flatMap((m) => {
     const id = typeof m.name === "string" ? m.name.replace(/^models\//, "") : "";
+
     if (!id) return [];
     const outputModalities = strings(m.supportedOutputModalities);
     const generationMethods = strings(m.supportedGenerationMethods);
+
     return [
       {
         id,
@@ -142,19 +187,29 @@ type CliProxyProfile = Extract<ResolvedProfile, { kind: "cliproxyapi" }>;
 async function proxyGet(profile: CliProxyProfile, path: string, fetchImpl: typeof fetch): Promise<unknown> {
   const url = new URL(path, profile.baseUrl.href.endsWith("/") ? profile.baseUrl : new URL(`${profile.baseUrl.href}/`));
   let response: Response;
+
   try {
-    response = await fetchImpl(url, { headers: { authorization: `Bearer ${profile.apiKey}` }, signal: AbortSignal.timeout(15_000) });
+    response = await fetchImpl(url, {
+      headers: { authorization: `Bearer ${profile.apiKey}` },
+      signal: AbortSignal.timeout(15_000),
+    });
   } catch (error) {
     // Never echo the proxy's address or key (the report reaches the UI).
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`the proxy did not answer GET /${path}: ${message.replaceAll(profile.baseUrl.host, "<proxy>").replaceAll(profile.apiKey, "<key>")}`);
+    throw new Error(
+      `the proxy did not answer GET /${path}: ${message.replaceAll(profile.baseUrl.host, "<proxy>").replaceAll(profile.apiKey, "<key>")}`,
+    );
   }
+
   if (!response.ok) throw new Error(`the proxy answered ${response.status} to GET /${path}`);
+
   return response.json();
 }
 
 function strings(value: unknown): string[] | undefined {
-  return Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === "string") ? (value as string[]) : undefined;
+  return Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === "string")
+    ? (value as string[])
+    : undefined;
 }
 
 /**
@@ -166,10 +221,17 @@ export function codexProxyModels(catalog: readonly ModelInit[], proxy: readonly 
   const served = new Set(proxy.map((m) => m.id));
   const known = catalog.filter((m) => served.has(m.id ?? ""));
   const knownIds = new Set(known.map((m) => m.id));
+
   const extra = proxy
     .filter((m) => !knownIds.has(m.id) && isAgentModel([m.id, m.displayName ?? ""], m))
     .sort((a, b) => a.id.localeCompare(b.id))
-    .map((m): ModelInit => ({ id: m.id, displayName: m.id, description: m.ownedBy ? `CLIProxyAPI (${m.ownedBy})` : "CLIProxyAPI", efforts: [] }));
+    .map((m): ModelInit => ({
+      id: m.id,
+      displayName: m.id,
+      description: m.ownedBy ? `CLIProxyAPI (${m.ownedBy})` : "CLIProxyAPI",
+      efforts: [],
+    }));
+
   // Without the catalog's default the proxy's first model is not a default: Codex would pick its own.
   return [...known, ...extra];
 }
@@ -179,15 +241,22 @@ export function codexProxyModels(catalog: readonly ModelInit[], proxy: readonly 
  * the proxy's other models under ids of its own (live: `claude-fable-5-dd-<reversed id>`), so the proxy's
  * capabilities are matched by id, alias target or display name.
  */
-export function claudeAgentModels(models: readonly ClaudeModelInfo[], capabilities: readonly ProxyCapabilities[] = []): ClaudeModelInfo[] {
+export function claudeAgentModels(
+  models: readonly ClaudeModelInfo[],
+  capabilities: readonly ProxyCapabilities[] = [],
+): ClaudeModelInfo[] {
   const byName = new Map<string, ProxyCapabilities>();
+
   for (const c of capabilities) {
     byName.set(c.id.toLowerCase(), c);
+
     if (c.displayName) byName.set(c.displayName.toLowerCase(), c);
   }
+
   return models.filter((m) => {
     const names = [m.value, m.resolvedModel ?? "", m.displayName];
     const known = names.map((n) => byName.get(n.toLowerCase())).find((c) => c !== undefined);
+
     return isAgentModel(names, known);
   });
 }

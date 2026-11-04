@@ -7,5 +7,11 @@ import type { RequestHandler } from "./$types";
 
 export const POST: RequestHandler = async ({ params, request }) => {
   const body = await readMessage(request, bots.SendBotMessageRequestSchema);
-  return json(encode(bots.SendBotMessageResponseSchema, await call((api) => api.sendBotMessage({ ...body, botId: params.botId }))));
+
+  return json(
+    encode(
+      bots.SendBotMessageResponseSchema,
+      await call((api) => api.sendBotMessage({ ...body, botId: params.botId })),
+    ),
+  );
 };

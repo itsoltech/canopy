@@ -29,8 +29,10 @@ export class RolloutTail {
     if (!existsSync(this.#path)) return []; // Codex creates the file lazily
     const fd = openSync(this.#path, "r");
     let chunk: string;
+
     try {
       const size = fstatSync(fd).size;
+
       if (size <= this.#offset) return [];
       const buffer = Buffer.alloc(size - this.#offset);
       const read = readSync(fd, buffer, 0, buffer.length, this.#offset);
@@ -39,8 +41,10 @@ export class RolloutTail {
     } finally {
       closeSync(fd);
     }
+
     const lines = chunk.split("\n");
     this.#partial = lines.pop() ?? "";
+
     return lines.flatMap((line) => parseLine(line));
   }
 }
@@ -48,20 +52,28 @@ export class RolloutTail {
 function parseLine(line: string): RolloutLine[] {
   if (!line.trim()) return [];
   let record: { type?: string; payload?: { type?: string; turn_id?: unknown } };
+
   try {
     record = JSON.parse(line);
   } catch {
     return [];
   }
+
   const payload = record.payload;
+
   if (!payload) return [];
+
   if (record.type === "response_item") return [{ kind: "item", item: payload as ResponseItem }];
+
   if (typeof payload.turn_id !== "string") return [];
+
   if (record.type === "turn_context" || (record.type === "event_msg" && payload.type === "task_started")) {
     return [{ kind: "turn", turnId: payload.turn_id, ended: false }];
   }
+
   if (record.type === "event_msg" && (payload.type === "task_complete" || payload.type === "turn_aborted")) {
     return [{ kind: "turn", turnId: payload.turn_id, ended: true }];
   }
+
   return [];
 }

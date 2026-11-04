@@ -19,7 +19,13 @@
     effort: string | undefined;
   }
 
-  let { open = $bindable(false), botName, instances, initial, onsave }: {
+  let {
+    open = $bindable(false),
+    botName,
+    instances,
+    initial,
+    onsave,
+  }: {
     open?: boolean;
     botName: string;
     instances: readonly BotProviderInstance[];
@@ -35,19 +41,24 @@
   let wasOpen = false;
 
   $effect(() => {
-    if (open && !wasOpen) untrack(() => {
-      instanceId = initial.providerInstanceId;
-      option = instances.find((i) => i.id === initial.providerInstanceId)?.models.find((m) => m.model === initial.model);
-      effort = initial.effort;
-      error = undefined;
-    });
+    if (open && !wasOpen)
+      untrack(() => {
+        instanceId = initial.providerInstanceId;
+        option = instances
+          .find((i) => i.id === initial.providerInstanceId)
+          ?.models.find((m) => m.model === initial.model);
+        effort = initial.effort;
+        error = undefined;
+      });
     wasOpen = open;
   });
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
+
     if (busy || !option) return;
     busy = true;
+
     try {
       await onsave({ providerInstanceId: instanceId, model: option.model, effort });
       open = false;
@@ -59,7 +70,12 @@
   }
 </script>
 
-<Dialog bind:open title="Change model" description="{botName} keeps its conversation; new replies use this model." dismissible={!busy}>
+<Dialog
+  bind:open
+  title="Change model"
+  description="{botName} keeps its conversation; new replies use this model."
+  dismissible={!busy}
+>
   <form class="grid gap-5" onsubmit={submit} aria-busy={busy || undefined}>
     <ProviderModelFields {instances} bind:instanceId bind:option bind:effort disabled={busy} />
     {#if error}<Alert tone="error">{error}</Alert>{/if}

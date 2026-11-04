@@ -14,7 +14,17 @@
   import MessageDeliveryCard from "./MessageDeliveryCard.svelte";
   import SubagentCard from "./SubagentCard.svelte";
   import ThreadLink from "./ThreadLink.svelte";
-  import { agentsOf, busError, busLook, deliveryOf, interactionsOf, scheduleOf, schedulesOf, summariesOf, transcriptOf } from "./tools/agent-bus.ts";
+  import {
+    agentsOf,
+    busError,
+    busLook,
+    deliveryOf,
+    interactionsOf,
+    scheduleOf,
+    schedulesOf,
+    summariesOf,
+    transcriptOf,
+  } from "./tools/agent-bus.ts";
   import MiniTranscript from "./tools/bus/MiniTranscript.svelte";
   import ScheduleSummary from "./tools/bus/ScheduleSummary.svelte";
   import ThreadSummaryList from "./tools/bus/ThreadSummaryList.svelte";
@@ -41,12 +51,20 @@
   const look = $derived(busLook(tool, args, running, call.isError));
   const failed = $derived(call.isError || status === ItemStatus.FAILED);
   const directory = useThreadDirectory();
+
   // The thread it is about: target_thread_id when the gateway sets it, otherwise the result (spawn_thread) or the arguments.
   const target = $derived(call.targetThreadId || str(result["thread_id"]) || str(args["thread_id"]));
   const subagent = $derived(tool === "spawn_thread" && !call.isError && target !== "");
   const message = $derived(tool === "send_message" && !call.isError && target !== "" && call.resultJson !== "");
-  const waitingFor = $derived(Array.isArray(args["thread_ids"]) ? (args["thread_ids"] as unknown[]).filter((id): id is string => typeof id === "string") : []);
+
+  const waitingFor = $derived(
+    Array.isArray(args["thread_ids"])
+      ? (args["thread_ids"] as unknown[]).filter((id): id is string => typeof id === "string")
+      : [],
+  );
+
   const titled = new Set(["send_message", "get_thread", "read_thread", "interrupt_thread", "close_thread"]);
+
   const spawned = $derived({
     provider: str(result["provider"]) || str(args["provider"]),
     model: str(result["model"]) || str(args["model"]),
@@ -56,16 +74,36 @@
 
   const threads = $derived(summariesOf(tool, result));
   const transcript = $derived(tool === "read_thread" ? transcriptOf(result) : []);
+
   const detail = $derived.by(() => {
     if (failed || running) return "";
+
     if (tool === "read_thread") return plural(transcript.length, "entry", "entries");
+
     if (tool === "wait_threads") return result["done"] === false ? "Still working" : threads.length > 0 ? "Done" : "";
+
     if (tool === "list_threads") return plural(threads.length, "thread");
+
     return "";
   });
+
   // Interrupting, closing and cancelling say all in their title; the rest open to their details.
   const hasBody = $derived(failed || !["interrupt_thread", "close_thread", "cancel_schedule"].includes(tool));
-  const known = new Set(["spawn_thread", "send_message", "wait_threads", "get_thread", "read_thread", "list_threads", "list_interactions", "answer_interaction", "list_agents", "schedule_wakeup", "schedule_recurring", "list_schedules"]);
+
+  const known = new Set([
+    "spawn_thread",
+    "send_message",
+    "wait_threads",
+    "get_thread",
+    "read_thread",
+    "list_threads",
+    "list_interactions",
+    "answer_interaction",
+    "list_agents",
+    "schedule_wakeup",
+    "schedule_recurring",
+    "list_schedules",
+  ]);
 </script>
 
 {#snippet title()}
@@ -102,7 +140,9 @@
   {/if}
   {#if tool === "spawn_thread"}
     {#if str(args["prompt"])}{@render well("Prompt", str(args["prompt"]))}{/if}
-    {#if str(args["instructions"])}<Section label="Instructions"><LongText text={str(args["instructions"])} markdown lines={4} /></Section>{/if}
+    {#if str(args["instructions"])}<Section label="Instructions"
+        ><LongText text={str(args["instructions"])} markdown lines={4} /></Section
+      >{/if}
     {@render facts([
       args["fork"] === true && "Starts from this thread's history",
       str(args["interactions"]) === "human" ? "Its questions go to you" : "Its questions come to this agent",
@@ -110,9 +150,14 @@
     ])}
   {:else if tool === "send_message"}
     {#if str(args["prompt"])}{@render well("Message", str(args["prompt"]))}{/if}
-    {#if !call.isError && !running}{@render facts([deliveryOf(args, result), args["notify"] === false && "No message when it finishes"])}{/if}
+    {#if !call.isError && !running}{@render facts([
+        deliveryOf(args, result),
+        args["notify"] === false && "No message when it finishes",
+      ])}{/if}
   {:else if tool === "wait_threads"}
-    <div class="flex min-w-0 flex-wrap gap-1.5">{#each waitingFor as id (id)}<ThreadLink threadId={id} />{/each}</div>
+    <div class="flex min-w-0 flex-wrap gap-1.5">
+      {#each waitingFor as id (id)}<ThreadLink threadId={id} />{/each}
+    </div>
     {@render facts([
       str(args["until"]) === "all" ? "Until all finish" : waitingFor.length > 1 ? "Until one finishes" : "",
       typeof args["timeout_seconds"] === "number" && `At most ${humanizeSeconds(args["timeout_seconds"])}`,
@@ -138,7 +183,11 @@
     {/if}
     {#if target}
       <p class="text-sm/5 sm:text-xs/5">
-        <a href="/threads/{target}" class="inline-flex items-center gap-1 font-medium text-violet-800 hover:underline focus-ring dark:text-violet-300">Open thread<Icon name="chevron-right" class="size-3.5 fill-current" /></a>
+        <a
+          href="/threads/{target}"
+          class="inline-flex items-center gap-1 font-medium text-violet-800 focus-ring hover:underline dark:text-violet-300"
+          >Open thread<Icon name="chevron-right" class="size-3.5 fill-current" /></a
+        >
       </p>
     {/if}
   {:else if tool === "list_interactions"}
@@ -152,7 +201,10 @@
           <p class="flex min-w-0 flex-wrap items-center gap-1.5 text-base/6 sm:text-sm/6">
             <Badge tone="amber">{interaction.kind}</Badge>
             <span class="font-medium text-zinc-950 dark:text-white">{interaction.tool}</span>
-            {#if interaction.threadId}<span class="text-zinc-500 dark:text-zinc-400">from</span><ThreadLink threadId={interaction.threadId} fallback="Side thread" />{/if}
+            {#if interaction.threadId}<span class="text-zinc-500 dark:text-zinc-400">from</span><ThreadLink
+                threadId={interaction.threadId}
+                fallback="Side thread"
+              />{/if}
           </p>
           <StructuredView node={structure(interaction.request)} />
         </li>
@@ -160,15 +212,23 @@
     </ul>
   {:else if tool === "answer_interaction"}
     {#if str(args["message"])}<Section label="Message"><LongText text={str(args["message"])} lines={4} /></Section>{/if}
-    {#if str(args["answer_json"])}<Section label="Answer"><StructuredView node={structureJson(str(args["answer_json"]))} /></Section>{/if}
-    {#if str(result["status"])}{@render facts([`The question is now ${statusLook(str(result["status"])).label.toLowerCase()}`])}{/if}
+    {#if str(args["answer_json"])}<Section label="Answer"
+        ><StructuredView node={structureJson(str(args["answer_json"]))} /></Section
+      >{/if}
+    {#if str(result["status"])}{@render facts([
+        `The question is now ${statusLook(str(result["status"])).label.toLowerCase()}`,
+      ])}{/if}
   {:else if tool === "list_agents"}
     {@const agents = agentsOf(result)}
     {#if agents.length > 0}
       <ul role="list" class="grid gap-1.5 text-base/6 sm:text-sm/6">
         {#each agents as agent (agent.name)}
           <li class="grid min-w-0">
-            <p class="font-medium text-zinc-950 dark:text-white">{agent.name}{#if agent.settings}<span class="font-normal text-zinc-500 dark:text-zinc-400"> · {agent.settings}</span>{/if}</p>
+            <p class="font-medium text-zinc-950 dark:text-white">
+              {agent.name}{#if agent.settings}<span class="font-normal text-zinc-500 dark:text-zinc-400">
+                  · {agent.settings}</span
+                >{/if}
+            </p>
             {#if agent.description}<p class="text-zinc-600 dark:text-zinc-400">{agent.description}</p>{/if}
           </li>
         {/each}
@@ -180,7 +240,9 @@
     {@const schedule = scheduleOf(args, result)}
     <ScheduleSummary {schedule} />
     {#if schedule.threadId && schedule.threadId !== directory.currentId}
-      <p class="flex items-center gap-1.5 pl-6 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Runs in <ThreadLink threadId={schedule.threadId} fallback="Side thread" /></p>
+      <p class="flex items-center gap-1.5 pl-6 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+        Runs in <ThreadLink threadId={schedule.threadId} fallback="Side thread" />
+      </p>
     {/if}
   {:else if tool === "list_schedules"}
     {@const schedules = schedulesOf(result)}
@@ -188,7 +250,9 @@
       <EmptyNote>No schedules.</EmptyNote>
     {/if}
     <ul role="list" class="grid divide-y divide-zinc-950/5 dark:divide-white/10">
-      {#each schedules as schedule, index (index)}<li class="py-2 first:pt-0 last:pb-0"><ScheduleSummary {schedule} /></li>{/each}
+      {#each schedules as schedule, index (index)}<li class="py-2 first:pt-0 last:pb-0">
+          <ScheduleSummary {schedule} />
+        </li>{/each}
     </ul>
   {:else if !known.has(tool)}
     <Section label="Arguments"><StructuredView node={structure(args)} /></Section>
@@ -209,7 +273,9 @@
 {/snippet}
 
 {#if hasBody}
-  <ItemFrame icon={look.icon} tone={call.isError ? "rose" : "violet"} {status} {title} {aside}>{@render body()}</ItemFrame>
+  <ItemFrame icon={look.icon} tone={call.isError ? "rose" : "violet"} {status} {title} {aside}
+    >{@render body()}</ItemFrame
+  >
 {:else}
   <ItemFrame icon={look.icon} tone={call.isError ? "rose" : "violet"} {status} {title} {aside} />
 {/if}

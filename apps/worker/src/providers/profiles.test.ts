@@ -17,6 +17,7 @@ const PROXY: ProviderProfileConfig = {
   baseUrl: "http://127.0.0.1:8317",
   apiKey: "sk-proxy",
 };
+
 const ENV = { PATH: "/usr/bin", HOME: "/home/u" };
 
 function resolved(configs: ProviderProfileConfig[]): ResolvedProfile[] {
@@ -84,7 +85,13 @@ describe("claudeProfileOptions", () => {
 
   test("cliproxyapi swaps auth variables for the proxy", () => {
     const [, proxy] = resolved([{ ...PROXY, baseUrl: "http://127.0.0.1:8317/" }]);
-    const options = claudeProfileOptions(proxy!, { ...ENV, ANTHROPIC_API_KEY: "sk-ant", CLAUDE_CODE_OAUTH_TOKEN: "oauth" });
+
+    const options = claudeProfileOptions(proxy!, {
+      ...ENV,
+      ANTHROPIC_API_KEY: "sk-ant",
+      CLAUDE_CODE_OAUTH_TOKEN: "oauth",
+    });
+
     expect(options.env).toEqual({
       ...ENV,
       ANTHROPIC_BASE_URL: "http://127.0.0.1:8317",
@@ -97,13 +104,20 @@ describe("claudeProfileOptions", () => {
 describe("codexAppServerLaunch", () => {
   test("native only: plain app-server, no overrides", () => {
     expect(codexAppServerLaunch(resolved([]), ENV).command).toEqual([
-      "codex", "app-server",
-      "-c", "features.multi_agent=false",
-      "-c", "features.multi_agent_v2=false",
-      "-c", "features.in_app_local_automation=false",
-      "-c", "features.sleep_tool=false",
-      "-c", "features.apps=false",
-      "-c", "agents.enabled=false",
+      "codex",
+      "app-server",
+      "-c",
+      "features.multi_agent=false",
+      "-c",
+      "features.multi_agent_v2=false",
+      "-c",
+      "features.in_app_local_automation=false",
+      "-c",
+      "features.sleep_tool=false",
+      "-c",
+      "features.apps=false",
+      "-c",
+      "agents.enabled=false",
     ]);
   });
 
@@ -111,11 +125,16 @@ describe("codexAppServerLaunch", () => {
     const profiles = resolved([PROXY, { ...PROXY, id: "claude-only", providers: ["claude"] }]);
     const launch = codexAppServerLaunch(profiles, ENV);
     expect(launch.command.slice(14)).toEqual([
-      "-c", 'model_providers.canopy_cliproxy.name="CLIProxyAPI (cliproxy)"',
-      "-c", 'model_providers.canopy_cliproxy.base_url="http://127.0.0.1:8317/v1"',
-      "-c", 'model_providers.canopy_cliproxy.wire_api="responses"',
-      "-c", 'model_providers.canopy_cliproxy.env_key="CANOPY_CLIPROXY_API_KEY"',
-      "-c", "model_providers.canopy_cliproxy.requires_openai_auth=false",
+      "-c",
+      'model_providers.canopy_cliproxy.name="CLIProxyAPI (cliproxy)"',
+      "-c",
+      'model_providers.canopy_cliproxy.base_url="http://127.0.0.1:8317/v1"',
+      "-c",
+      'model_providers.canopy_cliproxy.wire_api="responses"',
+      "-c",
+      'model_providers.canopy_cliproxy.env_key="CANOPY_CLIPROXY_API_KEY"',
+      "-c",
+      "model_providers.canopy_cliproxy.requires_openai_auth=false",
     ]);
     expect(launch.env["CANOPY_CLIPROXY_API_KEY"]).toBe("sk-proxy");
     expect(launch.command.join(" ")).not.toContain("sk-proxy");
@@ -144,10 +163,21 @@ describe("custom profiles and their environment", () => {
 
   test("a profile's variables reach Claude over the base env; auth of an endpoint profile still wins", () => {
     const [, proxy, custom] = resolved([
-      { ...PROXY, env: [{ name: "HTTPS_PROXY", value: "http://corp:3128" }, { name: "MY_TOKEN", value: "s3cret", secret: true }] },
+      {
+        ...PROXY,
+        env: [
+          { name: "HTTPS_PROXY", value: "http://corp:3128" },
+          { name: "MY_TOKEN", value: "s3cret", secret: true },
+        ],
+      },
       { kind: "native", id: "bedrock", providers: ["claude"], env: [{ name: "CLAUDE_CODE_USE_BEDROCK", value: "1" }] },
     ]);
-    expect(claudeProfileOptions(proxy!, ENV).env).toMatchObject({ HTTPS_PROXY: "http://corp:3128", MY_TOKEN: "s3cret", ANTHROPIC_AUTH_TOKEN: "sk-proxy" });
+
+    expect(claudeProfileOptions(proxy!, ENV).env).toMatchObject({
+      HTTPS_PROXY: "http://corp:3128",
+      MY_TOKEN: "s3cret",
+      ANTHROPIC_AUTH_TOKEN: "sk-proxy",
+    });
     expect(claudeProfileOptions(custom!, ENV).env).toMatchObject({ ...ENV, CLAUDE_CODE_USE_BEDROCK: "1" });
   });
 
@@ -158,12 +188,17 @@ describe("custom profiles and their environment", () => {
   });
 
   test("a variable the worker controls makes only that profile unavailable, naming the variable but not its value", () => {
-    const [, bad] = resolveProfiles([{ ...PROXY, env: [{ name: "CODEX_HOME", value: "/tmp/elsewhere", secret: true }] }]);
+    const [, bad] = resolveProfiles([
+      { ...PROXY, env: [{ name: "CODEX_HOME", value: "/tmp/elsewhere", secret: true }] },
+    ]);
+
     expect(bad?.resolved).toBeUndefined();
     expect(bad?.problem).toContain("CODEX_HOME");
     expect(bad?.problem).not.toContain("/tmp/elsewhere");
     expect(resolveProfiles([{ ...PROXY, env: [PROBE] }])[1]?.problem).toContain("reserved");
-    expect(resolveProfiles([{ ...PROXY, env: [{ name: "ANTHROPIC_BASE_URL", value: "http://x" }] }])[1]?.problem).toContain("endpoint");
+    expect(
+      resolveProfiles([{ ...PROXY, env: [{ name: "ANTHROPIC_BASE_URL", value: "http://x" }] }])[1]?.problem,
+    ).toContain("endpoint");
   });
 
   test("a disabled profile is unavailable and reported so", () => {
@@ -173,7 +208,10 @@ describe("custom profiles and their environment", () => {
   });
 
   test("the report carries the display name, never key or variable values", () => {
-    const [, proxy] = resolveProfiles([{ ...PROXY, displayName: "Team proxy", env: [{ name: "MY_TOKEN", value: "s3cret-value", secret: true }] }]);
+    const [, proxy] = resolveProfiles([
+      { ...PROXY, displayName: "Team proxy", env: [{ name: "MY_TOKEN", value: "s3cret-value", secret: true }] },
+    ]);
+
     const report = toProfileReport(proxy!);
     expect(report.displayName).toBe("Team proxy");
     expect(JSON.stringify(report)).not.toContain("s3cret-value");
@@ -183,7 +221,11 @@ describe("custom profiles and their environment", () => {
   test("Codex: the profile's variables go into the process env, not argv", () => {
     const [, proxy] = resolved([{ ...PROXY, env: [{ name: "PROFILE_PROBE", value: "probe-1" }] }]);
     const launch = codexAppServerLaunch([proxy!], ENV, "codex", undefined, "/data/codex-home", proxy!.env);
-    expect(launch.env).toMatchObject({ PROFILE_PROBE: "probe-1", CODEX_HOME: "/data/codex-home", CANOPY_CLIPROXY_API_KEY: "sk-proxy" });
+    expect(launch.env).toMatchObject({
+      PROFILE_PROBE: "probe-1",
+      CODEX_HOME: "/data/codex-home",
+      CANOPY_CLIPROXY_API_KEY: "sk-proxy",
+    });
     expect(launch.command.join(" ")).not.toContain("probe-1");
   });
 });

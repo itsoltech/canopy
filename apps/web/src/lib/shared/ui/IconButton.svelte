@@ -22,10 +22,30 @@
     class?: ClassValue;
   };
 
-  let { icon, label, variant = "ghost", size = "md", type = "button", loading = false, disabled, iconClass, tooltipOptions, class: className, ...rest }: Props = $props();
+  let {
+    icon,
+    label,
+    variant = "ghost",
+    size = "md",
+    type = "button",
+    loading = false,
+    disabled,
+    iconClass,
+    tooltipOptions,
+    class: className,
+    ...rest
+  }: Props = $props();
 </script>
 
-<button {type} class={[iconButtonClasses(variant, size), className]} aria-label={label} disabled={disabled || loading} aria-busy={loading || undefined} {...rest} {@attach tooltip(label, tooltipOptions)}>
+<button
+  {type}
+  class={[iconButtonClasses(variant, size), className]}
+  aria-label={label}
+  disabled={disabled || loading}
+  aria-busy={loading || undefined}
+  {...rest}
+  {@attach tooltip(label, tooltipOptions)}
+>
   {#if loading}<Spinner />{:else}<Icon name={icon} class={iconClass} />{/if}
   <TouchTarget />
 </button>

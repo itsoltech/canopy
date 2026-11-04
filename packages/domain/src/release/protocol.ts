@@ -1,14 +1,23 @@
 /** Increase only for a breaking WorkerLink contract; additive fields do not need a bump. */
 export const WORKER_LINK_PROTOCOL = 1;
+
 /** Protocol 0 (before negotiation) is deliberately incompatible. Recovery uses UpdateService. */
 export const MIN_WORKER_LINK_PROTOCOL = 1;
+
 /** Frozen canopy.update.v1; never bump this for WorkerLink or application releases. */
 export const UPDATE_PROTOCOL = 1;
+
 /** Independent, additive-only canopy.link.v1 computer control channel. */
 export const COMPUTER_LINK_PROTOCOL = 1;
 export const MIN_COMPUTER_LINK_PROTOCOL = 1;
 
 export function workerLinkCompatible(min: number, max: number): boolean {
-  return Number.isInteger(min) && Number.isInteger(max) && min > 0 && max >= min &&
-    max >= MIN_WORKER_LINK_PROTOCOL && min <= WORKER_LINK_PROTOCOL;
+  return (
+    Number.isInteger(min) &&
+    Number.isInteger(max) &&
+    min > 0 &&
+    max >= min &&
+    max >= MIN_WORKER_LINK_PROTOCOL &&
+    min <= WORKER_LINK_PROTOCOL
+  );
 }

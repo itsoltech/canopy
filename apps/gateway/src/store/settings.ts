@@ -25,6 +25,7 @@ interface Row {
   version: bigint | number;
   updated_at: Date;
 }
+
 interface ProjectRow extends Row {
   project_id: string;
 }
@@ -58,7 +59,12 @@ export class SettingsStore extends Context.Service<
       workerGatewayUrl?: string;
       expectedVersion: bigint;
     }): Fx<ui.UserSettings>;
-    updateProject(input: { userId: string; projectId: string; threadDefaults?: ui.ThreadDefaults; expectedVersion: bigint }): Fx<ui.ProjectSettings>;
+    updateProject(input: {
+      userId: string;
+      projectId: string;
+      threadDefaults?: ui.ThreadDefaults;
+      expectedVersion: bigint;
+    }): Fx<ui.ProjectSettings>;
   }
 >()("canopy/gateway/SettingsStore") {
   static readonly layer = Layer.effect(
@@ -67,18 +73,28 @@ export class SettingsStore extends Context.Service<
       const sql = yield* SqlClient.SqlClient;
 
       const appearance = (stored: Stored) =>
-        stored.appearance ? fromJson(ui.AppearanceSettingsSchema, stored.appearance, { ignoreUnknownFields: true }) : create(ui.AppearanceSettingsSchema, {});
+        stored.appearance
+          ? fromJson(ui.AppearanceSettingsSchema, stored.appearance, { ignoreUnknownFields: true })
+          : create(ui.AppearanceSettingsSchema, {});
+
       const threadDefaults = (stored: Stored) =>
-        stored.threadDefaults ? fromJson(ui.ThreadDefaultsSchema, stored.threadDefaults, { ignoreUnknownFields: true }) : create(ui.ThreadDefaultsSchema, {});
+        stored.threadDefaults
+          ? fromJson(ui.ThreadDefaultsSchema, stored.threadDefaults, { ignoreUnknownFields: true })
+          : create(ui.ThreadDefaultsSchema, {});
 
       const modelFavorites = (stored: Stored) =>
-        stored.modelFavorites ? fromJson(ui.ModelFavoritesSchema, stored.modelFavorites, { ignoreUnknownFields: true }) : create(ui.ModelFavoritesSchema, {});
+        stored.modelFavorites
+          ? fromJson(ui.ModelFavoritesSchema, stored.modelFavorites, { ignoreUnknownFields: true })
+          : create(ui.ModelFavoritesSchema, {});
 
       const composer = (stored: Stored) =>
-        stored.composer ? fromJson(ui.ComposerSettingsSchema, stored.composer, { ignoreUnknownFields: true }) : create(ui.ComposerSettingsSchema, {});
+        stored.composer
+          ? fromJson(ui.ComposerSettingsSchema, stored.composer, { ignoreUnknownFields: true })
+          : create(ui.ComposerSettingsSchema, {});
 
       const toUser = (row: Row | undefined) => {
         const stored = (row?.settings ?? {}) as Stored;
+
         return create(ui.UserSettingsSchema, {
           workerGatewayUrl: stored.workerGatewayUrl ?? "",
           timezone: stored.timezone ?? "",
@@ -86,12 +102,17 @@ export class SettingsStore extends Context.Service<
           threadDefaults: threadDefaults(stored),
           modelFavorites: modelFavorites(stored),
           composer: composer(stored),
-          sidebar: stored.sidebar ? fromJson(ui.SidebarSettingsSchema, stored.sidebar, { ignoreUnknownFields: true }) : create(ui.SidebarSettingsSchema),
-          textGeneration: stored.textGeneration ? fromJson(ui.TextGenerationSettingsSchema, stored.textGeneration, { ignoreUnknownFields: true }) : create(ui.TextGenerationSettingsSchema),
+          sidebar: stored.sidebar
+            ? fromJson(ui.SidebarSettingsSchema, stored.sidebar, { ignoreUnknownFields: true })
+            : create(ui.SidebarSettingsSchema),
+          textGeneration: stored.textGeneration
+            ? fromJson(ui.TextGenerationSettingsSchema, stored.textGeneration, { ignoreUnknownFields: true })
+            : create(ui.TextGenerationSettingsSchema),
           version: BigInt(row?.version ?? 0),
           ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
         });
       };
+
       const toProject = (projectId: string, row: Row | undefined) =>
         create(ui.ProjectSettingsSchema, {
           projectId,
@@ -110,21 +131,29 @@ export class SettingsStore extends Context.Service<
       }) =>
         Effect.gen(function* () {
           const version = BigInt(input.current?.version ?? 0);
-          if (version !== input.expected) return yield* Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"));
+
+          if (version !== input.expected)
+            return yield* Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"));
           const settings = JSON.stringify(input.next);
           const rows = input.current ? yield* input.update(settings, version) : yield* input.insert(settings);
+
           if (!rows[0]) return yield* Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"));
+
           return rows[0];
         }).pipe(
           // Two first writes at once: the loser sees the primary key taken.
           Effect.catchTag("SqlError", (error): Effect.Effect<never, SettingsConflict | SqlError.SqlError> =>
-            isUniqueViolation(error) ? Effect.fail(new SettingsConflict("settings changed elsewhere; reload them")) : Effect.fail(error),
+            isUniqueViolation(error)
+              ? Effect.fail(new SettingsConflict("settings changed elsewhere; reload them"))
+              : Effect.fail(error),
           ),
         );
 
       const store: SettingsStore["Service"] = {
         user: (userId) =>
-          sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid`.pipe(Effect.map((rows) => toUser(rows[0]))),
+          sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid`.pipe(
+            Effect.map((rows) => toUser(rows[0])),
+          ),
 
         projects: (ownerUserId) =>
           sql<ProjectRow>`
@@ -133,11 +162,25 @@ export class SettingsStore extends Context.Service<
             Effect.map((rows) => rows.map((r) => toProject(r.project_id, r))),
           ),
 
-        updateUser: ({ userId, appearance: nextAppearance, threadDefaults: nextDefaults, modelFavorites: nextFavorites, composer: nextComposer, textGeneration: nextGeneration, sidebar: nextSidebar, timezone, workerGatewayUrl, expectedVersion }) =>
+        updateUser: ({
+          userId,
+          appearance: nextAppearance,
+          threadDefaults: nextDefaults,
+          modelFavorites: nextFavorites,
+          composer: nextComposer,
+          textGeneration: nextGeneration,
+          sidebar: nextSidebar,
+          timezone,
+          workerGatewayUrl,
+          expectedVersion,
+        }) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              const current = (yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid FOR UPDATE`)[0];
+              const current =
+                (yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid FOR UPDATE`)[0];
+
               const stored = (current?.settings ?? {}) as Stored;
+
               const next: Stored = {
                 ...stored,
                 ...(workerGatewayUrl !== undefined && { workerGatewayUrl }),
@@ -149,6 +192,7 @@ export class SettingsStore extends Context.Service<
                 ...(nextGeneration && { textGeneration: toJson(ui.TextGenerationSettingsSchema, nextGeneration) }),
                 ...(nextSidebar && { sidebar: toJson(ui.SidebarSettingsSchema, nextSidebar) }),
               };
+
               const row = yield* write({
                 current,
                 expected: expectedVersion,
@@ -160,6 +204,7 @@ export class SettingsStore extends Context.Service<
                   UPDATE user_settings SET settings = ${settings}::jsonb, version = version + 1, updated_at = now()
                    WHERE user_id = ${userId}::uuid AND version = ${version} RETURNING settings, version, updated_at`,
               });
+
               return toUser(row);
             }),
           ),
@@ -167,11 +212,21 @@ export class SettingsStore extends Context.Service<
         updateProject: ({ userId, projectId, threadDefaults: nextDefaults, expectedVersion }) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              const owned = yield* sql`SELECT 1 FROM projects WHERE id = ${projectId}::uuid AND owner_user_id = ${userId}::uuid AND archived_at IS NULL AND kind <> 'scratch'`;
+              const owned =
+                yield* sql`SELECT 1 FROM projects WHERE id = ${projectId}::uuid AND owner_user_id = ${userId}::uuid AND archived_at IS NULL AND kind <> 'scratch'`;
+
               if (owned.length === 0) return yield* Effect.fail(new NotFound("project not found"));
-              const current = (yield* sql<Row>`SELECT settings, version, updated_at FROM project_settings WHERE project_id = ${projectId}::uuid FOR UPDATE`)[0];
+
+              const current =
+                (yield* sql<Row>`SELECT settings, version, updated_at FROM project_settings WHERE project_id = ${projectId}::uuid FOR UPDATE`)[0];
+
               const stored = (current?.settings ?? {}) as Stored;
-              const next: Stored = { ...stored, ...(nextDefaults && { threadDefaults: toJson(ui.ThreadDefaultsSchema, nextDefaults) }) };
+
+              const next: Stored = {
+                ...stored,
+                ...(nextDefaults && { threadDefaults: toJson(ui.ThreadDefaultsSchema, nextDefaults) }),
+              };
+
               const row = yield* write({
                 current,
                 expected: expectedVersion,
@@ -183,10 +238,12 @@ export class SettingsStore extends Context.Service<
                   UPDATE project_settings SET settings = ${settings}::jsonb, version = version + 1, updated_by = ${userId}::uuid, updated_at = now()
                    WHERE project_id = ${projectId}::uuid AND version = ${version} RETURNING settings, version, updated_at`,
               });
+
               return toProject(projectId, row);
             }),
           ),
       };
+
       return SettingsStore.of(store);
     }),
   );

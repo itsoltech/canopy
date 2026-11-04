@@ -10,7 +10,11 @@
    * collapsed, motion.css `t-sidebar`); the panel keeps the full width on the column's edge and fades, so
    * its content never re-wraps. A collapsed column is inert. Hidden below lg (the drawer takes over).
    */
-  let { sidebar, children, class: className }: { sidebar: SidebarLayout; children: Snippet; class?: ClassValue } = $props();
+  let {
+    sidebar,
+    children,
+    class: className,
+  }: { sidebar: SidebarLayout; children: Snippet; class?: ClassValue } = $props();
 </script>
 
 <aside
@@ -22,7 +26,9 @@
   data-settling={sidebar.settling || undefined}
   inert={sidebar.collapsed && !sidebar.dragging}
 >
-  <div class="t-sidebar-panel absolute inset-y-0 right-0 w-(--sidebar-width) border-r border-zinc-950/5 bg-zinc-50 dark:border-white/8 dark:bg-zinc-950">
+  <div
+    class="t-sidebar-panel absolute inset-y-0 right-0 w-(--sidebar-width) border-r border-zinc-950/5 bg-zinc-50 dark:border-white/8 dark:bg-zinc-950"
+  >
     {@render children()}
   </div>
 </aside>

@@ -1,6 +1,16 @@
 import { Provider, type ModelInfo, type ProfileModels, type ui } from "@canopy/contracts";
 import { modelFor } from "#lib/features/settings/thread-defaults.ts";
-import { instanceLabel, instanceOf, instancesFor, instanceValue, knownModels, profileIdValue, type ProviderKey, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
+import {
+  instanceLabel,
+  instanceOf,
+  instancesFor,
+  instanceValue,
+  knownModels,
+  profileIdValue,
+  type ProviderKey,
+  providerKeyOf,
+  providerKeys,
+} from "#lib/features/threads/providers.ts";
 
 /**
  * Model options for the pickers: one entry per provider + profile + model, with what the UI shows and
@@ -75,6 +85,7 @@ const effortLabels: Record<string, string> = {
 
 export function effortLevel(id: string): EffortLevel {
   const known = effortLabels[id];
+
   return { id, label: known ?? capitalize(id) };
 }
 
@@ -92,9 +103,11 @@ const aliases: Record<ProviderKey, readonly string[]> = {
   GROK: [],
 };
 
-export const modelKey = (provider: ProviderKey, profileId: string, model: string): string => `${provider}:${profileId}:${model}`;
+export const modelKey = (provider: ProviderKey, profileId: string, model: string): string =>
+  `${provider}:${profileId}:${model}`;
 
-export const providerName = (provider: ProviderKey): string => (provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex");
+export const providerName = (provider: ProviderKey): string =>
+  provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex";
 
 /**
  * Readable name of a model id the catalog does not name:
@@ -103,12 +116,17 @@ export const providerName = (provider: ProviderKey): string => (provider === "CL
 export function modelDisplayName(model: string): string {
   if (!model) return "Default model";
   const claude = /^(?:claude-)?(opus|sonnet|haiku|fable)(?:-(\d+)(?:-(\d{1,2}))?)?(?:-\d{8})?(\[1m\])?$/i.exec(model);
+
   if (claude) {
     const version = claude[2] ? (claude[3] ? `${claude[2]}.${claude[3]}` : claude[2]) : "";
+
     return [capitalize(claude[1]!), version, claude[4] ? "1M" : ""].filter(Boolean).join(" ");
   }
+
   const gpt = /^gpt-([\d.]+[a-z]?)(?:-(.+))?$/i.exec(model);
+
   if (gpt) return [`GPT-${gpt[1]}`, ...(gpt[2]?.split("-").map(capitalize) ?? [])].join(" ");
+
   return model;
 }
 
@@ -118,21 +136,29 @@ export function modelDisplayName(model: string): string {
  */
 export function shortModelName(name: string): string {
   const gpt = /^gpt-(\d.*)$/i.exec(name);
+
   if (gpt) return gpt[1]!.replaceAll("-", " ");
   const claude = /^claude (\S.*)$/i.exec(name);
+
   return claude ? claude[1]! : name;
 }
 
 const capitalize = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
 
 /** The catalog's list for a provider + profile (the catalog names the native profile "native"). */
-export function profileCatalog(catalog: ui.WorkerModels | undefined, provider: ProviderKey, profileId: string): ProfileModels | undefined {
+export function profileCatalog(
+  catalog: ui.WorkerModels | undefined,
+  provider: ProviderKey,
+  profileId: string,
+): ProfileModels | undefined {
   return catalog?.profiles.find((p) => p.provider === Provider[provider] && profileIdValue(p.profileId) === profileId);
 }
 
 /** The catalog entry for a model id: by id, else the model an alias resolves to. Hidden ones too. */
 const catalogEntry = (list: ProfileModels | undefined, model: string): ModelInfo | undefined =>
-  model ? (list?.models.find((m) => m.id === model) ?? list?.models.find((m) => m.resolvedModel === model)) : list?.models.find((m) => m.isDefault);
+  model
+    ? (list?.models.find((m) => m.id === model) ?? list?.models.find((m) => m.resolvedModel === model))
+    : list?.models.find((m) => m.isDefault);
 
 /** What the options of an instance share: its label, accent and favorites. */
 interface InstanceMeta {
@@ -142,9 +168,17 @@ interface InstanceMeta {
 }
 
 const plainMeta = (name: string): InstanceMeta => ({ name, accent: "", favorites: [] });
-const favoriteIndexOf = (meta: InstanceMeta, model: string) => (meta.favorites.includes(model) ? meta.favorites.indexOf(model) : undefined);
 
-function fromCatalog(provider: ProviderKey, profileId: string, meta: InstanceMeta, info: ModelInfo, list: ProfileModels): ModelOption {
+const favoriteIndexOf = (meta: InstanceMeta, model: string) =>
+  meta.favorites.includes(model) ? meta.favorites.indexOf(model) : undefined;
+
+function fromCatalog(
+  provider: ProviderKey,
+  profileId: string,
+  meta: InstanceMeta,
+  info: ModelInfo,
+  list: ProfileModels,
+): ModelOption {
   return {
     key: modelKey(provider, profileId, info.id),
     provider,
@@ -165,9 +199,17 @@ function fromCatalog(provider: ProviderKey, profileId: string, meta: InstanceMet
 }
 
 /** An option outside the catalog's list (a model typed by hand, a fallback entry). */
-function standIn(provider: ProviderKey, profileId: string, meta: InstanceMeta, model: string, origin: ModelOption["origin"], list: ProfileModels | undefined): ModelOption {
+function standIn(
+  provider: ProviderKey,
+  profileId: string,
+  meta: InstanceMeta,
+  model: string,
+  origin: ModelOption["origin"],
+  list: ProfileModels | undefined,
+): ModelOption {
   // A profile with a catalog does not know the model's efforts: no effort setting rather than a guess.
   const effort = list ? undefined : fallbackEfforts[provider];
+
   return {
     key: modelKey(provider, profileId, model),
     provider,
@@ -202,27 +244,42 @@ export function modelOption(
   const list = profileCatalog(catalog, provider, profileId);
   const info = catalogEntry(list, model);
   const meta = plainMeta(profileName);
+
   if (!info || !list) return standIn(provider, profileId, meta, model, origin, list);
   const option = fromCatalog(provider, profileId, meta, info, list);
+
   // An alias's resolved id keeps the id it was given (that is what the thread stores and sends).
-  return info.id === model || !model ? option : { ...option, key: modelKey(provider, profileId, model), model, name: modelDisplayName(model), isDefault: false };
+  return info.id === model || !model
+    ? option
+    : { ...option, key: modelKey(provider, profileId, model), model, name: modelDisplayName(model), isDefault: false };
 }
 
 /** Models of one provider on one profile, in the catalog's order (default first without one). */
-function profileModels(provider: ProviderKey, profileId: string, meta: InstanceMeta, sources: ModelSources): ModelOption[] {
+function profileModels(
+  provider: ProviderKey,
+  profileId: string,
+  meta: InstanceMeta,
+  sources: ModelSources,
+): ModelOption[] {
   const list = profileCatalog(sources.catalog, provider, profileId);
   const shown = list?.models.filter((m) => !m.hidden) ?? [];
+
   if (list && shown.length > 0) return shown.map((info) => fromCatalog(provider, profileId, meta, info, list));
   // No list (or an empty one that says why): what the UI knows.
   const fromDefaults = sources.defaults ? modelFor(sources.defaults, Provider[provider]) : "";
+
   const entries: { model: string; origin: ModelOption["origin"] }[] = [
     { model: "", origin: "default" },
     ...(fromDefaults ? [{ model: fromDefaults, origin: "default" as const }] : []),
     ...aliases[provider].map((model) => ({ model, origin: "alias" as const })),
     ...knownModels(sources.threads, provider).map((model) => ({ model, origin: "recent" as const })),
   ];
+
   const seen = new Set<string>();
-  return entries.filter((e) => !seen.has(e.model) && seen.add(e.model)).map((e) => standIn(provider, profileId, meta, e.model, e.origin, undefined));
+
+  return entries
+    .filter((e) => !seen.has(e.model) && seen.add(e.model))
+    .map((e) => standIn(provider, profileId, meta, e.model, e.origin, undefined));
 }
 
 /**
@@ -231,15 +288,32 @@ function profileModels(provider: ProviderKey, profileId: string, meta: InstanceM
  */
 export function modelOptions(sources: ModelSources): ModelOption[] {
   const providers = sources.only ? [sources.only.provider] : providerKeys;
+
   return providers.flatMap((provider) => {
     const available = sources.worker?.providers.some((p) => providerKeyOf(p.provider) === provider && p.available);
+
     if (!available && !sources.only) return [];
-    const meta = (i: ui.WorkerInstance): InstanceMeta => ({ name: instanceLabel(i), accent: i.accentColor, favorites: i.favorites });
+
+    const meta = (i: ui.WorkerInstance): InstanceMeta => ({
+      name: instanceLabel(i),
+      accent: i.accentColor,
+      favorites: i.favorites,
+    });
+
     if (sources.only) {
       const own = instanceOf(sources.worker, provider, sources.only.profileId);
-      return profileModels(provider, sources.only.profileId, own ? meta(own) : plainMeta(sources.only.profileId || "native"), sources);
+
+      return profileModels(
+        provider,
+        sources.only.profileId,
+        own ? meta(own) : plainMeta(sources.only.profileId || "native"),
+        sources,
+      );
     }
-    return instancesFor(sources.worker, provider).flatMap((instance) => profileModels(provider, instanceValue(instance), meta(instance), sources));
+
+    return instancesFor(sources.worker, provider).flatMap((instance) =>
+      profileModels(provider, instanceValue(instance), meta(instance), sources),
+    );
   });
 }
 
@@ -247,9 +321,16 @@ export function modelOptions(sources: ModelSources): ModelOption[] {
  * The listed option for a model id on a provider + profile ("" = the profile's default model), matching
  * an alias's resolved model too.
  */
-export function findOption(options: readonly ModelOption[], provider: ProviderKey, profileId: string, model: string): ModelOption | undefined {
+export function findOption(
+  options: readonly ModelOption[],
+  provider: ProviderKey,
+  profileId: string,
+  model: string,
+): ModelOption | undefined {
   const onProfile = options.filter((o) => o.provider === provider && o.profileId === profileId);
+
   if (!model) return onProfile.find((o) => o.isDefault) ?? onProfile[0];
+
   return onProfile.find((o) => o.model === model) ?? onProfile.find((o) => o.resolvedModel === model);
 }
 
@@ -257,12 +338,20 @@ export function findOption(options: readonly ModelOption[], provider: ProviderKe
  * What a thread can switch to: models of its provider and profile (it keeps both for life), and its
  * default model as an option (`current`, listed or not; undefined for an unknown provider).
  */
-export function threadModelOptions(thread: ui.Thread, sources: Omit<ModelSources, "only" | "defaults">): { options: ModelOption[]; current: ModelOption | undefined } {
+export function threadModelOptions(
+  thread: ui.Thread,
+  sources: Omit<ModelSources, "only" | "defaults">,
+): { options: ModelOption[]; current: ModelOption | undefined } {
   const provider = providerKeyOf(thread.provider);
+
   if (!provider) return { options: [], current: undefined };
   const profileId = profileIdValue(thread.providerProfileId);
   const options = modelOptions({ ...sources, only: { provider, profileId } });
-  const current = findOption(options, provider, profileId, thread.model) ?? modelOption(provider, profileId, profileId || "native", thread.model, sources.catalog, "recent");
+
+  const current =
+    findOption(options, provider, profileId, thread.model) ??
+    modelOption(provider, profileId, profileId || "native", thread.model, sources.catalog, "recent");
+
   return { options, current };
 }
 
@@ -276,10 +365,21 @@ export function effectiveEffort(option: ModelOption, inherited: string | undefin
  * the chosen effort; without one the thread's effort, unless the model does not take it (then the model's
  * default). Empty object = the thread's defaults.
  */
-export function turnOverride(option: ModelOption | undefined, current: ModelOption | undefined, effort: string | undefined, threadEffort: string): { model?: string; effort?: string } {
+export function turnOverride(
+  option: ModelOption | undefined,
+  current: ModelOption | undefined,
+  effort: string | undefined,
+  threadEffort: string,
+): { model?: string; effort?: string } {
   const model = option && current && option.key !== current.key ? option.model : undefined;
-  const fallback = option && threadEffort && option.efforts.length > 0 && !option.efforts.some((e) => e.id === threadEffort) ? option.defaultEffort : undefined;
+
+  const fallback =
+    option && threadEffort && option.efforts.length > 0 && !option.efforts.some((e) => e.id === threadEffort)
+      ? option.defaultEffort
+      : undefined;
+
   const sent = effort ?? fallback;
+
   return { ...(model !== undefined && { model }), ...(sent && { effort: sent }) };
 }
 
@@ -288,8 +388,17 @@ export const searchText = (option: ModelOption): string =>
   `${option.name} ${option.model} ${option.resolvedModel} ${option.description} ${option.profileName} ${providerName(option.provider)}`;
 
 /** Model ids worth suggesting for a provider in free-text fields: every catalog's visible models, aliases, then recent ones. */
-export function suggestedModels(provider: ProviderKey, threads: Iterable<ui.Thread>, catalogs: Iterable<ui.WorkerModels> = []): string[] {
-  const listed = [...catalogs].flatMap((c) => c.profiles.filter((p) => p.provider === Provider[provider]).flatMap((p) => p.models.filter((m) => !m.hidden).map((m) => m.id)));
+export function suggestedModels(
+  provider: ProviderKey,
+  threads: Iterable<ui.Thread>,
+  catalogs: Iterable<ui.WorkerModels> = [],
+): string[] {
+  const listed = [...catalogs].flatMap((c) =>
+    c.profiles
+      .filter((p) => p.provider === Provider[provider])
+      .flatMap((p) => p.models.filter((m) => !m.hidden).map((m) => m.id)),
+  );
+
   return [...new Set([...listed, ...aliases[provider], ...knownModels(threads, provider)])];
 }
 
@@ -298,8 +407,10 @@ export function nameOfModel(model: string, catalogs: Iterable<ui.WorkerModels>):
   for (const catalog of catalogs) {
     for (const list of catalog.profiles) {
       const info = list.models.find((m) => m.id === model);
+
       if (info?.displayName && info.displayName !== info.id) return info.displayName;
     }
   }
+
   return modelDisplayName(model);
 }

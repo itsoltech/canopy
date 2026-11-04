@@ -19,8 +19,10 @@ export function longPress(onpress: () => void): Attachment<HTMLElement> {
       timer = undefined;
       start = undefined;
     };
+
     const onpointerdown = (event: PointerEvent) => {
       fired = false;
+
       if (event.pointerType === "mouse") return;
       start = { x: event.clientX, y: event.clientY };
       timer = setTimeout(() => {
@@ -29,12 +31,15 @@ export function longPress(onpress: () => void): Attachment<HTMLElement> {
         onpress();
       }, LONG_PRESS_MS);
     };
+
     const onpointermove = (event: PointerEvent) => {
       if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > MOVE_TOLERANCE_PX) cancel();
     };
+
     const oncontextmenu = (event: Event) => {
       if (fired || start) event.preventDefault();
     };
+
     const onclick = (event: MouseEvent) => {
       if (!fired) return;
       fired = false;
@@ -48,6 +53,7 @@ export function longPress(onpress: () => void): Attachment<HTMLElement> {
     node.addEventListener("pointercancel", cancel);
     node.addEventListener("contextmenu", oncontextmenu);
     node.addEventListener("click", onclick, true);
+
     return () => {
       cancel();
       node.removeEventListener("pointerdown", onpointerdown);

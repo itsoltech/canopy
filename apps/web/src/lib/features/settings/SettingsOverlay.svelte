@@ -19,22 +19,33 @@
   let { route }: { route: Snippet } = $props();
 
   const routeMode = $derived(isSettingsRoute(page.route.id) && !page.error);
-  const shallowKey = $derived(!routeMode && page.shallow?.route && isSettingsRoute(page.shallow.route.id) ? overlayKey(page.shallow.url) : undefined);
+
+  const shallowKey = $derived(
+    !routeMode && page.shallow?.route && isSettingsRoute(page.shallow.route.id)
+      ? overlayKey(page.shallow.url)
+      : undefined,
+  );
+
   const key = $derived(routeMode ? undefined : (shallowKey ?? overlay.bridging?.key));
 
   type View = { key?: string | undefined; url: SettingsRoute["url"]; params: Readonly<Record<string, string>> };
+
   const view = $derived.by((): View | undefined => {
     if (routeMode) return { url: page.url, params: page.params };
+
     if (!key) return undefined;
     const entry = overlay.pages.get(key);
+
     return { key, url: new URL(key, page.url.origin), params: entry?.status === "loaded" ? entry.params : {} };
   });
 
   // What the dialog shows: the current view, or the last one while it plays its exit.
   let last = $state.raw<View>();
+
   $effect(() => {
     if (view) last = view;
   });
+
   const shown = $derived(view ?? last);
   const open = $derived(Boolean(view));
   const entry = $derived(shown?.key ? overlay.pages.get(shown.key) : undefined);
@@ -45,8 +56,10 @@
     record();
     const observer = new MutationObserver(record);
     observer.observe(document.head, { subtree: true, childList: true, characterData: true });
+
     return () => observer.disconnect();
   });
+
   $effect(() => {
     if (!view && overlay.pageTitle !== undefined) document.title = overlay.pageTitle;
   });
@@ -54,16 +67,19 @@
   $effect(() => {
     if (key && !overlay.pages.has(key)) untrack(() => void overlay.ensure(key));
   });
+
   $effect(() => {
     if (routeMode) untrack(() => void overlay.handOver());
   });
 
   // The form action result of the settings page (`page.form` is the page's, underneath, too).
   let form = $state.raw<Record<string, unknown> | null>(null);
+
   $effect(() => {
     const result = page.form as Record<string, unknown> | null;
     untrack(() => (form = result));
   });
+
   $effect(() => {
     void key;
     form = null;
@@ -71,8 +87,10 @@
 
   // Data reloaded underneath (a form action's refresh, an invalidation): the settings page's too.
   let seen = page.data;
+
   $effect(() => {
     const data = page.data;
+
     if (data === seen) return;
     seen = data;
     untrack(() => shallowKey && void overlay.reload(shallowKey));
@@ -91,6 +109,7 @@
     async refresh(dependency) {
       // Keeps `page.state`; also drops the preloaded data, so the reload below fetches anew.
       await invalidate(dependency, true);
+
       if (shallowKey) await overlay.reload(shallowKey);
     },
   });
@@ -98,7 +117,9 @@
   beforeNavigate((navigation) => {
     if (updated.current || updateState.available) return;
     const to = navigation.to;
+
     if (navigation.shallow || routeMode || (navigation.type !== "link" && navigation.type !== "goto")) return;
+
     if (!to?.route.id || !isSettingsRoute(to.route.id)) return;
     navigation.cancel();
     void overlay.open(to.url.href, Boolean(shallowKey));
@@ -107,9 +128,11 @@
   $effect(() => {
     if (!key || entry?.status !== "error" || entry.code < 500) return;
     const target = key;
+
     const timer = setInterval(() => {
       if (!document.hidden && navigator.onLine) void overlay.reload(target);
     }, 3000);
+
     return () => clearInterval(timer);
   });
 
@@ -131,10 +154,17 @@
     {:else if entry?.status === "error"}
       <Alert tone="error" title={entry.code === 404 ? "Not found" : "This page could not be loaded"}>
         {entry.message}
-        {#snippet actions()}<Button size="sm" icon="arrow-path" onclick={() => shown?.key && overlay.reload(shown.key)}>Try again</Button>{/snippet}
+        {#snippet actions()}<Button size="sm" icon="arrow-path" onclick={() => shown?.key && overlay.reload(shown.key)}
+            >Try again</Button
+          >{/snippet}
       </Alert>
     {:else}
-      <p class="flex items-center justify-center gap-2 py-16 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status"><Spinner />Loading…</p>
+      <p
+        class="flex items-center justify-center gap-2 py-16 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
+        role="status"
+      >
+        <Spinner />Loading…
+      </p>
     {/if}
   </SettingsDialog>
 {/if}

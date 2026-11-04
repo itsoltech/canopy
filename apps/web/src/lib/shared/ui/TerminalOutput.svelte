@@ -7,8 +7,18 @@
   import { terminalAnsi } from "./terminal-ansi.ts";
 
   /** A terminal tail with fixed-height virtual rows. Reading earlier output never moves with new lines. */
-  let { output, running, exitLine, class: className }: { output: string; running: boolean; exitLine?: string | undefined; class?: ClassValue } = $props();
-  const reveal = new LineReveal(() => output, () => running);
+  let {
+    output,
+    running,
+    exitLine,
+    class: className,
+  }: { output: string; running: boolean; exitLine?: string | undefined; class?: ClassValue } = $props();
+
+  const reveal = new LineReveal(
+    () => output,
+    () => running,
+  );
+
   const lines = $derived(reveal.text ? terminalAnsi(reveal.text) : []);
   const pin = new OutputPin();
   let pinned = $state(true);
@@ -27,15 +37,22 @@
     pin.top = viewport.scrollTop;
     top = viewport.scrollTop;
   }
+
   $effect(() => {
     void reveal.text;
     void height;
     void running;
     void exitLine;
+
     if (!pinned || !viewport) return;
     let active = true;
-    void tick().then(() => { if (active && untrack(() => pinned)) untrack(latest); });
-    return () => { active = false; };
+    void tick().then(() => {
+      if (active && untrack(() => pinned)) untrack(latest);
+    });
+
+    return () => {
+      active = false;
+    };
   });
 </script>
 
@@ -64,24 +81,53 @@
       top = viewport.scrollTop;
     }}
     onkeydown={(event) => {
-      if (event.key === "End") { event.preventDefault(); latest(); }
+      if (event.key === "End") {
+        event.preventDefault();
+        latest();
+      }
     }}
   >
     {#if lines.length}
-      <div style:height="{total}px" class="relative min-w-full w-max">
+      <div style:height="{total}px" class="relative w-max min-w-full">
         <div style:transform="translateY({range[0] * OUTPUT_LINE_HEIGHT}px)" class="absolute inset-x-0 top-0">
           {#each lines.slice(range[0], range[1]) as line, index (range[0] + index)}
-            <div class="h-5 whitespace-pre" data-output-line>{#each line as token}<span style:color={token.foreground} style:background-color={token.background} class={[token.bold && "font-semibold", token.dim && "opacity-60", token.italic && "italic", token.underline && "underline"]}>{token.text}</span>{/each}{#if !line.length}{"\u200b"}{/if}</div>
+            <div class="h-5 whitespace-pre" data-output-line>
+              {#each line as token}<span
+                  style:color={token.foreground}
+                  style:background-color={token.background}
+                  class={[
+                    token.bold && "font-semibold",
+                    token.dim && "opacity-60",
+                    token.italic && "italic",
+                    token.underline && "underline",
+                  ]}>{token.text}</span
+                >{/each}{#if !line.length}{"\u200b"}{/if}
+            </div>
           {/each}
         </div>
-        <div style:top="{lines.length * OUTPUT_LINE_HEIGHT}px" class="absolute inset-x-0 h-5 whitespace-pre text-zinc-400">{#if running}<span aria-hidden="true" class="inline-block h-4 w-2 translate-y-0.5 t-pulse bg-zinc-400"></span>{:else}{exitLine}{/if}</div>
+        <div
+          style:top="{lines.length * OUTPUT_LINE_HEIGHT}px"
+          class="absolute inset-x-0 h-5 whitespace-pre text-zinc-400"
+        >
+          {#if running}<span aria-hidden="true" class="t-pulse inline-block h-4 w-2 translate-y-0.5 bg-zinc-400"
+            ></span>{:else}{exitLine}{/if}
+        </div>
       </div>
     {:else}
-      <p class="text-zinc-400">{running ? "Waiting for output…" : "No output."}{#if running}<span aria-hidden="true" class="inline-block h-4 w-2 translate-y-0.5 t-pulse bg-zinc-400"></span>{/if}</p>
+      <p class="text-zinc-400">
+        {running ? "Waiting for output…" : "No output."}{#if running}<span
+            aria-hidden="true"
+            class="t-pulse inline-block h-4 w-2 translate-y-0.5 bg-zinc-400"
+          ></span>{/if}
+      </p>
       {#if !running && exitLine}<p class="text-zinc-400">{exitLine}</p>{/if}
     {/if}
   </div>
   {#if !pinned}
-    <div class="absolute inset-x-0 bottom-3 flex justify-center"><span class="flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50"><Button size="sm" icon="arrow-down" onclick={latest}>Jump to latest</Button></span></div>
+    <div class="absolute inset-x-0 bottom-3 flex justify-center">
+      <span class="flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50"
+        ><Button size="sm" icon="arrow-down" onclick={latest}>Jump to latest</Button></span
+      >
+    </div>
   {/if}
 </div>

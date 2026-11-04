@@ -6,6 +6,7 @@ import type { ProviderKey } from "#lib/features/threads/providers.ts";
 
 /** Groups of the palette, in the order they are listed. */
 export const commandGroups = ["actions", "threads", "projects", "settings"] as const;
+
 export type CommandGroup = (typeof commandGroups)[number];
 
 export const groupLabels: Record<CommandGroup, string> = {
@@ -77,6 +78,7 @@ export class CommandRegistry {
   add(source: CommandSource): () => void {
     const key = Symbol("commands");
     this.#sources.set(key, source);
+
     return () => this.#sources.delete(key);
   }
 

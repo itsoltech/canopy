@@ -27,9 +27,18 @@ export interface ThreadDirectory {
 
 const KEY = Symbol("thread-directory");
 export const provideThreadDirectory = (directory: ThreadDirectory) => setContext(KEY, directory);
-export const useThreadDirectory = (): ThreadDirectory => getContext<ThreadDirectory | undefined>(KEY) ?? { currentId: "", thread: () => undefined, awaiting: () => false, goal: () => undefined };
+
+export const useThreadDirectory = (): ThreadDirectory =>
+  getContext<ThreadDirectory | undefined>(KEY) ?? {
+    currentId: "",
+    thread: () => undefined,
+    awaiting: () => false,
+    goal: () => undefined,
+  };
 
 /** Each timeline item tells the frames inside it whether it waits for a person. */
 const ITEM_KEY = Symbol("item-awaiting");
 export const provideItemAwaiting = (awaiting: () => boolean) => setContext(ITEM_KEY, awaiting);
-export const useItemAwaiting = (): (() => boolean) => getContext<(() => boolean) | undefined>(ITEM_KEY) ?? (() => false);
+
+export const useItemAwaiting = (): (() => boolean) =>
+  getContext<(() => boolean) | undefined>(ITEM_KEY) ?? (() => false);

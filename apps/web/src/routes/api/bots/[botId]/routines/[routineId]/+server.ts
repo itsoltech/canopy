@@ -7,9 +7,17 @@ import type { RequestHandler } from "./$types";
 
 export const PUT: RequestHandler = async ({ params, request }) => {
   const body = await readMessage(request, bots.SetBotRoutineEnabledRequestSchema);
-  return json(encode(bots.BotRoutineResponseSchema, await call((api) => api.setBotRoutineEnabled({ ...body, botId: params.botId, routineId: params.routineId }))));
+
+  return json(
+    encode(
+      bots.BotRoutineResponseSchema,
+      await call((api) => api.setBotRoutineEnabled({ ...body, botId: params.botId, routineId: params.routineId })),
+    ),
+  );
 };
+
 export const DELETE: RequestHandler = async ({ params }) => {
   await call((api) => api.deleteBotRoutine({ botId: params.botId, routineId: params.routineId }));
+
   return json({});
 };

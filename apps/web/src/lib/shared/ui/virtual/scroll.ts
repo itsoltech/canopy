@@ -13,16 +13,25 @@ export class ScrollIntent {
   private until = 0;
   private expected = Number.NaN;
 
-  gesture(now = performance.now()) { this.until = now + 250; }
-  reset() { this.until = 0; }
-  programmatic(top: number) { this.expected = top; }
+  gesture(now = performance.now()) {
+    this.until = now + 250;
+  }
+  reset() {
+    this.until = 0;
+  }
+  programmatic(top: number) {
+    this.expected = top;
+  }
 
   origin(top: number, smoothUntil: number, now = performance.now()): "reader" | "programmatic" | "unattributed" {
     const ours = Math.abs(top - this.expected) < 1;
     this.expected = Number.NaN;
+
     if (ours || now < smoothUntil) return "programmatic";
+
     if (now >= this.until) return "unattributed";
     this.gesture(now);
+
     return "reader";
   }
 }

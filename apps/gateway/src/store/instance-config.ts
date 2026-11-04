@@ -9,6 +9,7 @@ import { ModelInfoSchema, ProfileModelsSchema, Provider, ui, type ProfileModels 
  */
 
 export type Harness = "claude" | "codex" | "grok";
+
 export type SecretRef = { secretRef: string };
 
 export interface StoredEnvVar {
@@ -85,14 +86,34 @@ export interface StoredProfile {
 export const NATIVE_ID = "native";
 export const INSTANCE_ID = /^[a-z0-9][a-z0-9_-]{0,62}$/;
 
-export const harnessOf = (provider: Provider): Harness | undefined => (provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : provider === Provider.GROK ? "grok" : undefined);
-export const providerOf = (harness: string | null | undefined): Provider => (harness === "claude" ? Provider.CLAUDE : harness === "grok" ? Provider.GROK : harness === "codex" ? Provider.CODEX : Provider.UNSPECIFIED);
+export const harnessOf = (provider: Provider): Harness | undefined =>
+  provider === Provider.CLAUDE
+    ? "claude"
+    : provider === Provider.CODEX
+      ? "codex"
+      : provider === Provider.GROK
+        ? "grok"
+        : undefined;
+
+export const providerOf = (harness: string | null | undefined): Provider =>
+  harness === "claude"
+    ? Provider.CLAUDE
+    : harness === "grok"
+      ? Provider.GROK
+      : harness === "codex"
+        ? Provider.CODEX
+        : Provider.UNSPECIFIED;
+
 export const instanceKey = (harness: Harness, id: string): string => `${harness}/${id}`;
 
-export const isRef = (value: unknown): value is SecretRef => typeof value === "object" && value !== null && typeof (value as SecretRef).secretRef === "string";
+export const isRef = (value: unknown): value is SecretRef =>
+  typeof value === "object" && value !== null && typeof (value as SecretRef).secretRef === "string";
 
 /** Whether the instance runs on the worker: the worker's own choice, else "all workers". */
-export function enabledOn(instance: Pick<InstanceRow, "all_workers">, assignment: Pick<AssignmentRow, "enabled"> | undefined): boolean {
+export function enabledOn(
+  instance: Pick<InstanceRow, "all_workers">,
+  assignment: Pick<AssignmentRow, "enabled"> | undefined,
+): boolean {
   return assignment?.enabled ?? instance.all_workers;
 }
 
@@ -102,6 +123,7 @@ export function mergeEnv(base: readonly StoredEnvVar[], extra: readonly StoredEn
   const byName = new Map(extra.map((v) => [v.name.toUpperCase(), v]));
   const merged = base.map((v) => byName.get(v.name.toUpperCase()) ?? v);
   const present = new Set(base.map((v) => v.name.toUpperCase()));
+
   return [...merged, ...extra.filter((v) => !present.has(v.name.toUpperCase()))];
 }
 
@@ -114,24 +136,45 @@ export function effectiveProfile(instance: InstanceRow, assignment: AssignmentRo
   const apiKey = endpoint ? (o.apiKey ?? instance.api_key ?? undefined) : undefined;
   const launchArgs = o.launchArgs ?? runtime.launchArgs ?? [];
   const pick = (value: string | undefined) => (value ? value : undefined);
+
   const profile: StoredProfile = {
     id: instance.id,
     kind: endpoint ? "PROVIDER_PROFILE_KIND_CLIPROXYAPI" : "PROVIDER_PROFILE_KIND_NATIVE",
-    providers: [instance.harness === "claude" ? "PROVIDER_CLAUDE" : instance.harness === "grok" ? "PROVIDER_GROK" : "PROVIDER_CODEX"],
+    providers: [
+      instance.harness === "claude"
+        ? "PROVIDER_CLAUDE"
+        : instance.harness === "grok"
+          ? "PROVIDER_GROK"
+          : "PROVIDER_CODEX",
+    ],
   };
+
   const baseUrl = endpoint ? (o.baseUrl ?? instance.base_url) : "";
+
   if (baseUrl) profile.baseUrl = baseUrl;
+
   if (apiKey) profile.apiKey = apiKey;
+
   if (instance.label) profile.displayName = instance.label;
-  if (env.length > 0) profile.env = env.map((v) => (v.secret ? { name: v.name, value: v.value, secret: true } : { name: v.name, value: v.value }));
+
+  if (env.length > 0)
+    profile.env = env.map((v) =>
+      v.secret ? { name: v.name, value: v.value, secret: true } : { name: v.name, value: v.value },
+    );
   const executablePath = pick(o.binaryPath ?? runtime.binaryPath);
   const homePath = pick(o.homePath ?? runtime.homePath);
   const shadowHomePath = pick(o.shadowHomePath ?? runtime.shadowHomePath);
+
   if (executablePath) profile.executablePath = executablePath;
+
   if (homePath) profile.homePath = homePath;
+
   if (shadowHomePath) profile.shadowHomePath = shadowHomePath;
+
   if (launchArgs.length > 0) profile.launchArgs = [...launchArgs];
+
   if (runtime.ownLogin && !endpoint) profile.ownLogin = true;
+
   return profile;
 }
 
@@ -146,21 +189,37 @@ export function effectiveProfiles(
   usedOnWorker: ReadonlySet<string>,
 ): StoredProfile[] {
   const byInstance = new Map(assignments.map((a) => [instanceKey(a.harness, a.instance_id), a]));
+
   const ordered = [...instances].sort(
-    (a, b) => a.harness.localeCompare(b.harness) || Number(b.id === NATIVE_ID) - Number(a.id === NATIVE_ID) || a.id.localeCompare(b.id),
+    (a, b) =>
+      a.harness.localeCompare(b.harness) ||
+      Number(b.id === NATIVE_ID) - Number(a.id === NATIVE_ID) ||
+      a.id.localeCompare(b.id),
   );
+
   return ordered.flatMap((instance): StoredProfile[] => {
     const key = instanceKey(instance.harness, instance.id);
     const assignment = byInstance.get(key);
+
     if (enabledOn(instance, assignment)) return [effectiveProfile(instance, assignment)];
+
     if (!instance.built_in && !usedOnWorker.has(key)) return [];
+
     const stub: StoredProfile = {
       id: instance.id,
       kind: instance.kind === "endpoint" ? "PROVIDER_PROFILE_KIND_CLIPROXYAPI" : "PROVIDER_PROFILE_KIND_NATIVE",
-      providers: [instance.harness === "claude" ? "PROVIDER_CLAUDE" : instance.harness === "grok" ? "PROVIDER_GROK" : "PROVIDER_CODEX"],
+      providers: [
+        instance.harness === "claude"
+          ? "PROVIDER_CLAUDE"
+          : instance.harness === "grok"
+            ? "PROVIDER_GROK"
+            : "PROVIDER_CODEX",
+      ],
       disabled: true,
     };
+
     if (instance.label) stub.displayName = instance.label;
+
     return [stub];
   });
 }
@@ -168,7 +227,9 @@ export function effectiveProfiles(
 /** JSON with object keys sorted: jsonb does not keep key order, so stored and computed documents compare this way. */
 export function canonicalJson(value: unknown): string {
   return JSON.stringify(value, (_key, v: unknown) =>
-    v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))) : v,
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : v,
   );
 }
 
@@ -176,7 +237,10 @@ export function canonicalJson(value: unknown): string {
 export function profileSecretRefs(profiles: readonly StoredProfile[]): string[] {
   return [
     ...new Set(
-      profiles.flatMap((p) => [...(isRef(p.apiKey) ? [p.apiKey.secretRef] : []), ...(p.env ?? []).flatMap((v) => (isRef(v.value) ? [v.value.secretRef] : []))]),
+      profiles.flatMap((p) => [
+        ...(isRef(p.apiKey) ? [p.apiKey.secretRef] : []),
+        ...(p.env ?? []).flatMap((v) => (isRef(v.value) ? [v.value.secretRef] : [])),
+      ]),
     ),
   ];
 }
@@ -203,8 +267,13 @@ export const modelsRule = (row: InstanceRow): InstanceModelsRule => ({
 /** A list with the instance's custom models added (not hidden, no effort data); the checks accept them. */
 export function withCustomModels(list: ProfileModels, rule: InstanceModelsRule | undefined): ProfileModels {
   const custom = (rule?.custom ?? []).filter((id) => !list.models.some((m) => m.id === id));
+
   if (custom.length === 0) return list;
-  return create(ProfileModelsSchema, { ...list, models: [...list.models, ...custom.map((id) => create(ModelInfoSchema, { id, displayName: id }))] });
+
+  return create(ProfileModelsSchema, {
+    ...list,
+    models: [...list.models, ...custom.map((id) => create(ModelInfoSchema, { id, displayName: id }))],
+  });
 }
 
 /**
@@ -215,18 +284,29 @@ export function withCustomModels(list: ProfileModels, rule: InstanceModelsRule |
  */
 export function applyInstanceModels(catalog: ui.WorkerModels, rules: readonly InstanceModelsRule[]): ui.WorkerModels {
   if (rules.length === 0) return catalog;
+
   return create(ui.WorkerModelsSchema, {
     ...catalog,
     profiles: catalog.profiles.map((list) => {
       const harness = harnessOf(list.provider);
       const rule = rules.find((r) => r.harness === harness && r.id === (list.profileId || NATIVE_ID));
+
       if (!rule) return list;
       const hidden = new Set(rule.hidden);
       const shown = new Set(rule.shown);
-      const visible = withCustomModels(list, rule).models.map((m) => ({ ...m, hidden: !(shown.has(m.id) || (!m.hidden && !hidden.has(m.id))) }));
+
+      const visible = withCustomModels(list, rule).models.map((m) => ({
+        ...m,
+        hidden: !(shown.has(m.id) || (!m.hidden && !hidden.has(m.id))),
+      }));
+
       const favorites = rule.favorites.flatMap((id) => visible.filter((m) => m.id === id));
       const favored = new Set(rule.favorites);
-      return create(ProfileModelsSchema, { ...list, models: [...favorites, ...visible.filter((m) => !favored.has(m.id))] });
+
+      return create(ProfileModelsSchema, {
+        ...list,
+        models: [...favorites, ...visible.filter((m) => !favored.has(m.id))],
+      });
     }),
   });
 }

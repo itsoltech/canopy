@@ -18,19 +18,35 @@
    * hang off a rule under its chevron. A turn's rows carry its id (`data-turn`): hovering or focusing any
    * of them reveals the turn's quiet details (turn-reveal).
    */
-  let { row, ontoggle, onwork, ongroup }: { row: FeedRow; ontoggle: () => void; onwork: (turnId: string) => void; ongroup: (key: string) => void } = $props();
+  let {
+    row,
+    ontoggle,
+    onwork,
+    ongroup,
+  }: { row: FeedRow; ontoggle: () => void; onwork: (turnId: string) => void; ongroup: (key: string) => void } =
+    $props();
 
   const directory = useThreadDirectory();
   const well = "bg-zinc-950/2.5 px-3 dark:bg-white/4";
+
   const turnId = $derived.by(() => {
     if (row.kind === "work" || row.kind === "work-group" || row.kind === "answer") return row.turn.id;
+
     if (row.kind !== "timeline") return undefined;
     const inner = row.row;
-    return inner.kind === "item" ? inner.node.entry.turnId || undefined : inner.kind === "notice" ? inner.notice.turnId || undefined : inner.turn.id;
+
+    return inner.kind === "item"
+      ? inner.node.entry.turnId || undefined
+      : inner.kind === "notice"
+        ? inner.notice.turnId || undefined
+        : inner.turn.id;
   });
+
   const heading = $derived.by(() => {
     if (row.kind !== "history-head") return "";
+
     if (row.threadIds.length > 1) return `History from ${row.threadIds.length} threads`;
+
     return `History from “${directory.thread(row.threadIds[0] ?? row.sourceId)?.title ?? "the source thread"}”`;
   });
 </script>
@@ -38,14 +54,26 @@
 {#if row.kind === "history-head"}
   <div class={[!row.open && "pb-3"]}>
     <div class={[well, row.open ? "rounded-t-xl" : "rounded-xl"]}>
-      <button type="button" class="flex w-full min-w-0 items-start gap-2 rounded-md py-2.5 text-left text-base/6 focus-ring select-none sm:py-2 sm:text-sm/6" aria-expanded={row.open} onclick={ontoggle}>
-        <span class="flex h-lh items-center"><Icon name="chevron-right" class={["fill-zinc-400 t-acc-chevron dark:fill-zinc-500", row.open && "rotate-90"]} /></span>
+      <button
+        type="button"
+        class="flex w-full min-w-0 items-start gap-2 rounded-md py-2.5 text-left text-base/6 focus-ring select-none sm:py-2 sm:text-sm/6"
+        aria-expanded={row.open}
+        onclick={ontoggle}
+      >
+        <span class="flex h-lh items-center"
+          ><Icon
+            name="chevron-right"
+            class={["t-acc-chevron fill-zinc-400 dark:fill-zinc-500", row.open && "rotate-90"]}
+          /></span
+        >
         <span class="flex min-w-0 flex-1 items-center gap-2">
           <span class="flex min-w-0 items-center gap-2 text-zinc-700 dark:text-zinc-300">
             <Icon name="square-2-stack" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
             <span class="truncate">{heading}</span>
           </span>
-          <span class="shrink-0 text-sm/6 text-zinc-500 tabular-nums sm:text-xs/6 dark:text-zinc-400">{row.turns} {row.turns === 1 ? "turn" : "turns"}</span>
+          <span class="shrink-0 text-sm/6 text-zinc-500 tabular-nums sm:text-xs/6 dark:text-zinc-400"
+            >{row.turns} {row.turns === 1 ? "turn" : "turns"}</span
+          >
         </span>
       </button>
     </div>
@@ -66,31 +94,58 @@
   <div data-turn={turnId}><AnswerSlot row={row.row} /></div>
 {:else if row.kind === "timeline" || row.kind === "work" || row.kind === "work-group"}
   <!-- A turn's start is mostly space (its details are quiet): it sits close to the input under it. -->
-  <div class={row.kind === "timeline" && row.row.kind === "turn-start" ? "pb-1" : "pb-3"} data-turn={turnId}>{@render body(row)}</div>
+  <div class={row.kind === "timeline" && row.row.kind === "turn-start" ? "pb-1" : "pb-3"} data-turn={turnId}>
+    {@render body(row)}
+  </div>
 {:else if row.kind === "forked"}
   {@const turn = directory.thread(directory.currentId)?.forkAfterTurnOrdinal}
   <div class="flex items-center gap-3 pb-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
     <span class="flex min-w-0 items-center gap-1.5">
-      <span class="shrink-0">Forked from</span><ThreadLink threadId={row.sourceId} fallback="the source thread" />{#if turn}<span class="shrink-0 tabular-nums">· Turn {turn}</span>{/if}
+      <span class="shrink-0">Forked from</span><ThreadLink
+        threadId={row.sourceId}
+        fallback="the source thread"
+      />{#if turn}<span class="shrink-0 tabular-nums">· Turn {turn}</span>{/if}
     </span>
     <Rule class="min-w-8" />
   </div>
 {:else if row.kind === "working"}
-  <p class="pb-3 text-base/6 sm:text-sm/6"><span class="shimmer inline-block py-1 font-medium">Working…</span></p>
+  <p class="pb-3 text-base/6 sm:text-sm/6"><span class="inline-block shimmer py-1 font-medium">Working…</span></p>
 {:else}
-  <div class="pb-3"><UserMessageView message={{ text: row.steer.text, authorAgentId: row.steer.sourceThreadId, attachments: [], mentions: row.steer.mentions }} quotes={row.steer.quotes} note={steeringNote(row.steer)} sender={row.steer.sender} pending /></div>
+  <div class="pb-3">
+    <UserMessageView
+      message={{
+        text: row.steer.text,
+        authorAgentId: row.steer.sourceThreadId,
+        attachments: [],
+        mentions: row.steer.mentions,
+      }}
+      quotes={row.steer.quotes}
+      note={steeringNote(row.steer)}
+      sender={row.steer.sender}
+      pending
+    />
+  </div>
 {/if}
 
 {#snippet body(row: Extract<FeedRow, { kind: "timeline" | "work" | "work-group" | "answer" }>)}
   {#if row.kind === "work"}
     <WorkFold summary={row.summary} turn={row.turn} open={row.open} ontoggle={() => onwork(row.turn.id)} />
   {:else if row.kind === "work-group"}
-    <div class="ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10"><WorkGroup label={row.label} open={row.open} running={row.running} ontoggle={() => ongroup(row.key.replace(/^history:[^:]+:/, ""))} /></div>
+    <div class="ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10">
+      <WorkGroup
+        label={row.label}
+        open={row.open}
+        running={row.running}
+        ontoggle={() => ongroup(row.key.replace(/^history:[^:]+:/, ""))}
+      />
+    </div>
   {:else if row.kind === "answer"}
     <AnswerSlot row={row.row} />
   {:else if row.work}
     <!-- The rule continues the fold's chevron (size-4, centred at 8px); it runs through the row gap. -->
-    <div class="-mb-3 ml-2 border-l border-zinc-950/10 pb-3 pl-4 dark:border-white/10"><TimelineRowView row={row.row} /></div>
+    <div class="-mb-3 ml-2 border-l border-zinc-950/10 pb-3 pl-4 dark:border-white/10">
+      <TimelineRowView row={row.row} />
+    </div>
   {:else}
     <TimelineRowView row={row.row} />
   {/if}

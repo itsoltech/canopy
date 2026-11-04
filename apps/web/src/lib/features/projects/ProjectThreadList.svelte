@@ -8,7 +8,13 @@
   /** A project's threads: main threads (latest activity first) with their side threads nested below. */
   let { threads }: { threads: readonly ui.Thread[] } = $props();
   const overview = useOverview();
-  const forest = $derived(threadForest(threads).sort((a, b) => Number(treeActivity([b.main, ...b.sides]) - treeActivity([a.main, ...a.sides]))));
+
+  const forest = $derived(
+    threadForest(threads).sort((a, b) =>
+      Number(treeActivity([b.main, ...b.sides]) - treeActivity([a.main, ...a.sides])),
+    ),
+  );
+
   const meta = (thread: ui.Thread) => `${overview.worker(thread.workerId)?.name ?? "Unknown worker"} · ${thread.cwd}`;
 </script>
 
@@ -20,7 +26,11 @@
       <li>
         <ThreadRow thread={tree.main} meta={meta(tree.main)} />
         {#if tree.sides.length > 0}
-          <ul role="list" aria-label="Side threads of {tree.main.title}" class="ml-[0.6875rem] grid gap-0.5 border-l border-zinc-950/10 pl-2 dark:border-white/10">
+          <ul
+            role="list"
+            aria-label="Side threads of {tree.main.title}"
+            class="ml-[0.6875rem] grid gap-0.5 border-l border-zinc-950/10 pl-2 dark:border-white/10"
+          >
             {#each tree.sides as side (side.id)}<li><ThreadRow thread={side} /></li>{/each}
           </ul>
         {/if}

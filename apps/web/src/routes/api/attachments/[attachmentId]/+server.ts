@@ -7,5 +7,9 @@ export const GET: RequestHandler = async ({ params, url }) => {
   const thumbnail = url.searchParams.has("thumbnail");
   const response = await call((api) => api.getAttachment({ attachmentId: params.attachmentId, thumbnail }));
   const name = response.attachment?.name ?? "attachment";
-  return fileResponse(response.data, response.mimeType, { name: thumbnail ? `${name}.webp` : name, download: url.searchParams.has("download") });
+
+  return fileResponse(response.data, response.mimeType, {
+    name: thumbnail ? `${name}.webp` : name,
+    download: url.searchParams.has("download"),
+  });
 };

@@ -109,6 +109,7 @@ export class BackgroundTaskStore extends Context.Service<
 
       const taskOf = (row: TaskRow): BackgroundTask | undefined => {
         const item = fromJson(ItemSchema, row.content);
+
         return item.content.case === "backgroundTask" ? item.content.value : undefined;
       };
 
@@ -116,20 +117,25 @@ export class BackgroundTaskStore extends Context.Service<
       const outputOf = (task: BackgroundTask) =>
         Effect.gen(function* () {
           if (task.output || !task.outputBlob?.sha256) return task.output;
+
           const rows = yield* sql<{ tail: Uint8Array | null }>`
             SELECT substring(data FROM greatest(1, octet_length(data) - ${OUTPUT_WINDOW_BYTES - 1})) AS tail
               FROM blobs WHERE sha256 = ${task.outputBlob.sha256}`;
+
           const tail = rows[0]?.tail;
+
           return tail ? new TextDecoder("utf-8", { fatal: false }).decode(tail) : "";
         });
 
       const view = (row: TaskRow): BackgroundTaskView | undefined => {
         const task = taskOf(row);
+
         if (!task) return undefined;
         const status = backgroundOutcome(row.status);
         const started = time(task.startedAt);
         const ended = time(task.endedAt);
         const span = started && (ended ?? (status === "running" ? new Date() : undefined));
+
         return {
           task_id: row.item_id,
           provider_task_id: task.taskId,
@@ -142,7 +148,11 @@ export class BackgroundTaskStore extends Context.Service<
           ...(task.exitCode !== undefined && { exit_code: task.exitCode }),
           ...(started && { started_at: started.toISOString() }),
           ...(ended && { ended_at: ended.toISOString() }),
-          ...(started && span && { duration: formatDuration(span.getTime() - started.getTime()), duration_seconds: Math.round((span.getTime() - started.getTime()) / 1000) }),
+          ...(started &&
+            span && {
+              duration: formatDuration(span.getTime() - started.getTime()),
+              duration_seconds: Math.round((span.getTime() - started.getTime()) / 1000),
+            }),
           ...(row.turn_id && { started_in_turn_id: row.turn_id }),
           ...(row.turn_ordinal !== null && { started_in_turn: row.turn_ordinal }),
         };
@@ -159,7 +169,9 @@ export class BackgroundTaskStore extends Context.Service<
       const ended = (row: NoteRow) =>
         Effect.gen(function* () {
           const task = taskOf(row);
+
           if (!task) return undefined;
+
           const end: BackgroundTaskEnd = {
             id: row.item_id,
             title: backgroundTitle(task, row.item_id),
@@ -171,6 +183,7 @@ export class BackgroundTaskStore extends Context.Service<
             endedAt: time(task.endedAt) ?? new Date(row.ended_at),
             output: yield* outputOf(task),
           };
+
           return end;
         });
 
@@ -181,21 +194,31 @@ export class BackgroundTaskStore extends Context.Service<
               FROM thread_items i LEFT JOIN turns u ON u.id = i.turn_id
              WHERE i.thread_id = ${threadId}::uuid AND i.type = 'background_task'
                AND (${filter} = 'all' OR (${filter} = 'running') = (i.status = 'in_progress'))
-             ORDER BY i.first_seq DESC LIMIT ${limit}`.pipe(Effect.map((rows) => rows.flatMap((row) => view(row) ?? []))),
+             ORDER BY i.first_seq DESC LIMIT ${limit}`.pipe(
+            Effect.map((rows) => rows.flatMap((row) => view(row) ?? [])),
+          ),
 
         get: (threadId, taskId, outputLines) =>
           Effect.gen(function* () {
             const row = (yield* byTask(threadId, taskId))[0];
             const task = row && taskOf(row);
             const base = row && view(row);
+
             if (!task || !base) return undefined;
             const output = yield* outputOf(task);
-            const tail = outputLines > 0 ? outputTail(output, outputLines, 64_000) : { text: "", truncated: output.length > 0 };
+
+            const tail =
+              outputLines > 0 ? outputTail(output, outputLines, 64_000) : { text: "", truncated: output.length > 0 };
+
             return { ...base, output: tail.text, output_truncated: tail.truncated };
           }),
 
         find: (threadId, taskId) =>
-          byTask(threadId, taskId).pipe(Effect.map((rows) => (rows[0] ? { itemId: rows[0].item_id, running: rows[0].status === "in_progress" } : undefined))),
+          byTask(threadId, taskId).pipe(
+            Effect.map((rows) =>
+              rows[0] ? { itemId: rows[0].item_id, running: rows[0].status === "in_progress" } : undefined,
+            ),
+          ),
 
         pendingThreads: () =>
           sql<{ thread_id: string }>`
@@ -211,51 +234,76 @@ export class BackgroundTaskStore extends Context.Service<
               // Lifecycle changes take the thread lock first, then settle their pending deliveries.
               const thread = (yield* sql<{ closed: boolean; runtime: string }>`
                 SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed, runtime FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`)[0];
+
               const notes = yield* sql<NoteRow>`
                 SELECT n.item_id, n.wake, n.harness_wakes, n.ended_at, n.hops, i.turn_id, i.status, i.content, NULL::integer AS turn_ordinal
                   FROM background_task_notes n JOIN thread_items i ON i.thread_id = n.thread_id AND i.item_id = n.item_id
                  WHERE n.thread_id = ${threadId}::uuid AND n.status = 'waiting'
                  ORDER BY n.ended_at, n.item_id
                    FOR UPDATE OF n SKIP LOCKED`;
+
               if (notes.length === 0) return { settled: 0 };
+
               const settle = (itemIds: string[], status: "harness" | "cancelled", reason: string) =>
                 itemIds.length === 0
                   ? Effect.void
                   : sql`UPDATE background_task_notes SET status = ${status}, reason = ${reason}, updated_at = now()
                          WHERE thread_id = ${threadId}::uuid AND item_id = ANY(${itemIds}::text[])`;
+
               if (!thread || thread.closed) {
-                yield* settle(notes.map((n) => n.item_id), "cancelled", "the thread is archived or deleted");
+                yield* settle(
+                  notes.map((n) => n.item_id),
+                  "cancelled",
+                  "the thread is archived or deleted",
+                );
+
                 return { settled: notes.length };
               }
-              const running = (yield* sql<{ id: string }>`SELECT id FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`)[0];
+
+              const running = (yield* sql<{
+                id: string;
+              }>`SELECT id FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`)[0];
+
               const harness: string[] = [];
               const ready: NoteRow[] = [];
+
               for (const note of notes) {
                 if (note.harness_wakes) {
                   // Claude tells the model about a task it saw complete: in the turn that ran when it ended, else in the
                   // turn it starts for it (or the next one of the same process). A turn that was over by then does not count.
                   const endedAt = new Date(note.ended_at);
+
                   const woke = yield* sql<{ id: string }>`
                     SELECT id FROM turns
                      WHERE thread_id = ${threadId}::uuid AND started_at IS NOT NULL
                        AND (completed_at IS NULL OR completed_at >= ${endedAt})
                        AND started_at <= ${new Date(endedAt.getTime() + graceMs)}
                      LIMIT 1`;
+
                   if (woke[0]) {
                     harness.push(note.item_id);
                     continue;
                   }
+
                   if (now.getTime() < endedAt.getTime() + graceMs) continue;
                 }
+
                 if (running || note.wake) ready.push(note);
               }
+
               yield* settle(harness, "harness", "the harness started a turn for it itself");
+
               if (ready.length === 0) return { settled: harness.length };
-              const tasks = (yield* Effect.forEach(ready, ended)).filter((t): t is BackgroundTaskEnd => t !== undefined);
+
+              const tasks = (yield* Effect.forEach(ready, ended)).filter(
+                (t): t is BackgroundTaskEnd => t !== undefined,
+              );
+
               const note = backgroundTaskNote(tasks, { tools: thread.runtime === "worker" });
               const input = JSON.stringify({ text: note, note, message: "" });
               const ids = ready.map((n) => n.item_id);
               const hops = Math.min(16, Math.max(...ready.map((n) => n.hops)));
+
               if (running) {
                 const steerId = Bun.randomUUIDv7();
                 yield* sql`
@@ -264,16 +312,20 @@ export class BackgroundTaskStore extends Context.Service<
                 yield* sql`
                   UPDATE background_task_notes SET status = 'steering', steer_id = ${steerId}::uuid, updated_at = now()
                    WHERE thread_id = ${threadId}::uuid AND item_id = ANY(${ids}::text[])`;
+
                 return { steerId, settled: harness.length };
               }
+
               const turn = (yield* sql<TurnRow>`
                 INSERT INTO turns (id, thread_id, ordinal, trigger, hops, input)
                 SELECT ${Bun.randomUUIDv7()}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'background_task', ${hops}, ${input}::jsonb
                   FROM turns WHERE thread_id = ${threadId}::uuid
                 RETURNING *`)[0]!;
+
               yield* sql`
                 UPDATE background_task_notes SET status = 'delivered', turn_id = ${turn.id}::uuid, updated_at = now()
                  WHERE thread_id = ${threadId}::uuid AND item_id = ANY(${ids}::text[])`;
+
               return { turn, settled: harness.length };
             }),
           ),
@@ -291,14 +343,20 @@ export class BackgroundTaskStore extends Context.Service<
                 UPDATE turn_steers SET status = 'failed', reason = ${reason}, updated_at = now()
                  WHERE id = ${steerId}::uuid AND background_note AND status IN ('pending', 'accepted', 'dropped')
                 RETURNING id`;
-              if (!steer[0]) return (yield* sql`SELECT 1 FROM turn_steers WHERE id = ${steerId}::uuid AND background_note`).length > 0;
+
+              if (!steer[0])
+                return (
+                  (yield* sql`SELECT 1 FROM turn_steers WHERE id = ${steerId}::uuid AND background_note`).length > 0
+                );
               yield* sql`
                 UPDATE background_task_notes SET status = 'waiting', steer_id = NULL, updated_at = now()
                  WHERE steer_id = ${steerId}::uuid AND status = 'steering'`;
+
               return true;
             }),
           ),
       };
+
       return BackgroundTaskStore.of(store);
     }),
   );

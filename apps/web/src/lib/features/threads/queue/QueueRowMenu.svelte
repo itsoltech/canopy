@@ -31,15 +31,26 @@
 <DropdownMenu label="Queued message actions" placement="top-end" sheet class="w-64">
   {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="More actions" size="sm" {...props} />{/snippet}
   {#if hints.length > 0}
-    <p class="px-3.5 pt-2 pb-1 text-sm/5 text-zinc-500 sm:px-3 sm:text-xs/5 dark:text-zinc-400">Runs with {hints.join(", ")}</p>
+    <p class="px-3.5 pt-2 pb-1 text-sm/5 text-zinc-500 sm:px-3 sm:text-xs/5 dark:text-zinc-400">
+      Runs with {hints.join(", ")}
+    </p>
   {/if}
   {#if onedit}<MenuItem icon="pencil-square" onselect={onedit}>Edit message</MenuItem>{/if}
   <MenuItem icon="arrow-up" disabled={index === 0} onselect={() => onmove(0)}>Move to top</MenuItem>
-  <MenuItem icon="arrow-down" disabled={index === count - 1} onselect={() => onmove(count - 1)}>Move to bottom</MenuItem>
+  <MenuItem icon="arrow-down" disabled={index === count - 1} onselect={() => onmove(count - 1)}>Move to bottom</MenuItem
+  >
   <MenuSeparator />
   {#if delivery === "queue"}
-    <MenuItem icon="arrow-turn-down-right" description="Enter steers into the running turn; Mod+Enter queues." onselect={() => ondelivery("steer")}>Turn off queueing</MenuItem>
+    <MenuItem
+      icon="arrow-turn-down-right"
+      description="Enter steers into the running turn; Mod+Enter queues."
+      onselect={() => ondelivery("steer")}>Turn off queueing</MenuItem
+    >
   {:else}
-    <MenuItem icon="queue-list" description="Enter queues for the next turn; Mod+Enter steers." onselect={() => ondelivery("queue")}>Turn on queueing</MenuItem>
+    <MenuItem
+      icon="queue-list"
+      description="Enter queues for the next turn; Mod+Enter steers."
+      onselect={() => ondelivery("queue")}>Turn on queueing</MenuItem
+    >
   {/if}
 </DropdownMenu>

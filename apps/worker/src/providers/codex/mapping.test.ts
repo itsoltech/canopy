@@ -24,34 +24,52 @@ function fixture(name: string): ServerNotification[] {
     .map((line) => JSON.parse(line) as ServerNotification);
 }
 
-function replay(notifications: ServerNotification[], commandTurns: ReadonlySet<string> = new Set(), before?: (mapper: CodexEventMapper, n: ServerNotification) => void) {
+function replay(
+  notifications: ServerNotification[],
+  commandTurns: ReadonlySet<string> = new Set(),
+  before?: (mapper: CodexEventMapper, n: ServerNotification) => void,
+) {
   const turnIds = new Map<string, string>();
+
   const mapper: CodexEventMapper = new CodexEventMapper({
-    startTurn: (codexTurnId) => turnIds.get(codexTurnId) ?? turnIds.set(codexTurnId, `turn-${turnIds.size + 1}`).get(codexTurnId)!,
+    startTurn: (codexTurnId) =>
+      turnIds.get(codexTurnId) ?? turnIds.set(codexTurnId, `turn-${turnIds.size + 1}`).get(codexTurnId)!,
     turnId: (codexTurnId) => turnIds.get(codexTurnId),
     isCommandTurn: (codexTurnId) => commandTurns.has(codexTurnId),
   });
+
   const events: ThreadEvent[] = [];
+
   for (const n of notifications) {
     before?.(mapper, n);
+
     for (const init of mapper.map(n)) events.push(create(ThreadEventSchema, { threadId: "t", ...init } as never));
   }
+
   // Same projection the gateway and the UI run.
   const items = new Map<string, Item>();
+
   for (const e of events) {
     const id = eventItemId(e.body);
+
     if (!id) continue;
     const next = reduceItem(items.get(id), e.body);
+
     if (next) items.set(id, next);
   }
+
   return { events, items: [...items.values()], mapper };
 }
 
-const background = (item: Item | undefined) => (item?.content.case === "backgroundTask" ? item.content.value : undefined);
+const background = (item: Item | undefined) =>
+  item?.content.case === "backgroundTask" ? item.content.value : undefined;
 
 describe("Codex event mapping on a recorded turn with tools", () => {
   const notifications = fixture("tools-turn");
-  const codexTurnId = (notifications.find((n) => n.method === "turn/started")!.params as { turn: { id: string } }).turn.id;
+
+  const codexTurnId = (notifications.find((n) => n.method === "turn/started")!.params as { turn: { id: string } }).turn
+    .id;
+
   const { events, items } = replay(notifications, new Set([codexTurnId]));
 
   test("nothing is lost: every notification yields an event with the raw original", () => {
@@ -65,7 +83,10 @@ describe("Codex event mapping on a recorded turn with tools", () => {
   test("turn lifecycle: started by the platform, finished with outcome and usage", () => {
     const started = events.find((e) => e.body.case === "turnStarted");
     expect(started?.turnId).toBe("turn-1");
-    expect(started?.body.case === "turnStarted" && started.body.value).toMatchObject({ providerTurnRef: codexTurnId, origin: TurnOrigin.COMMAND });
+    expect(started?.body.case === "turnStarted" && started.body.value).toMatchObject({
+      providerTurnRef: codexTurnId,
+      origin: TurnOrigin.COMMAND,
+    });
     const finished = events.find((e) => e.body.case === "turnFinished");
     expect(finished?.body.case === "turnFinished" && finished.body.value.outcome).toBe(TurnOutcome.COMPLETED);
     expect(finished?.body.case === "turnFinished" && finished.body.value.usage?.inputTokens).toBe(24055n);
@@ -89,6 +110,7 @@ describe("Codex event mapping on a recorded turn with tools", () => {
           return [item.content.case];
       }
     });
+
     expect(summary).toEqual([
       ["user", "Create a file named "],
       ["agent", "commentary", "I’ll create `hello.txt` with exactly `hi`, then run `cat hello.txt`."],
@@ -118,7 +140,10 @@ describe("Codex event mapping on a recorded failing turn", () => {
       reason: "Missing environment variable: `CLIPROXY_API_KEY`.",
     });
     const notice = events.find((e) => e.body.case === "notice");
-    expect(notice?.body.case === "notice" && notice.body.value).toMatchObject({ level: NoticeLevel.ERROR, code: "other" });
+    expect(notice?.body.case === "notice" && notice.body.value).toMatchObject({
+      level: NoticeLevel.ERROR,
+      code: "other",
+    });
     expect(events.flatMap((e) => (e.body.case === "activity" ? [e.body.value.status] : []))).toEqual([
       ThreadStatus.RUNNING,
       ThreadStatus.FAILED,
@@ -132,18 +157,30 @@ describe("Codex background processes (recorded: unified exec outliving its turn)
   test("the process gets a background item at turn end; later output and the exit land on it, outside the turn", () => {
     const { events, items, mapper } = replay(fixture("background-process-turn"));
     const finishedAt = events.findIndex((e) => e.body.case === "turnFinished");
-    const startedBg = events.findIndex((e) => e.body.case === "itemStarted" && e.body.value.item?.content.case === "backgroundTask");
+
+    const startedBg = events.findIndex(
+      (e) => e.body.case === "itemStarted" && e.body.value.item?.content.case === "backgroundTask",
+    );
+
     expect(startedBg).toBe(finishedAt - 1);
     const command = items.find((i) => i.content.case === "commandExecution")!;
     const task = items.find((i) => i.itemId === `bg:${command.itemId}`);
-    expect(background(task)).toMatchObject({ kind: 4, startedInTurnId: "turn-1", sourceItemId: command.itemId, processId: "3504", taskId: "3504" });
+    expect(background(task)).toMatchObject({
+      kind: 4,
+      startedInTurnId: "turn-1",
+      sourceItemId: command.itemId,
+      processId: "3504",
+      taskId: "3504",
+    });
     expect(task?.status).toBe(ItemStatus.COMPLETED);
     // Everything Codex streamed, once: before the turn ended (carried over) and after it. The first line came
     // with the exec call's own result (for the model), not as a delta.
     expect(background(task)?.output).toBe(Array.from({ length: 39 }, (_, i) => `tick ${i + 2}\n`).join(""));
     // The command item keeps what its turn showed and ends with the process.
     expect(command.status).toBe(ItemStatus.COMPLETED);
-    expect(command.content.case === "commandExecution" && command.content.value.output).toBe("tick 2\ntick 3\ntick 4\n");
+    expect(command.content.case === "commandExecution" && command.content.value.output).toBe(
+      "tick 2\ntick 3\ntick 4\n",
+    );
     // After the turn nothing is linked to it: no event can recreate a finished turn.
     expect(events.slice(finishedAt + 1).every((e) => e.turnId === "")).toBe(true);
     expect(mapper.backgroundTasks).toEqual([]);
@@ -151,8 +188,10 @@ describe("Codex background processes (recorded: unified exec outliving its turn)
 
   test("a stop requested by the platform ends the item as interrupted (stopped by the user)", () => {
     const { items, mapper } = replay(fixture("background-process-stopped"), new Set(), (m, n) => {
-      if (n.method === "item/completed" && (n.params as { item: { type: string } }).item.type === "commandExecution") m.markStopping("40172");
+      if (n.method === "item/completed" && (n.params as { item: { type: string } }).item.type === "commandExecution")
+        m.markStopping("40172");
     });
+
     const task = items.find((i) => i.content.case === "backgroundTask");
     expect(task?.status).toBe(ItemStatus.INTERRUPTED);
     expect(background(task)?.stopReason).toBe("stopped_by_user");
@@ -162,12 +201,18 @@ describe("Codex background processes (recorded: unified exec outliving its turn)
 
   test("events of unknown Codex turns do not claim a pending StartTurn", () => {
     const pending = ["platform-turn"];
+
     const mapper = new CodexEventMapper({
       startTurn: () => pending.shift() ?? "provider-turn",
       turnId: () => undefined,
       isCommandTurn: () => true,
     });
-    const [delta] = mapper.map({ method: "item/commandExecution/outputDelta", params: { threadId: "x", turnId: "old", itemId: "e1", delta: "late\n" } } as ServerNotification);
+
+    const [delta] = mapper.map({
+      method: "item/commandExecution/outputDelta",
+      params: { threadId: "x", turnId: "old", itemId: "e1", delta: "late\n" },
+    } as ServerNotification);
+
     expect(delta?.turnId).toBeUndefined();
     expect(pending).toEqual(["platform-turn"]);
   });
@@ -175,7 +220,9 @@ describe("Codex background processes (recorded: unified exec outliving its turn)
 
 describe("Codex goals (recorded)", () => {
   const states = (name: string) =>
-    replay(fixture(name)).events.flatMap((e) => (e.body.case === "goalState" ? [{ turnId: e.turnId, ...e.body.value }] : []));
+    replay(fixture(name)).events.flatMap((e) =>
+      e.body.case === "goalState" ? [{ turnId: e.turnId, ...e.body.value }] : [],
+    );
 
   test("set active -> Codex starts a provider turn and completes the goal", () => {
     const { events } = replay(fixture("goal-complete"));
@@ -189,7 +236,15 @@ describe("Codex goals (recorded)", () => {
 
   test("pause, resume and clear", () => {
     const goal = states("goal-pause-resume-clear");
-    expect(goal.map((g) => (g.cleared ? "cleared" : g.nativeStatus))).toEqual(["active", "active", "paused", "active", "active", "complete", "cleared"]);
+    expect(goal.map((g) => (g.cleared ? "cleared" : g.nativeStatus))).toEqual([
+      "active",
+      "active",
+      "paused",
+      "active",
+      "active",
+      "complete",
+      "cleared",
+    ]);
   });
 });
 
@@ -244,18 +299,29 @@ describe("Codex event mapping on a recorded turn with direct shell calls", () =>
 
   test("a shell call without a Codex item becomes a command item at the turn end, with output and exit code", () => {
     const commands = items.filter((item) => item.content.case === "commandExecution");
-    expect(commands.map((item) => (item.content.case === "commandExecution" ? [item.content.value.command, item.content.value.exitCode, item.status] : []))).toEqual([
+    expect(
+      commands.map((item) =>
+        item.content.case === "commandExecution"
+          ? [item.content.value.command, item.content.value.exitCode, item.status]
+          : [],
+      ),
+    ).toEqual([
       ["/usr/bin/bash -lc ls", 0, ItemStatus.COMPLETED],
       ["ping -c 1 8.8.8.8", 2, ItemStatus.FAILED],
       ['echo "Operation not permitted" >&2; exit 1', 1, ItemStatus.FAILED],
     ]);
     const ping = commands[1]?.content;
-    expect(ping?.case === "commandExecution" && ping.value.output).toBe("ping: socktype: SOCK_DGRAM\nping: socket: Operation not permitted\n");
+    expect(ping?.case === "commandExecution" && ping.value.output).toBe(
+      "ping: socktype: SOCK_DGRAM\nping: socket: Operation not permitted\n",
+    );
+
     // Ids are the call ids, the same as Codex's own command items would have.
     const calls = notifications.flatMap((n) => {
       const item = n.method === "rawResponseItem/completed" ? n.params.item : undefined;
+
       return item?.type === "function_call" ? [item.call_id] : [];
     });
+
     expect(commands.map((item) => item.itemId).sort()).toEqual([...calls].sort());
     // Emitted right before turn_finished, in the same turn.
     const cases = events.map((e) => e.body.case);
@@ -280,7 +346,15 @@ describe("mapItem", () => {
       ),
     ).toMatchObject({
       status: ItemStatus.COMPLETED,
-      content: { case: "fileChange", value: { changes: [{ path: "a.ts", kind: "add" }, { path: "b.ts", kind: "move", movePath: "c.ts" }] } },
+      content: {
+        case: "fileChange",
+        value: {
+          changes: [
+            { path: "a.ts", kind: "add" },
+            { path: "b.ts", kind: "move", movePath: "c.ts" },
+          ],
+        },
+      },
     });
 
     const bus = mapItem(
@@ -297,6 +371,7 @@ describe("mapItem", () => {
       },
       true,
     );
+
     expect(bus.content?.case).toBe("agentBusCall");
 
     const declined = mapItem(
@@ -317,6 +392,7 @@ describe("mapItem", () => {
       },
       true,
     );
+
     expect(declined.status).toBe(ItemStatus.DECLINED);
 
     const unknown = mapItem({ type: "sleep", id: "s1", durationMs: 1000 }, true);
@@ -324,7 +400,16 @@ describe("mapItem", () => {
   });
 
   test("a steered message keeps the platform's id (turn/steer clientUserMessageId)", () => {
-    const steered = mapItem({ type: "userMessage", id: "u1", clientId: "steer-1", content: [{ type: "text", text: "also X", text_elements: [] }] }, true);
+    const steered = mapItem(
+      {
+        type: "userMessage",
+        id: "u1",
+        clientId: "steer-1",
+        content: [{ type: "text", text: "also X", text_elements: [] }],
+      },
+      true,
+    );
+
     expect(steered.content).toEqual({ case: "userMessage", value: { text: "also X", clientId: "steer-1" } });
   });
 });

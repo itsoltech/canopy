@@ -7,7 +7,9 @@ export class InputSession {
 
   constructor(readonly read: (format: boolean) => void) {}
 
-  start(): void { this.composing = true; }
+  start(): void {
+    this.composing = true;
+  }
 
   input(event: { readonly isComposing: boolean; readonly inputType: string }): void {
     this.composing = event.isComposing;
@@ -19,5 +21,7 @@ export class InputSession {
     this.read(true);
   }
 
-  reset(): void { this.composing = false; }
+  reset(): void {
+    this.composing = false;
+  }
 }

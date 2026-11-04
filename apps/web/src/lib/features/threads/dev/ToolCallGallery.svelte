@@ -6,8 +6,16 @@
 
   /** Dev gallery: every kind of tool call the timeline renders, with fixture data (`/dev/tool-calls`). */
   const threads = new Map(galleryThreads().map((t) => [t.id, t]));
-  provideThreadDirectory({ currentId: GALLERY_THREAD_ID, thread: (id) => threads.get(id), awaiting: () => false, goal: () => undefined });
+
+  provideThreadDirectory({
+    currentId: GALLERY_THREAD_ID,
+    thread: (id) => threads.get(id),
+    awaiting: () => false,
+    goal: () => undefined,
+  });
+
   provideMemoryScope("gallery", new UiMemory());
+
   const groups = toolGallery();
 </script>
 

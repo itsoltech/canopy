@@ -45,7 +45,17 @@
   </div>
 {:else}
   <div class={["flex items-center gap-2", className]}>
-    <Input type="password" {name} bind:value autocomplete="off" spellcheck="false" aria-label={label} {placeholder} class="min-w-0 flex-1 font-mono" />
-    {#if set}<Button size="sm" variant="ghost" onclick={() => ((action = "keep"), (value = ""))}>Keep current</Button>{/if}
+    <Input
+      type="password"
+      {name}
+      bind:value
+      autocomplete="off"
+      spellcheck="false"
+      aria-label={label}
+      {placeholder}
+      class="min-w-0 flex-1 font-mono"
+    />
+    {#if set}<Button size="sm" variant="ghost" onclick={() => ((action = "keep"), (value = ""))}>Keep current</Button
+      >{/if}
   </div>
 {/if}

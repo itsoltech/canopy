@@ -19,24 +19,29 @@ export function sheetDrag(onclose: () => void): Attachment<HTMLElement> {
       start = undefined;
       offset = 0;
     };
+
     const onpointerdown = (event: PointerEvent) => {
       if (event.button !== 0) return;
       sheet = handle.closest<HTMLElement>("[data-sheet]");
+
       if (!sheet) return;
       handle.setPointerCapture(event.pointerId);
       start = { y: event.clientY, time: event.timeStamp, id: event.pointerId };
       sheet.dataset.dragging = "";
     };
+
     const onpointermove = (event: PointerEvent) => {
       if (!start || event.pointerId !== start.id || !sheet) return;
       offset = Math.max(0, event.clientY - start.y);
       sheet.style.setProperty("--sheet-drag", `${offset}px`);
     };
+
     const onpointerup = (event: PointerEvent) => {
       if (!start || event.pointerId !== start.id || !sheet) return;
       const speed = offset / Math.max(event.timeStamp - start.time, 1);
       const dismiss = offset > sheet.offsetHeight / 4 || (offset > 24 && speed > 0.5);
       reset();
+
       if (dismiss) onclose();
     };
 
@@ -44,6 +49,7 @@ export function sheetDrag(onclose: () => void): Attachment<HTMLElement> {
     handle.addEventListener("pointermove", onpointermove);
     handle.addEventListener("pointerup", onpointerup);
     handle.addEventListener("pointercancel", reset);
+
     return () => {
       reset();
       handle.removeEventListener("pointerdown", onpointerdown);

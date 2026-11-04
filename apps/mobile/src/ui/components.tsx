@@ -35,6 +35,7 @@ export function Button({
   danger?: boolean;
 }) {
   const c = useColors();
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -58,17 +59,11 @@ export function Button({
       })}
     >
       {busy && <ActivityIndicator color={secondary ? c.text : c.onAccent} />}
-      <Text
-        style={[
-          styles.label,
-          { color: danger ? c.danger : secondary ? c.text : c.onAccent },
-        ]}
-      >
-        {title}
-      </Text>
+      <Text style={[styles.label, { color: danger ? c.danger : secondary ? c.text : c.onAccent }]}>{title}</Text>
     </Pressable>
   );
 }
+
 export function IconButton({
   icon,
   label,
@@ -83,6 +78,7 @@ export function IconButton({
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -107,6 +103,7 @@ export function IconButton({
     </Pressable>
   );
 }
+
 export function ScreenHeader({
   title,
   subtitle,
@@ -119,6 +116,7 @@ export function ScreenHeader({
   right?: ReactNode;
 }) {
   const c = useColors();
+
   return (
     <View
       style={[
@@ -135,9 +133,7 @@ export function ScreenHeader({
         <IconButton
           icon="chevron-left"
           label="Back"
-          onPress={() =>
-            router.canGoBack() ? router.back() : router.replace("/")
-          }
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
         />
       )}
       <View style={{ flex: 1, paddingHorizontal: back ? 0 : 8 }}>
@@ -154,6 +150,7 @@ export function ScreenHeader({
     </View>
   );
 }
+
 export function Segmented<T extends string>({
   options,
   value,
@@ -166,14 +163,9 @@ export function Segmented<T extends string>({
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
+
   return (
-    <View
-      style={[
-        styles.row,
-        { backgroundColor: c.inset, padding: 2, gap: 2, borderRadius: 8 },
-        style,
-      ]}
-    >
+    <View style={[styles.row, { backgroundColor: c.inset, padding: 2, gap: 2, borderRadius: 8 }, style]}>
       {options.map((option) => (
         <Pressable
           key={option.value}
@@ -188,29 +180,18 @@ export function Segmented<T extends string>({
             alignItems: "center",
             justifyContent: "center",
             borderRadius: 6,
-            backgroundColor:
-              value === option.value
-                ? c.dark
-                  ? "#ffffff1a"
-                  : "#ffffff"
-                : "transparent",
+            backgroundColor: value === option.value ? (c.dark ? "#ffffff1a" : "#ffffff") : "transparent",
             borderWidth: value === option.value ? 1 : 0,
             borderColor: c.line,
           }}
         >
-          <Text
-            style={[
-              styles.meta,
-              { color: value === option.value ? c.text : c.muted },
-            ]}
-          >
-            {option.label}
-          </Text>
+          <Text style={[styles.meta, { color: value === option.value ? c.text : c.muted }]}>{option.label}</Text>
         </Pressable>
       ))}
     </View>
   );
 }
+
 export function Sheet({
   title,
   visible,
@@ -223,37 +204,26 @@ export function Sheet({
   children: ReactNode;
 }) {
   const c = useColors();
+
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={[styles.fill, { backgroundColor: c.surface }]}>
         <ScreenHeader
           title={title}
           back={false}
-          right={
-            <IconButton
-              icon="x-mark"
-              label={`Close ${title}`}
-              onPress={onClose}
-            />
-          }
+          right={<IconButton icon="x-mark" label={`Close ${title}`} onPress={onClose} />}
         />
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.page}
-        >
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
           {children}
         </ScrollView>
       </SafeAreaView>
     </Modal>
   );
 }
+
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
   const c = useColors();
+
   return (
     <View style={{ gap: 8 }}>
       <Text style={[styles.label, { color: c.text }]}>{label}</Text>
@@ -263,35 +233,26 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
         returnKeyType="done"
         onSubmitEditing={Keyboard.dismiss}
         {...props}
-        style={[
-          styles.input,
-          { color: c.text, borderColor: c.line, backgroundColor: c.surface },
-          props.style,
-        ]}
+        style={[styles.input, { color: c.text, borderColor: c.line, backgroundColor: c.surface }, props.style]}
       />
     </View>
   );
 }
-export function Notice({
-  children,
-  error = false,
-}: {
-  children: ReactNode;
-  error?: boolean;
-}) {
+
+export function Notice({ children, error = false }: { children: ReactNode; error?: boolean }) {
   const c = useColors();
+
   return (
     <View
       accessibilityRole={error ? "alert" : "text"}
       accessibilityLiveRegion="polite"
       style={{ padding: 16, borderRadius: 12, backgroundColor: c.inset }}
     >
-      <Text style={[styles.body, { color: error ? c.danger : c.muted }]}>
-        {children}
-      </Text>
+      <Text style={[styles.body, { color: error ? c.danger : c.muted }]}>{children}</Text>
     </View>
   );
 }
+
 export function ConnectionNotice({
   connection,
   retry,
@@ -302,6 +263,7 @@ export function ConnectionNotice({
   issue?: string;
 }) {
   if (connection === "live") return null;
+
   return (
     <View style={{ gap: 10 }}>
       <Notice error={connection === "error"}>
@@ -314,9 +276,7 @@ export function ConnectionNotice({
                 ? "Connection lost. Reconnecting automatically…"
                 : "Connecting to your Canopy…")}
       </Notice>
-      {["reconnecting", "error"].includes(connection) && (
-        <Button title="Reconnect now" secondary onPress={retry} />
-      )}
+      {["reconnecting", "error"].includes(connection) && <Button title="Reconnect now" secondary onPress={retry} />}
     </View>
   );
 }

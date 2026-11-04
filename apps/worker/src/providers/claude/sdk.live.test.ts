@@ -26,25 +26,38 @@ function record(name: string, messages: readonly SDKMessage[]): void {
 }
 
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("claude agent sdk (live recordings)", () => {
-  const profile = proxyUrl && proxyKey ? resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl, apiKey: proxyKey }])[0]!.resolved! : undefined;
+  const profile =
+    proxyUrl && proxyKey
+      ? resolveProfiles([{ kind: "cliproxyapi", id: "live", baseUrl: proxyUrl, apiKey: proxyKey }])[0]!.resolved!
+      : undefined;
+
   const sessionId = crypto.randomUUID();
   const tokens: string[] = [];
+
   const bus = createSdkMcpServer({
     name: "canopy",
     tools: [
       {
         name: "record_token",
         description: "Records a token for the test.",
-        inputSchema: z.fromJSONSchema({ type: "object", properties: { token: { type: "string" } }, required: ["token"], additionalProperties: false }) as never,
+        inputSchema: z.fromJSONSchema({
+          type: "object",
+          properties: { token: { type: "string" } },
+          required: ["token"],
+          additionalProperties: false,
+        }) as never,
         handler: async (args: Record<string, unknown>) => {
           tokens.push(String(args["token"]));
+
           return { content: [{ type: "text" as const, text: "recorded" }] };
         },
       },
     ],
   });
+
   const run = async (name: string, prompt: string, extra: Record<string, unknown>) => {
     const messages: SDKMessage[] = [];
+
     for await (const message of query({
       prompt,
       options: {
@@ -60,7 +73,9 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("claude agent sdk (live recordi
     })) {
       messages.push(message);
     }
+
     record(name, messages);
+
     return messages;
   };
 
@@ -75,14 +90,23 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("claude agent sdk (live recordi
       'Create hello.txt containing exactly "hi", then run `cat hello.txt` with Bash, then call the record_token tool with token "t1". Reply DONE.',
       { resume: sessionId },
     );
-    expect(second.some((m) => m.type === "assistant" && m.message.content.some((b) => b.type === "tool_use" && b.name === "Bash"))).toBe(true);
+
+    expect(
+      second.some(
+        (m) => m.type === "assistant" && m.message.content.some((b) => b.type === "tool_use" && b.name === "Bash"),
+      ),
+    ).toBe(true);
     expect(tokens).toEqual(["t1"]);
     expect(await Bun.file(join(cwd, "hello.txt")).text()).toContain("hi");
 
     // Session helpers run in this process and read CLAUDE_CONFIG_DIR from its environment.
     process.env["CLAUDE_CONFIG_DIR"] = home;
     const forked = await forkSession(sessionId, { dir: cwd });
-    const third = await run("fork-turn", "What file did you create earlier? Answer with the file name only.", { resume: forked.sessionId });
+
+    const third = await run("fork-turn", "What file did you create earlier? Answer with the file name only.", {
+      resume: forked.sessionId,
+    });
+
     const answer = third.find((m) => m.type === "result");
     expect(answer && "result" in answer ? answer.result : "").toContain("hello.txt");
   }, 300_000);

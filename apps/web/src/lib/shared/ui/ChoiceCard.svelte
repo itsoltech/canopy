@@ -15,7 +15,15 @@
     onchange,
     class: className,
     leading,
-  }: { name: string; checked: boolean; title: string; description?: string; onchange: () => void; class?: ClassValue; leading?: Snippet } = $props();
+  }: {
+    name: string;
+    checked: boolean;
+    title: string;
+    description?: string;
+    onchange: () => void;
+    class?: ClassValue;
+    leading?: Snippet;
+  } = $props();
 </script>
 
 <label

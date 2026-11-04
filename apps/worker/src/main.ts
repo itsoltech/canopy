@@ -12,85 +12,159 @@ import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
 import { enrollWorker, workerCommand, workerServiceSnippet } from "./enroll.ts";
 import { desktopStatus, workerOnline } from "./desktop-status.ts";
-import { confirmStartup, installKind, onSupervisorHandover, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
+import {
+  confirmStartup,
+  installKind,
+  onSupervisorHandover,
+  superviseBinary,
+  UPDATE_RESTART_EXIT_CODE,
+} from "@canopy/updater";
 import { WorkerUpdates } from "./update-link.ts";
 
 const cliArgs = Bun.argv.slice(2);
-if (cliArgs.includes("--version")) { console.info(CANOPY_VERSION); process.exit(0); }
-// Docker HEALTHCHECK: healthy while the link to the gateway is up (needs CANOPY_WORKER_STATUS_FILE, see desktop-status.ts).
-if (cliArgs[0] === "healthcheck") process.exit(workerOnline(Bun.env) ? 0 : 1);
-if (cliArgs[0] === "run") cliArgs.shift();
-const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";
-let cli;
-try {
-  cli = parseArgs({ args: cliArgs, strict: true, options: {
-    gateway: { type: "string" }, token: { type: "string" }, config: { type: "string" }, "data-dir": { type: "string" }, force: { type: "boolean" }, help: { type: "boolean" },
-  } }).values;
-} catch {
-  console.error("Usage: canopy-worker enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\n       canopy-worker [--config PATH]\n       canopy-worker service [--config PATH]");
-  process.exit(64);
-}
-const configPath = cli.config ?? defaultConfigPath(Bun.env, process.platform);
-// What to type to run this worker: the standalone binary, or Bun with the source entry from the repository root.
-const self = workerCommand().length === 1 ? process.execPath : "bun apps/worker/src/main.ts";
-if (cli.help) {
-  console.info(`Canopy worker ${CANOPY_VERSION}\nEnroll: ${self} enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\nStart: ${self} [--config PATH]\nService: ${self} service [--config PATH]\nVersion: ${self} --version`);
+
+if (cliArgs.includes("--version")) {
+  console.info(CANOPY_VERSION);
   process.exit(0);
 }
-if (command === "enroll") {
-  if (!cli.gateway || !cli.token) { console.error("--gateway and --token are required"); process.exit(64); }
-  try {
-    await enrollWorker({ gateway: cli.gateway, token: cli.token, configPath, ...(cli["data-dir"] && { dataDir: cli["data-dir"] }), ...(cli.force && { force: true }) });
-    const pathArg = `'${resolve(configPath).replaceAll("'", `'"'"'`)}'`;
-    console.info(`Enrolled. Config saved with mode 0600: ${resolve(configPath)}\nStart: ${self} --config ${pathArg}\nFor a user service: ${self} service --config ${pathArg}`);
-    process.exit(0);
-  } catch (error) { console.error(error instanceof Error ? error.message : "Enrollment failed"); process.exit(78); }
+
+// Docker HEALTHCHECK: healthy while the link to the gateway is up (needs CANOPY_WORKER_STATUS_FILE, see desktop-status.ts).
+if (cliArgs[0] === "healthcheck") process.exit(workerOnline(Bun.env) ? 0 : 1);
+
+if (cliArgs[0] === "run") cliArgs.shift();
+
+const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";
+let cli;
+
+try {
+  cli = parseArgs({
+    args: cliArgs,
+    strict: true,
+    options: {
+      gateway: { type: "string" },
+      token: { type: "string" },
+      config: { type: "string" },
+      "data-dir": { type: "string" },
+      force: { type: "boolean" },
+      help: { type: "boolean" },
+    },
+  }).values;
+} catch {
+  console.error(
+    "Usage: canopy-worker enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\n       canopy-worker [--config PATH]\n       canopy-worker service [--config PATH]",
+  );
+  process.exit(64);
 }
+
+const configPath = cli.config ?? defaultConfigPath(Bun.env, process.platform);
+
+// What to type to run this worker: the standalone binary, or Bun with the source entry from the repository root.
+const self = workerCommand().length === 1 ? process.execPath : "bun apps/worker/src/main.ts";
+
+if (cli.help) {
+  console.info(
+    `Canopy worker ${CANOPY_VERSION}\nEnroll: ${self} enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\nStart: ${self} [--config PATH]\nService: ${self} service [--config PATH]\nVersion: ${self} --version`,
+  );
+  process.exit(0);
+}
+
+if (command === "enroll") {
+  if (!cli.gateway || !cli.token) {
+    console.error("--gateway and --token are required");
+    process.exit(64);
+  }
+
+  try {
+    await enrollWorker({
+      gateway: cli.gateway,
+      token: cli.token,
+      configPath,
+      ...(cli["data-dir"] && { dataDir: cli["data-dir"] }),
+      ...(cli.force && { force: true }),
+    });
+    const pathArg = `'${resolve(configPath).replaceAll("'", `'"'"'`)}'`;
+    console.info(
+      `Enrolled. Config saved with mode 0600: ${resolve(configPath)}\nStart: ${self} --config ${pathArg}\nFor a user service: ${self} service --config ${pathArg}`,
+    );
+    process.exit(0);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : "Enrollment failed");
+    process.exit(78);
+  }
+}
+
 if (command === "service") {
   console.info(workerServiceSnippet(process.platform, configPath));
   process.exit(0);
 }
 
 if (installKind() === "binary" && !process.env["CANOPY_SUPERVISED"]) {
-  process.exit(await superviseBinary({ binaryPath: process.execPath, args: Bun.argv.slice(2), log: (m) => console.warn(m) }));
+  process.exit(
+    await superviseBinary({ binaryPath: process.execPath, args: Bun.argv.slice(2), log: (m) => console.warn(m) }),
+  );
 }
+
 const WORKER_VERSION = CANOPY_VERSION;
+
 /** How long a graceful stop waits for the gateway to ack what it recorded (stopped background tasks). */
 const SHUTDOWN_FLUSH_MS = 3_000;
 
 // Local config is only how to reach the gateway; everything else arrives as WorkerConfig.
 const loaded = await loadLocalConfig(configPath, process.platform);
+
 if (Result.isFailure(loaded)) {
   console.error(loaded.failure);
   process.exit(78); // EX_CONFIG: the supervisor should not restart in a loop
 }
+
 const local = loaded.success;
 const dataDir = resolve(local.data_dir ?? defaultDataDir(Bun.env, process.platform));
 const ca = local.ca_file ? readFileSync(local.ca_file) : undefined;
+
 mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 
 // Durable outbox: every thread event goes through the journal before it is sent (docs/durability.md, 3.1).
 const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
 const { journalId } = await runtime.runPromise(journalHello());
 const host = new WorkerHost({ runtime, dataDir, clientVersion: WORKER_VERSION, log: (m) => console.info(m) });
-console.info(`worker ${local.worker_id} (Canopy ${CANOPY_VERSION}), gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`);
+
+console.info(
+  `worker ${local.worker_id} (Canopy ${CANOPY_VERSION}), gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`,
+);
+
 // Turns and background tasks of a previous process died with it: turns are settled from their harness transcripts,
 // tasks end as interrupted (sent after connecting).
 const orphans = await host.recover();
+
 if (orphans.turns + orphans.tasks > 0) {
-  console.info(`closed ${orphans.turns} turn(s) (${orphans.fromTranscript} from the harness transcript) and ${orphans.tasks} background task(s) of the previous process`);
+  console.info(
+    `closed ${orphans.turns} turn(s) (${orphans.fromTranscript} from the harness transcript) and ${orphans.tasks} background task(s) of the previous process`,
+  );
 }
 
 const shutdown = new AbortController();
+
 // Graceful stop (docs/durability.md, 3.3): announce DRAINING, stop providers and flush the journal
 // before cancelling the link. A second signal aborts the network immediately; the supervisor bounds cleanup.
 const stopping = new AbortController();
 let currentLink: GatewayLink | undefined;
 let gracefulStop: Promise<void> | undefined;
-const updates = new WorkerUpdates({ baseUrl: local.gateway_url, credential: local.credential, workerId: local.worker_id,
-  ...(ca && { ca }), signal: stopping.signal, idle: () => host.updateIdle(), drain: (value) => {
+
+const updates = new WorkerUpdates({
+  baseUrl: local.gateway_url,
+  credential: local.credential,
+  workerId: local.worker_id,
+  ...(ca && { ca }),
+  signal: stopping.signal,
+  idle: () => host.updateIdle(),
+  drain: (value) => {
     host.setUpdateDraining(value);
-    if (value) currentLink?.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: WorkerState.DRAINING } });
+
+    if (value)
+      currentLink?.send({
+        case: "heartbeat",
+        value: { runningTurns: host.runningTurns().length, state: WorkerState.DRAINING },
+      });
     // A failed/deferred update must replay commands left unacknowledged while draining.
     else if (!stopping.signal.aborted) currentLink?.close();
   },
@@ -99,21 +173,32 @@ const updates = new WorkerUpdates({ baseUrl: local.gateway_url, credential: loca
     stopping.abort();
     await host.shutdown();
     await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false);
-    currentLink?.close(); shutdown.abort();
+    currentLink?.close();
+    shutdown.abort();
     await runtime.dispose();
     process.exit(exitCode);
   },
 });
-if (installKind() === "binary") onSupervisorHandover(() => updates.handover(), (message) => console.info(message));
+
+if (installKind() === "binary")
+  onSupervisorHandover(
+    () => updates.handover(),
+    (message) => console.info(message),
+  );
+
 const updateLoop = updates.run();
+
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     if (stopping.signal.aborted) {
       shutdown.abort();
+
       return;
     }
+
     stopping.abort();
     desktopStatus("offline");
+
     // Cancel an in-flight handshake immediately; an established link stays up for journal acks.
     if (!currentLink) shutdown.abort();
     gracefulStop = (async () => {
@@ -122,16 +207,26 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       } catch {
         // Link already closed.
       }
+
       // Background tasks die with the provider runtimes: recorded as stopped by the shutdown (with their end time) and
       // reported while the link is up, so the gateway can tell their agents (docs/execution.md, "Pobudka").
-      const tasks = await host.shutdown().catch((error: unknown) => (console.warn(`shutdown: ${error instanceof Error ? error.message : String(error)}`), 0));
-      if (currentLink && !(await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false))) console.warn("shutdown: not every event reached the gateway; sent after the next start");
+      const tasks = await host
+        .shutdown()
+        .catch(
+          (error: unknown) => (console.warn(`shutdown: ${error instanceof Error ? error.message : String(error)}`), 0),
+        );
+
+      if (currentLink && !(await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false)))
+        console.warn("shutdown: not every event reached the gateway; sent after the next start");
+
       if (tasks > 0) console.info(`stopped ${tasks} background task(s) for the shutdown`);
+
       try {
         currentLink?.close();
       } catch {
         // Link already closed; nothing to drain.
       }
+
       // The bounded flush is complete. Do not wait for a remote peer to finish the half-close.
       shutdown.abort();
     })();
@@ -141,9 +236,11 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 // Reconnect loop: exponential backoff with jitter, 1 s -> 60 s (docs/protocol.md).
 // A Drain from the gateway replaces the backoff with the delay it asks for.
 let backoffMs = 1_000;
+
 while (!stopping.signal.aborted) {
   desktopStatus("connecting");
   let drainDelayMs: number | undefined;
+
   try {
     const link = await openGatewayLink({
       baseUrl: local.gateway_url,
@@ -159,7 +256,15 @@ while (!stopping.signal.aborted) {
         // probe_providers, codex_device_login: provider instances are checked again and sign in from the app.
         // attachments: turns may carry files (fetched with FetchBlob into attachments_root).
         // cli_install: provider CLIs are reported (CliToolsReport) and installed on demand (InstallCli).
-        capabilities: ["running_turns", "attachments", "probe_providers", "codex_device_login", "generate_text", "thread_secrets", "cli_install"],
+        capabilities: [
+          "running_turns",
+          "attachments",
+          "probe_providers",
+          "codex_device_login",
+          "generate_text",
+          "thread_secrets",
+          "cli_install",
+        ],
         attachmentsRoot: host.attachmentsRoot,
         scratchRoot: join(dataDir, "scratch"),
         homeDirectory: homedir(),
@@ -168,16 +273,26 @@ while (!stopping.signal.aborted) {
         ...(await runtime.runPromise(journalHello())),
       },
     });
+
     currentLink = link;
+
     if (installKind() === "binary") await confirmStartup();
     desktopStatus("online");
     backoffMs = 1_000;
     const resent = await runtime.runPromise(resendPending(link, (event) => host.sendPreviews(link, event)));
     console.info(`connected to ${local.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`);
-    const heartbeat = setInterval(
-      () => { desktopStatus("online"); link.send({ case: "heartbeat", value: { runningTurns: host.runningTurns().length, state: host.updateDraining ? WorkerState.DRAINING : WorkerState.ACTIVE } }); },
-      link.welcome.heartbeatIntervalSeconds * 1_000,
-    );
+
+    const heartbeat = setInterval(() => {
+      desktopStatus("online");
+      link.send({
+        case: "heartbeat",
+        value: {
+          runningTurns: host.runningTurns().length,
+          state: host.updateDraining ? WorkerState.DRAINING : WorkerState.ACTIVE,
+        },
+      });
+    }, link.welcome.heartbeatIntervalSeconds * 1_000);
+
     try {
       ({ drainDelayMs } = await serveLink(link, host, runtime, (m) => console.info(m)));
     } finally {
@@ -189,7 +304,9 @@ while (!stopping.signal.aborted) {
     if (shutdown.signal.aborted) break;
     console.warn(`gateway link failed: ${error instanceof Error ? error.message : String(error)}`);
   }
+
   if (stopping.signal.aborted) break;
+
   if (drainDelayMs !== undefined) {
     await sleep(drainDelayMs, undefined, { signal: stopping.signal }).catch(() => {});
   } else {
@@ -200,8 +317,13 @@ while (!stopping.signal.aborted) {
 
 // Stops provider runtimes, then closes the journal (SQLite) cleanly.
 await gracefulStop;
+
 await host.close();
+
 shutdown.abort();
+
 await updateLoop;
+
 await runtime.dispose();
+
 if (process.connected) process.disconnect?.();

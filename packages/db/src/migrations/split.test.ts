@@ -3,10 +3,9 @@ import { splitStatements } from "./split.ts";
 
 describe("splitStatements", () => {
   test("splits on semicolons and drops comment-only fragments", () => {
-    expect(splitStatements("-- header\nCREATE TABLE a (x int);\n\n-- note\nCREATE TABLE b (y int);\n-- trailing")).toEqual([
-      "-- header\nCREATE TABLE a (x int)",
-      "-- note\nCREATE TABLE b (y int)",
-    ]);
+    expect(
+      splitStatements("-- header\nCREATE TABLE a (x int);\n\n-- note\nCREATE TABLE b (y int);\n-- trailing"),
+    ).toEqual(["-- header\nCREATE TABLE a (x int)", "-- note\nCREATE TABLE b (y int)"]);
   });
 
   test("keeps semicolons inside strings, identifiers, comments and dollar quotes", () => {
@@ -15,6 +14,7 @@ CREATE TABLE "we;ird" (x int); -- trailing; comment
 /* block; comment */ SELECT 1;
 CREATE FUNCTION f() RETURNS int LANGUAGE plpgsql AS $$ BEGIN RETURN 1; END $$;
 CREATE FUNCTION g() RETURNS int LANGUAGE sql AS $body$ SELECT 1; $body$`;
+
     const parts = splitStatements(script);
     expect(parts).toHaveLength(5);
     expect(parts[0]).toBe("INSERT INTO t VALUES ('a;b', 'it''s;')");

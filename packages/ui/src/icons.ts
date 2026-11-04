@@ -503,10 +503,7 @@ export const icons = {
       evenodd: true,
     },
   ],
-} as const satisfies Record<
-  string,
-  readonly { d: string; evenodd?: boolean }[]
->;
+} as const satisfies Record<string, readonly { d: string; evenodd?: boolean }[]>;
 
 /**
  * Line icons (24×24, stroke), Lucide (ISC), https://lucide.dev — lighter than the solid micro set, for quiet
@@ -530,4 +527,5 @@ export const lineIcons = {
 } as const;
 
 export type SolidIconName = keyof typeof icons;
+
 export type IconName = SolidIconName | keyof typeof lineIcons;

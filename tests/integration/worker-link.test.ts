@@ -9,6 +9,7 @@ async function expectConnectError(promise: Promise<unknown>, code: Code): Promis
     () => undefined,
     (e: unknown) => e,
   );
+
   expect(error).toBeInstanceOf(ConnectError);
   expect((error as ConnectError).code).toBe(code);
 }
@@ -66,7 +67,18 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
   test("credential invalidation also rejects a handshake already authenticated but waiting for config", async () => {
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
-    const isolated = await startGateway({ link: { welcome: async () => { entered.resolve(); await release.promise; return { heartbeatIntervalSeconds: 15 }; } } });
+
+    const isolated = await startGateway({
+      link: {
+        welcome: async () => {
+          entered.resolve();
+          await release.promise;
+
+          return { heartbeatIntervalSeconds: 15 };
+        },
+      },
+    });
+
     try {
       const pending = connectWorker(isolated.server.url);
       await entered.promise;
@@ -88,10 +100,16 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
 
     // The worker has not sent anything since Hello: this is a pure server-initiated push.
     await Bun.sleep(50);
+
     const result = await connection.sendCommand({
       case: "startTurn",
-      value: { thread: { threadId: "t-1", provider: Provider.CODEX, cwd: "/tmp" }, turnId: "turn-1", input: { text: "hi" } },
+      value: {
+        thread: { threadId: "t-1", provider: Provider.CODEX, cwd: "/tmp" },
+        turnId: "turn-1",
+        input: { text: "hi" },
+      },
     });
+
     expect(result.ok).toBe(true);
     expect(result.commandId).not.toBe("");
 
@@ -118,19 +136,24 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
     const persisted = (async () => {
       let lastSeq = 0n;
       const seen: bigint[] = [];
+
       for await (const message of connection.messages) {
         if (message.payload.case !== "threadEvent") continue;
         seen.push(message.payload.value.journalSeq);
         lastSeq = message.payload.value.journalSeq;
+
         if (seen.length % 100 === 0 || seen.length === total) {
           connection.send({ case: "eventAck", value: { threadId: "t-1", ackSeq: lastSeq } });
         }
+
         if (seen.length === total) break;
       }
+
       return seen;
     })();
 
     const started = performance.now();
+
     for (let seq = 1; seq <= total; seq++) {
       link.send({
         case: "threadEvent",
@@ -171,7 +194,11 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
         body: {
           case: "itemCompleted",
           value: {
-            item: { itemId: "c1", status: ItemStatus.COMPLETED, content: { case: "commandExecution", value: { output } } },
+            item: {
+              itemId: "c1",
+              status: ItemStatus.COMPLETED,
+              content: { case: "commandExecution", value: { output } },
+            },
           },
         },
       },
@@ -179,9 +206,7 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
     const [message] = await take(connection.messages, 1);
     const body = message?.payload.case === "threadEvent" ? message.payload.value.body : undefined;
     const content = body?.case === "itemCompleted" ? body.value.item?.content : undefined;
-    expect(content?.case === "commandExecution" && content.value.output.length).toBe(
-      output.length,
-    );
+    expect(content?.case === "commandExecution" && content.value.output.length).toBe(output.length);
 
     link.close();
     await connection.closed;
@@ -278,6 +303,7 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
         authenticate: async (credential) => credential.replace("secret-", ""),
       },
     });
+
     const links = await Promise.all(
       Array.from({ length: 20 }, (_, i) =>
         connectWorker(many.server.url, {
@@ -286,12 +312,17 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
         }),
       ),
     );
+
     const connections = await Promise.all(links.map(() => many.nextConnection()));
+
     for (const link of links) autoAckCommands(link);
 
     const results = await Promise.all(
-      connections.map((c) => c.sendCommand({ case: "interruptTurn", value: { threadId: c.workerId, turnId: "turn-1" } })),
+      connections.map((c) =>
+        c.sendCommand({ case: "interruptTurn", value: { threadId: c.workerId, turnId: "turn-1" } }),
+      ),
     );
+
     expect(results.every((r) => r.ok)).toBe(true);
     expect(many.link.connections.size).toBe(20);
 
@@ -303,10 +334,15 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
 
   test("graceful gateway shutdown: Drain, clean end of every worker stream, then server close", async () => {
     const local = await startGateway();
-    const links = [await connectWorker(local.server.url), await connectWorker(local.server.url, {
-      credential: "secret-worker-2",
-      hello: { workerId: "worker-2" },
-    })];
+
+    const links = [
+      await connectWorker(local.server.url),
+      await connectWorker(local.server.url, {
+        credential: "secret-worker-2",
+        hello: { workerId: "worker-2" },
+      }),
+    ];
+
     await local.nextConnection();
     await local.nextConnection();
 
@@ -317,6 +353,7 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
     // Each worker got a Drain with a jittered reconnect delay before the clean end.
     for (const link of links) {
       const [drain] = await take(link.messages, 1);
+
       if (drain?.payload.case !== "drain") throw new Error(`expected drain, got ${drain?.payload.case}`);
       expect(drain.payload.value.reason).toBe("rolling update");
       expect(drain.payload.value.reconnectAfterMs).toBeGreaterThanOrEqual(500);
@@ -341,7 +378,9 @@ describe("remote worker configuration", () => {
     allowedRoots: ["/srv/repos"],
     claude: { enabled: true },
     codex: { enabled: false },
-    profiles: [{ id: "proxy", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "sk-test" }],
+    profiles: [
+      { id: "proxy", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "sk-test" },
+    ],
   });
 
   test("sent right after Welcome; the worker reports how it was applied", async () => {
@@ -350,13 +389,20 @@ describe("remote worker configuration", () => {
     const connection = await gateway.nextConnection();
 
     const [first] = await take(link.messages, 1);
+
     if (first?.payload.case !== "config") throw new Error(`expected config, got ${first?.payload.case}`);
     expect(first.payload.value.version).toBe(3n);
     expect(first.payload.value.profiles[0]?.apiKey).toBe("sk-test");
 
-    link.send({ case: "configApplied", value: { version: 3n, applied: true, issues: [{ path: "allowed_roots[0]", message: "missing" }] } });
+    link.send({
+      case: "configApplied",
+      value: { version: 3n, applied: true, issues: [{ path: "allowed_roots[0]", message: "missing" }] },
+    });
     const [applied] = await take(connection.messages, 1);
-    expect(applied?.payload.case === "configApplied" && applied.payload.value).toMatchObject({ version: 3n, applied: true });
+    expect(applied?.payload.case === "configApplied" && applied.payload.value).toMatchObject({
+      version: 3n,
+      applied: true,
+    });
 
     link.close();
     await connection.closed;
@@ -366,9 +412,11 @@ describe("remote worker configuration", () => {
 
   test("not resent when the worker already holds that version (reconnect within the same process)", async () => {
     const gateway = await startGateway({ link: { config: async () => configV(3n) } });
+
     const link = await connectWorker(gateway.server.url, {
       hello: { workerId: "worker-1", configVersion: 3n },
     });
+
     const connection = await gateway.nextConnection();
     // Push a heartbeat-sized marker from the gateway: if a config had been queued it would arrive first.
     connection.send({ case: "eventAck", value: { threadId: "marker", ackSeq: 1n } });
@@ -435,6 +483,7 @@ describe("WorkerLink over TLS (HTTP/2 + ALPN h2)", () => {
       () => undefined,
       (e: unknown) => e,
     );
+
     expect(error).toBeInstanceOf(ConnectError);
     expect((error as ConnectError).cause).toMatchObject({ code: "DEPTH_ZERO_SELF_SIGNED_CERT" });
   });
@@ -453,4 +502,3 @@ describe("WorkerLink over TLS (HTTP/2 + ALPN h2)", () => {
     await connection.closed;
   });
 });
-

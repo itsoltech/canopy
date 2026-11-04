@@ -12,13 +12,16 @@ export class MemoryLan {
     return async (receive) => {
       const member: Member = { name, interfaces, receive };
       this.members.add(member);
+
       return {
         interfaces: () => [...member.interfaces],
         send: async (packet, via) => {
           this.sent.push({ name, packet });
           this.deliver(packet, via ?? member.interfaces[0]?.address ?? "127.0.0.1");
         },
-        close: async () => { this.members.delete(member); },
+        close: async () => {
+          this.members.delete(member);
+        },
       };
     };
   }
@@ -26,5 +29,7 @@ export class MemoryLan {
   deliver(packet: Buffer, from: string) {
     for (const member of this.members) queueMicrotask(() => member.receive(packet, { address: from, port: 5353 }));
   }
-  from(name: string) { return this.sent.filter((s) => s.name === name); }
+  from(name: string) {
+    return this.sent.filter((s) => s.name === name);
+  }
 }

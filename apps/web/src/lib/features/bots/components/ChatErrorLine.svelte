@@ -26,6 +26,7 @@
     onchangemodel?: (() => void) | undefined;
     class?: ClassValue;
   } = $props();
+
   const failure = $derived(replyFailure(error.detail));
 </script>
 
@@ -34,11 +35,16 @@
     <span class="flex h-lh shrink-0 items-center" {@attach tooltip(error.detail)}>
       <Icon name="exclamation-circle" class="fill-rose-500 dark:fill-rose-400" />
     </span>
-    <span>{sender?.name ?? "The bot"} couldn't reply — {failure.reason}.<span class="sr-only"> Details: {error.detail}</span></span>
+    <span
+      >{sender?.name ?? "The bot"} couldn't reply — {failure.reason}.<span class="sr-only">
+        Details: {error.detail}</span
+      ></span
+    >
   </p>
   {#if error.retryable && (onretry || (failure.model && onchangemodel))}
     <div class="flex shrink-0 gap-2">
-      {#if failure.model && onchangemodel}<Button size="sm" variant="ghost" onclick={onchangemodel}>Change model</Button>{/if}
+      {#if failure.model && onchangemodel}<Button size="sm" variant="ghost" onclick={onchangemodel}>Change model</Button
+        >{/if}
       {#if onretry}<Button size="sm" icon="arrow-path" loading={retrying} onclick={onretry}>Retry</Button>{/if}
     </div>
   {/if}

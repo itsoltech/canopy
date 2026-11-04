@@ -13,6 +13,7 @@ import { readClaudeTurn } from "./transcript.ts";
 const home = mkdtempSync(join(tmpdir(), "canopy-claude-fork-"));
 const cwd = "/repo/project";
 const projectDir = join(home, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"));
+
 afterAll(() => rmSync(home, { recursive: true, force: true }));
 
 /** A session Claude Code writes turn by turn: `next(word)` appends one turn and returns the offset it starts at. */
@@ -24,40 +25,72 @@ function session(): { sessionId: string; next: (word: string) => number } {
   let i = 0;
   const start = Date.parse("2026-11-02T10:00:00Z");
   mkdirSync(projectDir, { recursive: true });
+
   const next = (word: string) => {
     const offset = bytes;
     const user = crypto.randomUUID();
     const answer = crypto.randomUUID();
     const at = (ms: number) => new Date(start + i * 10_000 + ms).toISOString();
+
     for (const entry of [
-      { parentUuid: parent, isSidechain: false, type: "user", message: { role: "user", content: `message ${word}` }, uuid: user, sessionId, cwd, timestamp: at(0) },
       {
-        parentUuid: user, isSidechain: false, type: "assistant", uuid: answer, sessionId, cwd, timestamp: at(500),
-        message: { id: `msg_${word}`, role: "assistant", model: "claude-x", stop_reason: "end_turn", content: [{ type: "text", text: `answer ${word}` }] },
+        parentUuid: parent,
+        isSidechain: false,
+        type: "user",
+        message: { role: "user", content: `message ${word}` },
+        uuid: user,
+        sessionId,
+        cwd,
+        timestamp: at(0),
+      },
+      {
+        parentUuid: user,
+        isSidechain: false,
+        type: "assistant",
+        uuid: answer,
+        sessionId,
+        cwd,
+        timestamp: at(500),
+        message: {
+          id: `msg_${word}`,
+          role: "assistant",
+          model: "claude-x",
+          stop_reason: "end_turn",
+          content: [{ type: "text", text: `answer ${word}` }],
+        },
       },
     ]) {
       const line = `${JSON.stringify(entry)}\n`;
       lines.push(line);
       bytes += Buffer.byteLength(line);
     }
+
     parent = answer;
     i++;
     writeFileSync(join(projectDir, `${sessionId}.jsonl`), lines.join(""));
+
     return offset;
   };
+
   return { sessionId, next };
 }
 
 const texts = (messages: Awaited<ReturnType<typeof getSessionMessages>>) =>
   messages.map((m) => {
     const content = (m.message as { content?: unknown } | undefined)?.content;
-    return typeof content === "string" ? content : Array.isArray(content) ? content.map((b: { text?: string }) => b.text ?? "").join("") : "";
+
+    return typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content.map((b: { text?: string }) => b.text ?? "").join("")
+        : "";
   });
 
 describe("Claude fork at a turn", () => {
   test("forkSession up to the turn's ref keeps turns 1–2 and drops turn 3", async () => {
     const previous = process.env["CLAUDE_CONFIG_DIR"];
     process.env["CLAUDE_CONFIG_DIR"] = home;
+
     try {
       const { sessionId, next } = session();
       next("one");
@@ -69,7 +102,12 @@ describe("Claude fork at a turn", () => {
 
       const forked = await forkSession(sessionId, { dir: cwd, upToMessageId: ref });
       expect(forked.sessionId).not.toBe(sessionId);
-      expect(texts(await getSessionMessages(forked.sessionId, { dir: cwd }))).toEqual(["message one", "answer one", "message two", "answer two"]);
+      expect(texts(await getSessionMessages(forked.sessionId, { dir: cwd }))).toEqual([
+        "message one",
+        "answer one",
+        "message two",
+        "answer two",
+      ]);
       // The source is untouched.
       expect(texts(await getSessionMessages(sessionId, { dir: cwd }))).toHaveLength(6);
     } finally {

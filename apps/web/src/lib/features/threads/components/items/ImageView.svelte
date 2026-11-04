@@ -10,20 +10,30 @@
    */
   let { image, status }: { image: Image; status: ItemStatus } = $props();
   const directory = useThreadDirectory();
-  const label = $derived(image.source === "generated" ? "Generated image" : image.source === "view_image" ? "Viewed image" : "Image");
+
+  const label = $derived(
+    image.source === "generated" ? "Generated image" : image.source === "view_image" ? "Viewed image" : "Image",
+  );
+
   const name = $derived(image.path.split(/[/\\]/).pop() || "image");
   const failed = $derived(status === ItemStatus.FAILED || Boolean(image.detail));
 </script>
 
 <ItemFrame icon="photo" {status} tone={failed ? "rose" : "neutral"}>
   {#snippet title()}
-    <span class="flex min-w-0 gap-1.5"><span class="shrink-0">{label}</span><span class="truncate font-mono text-xs text-zinc-950 dark:text-white">{image.path || image.prompt || "generated"}</span></span>
+    <span class="flex min-w-0 gap-1.5"
+      ><span class="shrink-0">{label}</span><span class="truncate font-mono text-xs text-zinc-950 dark:text-white"
+        >{image.path || image.prompt || "generated"}</span
+      ></span
+    >
   {/snippet}
   {#if image.prompt}<p class="text-zinc-700 dark:text-zinc-300">{image.prompt}</p>{/if}
   {#if image.blob}
     <SeenImage threadId={directory.currentId} blob={image.blob} {name} width={image.width} height={image.height} />
     {#if image.originalWidth && (image.originalWidth !== image.width || image.originalHeight !== image.height)}
-      <p class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400">{image.originalWidth}×{image.originalHeight} px, shown to the model at {image.width}×{image.height}.</p>
+      <p class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400">
+        {image.originalWidth}×{image.originalHeight} px, shown to the model at {image.width}×{image.height}.
+      </p>
     {/if}
   {:else if image.detail}
     <p class="text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400">{image.detail}</p>

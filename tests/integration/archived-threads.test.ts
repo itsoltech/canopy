@@ -16,22 +16,28 @@ describe.skipIf(!dockerAvailable)("paged archived sidebar threads", () => {
     beta = (await gw.api.createProject({ name: "Archive Beta" })).project!.id;
     active = Bun.randomUUIDv7();
     child = Bun.randomUUIDv7();
-    await gw.runtime.runPromise(Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      // Deliberate ties and microsecond differences exercise keyset boundaries without Date rounding.
-      for (let i = 0; i < 55; i++) {
-        const id = Bun.randomUUIDv7();
-        yield* sql`INSERT INTO threads (id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, title, status, archived_at)
+    await gw.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+
+        // Deliberate ties and microsecond differences exercise keyset boundaries without Date rounding.
+        for (let i = 0; i < 55; i++) {
+          const id = Bun.randomUUIDv7();
+          yield* sql`INSERT INTO threads (id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, title, status, archived_at)
           VALUES (${id}::uuid, ${id}::uuid, ${i < 50 ? alpha : beta}::uuid, ${gw.userId}::uuid, 'main', 'gateway', 'openai',
             ${`Archived ${i} ${i % 2 === 0 ? "needle" : "ordinary"}`}, 'archived', '2026-01-01T00:00:00Z'::timestamptz + (${i % 3} * interval '1 microsecond'))`;
-      }
-      yield* sql`INSERT INTO threads (id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, title, status)
+        }
+
+        yield* sql`INSERT INTO threads (id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, title, status)
         VALUES (${active}::uuid, ${active}::uuid, ${alpha}::uuid, ${gw.userId}::uuid, 'main', 'gateway', 'openai', 'Active parent', 'idle')`;
-      yield* sql`INSERT INTO threads (id, root_thread_id, parent_thread_id, depth, project_id, owner_user_id, kind, runtime, provider, title, status, archived_at)
+        yield* sql`INSERT INTO threads (id, root_thread_id, parent_thread_id, depth, project_id, owner_user_id, kind, runtime, provider, title, status, archived_at)
         VALUES (${child}::uuid, ${active}::uuid, ${active}::uuid, 1, ${alpha}::uuid, ${gw.userId}::uuid, 'side', 'gateway', 'openai', 'Previous helper', 'archived', now())`;
-    }));
+      }),
+    );
   }, 60_000);
-  afterAll(async () => { await gw?.close(); }, 30_000);
+  afterAll(async () => {
+    await gw?.close();
+  }, 30_000);
 
   test("20 + 20 + 15, stable boundaries, total and count-only", async () => {
     const first = await gw.api.listArchivedThreads({});
@@ -50,7 +56,13 @@ describe.skipIf(!dockerAvailable)("paged archived sidebar threads", () => {
   test("project intersection, literal case-insensitive title/project query and scoped tokens", async () => {
     const filtered = await gw.api.listArchivedThreads({ projectIds: [alpha], query: " NEEDLE ", pageSize: 20 });
     expect(filtered.totalCount).toBe(25);
-    const rest = await gw.api.listArchivedThreads({ projectIds: [alpha], query: "needle", pageToken: filtered.nextPageToken });
+
+    const rest = await gw.api.listArchivedThreads({
+      projectIds: [alpha],
+      query: "needle",
+      pageToken: filtered.nextPageToken,
+    });
+
     expect(rest.threads).toHaveLength(5);
     expect((await gw.api.listArchivedThreads({ projectIds: [beta], query: "ALPHA" })).totalCount).toBe(0);
     expect((await gw.api.listArchivedThreads({ projectIds: [alpha, beta], query: "bEtA" })).totalCount).toBe(5);

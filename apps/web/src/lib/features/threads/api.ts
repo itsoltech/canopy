@@ -65,10 +65,18 @@ export async function interruptThread(threadId: string): Promise<void> {
 }
 
 /** No drafts, retries, telemetry or diagnostic error payloads at this boundary. */
-export async function answerThreadSecret(requestId: string, answer: { value?: string; decline?: boolean; revoke?: boolean }): Promise<ui.ThreadSecret | undefined> {
+export async function answerThreadSecret(
+  requestId: string,
+  answer: { value?: string; decline?: boolean; revoke?: boolean },
+): Promise<ui.ThreadSecret | undefined> {
   try {
-    return decode(ui.ThreadSecretResponseSchema, await post(`/api/thread-secrets/${encodeURIComponent(requestId)}`, answer)).secret;
-  } catch { throw new Error("Could not update the secret. Paste it again to retry."); }
+    return decode(
+      ui.ThreadSecretResponseSchema,
+      await post(`/api/thread-secrets/${encodeURIComponent(requestId)}`, answer),
+    ).secret;
+  } catch {
+    throw new Error("Could not update the secret. Paste it again to retry.");
+  }
 }
 
 export async function answerInteraction(
@@ -85,7 +93,8 @@ export async function stopBackgroundTask(threadId: string, itemId: string): Prom
 
 // ---------- the queue (docs/ui-api.md, "Kolejka"); a message that already started is a 409 with the reason
 
-const queuePath = (threadId: string, turnId?: string) => `${threadPath(threadId)}/queue${turnId ? `/${encodeURIComponent(turnId)}` : ""}`;
+const queuePath = (threadId: string, turnId?: string) =>
+  `${threadPath(threadId)}/queue${turnId ? `/${encodeURIComponent(turnId)}` : ""}`;
 
 /** New order of the queued turns; returns them as the gateway stored them (new ordinals). */
 export async function reorderQueue(threadId: string, turnIds: readonly string[]): Promise<ui.Turn[]> {
@@ -102,7 +111,12 @@ export async function editQueued(
 ): Promise<ui.Turn | undefined> {
   return decode(
     ui.EditQueuedTurnResponseSchema,
-    await post(queuePath(threadId, turnId), { action: "edit", text, expectedRevision, ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }) }),
+    await post(queuePath(threadId, turnId), {
+      action: "edit",
+      text,
+      expectedRevision,
+      ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }),
+    }),
   ).turn;
 }
 
@@ -112,7 +126,8 @@ export async function deleteQueued(threadId: string, turnId: string): Promise<ui
 
 /** Undo of a delete: back in the queue at its place. */
 export async function restoreQueued(threadId: string, turnId: string): Promise<ui.Turn | undefined> {
-  return decode(ui.RestoreQueuedTurnResponseSchema, await post(queuePath(threadId, turnId), { action: "restore" })).turn;
+  return decode(ui.RestoreQueuedTurnResponseSchema, await post(queuePath(threadId, turnId), { action: "restore" }))
+    .turn;
 }
 
 /** The queued message into the running turn now (it leaves the queue; back at its place if it cannot join). */

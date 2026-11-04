@@ -14,7 +14,14 @@
     disabled = false,
     class: className,
     children,
-  }: { legend: string; description?: string; error?: string | undefined; disabled?: boolean; class?: ClassValue; children: Snippet } = $props();
+  }: {
+    legend: string;
+    description?: string;
+    error?: string | undefined;
+    disabled?: boolean;
+    class?: ClassValue;
+    children: Snippet;
+  } = $props();
 </script>
 
 <fieldset class={className} {disabled}>

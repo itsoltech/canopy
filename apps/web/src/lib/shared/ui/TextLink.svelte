@@ -3,7 +3,12 @@
   import type { ClassValue, HTMLAnchorAttributes } from "svelte/elements";
 
   /** A link inside running text (underlined, the text's size). */
-  type Props = Omit<HTMLAnchorAttributes, "class" | "children"> & { href: string; class?: ClassValue; children: Snippet };
+  type Props = Omit<HTMLAnchorAttributes, "class" | "children"> & {
+    href: string;
+    class?: ClassValue;
+    children: Snippet;
+  };
+
   let { class: className, children, ...rest }: Props = $props();
 </script>
 

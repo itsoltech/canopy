@@ -27,13 +27,23 @@ export function codexPermissions(mode: PermissionMode): { approvalPolicy: v2.Ask
  * The same mode as turn/start overrides (approvalPolicy + sandboxPolicy). Codex keeps them for the turns after
  * it, so every turn sends its mode explicitly, like model and effort. Writable roots stay Codex's own (the cwd).
  */
-export function codexTurnPermissions(mode: PermissionMode): { approvalPolicy: v2.AskForApproval; sandboxPolicy: v2.SandboxPolicy } {
+export function codexTurnPermissions(mode: PermissionMode): {
+  approvalPolicy: v2.AskForApproval;
+  sandboxPolicy: v2.SandboxPolicy;
+} {
   const { approvalPolicy, sandbox } = codexPermissions(mode);
+
   return {
     approvalPolicy,
     sandboxPolicy:
       sandbox === "workspace-write"
-        ? { type: "workspaceWrite", writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false }
+        ? {
+            type: "workspaceWrite",
+            writableRoots: [],
+            networkAccess: false,
+            excludeTmpdirEnvVar: false,
+            excludeSlashTmp: false,
+          }
         : { type: "readOnly", networkAccess: false },
   };
 }

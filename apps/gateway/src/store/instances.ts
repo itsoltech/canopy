@@ -75,11 +75,18 @@ export interface SaveInstanceInput {
 
 const harnessOrFail = (provider: Provider) => {
   const harness = harnessOf(provider);
+
   return harness ? Effect.succeed(harness) : Effect.fail(new Invalid("choose Claude or Codex"));
 };
 
 const envSettings = (env: readonly StoredEnvVar[]) =>
-  env.map((v) => create(ui.ProfileEnvVarSettingsSchema, { name: v.name, secret: v.secret === true, value: v.secret || isRef(v.value) ? "" : v.value }));
+  env.map((v) =>
+    create(ui.ProfileEnvVarSettingsSchema, {
+      name: v.name,
+      secret: v.secret === true,
+      value: v.secret || isRef(v.value) ? "" : v.value,
+    }),
+  );
 
 const report = (row: WorkerRow): ConfigApplied | undefined =>
   row.apply_report ? fromJson(ConfigAppliedSchema, row.apply_report, { ignoreUnknownFields: true }) : undefined;
@@ -87,20 +94,27 @@ const report = (row: WorkerRow): ConfigApplied | undefined =>
 function checkPath(label: string, value: string | undefined): string | undefined {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
+
   if (trimmed.length > MAX_PATH || trimmed.includes("\0")) return `${label} is invalid`;
+
   return undefined;
 }
 
 function checkArgs(args: readonly string[]): string | undefined {
   if (args.length > MAX_ARGS) return `at most ${MAX_ARGS} launch arguments`;
+
   if (args.some((a) => a.length > MAX_PATH || a.includes("\0"))) return "a launch argument is invalid";
+
   return undefined;
 }
 
 function checkBaseUrl(value: string): string | undefined {
   const url = URL.canParse(value.trim()) ? new URL(value.trim()) : undefined;
+
   if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return "the endpoint must be an http(s) URL";
+
   if (url.username || url.password) return "put the key in the API key field, not in the URL";
+
   return undefined;
 }
 
@@ -139,13 +153,17 @@ export class InstanceStore extends Context.Service<
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
-        const instances = () => sql<InstanceRow>`SELECT * FROM provider_instances ORDER BY harness, (id <> 'native'), id`;
+        const instances = () =>
+          sql<InstanceRow>`SELECT * FROM provider_instances ORDER BY harness, (id <> 'native'), id`;
+
         const assignments = () => sql<AssignmentRow>`SELECT * FROM provider_instance_workers`;
+
         const workers = () =>
           sql<WorkerRow>`
             SELECT w.id, w.name, c.version, c.applied_version, c.applied_at, c.apply_report
               FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
              WHERE w.archived_at IS NULL AND w.revoked_at IS NULL ORDER BY w.name, w.id`;
+
         /** Threads per instance and worker (not archived). */
         const threadUse = () =>
           sql<{ worker_id: string; harness: Harness; id: string; count: bigint | number }>`
@@ -154,9 +172,13 @@ export class InstanceStore extends Context.Service<
 
         const lockInstance = (harness: Harness, id: string) =>
           Effect.gen(function* () {
-            const rows = yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harness} AND id = ${id} FOR UPDATE`;
+            const rows =
+              yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harness} AND id = ${id} FOR UPDATE`;
+
             const row = rows[0];
+
             if (!row) return yield* Effect.fail(new NotFound(`provider instance ${harness}/${id} not found`));
+
             return row;
           });
 
@@ -166,29 +188,45 @@ export class InstanceStore extends Context.Service<
             yield* sql`
               INSERT INTO secrets (id, owner_user_id, name, ciphertext, key_id, created_by)
               VALUES (${id}::uuid, ${userId}::uuid, ${`${SECRET_PREFIX}${id}`}, ${encryptSecret(secretsKey, plaintext)}, ${SECRETS_KEY_ID}, ${userId}::uuid)`;
+
             return { secretRef: id } satisfies SecretRef;
           });
 
         /** Variables from the form: names checked like on the worker; a secret without a value keeps the previous one. */
-        const envFrom = (userId: string, kind: "native" | "endpoint", input: readonly ui.ProfileEnvVarInput[], previous: readonly StoredEnvVar[]) =>
+        const envFrom = (
+          userId: string,
+          kind: "native" | "endpoint",
+          input: readonly ui.ProfileEnvVarInput[],
+          previous: readonly StoredEnvVar[],
+        ) =>
           Effect.gen(function* () {
-            const problem = envListProblems(kind, input.map((v) => ({ name: v.name, value: v.value ?? "" })))[0];
+            const problem = envListProblems(
+              kind,
+              input.map((v) => ({ name: v.name, value: v.value ?? "" })),
+            )[0];
+
             if (problem) return yield* Effect.fail(new Invalid(problem.message));
             const kept = new Map(previous.map((v) => [v.name, v]));
             const env: StoredEnvVar[] = [];
+
             for (const variable of input) {
               if (!variable.secret) {
                 env.push({ name: variable.name, value: variable.value ?? "" });
                 continue;
               }
+
               if (variable.value !== undefined) {
                 env.push({ name: variable.name, secret: true, value: yield* putSecret(userId, variable.value) });
                 continue;
               }
+
               const old = kept.get(variable.name);
-              if (!old?.secret || !isRef(old.value)) return yield* Effect.fail(new Invalid(`${variable.name}: enter the secret value`));
+
+              if (!old?.secret || !isRef(old.value))
+                return yield* Effect.fail(new Invalid(`${variable.name}: enter the secret value`));
               env.push({ name: variable.name, secret: true, value: old.value });
             }
+
             return env;
           });
 
@@ -199,13 +237,20 @@ export class InstanceStore extends Context.Service<
               checkPath("home path", runtime?.homePath) ??
               checkPath("shadow home path", runtime?.shadowHomePath) ??
               checkArgs(runtime?.launchArgs ?? []);
+
             if (problem) return yield* Effect.fail(new Invalid(problem));
             const stored: StoredRuntime = {};
+
             if (runtime?.binaryPath.trim()) stored.binaryPath = runtime.binaryPath.trim();
+
             if (runtime?.homePath.trim()) stored.homePath = runtime.homePath.trim();
+
             if (runtime?.shadowHomePath.trim()) stored.shadowHomePath = runtime.shadowHomePath.trim();
+
             if (runtime?.launchArgs.length) stored.launchArgs = [...runtime.launchArgs];
+
             if (runtime?.ownLogin && kind === "native") stored.ownLogin = true;
+
             return stored;
           });
 
@@ -214,8 +259,10 @@ export class InstanceStore extends Context.Service<
           Effect.gen(function* () {
             const known = new Set((yield* workers()).map((w) => w.id));
             const unknown = workerIds.find((w) => !known.has(w));
+
             if (unknown) return yield* Effect.fail(new NotFound(`worker ${unknown} not found`));
             yield* sql`UPDATE provider_instances SET all_workers = ${allWorkers}, updated_at = now() WHERE harness = ${harness} AND id = ${id}`;
+
             // All workers: no worker keeps an explicit choice. Chosen workers: on for them, off for the rest.
             for (const workerId of known) {
               const enabled = allWorkers ? null : workerIds.includes(workerId);
@@ -252,14 +299,25 @@ export class InstanceStore extends Context.Service<
               : yield* sql<ConfigRow>`
                   SELECT c.worker_id, c.config, c.version FROM worker_configs c JOIN workers w ON w.id = c.worker_id
                    WHERE w.archived_at IS NULL AND w.revoked_at IS NULL ORDER BY c.worker_id FOR UPDATE OF c`;
+
             const changed: string[] = [];
+
             if (configs.length > 0) {
               const all = yield* instances();
               const rows = yield* assignments();
               const used = yield* threadUse();
+
               for (const row of configs) {
-                const usedHere = new Set(used.filter((u) => u.worker_id === row.worker_id).map((u) => instanceKey(u.harness, u.id)));
-                const profiles = effectiveProfiles(all, rows.filter((a) => a.worker_id === row.worker_id), usedHere);
+                const usedHere = new Set(
+                  used.filter((u) => u.worker_id === row.worker_id).map((u) => instanceKey(u.harness, u.id)),
+                );
+
+                const profiles = effectiveProfiles(
+                  all,
+                  rows.filter((a) => a.worker_id === row.worker_id),
+                  usedHere,
+                );
+
                 if (canonicalJson(row.config.profiles ?? []) === canonicalJson(profiles)) continue;
                 const next = BigInt(row.version) + 1n;
                 const config = { ...row.config, version: String(next), profiles };
@@ -267,13 +325,17 @@ export class InstanceStore extends Context.Service<
                   UPDATE worker_configs SET version = ${next}, config = ${JSON.stringify(config)}::jsonb, updated_by = ${userId}::uuid, updated_at = now()
                    WHERE worker_id = ${row.worker_id}::uuid`;
                 yield* sql`DELETE FROM worker_config_secrets WHERE worker_id = ${row.worker_id}::uuid`;
+
                 for (const secretId of profileSecretRefs(profiles)) {
                   yield* sql`INSERT INTO worker_config_secrets (worker_id, secret_id) VALUES (${row.worker_id}::uuid, ${secretId}::uuid) ON CONFLICT DO NOTHING`;
                 }
+
                 changed.push(row.worker_id);
               }
             }
+
             yield* dropUnusedSecrets();
+
             return changed;
           });
 
@@ -285,6 +347,7 @@ export class InstanceStore extends Context.Service<
         ) => {
           const provider = providerOf(row.harness);
           const ofInstance = used.filter((u) => u.harness === row.harness && u.id === row.id);
+
           return create(ui.ProviderInstanceSchema, {
             harness: provider,
             id: row.id,
@@ -301,16 +364,25 @@ export class InstanceStore extends Context.Service<
               ownLogin: row.runtime?.ownLogin === true,
             },
             accentColor: row.accent_color,
-            models: { favorites: row.favorites, hidden: row.hidden_models, shown: row.shown_models, custom: row.custom_models },
+            models: {
+              favorites: row.favorites,
+              hidden: row.hidden_models,
+              shown: row.shown_models,
+              custom: row.custom_models,
+            },
             allWorkers: row.all_workers,
             builtIn: row.built_in,
             revision: BigInt(row.revision),
             threadCount: ofInstance.reduce((sum, u) => sum + Number(u.count), 0),
             updatedAt: timestampFromDate(new Date(row.updated_at)),
             workers: workerRows.map((w) => {
-              const assignment = rows.find((a) => a.harness === row.harness && a.instance_id === row.id && a.worker_id === w.id);
+              const assignment = rows.find(
+                (a) => a.harness === row.harness && a.instance_id === row.id && a.worker_id === w.id,
+              );
+
               const reported = report(w)?.profiles.find((p) => p.id === row.id && p.providers.includes(provider));
               const o = assignment?.overrides ?? {};
+
               return create(ui.InstanceOnWorkerSchema, {
                 workerId: w.id,
                 enabled: enabledOn(row, assignment),
@@ -327,13 +399,18 @@ export class InstanceStore extends Context.Service<
                 },
                 reported: reported !== undefined,
                 available: reported?.available ?? false,
-                detail: reported ? reported.detail : w.version === null ? "the worker is not configured yet" : "not reported by the worker yet",
+                detail: reported
+                  ? reported.detail
+                  : w.version === null
+                    ? "the worker is not configured yet"
+                    : "not reported by the worker yet",
                 version: reported?.version ?? "",
                 auth: reported?.auth ?? "",
                 authenticated: reported?.authenticated ?? false,
                 threadCount: Number(ofInstance.find((u) => u.worker_id === w.id)?.count ?? 0),
                 ...(w.applied_at && { checkedAt: timestampFromDate(new Date(w.applied_at)) }),
-                synced: w.version !== null && w.applied_version !== null && BigInt(w.applied_version) === BigInt(w.version),
+                synced:
+                  w.version !== null && w.applied_version !== null && BigInt(w.applied_version) === BigInt(w.version),
               });
             }),
           });
@@ -341,14 +418,22 @@ export class InstanceStore extends Context.Service<
 
         const list = () =>
           Effect.gen(function* () {
-            const [all, rows, workerRows, used] = [yield* instances(), yield* assignments(), yield* workers(), yield* threadUse()];
+            const [all, rows, workerRows, used] = [
+              yield* instances(),
+              yield* assignments(),
+              yield* workers(),
+              yield* threadUse(),
+            ];
+
             return all.map((row) => toUi(row, rows, workerRows, used));
           });
 
         const get = (harness: Harness, id: string) =>
           Effect.gen(function* () {
             const found = (yield* list()).find((i) => harnessOf(i.harness) === harness && i.id === id);
+
             if (!found) return yield* Effect.fail(new NotFound(`provider instance ${harness}/${id} not found`));
+
             return found;
           });
 
@@ -362,46 +447,88 @@ export class InstanceStore extends Context.Service<
                 const harness = yield* harnessOrFail(request.harness);
                 const id = request.id.trim();
                 let existing: InstanceRow | undefined;
+
                 if (request.create) {
-                  if (!INSTANCE_ID.test(id)) return yield* Effect.fail(new Invalid("the instance id takes lowercase letters, digits, - and _ (up to 63, starting with a letter or digit)"));
-                  if (id === NATIVE_ID) return yield* Effect.fail(new Invalid(`"${NATIVE_ID}" is the built-in device login`));
-                  const taken = yield* sql<{ id: string }>`SELECT id FROM provider_instances WHERE harness = ${harness} AND id = ${id}`;
-                  if (taken.length > 0) return yield* Effect.fail(new InstanceConflict(`${harness === "claude" ? "Claude" : "Codex"} already has an instance "${id}"`));
+                  if (!INSTANCE_ID.test(id))
+                    return yield* Effect.fail(
+                      new Invalid(
+                        "the instance id takes lowercase letters, digits, - and _ (up to 63, starting with a letter or digit)",
+                      ),
+                    );
+
+                  if (id === NATIVE_ID)
+                    return yield* Effect.fail(new Invalid(`"${NATIVE_ID}" is the built-in device login`));
+
+                  const taken = yield* sql<{
+                    id: string;
+                  }>`SELECT id FROM provider_instances WHERE harness = ${harness} AND id = ${id}`;
+
+                  if (taken.length > 0)
+                    return yield* Effect.fail(
+                      new InstanceConflict(
+                        `${harness === "claude" ? "Claude" : "Codex"} already has an instance "${id}"`,
+                      ),
+                    );
                   const count = yield* sql<{ n: bigint | number }>`SELECT count(*) AS n FROM provider_instances`;
-                  if (Number(count[0]?.n ?? 0) >= MAX_INSTANCES) return yield* Effect.fail(new Invalid(`at most ${MAX_INSTANCES} provider instances`));
+
+                  if (Number(count[0]?.n ?? 0) >= MAX_INSTANCES)
+                    return yield* Effect.fail(new Invalid(`at most ${MAX_INSTANCES} provider instances`));
                 } else {
                   existing = yield* lockInstance(harness, id);
+
                   if (request.expectedRevision !== 0n && request.expectedRevision !== BigInt(existing.revision)) {
-                    return yield* Effect.fail(new InstanceConflict("the instance changed meanwhile; reload and try again"));
+                    return yield* Effect.fail(
+                      new InstanceConflict("the instance changed meanwhile; reload and try again"),
+                    );
                   }
                 }
+
                 const builtIn = existing?.built_in === true;
                 const label = request.label.trim();
+
                 if (!label && !builtIn) return yield* Effect.fail(new Invalid("a label is required"));
+
                 if (label.length > 80) return yield* Effect.fail(new Invalid("the label is longer than 80 characters"));
                 const kindValue = builtIn ? ProviderProfileKind.NATIVE : request.kind;
-                if (kindValue !== ProviderProfileKind.NATIVE && kindValue !== ProviderProfileKind.CLIPROXYAPI) return yield* Effect.fail(new Invalid("choose how the instance connects"));
+
+                if (kindValue !== ProviderProfileKind.NATIVE && kindValue !== ProviderProfileKind.CLIPROXYAPI)
+                  return yield* Effect.fail(new Invalid("choose how the instance connects"));
                 const kind = kindValue === ProviderProfileKind.NATIVE ? "native" : "endpoint";
-                if (existing && existing.kind !== kind && Number((yield* threadUse()).find((u) => u.harness === harness && u.id === id)?.count ?? 0) > 0) {
+
+                if (
+                  existing &&
+                  existing.kind !== kind &&
+                  Number((yield* threadUse()).find((u) => u.harness === harness && u.id === id)?.count ?? 0) > 0
+                ) {
                   // Threads of the instance keep their provider session; switching device login and endpoint under them is refused.
-                  return yield* Effect.fail(new InstanceConflict("threads use this instance; add a new instance to connect another way"));
+                  return yield* Effect.fail(
+                    new InstanceConflict("threads use this instance; add a new instance to connect another way"),
+                  );
                 }
+
                 let baseUrl = "";
+
                 if (kind === "endpoint") {
                   const problem = checkBaseUrl(request.baseUrl);
+
                   if (problem) return yield* Effect.fail(new Invalid(problem));
                   baseUrl = request.baseUrl.trim();
                 }
+
                 const accent = request.accentColor.trim().toLowerCase();
-                if (accent && !ACCENT.test(accent)) return yield* Effect.fail(new Invalid("the accent color is #rrggbb"));
+
+                if (accent && !ACCENT.test(accent))
+                  return yield* Effect.fail(new Invalid("the accent color is #rrggbb"));
                 const env = yield* envFrom(userId, kind, request.env, existing?.env ?? []);
                 const runtime = yield* runtimeFrom(request.runtime, kind);
                 // The key: unset keeps it, "" clears it, a value replaces it. Only endpoints have one.
                 let apiKey: SecretRef | null = null;
+
                 if (kind === "endpoint") {
                   if (request.apiKey === undefined) apiKey = existing?.api_key ?? null;
                   else if (request.apiKey !== "") apiKey = yield* putSecret(userId, request.apiKey);
                 }
+
                 const values = {
                   label,
                   kind,
@@ -411,6 +538,7 @@ export class InstanceStore extends Context.Service<
                   runtime: JSON.stringify(runtime),
                   accent,
                 };
+
                 if (existing) {
                   yield* sql`
                     UPDATE provider_instances
@@ -423,6 +551,7 @@ export class InstanceStore extends Context.Service<
                     VALUES (${harness}, ${id}, ${values.label}, ${values.kind}, ${values.baseUrl}, ${values.apiKey}::jsonb, ${values.env}::jsonb, ${values.runtime}::jsonb, ${values.accent}, ${userId}::uuid)`;
                   yield* assign(harness, id, request.allWorkers, request.workerIds);
                 }
+
                 return { harness, id, changed: yield* sync(userId) };
               }),
             ),
@@ -432,21 +561,43 @@ export class InstanceStore extends Context.Service<
               Effect.gen(function* () {
                 const harness = yield* harnessOrFail(request.harness);
                 const row = yield* lockInstance(harness, request.id);
-                if (row.built_in) return yield* Effect.fail(new Invalid("the built-in device login cannot be deleted; turn it off on the workers instead"));
-                if (request.expectedRevision !== 0n && request.expectedRevision !== BigInt(row.revision)) {
-                  return yield* Effect.fail(new InstanceConflict("the instance changed meanwhile; reload and try again"));
-                }
-                const used = (yield* threadUse()).filter((u) => u.harness === harness && u.id === row.id).reduce((sum, u) => sum + Number(u.count), 0);
-                if (used > 0) {
+
+                if (row.built_in)
                   return yield* Effect.fail(
-                    new InstanceConflict(`${used} thread${used === 1 ? " uses" : "s use"} this instance; turn it off instead (its threads then show why they cannot run)`),
+                    new Invalid("the built-in device login cannot be deleted; turn it off on the workers instead"),
+                  );
+
+                if (request.expectedRevision !== 0n && request.expectedRevision !== BigInt(row.revision)) {
+                  return yield* Effect.fail(
+                    new InstanceConflict("the instance changed meanwhile; reload and try again"),
                   );
                 }
-                const scheduled = yield* sql`SELECT 1 FROM schedules WHERE target = 'new_thread' AND status IN ('active', 'paused')
+
+                const used = (yield* threadUse())
+                  .filter((u) => u.harness === harness && u.id === row.id)
+                  .reduce((sum, u) => sum + Number(u.count), 0);
+
+                if (used > 0) {
+                  return yield* Effect.fail(
+                    new InstanceConflict(
+                      `${used} thread${used === 1 ? " uses" : "s use"} this instance; turn it off instead (its threads then show why they cannot run)`,
+                    ),
+                  );
+                }
+
+                const scheduled =
+                  yield* sql`SELECT 1 FROM schedules WHERE target = 'new_thread' AND status IN ('active', 'paused')
                   AND new_thread->>'provider' = ${harness === "claude" ? "PROVIDER_CLAUDE" : harness === "grok" ? "PROVIDER_GROK" : "PROVIDER_CODEX"}
                   AND coalesce(nullif(new_thread->>'providerProfileId', ''), 'native') = ${row.id} LIMIT 1`;
-                if (scheduled.length) return yield* Effect.fail(new InstanceConflict("a scheduled task uses this instance; cancel it or turn the instance off instead"));
+
+                if (scheduled.length)
+                  return yield* Effect.fail(
+                    new InstanceConflict(
+                      "a scheduled task uses this instance; cancel it or turn the instance off instead",
+                    ),
+                  );
                 yield* sql`DELETE FROM provider_instances WHERE harness = ${harness} AND id = ${row.id}`;
+
                 return yield* sync(userId);
               }),
             ),
@@ -457,6 +608,7 @@ export class InstanceStore extends Context.Service<
                 const harness = yield* harnessOrFail(request.harness);
                 yield* lockInstance(harness, request.id);
                 yield* assign(harness, request.id, request.allWorkers, request.workerIds);
+
                 return yield* sync(userId);
               }),
             ),
@@ -466,11 +618,16 @@ export class InstanceStore extends Context.Service<
               Effect.gen(function* () {
                 const harness = yield* harnessOrFail(request.harness);
                 const row = yield* lockInstance(harness, request.id);
-                if (!(yield* workers()).some((w) => w.id === request.workerId)) return yield* Effect.fail(new NotFound(`worker ${request.workerId} not found`));
+
+                if (!(yield* workers()).some((w) => w.id === request.workerId))
+                  return yield* Effect.fail(new NotFound(`worker ${request.workerId} not found`));
+
                 const current = (yield* sql<AssignmentRow>`
                   SELECT * FROM provider_instance_workers WHERE harness = ${harness} AND instance_id = ${row.id} AND worker_id = ${request.workerId}::uuid FOR UPDATE`)[0];
+
                 let overrides: StoredOverrides = current?.overrides ?? {};
                 const input = request.overrides;
+
                 if (input) {
                   const problem =
                     checkPath("binary path", input.binaryPath) ??
@@ -478,26 +635,37 @@ export class InstanceStore extends Context.Service<
                     checkPath("shadow home path", input.shadowHomePath) ??
                     checkArgs(input.launchArgs) ??
                     (input.baseUrl !== undefined && row.kind === "endpoint" ? checkBaseUrl(input.baseUrl) : undefined);
+
                   if (problem) return yield* Effect.fail(new Invalid(problem));
                   const env = yield* envFrom(userId, row.kind, input.env, overrides.env ?? []);
                   const next: StoredOverrides = {};
+
                   if (input.binaryPath !== undefined) next.binaryPath = input.binaryPath.trim();
+
                   if (input.homePath !== undefined) next.homePath = input.homePath.trim();
+
                   if (input.shadowHomePath !== undefined) next.shadowHomePath = input.shadowHomePath.trim();
+
                   if (input.launchArgsSet) next.launchArgs = [...input.launchArgs];
+
                   if (env.length > 0) next.env = env;
+
                   if (row.kind === "endpoint") {
                     if (input.baseUrl !== undefined) next.baseUrl = input.baseUrl.trim();
+
                     if (input.apiKey === undefined && overrides.apiKey) next.apiKey = overrides.apiKey;
                     else if (input.apiKey) next.apiKey = yield* putSecret(userId, input.apiKey);
                   }
+
                   overrides = next;
                 }
+
                 const enabled = request.enabled ?? current?.enabled ?? null;
                 yield* sql`
                   INSERT INTO provider_instance_workers (harness, instance_id, worker_id, enabled, overrides)
                   VALUES (${harness}, ${row.id}, ${request.workerId}::uuid, ${enabled}, ${JSON.stringify(overrides)}::jsonb)
                   ON CONFLICT (harness, instance_id, worker_id) DO UPDATE SET enabled = EXCLUDED.enabled, overrides = EXCLUDED.overrides, updated_at = now()`;
+
                 return yield* sync(userId, [request.workerId]);
               }),
             ),
@@ -506,20 +674,38 @@ export class InstanceStore extends Context.Service<
             Effect.gen(function* () {
               const harness = yield* harnessOrFail(request.harness);
               const models = request.models;
-              const lists = [models?.favorites ?? [], models?.hidden ?? [], models?.shown ?? [], models?.custom ?? []].map((l) => [...new Set(l.map((m) => m.trim()).filter(Boolean))]);
+
+              const lists = [
+                models?.favorites ?? [],
+                models?.hidden ?? [],
+                models?.shown ?? [],
+                models?.custom ?? [],
+              ].map((l) => [...new Set(l.map((m) => m.trim()).filter(Boolean))]);
+
               const [favorites = [], hidden = [], shown = [], custom = []] = lists;
-              if (lists.some((l) => l.length > MAX_MODELS) || lists.flat().some((m) => m.length > 200 || /\s/.test(m))) return yield* Effect.fail(new Invalid("invalid model list"));
+
+              if (lists.some((l) => l.length > MAX_MODELS) || lists.flat().some((m) => m.length > 200 || /\s/.test(m)))
+                return yield* Effect.fail(new Invalid("invalid model list"));
+
               if (custom.length > 100) return yield* Effect.fail(new Invalid("at most 100 custom models"));
+
               if (request.favoritesOnly) {
-                const updated = yield* sql`UPDATE provider_instances SET favorites = ${favorites}::text[], updated_at = now() WHERE harness = ${harness} AND id = ${request.id} RETURNING id`;
-                if (updated.length === 0) return yield* Effect.fail(new NotFound(`provider instance ${harness}/${request.id} not found`));
+                const updated =
+                  yield* sql`UPDATE provider_instances SET favorites = ${favorites}::text[], updated_at = now() WHERE harness = ${harness} AND id = ${request.id} RETURNING id`;
+
+                if (updated.length === 0)
+                  return yield* Effect.fail(new NotFound(`provider instance ${harness}/${request.id} not found`));
+
                 return;
               }
+
               const rows = yield* sql`
                 UPDATE provider_instances
                    SET favorites = ${favorites}::text[], hidden_models = ${hidden}::text[], shown_models = ${shown}::text[], custom_models = ${custom}::text[], updated_at = now()
                  WHERE harness = ${harness} AND id = ${request.id} RETURNING id`;
-              if (rows.length === 0) return yield* Effect.fail(new NotFound(`provider instance ${harness}/${request.id} not found`));
+
+              if (rows.length === 0)
+                return yield* Effect.fail(new NotFound(`provider instance ${harness}/${request.id} not found`));
             }),
 
           sync: (userId, workerIds) => sql.withTransaction(sync(userId, workerIds)),
@@ -527,15 +713,21 @@ export class InstanceStore extends Context.Service<
           workerInstances: () =>
             Effect.gen(function* () {
               const [all, rows, workerRows] = [yield* instances(), yield* assignments(), yield* workers()];
+
               return new Map(
                 workerRows.map((w) => {
                   const applied = report(w);
+
                   return [
                     w.id,
                     all.map((row) => {
                       const provider = providerOf(row.harness);
                       const reported = applied?.profiles.find((p) => p.id === row.id && p.providers.includes(provider));
-                      const assignment = rows.find((a) => a.harness === row.harness && a.instance_id === row.id && a.worker_id === w.id);
+
+                      const assignment = rows.find(
+                        (a) => a.harness === row.harness && a.instance_id === row.id && a.worker_id === w.id,
+                      );
+
                       return create(ui.WorkerInstanceSchema, {
                         harness: provider,
                         id: row.id,
@@ -558,10 +750,15 @@ export class InstanceStore extends Context.Service<
             sql.withTransaction(
               Effect.gen(function* () {
                 const problem = checkBaseUrl(baseUrl);
+
                 if (problem) return yield* Effect.fail(new Invalid(problem));
+
                 for (const harness of ["claude", "codex", "grok"] as const) {
-                  const found = (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harness} AND id = 'cliproxyapi' FOR UPDATE`)[0];
+                  const found =
+                    (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harness} AND id = 'cliproxyapi' FOR UPDATE`)[0];
+
                   let overrides: StoredOverrides = {};
+
                   if (!found) {
                     yield* sql`
                       INSERT INTO provider_instances (harness, id, label, kind, base_url, api_key, created_by)
@@ -570,8 +767,10 @@ export class InstanceStore extends Context.Service<
                     return yield* Effect.fail(new Invalid(`${harness}/cliproxyapi exists and is not an endpoint`));
                   } else {
                     if (found.base_url !== baseUrl) overrides.baseUrl = baseUrl;
+
                     if (found.api_key?.secretRef !== apiKey.secretRef) overrides.apiKey = apiKey;
                   }
+
                   yield* sql`
                     INSERT INTO provider_instance_workers (harness, instance_id, worker_id, enabled, overrides)
                     VALUES (${harness}, 'cliproxyapi', ${workerId}::uuid, true, ${JSON.stringify(overrides)}::jsonb)

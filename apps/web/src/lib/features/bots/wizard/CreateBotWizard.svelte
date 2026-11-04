@@ -8,7 +8,13 @@
   import type { BotProviderInstance, CreateBotDraft } from "./draft.ts";
 
   /** Presentational: the caller supplies availability and persists the validated draft. */
-  let { open = $bindable(false), instances, existingNames, oncreate, class: className }: {
+  let {
+    open = $bindable(false),
+    instances,
+    existingNames,
+    oncreate,
+    class: className,
+  }: {
     open?: boolean;
     instances: readonly BotProviderInstance[];
     existingNames: readonly string[];

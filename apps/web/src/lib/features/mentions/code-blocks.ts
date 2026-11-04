@@ -37,16 +37,23 @@ export class CodeBlocks {
    */
   refresh(root: HTMLElement): HTMLElement | undefined {
     let fresh: HTMLElement | undefined;
+
     for (const block of root.querySelectorAll<HTMLElement>('[data-block="code"]')) {
       const prev = block.previousSibling;
-      if (block.parentNode === root && (!prev || (prev instanceof HTMLElement && blockOf(prev)))) block.before(ANCHOR());
+
+      if (block.parentNode === root && (!prev || (prev instanceof HTMLElement && blockOf(prev))))
+        block.before(ANCHOR());
+
       if (this.#fields.has(block)) continue;
       const data = blockOf(block);
+
       if (!data) continue;
       const isFresh = block.hasAttribute("data-fresh");
       block.removeAttribute("data-fresh");
+
       if (isFresh) fresh = block;
       block.replaceChildren();
+
       const field = mount(CodeBlockField, {
         target: block,
         props: {
@@ -62,10 +69,13 @@ export class CodeBlocks {
           onremove: () => this.#host.remove(block),
         },
       }) as Field;
+
       this.#fields.set(block, field);
     }
+
     // The fields' elements exist before anyone focuses them.
     if (fresh) flushSync();
+
     return fresh;
   }
 

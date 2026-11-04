@@ -23,7 +23,13 @@
     hint,
     class: className,
     ...handlers
-  }: { conversation: ConversationView; href: string; current?: boolean; hint?: string | undefined; class?: ClassValue } & ConversationHandlers = $props();
+  }: {
+    conversation: ConversationView;
+    href: string;
+    current?: boolean;
+    hint?: string | undefined;
+    class?: ClassValue;
+  } & ConversationHandlers = $props();
 
   let menuOpen = $state(false);
   const title = $derived(conversationTitle(conversation));
@@ -37,8 +43,11 @@
       {href}
       aria-current={current ? "page" : undefined}
       aria-describedby={hint}
-      title={title}
-      class={["group flex w-full min-w-0 flex-col items-center gap-1.5 rounded-xl px-0.5 pt-2 pb-1.5 select-none [-webkit-touch-callout:none] hover:bg-zinc-950/4 focus-ring aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8", className]}
+      {title}
+      class={[
+        "group flex w-full min-w-0 flex-col items-center gap-1.5 rounded-xl px-0.5 pt-2 pb-1.5 focus-ring select-none [-webkit-touch-callout:none] hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
+        className,
+      ]}
       {@attach contextMenu(() => (menuOpen = items.length > 0))}
     >
       <span class="relative flex">
@@ -52,7 +61,9 @@
           <span class={["absolute top-0 right-0 size-3 rounded-full bg-brand-500", avatarRing]}></span>
         {/if}
       </span>
-      <span class="w-full truncate text-center text-sm/5 text-zinc-700 group-aria-[current=page]:text-zinc-950 sm:text-xs/5 dark:text-zinc-300 dark:group-aria-[current=page]:text-white">
+      <span
+        class="w-full truncate text-center text-sm/5 text-zinc-700 group-aria-[current=page]:text-zinc-950 sm:text-xs/5 dark:text-zinc-300 dark:group-aria-[current=page]:text-white"
+      >
         {title}{#if conversation.unread > 0}<span class="sr-only">, {conversation.unread} unread</span>{/if}
       </span>
     </a>

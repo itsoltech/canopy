@@ -8,7 +8,12 @@
    * Low-key button that opens a menu or picker (T3's composer pills): content, then a chevron. Spread
    * a popover trigger's props on it: `{#snippet trigger(props)}<PillButton {...props}>Ask first</PillButton>{/snippet}`.
    */
-  type Props = Omit<HTMLButtonAttributes, "class" | "children"> & { class?: ClassValue; chevron?: boolean; children: Snippet };
+  type Props = Omit<HTMLButtonAttributes, "class" | "children"> & {
+    class?: ClassValue;
+    chevron?: boolean;
+    children: Snippet;
+  };
+
   let { class: className, chevron = true, type = "button", children, ...rest }: Props = $props();
 </script>
 

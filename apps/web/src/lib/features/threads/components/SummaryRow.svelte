@@ -3,7 +3,12 @@
   import type { ClassValue } from "svelte/elements";
 
   /** One fact of a compact summary (ThreadHoverCard): a 16px mark, the text (truncated), an optional aside on the right. */
-  let { class: className, mark, children, aside }: { class?: ClassValue; mark: Snippet; children: Snippet; aside?: Snippet } = $props();
+  let {
+    class: className,
+    mark,
+    children,
+    aside,
+  }: { class?: ClassValue; mark: Snippet; children: Snippet; aside?: Snippet } = $props();
 </script>
 
 <li class={["flex min-w-0 items-center gap-2", className]}>

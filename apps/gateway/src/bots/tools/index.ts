@@ -8,5 +8,15 @@ import { createBotTool } from "./create-bot.ts";
 import { routineTools } from "./routines.ts";
 
 /** Grouped in the model's catalogue; a single allowlisted descriptor owns dispatch and status. */
-export const areaTools = [...projectTools, ...workerTools, ...providerTools, ...threadTools, ...scheduleTools, ...settingsTools, createBotTool, ...routineTools];
+export const areaTools = [
+  ...projectTools,
+  ...workerTools,
+  ...providerTools,
+  ...threadTools,
+  ...scheduleTools,
+  ...settingsTools,
+  createBotTool,
+  ...routineTools,
+];
+
 export const areaTool = new Map(areaTools.map((t) => [t.spec.name, t]));

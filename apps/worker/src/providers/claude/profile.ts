@@ -2,7 +2,12 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { Env, ResolvedProfile } from "../profiles.ts";
 
 /** Variables that would compete with the profile's auth or endpoint. */
-const AUTH_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
+const AUTH_ENV = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_BASE_URL",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+] as const;
 
 /**
  * Claude Agent SDK options derived from a provider profile.
@@ -17,6 +22,7 @@ const AUTH_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_U
  */
 export function claudeProfileOptions(profile: ResolvedProfile, baseEnv: Env): Pick<Options, "env" | "settingSources"> {
   const env: Record<string, string | undefined> = { ...baseEnv, ...profile.env };
+
   if (profile.kind === "cliproxyapi") {
     for (const name of AUTH_ENV) delete env[name];
     env["ANTHROPIC_BASE_URL"] = stripTrailingSlash(profile.baseUrl.href);
@@ -24,6 +30,7 @@ export function claudeProfileOptions(profile: ResolvedProfile, baseEnv: Env): Pi
     // Lets Claude Code list the models the proxy exposes (CLIProxyAPI docs).
     env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] = "1";
   }
+
   return { env, settingSources: ["project", "local"] };
 }
 

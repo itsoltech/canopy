@@ -5,4 +5,5 @@ import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
 /** Full overview, for resynchronising after the live stream reconnects (it only carries changes). */
-export const GET: RequestHandler = async () => json(encode(ui.GetOverviewResponseSchema, await call((api) => api.getOverview({}))));
+export const GET: RequestHandler = async () =>
+  json(encode(ui.GetOverviewResponseSchema, await call((api) => api.getOverview({}))));

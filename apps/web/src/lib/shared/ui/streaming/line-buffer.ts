@@ -14,7 +14,9 @@ export const LINE_IDLE_MS = 300;
  */
 export function lineCut(text: string, revealed: number): number {
   let end = text.lastIndexOf("\n") + 1;
+
   if (end > revealed && heldTableHeader(text, end)) end = text.lastIndexOf("\n", end - 2) + 1;
+
   return Math.min(text.length, Math.max(revealed, end));
 }
 
@@ -26,15 +28,19 @@ export function lineCut(text: string, revealed: number): number {
 export function idleCut(text: string, shown: number): number {
   if (shown >= text.length) return text.length;
   const lineStart = text.lastIndexOf("\n", shown - 1) + 1;
+
   if (/^\s{0,3}(`{3,}|~{3,}|\|)/.test(text.slice(lineStart))) return shown;
   const space = Math.max(text.lastIndexOf(" ", text.length - 1), text.lastIndexOf("\t", text.length - 1));
+
   return space + 1 > shown ? space + 1 : text.length;
 }
 
 /** The last complete line (ending at `end`) starts a table and the delimiter row is not there yet. */
 function heldTableHeader(text: string, end: number): boolean {
   const start = text.lastIndexOf("\n", end - 2) + 1;
+
   if (!/^\s{0,3}\|/.test(text.slice(start, end))) return false;
   const previous = text.slice(text.lastIndexOf("\n", start - 2) + 1, start);
+
   return !/^\s{0,3}\|/.test(previous);
 }

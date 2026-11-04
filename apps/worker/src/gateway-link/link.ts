@@ -41,10 +41,20 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
     ...(options.ca !== undefined && { ca: options.ca }),
     ...(options.pingIntervalMs !== undefined && { pingIntervalMs: options.pingIntervalMs }),
   });
+
   const client = createClient(WorkerLinkService, transport);
 
   const outbound = new AsyncChannel<WorkerMessage>();
-  outbound.push(workerMessage({ case: "hello", value: { workerLinkProtocol: WORKER_LINK_PROTOCOL, minWorkerLinkProtocol: MIN_WORKER_LINK_PROTOCOL, ...options.hello } }));
+  outbound.push(
+    workerMessage({
+      case: "hello",
+      value: {
+        workerLinkProtocol: WORKER_LINK_PROTOCOL,
+        minWorkerLinkProtocol: MIN_WORKER_LINK_PROTOCOL,
+        ...options.hello,
+      },
+    }),
+  );
 
   const responses = client
     .connect(outbound, {
@@ -54,28 +64,34 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
     [Symbol.asyncIterator]();
 
   let first: IteratorResult<GatewayMessage>;
+
   try {
     first = await responses.next();
   } catch (error) {
     outbound.close();
     throw ConnectError.from(error);
   }
+
   if (first.done || first.value.payload.case !== "welcome") {
     outbound.close();
     throw new ConnectError("gateway did not answer Hello with Welcome", Code.FailedPrecondition);
   }
 
   const inbound = new AsyncChannel<GatewayMessage>();
+
   const closed = (async (): Promise<{ error?: ConnectError }> => {
     try {
       for (let next = await responses.next(); !next.done; next = await responses.next()) {
         inbound.push(next.value);
       }
+
       inbound.close();
+
       return {};
     } catch (cause) {
       const error = ConnectError.from(cause);
       inbound.close(error);
+
       return { error };
     } finally {
       outbound.close();

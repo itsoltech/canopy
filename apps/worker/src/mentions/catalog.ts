@@ -18,14 +18,23 @@ export const CATALOG_TTL_MS = 5 * 60_000;
 export class CatalogCache {
   readonly #entries = new Map<string, { stamp: string; at: number; value: Promise<ListedCatalog> }>();
 
-  get(key: string, stamp: string, load: () => Promise<ListedCatalog>, refresh: boolean, now = Date.now()): Promise<ListedCatalog> {
+  get(
+    key: string,
+    stamp: string,
+    load: () => Promise<ListedCatalog>,
+    refresh: boolean,
+    now = Date.now(),
+  ): Promise<ListedCatalog> {
     const cached = this.#entries.get(key);
+
     if (!refresh && cached && cached.stamp === stamp && now - cached.at < CATALOG_TTL_MS) return cached.value;
     const value = load();
     this.#entries.set(key, { stamp, at: now, value });
     // A failed listing is not kept.
     value.catch(() => this.#entries.get(key)?.value === value && this.#entries.delete(key));
+
     if (this.#entries.size > 100) this.#entries.delete(this.#entries.keys().next().value ?? "");
+
     return value;
   }
 

@@ -5,23 +5,47 @@ import { randomBytes } from "node:crypto";
 import type { Secrets } from "./runtime/runtime.ts";
 
 export async function loadSecrets(directory: string): Promise<Secrets> {
-  if (!await safeStorage.isAsyncEncryptionAvailable() || (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text")) {
-    throw new Error("Canopy needs an unlocked OS keychain (Secret Service/KWallet on Linux). Enable it and reopen Canopy.");
+  if (
+    !(await safeStorage.isAsyncEncryptionAvailable()) ||
+    (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text")
+  ) {
+    throw new Error(
+      "Canopy needs an unlocked OS keychain (Secret Service/KWallet on Linux). Enable it and reopen Canopy.",
+    );
   }
+
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const path = join(directory, "secrets.enc");
+
   if (existsSync(path)) {
     const decrypted = await safeStorage.decryptStringAsync(readFileSync(path));
     const secrets: unknown = JSON.parse(decrypted.result);
-    if (!secrets || typeof secrets !== "object" || !["databasePassword", "secretsKey", "serviceToken"].every((key) => typeof (secrets as Record<string, unknown>)[key] === "string")) throw new Error("Invalid desktop secrets file; restore it from your backup");
+
+    if (
+      !secrets ||
+      typeof secrets !== "object" ||
+      !["databasePassword", "secretsKey", "serviceToken"].every(
+        (key) => typeof (secrets as Record<string, unknown>)[key] === "string",
+      )
+    )
+      throw new Error("Invalid desktop secrets file; restore it from your backup");
+
     if (decrypted.shouldReEncrypt) {
       writeFileSync(`${path}.new`, await safeStorage.encryptStringAsync(decrypted.result), { mode: 0o600 });
       renameSync(`${path}.new`, path);
     }
+
     return secrets as Secrets;
   }
-  const secrets: Secrets = { databasePassword: randomBytes(32).toString("hex"), secretsKey: randomBytes(32).toString("base64"), serviceToken: randomBytes(32).toString("hex") };
+
+  const secrets: Secrets = {
+    databasePassword: randomBytes(32).toString("hex"),
+    secretsKey: randomBytes(32).toString("base64"),
+    serviceToken: randomBytes(32).toString("hex"),
+  };
+
   writeFileSync(`${path}.new`, await safeStorage.encryptStringAsync(JSON.stringify(secrets)), { mode: 0o600 });
   renameSync(`${path}.new`, path);
+
   return secrets;
 }

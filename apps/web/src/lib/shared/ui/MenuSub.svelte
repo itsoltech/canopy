@@ -12,14 +12,21 @@
    *
    *   <MenuSub label="Copy" icon="document-duplicate"><MenuItem onselect={copyId}>Thread ID</MenuItem></MenuSub>
    */
-  let { label, icon, class: className, children }: { label: string; icon?: IconName | undefined; class?: ClassValue; children: Snippet } = $props();
+  let {
+    label,
+    icon,
+    class: className,
+    children,
+  }: { label: string; icon?: IconName | undefined; class?: ClassValue; children: Snippet } = $props();
 
   const id = $props.id();
   const parent = useMenu();
   const menu = $state({ openSub: undefined as string | undefined, closeAll: () => parent.closeAll() });
+
   provideMenu(menu);
 
   const open = $derived(parent.openSub === id);
+
   // Only a keyboard opening moves focus into the submenu; hovering keeps it on the row.
   let byKeyboard = $state(false);
 
@@ -31,6 +38,7 @@
       parent.openSub = id;
     }
   }
+
   function panelKeydown(event: KeyboardEvent) {
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -38,11 +46,13 @@
       parent.openSub = undefined;
     }
   }
+
   const onpointermove = hoverFocus(() => {
     if (open) return;
     byKeyboard = false;
     parent.openSub = id;
   });
+
   const navigate = menuKeydown();
 </script>
 

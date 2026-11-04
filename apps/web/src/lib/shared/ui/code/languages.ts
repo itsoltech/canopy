@@ -57,31 +57,69 @@ export type LanguageId = keyof typeof grammars;
 
 /** Fence tags and file extensions that name a grammar by another word. */
 const aliases: Record<string, LanguageId> = {
-  "c++": "cpp", cc: "cpp", cxx: "cpp", h: "c", hh: "cpp", hpp: "cpp", hxx: "cpp",
-  "c#": "csharp", cs: "csharp",
-  dockerfile: "docker", containerfile: "docker",
+  "c++": "cpp",
+  cc: "cpp",
+  cxx: "cpp",
+  h: "c",
+  hh: "cpp",
+  hpp: "cpp",
+  hxx: "cpp",
+  "c#": "csharp",
+  cs: "csharp",
+  dockerfile: "docker",
+  containerfile: "docker",
   env: "dotenv",
-  ex: "elixir", exs: "elixir",
+  ex: "elixir",
+  exs: "elixir",
   golang: "go",
   gql: "graphql",
   hs: "haskell",
-  htm: "html", xhtml: "html",
-  cfg: "ini", conf: "ini", properties: "ini",
-  js: "javascript", mjs: "javascript", cjs: "javascript", node: "javascript",
-  json5: "jsonc", jsonl: "json",
-  kt: "kotlin", kts: "kotlin",
-  makefile: "make", mk: "make",
-  md: "markdown", mdx: "markdown",
-  ps1: "powershell", ps: "powershell", pwsh: "powershell",
+  htm: "html",
+  xhtml: "html",
+  cfg: "ini",
+  conf: "ini",
+  properties: "ini",
+  js: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  node: "javascript",
+  json5: "jsonc",
+  jsonl: "json",
+  kt: "kotlin",
+  kts: "kotlin",
+  makefile: "make",
+  mk: "make",
+  md: "markdown",
+  mdx: "markdown",
+  ps1: "powershell",
+  ps: "powershell",
+  pwsh: "powershell",
   protobuf: "proto",
-  py: "python", py3: "python", python3: "python", pyi: "python",
-  rb: "ruby", gemfile: "ruby",
+  py: "python",
+  py3: "python",
+  python3: "python",
+  pyi: "python",
+  rb: "ruby",
+  gemfile: "ruby",
   rs: "rust",
-  sh: "shellscript", bash: "shellscript", zsh: "shellscript", shell: "shellscript", console: "shellscript", fish: "shellscript", ksh: "shellscript", bashrc: "shellscript", zshrc: "shellscript",
-  tf: "terraform", tfvars: "terraform",
-  ts: "typescript", mts: "typescript", cts: "typescript",
+  sh: "shellscript",
+  bash: "shellscript",
+  zsh: "shellscript",
+  shell: "shellscript",
+  console: "shellscript",
+  fish: "shellscript",
+  ksh: "shellscript",
+  bashrc: "shellscript",
+  zshrc: "shellscript",
+  tf: "terraform",
+  tfvars: "terraform",
+  ts: "typescript",
+  mts: "typescript",
+  cts: "typescript",
   patch: "diff",
-  svg: "xml", plist: "xml", xsd: "xml",
+  svg: "xml",
+  plist: "xml",
+  xsd: "xml",
   yml: "yaml",
 };
 
@@ -90,9 +128,16 @@ const aliases: Record<string, LanguageId> = {
  * undefined when there is none we know: the block stays plain.
  */
 export function languageOf(info: string | undefined): LanguageId | undefined {
-  const word = info?.trim().split(/[\s{,]/, 1)[0]?.toLowerCase().replace(/^(language-|\.)/, "");
+  const word = info
+    ?.trim()
+    .split(/[\s{,]/, 1)[0]
+    ?.toLowerCase()
+    .replace(/^(language-|\.)/, "");
+
   if (!word) return undefined;
+
   if (Object.hasOwn(grammars, word)) return word as LanguageId;
+
   return Object.hasOwn(aliases, word) ? aliases[word] : undefined;
 }
 
@@ -100,28 +145,87 @@ export function languageOf(info: string | undefined): LanguageId | undefined {
 export function languageOfPath(path: string): LanguageId | undefined {
   const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase();
   const dot = name.lastIndexOf(".");
+
   return languageOf(dot > 0 ? name.slice(dot + 1) : name.replace(/^\./, ""));
 }
 
 /** How each language is called in a picker. */
 export const LANGUAGE_NAMES: Record<LanguageId, string> = {
-  c: "C", cpp: "C++", csharp: "C#", css: "CSS", dart: "Dart", diff: "Diff", docker: "Dockerfile", dotenv: ".env", elixir: "Elixir",
-  go: "Go", graphql: "GraphQL", haskell: "Haskell", hcl: "HCL", html: "HTML", ini: "INI", java: "Java", javascript: "JavaScript",
-  json: "JSON", jsonc: "JSON with comments", jsx: "JSX", kotlin: "Kotlin", lua: "Lua", make: "Makefile", markdown: "Markdown", nix: "Nix",
-  php: "PHP", powershell: "PowerShell", proto: "Protocol Buffers", python: "Python", r: "R", ruby: "Ruby", rust: "Rust", scala: "Scala",
-  scss: "SCSS", shellscript: "Shell", sql: "SQL", svelte: "Svelte", swift: "Swift", terraform: "Terraform", toml: "TOML", tsx: "TSX",
-  typescript: "TypeScript", vue: "Vue", xml: "XML", yaml: "YAML", zig: "Zig",
+  c: "C",
+  cpp: "C++",
+  csharp: "C#",
+  css: "CSS",
+  dart: "Dart",
+  diff: "Diff",
+  docker: "Dockerfile",
+  dotenv: ".env",
+  elixir: "Elixir",
+  go: "Go",
+  graphql: "GraphQL",
+  haskell: "Haskell",
+  hcl: "HCL",
+  html: "HTML",
+  ini: "INI",
+  java: "Java",
+  javascript: "JavaScript",
+  json: "JSON",
+  jsonc: "JSON with comments",
+  jsx: "JSX",
+  kotlin: "Kotlin",
+  lua: "Lua",
+  make: "Makefile",
+  markdown: "Markdown",
+  nix: "Nix",
+  php: "PHP",
+  powershell: "PowerShell",
+  proto: "Protocol Buffers",
+  python: "Python",
+  r: "R",
+  ruby: "Ruby",
+  rust: "Rust",
+  scala: "Scala",
+  scss: "SCSS",
+  shellscript: "Shell",
+  sql: "SQL",
+  svelte: "Svelte",
+  swift: "Swift",
+  terraform: "Terraform",
+  toml: "TOML",
+  tsx: "TSX",
+  typescript: "TypeScript",
+  vue: "Vue",
+  xml: "XML",
+  yaml: "YAML",
+  zig: "Zig",
 };
 
 /** The word a fence gets when a language is picked: the short tag people type, else the grammar's id. */
 const FENCE_TAGS: Partial<Record<LanguageId, string>> = {
-  csharp: "cs", docker: "dockerfile", dotenv: "env", javascript: "js", markdown: "md", powershell: "ps1", python: "py",
-  ruby: "rb", rust: "rs", shellscript: "sh", typescript: "ts", yaml: "yml",
+  csharp: "cs",
+  docker: "dockerfile",
+  dotenv: "env",
+  javascript: "js",
+  markdown: "md",
+  powershell: "ps1",
+  python: "py",
+  ruby: "rb",
+  rust: "rs",
+  shellscript: "sh",
+  typescript: "ts",
+  yaml: "yml",
 };
 
 export const fenceTag = (id: LanguageId): string => FENCE_TAGS[id] ?? id;
 
 /** Every language with the other words that name it (to search a picker by `py` or `golang`). */
-export const LANGUAGES: ReadonlyArray<{ readonly id: LanguageId; readonly name: string; readonly words: readonly string[] }> = (Object.keys(grammars) as LanguageId[])
-  .map((id) => ({ id, name: LANGUAGE_NAMES[id], words: [id, ...Object.keys(aliases).filter((word) => aliases[word] === id)] }))
+export const LANGUAGES: ReadonlyArray<{
+  readonly id: LanguageId;
+  readonly name: string;
+  readonly words: readonly string[];
+}> = (Object.keys(grammars) as LanguageId[])
+  .map((id) => ({
+    id,
+    name: LANGUAGE_NAMES[id],
+    words: [id, ...Object.keys(aliases).filter((word) => aliases[word] === id)],
+  }))
   .sort((a, b) => a.name.localeCompare(b.name));

@@ -19,7 +19,16 @@
     state = "idle",
     event,
     class: className,
-  }: { participants: readonly ParticipantView[]; layout?: "square" | "row"; size?: "md" | "lg"; max?: number; alive?: boolean; state?: MascotState; event?: unknown; class?: ClassValue } = $props();
+  }: {
+    participants: readonly ParticipantView[];
+    layout?: "square" | "row";
+    size?: "md" | "lg";
+    max?: number;
+    alive?: boolean;
+    state?: MascotState;
+    event?: unknown;
+    class?: ClassValue;
+  } = $props();
 
   const ring = ["rounded-full", avatarRing];
   const shown = $derived(participants.slice(0, layout === "square" ? 2 : max));
@@ -28,8 +37,19 @@
 
 {#if layout === "square"}
   <span class={["relative inline-block shrink-0", size === "lg" ? "size-14" : "size-10", className]} aria-hidden="true">
-    {#if shown[0]}<span class="absolute top-0 left-0 flex"><BotAvatar participant={shown[0]} {alive} {state} {event} size={size === "lg" ? "md" : "sm"} /></span>{/if}
-    {#if shown[1]}<span class="absolute right-0 bottom-0 flex"><BotAvatar participant={shown[1]} {alive} {state} {event} size={size === "lg" ? "md" : "sm"} class={ring} /></span>{/if}
+    {#if shown[0]}<span class="absolute top-0 left-0 flex"
+        ><BotAvatar participant={shown[0]} {alive} {state} {event} size={size === "lg" ? "md" : "sm"} /></span
+      >{/if}
+    {#if shown[1]}<span class="absolute right-0 bottom-0 flex"
+        ><BotAvatar
+          participant={shown[1]}
+          {alive}
+          {state}
+          {event}
+          size={size === "lg" ? "md" : "sm"}
+          class={ring}
+        /></span
+      >{/if}
   </span>
 {:else}
   <span class={["flex shrink-0 items-center -space-x-1.5", className]} aria-hidden="true">
@@ -37,7 +57,12 @@
       <BotAvatar {participant} {alive} {state} {event} size="sm" class={ring} />
     {/each}
     {#if extra > 0}
-      <span class={["grid size-7 place-items-center bg-zinc-200 text-[0.6875rem] font-medium text-zinc-700 tabular-nums dark:bg-zinc-800 dark:text-zinc-200", ...ring]}>+{extra}</span>
+      <span
+        class={[
+          "grid size-7 place-items-center bg-zinc-200 text-[0.6875rem] font-medium text-zinc-700 tabular-nums dark:bg-zinc-800 dark:text-zinc-200",
+          ...ring,
+        ]}>+{extra}</span
+      >
     {/if}
   </span>
 {/if}

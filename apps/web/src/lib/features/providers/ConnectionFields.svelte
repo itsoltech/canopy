@@ -42,12 +42,22 @@
   } = $props();
 
   const endpoint = $derived(kind === ProviderProfileKind.CLIPROXYAPI);
+
   const options = $derived([
-    { value: ProviderProfileKind.CLIPROXYAPI, label: "API endpoint", description: "An Anthropic/OpenAI-compatible URL with a key, e.g. CLIProxyAPI." },
+    {
+      value: ProviderProfileKind.CLIPROXYAPI,
+      label: "API endpoint",
+      description: "An Anthropic/OpenAI-compatible URL with a key, e.g. CLIProxyAPI.",
+    },
     {
       value: ProviderProfileKind.NATIVE,
       label: "Device login",
-      description: harness === Provider.GROK ? "Grok CLI's login on the device (grok login), or XAI_API_KEY in its variables." : harness === Provider.CODEX ? "Codex's own login: the device's, or sign in with ChatGPT from here." : "Claude Code's login on the device (or a key in its variables).",
+      description:
+        harness === Provider.GROK
+          ? "Grok CLI's login on the device (grok login), or XAI_API_KEY in its variables."
+          : harness === Provider.CODEX
+            ? "Codex's own login: the device's, or sign in with ChatGPT from here."
+            : "Claude Code's login on the device (or a key in its variables).",
     },
   ]);
 </script>
@@ -55,16 +65,37 @@
 <div class={["grid gap-4", className]}>
   <Fieldset legend="Connection" disabled={kindLocked}>
     {#each options as option (option.value)}
-      <ChoiceCard name="{prefix}-kind" checked={kind === option.value} title={option.label} description={option.description} onchange={() => (kind = option.value)} />
+      <ChoiceCard
+        name="{prefix}-kind"
+        checked={kind === option.value}
+        title={option.label}
+        description={option.description}
+        onchange={() => (kind = option.value)}
+      />
     {/each}
   </Fieldset>
   {#if endpoint}
     <GrowIn class="grid gap-4">
       <Field label="Endpoint URL" error={errors.baseUrl}>
-        <Input name="{prefix}-url" bind:value={baseUrl} placeholder="http://127.0.0.1:8317" autocomplete="off" spellcheck="false" inputmode="url" class="font-mono" />
+        <Input
+          name="{prefix}-url"
+          bind:value={baseUrl}
+          placeholder="http://127.0.0.1:8317"
+          autocomplete="off"
+          spellcheck="false"
+          inputmode="url"
+          class="font-mono"
+        />
       </Field>
       <Field label="API key" error={errors.apiKey}>
-        <SecretValue set={apiKeySet} bind:action={keyAction} bind:value={apiKey} name="{prefix}-key" placeholder="Key" allowClear />
+        <SecretValue
+          set={apiKeySet}
+          bind:action={keyAction}
+          bind:value={apiKey}
+          name="{prefix}-key"
+          placeholder="Key"
+          allowClear
+        />
       </Field>
     </GrowIn>
   {:else if harness === Provider.CODEX}

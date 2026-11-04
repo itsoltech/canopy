@@ -4,5 +4,6 @@ import type { RequestHandler } from "./$types";
 
 export const POST: RequestHandler = async ({ params }) => {
   await call((api) => api.regenerateTitle({ threadId: params.threadId }));
+
   return json({});
 };

@@ -38,20 +38,37 @@
    */
   const SIDES_SHOWN = 3;
   const muted = "size-4 fill-zinc-400 dark:fill-zinc-500";
-  let { thread, row, touch = "press", disabled = false }: { thread: ui.Thread; row: Snippet<[HoverTriggerProps]>; touch?: "press" | "none"; disabled?: boolean } = $props();
+
+  let {
+    thread,
+    row,
+    touch = "press",
+    disabled = false,
+  }: { thread: ui.Thread; row: Snippet<[HoverTriggerProps]>; touch?: "press" | "none"; disabled?: boolean } = $props();
+
   const overview = useOverview();
   const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
 </script>
 
-<HoverCard label="Thread {thread.title}" placement={beside.current ? "right-start" : "bottom-start"} {touch} {disabled} class="w-80">
+<HoverCard
+  label="Thread {thread.title}"
+  placement={beside.current ? "right-start" : "bottom-start"}
+  {touch}
+  {disabled}
+  class="w-80"
+>
   {#snippet trigger(props)}{@render row(props)}{/snippet}
   {@const project = overview.project(thread.projectId)}
   {@const worker = overview.worker(thread.workerId)}
   {@const provider = providerKeyOf(thread.provider)}
-  {@const instance = providerKeyOf(thread.provider) ? instanceOf(worker, providerKeyOf(thread.provider)!, thread.providerProfileId) : undefined}
+  {@const instance = providerKeyOf(thread.provider)
+    ? instanceOf(worker, providerKeyOf(thread.provider)!, thread.providerProfileId)
+    : undefined}
   {@const permission = permissionLook(thread.permissionMode)}
   {@const goal = thread.goalStatus ? goalLook(thread.goalStatus) : undefined}
-  {@const sides = isSide(thread) ? [] : [...overview.threads.values()].filter((t) => isSide(t) && t.parentThreadId === thread.id).sort(byActivity)}
+  {@const sides = isSide(thread)
+    ? []
+    : [...overview.threads.values()].filter((t) => isSide(t) && t.parentThreadId === thread.id).sort(byActivity)}
   <div class="grid gap-3 text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-400">
     <p class="text-base/6 font-semibold text-pretty text-zinc-950 sm:text-sm/5 dark:text-white">{thread.title}</p>
     <ScheduleOrigin {thread} />
@@ -72,31 +89,51 @@
       <SummaryRow>
         {#snippet mark()}<Icon name="computer-desktop" class={muted} />{/snippet}
         <span class="truncate">{worker?.name ?? "Unknown worker"}</span>
-        {#snippet aside()}<StatusDot tone={worker?.online ? "emerald" : "neutral"} />{worker?.online ? osLabel(worker.os) : "Offline"}{/snippet}
+        {#snippet aside()}<StatusDot tone={worker?.online ? "emerald" : "neutral"} />{worker?.online
+            ? osLabel(worker.os)
+            : "Offline"}{/snippet}
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}<Icon name="folder" class={muted} />{/snippet}
-        {#if project?.kind === "scratch"}<span class="truncate" title={thread.cwd}>Scratch folder</span>{:else}<code class="truncate font-mono" title={thread.cwd}>{basename(thread.cwd)}</code>{/if}
+        {#if project?.kind === "scratch"}<span class="truncate" title={thread.cwd}>Scratch folder</span>{:else}<code
+            class="truncate font-mono"
+            title={thread.cwd}>{basename(thread.cwd)}</code
+          >{/if}
       </SummaryRow>
       <SummaryRow>
-        {#snippet mark()}{#if provider}<ProviderIcon {provider} class="size-4 opacity-70" />{:else}<Icon name="cpu-chip" class={muted} />{/if}{/snippet}
-        <span class="truncate">{providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}{thread.effort ? ` · ${effortLevel(thread.effort).label}` : ""}</span>
-        {#snippet aside()}{#if thread.providerProfileId}<span class="text-zinc-500">{instance ? instanceLabel(instance) : thread.providerProfileId}</span>{/if}{/snippet}
+        {#snippet mark()}{#if provider}<ProviderIcon {provider} class="size-4 opacity-70" />{:else}<Icon
+              name="cpu-chip"
+              class={muted}
+            />{/if}{/snippet}
+        <span class="truncate"
+          >{providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}{thread.effort
+            ? ` · ${effortLevel(thread.effort).label}`
+            : ""}</span
+        >
+        {#snippet aside()}{#if thread.providerProfileId}<span class="text-zinc-500"
+              >{instance ? instanceLabel(instance) : thread.providerProfileId}</span
+            >{/if}{/snippet}
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}<Icon name={permission.icon} class={["size-4", permission.iconClass]} />{/snippet}
-        <span class={["truncate", isFullAuto(thread.permissionMode) && permission.textClass]}>{permissionLabel(thread.permissionMode)}</span>
+        <span class={["truncate", isFullAuto(thread.permissionMode) && permission.textClass]}
+          >{permissionLabel(thread.permissionMode)}</span
+        >
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}<Icon name="signal" class={muted} />{/snippet}
         {#if away}
           <span>Last synced status: {thread.status.replaceAll("_", " ")}</span>
         {:else}
-        {#if workState(thread) === "idle" && thread.status === "idle"}<span>Idle<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span></span>{/if}
-        <ThreadStatusText {thread} />
-        {#if thread.backgroundTasks > 0}
-          <span class={["flex shrink-0 items-center gap-0.5 tabular-nums", textTones.sky]}><Icon name="bolt" class="size-3.5" />{thread.backgroundTasks} in background</span>
-        {/if}
+          {#if workState(thread) === "idle" && thread.status === "idle"}<span
+              >Idle<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span></span
+            >{/if}
+          <ThreadStatusText {thread} />
+          {#if thread.backgroundTasks > 0}
+            <span class={["flex shrink-0 items-center gap-0.5 tabular-nums", textTones.sky]}
+              ><Icon name="bolt" class="size-3.5" />{thread.backgroundTasks} in background</span
+            >
+          {/if}
         {/if}
       </SummaryRow>
       {#if goal}
@@ -115,7 +152,9 @@
             <SummaryRow>
               {#snippet mark()}<Icon name={look.icon} class={["size-4", look.iconClass]} />{/snippet}
               <span class="truncate text-zinc-700 dark:text-zinc-300">{side.title}</span>
-              {#snippet aside()}{#if away}<span>{side.status.replaceAll("_", " ")}</span>{:else}<ThreadStatusText thread={side} />{/if}{/snippet}
+              {#snippet aside()}{#if away}<span>{side.status.replaceAll("_", " ")}</span>{:else}<ThreadStatusText
+                    thread={side}
+                  />{/if}{/snippet}
             </SummaryRow>
           {/each}
         </ul>

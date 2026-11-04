@@ -18,6 +18,7 @@ export async function serveLink(
 ): Promise<SessionEnd> {
   host.attach(link);
   let drainDelayMs: number | undefined;
+
   try {
     for await (const message of link.messages) {
       switch (message.payload.case) {
@@ -27,14 +28,18 @@ export async function serveLink(
         case "config": {
           const report = await host.applyConfig(message.payload.value);
           link.send({ case: "configApplied", value: report });
-          log(`config v${message.payload.value.version} ${report.applied ? "applied" : "rejected"} (${report.issues?.length ?? 0} issue(s))`);
+          log(
+            `config v${message.payload.value.version} ${report.applied ? "applied" : "rejected"} (${report.issues?.length ?? 0} issue(s))`,
+          );
           break;
         }
+
         case "command": {
           const command = message.payload.value;
           // Commands run concurrently (a long turn must not block an interrupt); results go back when ready.
           void host.handleCommand(command).then((result) => {
             if (!result) return; // the worker is stopping: redelivered to the next process
+
             try {
               link.send({ case: "commandResult", value: result });
             } catch {
@@ -43,6 +48,7 @@ export async function serveLink(
           });
           break;
         }
+
         case "interactionResponse":
           host.handleInteractionResponse(message.payload.value);
           break;
@@ -66,5 +72,6 @@ export async function serveLink(
   } finally {
     host.detach(link);
   }
+
   return drainDelayMs === undefined ? {} : { drainDelayMs };
 }

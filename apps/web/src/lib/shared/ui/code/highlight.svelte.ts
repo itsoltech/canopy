@@ -4,12 +4,14 @@ import { updateNotice } from "#lib/shared/updates.svelte.ts";
 
 /** Main-thread time one slice of highlighting may take before it yields (ms). */
 const SLICE_MS = 6;
+
 /** Longer code stays plain (it would take seconds of slices, and nobody reads it coloured). */
 const MAX_LINES = 5000;
 const MAX_CHARS = 300_000;
 
 const yieldToMain = (): Promise<void> => {
   const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+
   return scheduler?.yield ? scheduler.yield() : new Promise((resolve) => setTimeout(resolve, 0));
 };
 
@@ -32,34 +34,44 @@ export class Highlight {
     $effect(() => {
       const id = lang();
       const value = text();
+
       if (id !== workLang) {
         work = new IncrementalHighlight();
         workLang = id;
         this.lines = [];
       }
+
       if (!id || value.length > MAX_CHARS) return;
       const source = value.split("\n");
+
       if (source.length > MAX_LINES) return;
+
       if (work.retain(source)) this.lines = [...work.lines];
       const current = work;
       let stopped = false;
       void (async () => {
         let tokenize: LineTokenizer;
+
         try {
           tokenize = await (await import("./highlighter.ts")).tokenizer(id);
         } catch (cause) {
           updateNotice.detect(false, cause);
+
           return; // The chunk did not load (offline, a new deploy): the block stays plain.
         }
+
         while (!stopped) {
           const deadline = performance.now() + SLICE_MS;
           const before = current.lines.length;
           const done = current.advance(source, tokenize, () => performance.now() < deadline);
+
           if (current.lines.length !== before) this.lines = [...current.lines];
+
           if (done) return;
           await yieldToMain();
         }
       })();
+
       return () => {
         stopped = true;
       };

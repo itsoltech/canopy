@@ -8,7 +8,14 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { DeviceLogin, PermissionMode, Provider, ProviderProfileKind, type ModelCatalog, type ThreadEvent } from "@canopy/contracts";
+import {
+  DeviceLogin,
+  PermissionMode,
+  Provider,
+  ProviderProfileKind,
+  type ModelCatalog,
+  type ThreadEvent,
+} from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { journalHello } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
@@ -54,13 +61,29 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker: model filter and confi
       const claudeHome = join(dir, "device-claude");
       mkdirSync(codexHome);
       mkdirSync(claudeHome);
-      writeFileSync(join(codexHome, "config.toml"), `model_reasoning_effort = "high"\nprofile = "work"\n\n[profiles.work]\nmodel_reasoning_effort = "${CONFIGURED}"\n`);
-      writeFileSync(join(claudeHome, "settings.json"), JSON.stringify({ effortLevel: "high", modelSettings: { [c.model]: { effortLevel: CONFIGURED } } }));
+      writeFileSync(
+        join(codexHome, "config.toml"),
+        `model_reasoning_effort = "high"\nprofile = "work"\n\n[profiles.work]\nmodel_reasoning_effort = "${CONFIGURED}"\n`,
+      );
+      writeFileSync(
+        join(claudeHome, "settings.json"),
+        JSON.stringify({ effortLevel: "high", modelSettings: { [c.model]: { effortLevel: CONFIGURED } } }),
+      );
 
       const gateway = await startGateway();
       const runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
-      const host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "live", deviceHomes: { codex: codexHome, claude: claudeHome } });
-      const link = await connectWorker(gateway.server.url, { hello: { workerId: "worker-1", ...(await runtime.runPromise(journalHello())) } });
+
+      const host = new WorkerHost({
+        runtime,
+        dataDir: join(dir, "data"),
+        clientVersion: "live",
+        deviceHomes: { codex: codexHome, claude: claudeHome },
+      });
+
+      const link = await connectWorker(gateway.server.url, {
+        hello: { workerId: "worker-1", ...(await runtime.runPromise(journalHello())) },
+      });
+
       const serving = serveLink(link, host, runtime);
       const connection = await gateway.nextConnection();
 
@@ -70,20 +93,37 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker: model filter and confi
       void (async () => {
         for await (const message of connection.messages) {
           const payload = message.payload;
+
           if (payload.case === "configApplied") applied = payload.value.applied;
+
           if (payload.case === "modelCatalog") catalog = payload.value;
+
           if (payload.case === "threadEvent") {
             events.push(payload.value);
-            connection.send({ case: "eventAck", value: { threadId: payload.value.threadId, ackSeq: payload.value.journalSeq } });
+            connection.send({
+              case: "eventAck",
+              value: { threadId: payload.value.threadId, ackSeq: payload.value.journalSeq },
+            });
           }
-          if (payload.case === "interactionRequest") connection.send({ case: "interactionResponse", value: { requestId: payload.value.requestId, allow: true } });
+
+          if (payload.case === "interactionRequest")
+            connection.send({
+              case: "interactionResponse",
+              value: { requestId: payload.value.requestId, allow: true },
+            });
         }
       })();
 
       connection.send({
         case: "config",
-        value: { version: 1n, allowedRoots: [repo], ...c.config, profiles: [{ id: "live", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl!, apiKey: proxyKey! }] },
+        value: {
+          version: 1n,
+          allowedRoots: [repo],
+          ...c.config,
+          profiles: [{ id: "live", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl!, apiKey: proxyKey! }],
+        },
       });
+
       for (let i = 0; i < 600 && (!applied || !catalog); i++) await Bun.sleep(100);
 
       // 1. The catalog: no image/video/speech models, chat models of other vendors stay (with or without efforts).
@@ -95,35 +135,77 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker: model filter and confi
       const chosen = models.find((m) => m.id === c.model || m.resolvedModel === c.model);
       expect(chosen?.efforts).toContain(CONFIGURED);
       expect(chosen?.defaultEffort).toBe(CONFIGURED);
+
       // A model without that level does not report it.
       for (const m of models) if (m.defaultEffort) expect(m.efforts).toContain(m.defaultEffort);
-      console.info(`${c.name}: ${models.length} agent models; ${chosen?.id} default effort ${chosen?.defaultEffort}; without efforts: ${models.filter((m) => m.efforts.length === 0).length}`);
+      console.info(
+        `${c.name}: ${models.length} agent models; ${chosen?.id} default effort ${chosen?.defaultEffort}; without efforts: ${models.filter((m) => m.efforts.length === 0).length}`,
+      );
 
       // 2. A turn without an effort runs with the configured default.
       const threadId = Bun.randomUUIDv7();
-      const spec = { threadId, provider: c.provider, providerProfileId: "live", cwd: repo, permissionMode: c.permissionMode };
-      expect(await connection.sendCommand({ case: "createThread", value: { thread: spec } }, 60_000)).toMatchObject({ ok: true });
+
+      const spec = {
+        threadId,
+        provider: c.provider,
+        providerProfileId: "live",
+        cwd: repo,
+        permissionMode: c.permissionMode,
+      };
+
+      expect(await connection.sendCommand({ case: "createThread", value: { thread: spec } }, 60_000)).toMatchObject({
+        ok: true,
+      });
       const ready = events.find((e) => e.threadId === threadId && e.body.case === "threadReady");
-      const withThread = { ...spec, providerThreadId: ready?.body.case === "threadReady" ? ready.body.value.providerThreadId : "" };
+
+      const withThread = {
+        ...spec,
+        providerThreadId: ready?.body.case === "threadReady" ? ready.body.value.providerThreadId : "",
+      };
+
       const turnId = Bun.randomUUIDv7();
+
       const prompt =
-        c.provider === Provider.CLAUDE ? "Run `echo effort=$CLAUDE_EFFORT` with the Bash tool and reply with its output only." : "Reply with the single word OK.";
-      expect(await connection.sendCommand({ case: "startTurn", value: { thread: withThread, turnId, input: { text: prompt }, model: c.model } }, 60_000)).toMatchObject({ ok: true });
+        c.provider === Provider.CLAUDE
+          ? "Run `echo effort=$CLAUDE_EFFORT` with the Bash tool and reply with its output only."
+          : "Reply with the single word OK.";
+
+      expect(
+        await connection.sendCommand(
+          { case: "startTurn", value: { thread: withThread, turnId, input: { text: prompt }, model: c.model } },
+          60_000,
+        ),
+      ).toMatchObject({ ok: true });
       const deadline = Date.now() + 240_000;
-      while (!events.some((e) => e.turnId === turnId && e.body.case === "turnFinished") && Date.now() < deadline) await Bun.sleep(100);
+
+      while (!events.some((e) => e.turnId === turnId && e.body.case === "turnFinished") && Date.now() < deadline)
+        await Bun.sleep(100);
       const finished = events.find((e) => e.turnId === turnId && e.body.case === "turnFinished");
       expect(finished?.body.case === "turnFinished" ? finished.body.value.outcome : undefined).toBe(1);
+
       if (c.provider === Provider.CODEX) {
         const settings = events
           .filter((e) => e.threadId === threadId)
-          .map((e) => JSON.parse(e.rawJson || "{}") as { method?: string; params?: { threadSettings?: { model?: string; effort?: string } } })
+          .map(
+            (e) =>
+              JSON.parse(e.rawJson || "{}") as {
+                method?: string;
+                params?: { threadSettings?: { model?: string; effort?: string } };
+              },
+          )
           .filter((n) => n.method === "thread/settings/updated")
           .at(-1)?.params?.threadSettings;
+
         expect([settings?.model, settings?.effort]).toEqual([c.model, CONFIGURED]);
       } else {
         const text = events
-          .flatMap((e) => (e.turnId === turnId && e.body.case === "itemCompleted" && e.body.value.item?.content.case === "agentMessage" ? [e.body.value.item.content.value.text] : []))
+          .flatMap((e) =>
+            e.turnId === turnId && e.body.case === "itemCompleted" && e.body.value.item?.content.case === "agentMessage"
+              ? [e.body.value.item.content.value.text]
+              : [],
+          )
           .join("\n");
+
         expect(text).toContain(`effort=${CONFIGURED}`);
       }
 

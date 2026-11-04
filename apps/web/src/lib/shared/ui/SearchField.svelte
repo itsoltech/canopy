@@ -6,7 +6,12 @@
    * Search box with a magnifier: a framed label around a bare `type="search"` input. `label` is the accessible
    * name (visually hidden); other input attributes (name, placeholder, data-autofocus) pass through.
    */
-  type Props = Omit<HTMLInputAttributes, "class" | "type" | "value"> & { label: string; value?: string; class?: ClassValue };
+  type Props = Omit<HTMLInputAttributes, "class" | "type" | "value"> & {
+    label: string;
+    value?: string;
+    class?: ClassValue;
+  };
+
   let { label, value = $bindable(""), class: className, ...rest }: Props = $props();
 </script>
 

@@ -10,7 +10,17 @@
   import { PALETTE_HOTKEY, type PaletteState } from "./commands.svelte.ts";
   import CommandCrumb from "./CommandCrumb.svelte";
   import CommandRow from "./CommandRow.svelte";
-  import { actionOf, enterLevel, flatEntries, leaveLevel, levelCommands, moveActive, paletteView, type PaletteEntry, type PaletteLevel } from "./palette.ts";
+  import {
+    actionOf,
+    enterLevel,
+    flatEntries,
+    leaveLevel,
+    levelCommands,
+    moveActive,
+    paletteView,
+    type PaletteEntry,
+    type PaletteLevel,
+  } from "./palette.ts";
   import type { ClassValue } from "svelte/elements";
   import type { Command, CommandRegistry } from "./registry.ts";
 
@@ -26,16 +36,22 @@
    * It also binds the hotkeys the commands advertise, globally: those with a modifier work while typing
    * too, bare keys only outside text fields; none while another modal dialog is open.
    */
-  let { registry, palette, class: className }: { registry: CommandRegistry; palette: PaletteState; class?: ClassValue } = $props();
+  let {
+    registry,
+    palette,
+    class: className,
+  }: { registry: CommandRegistry; palette: PaletteState; class?: ClassValue } = $props();
 
   const id = $props.id();
   let dialog = $state<HTMLDialogElement>();
   let input = $state<HTMLInputElement>();
   let query = $state("");
   let stack = $state.raw<PaletteLevel[]>([]);
+
   /** Direction of the last level change (submenu slide). */
   let direction = $state(1);
   let activeKey = $state<string>();
+
   /** How the active row last changed: keys scroll it into view, the pointer does not. */
   let movedBy: "key" | "pointer" = "key";
   let closing = $state(false);
@@ -43,17 +59,30 @@
   let opener: HTMLElement | undefined;
 
   const level = $derived(stack.at(-1));
-  const sections = $derived(palette.open || closing ? paletteView(levelCommands(registry.list(), stack), query, { nested: Boolean(level) }) : []);
+
+  const sections = $derived(
+    palette.open || closing
+      ? paletteView(levelCommands(registry.list(), stack), query, { nested: Boolean(level) })
+      : [],
+  );
+
   const entries = $derived(flatEntries(sections));
+
   const activeIndex = $derived.by(() => {
     const index = entries.findIndex((e) => e.key === activeKey);
+
     return index >= 0 ? index : entries.length > 0 ? 0 : -1;
   });
+
   const optionId = (index: number) => `${id}-option-${index}`;
-  const placeholder = $derived(level?.command.placeholder ?? (level ? "Search…" : "Search commands, projects, and threads…"));
+
+  const placeholder = $derived(
+    level?.command.placeholder ?? (level ? "Search…" : "Search commands, projects, and threads…"),
+  );
 
   $effect(() => {
     if (!dialog) return;
+
     if (palette.open && !dialog.open) {
       clearTimeout(closed);
       closing = false;
@@ -64,18 +93,22 @@
       dialog.showModal();
       input?.focus();
     }
+
     if (!palette.open && dialog.open) {
       dialog.close();
       exit();
     }
   });
+
   $effect(() => () => clearTimeout(closed));
 
   // The active row stays in view while the keys move it (the first one scrolls the list to the top,
   // so its group heading shows).
   $effect(() => {
     const index = activeIndex;
+
     if (index < 0 || movedBy !== "key") return;
+
     if (index === 0) document.getElementById(`${id}-list`)?.scrollTo({ top: 0 });
     else document.getElementById(optionId(index))?.scrollIntoView({ block: "nearest" });
   });
@@ -85,8 +118,10 @@
     closing = true;
     clearTimeout(closed);
     closed = setTimeout(() => (closing = false), exitDuration(dialog));
+
     // Back to the opener unless the command moved focus elsewhere (another dialog).
-    if (opener?.isConnected && (document.activeElement === document.body || dialog.contains(document.activeElement))) opener.focus({ preventScroll: true });
+    if (opener?.isConnected && (document.activeElement === document.body || dialog.contains(document.activeElement)))
+      opener.focus({ preventScroll: true });
   }
 
   function close() {
@@ -105,6 +140,7 @@
     if (!level) return false;
     const up = leaveLevel(stack);
     setLevel(up.stack, up.query, -1);
+
     return true;
   }
 
@@ -112,6 +148,7 @@
   async function run(command: Command) {
     close();
     await tick();
+
     if (command.run) await command.run();
     else if (command.href) await goto(command.href);
   }
@@ -119,22 +156,29 @@
   function choose(entry: PaletteEntry, event?: MouseEvent) {
     const command = entry.command;
     const action = actionOf(command);
+
     if (action === "enter") {
       event?.preventDefault();
       setLevel(enterLevel(stack, command, query), "", 1);
       input?.focus();
+
       return;
     }
+
     if (action === "none") {
       event?.preventDefault();
+
       return;
     }
+
     if (command.href && !command.run) {
       // A link: a click follows it itself (a modifier opens a new tab); the keyboard clicks it.
       if (!event) document.getElementById(optionId(entries.indexOf(entry)))?.click();
       else close();
+
       return;
     }
+
     event?.preventDefault();
     void run(command);
   }
@@ -148,25 +192,43 @@
   function onkeydown(event: KeyboardEvent) {
     if (event.isComposing) return;
     const plain = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
-    const keys: Record<string, Parameters<typeof moveActive>[1]> = { ArrowDown: "next", ArrowUp: "previous", PageDown: "pageDown", PageUp: "pageUp", Home: "first", End: "last" };
+
+    const keys: Record<string, Parameters<typeof moveActive>[1]> = {
+      ArrowDown: "next",
+      ArrowUp: "previous",
+      PageDown: "pageDown",
+      PageUp: "pageUp",
+      Home: "first",
+      End: "last",
+    };
+
     const movement = keys[event.key];
+
     if (movement && (plain || event.key.startsWith("Arrow"))) {
       event.preventDefault();
       move(movement);
+
       return;
     }
+
     if (event.key === "Enter" && plain) {
       event.preventDefault();
       const entry = entries[activeIndex];
+
       if (entry) choose(entry);
+
       return;
     }
+
     if ((event.key === "Backspace" || event.key === "ArrowLeft") && plain && query === "" && back()) {
       event.preventDefault();
+
       return;
     }
+
     if (event.key === "ArrowRight" && plain && input?.selectionStart === query.length) {
       const entry = entries[activeIndex];
+
       if (entry && actionOf(entry.command) === "enter") {
         event.preventDefault();
         choose(entry);
@@ -175,21 +237,30 @@
   }
 
   const isEditable = (target: EventTarget | null) =>
-    target instanceof HTMLElement && (target.isContentEditable || target.matches("input:not([type=checkbox],[type=radio],[type=button],[type=submit]), textarea, select"));
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target.matches("input:not([type=checkbox],[type=radio],[type=button],[type=submit]), textarea, select"));
+
   const hasModifier = (hotkey: string) => /(^|\+)(mod|ctrl|meta|alt)\+/i.test(hotkey);
 
   function onWindowKeydown(event: KeyboardEvent) {
     if (event.defaultPrevented || event.isComposing || event.repeat) return;
+
     if (matchesHotkey(event, PALETTE_HOTKEY)) {
       event.preventDefault();
       palette.toggle();
+
       return;
     }
+
     if (palette.open || document.querySelector("dialog:modal")) return;
     const command = registry.list().find((c) => c.hotkey && matchesHotkey(event, c.hotkey));
+
     if (!command || actionOf(command) !== "run") return;
+
     if (isEditable(event.target) && !hasModifier(command.hotkey!)) return;
     event.preventDefault();
+
     if (command.run) void command.run();
     else if (command.href) void goto(command.href);
   }
@@ -216,7 +287,9 @@
   ]}
 >
   {#if palette.open || closing}
-    <div class="flex shrink-0 items-center gap-2 border-b border-zinc-950/5 px-3 pt-[max(--spacing(0),env(safe-area-inset-top))] dark:border-white/8">
+    <div
+      class="flex shrink-0 items-center gap-2 border-b border-zinc-950/5 px-3 pt-[max(--spacing(0),env(safe-area-inset-top))] dark:border-white/8"
+    >
       {#if level}
         <IconButton icon="arrow-left" label="Back" size="sm" onclick={() => (back(), input?.focus())} />
         <CommandCrumb titles={stack.map((l) => l.command.title)} />
@@ -260,7 +333,13 @@
         {#each sections as section, s (section.group ?? s)}
           <div role="group" aria-labelledby={section.label ? `${id}-group-${s}` : undefined}>
             {#if section.label}
-              <div id="{id}-group-{s}" role="presentation" class="px-3 pt-3 pb-1 text-sm/5 font-medium text-zinc-500 first:pt-1.5 sm:text-xs/4 dark:text-zinc-400">{section.label}</div>
+              <div
+                id="{id}-group-{s}"
+                role="presentation"
+                class="px-3 pt-3 pb-1 text-sm/5 font-medium text-zinc-500 first:pt-1.5 sm:text-xs/4 dark:text-zinc-400"
+              >
+                {section.label}
+              </div>
             {/if}
             {#each section.entries as entry (entry.key)}
               {@const index = entries.indexOf(entry)}
@@ -278,13 +357,20 @@
           </div>
         {/each}
         {#if entries.length === 0}
-          <p class="px-4 py-10 text-center text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">No results{query.trim() ? ` for “${query.trim()}”` : ""}</p>
+          <p class="px-4 py-10 text-center text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+            No results{query.trim() ? ` for “${query.trim()}”` : ""}
+          </p>
         {/if}
       </div>
     {/key}
-    <p class="sr-only" role="status">{entries.length === 0 ? "No results" : `${entries.length} ${entries.length === 1 ? "result" : "results"}`}</p>
+    <p class="sr-only" role="status">
+      {entries.length === 0 ? "No results" : `${entries.length} ${entries.length === 1 ? "result" : "results"}`}
+    </p>
 
-    <div class="flex shrink-0 items-center gap-4 border-t border-zinc-950/5 px-4 py-2.5 text-xs/4 text-zinc-500 pointer-coarse:hidden dark:border-white/8 dark:text-zinc-400" aria-hidden="true">
+    <div
+      class="flex shrink-0 items-center gap-4 border-t border-zinc-950/5 px-4 py-2.5 text-xs/4 text-zinc-500 dark:border-white/8 dark:text-zinc-400 pointer-coarse:hidden"
+      aria-hidden="true"
+    >
       <KeyHint hotkeys={["ArrowUp", "ArrowDown"]} label="Navigate" />
       <KeyHint hotkeys={["Enter"]} label="Select" />
       {#if level}<KeyHint hotkeys={["Backspace"]} label="Back" />{/if}

@@ -14,7 +14,18 @@
    * with its status and OS. An offline worker stays listed, marked. The footer links to
    * the project's settings, where the workers are configured.
    */
-  let { project, value, onselect, class: className }: { project: ui.Project; value: string | undefined; onselect: (workspace: ui.Workspace) => void; class?: ClassValue } = $props();
+  let {
+    project,
+    value,
+    onselect,
+    class: className,
+  }: {
+    project: ui.Project;
+    value: string | undefined;
+    onselect: (workspace: ui.Workspace) => void;
+    class?: ClassValue;
+  } = $props();
+
   const overview = useOverview();
 
   const selected = $derived(project.workspaces.find((w) => w.id === value));
@@ -31,7 +42,12 @@
   text={(w) => nameOf(w)}
   {value}
   {onselect}
-  link={project.kind === "scratch" ? { href: "/settings/workers", label: "Manage workers" } : { href: `/settings/projects/${project.id}`, label: project.workspaces.length === 0 ? "Add it to a worker" : "Configure workers" }}
+  link={project.kind === "scratch"
+    ? { href: "/settings/workers", label: "Manage workers" }
+    : {
+        href: `/settings/projects/${project.id}`,
+        label: project.workspaces.length === 0 ? "Add it to a worker" : "Configure workers",
+      }}
 >
   {#snippet trigger(props)}
     <PillButton
@@ -49,11 +65,17 @@
     </PillButton>
   {/snippet}
   {#snippet option(ws, state)}
-    <PickerRow title={nameOf(ws)} detail={project.nodeId ? `On ${overview.machine(project.nodeId)}` : undefined} status={workerStatus(overview.worker(ws.workerId))} selected={state.selected}>
+    <PickerRow
+      title={nameOf(ws)}
+      detail={project.nodeId ? `On ${overview.machine(project.nodeId)}` : undefined}
+      status={workerStatus(overview.worker(ws.workerId))}
+      selected={state.selected}
+    >
       {#snippet leading()}<StatusDot tone={online(ws) ? "emerald" : "neutral"} />{/snippet}
     </PickerRow>
   {/snippet}
   {#snippet empty(query)}
-    {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Connect a worker first.{:else}{project.name} is not on any worker yet.{/if}
+    {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Connect a worker first.{:else}{project.name}
+      is not on any worker yet.{/if}
   {/snippet}
 </SearchPicker>

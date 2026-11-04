@@ -11,7 +11,8 @@ import type { Attachment } from "svelte/attachments";
  *   formatHotkey("Mod+Shift+F")  // "⇧⌘F" on a Mac, "Ctrl+Shift+F" elsewhere (use <Kbd> to show it)
  */
 
-export const isApple = (): boolean => typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+export const isApple = (): boolean =>
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
 
 interface Parsed {
   readonly mod: boolean;
@@ -26,14 +27,18 @@ function parse(hotkey: string): Parsed {
   const parts = hotkey.split("+");
   const key = parts.pop() ?? "";
   const has = (name: string) => parts.some((p) => p.toLowerCase() === name);
+
   return { mod: has("mod"), ctrl: has("ctrl"), meta: has("meta"), shift: has("shift"), alt: has("alt"), key };
 }
 
 /** The key part of an event comparable with a hotkey's: physical letter/digit, else the key name. */
 function keyOf(event: KeyboardEvent): string {
   const code = event.code;
+
   if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+
   if (/^Digit\d$/.test(code)) return code.slice(5);
+
   return event.key.length === 1 ? event.key.toUpperCase() : event.key;
 }
 
@@ -42,6 +47,7 @@ export function matchesHotkey(event: KeyboardEvent, hotkey: string): boolean {
   const apple = isApple();
   const ctrl = want.ctrl || (want.mod && !apple);
   const meta = want.meta || (want.mod && apple);
+
   return (
     event.ctrlKey === ctrl &&
     event.metaKey === meta &&
@@ -52,19 +58,37 @@ export function matchesHotkey(event: KeyboardEvent, hotkey: string): boolean {
 }
 
 const appleSymbols: Record<string, string> = { mod: "⌘", meta: "⌘", ctrl: "⌃", shift: "⇧", alt: "⌥" };
-const keyNames: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Enter: "↵", Escape: "Esc", " ": "Space" };
+
+const keyNames: Record<string, string> = {
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  ArrowLeft: "←",
+  ArrowRight: "→",
+  Enter: "↵",
+  Escape: "Esc",
+  " ": "Space",
+};
 
 /** Keys of a hotkey for display, one string per key (`["⇧", "⌘", "F"]` or `["Ctrl", "Shift", "F"]`). */
 export function hotkeyKeys(hotkey: string): string[] {
   const { key, ...mods } = parse(hotkey);
   const apple = isApple();
   const key_ = keyNames[key] ?? (key.length === 1 ? key.toUpperCase() : key);
+
   if (apple) {
     // Apple order: ⌃ ⌥ ⇧ ⌘.
     const order = (["ctrl", "alt", "shift", "mod", "meta"] as const).filter((m) => mods[m]);
+
     return [...order.map((m) => appleSymbols[m] ?? m), key_];
   }
-  const names = [mods.mod || mods.ctrl ? "Ctrl" : "", mods.meta ? "Meta" : "", mods.alt ? "Alt" : "", mods.shift ? "Shift" : ""].filter(Boolean);
+
+  const names = [
+    mods.mod || mods.ctrl ? "Ctrl" : "",
+    mods.meta ? "Meta" : "",
+    mods.alt ? "Alt" : "",
+    mods.shift ? "Shift" : "",
+  ].filter(Boolean);
+
   return [...names, key_];
 }
 
@@ -80,18 +104,24 @@ export type HotkeyMap = Readonly<Record<string, (event: KeyboardEvent) => void>>
 export function hotkeys(map: HotkeyMap, { global = false }: { global?: boolean } = {}): Attachment<HTMLElement> {
   return (node) => {
     const target: HTMLElement | Window = global ? window : node;
+
     const onkeydown = (event: Event) => {
       const keyboard = event as KeyboardEvent;
+
       if (keyboard.isComposing || keyboard.defaultPrevented) return;
+
       for (const [hotkey, run] of Object.entries(map)) {
         if (matchesHotkey(keyboard, hotkey)) {
           keyboard.preventDefault();
           run(keyboard);
+
           return;
         }
       }
     };
+
     target.addEventListener("keydown", onkeydown);
+
     return () => target.removeEventListener("keydown", onkeydown);
   };
 }

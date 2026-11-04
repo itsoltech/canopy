@@ -29,6 +29,7 @@
     enter?: { kind: "rise" | "reveal" | "unfold"; order: number } | undefined;
     children: Snippet;
   } = $props();
+
   const entrance = untrack(() => enter?.kind);
   const delay = untrack(() => (enter?.kind === "unfold" ? stagger(enter.order) : 0));
 

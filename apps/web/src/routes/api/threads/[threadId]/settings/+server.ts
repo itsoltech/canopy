@@ -19,5 +19,11 @@ const Body = Schema.Struct({
 export const POST: RequestHandler = async ({ request, params }) => {
   const { permissionMode, ...body } = await readBody(request, Body);
   const change = { ...body, ...(permissionMode && { permissionMode: PermissionMode[permissionMode] }) };
-  return json(encode(ui.UpdateThreadResponseSchema, await call((api) => api.updateThread({ threadId: params.threadId, ...change }))));
+
+  return json(
+    encode(
+      ui.UpdateThreadResponseSchema,
+      await call((api) => api.updateThread({ threadId: params.threadId, ...change })),
+    ),
+  );
 };

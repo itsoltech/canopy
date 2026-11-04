@@ -15,14 +15,18 @@ const MAX_BODY = 200 * 1024 ** 2;
 export const POST: RequestHandler = async ({ request, url }) => {
   requireSameOrigin(request, url);
   const length = Number(request.headers.get("content-length") ?? "0");
+
   if (length > MAX_BODY) error(413, "The file is too large");
   let name = "attachment";
+
   try {
     name = decodeURIComponent(request.headers.get("x-file-name") ?? "") || name;
   } catch {
     error(400, "Bad file name");
   }
+
   const data = new Uint8Array(await request.arrayBuffer());
   const response = await call((api) => api.uploadAttachment({ name, data }, { timeoutMs: 60_000 }));
+
   return json(encode(ui.AttachmentSchema, response.attachment!));
 };

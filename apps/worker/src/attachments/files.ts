@@ -40,6 +40,7 @@ export class AttachmentFiles {
     if (!UUID.test(threadId)) throw new AttachmentError(`bad thread id ${threadId}`, true);
     const dir = join(this.root, threadId);
     mkdirSync(dir, { recursive: true, mode: 0o700 });
+
     return dir;
   }
 
@@ -47,16 +48,29 @@ export class AttachmentFiles {
    * Makes sure every attachment of a turn is on disk with the right content: kept when already there (a redelivered
    * StartTurn), else fetched from the gateway, checked against its sha256 and size, and written atomically.
    */
-  async ensure(threadId: string, attachments: readonly InputAttachment[], fetch: (sha256: string) => Promise<Uint8Array>): Promise<void> {
+  async ensure(
+    threadId: string,
+    attachments: readonly InputAttachment[],
+    fetch: (sha256: string) => Promise<Uint8Array>,
+  ): Promise<void> {
     for (const attachment of attachments) {
-      if (!UUID.test(threadId) || !UUID.test(attachment.attachmentId)) throw new AttachmentError(`bad attachment id ${attachment.attachmentId}`, true);
+      if (!UUID.test(threadId) || !UUID.test(attachment.attachmentId))
+        throw new AttachmentError(`bad attachment id ${attachment.attachmentId}`, true);
       const path = attachmentPath(this.root, process.platform, threadId, attachment.attachmentId, attachment.name);
-      if (path !== attachment.path) throw new AttachmentError(`attachment ${attachment.name}: the gateway names ${attachment.path}, this worker keeps it at ${path}`, true);
+
+      if (path !== attachment.path)
+        throw new AttachmentError(
+          `attachment ${attachment.name}: the gateway names ${attachment.path}, this worker keeps it at ${path}`,
+          true,
+        );
+
       if (matches(path, attachment)) continue;
       const data = await fetch(attachment.sha256);
+
       if (BigInt(data.length) !== attachment.sizeBytes || sha256(data) !== attachment.sha256) {
         throw new AttachmentError(`attachment ${attachment.name} arrived damaged (size or sha256 differ)`, false);
       }
+
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
       const tmp = `${path}.${process.pid}.part`;
       writeFileSync(tmp, data, { mode: 0o600 });
@@ -67,6 +81,7 @@ export class AttachmentFiles {
 
 function matches(path: string, attachment: InputAttachment): boolean {
   if (!existsSync(path)) return false;
+
   try {
     return BigInt(statSync(path).size) === attachment.sizeBytes && sha256(readFileSync(path)) === attachment.sha256;
   } catch {

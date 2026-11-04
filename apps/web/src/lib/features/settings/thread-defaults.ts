@@ -11,12 +11,14 @@ import { PermissionMode, Provider, ui } from "@canopy/contracts";
 export function effectiveDefaults(user: ui.ThreadDefaults, project: ui.ThreadDefaults | undefined): ui.ThreadDefaults {
   if (!project) return user;
   const agent = project.provider !== Provider.UNSPECIFIED ? project : user;
+
   return create(ui.ThreadDefaultsSchema, {
     workspaceId: project.workspaceId || user.workspaceId,
     provider: agent.provider,
     providerProfileId: agent.providerProfileId,
     models: agent.models,
-    permissionMode: project.permissionMode !== PermissionMode.UNSPECIFIED ? project.permissionMode : user.permissionMode,
+    permissionMode:
+      project.permissionMode !== PermissionMode.UNSPECIFIED ? project.permissionMode : user.permissionMode,
   });
 }
 
@@ -28,5 +30,6 @@ export function modelFor(defaults: ui.ThreadDefaults, provider: Provider): strin
 /** Defaults' models with one provider's model set (empty removes it). */
 export function withModel(models: readonly ui.ProviderModel[], provider: Provider, model: string): ui.ProviderModel[] {
   const others = models.filter((m) => m.provider !== provider);
+
   return model ? [...others, create(ui.ProviderModelSchema, { provider, model })] : others;
 }

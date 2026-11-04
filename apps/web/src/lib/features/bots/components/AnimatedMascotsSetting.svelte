@@ -7,10 +7,19 @@
 
   let { class: className }: { class?: ClassValue } = $props();
   let enabled = $state(true);
-  onMount(() => watchAnimatedMascots((value) => { enabled = value; }));
+
+  onMount(() =>
+    watchAnimatedMascots((value) => {
+      enabled = value;
+    }),
+  );
 </script>
 
-<SettingsRow title="Animated mascots" description="Subtle eye tracking and expressions. Saved on this device; respects reduced motion." class={className}>
+<SettingsRow
+  title="Animated mascots"
+  description="Subtle eye tracking and expressions. Saved on this device; respects reduced motion."
+  class={className}
+>
   {#snippet control()}
     <Switch name="animatedMascots" label="Animated mascots" checked={enabled} onchange={setAnimatedMascots} />
   {/snippet}

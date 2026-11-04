@@ -16,7 +16,18 @@ const since = (ms: bigint, now: number) => formatRelative(timestampFromMs(Number
 /** "Worked 3 minutes ago · 4 ms", "Failed just now · last worked 2 days ago", "Not tried yet". */
 export function routeStatus(route: ui.ComputerRoute, now = Date.now()): { text: string; failing: boolean } {
   const failing = route.lastFailureMs > route.lastSuccessMs;
-  if (failing) return { failing, text: `Failed ${since(route.lastFailureMs, now)}${route.lastSuccessMs ? ` · last worked ${since(route.lastSuccessMs, now)}` : ""}` };
-  if (route.lastSuccessMs) return { failing, text: `Worked ${since(route.lastSuccessMs, now)}${route.latencyMs ? ` · ${route.latencyMs} ms` : ""}` };
+
+  if (failing)
+    return {
+      failing,
+      text: `Failed ${since(route.lastFailureMs, now)}${route.lastSuccessMs ? ` · last worked ${since(route.lastSuccessMs, now)}` : ""}`,
+    };
+
+  if (route.lastSuccessMs)
+    return {
+      failing,
+      text: `Worked ${since(route.lastSuccessMs, now)}${route.latencyMs ? ` · ${route.latencyMs} ms` : ""}`,
+    };
+
   return { failing, text: "Not tried yet" };
 }

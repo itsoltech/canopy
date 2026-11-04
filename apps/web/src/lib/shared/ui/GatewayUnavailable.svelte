@@ -18,6 +18,8 @@
     <Icon name={icon} class="fill-zinc-400 dark:fill-zinc-500" />
     <h1 class="mt-3 text-2xl font-semibold tracking-tight text-balance">{title}</h1>
     <p class="mt-2 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{description}</p>
-    <div class="mt-6"><Button variant="primary" icon="arrow-path" loading={retrying} onclick={retry}>Try again</Button></div>
+    <div class="mt-6">
+      <Button variant="primary" icon="arrow-path" loading={retrying} onclick={retry}>Try again</Button>
+    </div>
   </div>
 </div>

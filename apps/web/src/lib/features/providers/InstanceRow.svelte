@@ -39,15 +39,29 @@
   const running = $derived(instance.workers.filter((w) => w.enabled).length);
 </script>
 
-<div class={["relative flex items-center gap-3 px-3 py-2.5 has-[button[aria-current]]:bg-zinc-950/4 dark:has-[button[aria-current]]:bg-white/6", className]}>
+<div
+  class={[
+    "relative flex items-center gap-3 px-3 py-2.5 has-[button[aria-current]]:bg-zinc-950/4 dark:has-[button[aria-current]]:bg-white/6",
+    className,
+  ]}
+>
   <InstanceMark {instance} />
   <div class="min-w-0 flex-1">
-    <button type="button" class="block w-full min-w-0 truncate text-left text-base/6 font-medium text-zinc-950 focus-ring after:absolute after:inset-0 sm:text-sm/6 dark:text-white" aria-current={selected || undefined} onclick={onselect}>
+    <button
+      type="button"
+      class="block w-full min-w-0 truncate text-left text-base/6 font-medium text-zinc-950 focus-ring after:absolute after:inset-0 sm:text-sm/6 dark:text-white"
+      aria-current={selected || undefined}
+      onclick={onselect}
+    >
       {instanceName(instance)}
     </button>
     <StatusLine {status} class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" />
-    {#if !instance.builtIn}<div class="pt-0.5"><ShareScope itemKey={sharedInstanceKeys(instance).definition} compact /></div>{/if}
-    {#if version}<p class="truncate font-mono text-sm/5 text-zinc-400 sm:text-xs/5 dark:text-zinc-500">{version}</p>{/if}
+    {#if !instance.builtIn}<div class="pt-0.5">
+        <ShareScope itemKey={sharedInstanceKeys(instance).definition} compact />
+      </div>{/if}
+    {#if version}<p class="truncate font-mono text-sm/5 text-zinc-400 sm:text-xs/5 dark:text-zinc-500">
+        {version}
+      </p>{/if}
   </div>
   <div class="relative shrink-0">
     {#if worker}

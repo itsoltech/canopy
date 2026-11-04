@@ -13,5 +13,6 @@ const Body = Schema.Struct({ upToSeq: Schema.String.check(Schema.isPattern(/^\d{
 export const POST: RequestHandler = async ({ request, params }) => {
   const { upToSeq } = await readBody(request, Body);
   const response = await call((api) => api.markThreadSeen({ threadId: params.threadId, upToSeq: BigInt(upToSeq) }));
+
   return json(encode(ui.MarkThreadSeenResponseSchema, response));
 };

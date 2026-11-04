@@ -18,14 +18,24 @@ export const inOut = cubicInOut;
 
 export type DurationToken = "stagger" | "micro" | "quick" | "fast" | "medium" | "slow" | "very-slow";
 
-const fallback: Record<DurationToken, number> = { stagger: 40, micro: 80, quick: 150, fast: 250, medium: 350, slow: 400, "very-slow": 500 };
+const fallback: Record<DurationToken, number> = {
+  stagger: 40,
+  micro: 80,
+  quick: 150,
+  fast: 250,
+  medium: 350,
+  slow: 400,
+  "very-slow": 500,
+};
 
 // Token values read in this frame. Reading the document's style recalculates every style changed since the
 // last read: rows that mount together (each with its own transition) would otherwise pay that once each.
 const tokens = new Map<string, string>();
 let tokenFrame = 0;
+
 function rootToken(name: string): string {
   let value = tokens.get(name);
+
   if (value === undefined) {
     value = getComputedStyle(document.documentElement).getPropertyValue(name);
     tokens.set(name, value);
@@ -34,6 +44,7 @@ function rootToken(name: string): string {
       tokenFrame = 0;
     });
   }
+
   return value;
 }
 
@@ -41,12 +52,14 @@ function rootToken(name: string): string {
 export function duration(token: DurationToken): number {
   if (typeof document === "undefined") return fallback[token];
   const value = toMs(rootToken(`--duration-${token}`));
+
   return Number.isFinite(value) ? value : fallback[token];
 }
 
 /** A CSS time in ms: "250ms", ".25s" (the minifier rewrites the tokens to seconds). */
 export function toMs(time: string): number {
   const value = Number.parseFloat(time);
+
   return time.trim().endsWith("ms") ? value : value * 1000;
 }
 
@@ -54,6 +67,7 @@ export function toMs(time: string): number {
 function length(name: string, fallbackPx: number): number {
   if (typeof document === "undefined") return fallbackPx;
   const value = Number.parseFloat(rootToken(name));
+
   return Number.isFinite(value) ? value : fallbackPx;
 }
 
@@ -61,9 +75,14 @@ function length(name: string, fallbackPx: number): number {
  * Accordion expand / collapse (21) for content mounted with its disclosure: height from and to 0 with a
  * fade and cross-blur, on --duration-fast both ways (one reversible motion).
  */
-export function expand(node: HTMLElement, { delay = 0, instantReduced = false }: { delay?: number; instantReduced?: boolean } = {}): TransitionConfig {
+export function expand(
+  node: HTMLElement,
+  { delay = 0, instantReduced = false }: { delay?: number; instantReduced?: boolean } = {},
+): TransitionConfig {
   const ms = duration("fast");
-  if (prefersReducedMotion.current) return { delay: instantReduced ? 0 : delay, duration: instantReduced ? 0 : ms, css: (t) => `opacity: ${t}` };
+
+  if (prefersReducedMotion.current)
+    return { delay: instantReduced ? 0 : delay, duration: instantReduced ? 0 : ms, css: (t) => `opacity: ${t}` };
   const style = getComputedStyle(node);
   const height = node.offsetHeight;
   const blur = length("--blur-small", 2);
@@ -71,6 +90,7 @@ export function expand(node: HTMLElement, { delay = 0, instantReduced = false }:
   const padBottom = Number.parseFloat(style.paddingBottom);
   const marginTop = Number.parseFloat(style.marginTop);
   const marginBottom = Number.parseFloat(style.marginBottom);
+
   return {
     delay,
     duration: ms,
@@ -86,13 +106,19 @@ export function expand(node: HTMLElement, { delay = 0, instantReduced = false }:
  * things that appear on their own (a button over the timeline, a new list row). In on --duration-fast,
  * out on --duration-quick. `instant`: no motion (a row that was only rendered late, not new).
  */
-export function rise(node: HTMLElement, { delay = 0, instant = false }: { delay?: number; instant?: boolean } = {}, options?: { direction: "in" | "out" | "both" }): TransitionConfig {
+export function rise(
+  node: HTMLElement,
+  { delay = 0, instant = false }: { delay?: number; instant?: boolean } = {},
+  options?: { direction: "in" | "out" | "both" },
+): TransitionConfig {
   if (instant) return { duration: 0 };
   const out = options?.direction === "out";
   const ms = duration(out ? "quick" : "fast");
+
   if (prefersReducedMotion.current) return { delay, duration: ms, css: (t) => `opacity: ${t}` };
   const distance = length("--distance-base", 8);
   const blur = length("--blur-small", 2);
+
   return {
     delay,
     duration: ms,
@@ -108,9 +134,11 @@ export function rise(node: HTMLElement, { delay = 0, instant = false }: { delay?
  */
 export function swap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}): TransitionConfig {
   const ms = duration("quick");
+
   if (prefersReducedMotion.current) return { delay, duration: 0 };
   const distance = length("--distance-micro", 4);
   const blur = length("--blur-small", 2);
+
   return {
     delay,
     duration: ms,
@@ -132,9 +160,14 @@ export function stepSwap(
   options?: { direction: "in" | "out" | "both" },
 ): TransitionConfig {
   const ms = duration("quick");
+
   if (prefersReducedMotion.current) return { duration: ms, css: (t) => `opacity: ${t}` };
-  const offset = length(`--distance-${distance}`, distance === "base" ? 8 : 4) * (options?.direction === "out" ? -step : step);
+
+  const offset =
+    length(`--distance-${distance}`, distance === "base" ? 8 : 4) * (options?.direction === "out" ? -step : step);
+
   const blur = length("--blur-small", 2);
+
   return {
     duration: ms,
     easing: inOut,
@@ -149,11 +182,17 @@ export function stepSwap(
  * and `out:` inside a `{#key}` of the page, both pages stacked in one grid cell so the swap never shifts the layout.
  * With reduced motion it is a cross-fade.
  */
-export function pageSlide(_node: HTMLElement, { step = 1 }: { step?: number } = {}, options?: { direction: "in" | "out" | "both" }): TransitionConfig {
+export function pageSlide(
+  _node: HTMLElement,
+  { step = 1 }: { step?: number } = {},
+  options?: { direction: "in" | "out" | "both" },
+): TransitionConfig {
   const ms = duration("fast");
+
   if (prefersReducedMotion.current) return { duration: ms, css: (t) => `opacity: ${t}` };
   const offset = length("--distance-base", 8) * (options?.direction === "out" ? -step : step);
   const blur = length("--blur-medium", 3);
+
   return {
     duration: ms,
     easing: smoothOut,
@@ -169,17 +208,25 @@ export function pageSlide(_node: HTMLElement, { step = 1 }: { step?: number } = 
  */
 export function pageIn(_node: HTMLElement, { from = 1 }: { from?: number } = {}): TransitionConfig {
   const ms = duration("fast");
+
   if (prefersReducedMotion.current) return { duration: ms, css: (t) => `opacity: ${t}` };
   const distance = length("--distance-base", 8) * from;
   const blur = length("--blur-medium", 3);
-  return { duration: ms, easing: smoothOut, css: (t, u) => `opacity: ${t}; translate: ${u * distance}px 0; filter: blur(${u * blur}px)` };
+
+  return {
+    duration: ms,
+    easing: smoothOut,
+    css: (t, u) => `opacity: ${t}; translate: ${u * distance}px 0; filter: blur(${u * blur}px)`,
+  };
 }
 
 /** Icon swap (09), entering half: a status icon that changed grows in from a quarter with a blur. */
 export function iconSwap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}): TransitionConfig {
   const ms = duration("fast");
+
   if (prefersReducedMotion.current) return { delay, duration: 0 };
   const blur = length("--blur-small", 2);
+
   return {
     delay,
     duration: ms,
@@ -192,13 +239,24 @@ export function iconSwap(_node: HTMLElement, { delay = 0 }: { delay?: number } =
  * Pop (menu dropdown 05 on a single item): something the user just added (an attachment chip) grows in from
  * --scale-medium on --duration-fast and leaves on --duration-quick; neighbours glide aside with `reorder`.
  */
-export function pop(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}, options?: { direction: "in" | "out" | "both" }): TransitionConfig {
+export function pop(
+  _node: HTMLElement,
+  { delay = 0 }: { delay?: number } = {},
+  options?: { direction: "in" | "out" | "both" },
+): TransitionConfig {
   const out = options?.direction === "out";
   const ms = duration(out ? "quick" : "fast");
+
   if (prefersReducedMotion.current) return { delay, duration: ms, css: (t) => `opacity: ${t}` };
   const from = length("--scale-medium", 0.97);
   const blur = length("--blur-small", 2);
-  return { delay, duration: ms, easing: smoothOut, css: (t, u) => `opacity: ${t}; scale: ${from + (1 - from) * t}; filter: blur(${u * blur}px)` };
+
+  return {
+    delay,
+    duration: ms,
+    easing: smoothOut,
+    css: (t, u) => `opacity: ${t}; scale: ${from + (1 - from) * t}; filter: blur(${u * blur}px)`,
+  };
 }
 
 /** List reorder (`animate:reorder` in a keyed each): rows glide to their new place (position change). */
@@ -223,6 +281,7 @@ export function shake(trigger: unknown = true): Attachment<HTMLElement> {
     node.classList.add("t-shake");
     const done = () => node.classList.remove("t-shake");
     node.addEventListener("animationend", done, { once: true });
+
     return () => node.removeEventListener("animationend", done);
   };
 }
@@ -247,9 +306,11 @@ export const resizeHeightToContent: Attachment<HTMLElement> = (node) => followCo
 
 function followContent(node: HTMLElement, axis: "width" | "height") {
   let first = true;
+
   const observer = new ResizeObserver(() => {
     const content = node.firstElementChild as HTMLElement | null;
     const size = content ? (axis === "width" ? content.offsetWidth : content.offsetHeight) : 0;
+
     if (first) {
       node.style.transition = "none";
       node.style[axis] = `${size}px`;
@@ -258,15 +319,19 @@ function followContent(node: HTMLElement, axis: "width" | "height") {
       first = false;
     } else node.style[axis] = `${size}px`;
   });
+
   const watch = () => {
     observer.disconnect();
+
     if (node.firstElementChild) observer.observe(node.firstElementChild);
     else node.style[axis] = "0px";
   };
+
   // The child itself can be replaced ({#if} inside): follow it.
   const children = new MutationObserver(watch);
   children.observe(node, { childList: true });
   watch();
+
   return () => {
     observer.disconnect();
     children.disconnect();
@@ -275,5 +340,10 @@ function followContent(node: HTMLElement, axis: "width" | "height") {
 
 /** How long an element's exit transition lasts (its longest `transition-duration` now), in ms. */
 export function exitDuration(element: Element): number {
-  return Math.max(0, ...getComputedStyle(element).transitionDuration.split(",").map((value) => toMs(value) || 0));
+  return Math.max(
+    0,
+    ...getComputedStyle(element)
+      .transitionDuration.split(",")
+      .map((value) => toMs(value) || 0),
+  );
 }

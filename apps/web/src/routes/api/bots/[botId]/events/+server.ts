@@ -6,5 +6,10 @@ import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ params, request }) => {
   await call((api) => api.getBot({ botId: params.botId }, { signal: request.signal }));
-  return sseResponse(request, (signal) => gateway().watchBotConversation({ botId: params.botId }, { signal, timeoutMs: 0 }), (snapshot) => encode(bots.BotConversationSchema, snapshot));
+
+  return sseResponse(
+    request,
+    (signal) => gateway().watchBotConversation({ botId: params.botId }, { signal, timeoutMs: 0 }),
+    (snapshot) => encode(bots.BotConversationSchema, snapshot),
+  );
 };

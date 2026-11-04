@@ -17,6 +17,7 @@ export function PanelRow({
   icon?: Parameters<typeof Icon>[0]["name"];
 }) {
   const c = useColors();
+
   return (
     <View
       style={{
@@ -36,6 +37,7 @@ export function PanelRow({
     </View>
   );
 }
+
 export function ThreadPanel({
   snapshot,
   visible,
@@ -49,14 +51,13 @@ export function ThreadPanel({
   const c = useColors();
   const thread = snapshot?.thread;
   const worker = workers.find((w) => w.id === thread?.workerId);
+
   const lineage = thread
     ? threads.filter(
-        (t) =>
-          t.parentThreadId === thread.id ||
-          t.id === thread.parentThreadId ||
-          t.id === thread.forkSourceThreadId,
+        (t) => t.parentThreadId === thread.id || t.id === thread.parentThreadId || t.id === thread.forkSourceThreadId,
       )
     : [];
+
   return (
     <Sheet title="Thread details" visible={visible} onClose={onClose}>
       {thread && (
@@ -74,23 +75,13 @@ export function ThreadPanel({
               value={`${worker?.name ?? "Unknown worker"} · ${worker?.online ? "Online" : "Offline"}`}
               icon="computer-desktop"
             />
-            <PanelRow
-              title="Working directory"
-              value={thread.cwd}
-              icon="folder"
-            />
+            <PanelRow title="Working directory" value={thread.cwd} icon="folder" />
             <PanelRow
               title="Model"
-              value={[thread.model || "Default model", thread.effort]
-                .filter(Boolean)
-                .join(" · ")}
+              value={[thread.model || "Default model", thread.effort].filter(Boolean).join(" · ")}
               icon="cpu-chip"
             />
-            <PanelRow
-              title="Status"
-              value={thread.status.replace("_", " ")}
-              icon="check-circle"
-            />
+            <PanelRow title="Status" value={thread.status.replace("_", " ")} icon="check-circle" />
             <PanelRow
               title="Permissions"
               value={permissionLabels[thread.permissionMode] ?? "Ask first"}
@@ -100,17 +91,10 @@ export function ThreadPanel({
           <Text style={[styles.label, { color: c.text }]}>Scheduled tasks</Text>
           {snapshot?.schedules.length ? (
             snapshot.schedules.map((s) => (
-              <PanelRow
-                key={s.id}
-                title={s.name || "Scheduled task"}
-                value={s.status}
-                icon="clock"
-              />
+              <PanelRow key={s.id} title={s.name || "Scheduled task"} value={s.status} icon="clock" />
             ))
           ) : (
-            <Text style={[styles.meta, { color: c.muted }]}>
-              No scheduled tasks
-            </Text>
+            <Text style={[styles.meta, { color: c.muted }]}>No scheduled tasks</Text>
           )}
           <Text style={[styles.label, { color: c.text }]}>Lineage</Text>
           {lineage.length ? (
@@ -132,9 +116,7 @@ export function ThreadPanel({
             <Text style={[styles.meta, { color: c.muted }]}>Main thread</Text>
           )}
           <Text style={[styles.label, { color: c.text }]}>Connectors</Text>
-          <Text style={[styles.meta, { color: c.muted }]}>
-            Manage thread connectors in Canopy on the web.
-          </Text>
+          <Text style={[styles.meta, { color: c.muted }]}>Manage thread connectors in Canopy on the web.</Text>
         </>
       )}
     </Sheet>

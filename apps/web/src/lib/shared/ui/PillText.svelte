@@ -6,4 +6,6 @@
   let { class: className, children }: { class?: ClassValue; children: Snippet } = $props();
 </script>
 
-<span class={["min-w-0 truncate px-2 text-sm/5 text-zinc-500 sm:text-[0.8125rem]/5 dark:text-zinc-400", className]}>{@render children()}</span>
+<span class={["min-w-0 truncate px-2 text-sm/5 text-zinc-500 sm:text-[0.8125rem]/5 dark:text-zinc-400", className]}
+  >{@render children()}</span
+>

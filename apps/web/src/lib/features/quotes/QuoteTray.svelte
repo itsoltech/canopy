@@ -30,7 +30,9 @@
     const index = quotes.findIndex((q) => q.id === quote.id);
     const neighbour = quotes[index + 1] ?? quotes[index - 1];
     drafts.remove(threadId, quote.id);
-    if (neighbour) queueMicrotask(() => list?.querySelector<HTMLElement>(`[data-quote-remove="${neighbour.id}"]`)?.focus());
+
+    if (neighbour)
+      queueMicrotask(() => list?.querySelector<HTMLElement>(`[data-quote-remove="${neighbour.id}"]`)?.focus());
   }
 </script>
 
@@ -38,7 +40,12 @@
   <ul bind:this={list} role="list" class={["flex flex-wrap gap-2", className]} aria-label="Quotes">
     {#each quotes as quote (quote.id)}
       <li class="max-w-full min-w-0" in:pop out:pop={{}} animate:reorder>
-        <QuoteChip {quote} editing={open && editing?.quote.id === quote.id} onedit={(anchor) => edit(quote, anchor)} onremove={() => remove(quote)} />
+        <QuoteChip
+          {quote}
+          editing={open && editing?.quote.id === quote.id}
+          onedit={(anchor) => edit(quote, anchor)}
+          onremove={() => remove(quote)}
+        />
       </li>
     {/each}
   </ul>

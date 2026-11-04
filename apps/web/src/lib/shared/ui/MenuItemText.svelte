@@ -3,7 +3,11 @@
   import type { ClassValue } from "svelte/elements";
 
   /** Label of a menu row with an optional description under it (rows of `MenuItem`, `MenuCheckItem`). */
-  let { description, class: className, children }: { description?: string | undefined; class?: ClassValue; children: Snippet } = $props();
+  let {
+    description,
+    class: className,
+    children,
+  }: { description?: string | undefined; class?: ClassValue; children: Snippet } = $props();
 </script>
 
 <span class={["grid min-w-0 flex-1", className]}>

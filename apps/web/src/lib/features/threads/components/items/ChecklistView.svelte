@@ -5,7 +5,18 @@
   import ChecklistSteps from "./ChecklistSteps.svelte";
 
   /** Plan steps or a todo list; the completed count stays in the collapsed header. */
-  let { title, text = "", steps, status = ItemStatus.COMPLETED }: { title: string; text?: string; steps: readonly { text: string; status: string }[]; status?: ItemStatus } = $props();
+  let {
+    title,
+    text = "",
+    steps,
+    status = ItemStatus.COMPLETED,
+  }: {
+    title: string;
+    text?: string;
+    steps: readonly { text: string; status: string }[];
+    status?: ItemStatus;
+  } = $props();
+
   const done = $derived(steps.filter((s) => s.status === "completed").length);
 </script>
 

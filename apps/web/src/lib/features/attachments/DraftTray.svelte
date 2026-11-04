@@ -24,7 +24,9 @@
           <li
             class={[
               "group relative isolate flex min-w-0 overflow-hidden rounded-xl bg-zinc-50 ring-1 ring-inset dark:bg-white/5",
-              file.status === "failed" ? "ring-rose-600/30 dark:ring-rose-400/30" : "ring-zinc-950/10 dark:ring-white/10",
+              file.status === "failed"
+                ? "ring-rose-600/30 dark:ring-rose-400/30"
+                : "ring-zinc-950/10 dark:ring-white/10",
               file.image ? "size-16" : "h-16 max-w-60 items-center py-2 pr-9 pl-2.5",
             ]}
             in:pop
@@ -33,21 +35,43 @@
             title={file.error ?? `${file.name} · ${formatSize(file.size)}`}
           >
             {#if file.image && file.localUrl}
-              <img src={file.localUrl} alt={file.name} class={["size-full object-cover", file.status === "uploading" && "opacity-60"]} />
+              <img
+                src={file.localUrl}
+                alt={file.name}
+                class={["size-full object-cover", file.status === "uploading" && "opacity-60"]}
+              />
             {:else}
               <FileChip
                 name={file.name}
                 failed={file.status === "failed"}
-                detail={file.status === "failed" ? (file.error ?? "Upload failed") : file.attachment ? `${formatSize(file.size)} · ${file.attachment.mimeType}` : formatSize(file.size)}
+                detail={file.status === "failed"
+                  ? (file.error ?? "Upload failed")
+                  : file.attachment
+                    ? `${formatSize(file.size)} · ${file.attachment.mimeType}`
+                    : formatSize(file.size)}
               />
             {/if}
             {#if file.image && file.status === "failed"}
-              <span class="absolute inset-0 grid place-items-center bg-rose-50/80 dark:bg-rose-950/70"><Icon name="exclamation-circle" class="fill-rose-600 dark:fill-rose-400" /></span>
+              <span class="absolute inset-0 grid place-items-center bg-rose-50/80 dark:bg-rose-950/70"
+                ><Icon name="exclamation-circle" class="fill-rose-600 dark:fill-rose-400" /></span
+              >
             {/if}
             {#if file.status === "uploading"}
-              {#if file.image}<span class="absolute inset-0 grid place-items-center"><Spinner class="size-4 text-white drop-shadow" /></span>{/if}
-              <span class="absolute inset-x-0 bottom-0 h-1 bg-zinc-950/10 dark:bg-white/10" role="progressbar" aria-label="Uploading {file.name}" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(file.progress * 100)}>
-                <span class="block h-full w-(--progress) bg-brand-600 transition-[width] duration-(--duration-fast) ease-smooth-out" style="--progress: {Math.round(file.progress * 100)}%"></span>
+              {#if file.image}<span class="absolute inset-0 grid place-items-center"
+                  ><Spinner class="size-4 text-white drop-shadow" /></span
+                >{/if}
+              <span
+                class="absolute inset-x-0 bottom-0 h-1 bg-zinc-950/10 dark:bg-white/10"
+                role="progressbar"
+                aria-label="Uploading {file.name}"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(file.progress * 100)}
+              >
+                <span
+                  class="block h-full w-(--progress) bg-brand-600 transition-[width] duration-(--duration-fast) ease-smooth-out"
+                  style="--progress: {Math.round(file.progress * 100)}%"
+                ></span>
               </span>
             {/if}
             <button
@@ -63,6 +87,8 @@
         {/each}
       </ul>
     {/if}
-    {#if draft.notice}<p class="text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">{draft.notice}</p>{/if}
+    {#if draft.notice}<p class="text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">
+        {draft.notice}
+      </p>{/if}
   </div>
 {/if}

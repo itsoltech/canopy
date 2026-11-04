@@ -7,5 +7,6 @@ import type { RequestHandler } from "./$types";
 export const POST: RequestHandler = async ({ request, params }) => {
   await readBody(request, Schema.Struct({}));
   await call((api) => api.interruptThread({ threadId: params.threadId }));
+
   return json({});
 };

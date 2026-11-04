@@ -16,9 +16,14 @@
 
   function headline(id: string): { title: string; outcome: string } {
     const item = directory.item?.(id);
+
     if (item?.content.case !== "backgroundTask") return { title: id, outcome: "Background task ended" };
     const task = item.content.value;
-    return { title: backgroundTitle(task, id), outcome: backgroundHeadline(backgroundOutcome(ItemStatus[item.status]), task.stopReason, task.exitCode) };
+
+    return {
+      title: backgroundTitle(task, id),
+      outcome: backgroundHeadline(backgroundOutcome(ItemStatus[item.status]), task.stopReason, task.exitCode),
+    };
   }
 </script>
 
@@ -31,7 +36,11 @@
         <span>{line.outcome}</span>
         <span aria-hidden="true">·</span>
         {#if openOutput}
-          <button type="button" class="rounded-sm font-medium text-zinc-700 underline decoration-zinc-950/20 underline-offset-2 hover:decoration-zinc-950/50 focus-ring dark:text-zinc-300 dark:decoration-white/20 dark:hover:decoration-white/50" onclick={() => openOutput(id)}>{line.title}</button>
+          <button
+            type="button"
+            class="rounded-sm font-medium text-zinc-700 underline decoration-zinc-950/20 underline-offset-2 focus-ring hover:decoration-zinc-950/50 dark:text-zinc-300 dark:decoration-white/20 dark:hover:decoration-white/50"
+            onclick={() => openOutput(id)}>{line.title}</button
+          >
         {:else}
           <span class="font-medium text-zinc-700 dark:text-zinc-300">{line.title}</span>
         {/if}

@@ -8,10 +8,14 @@ export const actions: Actions = {
   createSideThread: async ({ request }) => {
     const form = await request.formData();
     const parentThreadId = String(form.get("parentThreadId") ?? "");
+
     if (!parentThreadId) return fail(400, { action: "side", error: "Missing parent thread" });
     const result = await attempt("side", (api) => api.getThread({ threadId: parentThreadId }));
+
     if (failed(result)) return result;
+
     if (!result.thread) return fail(404, { action: "side", error: "The parent thread no longer exists" });
+
     return createThreadFromForm(form, "side", { parent: result.thread });
   },
 };

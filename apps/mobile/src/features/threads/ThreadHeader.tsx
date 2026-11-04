@@ -25,16 +25,19 @@ export function ThreadHeader({
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
   async function action(kind: "title" | "archive" | "unread") {
     if (!client || !thread) return;
     setBusy(true);
     setError("");
+
     try {
       if (kind === "title")
         await client.api.updateThread({
           threadId: thread.id,
           title: title.trim(),
         });
+
       if (kind === "archive") {
         await client.api.setThreadArchived({
           threadId: thread.id,
@@ -42,8 +45,8 @@ export function ThreadHeader({
         });
         router.replace("/");
       }
-      if (kind === "unread")
-        await client.api.setThreadRead({ threadId: thread.id, unread: true });
+
+      if (kind === "unread") await client.api.setThreadRead({ threadId: thread.id, unread: true });
       setSheet(null);
     } catch {
       setError("Could not update the thread. Try again.");
@@ -51,6 +54,7 @@ export function ThreadHeader({
       setBusy(false);
     }
   }
+
   return (
     <>
       <View
@@ -68,34 +72,17 @@ export function ThreadHeader({
         <IconButton
           icon="bars-3"
           label="Threads"
-          onPress={() =>
-            router.canGoBack() ? router.back() : router.replace("/")
-          }
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
         />
         {project && <ProjectMark name={project.name} kind={project.kind} />}
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.body,
-            { color: c.muted, maxWidth: 70, paddingLeft: 8 },
-          ]}
-        >
+        <Text numberOfLines={1} style={[styles.body, { color: c.muted, maxWidth: 70, paddingLeft: 8 }]}>
           {project?.name || "Thread"}
         </Text>
-        <Text style={[styles.body, { color: c.faint, paddingHorizontal: 8 }]}>
-          /
-        </Text>
-        <Text
-          numberOfLines={1}
-          style={[styles.body, { color: c.text, flex: 1 }]}
-        >
+        <Text style={[styles.body, { color: c.faint, paddingHorizontal: 8 }]}>/</Text>
+        <Text numberOfLines={1} style={[styles.body, { color: c.text, flex: 1 }]}>
           {thread?.title || "Thread"}
         </Text>
-        <IconButton
-          icon="magnifying-glass"
-          label="Search thread"
-          onPress={() => setSheet("search")}
-        />
+        <IconButton icon="magnifying-glass" label="Search thread" onPress={() => setSheet("search")} />
         <IconButton
           icon="ellipsis-horizontal"
           label="Thread actions"
@@ -104,11 +91,7 @@ export function ThreadHeader({
             setSheet("actions");
           }}
         />
-        <IconButton
-          icon="view-columns"
-          label="Thread details"
-          onPress={onDetails}
-        />
+        <IconButton icon="view-columns" label="Thread details" onPress={onDetails} />
       </View>
       <Sheet
         visible={sheet !== null}
@@ -117,19 +100,10 @@ export function ThreadHeader({
       >
         {sheet === "search" ? (
           <>
-            <Field
-              label="Search messages"
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search"
-            />
+            <Field label="Search messages" value={query} onChangeText={setQuery} placeholder="Search" />
             {query.trim() &&
               turns
-                .filter((t) =>
-                  `${t.messageText} ${t.inputText}`
-                    .toLowerCase()
-                    .includes(query.toLowerCase()),
-                )
+                .filter((t) => `${t.messageText} ${t.inputText}`.toLowerCase().includes(query.toLowerCase()))
                 .map((t) => (
                   <Text key={t.id} style={[styles.body, { color: c.body }]}>
                     {t.messageText || t.inputText}
@@ -139,18 +113,8 @@ export function ThreadHeader({
         ) : (
           <>
             <Field label="Title" value={title} onChangeText={setTitle} />
-            <Button
-              title="Rename"
-              disabled={!title.trim()}
-              busy={busy}
-              onPress={() => void action("title")}
-            />
-            <Button
-              title="Mark unread"
-              secondary
-              busy={busy}
-              onPress={() => void action("unread")}
-            />
+            <Button title="Rename" disabled={!title.trim()} busy={busy} onPress={() => void action("title")} />
+            <Button title="Mark unread" secondary busy={busy} onPress={() => void action("unread")} />
             <Button
               title={thread?.archivedAt ? "Unarchive" : "Archive"}
               secondary

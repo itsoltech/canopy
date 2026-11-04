@@ -18,7 +18,8 @@
    * the top layer. It stays between the top of `root` and the top of `avoid` (the sticky composer at the bottom of
    * the feed): next to a selection right above the composer it flips above the selection instead of covering it.
    */
-  let { threadId, root, avoid }: { threadId: string; root: HTMLElement | undefined; avoid?: HTMLElement | undefined } = $props();
+  let { threadId, root, avoid }: { threadId: string; root: HTMLElement | undefined; avoid?: HTMLElement | undefined } =
+    $props();
 
   const CITE_HOTKEY = "Alt+Q";
   const drafts = useQuoteDrafts();
@@ -26,10 +27,12 @@
   let editing = $state(false);
   let button = $state<HTMLButtonElement>();
   let touch = $state(false);
+
   // The selection as it was when it settled: it keeps its place while the comment popover takes the focus.
   let range: Range | undefined;
   let pointerDown = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   /** Said to screen readers after a save (the chip appears in the composer). */
   let announced = $state("");
 
@@ -38,11 +41,14 @@
     const selection = getSelection();
     const found = selectedQuote(selection);
     const live = found && selection ? selection.getRangeAt(0) : undefined;
+
     if (!found || !live || !root?.contains(live.commonAncestorContainer)) {
       quote = undefined;
       range = undefined;
+
       return;
     }
+
     range = live.cloneRange();
     quote = found;
     announced = "";
@@ -55,29 +61,39 @@
 
   $effect(() => {
     if (!root) return;
+
     const onselectionchange = () => {
       if (editing) return;
+
       // While a mouse drags the selection, the button waits for the release.
       if (pointerDown) {
         quote = undefined;
+
         return;
       }
+
       schedule(touch ? 250 : 120);
     };
+
     const onpointerdown = (event: PointerEvent) => {
       touch = event.pointerType === "touch";
+
       if (button?.contains(event.target as Node)) return;
       pointerDown = event.pointerType === "mouse";
     };
+
     const onpointerup = () => {
       if (!pointerDown) return;
       pointerDown = false;
       schedule(0);
     };
+
     const onkeydown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
+
       if (matchesHotkey(event, CITE_HOTKEY)) {
         if (!quote) read();
+
         if (!quote) return;
         event.preventDefault();
         editing = true;
@@ -85,10 +101,12 @@
         quote = undefined;
       }
     };
+
     document.addEventListener("selectionchange", onselectionchange);
     document.addEventListener("pointerdown", onpointerdown, true);
     document.addEventListener("pointerup", onpointerup, true);
     document.addEventListener("keydown", onkeydown);
+
     return () => {
       clearTimeout(timer);
       document.removeEventListener("selectionchange", onselectionchange);
@@ -102,31 +120,43 @@
   const place: Attachment<HTMLElement> = (node) => {
     node.showPopover();
     let frame = 0;
+
     const update = () => {
       const rects = [...(range?.getClientRects() ?? [])].filter((r) => r.width > 0 || r.height > 0);
       const backward = quote?.backward ?? false;
       const line = backward ? rects[0] : rects.at(-1);
+
       // The room: from the top of the feed to the top of what sits over its bottom (the composer).
       const room = {
         top: Math.max(0, root?.getBoundingClientRect().top ?? 0),
         bottom: Math.min(window.innerHeight, avoid?.getBoundingClientRect().top ?? window.innerHeight),
         width: document.documentElement.clientWidth,
       };
-      const position = citePosition(line, { width: node.offsetWidth, height: node.offsetHeight }, room, { backward, touch });
+
+      const position = citePosition(line, { width: node.offsetWidth, height: node.offsetHeight }, room, {
+        backward,
+        touch,
+      });
+
       if (!position) {
         if (!editing) quote = undefined;
+
         return;
       }
+
       node.style.setProperty("--float-x", `${position.x}px`);
       node.style.setProperty("--float-y", `${position.y}px`);
     };
+
     const later = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(update);
     };
+
     update();
     window.addEventListener("scroll", later, { capture: true, passive: true });
     window.addEventListener("resize", later, { passive: true });
+
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("scroll", later, { capture: true });
@@ -137,10 +167,12 @@
   function save(comment: string) {
     if (!quote) return;
     const added = drafts.add(threadId, { text: quote.text, source: quote.source, comment });
+
     if (added) announced = "Quote added to the message";
     else toast("A message can carry up to 20 quotes", { tone: "error" });
     getSelection()?.removeAllRanges();
   }
+
   function done() {
     editing = false;
     quote = undefined;
@@ -159,6 +191,15 @@
     class="t-tt fixed inset-auto top-(--float-y) left-(--float-x) m-0"
     onclick={() => (editing = true)}
   />
-  <QuoteCommentPopover bind:open={editing} anchor={button} quote={quote.text} placement={touch ? "bottom" : "bottom-start"} onsave={save} onclosed={done} />
+  <QuoteCommentPopover
+    bind:open={editing}
+    anchor={button}
+    quote={quote.text}
+    placement={touch ? "bottom" : "bottom-start"}
+    onsave={save}
+    onclosed={done}
+  />
 {/if}
-<p class="sr-only" role="status">{quote && !editing ? `Selected text can be quoted: ${formatHotkey(CITE_HOTKEY)}` : announced}</p>
+<p class="sr-only" role="status">
+  {quote && !editing ? `Selected text can be quoted: ${formatHotkey(CITE_HOTKEY)}` : announced}
+</p>

@@ -3,8 +3,13 @@
  * a pending `Bun.sleep` in a race keeps the process alive until it fires, so a worker stopped right after listing
  * models would linger for the whole deadline.
  */
-export async function withDeadline<A, B>(work: Promise<A>, ms: number, onTimeout: () => B | Promise<B>): Promise<A | B> {
+export async function withDeadline<A, B>(
+  work: Promise<A>,
+  ms: number,
+  onTimeout: () => B | Promise<B>,
+): Promise<A | B> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   const deadline = new Promise<B>((resolve, reject) => {
     timer = setTimeout(() => {
       try {
@@ -14,6 +19,7 @@ export async function withDeadline<A, B>(work: Promise<A>, ms: number, onTimeout
       }
     }, ms);
   });
+
   try {
     return await Promise.race([work, deadline]);
   } finally {

@@ -22,27 +22,44 @@
     tail,
     streaming = false,
     quoteKind,
-  }: { output: string; blob?: BlobRef | undefined; label: string; empty?: string; tail?: number | undefined; streaming?: boolean; quoteKind?: "command_output" | "tool_call" | undefined } = $props();
+  }: {
+    output: string;
+    blob?: BlobRef | undefined;
+    label: string;
+    empty?: string;
+    tail?: number | undefined;
+    streaming?: boolean;
+    quoteKind?: "command_output" | "tool_call" | undefined;
+  } = $props();
 
   const reveal = new LineReveal(
     () => output,
     () => streaming,
   );
+
   const directory = useThreadDirectory();
   const text = $derived(reveal.text);
   const lines = $derived(text.replace(/\n$/, "").split("\n"));
   const cut = $derived(tail !== undefined && lines.length > tail);
+
   // Remembered while the row is scrolled out of a virtual list.
   const memory = useRemembered<boolean>("output-all");
   let all = $state(memory?.get() ?? false);
+
   $effect(() => memory?.set(all));
+
   const shown = $derived(cut && !all ? lines.slice(-(tail ?? 0)).join("\n") : text);
 </script>
 
 {#if text}
   <div class="grid gap-1">
     {#if cut}
-      <MoreButton expanded={all} onclick={() => (all = !all)} note={all ? `${lines.length} lines` : `Last ${tail} of ${lines.length} lines`}>{all ? "Show the end only" : "Show all output"}</MoreButton>
+      <MoreButton
+        expanded={all}
+        onclick={() => (all = !all)}
+        note={all ? `${lines.length} lines` : `Last ${tail} of ${lines.length} lines`}
+        >{all ? "Show the end only" : "Show all output"}</MoreButton
+      >
     {/if}
     <CodeBlock text={shown} {label} data-quote-kind={quoteKind} />
   </div>

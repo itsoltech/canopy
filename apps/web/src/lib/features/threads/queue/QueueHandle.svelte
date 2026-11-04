@@ -14,7 +14,12 @@
     element = $bindable(),
     ondragstart,
     class: className,
-  }: { label: string; element?: HTMLButtonElement | undefined; ondragstart: (event: PointerEvent) => void; class?: ClassValue } = $props();
+  }: {
+    label: string;
+    element?: HTMLButtonElement | undefined;
+    ondragstart: (event: PointerEvent) => void;
+    class?: ClassValue;
+  } = $props();
 </script>
 
 <button
@@ -29,7 +34,13 @@
   onpointerdown={ondragstart}
   {@attach tooltip("Drag to reorder, or Alt+↑/↓")}
 >
-  <Icon name="queue-list" class="col-start-1 row-start-1 fill-inherit pointer-coarse:opacity-0 group-focus-within/row:opacity-0 pointer-fine:group-hover/row:opacity-0" />
-  <Icon name="bars-2" class="col-start-1 row-start-1 fill-inherit opacity-0 pointer-coarse:opacity-100 group-focus-within/row:opacity-100 pointer-fine:group-hover/row:opacity-100" />
+  <Icon
+    name="queue-list"
+    class="col-start-1 row-start-1 fill-inherit group-focus-within/row:opacity-0 pointer-coarse:opacity-0 pointer-fine:group-hover/row:opacity-0"
+  />
+  <Icon
+    name="bars-2"
+    class="col-start-1 row-start-1 fill-inherit opacity-0 group-focus-within/row:opacity-100 pointer-coarse:opacity-100 pointer-fine:group-hover/row:opacity-100"
+  />
   <TouchTarget size="sm" />
 </button>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+
   let { added, removed, class: className }: { added: number; removed: number; class?: ClassValue } = $props();
 </script>
 

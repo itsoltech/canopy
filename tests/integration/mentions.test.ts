@@ -22,15 +22,18 @@ type Part = string | { kind: MentionKind; name: string; label?: string; path?: s
 function message(...parts: Part[]): { text: string; mentions: Mention[] } {
   let text = "";
   const mentions: Mention[] = [];
+
   for (const part of parts) {
     if (typeof part === "string") {
       text += part;
       continue;
     }
+
     const placeholder = mentionPlaceholder({ kind: part.kind, name: part.name, label: part.label ?? "" });
     mentions.push(create(MentionSchema, { ...part, start: text.length, end: text.length + placeholder.length }));
     text += placeholder;
   }
+
   return { text, mentions };
 }
 
@@ -47,11 +50,17 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
     ({ api, worker } = gw);
     const workerId = (await api.getOverview({})).workers[0]!.id;
     projectId = (await api.createProject({ name: "Mentions" })).project!.id;
-    workspaceId = (await api.createWorkspace({ projectId, workerId, rootPath: "/repo/app", label: "laptop" })).workspace!.id;
+    workspaceId = (await api.createWorkspace({ projectId, workerId, rootPath: "/repo/app", label: "laptop" }))
+      .workspace!.id;
     const pc = await gw.addWorker("pc", ["/srv"]);
     claudeWorker = await gw.connect(pc.workerId, pc.credential, undefined, { claude: true });
-    claudeWorkspaceId = (await api.createWorkspace({ projectId, workerId: pc.workerId, rootPath: "/srv/app", label: "pc" })).workspace!.id;
-    await eventually(() => api.getOverview({}), (o) => o.workers.every((w) => w.online && w.appliedVersion > 0n));
+    claudeWorkspaceId = (
+      await api.createWorkspace({ projectId, workerId: pc.workerId, rootPath: "/srv/app", label: "pc" })
+    ).workspace!.id;
+    await eventually(
+      () => api.getOverview({}),
+      (o) => o.workers.every((w) => w.online && w.appliedVersion > 0n),
+    );
   }, 60_000);
 
   afterAll(async () => {
@@ -59,8 +68,20 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
   });
 
   const newThread = async (title: string, provider = Provider.CODEX) => {
-    const thread = (await api.createThread({ projectId, workspaceId: provider === Provider.CLAUDE ? claudeWorkspaceId : workspaceId, title, provider })).thread!;
-    await eventually(() => api.getThread({ threadId: thread.id }), (r) => r.thread?.status === "idle");
+    const thread = (
+      await api.createThread({
+        projectId,
+        workspaceId: provider === Provider.CLAUDE ? claudeWorkspaceId : workspaceId,
+        title,
+        provider,
+      })
+    ).thread!;
+
+    await eventually(
+      () => api.getThread({ threadId: thread.id }),
+      (r) => r.thread?.status === "idle",
+    );
+
     return thread;
   };
 
@@ -75,7 +96,15 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
             provider: v.provider,
             profileId: v.profileId,
             cwd: v.cwd,
-            entries: [{ kind: MentionKind.SKILL, name: "imagegen", label: "Image Gen", source: "system", path: "/h/imagegen/SKILL.md" }],
+            entries: [
+              {
+                kind: MentionKind.SKILL,
+                name: "imagegen",
+                label: "Image Gen",
+                source: "system",
+                path: "/h/imagegen/SKILL.md",
+              },
+            ],
             notes: ["commands: none"],
           },
         });
@@ -102,7 +131,9 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
       let seen: unknown;
       worker.handlers.set("searchFiles", (value, reply) => {
         seen = value;
-        reply(true, { fileSearch: { matches: [{ path: "docs/notatka-z-lekcji.md", indices: [5, 6] }], source: "git" } });
+        reply(true, {
+          fileSearch: { matches: [{ path: "docs/notatka-z-lekcji.md", indices: [5, 6] }], source: "git" },
+        });
       });
       const thread = await newThread("Files");
       const found = await api.searchFiles({ scope: { threadId: thread.id }, query: "notatka", limit: 10 });
@@ -114,10 +145,19 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
     test("an offline worker: Unavailable with its name for the popup", async () => {
       const spare = await gw.addWorker("spare", ["/x"]);
       const connected = await gw.connect(spare.workerId, spare.credential);
-      const ws = (await api.createWorkspace({ projectId, workerId: spare.workerId, rootPath: "/x/app", label: "spare" })).workspace!;
+
+      const ws = (
+        await api.createWorkspace({ projectId, workerId: spare.workerId, rootPath: "/x/app", label: "spare" })
+      ).workspace!;
+
       connected.link.close();
-      await eventually(() => api.getOverview({}), (o) => o.workers.some((w) => w.id === spare.workerId && !w.online));
-      expect(await failure(api.searchFiles({ scope: { workspaceId: ws.id }, query: "a" }))).toContain("spare is offline");
+      await eventually(
+        () => api.getOverview({}),
+        (o) => o.workers.some((w) => w.id === spare.workerId && !w.online),
+      );
+      expect(await failure(api.searchFiles({ scope: { workspaceId: ws.id }, query: "a" }))).toContain(
+        "spare is offline",
+      );
     });
 
     test("threads by title, best match first, without the current one", async () => {
@@ -134,18 +174,33 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
     test("Codex: files resolved on the worker, the thread note first, ranges in the delivered text, chips on the turn", async () => {
       const other = await newThread("Plan sprintu");
       const thread = await newThread("Codex mentions");
+
       const { text, mentions } = message(
         "Użyj ",
-        { kind: MentionKind.SKILL, name: "imagegen", label: "Image Gen", path: "/h/imagegen/SKILL.md", source: "system" },
+        {
+          kind: MentionKind.SKILL,
+          name: "imagegen",
+          label: "Image Gen",
+          path: "/h/imagegen/SKILL.md",
+          source: "system",
+        },
         " do ",
         { kind: MentionKind.FILE, name: "docs/notatka.md" },
         " i ",
         { kind: MentionKind.THREAD, name: other.id, label: "stary tytuł" },
       );
+
       const { turn } = await api.sendMessage({ threadId: thread.id, text, mentions, clientRequestId: "m1" });
-      await eventually(async () => worker.started.get(turn!.id), (input) => input !== undefined);
+      await eventually(
+        async () => worker.started.get(turn!.id),
+        (input) => input !== undefined,
+      );
       const input = worker.started.get(turn!.id)!;
-      expect(input.text.startsWith(`[canopy] The user mentioned another thread; read it with get_thread / read_thread when you need it:\n- "Plan sprintu" (thread_id: ${other.id})\n\n`)).toBe(true);
+      expect(
+        input.text.startsWith(
+          `[canopy] The user mentioned another thread; read it with get_thread / read_thread when you need it:\n- "Plan sprintu" (thread_id: ${other.id})\n\n`,
+        ),
+      ).toBe(true);
       expect(slices(input.text, input.mentions)).toEqual(["$imagegen", "@docs/notatka.md", "#stary tytuł"]);
       expect(input.mentions[1]?.path).toBe("/repo/app/docs/notatka.md");
       // The chat shows the message as written, with its chips (the title as the gateway knows it).
@@ -158,19 +213,46 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
     test("with quotes: the quotes' note joins the mention notes, the ranges shift past both, the turn keeps both", async () => {
       const other = await newThread("Notatki");
       const thread = await newThread("Mentions and quotes");
-      const { text, mentions } = message("Porównaj z ", { kind: MentionKind.THREAD, name: other.id, label: "Notatki" }, ".");
-      const quote = { text: "FAIL a.test.ts", comment: "Dlaczego?", sourceItemId: "item-q", sourceKind: "command_output" };
-      const { turn } = await api.sendMessage({ threadId: thread.id, text, mentions, clientRequestId: "mq1", quotes: [quote] });
-      await eventually(async () => worker.started.get(turn!.id), (input) => input !== undefined);
+
+      const { text, mentions } = message(
+        "Porównaj z ",
+        { kind: MentionKind.THREAD, name: other.id, label: "Notatki" },
+        ".",
+      );
+
+      const quote = {
+        text: "FAIL a.test.ts",
+        comment: "Dlaczego?",
+        sourceItemId: "item-q",
+        sourceKind: "command_output",
+      };
+
+      const { turn } = await api.sendMessage({
+        threadId: thread.id,
+        text,
+        mentions,
+        clientRequestId: "mq1",
+        quotes: [quote],
+      });
+
+      await eventually(
+        async () => worker.started.get(turn!.id),
+        (input) => input !== undefined,
+      );
       const input = worker.started.get(turn!.id)!;
       expect(input.text).toContain(quotesNote([quote]));
       expect(input.text.endsWith(`\n\n${text}`)).toBe(true);
       expect(slices(input.text, input.mentions)).toEqual(["#Notatki"]);
-      expect([turn!.messageText, turn!.quotes.map((q) => q.comment), slices(turn!.messageText, turn!.mentions)]).toEqual([text, ["Dlaczego?"], ["#Notatki"]]);
+      expect([
+        turn!.messageText,
+        turn!.quotes.map((q) => q.comment),
+        slices(turn!.messageText, turn!.mentions),
+      ]).toEqual([text, ["Dlaczego?"], ["#Notatki"]]);
     });
 
     test("Claude: a command in the middle runs first; skills and files get notes", async () => {
       const thread = await newThread("Claude mentions", Provider.CLAUDE);
+
       const { text, mentions } = message(
         "please ",
         { kind: MentionKind.COMMAND, name: "review", source: "built-in" },
@@ -179,8 +261,12 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
         " on ",
         { kind: MentionKind.FILE, name: "src" },
       );
+
       const { turn } = await api.sendMessage({ threadId: thread.id, text, mentions, clientRequestId: "c1" });
-      await eventually(async () => claudeWorker.started.get(turn!.id), (input) => input !== undefined);
+      await eventually(
+        async () => claudeWorker.started.get(turn!.id),
+        (input) => input !== undefined,
+      );
       const input = claudeWorker.started.get(turn!.id)!;
       const [note, delivered] = input.text.split("\n\n");
       expect(delivered).toBe("/review please with $design on @src");
@@ -193,19 +279,42 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
 
     test("/goal is the platform's: the rest is the objective, no turn on Codex", async () => {
       const thread = await newThread("Goal");
-      const { text, mentions } = message({ kind: MentionKind.COMMAND, name: "goal", source: "platform" }, " all tests pass");
+
+      const { text, mentions } = message(
+        { kind: MentionKind.COMMAND, name: "goal", source: "platform" },
+        " all tests pass",
+      );
+
       const before = worker.commands.length;
       const response = await api.sendMessage({ threadId: thread.id, text, mentions, clientRequestId: "g1" });
       expect(response.turn).toBeUndefined();
       expect(response.goal).toMatchObject({ objective: "all tests pass", status: "active" });
-      await eventually(async () => worker.commands.slice(before), (c) => c.some((k) => k.case === "setGoal"));
+      await eventually(
+        async () => worker.commands.slice(before),
+        (c) => c.some((k) => k.case === "setGoal"),
+      );
       expect(worker.commands.slice(before).some((k) => k.case === "startTurn")).toBe(false);
     });
 
     test("a new thread's first message carries its mentions", async () => {
       const { text, mentions } = message("look at ", { kind: MentionKind.FILE, name: "README.md" });
-      const thread = (await api.createThread({ projectId, workspaceId, title: "First", provider: Provider.CODEX, initialMessage: text, initialMentions: mentions })).thread!;
-      const input = await eventually(async () => [...worker.started.values()].find((i) => i.text === text), (i) => i !== undefined);
+
+      const thread = (
+        await api.createThread({
+          projectId,
+          workspaceId,
+          title: "First",
+          provider: Provider.CODEX,
+          initialMessage: text,
+          initialMentions: mentions,
+        })
+      ).thread!;
+
+      const input = await eventually(
+        async () => [...worker.started.values()].find((i) => i.text === text),
+        (i) => i !== undefined,
+      );
+
       expect(input!.mentions[0]).toMatchObject({ kind: MentionKind.FILE, path: "/repo/app/README.md" });
       expect(thread.id).toBeTruthy();
     });
@@ -213,12 +322,22 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
     test("refused: a path leaving the folder, a range off its placeholder, someone else's or an unknown thread", async () => {
       const thread = await newThread("Refusals");
       const escape = message("x ", { kind: MentionKind.FILE, name: "../secrets" });
-      expect(await failure(api.sendMessage({ threadId: thread.id, ...escape }))).toContain("not a path inside the thread's folder");
+      expect(await failure(api.sendMessage({ threadId: thread.id, ...escape }))).toContain(
+        "not a path inside the thread's folder",
+      );
       const moved = message("x ", { kind: MentionKind.SKILL, name: "s" });
       moved.mentions[0]!.start -= 1;
       expect(await failure(api.sendMessage({ threadId: thread.id, ...moved }))).toContain("does not start with $");
-      const unknown = message("x ", { kind: MentionKind.THREAD, name: "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b", label: "?" });
-      expect(await failure(api.sendMessage({ threadId: thread.id, ...unknown }))).toContain("mentioned thread was not found");
+
+      const unknown = message("x ", {
+        kind: MentionKind.THREAD,
+        name: "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+        label: "?",
+      });
+
+      expect(await failure(api.sendMessage({ threadId: thread.id, ...unknown }))).toContain(
+        "mentioned thread was not found",
+      );
     });
   });
 
@@ -229,18 +348,56 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
       const thread = await newThread("Reader");
       const { text, mentions } = message("see ", { kind: MentionKind.THREAD, name: other.id, label: "Mentioned" });
       const { turn } = await api.sendMessage({ threadId: thread.id, text, mentions, clientRequestId: "b1" });
-      await eventually(async () => worker.started.get(turn!.id), (input) => input !== undefined);
-      const read = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "get_thread", args: { thread_id: other.id } });
+      await eventually(
+        async () => worker.started.get(turn!.id),
+        (input) => input !== undefined,
+      );
+
+      const read = await worker.callTool({
+        threadId: thread.id,
+        turnId: turn!.id,
+        tool: "get_thread",
+        args: { thread_id: other.id },
+      });
+
       expect(read.isError).toBe(false);
-      const transcript = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "read_thread", args: { thread_id: other.id } });
+
+      const transcript = await worker.callTool({
+        threadId: thread.id,
+        turnId: turn!.id,
+        tool: "read_thread",
+        args: { thread_id: other.id },
+      });
+
       expect(transcript.isError).toBe(false);
+
       // The mention points the agent at it; the owner's other threads are as reachable (docs/agent-bus.md, section 6).
-      const unmentioned = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "get_thread", args: { thread_id: unrelated.id } });
+      const unmentioned = await worker.callTool({
+        threadId: thread.id,
+        turnId: turn!.id,
+        tool: "get_thread",
+        args: { thread_id: unrelated.id },
+      });
+
       expect(unmentioned.isError).toBe(false);
-      const sent = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "send_message", args: { thread_id: other.id, prompt: "hi", notify: false } });
+
+      const sent = await worker.callTool({
+        threadId: thread.id,
+        turnId: turn!.id,
+        tool: "send_message",
+        args: { thread_id: other.id, prompt: "hi", notify: false },
+      });
+
       expect(sent.isError).toBe(false);
+
       // Control stays with the thread's own descendants.
-      const interrupt = await worker.callTool({ threadId: thread.id, turnId: turn!.id, tool: "interrupt_thread", args: { thread_id: other.id } });
+      const interrupt = await worker.callTool({
+        threadId: thread.id,
+        turnId: turn!.id,
+        tool: "interrupt_thread",
+        args: { thread_id: other.id },
+      });
+
       expect(interrupt.isError).toBe(true);
     });
   });

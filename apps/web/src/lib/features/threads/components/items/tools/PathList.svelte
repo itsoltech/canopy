@@ -12,7 +12,13 @@
     base = "",
     max = 12,
     class: className,
-  }: { files: readonly { path: string; count?: number | undefined }[]; base?: string; max?: number; class?: ClassValue } = $props();
+  }: {
+    files: readonly { path: string; count?: number | undefined }[];
+    base?: string;
+    max?: number;
+    class?: ClassValue;
+  } = $props();
+
   let all = $state(false);
   const shown = $derived(all ? files : files.slice(0, max));
   const prefix = $derived(base ? `${base.replace(/\/$/, "")}/` : "");
@@ -24,11 +30,16 @@
     {#each shown as file (file.path)}
       <li class="flex min-w-0 items-baseline justify-between gap-3">
         <span class="truncate" title={file.path}>{relative(file.path)}</span>
-        {#if file.count !== undefined}<span class="shrink-0 font-sans text-xs/5 text-zinc-500 tabular-nums dark:text-zinc-400">{plural(file.count, "match", "matches")}</span>{/if}
+        {#if file.count !== undefined}<span
+            class="shrink-0 font-sans text-xs/5 text-zinc-500 tabular-nums dark:text-zinc-400"
+            >{plural(file.count, "match", "matches")}</span
+          >{/if}
       </li>
     {/each}
   </ul>
   {#if files.length > max}
-    <MoreButton expanded={all} onclick={() => (all = !all)}>{all ? "Show fewer" : `Show ${files.length - max} more`}</MoreButton>
+    <MoreButton expanded={all} onclick={() => (all = !all)}
+      >{all ? "Show fewer" : `Show ${files.length - max} more`}</MoreButton
+    >
   {/if}
 </div>

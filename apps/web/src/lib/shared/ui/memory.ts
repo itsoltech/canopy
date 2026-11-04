@@ -27,6 +27,7 @@ const KEY = Symbol("ui-memory");
 export function provideMemoryScope(name: string, memory?: UiMemory): void {
   const parent = getContext<Scope | undefined>(KEY);
   const root = memory ?? parent?.memory;
+
   if (!root) return;
   setContext(KEY, { memory: root, path: memory || !parent ? name : `${parent.path}/${name}` } satisfies Scope);
 }
@@ -34,7 +35,9 @@ export function provideMemoryScope(name: string, memory?: UiMemory): void {
 /** A value remembered in the surrounding scope under `name`; undefined outside any memory. */
 export function useRemembered<T>(name: string): { get(): T | undefined; set(value: T): void } | undefined {
   const scope = getContext<Scope | undefined>(KEY);
+
   if (!scope) return undefined;
   const key = `${scope.path}#${name}`;
+
   return { get: () => scope.memory.get<T>(key), set: (value) => scope.memory.set(key, value) };
 }

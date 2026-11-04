@@ -9,13 +9,24 @@
    * pressing it keeps the text selected until the click opens the comment popover. Other attributes and
    * attachments (positioning, tooltip) go on the button.
    */
-  let { element = $bindable(), class: className, ...rest }: Omit<HTMLButtonAttributes, "class" | "type"> & { element?: HTMLButtonElement | undefined; class?: ClassValue } = $props();
+  let {
+    element = $bindable(),
+    class: className,
+    ...rest
+  }: Omit<HTMLButtonAttributes, "class" | "type"> & {
+    element?: HTMLButtonElement | undefined;
+    class?: ClassValue;
+  } = $props();
 </script>
 
 <button
   bind:this={element}
   type="button"
-  class={[buttonClasses("secondary", "sm", true), "overflow-visible shadow-lg dark:bg-zinc-800 dark:not-disabled:hover:bg-zinc-700", className]}
+  class={[
+    buttonClasses("secondary", "sm", true),
+    "overflow-visible shadow-lg dark:bg-zinc-800 dark:not-disabled:hover:bg-zinc-700",
+    className,
+  ]}
   onpointerdown={(event) => event.preventDefault()}
   {...rest}
 >

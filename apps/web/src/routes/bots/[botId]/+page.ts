@@ -5,6 +5,8 @@ import type { PageLoad } from "./$types";
 
 export const load: PageLoad = async ({ fetch, params }) => {
   const response = await fetch(`/api/bots/${params.botId}`);
+
   if (!response.ok) error(response.status, "Could not load this bot");
+
   return { bot: decode(bots.GetBotResponseSchema, await response.json()).bot! };
 };

@@ -26,8 +26,12 @@
   let { item, nested, turnEnded = false }: { item: Item; nested?: Snippet | undefined; turnEnded?: boolean } = $props();
   const content = $derived(item.content);
   const streaming = $derived(item.status === ItemStatus.IN_PROGRESS && !turnEnded);
-  const inlineChildren = $derived(["userMessage", "agentMessage", "reasoning", "contextCompaction"].includes(content.case ?? ""));
-  provideItemChildren(() => content.case === "subagent" || inlineChildren ? undefined : nested);
+
+  const inlineChildren = $derived(
+    ["userMessage", "agentMessage", "reasoning", "contextCompaction"].includes(content.case ?? ""),
+  );
+
+  provideItemChildren(() => (content.case === "subagent" || inlineChildren ? undefined : nested));
 </script>
 
 {#if content.case === "userMessage"}

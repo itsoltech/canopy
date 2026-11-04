@@ -56,20 +56,54 @@
   const id = $props.id();
   let box = $state<HTMLDivElement>();
   let editor = $state<{ insertTrigger(char: TriggerChar): void; focus(): void }>();
-  const connectorCatalog = useConnectorAccounts(() => splitId(botId).node ? undefined : { botId });
-  const sources = new BotMentionSources(() => botList.list, () => botId, [{ search: (query) => fuzzyRank(query, connectorCatalog.accounts.filter((a) => a.status === 'connected'), (a) => [connectorLabel(a, connectorCatalog.types)], 40).map(({ item, match }) => ({
-    key: `connector:${item.id}`, data: { kind: MentionKind.CONNECTOR, name: item.id, label: connectorLabel(item, connectorCatalog.types), source: item.connectorType, path: '', isDir: false },
-    title: connectorLabel(item, connectorCatalog.types), detail: 'Use this connector account', group: 'Connectors', indices: match.indices,
-  })) }]);
+  const connectorCatalog = useConnectorAccounts(() => (splitId(botId).node ? undefined : { botId }));
+
+  const sources = new BotMentionSources(
+    () => botList.list,
+    () => botId,
+    [
+      {
+        search: (query) =>
+          fuzzyRank(
+            query,
+            connectorCatalog.accounts.filter((a) => a.status === "connected"),
+            (a) => [connectorLabel(a, connectorCatalog.types)],
+            40,
+          ).map(({ item, match }) => ({
+            key: `connector:${item.id}`,
+            data: {
+              kind: MentionKind.CONNECTOR,
+              name: item.id,
+              label: connectorLabel(item, connectorCatalog.types),
+              source: item.connectorType,
+              path: "",
+              isDir: false,
+            },
+            title: connectorLabel(item, connectorCatalog.types),
+            detail: "Use this connector account",
+            group: "Connectors",
+            indices: match.indices,
+          })),
+      },
+    ],
+  );
+
   const quoteDrafts = useQuoteDrafts();
   const quotes = $derived(quoteDrafts.list(quoteKey));
   const ready = $derived(!disabled && !sending && (value.trim().length > 0 || quotes.length > 0));
   let multiline = $state(false);
+
   $effect(() => {
     const field = box?.querySelector<HTMLElement>('[role="textbox"]');
+
     if (!field) return;
-    const observer = new ResizeObserver(() => { multiline = field.scrollHeight > 42; });
+
+    const observer = new ResizeObserver(() => {
+      multiline = field.scrollHeight > 42;
+    });
+
     observer.observe(field);
+
     return () => observer.disconnect();
   });
 
@@ -80,7 +114,12 @@
   function send() {
     if (!ready) return;
     const trimmed = trimValue({ text: value, mentions });
-    onsend(trimmed.text, trimmed.mentions, quotes.map((quote) => create(ui.QuoteSchema, toWire(quote))));
+    onsend(
+      trimmed.text,
+      trimmed.mentions,
+      quotes.map((quote) => create(ui.QuoteSchema, toWire(quote))),
+    );
+
     for (const quote of quotes) quoteDrafts.remove(quoteKey, quote.id);
     value = "";
     mentions = [];
@@ -102,7 +141,14 @@
     <div class="col-span-3 row-start-1 min-w-0 px-2 pt-2 pb-3"><QuoteTray threadId={quoteKey} /></div>
   {/if}
   <div class="col-start-1 row-start-3 flex">
-    <RoundButton icon="plus" label="Add attachment" tooltip={onattach ? "Add attachment" : "Attachments are coming soon"} variant="secondary" unavailable={disabled || !onattach} onclick={onattach} />
+    <RoundButton
+      icon="plus"
+      label="Add attachment"
+      tooltip={onattach ? "Add attachment" : "Attachments are coming soon"}
+      variant="secondary"
+      unavailable={disabled || !onattach}
+      onclick={onattach}
+    />
   </div>
   <MentionEditor
     id="{id}-message"
@@ -117,7 +163,10 @@
     containerClass="col-start-2 row-start-3 self-center"
     suggestionsClass="col-span-3 row-start-2 min-w-0 overflow-hidden rounded-t-3xl"
     placeholder={disabled && disabledReason ? disabledReason : placeholder}
-    class={["max-h-[min(40dvh,16rem)] min-h-9 overflow-y-auto overscroll-contain px-2 py-1.5 text-base/6 sm:min-h-8 sm:text-sm/6", disabled && "cursor-not-allowed"]}
+    class={[
+      "max-h-[min(40dvh,16rem)] min-h-9 overflow-y-auto overscroll-contain px-2 py-1.5 text-base/6 sm:min-h-8 sm:text-sm/6",
+      disabled && "cursor-not-allowed",
+    ]}
     onkeydown={(event) => {
       if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !matchMedia("(pointer: coarse)").matches) {
         event.preventDefault();

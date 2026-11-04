@@ -16,5 +16,7 @@
     "gen:check": "bun scripts/palette.ts --check",
     "typecheck": "tsc -p tsconfig.json"
   },
-  "devDependencies": { "tailwindcss": "4.3.3" }
+  "devDependencies": {
+    "tailwindcss": "4.3.3"
+  }
 }

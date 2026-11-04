@@ -6,6 +6,7 @@
 
   /** Gateway connection of this tab, announced politely when it changes. */
   let { connection, class: className }: { connection: OverviewConnection; class?: ClassValue } = $props();
+
   const look = $derived(
     (
       {

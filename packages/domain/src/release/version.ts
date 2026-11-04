@@ -17,5 +17,6 @@ export const CANOPY_VERSION: string = process.env.CANOPY_VERSION || "0.0.0-dev";
 export function releaseChannel(version: string): "stable" | "beta" | "nightly" | "development" {
   if (/^\d+\.\d+\.\d+(?:\+[\w.-]+)?$/.test(version)) return "stable";
   const pre = /^\d+\.\d+\.\d+-(beta|nightly)\.\d+(?:\+[\w.-]+)?$/.exec(version)?.[1];
+
   return pre === "beta" || pre === "nightly" ? pre : "development";
 }

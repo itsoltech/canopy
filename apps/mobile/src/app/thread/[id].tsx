@@ -1,17 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -30,6 +20,7 @@ import { ThreadHeader } from "../../features/threads/ThreadHeader";
 
 export default function ThreadRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
+
   return <Thread key={id} id={id} />;
 }
 
@@ -47,40 +38,38 @@ function Thread({ id }: { id: string }) {
   const { projects, workers, threads } = useOverview();
   const list = useRef<FlatList<ui.Turn>>(null);
   const sending = useRef(false);
+
   const pending = useRef<{
     text: string;
     delivery: ui.MessageDelivery;
     id: string;
   } | null>(null);
+
   const requestController = useRef(new AbortController());
   useEffect(() => {
     requestController.current = new AbortController();
+
     return () => requestController.current.abort();
   }, [id, client]);
+
   const stream = useStream(
-    client
-      ? (signal) => client.api.watchThread({ threadId: id }, { signal })
-      : null,
+    client ? (signal) => client.api.watchThread({ threadId: id }, { signal }) : null,
     (update: ui.ThreadUpdate) => setSnapshot((s) => applyThread(s, update)),
     `${session?.deviceId}:${id}`,
   );
+
   if (!ready) return <ActivityIndicator accessibilityLabel="Opening Canopy" />;
+
   if (!session) return <Redirect href="/pair" />;
   const thread = snapshot?.thread;
   const worker = workers.find((w) => w.id === thread?.workerId);
-  const subagents = threads.filter(
-    (t) => t.parentThreadId === id && !t.archivedAt && !t.deletedAt,
-  );
-  const interactions =
-    snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
+  const subagents = threads.filter((t) => t.parentThreadId === id && !t.archivedAt && !t.deletedAt);
+  const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
   const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
+
   // Provider-origin events can arrive before a turn update. Keep those entries visible.
   for (const item of snapshot?.items ?? []) {
-    if (
-      !turns.some(
-        (t) => t.id === item.turnId && t.fromThreadId === item.fromThreadId,
-      )
-    ) {
+    if (!turns.some((t) => t.id === item.turnId && t.fromThreadId === item.fromThreadId)) {
       turns.push(
         create(ui.TurnSchema, {
           id: item.turnId,
@@ -91,6 +80,7 @@ function Thread({ id }: { id: string }) {
       );
     }
   }
+
   async function send(delivery: ui.MessageDelivery) {
     if (!client || !text.trim() || sending.current) return;
     sending.current = true;
@@ -99,11 +89,10 @@ function Thread({ id }: { id: string }) {
     setBusy(true);
     setError("");
     const value = text.trim();
-    if (
-      pending.current?.text !== value ||
-      pending.current.delivery !== delivery
-    )
+
+    if (pending.current?.text !== value || pending.current.delivery !== delivery)
       pending.current = { text: value, delivery, id: Crypto.randomUUID() };
+
     try {
       const result = await client.api.sendMessage(
         {
@@ -114,6 +103,7 @@ function Thread({ id }: { id: string }) {
         },
         { signal: requestController.current.signal, timeoutMs: 20_000 },
       );
+
       if (result.turn)
         setSnapshot((s) =>
           s?.turns.some((turn) => turn.id === result.turn!.id)
@@ -125,6 +115,7 @@ function Thread({ id }: { id: string }) {
                 }),
               ),
         );
+
       if (result.steer)
         setSnapshot((s) =>
           s?.steers.some((steer) => steer.id === result.steer!.id)
@@ -141,14 +132,13 @@ function Thread({ id }: { id: string }) {
     } catch (e) {
       if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
       else if (!requestController.current.signal.aborted)
-        setError(
-          "Could not confirm delivery. Retry with the same text to send it only once.",
-        );
+        setError("Could not confirm delivery. Retry with the same text to send it only once.");
     } finally {
       sending.current = false;
       setBusy(false);
     }
   }
+
   const blocked =
     !online ||
     !thread ||
@@ -156,6 +146,7 @@ function Thread({ id }: { id: string }) {
     thread.status === "archived" ||
     busy ||
     stream.connection !== "live";
+
   return (
     <SafeAreaView style={styles.fill}>
       <ThreadHeader
@@ -176,15 +167,11 @@ function Thread({ id }: { id: string }) {
           style={styles.fill}
           contentContainerStyle={[styles.page, { paddingTop: 24, flexGrow: 1 }]}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={
-            Platform.OS === "ios" ? "interactive" : "on-drag"
-          }
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           onScroll={(e) => {
-            const { contentOffset, contentSize, layoutMeasurement } =
-              e.nativeEvent;
-            const bottom =
-              contentOffset.y + layoutMeasurement.height >=
-              contentSize.height - 100;
+            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+            const bottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 100;
+
             if (bottom) followLatest.current = true;
             setAtBottom(bottom);
           }}
@@ -193,32 +180,20 @@ function Thread({ id }: { id: string }) {
           }}
           scrollEventThrottle={100}
           onContentSizeChange={() => {
-            if (followLatest.current)
-              list.current?.scrollToEnd({ animated: false });
+            if (followLatest.current) list.current?.scrollToEnd({ animated: false });
           }}
           ListHeaderComponent={
             <View style={{ gap: 16 }}>
               <ConnectionNotice {...stream} />
-              {!snapshot && (
-                <ActivityIndicator
-                  accessibilityLabel="Loading conversation"
-                  color={c.accent}
-                />
-              )}
-              {snapshot && !turns.length && (
-                <Notice>This thread is ready for your first message.</Notice>
-              )}
+              {!snapshot && <ActivityIndicator accessibilityLabel="Loading conversation" color={c.accent} />}
+              {snapshot && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
             </View>
           }
           renderItem={({ item }) => (
             <TimelineTurn
               turn={item}
               entries={
-                snapshot?.items.filter(
-                  (i) =>
-                    i.turnId === item.id &&
-                    i.fromThreadId === item.fromThreadId,
-                ) ?? []
+                snapshot?.items.filter((i) => i.turnId === item.id && i.fromThreadId === item.fromThreadId) ?? []
               }
             />
           )}
@@ -227,9 +202,7 @@ function Thread({ id }: { id: string }) {
               {snapshot?.steers
                 .filter((s) => ["pending", "accepted"].includes(s.status))
                 .map((s) => (
-                  <Notice key={s.id}>
-                    Sending to the current turn: {s.text}
-                  </Notice>
+                  <Notice key={s.id}>Sending to the current turn: {s.text}</Notice>
                 ))}
               {snapshot?.notices.slice(-3).map((n) => (
                 <Notice key={String(n.seq)}>{n.notice?.message}</Notice>
@@ -264,9 +237,7 @@ function Thread({ id }: { id: string }) {
             <InteractionCard key={i.requestId} interaction={i} />
           ))}
           {interactions.length > 1 && (
-            <Text style={[styles.meta, { color: c.warning }]}>
-              +{interactions.length - 1} pending
-            </Text>
+            <Text style={[styles.meta, { color: c.warning }]}>+{interactions.length - 1} pending</Text>
           )}
           {subagents.length > 0 && (
             <View style={[styles.row, { flexWrap: "wrap" }]}>
@@ -302,11 +273,7 @@ function Thread({ id }: { id: string }) {
           />
         </View>
       </KeyboardAvoidingView>
-      <ThreadPanel
-        snapshot={snapshot}
-        visible={details}
-        onClose={() => setDetails(false)}
-      />
+      <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
     </SafeAreaView>
   );
 }

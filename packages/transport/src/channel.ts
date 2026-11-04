@@ -20,6 +20,7 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     if (this.#closed) return false;
     this.#buffer.push(value);
     this.#notify();
+
     return true;
   }
 
@@ -42,6 +43,7 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
           yield this.#buffer.shift() as T;
         } else if (this.#closed) {
           if (this.#error !== undefined) throw this.#error;
+
           return;
         } else {
           await new Promise<void>((resolve) => (this.#wake = resolve));

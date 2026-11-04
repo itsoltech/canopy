@@ -24,11 +24,15 @@
   {/snippet}
   {#if agent.prompt}
     <div class="rounded-lg bg-zinc-950/2.5 p-3 dark:bg-white/5">
-      <p class="mb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Prompt{agent.model ? ` · ${agent.model}` : ""}</p>
+      <p class="mb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+        Prompt{agent.model ? ` · ${agent.model}` : ""}
+      </p>
       <Markdown text={agent.prompt} />
     </div>
   {/if}
-  {#if nested}<div class="grid gap-1 border-l-2 border-zinc-950/5 pl-3 dark:border-white/10">{@render nested()}</div>{/if}
+  {#if nested}<div class="grid gap-1 border-l-2 border-zinc-950/5 pl-3 dark:border-white/10">
+      {@render nested()}
+    </div>{/if}
   {#if agent.result}
     <div>
       <p class="mb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Result</p>

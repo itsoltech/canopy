@@ -30,7 +30,12 @@ export function claudePermissions(mode: PermissionMode): ClaudePermissions {
       return {
         options: {
           permissionMode: "acceptEdits",
-          sandbox: { enabled: true, failIfUnavailable: true, autoAllowBashIfSandboxed: true, allowUnsandboxedCommands: false },
+          sandbox: {
+            enabled: true,
+            failIfUnavailable: true,
+            autoAllowBashIfSandboxed: true,
+            allowUnsandboxedCommands: false,
+          },
         },
         autoAllow: true,
       };

@@ -1,28 +1,12 @@
 import { useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native";
 import { Redirect, useLocalSearchParams } from "expo-router";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";
-import {
-  ConnectionNotice,
-  Button,
-  IconButton,
-  Notice,
-  ScreenHeader,
-} from "../../ui/components";
+import { ConnectionNotice, Button, IconButton, Notice, ScreenHeader } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { ComposerBox } from "../../features/threads/ComposerBox";
 import { ChatBubble } from "../../features/bots/ChatBubble";
@@ -32,8 +16,10 @@ import { BotAvatar } from "../../features/bots/BotAvatar";
 
 export default function BotRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
+
   return <BotChat key={id} id={id} />;
 }
+
 function BotChat({ id }: { id: string }) {
   const c = useColors();
   const { session, client, online } = useSession();
@@ -48,14 +34,15 @@ function BotChat({ id }: { id: string }) {
   const sending = useRef(false);
   const pending = useRef({ text: "", id: "" });
   const list = useRef<FlatList<bots.BotMessage>>(null);
+
   const stream = useStream(
-    client
-      ? (signal) => client.api.watchBotConversation({ botId: id }, { signal })
-      : null,
+    client ? (signal) => client.api.watchBotConversation({ botId: id }, { signal }) : null,
     setConversation,
     `bot:${session?.deviceId}:${id}`,
   );
+
   if (!session) return <Redirect href="/pair" />;
+
   async function send() {
     if (!text.trim() || sending.current || !client) return;
     sending.current = true;
@@ -64,8 +51,9 @@ function BotChat({ id }: { id: string }) {
     setBusy(true);
     setError("");
     const value = text.trim();
-    if (pending.current.text !== value)
-      pending.current = { text: value, id: Crypto.randomUUID() };
+
+    if (pending.current.text !== value) pending.current = { text: value, id: Crypto.randomUUID() };
+
     try {
       await client.api.sendBotMessage(
         { botId: id, text: value, clientRequestId: pending.current.id },
@@ -74,28 +62,21 @@ function BotChat({ id }: { id: string }) {
       setText("");
       pending.current = { text: "", id: "" };
     } catch {
-      setError(
-        "Could not confirm delivery. Retry with the same text to send it only once.",
-      );
+      setError("Could not confirm delivery. Retry with the same text to send it only once.");
     } finally {
       sending.current = false;
       setBusy(false);
     }
   }
+
   return (
     <SafeAreaView style={styles.fill}>
       <ScreenHeader
         title={conversation?.bot?.configuration?.name || "Bot"}
         right={
           <View style={styles.row}>
-            {conversation?.bot && (
-              <BotAvatar bot={conversation.bot} size={32} />
-            )}
-            <IconButton
-              icon="ellipsis-horizontal"
-              label="Bot details"
-              onPress={() => setDetails(true)}
-            />
+            {conversation?.bot && <BotAvatar bot={conversation.bot} size={32} />}
+            <IconButton icon="ellipsis-horizontal" label="Bot details" onPress={() => setDetails(true)} />
           </View>
         }
       />
@@ -110,15 +91,11 @@ function BotChat({ id }: { id: string }) {
           keyExtractor={(m) => m.id}
           contentContainerStyle={[styles.page, { gap: 16, flexGrow: 1 }]}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={
-            Platform.OS === "ios" ? "interactive" : "on-drag"
-          }
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           onScroll={(e) => {
-            const { contentOffset, contentSize, layoutMeasurement } =
-              e.nativeEvent;
-            const bottom =
-              contentOffset.y + layoutMeasurement.height >=
-              contentSize.height - 100;
+            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+            const bottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 100;
+
             if (bottom) followLatest.current = true;
             setAtBottom(bottom);
           }}
@@ -126,20 +103,15 @@ function BotChat({ id }: { id: string }) {
             followLatest.current = false;
           }}
           onContentSizeChange={() => {
-            if (followLatest.current)
-              list.current?.scrollToEnd({ animated: false });
+            if (followLatest.current) list.current?.scrollToEnd({ animated: false });
           }}
-          renderItem={({ item }) => (
-            <ChatBubble message={item} bot={conversation?.bot} />
-          )}
+          renderItem={({ item }) => <ChatBubble message={item} bot={conversation?.bot} />}
           ListHeaderComponent={<ConnectionNotice {...stream} />}
           ListEmptyComponent={
             !conversation ? (
               <ActivityIndicator />
             ) : (
-              <Text style={[styles.meta, { color: c.muted }]}>
-                Start a conversation
-              </Text>
+              <Text style={[styles.meta, { color: c.muted }]}>Start a conversation</Text>
             )
           }
           ListFooterComponent={
@@ -150,9 +122,7 @@ function BotChat({ id }: { id: string }) {
                   <ApprovalCard key={a.id} approval={a} />
                 ))}
               {conversation?.working && (
-                <Text style={[styles.meta, { color: c.muted }]}>
-                  {conversation.statusLine || "Working…"}
-                </Text>
+                <Text style={[styles.meta, { color: c.muted }]}>{conversation.statusLine || "Working…"}</Text>
               )}
             </View>
           }
@@ -179,21 +149,13 @@ function BotChat({ id }: { id: string }) {
             onChange={setText}
             onSend={() => void send()}
             running={conversation?.working}
-            onStop={() =>
-              void client!.api
-                .interruptBot({ botId: id })
-                .catch(() => setError("Could not stop the bot."))
-            }
+            onStop={() => void client!.api.interruptBot({ botId: id }).catch(() => setError("Could not stop the bot."))}
             disabled={!online || !conversation || stream.connection !== "live"}
             busy={busy}
           />
         </View>
       </KeyboardAvoidingView>
-      <BotDetailsPanel
-        conversation={conversation}
-        visible={details}
-        onClose={() => setDetails(false)}
-      />
+      <BotDetailsPanel conversation={conversation} visible={details} onClose={() => setDetails(false)} />
     </SafeAreaView>
   );
 }

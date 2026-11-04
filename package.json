@@ -2,7 +2,11 @@
   "name": "canopy",
   "private": true,
   "type": "module",
-  "workspaces": ["apps/*", "packages/*", "tests/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "tests/*"
+  ],
   "scripts": {
     "postinstall": "simple-git-hooks",
     "commitlint": "commitlint",

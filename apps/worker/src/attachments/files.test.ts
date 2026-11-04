@@ -16,7 +16,10 @@ const sha = createHash("sha256").update(bytes).digest("hex");
 
 describe("attachments on the worker", () => {
   const files = new AttachmentFiles(dataDir);
-  const attachment = (overrides: Partial<{ path: string; sha256: string; attachmentId: string; sizeBytes: bigint }> = {}) =>
+
+  const attachment = (
+    overrides: Partial<{ path: string; sha256: string; attachmentId: string; sizeBytes: bigint }> = {},
+  ) =>
     create(InputAttachmentSchema, {
       attachmentId: ID,
       sha256: sha,
@@ -42,21 +45,37 @@ describe("attachments on the worker", () => {
 
   test("damaged bytes are not written (retryable); a path other than its own is refused (final)", async () => {
     const other = "0196f0c1-0000-7000-8000-0000000000bb";
-    const damaged = await files.ensure(THREAD, [attachment({ attachmentId: other, path: join(files.root, THREAD, other, "notes.txt") })], async () => new TextEncoder().encode("tampered")).then(
-      () => undefined,
-      (e: { final: boolean; message: string }) => e,
-    );
+
+    const damaged = await files
+      .ensure(
+        THREAD,
+        [attachment({ attachmentId: other, path: join(files.root, THREAD, other, "notes.txt") })],
+        async () => new TextEncoder().encode("tampered"),
+      )
+      .then(
+        () => undefined,
+        (e: { final: boolean; message: string }) => e,
+      );
+
     expect(damaged?.final).toBe(false);
     expect(existsSync(join(files.root, THREAD, other))).toBe(false);
-    const traversal = await files.ensure(THREAD, [attachment({ path: "/etc/cron.d/x" })], async () => bytes).then(
-      () => undefined,
-      (e: { final: boolean; message: string }) => e,
-    );
+
+    const traversal = await files
+      .ensure(THREAD, [attachment({ path: "/etc/cron.d/x" })], async () => bytes)
+      .then(
+        () => undefined,
+        (e: { final: boolean; message: string }) => e,
+      );
+
     expect(traversal).toMatchObject({ final: true });
-    const badId = await files.ensure(THREAD, [attachment({ attachmentId: "../../x" })], async () => bytes).then(
-      () => undefined,
-      (e: { final: boolean }) => e,
-    );
+
+    const badId = await files
+      .ensure(THREAD, [attachment({ attachmentId: "../../x" })], async () => bytes)
+      .then(
+        () => undefined,
+        (e: { final: boolean }) => e,
+      );
+
     expect(badId?.final).toBe(true);
   });
 

@@ -4,5 +4,6 @@ import type { RequestHandler } from "./$types";
 
 export const DELETE: RequestHandler = async ({ params }) => {
   await call((api) => api.cancelBotReminder({ botId: params.botId, reminderId: params.reminderId }));
+
   return json({});
 };

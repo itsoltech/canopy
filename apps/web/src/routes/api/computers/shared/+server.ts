@@ -7,8 +7,12 @@ import type { RequestHandler } from "./$types";
 
 /** Shared configuration with linked computers (docs/linked-computers.md, stage 4). Never carries secret values. */
 const headers = { "cache-control": "no-store" };
-export const GET: RequestHandler = async () => json(encode(ui.SharedConfigSnapshotSchema, await call((api) => api.getSharedConfig({}))), { headers });
+
+export const GET: RequestHandler = async () =>
+  json(encode(ui.SharedConfigSnapshotSchema, await call((api) => api.getSharedConfig({}))), { headers });
+
 export const PUT: RequestHandler = async ({ request }) => {
   const body = await readMessage(request, ui.SharedConfigOperationSchema);
+
   return json(encode(ui.SharedConfigSnapshotSchema, await call((api) => api.manageSharedConfig(body))), { headers });
 };

@@ -11,6 +11,7 @@ export function sseResponse<T>(
   const upstream = new AbortController();
   const abort = () => upstream.abort();
   request.signal.addEventListener("abort", abort, { once: true });
+
   if (request.signal.aborted) abort();
   const encoder = new TextEncoder();
 
@@ -23,8 +24,10 @@ export function sseResponse<T>(
           upstream.abort(); // client gone
         }
       };
+
       send("event: ready\ndata: {}\n\n");
       const heartbeat = setInterval(() => send("event: heartbeat\ndata: {}\n\n"), 10_000);
+
       try {
         for await (const value of source(upstream.signal)) send(`data: ${JSON.stringify(encode(value))}\n\n`);
       } catch (cause) {
@@ -36,6 +39,7 @@ export function sseResponse<T>(
         clearInterval(heartbeat);
         request.signal.removeEventListener("abort", abort);
         upstream.abort();
+
         try {
           controller.close();
         } catch {

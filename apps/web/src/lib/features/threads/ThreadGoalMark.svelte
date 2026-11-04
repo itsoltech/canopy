@@ -12,7 +12,10 @@
 </script>
 
 {#if goal}
-  <span class={["flex shrink-0 items-center", textTones[goal.tone], className]} {@attach tooltip(`Goal: ${goal.label.toLowerCase()}`)}>
+  <span
+    class={["flex shrink-0 items-center", textTones[goal.tone], className]}
+    {@attach tooltip(`Goal: ${goal.label.toLowerCase()}`)}
+  >
     <Icon name="flag" class="size-3.5" label="Goal: {goal.label.toLowerCase()}" />
   </span>
 {/if}

@@ -3,21 +3,13 @@ import type { bots } from "@canopy/contracts";
 import { Markdown } from "../../ui/markdown";
 import { styles, useColors } from "../../ui/theme";
 
-export function ChatBubble({
-  message,
-  bot,
-}: {
-  message: bots.BotMessage;
-  bot?: bots.Bot;
-}) {
+export function ChatBubble({ message, bot }: { message: bots.BotMessage; bot?: bots.Bot }) {
   const c = useColors();
   const mine = message.senderId !== bot?.id;
+
   if (message.kind === "event")
-    return (
-      <Text style={[styles.caption, { color: c.muted, textAlign: "center" }]}>
-        {message.text}
-      </Text>
-    );
+    return <Text style={[styles.caption, { color: c.muted, textAlign: "center" }]}>{message.text}</Text>;
+
   return (
     <View style={{ alignItems: mine ? "flex-end" : "flex-start", gap: 4 }}>
       <View
@@ -36,13 +28,7 @@ export function ChatBubble({
             {message.text}
           </Text>
         ) : (
-          <Markdown
-            text={
-              message.failed
-                ? "Could not complete this response."
-                : message.text
-            }
-          />
+          <Markdown text={message.failed ? "Could not complete this response." : message.text} />
         )}
       </View>
     </View>

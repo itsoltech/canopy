@@ -14,11 +14,13 @@ export const GET: RequestHandler = async ({ url }) => {
       includeFinished: url.searchParams.get("includeFinished") === "true",
     }),
   );
+
   return json(encode(ui.ListSchedulesResponseSchema, response));
 };
 
 /** A new schedule of yours: one-off (`runAt`) or recurring (`cron` + `timezone`). */
 export const POST: RequestHandler = async ({ request }) => {
   const body = await readMessage(request, ui.CreateScheduleRequestSchema);
+
   return json(encode(ui.CreateScheduleResponseSchema, await call((api) => api.createSchedule(body))));
 };

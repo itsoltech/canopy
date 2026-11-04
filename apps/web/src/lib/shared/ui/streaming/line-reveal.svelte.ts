@@ -18,6 +18,7 @@ export class LineReveal {
 
   readonly text: string = $derived.by(() => {
     const source = this.#source();
+
     return this.#streaming() ? source.slice(0, lineCut(source, this.#revealed)) : source;
   });
 
@@ -28,12 +29,14 @@ export class LineReveal {
     let shown = "";
     $effect(() => {
       const pending = this.#streaming() && this.text.length < this.#source().length;
+
       // The idle pause counts from the last reveal.
       if (!pending || this.text !== shown) {
         clearTimeout(timer);
         timer = undefined;
         shown = this.text;
       }
+
       if (!pending) return;
       timer ??= setTimeout(() => {
         timer = undefined;

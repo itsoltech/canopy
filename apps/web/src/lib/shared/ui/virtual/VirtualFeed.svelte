@@ -73,10 +73,13 @@
 
   const uid = $props.id();
   const id = `feed-${uid}`;
+
   /** Enough rows from the end to fill the viewport before its first measurement. */
   const INITIAL_HEIGHT = 2400;
+
   /** Overscan when the rows first render: opening a thread renders about half of the rows in its frame. */
   const COLD_OVERSCAN = 240;
+
   /** How much the overscan grows per idle period up to its full size (a row or two each time). */
   const OVERSCAN_STEP = 120;
   const memory = new UiMemory();
@@ -85,84 +88,115 @@
   let scroller = $state<HTMLElement>();
   let list = $state<HTMLElement>();
   let footerElement = $state<HTMLElement>();
+
   /** Viewport height; 0 until measured (server, hydration): then the last rows render. */
   let viewport = $state(0);
   let scrollTop = $state(0);
   let listTop = $state(0);
   let footerHeight = $state(0);
+
   // The overlay never participates in row layout. While reading, its reservation only grows:
   // shrinking cannot clamp scrollTop, including in the middle of a CSS transition. At the end
   // use its live size, then settle after the reservation is committed, before paint.
   let reservedFooter = $state(0);
+
   /** Width of the scroller's vertical scrollbar (the backdrop under the composer stops before it). */
   let gutter = $state(0);
   let measured = $state(0);
+
   /** Following the end (the reader is at the bottom). */
   let stuck = $state(true);
+
   // The overscan (most of it above the end, where the reader starts) grows to its full size in idle-time
   // steps after the first rows were measured, instead of rendering in the frame that opens the thread.
   let overscanLimit = $state(COLD_OVERSCAN);
   const fullOverscan = $derived(Math.max(viewport, 480));
   const shown = $derived(viewport > 0 && rows.length > 0);
+
   $effect(() => {
     if (!shown || overscanLimit >= fullOverscan) return;
+
     return whenIdle(() => (overscanLimit = Math.min(fullOverscan, overscanLimit + OVERSCAN_STEP)), 1000);
   });
+
   $effect(() => {
     atEnd = stuck;
   });
+
   let focusedKey = $state<string>();
+
   /** The first row at the top of the viewport and its distance from the top edge. */
   let anchor: { key: string; element: HTMLElement; top: number } | undefined;
 
   const sized = $derived(rows.map((r) => ({ key: key(r), group: group(r) })));
   const positions = $derived(new Map(sized.map((r, i) => [r.key, i])));
+
   const layout = $derived.by(() => {
     void measured;
     index.setRows(sized);
+
     return { total: index.total, count: sized.length };
   });
+
   const range = $derived.by((): [number, number] => {
     void layout;
     void scrollTop;
-    if (viewport === 0) return index.tail(typeof innerHeight !== "number" ? INITIAL_HEIGHT : Math.min(INITIAL_HEIGHT, innerHeight + 2 * COLD_OVERSCAN));
+
+    if (viewport === 0)
+      return index.tail(
+        typeof innerHeight !== "number" ? INITIAL_HEIGHT : Math.min(INITIAL_HEIGHT, innerHeight + 2 * COLD_OVERSCAN),
+      );
     const overscan = Math.min(fullOverscan, overscanLimit);
     // Reading above: the window follows the anchor row, also when rows were added or resized above it
     // (its scroll position is corrected only once it is mounted).
     const at = anchor && positions.get(anchor.key);
     const top = at === undefined || !anchor ? scrollTop : listTop + index.offset(at) - anchor.top;
-    let [start, end] = stuck ? index.tail(viewport + 2 * overscan) : index.range(top - listTop - overscan, top - listTop + viewport + overscan);
+
+    let [start, end] = stuck
+      ? index.tail(viewport + 2 * overscan)
+      : index.range(top - listTop - overscan, top - listTop + viewport + overscan);
+
     const focused = focusedKey === undefined ? undefined : positions.get(focusedKey);
+
     // Keep a focused row mounted (not across a long jump away).
     if (focused !== undefined && focused >= start - 100 && focused < end + 100) {
       start = Math.min(start, focused);
       end = Math.max(end, focused + 1);
     }
+
     return [start, end];
   });
+
   const padTop = $derived.by(() => (void layout, index.offset(range[0])));
   const padBottom = $derived.by(() => (void layout, layout.total - index.offset(range[1])));
   const visible = $derived(rows.slice(range[0], range[1]));
+
   $effect(() => {
     void layout;
     const top = scrollTop - listTop;
     const height = Math.max(0, viewport - footerHeight);
     const callback = onviewport;
+
     if (!callback || !viewport) return;
+
     const frame = requestAnimationFrame(() => {
       const [start, end] = index.range(top, top + height);
       callback({ start, end, height });
     });
+
     return () => cancelAnimationFrame(frame);
   });
 
   // A start-aligned last row needs enough space below it to reach the viewport's top.
   let alignedKey = $state<string>();
+
   const alignmentSpace = $derived.by(() => {
     void layout;
     const at = alignedKey === undefined ? undefined : positions.get(alignedKey);
+
     return at === undefined ? 0 : Math.max(0, viewport - footerHeight - (layout.total - index.offset(at)));
   });
+
   let rowTarget: string | undefined;
   let rowTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -171,9 +205,12 @@
   let known: Set<string> | undefined;
   const entering = new Map<string, { kind: "rise" | "reveal" | "unfold"; order: number }>();
   let enterFrame = 0;
+
   $effect.pre(() => {
     const keys = sized.map((r) => r.key);
+
     if (keys.length === 0) return;
+
     if (known) {
       let last = -1;
       keys.forEach((rowKey, at) => {
@@ -182,23 +219,28 @@
       let order = 0;
       keys.forEach((rowKey, at) => {
         if (known?.has(rowKey)) return;
+
         if (at > last) entering.set(rowKey, { kind: "rise", order: 0 });
         else {
           const kind = inserted?.(rows[at] as T);
+
           if (kind) entering.set(rowKey, { kind, order: order++ });
         }
       });
     }
+
     // The first rows (a thread just opened) appear as they are: no entrance, they replace the placeholder at once.
     // What did not mount with this update (scrolled away) is not new any more.
     cancelAnimationFrame(enterFrame);
     enterFrame = requestAnimationFrame(() => entering.clear());
     known = new Set(keys);
   });
+
   /** How a row enters the first time it mounts (once), if it is new. */
   function takeEnter(rowKey: string) {
     const enter = entering.get(rowKey);
     entering.delete(rowKey);
+
     return enter;
   }
 
@@ -207,6 +249,7 @@
   let commitFrame = 0;
   let measuredViewport = 0;
   let measuredFooter = 0;
+
   // Reactive updates from measurements wait for the next frame: changing the DOM inside the observer
   // callback would postpone the new rows' notifications (a ResizeObserver loop).
   const commit = () => {
@@ -215,10 +258,14 @@
       measured++;
       viewport = measuredViewport;
       footerHeight = measuredFooter;
+
       if (scroller) gutter = scroller.offsetWidth - scroller.clientWidth;
-      if (scroller && list) listTop = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+
+      if (scroller && list)
+        listTop = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
     });
   };
+
   const observer =
     typeof ResizeObserver === "undefined"
       ? undefined
@@ -226,17 +273,19 @@
           for (const entry of entries) {
             const target = entry.target as HTMLElement;
             const height = entry.borderBoxSize[0]?.blockSize ?? target.offsetHeight;
+
             if (target === scroller) measuredViewport = target.clientHeight;
             else if (target === footerElement) {
               reservedFooter = stuck ? height : Math.max(reservedFooter, measuredFooter, height);
               measuredFooter = height;
-            }
-            else if (target.dataset.key) {
+            } else if (target.dataset.key) {
               const at = positions.get(target.dataset.key);
               const meta = at === undefined ? undefined : sized[at];
+
               if (meta) index.measure(meta.key, meta.group, height);
             }
           }
+
           settle();
           commit();
         });
@@ -245,25 +294,31 @@
     const rowKey = element.dataset.key ?? "";
     elements.set(rowKey, element);
     observer?.observe(element);
+
     return () => {
       observer?.unobserve(element);
+
       if (elements.get(rowKey) === element) elements.delete(rowKey);
     };
   };
 
   $effect(() => {
     if (!observer || !scroller || !list || !footerElement) return;
+
     for (const element of [scroller, list, footerElement]) observer.observe(element);
+
     return () => {
       for (const element of [scroller, list, footerElement]) if (element) observer.unobserve(element);
     };
   });
+
   $effect(() => () => {
     observer?.disconnect();
     cancelAnimationFrame(commitFrame);
     cancelAnimationFrame(enterFrame);
     clearTimeout(rowTimer);
   });
+
   // After every DOM change of the window: keep the reader's place (or the end).
   $effect(() => {
     void padTop;
@@ -288,32 +343,43 @@
 
   function settle() {
     if (!scroller || !list) return;
+
     // The reader scrolled and its scroll event is still to come: take it in first, or the old anchor
     // would undo the scroll.
     if (Math.abs(scroller.scrollTop - lastTop) >= 1) onscroll();
+
     if (performance.now() < smoothUntil) return;
+
     if (rowTarget) {
       const element = elements.get(rowTarget);
       const at = positions.get(rowTarget);
+
       if (at === undefined) rowTarget = undefined;
       else if (!element) {
         setTop(listTop + index.offset(at));
         scrollTop = scroller.scrollTop;
+
         return;
       } else {
         anchor = { key: rowTarget, element, top: 0 };
         rowTarget = undefined;
       }
     }
+
     if (stuck) {
       const end = scroller.scrollHeight - scroller.clientHeight;
+
       if (Math.abs(scroller.scrollTop - end) >= 1) setTop(end);
+
       return;
     }
+
     const element = anchor && (anchor.element.isConnected ? anchor.element : elements.get(anchor.key));
+
     if (anchor && element) {
       anchor.element = element;
       const delta = element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - anchor.top;
+
       if (Math.abs(delta) >= 0.5) setTop(scroller.scrollTop + delta);
     } else capture();
   }
@@ -324,38 +390,50 @@
     const children = list.children;
     let low = 0;
     let high = children.length - 1;
+
     // The first mounted row whose bottom is below the top edge (rows are in order).
     while (low < high) {
       const middle = (low + high) >> 1;
+
       if ((children[middle] as HTMLElement).getBoundingClientRect().bottom > edge + 1) high = middle;
       else low = middle + 1;
     }
+
     const element = children[low] as HTMLElement | undefined;
-    anchor = element?.dataset.key ? { key: element.dataset.key, element, top: element.getBoundingClientRect().top - edge } : undefined;
+    anchor = element?.dataset.key
+      ? { key: element.dataset.key, element, top: element.getBoundingClientRect().top - edge }
+      : undefined;
   }
 
   function onscroll() {
     if (!scroller) return;
     const top = scroller.scrollTop;
+
     // Multiple observer/effect passes may consume the same pending native scroll event. An
     // unchanged position is neither fresh reader intent nor a reason to recapture the anchor.
     if (Math.abs(top - lastTop) < 0.5) return;
     const origin = scrollIntent.origin(top, smoothUntil);
+
     if (origin !== "programmatic") {
       const distance = scroller.scrollHeight - top - scroller.clientHeight;
+
       if (!rowTarget && distance <= FEED_END_THRESHOLD) stuck = true;
       else if (top < lastTop - 0.5) stuck = false;
+
       if (origin === "reader") {
         onreaderscroll?.({ distance, up: lastTop - top });
       }
     }
+
     lastTop = top;
     scrollTop = top;
+
     if (!stuck && performance.now() >= smoothUntil) capture();
   }
 
   function onwheel(event: WheelEvent) {
     readerGesture();
+
     // Scrolling up during a stream: let go at once, before the next growth pins the end again.
     if (event.deltaY < 0 && scroller && scroller.scrollHeight > scroller.clientHeight + FEED_END_THRESHOLD) {
       // A previous reading anchor may survive a jump to latest. Capture the current end before
@@ -368,18 +446,22 @@
   function readerGesture() {
     rowTarget = undefined;
     clearTimeout(rowTimer);
+
     if (smoothUntil > 0) {
       smoothUntil = 0;
       // Stop a programmatic smooth scroll at its current position before handing control back.
       scroller?.scrollTo({ top: scroller.scrollTop, behavior: "instant" });
+
       if (!stuck) capture();
     }
+
     scrollIntent.gesture();
   }
 
   function onscrollend() {
     const wasSmooth = smoothUntil > 0;
     smoothUntil = 0;
+
     // Only a completed smooth navigation needs a new anchor. Our integer scrollTop
     // corrections also fire scrollend: recapturing those would accumulate rounding error
     // on each streamed paragraph instead of holding the original fractional offset.
@@ -396,6 +478,7 @@
     stuck = true;
     const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
     const smooth = distance < viewport * 2 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     if (smooth) {
       smoothUntil = performance.now() + 1000;
       scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
@@ -406,12 +489,17 @@
   /** Read-only estimated/measured row offset, relative to the start of the list. */
   export function rowOffset(at: number): number {
     void layout;
+
     return index.offset(at);
   }
 
   /** Jump even to an unmounted row; measurements then keep its start exactly at the top. */
-  export async function scrollToRow(at: number, options: { align: "start"; smooth?: boolean } = { align: "start" }): Promise<boolean> {
+  export async function scrollToRow(
+    at: number,
+    options: { align: "start"; smooth?: boolean } = { align: "start" },
+  ): Promise<boolean> {
     const rowKey = index.keyAt(at);
+
     if (!scroller || rowKey === undefined) return false;
     stuck = false;
     anchor = undefined;
@@ -419,25 +507,37 @@
     rowTarget = rowKey;
     clearTimeout(rowTimer);
     await tick();
+
     if (!scroller || rowTarget !== rowKey) return false;
     const smooth = options.smooth && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     smoothUntil = smooth ? performance.now() + 1000 : 0;
     scroller.scrollTo({ top: listTop + index.offset(at), behavior: smooth ? "smooth" : "instant" });
     scrollTop = scroller.scrollTop;
     // scrollend need not fire if the estimated destination was already the current position.
-    rowTimer = setTimeout(() => { smoothUntil = 0; settle(); }, smooth ? 1050 : 0);
+    rowTimer = setTimeout(
+      () => {
+        smoothUntil = 0;
+        settle();
+      },
+      smooth ? 1050 : 0,
+    );
+
     return true;
   }
 
   async function focusRow(at: number) {
     const rowKey = index.keyAt(at);
+
     if (rowKey === undefined || !scroller) return;
     focusedKey = rowKey;
     await tick();
     const element = elements.get(rowKey);
+
     if (!element) return;
     element.focus({ preventScroll: true });
-    element.scrollIntoView({ block: element.offsetHeight > scroller.clientHeight - footerHeight ? "start" : "nearest" });
+    element.scrollIntoView({
+      block: element.offsetHeight > scroller.clientHeight - footerHeight ? "start" : "nearest",
+    });
   }
 
   /**
@@ -446,6 +546,7 @@
    */
   export async function reveal(rowKey: string): Promise<boolean> {
     const at = positions.get(rowKey);
+
     if (at === undefined || !scroller) return false;
     rowTarget = undefined;
     alignedKey = undefined;
@@ -457,6 +558,7 @@
     setTop(Math.max(0, listTop + index.offset(at) - 8));
     scrollTop = scroller.scrollTop;
     await focusRow(at);
+
     return true;
   }
 
@@ -467,17 +569,21 @@
     await tick();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     const element = elements.get(rowKey);
+
     if (!stuck || !scroller || !element) return false;
     const box = element.getBoundingClientRect();
+
     if (box.height <= scroller.clientHeight - footerHeight - 16) return false;
     const top = scroller.scrollTop + box.top - scroller.getBoundingClientRect().top - 8;
     stuck = false;
     anchor = { key: rowKey, element, top: 8 };
+
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) setTop(top);
     else {
       smoothUntil = performance.now() + 1000;
       scroller.scrollTo({ top, behavior: "smooth" });
     }
+
     return true;
   }
 
@@ -487,13 +593,17 @@
    */
   export function reading(): string[] {
     const keys = focusedKey === undefined ? [] : [focusedKey];
+
     if (stuck || !scroller) return keys;
     const box = scroller.getBoundingClientRect();
     const bottom = box.bottom - footerHeight;
+
     for (const [rowKey, element] of elements) {
       const rect = element.getBoundingClientRect();
+
       if (rect.bottom > box.top && rect.top < bottom && rowKey !== focusedKey) keys.push(rowKey);
     }
+
     return keys;
   }
 
@@ -503,6 +613,7 @@
    */
   export function hold(rowKey: string): void {
     const element = elements.get(rowKey);
+
     if (stuck || !scroller || !element) return;
     anchor = { key: rowKey, element, top: element.getBoundingClientRect().top - scroller.getBoundingClientRect().top };
   }
@@ -510,23 +621,34 @@
   function onkeydown(event: KeyboardEvent) {
     if (event.defaultPrevented) return;
     const target = event.target as HTMLElement;
+
     if (event.ctrlKey && event.key === "End") {
       event.preventDefault();
+
       // The message box first, else the first control of the footer.
-      const field = footerElement?.querySelector<HTMLElement>('[contenteditable="true"], textarea:not([disabled])') ?? footerElement?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])");
+      const field =
+        footerElement?.querySelector<HTMLElement>('[contenteditable="true"], textarea:not([disabled])') ??
+        footerElement?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])");
+
       field?.focus({ preventScroll: true });
+
       return;
     }
+
     if (event.ctrlKey && event.key === "Home") {
       event.preventDefault();
       scroller?.focus({ preventScroll: true });
+
       return;
     }
+
     if (event.key !== "PageDown" && event.key !== "PageUp") return;
+
     // Text fields and scrollable code keep their own Page keys.
     if (target.closest("pre, textarea, input, select, [contenteditable]")) return;
     const current = target.closest<HTMLElement>("article[data-key]")?.dataset.key;
     const at = current === undefined ? undefined : positions.get(current);
+
     if (at === undefined) return;
     event.preventDefault();
     void focusRow(at + (event.key === "PageDown" ? 1 : -1));
@@ -535,79 +657,104 @@
   function onfocusin(event: FocusEvent) {
     focusedKey = (event.target as HTMLElement).closest<HTMLElement>("article[data-key]")?.dataset.key;
   }
+
   function onfocusout(event: FocusEvent) {
     if (!list?.contains(event.relatedTarget as Node | null)) focusedKey = undefined;
   }
 </script>
 
 <div class="relative h-full">
-<!-- The labelled, focusable scroll region supports native scrolling keys. -->
-<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-<div
-  bind:this={scroller}
-  {id}
-  class="relative h-full scroll-pt-2 scroll-pb-(--feed-footer) overflow-y-auto overscroll-contain [overflow-anchor:none] focus-visible:outline-none"
-  style:--feed-footer="{footerHeight}px"
-  role="region"
-  aria-label={label}
-  tabindex="0"
-  {onscroll}
-  {onscrollend}
-  {onwheel}
-  ontouchmove={readerGesture}
-  onpointerdown={(event) => { if (event.target === scroller) readerGesture(); }}
-  onpointermove={(event) => { if (event.buttons === 1 && event.target === scroller) readerGesture(); }}
-  onkeydown={(event) => {
-    if (event.defaultPrevented || (event.target as Element).closest("textarea, input, select, [contenteditable]")) return;
-    if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerGesture();
-  }}
->
-  <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">
-    {@render top?.()}
-    <div class="flex grow flex-col pt-2 pb-8">
-      {#if rows.length === 0 && placeholder}<div class="mt-auto">{@render placeholder()}</div>{/if}
-      <!-- Keys and focus bubble up from the focusable articles (WAI-ARIA feed). -->
-      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- The labelled, focusable scroll region supports native scrolling keys. -->
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+  <div
+    bind:this={scroller}
+    {id}
+    class="relative h-full scroll-pt-2 scroll-pb-(--feed-footer) overflow-y-auto overscroll-contain [overflow-anchor:none] focus-visible:outline-none"
+    style:--feed-footer="{footerHeight}px"
+    role="region"
+    aria-label={label}
+    tabindex="0"
+    {onscroll}
+    {onscrollend}
+    {onwheel}
+    ontouchmove={readerGesture}
+    onpointerdown={(event) => {
+      if (event.target === scroller) readerGesture();
+    }}
+    onpointermove={(event) => {
+      if (event.buttons === 1 && event.target === scroller) readerGesture();
+    }}
+    onkeydown={(event) => {
+      if (event.defaultPrevented || (event.target as Element).closest("textarea, input, select, [contenteditable]"))
+        return;
+      if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerGesture();
+    }}
+  >
+    <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">
+      {@render top?.()}
+      <div class="flex grow flex-col pt-2 pb-8">
+        {#if rows.length === 0 && placeholder}<div class="mt-auto">{@render placeholder()}</div>{/if}
+        <!-- Keys and focus bubble up from the focusable articles (WAI-ARIA feed). -->
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <div
+          bind:this={list}
+          role="feed"
+          aria-label={label}
+          aria-busy={busy}
+          style:padding-top="{padTop}px"
+          style:padding-bottom="{padBottom}px"
+          {onkeydown}
+          {onfocusin}
+          {onfocusout}
+        >
+          {#each visible as item, offset (key(item))}
+            <VirtualRow
+              key={key(item)}
+              position={range[0] + offset + 1}
+              count={sized.length}
+              {memory}
+              {measure}
+              enter={takeEnter(key(item))}
+            >
+              {@render row(item, range[0] + offset)}
+            </VirtualRow>
+          {/each}
+        </div>
+      </div>
+      <!-- Rail alignment includes the overlay's height: the footer no longer adds flow space. -->
       <div
-        bind:this={list}
-        role="feed"
-        aria-label={label}
-        aria-busy={busy}
-        style:padding-top="{padTop}px"
-        style:padding-bottom="{padBottom}px"
-        {onkeydown}
-        {onfocusin}
-        {onfocusout}
+        aria-hidden="true"
+        style:height="{Math.max(reservedFooter, footerHeight + alignmentSpace)}px"
+        class="shrink-0"
+      ></div>
+    </div>
+  </div>
+  <!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,
+     change the virtual window, or make the browser reveal a contenteditable's flow position. -->
+  <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10" style:right="{gutter}px">
+    <div
+      class="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+2rem)] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black"
+      aria-hidden="true"
+    ></div>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
+      <div
+        bind:this={footerElement}
+        class="pointer-events-auto relative pb-[max(--spacing(3),env(safe-area-inset-bottom))]"
+        onfocusin={() => scrollIntent.reset()}
+        onbeforeinput={() => scrollIntent.reset()}
       >
-        {#each visible as item, offset (key(item))}
-          <VirtualRow key={key(item)} position={range[0] + offset + 1} count={sized.length} {memory} {measure} enter={takeEnter(key(item))}>
-            {@render row(item, range[0] + offset)}
-          </VirtualRow>
-        {/each}
+        {#if !stuck}
+          <!-- Centred by flex, not translate: rise animates `translate` and would cancel a -translate-x-1/2. -->
+          <div class="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center" transition:rise>
+            <!-- The secondary button is translucent in dark mode; an opaque backing keeps it legible over text. -->
+            <span class="pointer-events-auto flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50">
+              <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
+            </span>
+          </div>
+        {/if}
+        {@render footer?.()}
       </div>
     </div>
-    <!-- Rail alignment includes the overlay's height: the footer no longer adds flow space. -->
-    <div aria-hidden="true" style:height="{Math.max(reservedFooter, footerHeight + alignmentSpace)}px" class="shrink-0"></div>
   </div>
-</div>
-<!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,
-     change the virtual window, or make the browser reveal a contenteditable's flow position. -->
-<div class="pointer-events-none absolute bottom-0 left-0 z-10 isolate" style:right="{gutter}px">
-  <div class="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+2rem)] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black" aria-hidden="true"></div>
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
-    <div bind:this={footerElement} class="pointer-events-auto relative pb-[max(--spacing(3),env(safe-area-inset-bottom))]" onfocusin={() => scrollIntent.reset()} onbeforeinput={() => scrollIntent.reset()}>
-      {#if !stuck}
-        <!-- Centred by flex, not translate: rise animates `translate` and would cancel a -translate-x-1/2. -->
-        <div class="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center" transition:rise>
-          <!-- The secondary button is translucent in dark mode; an opaque backing keeps it legible over text. -->
-          <span class="pointer-events-auto flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50">
-            <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
-          </span>
-        </div>
-      {/if}
-      {@render footer?.()}
-    </div>
-  </div>
-</div>
 </div>

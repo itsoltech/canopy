@@ -14,8 +14,20 @@ import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from
 import { Logs } from "./log.ts";
 import { Supervisor, until } from "./process.ts";
 
-export interface Secrets { databasePassword: string; secretsKey: string; serviceToken: string }
-export interface RuntimePaths { bun: string; gateway: string; worker: string; web: string; postgres: string }
+export interface Secrets {
+  databasePassword: string;
+  secretsKey: string;
+  serviceToken: string;
+}
+
+export interface RuntimePaths {
+  bun: string;
+  gateway: string;
+  worker: string;
+  web: string;
+  postgres: string;
+}
+
 export class DesktopRuntime {
   readonly logs: Logs;
   private services: Supervisor;
@@ -32,8 +44,16 @@ export class DesktopRuntime {
   private state = initialStatus();
   private setupOrigin = "";
   private installing: AbortController | undefined;
-  private command(entry: string) { return { command: this.paths.bun, args: [entry] }; }
-  constructor(readonly directory: string, readonly paths: RuntimePaths, private readonly secrets: Secrets, private readonly changed: (status: DesktopStatus) => void = () => {}, private readonly testing?: PostgresTestOptions) {
+  private command(entry: string) {
+    return { command: this.paths.bun, args: [entry] };
+  }
+  constructor(
+    readonly directory: string,
+    readonly paths: RuntimePaths,
+    private readonly secrets: Secrets,
+    private readonly changed: (status: DesktopStatus) => void = () => {},
+    private readonly testing?: PostgresTestOptions,
+  ) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.logs = new Logs(join(directory, "logs"));
     this.logs.protect(...Object.values(secrets));
@@ -43,13 +63,20 @@ export class DesktopRuntime {
     this.services = this.makeSupervisor();
     this.web = this.makeSupervisor();
   }
-  get status() { return { ...this.state, clis: { ...this.state.clis } }; }
-  get origin() { return this.setupOrigin; }
-  get pids() { return [...this.services.pids, ...this.web.pids]; }
+  get status() {
+    return { ...this.state, clis: { ...this.state.clis } };
+  }
+  get origin() {
+    return this.setupOrigin;
+  }
+  get pids() {
+    return [...this.services.pids, ...this.web.pids];
+  }
   // Worker/health polls repeat the same status every second; each event rebuilds the app and tray
   // menus on Electron's UI thread, which also delivers input. Only report real changes.
   private publish(patch: Partial<DesktopStatus>) {
     const next = { ...this.state, ...patch };
+
     if (JSON.stringify(next) === JSON.stringify(this.state)) return;
     this.state = next;
     this.changed(this.status);
@@ -57,15 +84,37 @@ export class DesktopRuntime {
   private makeSupervisor() {
     return new Supervisor(this.logs, (name, running, failed) => {
       if (name === "worker" && !running) this.publish({ worker: "offline" });
-      if (!running && this.state.phase === "running" && ["gateway", "postgres", "web"].includes(name)) this.publish({ phase: "starting" });
-      if (failed) this.publish({ phase: "error", error: `${name} stopped and cannot restart automatically. Open desktop settings to retry.` });
+
+      if (!running && this.state.phase === "running" && ["gateway", "postgres", "web"].includes(name))
+        this.publish({ phase: "starting" });
+
+      if (failed)
+        this.publish({
+          phase: "error",
+          error: `${name} stopped and cannot restart automatically. Open desktop settings to retry.`,
+        });
     });
   }
   private async startWeb(gatewayUrl: string) {
     await this.web.stop();
     this.web = this.makeSupervisor();
     // The local BFF owns no durable state. Browser keep-alive/SSE connections must not delay quit.
-    this.web.start({ name: "web", ...this.command(this.paths.web), cwd: dirname(this.paths.web), env: { ...this.env, CANOPY_WEB_ASSETS_DIR: join(dirname(this.paths.web), "web"), HOST: "127.0.0.1", PORT: String(this.webPort), CANOPY_WEB_ORIGIN: this.setupOrigin, GATEWAY_URL: gatewayUrl, GATEWAY_SERVICE_TOKEN: this.secrets.serviceToken }, restart: true, stopSignal: "SIGKILL" });
+    this.web.start({
+      name: "web",
+      ...this.command(this.paths.web),
+      cwd: dirname(this.paths.web),
+      env: {
+        ...this.env,
+        CANOPY_WEB_ASSETS_DIR: join(dirname(this.paths.web), "web"),
+        HOST: "127.0.0.1",
+        PORT: String(this.webPort),
+        CANOPY_WEB_ORIGIN: this.setupOrigin,
+        GATEWAY_URL: gatewayUrl,
+        GATEWAY_SERVICE_TOKEN: this.secrets.serviceToken,
+      },
+      restart: true,
+      stopSignal: "SIGKILL",
+    });
     await until(async () => (await fetch(`${this.setupOrigin}/desktop`, { signal: AbortSignal.timeout(1000) })).ok);
   }
   async initialize(restore = true) {
@@ -74,45 +123,89 @@ export class DesktopRuntime {
     await this.startWeb("http://127.0.0.1:1");
     this.statusTimer = setInterval(() => this.readWorkerStatus(), 1000);
     this.healthTimer = setInterval(() => void this.checkHealth(), 5000);
+
     if (restore) await this.restore();
+
     return this.setupOrigin;
   }
   async restore() {
     const saved = join(this.directory, "desktop.json");
+
     if (existsSync(saved)) {
-      try { await this.configure(configuration(JSON.parse(readFileSync(saved, "utf8")))); }
-      catch (error) { this.publish({ phase: "error", error: error instanceof Error ? error.message : "Desktop startup failed" }); }
+      try {
+        await this.configure(configuration(JSON.parse(readFileSync(saved, "utf8"))));
+      } catch (error) {
+        this.publish({ phase: "error", error: error instanceof Error ? error.message : "Desktop startup failed" });
+      }
     }
   }
   private readWorkerStatus() {
     if (!this.workerStatusFile || !this.services.alive("worker")) return;
+
     try {
       const value = JSON.parse(readFileSync(this.workerStatusFile, "utf8")) as { status?: string; time?: number };
-      const worker = Date.now() - (value.time ?? 0) >= 45_000 || value.status === "offline" ? "offline" : value.status === "online" ? "online" : "connecting";
+
+      const worker =
+        Date.now() - (value.time ?? 0) >= 45_000 || value.status === "offline"
+          ? "offline"
+          : value.status === "online"
+            ? "online"
+            : "connecting";
+
       this.publish({ worker });
-    } catch { this.publish({ worker: "connecting" }); }
+    } catch {
+      this.publish({ worker: "connecting" });
+    }
   }
   private async checkHealth() {
-    if (!this.configured || this.checkingHealth || this.state.phase === "error" || this.state.phase === "stopping") return;
+    if (!this.configured || this.checkingHealth || this.state.phase === "error" || this.state.phase === "stopping")
+      return;
     this.checkingHealth = true;
     const generation = this.generation;
-    const checks = [{ name: "web", supervisor: this.web, probe: async () => (await fetch(`${this.setupOrigin}/desktop`, { signal: AbortSignal.timeout(2000) })).ok }];
-    if (this.state.mode === "local") checks.push({ name: "gateway", supervisor: this.services, probe: async () => { await this.client().getOverview({}, { timeoutMs: 2000 }); return true; } });
+
+    const checks = [
+      {
+        name: "web",
+        supervisor: this.web,
+        probe: async () => (await fetch(`${this.setupOrigin}/desktop`, { signal: AbortSignal.timeout(2000) })).ok,
+      },
+    ];
+
+    if (this.state.mode === "local")
+      checks.push({
+        name: "gateway",
+        supervisor: this.services,
+        probe: async () => {
+          await this.client().getOverview({}, { timeoutMs: 2000 });
+
+          return true;
+        },
+      });
+
     try {
-      const healthy = await Promise.all(checks.map(async ({ name, supervisor, probe }) => {
-        const ok = await probe().catch(() => false);
-        if (generation !== this.generation) return false;
-        const failures = ok ? 0 : (this.healthFailures.get(name) ?? 0) + 1;
-        this.healthFailures.set(name, failures);
-        if (failures >= 3 && supervisor.alive(name)) {
-          this.logs.write(name, "Health check failed three times; restarting owned process");
-          supervisor.restart(name);
-          this.healthFailures.set(name, 0);
-        }
-        return ok;
-      }));
-      if (generation === this.generation && this.configured && !["stopping", "error"].includes(this.state.phase)) this.publish({ phase: healthy.every(Boolean) ? "running" : "starting" });
-    } finally { this.checkingHealth = false; }
+      const healthy = await Promise.all(
+        checks.map(async ({ name, supervisor, probe }) => {
+          const ok = await probe().catch(() => false);
+
+          if (generation !== this.generation) return false;
+          const failures = ok ? 0 : (this.healthFailures.get(name) ?? 0) + 1;
+          this.healthFailures.set(name, failures);
+
+          if (failures >= 3 && supervisor.alive(name)) {
+            this.logs.write(name, "Health check failed three times; restarting owned process");
+            supervisor.restart(name);
+            this.healthFailures.set(name, 0);
+          }
+
+          return ok;
+        }),
+      );
+
+      if (generation === this.generation && this.configured && !["stopping", "error"].includes(this.state.phase))
+        this.publish({ phase: healthy.every(Boolean) ? "running" : "starting" });
+    } finally {
+      this.checkingHealth = false;
+    }
   }
   async configure(raw: unknown) {
     const config = configuration(raw);
@@ -125,59 +218,153 @@ export class DesktopRuntime {
     this.publish({ mode: config.mode, phase: "starting", worker: "offline", error: undefined, database: undefined });
     await this.services.stop();
     this.services = this.makeSupervisor();
+
     try {
       let gatewayUrl: string;
       let webUrl: string;
       let workerDirectory: string;
       let token: string | undefined;
+
       if (config.mode === "local") {
-        const installer = new PostgresInstaller(this.paths.postgres, join(this.directory, "postgres"), (database) => this.publish({ database }), this.testing ?? postgresTestOptions());
+        const installer = new PostgresInstaller(
+          this.paths.postgres,
+          join(this.directory, "postgres"),
+          (database) => this.publish({ database }),
+          this.testing ?? postgresTestOptions(),
+        );
+
         const binaries = await installer.ensure(installing.signal);
-        const databaseUrl = await startDatabase({ directory: join(this.directory, "postgres"), binaries, password: this.secrets.databasePassword, supervisor: this.services, env: this.env });
+
+        const databaseUrl = await startDatabase({
+          directory: join(this.directory, "postgres"),
+          binaries,
+          password: this.secrets.databasePassword,
+          supervisor: this.services,
+          env: this.env,
+        });
+
         installer.cleanup();
         const gatewayPort = await freePort();
         const workerPort = config.allowNetwork ? await freePort(config.bindHost) : undefined;
         // Unlike loopback sidecars, peers need a stable reachable port after restart.
         const linkPortFile = join(this.directory, "computer-link.json");
-        const savedLinkPort = existsSync(linkPortFile) ? (JSON.parse(readFileSync(linkPortFile, "utf8")) as { port: number }).port : undefined;
-        const linkPort = config.allowNetwork ? (savedLinkPort ?? await freePort(config.bindHost)) : undefined;
+
+        const savedLinkPort = existsSync(linkPortFile)
+          ? (JSON.parse(readFileSync(linkPortFile, "utf8")) as { port: number }).port
+          : undefined;
+
+        const linkPort = config.allowNetwork ? (savedLinkPort ?? (await freePort(config.bindHost))) : undefined;
+
         if (linkPort) this.writeJson(linkPortFile, { port: linkPort });
         gatewayUrl = `http://127.0.0.1:${gatewayPort}`;
         webUrl = this.setupOrigin;
         workerDirectory = join(this.directory, "local-worker");
-        this.services.start({ name: "gateway", ...this.command(this.paths.gateway), cwd: dirname(this.paths.gateway), env: { ...this.env, CANOPY_DATABASE_URL: databaseUrl, CANOPY_SECRETS_KEY: this.secrets.secretsKey, CANOPY_UI_SERVICE_TOKEN: this.secrets.serviceToken, CANOPY_HOST: "127.0.0.1", CANOPY_PORT: String(gatewayPort), CANOPY_PUBLIC_GATEWAY_URL: workerPort ? `http://${config.bindHost}:${workerPort}` : gatewayUrl, ...(workerPort && { CANOPY_WORKER_HOST: config.bindHost, CANOPY_WORKER_PORT: String(workerPort) }), ...(linkPort && { CANOPY_LINK_HOST: config.bindHost, CANOPY_LINK_PORT: String(linkPort), CANOPY_LINK_ADDRESSES: `https://${config.bindHost}:${linkPort}` }) }, restart: true });
+        this.services.start({
+          name: "gateway",
+          ...this.command(this.paths.gateway),
+          cwd: dirname(this.paths.gateway),
+          env: {
+            ...this.env,
+            CANOPY_DATABASE_URL: databaseUrl,
+            CANOPY_SECRETS_KEY: this.secrets.secretsKey,
+            CANOPY_UI_SERVICE_TOKEN: this.secrets.serviceToken,
+            CANOPY_HOST: "127.0.0.1",
+            CANOPY_PORT: String(gatewayPort),
+            CANOPY_PUBLIC_GATEWAY_URL: workerPort ? `http://${config.bindHost}:${workerPort}` : gatewayUrl,
+            ...(workerPort && { CANOPY_WORKER_HOST: config.bindHost, CANOPY_WORKER_PORT: String(workerPort) }),
+            ...(linkPort && {
+              CANOPY_LINK_HOST: config.bindHost,
+              CANOPY_LINK_PORT: String(linkPort),
+              CANOPY_LINK_ADDRESSES: `https://${config.bindHost}:${linkPort}`,
+            }),
+          },
+          restart: true,
+        });
         const client = this.client(gatewayUrl);
-        await until(async () => { await client.getOverview({}, { timeoutMs: 1000 }); return true; });
-        if (!existsSync(join(workerDirectory, "worker.json"))) token = (await client.createWorkerEnrollment({ name: `Canopy · ${hostname()}` })).token;
+        await until(async () => {
+          await client.getOverview({}, { timeoutMs: 1000 });
+
+          return true;
+        });
+
+        if (!existsSync(join(workerDirectory, "worker.json")))
+          token = (await client.createWorkerEnrollment({ name: `Canopy · ${hostname()}` })).token;
         await this.startWeb(gatewayUrl);
       } else {
         gatewayUrl = config.gatewayUrl;
         webUrl = config.webUrl;
-        workerDirectory = join(this.directory, "remote-workers", createHash("sha256").update(gatewayUrl).digest("hex").slice(0, 24));
+        workerDirectory = join(
+          this.directory,
+          "remote-workers",
+          createHash("sha256").update(gatewayUrl).digest("hex").slice(0, 24),
+        );
         token = config.enrollmentToken;
         // The setup BFF never receives a remote service token or uses a remote gRPC endpoint.
         await this.startWeb("http://127.0.0.1:1");
       }
+
       mkdirSync(workerDirectory, { recursive: true, mode: 0o700 });
       const configPath = join(workerDirectory, "worker.json");
+
       if (token) {
         this.logs.protect(token);
-        const enrolled = await enrollWorker({ gateway: gatewayUrl, token, configPath, dataDir: join(workerDirectory, "data"), force: existsSync(configPath) });
+
+        const enrolled = await enrollWorker({
+          gateway: gatewayUrl,
+          token,
+          configPath,
+          dataDir: join(workerDirectory, "data"),
+          force: existsSync(configPath),
+        });
+
         this.logs.protect(enrolled.credential);
-      } else if (!existsSync(configPath)) throw new Error("Paste an enrollment token from Settings → Workers → Add worker");
+      } else if (!existsSync(configPath))
+        throw new Error("Paste an enrollment token from Settings → Workers → Add worker");
       // Local ports change between launches; preserve the enrolled worker's identity and journal.
       const local = JSON.parse(readFileSync(configPath, "utf8")) as Record<string, string>;
+
       if (local["credential"]) this.logs.protect(local["credential"]);
       local["gateway_url"] = gatewayUrl;
       this.writeJson(configPath, local);
       this.workerStatusFile = join(workerDirectory, "status.json");
       this.writeJson(this.workerStatusFile, { status: "offline", time: Date.now() });
       const launch = this.command(this.paths.worker);
-      this.services.start({ name: "worker", ...launch, args: [...launch.args, "--config", configPath], cwd: dirname(this.paths.worker), env: { ...this.env, CANOPY_WORKER_STATUS_FILE: this.workerStatusFile }, restart: true });
-      this.publish({ mode: config.mode, gatewayUrl, webUrl, allowNetwork: config.mode === "local" && config.allowNetwork, bindHost: config.mode === "local" ? config.bindHost : "127.0.0.1", clis: { claude: Boolean(Bun.which("claude", { PATH: this.env["PATH"]! })), codex: Boolean(Bun.which("codex", { PATH: this.env["PATH"]! })), grok: Boolean(Bun.which("grok", { PATH: this.env["PATH"]! })) }, worker: "connecting" });
-      const connected = until(async () => { this.readWorkerStatus(); return this.state.worker === "online"; }, config.mode === "local" ? 30_000 : 10_000);
+      this.services.start({
+        name: "worker",
+        ...launch,
+        args: [...launch.args, "--config", configPath],
+        cwd: dirname(this.paths.worker),
+        env: { ...this.env, CANOPY_WORKER_STATUS_FILE: this.workerStatusFile },
+        restart: true,
+      });
+      this.publish({
+        mode: config.mode,
+        gatewayUrl,
+        webUrl,
+        allowNetwork: config.mode === "local" && config.allowNetwork,
+        bindHost: config.mode === "local" ? config.bindHost : "127.0.0.1",
+        clis: {
+          claude: Boolean(Bun.which("claude", { PATH: this.env["PATH"]! })),
+          codex: Boolean(Bun.which("codex", { PATH: this.env["PATH"]! })),
+          grok: Boolean(Bun.which("grok", { PATH: this.env["PATH"]! })),
+        },
+        worker: "connecting",
+      });
+
+      const connected = until(
+        async () => {
+          this.readWorkerStatus();
+
+          return this.state.worker === "online";
+        },
+        config.mode === "local" ? 30_000 : 10_000,
+      );
+
       if (config.mode === "local") await connected;
-      else await connected.catch(() => this.logs.write("worker", "Remote gateway unavailable; enrolled worker will keep reconnecting"));
+      else
+        await connected.catch(() =>
+          this.logs.write("worker", "Remote gateway unavailable; enrolled worker will keep reconnecting"),
+        );
       // Never persist the one-time token. A failed attempt leaves the last working selection intact.
       const saved = config.mode === "remote" ? { mode: config.mode, gatewayUrl, webUrl } : config;
       this.writeJson(join(this.directory, "desktop.json"), saved);
@@ -189,27 +376,51 @@ export class DesktopRuntime {
       this.logs.write("desktop", message);
       this.publish({ phase: "error", worker: "offline", error: message });
       throw new Error(message);
-    } finally { if (this.installing === installing) this.installing = undefined; }
+    } finally {
+      if (this.installing === installing) this.installing = undefined;
+    }
   }
   client(gatewayUrl = this.state.gatewayUrl!) {
-    return createClient(ui.GatewayService, createGrpcTransport({ baseUrl: gatewayUrl, connectTimeoutMs: 1000, defaultTimeoutMs: 3000, interceptors: [(next) => (request) => { request.header.set("authorization", `Bearer ${this.secrets.serviceToken}`); return next(request); }] }));
+    return createClient(
+      ui.GatewayService,
+      createGrpcTransport({
+        baseUrl: gatewayUrl,
+        connectTimeoutMs: 1000,
+        defaultTimeoutMs: 3000,
+        interceptors: [
+          (next) => (request) => {
+            request.header.set("authorization", `Bearer ${this.secrets.serviceToken}`);
+
+            return next(request);
+          },
+        ],
+      }),
+    );
   }
   private writeJson(path: string, data: unknown) {
     const temporary = `${path}.new`;
     writeFileSync(temporary, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
     renameSync(temporary, path);
   }
-  killOwned() { this.services.killOwned(); this.web.killOwned(); }
-  cancelStartup() { this.installing?.abort(); }
+  killOwned() {
+    this.services.killOwned();
+    this.web.killOwned();
+  }
+  cancelStartup() {
+    this.installing?.abort();
+  }
   async presence(state: string) {
-    if (this.state.mode === "local" && this.state.gatewayUrl) await this.client().manageComputer({ action: "presence", name: state });
+    if (this.state.mode === "local" && this.state.gatewayUrl)
+      await this.client().manageComputer({ action: "presence", name: state });
   }
   async stop() {
     this.cancelStartup();
     this.generation++;
     this.configured = false;
     this.publish({ phase: "stopping" });
+
     if (this.statusTimer) clearInterval(this.statusTimer);
+
     if (this.healthTimer) clearInterval(this.healthTimer);
     // Keep worker → gateway → Postgres ordering within services for flush and clean DB shutdown.
     await Promise.all([this.services.stop(), this.web.stop()]);

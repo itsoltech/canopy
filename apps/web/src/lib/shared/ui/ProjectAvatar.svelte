@@ -15,12 +15,22 @@
     "bg-lime-500/15 text-lime-700 dark:text-lime-400",
     "bg-zinc-500/15 text-zinc-700 dark:text-zinc-300",
   ];
+
   const initials = $derived.by(() => {
     const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
     const letters = words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0] ?? "?").slice(0, 2);
+
     return letters.toUpperCase();
   });
+
   const tone = $derived(tones[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % tones.length]);
 </script>
 
-<span class={["inline-grid size-4.5 shrink-0 place-items-center rounded-sm font-mono text-[0.5625rem]/none font-bold tracking-tight", tone, className]} aria-hidden="true">{initials}</span>
+<span
+  class={[
+    "inline-grid size-4.5 shrink-0 place-items-center rounded-sm font-mono text-[0.5625rem]/none font-bold tracking-tight",
+    tone,
+    className,
+  ]}
+  aria-hidden="true">{initials}</span
+>

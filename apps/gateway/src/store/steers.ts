@@ -84,10 +84,12 @@ export class SteerStore extends Context.Service<
     SteerStore,
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
+
       // An answer to the agent's own ask_user comes from whoever answered (a parent thread, or nobody: you or a bot), not from itself.
       const source = `CASE WHEN s.notification_call_id IS NOT NULL THEN c.target_thread_id
         WHEN c.tool = 'ask_user' THEN (SELECT q.answered_by_thread_id FROM interaction_requests q WHERE q.question_call_id = c.id)
         ELSE c.source_thread_id END`;
+
       const select = `
         SELECT s.*, ${source} AS source_thread_id,
                st.title AS source_title, st.provider AS source_provider, st.provider_profile_id AS source_profile_id,
@@ -97,36 +99,48 @@ export class SteerStore extends Context.Service<
           FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = coalesce(s.agent_call_id, s.notification_call_id)
           LEFT JOIN threads st ON st.id = ${source}
           LEFT JOIN turns su ON su.id = CASE WHEN s.notification_call_id IS NOT NULL THEN c.target_turn_id ELSE c.source_turn_id END`;
+
       const one = (id: string) =>
-        sql.unsafe<SteerRow>(`${select} WHERE s.id = $1::uuid`, [id]).pipe(
-          Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("steer not found")))),
-        );
+        sql
+          .unsafe<SteerRow>(`${select} WHERE s.id = $1::uuid`, [id])
+          .pipe(
+            Effect.flatMap((rows) =>
+              rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("steer not found")),
+            ),
+          );
 
       const store: SteerStore["Service"] = {
         create: ({ threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode, input }) =>
           Effect.gen(function* () {
             const id = Bun.randomUUIDv7();
+
             const rows = yield* sql<{ id: string }>`
               INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort, permission_mode)
               VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify(input ?? { text })}::jsonb, ${userId}::uuid,
                       ${clientRequestId || null}, ${model}, ${effort}, ${permissionMode})
               ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
               RETURNING id`;
+
             if (rows[0]) return yield* one(rows[0].id);
             const existing = yield* store.byClientRequest(threadId, clientRequestId);
+
             return existing ?? (yield* Effect.fail(new NotFound("steer not found")));
           }),
 
         byClientRequest: (threadId, clientRequestId) =>
           clientRequestId
-            ? sql.unsafe<SteerRow>(`${select} WHERE s.thread_id = $1::uuid AND s.client_request_id = $2`, [threadId, clientRequestId]).pipe(
-                Effect.map((rows) => rows[0]),
-              )
+            ? sql
+                .unsafe<SteerRow>(`${select} WHERE s.thread_id = $1::uuid AND s.client_request_id = $2`, [
+                  threadId,
+                  clientRequestId,
+                ])
+                .pipe(Effect.map((rows) => rows[0]))
             : Effect.succeed(undefined),
 
         steer: one,
 
-        ofThread: (threadId) => sql.unsafe<SteerRow>(`${select} WHERE s.thread_id = $1::uuid ORDER BY s.created_at`, [threadId]),
+        ofThread: (threadId) =>
+          sql.unsafe<SteerRow>(`${select} WHERE s.thread_id = $1::uuid ORDER BY s.created_at`, [threadId]),
 
         accepted: (id) =>
           sql`UPDATE turn_steers SET status = 'accepted', updated_at = now() WHERE id = ${id}::uuid AND status = 'pending'`.pipe(
@@ -134,7 +148,9 @@ export class SteerStore extends Context.Service<
           ),
 
         dropped: (threadId) =>
-          sql<{ id: string }>`SELECT id FROM turn_steers WHERE thread_id = ${threadId}::uuid AND status = 'dropped' ORDER BY created_at`.pipe(
+          sql<{
+            id: string;
+          }>`SELECT id FROM turn_steers WHERE thread_id = ${threadId}::uuid AND status = 'dropped' ORDER BY created_at`.pipe(
             Effect.map((rows) => rows.map((r) => r.id)),
           ),
 
@@ -144,8 +160,12 @@ export class SteerStore extends Context.Service<
               yield* sql`SELECT id FROM threads WHERE id = (SELECT thread_id FROM turn_steers WHERE id = ${id}::uuid) FOR UPDATE`;
               const locked = yield* sql<SteerRow>`SELECT * FROM turn_steers WHERE id = ${id}::uuid FOR UPDATE`;
               const steer = locked[0];
+
               if (!steer) return yield* Effect.fail(new NotFound("steer not found"));
-              if (steer.status === "delivered" || steer.status === "queued" || steer.status === "failed") return { steer: yield* one(id) };
+
+              if (steer.status === "delivered" || steer.status === "queued" || steer.status === "failed")
+                return { steer: yield* one(id) };
+
               // A message steered from the queue goes back to its place there.
               const back = steer.from_turn_id
                 ? yield* sql<TurnRow>`
@@ -153,30 +173,41 @@ export class SteerStore extends Context.Service<
                      WHERE id = ${steer.from_turn_id}::uuid AND status = 'cancelled' AND withdrawn = 'steered'
                     RETURNING *`
                 : [];
+
               // Like the message would have been queued: a user's turn, or the agent's (same call, same hops).
               const agent = steer.agent_call_id !== null || !!steer.notification_call_id;
               const bot = steer.bot_call_id != null;
-              const rows = back[0] ? back : yield* sql<TurnRow>`
+
+              const rows = back[0]
+                ? back
+                : yield* sql<TurnRow>`
                 INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, bot_call_id, linked_call_id, hops, input, model, effort, permission_mode)
                 SELECT ${Bun.randomUUIDv7()}::uuid, ${steer.thread_id}::uuid, coalesce(max(ordinal), 0) + 1, ${steer.linked_call_id ? "linked_agent" : bot ? "bot" : agent ? "agent_bus" : "user"},
                        ${steer.author_user_id}::uuid, ${steer.agent_call_id ?? steer.notification_call_id ?? null}::uuid, ${steer.bot_call_id ?? null}::uuid, ${steer.linked_call_id ?? null}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
                        ${steer.model}, ${steer.effort}, ${steer.permission_mode}
                   FROM turns WHERE thread_id = ${steer.thread_id}::uuid
                 RETURNING *`;
+
               const turn = rows[0]!;
-              if (steer.linked_call_id) yield* sql`UPDATE computer_agent_calls SET target_turn_id=${turn.id}::uuid WHERE target_steer_id=${id}::uuid AND direction='incoming' AND NOT detached`;
+
+              if (steer.linked_call_id)
+                yield* sql`UPDATE computer_agent_calls SET target_turn_id=${turn.id}::uuid WHERE target_steer_id=${id}::uuid AND direction='incoming' AND NOT detached`;
               yield* sql`
                 UPDATE turn_steers SET status = 'queued', queued_turn_id = ${turn.id}::uuid, reason = ${reason}, updated_at = now()
                  WHERE id = ${id}::uuid`;
+
               // The agent hears back when this turn finishes (its source shows the message).
               if (steer.notification_call_id) {
                 yield* sql`UPDATE agent_bus_calls SET notify_status = 'delivered', notified_turn_id = ${turn.id}::uuid
                   WHERE id = ${steer.notification_call_id}::uuid AND notify_status = 'steering'`;
-              } else if (agent) yield* sql`UPDATE agent_bus_calls SET target_turn_id = ${turn.id}::uuid WHERE id = ${steer.agent_call_id}::uuid`;
+              } else if (agent)
+                yield* sql`UPDATE agent_bus_calls SET target_turn_id = ${turn.id}::uuid WHERE id = ${steer.agent_call_id}::uuid`;
+
               return { steer: yield* one(id), turn };
             }),
           ),
       };
+
       return SteerStore.of(store);
     }),
   );
@@ -184,6 +215,7 @@ export class SteerStore extends Context.Service<
 
 export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
   const sender = toUiSender(row);
+
   return create(ui.SteerSchema, {
     id: row.id,
     threadId: row.thread_id,

@@ -8,19 +8,29 @@
 
   let copied = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   async function copy() {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
       toast("Copying is not allowed here", { tone: "error" });
+
       return;
     }
+
     copied = true;
     clearTimeout(timer);
     timer = setTimeout(() => (copied = false), 1500);
   }
+
   $effect(() => () => clearTimeout(timer));
 </script>
 
-<IconButton icon={copied ? "copied" : "copy"} label={copied ? "Copied" : label} size="sm" class={className} onclick={copy} />
+<IconButton
+  icon={copied ? "copied" : "copy"}
+  label={copied ? "Copied" : label}
+  size="sm"
+  class={className}
+  onclick={copy}
+/>
 <span class="sr-only" aria-live="polite">{copied ? "Copied" : ""}</span>

@@ -22,40 +22,53 @@ export async function* coalesceDeltas(
 ): AsyncGenerator<ui.ThreadUpdate> {
   const iterator = source[Symbol.asyncIterator]();
   let held: { update: ui.ThreadUpdate; chunks: string[]; merged: boolean; deadline: number } | undefined;
+
   const release = (): ui.ThreadUpdate | undefined => {
     if (!held) return undefined;
     const { update, chunks, merged } = held;
     held = undefined;
+
     return merged ? withChunk(update, chunks.join("")) : update;
   };
+
   try {
     let next = iterator.next();
+
     for (;;) {
       const result = held ? await raceDeadline(next, held.deadline) : await next;
+
       if (result === TIMEOUT) {
         yield release()!;
         continue;
       }
+
       if (result.done) break;
       next = iterator.next();
       const update = result.value;
       const delta = deltaOf(update);
+
       if (delta && held && sameTarget(deltaOf(held.update)!, delta)) {
         held.update = update;
         held.chunks.push(delta.chunk);
         held.merged = true;
       } else {
         const out = release();
+
         if (out) yield out;
+
         if (!delta) {
           yield update;
           continue;
         }
+
         held = { update, chunks: [delta.chunk], merged: false, deadline: Date.now() + windowMs };
       }
+
       if (delta.chunk.includes("\n")) yield release()!;
     }
+
     const out = release();
+
     if (out) yield out;
   } finally {
     await iterator.return?.();
@@ -66,9 +79,11 @@ const TIMEOUT = Symbol("timeout");
 
 async function raceDeadline<T>(promise: Promise<T>, deadline: number): Promise<T | typeof TIMEOUT> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   const timeout = new Promise<typeof TIMEOUT>((resolve) => {
     timer = setTimeout(() => resolve(TIMEOUT), Math.max(0, deadline - Date.now()));
   });
+
   try {
     return await Promise.race([promise, timeout]);
   } finally {
@@ -78,8 +93,10 @@ async function raceDeadline<T>(promise: Promise<T>, deadline: number): Promise<T
 
 function deltaOf(update: ui.ThreadUpdate): ItemDelta | undefined {
   const change = update.change;
+
   if (change.case !== "event") return undefined;
   const body = change.value.event?.body;
+
   return body?.case === "itemDelta" ? body.value : undefined;
 }
 
@@ -89,8 +106,15 @@ const sameTarget = (a: ItemDelta, b: ItemDelta) => a.itemId === b.itemId && a.fi
 function withChunk(last: ui.ThreadUpdate, chunk: string): ui.ThreadUpdate {
   const change = last.change;
   const delta = deltaOf(last);
+
   if (change.case !== "event" || !change.value.event || !delta) return last;
   const body = create(ItemDeltaSchema, { itemId: delta.itemId, field: delta.field, chunk });
-  const event = create(ThreadEventSchema, { ...change.value.event, rawJson: "", body: { case: "itemDelta", value: body } });
+
+  const event = create(ThreadEventSchema, {
+    ...change.value.event,
+    rawJson: "",
+    body: { case: "itemDelta", value: body },
+  });
+
   return create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: change.value.seq, event } } });
 }

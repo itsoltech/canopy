@@ -19,8 +19,12 @@ describe.skipIf(!dockerAvailable)("thread read state (gateway)", () => {
     gw = await startTestGateway();
     api = gw.api;
     projectId = (await api.createProject({ name: "Reads" })).project!.id;
-    workspaceId = (await api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/reads" })).workspace!.id;
-    await eventually(() => api.getOverview({}), (o) => o.workers.every((w) => w.appliedVersion === 1n));
+    workspaceId = (await api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/reads" })).workspace!
+      .id;
+    await eventually(
+      () => api.getOverview({}),
+      (o) => o.workers.every((w) => w.appliedVersion === 1n),
+    );
   }, 60_000);
 
   afterAll(async () => {
@@ -36,34 +40,58 @@ describe.skipIf(!dockerAvailable)("thread read state (gateway)", () => {
       gw.worker.emit(threadId, turnId, { case: "turnFinished", value: { outcome } });
     });
     await api.sendMessage({ threadId, text: "go", clientRequestId: request });
-    await eventually(() => api.getThread({ threadId }), (r) => r.thread?.status !== "running" && r.thread?.unseenResult !== "");
+    await eventually(
+      () => api.getThread({ threadId }),
+      (r) => r.thread?.status !== "running" && r.thread?.unseenResult !== "",
+    );
     gw.worker.handlers.delete("startTurn");
   };
 
   test("a finished turn stays unseen until marked, live on the overview; the marker only grows", async () => {
-    const thread = (await api.createThread({ projectId, workspaceId, title: "r", provider: Provider.CODEX, permissionMode: PermissionMode.ASK })).thread!;
+    const thread = (
+      await api.createThread({
+        projectId,
+        workspaceId,
+        title: "r",
+        provider: Provider.CODEX,
+        permissionMode: PermissionMode.ASK,
+      })
+    ).thread!;
+
     const threadId = thread.id;
-    await eventually(() => api.getThread({ threadId }), (r) => r.thread?.status === "idle");
+    await eventually(
+      () => api.getThread({ threadId }),
+      (r) => r.thread?.status === "idle",
+    );
     expect((await api.getThread({ threadId })).thread?.unseenResult).toBe("");
 
     const seen: ui.Thread[] = [];
     const controller = new AbortController();
+
     const watching = (async () => {
-      for await (const u of api.watchOverview({}, { signal: controller.signal })) if (u.change.case === "thread" && u.change.value.id === threadId) seen.push(u.change.value);
+      for await (const u of api.watchOverview({}, { signal: controller.signal }))
+        if (u.change.case === "thread" && u.change.value.id === threadId) seen.push(u.change.value);
     })().catch(() => {});
+
     await Bun.sleep(50);
 
     await runTurn(threadId, TurnOutcome.COMPLETED, "read-1");
     const finished = (await api.getThread({ threadId })).thread!;
     expect(finished.unseenResult).toBe("completed");
     expect((await api.listThreads({})).threads.find((t) => t.id === threadId)?.unseenResult).toBe("completed");
-    await eventually(async () => seen.at(-1), (t) => t?.unseenResult === "completed");
+    await eventually(
+      async () => seen.at(-1),
+      (t) => t?.unseenResult === "completed",
+    );
 
     // Seen up to an earlier event: still unseen; up to the last one (or beyond, capped): cleared, live.
     expect((await api.markThreadSeen({ threadId, upToSeq: 1n })).thread?.unseenResult).toBe("completed");
     const cleared = await api.markThreadSeen({ threadId, upToSeq: finished.lastSeq + 100n });
     expect(cleared.thread?.unseenResult).toBe("");
-    await eventually(async () => seen.at(-1), (t) => t?.unseenResult === "");
+    await eventually(
+      async () => seen.at(-1),
+      (t) => t?.unseenResult === "",
+    );
     // A lower marker later (another device behind) does not bring it back.
     expect((await api.markThreadSeen({ threadId, upToSeq: 1n })).thread?.unseenResult).toBe("");
 

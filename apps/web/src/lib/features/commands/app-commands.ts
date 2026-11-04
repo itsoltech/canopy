@@ -1,6 +1,16 @@
 import type { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
-import { accentLabels, accentNames, accentOf, chatWidthLabels, chatWidthNames, chatWidthOf, schemeLabels, schemeNames, schemeOf } from "#lib/features/settings/appearance.ts";
+import {
+  accentLabels,
+  accentNames,
+  accentOf,
+  chatWidthLabels,
+  chatWidthNames,
+  chatWidthOf,
+  schemeLabels,
+  schemeNames,
+  schemeOf,
+} from "#lib/features/settings/appearance.ts";
 import { settingsSections } from "#lib/features/settings/sections.ts";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import { SIDEBAR_HOTKEY, type SidebarLayout } from "#lib/features/navigation/sidebar-layout.svelte.ts";
@@ -41,6 +51,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
   const threadCommand = (thread: ui.Thread, suggested: boolean): Command => {
     const project = overview.project(thread.projectId);
     const worker = overview.worker(thread.workerId);
+
     return {
       id: `thread:${thread.id}`,
       title: thread.title || "New thread",
@@ -48,15 +59,27 @@ export function appCommands(context: AppCommandContext): CommandSource {
       href: `/threads/${thread.id}`,
       keywords: [project?.name, worker?.name, basename(thread.cwd)].filter(Boolean).join(" "),
       suggested,
-      thread: { projectName: project?.name ?? "Unknown project", projectKind: project?.kind, workerName: worker?.name ?? "Unknown worker", provider: providerKeyOf(thread.provider), activityAt: activityOf(thread) },
+      thread: {
+        projectName: project?.name ?? "Unknown project",
+        projectKind: project?.kind,
+        workerName: worker?.name ?? "Unknown worker",
+        provider: providerKeyOf(thread.provider),
+        activityAt: activityOf(thread),
+      },
     };
   };
 
   return () => {
     const projectId = context.currentProjectId();
+
     const current =
       overview.project(projectId ?? "") ??
-      defaultProject({ projects: overview.projects, threads: overview.threads.values(), defaultWorkspaceId: settings.threadDefaults.workspaceId });
+      defaultProject({
+        projects: overview.projects,
+        threads: overview.threads.values(),
+        defaultWorkspaceId: settings.threadDefaults.workspaceId,
+      });
+
     const threads = [...overview.threads.values()].sort(byActivity);
     const currentThreadId = context.currentThreadId();
     const appearance = settings.appearance;
@@ -82,7 +105,15 @@ export function appCommands(context: AppCommandContext): CommandSource {
         rank: -9,
         when: () => overview.projects.length > 1,
         children: () =>
-          overview.projects.map((project) => ({ id: project.id, title: project.name, group: "actions", projectName: project.name, projectKind: project.kind, href: newThreadHref(project), checked: project.id === current?.id })),
+          overview.projects.map((project) => ({
+            id: project.id,
+            title: project.name,
+            group: "actions",
+            projectName: project.name,
+            projectKind: project.kind,
+            href: newThreadHref(project),
+            checked: project.id === current?.id,
+          })),
       },
       {
         id: "toggle-sidebar",
@@ -152,15 +183,34 @@ export function appCommands(context: AppCommandContext): CommandSource {
             run: () => void settings.updateAppearance({ chatWidth: chatWidthNames[name] }),
           })),
       },
-      { id: "open-settings", title: "Open settings", group: "actions", icon: "cog-6-tooth", keywords: "preferences options configure", href: "/settings", rank: 20 },
-      { id: "new-project", title: "New project", group: "actions", icon: "plus", keywords: "create add project", href: "/settings/projects", rank: 21 },
+      {
+        id: "open-settings",
+        title: "Open settings",
+        group: "actions",
+        icon: "cog-6-tooth",
+        keywords: "preferences options configure",
+        href: "/settings",
+        rank: 20,
+      },
+      {
+        id: "new-project",
+        title: "New project",
+        group: "actions",
+        icon: "plus",
+        keywords: "create add project",
+        href: "/settings/projects",
+        rank: 21,
+      },
     ];
 
     // Recent threads: the main threads by activity on an empty query (side threads are found by searching).
     let suggested = 0;
+
     const threadCommands = threads.map((thread) => {
       const show = !isSide(thread) && thread.id !== currentThreadId && suggested < 8;
+
       if (show) suggested += 1;
+
       return threadCommand(thread, show);
     });
 
@@ -174,8 +224,20 @@ export function appCommands(context: AppCommandContext): CommandSource {
       suggested: false,
       placeholder: `Search ${project.name}…`,
       children: () => [
-        { id: "new-thread", title: `New thread in ${project.name}`, group: "actions", icon: "pencil-square", href: newThreadHref(project) },
-        { id: "settings", title: project.kind === "scratch" ? "Thread defaults" : "Project settings", group: "actions", icon: "cog-6-tooth", href: project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}` },
+        {
+          id: "new-thread",
+          title: `New thread in ${project.name}`,
+          group: "actions",
+          icon: "pencil-square",
+          href: newThreadHref(project),
+        },
+        {
+          id: "settings",
+          title: project.kind === "scratch" ? "Thread defaults" : "Project settings",
+          group: "actions",
+          icon: "cog-6-tooth",
+          href: project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}`,
+        },
         ...threads.filter((t) => t.projectId === project.id).map((t) => threadCommand(t, true)),
       ],
     }));
@@ -190,10 +252,34 @@ export function appCommands(context: AppCommandContext): CommandSource {
     }));
 
     const thread = overview.threads.get(currentThreadId ?? "");
-    const currentActions: Command[] = thread ? threadActions(thread, overview.project(thread.projectId)?.name ?? "project", settings.sidebar.pinnedThreadIds.includes(thread.id), Boolean(thread.nodeId && awayReason(overview.computer(thread.nodeId))))
-      .filter((a) => ["pin", "rename", "archive", "delete", "read", "filter"].includes(a.id))
-      .map((a) => ({ id: `thread-action:${a.id}`, title: a.label, icon: a.icon, disabled: a.disabled, group: "actions", run: () => context.threadActions.run(a.id, thread) })) : [];
-    if (thread) currentActions.push({ id: "thread-action:copy-link", title: "Copy thread link", icon: "link", group: "actions", run: () => context.threadActions.copy(context.threadActions.link(thread)) });
+
+    const currentActions: Command[] = thread
+      ? threadActions(
+          thread,
+          overview.project(thread.projectId)?.name ?? "project",
+          settings.sidebar.pinnedThreadIds.includes(thread.id),
+          Boolean(thread.nodeId && awayReason(overview.computer(thread.nodeId))),
+        )
+          .filter((a) => ["pin", "rename", "archive", "delete", "read", "filter"].includes(a.id))
+          .map((a) => ({
+            id: `thread-action:${a.id}`,
+            title: a.label,
+            icon: a.icon,
+            disabled: a.disabled,
+            group: "actions",
+            run: () => context.threadActions.run(a.id, thread),
+          }))
+      : [];
+
+    if (thread)
+      currentActions.push({
+        id: "thread-action:copy-link",
+        title: "Copy thread link",
+        icon: "link",
+        group: "actions",
+        run: () => context.threadActions.copy(context.threadActions.link(thread)),
+      });
+
     return [...currentActions, ...actions, ...threadCommands, ...projects, ...sections];
   };
 }

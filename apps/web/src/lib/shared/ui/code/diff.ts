@@ -28,22 +28,30 @@ export function parseDiff(diff: string): DiffSides {
   let inHunk = !hunks;
   const next: string[] = [];
   const old: string[] = [];
+
   const lines = diff
     .replace(/\n$/, "")
     .split("\n")
     .map((text): DiffLine => {
       if (text.startsWith("diff --git ")) inHunk = false;
+
       if (text.startsWith("@@")) {
         inHunk = true;
+
         return { text, kind: "hunk", code: text, at: -1 };
       }
+
       if (!inHunk || text.startsWith("\\")) return { text, kind: "file", code: text, at: -1 };
       const code = hunks ? text.slice(1) : text;
+
       if (hunks && text.startsWith("+")) return { text, kind: "add", code, at: next.push(code) - 1 };
+
       if (hunks && text.startsWith("-")) return { text, kind: "del", code, at: old.push(code) - 1 };
       old.push(code);
+
       return { text, kind: "ctx", code, at: next.push(code) - 1 };
     });
+
   return { lines, next: next.join("\n"), old: old.join("\n") };
 }
 
@@ -51,7 +59,9 @@ export function parseDiff(diff: string): DiffSides {
 export function languageOfDiff(diff: string): LanguageId | undefined {
   for (const header of [/^\+\+\+ (?:b\/)?(\S+)/m, /^--- (?:a\/)?(\S+)/m]) {
     const path = header.exec(diff)?.[1];
+
     if (path && path !== "/dev/null") return languageOfPath(path);
   }
+
   return undefined;
 }

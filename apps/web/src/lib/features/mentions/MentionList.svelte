@@ -40,35 +40,50 @@
   } = $props();
 
   let press: { pointerId: number; x: number; y: number; moved: boolean } | undefined;
+
   function preserveFocus(event: PointerEvent) {
     event.preventDefault();
     press = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
   }
+
   function trackPress(event: PointerEvent) {
-    if (press?.pointerId === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8) press.moved = true;
+    if (press?.pointerId === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8)
+      press.moved = true;
   }
+
   function pick(event: PointerEvent, option: MentionOption) {
     trackPress(event);
     const tap = press?.pointerId === event.pointerId && !press.moved;
     press = undefined;
+
     // WebKit may suppress click after a cancelled pointerdown. Movement disqualifies a
     // swipe even when the browser sends pointerup instead of pointercancel.
-    if (event.button === 0 && tap) { event.preventDefault(); onchoose(option); }
+    if (event.button === 0 && tap) {
+      event.preventDefault();
+      onchoose(option);
+    }
   }
 
   const groups = $derived.by(() => {
     const out: { label: string; entries: { option: MentionOption; index: number }[] }[] = [];
     options.forEach((option, index) => {
       const last = out.at(-1);
+
       if (last?.label === option.group) last.entries.push({ option, index });
       else out.push({ label: option.group, entries: [{ option, index }] });
     });
+
     return out;
   });
 
   $effect(() => {
     if (active < 0) return;
-    if (active === 0) document.getElementById(`${id}-list`)?.closest<HTMLElement>("[data-mention-scroll], [popover]")?.scrollTo({ top: 0 });
+
+    if (active === 0)
+      document
+        .getElementById(`${id}-list`)
+        ?.closest<HTMLElement>("[data-mention-scroll], [popover]")
+        ?.scrollTo({ top: 0 });
     else document.getElementById(`${id}-option-${active}`)?.scrollIntoView({ block: "nearest" });
   });
 
@@ -79,62 +94,89 @@
     [...title].forEach((ch, i) => {
       const hit = hits.has(i);
       const last = out.at(-1);
+
       if (last && last.hit === hit) last.text += ch;
       else out.push({ text: ch, hit });
     });
+
     return out;
   }
 </script>
 
 <div class={className}>
-<ul id="{id}-list" role="listbox" aria-label={label} class="grid grid-cols-1 content-start p-1" onpointerdown={preserveFocus} onpointermove={trackPress} onpointercancel={() => { press = undefined; }}>
-  {#each groups as group (group.label)}
-    <li role="presentation" class={[listboxHeadingClasses, "-mx-1 px-3.5"]}>
-      <div class="truncate">{group.label}</div>
-    </li>
-    {#each group.entries as { option, index } (option.key)}
-      {@const icon = safeIcon(option.data.icon)}
-      <!-- Keys reach options through the editor (aria-activedescendant); a tap or click picks with the pointer. -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <li
-        id="{id}-option-{index}"
-        role="option"
-        aria-selected={index === active}
-        data-active={index === active || undefined}
-        class={["flex items-start gap-2.5", listboxOptionClasses]}
-        onpointermove={(event) => { if (event.pointerType !== "touch") onactive(index); }}
-        onpointerup={(event) => pick(event, option)}
-        onclick={(event) => { if (event.detail === 0) onchoose(option); }}
-      >
-        <div class="flex h-lh shrink-0 items-center">
-          {#if optionIcon}
-            {@render optionIcon(option)}
-          {:else if icon}
-            <!-- Harness icons are often dark glyphs on transparency: in dark mode they sit on a light tile to stay visible. -->
-            <img src={icon} alt="" class="size-4 rounded-sm object-contain dark:bg-zinc-200 dark:p-px" />
-          {:else}
-            <Icon name={kindLook(option.data).icon} class="fill-brand-600 dark:fill-brand-400" />
-          {/if}
-        </div>
-        <div class="grid min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
-          <p class="truncate font-medium sm:shrink-0 sm:basis-auto sm:max-w-1/2">
-            {#each runs(option.title, option.indices) as run, r (r)}{#if run.hit}<mark class="bg-transparent text-brand-700 dark:text-brand-300">{run.text}</mark>{:else}{run.text}{/if}{/each}
-          </p>
-          {#if option.detail}
-            <p class="min-w-0 truncate text-sm/5 text-zinc-500 sm:flex-1 sm:text-xs/4 dark:text-zinc-400" title={option.detail}>{option.detail}</p>
-          {/if}
-        </div>
+  <ul
+    id="{id}-list"
+    role="listbox"
+    aria-label={label}
+    class="grid grid-cols-1 content-start p-1"
+    onpointerdown={preserveFocus}
+    onpointermove={trackPress}
+    onpointercancel={() => {
+      press = undefined;
+    }}
+  >
+    {#each groups as group (group.label)}
+      <li role="presentation" class={[listboxHeadingClasses, "-mx-1 px-3.5"]}>
+        <div class="truncate">{group.label}</div>
       </li>
+      {#each group.entries as { option, index } (option.key)}
+        {@const icon = safeIcon(option.data.icon)}
+        <!-- Keys reach options through the editor (aria-activedescendant); a tap or click picks with the pointer. -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <li
+          id="{id}-option-{index}"
+          role="option"
+          aria-selected={index === active}
+          data-active={index === active || undefined}
+          class={["flex items-start gap-2.5", listboxOptionClasses]}
+          onpointermove={(event) => {
+            if (event.pointerType !== "touch") onactive(index);
+          }}
+          onpointerup={(event) => pick(event, option)}
+          onclick={(event) => {
+            if (event.detail === 0) onchoose(option);
+          }}
+        >
+          <div class="flex h-lh shrink-0 items-center">
+            {#if optionIcon}
+              {@render optionIcon(option)}
+            {:else if icon}
+              <!-- Harness icons are often dark glyphs on transparency: in dark mode they sit on a light tile to stay visible. -->
+              <img src={icon} alt="" class="size-4 rounded-sm object-contain dark:bg-zinc-200 dark:p-px" />
+            {:else}
+              <Icon name={kindLook(option.data).icon} class="fill-brand-600 dark:fill-brand-400" />
+            {/if}
+          </div>
+          <div class="grid min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
+            <p class="truncate font-medium sm:max-w-1/2 sm:shrink-0 sm:basis-auto">
+              {#each runs(option.title, option.indices) as run, r (r)}{#if run.hit}<mark
+                    class="bg-transparent text-brand-700 dark:text-brand-300">{run.text}</mark
+                  >{:else}{run.text}{/if}{/each}
+            </p>
+            {#if option.detail}
+              <p
+                class="min-w-0 truncate text-sm/5 text-zinc-500 sm:flex-1 sm:text-xs/4 dark:text-zinc-400"
+                title={option.detail}
+              >
+                {option.detail}
+              </p>
+            {/if}
+          </div>
+        </li>
+      {/each}
     {/each}
-  {/each}
-</ul>
-{#if loading && options.length === 0}
-  <p class="flex items-center gap-2 px-4 py-3 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status"><Spinner class="size-3.5" />Loading…</p>
-{:else if error}
-  <p class="flex items-start gap-2 px-4 py-3 text-sm/5 text-zinc-600 dark:text-zinc-300" role="status">
-    <span class="flex h-lh shrink-0 items-center"><Icon name="signal-slash" class="fill-zinc-400 dark:fill-zinc-500" /></span>{error}
-  </p>
-{:else if options.length === 0}
-  <p class="px-4 py-3 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">{empty}</p>
-{/if}
+  </ul>
+  {#if loading && options.length === 0}
+    <p class="flex items-center gap-2 px-4 py-3 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">
+      <Spinner class="size-3.5" />Loading…
+    </p>
+  {:else if error}
+    <p class="flex items-start gap-2 px-4 py-3 text-sm/5 text-zinc-600 dark:text-zinc-300" role="status">
+      <span class="flex h-lh shrink-0 items-center"
+        ><Icon name="signal-slash" class="fill-zinc-400 dark:fill-zinc-500" /></span
+      >{error}
+    </p>
+  {:else if options.length === 0}
+    <p class="px-4 py-3 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">{empty}</p>
+  {/if}
 </div>

@@ -33,11 +33,14 @@
   } = $props();
 
   const menu = useMenu();
+
   function choose() {
     if (disabled) return;
     onselect();
+
     if (!keepOpen) menu.closeAll();
   }
+
   const onpointermove = hoverFocus(() => (menu.openSub = undefined));
 </script>
 

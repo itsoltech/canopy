@@ -87,52 +87,75 @@
   const quoteDrafts = useQuoteDrafts();
   const quoteKey = $derived(`bot:${conversation.id}`);
   let composerRegion = $state<HTMLElement>();
+
   /** Height of the floating composer: the conversation scrolls under it and keeps that much room at its end. */
   let composerHeight = $state(0);
+
   /** The log's scrollbar width: the fade stops short of it. */
   let gutter = $state(0);
+
   $effect(() => {
     if (!log) return;
     const measure = () => (gutter = log ? log.offsetWidth - log.clientWidth : 0);
     const observer = new ResizeObserver(measure);
     observer.observe(log);
     measure();
+
     return () => observer.disconnect();
   });
+
   let log = $state<HTMLElement>();
   let content = $state<HTMLElement>();
   let composer = $state<ReturnType<typeof BotComposer>>();
   let following = $state(true);
+
   // Living mascots: the header's bot reacts to a new message (`event`) and shows what it is doing.
   let messageEvent = $state(0);
   let previousMessage: string | undefined;
   let previousConversation: string | undefined;
+
   $effect(() => {
     const id = conversation.id;
-    const found = entries.findLast((entry) => entry.kind === "message" || entry.kind === "event" && entry.event.changes?.length);
+
+    const found = entries.findLast(
+      (entry) => entry.kind === "message" || (entry.kind === "event" && entry.event.changes?.length),
+    );
+
     const latest = found?.kind === "message" ? found.message.id : found?.kind === "event" ? found.event.id : undefined;
+
     if (previousConversation === id && latest && latest !== previousMessage) untrack(() => messageEvent++);
     previousConversation = id;
     previousMessage = latest;
   });
+
   const mascotState = $derived.by((): MascotState => {
     if (status) return status.waiting ? "waiting" : stateForStatus(status.text);
     const last = entries.at(-1);
+
     if (last?.kind === "error") return "error";
+
     if (sending) return "working";
-    return last?.kind === "message" && conversation.bots.some((bot) => bot.id === last.message.senderId) ? "done" : "idle";
+
+    return last?.kind === "message" && conversation.bots.some((bot) => bot.id === last.message.senderId)
+      ? "done"
+      : "idle";
   });
+
   const toEnd = (behavior: ScrollBehavior = "instant") => log?.scrollTo({ top: log.scrollHeight, behavior });
 
   // Whatever grows the conversation (a message, a card, the status line, a long answer) keeps the end in
   // view while you are there.
   $effect(() => {
     const node = content;
+
     if (!node) return;
+
     const observer = new ResizeObserver(() => {
       if (following) toEnd();
     });
+
     observer.observe(node);
+
     return () => observer.disconnect();
   });
 
@@ -146,7 +169,12 @@
   function reply(message: ChatMessageView) {
     const region = log?.querySelector(`[data-quote-item="${CSS.escape(message.id)}"] [data-quote-kind]`);
     const text = region ? visibleText(region) : message.text;
-    const added = quoteDrafts.add(quoteKey, { text, source: { itemId: message.id, threadId: conversation.id, kind: "agent_message", language: "" } });
+
+    const added = quoteDrafts.add(quoteKey, {
+      text,
+      source: { itemId: message.id, threadId: conversation.id, kind: "agent_message", language: "" },
+    });
+
     if (!added) toast("A message can carry up to 20 quotes", { tone: "error" });
     void tick().then(() => composer?.focus());
   }
@@ -154,6 +182,7 @@
   function openAtUnread(node: HTMLElement) {
     const divider = node.querySelector<HTMLElement>("[role=separator][aria-label='New messages']");
     following = !divider;
+
     if (divider) node.scrollTop = divider.offsetTop - node.clientHeight / 3;
     else node.scrollTop = node.scrollHeight;
   }
@@ -163,8 +192,14 @@
   <div class="relative flex min-h-0 flex-1 flex-col">
     <!-- Over the conversation, frosted: messages scrolling under it stay faintly visible. The log starts below it
          (scroll-padding keeps focused and jumped-to messages clear of it). -->
-    <ConversationHeader {conversation} {subtitle} {actions} state={mascotState} event={messageEvent}
-      class="absolute inset-x-0 top-0 z-10 bg-white/75 backdrop-blur-md backdrop-saturate-150 dark:bg-black/70" />
+    <ConversationHeader
+      {conversation}
+      {subtitle}
+      {actions}
+      state={mascotState}
+      event={messageEvent}
+      class="absolute inset-x-0 top-0 z-10 bg-white/75 backdrop-blur-md backdrop-saturate-150 dark:bg-black/70"
+    />
     <!-- `relative`: screen-reader labels positioned inside messages stay inside the scroller. -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
@@ -206,16 +241,39 @@
     </div>
     {#if !following}
       <!-- Centred by flex, not translate: rise animates `translate` and would cancel a -translate-x-1/2. -->
-      <div class="pointer-events-none absolute inset-x-0 z-20 flex justify-center" style:bottom="{composerHeight + 12}px" transition:rise>
-        <span class="pointer-events-auto flex rounded-full bg-white shadow-md ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10">
-          <RoundButton icon="arrow-down" label="Jump to the latest message" variant="secondary" onclick={() => { following = true; toEnd("smooth"); }} />
+      <div
+        class="pointer-events-none absolute inset-x-0 z-20 flex justify-center"
+        style:bottom="{composerHeight + 12}px"
+        transition:rise
+      >
+        <span
+          class="pointer-events-auto flex rounded-full bg-white shadow-md ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10"
+        >
+          <RoundButton
+            icon="arrow-down"
+            label="Jump to the latest message"
+            variant="secondary"
+            onclick={() => {
+              following = true;
+              toEnd("smooth");
+            }}
+          />
         </span>
       </div>
     {/if}
 
     <!-- Floats over the end of the conversation (sticky bottom): messages fade out under it. -->
-    <div class="pointer-events-none absolute bottom-0 left-0 z-10 bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black" style:right="{gutter}px" style:height="{composerHeight + 32}px" aria-hidden="true"></div>
-    <div bind:this={composerRegion} bind:clientHeight={composerHeight} class="absolute inset-x-0 bottom-0 z-10 mx-auto w-full max-w-(--chat-width) px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
+    <div
+      class="pointer-events-none absolute bottom-0 left-0 z-10 bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black"
+      style:right="{gutter}px"
+      style:height="{composerHeight + 32}px"
+      aria-hidden="true"
+    ></div>
+    <div
+      bind:this={composerRegion}
+      bind:clientHeight={composerHeight}
+      class="absolute inset-x-0 bottom-0 z-10 mx-auto w-full max-w-(--chat-width) px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4"
+    >
       {#if archived && conversation.archived}
         {@render archived()}
       {:else if conversation.kind === "watch"}
@@ -238,4 +296,8 @@
     </div>
   </div>
 </div>
-{#if conversation.kind !== "watch" && !conversation.archived}<CiteLayer threadId={quoteKey} root={log} avoid={composerRegion} />{/if}
+{#if conversation.kind !== "watch" && !conversation.archived}<CiteLayer
+    threadId={quoteKey}
+    root={log}
+    avoid={composerRegion}
+  />{/if}

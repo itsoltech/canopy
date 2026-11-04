@@ -8,10 +8,13 @@ export const REMOTE_THREADS = "remote_threads";
 export const THREAD_MIRROR = "thread_mirror";
 export const REMOTE_BOTS = "remote_bots";
 export const AGENT_BUS = "agent_bus";
+
 /** Stage 6: the computer accepts `RouteAnnouncement` frames (its partner's current addresses). */
 export const LAN_ROUTES = "lan_routes";
+
 /** Stage 7: opt-in forwarding through exactly one trusted intermediary. */
 export const RELAY = "relay";
+
 /** Stage 8: two-phase moves of threads and bots between directly linked computers, and redirects. */
 export const MOVE_ITEMS = "move_items";
 export const NODE_REF_LENGTH = 16;
@@ -29,6 +32,7 @@ export const qualifyId = (id: string, nodeId: string): string => (PLAIN.test(id)
 /** `{ id, node }` for a qualified id, `{ id }` for a local one. */
 export function splitId(value: string): { id: string; node?: string } {
   const match = QUALIFIED.exec(value);
+
   return match ? { id: match[1]!, node: match[2]! } : { id: value };
 }
 
@@ -42,23 +46,36 @@ export const isEntityId = (value: string): boolean => ENTITY.test(value);
  */
 export const SHARED_CONFIG = "shared_config";
 export const SHARED_SETTINGS = ["appearance", "thread_defaults", "timezone", "text_generation"] as const;
+
 export type SharedSettingsSection = (typeof SHARED_SETTINGS)[number];
+
 export const sharedKey = {
   instance: (harness: string, id: string) => `instance:${harness}:${id}`,
   models: (harness: string, id: string) => `models:${harness}:${id}`,
   settings: (section: SharedSettingsSection) => `settings:${section}`,
   project: (id: string) => `project:${id}`,
 };
+
 export type SharedKey =
   | { kind: "instance" | "models"; harness: string; id: string }
   | { kind: "settings"; section: SharedSettingsSection }
   | { kind: "project"; id: string };
-const SHARED_KEY = /^(instance|models):(claude|codex|grok):([a-z0-9][a-z0-9_-]{0,62})$|^settings:([a-z_]+)$|^project:([0-9a-f-]{36})$/;
+
+const SHARED_KEY =
+  /^(instance|models):(claude|codex|grok):([a-z0-9][a-z0-9_-]{0,62})$|^settings:([a-z_]+)$|^project:([0-9a-f-]{36})$/;
+
 /** The item a key names, or undefined for anything this version does not share. */
 export function parseSharedKey(key: string): SharedKey | undefined {
   const m = SHARED_KEY.exec(key);
+
   if (!m) return undefined;
+
   if (m[1]) return { kind: m[1] as "instance" | "models", harness: m[2]!, id: m[3]! };
-  if (m[4]) return (SHARED_SETTINGS as readonly string[]).includes(m[4]) ? { kind: "settings", section: m[4] as SharedSettingsSection } : undefined;
+
+  if (m[4])
+    return (SHARED_SETTINGS as readonly string[]).includes(m[4])
+      ? { kind: "settings", section: m[4] as SharedSettingsSection }
+      : undefined;
+
   return PLAIN.test(m[5]!) ? { kind: "project", id: m[5]!.toLowerCase() } : undefined;
 }

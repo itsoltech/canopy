@@ -9,23 +9,31 @@
   import { splitId } from "@canopy/domain/computers";
 
   // A linked computer's thread while that computer is away: its reason ("Travel laptop is unreachable since …"), not a gateway outage.
-  const away = $derived(Boolean(splitId(page.params["threadId"] ?? "").node) && (page.status === 503 || page.status === 409));
+  const away = $derived(
+    Boolean(splitId(page.params["threadId"] ?? "").node) && (page.status === 503 || page.status === 409),
+  );
+
   const unavailable = $derived(page.status >= 500 || away);
   let retrying = $state(false);
+
   async function retry() {
     if (retrying) return;
     retrying = true;
+
     try {
       await invalidateAll();
     } finally {
       retrying = false;
     }
   }
+
   $effect(() => {
     if (!unavailable) return;
+
     const timer = setInterval(() => {
       if (!document.hidden && navigator.onLine) void retry();
     }, 3000);
+
     return () => clearInterval(timer);
   });
 </script>
@@ -37,7 +45,13 @@
   {#if unavailable}
     <div class="min-h-0 flex-1">
       {#if away}
-        <GatewayUnavailable {retry} {retrying} icon="link" title={page.error?.message ?? "The other computer is away"} description="This thread lives on that computer and opens here again once it is connected. Retrying automatically." />
+        <GatewayUnavailable
+          {retry}
+          {retrying}
+          icon="link"
+          title={page.error?.message ?? "The other computer is away"}
+          description="This thread lives on that computer and opens here again once it is connected. Retrying automatically."
+        />
       {:else}
         <GatewayUnavailable {retry} {retrying} />
       {/if}
@@ -47,8 +61,12 @@
       <div class="flex max-w-md flex-col items-center text-center">
         <Icon name="question-mark-circle" class="fill-zinc-400 dark:fill-zinc-500" />
         <p class="mt-3 font-mono text-sm/6 text-zinc-500 dark:text-zinc-400">{page.status}</p>
-        <h1 class="mt-1 text-2xl font-semibold tracking-tight text-balance">{page.error?.message ?? "Something went wrong"}</h1>
-        <p class="mt-2 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">The page you are looking for does not exist or is no longer available.</p>
+        <h1 class="mt-1 text-2xl font-semibold tracking-tight text-balance">
+          {page.error?.message ?? "Something went wrong"}
+        </h1>
+        <p class="mt-2 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          The page you are looking for does not exist or is no longer available.
+        </p>
         <div class="mt-6 flex gap-2"><ButtonLink href="/" variant="primary">New thread</ButtonLink></div>
       </div>
     </div>

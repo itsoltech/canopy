@@ -30,7 +30,10 @@ export interface BackgroundTasksOptions {
   readonly graceMs?: number;
 }
 
-type BackgroundCall = Extract<AgentBusCall, { tool: "list_background_tasks" | "get_background_task" | "stop_background_task" }>;
+type BackgroundCall = Extract<
+  AgentBusCall,
+  { tool: "list_background_tasks" | "get_background_task" | "stop_background_task" }
+>;
 
 const DEFAULT_GRACE_MS = 15_000;
 const TICK_MS = 2_000;
@@ -50,27 +53,53 @@ export class BackgroundTasks {
   /** An agent bus call about background tasks, for the calling thread (or the thread it names). */
   async tool(call: BackgroundCall, callerId: string): Promise<JsonValue> {
     const threadId = call.args.thread_id ?? callerId;
+
     switch (call.tool) {
       case "list_background_tasks": {
-        const tasks = await this.#host.run(BackgroundTaskStore.use((s) => s.list(threadId, call.args.status ?? "all", call.args.limit ?? 20)));
+        const tasks = await this.#host.run(
+          BackgroundTaskStore.use((s) => s.list(threadId, call.args.status ?? "all", call.args.limit ?? 20)),
+        );
+
         return {
           tasks: tasks as unknown as JsonValue,
           ...(tasks.length === 0 && { note: "This thread has no background tasks." }),
         };
       }
+
       case "get_background_task": {
-        const task = await this.#host.run(BackgroundTaskStore.use((s) => s.get(threadId, call.args.task_id, call.args.output_lines ?? 80)));
-        if (!task) throw new Refusal(`background task ${call.args.task_id} not found in this thread; list_background_tasks shows its tasks`);
+        const task = await this.#host.run(
+          BackgroundTaskStore.use((s) => s.get(threadId, call.args.task_id, call.args.output_lines ?? 80)),
+        );
+
+        if (!task)
+          throw new Refusal(
+            `background task ${call.args.task_id} not found in this thread; list_background_tasks shows its tasks`,
+          );
+
         return task as unknown as JsonValue;
       }
+
       case "stop_background_task": {
         const task = await this.#host.run(BackgroundTaskStore.use((s) => s.find(threadId, call.args.task_id)));
-        if (!task) throw new Refusal(`background task ${call.args.task_id} not found in this thread; list_background_tasks shows its tasks`);
-        if (!task.running) throw new Refusal(`background task ${call.args.task_id} is not running any more; get_background_task shows how it ended`);
+
+        if (!task)
+          throw new Refusal(
+            `background task ${call.args.task_id} not found in this thread; list_background_tasks shows its tasks`,
+          );
+
+        if (!task.running)
+          throw new Refusal(
+            `background task ${call.args.task_id} is not running any more; get_background_task shows how it ended`,
+          );
         // The agent knows: its end brings no note.
         await this.#host.run(BackgroundTaskStore.use((s) => s.stoppedByAgent(threadId, task.itemId)));
         await this.#host.stop(threadId, task.itemId);
-        return { task_id: task.itemId, stopping: true, note: "Asked the worker to stop it; it ends as stopped. Check with get_background_task." };
+
+        return {
+          task_id: task.itemId,
+          stopping: true,
+          note: "Asked the worker to stop it; it ends as stopped. Check with get_background_task.",
+        };
       }
     }
   }
@@ -78,18 +107,29 @@ export class BackgroundTasks {
   /** Hands the thread's waiting notes to its agent (idempotent; one pass per thread at a time). */
   async deliver(threadId: string): Promise<void> {
     const previous = this.#running.get(threadId);
-    const next = (previous ?? Promise.resolve()).then(() => this.#deliver(threadId)).catch((error: unknown) => this.#host.log(`background notes of thread ${threadId} not delivered: ${describe(error)}`));
+
+    const next = (previous ?? Promise.resolve())
+      .then(() => this.#deliver(threadId))
+      .catch((error: unknown) =>
+        this.#host.log(`background notes of thread ${threadId} not delivered: ${describe(error)}`),
+      );
+
     this.#running.set(threadId, next);
     await next;
+
     if (this.#running.get(threadId) === next) this.#running.delete(threadId);
   }
 
   async #deliver(threadId: string): Promise<void> {
-    const delivery = await this.#host.run(BackgroundTaskStore.use((s) => s.deliver(threadId, { graceMs: this.#graceMs })));
+    const delivery = await this.#host.run(
+      BackgroundTaskStore.use((s) => s.deliver(threadId, { graceMs: this.#graceMs })),
+    );
+
     if (delivery.turn) {
       this.#host.log(`background task note for thread ${threadId}: turn ${delivery.turn.id}`);
       await this.#host.queued(threadId, delivery.turn);
     }
+
     if (delivery.steerId) {
       this.#host.log(`background task note for thread ${threadId}: steer ${delivery.steerId}`);
       await this.#host.steered(delivery.steerId);
@@ -102,19 +142,24 @@ export class BackgroundTasks {
    */
   async release(threadId: string, steerId: string, reason: string): Promise<boolean> {
     const mine = await this.#host.run(BackgroundTaskStore.use((s) => s.release(steerId, reason)));
+
     if (mine) await this.deliver(threadId);
+
     return mine;
   }
 
   /** Every thread with notes that may move now. */
   async tick(): Promise<void> {
     const threads = await this.#host.run(BackgroundTaskStore.use((s) => s.pendingThreads()));
+
     for (const threadId of threads) await this.deliver(threadId);
   }
 
   /** Delivers now and then every few seconds (main.ts; tests call tick() or start a short interval). */
   start(intervalMs = TICK_MS): void {
-    const run = () => void this.tick().catch((error: unknown) => this.#host.log(`background notes: ${describe(error)}`));
+    const run = () =>
+      void this.tick().catch((error: unknown) => this.#host.log(`background notes: ${describe(error)}`));
+
     run();
     this.#timer ??= setInterval(run, intervalMs);
   }

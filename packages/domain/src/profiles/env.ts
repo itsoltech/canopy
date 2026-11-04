@@ -21,7 +21,20 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
  * Variables the worker sets for every harness process: the isolated homes, the user's home and search path,
  * the SDK's own markers and the worker's own settings. Matched case-insensitively (Windows env is).
  */
-const ALWAYS_DENIED = ["HOME", "USERPROFILE", "PATH", "PWD", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CLAUDE_CODE_ENTRYPOINT", "GROK_HOME", "GROK_AUTH_PATH", "GROK_AUTH", "GROK_CONFIG", "GROK_CONFIG_PATH"] as const;
+const ALWAYS_DENIED = [
+  "HOME",
+  "USERPROFILE",
+  "PATH",
+  "PWD",
+  "CLAUDE_CONFIG_DIR",
+  "CODEX_HOME",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "GROK_HOME",
+  "GROK_AUTH_PATH",
+  "GROK_AUTH",
+  "GROK_CONFIG",
+  "GROK_CONFIG_PATH",
+] as const;
 
 /**
  * Prefix owned by the platform: the Codex key variables of endpoint profiles (CANOPY_<ID>_API_KEY) and the
@@ -30,7 +43,19 @@ const ALWAYS_DENIED = ["HOME", "USERPROFILE", "PATH", "PWD", "CLAUDE_CONFIG_DIR"
 const DENIED_PREFIXES = ["CANOPY_"] as const;
 
 /** An endpoint profile sets its own endpoint and key; these would compete with it. */
-const ENDPOINT_DENIED = ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "XAI_API_KEY", "GROK_CODE_XAI_API_KEY", "GROK_XAI_API_BASE_URL", "GROK_CLI_CHAT_PROXY_BASE_URL", "GROK_MODELS_BASE_URL", "GROK_MODELS_LIST_URL", "GROK_AUTH_PROVIDER_COMMAND"] as const;
+const ENDPOINT_DENIED = [
+  "ANTHROPIC_BASE_URL",
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_API_KEY",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "XAI_API_KEY",
+  "GROK_CODE_XAI_API_KEY",
+  "GROK_XAI_API_BASE_URL",
+  "GROK_CLI_CHAT_PROXY_BASE_URL",
+  "GROK_MODELS_BASE_URL",
+  "GROK_MODELS_LIST_URL",
+  "GROK_AUTH_PROVIDER_COMMAND",
+] as const;
 
 /** Names a profile of this kind may not set; for docs and the UI. */
 export function deniedEnvNames(kind: ProfileKind): readonly string[] {
@@ -42,32 +67,48 @@ export const deniedEnvPrefixes: readonly string[] = DENIED_PREFIXES;
 /** Why this name cannot be used, or undefined when it can. */
 export function envNameProblem(kind: ProfileKind, name: string): string | undefined {
   if (!name) return "name is required";
+
   if (name.length > MAX_ENV_NAME_LENGTH) return `name is longer than ${MAX_ENV_NAME_LENGTH} characters`;
+
   if (!ENV_NAME.test(name)) return "use letters, digits and _ (not starting with a digit)";
   const upper = name.toUpperCase();
+
   if (deniedEnvNames(kind).includes(upper)) {
     return (ENDPOINT_DENIED as readonly string[]).includes(upper)
       ? `${name} is set by the profile's endpoint and key`
       : `${name} is controlled by the worker`;
   }
+
   const prefix = DENIED_PREFIXES.find((p) => upper.startsWith(p));
+
   if (prefix) return `${prefix}* variables are reserved for the platform`;
+
   return undefined;
 }
 
 /** Problems of a whole list (first one per variable, by index), e.g. duplicates and sizes. */
-export function envListProblems(kind: ProfileKind, vars: readonly ProfileEnvVarRule[]): { index: number; message: string }[] {
+export function envListProblems(
+  kind: ProfileKind,
+  vars: readonly ProfileEnvVarRule[],
+): { index: number; message: string }[] {
   const problems: { index: number; message: string }[] = [];
-  if (vars.length > MAX_PROFILE_ENV_VARS) problems.push({ index: MAX_PROFILE_ENV_VARS, message: `at most ${MAX_PROFILE_ENV_VARS} variables` });
+
+  if (vars.length > MAX_PROFILE_ENV_VARS)
+    problems.push({ index: MAX_PROFILE_ENV_VARS, message: `at most ${MAX_PROFILE_ENV_VARS} variables` });
   const seen = new Set<string>();
   vars.forEach((v, index) => {
     const problem =
       envNameProblem(kind, v.name) ??
       (seen.has(v.name.toUpperCase()) ? `${v.name} is listed twice` : undefined) ??
-      (v.value.length > MAX_ENV_VALUE_LENGTH ? `${v.name}: value is longer than ${MAX_ENV_VALUE_LENGTH} characters` : undefined) ??
+      (v.value.length > MAX_ENV_VALUE_LENGTH
+        ? `${v.name}: value is longer than ${MAX_ENV_VALUE_LENGTH} characters`
+        : undefined) ??
       (v.value.includes("\0") ? `${v.name}: value contains a NUL character` : undefined);
+
     seen.add(v.name.toUpperCase());
+
     if (problem) problems.push({ index, message: problem });
   });
+
   return problems;
 }

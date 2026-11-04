@@ -7,11 +7,25 @@
   /** Where a CLI stands: installing, failed, behind the latest release, or current (nothing when it cannot tell). */
   let { item, class: className }: { item: ui.WorkerCliTool; class?: ClassValue } = $props();
   const tool = $derived(item.tool!);
-  const installed = $derived(tool.method !== CliInstallMethod.NOT_INSTALLED && tool.method !== CliInstallMethod.UNSPECIFIED);
-  const target = $derived(tool.install?.targetVersion && tool.install.targetVersion !== "latest" ? ` · ${tool.install.targetVersion}` : "");
+
+  const installed = $derived(
+    tool.method !== CliInstallMethod.NOT_INSTALLED && tool.method !== CliInstallMethod.UNSPECIFIED,
+  );
+
+  const target = $derived(
+    tool.install?.targetVersion && tool.install.targetVersion !== "latest" ? ` · ${tool.install.targetVersion}` : "",
+  );
+
   const state = $derived(
-    tool.install?.state === "running" ? "installing" : tool.install?.state === "failed" ? "failed"
-      : item.updateAvailable ? "update" : installed && item.latest?.version && !item.latest.error ? "current" : "",
+    tool.install?.state === "running"
+      ? "installing"
+      : tool.install?.state === "failed"
+        ? "failed"
+        : item.updateAvailable
+          ? "update"
+          : installed && item.latest?.version && !item.latest.error
+            ? "current"
+            : "",
   );
 </script>
 

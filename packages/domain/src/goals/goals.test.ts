@@ -1,10 +1,23 @@
 import { describe, expect, test } from "bun:test";
-import { claudeGoalCommand, fromCodexStatus, goalStatusAfterFailure, goalStatusFromHarness, type CodexGoalStatus } from "./goals.ts";
+import {
+  claudeGoalCommand,
+  fromCodexStatus,
+  goalStatusAfterFailure,
+  goalStatusFromHarness,
+  type CodexGoalStatus,
+} from "./goals.ts";
 
 describe("harness goals", () => {
   test("Codex statuses map to platform statuses; a user pause is not undone by progress reports", () => {
     const native: CodexGoalStatus[] = ["active", "paused", "blocked", "usageLimited", "budgetLimited", "complete"];
-    expect(native.map(fromCodexStatus)).toEqual(["active", "paused", "blocked", "usage_limited", "budget_limited", "achieved"]);
+    expect(native.map(fromCodexStatus)).toEqual([
+      "active",
+      "paused",
+      "blocked",
+      "usage_limited",
+      "budget_limited",
+      "achieved",
+    ]);
     expect(goalStatusFromHarness("codex", "complete", false, "active")).toBe("achieved");
     expect(goalStatusFromHarness("codex", "active", false, "paused")).toBe("paused");
     expect(goalStatusFromHarness("codex", "active", false, undefined)).toBe("active");

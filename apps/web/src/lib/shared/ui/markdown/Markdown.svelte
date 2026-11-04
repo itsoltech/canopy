@@ -25,8 +25,16 @@
     breaks = false,
     elements,
     class: className,
-  }: { text: string; streaming?: boolean; breaks?: boolean; elements?: InlineElements | undefined; class?: ClassValue } = $props();
+  }: {
+    text: string;
+    streaming?: boolean;
+    breaks?: boolean;
+    elements?: InlineElements | undefined;
+    class?: ClassValue;
+  } = $props();
+
   const marked = $derived(elements && elements.ranges.length > 0 ? withSentinels(text, elements) : undefined);
+
   // Read through getters: the context follows the props. `render` is only reached through a sentinel, so with elements.
   provideInlineElements({
     get render() {
@@ -34,14 +42,22 @@
     },
     restore: (code: string) => marked?.context.restore(code) ?? code,
   });
+
   const reveal = new LineReveal(
     () => marked?.text ?? text,
     () => streaming,
   );
+
   let previous: Token[] = [];
   const tokens = $derived((previous = shareTokens(previous, lexMarkdown(reveal.text, breaks))));
 </script>
 
-<div class={["grid gap-3 text-base/7 text-pretty break-words text-zinc-800 sm:text-sm/6 dark:text-zinc-200", streaming && "t-stream", className]}>
+<div
+  class={[
+    "grid gap-3 text-base/7 text-pretty break-words text-zinc-800 sm:text-sm/6 dark:text-zinc-200",
+    streaming && "t-stream",
+    className,
+  ]}
+>
   <MarkdownBlocks {tokens} {streaming} />
 </div>

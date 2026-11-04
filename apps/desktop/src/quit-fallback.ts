@@ -11,6 +11,7 @@ export function quitFallback(delivered: (phase: QuitGuardState["phase"]) => void
 
   function render() {
     if (!document.documentElement || !current) return;
+
     if (!host) {
       host = document.createElement("div");
       const shadow = host.attachShadow({ mode: "closed" });
@@ -36,16 +37,36 @@ export function quitFallback(delivered: (phase: QuitGuardState["phase"]) => void
       pill.append(ring, message);
       shadow.append(pill);
     }
+
     animation?.cancel();
-    if (current.phase === "cancel") { host.remove(); return; }
-    ring.hidden = current.phase !== "holding";
-    message.textContent = current.phase === "holding" ? `Keep holding ${current.shortcut}… Release to cancel` : current.message ?? `Press ${current.shortcut} twice to quit`;
-    if (current.phase === "holding" && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      animation = ring.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], { duration: current.durationMs, iterations: Infinity });
+
+    if (current.phase === "cancel") {
+      host.remove();
+
+      return;
     }
+
+    ring.hidden = current.phase !== "holding";
+    message.textContent =
+      current.phase === "holding"
+        ? `Keep holding ${current.shortcut}… Release to cancel`
+        : (current.message ?? `Press ${current.shortcut} twice to quit`);
+
+    if (current.phase === "holding" && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      animation = ring.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], {
+        duration: current.durationMs,
+        iterations: Infinity,
+      });
+    }
+
     document.documentElement.append(host);
     delivered(current.phase);
   }
+
   document.addEventListener("DOMContentLoaded", render, { once: true });
-  return (state: QuitGuardState) => { current = state; render(); };
+
+  return (state: QuitGuardState) => {
+    current = state;
+    render();
+  };
 }

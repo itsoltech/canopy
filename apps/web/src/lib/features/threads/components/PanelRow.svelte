@@ -31,7 +31,9 @@
     aside?: Snippet;
     lead?: Snippet;
   } = $props();
+
   const interactive = $derived(Boolean(href || onclick));
+
   const classes = $derived([
     "flex w-full min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-left text-base/6 text-zinc-700 sm:py-1.5 sm:text-sm/6 dark:text-zinc-300",
     interactive && "hover:bg-zinc-950/4 hover:text-zinc-950 focus-ring dark:hover:bg-white/5 dark:hover:text-white",

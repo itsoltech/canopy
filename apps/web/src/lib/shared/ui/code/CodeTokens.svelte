@@ -6,4 +6,5 @@
 </script>
 
 <!-- One line: this renders inside a <pre>, where whitespace in the template would show. -->
-{#each tokens as token, index (index)}{#if token.color}<span style:color={token.color}>{token.content}</span>{:else}{token.content}{/if}{/each}
+{#each tokens as token, index (index)}{#if token.color}<span style:color={token.color}>{token.content}</span
+    >{:else}{token.content}{/if}{/each}

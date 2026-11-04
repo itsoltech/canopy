@@ -7,6 +7,7 @@
 
   /** Optional accent color of an instance (a dot on its mark in lists and in the model picker). */
   let { value = $bindable(""), name, class: className }: { value: string; name: string; class?: ClassValue } = $props();
+
   const swatch =
     "relative grid size-8 place-items-center rounded-full ring-1 ring-zinc-950/10 has-checked:ring-2 has-checked:ring-zinc-950 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-brand-500 sm:size-7 dark:ring-white/15 dark:has-checked:ring-white";
 </script>

@@ -64,18 +64,25 @@
 
   let open = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   const after = (ms: number, value: boolean) => {
     clearTimeout(timer);
+
     if (disabled && value) return;
     timer = setTimeout(() => (open = value), ms);
   };
+
   const self = {
     close: () => {
       clearTimeout(timer);
       open = false;
     },
   };
-  $effect(() => { if (disabled) self.close(); });
+
+  $effect(() => {
+    if (disabled) self.close();
+  });
+
   $effect(() => {
     if (open) {
       if (shown !== self) shown?.close();
@@ -85,20 +92,26 @@
       lastClosed = Date.now();
     }
   });
+
   // An open menu (a row's context menu) owns the pointer's attention: no preview pops up over it.
   const menuOpen = () => document.querySelector(':popover-open[role="menu"], :popover-open [role="menu"]') !== null;
+
   const enter = (event: PointerEvent) => {
     if (event.pointerType !== "mouse" || menuOpen()) return;
     const warm = open || (shown !== undefined && shown !== self) || Date.now() - lastClosed < WARM_MS;
     after(warm ? 0 : openDelay, true);
   };
+
   const leave = (event: PointerEvent) => {
     if (event.pointerType === "mouse") after(closeDelay, false);
   };
+
   $effect(() => () => {
     clearTimeout(timer);
+
     if (shown === self) shown = undefined;
   });
+
   const pressKey = createAttachmentKey();
   const press = longPress(() => after(0, true));
 </script>
@@ -106,7 +119,11 @@
 <Popover bind:open {label} {placement} focusOnOpen={false} class={["w-72", className]}>
   {#snippet trigger(props)}
     {@render renderTrigger({
-      ...(touch === "press" ? { ...anchorOnly(props), [pressKey]: press } : touch === "none" ? anchorOnly(props) : props),
+      ...(touch === "press"
+        ? { ...anchorOnly(props), [pressKey]: press }
+        : touch === "none"
+          ? anchorOnly(props)
+          : props),
       onpointerenter: enter,
       onpointerleave: leave,
       onfocus: (event: FocusEvent) => {
@@ -115,7 +132,13 @@
       onblur: () => after(closeDelay, false),
     })}
   {/snippet}
-  <div role="presentation" class="p-3" onpointerenter={enter} onpointerleave={leave} onfocusin={() => clearTimeout(timer)}>
+  <div
+    role="presentation"
+    class="p-3"
+    onpointerenter={enter}
+    onpointerleave={leave}
+    onfocusin={() => clearTimeout(timer)}
+  >
     {@render children()}
   </div>
 </Popover>

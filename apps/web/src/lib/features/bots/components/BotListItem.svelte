@@ -12,7 +12,13 @@
     current = false,
     class: className,
     ...handlers
-  }: { conversation: ConversationView; href: string; current?: boolean; class?: ClassValue } & ConversationHandlers = $props();
+  }: {
+    conversation: ConversationView;
+    href: string;
+    current?: boolean;
+    class?: ClassValue;
+  } & ConversationHandlers = $props();
+
   const bot = $derived(conversation.bots[0]);
 </script>
 

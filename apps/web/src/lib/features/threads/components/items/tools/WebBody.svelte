@@ -32,7 +32,9 @@
       {#each results.links as link (link.url)}
         <li class="flex min-w-0 items-baseline gap-2">
           <ExternalLink href={link.url} title={link.url} class="truncate">{link.title}</ExternalLink>
-          <span class="shrink-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{shortUrl(link.url).split("/")[0]}</span>
+          <span class="shrink-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+            >{shortUrl(link.url).split("/")[0]}</span
+          >
         </li>
       {/each}
     </ul>

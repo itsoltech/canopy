@@ -58,32 +58,43 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
   async function* connect(requests: AsyncIterable<WorkerMessage>, ctx: HandlerContext): AsyncIterable<GatewayMessage> {
     const epoch = credentialEpoch;
     const credential = bearerToken(ctx.requestHeader.get("authorization"));
+
     if (!credential) throw new ConnectError("missing worker credential", Code.Unauthenticated);
     const workerId = await options.authenticate(credential);
+
     if (!workerId) throw new ConnectError("invalid worker credential", Code.Unauthenticated);
 
     const inbound = requests[Symbol.asyncIterator]();
     const first = await withTimeout(inbound.next(), helloTimeoutMs, ctx.signal);
+
     if (first.done || first.value.payload.case !== "hello") {
       throw new ConnectError("first message must be Hello", Code.FailedPrecondition);
     }
+
     const hello = first.value.payload.value;
+
     if (hello.workerId !== workerId) {
       throw new ConnectError("Hello.worker_id does not match credential", Code.PermissionDenied);
     }
+
     if (!workerLinkCompatible(hello.minWorkerLinkProtocol, hello.workerLinkProtocol)) {
-      throw new ConnectError(`WorkerLink protocol ${hello.minWorkerLinkProtocol}..${hello.workerLinkProtocol} is incompatible with gateway ${MIN_WORKER_LINK_PROTOCOL}..${WORKER_LINK_PROTOCOL}; use canopy.update.v1.UpdateService to update`, Code.FailedPrecondition);
+      throw new ConnectError(
+        `WorkerLink protocol ${hello.minWorkerLinkProtocol}..${hello.workerLinkProtocol} is incompatible with gateway ${MIN_WORKER_LINK_PROTOCOL}..${WORKER_LINK_PROTOCOL}; use canopy.update.v1.UpdateService to update`,
+        Code.FailedPrecondition,
+      );
     }
 
     const outbound = new AsyncChannel<GatewayMessage>();
     outbound.push(gatewayMessage({ case: "welcome", value: await options.welcome(workerId, hello) }));
     const config = await options.config?.(workerId);
+
     if (config && BigInt(config.version ?? 0) !== hello.configVersion) {
       outbound.push(gatewayMessage({ case: "config", value: config }));
     }
 
     // No await between this check and registration: a rotation/revoke cannot leave a stale handshake live.
-    if (epoch !== credentialEpoch) throw new ConnectError("worker credentials changed; reconnect", Code.Unauthenticated);
+    if (epoch !== credentialEpoch)
+      throw new ConnectError("worker credentials changed; reconnect", Code.Unauthenticated);
     const connection = new WorkerConnection(workerId, hello, outbound);
     connections.get(workerId)?.close();
     connections.set(workerId, connection);
@@ -98,6 +109,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
         for (let next = await inbound.next(); !next.done; next = await inbound.next()) {
           connection.deliver(next.value);
         }
+
         connection.finish(undefined);
       } catch (error) {
         connection.finish(error);
@@ -118,17 +130,22 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     },
     pushConfig: (workerId, config) => {
       const connection = connections.get(workerId);
+
       if (!connection?.isOpen) return false;
       connection.send({ case: "config", value: config });
+
       return true;
     },
     shutdown: async ({ reason = "gateway shutting down", reconnectAfterMs = 1_000, jitterMs = 4_000 } = {}) => {
       const open = [...connections.values()];
+
       for (const connection of open) {
         const delay = reconnectAfterMs + Math.floor(Math.random() * jitterMs);
+
         if (connection.isOpen) connection.send({ case: "drain", value: { reason, reconnectAfterMs: delay } });
         connection.close();
       }
+
       await Promise.all(open.map((connection) => connection.closed));
     },
   };
@@ -136,6 +153,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
 
 function bearerToken(header: string | null): string | undefined {
   const match = header?.match(/^Bearer\s+(\S+)$/i);
+
   return match?.[1];
 }
 

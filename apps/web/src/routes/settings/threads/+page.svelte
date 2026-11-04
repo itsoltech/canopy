@@ -17,13 +17,26 @@
 
 <svelte:head><title>Threads · Settings · Canopy</title></svelte:head>
 
-<SettingsGroup title="New threads" description="Starting values of the new-thread composer on every device. A project's own defaults take precedence.">
+<SettingsGroup
+  title="New threads"
+  description="Starting values of the new-thread composer on every device. A project's own defaults take precedence."
+>
   {#snippet actions()}
-    <Button size="sm" icon="arrow-path" onclick={() => settings.updateThreadDefaults(create(ui.ThreadDefaultsSchema))}>Restore defaults</Button>
+    <Button size="sm" icon="arrow-path" onclick={() => settings.updateThreadDefaults(create(ui.ThreadDefaultsSchema))}
+      >Restore defaults</Button
+    >
   {/snippet}
-  <ThreadDefaultsFields value={settings.threadDefaults} {workspaces} onchange={(next) => settings.updateThreadDefaults(next)} />
+  <ThreadDefaultsFields
+    value={settings.threadDefaults}
+    {workspaces}
+    onchange={(next) => settings.updateThreadDefaults(next)}
+  />
 </SettingsGroup>
 
 <SharingGroup>
-  <ShareSetting itemKey={sharedKey.settings("thread_defaults")} label="Thread defaults" local="The default workspace is a directory on one computer and stays on each." />
+  <ShareSetting
+    itemKey={sharedKey.settings("thread_defaults")}
+    label="Thread defaults"
+    local="The default workspace is a directory on one computer and stays on each."
+  />
 </SharingGroup>

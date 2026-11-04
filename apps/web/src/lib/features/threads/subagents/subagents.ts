@@ -20,14 +20,18 @@ export const subagentLook = (state: SubagentState): StatusLook => looks[state];
 /** A question or permission prompt first; then a turn on its way; then how its last turn ended. */
 export function subagentState(thread: ui.Thread): SubagentState {
   if (thread.pendingInteractions > 0 || thread.status === "waiting_input") return "waiting";
+
   if (thread.status === "creating" || thread.status === "running") return "working";
+
   if (thread.status === "failed") return "failed";
+
   switch (thread.lastTurnStatus) {
     case "completed":
     case "failed":
     case "interrupted":
       return thread.lastTurnStatus;
   }
+
   // Interrupted before any turn ended, or idle with its first turn about to start.
   return thread.status === "interrupted" ? "interrupted" : "working";
 }
@@ -41,6 +45,7 @@ export interface Subagent {
  * Idle threads count only while they still need a person's answer or approval. */
 export function isActiveSubagent(thread: ui.Thread): boolean {
   if (!["creating", "running", "waiting_input", "idle"].includes(thread.status)) return false;
+
   return thread.status !== "idle" || thread.pendingInteractions > 0;
 }
 
@@ -57,9 +62,12 @@ export function subagentSummary(list: readonly Subagent[]): string {
   const active = list.filter((s) => isActiveSubagent(s.thread));
   const working = active.filter((s) => s.state === "working").length;
   const waiting = active.filter((s) => s.state === "waiting").length;
-  const noun = (n: number) => n === 1 ? "subagent" : "subagents";
+  const noun = (n: number) => (n === 1 ? "subagent" : "subagents");
+
   return [
     working ? `${working} ${noun(working)} working` : "",
     waiting ? `${waiting}${working ? "" : ` ${noun(waiting)}`} ${waiting === 1 ? "needs" : "need"} you` : "",
-  ].filter(Boolean).join(" · ");
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
