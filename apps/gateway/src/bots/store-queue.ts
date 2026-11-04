@@ -139,15 +139,15 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
   const { changed, fenced, owned } = access;
   const enqueue = botEnqueue(sql, access);
 
-  const finish = (turn: BotTurn, status: string, text: string) =>
+  const finish = (turn: BotTurn, status: string, text: string, errorCode = "", errorSource = "") =>
     sql.withTransaction(
       Effect.gen(function* () {
         yield* fenced(turn);
         const bot = (yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.bot_id}::uuid FOR UPDATE`)[0]!;
 
         if (text && !turn.routine_id && !turn.handoff_configuration)
-          yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id)
-      VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.reply_to_bot_id ?? turn.remote_recipient_ref ?? "user"}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid)
+          yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, error_code, error_source)
+      VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.reply_to_bot_id ?? turn.remote_recipient_ref ?? "user"}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid, ${errorCode}, ${errorSource})
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
         yield* sql`UPDATE bot_turns SET status = ${status}, lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = ${turn.id}::uuid`;
         yield* sql`UPDATE bots SET status_line = '', revision = revision + 1, updated_at = now() WHERE id = ${turn.bot_id}::uuid`;

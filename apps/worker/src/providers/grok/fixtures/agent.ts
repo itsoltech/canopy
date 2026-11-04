@@ -70,6 +70,21 @@ for await (const line of createInterface({ input: process.stdin })) {
     const { sessionId } = m.params;
     const text = m.params.prompt.map((c: { text?: string }) => c.text ?? "").join("\n");
 
+    const failure = [
+      ["FAIL_AUTH", "HTTP 401: login expired api_key=fixture-leak"],
+      ["FAIL_MODEL", "model_not_found: model does not exist"],
+      ["FAIL_USAGE", "HTTP 429: usage limit reached"],
+    ] as const;
+
+    const fault = failure.find(([marker]) => text.includes(marker));
+
+    if (fault) {
+      send({ id: m.id, error: { code: -32000, message: fault[1] } });
+      continue;
+    }
+
+    if (text.includes("FAIL_EXIT")) process.exit(7);
+
     if (text.includes("HANG")) {
       hanging = { id: m.id, sessionId };
       update(sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Waiting" } });

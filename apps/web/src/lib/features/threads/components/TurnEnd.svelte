@@ -1,6 +1,10 @@
 <script lang="ts">
   import { humanizeEnum, isEnumToken } from "#lib/shared/humanize.ts";
   import type { ui } from "@canopy/contracts";
+  import { Provider, ProviderProfileKind } from "@canopy/contracts";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import FailureNotice from "#lib/features/failures/FailureNotice.svelte";
+  import ThreadModelDialog from "./ThreadModelDialog.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import { statusLook } from "#lib/shared/ui/status.ts";
@@ -20,6 +24,26 @@
    */
   let { turn, result, answer }: { turn: ui.Turn; result: TurnResult | undefined; answer: string } = $props();
   const directory = useThreadDirectory();
+  const overview = useOverview();
+  const thread = $derived(directory.thread(directory.currentId));
+  const worker = $derived(thread ? overview.worker(thread.workerId) : undefined);
+
+  const proxy = $derived(
+    worker?.providerInstances.some(
+      (instance) =>
+        instance.harness === thread?.provider &&
+        instance.id === (thread.providerProfileId || "native") &&
+        instance.kind === ProviderProfileKind.CLIPROXYAPI,
+    ) ?? false,
+  );
+
+  const providerHref = $derived(
+    thread
+      ? `/settings/providers?instance=${Provider[thread.provider]}:${encodeURIComponent(thread.providerProfileId || "native")}&worker=${encodeURIComponent(thread.workerId)}`
+      : "/settings/providers",
+  );
+
+  let modelOpen = $state(false);
 
   const look = $derived(statusLook(turn.status));
 
@@ -83,7 +107,9 @@
     try {
       await sendMessage(
         directory.currentId,
-        `Continue where you left off. Your previous turn was interrupted by the system (${reason || "unknown reason"}), not by me. Check what was already done before repeating anything with side effects.`,
+        turn.status === "failed"
+          ? `Continue the previous request after the failed turn. Check what was already done before repeating anything with side effects. Previous request: ${turn.inputText}`
+          : `Continue where you left off. Your previous turn was interrupted by the system (${reason || "unknown reason"}), not by me. Check what was already done before repeating anything with side effects.`,
         continueRequest,
       );
       continuing = "sent";
@@ -96,7 +122,29 @@
 </script>
 
 <div class="grid gap-1" data-shown={turnReveal.shows(turn.id) || undefined}>
-  {#if turn.status !== "completed"}
+  {#if turn.status === "failed"}
+    <FailureNotice
+      message={turn.error}
+      code={turn.errorCode}
+      classification={turn.errorClass}
+      authHint={thread?.provider === Provider.CLAUDE
+        ? "Run claude login on the worker using this instance's CLI home, then retry."
+        : thread?.provider === Provider.GROK
+          ? "Run grok login on the worker using this instance's CLI home, then retry."
+          : "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."}
+      source={turn.errorSource}
+      {proxy}
+      {providerHref}
+      retrying={continuing === "sending"}
+      retryDisabled={continuing === "sent"}
+      onretry={!directory.readOnly && !turn.inherited && thread?.status === "idle" ? continueTurn : undefined}
+      onchangemodel={!directory.readOnly && !turn.inherited && thread ? () => (modelOpen = true) : undefined}
+    />
+    {#if continuing === "sent"}<p role="status" class="text-sm text-zinc-500">Retry queued</p>{/if}
+    {#if continuing === "error"}<p role="alert" class="text-sm text-rose-700 dark:text-rose-400">
+        Could not queue the retry. Try again.
+      </p>{/if}
+  {:else if turn.status !== "completed"}
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm/5 sm:text-xs/5">
       <span class={["flex items-center gap-1 font-medium", textTones[look.tone]]}
         ><Icon name={icon} tone="inherit" class="size-3.5" />{look.label}</span
@@ -130,3 +178,4 @@
   {/if}
   <TurnDetails {turn} {result} {answer} />
 </div>
+{#if modelOpen && thread}<ThreadModelDialog bind:open={modelOpen} {thread} {worker} />{/if}

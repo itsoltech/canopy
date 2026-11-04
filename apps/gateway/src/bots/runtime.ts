@@ -1,6 +1,6 @@
 import { create, fromJson } from "@bufbuild/protobuf";
 import { bots, Provider } from "@canopy/contracts";
-import type { JsonObject } from "@canopy/domain";
+import { classifyFailure, ProviderFailure, safeFailureDetail, type JsonObject } from "@canopy/domain";
 import { Effect, Schema } from "effect";
 import type { CoreRuntime } from "../core/core.ts";
 import { Invalid } from "../store/store.ts";
@@ -285,7 +285,8 @@ export class BotsRuntime {
       else {
         const known =
           error instanceof Error &&
-          (error instanceof BotFailure ||
+          (error instanceof ProviderFailure ||
+            error instanceof BotFailure ||
             /Model endpoint returned HTTP|Model endpoint unreachable|limit reached|incomplete response/.test(
               error.message,
             ))
@@ -301,7 +302,9 @@ export class BotsRuntime {
           s.finish(
             turn,
             abort.signal.aborted ? "interrupted" : "failed",
-            known ? known.message : "Bot could not finish this turn",
+            known ? safeFailureDetail(known.message) : "Bot could not finish this turn",
+            classifyFailure(known?.message ?? "", error instanceof ProviderFailure ? error.code : ""),
+            error instanceof ProviderFailure ? error.source : "platform",
           ),
         ).catch(() => undefined);
       }

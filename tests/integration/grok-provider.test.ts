@@ -186,6 +186,18 @@ test.skipIf(!dockerAvailable)(
           (i) => i.item?.content.case === "agentMessage" && i.item.content.value.text === "DENIED",
         ),
       ).toBe(true);
+
+      for (const [prompt, code] of [
+        ["FAIL_AUTH", "auth_required"],
+        ["FAIL_MODEL", "model_unavailable"],
+        ["FAIL_USAGE", "usage_limit"],
+        ["FAIL_EXIT", "process_exit"],
+      ]) {
+        const failed = await turn(prompt!);
+        expect(failed.state.turns.at(-1)).toMatchObject({ status: "failed", errorClass: code, errorSource: "harness" });
+        expect(failed.state.turns.at(-1)?.error).not.toContain("fixture-leak");
+      }
+
       await gw.api.saveProviderInstance({
         harness: Provider.GROK,
         id: "fake-proxy",

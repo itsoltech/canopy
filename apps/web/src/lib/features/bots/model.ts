@@ -146,6 +146,8 @@ export interface ChatErrorView {
   botId: string;
   at: Date;
   detail: string;
+  code?: string;
+  source?: string;
   /** The last thing in the conversation: Retry runs the same message again. */
   retryable: boolean;
 }

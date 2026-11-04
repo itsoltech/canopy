@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { Schema } from "effect";
-import type { JsonValue } from "@canopy/domain";
+import { classifyFailure, safeFailureDetail, type JsonValue } from "@canopy/domain";
 import { readFile } from "node:fs/promises";
 import {
   GrokClient,
@@ -33,36 +33,11 @@ import type { TurnSettings } from "../turn-input.ts";
 import { grokLaunch } from "./launch.ts";
 import { grokBus, platformToolName } from "./bus.ts";
 import { GrokEventMapper } from "./mapping.ts";
+import { ModelDiscovery, effortRank } from "./model-discovery.ts";
 
 const ToolInput = Schema.Struct({
   tool_name: Schema.optionalKey(Schema.String),
   tool_input: Schema.optionalKey(Schema.Json),
-});
-
-const ModelMetadata = Schema.Struct({
-  reasoningEfforts: Schema.optionalKey(
-    Schema.Array(Schema.Struct({ id: Schema.String, default: Schema.optionalKey(Schema.Boolean) })),
-  ),
-});
-
-const ModelDiscovery = Schema.Struct({
-  _meta: Schema.optionalKey(
-    Schema.Struct({
-      modelState: Schema.optionalKey(
-        Schema.Struct({
-          currentModelId: Schema.String,
-          availableModels: Schema.Array(
-            Schema.Struct({
-              modelId: Schema.String,
-              name: Schema.String,
-              description: Schema.optionalKey(Schema.String),
-              _meta: Schema.optionalKey(ModelMetadata),
-            }),
-          ),
-        }),
-      ),
-    }),
-  ),
 });
 
 interface Options {
@@ -89,18 +64,6 @@ interface Entry {
   approvals: Set<string>;
   idleTimer?: ReturnType<typeof setTimeout>;
 }
-
-// ACP metadata from Grok lists the highest effort first; composers expect lowest first.
-const effortRank = new Map([
-  ["none", 0],
-  ["minimal", 1],
-  ["low", 2],
-  ["medium", 3],
-  ["high", 4],
-  ["xhigh", 5],
-  ["max", 6],
-  ["ultra", 7],
-]);
 
 /** Worker registry with the same lifecycle operations as ClaudeThreads/CodexThreads; one ACP process per thread. */
 export class GrokThreads {
@@ -306,6 +269,7 @@ export class GrokThreads {
     });
     let outcome = TurnOutcome.COMPLETED;
     let reason = "";
+    let errorCode = "";
 
     try {
       const prompt: Content[] = [
@@ -349,6 +313,7 @@ export class GrokThreads {
         } else if (["max_tokens", "max_turn_requests", "refusal"].includes(event.stopReason)) {
           outcome = TurnOutcome.FAILED;
           reason = `Grok stopped: ${event.stopReason}`;
+          errorCode = classifyFailure(reason);
         }
       }
 
@@ -356,11 +321,12 @@ export class GrokThreads {
         outcome = TurnOutcome.INTERRUPTED;
         reason = "interrupted by the user";
       }
-    } catch {
+    } catch (error) {
       outcome = entry.interrupted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED;
       reason = entry.interrupted
         ? "interrupted by the user"
-        : "Grok CLI failed; check authentication and provider configuration";
+        : safeFailureDetail(error instanceof Error ? error.message : "Grok CLI failed");
+      errorCode = entry.interrupted ? "" : classifyFailure(reason);
       this.#entries.delete(spec.threadId);
       await entry.dispose();
     } finally {
@@ -375,6 +341,7 @@ export class GrokThreads {
           value: {
             outcome,
             reason,
+            errorCode,
             source: entry.interrupted ? TurnEndSource.USER : TurnEndSource.HARNESS,
             providerTurnRef: entry.session.sessionId,
           },

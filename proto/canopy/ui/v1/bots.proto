@@ -51,6 +51,9 @@ message BotMessage {
   google.protobuf.Timestamp created_at = 9;
   // Bot nie mógł odpowiedzieć (tura zakończona błędem); text to szczegół techniczny, nie treść rozmowy.
   bool failed = 10;
+  // Stable failure class and origin; text contains only redacted diagnostic details.
+  string error_code = 822;
+  string error_source = 823;
   // Ciche zdarzenie samoedycji; wartości przed/po służą wyłącznie widokowi zmian.
   repeated BotSettingChange setting_changes = 430;
   // Wybrane chipy w wiadomości użytkownika; BOT.name = bot_id, zakresy UTF-16.

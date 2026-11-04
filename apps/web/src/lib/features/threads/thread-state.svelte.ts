@@ -12,6 +12,7 @@ import {
   type Usage,
 } from "@canopy/contracts";
 import { eventItemId, reduceItem } from "@canopy/domain/items";
+import { classifyFailure, safeFailureDetail } from "@canopy/domain";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
 import { decode } from "#lib/shared/wire.ts";
@@ -84,7 +85,12 @@ function endFields(status: string | undefined, finished: TurnFinished) {
 
   switch (status) {
     case "failed":
-      return { error: finished.reason, errorSource: source || "harness", errorCode: finished.errorCode };
+      return {
+        error: safeFailureDetail(finished.reason),
+        errorSource: source || "harness",
+        errorCode: finished.errorCode,
+        errorClass: classifyFailure(finished.reason, finished.errorCode),
+      };
     case "interrupted":
       return { interruptReason: finished.reason, interruptSource: source || "user" };
     default:

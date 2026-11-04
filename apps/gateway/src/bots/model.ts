@@ -1,6 +1,7 @@
 import { Provider, type ProfileModels } from "@canopy/contracts";
-import type { JsonObject } from "@canopy/domain";
+import { classifyFailure, ProviderFailure, type JsonObject } from "@canopy/domain";
 import { Option, Schema } from "effect";
+import { Invalid } from "../store/errors.ts";
 import type { DecodedReply, ModelInput, ToolCall } from "./types.ts";
 
 type Endpoint = { url: string; key: string };
@@ -15,7 +16,7 @@ const argumentsOf = (raw: Schema.Json | undefined): JsonObject =>
     () => new Error("invalid model tool arguments"),
   );
 
-const incomplete = () => new Error("Model returned an incomplete response");
+const incomplete = () => new ProviderFailure("internal", "Model endpoint returned an unexpected response format");
 
 /** A reply envelope of another shape is incomplete. Unknown blocks inside it are skipped, not rejected. */
 const complete = <A>(reply: Option.Option<A>): A => Option.getOrThrowWith(reply, incomplete);
@@ -112,7 +113,15 @@ export function directModel(
   resolve: (input: ModelInput) => Promise<Endpoint>,
 ): (input: ModelInput) => Promise<DecodedReply> {
   return async (input): Promise<DecodedReply> => {
-    const endpoint = await resolve(input);
+    const endpoint = await resolve(input).catch((cause: unknown) => {
+      if (cause instanceof Invalid)
+        throw new ProviderFailure(
+          "configuration",
+          "Provider connection is unavailable; check this instance's settings",
+        );
+      throw cause;
+    });
+
     const base = endpoint.url.replace(/\/+$/, "").replace(/\/v1$/, "");
     const claude = input.configuration.provider === Provider.CLAUDE;
     const grok = input.configuration.provider === Provider.GROK;
@@ -135,16 +144,19 @@ export function directModel(
     }).catch((cause: unknown) => {
       // A connection that never reached the provider (DNS, refused, timeout): say so, without the URL.
       if (input.signal?.aborted) throw cause;
-      throw new Error("Model endpoint unreachable", { cause });
+      throw new ProviderFailure("network", "Model endpoint unreachable (network error or timeout)");
     });
 
-    // Provider errors can echo credentials or input; persist only the status.
+    // Provider bodies can echo credentials and prompts. Keep only the status and class.
     if (!response.ok) {
-      await response.body?.cancel();
-      throw new Error(`Model endpoint returned HTTP ${response.status}`);
+      void response.body?.cancel();
+      const code = classifyFailure("", `HTTP ${response.status}`);
+      throw new ProviderFailure(code, `Model endpoint returned HTTP ${response.status} (${code})`);
     }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => {
+      throw new ProviderFailure("stream_cut_off", "Model response ended before valid JSON was received");
+    });
 
     return claude
       ? anthropicReply(complete(Schema.decodeUnknownOption(AnthropicResponse)(data)))
@@ -158,7 +170,8 @@ export function grokRequest(input: ModelInput) {
   return {
     model: input.configuration.model,
     stream: false,
-    max_tokens: 4096,
+    // Reasoning shares the completion budget. A 4096-token cap can consume all
+    // of it before Grok emits an answer or tool call. Use the model's default.
     messages: [
       { role: "system", content: input.instructions },
       ...input.messages.map((m) =>
@@ -187,6 +200,12 @@ export function grokRequest(input: ModelInput) {
 
 function grokReply(reply: typeof GrokResponse.Type): DecodedReply {
   const choice = reply.choices?.[0];
+
+  if (choice?.finish_reason === "length")
+    throw new ProviderFailure("stream_cut_off", "Grok exhausted its completion budget (finish_reason: length)");
+
+  if (choice?.finish_reason === "content_filter")
+    throw new ProviderFailure("configuration", "Grok refused this request (finish_reason: content_filter)");
 
   if (!choice?.message || !["stop", "tool_calls"].includes(choice.finish_reason ?? "")) throw incomplete();
 
@@ -258,7 +277,8 @@ export function openaiRequest(input: ModelInput) {
 }
 
 function anthropicReply(reply: typeof AnthropicResponse.Type): DecodedReply {
-  if (reply.stop_reason === "max_tokens") throw incomplete();
+  if (reply.stop_reason === "max_tokens")
+    throw new ProviderFailure("stream_cut_off", "Claude exhausted its completion budget (stop_reason: max_tokens)");
   const calls: ToolCall[] = [];
   const text: string[] = [];
 
@@ -276,6 +296,9 @@ function anthropicReply(reply: typeof AnthropicResponse.Type): DecodedReply {
 }
 
 function openaiReply(reply: typeof OpenaiResponse.Type): DecodedReply {
+  if (reply.status === "incomplete")
+    throw new ProviderFailure("stream_cut_off", "OpenAI response was incomplete (status: incomplete)");
+
   if (reply.status && reply.status !== "completed") throw incomplete();
   const calls: ToolCall[] = [];
   const text: string[] = [];

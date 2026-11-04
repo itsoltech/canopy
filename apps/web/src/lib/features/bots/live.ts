@@ -71,6 +71,8 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
           botId: m.senderId,
           at,
           detail: m.text,
+          code: m.errorCode,
+          source: m.errorSource,
           retryable: m === last && !snapshot.working && !snapshot.approvals.some((a) => a.status === "pending"),
         },
       };
