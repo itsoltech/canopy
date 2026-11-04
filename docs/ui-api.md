@@ -230,6 +230,15 @@ kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdal
 
 `GetWorktreeSettings` / `UpdateWorktreeSettings` (zakres: projekt lub wszystkie × komputer lub wszystkie, nadpisania z wersją; konflikt = 409 w BFF) oraz `ListGitRefs(workspace_id)` dla kompozytora (refy, poprzednie worktree, efektywne ustawienia; `supported = false` dla starszego workera). `CreateThreadRequest.workspace_mode`, `base_ref`, `worktree_id`; `Thread.worktree`. BFF: `/api/worktrees/settings` (POST odczyt, PUT zapis), `/api/worktrees/refs`. UI: Settings → Worktrees, pickery workspace i refu pod kompozytorem nowego wątku, gałąź w nagłówku, panelu i karcie wątku. Szczegóły: [worktrees.md](worktrees.md).
 
+`ListWorktrees` zwraca bieżące rekordy w zakresie projektu/komputera albo pojedynczy rekord po id
+(również usunięty), status i przyczynę niedostępności. `CleanupWorktrees` przyjmuje `dry_run`,
+zwraca listę „would remove / kept” albo wyniki usunięć. `RemoveWorktree` wymaga id i oczekiwanego HEAD;
+`confirm_local_changes` oznacza jawne potwierdzenie utraty lokalnych plików. `RevealWorktree` otwiera
+folder na workerze. BFF: `/api/worktrees` (POST lista, DELETE usunięcie),
+`/api/worktrees/cleanup` i `/api/worktrees/reveal` (POST). Wszystkie operacje są owner-scoped,
+zdalne przez linked computers pozostają niedostępne. `Thread.worktree.removed_at` zachowuje historię
+i wyłącza akcje usuniętego katalogu. Pola Cleanup dziedziczą zakresy ustawień Creation/Branches.
+
 ## Pasek boczny i cykl życia wątku
 
 `UserSettings.sidebar` przechowuje filtr projektów (`project_ids`, puste = wszystkie), przypięcia

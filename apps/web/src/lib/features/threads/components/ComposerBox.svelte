@@ -303,7 +303,7 @@
   {#if meta}
     <ComposerFold open={!compact}>
       <div
-        class="flex min-w-0 items-center justify-between gap-3 px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+        class="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
       >
         {@render meta()}
       </div>

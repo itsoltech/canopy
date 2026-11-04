@@ -379,6 +379,9 @@ message Command {
     ListGitRefs list_git_refs = 210;
     CreateWorktree create_worktree = 211;
     RenameWorktreeBranch rename_worktree_branch = 212;
+    ScanWorktrees scan_worktrees = 213;
+    RemoveWorktree remove_worktree = 214;
+    WorktreeTarget reveal_worktree = 215;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
   }
@@ -593,6 +596,8 @@ message CommandResult {
   GitRefs git_refs = 210;
   // Wynik CreateWorktree i RenameWorktreeBranch.
   WorktreeInfo worktree = 211;
+  repeated WorktreeStatus worktree_statuses = 213;
+  bool worktree_branch_deleted = 214;
 }
 
 message GenerateText {
@@ -1434,6 +1439,49 @@ message RenameWorktreeBranch {
   string from_branch = 2;
   string to_branch = 3;
   string location = 4;
+}
+
+// Rekord znany gatewayowi; location to korzeń utrwalony przy tworzeniu.
+message WorktreeTarget {
+  string id = 1;
+  string path = 2;
+  string repo_root = 3;
+  string branch = 4;
+  string base_ref = 5;
+  string base_commit = 6;
+  string location = 7;
+  string remote = 8;
+}
+
+message ScanWorktrees {
+  repeated WorktreeTarget targets = 1;
+  bool fetch = 2;
+}
+
+message WorktreeStatus {
+  string id = 1;
+  string branch = 2;
+  uint32 ahead = 3;
+  uint32 behind = 4;
+  uint32 dirty_files = 5;
+  bool unpushed = 6;
+  bool merged = 7;
+  bool unchanged = 8;
+  string detail = 9;
+  bool missing = 10;
+  google.protobuf.Timestamp last_activity_at = 11;
+  string head_commit = 12;
+}
+
+message RemoveWorktree {
+  WorktreeTarget target = 1;
+  // Wyłącznie ręczne żądanie użytkownika po ostrzeżeniu o utracie zmian.
+  bool confirm_local_changes = 2;
+  bool delete_branch = 3;
+  bool require_merged = 4;
+  bool require_unchanged = 5;
+  // Potwierdzenie dotyczy dokładnie tego stanu; zmiana HEAD wymaga nowego podglądu.
+  string expected_head_commit = 6;
 }
 
 message WorktreeInfo {

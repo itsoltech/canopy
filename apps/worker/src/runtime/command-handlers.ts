@@ -17,6 +17,12 @@ export class CommandHandlers {
 
     if (kind.case === "renameWorktreeBranch") return this.ctx.ops.renameWorktreeBranch(kind);
 
+    if (kind.case === "scanWorktrees") return this.ctx.ops.scanWorktrees(kind);
+
+    if (kind.case === "removeWorktree") return this.ctx.ops.removeWorktree(kind, command.commandId);
+
+    if (kind.case === "revealWorktree") return this.ctx.ops.revealWorktree(kind);
+
     if (kind.case === "installCli") {
       try {
         await this.ctx.state.cli.start(kind.value);

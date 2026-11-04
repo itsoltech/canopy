@@ -54,6 +54,8 @@ import { coreTitlesMethods, type CoreTitlesMethods } from "./core-titles.ts";
 import { coreWatchMethods, type CoreWatchMethods } from "./core-watch.ts";
 import { coreWorkLoopMethods, type CoreWorkLoopMethods } from "./core-work-loop.ts";
 import { coreWorktreesMethods, type CoreWorktreesMethods } from "../worktrees/core-worktrees.ts";
+import { coreWorktreeLifecycleMethods, type CoreWorktreeLifecycleMethods } from "../worktrees/core-lifecycle.ts";
+import { WorktreeCleanupSchedule } from "../worktrees/cleanup-schedule.ts";
 
 export {
   describeError,
@@ -144,6 +146,10 @@ export class GatewayCore {
   declare getWorktreeSettings: CoreWorktreesMethods["getWorktreeSettings"];
   declare updateWorktreeSettings: CoreWorktreesMethods["updateWorktreeSettings"];
   declare listGitRefs: CoreWorktreesMethods["listGitRefs"];
+  declare listWorktrees: CoreWorktreeLifecycleMethods["listWorktrees"];
+  declare cleanupWorktrees: CoreWorktreeLifecycleMethods["cleanupWorktrees"];
+  declare removeWorktree: CoreWorktreeLifecycleMethods["removeWorktree"];
+  declare revealWorktree: CoreWorktreeLifecycleMethods["revealWorktree"];
   declare threadsChanged: CoreBroadcastMethods["threadsChanged"];
   declare botAction: CoreBroadcastMethods["botAction"];
 
@@ -179,6 +185,7 @@ export class GatewayCore {
   readonly linkedAgents: LinkedAgents;
 
   readonly scheduler: Scheduler;
+  readonly worktreeCleanup: WorktreeCleanupSchedule;
 
   /** Background tasks for their agents: the tools, and the notes about every end (docs/execution.md, "Pobudka"). */
   readonly backgroundTasks: BackgroundTasks;
@@ -304,6 +311,7 @@ export class GatewayCore {
     );
     // Ticks only after start() (main.ts); tests drive tick() directly.
     this.scheduler = createCoreScheduler(this, options);
+    this.worktreeCleanup = new WorktreeCleanupSchedule(this);
   }
 
   get online(): ReadonlySet<string> {
@@ -349,6 +357,7 @@ for (const methods of [
   coreGoalsMethods,
   coreBroadcastMethods,
   coreWorktreesMethods,
+  coreWorktreeLifecycleMethods,
 ]) {
   const descriptors = Object.getOwnPropertyDescriptors(methods);
 

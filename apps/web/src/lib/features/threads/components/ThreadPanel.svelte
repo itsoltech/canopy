@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ThreadWorktree from "#lib/features/worktrees/ThreadWorktree.svelte";
   import ThreadSecretRow from "./secrets/ThreadSecretRow.svelte";
   import ThreadConnectors from "#lib/features/connectors/ThreadConnectors.svelte";
   import { timestampMs } from "@bufbuild/protobuf/wkt";
@@ -49,6 +50,7 @@
     onschedule,
     onschedulechange,
     onnewside,
+    onworktree,
     windowTitlebar = false,
     class: className,
   }: {
@@ -70,6 +72,7 @@
     onschedule?: (() => void) | undefined;
     onschedulechange?: ((schedule: ui.Schedule) => void) | undefined;
     onnewside?: (() => void) | undefined;
+    onworktree: () => void;
     windowTitlebar?: boolean;
     class?: ClassValue;
   } = $props();
@@ -131,6 +134,7 @@
       {#snippet aside()}<CopyButton text={thread.cwd} label="Copy working directory" class="-my-1" />{/snippet}
     </PanelRow>
     {#if thread.worktree}
+      <div class="px-2 py-1"><ThreadWorktree worktree={thread.worktree} onclick={onworktree} /></div>
       <!-- A git worktree (docs/worktrees.md): its branch and what it started from. -->
       <PanelRow icon="git-fork">
         <code class="font-mono text-xs/6" {@attach tooltip(`Worktree ${thread.worktree.path}`)}

@@ -260,7 +260,9 @@
                   class="max-w-48 sm:max-w-56"
                 />
                 <WorkerPicker {project} value={workspace?.id} onselect={pickWorkspace} />
-                {#if place.gitRefs}
+              </span>
+              {#if place.gitRefs}
+                <span class="flex min-w-0 flex-wrap items-center gap-0.5">
                   <WorkspacePicker
                     choice={place.choice}
                     worktrees={place.worktrees}
@@ -272,9 +274,13 @@
                     editable={place.choice.kind === "new"}
                     onselect={(ref) => place.chooseBase(ref.name)}
                   />
-                {/if}
-              </span>
-              <PermissionPicker value={permissionMode} onselect={(mode) => (permission = mode)} class="-mr-1.5" />
+                </span>
+              {/if}
+              <PermissionPicker
+                value={permissionMode}
+                onselect={(mode) => (permission = mode)}
+                class="-mr-1.5 shrink-0"
+              />
             {/snippet}
           </ComposerBox>
           {#if draft.blocker && !blocker}

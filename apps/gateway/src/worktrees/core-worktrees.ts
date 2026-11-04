@@ -78,6 +78,7 @@ export function toUiWorktree(row: WorktreeRow): ui.ThreadWorktree {
     repoRoot: row.repo_root,
     workerId: row.worker_id,
     createdAt: timestampFromDate(new Date(row.created_at)),
+    ...(row.removed_at && { removedAt: timestampFromDate(new Date(row.removed_at)) }),
   });
 }
 
@@ -153,6 +154,7 @@ async function createWorktree(hostContext: GatewayCore, request: ui.CreateThread
       branch: info.branch,
       base_ref: info.baseRef,
       base_commit: info.baseCommit,
+      location: settings.location ?? "",
     }),
   );
 

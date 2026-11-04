@@ -1,9 +1,10 @@
 # Worktrees (git)
 
-Status: **projekt + etap 1 zaimplementowany** (2026-11-04). Etap 1: ustawienia (Creation, Branches,
+Status: **etapy 1–2 zaimplementowane** (2026-11-04). Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
-z semantycznym prefiksem), pickery w kompozytorze nowego wątku i wyświetlanie worktree wątku. Sprzątanie
-(cleanup) to etap 2, reszta w [planie etapów](#plan-etapów).
+z semantycznym prefiksem), pickery w kompozytorze nowego wątku i wyświetlanie worktree wątku. Etap 2:
+sprzątanie według polityk, podgląd skutków, status i akcje pojedynczego worktree (pierwotny etap 3),
+lista w Settings i poprawiony układ pickerów. Reszta w [planie etapów](#plan-etapów).
 
 Powiązane: [threads.md](threads.md) (miejsce wątku jest niezmienne), [protocol.md](protocol.md),
 [thread-titles.md](thread-titles.md) (generowanie tekstu), [agent-bus.md](agent-bus.md),
@@ -51,8 +52,17 @@ Projekt wygrywa z komputerem, bo zwykle to repozytorium decyduje o konwencji ga�
 | `branch_prefix` | `canopy` | Prefiks trybu `PREFIX` i tymczasowej nazwy w trybie `SEMANTIC`. |
 | `default_mode` | `CHECKOUT` | Domyślny tryb nowego wątku w kompozytorze: bieżący checkout albo nowy worktree. |
 
-Pola sprzątania (etap 2) dochodzą jako kolejne klucze `settings` i pola proto, bez nowej migracji
-zakresów.
+Pola Cleanup korzystają z tych samych zakresów, dziedziczenia i wersji:
+
+| Pole | Domyślnie | Znaczenie |
+|---|---|---|
+| `cleanup_deleted_threads` | `false` | Wszystkie wątki współdzielące worktree zostały usunięte. |
+| `cleanup_merged` | `false` | HEAD worktree zawarty w domyślnej lub bazowej gałęzi po fetch. |
+| `cleanup_inactive_days` | `0` | Liczba dni bez aktywności wątków i lokalnego katalogu; 0 wyłącza, maksimum 3650. |
+| `cleanup_settled` | `false` | Wszystkie żywe wątki zarchiwizowane albo idle z ostatnią turą completed. |
+| `cleanup_unchanged` | `false` | HEAD równy commitowi utworzenia i brak zmian plików. |
+| `keep_local_changes` | `true` | Zmiany lokalne są chronione; wyłączenie wskazuje wymóg ręcznego potwierdzenia, nigdy nie zezwala na automatyczną utratę danych. |
+| `delete_local_branch` | `false` | Po usunięciu checkoutu spróbuj usunąć tylko bezpieczną gałąź. |
 
 ### Rekord worktree
 
@@ -64,11 +74,15 @@ Tabela `worktrees`: `id`, `owner_user_id`, `project_id`, `workspace_id`, `worker
 - Worktree to rzecz współdzielona: wątki boczne, forki i „Previous worktree” wskazują ten sam rekord.
 - `cwd` wątku = `worktrees.path`; trigger migracji `0066` sprawdza właściciela, projekt, workspace,
   workera, ścieżkę i dziedziczenie z rodzica. Zarówno `cwd`, jak i `worktree_id` pozostają niezmienne.
-- Usunięcie worktree (etap 2) ustawia `removed_at`; gałąź i historia wątku zostają.
+- Migracja `0067_worktree_lifecycle` zapisuje pierwotny `location`, rezerwację usunięcia
+  (`removal_token`, `removal_started_at`, binarna `removal_command`) i triggery dostępności worktree.
+  Zmiana konfiguracji folderu nie blokuje obsługi wcześniej utworzonych worktree.
+- Usunięcie ustawia `removed_at`; historia wątku zostaje. Nowy wątek, tura lub cel w usuniętym albo
+  zarezerwowanym worktree dostają błąd `worktree_available`, zamiast odtworzenia katalogu.
 
 ### Thread w API
 
-`ui.Thread.worktree` (`ThreadWorktree`: `id`, `branch`, `path`, `base_ref`, `repo_root`), puste dla
+`ui.Thread.worktree` (`ThreadWorktree`: `id`, `branch`, `path`, `base_ref`, `repo_root`, `removed_at`), puste dla
 bieżącego checkoutu. `ui.Worker.worktrees` = worker ogłosił capability `worktrees`.
 
 ## Protokół workera
@@ -91,9 +105,18 @@ przyrostek `-2`, `-3`, … Nazwa gałęzi przechodzi `git check-ref-format --bra
 promptów (`GIT_TERMINAL_PROMPT=0`, puste `GIT_ASKPASS`), z limitem czasu, argumentami (nie powłoką)
 i `--` przed ścieżkami.
 
-Etap 2 dodaje `ScanWorktrees` (status: niezatwierdzone zmiany, niewypchnięte commity, czy zawarty
-w gałęzi domyślnej, ostatnia aktywność) i `RemoveWorktree` (`git worktree remove` bez `--force`,
-ponowne sprawdzenie warunków na workerze tuż przed usunięciem).
+Capability `worktree_lifecycle` dodaje nietrwałe `ScanWorktrees` (213) i `RevealWorktree` (215)
+oraz trwałe `RemoveWorktree` (214). Starszy worker z samym `worktrees` nadal tworzy worktree,
+ale do ich zarządzania UI prosi o aktualizację. Skan zwraca gałąź, ahead/behind (upstream albo baza),
+liczbę zmienionych plików (również untracked/ignored), niewypchnięte commity, stan merged/unchanged,
+HEAD i czas lokalnej aktywności. Błąd skanu blokuje usunięcie.
+
+`RemoveWorktree` ponownie sprawdza status, oczekiwany HEAD, warunki polityki i aktywność wątków.
+`--force` występuje wyłącznie przy ręcznie potwierdzonym odrzuceniu zmian. Worker zapisuje dokładny
+zamiar usunięcia przed operacją git, a wynik w journalu komend; ponowienie po zerwanym połączeniu
+lub awarii między usunięciem a zapisem wyniku nie usuwa innej ścieżki ani nie powiela audytu.
+Reveal otwiera folder menedżerem plików na komputerze workera (`open -R`, `explorer.exe`, `xdg-open`);
+bez menedżera zwraca komunikat z zaleceniem skopiowania ścieżki.
 
 ## Nazwy gałęzi
 
@@ -118,7 +141,10 @@ Nagłówek: „Applying settings for **[All projects | projekt]** across **[All 
   zostają), Start from remote (przełącznik), Advanced (zwijane): Remote.
 - **Branches:** Branch naming (Semantic prefix / Prefix / Thread title), Branch prefix.
 - **New threads:** Default workspace (Current checkout / New worktree).
-- Etap 2: **Cleanup** z raportem dry-run.
+- **Cleanup:** powyższe polityki i ochrona zmian lokalnych.
+- **Worktrees:** lista bieżących worktree w wybranym zakresie, status, „Open in…” (Copy path / Reveal
+  on computer), Remove, Refresh, „Preview cleanup” i „Run cleanup”. Preview pokazuje
+  „Will remove N worktrees” oraz przyczynę pozostawienia pozostałych.
 
 Każde pole pokazuje wartość efektywną; nadpisane w bieżącym zakresie ma „Reset” (wraca do wartości
 odziedziczonej, opisanej skąd pochodzi). Zapis od razu, z wersją; konflikt przeładowuje.
@@ -143,13 +169,17 @@ tryb pochodzi z efektywnych ustawień (projekt × komputer).
 
 ### Wątek
 
-Nagłówek wątku: chip z gałęzią (tooltip: ścieżka worktree); panel szczegółów: wiersze „Branch”,
-„Worktree”, „Based on”; karta hover w sidebarze: gałąź.
+Nagłówek wątku: chip z gałęzią (tooltip: ścieżka worktree); chip i akcja w panelu szczegółów
+otwierają wspólny dialog statusu i zarządzania. Karta pokazuje ahead/behind, zmienione pliki,
+niewypchnięte commity, ostatnią aktywność i akcje jak w Settings. Po usunięciu pozostaje informacja
+o usuniętym worktree i historia wątku. Offline akcje workera są wyłączone z przyczyną;
+ścieżkę nadal można skopiować. Karta hover w sidebarze pokazuje gałąź.
 
 ## Interakcje
 
 - **Tury w toku:** worktree nigdy nie jest usuwany, gdy którykolwiek wątek go używający ma turę,
-  zadanie w tle albo oczekującą interakcję (etap 2, sprawdzane w gatewayu i ponownie na workerze).
+  zadanie w tle albo oczekującą interakcję (sprawdzane w gatewayu i ponownie na workerze).
+  Gateway chroni też tworzenie wątku, aktywny cel i oczekujące komendy startowe.
 - **Szyna agentów (`spawn_thread`) i wątki boczne:** dziedziczą katalog i rekord worktree rodzica
   (trigger `threads_before_insert` wymaga tego samego `cwd`). Osobny worktree dla dziecka to etap 4
   (wymaga zmiany reguły miejsca wątku bocznego); domyślnie dzieci pracują w worktree rodzica.
@@ -165,29 +195,40 @@ Nagłówek wątku: chip z gałęzią (tooltip: ścieżka worktree); panel szczeg
   Przeniesienie wątku (etap 8 linked computers): cel tworzy nowy worktree, jeśli gałąź jest wypchnięta
   (baza = gałąź na remote, ta sama nazwa), inaczej kontynuacja z notatką przekazania w checkoutcie
   projektu na celu (etap 5 tego planu).
-- **Archiwizacja i usunięcie wątku:** etap 1 nic nie usuwa. Etap 2: usunięcie wątku może usunąć jego
+- **Archiwizacja i usunięcie wątku:** usunięcie wątku może usunąć jego
   worktree (ustawienie), archiwizacja liczy się jako „settled”.
 
 ## Sprzątanie (etap 2)
 
-- Silnik działa w **gatewayu** (pętla co 1 h + przy połączeniu workera): wybiera kandydatów z bazy
-  (usunięte wątki, nieaktywne > N dni, „settled” N dni), pyta worker `ScanWorktrees` o stan, stosuje
-  reguły i wysyła `RemoveWorktree`.
-- Bezpieczeństwo: nigdy z turą/zadaniem/interakcją w toku; „Keep worktrees with local changes”
-  (niezatwierdzone zmiany, niewypchnięte commity, gałąź nigdy niewypchnięta) chroni zawsze, gdy
-  włączone; worker sprawdza warunki jeszcze raz tuż przed `git worktree remove` (bez `--force`);
-  usuwa tylko ścieżki pod korzeniem zarządzanym albo skonfigurowanym folderem i zarejestrowane
-  w `git worktree list`.
-- „Merged”: PR scalony (gdy connector GitHub da się zapytać) albo commity zawarte w gałęzi domyślnej.
+- Silnik działa w **gatewayu** przy starcie, co 1 h i przy połączeniu workera. Rozstrzyga ustawienia
+  właściciela × projektu × komputera, pyta właściciela katalogu przez `ScanWorktrees` po fetch,
+  stosuje alternatywne reguły i wysyła `RemoveWorktree`. Inaktywność uwzględnia aktywność wszystkich
+  współdzielących wątków, plików, indeksu i refloga worktree.
+- Nigdy automatycznie nie usuwa niezatwierdzonych plików ani niewypchniętych commitów, także po
+  wyłączeniu „Keep worktrees with local changes”. Ręczne Remove pokazuje ostrzeżenie i wymaga
+  jawnego potwierdzenia odrzucenia plików. Gałąź z lokalnymi zmianami lub niewypchniętymi commitami
+  zawsze zostaje. Czysty worktree bez własnych commitów może być usunięty, choć nie miał upstreamu.
+- „Merged”: lokalne `merge-base --is-ancestor` po udanym fetch do gałęzi domyślnej lub bazowej.
+  Brak integracji ze statusem PR w GitHub: squash/rebase merge może zachować worktree mimo scalonego
+  PR. Błąd fetch zachowuje katalog, zamiast ufać starym refom.
 - Raport **dry-run** w Settings → Worktrees → Cleanup: lista „would remove / kept because …” przed
   włączeniem reguł i przycisk „Run cleanup now”.
-- Gałęzie i historia wątków zostają zawsze. Offline: kandydaci czekają do połączenia workera.
+- Gateway rezerwuje rekord w transakcji z blokadami wątków i worktree, a triggery blokują wyścig
+  z nową turą/wątkiem/celem. Worker niezależnie sprawdza własny journal i blokuje nowe starty pod usuwaną
+  ścieżką. Główny checkout, ścieżka poza pierwotnym korzeniem, dowiązanie poza korzeń, inna gałąź,
+  brak rejestracji git albo zablokowane worktree są odrzucane.
+- Historia zostaje zawsze. Opcjonalne usunięcie gałęzi wymaga czystego drzewa, braku niewypchniętych
+  commitów i merged/unchanged; dodatkowo git `branch -d` sprawdza bezpieczeństwo. Błąd usunięcia
+  gałęzi zachowuje ją i nie unieważnia usunięcia checkoutu.
+- Offline: kandydaci czekają do połączenia workera. Rozpoczęte usunięcie zachowuje ten sam identyfikator
+  komendy w bazie i wraca po reconnect/restarcie. `removed_at` i audit `worktree.removed` zapisują się
+  atomowo i tylko raz. Jawny błąd workera zwalnia rezerwację; timeout/rozłączenie zostawia ją do ponowienia.
 
 ## Bezpieczeństwo
 
 - **Konfinacja ścieżek:** worker sam liczy ścieżkę pod `<data_dir>/worktrees` albo skonfigurowanym
   absolutnym folderem i sprawdza ją po `realpath`; gateway sprawdza ponownie, że zwrócona ścieżka jest pod
-  tym korzeniem, zanim zapisze rekord. Zmiana nazwy i (etap 2) usuwanie działają tylko pod korzeniami.
+  tym korzeniem, zanim zapisze rekord. Zmiana nazwy i usuwanie działają tylko pod korzeniami.
   Folder repozytorium pod korzeniem nie może być dowiązaniem poza korzeń. Sam skonfigurowany korzeń
   może być dowiązaniem; worker sprawdza jego rzeczywistą ścieżkę, a zwraca zapis z ustawień.
 - **Bez dowolnych komend:** UI wybiera tylko tryb, ref, istniejący rekord (id) i ustawienia. Ref
@@ -200,12 +241,13 @@ Nagłówek wątku: chip z gałęzią (tooltip: ścieżka worktree); panel szczeg
 
 Każdy etap to osobny PR w stosie (`feat/worktrees-N`), kompletny i działający sam.
 
-1. **Rdzeń** (ten PR): ustawienia Creation/Branches/domyślny tryb z zakresami, `ListGitRefs`,
+1. **Rdzeń — gotowy, draft PR #74 (`feat/worktrees-1`):** ustawienia Creation/Branches/domyślny tryb z zakresami, `ListGitRefs`,
    `CreateWorktree`, `RenameWorktreeBranch`, nazwy gałęzi (w tym semantyczne), pickery w kompozytorze,
    worktree wątku w nagłówku, panelu i karcie hover; testy integracyjne z prawdziwym repo.
-2. **Sprzątanie:** pola Cleanup, `ScanWorktrees`/`RemoveWorktree`, silnik w gatewayu, raport dry-run,
-   usuwanie z wątkiem, ochrona tur i zmian.
-3. **Status worktree w wątku:** zmiany/ahead/behind w panelu, „Open in …”, ręczne „Remove worktree”.
+2. **Sprzątanie i zarządzanie — gotowe (`feat/worktrees-2`, baza `feat/worktrees-1`):** pola Cleanup,
+   `ScanWorktrees`/`RemoveWorktree`/reveal, silnik w gatewayu, raport dry-run, audyt i trwałe ponawianie,
+   ochrona tur i zmian, lista w Settings, status i akcje wątku, poprawiony układ kompozytora.
+3. **Status worktree w wątku — włączony do etapu 2:** zmiany/ahead/behind, „Open in …”, ręczne Remove.
 4. **Szyna i automaty:** opcja własnego worktree dla `spawn_thread`, botów i harmonogramów.
 5. **Połączone komputery i przeniesienia:** negocjowanie obsługi worktree na domu wątku, zdalne
    refy i tworzenie/użycie worktree; worktree na celu z wypchniętej gałęzi przy „Move to…”, inaczej notatka
@@ -221,3 +263,14 @@ Każdy etap to osobny PR w stosie (`feat/worktrees-N`), kompletny i działający
   odmowa operacji zdalnych i starszy worker bez capability. Start z remote obejmuje inny upstream,
   gałąź origin o tej samej nazwie i fallback po błędzie fetch. Test schematu sprawdza też niezmienność
   i spójność przypięcia worktree.
+
+## Weryfikacja (etap 2)
+
+- `tests/integration/worktree-lifecycle.test.ts`: prawdziwy gateway ↔ worker przez gRPC, PostgreSQL
+  i repo git; każda polityka, współdzielenie worktree, preview/execute, jawne potwierdzenie zmian
+  i niewypchniętych commitów, zachowanie/usuwanie gałęzi, offline/reconnect, utracone potwierdzenie,
+  pojedynczy audyt, aktywne tury/interakcje/zadania, rezerwacja kontra nowa tura, pierwotny folder,
+  błąd fetch, owner scoping i konfinacja ścieżek. Lista migracji zawiera `0067`.
+- Kontrola w rzeczywistej przeglądarce: Settings i kompozytor w jasnym/ciemnym motywie, 1280 × 900
+  i 390 × 844, dialog zarządzania wątku, ostrzeżenie przed usunięciem zmian lokalnych. Zrzuty lokalne:
+  `~/.cache/canopy-worktrees-2/`. Bez testów UI.

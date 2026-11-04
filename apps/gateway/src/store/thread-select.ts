@@ -23,6 +23,6 @@ export const threadSelect = (where: string, extraColumns = "") => `
                  (SELECT (ft.ordinal - (SELECT count(*) FROM turns w WHERE w.thread_id = ft.thread_id AND w.withdrawn IS NOT NULL AND w.ordinal < ft.ordinal))::int
                     FROM turns ft WHERE ft.id = t.fork_after_turn_id) AS fork_after_turn_ordinal,
                  (SELECT json_build_object('id', wt.id, 'branch', wt.branch, 'path', wt.path, 'base_ref', wt.base_ref,
-                                           'repo_root', wt.repo_root, 'worker_id', wt.worker_id, 'created_at', wt.created_at)
+                                           'repo_root', wt.repo_root, 'worker_id', wt.worker_id, 'created_at', wt.created_at, 'removed_at', wt.removed_at)
                     FROM worktrees wt WHERE wt.id = t.worktree_id) AS worktree
             FROM threads t ${where}`;

@@ -65,6 +65,8 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "listGitRefs",
   "createWorktree",
   "renameWorktreeBranch",
+  "scanWorktrees",
+  "revealWorktree",
 ]);
 
 /** How often provider CLIs are looked at again without a reason (connect, check, install). */
@@ -278,6 +280,8 @@ export class WorkerHost {
         ...(output.generatedText !== undefined && { generatedText: output.generatedText }),
         ...(output.gitRefs && { gitRefs: output.gitRefs }),
         ...(output.worktree && { worktree: output.worktree }),
+        ...(output.worktreeStatuses && { worktreeStatuses: output.worktreeStatuses }),
+        ...(output.worktreeBranchDeleted !== undefined && { worktreeBranchDeleted: output.worktreeBranchDeleted }),
       };
 
       if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);

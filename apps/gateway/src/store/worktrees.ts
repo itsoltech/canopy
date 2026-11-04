@@ -37,6 +37,7 @@ export interface WorktreeRow {
   created_at: Date;
   last_used_at: Date;
   removed_at: Date | null;
+  location: string;
 }
 
 export interface WorktreeStore {
@@ -54,7 +55,9 @@ export interface WorktreeStore {
     settings: JsonValue;
     expectedVersion: bigint;
   }): FxConflict<bigint>;
-  insertWorktree(row: Omit<WorktreeRow, "created_at" | "last_used_at" | "removed_at">): Fx<WorktreeRow>;
+  insertWorktree(
+    row: Omit<WorktreeRow, "created_at" | "last_used_at" | "removed_at" | "location"> & { location?: string },
+  ): Fx<WorktreeRow>;
   /** A live worktree of the owner's, in the project and workspace. */
   ownWorktree(ownerUserId: string, id: string, projectId: string, workspaceId: string): Fx<WorktreeRow>;
   /** Live worktrees of a project on a worker, the most recently used first. */
@@ -106,9 +109,9 @@ export function worktreeStore(sql: SqlClient.SqlClient): WorktreeStore {
 
     insertWorktree: (row) =>
       sql<WorktreeRow>`
-            INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch, base_ref, base_commit)
+            INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch, base_ref, base_commit, location)
             VALUES (${row.id}::uuid, ${row.owner_user_id}::uuid, ${row.project_id}::uuid, ${row.workspace_id}::uuid,
-                    ${row.worker_id}::uuid, ${row.repo_root}, ${row.path}, ${row.branch}, ${row.base_ref}, ${row.base_commit})
+                    ${row.worker_id}::uuid, ${row.repo_root}, ${row.path}, ${row.branch}, ${row.base_ref}, ${row.base_commit}, ${row.location ?? ""})
             RETURNING *`.pipe(Effect.flatMap((rows) => one(rows, "worktree"))),
 
     ownWorktree: (ownerUserId, id, projectId, workspaceId) =>

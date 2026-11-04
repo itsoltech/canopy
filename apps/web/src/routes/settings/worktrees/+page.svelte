@@ -5,6 +5,8 @@
   import WorktreeScopeBar from "#lib/features/worktrees/WorktreeScopeBar.svelte";
   import WorktreeSettingRow from "#lib/features/worktrees/WorktreeSettingRow.svelte";
   import WorktreeTextSetting from "#lib/features/worktrees/WorktreeTextSetting.svelte";
+  import WorktreeCleanupSettings from "#lib/features/worktrees/WorktreeCleanupSettings.svelte";
+  import WorktreeManagement from "#lib/features/worktrees/WorktreeManagement.svelte";
   import {
     overrides,
     WorktreeSettingsState,
@@ -147,5 +149,9 @@
         onreset={() => reset("defaultMode")}
       />
     </SettingsGroup>
+    <WorktreeCleanupSettings />
+    {#key `${scope.projectId}:${scope.workerId}:${settingsState.current?.version}`}
+      <WorktreeManagement {scope} />
+    {/key}
   {/if}
 </div>

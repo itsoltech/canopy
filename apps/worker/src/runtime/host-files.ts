@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
+import { isWithin } from "../git/worktrees.ts";
 import type { InputAttachment } from "@canopy/contracts";
 import { AttachmentError } from "../attachments/files.ts";
 import { ImageError, viewImage, type ViewImageResult } from "../images/index.ts";
@@ -23,6 +24,9 @@ export class HostFiles {
     }
 
     if (!statSync(real).isDirectory()) throw new CommandError("CWD_NOT_DIRECTORY", `${cwd} is not a directory`, true);
+
+    if ([...this.ctx.state.removingPaths].some((path) => isWithin(path, real)))
+      throw new CommandError("WORKTREE_BUSY", "worktree cleanup is in progress", false);
   }
 
   listDirectory(path: string) {
