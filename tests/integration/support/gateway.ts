@@ -406,9 +406,11 @@ export class ScriptedWorker {
             providerProfileId: spec.providerProfileId,
           });
           reply(true);
+          // Unique per worker like a real provider's (threads_provider_thread): a shortened id collides now and
+          // then, the gateway cannot store the event and drops the link.
           this.emit(spec.threadId, "", {
             case: "threadReady",
-            value: { providerThreadId: `codex-${spec.threadId.slice(-4)}` },
+            value: { providerThreadId: `codex-${spec.threadId}` },
           });
           break;
         }
