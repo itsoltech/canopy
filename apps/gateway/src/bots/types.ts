@@ -37,6 +37,11 @@ export interface BotRow {
   deleted_at: Date | null;
   created_by_bot_id: string | null;
   created_by_bot_name: string;
+  /** Stage 8: frozen for or moved by a move to another computer; notes of a bot that moved here. */
+  moved_to?: string | null;
+  move_notes?: { from_name?: string } | null;
+  /** Joined: what the bot that moved here still needs connected on this computer. */
+  move_reconnect?: string[] | null;
 }
 export interface BotTurn {
   id: string; bot_id: string; input: string; hops: number;

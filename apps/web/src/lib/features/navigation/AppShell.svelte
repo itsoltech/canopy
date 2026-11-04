@@ -26,6 +26,7 @@
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import Toaster from "#lib/shared/ui/Toaster.svelte";
   import BotSettingsHost from "#lib/features/bots/settings/BotSettingsHost.svelte";
+  import BotMoveHost from "#lib/features/bots/components/BotMoveHost.svelte";
   import UpdateBanner from "#lib/shared/ui/UpdateBanner.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
@@ -150,4 +151,5 @@
 <CommandPalette registry={commands} {palette} />
 <Toaster />
 <BotSettingsHost />
+<BotMoveHost />
 <UpdateBanner />

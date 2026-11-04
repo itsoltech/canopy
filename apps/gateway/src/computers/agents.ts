@@ -9,7 +9,7 @@ import type { CoreServices, GatewayCore, GatewayCoreOptions } from "../core/core
 import { AgentBusStore, GatewayStore, type ThreadRow } from "../store/index.ts";
 import type { BotTurn, StoredCall } from "../bots/types.ts";
 import { BotStore } from "../bots/store.ts";
-import { methodNamed, qualify, unqualify } from "./remote.ts";
+import { methodNamed, movedItems, qualify, unqualify } from "./remote.ts";
 
 type Actor = { id: string; kind: "thread" | "bot"; hops: number; name: string; routineId?: string; routineTitle?: string };
 type Reference = { peer_node_id: string; call_id: string; actor_id: string; actor_kind: "thread" | "bot";
@@ -42,10 +42,27 @@ export class LinkedAgents {
   async call(node: string, operation: string, actor: Actor, callId: string, args: Record<string, unknown>): Promise<JsonValue> {
     const computers = this.core.computers;
     if (!computers) return fail("That computer is no longer linked");
-    for await (const result of computers.remote(node, link.LinkedAgentsService.method.callAgentBus, create(link.LinkedAgentCallSchema, {
-      operation, callId, actorId: actor.id, actorKind: actor.kind, hops: actor.hops, argumentsJson: JSON.stringify({ ...args, sender_name: actor.name }),
-    }), AbortSignal.timeout(10_000))) return qualifyResult(JSON.parse((result as link.LinkedAgentResult).resultJson) as JsonValue, node);
+    try {
+      for await (const result of computers.remote(node, link.LinkedAgentsService.method.callAgentBus, create(link.LinkedAgentCallSchema, {
+        operation, callId, actorId: actor.id, actorKind: actor.kind, hops: actor.hops, argumentsJson: JSON.stringify({ ...args, sender_name: actor.name }),
+      }), AbortSignal.timeout(10_000))) return qualifyResult(JSON.parse((result as link.LinkedAgentResult).resultJson) as JsonValue, node);
+    } catch (error) {
+      // The target moved (stage 8): learn its new home and deliver there once, when it is a partner of this computer.
+      const moved = movedItems(error);
+      const home = moved?.[0]?.homeNodeId;
+      if (!moved || !home || home === node || !(await computers.redirects.learn(node, moved), await computers.store.peer(home))) throw error;
+      if (operation === "send") await this.query("UPDATE computer_agent_calls SET peer_node_id=$3 WHERE owner_user_id=$1::uuid AND peer_node_id=$2 AND call_id=$4::uuid AND direction='outgoing'", [this.owner, node, home, callId]);
+      return this.call(home, operation, actor, callId, args);
+    }
     return fail("The other computer sent no answer");
+  }
+
+  /** Old ids of moved threads and bots in a tool's arguments name their new home (stage 8). */
+  redirect(args: Record<string, unknown>): void {
+    const redirects = this.core.computers?.redirects;
+    if (!redirects?.size) return;
+    for (const key of ["thread_id", "bot_id"]) if (typeof args[key] === "string") args[key] = redirects.map(args[key] as string);
+    if (Array.isArray(args["thread_ids"])) args["thread_ids"] = (args["thread_ids"] as unknown[]).map((v) => typeof v === "string" ? redirects.map(v) : v);
   }
 
   async peer(ref: string): Promise<string> {
@@ -143,6 +160,7 @@ export class LinkedAgents {
 
   async botTool(turn: BotTurn, call: StoredCall): Promise<unknown | undefined> {
     const args = call.arguments;
+    this.redirect(args);
     if (call.tool.name === "list_threads") {
       const project = typeof args["project_id"] === "string" ? args["project_id"] : "";
       const request = create(ui.ListThreadsRequestSchema, { projectId: project, includeArchived: args["include_archived"] === true });
@@ -247,6 +265,7 @@ export class LinkedAgents {
   }
 
   async tool(request: AgentToolCall, call: AgentBusCall, caller: ThreadRow): Promise<JsonValue | undefined> {
+    this.redirect(call.args as Record<string, unknown>);
     if (call.tool === "wait_threads" && call.args.thread_ids.some((id) => splitId(id).node)) {
       if (caller.owner_user_id !== this.owner) return fail("Thread not found");
       const localIds = call.args.thread_ids.filter((id) => !splitId(id).node);

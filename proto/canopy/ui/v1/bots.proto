@@ -35,6 +35,9 @@ message Bot {
   uint64 last_read_seq = 562;
   // Home gateway of a bot listed through a linked computer; empty for local bots.
   string node_id = 800;
+  // Stage 8: the bot moved here from another computer; accounts and servers to connect again here.
+  string moved_from_name = 801;
+  repeated string reconnect = 802;
 }
 message BotMessage {
   string id = 1;

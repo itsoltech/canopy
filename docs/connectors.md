@@ -28,6 +28,11 @@ HTTP jest dozwolone tylko dla loopback do lokalnego developmentu; inne endpointy
 wymagają HTTPS. Custom MCP jest jawną konfiguracją sieciową właściciela, także
 do jego usług prywatnych; nie uruchamia procesów ani transportu stdio.
 
+Konta i granty należą do **jednego komputera**. Przy przeniesieniu bota na inny połączony komputer
+([etap 8](linked-computers.md#konkretny-protokół-etapu-8)) granty nie przechodzą: podgląd ruchu wymienia
+konta do ponownego podłączenia, a bot na nowym komputerze pokazuje je („Moved from Laptop A — connect
+these again”), dopóki nie zostaną tam podłączone i przyznane. Poświadczenia nigdy nie opuszczają gatewaya.
+
 ## OAuth
 
 BFF rozpoczyna autoryzację i przekazuje callback do gateway przez uwierzytelnione

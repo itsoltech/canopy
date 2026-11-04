@@ -50,6 +50,7 @@ import sharedConfig from "./0050_shared_config.sql" with { type: "text" };
 import linkedAgents from "./0051_linked_agents.sql" with { type: "text" };
 import computerRoutes from "./0052_computer_routes.sql" with { type: "text" };
 import computerRelay from "./0053_computer_relay.sql" with { type: "text" };
+import computerMoves from "./0054_computer_moves.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -116,6 +117,7 @@ export const migrations = Migrator.fromRecord({
   "0051_linked_agents": sqlFile(linkedAgents),
   "0052_computer_routes": sqlFile(computerRoutes),
   "0053_computer_relay": sqlFile(computerRelay),
+  "0054_computer_moves": sqlFile(computerMoves),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

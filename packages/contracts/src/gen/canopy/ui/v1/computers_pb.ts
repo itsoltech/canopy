@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/computers.proto.
  */
 export const file_canopy_ui_v1_computers: GenFile = /*@__PURE__*/
-  fileDesc("ChxjYW5vcHkvdWkvdjEvY29tcHV0ZXJzLnByb3RvEgxjYW5vcHkudWkudjEi1gMKDkxpbmtlZENvbXB1dGVyEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglhZGRyZXNzZXMYAyADKAkSEwoLZmluZ2VycHJpbnQYBCABKAkSEwoLYXBwX3ZlcnNpb24YBSABKAkSFAoMbWluX3Byb3RvY29sGAYgASgNEhQKDG1heF9wcm90b2NvbBgHIAEoDRIOCgZzdGF0dXMYCCABKAkSFwoPc3RhdHVzX3NpbmNlX21zGAkgASgDEhQKDGxhc3Rfc2Vlbl9tcxgKIAEoAxIUCgxsaW5rZWRfYXRfbXMYCyABKAMSFgoOdXBkYXRlX25vZGVfaWQYDCABKAkSFAoMZGlzcGxheV9uYW1lGA0gASgJEhQKDGNhcGFiaWxpdGllcxgOIAMoCRIrCgZyb3V0ZXMYDyADKAsyGy5jYW5vcHkudWkudjEuQ29tcHV0ZXJSb3V0ZRITCgt2aWFfbm9kZV9pZBgQIAEoCRIQCgh2aWFfbmFtZRgRIAEoCRIUCgxyZWxheV9vcmlnaW4YEiABKAgSHQoVc2hhcmVfb253YXJkX25vZGVfaWRzGBMgAygJEhoKEnVuYXZhaWxhYmxlX3JlYXNvbhgUIAEoCSKLAQoNQ29tcHV0ZXJSb3V0ZRIPCgdhZGRyZXNzGAEgASgJEg4KBnNvdXJjZRgCIAEoCRITCgthZGRlZF9hdF9tcxgDIAEoAxIXCg9sYXN0X3N1Y2Nlc3NfbXMYBCABKAMSFwoPbGFzdF9mYWlsdXJlX21zGAUgASgDEhIKCmxhdGVuY3lfbXMYBiABKA0iEgoQQ29tcHV0ZXJzUmVxdWVzdCL6AQoRQ29tcHV0ZXJzU25hcHNob3QSKgoEc2VsZhgBIAEoCzIcLmNhbm9weS51aS52MS5MaW5rZWRDb21wdXRlchIrCgVwZWVycxgCIAMoCzIcLmNhbm9weS51aS52MS5MaW5rZWRDb21wdXRlchIYChBsaXN0ZW5lcl9lbmFibGVkGAMgASgIEhoKEmxpc3RlbmVyX2F2YWlsYWJsZRgEIAEoCBIdChVsYW5fZGlzY292ZXJ5X2VuYWJsZWQYBSABKAgSGwoTbGFuX2Rpc2NvdmVyeV9zdGF0ZRgGIAEoCRIaChJsYW5fZGlzY292ZXJ5X25vdGUYByABKAkiHgocQ3JlYXRlQ29tcHV0ZXJQYWlyaW5nUmVxdWVzdCJVCg9Db21wdXRlclBhaXJpbmcSCgoCaWQYASABKAkSDAoEY29kZRgCIAEoCRIVCg1leHBpcmVzX2F0X21zGAMgASgDEhEKCWFkZHJlc3NlcxgEIAMoCSI0ChNMaW5rQ29tcHV0ZXJSZXF1ZXN0Eg8KB2FkZHJlc3MYASABKAkSDAoEY29kZRgCIAEoCSKKAQoYQ29tcHV0ZXJPcGVyYXRpb25SZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIPCgdub2RlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSDwoHZW5hYmxlZBgEIAEoCBIPCgdhZGRyZXNzGAUgASgJEh0KFXNoYXJlX29ud2FyZF9ub2RlX2lkcxgGIAMoCSK0AQoQU2hhcmVkQ29uZmlnSXRlbRILCgNrZXkYASABKAkSDAoEa2luZBgCIAEoCRINCgVsYWJlbBgDIAEoCRIOCgZzaGFyZWQYBCABKAgSDwoHdmVyc2lvbhgFIAEoBBIaChJjaGFuZ2VkX2J5X25vZGVfaWQYBiABKAkSFQoNY2hhbmdlZF9hdF9tcxgHIAEoAxIMCgRub3RlGAggASgJEhQKDG5vdGVfbm9kZV9pZBgJIAEoCSJAChFTaGFyZWRDb25maWdGaWVsZBIMCgRuYW1lGAEgASgJEg0KBWxvY2FsGAIgASgJEg4KBnJlbW90ZRgDIAEoCSK4AQoUU2hhcmVkQ29uZmlnQ29uZmxpY3QSCwoDa2V5GAEgASgJEgwKBGtpbmQYAiABKAkSDQoFbGFiZWwYAyABKAkSDwoHbm9kZV9pZBgEIAEoCRIWCg5kZXRlY3RlZF9hdF9tcxgFIAEoAxIcChRyZW1vdGVfY2hhbmdlZF9hdF9tcxgGIAEoAxIvCgZmaWVsZHMYByADKAsyHy5jYW5vcHkudWkudjEuU2hhcmVkQ29uZmlnRmllbGQimwEKFFNoYXJlZENvbmZpZ1NuYXBzaG90Ei0KBWl0ZW1zGAEgAygLMh4uY2Fub3B5LnVpLnYxLlNoYXJlZENvbmZpZ0l0ZW0SNQoJY29uZmxpY3RzGAIgAygLMiIuY2Fub3B5LnVpLnYxLlNoYXJlZENvbmZpZ0NvbmZsaWN0Eh0KFW5lZWRzX3VwZGF0ZV9ub2RlX2lkcxgDIAMoCSIVChNTaGFyZWRDb25maWdSZXF1ZXN0IkUKFVNoYXJlZENvbmZpZ09wZXJhdGlvbhIOCgZhY3Rpb24YASABKAkSCwoDa2V5GAIgASgJEg8KB25vZGVfaWQYAyABKAliBnByb3RvMw");
+  fileDesc("ChxjYW5vcHkvdWkvdjEvY29tcHV0ZXJzLnByb3RvEgxjYW5vcHkudWkudjEi1gMKDkxpbmtlZENvbXB1dGVyEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglhZGRyZXNzZXMYAyADKAkSEwoLZmluZ2VycHJpbnQYBCABKAkSEwoLYXBwX3ZlcnNpb24YBSABKAkSFAoMbWluX3Byb3RvY29sGAYgASgNEhQKDG1heF9wcm90b2NvbBgHIAEoDRIOCgZzdGF0dXMYCCABKAkSFwoPc3RhdHVzX3NpbmNlX21zGAkgASgDEhQKDGxhc3Rfc2Vlbl9tcxgKIAEoAxIUCgxsaW5rZWRfYXRfbXMYCyABKAMSFgoOdXBkYXRlX25vZGVfaWQYDCABKAkSFAoMZGlzcGxheV9uYW1lGA0gASgJEhQKDGNhcGFiaWxpdGllcxgOIAMoCRIrCgZyb3V0ZXMYDyADKAsyGy5jYW5vcHkudWkudjEuQ29tcHV0ZXJSb3V0ZRITCgt2aWFfbm9kZV9pZBgQIAEoCRIQCgh2aWFfbmFtZRgRIAEoCRIUCgxyZWxheV9vcmlnaW4YEiABKAgSHQoVc2hhcmVfb253YXJkX25vZGVfaWRzGBMgAygJEhoKEnVuYXZhaWxhYmxlX3JlYXNvbhgUIAEoCSKLAQoNQ29tcHV0ZXJSb3V0ZRIPCgdhZGRyZXNzGAEgASgJEg4KBnNvdXJjZRgCIAEoCRITCgthZGRlZF9hdF9tcxgDIAEoAxIXCg9sYXN0X3N1Y2Nlc3NfbXMYBCABKAMSFwoPbGFzdF9mYWlsdXJlX21zGAUgASgDEhIKCmxhdGVuY3lfbXMYBiABKA0iEgoQQ29tcHV0ZXJzUmVxdWVzdCL6AQoRQ29tcHV0ZXJzU25hcHNob3QSKgoEc2VsZhgBIAEoCzIcLmNhbm9weS51aS52MS5MaW5rZWRDb21wdXRlchIrCgVwZWVycxgCIAMoCzIcLmNhbm9weS51aS52MS5MaW5rZWRDb21wdXRlchIYChBsaXN0ZW5lcl9lbmFibGVkGAMgASgIEhoKEmxpc3RlbmVyX2F2YWlsYWJsZRgEIAEoCBIdChVsYW5fZGlzY292ZXJ5X2VuYWJsZWQYBSABKAgSGwoTbGFuX2Rpc2NvdmVyeV9zdGF0ZRgGIAEoCRIaChJsYW5fZGlzY292ZXJ5X25vdGUYByABKAkiHgocQ3JlYXRlQ29tcHV0ZXJQYWlyaW5nUmVxdWVzdCJVCg9Db21wdXRlclBhaXJpbmcSCgoCaWQYASABKAkSDAoEY29kZRgCIAEoCRIVCg1leHBpcmVzX2F0X21zGAMgASgDEhEKCWFkZHJlc3NlcxgEIAMoCSI0ChNMaW5rQ29tcHV0ZXJSZXF1ZXN0Eg8KB2FkZHJlc3MYASABKAkSDAoEY29kZRgCIAEoCSKKAQoYQ29tcHV0ZXJPcGVyYXRpb25SZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIPCgdub2RlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSDwoHZW5hYmxlZBgEIAEoCBIPCgdhZGRyZXNzGAUgASgJEh0KFXNoYXJlX29ud2FyZF9ub2RlX2lkcxgGIAMoCSK0AQoQU2hhcmVkQ29uZmlnSXRlbRILCgNrZXkYASABKAkSDAoEa2luZBgCIAEoCRINCgVsYWJlbBgDIAEoCRIOCgZzaGFyZWQYBCABKAgSDwoHdmVyc2lvbhgFIAEoBBIaChJjaGFuZ2VkX2J5X25vZGVfaWQYBiABKAkSFQoNY2hhbmdlZF9hdF9tcxgHIAEoAxIMCgRub3RlGAggASgJEhQKDG5vdGVfbm9kZV9pZBgJIAEoCSJAChFTaGFyZWRDb25maWdGaWVsZBIMCgRuYW1lGAEgASgJEg0KBWxvY2FsGAIgASgJEg4KBnJlbW90ZRgDIAEoCSK4AQoUU2hhcmVkQ29uZmlnQ29uZmxpY3QSCwoDa2V5GAEgASgJEgwKBGtpbmQYAiABKAkSDQoFbGFiZWwYAyABKAkSDwoHbm9kZV9pZBgEIAEoCRIWCg5kZXRlY3RlZF9hdF9tcxgFIAEoAxIcChRyZW1vdGVfY2hhbmdlZF9hdF9tcxgGIAEoAxIvCgZmaWVsZHMYByADKAsyHy5jYW5vcHkudWkudjEuU2hhcmVkQ29uZmlnRmllbGQimwEKFFNoYXJlZENvbmZpZ1NuYXBzaG90Ei0KBWl0ZW1zGAEgAygLMh4uY2Fub3B5LnVpLnYxLlNoYXJlZENvbmZpZ0l0ZW0SNQoJY29uZmxpY3RzGAIgAygLMiIuY2Fub3B5LnVpLnYxLlNoYXJlZENvbmZpZ0NvbmZsaWN0Eh0KFW5lZWRzX3VwZGF0ZV9ub2RlX2lkcxgDIAMoCSIVChNTaGFyZWRDb25maWdSZXF1ZXN0IkUKFVNoYXJlZENvbmZpZ09wZXJhdGlvbhIOCgZhY3Rpb24YASABKAkSCwoDa2V5GAIgASgJEg8KB25vZGVfaWQYAyABKAkiJwoLTW92ZUl0ZW1SZWYSDAoEa2luZBgBIAEoCRIKCgJpZBgCIAEoCSJjChJNb3ZlUHJldmlld1JlcXVlc3QSDwoHbm9kZV9pZBgBIAEoCRIoCgVpdGVtcxgCIAMoCzIZLmNhbm9weS51aS52MS5Nb3ZlSXRlbVJlZhISCgpldmVyeXRoaW5nGAMgASgIIqQBCg9Nb3ZlUHJldmlld0l0ZW0SDAoEa2luZBgBIAEoCRIKCgJpZBgCIAEoCRINCgV0aXRsZRgDIAEoCRIPCgdibG9ja2VkGAQgASgJEg0KBW1vdmVzGAUgAygJEgwKBHJlZG8YBiADKAkSEgoKcHJvamVjdF9pZBgHIAEoCRIUCgxwcm9qZWN0X25hbWUYCCABKAkSEAoIYXJjaGl2ZWQYCSABKAgikwEKC01vdmVQcmV2aWV3Eg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIsCgVpdGVtcxgDIAMoCzIdLmNhbm9weS51aS52MS5Nb3ZlUHJldmlld0l0ZW0SDgoGc2hhcmVkGAQgAygJEhIKCmxvY2FsX29ubHkYBSADKAkSEwoLdW5hdmFpbGFibGUYBiABKAkiOQoNTW92ZVBsYWNlbWVudBISCgpwcm9qZWN0X2lkGAEgASgJEhQKDHdvcmtzcGFjZV9pZBgCIAEoCSKSAQoQU3RhcnRNb3ZlUmVxdWVzdBIPCgdub2RlX2lkGAEgASgJEigKBWl0ZW1zGAIgAygLMhkuY2Fub3B5LnVpLnYxLk1vdmVJdGVtUmVmEhIKCmV2ZXJ5dGhpbmcYAyABKAgSLwoKcGxhY2VtZW50cxgEIAMoCzIbLmNhbm9weS51aS52MS5Nb3ZlUGxhY2VtZW50It8BCgxDb21wdXRlck1vdmUSCgoCaWQYASABKAkSEAoIYmF0Y2hfaWQYAiABKAkSDAoEa2luZBgDIAEoCRIPCgdpdGVtX2lkGAQgASgJEg0KBXRpdGxlGAUgASgJEgwKBHJvbGUYBiABKAkSDwoHbm9kZV9pZBgHIAEoCRIRCglub2RlX25hbWUYCCABKAkSDQoFc3RhdGUYCSABKAkSDQoFZXJyb3IYCiABKAkSDAoEcmVkbxgLIAMoCRIVCg11cGRhdGVkX2F0X21zGAwgASgDEg4KBm5ld19pZBgNIAEoCSIgCgxNb3Zlc1JlcXVlc3QSEAoIYmF0Y2hfaWQYASABKAkiOgoNTW92ZXNTbmFwc2hvdBIpCgVtb3ZlcxgBIAMoCzIaLmNhbm9weS51aS52MS5Db21wdXRlck1vdmViBnByb3RvMw");
 
 /**
  * @generated from message canopy.ui.v1.LinkedComputer
@@ -576,4 +576,346 @@ export type SharedConfigOperation = Message<"canopy.ui.v1.SharedConfigOperation"
  */
 export const SharedConfigOperationSchema: GenMessage<SharedConfigOperation> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_computers, 13);
+
+/**
+ * Stage 8: moving threads and bots to another linked computer. The source (this computer, the
+ * current home) coordinates; the moves run in the background and GetMoves reports them.
+ *
+ * @generated from message canopy.ui.v1.MoveItemRef
+ */
+export type MoveItemRef = Message<"canopy.ui.v1.MoveItemRef"> & {
+  /**
+   * thread, bot
+   *
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string id = 2;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.MoveItemRef.
+ * Use `create(MoveItemRefSchema)` to create a new message.
+ */
+export const MoveItemRefSchema: GenMessage<MoveItemRef> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 14);
+
+/**
+ * @generated from message canopy.ui.v1.MovePreviewRequest
+ */
+export type MovePreviewRequest = Message<"canopy.ui.v1.MovePreviewRequest"> & {
+  /**
+   * @generated from field: string node_id = 1;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.MoveItemRef items = 2;
+   */
+  items: MoveItemRef[];
+
+  /**
+   * Every thread and bot of this computer.
+   *
+   * @generated from field: bool everything = 3;
+   */
+  everything: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.MovePreviewRequest.
+ * Use `create(MovePreviewRequestSchema)` to create a new message.
+ */
+export const MovePreviewRequestSchema: GenMessage<MovePreviewRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 15);
+
+/**
+ * @generated from message canopy.ui.v1.MovePreviewItem
+ */
+export type MovePreviewItem = Message<"canopy.ui.v1.MovePreviewItem"> & {
+  /**
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string id = 2;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string title = 3;
+   */
+  title: string;
+
+  /**
+   * Why it cannot move now (a turn is running, a card waits for an answer). Empty: it can move.
+   *
+   * @generated from field: string blocked = 4;
+   */
+  blocked: string;
+
+  /**
+   * What moves along (side threads, routines, reminders, files).
+   *
+   * @generated from field: repeated string moves = 5;
+   */
+  moves: string[];
+
+  /**
+   * What has to be done again on the other computer (connector accounts, MCP servers, goals).
+   *
+   * @generated from field: repeated string redo = 6;
+   */
+  redo: string[];
+
+  /**
+   * thread: its project, to choose a workspace on the other computer.
+   *
+   * @generated from field: string project_id = 7;
+   */
+  projectId: string;
+
+  /**
+   * @generated from field: string project_name = 8;
+   */
+  projectName: string;
+
+  /**
+   * @generated from field: bool archived = 9;
+   */
+  archived: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.MovePreviewItem.
+ * Use `create(MovePreviewItemSchema)` to create a new message.
+ */
+export const MovePreviewItemSchema: GenMessage<MovePreviewItem> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 16);
+
+/**
+ * @generated from message canopy.ui.v1.MovePreview
+ */
+export type MovePreview = Message<"canopy.ui.v1.MovePreview"> & {
+  /**
+   * @generated from field: string node_id = 1;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.MovePreviewItem items = 3;
+   */
+  items: MovePreviewItem[];
+
+  /**
+   * everything: configuration already shared with the other computer (it stays shared).
+   *
+   * @generated from field: repeated string shared = 4;
+   */
+  shared: string[];
+
+  /**
+   * everything: what stays on this computer and has to be set up again there.
+   *
+   * @generated from field: repeated string local_only = 5;
+   */
+  localOnly: string[];
+
+  /**
+   * The other computer cannot receive moves now (offline, needs an update).
+   *
+   * @generated from field: string unavailable = 6;
+   */
+  unavailable: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.MovePreview.
+ * Use `create(MovePreviewSchema)` to create a new message.
+ */
+export const MovePreviewSchema: GenMessage<MovePreview> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 17);
+
+/**
+ * @generated from message canopy.ui.v1.MovePlacement
+ */
+export type MovePlacement = Message<"canopy.ui.v1.MovePlacement"> & {
+  /**
+   * A project of a moved thread and the other computer's workspace for its threads (overview ids).
+   *
+   * @generated from field: string project_id = 1;
+   */
+  projectId: string;
+
+  /**
+   * @generated from field: string workspace_id = 2;
+   */
+  workspaceId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.MovePlacement.
+ * Use `create(MovePlacementSchema)` to create a new message.
+ */
+export const MovePlacementSchema: GenMessage<MovePlacement> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 18);
+
+/**
+ * @generated from message canopy.ui.v1.StartMoveRequest
+ */
+export type StartMoveRequest = Message<"canopy.ui.v1.StartMoveRequest"> & {
+  /**
+   * @generated from field: string node_id = 1;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.MoveItemRef items = 2;
+   */
+  items: MoveItemRef[];
+
+  /**
+   * @generated from field: bool everything = 3;
+   */
+  everything: boolean;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.MovePlacement placements = 4;
+   */
+  placements: MovePlacement[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.StartMoveRequest.
+ * Use `create(StartMoveRequestSchema)` to create a new message.
+ */
+export const StartMoveRequestSchema: GenMessage<StartMoveRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 19);
+
+/**
+ * @generated from message canopy.ui.v1.ComputerMove
+ */
+export type ComputerMove = Message<"canopy.ui.v1.ComputerMove"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string batch_id = 2;
+   */
+  batchId: string;
+
+  /**
+   * @generated from field: string kind = 3;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string item_id = 4;
+   */
+  itemId: string;
+
+  /**
+   * @generated from field: string title = 5;
+   */
+  title: string;
+
+  /**
+   * source (moving away from this computer) or target (arriving here).
+   *
+   * @generated from field: string role = 6;
+   */
+  role: string;
+
+  /**
+   * @generated from field: string node_id = 7;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string node_name = 8;
+   */
+  nodeName: string;
+
+  /**
+   * preparing, prepared, committed, done, aborting, aborted
+   *
+   * @generated from field: string state = 9;
+   */
+  state: string;
+
+  /**
+   * @generated from field: string error = 10;
+   */
+  error: string;
+
+  /**
+   * @generated from field: repeated string redo = 11;
+   */
+  redo: string[];
+
+  /**
+   * @generated from field: int64 updated_at_ms = 12;
+   */
+  updatedAtMs: bigint;
+
+  /**
+   * The id to open it with now (qualified for the other computer).
+   *
+   * @generated from field: string new_id = 13;
+   */
+  newId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ComputerMove.
+ * Use `create(ComputerMoveSchema)` to create a new message.
+ */
+export const ComputerMoveSchema: GenMessage<ComputerMove> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 20);
+
+/**
+ * @generated from message canopy.ui.v1.MovesRequest
+ */
+export type MovesRequest = Message<"canopy.ui.v1.MovesRequest"> & {
+  /**
+   * @generated from field: string batch_id = 1;
+   */
+  batchId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.MovesRequest.
+ * Use `create(MovesRequestSchema)` to create a new message.
+ */
+export const MovesRequestSchema: GenMessage<MovesRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 21);
+
+/**
+ * @generated from message canopy.ui.v1.MovesSnapshot
+ */
+export type MovesSnapshot = Message<"canopy.ui.v1.MovesSnapshot"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.ComputerMove moves = 1;
+   */
+  moves: ComputerMove[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.MovesSnapshot.
+ * Use `create(MovesSnapshotSchema)` to create a new message.
+ */
+export const MovesSnapshotSchema: GenMessage<MovesSnapshot> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_computers, 22);
 

@@ -82,7 +82,7 @@ export interface ThreadRow {
   fork_after_turn_id: string | null;
   /** Joined: the fork point's number in the thread it belongs to (fork_source_thread_id). */
   fork_after_turn_ordinal?: number | null;
-  settings: { model?: string; effort?: string; permissionMode?: string; instructions?: string };
+  settings: { model?: string; effort?: string; permissionMode?: string; instructions?: string; handoff?: string };
   status: string;
   status_detail: string | null;
   title: string;
@@ -218,7 +218,8 @@ export class GatewayStore extends Context.Service<
     removeWorkspace(ownerUserId: string, workspaceId: string): Fx<ui.Workspace>;
     listProjects(ownerUserId: string): Fx<ui.Project[]>;
     // threads and turns
-    createThread(ownerUserId: string, request: ui.CreateThreadRequest): Fx<ThreadRow>;
+    /** `id`: a thread moved here from a linked computer keeps its id (docs/linked-computers.md, stage 8). */
+    createThread(ownerUserId: string, request: ui.CreateThreadRequest, id?: string): Fx<ThreadRow>;
     thread(threadId: string, includeDeleted?: boolean): Fx<ThreadRow>;
     /** The owner saw the thread up to `upToSeq` (capped at its last event; the marker only grows). False when nothing changed. */
     markThreadSeen(ownerUserId: string, threadId: string, upToSeq: bigint): Fx<boolean>;
@@ -660,7 +661,7 @@ export class GatewayStore extends Context.Service<
               );
             })),
 
-          createThread: (ownerUserId, request) =>
+          createThread: (ownerUserId, request, movedId) =>
             sql.withTransaction(
               Effect.gen(function* () {
                 const workspace = yield* one(
@@ -677,7 +678,7 @@ export class GatewayStore extends Context.Service<
                 );
                 const provider = harnessOf(request.provider);
                 if (!provider) return yield* Effect.fail(new Invalid("unknown provider"));
-                const id = Bun.randomUUIDv7();
+                const id = movedId ?? Bun.randomUUIDv7();
                 const parent = request.parentThreadId ? yield* store.thread(request.parentThreadId) : undefined;
                 if (parent?.provider === "grok" && request.fork) return yield* Effect.fail(new Invalid("Grok ACP does not support session forks"));
                 if (parent?.archived_at) return yield* Effect.fail(new Invalid("parent thread is archived"));
@@ -792,7 +793,8 @@ export class GatewayStore extends Context.Service<
               cwd: row.cwd ?? "",
               scratch: row.project_kind === "scratch",
               model: row.settings.model ?? "",
-              instructions: row.settings.instructions ?? "",
+              // A thread moved from a linked computer continues with its handoff note (stage 8).
+              instructions: [row.settings.instructions, row.settings.handoff].filter(Boolean).join("\n\n"),
               permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
               // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
               enableAgentBus: row.runtime === "worker",
@@ -876,7 +878,10 @@ export class GatewayStore extends Context.Service<
 
           turnsOf: (threadId) => sql<TurnRow>`
             SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
-             WHERE u.thread_id = ${threadId}::uuid ORDER BY u.ordinal`,
+             WHERE u.thread_id = ${threadId}::uuid
+               -- The placeholder holding a moved thread's history numbers is no turn of its own.
+               AND NOT EXISTS (SELECT 1 FROM computer_moved_threads m WHERE m.ordinal_turn_id = u.id)
+             ORDER BY u.ordinal`,
 
           titleInput: (threadId) => sql<TurnRow>`
             SELECT u.* FROM thread_fork_chain(${threadId}::uuid) c JOIN turns u ON u.thread_id = c.thread_id

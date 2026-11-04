@@ -117,3 +117,74 @@ message SharedConfigOperation {
   // keep_local / keep_remote: the computer of the conflict.
   string node_id = 3;
 }
+
+// Stage 8: moving threads and bots to another linked computer. The source (this computer, the
+// current home) coordinates; the moves run in the background and GetMoves reports them.
+message MoveItemRef {
+  // thread, bot
+  string kind = 1;
+  string id = 2;
+}
+message MovePreviewRequest {
+  string node_id = 1;
+  repeated MoveItemRef items = 2;
+  // Every thread and bot of this computer.
+  bool everything = 3;
+}
+message MovePreviewItem {
+  string kind = 1;
+  string id = 2;
+  string title = 3;
+  // Why it cannot move now (a turn is running, a card waits for an answer). Empty: it can move.
+  string blocked = 4;
+  // What moves along (side threads, routines, reminders, files).
+  repeated string moves = 5;
+  // What has to be done again on the other computer (connector accounts, MCP servers, goals).
+  repeated string redo = 6;
+  // thread: its project, to choose a workspace on the other computer.
+  string project_id = 7;
+  string project_name = 8;
+  bool archived = 9;
+}
+message MovePreview {
+  string node_id = 1;
+  string name = 2;
+  repeated MovePreviewItem items = 3;
+  // everything: configuration already shared with the other computer (it stays shared).
+  repeated string shared = 4;
+  // everything: what stays on this computer and has to be set up again there.
+  repeated string local_only = 5;
+  // The other computer cannot receive moves now (offline, needs an update).
+  string unavailable = 6;
+}
+message MovePlacement {
+  // A project of a moved thread and the other computer's workspace for its threads (overview ids).
+  string project_id = 1;
+  string workspace_id = 2;
+}
+message StartMoveRequest {
+  string node_id = 1;
+  repeated MoveItemRef items = 2;
+  bool everything = 3;
+  repeated MovePlacement placements = 4;
+}
+message ComputerMove {
+  string id = 1;
+  string batch_id = 2;
+  string kind = 3;
+  string item_id = 4;
+  string title = 5;
+  // source (moving away from this computer) or target (arriving here).
+  string role = 6;
+  string node_id = 7;
+  string node_name = 8;
+  // preparing, prepared, committed, done, aborting, aborted
+  string state = 9;
+  string error = 10;
+  repeated string redo = 11;
+  int64 updated_at_ms = 12;
+  // The id to open it with now (qualified for the other computer).
+  string new_id = 13;
+}
+message MovesRequest { string batch_id = 1; }
+message MovesSnapshot { repeated ComputerMove moves = 1; }

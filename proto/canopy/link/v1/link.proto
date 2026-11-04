@@ -170,6 +170,8 @@ message RemoteResponse {
   bool end = 4;
   uint32 code = 5;
   string message = 6;
+  // Stage 8: the error is "moved": these things live on another computer now. Survives a relay.
+  repeated MovedItem moved = 7;
 }
 // The caller stopped listening (stream closed, timeout). The home aborts the call.
 message RemoteCancel { uint64 call_id = 1; }
@@ -186,5 +188,96 @@ message LinkFrame {
     RemoteCancel remote_cancel = 8;
     RouteAnnouncement routes = 9;
     RelayCatalog relay_catalog = 10;
+    // Stage 8, capability "move_items": where moved threads and bots live now.
+    MovedItems moved = 11;
   }
 }
+
+// Stage 8, capability "move_items": moving a thread or bot between two directly linked
+// computers. Internal methods over RemoteRequest/RemoteResponse, never public RPCs and never
+// relayed. The source (current home) coordinates a two-phase move; see docs/linked-computers.md.
+service ComputerMoveService {
+  // Target: stage the full state of one thing. Idempotent per move id.
+  rpc PrepareMove(MovePrepare) returns (MoveReply);
+  // Target: the source's decision ("commit" or "abort"). Idempotent.
+  rpc DecideMove(MoveDecision) returns (MoveReply);
+  // Source: its decision for a move the target has staged (after a restart or reconnect).
+  rpc MoveOutcome(MoveDecision) returns (MoveReply);
+  // Target: which of these provider instances and projects it has (preview, preparation).
+  rpc InspectMove(MoveInspect) returns (MoveInspection);
+}
+message MovePrepare {
+  string move_id = 1;
+  // thread, bot
+  string kind = 2;
+  string item_id = 3;
+  string batch_id = 4;
+  string title = 5;
+  // thread: the target's own workspace (plain id on the target).
+  string workspace_id = 6;
+  ThreadMove thread = 7;
+  BotMove bot = 8;
+}
+// One attachment row (JSON of its columns) with its bytes.
+message MovedFile {
+  string attachment_json = 1;
+  bytes data = 2;
+  string mime_type = 3;
+  bytes thumbnail = 4;
+  string thumbnail_mime_type = 5;
+}
+message MovedBlob {
+  string sha256 = 1;
+  string mime_type = 2;
+  bytes data = 3;
+}
+message MovedThread {
+  // The thread as its home showed it (no schedules, secrets or pending interactions).
+  canopy.ui.v1.ThreadSnapshot history = 1;
+  // The home's row: settings, provider, title, workspace path, timestamps (JSON).
+  string row_json = 2;
+  // Active and paused schedules of the thread (JSON rows).
+  repeated string schedules_json = 3;
+}
+message ThreadMove {
+  // The main thread first, then its side threads.
+  repeated MovedThread threads = 1;
+  repeated MovedFile files = 2;
+  repeated MovedBlob blobs = 3;
+  // Display name of the source computer for the timeline notice and the handoff note.
+  string source_name = 4;
+}
+// Rows of the bot and its conversation, turns, routines, reminders and handoff notes (JSON).
+message BotMove {
+  string rows_json = 1;
+  string source_name = 2;
+}
+message MoveDecision {
+  string move_id = 1;
+  // commit, abort; empty in MoveOutcome.
+  string decision = 2;
+}
+message MoveReply {
+  string state = 1;
+  string error = 2;
+}
+message MoveInspect {
+  // harness:id of provider instances.
+  repeated string provider_instances = 1;
+  repeated string project_ids = 2;
+}
+message MoveInspection {
+  repeated string provider_instances = 1;
+  repeated string project_ids = 2;
+}
+message MovedItem {
+  string item_id = 1;
+  // thread, bot
+  string kind = 2;
+  string home_node_id = 3;
+  string from_node_id = 4;
+  int64 moved_at_ms = 5;
+  // Display name of the new home, for "Moved to Laptop C" where that computer isn't linked.
+  string home_name = 6;
+}
+message MovedItems { repeated MovedItem items = 1; }

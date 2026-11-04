@@ -17,6 +17,8 @@ export const useThreadActions = () => getContext<ThreadActions>(KEY);
 
 export class ThreadActions {
   dialog = $state.raw<{ kind: "rename" | "delete"; thread: ui.Thread }>();
+  /** The thread "Move to…" is open for (MoveDialog). */
+  moving = $state.raw<ui.Thread>();
   saving = $state(false);
   returnFocus: HTMLElement | undefined;
   constructor(readonly overview: OverviewState, readonly settings: SettingsState, readonly currentId: () => string | undefined) {}
@@ -40,6 +42,7 @@ export class ThreadActions {
           this.returnFocus = menu?.id ? document.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(menu.id)}"]`) ?? focused : focused;
           this.dialog = { kind: action, thread }; break;
         }
+        case "move": this.moving = thread; break;
         case "regenerate": await requestTitleRegeneration(thread.id); break;
         case "read": await this.lifecycle(thread.id, thread.markedUnread || thread.unseenResult ? "read" : "unread"); break;
         case "filter": await this.settings.updateSidebar({ projectIds: [thread.projectId], ...(thread.status === "archived" && { archivedExpanded: true }) }); break;

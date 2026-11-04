@@ -64,7 +64,7 @@ if (installKind() === "binary") onSupervisorHandover(() => core.updates.handover
 // Workers' configurations follow the global provider instances (e.g. right after the migration to them).
 const own = uiHandlers(core);
 core.computers = new LinkedComputers({ store: new ComputerStore(runtime, userId, loadSecretsKey(env)),
-  serve: remoteServe(own, core), shared: sharedHost(core, own), zone: async () => (await core.settings()).user?.timezone,
+  serve: remoteServe(own, core), shared: sharedHost(core, own), core, zone: async () => (await core.settings()).user?.timezone,
   ...(env["CANOPY_LINK_HOST"] && { host: env["CANOPY_LINK_HOST"] }),
   ...(env["CANOPY_LINK_PORT"] && { port: Number(env["CANOPY_LINK_PORT"]) }),
   ...(env["CANOPY_LINK_ADDRESSES"] && { addresses: env["CANOPY_LINK_ADDRESSES"].split(",").map((a) => a.trim()) }),

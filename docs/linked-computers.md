@@ -1,6 +1,6 @@
 # Połączone komputery (projekt)
 
-Status: **etapy 1–7 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
+Status: **wszystkie etapy (1–8) zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
 wersjonowanie, obecność i Settings → Linked computers. Etap 2: zsumowany overview i zdalne wątki
 (lista, odczyt na żywo, pisanie, steer, kolejka, przerwanie, zgody i tworzenie wątku na workerze
 partnera, trasowane do domu). Etap 3: trwałe lustra wątków do odczytu offline, kursor i pełna
@@ -8,7 +8,8 @@ resynchronizacja. Etap 4: wspólna konfiguracja (oznaczanie elementów, sekrety,
 Etap 5: zdalne boty z odczytem offline oraz szyna agentów między domami (spawn, wiadomości,
 pytania i raporty). Etap 6: trasy (źródło, ostatni sukces, opóźnienie) i wykrywanie już połączonych
 komputerów w sieci lokalnej. Etap 7: jawne „Share onward”, jeden pośrednik, obecność pośrednia,
-lustra i odwołanie dostępu. Etap 8 pozostaje projektem; cały stos PR-ów pozostaje draftem.
+lustra i odwołanie dostępu. Etap 8: dwufazowe przeniesienie wątków i botów („Move to…”, „Move
+everything here”) z przekierowaniami starych id. Cały stos PR-ów pozostaje draftem do scalenia naraz.
 
 ## Cel
 
@@ -136,6 +137,7 @@ niedostępne (z czytelnym powodem).
     komputerze (UI to pokazuje).
   - Wątek: historia przechodzi, ale sesja CLI i pliki są lokalne dla maszyny — kontynuacja na workerze
     celu z notatką przekazania (jak [handoff botów](bots.md)) w workspace tego projektu na nowej maszynie.
+  - Szczegóły i decyzje: [konkretny protokół etapu 8](#konkretny-protokół-etapu-8).
 
 ## Aplikacja mobilna i przeglądarka
 
@@ -163,7 +165,7 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
 8. Przeniesienie rzeczy między komputerami.
 
 Każdy etap z testami integracyjnymi gateway↔gateway (etapy 1–6: dwa gatewaye i bazy;
-etap 7: trzy niezależne gatewaye i bazy); bez testów UI.
+etapy 7–8: trzy niezależne gatewaye i bazy); bez testów UI.
 
 ## Konkretny protokół etapu 1
 
@@ -1000,5 +1002,167 @@ P2 pokazuje W via P1 jako wpis tylko do odczytu; wyłączenie przełącznika na 
 wątek z W. Zastosowano `design` oraz osobny przebieg `componentize`. Fixture przeglądarkowy nie
 uruchamiał konfiguracji etapu 4 (jego endpoint zwracał 409); obejmował widoki i przełączniki relay.
 Zrzuty są poza repozytorium w katalogu tymczasowym przekazanym w raporcie.
-Bez testów UI. Bezpośrednie W↔P2 po „przedstawieniu” przez P1, discovery relayed computers,
-przechodnia konfiguracja przez relay oraz przenoszenie rzeczy (etap 8) są odroczone.
+Bez testów UI. Bezpośrednie W↔P2 po „przedstawieniu” przez P1, discovery relayed computers
+i przechodnia konfiguracja przez relay są odroczone. Przenoszenie rzeczy opisuje etap 8.
+
+## Konkretny protokół etapu 8
+
+Implementacja: `computers/moves.ts` (koordynacja, odzyskiwanie, podgląd), `computers/move-state.ts`
+(transakcje zamrożenia, eksportu, decyzji i importu), `computers/redirects.ts` (przekierowania),
+`api/routed.ts` (trasowanie starych id i odmowa zapisów w trakcie), szyna agentów (`agents.ts`);
+migracja **0054_computer_moves**; wewnętrzna usługa `ComputerMoveService` (`PrepareMove`,
+`DecideMove`, `MoveOutcome`, `InspectMove`), ramka `LinkFrame.moved` (11), pole
+`RemoteResponse.moved` (7) i capability **`move_items`**. `COMPUTER_LINK_PROTOCOL` zostaje 1 (zmiany
+addytywne). UI: `PreviewMove`/`StartMove`/`GetMoves` w `canopy.ui.v1` (tylko token serwisowy BFF,
+nie telefony), BFF `/api/computers/moves`, komponenty `MoveDialog`, `MovePreview`, `MoveProgress`
+i pochodne w `apps/web/src/lib/features/computers`.
+
+### Zakres i decyzje
+
+- **Tylko bezpośrednio połączone komputery.** Ruch przenoszenia nie przechodzi przez relay
+  (`ComputerMoveService` nie jest w `RELAY_METHODS`, wpisy pośrednie nie są celem). Przenieść można
+  tylko rzecz, której domem jest ten komputer; UI otwiera „Move to…” na komputerze domu (dla rzeczy
+  partnera: „Open it on its own computer to move it”). Koordynuje zawsze **źródło** (obecny dom).
+- **Wątek** przenosi się z całą lokalną rodziną: wątek główny i jego wątki poboczne (`side`); wątku
+  pobocznego nie przenosi się osobno. Tylko wątki na workerze (`runtime = worker`).
+- **Trwająca praca: odmowa, nie czekanie.** Przeniesienie jest odrzucane, gdy w rodzinie jest tura
+  `queued`/`running`, pytanie lub zgoda czekająca na odpowiedź, niedostarczony steer, zadanie w tle,
+  niezakończona praca szyny agentów lub raport, na który czeka inny komputer. Komunikat mówi, co
+  zrobić („Wait for it to finish or stop it, then move”). Bot: tura w toku, karta czekająca na odpowiedź
+  lub obserwowany wątek. Czekanie w kolejce byłoby ukrytą kolejką pracy, której projekt unika.
+- **Ta sama tożsamość.** Rzecz zachowuje swój uuid. Stary id (`<uuid>` na dawnym domu,
+  `<uuid>~<stary dom>` gdzie indziej) rozwiązuje się przez zamianę domu.
+- **Powrót na komputer, który ma jeszcze starą kopię, nie jest obsługiwany** (cel odpowiada
+  „It is already on this computer”). Wymiana laptopa jest ruchem w jedną stronę.
+
+### Dwie fazy
+
+Oba komputery prowadzą trwały rekord `computer_moves` (rola `source`/`target`, stan, błąd, rzeczy
+do ponownego zrobienia). Jeden niezakończony ruch na rzecz (indeks częściowy).
+
+1. **Zamrożenie (źródło, jedna transakcja).** `SELECT … FOR UPDATE` rodziny wątku lub bota, sprawdzenie
+   blokad, `moved_to = <cel>`, wstrzymanie aktywnych harmonogramów wątku (z zapisaniem ich stanu
+   i najbliższego terminu w `frozen`) i rekord `preparing`. Od tej chwili nic nowego nie startuje:
+   triggery `BEFORE INSERT` na `turns`, `turn_steers` i `bot_turns` odrzucają nową turę zamrożonej
+   rzeczy (blokada `KEY SHARE` czeka na trwające zamrożenie), planista rutyn, przypomnień i obserwacji
+   bota pomija boty z `moved_to`, a API odpowiada na zapis „Moving to Laptop C. Try again in a moment.”
+   Odczyty działają dalej.
+2. **Przygotowanie (cel).** Źródło eksportuje pełny stan i wysyła `PrepareMove`. Cel sprawdza workspace,
+   instancje dostawców, brak tej rzeczy u siebie i zapisuje ładunek w rekordzie `prepared` — nic jeszcze
+   nie jest widoczne ani wykonywane. Powtórzony `PrepareMove` z tym samym id odpowiada z rekordu.
+3. **Decyzja (źródło, jedna transakcja) — punkt przełączenia.** Kopia źródła dostaje `deleted_at`
+   (zostaje w bazie jako kopia zapasowa, `moved_to` zabrania przywrócenia), harmonogramy są anulowane,
+   relacje szyny między komputerami odłączone (jak przy Unlink), zapisany redirect i stan `committed`.
+   Od tego momentu domem jest cel.
+4. **Zastosowanie (cel).** `DecideMove(commit)` zapisuje decyzję (`committed`), cel odpowiada i stosuje
+   ładunek: bot w jednej transakcji; wątek przez rdzeń (to samo id) i idempotentne kroki. Na końcu
+   redirect do siebie i stan `done`. Źródło po potwierdzeniu decyzji przechodzi do `done`.
+
+**Odporność na przerwanie.** Przed decyzją każda porażka (brak łącza, odmowa, przekroczony czas,
+restart) cofa: źródło odmraża rzecz (przywraca harmonogramy) i zostaje w `aborting`, dopóki cel nie
+potwierdzi `DecideMove(abort)`; restart źródła w `preparing` zawsze cofa. Po decyzji ruch tylko idzie
+do przodu: źródło ponawia `DecideMove(commit)` co heartbeat i po każdym handshake, aż cel potwierdzi.
+Cel z rekordem `prepared` pyta źródło (`MoveOutcome`) — `commit`, `abort` albo `preparing` (czekaj);
+nieznany ruch oznacza `abort`. Cel z rekordem `committed` (np. po restarcie w trakcie stosowania)
+stosuje go ponownie; każdy krok jest idempotentny (wątek o tym id już istnieje → tylko brakujące kroki).
+Dlatego nigdy nie ma dwóch domów: przed decyzją cel nic nie pokazuje ani nie wykonuje, po decyzji
+źródło jest przekierowaniem. Między decyzją a zastosowaniem dom jest przesądzony (cel), a cel kończy
+zastosowanie przy pierwszej okazji.
+
+**Unlink w trakcie.** Nierozstrzygnięty ruch jest cofany. Decyzja, której cel nie potwierdził, zostaje
+cofnięta na źródle (rzecz wraca, redirect znika); cel odrzuca nierozstrzygnięty ładunek, a już
+rozstrzygnięty stosuje. W rzadkim przypadku, gdy cel zastosował ruch, ale potwierdzenie zginęło,
+oba komputery mają kopię — po Unlink nic już ich nie łączy.
+
+### Co przechodzi
+
+- **Wątek:** ostatni snapshot osi czasu każdego wątku rodziny (itemy, tury, komunikaty, steery,
+  dostarczenia szyny; bez sekretów, harmonogramów i oczekujących interakcji), wiersz z ustawieniami
+  (dostawca, instancja, model, effort, uprawnienia, instrukcje, tytuł, data utworzenia, archiwizacja),
+  aktywne/wstrzymane harmonogramy wątku, załączniki z bajtami i miniaturami oraz bloby transkryptu.
+  Limit 40 MiB plików na ruch (pod limitem wiadomości łącza 48 MiB); większy wątek jest odrzucany
+  z komunikatem. Cel zapisuje historię w `computer_moved_threads`; snapshot UI (i lustra innych
+  komputerów) pokazuje ją przed nowymi turami. Id rzeczy dawnego domu w historii dostają jego sufiks
+  (prowadzą tam albo dalej przez redirect), id przeniesionych wątków, ich tur i plików są lokalne.
+  Anulowana tura-zastępczy rezerwuje numery historii, więc nowe tury idą dalej; `last_seq` kontynuuje
+  numerację, a komunikat osi czasu „Moved from Laptop A to Laptop C” oznacza miejsce przeniesienia.
+- **Kontynuacja:** sesja CLI i pliki zostają na starej maszynie. Cel tworzy wątek w wybranym przez
+  użytkownika workspace (domyślnie workspace tego samego, wspólnego projektu), a nowa sesja workera
+  dostaje w instrukcjach **notatkę przekazania**: skąd i dokąd, stara i nowa ścieżka, pierwotne zadanie
+  i wyciąg z ostatnich 30 wiadomości (oznaczony jako niepełny, do 16 000 znaków). Notatka jest
+  deterministyczna (bez wywołania modelu), jak fallback handoffu botów. Model, którego nie ma na celu,
+  zastępuje domyślny model instancji.
+- **Bot:** wiersze bota, tur, wiadomości (z nowymi numerami `seq` w tej samej kolejności i przesuniętym
+  znacznikiem przeczytania), wywołań narzędzi, kart, notatek handoff, rutyn i przypomnień.
+- **Nie przechodzi (lista „To do again” w podglądzie):** konta connectorów i serwery MCP (są per komputer;
+  bot na celu pokazuje „Moved from Laptop A — connect these again: …”, dopóki ich nie podłączysz),
+  sekrety wątku (wpisuje się je ponownie, gdy agent poprosi), otwarty cel (`/goal` ustawia się ponownie),
+  powiązanie z rodzicem na innym komputerze.
+- **Sekrety:** ruch nie przenosi żadnej wartości sekretu. Klucze instancji dostawców przechodzą tylko
+  przez wspólną konfigurację etapu 4 (ponownie szyfrowane kluczem odbiorcy). Instancja dostawcy
+  wymagana przez wątek lub bota musi istnieć na celu („Share its provider instance … first”).
+
+### Harmonogramy i rutyny przy przełączeniu
+
+Rutyna lub przypomnienie wykonuje się dokładnie w jednym domu: przed zamrożeniem źródło je uruchamia
+(zapisując `next_run_at`/`delivered`), od zamrożenia nie uruchamia nic (zapytania planisty pomijają
+`moved_to`, trigger odrzuca turę), a eksport zabiera stan z chwili zamrożenia. Termin, który minął w
+trakcie ruchu, wykonuje cel raz po zastosowaniu (jak po przestoju). Harmonogramy wątku: zamrożenie
+wstrzymuje je, eksport zabiera pierwotny status i termin, decyzja anuluje je na źródle, cel tworzy je
+u siebie (polityka zaległych uruchomień jak zwykle); cofnięcie przywraca pierwotny stan.
+
+### Przekierowania
+
+`computer_redirects(owner, item_id, kind, home_node_id, home_name, from_node_id, moved_at)` mówi, gdzie
+rzecz jest teraz (także „tutaj” po stronie celu). Wypełniają ją obie strony ruchu, ramka `moved` (po
+decyzji i zastosowaniu do wszystkich bezpośrednich partnerów z `move_items`, a po każdym handshake
+najnowsze 2000 wpisów) oraz leniwe odpowiedzi: dom, który rzecz oddał, odpowiada na wywołanie partnera
+błędem z `RemoteResponse.moved`, który przechodzi także przez pośrednika etapu 7. Odbiorca przyjmuje
+wpis tylko od starego albo nowego domu i nigdy nie „przenosi” rzeczy, która żyje u niego.
+
+- **UI i telefon:** `routed.ts` przepisuje stare id w żądaniu przed trasowaniem; odpowiedź „moved”
+  zapisuje redirect i ponawia raz u nowego domu. Wątek otwarty starym linkiem przełącza się na nowe id
+  z komunikatem „Moved to Laptop C”. Dom niepołączony z tym komputerem: „Moved to Laptop C, which isn't
+  linked to this computer”.
+- **Lustra:** dawny dom publikuje tombstone (wątek usunięty), nowy dom — wątek z pełną historią, więc
+  trzeci komputer pokazuje go raz, z nowym właścicielem.
+- **Szyna agentów:** argumenty `thread_id`/`bot_id`/`thread_ids` narzędzi wątków i botów są przepisywane;
+  wywołanie, na które dawny dom odpowie „moved”, jest ponawiane u nowego domu, a odwołania
+  `computer_agent_calls` dostają nowego partnera. Kontrola rodzic–dziecko między komputerami kończy się
+  przy przeniesieniu (jak przy Unlink); wiadomości i odczyty działają dalej.
+
+### Bezpieczeństwo, audyt, UI
+
+Wyłącznie właściciel: zapytania są ograniczone do jego `owner_user_id` (cudzy bot: „Bot not found”),
+metody UI wymagają tokenu serwisowego BFF, a strona łącza przyjmuje ruch tylko od przypiętego,
+bezpośredniego partnera; decyzję o ruchu może podjąć wyłącznie komputer, który go przygotował. Obie
+strony zapisują `audit_log` (`computer.move.<kind>.sent` / `.received` / `.restored`).
+
+UI: „Move to…” w menu wątku (sidebar i nagłówek, tylko własne wątki główne) i bota (lista i rozmowa),
+„Move everything here” przy partnerze w Settings → Linked computers. Okno: wybór komputera (opcje bez
+`move_items` lub niedostępne są wyłączone z powodem), workspace na celu dla każdego projektu, podgląd
+(co przechodzi, co zrobić ponownie, dlaczego coś nie może przejść; przy „everything” także elementy
+wspólne i lokalne), postęp i wynik („Open on Laptop C”). Ruchy działają w tle; zamknięcie okna ich nie
+przerywa. Kontrolki wyłącznie z zestawu (`Dialog`, `Field`, `Select`, `Badge`, `Alert`, `Button`).
+
+### Weryfikacja
+
+`tests/integration/computer-moves.test.ts`: trzy prawdziwe gatewaye (A — stary laptop, C — nowy, B —
+trzeci komputer z lustrami obu), osobne bazy PostgreSQL, przypięte mTLS, skryptowane workery i model
+botów. Obejmuje: przeniesienie wątku z historią, załącznikiem i harmonogramem (redirect na A, zapis
+przez stary id trafia do C, lustro i lista B pokazują nowego właściciela, kontynuację na workerze C w
+nowym katalogu z notatką przekazania i numeracją tur po historii, audyt po obu stronach), wiadomość
+szyny agentów z B na stary id (także leniwie, bez wcześniejszego redirectu); przeniesienie bota
+z rozmową, rutyną i przypomnieniem zaległymi w trakcie (dokładnie jedno wykonanie, na C; A nic nie
+uruchamia ani w trakcie, ani po), flagę ponownego podłączenia konta, stare id bota z A i B oraz
+wiadomość szyny do bota; odmowę przy trwającej turze; przerwania przed decyzją (zniknięcie celu po
+zamrożeniu, restart źródła po przygotowaniu, restart celu w trakcie przygotowania) i po niej (restart
+źródła po decyzji, restart celu przed zastosowaniem przy zerwanym łączu) — zawsze dokładnie jeden dom;
+idempotentne powtórzenia `PrepareMove`/`DecideMove`; odmowę cudzej rzeczy, nieznanego komputera
+i rzeczy innego komputera; „Move everything” z listą elementów lokalnych. `schema.test.ts` obejmuje 0054
+(triggery, jeden aktywny ruch, reguły ról). Bez testów UI; widoki obejrzane ręcznie na własnym stosie
+(jasny i ciemny motyw, desktop i telefon).
+
+Odroczone: przenoszenie przez pośrednika, przeniesienie z powrotem na komputer ze starą kopią,
+przenoszenie samych sekretów wątku, wątki bez workera, przeniesienie zainicjowane z UI innego
+komputera niż dom, strumieniowanie ładunku ponad 40 MiB plików i fork z tury sprzed przeniesienia.

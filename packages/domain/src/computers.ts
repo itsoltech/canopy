@@ -12,6 +12,8 @@ export const AGENT_BUS = "agent_bus";
 export const LAN_ROUTES = "lan_routes";
 /** Stage 7: opt-in forwarding through exactly one trusted intermediary. */
 export const RELAY = "relay";
+/** Stage 8: two-phase moves of threads and bots between directly linked computers, and redirects. */
+export const MOVE_ITEMS = "move_items";
 export const NODE_REF_LENGTH = 16;
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";

@@ -4,9 +4,12 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { AsyncChannel } from "@canopy/transport";
 import { MIN_COMPUTER_LINK_PROTOCOL, COMPUTER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
-import { AGENT_BUS, LAN_ROUTES, NODE_REF_LENGTH, RELAY, REMOTE_BOTS, REMOTE_THREADS, SHARED_CONFIG, THREAD_MIRROR } from "@canopy/domain/computers";
+import { AGENT_BUS, LAN_ROUTES, MOVE_ITEMS, NODE_REF_LENGTH, RELAY, REMOTE_BOTS, REMOTE_THREADS, SHARED_CONFIG, THREAD_MIRROR } from "@canopy/domain/computers";
+import type { GatewayCore } from "../core/core.ts";
 import { ThreadMirror } from "./mirror.ts";
-import { BOT_METHODS, RemoteCalls, type RemoteServe, type RelayRoute } from "./remote.ts";
+import { BOT_METHODS, MOVE_METHODS, RemoteCalls, type RemoteServe, type RelayRoute } from "./remote.ts";
+import { Redirects } from "./redirects.ts";
+import { ComputerMoves, type MoveHost } from "./moves.ts";
 import { ComputerRelay, RELAY_METHODS, relayCallback } from "./relay.ts";
 import { BotMirror } from "./bot-mirror.ts";
 import { SharedConfig, type SharedHost } from "./shared.ts";
@@ -28,7 +31,11 @@ type Options = { store: ComputerStore; host?: string; port?: number; addresses?:
   /** Overrides the advertised capabilities (tests of older computers). */
   capabilities?: string[];
   /** Local network discovery of linked computers (stage 6). Without it discovery is unavailable. */
-  discovery?: { transport: LanTransportFactory; unavailable?: string; now?: () => number; queryIntervalMs?: number; testIntervalMs?: number } };
+  discovery?: { transport: LanTransportFactory; unavailable?: string; now?: () => number; queryIntervalMs?: number; testIntervalMs?: number };
+  /** Moving threads and bots to and from directly linked computers (stage 8). Without it the capability is not offered. */
+  core?: GatewayCore;
+  /** Tests: interrupts a move at a phase. */
+  moveHook?: MoveHost["hook"] };
 /** A peer changed (presence, name, capabilities) or was removed. */
 export type ComputerChange = { nodeId: string; removed: boolean };
 const ms = (date: Date | null) => date ? BigInt(new Date(date).getTime()) : 0n;
@@ -77,6 +84,8 @@ export class LinkedComputers {
   readonly botMirror: BotMirror;
   readonly shared: SharedConfig | undefined;
   readonly relay: ComputerRelay;
+  readonly redirects: Redirects;
+  readonly moves: ComputerMoves | undefined;
   constructor(readonly options: Options) {
     this.#routes = new Routes(options.store);
     this.mirror = new ThreadMirror(options.store);
@@ -93,13 +102,32 @@ export class LinkedComputers {
       outdated: async () => (await this.store.peers()).filter((p) => this.capabilities(p.node_id).length && !this.capabilities(p.node_id).includes(SHARED_CONFIG)).map((p) => p.node_id),
       call: (nodeId, method, request, signal) => this.remote(nodeId, method, request, signal),
     }) : undefined;
+    this.redirects = new Redirects(options.store, () => this.#identity.node_id);
+    this.moves = options.core && options.serve ? new ComputerMoves(options.store, {
+      core: options.core, redirects: this.redirects, ...(options.moveHook && { hook: options.moveHook }),
+      self: () => ({ nodeId: this.#identity.node_id, name: this.#identity.name }),
+      name: async (nodeId) => { const p = await this.store.computer(nodeId); return p?.display_name || p?.name || "the other computer"; },
+      ready: (nodeId) => this.#movable(nodeId),
+      unavailable: async (nodeId) => {
+        if (!await this.store.peer(nodeId)) return "Moves work only between directly linked computers.";
+        if (!this.reachable().includes(nodeId)) return (await this.unavailable(nodeId)).rawMessage;
+        return this.#movable(nodeId) ? "" : `${(await this.store.peer(nodeId))?.display_name || "The other computer"} needs an update to receive moves.`;
+      },
+      call: (nodeId, method, request, signal) => this.remote(nodeId, method, request, signal),
+      broadcast: (items) => { for (const set of this.#active.values()) for (const c of set) if (c.ready && c.protocol && c.capabilities?.has(MOVE_ITEMS)) c.send({ body: { case: "moved", value: { items } } }); },
+    }) : undefined;
+  }
+  /** A direct partner connected now that receives moves (never through a relay). */
+  #movable(nodeId: string) {
+    return Boolean(this.moves) && !this.relay.entries.has(nodeId) && this.reachable().includes(nodeId) && this.capabilities(nodeId).includes(MOVE_ITEMS);
   }
   get store() { return this.options.store; }
   get identity(): LinkIdentity { return this.#identity; }
   get addresses() { return this.#addresses; }
   hello() { return create(link.NodeHelloSchema, { nodeId: this.#identity.node_id, name: this.#identity.name, addresses: this.#advertised,
     appVersion: CANOPY_VERSION, minProtocol: this.options.minProtocol ?? MIN_COMPUTER_LINK_PROTOCOL, maxProtocol: this.options.maxProtocol ?? COMPUTER_LINK_PROTOCOL,
-    capabilities: this.options.capabilities ?? ["presence", "unlink", LAN_ROUTES, ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS, RELAY] : []), ...(this.shared ? [SHARED_CONFIG] : [])] }); }
+    capabilities: this.options.capabilities ?? ["presence", "unlink", LAN_ROUTES, ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS, RELAY] : []), ...(this.shared ? [SHARED_CONFIG] : []),
+      ...(this.moves ? [MOVE_ITEMS] : [])] }); }
   #sharesConfig() { return Boolean(this.shared) && this.hello().capabilities.includes(SHARED_CONFIG); }
   async start() {
     this.#identity = await this.store.identity();
@@ -108,6 +136,8 @@ export class LinkedComputers {
     // A process restart never claims an old connection is still alive.
     await this.store.query("UPDATE computer_peers SET status='unreachable',status_since=now() WHERE owner_user_id=$1::uuid AND status IN ('connected','needs_update')", [this.store.owner]);
     await this.relay.load();
+    await this.redirects.load();
+    await this.moves?.load();
     await this.#listen();
     await this.#discovery();
     this.#timer = setInterval(() => { void this.#tick().catch(() => {}); }, this.options.heartbeatMs ?? 5000);
@@ -253,6 +283,8 @@ export class LinkedComputers {
       }
     } else if (action === "unlink") {
       if (!await this.store.peer(nodeId)) throw new ConnectError("Computer not found", Code.NotFound);
+      // An unfinished move with this computer settles first: one home stays (stage 8).
+      await this.moves?.unlinked(nodeId);
       // Persist revocation before releasing trust. A peer offline now learns it
       // through the authenticated control channel on its next reconnect.
       await this.store.remove(nodeId, true);
@@ -323,6 +355,7 @@ export class LinkedComputers {
       return;
     }
     if (body.case === "unlinked") {
+      await this.moves?.unlinked(nodeId);
       await this.store.remove(nodeId, false);
       await this.relay.refresh();
       this.#emit(nodeId, true);
@@ -364,6 +397,15 @@ export class LinkedComputers {
       if (protocol && this.#sharesConfig() && hello.capabilities.includes(SHARED_CONFIG)) setTimeout(() => void this.shared?.push(nodeId, true).catch(() => {}), 0);
       this.shared?.changed();
       await this.relay.refresh();
+      // Where moved things live now, and unfinished moves with this computer (stage 8).
+      if (protocol && this.moves && hello.capabilities.includes(MOVE_ITEMS)) {
+        if (this.redirects.size) connection.send({ body: { case: "moved", value: { items: this.redirects.list() } } });
+        setTimeout(() => void this.moves?.tick().catch(() => {}), 0);
+      }
+    } else if (body.case === "moved") {
+      if (!connection.protocol || !connection.capabilities?.has(MOVE_ITEMS) || !this.moves) throw new ConnectError("Moves need an update on both computers", Code.FailedPrecondition);
+      if (body.value.items.length > 2000) throw new ConnectError("Too many redirects", Code.InvalidArgument);
+      if ((await this.redirects.learn(nodeId, body.value.items)).length) this.#emit(nodeId);
     } else if (body.case === "relayCatalog") {
       if (!connection.protocol || !connection.capabilities?.has(RELAY) || !this.hello().capabilities.includes(RELAY)) throw new ConnectError("Relay needs an update on both computers", Code.FailedPrecondition);
       await this.relay.receive(nodeId, body.value);
@@ -441,6 +483,7 @@ export class LinkedComputers {
       }
       for (const p of this.relay.entries.values()) this.#syncMirror(p.node_id);
       await this.relay.refresh();
+      void this.moves?.tick().catch(() => {});
     } finally { this.#tickRunning = false; }
   }
   async #dial(peer: PeerRow, controller: AbortController) {
@@ -534,6 +577,13 @@ export class LinkedComputers {
 
   async *#serveHome(nodeId: string, connection: Connection, method: DescMethod, request: Message, signal: AbortSignal): AsyncGenerator<Message> {
     if (!this.options.serve) throw new ConnectError("Thread sharing unavailable", Code.Unimplemented);
+    if (MOVE_METHODS.has(method.name)) {
+      if (!this.moves || !connection.capabilities?.has(MOVE_ITEMS) || this.relay.entries.has(nodeId)) throw new ConnectError("Moves need an update on both computers", Code.Unimplemented);
+      yield await this.moves.serve(nodeId, method, request);
+      return;
+    }
+    // A thing that moved away answers with its new home; the caller follows (stage 8).
+    this.redirects.refuse(method, request);
     const feature = method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : REMOTE_THREADS;
     if (!this.hello().capabilities.includes(feature) || !connection.capabilities?.has(feature))
       throw new ConnectError("Both computers need an update for this linked action", Code.Unimplemented);
@@ -722,6 +772,7 @@ export class LinkedComputers {
     for (const controller of this.#botMirroring.values()) controller.abort();
     for (const set of this.#active.values()) for (const c of set) c.close();
     await this.#listener?.close(); this.#listener = undefined;
+    await this.moves?.close();
     await Promise.allSettled(this.#tasks);
   }
 }
