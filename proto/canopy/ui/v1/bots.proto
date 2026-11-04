@@ -18,6 +18,8 @@ message BotConfiguration {
   repeated string mcp_server_ids = 9;
   // safe: zgoda na zapisy MCP i niebezpieczne akcje; always: na każdą akcję poza odczytami platformy.
   string approval_policy = 10;
+  // Worker harnessu; puste = dobierz i zapamiętaj przy pierwszej turze.
+  string worker_id = 830;
 }
 message Bot {
   string id = 1;
@@ -89,6 +91,8 @@ message BotConversation {
   uint64 revision = 6;
   repeated BotRoutine routines = 560;
   repeated BotReminder reminders = 561;
+  // Bieżąca odpowiedź harnessu, jeszcze bez końcowego wpisu rozmowy.
+  string streaming_text = 830;
 }
 message BotRoutine {
   string id = 1;

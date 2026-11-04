@@ -103,6 +103,7 @@
               color: result.color,
               provider: instance.harness,
               providerInstance: instance.id,
+              workerId: result.workerId,
               model: result.model,
               effort: result.effort ?? "",
               approvalPolicy: "safe",
@@ -131,9 +132,9 @@
     {#if loading}<p role="status" class="text-sm text-zinc-500">Loading providers and models…</p>
     {:else if loaded && (!options.length || options.every((i) => i.disabledReason || !i.models.length))}
       <p class="max-w-md text-sm text-zinc-500">
-        Add a connection in <a href="/settings/proxies" class="underline">Settings → Proxies</a>, then choose it for an
-        instance in <a href="/settings/providers" class="underline">Settings → Providers</a> and add models. Custom model
-        IDs also work without a connected worker.
+        Enable a provider instance on a worker in <a href="/settings/providers" class="underline"
+          >Settings → Providers</a
+        >.
       </p>
     {/if}
   </div>

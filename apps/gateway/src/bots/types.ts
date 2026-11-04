@@ -48,6 +48,7 @@ export interface DecodedReply extends ModelReply {
 }
 
 export interface ModelInput {
+  turn?: BotTurn;
   configuration: bots.BotConfiguration;
   instructions: string;
   messages: ModelMessage[];

@@ -6,6 +6,7 @@ import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { Schema } from "effect";
 import { recordProbe, releaseProbe } from "./instance-probe.ts";
+import { botTool, claudeBotConfig } from "./bot-probe.ts";
 
 if (process.argv.includes("--version")) {
   console.log("Claude Code 2.1.316");
@@ -28,6 +29,8 @@ const send = (message: JsonObject) => process.stdout.write(JSON.stringify(messag
 
 recordProbe("claude", resume ? "resume" : "spawn", session);
 
+const botMcp = claudeBotConfig();
+
 async function turn(text: string): Promise<void> {
   recordProbe("claude", "turn", session);
   send({
@@ -40,6 +43,7 @@ async function turn(text: string): Promise<void> {
     cwd: process.cwd(),
   });
   await releaseProbe(text);
+  const answer = await botTool(text, botMcp);
 
   const user = {
     type: "user",
@@ -66,7 +70,7 @@ async function turn(text: string): Promise<void> {
       id: crypto.randomUUID(),
       type: "message",
       role: "assistant",
-      content: [{ type: "text", text: "FIXTURE_OK" }],
+      content: [{ type: "text", text: answer }],
       model: "fixture-model",
       stop_reason: "end_turn",
       usage: { input_tokens: 1, output_tokens: 1 },
@@ -74,6 +78,8 @@ async function turn(text: string): Promise<void> {
   };
 
   appendFileSync(transcript, JSON.stringify(user) + "\n" + JSON.stringify(assistant) + "\n");
+
+  if (text.includes("CRASH_AFTER_TRANSCRIPT")) process.exit(42);
   send(assistant);
   recordProbe("claude", "finish", session);
   send({
@@ -85,7 +91,7 @@ async function turn(text: string): Promise<void> {
     duration_ms: 1,
     duration_api_ms: 1,
     num_turns: 1,
-    result: "FIXTURE_OK",
+    result: answer,
     total_cost_usd: 0,
     usage: { input_tokens: 1, output_tokens: 1 },
     modelUsage: {},

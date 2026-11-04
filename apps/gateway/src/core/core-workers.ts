@@ -99,9 +99,11 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           const call = message.payload.value;
           // Concurrent: wait_threads may take minutes and must not hold up the stream.
           void (
-            call.connectorAccountId
-              ? hostContext.connectors.handle(call, workerId)
-              : hostContext.bus.handle(call, workerId)
+            call.botId
+              ? hostContext.bots.harnessTools.handle(call, workerId)
+              : call.connectorAccountId
+                ? hostContext.connectors.handle(call, workerId)
+                : hostContext.bus.handle(call, workerId)
           ).then(
             (result) => {
               try {
@@ -148,11 +150,21 @@ export async function coreIngest(
   // Later events of a thread that failed would land out of order: skip them (unacked) until the resend.
   const events = blocked ? incoming.filter((e) => !blocked.has(e.threadId)) : incoming;
 
-  if (events.length === 0) return;
-  await hostContext.connectors.enrich(events);
+  const threads: ThreadEvent[] = [];
+
+  for (const event of events) {
+    const handled =
+      event.turnId && (await hostContext.bots.run((s) => s.harnessEvent(connection.workerId, journalId, event)));
+
+    if (handled) connection.send({ case: "eventAck", value: { threadId: event.threadId, ackSeq: event.journalSeq } });
+    else threads.push(event);
+  }
+
+  if (threads.length === 0) return;
+  await hostContext.connectors.enrich(threads);
 
   const result = await hostContext[coreState].options.runtime.runPromise(
-    Ingest.use((i) => i.ingest(connection.workerId, journalId, events)),
+    Ingest.use((i) => i.ingest(connection.workerId, journalId, threads)),
   );
 
   for (const [threadId, ackSeq] of result.acks) connection.send({ case: "eventAck", value: { threadId, ackSeq } });

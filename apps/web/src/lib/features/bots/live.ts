@@ -131,6 +131,12 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
         : { kind: "approval", approval: approvalView(a) },
     );
 
+  if (snapshot.streamingText)
+    entries.push({
+      kind: "message",
+      message: { id: `stream:${botId}`, at: dateOf(last?.createdAt), senderId: botId, text: snapshot.streamingText },
+    });
+
   return entries;
 }
 
@@ -215,16 +221,17 @@ export function exchangeEntries(messages: readonly bots.BotMessage[]): ChatEntry
   }));
 }
 
-/** Claude Code aliases the provider API does not know (the gateway refuses them too). */
-const HARNESS_ALIAS = /^(default|best|opus|sonnet|haiku|fable|opusplan)(\[1m\])?$/i;
-
-/** Gateway bots use endpoint instances, independently of availability on any worker. */
+/** Models reported by workers for each official harness instance. */
 export function botWizardInstances(
   instances: readonly ui.ProviderInstance[],
   catalogs: readonly ui.WorkerModels[],
 ): BotProviderInstance[] {
   return instances.flatMap((instance) => {
-    if (![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(instance.harness)) return [];
+    if (
+      (instance.harness === Provider.GROK && instance.kind !== ProviderProfileKind.CLIPROXYAPI) ||
+      ![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(instance.harness)
+    )
+      return [];
 
     const provider =
       instance.harness === Provider.CLAUDE ? "CLAUDE" : instance.harness === Provider.GROK ? "GROK" : "CODEX";
@@ -236,10 +243,9 @@ export function botWizardInstances(
       const profile = catalog.profiles.find((p) => p.provider === instance.harness && p.profileId === instance.id);
 
       for (const info of profile?.models ?? []) {
-        // Bots call the API directly: an alias is offered as the model it resolves to, never by its name.
-        const id = info.resolvedModel || info.id;
+        const id = instance.harness === Provider.GROK ? info.resolvedModel || info.id : info.id;
 
-        if (info.hidden || !id || HARNESS_ALIAS.test(id) || models.has(id)) continue;
+        if (info.hidden || !id || models.has(id)) continue;
         models.set(id, modelOption(provider, instance.id, name, id, catalog, "catalog"));
       }
     }
@@ -267,7 +273,28 @@ export function botWizardInstances(
           settingsHref: `/settings/providers?instance=${encodeURIComponent(instanceKeyOf(instance))}`,
         }),
         models: [...models.values()].sort((a, b) => rank(a.model) - rank(b.model)),
+        modelsByWorker: new Map(
+          catalogs.map((catalog) => {
+            const profile = catalog.profiles.find(
+              (p) => p.provider === instance.harness && p.profileId === instance.id,
+            );
+
+            return [
+              catalog.workerId,
+              (profile?.models ?? [])
+                .filter((m) => !m.hidden)
+                .map((m) => modelOption(provider, instance.id, name, m.id, catalog, "catalog")),
+            ];
+          }),
+        ),
       },
     ];
   });
+}
+
+export function botInstancesOnWorker(
+  instances: readonly BotProviderInstance[],
+  workerId: string,
+): readonly BotProviderInstance[] {
+  return workerId ? instances.map((i) => ({ ...i, models: i.modelsByWorker?.get(workerId) ?? [] })) : instances;
 }

@@ -253,8 +253,11 @@ export class WorkerHost {
     if (known) return known;
 
     if (this.#ctx.state.shuttingDown) return undefined;
+
     // Leave new work unacknowledged in the durable gateway outbox until the update completes/restarts.
-    const admission = ["startTurn", "createThread", "generateText", "setGoal"].includes(command.kind.case ?? "");
+    const admission = ["startTurn", "createThread", "generateText", "setGoal", "runBotTurn"].includes(
+      command.kind.case ?? "",
+    );
 
     if (admission && this.#ctx.state.updateDraining) return undefined;
     const provider = admission ? commandProvider(command) : undefined;
@@ -321,6 +324,8 @@ export class WorkerHost {
     this.environment.stop();
 
     try {
+      await this.#ctx.ops.closeBots();
+
       for (const generation of this.#ctx.state.generations.keys()) generation.abort();
       await Promise.allSettled(this.#ctx.state.generations.values());
 

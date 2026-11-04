@@ -38,6 +38,10 @@ export class CommandHandlers {
     if (!config) throw new CommandError("WORKER_NOT_CONFIGURED", "the worker has no configuration yet", false);
 
     switch (kind.case) {
+      case "runBotTurn":
+        return this.ctx.ops.runBotTurn(kind.value, command.commandId);
+      case "interruptBotTurn":
+        return this.ctx.ops.interruptBotTurn(kind.value);
       case "createThread":
         return this.ctx.ops.createThread(kind);
       case "startTurn":

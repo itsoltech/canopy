@@ -11,6 +11,8 @@
   import { defaultAppearance, normalizeColor, type MascotShapeId } from "../mascot.ts";
   import AppearanceFields from "./AppearanceFields.svelte";
   import ProviderModelFields from "./ProviderModelFields.svelte";
+  import BotWorkerField from "./BotWorkerField.svelte";
+  import { botInstancesOnWorker } from "../live.ts";
   import {
     appearanceError,
     selectionError,
@@ -49,6 +51,8 @@
   let shape = $state<MascotShapeId>("round");
   let color = $state(defaultAppearance.color);
   let instanceId = $state("");
+  let workerId = $state("");
+  const workerInstances = $derived(botInstancesOnWorker(instances, workerId));
   let option = $state.raw<ModelOption>();
   let effort = $state<string>();
   let busy = $state(false);
@@ -78,6 +82,7 @@
         shape = initial?.shape ?? defaultAppearance.shape;
         color = initial?.color ?? defaultAppearance.color;
         instanceId = "";
+        workerId = "";
         option = undefined;
         effort = undefined;
         error = undefined;
@@ -107,7 +112,7 @@
       return;
     }
 
-    if (!editing) error = selectionError(instances, instanceId, option, effort);
+    if (!editing) error = selectionError(workerInstances, instanceId, option, effort);
 
     if (error) return;
     const appearance: BotAppearanceDraft = { name: name.trim().normalize("NFC"), shape, color: normalizeColor(color)! };
@@ -116,7 +121,7 @@
     try {
       if (editing && onsave) await onsave(appearance);
       else if (oncreate && option)
-        await oncreate({ ...appearance, providerInstanceId: instanceId, model: option.model, effort });
+        await oncreate({ ...appearance, providerInstanceId: instanceId, workerId, model: option.model, effort });
       else throw new Error("No save handler is configured.");
       open = false;
     } catch (cause) {
@@ -179,12 +184,19 @@
     <div class="grid gap-5 px-5 pb-5 sm:px-6">
       {#key session}
         {#if !editing}
-          <div tabindex="-1" data-autofocus class="min-w-0 outline-none">
+          <div tabindex="-1" data-autofocus class="grid min-w-0 gap-5 outline-none">
             {#if loading}<p role="status" class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
                 Loading providers and models…
               </p>
             {:else if loadError}<Alert tone="error">{loadError}</Alert><Button onclick={onreload}>Try again</Button>
-            {:else}<ProviderModelFields {instances} bind:instanceId bind:option bind:effort disabled={busy} />{/if}
+            {:else}<ProviderModelFields
+                instances={workerInstances}
+                bind:instanceId
+                bind:option
+                bind:effort
+                disabled={busy}
+              />{/if}
+            <BotWorkerField bind:value={workerId} {instanceId} disabled={busy} />
           </div>
         {/if}
         <AppearanceFields

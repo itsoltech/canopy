@@ -119,6 +119,7 @@ export function commandProvider(command: Command): Provider | undefined {
     case "setGoal":
       return kind.value.thread?.provider || undefined;
     case "generateText":
+    case "runBotTurn":
       return kind.value.provider || undefined;
     default:
       return undefined;

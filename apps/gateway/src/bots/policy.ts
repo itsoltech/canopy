@@ -166,7 +166,7 @@ const legacyTools: ToolSpec[] = [
   tool("list_provider_instances", "List configured provider instances; never secrets."),
   tool(
     "list_models",
-    "List available models and reasoning efforts; never guess model names. For update_self or create_bot omit worker_id: returns concrete API models and custom models of the endpoint, defaults to your own provider and instance. For start_thread supply worker_id, provider and provider_instance to read that worker's harness catalog.",
+    "List available harness models and reasoning efforts; never guess model names. Defaults to your own worker, provider and instance. For another worker supply worker_id, provider and provider_instance. Native harness aliases are valid for bots.",
     {
       provider: { type: "string", enum: ["claude", "codex", "grok"] },
       provider_instance: str,

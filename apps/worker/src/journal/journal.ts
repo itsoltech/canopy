@@ -85,6 +85,12 @@ export class Journal extends Context.Service<
     readonly journalId: string;
     /** Assigns journal_seq and event_id (UUIDv7) and stores the event durably. */
     append(threadId: string, event: ThreadEventInit): Effect.Effect<ThreadEvent, JournalError>;
+    /** Atomically accepts a bot command and journals its turn start before any harness effect. */
+    admitBotTurn(
+      commandId: string,
+      botId: string,
+      turnId: string,
+    ): Effect.Effect<ThreadEvent | undefined, JournalError>;
     /** Gateway persisted everything up to ackSeq: drop it. Returns the number of removed events. */
     ack(threadId: string, ackSeq: bigint): Effect.Effect<number, JournalError>;
     /** Threads with unacked events and their last journal_seq (Hello.threads). */
@@ -183,6 +189,23 @@ function open(path: string): Database {
   db.query("INSERT OR IGNORE INTO meta (key, value) VALUES ('journal_id', $id)").run({ id: Bun.randomUUIDv7() });
 
   return db;
+}
+
+function botAdmission(db: Database, append: (botId: string, event: ThreadEventInit) => ThreadEvent) {
+  const select = db.query("SELECT command_id FROM processed_commands WHERE command_id = ?");
+  const insert = db.query("INSERT INTO processed_commands (command_id, result, processed_at) VALUES (?, ?, ?)");
+
+  return db.transaction((commandId: string, botId: string, turnId: string) => {
+    if (select.get(commandId)) return undefined;
+    const event = append(botId, { turnId, body: { case: "turnStarted", value: {} } });
+    insert.run(
+      commandId,
+      toBinary(CommandResultSchema, create(CommandResultSchema, { commandId, ok: true })),
+      Date.now(),
+    );
+
+    return event;
+  });
 }
 
 function makeJournal(db: Database): Journal["Service"] {
@@ -285,9 +308,11 @@ function makeJournal(db: Database): Journal["Service"] {
   );
 
   const purge = db.query("DELETE FROM processed_commands WHERE processed_at < $before");
+  const admit = botAdmission(db, appendTx);
 
   return Journal.of({
     journalId,
+    admitBotTurn: (commandId, botId, turnId) => attempt("admitBotTurn", () => admit(commandId, botId, turnId)),
     append: Effect.fn("Journal.append")((threadId: string, event: ThreadEventInit) =>
       attempt("append", () => appendTx(threadId, redact(threadId, event))),
     ),

@@ -15,6 +15,7 @@ const elevated = (permission: JsonValue | undefined) =>
 
 /** The runtime's options and store access, for the steps of a turn. */
 export interface TurnStep {
+  keepLease?: boolean;
   options: BotRuntimeOptions;
   run<A, E>(use: (store: BotStore["Service"]) => Effect.Effect<A, E>): Promise<A>;
 }
@@ -82,7 +83,8 @@ export async function runToolCall(
           });
 
         if (approval?.status === "pending") {
-          await ctx.run((s) => s.wait(turn));
+          if (ctx.keepLease) await ctx.run((s) => s.status(turn, "Waiting for you"));
+          else await ctx.run((s) => s.wait(turn));
 
           return WAITING;
         }

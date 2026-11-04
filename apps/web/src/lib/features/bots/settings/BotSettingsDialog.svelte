@@ -22,6 +22,8 @@
   import { mascotShapes, normalizeColor } from "../mascot.ts";
   import EditBotAppearance from "../wizard/EditBotAppearance.svelte";
   import ProviderModelFields from "../wizard/ProviderModelFields.svelte";
+  import BotWorkerField from "../wizard/BotWorkerField.svelte";
+  import { botInstancesOnWorker } from "../live.ts";
   import BotConnections from "./BotConnections.svelte";
   import SettingsSection from "./SettingsSection.svelte";
   import BotHome from "../components/BotHome.svelte";
@@ -49,6 +51,8 @@
   let originalName = $state("");
   let instructions = $state("");
   let instanceId = $state("");
+  let workerId = $state("");
+  const workerInstances = $derived(botInstancesOnWorker(instances, workerId));
   let option = $state.raw<ModelOption>();
   let effort = $state<string>();
   let modelChanged = $state(false);
@@ -68,6 +72,7 @@
         originalName = c.name;
         instructions = c.instructions;
         instanceId = instanceKeyOf({ harness: c.provider, id: c.providerInstance });
+        workerId = c.workerId;
         modelChanged = false;
         option = instances.find((i) => i.id === instanceId)?.models.find((m) => m.model === c.model);
         effort = c.effort || undefined;
@@ -87,7 +92,7 @@
     if (error) return;
 
     // An unavailable existing model need not prevent an appearance/instructions edit.
-    if (modelChanged) error = selectionError(instances, instanceId, option, effort) ?? "";
+    if (modelChanged) error = selectionError(workerInstances, instanceId, option, effort) ?? "";
 
     if (error) return;
     const provider = providers.find((p) => instanceKeyOf(p) === instanceId);
@@ -97,6 +102,7 @@
       ...appearance,
       color: normalizeColor(appearance.color)!,
       instructions,
+      workerId,
       approvalPolicy: policy,
       ...(modelChanged &&
         provider &&
@@ -172,18 +178,16 @@
             /></Field
           >
         </SettingsSection>
-        <SettingsSection
-          title="Model"
-          description="Choose a provider endpoint and a model that Canopy can call directly."
-        >
+        <SettingsSection title="Model" description="Choose a provider instance and model available on your worker.">
           <ProviderModelFields
-            {instances}
+            instances={workerInstances}
             bind:instanceId
             bind:option
             bind:effort
             disabled={busy}
             onchange={() => (modelChanged = true)}
           />
+          {#if !bot.nodeId}<BotWorkerField bind:value={workerId} {instanceId} disabled={busy} />{/if}
         </SettingsSection>
         <SettingsSection
           title="Permissions"
