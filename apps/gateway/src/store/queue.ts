@@ -29,6 +29,66 @@ type LockedTurn = TurnRow & {
 /** The turn has a live command (StartTurn): the scheduler took it, whatever its status says yet. */
 const DISPATCHED = `EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = u.id AND c.status IN ('pending', 'delivered', 'completed'))`;
 
+const lockThread = (sql: SqlClient.SqlClient, threadId: string, ownerUserId: string) =>
+  sql<{
+    id: string;
+  }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`.pipe(
+    Effect.flatMap((rows) => (rows[0] ? Effect.void : Effect.fail(new NotFound("thread not found")))),
+  );
+
+/** The turns with their sources (as GatewayStore.turnsOf), in the given order. */
+const read = (sql: SqlClient.SqlClient, ids: readonly string[]) =>
+  sql<TurnRow>`
+    SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id
+      FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id WHERE u.id = ANY(${`{${ids.join(",")}}`}::uuid[])`.pipe(
+    Effect.map((rows) => ids.flatMap((id) => rows.filter((r) => r.id === id))),
+  );
+
+const readOne = (sql: SqlClient.SqlClient, id: string) => read(sql, [id]).pipe(Effect.map((rows) => rows[0]!));
+
+/** Locks the turn's thread, then the turn (only the owner's turns are found). */
+const lockTurn = (sql: SqlClient.SqlClient, turnId: string, ownerUserId: string) =>
+  Effect.gen(function* () {
+    const owner = yield* sql<{ thread_id: string }>`
+      SELECT u.thread_id FROM turns u JOIN threads t ON t.id = u.thread_id
+       WHERE u.id = ${turnId}::uuid AND t.owner_user_id = ${ownerUserId}::uuid`;
+
+    if (!owner[0]) return yield* Effect.fail(new NotFound("turn not found"));
+    yield* lockThread(sql, owner[0].thread_id, ownerUserId);
+
+    const rows = yield* sql.unsafe<LockedTurn>(
+      `SELECT u.*, ${DISPATCHED} AS started FROM turns u WHERE u.id = $1::uuid FOR UPDATE`,
+      [turnId],
+    );
+
+    return rows[0]!;
+  });
+
+const stillQueued = (turn: LockedTurn): Effect.Effect<void, QueueConflict> =>
+  turn.status === "running" || (turn.status === "queued" && turn.started)
+    ? Effect.fail(new QueueConflict("this message already started running"))
+    : turn.status !== "queued"
+      ? Effect.fail(
+          new QueueConflict(
+            turn.withdrawn
+              ? "this message is no longer in the queue"
+              : `this message is no longer queued (${turn.status})`,
+          ),
+        )
+      : Effect.void;
+
+/** A queued message of the user (agents' and schedules' turns are only reordered). */
+const lockUserMessage = (sql: SqlClient.SqlClient, turnId: string, ownerUserId: string) =>
+  Effect.gen(function* () {
+    const turn = yield* lockTurn(sql, turnId, ownerUserId);
+    yield* stillQueued(turn);
+
+    if (turn.trigger !== "user")
+      return yield* Effect.fail(new Invalid("only your own messages can be changed in the queue"));
+
+    return turn;
+  });
+
 export class QueueStore extends Context.Service<
   QueueStore,
   {
@@ -74,73 +134,13 @@ export class QueueStore extends Context.Service<
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      const lockThread = (threadId: string, ownerUserId: string) =>
-        sql<{
-          id: string;
-        }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`.pipe(
-          Effect.flatMap((rows) => (rows[0] ? Effect.void : Effect.fail(new NotFound("thread not found")))),
-        );
-
-      /** The turns with their sources (as GatewayStore.turnsOf), in the given order. */
-      const read = (ids: readonly string[]) =>
-        sql<TurnRow>`
-          SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id
-            FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id WHERE u.id = ANY(${`{${ids.join(",")}}`}::uuid[])`.pipe(
-          Effect.map((rows) => ids.flatMap((id) => rows.filter((r) => r.id === id))),
-        );
-
-      const readOne = (id: string) => read([id]).pipe(Effect.map((rows) => rows[0]!));
-
-      /** Locks the turn's thread, then the turn (only the owner's turns are found). */
-      const lockTurn = (turnId: string, ownerUserId: string) =>
-        Effect.gen(function* () {
-          const owner = yield* sql<{ thread_id: string }>`
-            SELECT u.thread_id FROM turns u JOIN threads t ON t.id = u.thread_id
-             WHERE u.id = ${turnId}::uuid AND t.owner_user_id = ${ownerUserId}::uuid`;
-
-          if (!owner[0]) return yield* Effect.fail(new NotFound("turn not found"));
-          yield* lockThread(owner[0].thread_id, ownerUserId);
-
-          const rows = yield* sql.unsafe<LockedTurn>(
-            `SELECT u.*, ${DISPATCHED} AS started FROM turns u WHERE u.id = $1::uuid FOR UPDATE`,
-            [turnId],
-          );
-
-          return rows[0]!;
-        });
-
-      const stillQueued = (turn: LockedTurn): Effect.Effect<void, QueueConflict> =>
-        turn.status === "running" || (turn.status === "queued" && turn.started)
-          ? Effect.fail(new QueueConflict("this message already started running"))
-          : turn.status !== "queued"
-            ? Effect.fail(
-                new QueueConflict(
-                  turn.withdrawn
-                    ? "this message is no longer in the queue"
-                    : `this message is no longer queued (${turn.status})`,
-                ),
-              )
-            : Effect.void;
-
-      /** A queued message of the user (agents' and schedules' turns are only reordered). */
-      const lockUserMessage = (turnId: string, ownerUserId: string) =>
-        Effect.gen(function* () {
-          const turn = yield* lockTurn(turnId, ownerUserId);
-          yield* stillQueued(turn);
-
-          if (turn.trigger !== "user")
-            return yield* Effect.fail(new Invalid("only your own messages can be changed in the queue"));
-
-          return turn;
-        });
-
       const store: QueueStore["Service"] = {
         reorder: ({ threadId, ownerUserId, turnIds }) =>
           sql.withTransaction(
             Effect.gen(function* () {
               if (new Set(turnIds).size !== turnIds.length)
                 return yield* Effect.fail(new Invalid("a turn is listed twice"));
-              yield* lockThread(threadId, ownerUserId);
+              yield* lockThread(sql, threadId, ownerUserId);
 
               if (turnIds.length === 0) return [];
               const ids = `{${turnIds.join(",")}}`;
@@ -161,7 +161,7 @@ export class QueueStore extends Context.Service<
                   FROM unnest(${ids}::uuid[], ${`{${slots.join(",")}}`}::int[]) AS v(id, ordinal)
                  WHERE u.id = v.id`;
 
-              return yield* read(turnIds);
+              return yield* read(sql, turnIds);
             }),
           ),
 
@@ -175,7 +175,7 @@ export class QueueStore extends Context.Service<
         edit: ({ turnId, ownerUserId, input, expectedRevision }) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              const turn = yield* lockUserMessage(turnId, ownerUserId);
+              const turn = yield* lockUserMessage(sql, turnId, ownerUserId);
 
               if (turn.revision !== expectedRevision)
                 return yield* Effect.fail(
@@ -189,39 +189,39 @@ export class QueueStore extends Context.Service<
               const next = { ...input, ...(turn.input.attachments && { attachments: turn.input.attachments }) };
               yield* sql`UPDATE turns SET input = ${JSON.stringify(next)}::jsonb, revision = revision + 1 WHERE id = ${turnId}::uuid`;
 
-              return yield* readOne(turnId);
+              return yield* readOne(sql, turnId);
             }),
           ),
 
         remove: ({ turnId, ownerUserId }) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              yield* lockUserMessage(turnId, ownerUserId);
+              yield* lockUserMessage(sql, turnId, ownerUserId);
               yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'deleted', completed_at = now() WHERE id = ${turnId}::uuid`;
 
-              return yield* readOne(turnId);
+              return yield* readOne(sql, turnId);
             }),
           ),
 
         restore: ({ turnId, ownerUserId }) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              const turn = yield* lockTurn(turnId, ownerUserId);
+              const turn = yield* lockTurn(sql, turnId, ownerUserId);
 
-              if (turn.status === "queued" && !turn.withdrawn) return yield* readOne(turnId); // restored already
+              if (turn.status === "queued" && !turn.withdrawn) return yield* readOne(sql, turnId); // restored already
 
               if (turn.withdrawn !== "deleted")
                 return yield* Effect.fail(new QueueConflict("this message was not deleted from the queue"));
               yield* sql`UPDATE turns SET status = 'queued', withdrawn = NULL, completed_at = NULL WHERE id = ${turnId}::uuid`;
 
-              return yield* readOne(turnId);
+              return yield* readOne(sql, turnId);
             }),
           ),
 
         steer: ({ turnId, ownerUserId }) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              const turn = yield* lockUserMessage(turnId, ownerUserId);
+              const turn = yield* lockUserMessage(sql, turnId, ownerUserId);
 
               if ((turn.input.attachments ?? []).length > 0)
                 return yield* Effect.fail(new Invalid("a message with attachments runs as its own turn"));
@@ -240,7 +240,7 @@ export class QueueStore extends Context.Service<
               yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'steered', completed_at = now() WHERE id = ${turnId}::uuid`;
               const steer = (yield* sql<SteerRow>`SELECT * FROM turn_steers WHERE id = ${id}::uuid`)[0]!;
 
-              return { steer, turn: yield* readOne(turnId) };
+              return { steer, turn: yield* readOne(sql, turnId) };
             }),
           ),
 
