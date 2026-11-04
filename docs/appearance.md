@@ -31,7 +31,7 @@ ograniczonego ruchu; pozostałe przejścia używają tokenów zestawu UI.
 
 Źródłem jest `packages/ui/src/themes.ts`. Każdy motyw ma osobną skalę neutralną
 Light / Dark, akcent i semantyczne tokeny: canvas, surface, panel, hover, ink,
-muted, border, accent, action, action-hover, on-accent. Kolory statusów zachowują
+muted, border, accent, action, action-hover, on-accent, on-control. Kolory statusów zachowują
 znaczenie (zielony sukces, różowy błąd itd.), z domieszką palety i mocniejszym
 odcieniem dla tekstu. `themes.css` nakłada tokeny na istniejące klasy Tailwind
 zinc, white/black, brand i statusy, łącznie z modyfikatorami przezroczystości.
@@ -52,14 +52,21 @@ Ash ma neutralne, nietonowane szarości. Canvas, surface i panel są identyczne:
 `#ffffff` w Light i `#000000` w Dark, także dla tła okna i nakładki paska tytułu
 desktopu. Hover to `#f5f5f5` / `#171717`, border `#d9d9d9` / `#383838`,
 ink `#111111` / `#ffffff`, a muted `#666666` / `#bfbfbf`. Akcent to
-`#606060` / `#b3b3b3`; akcje używają `#606060`, hover akcji `#4d4d4d`
-i białych etykiet w obu wariantach. Kolory statusów, diffów i składni nadal
+`#111111` / `#d4d4d4`; akcje używają `#111111` / `#ffffff`, hover i naciśnięcie
+akcji `#303030` / `#d4d4d4`, a etykiety `on-accent` to `#ffffff` / `#000000`.
+Neutralna skala brand jest osobna dla każdego trybu: zaznaczone kontrolki używają
+`#262626` / `#e5e5e5`, a ich fokus `#404040` / `#e5e5e5`. Znaczniki checkboxów,
+radia i kciuk zaznaczonego Switch korzystają z `on-control`: w Ash to biel / czerń,
+co zachowuje widoczność na jasnym torze w Dark. Pozostałe motywy zachowują swoje
+palety oraz dotychczasowy, tonowany kolor znaczników (`zinc-0`). Niezaznaczony
+Switch nadal ma jasny kciuk; disabled zachowuje neutralne tła lub opacity 50%.
+Kolory statusów, diffów i składni nadal
 zachowują swoje znaczenie. Ash można mieszać z dowolnym innym motywem.
 
 Poniższe liczby to minimalne współczynniki kontrastu WCAG obliczone z luminancji
 sRGB na canvas, surface, panel i hover. „Pomocniczy” oznacza istniejący tekst
 zinc-500 w Light i zinc-400 w Dark; semantyczny muted w Dark jest mocniejszy.
-Wartości w parach oznaczają Light / Dark. Etykieta akcji to biały tekst na action;
+Wartości w parach oznaczają Light / Dark. Etykieta akcji to on-accent na action;
 fokus to accent względem tych samych powierzchni. Status to minimum sześciu
 kolorów tekstu statusów (600 w Light, 400 w Dark).
 
@@ -71,11 +78,20 @@ kolorów tekstu statusów (600 w Light, 400 w Dark).
 | Cedar | 14,21 / 11,39 | 4,56 / 4,93 | 5,22 | 4,18 / 5,36 | 5,02 / 5,96 |
 | Heather | 14,04 / 11,34 | 4,96 / 4,79 | 7,30 | 5,81 / 4,51 | 4,99 / 6,03 |
 | Blossom | 14,17 / 11,25 | 5,00 / 4,77 | 5,91 | 4,70 / 4,58 | 5,03 / 5,91 |
-| Ash | 17,32 / 17,93 | 5,27 / 7,11 | 6,29 | 5,77 / 8,55 | 5,67 / 7,91 |
+| Ash | 17,32 / 17,93 | 5,27 / 7,11 | 18,88 / 21,00 | 17,32 / 12,09 | 5,67 / 7,91 |
 
 Ash zmierzono w przeglądarce na rzeczywistych wartościach CSS (statusy po
-rozwiązaniu `color-mix` przez Canvas 2D do sRGB). Etykieta akcji na hover ma
-kontrast 8,45:1 w obu wariantach.
+rozwiązaniu `color-mix` przez Canvas 2D do sRGB). Dodatkowe pomiary Ash:
+
+| Para | Light | Dark |
+| --- | --- | --- |
+| Etykieta akcji na hover i przy naciśnięciu | 13,20:1 | 14,17:1 |
+| Fokus kontrolek względem powierzchni (minimum) | 9,51:1 | 14,23:1 |
+| Zaznaczony tor względem powierzchni (minimum) | 13,88:1 | 14,23:1 |
+| Kciuk / znacznik względem zaznaczonego tła | 15,13:1 | 16,67:1 |
+
+Minima obejmują canvas, surface, panel i hover. Pomiary aktywnych stanów
+nie obejmują celowo osłabionych kontrolek disabled.
 
 Te pary tekstu przekraczają AA 4,5:1 (również próg AA dla dużego tekstu 3:1),
 a fokus przekracza 3:1. Pomiar dotyczy tokenów; nie jest audytem każdego
@@ -142,3 +158,14 @@ Zrzuty tej sesji są w `~/.cache/canopy-pure-themes/`: `desktop-picker-*.png`,
 `desktop-dialog-*.png`, `phone-dialog-*.png` i `desktop-mixed-*.png`.
 Natywnego okna Electron nie uruchamiano; jego tło i symbole paska tytułu korzystają
 z tych samych zweryfikowanych tokenów canvas/ink i istniejącej walidacji IPC.
+
+Poprawkę kontrastu Ash sprawdzono w Chromium: przyciski Create bot i Create
+w Projects, kompozytor z przyciskiem wysyłania oraz wspólne kontrolki zestawu UI
+(Save, krótkie i długie etykiety, Switch on/off/disabled, checkboxy, radio,
+ChoiceCard, fokus, linki i zaznaczenie listy). Sprawdzono 1440, 768 i 390 px
+oraz mieszanki Ash Light / Heather Dark i Fern Light / Ash Dark. Zrzuty przed
+i po zmianie oraz pomiary są w `~/.cache/canopy-ash-primary/`:
+`before-*.png`, `after-*.png`, `before-contrast.json`, `after-contrast.json`
+oraz `after-observations.json`. Kontrolki izolowanej planszy są montowane
+bezpośrednio z produkcyjnych komponentów; plansza i sterownik pozostają w cache.
+Nie dodano testów UI.

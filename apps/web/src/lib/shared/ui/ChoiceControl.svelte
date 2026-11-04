@@ -36,13 +36,13 @@
   />
   {#if type === "radio"}
     <span
-      class="pointer-events-none col-start-1 row-start-1 size-2 self-center justify-self-center rounded-full bg-white group-not-has-checked:opacity-0 forced-colors:hidden"
+      class="pointer-events-none col-start-1 row-start-1 size-2 self-center justify-self-center rounded-full bg-on-control group-not-has-checked:opacity-0 forced-colors:hidden"
     ></span>
   {:else}
     <svg
       viewBox="0 0 14 14"
       fill="none"
-      class="pointer-events-none col-start-1 row-start-1 size-7/8 self-center justify-self-center stroke-white group-not-has-checked:opacity-0 group-has-disabled:opacity-60 forced-colors:hidden"
+      class="pointer-events-none col-start-1 row-start-1 size-7/8 self-center justify-self-center stroke-on-control group-not-has-checked:opacity-0 group-has-disabled:opacity-60 forced-colors:hidden"
       aria-hidden="true"
     >
       <path d="M3 8L6 11L11 3.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />

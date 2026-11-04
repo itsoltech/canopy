@@ -281,18 +281,34 @@ export const themes: Record<ThemeName, ColorTheme> = {
   },
 };
 
+/** Solid interactive steps follow the ink in Light and the paper in Dark. */
 const neutralAccent = {
-  50: "#fafafa",
-  100: "#f5f5f5",
-  200: "#e5e5e5",
-  300: "#d4d4d4",
-  400: "#b3b3b3",
-  500: "#808080",
-  600: "#707070",
-  700: "#606060",
-  800: "#4d4d4d",
-  900: "#262626",
-  950: "#171717",
+  light: {
+    50: "#fafafa",
+    100: "#f5f5f5",
+    200: "#e5e5e5",
+    300: "#d4d4d4",
+    400: "#525252",
+    500: "#404040",
+    600: "#262626",
+    700: "#111111",
+    800: "#303030",
+    900: "#000000",
+    950: "#000000",
+  },
+  dark: {
+    50: "#171717",
+    100: "#262626",
+    200: "#383838",
+    300: "#bfbfbf",
+    400: "#d4d4d4",
+    500: "#e5e5e5",
+    600: "#ededed",
+    700: "#ffffff",
+    800: "#d4d4d4",
+    900: "#bfbfbf",
+    950: "#a3a3a3",
+  },
 };
 
 export const isThemeName = (name: string | undefined): name is ThemeName => themeNames.some((value) => value === name);
@@ -302,7 +318,7 @@ export function themeVariables(name: ThemeName, mode: ThemeMode) {
   const theme = themes[name];
   const neutral = theme[mode];
   const colors = Object.fromEntries(neutralSteps.map((step, index) => [`zinc-${step}`, neutral[index]!]));
-  const accent = theme.accent === "neutral" ? neutralAccent : palette[theme.accent];
+  const accent = theme.accent === "neutral" ? neutralAccent[mode] : palette[theme.accent];
   const dark = mode === "dark";
   const tint = dark ? neutral[10] : neutral[2];
 
@@ -319,7 +335,8 @@ export function themeVariables(name: ThemeName, mode: ThemeMode) {
     accent: accent[dark ? 400 : 700],
     action: accent[700],
     "action-hover": accent[800],
-    "on-accent": "#ffffff",
+    "on-accent": theme.accent === "neutral" && dark ? "#000000" : "#ffffff",
+    "on-control": theme.accent === "neutral" && dark ? "#000000" : neutral[0],
     ...Object.fromEntries(
       (["emerald", "amber", "rose", "sky", "orange", "violet"] as const).flatMap((tone) =>
         Object.entries(palette[tone]).map(([step, color]) => [

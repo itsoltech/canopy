@@ -43,7 +43,7 @@
   ]}
 >
   <span
-    class="aspect-square w-1/2 rounded-full bg-white shadow-xs ring-1 ring-zinc-900/5 transition-transform duration-(--duration-fast) ease-smooth-out group-has-checked:translate-x-full motion-reduce:transition-none"
+    class="aspect-square w-1/2 rounded-full bg-white shadow-xs ring-1 ring-zinc-900/5 transition-transform duration-(--duration-fast) ease-smooth-out group-has-checked:translate-x-full group-has-checked:bg-on-control motion-reduce:transition-none"
   ></span>
   <input
     bind:this={input}
