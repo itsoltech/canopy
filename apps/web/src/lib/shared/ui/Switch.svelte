@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import TouchTarget from "./TouchTarget.svelte";
+  import { tooltip } from "./tooltip.ts";
 
   /**
    * On/off switch on a native checkbox (state in CSS only). Larger on touch screens. The thumb travels on
@@ -9,6 +10,7 @@
   let {
     checked = $bindable(false),
     label,
+    description,
     name,
     disabled = false,
     onchange,
@@ -16,6 +18,7 @@
   }: {
     checked?: boolean;
     label: string;
+    description?: string;
     name: string;
     disabled?: boolean;
     onchange?: (checked: boolean) => void;
@@ -47,6 +50,7 @@
     type="checkbox"
     {name}
     aria-label={label}
+    {@attach tooltip(description)}
     {disabled}
     bind:checked
     onchange={(event) => onchange?.(event.currentTarget.checked)}

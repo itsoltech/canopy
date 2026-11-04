@@ -28,7 +28,6 @@
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
   import ThreadSecretsPanel from "#lib/features/threads/components/secrets/ThreadSecretsPanel.svelte";
-  import SideThreadDialog from "#lib/features/threads/components/SideThreadDialog.svelte";
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
@@ -290,12 +289,12 @@
     else panelSheet = true;
   }
 
-  let sideOpen = $state(false);
   const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
 
   const openSide = () => {
+    if (!tree) return;
     panelSheet = false;
-    sideOpen = true;
+    void goto(`/threads/${encodeURIComponent(tree.main.id)}/new-side-thread`);
   };
 
   // "Fork thread" forks after the latest ended turn; "Fork from here" (TurnDetails) after the one it is under.
@@ -770,7 +769,6 @@
       cwd={thread.cwd}
       source={itemsById.get(selectedTask.item.content.value.sourceItemId)}
     />{/if}
-  <SideThreadDialog bind:open={sideOpen} main={tree.main} {worker} />
   <ThreadModelDialog bind:open={modelOpen} {thread} {worker} />
   <ThreadPermissionsDialog bind:open={permissionsOpen} {thread} />
   <GoalDialog

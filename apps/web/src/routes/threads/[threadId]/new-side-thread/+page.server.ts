@@ -5,9 +5,9 @@ import type { Actions } from "./$types";
 
 export const actions: Actions = {
   /** Side thread under the given main thread; its project, workspace and provider come from the parent. */
-  createSideThread: async ({ request }) => {
+  createSideThread: async ({ request, params }) => {
     const form = await request.formData();
-    const parentThreadId = String(form.get("parentThreadId") ?? "");
+    const parentThreadId = params.threadId;
 
     if (!parentThreadId) return fail(400, { action: "side", error: "Missing parent thread" });
     const result = await attempt("side", (api) => api.getThread({ threadId: parentThreadId }));

@@ -13,7 +13,7 @@ const isWorkspaceModeName = (value: string): value is (typeof WORKSPACE_MODES)[n
   WORKSPACE_MODES.some((mode) => mode === value);
 
 /**
- * Form action body shared by "New thread" (home composer) and "New side thread" (thread page):
+ * Form action body shared by the new-thread and new-side-thread composers:
  * validates the fields, calls CreateThread and redirects to the new thread.
  * - Main thread: `projectId`, `workspaceId` and `provider` come from the form; the gateway checks that
  *   the workspace's worker offers the provider and profile.
@@ -37,10 +37,11 @@ export async function createThreadFromForm(
   const provider = parent ? providerKeyOf(parent.provider) : isProviderKey(requested) ? requested : undefined;
 
   if (!provider) return fail(400, { action, error: "Choose Claude, Codex or Grok" });
-  const profileId = text(form, "profileId");
+  const profileId = parent?.providerProfileId ?? text(form, "profileId");
   const initialMessage = text(form, "message");
 
-  if (parent && !initialMessage) return fail(400, { action, error: "Tell the side thread what to do" });
+  if (parent && !initialMessage && form.getAll("attachmentId").length === 0)
+    return fail(400, { action, error: "Tell the side thread what to do" });
   const workspaceMode = text(form, "workspaceMode") || "CHECKOUT";
 
   if (!isWorkspaceModeName(workspaceMode)) return fail(400, { action, error: "Unknown workspace" });
