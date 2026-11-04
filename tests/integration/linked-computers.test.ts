@@ -52,8 +52,8 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
   }
 
   beforeAll(async () => {
-    a = await startTestGateway();
-    b = await startTestGateway();
+    a = await startTestGateway({ role: "desktop" });
+    b = await startTestGateway({ role: "desktop" });
     sa = new ComputerStore(a.runtime, a.userId, randomBytes(32));
     sb = new ComputerStore(b.runtime, b.userId, randomBytes(32));
     la = linkedComputers({ store: sa, host: "127.0.0.1", heartbeatMs: 100 });
@@ -72,6 +72,7 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
   }, 15_000);
 
   test("pairing pins both TLS certificates; stores only a hash and encrypted identity; replay fails", async () => {
+    expect(await a.api.getClientCapabilities({})).toMatchObject({ gatewayRole: "desktop", linkedComputers: true });
     const invitation = await pair();
     const pa = (await a.api.getComputers({})).peers[0]!;
     const pb = (await b.api.getComputers({})).peers[0]!;

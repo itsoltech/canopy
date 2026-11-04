@@ -4,6 +4,14 @@ Canopy to PostgreSQL + gateway + web (BFF i SPA) oraz workery na maszynach, któ
 agentów. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
+Gateway uruchomiony jako serwer (Docker lub samodzielna binarka) ma rolę `server`.
+**Linked computers jest dostępne wyłącznie między aplikacjami Canopy Desktop w trybie
+lokalnym**; łączenie serwerów nie jest wspierane. Serwer nie uruchamia linkowania,
+discovery/mDNS, luster, wspólnej konfiguracji, przenoszenia ani relay. Web i desktop
+remote połączone z serwerem nie pokazują tych funkcji. Istniejące rekordy partnerów
+pozostają w bazie ze stanem `inactive`, bez połączeń i synchronizacji; nic nie jest usuwane.
+Telefony, sparowane klienty desktopowe i workery korzystają dalej z Network access.
+
 Każdy komputer wykonujący zadania agentów musi mieć osobno zainstalowane
 **Claude Code (`claude`), Codex (`codex`) lub Grok (`grok`)** dla używanego providera.
 Desktop, binarki workera i obrazy Docker nie zawierają ani nie pobierają tych CLI.
@@ -102,7 +110,7 @@ Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`:
   Zachowaj dotychczasowe publikowanie i przekazywanie TCP (również przez tailnet); aktualizacja
   gatewaya ani workera nie wymaga zmiany konfiguracji lub ponownego enrollmentu.
 - **Network access** (`CANOPY_NETWORK_PORT`, domyślnie 24443 w compose): surowy TCP dla telefonów,
-  komputerów i zdalnych workerów. Włącz go w Settings → Network access i dodaj nazwę/IP hosta.
+  sparowanych klientów desktopowych i zdalnych workerów. Włącz go w Settings → Network access i dodaj nazwę/IP hosta.
   Nie kończ TLS na proxy; klient przypina certyfikat gatewaya. Adresy workerów i limity uploadów
   zmieniaj w aplikacji. `CANOPY_TLS_CERT` i `CANOPY_TLS_KEY` dotyczą tylko portu procesu.
 
@@ -167,9 +175,9 @@ services:
 
 Sprawdzenie z sieci Dockera: `docker run --rm --network canopy_default curlimages/curl -sS -o /dev/null -w '%{http_code}\n' <endpoint>/v1/models`.
 
-### Dostęp sieciowy: telefony i połączone komputery
+### Dostęp sieciowy: telefony, klienty desktopowe i workery
 
-Telefony i połączone komputery łączą się z jednym portem TLS gatewaya, włączanym w Settings → Network
+Telefony, sparowane klienty desktopowe i workery łączą się z jednym portem TLS gatewaya, włączanym w Settings → Network
 access ([network-access.md](network-access.md)). W kontenerze ustal port i opublikuj go jako TCP, bez
 proxy kończącego TLS:
 
@@ -194,16 +202,10 @@ wyłączonym Network access dalej pracują i aktualizują się na dotychczasowym
 również pozostają w pełni obsługiwane. Nie trzeba zmieniać istniejącego Compose ani konfiguracji
 systemd. Po udanej migracji późniejsza utrata trasy przywraca pierwotne połączenie także po restarcie.
 
-### Połączone komputery: wykrywanie w sieci lokalnej
-
-Gateway z włączonym dostępem sieciowym wykrywa już sparowane komputery
-w tej samej podsieci przez mDNS (UDP 5353, grupa 224.0.0.251; [etap 6](linked-computers.md#konkretny-protokół-etapu-6)).
-Domyślna sieć bridge Dockera nie przenosi multicastu do LAN-u hosta: gateway w kontenerze z samymi
-interfejsami `eth*` pokazuje w Settings → Linked computers „Not available here” i działa dalej na
-trasach ręcznych i ogłaszanych. Wykrywanie w kontenerze wymaga `network_mode: host` (jak wyżej).
-`CANOPY_LINK_DISCOVERY=off` wyłącza je dla gatewaya niezależnie od ustawienia w UI, a `on` pomija
-heurystykę kontenera. Firewall hosta musi przepuszczać UDP 5353 (zwykle otwarte dla mDNS) oraz TCP
-na porcie listenera.
+Serwer nie wykrywa ani nie ogłasza połączonych komputerów w LAN, także z siecią hosta
+i włączonym Network access. Nie otwieraj UDP 5353 dla linkowania serwerów.
+Wykrywanie dotyczy wyłącznie lokalnych aplikacji desktopowych
+([linked-computers.md](linked-computers.md#konkretny-protokół-etapu-6)).
 
 ## Binaria (systemd)
 

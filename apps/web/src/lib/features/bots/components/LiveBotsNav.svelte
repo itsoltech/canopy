@@ -9,10 +9,12 @@
   import { archiveBot, reportLifecycleError } from "../settings/lifecycle.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { ConversationView } from "../model.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   /** The Bots section of the sidebar with your real bots (pinned first), or the way to create the first one. */
   let { query = "" }: { query?: string } = $props();
   const settings = useSettings();
+  const capabilities = useGatewayCapabilities();
 
   const conversations = $derived(
     botList.list.filter((b) => !b.archived).map((b) => botConversation(b, settings.sidebar.pinnedBotIds)),
@@ -48,7 +50,7 @@
     hrefOf={(c) => `/bots/${c.id}`}
     onEdit={(c) => openBotSettings(c.id)}
     onArchive={archive}
-    onMove={move}
+    onMove={capabilities?.linkedComputers ? move : undefined}
     onTogglePin={(c) => {
       void settings.pinBot(c.id, !c.pinned);
     }}
@@ -67,7 +69,7 @@
       hrefOf={(c) => `/bots/${c.id}`}
       onEdit={(c) => openBotSettings(c.id)}
       onArchive={archive}
-      onMove={move}
+      onMove={capabilities?.linkedComputers ? move : undefined}
       onDelete={(c) => window.dispatchEvent(new CustomEvent("delete-bot", { detail: c.id }))}
     />
   </details>

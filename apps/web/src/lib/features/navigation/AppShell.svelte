@@ -71,7 +71,7 @@
   $effect(() => overview.subscribe((update) => shared.apply(update)));
 
   $effect(() => {
-    if (overview.resyncs > 0) void shared.reload().catch(() => {});
+    if (capabilities.linkedComputers && overview.resyncs > 0) void shared.reload().catch(() => {});
   });
 
   const threadActions = new ThreadActions(overview, settings, () => page.params.threadId);
@@ -139,6 +139,7 @@
       settings,
       sidebar,
       threadActions,
+      capabilities,
       openMenu: () => (menuOpen = true),
       currentThreadId: () => page.params.threadId,
       currentProjectId: () =>
@@ -196,7 +197,7 @@
       {#if capabilities.incompatible}
         <GatewayCompatibility message={capabilities.message} />
       {:else if !capabilities.supports(page.url.pathname)}
-        <GatewayCompatibility message="Update Canopy on your gateway to use this feature" />
+        <GatewayCompatibility message={capabilities.unavailableMessage(page.url.pathname)} desktopActions={false} />
       {:else if overview.resyncs === 0 && overview.connection === "unavailable" && !page.error}
         <GatewayUnavailable retry={() => location.reload()} />
       {:else if !ready && !page.error}
@@ -214,5 +215,5 @@
 <CommandPalette registry={commands} {palette} />
 <Toaster />
 <BotSettingsHost />
-<BotMoveHost />
+{#if capabilities.linkedComputers}<BotMoveHost />{/if}
 <UpdateBanner />

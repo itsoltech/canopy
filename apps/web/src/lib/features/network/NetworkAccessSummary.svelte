@@ -7,6 +7,9 @@
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { networkSummary } from "./network.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+
+  const capabilities = useGatewayCapabilities();
 
   /** Network access at a glance on the pages that need it (Mobile devices, Linked computers): where this
    * computer is reachable, or a one-click "Turn on". Details live in Settings → Network access. */
@@ -34,7 +37,9 @@
 <SettingsGroup class={className}>
   <SettingsRow
     {title}
-    description={loaded ? [networkSummary(status), status.note].filter(Boolean).join(" ") : undefined}
+    description={loaded
+      ? [networkSummary(status, capabilities?.linkedComputers), status.note].filter(Boolean).join(" ")
+      : undefined}
   >
     {#snippet leading()}<StatusDot {tone} />{/snippet}
     {#snippet control()}

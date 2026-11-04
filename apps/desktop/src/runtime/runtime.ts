@@ -262,6 +262,7 @@ export class DesktopRuntime {
         CANOPY_DATABASE_URL: databaseUrl,
         CANOPY_SECRETS_KEY: this.secrets.secretsKey,
         CANOPY_UI_SERVICE_TOKEN: this.secrets.serviceToken,
+        CANOPY_GATEWAY_ROLE: "desktop",
         CANOPY_HOST: "127.0.0.1",
         CANOPY_PORT: String(gatewayPort),
       },

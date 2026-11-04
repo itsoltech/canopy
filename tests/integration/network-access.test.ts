@@ -223,8 +223,8 @@ describe.skipIf(!dockerAvailable)("linked computers over network access", () => 
   const routesOf = async (gw: TestGateway) => (await gw.api.getComputers({})).peers[0]?.routes ?? [];
 
   beforeAll(async () => {
-    a = await startTestGateway();
-    b = await startTestGateway();
+    a = await startTestGateway({ role: "desktop" });
+    b = await startTestGateway({ role: "desktop" });
 
     for (const [gw, set] of [
       [a, (c: LinkedComputers) => (la = c)],

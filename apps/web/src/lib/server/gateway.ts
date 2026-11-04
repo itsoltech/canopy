@@ -3,20 +3,37 @@ import { createGrpcTransport } from "@connectrpc/connect-node";
 import { error, fail, isActionFailure, isHttpError, type ActionFailure } from "@sveltejs/kit";
 import { ui } from "@canopy/contracts";
 import { GATEWAY_SERVICE_TOKEN, GATEWAY_URL } from "$app/env/private";
-import { desktopGateway } from "./desktop-gateway.ts";
+import { desktopGateway, type GatewayCompatibility } from "./desktop-gateway.ts";
 
 const desktop = process.env["CANOPY_DESKTOP_CLIENT_TOKEN"]
   ? desktopGateway(process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "", process.env["CANOPY_DESKTOP_CLIENT_TOKEN"])
   : undefined;
 
-export const gatewayCompatibility = () =>
-  desktop?.compatibility() ??
-  Promise.resolve({
-    state: "ready",
-    message: "",
-    methods: ui.GatewayService.methods.map((m) => m.name),
-    gatewayVersion: "",
-  });
+export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
+  if (desktop) return desktop.compatibility();
+
+  try {
+    const info = await gateway().getClientCapabilities({});
+
+    return {
+      state: "ready",
+      message: "",
+      methods: info.methods,
+      gatewayVersion: info.gatewayVersion,
+      gatewayRole: info.gatewayRole,
+      linkedComputers: info.linkedComputers,
+    };
+  } catch {
+    return {
+      state: "unavailable",
+      message: "The gateway is not available",
+      methods: [],
+      gatewayVersion: "",
+      gatewayRole: "",
+      linkedComputers: false,
+    };
+  }
+}
 
 /**
  * gRPC client of the gateway, used only on the SvelteKit server (BFF). The browser never sees the

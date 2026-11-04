@@ -111,9 +111,10 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
   }
 
   beforeAll(async () => {
-    w = await startTestGateway();
-    p1 = await startTestGateway();
+    w = await startTestGateway({ role: "desktop" });
+    p1 = await startTestGateway({ role: "desktop" });
     p2 = await startTestGateway({
+      role: "desktop",
       botModel: async (i) => ({ text: `P2: ${i.messages.findLast((m) => m.role === "user")?.text}`, calls: [] }),
     });
     lw = runtime(w);

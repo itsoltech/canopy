@@ -15,8 +15,10 @@ import {
 } from "./listener.ts";
 import { loadSettings, saveSettings, type NetworkSettings } from "./settings.ts";
 import { localNetworkBlocked, LOCAL_NETWORK_HELP } from "./local-network.ts";
+import { requireDesktopRole, type GatewayRole } from "../role.ts";
 
 export type NetworkOptions = {
+  role?: GatewayRole;
   store: ComputerStore;
   /** The server's environment fixes the port (a published container port). */
   port?: number;
@@ -51,8 +53,14 @@ export class NetworkAccess {
 
   constructor(readonly options: NetworkOptions) {}
 
+  get role() {
+    return this.options.role ?? "server";
+  }
+
   /** The link service answers computers that present a certificate; the device services everything else. */
   mount(service: Service, handler: Handler | undefined) {
+    if (service === "link" && handler) requireDesktopRole(this.role);
+
     if (handler) this.#services.set(service, handler);
     else this.#services.delete(service);
   }
@@ -248,6 +256,8 @@ export class NetworkAccess {
   }
 
   #route(socket: TLSSocket) {
+    if (socket.getPeerCertificate()?.raw && this.role !== "desktop") return undefined;
+
     return this.#services.get(socket.getPeerCertificate()?.raw ? "link" : "device");
   }
 

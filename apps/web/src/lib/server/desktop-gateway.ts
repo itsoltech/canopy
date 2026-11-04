@@ -10,6 +10,8 @@ export interface GatewayCompatibility {
   message: string;
   methods: string[];
   gatewayVersion: string;
+  linkedComputers: boolean;
+  gatewayRole: string;
 }
 
 /** Server-only bearer, supplied by Electron's controller. No service token from the remote server. */
@@ -23,6 +25,8 @@ export function desktopGateway(routesJson: string, token: string) {
     message: "The gateway is not available",
     methods: [],
     gatewayVersion: "",
+    linkedComputers: false,
+    gatewayRole: "",
   };
 
   let expires = 0;
@@ -50,6 +54,8 @@ export function desktopGateway(routesJson: string, token: string) {
         state,
         gatewayVersion: info.gatewayVersion,
         methods: info.methods,
+        linkedComputers: info.linkedComputers,
+        gatewayRole: info.gatewayRole,
         message: Match.value(state).pipe(
           Match.when("app-update", () => "Update this app to connect to this gateway"),
           Match.when("gateway-update", () => `Update Canopy on ${name} to use this app`),
@@ -69,6 +75,8 @@ export function desktopGateway(routesJson: string, token: string) {
               : "The gateway is not available",
         methods: [],
         gatewayVersion: "",
+        linkedComputers: false,
+        gatewayRole: "",
       };
     }
 

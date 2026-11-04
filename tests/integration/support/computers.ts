@@ -18,6 +18,7 @@ export type TestComputerOptions = Omit<Options, "network"> & {
  * "Let phones and other computers connect" on. Closing them closes the listener too. */
 export function linkedComputers({ host, port, detect, ...options }: TestComputerOptions) {
   const network = new NetworkAccess({
+    role: "desktop",
     store: options.store,
     host,
     ...(port && { port }),

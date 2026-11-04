@@ -8,6 +8,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { instanceName, sharedInstanceKeys } from "./instances.ts";
   import SettingsSection from "./SettingsSection.svelte";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   /**
    * Sharing an instance with linked computers: its definition with the API key (stored again with each
@@ -15,6 +16,7 @@
    */
   let { instance, class: className }: { instance: ui.ProviderInstance; class?: ClassValue } = $props();
   const overview = useOverview();
+  const capabilities = useGatewayCapabilities();
   const sharing = useSharedConfig();
   const keys = $derived(sharedInstanceKeys(instance));
   const shared = $derived(!instance.builtIn && sharing.shared(keys.definition));
@@ -27,7 +29,7 @@
   const reason = $derived(instance.workers.find((w) => w.enabled && w.detail)?.detail);
 </script>
 
-{#if overview.computers.size > 0}
+{#if capabilities?.linkedComputers && overview.computers.size > 0}
   <SettingsSection
     class={className}
     title="Linked computers"

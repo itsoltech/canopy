@@ -32,6 +32,10 @@ message ClientCapabilities {
   uint32 max_protocol = 4;
   repeated string methods = 5;
   MobileRoutes routes = 6;
+  // Launch role: server (default) or the desktop app's bundled local-mode gateway.
+  string gateway_role = 7;
+  // Absent/false means linking is unavailable, including on older gateways.
+  bool linked_computers = 8;
 }
 
 message MobileDevice {

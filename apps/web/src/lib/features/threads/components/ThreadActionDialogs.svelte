@@ -7,9 +7,11 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import MoveDialog from "#lib/features/computers/MoveDialog.svelte";
   import type { ClassValue } from "svelte/elements";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   let { class: className }: { class?: ClassValue } = $props();
   const actions = useThreadActions();
+  const capabilities = useGatewayCapabilities();
   let title = $state("");
   let origin: HTMLElement | undefined;
 
@@ -72,13 +74,13 @@
     </div>
   {/if}
 </Dialog>
-<MoveDialog
-  bind:open={
-    () => Boolean(actions.moving),
-    (open) => {
-      if (!open) actions.moving = undefined;
+{#if capabilities?.linkedComputers}<MoveDialog
+    bind:open={
+      () => Boolean(actions.moving),
+      (open) => {
+        if (!open) actions.moving = undefined;
+      }
     }
-  }
-  items={actions.moving ? [{ kind: "thread", id: actions.moving.id }] : []}
-  name={actions.moving?.title ?? ""}
-/>
+    items={actions.moving ? [{ kind: "thread", id: actions.moving.id }] : []}
+    name={actions.moving?.title ?? ""}
+  />{/if}

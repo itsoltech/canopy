@@ -88,8 +88,8 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
   });
 
   beforeAll(async () => {
-    a = await startTestGateway();
-    b = await startTestGateway();
+    a = await startTestGateway({ role: "desktop" });
+    b = await startTestGateway({ role: "desktop" });
     sa = new ComputerStore(a.runtime, a.userId, a.secretsKey);
     sb = new ComputerStore(b.runtime, b.userId, b.secretsKey);
     // A fixed port: A's listener is switched off and on to make A the dialling side.

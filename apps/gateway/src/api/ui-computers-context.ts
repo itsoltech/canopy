@@ -1,7 +1,10 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { type GatewayCore } from "../core/core.ts";
+import { requireDesktopRole } from "../role.ts";
 
 export function computers(core: GatewayCore) {
+  requireDesktopRole(core.role);
+
   if (!core.computers) throw new ConnectError("Linked computers are not initialized", Code.FailedPrecondition);
 
   return core.computers;

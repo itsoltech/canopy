@@ -32,6 +32,7 @@ import {
 import { computersRemoteMethods, type ComputersRemoteMethods } from "./runtime-remote.ts";
 import { computersServingMethods, type ComputersServingMethods } from "./runtime-serving.ts";
 import { linkHandler, remoteCertificate, type LinkIdentity } from "./transport.ts";
+import { requireDesktopRole } from "../role.ts";
 
 export { computerGuard, type ComputerChange } from "./runtime-context.ts";
 
@@ -69,6 +70,9 @@ export class LinkedComputers {
   readonly moves: ComputerMoves | undefined;
 
   constructor(readonly options: Options) {
+    requireDesktopRole(options.network.role);
+
+    if (options.core) requireDesktopRole(options.core.role);
     this[computersState].routes = new Routes(options.store);
     options.network.mount("link", linkHandler(this.routes));
     this.mirror = new ThreadMirror(options.store);

@@ -26,6 +26,7 @@ import type { BotModel } from "../bots/types.ts";
 import { ActionContext } from "./action-context.ts";
 import { type GatewayUpdatesOptions } from "../updates/runtime.ts";
 import { type CliLatestOptions } from "./cli-tools.ts";
+import type { GatewayRole } from "../role.ts";
 
 /**
  * The gateway's runtime state machine (docs/ui-api.md, docs/durability.md):
@@ -58,6 +59,7 @@ export type CoreServices =
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<CoreServices, unknown>;
 
 export interface GatewayCoreOptions {
+  readonly role?: GatewayRole;
   readonly skillSources?: import("../agent-environment/source-discovery.ts").SourceOptions;
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;
   readonly sshSecretsKey?: Buffer;

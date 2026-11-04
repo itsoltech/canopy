@@ -23,6 +23,7 @@ import { AgentEnvironment } from "../agent-environment/service.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
 import type { NetworkAccess } from "../network/network.ts";
 import { LinkedAgents } from "../computers/agents.ts";
+import type { GatewayRole } from "../role.ts";
 import { coreState, type GatewayCoreOptions } from "./core-context.ts";
 import { coreServe } from "./core-workers.ts";
 import { corePublishInteraction } from "./core-interactions.ts";
@@ -63,6 +64,7 @@ export {
 } from "./core-context.ts";
 
 export class GatewayCore {
+  readonly role: GatewayRole;
   readonly [coreState] = new GatewayCoreState();
   declare sweep: CoreWorkLoopMethods["sweep"];
   declare startSweep: CoreWorkLoopMethods["startSweep"];
@@ -178,6 +180,7 @@ export class GatewayCore {
   readonly backgroundTasks: BackgroundTasks;
 
   constructor(options: GatewayCoreOptions) {
+    this.role = options.role ?? "server";
     this[coreState].options = options;
     this[coreState].actions = new ActionContext(options.runtime);
     this.hub = new Hub((action) => this[coreState].actions.defer(action));

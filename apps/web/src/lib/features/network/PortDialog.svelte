@@ -6,6 +6,9 @@
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+
+  const capabilities = useGatewayCapabilities();
 
   /** A fixed port for a firewall that allows only certain ports, or a new free one. */
   let {
@@ -37,7 +40,9 @@
   bind:open
   class={className}
   title="Change port"
-  description="Phones and linked computers learn the new port when they next connect here. A phone that can't reach this computer then needs the new address."
+  description={capabilities?.linkedComputers
+    ? "Phones and linked computers learn the new port when they next connect here. A phone that can't reach this computer then needs the new address."
+    : "Paired devices and workers learn the new port when they next connect here. A device that can't reach this gateway then needs the new address."}
 >
   <form
     class="grid gap-5"

@@ -32,7 +32,7 @@
   bind:open
   class={className}
   title="Add hostname"
-  description="A name phones and computers can also use, like a Tailscale MagicDNS name or a DNS name of this server. Detected addresses are added automatically."
+  description="A name paired devices and workers can also use, like a Tailscale MagicDNS name or a DNS name of this server. Detected addresses are added automatically."
 >
   <form
     class="grid gap-5"

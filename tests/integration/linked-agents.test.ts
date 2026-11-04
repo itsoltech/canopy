@@ -48,8 +48,8 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
   const tool = async (name: string, args: JsonValue) => a.worker.callTool({ threadId: parent, tool: name, args });
 
   beforeAll(async () => {
-    a = await startTestGateway({ botModel: (i) => modelA(i) });
-    b = await startTestGateway({ botModel: (i) => modelB(i) });
+    a = await startTestGateway({ role: "desktop", botModel: (i) => modelA(i) });
+    b = await startTestGateway({ role: "desktop", botModel: (i) => modelB(i) });
     la = linkedComputers({
       store: new ComputerStore(a.runtime, a.userId, a.secretsKey),
       host: "127.0.0.1",

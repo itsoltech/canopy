@@ -28,6 +28,7 @@ export function threadActions(
   projectName: string,
   pinned: boolean,
   readOnly = false,
+  linkedComputers = false,
 ): ThreadAction[] {
   if (thread.deletedAt) return [];
   const archived = thread.status === "archived";
@@ -53,7 +54,7 @@ export function threadActions(
     { id: "filter", label: `Filter by ${projectName}`, icon: "bars-3", group: 2 },
     { id: "settings", label: "Project settings", icon: "cog-6-tooth", group: 2 },
     // Stage 8: only this computer's own main threads; side threads move with their parent.
-    ...(!thread.nodeId && !thread.parentThreadId
+    ...(linkedComputers && !thread.nodeId && !thread.parentThreadId
       ? [{ id: "move" as const, label: "Move to…", icon: "arrows-right-left" as const, group: 3 }]
       : []),
     {

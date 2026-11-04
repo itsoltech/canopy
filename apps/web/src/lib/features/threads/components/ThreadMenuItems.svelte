@@ -7,6 +7,7 @@
   import { useThreadActions } from "../thread-actions.svelte.ts";
   import type { ClassValue } from "svelte/elements";
   import { awayReason } from "#lib/features/computers/computers.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   /** `omit`: actions already visible where the menu is opened (e.g. the open thread's own header). */
   let {
@@ -16,6 +17,7 @@
   }: { thread: ui.Thread; omit?: readonly ThreadActionId[]; class?: ClassValue } = $props();
 
   const actions = useThreadActions();
+  const capabilities = useGatewayCapabilities();
   const away = $derived(thread.nodeId ? awayReason(actions.overview.computer(thread.nodeId)) : undefined);
 
   const items = $derived(
@@ -24,6 +26,7 @@
       actions.overview.project(thread.projectId)?.name ?? "project",
       actions.settings.sidebar.pinnedThreadIds.includes(thread.id),
       Boolean(away),
+      capabilities?.linkedComputers ?? false,
     ).filter((item) => !omit.includes(item.id)),
   );
 </script>
