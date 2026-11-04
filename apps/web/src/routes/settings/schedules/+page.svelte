@@ -51,7 +51,7 @@
 
 <svelte:head><title>Scheduled tasks · Settings · Canopy</title></svelte:head>
 
-<div class="grid gap-4">
+<div class="grid grid-cols-1 gap-4">
   <div class="flex flex-wrap items-end justify-between gap-4 px-1">
     <div class="min-w-0">
       <h2 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Scheduled tasks</h2>
