@@ -145,13 +145,15 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
   test("async returns immediately; answering steers into the running turn with asking hops + 1", async () => {
     const parent = await start();
 
-    const child = json(
-      await gw.worker.callTool({
-        ...parent,
-        tool: "spawn_thread",
-        args: { title: "Async child", prompt: "ask", notify: false, interactions: "human" },
-      }),
-    ) as unknown as { thread_id: string; turn_id: string };
+    const child = JSON.parse(
+      (
+        await gw.worker.callTool({
+          ...parent,
+          tool: "spawn_thread",
+          args: { title: "Async child", prompt: "ask", notify: false, interactions: "human" },
+        })
+      ).content,
+    ) as { thread_id: string; turn_id: string };
 
     const source = { threadId: child.thread_id, turnId: child.turn_id };
     await eventually(
@@ -368,13 +370,15 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
   test("side-thread questions route to the parent; parent and human can answer", async () => {
     const source = await start();
 
-    const child = json(
-      await gw.worker.callTool({
-        ...source,
-        tool: "spawn_thread",
-        args: { title: "Child", prompt: "ask", notify: false },
-      }),
-    ) as unknown as { thread_id: string; turn_id: string };
+    const child = JSON.parse(
+      (
+        await gw.worker.callTool({
+          ...source,
+          tool: "spawn_thread",
+          args: { title: "Child", prompt: "ask", notify: false },
+        })
+      ).content,
+    ) as { thread_id: string; turn_id: string };
 
     await eventually(
       () => turns(child.thread_id),

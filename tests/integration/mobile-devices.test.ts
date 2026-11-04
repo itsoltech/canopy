@@ -7,7 +7,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { serviceTokenAuth, uiRoutes } from "@canopy/gateway/api";
 import { startConnectHttpServer, type RunningGrpcServer } from "@canopy/transport";
 import { Effect } from "effect";
-import { SqlClient } from "effect/sql";
+import { SqlClient, type SqlConnection } from "effect/sql";
 import { mobileClient } from "../../apps/mobile/src/api/client.ts";
 import { SERVICE_TOKEN, eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -23,7 +23,7 @@ describe.skipIf(!dockerAvailable)("mobile pairing + native app Connect client ov
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
-        return yield* sql.unsafe<Record<string, unknown>>(text, params);
+        return yield* sql.unsafe<SqlConnection.Row>(text, params);
       }),
     );
 

@@ -9,7 +9,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, WorkerConfigSchema, type WorkerConfig } from "@canopy/contracts";
-import { tempDir } from "@canopy/testing";
+import { isBigInt, tempDir } from "@canopy/testing";
 import { Journal } from "@canopy/worker/journal";
 import { WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
@@ -147,7 +147,7 @@ describe("profile environment on the Codex app-server", () => {
   test("a variable the worker controls disables the profile instead of reaching the process", async () => {
     const report = await host.applyConfig(config([{ ...proxy, env: [{ name: "CODEX_HOME", value: "/elsewhere" }] }]));
     expect(report.profiles?.find((p) => p.id === "team")).toMatchObject({ available: false });
-    expect(JSON.stringify(report, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("/elsewhere");
+    expect(JSON.stringify(report, (_k, v) => (isBigInt(v) ? String(v) : v))).not.toContain("/elsewhere");
     expect(processes().some((p) => p.probe === null && p.keys.length === 0)).toBe(true);
   });
 });

@@ -1,3 +1,5 @@
+import { Match } from "effect";
+
 import { clone, create } from "@bufbuild/protobuf";
 import {
   ItemDeltaField,
@@ -158,12 +160,12 @@ function snake(camel: string): string {
  * lets the thread's owner read them through the thread (thread_blobs).
  */
 export function previewRefs(item: Item): BlobRef[] {
-  const refs =
-    item.content.case === "image"
-      ? [item.content.value.blob]
-      : item.content.case === "toolCall"
-        ? item.content.value.images
-        : [];
+  const refs = Match.value(item.content).pipe(
+    Match.withReturnType<readonly (BlobRef | undefined)[]>(),
+    Match.discriminator("case")("image", (content) => [content.value.blob]),
+    Match.discriminator("case")("toolCall", (content) => content.value.images),
+    Match.orElse(() => []),
+  );
 
-  return refs.filter((ref): ref is BlobRef => ref !== undefined && /^[0-9a-f]{64}$/.test(ref.sha256));
+  return refs.flatMap((ref) => (ref !== undefined && /^[0-9a-f]{64}$/.test(ref.sha256) ? [ref] : []));
 }

@@ -6,7 +6,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Effect, ManagedRuntime } from "effect";
-import { Migrator, SqlClient } from "effect/sql";
+import { Migrator, SqlClient, type SqlConnection } from "effect/sql";
 import { migrate, migrations } from "../src/index.ts";
 import { dockerAvailable, startPostgres, type TestPostgres } from "../src/testing.ts";
 
@@ -14,10 +14,7 @@ const id = () => Bun.randomUUIDv7();
 let pg: TestPostgres;
 let runtime: ManagedRuntime.ManagedRuntime<SqlClient.SqlClient, unknown>;
 
-function query<A extends object = Record<string, unknown>>(
-  text: string,
-  params: unknown[] = [],
-): Promise<ReadonlyArray<A>> {
+function query<A extends object = SqlConnection.Row>(text: string, params: unknown[] = []): Promise<ReadonlyArray<A>> {
   return runtime.runPromise(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -181,7 +178,7 @@ describe.skipIf(!dockerAvailable)("migration 0018: per-worker profiles to global
       instance_id: string;
       worker_id: string;
       enabled: boolean | null;
-      overrides: Record<string, unknown>;
+      overrides: { baseUrl?: string; apiKey?: { secretRef: string }; env?: { name: string; value: string }[] };
     }>(
       `SELECT harness, instance_id, worker_id, enabled, overrides FROM provider_instance_workers ORDER BY harness, instance_id, worker_id`,
     );

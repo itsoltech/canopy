@@ -39,6 +39,7 @@ export async function startConnectHttpServer(options: Omit<GrpcServerOptions, "t
       resolve();
     });
   });
+  // SAFETY: listen() above bound a TCP host and port; address() returns a string only for pipes and Unix sockets.
   const { port } = server.address() as AddressInfo;
 
   return {

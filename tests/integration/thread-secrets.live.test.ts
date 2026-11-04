@@ -177,10 +177,10 @@ describe.skipIf(!enabled)("thread secrets (Codex + Claude, live CLIProxyAPI)", (
 
         expect(logs.join("\n")).not.toContain(value);
 
-        for (const file of readdirSync(data, { recursive: true }).filter(
-          (f) => typeof f === "string" && f.endsWith(".jsonl"),
+        for (const file of readdirSync(data, { recursive: true, encoding: "utf8" }).filter((f) =>
+          f.endsWith(".jsonl"),
         )) {
-          expect(readFileSync(join(data, String(file)), "utf8").includes(value), String(file)).toBe(false);
+          expect(readFileSync(join(data, file), "utf8").includes(value), String(file)).toBe(false);
         }
 
         await gw.api.revokeThreadSecret({ requestId: request[0]!.id });

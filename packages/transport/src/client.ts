@@ -15,7 +15,7 @@ export function createGrpcClientTransport(options: GrpcClientOptions): Transport
   return createGrpcTransport({
     baseUrl: options.baseUrl,
     ...(options.ca !== undefined && { nodeOptions: { ca: options.ca } }),
-    ...(options.pingIntervalMs ? { pingIntervalMs: options.pingIntervalMs } : {}),
+    ...(options.pingIntervalMs && { pingIntervalMs: options.pingIntervalMs }),
     ...(options.connectTimeoutMs !== undefined && { connectTimeoutMs: options.connectTimeoutMs }),
   });
 }

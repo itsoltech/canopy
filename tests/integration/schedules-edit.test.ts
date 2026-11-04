@@ -38,7 +38,7 @@ describe.skipIf(!dockerAvailable)("schedule editing with a scripted worker", () 
     });
 
   const update = async (s: ui.Schedule, extra: MessageInitShape<typeof ui.CreateScheduleRequestSchema> = {}) => {
-    const { $typeName, ...fields } = configuration(s);
+    const { $typeName: _typeName, ...fields } = configuration(s);
 
     return (
       await gw.api.updateSchedule({

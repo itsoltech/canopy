@@ -3,10 +3,10 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
-import { SqlClient } from "effect/sql";
+import { SqlClient, type SqlConnection } from "effect/sql";
 import { WorkerAdministration } from "../../apps/gateway/src/core/worker-administration.ts";
 import { WorkerSsh } from "../../apps/gateway/src/core/worker-ssh.ts";
-import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { Server, utils } from "ssh2";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -34,7 +34,7 @@ async function query(statement: string, params: unknown[]) {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      return yield* sql.unsafe<Record<string, unknown>>(statement, params);
+      return yield* sql.unsafe<SqlConnection.Row>(statement, params);
     }),
   );
 }

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Effect, ManagedRuntime } from "effect";
-import { Migrator, SqlClient } from "effect/sql";
+import { Migrator, SqlClient, type SqlConnection } from "effect/sql";
 import { migrate, migrations } from "../src/index.ts";
 import { dockerAvailable, startPostgres, type TestPostgres } from "../src/testing.ts";
 
@@ -16,7 +16,7 @@ describe.skipIf(!dockerAvailable)("migration 0041: bot MCP registry to connector
     disabled = Bun.randomUUIDv7(),
     secret = Bun.randomUUIDv7();
 
-  const query = <A extends object = Record<string, unknown>>(text: string, ...params: unknown[]) =>
+  const query = <A extends object = SqlConnection.Row>(text: string, ...params: unknown[]) =>
     runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;

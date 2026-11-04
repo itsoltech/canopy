@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonObject, JsonValue } from "@canopy/domain";
 import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
 import { bots, MentionKind, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -14,7 +15,7 @@ import { eventually, failure, ScriptedWorker, startTestGateway, type TestGateway
 
 const reply = (text: string): ModelReply => ({ text, calls: [] });
 
-const tool = (name: string, args: Record<string, unknown> = {}): ModelReply => ({
+const tool = (name: string, args: JsonObject = {}): ModelReply => ({
   text: "",
   calls: [{ id: "model-call", name, arguments: args }],
 });
@@ -122,7 +123,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
         const body = (await request.json()) as { id?: number; method: string };
 
         if (body.method.startsWith("notifications/")) return new Response(null, { status: 202 });
-        let result: unknown = {};
+        let result: JsonValue = {};
 
         if (body.method === "initialize")
           result = {
@@ -457,7 +458,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     );
 
     expect(result.messages.some((m) => m.text.includes("Message from B"))).toBe(true);
-    const exchangeId = result.messages.find((m) => m.exchangeId)?.exchangeId!;
+    const exchangeId = result.messages.find((m) => m.exchangeId)!.exchangeId;
     expect((await current.bots.exchange(exchangeId)).some((m) => m.text === "B says hello")).toBe(true);
     await current.bots.run((s) => s.enqueue(gw.userId, a.id, "automated", Bun.randomUUIDv7(), { hops: 7 }));
     expect((await settled(a.id)).working).toBe(false);

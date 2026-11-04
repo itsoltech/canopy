@@ -224,6 +224,8 @@ export type MascotEyes = "round" | "dots" | "happy";
 
 const eyes: readonly MascotEyes[] = ["round", "dots", "happy"];
 
+const GAZES = [-1, 0, 1] as const;
+
 export interface Mascot {
   shape: MascotShape;
   tone: MascotTone;
@@ -254,7 +256,7 @@ export function mascotFor(id: string, shape?: string): Mascot {
       shapes[h % shapes.length]!,
     tone: tones[(h >>> 4) % tones.length]!,
     eyes: eyes[(h >>> 9) % eyes.length]!,
-    gaze: (((h >>> 12) % 3) - 1) as -1 | 0 | 1,
+    gaze: GAZES[(h >>> 12) % GAZES.length]!,
     smile: ((h >>> 15) & 1) === 1,
   };
 }

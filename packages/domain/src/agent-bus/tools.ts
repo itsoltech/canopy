@@ -1,4 +1,4 @@
-import { Result, Schema } from "effect";
+import { type JsonSchema, Result, Schema } from "effect";
 import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
 import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 import { isEntityId } from "../computers.ts";
@@ -374,9 +374,7 @@ const ORCHESTRATOR_ONLY: ReadonlySet<AgentBusToolName> = new Set([
 
 /** Tool names offered to a thread at the given depth (0 = main thread, 1 = side thread). */
 export function agentBusToolsFor(depth: number): AgentBusToolName[] {
-  return (Object.keys(AGENT_BUS_TOOLS) as AgentBusToolName[]).filter(
-    (name) => depth === 0 || !ORCHESTRATOR_ONLY.has(name),
-  );
+  return AGENT_BUS_TOOL_NAMES.filter((name) => depth === 0 || !ORCHESTRATOR_ONLY.has(name));
 }
 
 export type AgentBusToolName = keyof typeof AGENT_BUS_TOOLS;
@@ -394,6 +392,8 @@ export function isAgentBusTool(name: string): name is AgentBusToolName {
   return Object.hasOwn(AGENT_BUS_TOOLS, name);
 }
 
+const AGENT_BUS_TOOL_NAMES: readonly AgentBusToolName[] = Object.keys(AGENT_BUS_TOOLS).filter(isAgentBusTool);
+
 /**
  * Strictly decodes a tool call coming from a model. Unknown tools, unknown properties
  * and invalid values are errors (returned to the model as a tool error, never guessed).
@@ -408,36 +408,38 @@ export function decodeAgentBusCall(name: string, argumentsJson: string): Result.
     return Result.fail(`${name}: arguments are not valid JSON`);
   }
 
+  // SAFETY: only widens the indexed union of argument schemas, which TypeScript cannot call; the codec stays the one
+  // registered for `name`.
   const decoded = Schema.decodeUnknownResult(AGENT_BUS_TOOLS[name].args as Schema.Codec<unknown>)(raw, {
     onExcessProperty: "error",
   });
 
-  if (Result.isSuccess(decoded) && name === "ask_user") {
-    const problem = questionsProblem((decoded.success as AgentBusArgs["ask_user"]).questions);
+  if (Result.isFailure(decoded)) return Result.fail(`${name}: ${decoded.failure.message}`);
+  // SAFETY: `decoded` came from AGENT_BUS_TOOLS[name].args, and AgentBusArgs[name] is that schema's Type.
+  const call = { tool: name, args: decoded.success } as AgentBusCall;
+
+  if (call.tool === "ask_user") {
+    const problem = questionsProblem(call.args.questions);
 
     if (problem) return Result.fail(`ask_user: ${problem}`);
   }
 
-  return Result.isSuccess(decoded)
-    ? Result.succeed({ tool: name, args: decoded.success } as AgentBusCall)
-    : Result.fail(`${name}: ${decoded.failure.message}`);
+  return Result.succeed(call);
 }
 
 export interface ToolJsonSpec {
   readonly name: string;
   readonly description: string;
-  readonly inputSchema: Record<string, unknown>;
+  readonly inputSchema: JsonSchema.JsonSchema;
 }
 
 /** Tool specs for providers: Codex dynamicTools ({ name, description, inputSchema }) and the Claude MCP server. */
-export function agentBusToolSpecs(
-  names: readonly AgentBusToolName[] = Object.keys(AGENT_BUS_TOOLS) as AgentBusToolName[],
-): ToolJsonSpec[] {
+export function agentBusToolSpecs(names: readonly AgentBusToolName[] = AGENT_BUS_TOOL_NAMES): ToolJsonSpec[] {
   return names
     .map((name) => AGENT_BUS_TOOLS[name])
     .map((tool) => {
       const document = Schema.toJsonSchemaDocument(tool.args, { onExcessProperty: "error" });
-      const schema = document.schema as Record<string, unknown>;
+      const schema = document.schema;
 
       // Providers require an object schema; an empty Struct compiles to "anything but null".
       const inputSchema =
@@ -451,6 +453,6 @@ export function agentBusToolSpecs(
     });
 }
 
-function definitions(document: { readonly definitions?: Record<string, unknown> }): Record<string, unknown> {
+function definitions(document: JsonSchema.Document<"draft-2020-12">): { readonly $defs?: JsonSchema.Definitions } {
   return document.definitions && Object.keys(document.definitions).length > 0 ? { $defs: document.definitions } : {};
 }

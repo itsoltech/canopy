@@ -24,11 +24,11 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     return true;
   }
 
-  /** Ends the stream. Buffered values are still delivered, then `error` is thrown if given. */
-  close(error?: unknown): void {
+  /** Ends the stream. Buffered values are still delivered, then `cause` is thrown if given. */
+  close(cause?: unknown): void {
     if (this.#closed) return;
     this.#closed = true;
-    this.#error = error;
+    this.#error = cause;
     this.#notify();
   }
 
@@ -40,6 +40,7 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     try {
       for (;;) {
         if (this.#buffer.length > 0) {
+          // SAFETY: the buffer is not empty, so shift() returns one of its values (which may itself be undefined).
           yield this.#buffer.shift() as T;
         } else if (this.#closed) {
           if (this.#error !== undefined) throw this.#error;

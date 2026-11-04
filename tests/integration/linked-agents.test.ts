@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonValue } from "@canopy/domain";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { bots, InteractionKind, PermissionMode, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { qualifyId, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
@@ -43,7 +44,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
       10000,
     );
 
-  const tool = async (name: string, args: unknown) => a.worker.callTool({ threadId: parent, tool: name, args });
+  const tool = async (name: string, args: JsonValue) => a.worker.callTool({ threadId: parent, tool: name, args });
 
   beforeAll(async () => {
     a = await startTestGateway({ botModel: (i) => modelA(i) });
@@ -631,7 +632,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
       })
     ).thread!.id;
 
-    const invoke = (name: string, args: unknown) => a.worker.callTool({ threadId: source, tool: name, args });
+    const invoke = (name: string, args: JsonValue) => a.worker.callTool({ threadId: source, tool: name, args });
 
     const spawn = () =>
       invoke("spawn_thread", { workspace_id: q(workspace), title: "Quota child", prompt: "quota task", notify: false });

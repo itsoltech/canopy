@@ -1,10 +1,11 @@
 import { createInterface } from "node:readline";
+import type { WireObject } from "../types.ts";
 
-const send = (value: object) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...value }) + "\n");
+const send = (value: WireObject) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...value }) + "\n");
 let promptId: number | undefined;
 let ignoreCancel = false;
 
-const updates = (sessionId: string, update: object) =>
+const updates = (sessionId: string, update: WireObject) =>
   send({ method: "session/update", params: { sessionId, update } });
 
 for await (const line of createInterface({ input: process.stdin })) {

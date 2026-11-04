@@ -25,16 +25,18 @@ export function backgroundOutcome(status: string): BackgroundOutcome {
   }
 }
 
-const REASONS: Readonly<Record<string, string>> = {
-  stopped_by_user: "stopped by the user",
-  stopped: "stopped by the harness",
-  drain: "stopped because the worker was draining before it shut down",
-  limit: "stopped because it reached a resource limit",
-  worker_shutdown: "stopped because the worker was shut down for a restart or deploy; the process was killed",
-  worker_lost:
+const REASONS = new Map([
+  ["stopped_by_user", "stopped by the user"],
+  ["stopped", "stopped by the harness"],
+  ["drain", "stopped because the worker was draining before it shut down"],
+  ["limit", "stopped because it reached a resource limit"],
+  ["worker_shutdown", "stopped because the worker was shut down for a restart or deploy; the process was killed"],
+  [
+    "worker_lost",
     "lost: the worker process ended unexpectedly (crash or kill) while the task ran, and the task died with it",
-  worker_restart: "stopped because the provider runtime was restarted (a settings change, or its process exited)",
-};
+  ],
+  ["worker_restart", "stopped because the provider runtime was restarted (a settings change, or its process exited)"],
+]);
 
 /** Why a task ended, in plain words for the agent ("completed with exit code 0", "stopped by the user", ...). */
 export function backgroundEndReason(outcome: BackgroundOutcome, stopReason: string, exitCode?: number): string {
@@ -44,26 +46,25 @@ export function backgroundEndReason(outcome: BackgroundOutcome, stopReason: stri
 
   if (outcome === "completed") return `completed${exit}`;
 
-  if (outcome === "failed")
-    return stopReason && stopReason !== "error" && REASONS[stopReason] ? REASONS[stopReason] : `failed${exit}`;
+  if (outcome === "failed") return (stopReason && stopReason !== "error" && REASONS.get(stopReason)) || `failed${exit}`;
 
-  return REASONS[stopReason] ?? (stopReason ? `interrupted (${stopReason})` : "interrupted");
+  return REASONS.get(stopReason) ?? (stopReason ? `interrupted (${stopReason})` : "interrupted");
 }
 
-const LABELS: Readonly<Record<string, string>> = {
-  stopped_by_user: "Stopped by you",
-  stopped: "Stopped by the harness",
-  drain: "Stopped: worker draining",
-  limit: "Stopped: limit reached",
-  worker_shutdown: "Stopped: worker restarted for a deploy",
-  worker_lost: "Lost: the worker crashed",
-  worker_restart: "Stopped: provider runtime restarted",
-  error: "Failed",
-};
+const LABELS = new Map([
+  ["stopped_by_user", "Stopped by you"],
+  ["stopped", "Stopped by the harness"],
+  ["drain", "Stopped: worker draining"],
+  ["limit", "Stopped: limit reached"],
+  ["worker_shutdown", "Stopped: worker restarted for a deploy"],
+  ["worker_lost", "Lost: the worker crashed"],
+  ["worker_restart", "Stopped: provider runtime restarted"],
+  ["error", "Failed"],
+]);
 
 /** Short label of a stop reason for the UI ("Stopped: worker restarted for a deploy"); the reason itself if unknown. */
 export function backgroundStopLabel(stopReason: string): string {
-  return LABELS[stopReason] ?? stopReason;
+  return LABELS.get(stopReason) ?? stopReason;
 }
 
 /** One line for the UI: "Background task finished · exit 0", "Background task stopped: worker restarted for a deploy". */
@@ -100,7 +101,7 @@ export function formatDuration(ms: number): string {
 }
 
 /** The last lines of a task's output, bounded in lines and characters. */
-export function outputTail(output: string, maxLines = 40, maxChars = 4_000): { text: string; truncated: boolean } {
+export function outputTail(output: string, maxLines = 40, maxChars = 4_000) {
   const trimmed = output.replace(/\s+$/, "");
   const lines = trimmed.split("\n");
   let text = lines.slice(-maxLines).join("\n");

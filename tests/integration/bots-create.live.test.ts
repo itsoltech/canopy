@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { create } from "@bufbuild/protobuf";
-import { bots, Provider } from "@canopy/contracts";
+import { Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { useLiveProxy } from "./support/live.ts";

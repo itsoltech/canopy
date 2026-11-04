@@ -2,14 +2,20 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Provider, type GenerateText } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
-import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
+import {
+  eventually,
+  startTestGateway,
+  watchUntil,
+  type CommandReplyExtra,
+  type TestGateway,
+} from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("thread titles through the worker link", () => {
   let gw: TestGateway;
   let projectId = "";
   let workspaceId = "";
   const requests: GenerateText[] = [];
-  let answer: ((ok: boolean, extra?: Record<string, unknown>) => void) | undefined;
+  let answer: ((ok: boolean, extra?: CommandReplyExtra) => void) | undefined;
   beforeAll(async () => {
     gw = await startTestGateway();
     projectId = (await gw.api.createProject({ name: "Titles" })).project!.id;

@@ -195,7 +195,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
         }),
       );
 
-      const error = await anonymous.getOverview({}).catch((e: unknown) => e);
+      const error = await anonymous.getOverview({}).catch((cause: unknown) => cause);
       expect(error).toBeInstanceOf(ConnectError);
       expect((error as ConnectError).code).toBe(Code.Unauthenticated);
     }
@@ -209,7 +209,10 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     }
 
     for (const rootPath of ["relative", "/missing-workspace"]) {
-      const error = await api.createWorkspace({ projectId, workerId, rootPath, label: "x" }).catch((e: unknown) => e);
+      const error = await api
+        .createWorkspace({ projectId, workerId, rootPath, label: "x" })
+        .catch((cause: unknown) => cause);
+
       expect((error as ConnectError).code).toBe(Code.InvalidArgument);
     }
   });
@@ -561,7 +564,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     expect([again.forkSourceThreadId, again.forkAfterTurnOrdinal, again.title]).toEqual([source.id, 1, "Again"]);
     // A turn past the fork point is not in the fork's history.
     expect(
-      String(await api.createThread({ forkThreadId: fork.id, forkAtTurnId: t3!.id }).catch((e: unknown) => e)),
+      String(await api.createThread({ forkThreadId: fork.id, forkAtTurnId: t3!.id }).catch((cause: unknown) => cause)),
     ).toContain("not in this thread's history");
 
     // A running turn cannot be forked at; once interrupted it can (history up to that point).
@@ -575,7 +578,9 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
       (t) => t.some((x) => x.id === running.id && x.status === "running"),
     );
     expect(
-      String(await api.createThread({ forkThreadId: source.id, forkAtTurnId: running.id }).catch((e: unknown) => e)),
+      String(
+        await api.createThread({ forkThreadId: source.id, forkAtTurnId: running.id }).catch((cause: unknown) => cause),
+      ),
     ).toContain("a fork starts after an ended turn");
     worker.holdTurns = false;
     worker.emit(source.id, running.id, {
@@ -601,7 +606,9 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     );
     worker.handlers.delete("startTurn");
     expect(
-      String(await api.createThread({ forkThreadId: source.id, forkAtTurnId: refused.id }).catch((e: unknown) => e)),
+      String(
+        await api.createThread({ forkThreadId: source.id, forkAtTurnId: refused.id }).catch((cause: unknown) => cause),
+      ),
     ).toContain("never reached Codex");
   });
 
@@ -635,7 +642,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     // Device B still has version 0: refused instead of overwriting A.
     const stale = await api
       .updateUserSettings({ appearance: { colorScheme: ui.ColorScheme.LIGHT }, expectedVersion: 0n })
-      .catch((e: unknown) => e);
+      .catch((cause: unknown) => cause);
 
     expect((stale as ConnectError).code).toBe(Code.FailedPrecondition);
 
@@ -762,7 +769,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
 
     const forkError = await gw.runtime
       .runPromise(GatewayStore.use((s) => s.createThread(gw.userId, fork)))
-      .catch((e: unknown) => e);
+      .catch((cause: unknown) => cause);
 
     expect(String(forkError)).toContain("a fork keeps its parent's provider");
   });

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, copyFile, lstat, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname } from "node:path";
+import { isJsonObject, type JsonValue } from "@canopy/domain/json";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import {
   compareVersions,
@@ -53,11 +54,16 @@ export function managedInstructions(kind: string): string {
 
 export async function readUpdateRecord(binaryPath = process.execPath): Promise<UpdateRecord | undefined> {
   try {
+    // SAFETY: only recordUpdate writes this file (0600, atomic rename), always from an UpdateRecord.
     return JSON.parse(await readFile(`${binaryPath}.update.json`, "utf8")) as UpdateRecord;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    if (isMissingFile(error)) return undefined;
     throw error;
   }
+}
+
+function isMissingFile(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 async function recordUpdate(binaryPath: string, record: UpdateRecord): Promise<void> {
@@ -213,12 +219,24 @@ export async function confirmStartup(binaryPath = process.execPath, version = CA
 
 /** Only standalone entrypoints install this listener; the callback shares their ordinary update/drain lock. */
 export function onSupervisorHandover(handover: () => Promise<void>, log: (message: string) => void): void {
-  process.on("message", (message: unknown) => {
-    if (!message || typeof message !== "object" || !("type" in message) || message.type !== SUPERVISOR_HANDOVER) return;
-    void handover().catch((error: unknown) =>
-      log(`supervisor handover deferred: ${error instanceof Error ? error.message : String(error)}`),
+  process.on("message", (message) => {
+    if (!isHandoverRequest(message)) return;
+    void handover().catch((cause: unknown) =>
+      log(`supervisor handover deferred: ${cause instanceof Error ? cause.message : String(cause)}`),
     );
   });
+}
+
+/** IPC from the supervisor (Bun `serialization: "json"`). */
+function isHandoverRequest(message: unknown): message is { readonly type: typeof SUPERVISOR_HANDOVER } {
+  return typeof message === "object" && message !== null && "type" in message && message.type === SUPERVISOR_HANDOVER;
+}
+
+/** IPC from the supervised child, sent by confirmStartup. */
+function isStartupConfirmation(
+  message: JsonValue,
+): message is { readonly type: typeof STARTUP_CONFIRMED; readonly version: string } {
+  return isJsonObject(message) && message["type"] === STARTUP_CONFIRMED && typeof message["version"] === "string";
 }
 
 export async function rollbackBinary(binaryPath: string, reason: string): Promise<void> {
@@ -310,15 +328,10 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
           stdout: "inherit",
           stderr: "inherit",
           serialization: "json",
-          ipc(message: unknown, sender) {
+          ipc(message: JsonValue, sender) {
             if (
               sender !== child ||
-              !message ||
-              typeof message !== "object" ||
-              !("type" in message) ||
-              message.type !== STARTUP_CONFIRMED ||
-              !("version" in message) ||
-              typeof message.version !== "string" ||
+              !isStartupConfirmation(message) ||
               (expectedVersion && message.version !== expectedVersion)
             )
               return;

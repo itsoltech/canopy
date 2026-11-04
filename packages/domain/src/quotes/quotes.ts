@@ -29,7 +29,7 @@ export interface NotedQuote {
 }
 
 export function isQuoteSourceKind(kind: string): kind is QuoteSourceKind {
-  return (QUOTE_SOURCE_KINDS as readonly string[]).includes(kind);
+  return QUOTE_SOURCE_KINDS.some((known) => known === kind);
 }
 
 /** Output, calls, code and diffs reach the agent as a fenced block, so their whitespace stays exact. */

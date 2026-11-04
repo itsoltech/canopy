@@ -1,3 +1,4 @@
+// oxlint-disable-next-line typescript/triple-slash-reference -- gateway and integration tests typecheck this file under their own tsconfig; only a reference carries the ambient "*.sql" module declaration with it.
 /// <reference path="../sql-modules.d.ts" />
 import { Effect } from "effect";
 import { Migrator, SqlClient } from "effect/sql";

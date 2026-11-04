@@ -179,15 +179,16 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker: models, effort and ste
 
       if (c.provider === Provider.CODEX) {
         const settings = events
-          .filter((e) => e.threadId === threadId)
-          .map(
-            (e) =>
-              JSON.parse(e.rawJson || "{}") as {
-                method?: string;
-                params?: { threadSettings?: { model?: string; effort?: string } };
-              },
-          )
-          .filter((n) => n.method === "thread/settings/updated")
+          .flatMap((e) => {
+            if (e.threadId !== threadId) return [];
+
+            const notification = JSON.parse(e.rawJson || "{}") as {
+              method?: string;
+              params?: { threadSettings?: { model?: string; effort?: string } };
+            };
+
+            return notification.method === "thread/settings/updated" ? [notification] : [];
+          })
           .at(-1)?.params?.threadSettings;
 
         expect([settings?.model, settings?.effort]).toEqual([c.model, "low"]);

@@ -37,32 +37,32 @@ const EXECUTABLE_EXTENSIONS: ReadonlySet<string> = new Set([
   "appx",
 ]);
 
-const TEXT_TYPES: Readonly<Record<string, string>> = {
-  md: "text/markdown",
-  markdown: "text/markdown",
-  json: "application/json",
-  jsonl: "application/jsonl",
-  csv: "text/csv",
-  tsv: "text/tab-separated-values",
-  xml: "application/xml",
-  yaml: "application/yaml",
-  yml: "application/yaml",
-  toml: "application/toml",
-  html: "text/html",
-  htm: "text/html",
-  css: "text/css",
-  log: "text/plain",
-};
+const TEXT_TYPES = new Map([
+  ["md", "text/markdown"],
+  ["markdown", "text/markdown"],
+  ["json", "application/json"],
+  ["jsonl", "application/jsonl"],
+  ["csv", "text/csv"],
+  ["tsv", "text/tab-separated-values"],
+  ["xml", "application/xml"],
+  ["yaml", "application/yaml"],
+  ["yml", "application/yaml"],
+  ["toml", "application/toml"],
+  ["html", "text/html"],
+  ["htm", "text/html"],
+  ["css", "text/css"],
+  ["log", "text/plain"],
+]);
 
-const ZIP_TYPES: Readonly<Record<string, string>> = {
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  odt: "application/vnd.oasis.opendocument.text",
-  ods: "application/vnd.oasis.opendocument.spreadsheet",
-  epub: "application/epub+zip",
-  jar: "application/java-archive",
-};
+const ZIP_TYPES = new Map([
+  ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+  ["odt", "application/vnd.oasis.opendocument.text"],
+  ["ods", "application/vnd.oasis.opendocument.spreadsheet"],
+  ["epub", "application/epub+zip"],
+  ["jar", "application/java-archive"],
+]);
 
 export function extensionOf(name: string): string {
   const dot = name.lastIndexOf(".");
@@ -100,7 +100,7 @@ export function sniff(bytes: Uint8Array, name = ""): Sniffed {
   if (ascii(0, "%PDF-")) return binary("file", "application/pdf");
 
   if (at(0, 0x50, 0x4b, 0x03, 0x04) || at(0, 0x50, 0x4b, 0x05, 0x06))
-    return binary("file", ZIP_TYPES[ext] ?? "application/zip");
+    return binary("file", ZIP_TYPES.get(ext) ?? "application/zip");
 
   if (at(0, 0x1f, 0x8b)) return binary("file", "application/gzip");
 
@@ -142,7 +142,7 @@ export function sniff(bytes: Uint8Array, name = ""): Sniffed {
     if (head.startsWith("<!doctype html") || head.startsWith("<html"))
       return { kind: "file", mimeType: "text/html", text: true };
 
-    return { kind: "file", mimeType: TEXT_TYPES[ext] ?? "text/plain", text: true };
+    return { kind: "file", mimeType: TEXT_TYPES.get(ext) ?? "text/plain", text: true };
   }
 
   if (EXECUTABLE_EXTENSIONS.has(ext)) return binary("executable", "application/octet-stream");

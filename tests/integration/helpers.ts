@@ -6,10 +6,10 @@ import { openGatewayLink, type GatewayLinkOptions } from "@canopy/worker/gateway
 import { Provider } from "@canopy/contracts";
 import { startGrpcServer, type TlsMaterial } from "@canopy/transport";
 
-export const CREDENTIALS: Readonly<Record<string, string>> = {
-  "secret-worker-1": "worker-1",
-  "secret-worker-2": "worker-2",
-};
+export const CREDENTIALS = new Map([
+  ["secret-worker-1", "worker-1"],
+  ["secret-worker-2", "worker-2"],
+]);
 
 export interface TestCert extends TlsMaterial {
   readonly cleanup: () => void;
@@ -56,7 +56,7 @@ export async function startGateway(options: { tls?: TlsMaterial; link?: Partial<
   const waiters: Array<(c: WorkerConnection) => void> = [];
 
   const link = createWorkerLink({
-    authenticate: async (credential) => CREDENTIALS[credential],
+    authenticate: async (credential) => CREDENTIALS.get(credential),
     welcome: async () => ({ heartbeatIntervalSeconds: 15 }),
     onConnected: (connection) => {
       connected.push(connection);

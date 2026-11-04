@@ -70,12 +70,15 @@ export function parseSharedKey(key: string): SharedKey | undefined {
 
   if (!m) return undefined;
 
-  if (m[1]) return { kind: m[1] as "instance" | "models", harness: m[2]!, id: m[3]! };
+  const [, kind, harness, id, section, project] = m;
 
-  if (m[4])
-    return (SHARED_SETTINGS as readonly string[]).includes(m[4])
-      ? { kind: "settings", section: m[4] as SharedSettingsSection }
-      : undefined;
+  if (kind === "instance" || kind === "models") return { kind, harness: harness!, id: id! };
 
-  return PLAIN.test(m[5]!) ? { kind: "project", id: m[5]!.toLowerCase() } : undefined;
+  if (section) return isSharedSettingsSection(section) ? { kind: "settings", section } : undefined;
+
+  return PLAIN.test(project!) ? { kind: "project", id: project!.toLowerCase() } : undefined;
+}
+
+function isSharedSettingsSection(section: string): section is SharedSettingsSection {
+  return SHARED_SETTINGS.some((known) => known === section);
 }

@@ -4,6 +4,7 @@
  * the catalog) that StartTurn carries, and a message can join the running turn (steer) or fall back to the queue.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonObject } from "@canopy/domain";
 import { PermissionMode, Provider, ui, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
@@ -35,7 +36,7 @@ const steers = (threadId: string) =>
     threadId,
   );
 
-const json = (result: AgentToolResult) => JSON.parse(result.content) as Record<string, unknown>;
+const json = (result: AgentToolResult) => JSON.parse(result.content) as JsonObject;
 
 async function newThread(title: string, init: Partial<{ model: string; effort: string; initialMessage: string }> = {}) {
   return (

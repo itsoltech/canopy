@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonValue } from "@canopy/domain";
 import { create, type Message } from "@bufbuild/protobuf";
 import {
-  bots,
   computerLink as link,
   InteractionKind,
   PermissionMode,
@@ -62,7 +62,7 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
   const relayed = async () =>
     expect(await eventually(async () => lw.reachable().includes(n2) && l2.canCall(wn), Boolean, 15000)).toBe(true);
 
-  const tool = (name: string, args: unknown) => w.worker.callTool({ threadId: parent, tool: name, args });
+  const tool = (name: string, args: JsonValue) => w.worker.callTool({ threadId: parent, tool: name, args });
 
   /** An authenticated partner bypassing the UI, including deliberately forged envelopes. */
   async function raw(route: RelayRoute, name = "GetOverview", request: Message = create(ui.GetOverviewRequestSchema)) {

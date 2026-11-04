@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { JsonValue } from "@canopy/domain";
 
 /** Real HTTP MCP + OAuth fixture: token validation, one-use codes, S256 and rotating refresh tokens. */
 export function fakeConnector() {
@@ -137,7 +138,7 @@ export function fakeConnector() {
       };
 
       if (body.method.startsWith("notifications/")) return new Response(null, { status: 202 });
-      let result: unknown = {};
+      let result: JsonValue = {};
 
       if (body.method === "initialize")
         result = {

@@ -1,11 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { Result } from "effect";
+import type { JsonObject } from "../json.ts";
 import { AGENT_BUS_TOOLS, agentBusToolSpecs, agentBusToolsFor, decodeAgentBusCall } from "./tools.ts";
 
 const THREAD = "0196f0c1-0000-7000-8000-000000000000";
 
-function failure(name: string, args: unknown): string {
-  const result = decodeAgentBusCall(name, typeof args === "string" ? args : JSON.stringify(args));
+function failure(name: string, args: JsonObject): string {
+  return failureOf(name, JSON.stringify(args));
+}
+
+function failureOf(name: string, argumentsJson: string): string {
+  const result = decodeAgentBusCall(name, argumentsJson);
 
   if (Result.isSuccess(result)) throw new Error(`expected failure for ${name}`);
 
@@ -27,7 +32,7 @@ describe("agent bus tool specs", () => {
 
   test("constraints reach the provider schema", () => {
     const wait = specs.find((s) => s.name === "wait_threads")!.inputSchema as {
-      properties: Record<string, Record<string, unknown>>;
+      properties: Record<string, JsonObject>;
       required: string[];
     };
 
@@ -80,7 +85,7 @@ describe("decodeAgentBusCall", () => {
 
   test("rejects unknown tools, invalid JSON, unknown properties and out-of-range values", () => {
     expect(failure("spawn_agent", {})).toContain("unknown agent bus tool");
-    expect(failure("get_thread", "{oops")).toContain("not valid JSON");
+    expect(failureOf("get_thread", "{oops")).toContain("not valid JSON");
     expect(failure("get_thread", { thread_id: THREAD, extra: 1 })).toContain("excess property");
     expect(failure("get_thread", { thread_id: "not-a-uuid" })).toContain("thread_id");
     expect(failure("wait_threads", { thread_ids: [THREAD], timeout_seconds: 999 })).toContain("timeout_seconds");

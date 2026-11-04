@@ -171,28 +171,25 @@ type Segment = string | { readonly mention: Mention; readonly text: string };
  * Claude runs "/name" only at the very start: a command mention moves there (the text around it closes up), else a
  * skill at the start becomes "/name" (Claude Code loads the skill like a command). `invoked`: the mention run that way.
  */
-function claudeMessage(
-  message: string,
-  mentions: Mention[],
-): { text: string; mentions: Mention[]; invoked: Mention | undefined } {
+function claudeMessage(message: string, mentions: Mention[]) {
   const segments = segmentsOf(message, mentions);
   const command = mentions.find((m) => m.kind === MentionKind.COMMAND && m.source !== "platform");
 
   if (command) {
-    const at = segments.findIndex((s) => typeof s !== "string" && s.mention === command);
+    const at = segments.findIndex((s) => !isPlain(s) && s.mention === command);
     const left = segments.slice(0, at);
     const right = segments.slice(at + 1);
     // Whitespace at the seam closes up to one space.
     const lastLeft = left.at(-1);
 
-    if (typeof lastLeft === "string") left[left.length - 1] = lastLeft.replace(/\s+$/, "");
+    if (isPlain(lastLeft)) left[left.length - 1] = lastLeft.replace(/\s+$/, "");
     const firstRight = right[0];
 
-    if (typeof firstRight === "string") right[0] = firstRight.replace(/^\s+/, "");
+    if (isPlain(firstRight)) right[0] = firstRight.replace(/^\s+/, "");
     const rest: Segment[] = [...left, ...(left.some(nonEmpty) && right.some(nonEmpty) ? [" "] : []), ...right];
     const firstRest = rest[0];
 
-    if (typeof firstRest === "string") rest[0] = firstRest.replace(/^\s+/, "");
+    if (isPlain(firstRest)) rest[0] = firstRest.replace(/^\s+/, "");
     const head: Segment = { mention: command, text: `/${command.name}` };
 
     return { ...rebuild([head, ...(rest.some(nonEmpty) ? [" ", ...rest] : [])]), invoked: command };
@@ -203,9 +200,7 @@ function claudeMessage(
   if (first && first.kind === MentionKind.SKILL && !message.slice(0, first.start).trim()) {
     return {
       ...rebuild(
-        segments.map((s) =>
-          typeof s !== "string" && s.mention === first ? { mention: first, text: `/${first.name}` } : s,
-        ),
+        segments.map((s) => (!isPlain(s) && s.mention === first ? { mention: first, text: `/${first.name}` } : s)),
       ),
       invoked: first,
     };
@@ -214,8 +209,12 @@ function claudeMessage(
   return { text: message, mentions, invoked: undefined };
 }
 
+function isPlain(segment: Segment | undefined): segment is string {
+  return typeof segment === "string";
+}
+
 function nonEmpty(segment: Segment): boolean {
-  return typeof segment !== "string" || segment.length > 0;
+  return !isPlain(segment) || segment.length > 0;
 }
 
 function segmentsOf(message: string, sorted: readonly Mention[]): Segment[] {
@@ -233,12 +232,12 @@ function segmentsOf(message: string, sorted: readonly Mention[]): Segment[] {
   return segments;
 }
 
-function rebuild(segments: readonly Segment[]): { text: string; mentions: Mention[] } {
+function rebuild(segments: readonly Segment[]) {
   let text = "";
   const mentions: Mention[] = [];
 
   for (const segment of segments) {
-    if (typeof segment === "string") {
+    if (isPlain(segment)) {
       text += segment;
       continue;
     }

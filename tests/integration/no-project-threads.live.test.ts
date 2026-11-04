@@ -8,7 +8,7 @@ import { tempDirs } from "@canopy/testing";
 import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
-import { ManagedRuntime } from "effect";
+import { ManagedRuntime, Schema } from "effect";
 import { answers, startTestGateway, watchUntil } from "./support/gateway.ts";
 import { liveProxyReady, useLiveProxy } from "./support/live.ts";
 
@@ -17,9 +17,12 @@ const privateFile = process.env["CANOPY_LIVE_PROXY_FILE"];
 const privateUrlFile = process.env["CANOPY_LIVE_PROXY_URL_FILE"];
 const privateKeyFile = process.env["CANOPY_LIVE_PROXY_KEY_FILE"];
 
-const connection: { url?: string; key?: string } = privateFile
+const ProxyCard = Schema.Struct({ url: Schema.optionalKey(Schema.String), key: Schema.optionalKey(Schema.String) });
+
+const connection: Schema.Schema.Type<typeof ProxyCard> = privateFile
   ? await Bun.file(privateFile)
       .json()
+      .then((card) => Schema.decodeUnknownSync(ProxyCard)(card))
       .catch(() => {
         throw new Error("Private proxy file must contain JSON with url and key; contents suppressed");
       })
@@ -33,10 +36,7 @@ const proxyKey = privateKeyFile
   ? (await Bun.file(privateKeyFile).text()).trim()
   : (connection.key ?? process.env["CANOPY_LIVE_CLIPROXYAPI_KEY"]);
 
-if (
-  process.env["CANOPY_LIVE"] === "1" &&
-  (typeof proxyUrl !== "string" || !proxyUrl || typeof proxyKey !== "string" || !proxyKey || !dockerAvailable)
-) {
+if (process.env["CANOPY_LIVE"] === "1" && (!proxyUrl || !proxyKey || !dockerAvailable)) {
   throw new Error(
     "Live scratch verification requires private proxy credentials and Docker; refusing to silently skip it",
   );

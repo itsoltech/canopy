@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonObject } from "@canopy/domain";
 import { randomBytes } from "node:crypto";
 import { createServer, type AddressInfo } from "node:net";
 import { create } from "@bufbuild/protobuf";
@@ -310,7 +311,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
   test("only thread actions cross the link; requests that point elsewhere are refused", async () => {
     const aNode = la.hello().nodeId;
 
-    const call = async (name: string, request: Record<string, unknown>) => {
+    const call = async (name: string, request: JsonObject) => {
       const method = methodNamed(name)!;
 
       for await (const m of lb.remote(aNode, method, create(method.input, request), AbortSignal.timeout(5000)))
