@@ -51,7 +51,7 @@ services:
       # The reverse proxy tells the BFF the public scheme and host (form submissions check the origin).
       PROTOCOL_HEADER: x-forwarded-proto
       HOST_HEADER: x-forwarded-host
-      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-32M}
+      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-50M}
     ports:
       - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
 

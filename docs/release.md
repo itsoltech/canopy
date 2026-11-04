@@ -99,7 +99,7 @@ docker buildx build --target gateway --build-arg CANOPY_VERSION=$V --build-arg C
 
 | Obraz | Baza | Zawartość | Użytkownik | Healthcheck |
 | --- | --- | --- | --- | --- |
-| `canopy-gateway` | `distroless/cc-debian12:nonroot` | binarka gateway | `nonroot` | `canopy-gateway healthcheck` (TCP na `CANOPY_PORT`) |
+| `canopy-gateway` | `debian:bookworm-slim` + git, ca-certificates, libstdc++6 | binarka gateway; Git do źródeł skilli | 65532 | `canopy-gateway healthcheck` (TCP na `CANOPY_PORT`) |
 | `canopy-web` | `oven/bun:1.4.4-distroless` | `scripts/build-web.ts`: BFF zbundlowany z zależnościami + `client/` | 65532 | `GET /api/health` |
 | `canopy-worker` | `debian:bookworm-slim` + git, curl, ssh, tini | binarka worker | `canopy` (10001) | `canopy-worker healthcheck` (link online wg `CANOPY_WORKER_STATUS_FILE`) |
 

@@ -25,6 +25,10 @@ service GatewayService {
   rpc SaveLibrarySkill(SaveLibrarySkillRequest) returns (AgentEnvironmentSnapshot);
   rpc DeleteLibrarySkill(DeleteLibrarySkillRequest) returns (AgentEnvironmentSnapshot);
   rpc ResolveSkillDrift(ResolveSkillDriftRequest) returns (AgentEnvironmentSnapshot);
+  rpc PreviewSkillSource(PreviewSkillSourceRequest) returns (SkillSourcePreview);
+  rpc AddSkillSource(AddSkillSourceRequest) returns (AgentEnvironmentSnapshot);
+  rpc CheckSkillSource(CheckSkillSourceRequest) returns (SkillSourcePreview);
+  rpc ApplySkillSource(ApplySkillSourceRequest) returns (AgentEnvironmentSnapshot);
   // Safe model picker metadata for a bot, resolved at its home. No credentials or connector grants.
   rpc GetBotProviderInstances(GetBotRequest) returns (ListProviderInstancesResponse);
   rpc GetComputers(ComputersRequest) returns (ComputersSnapshot);

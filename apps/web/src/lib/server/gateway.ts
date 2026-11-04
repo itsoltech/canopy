@@ -48,6 +48,10 @@ export function failWith(cause: unknown): never {
         error(400, cause.rawMessage);
       case Code.NotFound:
         error(404, cause.rawMessage);
+      case Code.PermissionDenied:
+        error(403, cause.rawMessage);
+      case Code.ResourceExhausted:
+        error(429, cause.rawMessage);
       case Code.FailedPrecondition:
         error(409, cause.rawMessage);
       case Code.Unavailable:

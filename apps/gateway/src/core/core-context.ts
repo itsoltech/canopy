@@ -58,6 +58,7 @@ export type CoreServices =
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<CoreServices, unknown>;
 
 export interface GatewayCoreOptions {
+  readonly skillSources?: import("../agent-environment/source-discovery.ts").SourceOptions;
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;
   readonly sshSecretsKey?: Buffer;
   /** Test-only sources of the latest provider CLI versions (docs/provider-cli.md). */

@@ -527,6 +527,7 @@ export interface TestGateway {
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
 export async function startTestGateway(
   options: {
+    skillSources?: GatewayCoreOptions["skillSources"];
     cliLatest?: GatewayCoreOptions["cliLatest"];
     updates?: GatewayCoreOptions["updates"];
     attachmentLimits?: AttachmentLimits;
@@ -577,6 +578,7 @@ export async function startTestGateway(
   };
 
   const core = new GatewayCore({
+    ...(options.skillSources && { skillSources: options.skillSources }),
     runtime,
     instanceId: "test",
     userId,
@@ -663,7 +665,7 @@ export async function startTestGateway(
     addWorker,
     connect,
     close: async () => {
-      core.stopSweep();
+      await core.stopSweep();
       await core.bots.stop();
 
       for (const w of workers) {

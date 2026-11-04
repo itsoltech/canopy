@@ -3,9 +3,9 @@
 Projekt: 2026-11-04. Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
 do bazy gatewaya; użytkownik nie konfiguruje zmiennych środowiskowych ani plików
-usług. Etapy 1–2 obejmują instrukcje Claude/Codex, tagi i upload oraz synchronizację
-skilli Claude/Codex/Grok. Źródła upstream, aktualizacje i marketplace (etapy 3–4)
-pozostają projektem.
+usług. Etapy 1–3 obejmują instrukcje Claude/Codex, tagi, upload i synchronizację
+skilli Claude/Codex/Grok oraz źródła Git/skills.sh z utrzymaniem wersji.
+Marketplace i współdzielenie biblioteki pozostają projektem etapu 4.
 
 ## Badanie źródeł i wersji
 
@@ -231,28 +231,116 @@ Foldery są kodowane base64 w JSON: produkcyjny web wymaga `BODY_SIZE_LIMIT=50M`
 ten rozmiar. Upload ZIP pozostaje ograniczony do 10 MiB, pliki do 1 MiB,
 1000 plików i 25 MiB po rozpakowaniu.
 
-## Źródła, pole komendy i aktualizacje (późniejsze etapy)
+## Źródła — badanie etapu 3
 
-Pole **Add from command or source** rozpoznaje zamkniętą gramatykę:
-`npx skills add owner/repo [--skill name]`, referencję repo/ścieżki oraz
-`plugin@marketplace` z jawnym wyborem harnessu. Nie uruchamia wklejonego shella,
-podstawień, potoków, separatorów, flag env ani dowolnych argumentów. Pokazuje
-rozpoznane repo, wybrane skille, commit, pliki, licencję i przypisania. Dopiero
-**Add and sync** upoważnia do instalacji przypiętej wersji. Pobranie katalogu
-źródła nie uruchamia jego kodu.
+Resolver oparto na odczycie kodu **skills 1.7.6**, commit
+`9197d919034d19010ae303cf96bf19ad087dd4be`, bez uruchamiania `npx` ani kodu
+repozytoriów. Źródła: [parser referencji](https://github.com/vercel-labs/skills/blob/9197d919034d19010ae303cf96bf19ad087dd4be/src/source-parser.ts),
+[discovery](https://github.com/vercel-labs/skills/blob/9197d919034d19010ae303cf96bf19ad087dd4be/src/skills.ts),
+[add i flagi](https://github.com/vercel-labs/skills/blob/9197d919034d19010ae303cf96bf19ad087dd4be/src/add.ts),
+[skills.sh.json](https://github.com/vercel-labs/skills/blob/9197d919034d19010ae303cf96bf19ad087dd4be/src/skills-sh-config.ts),
+[wyszukiwanie katalogu](https://github.com/vercel-labs/skills/blob/9197d919034d19010ae303cf96bf19ad087dd4be/src/find.ts).
 
-Preferowany skill resolver pobiera niezmienny artefakt w gateway, zgodny z
-formatami `skills`, zamiast `npx` na każdym workerze. Gdy potrzebny jest CLI,
-stosuje przypięte stałe argv i prywatny HOME/staging, jak
-[przepisy provider-cli](provider-cli.md). CLI nie dostaje auth Canopy ani
-sekretów connectorów. Marketplace command sources i instalatory z hooks nie
-wchodzą do automatycznego przepisu; wymagają osobnego jawnego działania.
+CLI rozróżnia repo, subpath, GitHub tree ref, fragment `#ref@skill` i skrót
+`owner/repo@skill`. Jedno repo może dostarczać wiele skilli. Root `SKILL.md` ma
+pierwszeństwo; `--full-depth` rozszerza discovery. Typowe katalogi to `skills/`,
+`.curated`, `.experimental`, `.system` i katalogi skills harnessów. Dodatkowe
+kontenery deklaruje `skills.sh.json` przez `paths: ["./…"]`; istnieje ograniczony
+fallback rekurencyjny. `metadata.internal: true` wymaga jawnej nazwy. Nazwa YAML,
+a nie nazwa folderu, jest tożsamością skilla. [skills.sh](https://skills.sh) jest
+katalogiem, nie paczką npm skilla; link owner/repo/skill weryfikujemy przez
+`https://skills.sh/api/search?q=<name>`, a pliki zawsze pochodzą z Git.
 
-Gateway sprawdza upstream git ref/npm/marketplace w cache, pokazuje **Update
-available**, commit/wersję, source i diff. Domyślnie aktualizacja ręczna;
-auto-update jest osobną zgodą **per element**, dla zatwierdzonego źródła i zakresu
-wersji. Zmiana źródła, uprawnień, hooks lub nowy wykonywalny komponent wymaga
-ponownego działania właściciela. Niedostępny upstream zostawia bieżącą wersję.
+Canopy obsługuje zgodny podzbiór referencji i flag, nie emuluje całego CLI.
+Akceptuje `npx [-y] skills[@version] add …` (także a/install/i), `bunx`, `pnpx`,
+`skills add`, bezpośredni URL HTTPS Git, GitHub shorthand/path/tree i skills.sh.
+`--skill/-s` i `--agent/-a` przyjmują listę; harnessy: claude-code/claude, codex,
+grok lub `*`. `--global/-g` sugeruje również Device CLI; `--copy`, `--yes/-y`,
+`--all`, `--list/-l` dają informację i nigdy nie omijają potwierdzenia Canopy.
+`--full-depth` rozszerza discovery. Wersja `skills@…` nie pobiera pakietu npm.
+Nieznane flagi, shell, podstawienia, operatory, env, SSH, file, plain HTTP oraz
+URL z poświadczeniami/query są odrzucane. Ref podajemy jako `#branch`, `#tag`
+lub `#commit`, również przez GitHub `/tree/<ref>/path`. Ref z ukośnikiem można
+podać po `#`; parser tree nie zgaduje granicy gałęzi zawierającej ukośnik.
+
+## Źródła — konkretny protokół etapu 3
+
+Pobieranie działa **w gateway**, który ma sieć, Git i zaszyfrowany magazyn
+konektorów. Worker dostaje wyłącznie istniejący `SkillArtifact`, bez URL dostępu,
+tokena i komendy instalacji. Git działa ze stałym argv, prywatnym tymczasowym
+HOME/config, bez checkoutu, hooks, submodułów i credential helpers. Nie potrzeba
+Node/npm ani `skills`. Publiczny DNS IPv4 jest sprawdzany i przypinany do
+połączenia curl; adresy prywatne/link-local/metadata są odrzucane, proxy oraz
+redirecty wyłączone. Git URL musi używać HTTPS. Fixture transport i registry
+endpoint są wyłącznie opcjami startowymi testu, bez pól w RPC.
+
+**Source access** wybiera istniejące połączone konto właściciela. Własny konektor
+musi mieć ten sam origin co repo; oficjalny konektor GitHub z dokładnym endpointem
+`https://api.githubcopilot.com/mcp/` może autoryzować wyłącznie `https://github.com`.
+Gateway odszyfrowuje tylko Authorization/access token; Bearer GitHub zamienia na
+Basic `x-access-token`. Nagłówek dostaje wyłącznie proces fetch przez środowiskową,
+URL-scoped konfigurację Git; nie trafia do argv, pliku config, registry, logów,
+artefaktu ani workera. Preview przechowuje ID konta, nie sekret. Add/apply ponownie
+sprawdza właściciela, połączenie i host, więc odłączenie konta unieważnia zgodę
+starego preview. Błędy Git są zastępowane stałymi komunikatami bez stderr.
+
+Migracja `0057_agent_skill_sources` dodaje commit do niezmiennych wersji i trwałe,
+owner-scoped preview. Addytywne UI RPC i BFF POST
+`/api/agent-environment/skills/source/{preview,add,check,apply}`:
+
+1. `PreviewSkillSource(command, credential_account_id)` parsuje referencję,
+   rozwiązuje ref do SHA i zamraża pliki. Zwraca `SkillSourcePreview`: ID,
+   repo/ref/commit, ścieżki i pełne artefakty skilli, licencję repo, notices,
+   sugerowane harnessy/Device CLI, expiry. Nie zmienia biblioteki ani workerów.
+   **Add from command or source** pokazuje pliki i treść, wyróżnia scripts/hooks,
+   executable, shebang oraz pliki interpretowane; właściciel wybiera skille
+   i zwykłe przypisania przed **Add and sync**. Cache: 30 minut, do 5 preview/owner.
+2. `AddSkillSource(preview_id, paths, assignment, expected_revision)` potwierdza
+   dokładne zamrożone artefakty, nawet gdy upstream już się przesunął. Atomowo
+   tworzy wybrane definicje i wersję 1; source policy zaczyna z manual update.
+   Zwykła walidacja przypisań i reconcile pozostają jedyną ścieżką do workerów.
+3. `CheckSkillSource(id)` ponownie pobiera zapisany ref i ścieżkę, porównuje
+   tożsamość skilla, zapisuje czas/błąd, candidate SHA i ID preview. Zwraca też
+   bazowy checksum; zapis metadanych zwiększa rewizję. UI odczytuje świeżą
+   rewizję, pokazuje **Update available**, pliki added/modified/removed,
+   script/executable oraz porównanie treści bieżącej i kandydata. Nowy commit
+   bez zmiany plików jest widoczny jako zmiana samego upstream commit.
+4. `ApplySkillSource(id, preview_id, expected_revision)` wymaga tego samego
+   źródła/ref/ścieżki/konta, nazwy i bazowego checksum. Tworzy kolejny niezmienny
+   numer wersji z SHA kandydata, usuwa wykorzystany preview i uzgadnia stan.
+   Upload własnego folderu odłącza źródło. `SaveLibrarySkill` nie pozwala
+   podmienić provenance: przyjmuje tylko auto-update/pin. Wybór wcześniejszej
+   Library version zachowuje jej commit i automatycznie przypina element.
+
+Gateway przy starcie i co minutę wybiera elementy wymagające sprawdzenia po
+godzinie. Pin pauzuje okresowe sprawdzanie; Check upstream pozostaje dostępne.
+Manual jest domyślny. Osobny opt-in **Automatic updates** per skill dopuszcza
+zmiany dokumentacji/zasobów, ale zmiany skryptów lub bitów executable zawsze
+pozostawia do ręcznego review. To heurystyka plików, nie analiza bezpieczeństwa
+instrukcji; także SKILL.md może zmienić zachowanie agenta. Błąd upstream nie
+zmienia zainstalowanego artefaktu. Definicje, wybrane SHA, błędy i kandydaci
+przeżywają restart; po wygaśnięciu preview potrzebny jest kolejny check.
+Rewizja oraz checksum blokują zapis na podstawie nieaktualnego przeglądu.
+
+Limity repo: 5000 plików, 16 MiB/plik, 50 MiB zadeklarowanych blobów. Limity
+wybranego preview: 100 skilli i łącznie 25 MiB, nadal 1 MiB/plik oraz walidacja
+artefaktu etapu 2. Całe drzewo odrzuca symlinki, gitlink/submoduły, specjalne
+wpisy i nieprzenośne ścieżki; nie wykonuje się filtrów repo. Fetch jest shallow,
+stdout/stderr ograniczone, pojedynczy proces ma 60 s, całe resolution 120 s
+(także oczekiwanie na DNS można anulować). Shallow fetch wymaga smart HTTP;
+dumb HTTP jest odrzucany przed odczytem alternatywnych adresów obiektów.
+Bundle URI, packfile URI i rekurencja submodułów są wyłączone.
+Co 50 ms sprawdzany jest limit katalogu 64 MiB; próbkowanie może chwilowo go
+przekroczyć, nie jest twardą quota filesystemu. Gateway rozwiązuje jedno źródło
+naraz; kolejne żądanie dostaje błąd zajętości. Shutdown anuluje własną grupę
+procesów Git i czeka na sprzątnięcie repo przed zamknięciem runtime bazy.
+Nie uruchamiamy skryptów, instalatorów, hooks ani testów upstream.
+
+Docker gateway zawiera Git; samodzielna binarka wymaga Git w PATH i CA na hoście.
+Desktopowy BFF oraz Docker/compose/`.env.example` ustawiają `BODY_SIZE_LIMIT=50M`.
+To tylko bootstrap serwera, a nie konfiguracja użytkownika. Proxy musi dopuścić
+ten sam rozmiar; folder 25 MiB staje się około 34 MiB po base64 w JSON.
+Marketplace `plugin@marketplace`, npm packages i linked library należą do etapu 4.
 
 ## Bezpieczeństwo, Docker i połączone komputery
 
@@ -267,8 +355,8 @@ wynikowej instrukcji/harness/worker, 256 KiB czytanego pliku. Budżet Codexa
 obejmuje też projektowe instrukcje, więc UI pokazuje wielkość podglądu. Upload
 skilli: 10 MiB archiwum, 25 MiB po rozpakowaniu, 1000 plików, 1 MiB/plik;
 odrzucamy symlinki, urządzenia, ścieżki absolutne, `..`, case-collisions i zip bombs.
-Późniejsze źródła upstream wymagają HTTPS, limitów redirectów i zakazu
-metadata/link-local oraz poświadczeń w URL.
+Źródła upstream wymagają HTTPS, wyłączają redirecty i odrzucają
+metadata/link-local oraz poświadczenia w URL.
 
 Docker worker synchronizuje do **własnego wolumenu**, nie domu hosta. Read-only
 volume daje widoczny błąd. Kod pluginu/skilla nie instaluje zależności OS; zmiana
@@ -280,7 +368,7 @@ rozszerzony opt-in o `environment:<uuid>`: wspólna definicja + niezmienne wersj
 artefaktów, istniejące wektory i konflikty, capability po obu stronach. Przypisania
 do workerów, tagi, ścieżki, drift i zgody instalacyjne zostają lokalne. Otrzymanie
 wspólnego elementu nie jest zgodą na wykonanie kodu na maszynach odbiorcy.
-Etapy 1–2 nie udostępniają biblioteki między gatewayami.
+Etapy 1–3 nie udostępniają biblioteki między gatewayami.
 
 ## Plan stosu
 
@@ -289,7 +377,7 @@ Etapy 1–2 nie udostępniają biblioteki między gatewayami.
    status i temp-HOME integration. Pełna samodzielna funkcja bez instalacji kodu.
 2. **Umiejętności** (`feat/agent-environment-2`, zaimplementowany): bezpieczny upload folder/zip, wersje i manifesty własności,
    synchronizacja do rzeczywistych domów, usuwanie i rollback; również Grok adapter.
-3. **Źródła i utrzymanie**: git/skills.sh refs, parser komendy, update tracking,
+3. **Źródła i utrzymanie** (`feat/agent-environment-3`, zaimplementowany): git/skills.sh refs, parser komendy, update tracking,
    ręczne/opt-in automatyczne aktualizacje z diff i zamrożonymi artefaktami.
 4. **Marketplace i współdzielenie**: Claude/Codex plugins, capability/version-aware
    recipes, przegląd komponentów wykonywalnych, opt-in linked-computer library.
@@ -303,7 +391,7 @@ scala się razem squash. To zlecenie nie obejmuje push ani otwierania PR.
 `workflow_mode: autonomous-planned`, `mode_source: explicit-user-task-instruction`,
 `decision_authority: delegated`, `scope: current-task`,
 `artifact_state: ready-for-execution`, `execution_mode: inline`.
-Zlecono projekt i implementację etapów 1–2 jako subagent, z samodzielnym doborem
+Zlecono projekt i implementację etapów 1–3 jako subagent, z samodzielnym doborem
 odwracalnych szczegółów. Protected constraints: bez push/PR, produkcji, prawdziwych
 domów CLI w testach, portów stosu maintainera, zmian Tailscale i instalacji kodu
 upstream. Kryterium: instrukcje i skille end to end, owner scoping, zgodność ze starszym workerem,

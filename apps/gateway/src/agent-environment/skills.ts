@@ -41,10 +41,18 @@ export class EnvironmentSkills {
         if (!previous && library.length >= 100)
           return yield* Effect.fail(new ConnectError("Use at most 100 skills.", Code.InvalidArgument));
         const saved = clone(ui.LibrarySkillSchema, input);
+        saved.source = previous?.source
+          ? create(ui.SkillSourceSchema, {
+              ...previous.source,
+              autoUpdate: input.source?.autoUpdate ?? false,
+              pinned: input.version !== previous.version || (input.source?.pinned ?? false),
+            })
+          : undefined;
         saved.id ||= Bun.randomUUIDv7();
         saved.versions = previous?.versions ?? [];
 
         if (uploaded) {
+          saved.source = undefined;
           saved.version = (saved.versions.at(-1) ?? 0n) + 1n;
           saved.versions = [...saved.versions, saved.version];
           saved.artifact = uploaded;

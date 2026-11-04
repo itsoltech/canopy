@@ -7,7 +7,7 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import AssignmentEditor from "./AssignmentEditor.svelte";
+  import SkillDestinations from "./SkillDestinations.svelte";
   import SkillUpload from "./SkillUpload.svelte";
   import SkillOverrides from "./SkillOverrides.svelte";
 
@@ -68,36 +68,25 @@
         {skill.artifact?.files.length === 1 ? "file" : "files"} · {skill.artifact?.description}
       </p>
     {/if}
-    <div class="flex flex-wrap gap-4" aria-label="Skill harnesses">
-      {#each ["claude", "codex", "grok"] as harness (harness)}
-        <Checkbox
-          name="skill-{harness}"
-          label={harness === "claude" ? "Claude" : harness === "codex" ? "Codex" : "Grok"}
-          bind:checked={
-            () => skill.harnesses.includes(harness),
-            (checked) =>
-              (skill.harnesses = checked ? [...skill.harnesses, harness] : skill.harnesses.filter((h) => h !== harness))
-          }
-        />
-      {/each}
-    </div>
-    <Checkbox
-      name="skill-platform-home"
-      label="Canopy agent sessions"
-      description="Every isolated home for the selected harnesses."
-      bind:checked={skill.platformHome}
-    />
-    <Checkbox
-      name="skill-device-home"
-      label="Device CLI too"
-      description="Includes ~/.agents/skills for Codex. These user skills can also be discovered by other compatible harnesses on the device."
-      bind:checked={skill.deviceHome}
-    />
-    {#if skill.selector}<AssignmentEditor
-        bind:selector={skill.selector}
-        {workers}
-        disabled={skill.overrides.filter((o) => o.disabled).map((o) => o.workerId)}
-      />{/if}
+    {#if skill.source}
+      <p class="text-base wrap-anywhere text-zinc-500 sm:text-sm dark:text-zinc-400">
+        Source: {skill.source.url} · {skill.source.ref}. Uploading new files detaches upstream tracking. Rolling back
+        pins the selected version.
+      </p>
+      <Checkbox
+        name="source-auto-update"
+        label="Automatically update this skill"
+        description="Check hourly. Script or executable changes always require review."
+        bind:checked={skill.source.autoUpdate}
+      />
+      <Checkbox
+        name="source-pinned"
+        label="Pin this version"
+        description="Pause periodic checks and automatic updates. Manual checks and reviewed updates remain available."
+        bind:checked={skill.source.pinned}
+      />
+    {/if}
+    <SkillDestinations bind:skill {workers} />
     <Disclosure>
       {#snippet summary()}<h3 class="text-base font-medium text-balance">Machine overrides</h3>{/snippet}
       <SkillOverrides class="pt-4" bind:skill {workers} />

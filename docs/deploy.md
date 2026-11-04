@@ -94,6 +94,8 @@ Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`:
   i bez nagłówka przyjmuje `https`, dlatego compose ustawia `PROTOCOL_HEADER=x-forwarded-proto`
   i `HOST_HEADER=x-forwarded-host`. Uploady: `BODY_SIZE_LIMIT` ≥ limitu pliku gatewaya;
   biblioteka skilli wymaga `BODY_SIZE_LIMIT=50M` (folder 25 MiB kodowany base64 w JSON).
+  Dockerfile, compose, `.env.example` i runtime desktopowy ustawiają już 50M.
+  To parametr startowy serwera BFF, nie ustawienie użytkownika; proxy musi dopuścić ten sam rozmiar.
   Przykład Caddy: `canopy.example.com { reverse_proxy 127.0.0.1:3000 }` (Caddy ustawia `X-Forwarded-*`).
 - **gateway** (`GATEWAY_PORT`, 7443; wewnątrz procesu `CANOPY_PORT`): port dla BFF i istniejących
   lokalnych oraz zdalnych workerów. Nadal obsługuje WorkerLink, Enrollment i zamrożony UpdateService.
@@ -103,6 +105,13 @@ Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`:
   komputerów i zdalnych workerów. Włącz go w Settings → Network access i dodaj nazwę/IP hosta.
   Nie kończ TLS na proxy; klient przypina certyfikat gatewaya. Adresy workerów i limity uploadów
   zmieniaj w aplikacji. `CANOPY_TLS_CERT` i `CANOPY_TLS_KEY` dotyczą tylko portu procesu.
+
+Źródła skilli pobiera gateway: jego host potrzebuje Git w `PATH`, certyfikatów CA
+i wychodzącego HTTPS do źródła oraz `skills.sh` przy linkach katalogu. Obraz gatewaya
+zawiera Git na `debian:bookworm-slim`, nadal działa jako UID 65532. Instalacja
+binarki poza Dockerem wymaga dostarczenia Git przez administratora. Nie trzeba
+instalować `skills`, Node ani npm; wklejone komendy nie są uruchamiane. Dane dostępu
+pochodzą wyłącznie z zaszyfrowanego magazynu konektorów gatewaya.
 
 Worker w kontenerze (opcjonalnie, profil `worker`) — token z Settings → Workers → Add worker:
 

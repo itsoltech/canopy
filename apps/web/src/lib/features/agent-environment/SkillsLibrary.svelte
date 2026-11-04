@@ -6,6 +6,8 @@
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import AssignmentSummary from "./AssignmentSummary.svelte";
   import SkillEditor from "./SkillEditor.svelte";
+  import SkillSourceImport from "./SkillSourceImport.svelte";
+  import SkillSourceUpdate from "./SkillSourceUpdate.svelte";
   import { SkillsState } from "./skills-state.svelte.ts";
   import type { EnvironmentState } from "./environment-state.svelte.ts";
 
@@ -39,6 +41,7 @@
         >If the environment changed while you were editing, cancel and reopen the saved skill before trying again.</Alert
       >{/if}
   {:else}
+    <SkillSourceImport {environment} />
     <div class="grid divide-y divide-zinc-950/10 dark:divide-white/10">
       {#each environment.snapshot.skills as skill (skill.id)}
         <div class="grid min-w-0 gap-2 py-3 first:pt-0 last:pb-0">
@@ -64,6 +67,7 @@
             workers={environment.snapshot.workers}
             disabled={skill.overrides.filter((o) => o.disabled).map((o) => o.workerId)}
           />
+          <SkillSourceUpdate {skill} {environment} />
         </div>
       {:else}
         <div class="grid gap-2 rounded-xl bg-zinc-950/3 p-5 dark:bg-white/4">

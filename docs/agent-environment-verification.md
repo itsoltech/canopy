@@ -108,6 +108,133 @@ Dokładny SHA znajduje się w raporcie końcowym zadania.
 
 ---
 
+## Etap 3 — źródła i utrzymanie
+
+Data: 2026-11-04. Gałąź `feat/agent-environment-3`, po `git fetch origin`
+utworzona z lokalnego `feat/agent-environment-2` (`a3fbec63`). Migracja
+`0057_agent_skill_sources`, po najwyższej lokalnej migracji `0056`; wpis w indeksie
+i schema test. Bez push, PR, tagów i zmian stosu maintainera.
+
+### Badanie i rezultat
+
+Przeczytano źródła skills **1.7.6**, commit
+`9197d919034d19010ae303cf96bf19ad087dd4be`, bez wykonywania `npx`: parser,
+discovery, add, konfigurację skills.sh.json i wyszukiwanie katalogu.
+Linki do przypiętych źródeł oraz konkretny protokół:
+[agent-environment.md](agent-environment.md#źródła--badanie-etapu-3).
+Repozytoria mogą zawierać wiele skilli, root ma pierwszeństwo, katalog skills.sh
+prowadzi do repo, a nie do paczki npm. Oddzielono limity całego repo i wybranych
+artefaktów: duże zasoby projektu poza katalogami skilli nie są ich uploadem.
+
+Gateway parsuje komendę bez shella, pobiera Git HTTPS do prywatnego stagingu,
+zamraża commit/pliki w trwałym preview i importuje dopiero po Add and sync.
+Śledzi ref, udostępnia diff i ręczne update, opt-in auto dla zmian bez skryptów,
+pin i rollback z provenance. Istniejący reconcile synchronizuje wersje do workerów.
+Prywatne źródła używają wyłącznie zaszyfrowanego magazynu konektorów; token
+pozostaje w gateway. Docker gateway zawiera Git, BFF desktop/Docker/compose
+i przykładowy env ustawiają 50M, co mieści maksymalny folder 25 MiB jako JSON.
+
+### Sprawdzenia etapu 3
+
+| Polecenie | Wynik |
+| --- | --- |
+| `bun install` | PASS; bez zmiany lockfile, dwa zablokowane postinstall pozostawiono bez ręcznego uruchamiania |
+| `bun run gen:check` | PASS; addytywne UI RPC i wygenerowany kod zgodne, WorkerLink bez zmiany |
+| `bun run typecheck` | PASS wszystkich pakietów; Svelte 0 błędów i 0 ostrzeżeń |
+| `bun run lint` | PASS po dozwolonym lint:spacing; bez globalnego oxlint --fix |
+| `bun run format:check` | PASS po bun run format |
+| `bun run --filter @canopy/web build` | PASS; standardowe ostrzeżenie o chunkach >500 kB |
+| `bun run check:tmp` | Końcowy pełny przebieg PASS: **870 pass, 150 skip, 0 fail**, 5338 asercji, 1020 testów / 164 pliki; TMPDIR czysty |
+| `bun run check:tmp tests/integration/agent-skill-sources.test.ts tests/integration/thread-secrets.test.ts tests/integration/thread-mirrors.test.ts` | PASS: **28 pass, 0 fail**, 271 asercji, TMPDIR czysty; po zmianie oczekiwania na shutdown |
+| `bun run check:tmp tests/integration/agent-skill-sources.test.ts` | PASS po końcowych poprawkach DNS/Git i teście tagu: **7 pass, 0 fail**, 73 asercje; TMPDIR czysty |
+
+Logi w `/home/nix/.cache/canopy-agent-environment-3/`: `check-tmp.log`,
+`check-tmp-final.log`, `focused-tests.log`, `final-focused-tests.log`,
+`source-tests-final.log`, `gen-check.log`, `typecheck-final.log`, `lint.log`,
+`format-check.log`, `web-build.log`, `browser.log`. Testy używają lokalnych bare Git,
+lokalnego smart HTTP przez git http-backend, fałszywego registry oraz osobnego
+PostgreSQL. Nie pobierają pakietów ani repo z Internetu i nie uruchamiają modeli.
+
+### Pokrycie etapu 3
+
+1. Pasted command z wersją CLI i flagami, repo z wieloma skillami, subpath,
+   historyczny SHA, tag i GitHub tree ref, root preference, full-depth, skills.sh.json,
+   skills.sh przez lokalny katalog oraz odrzucenie podmienionej tożsamości katalogu.
+   Preview nie zmienia rewizji; upstream przesunięty przed Add nie zmienia
+   zamrożonych bajtów. Executable i źródłowy commit są zachowane.
+2. Update detection, diff z wyróżnionym skryptem, jawne Apply, gRPC reconcile
+   i odczyt nowych bajtów w temp HOME. Rollback odtwarza pliki i wcześniejszy SHA,
+   pin pauzuje scheduler. Odtworzony serwis działa z trwałym stanem; auto-update
+   dopuszcza dokumentację i zatrzymuje zmianę skryptu do review.
+3. Owner scoping preview/konta/update/historii. Oficjalny konektor GitHub i własne
+   konto tego samego origin autoryzują prawdziwy lokalny HTTP fetch (test obserwuje
+   tylko zgodność nagłówka jako boolean). Obcy owner/host i odłączone konto są
+   odrzucane; snapshoty, preview, artefakty, raporty workerów i audyt nie zawierają
+   tokena. Registry nigdy nie dostaje Authorization.
+4. Hostile shell, nieznane flagi, poświadczenia w URL, SSH/file/plain-local,
+   loopback/metadata, traversal, zbyt duży plik skilla i symlink są odrzucane.
+   Dumb HTTP kończy się błędem przed pobieraniem obiektów/alternates; URI bundli
+   i packfile są wyłączone. Oczekiwanie na DNS podlega anulowaniu i deadline.
+   Dwa równoległe resolve nie przekraczają limitu. Zawieszony lokalny fetch jest
+   anulowany przy stop; shutdown czeka na cleanup, biblioteka pozostaje bez zmian
+   i checker nie znajduje tymczasowych repo.
+
+Po końcowym pełnym przebiegu ponowiono testy źródeł dla dodatkowej ochrony Git/DNS
+i tag ref, a także typecheck, lint, format:check oraz web build. Nie rozszerzano
+zestawu E2E. Oba pełne przebiegi były bez błędów; pierwszy miał 869 pass przed
+dodaniem testu anulowania.
+
+### UI, design i componentize
+
+Zastosowano `design` i osobny przebieg `componentize`: kit Input/Select/Checkbox,
+Disclosure/Alert/Button, wspólne SkillDestinations dla edycji i importu,
+SkillSourceFiles dla przeglądu i update, VersionComparison także dla diffu źródła.
+SourceCredentialPicker i SourceState oddzielają wybór konta oraz obsługę żądań.
+
+Prawdziwa przeglądarka: **1280×800**, **390×844**, light/dark. Sprawdzono diff,
+wyróżnienie skryptów, długie URL, zawijanie treści, import `bunx skills add …
+--skill test-design --agent codex`, preview SHA/licencji/plików, Add and sync oraz
+Apply update and sync. UI potwierdziło v2 istniejącego skilla i v1 nowego;
+odczyt temp HOME Codexa potwierdził oba zestawy bajtów. Naprawiono wyścig rewizji:
+odpowiedź check zmienia stan, a równoczesne SSE może pozostawić starszy snapshot
+podczas własnego refresh; apply używa teraz rewizji zwróconej przez zakończony
+odczyt. Po poprawce rzeczywiste kliknięcie Apply zakończyło się sukcesem.
+Nie stwierdzono poziomego przepełnienia treści; jednoliniowy input przewija
+wewnętrznie długą komendę. Nie dodano testów komponentów ani zestawu E2E UI.
+
+Zrzuty poza repo, `/home/nix/.cache/canopy-agent-environment-3/evidence/`:
+
+- `desktop-light.png`, `desktop-dark.png` — przegląd kandydata i diff.
+- `phone-light.png`, `phone-dark.png` — ten sam widok na telefonie.
+- `import-phone-light.png` — commit, licencja, pliki i wyróżnienie skryptu.
+- `import-success-desktop-light.png` — potwierdzenie importu, wybrany commit i v2.
+
+Fixture: własny web **18683**, losowe porty gatewaya i PostgreSQL, lokalne bare repo,
+wyłączone harnessy i domy w `~/.cache/canopy-agent-environment-3/browser`.
+Kartę zamknięto, własne procesy fixture'a zatrzymano. Nie dotykano prawdziwych
+domów CLI, zastrzeżonych portów, procesów maintainera ani Tailscale.
+
+### Przegląd i granice dowodów etapu 3
+
+`itsol-self-review` lokalnie: owner/revision/CAS, zamrożenie i historia provenance,
+brak sekretów w argv/artefaktach/workerze, URL-scoped auth, DNS pinning i brak
+redirectów, limity Git/tree/blob, cleanup/anulowanie, brak wykonania upstream,
+script review i rollback oraz współdzielone komponenty i bootstrap body limit.
+
+Testy wykonano na Linux, bez live modeli, zdalnego prywatnego konta ani budowy
+obrazu Docker. Natywne Windows/macOS wymagają osobnej weryfikacji Git i procesu;
+istniejąca polityka izolowanych katalogów harnessów pozostaje bez zmian.
+Resolver obsługuje HTTPS IPv4; SSH, lokalne i HTTP sources są świadomie odrzucane.
+Flagi i discovery to opisany podzbiór skills CLI, nie wykonywanie dowolnej komendy.
+64 MiB transferu jest limitem próbkowanym, nie twardą quota; auto-review skryptów
+jest heurystyką i nie wykrywa ryzykownej treści instrukcji. Marketplace, npm
+artefakty i linked library pozostają etapem 4.
+
+Lokalny commit: `feat(agents): resolve skill sources and maintain pinned versions`.
+Dokładny SHA znajduje się w raporcie końcowym zadania.
+
+---
+
 ## Etap 2 — skille i tag picker
 
 Data: 2026-11-04. Gałąź `feat/agent-environment-2`, oparta o lokalną

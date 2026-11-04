@@ -684,7 +684,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
       expect((await watchUntil(api, q(thread), (u) => u.length > 0))[0]?.change.case).toBe("snapshot");
     } finally {
       await grpc.close();
-      core.stopSweep();
+      await core.stopSweep();
       await core.bots.stop();
     }
 
