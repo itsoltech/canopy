@@ -247,6 +247,9 @@ dzielimy na podkomponenty.
 
 ## Plan refaktoru (po zamknięciu otwartych PR-ów)
 
+Commit mechaniczny jest zapisany w `.git-blame-ignore-revs`. Lokalnie włącz pomijanie go przez
+`git config blame.ignoreRevsFile .git-blame-ignore-revs`.
+
 1. **Commit mechaniczny** (jeden, sam, łatwy do review przez `git diff -w` / pominięcia w blame):
    `bun run format && bun run lint:spacing && bun run format`, potem drugi raz te same trzy kroki: musi być zero
    zmian. Najpierw ręcznie poprawić `files.ts:36` (wyżej). Tytuł np. `style: format with oxfmt and readable spacing`.
