@@ -28,7 +28,21 @@ beforeAll(async () => {
   machines.push(windows);
   old = await skillMachine(gateway, root, "older", "linux", false);
   machines.push(old);
-  await eventually(snapshot, (s) => s.workers.filter((w) => w.skillsSupported).length === 2);
+
+  // The older worker also registers environment facts and bumps the shared revision.
+  const state = await eventually(snapshot, (s) =>
+    machines.every((machine) =>
+      s.workers.some((w) => w.workerId === machine.workerId && w.supported && w.report?.revision === s.revision),
+    ),
+  );
+
+  expect(state.workers.filter((w) => w.skillsSupported)).toHaveLength(2);
+
+  for (const machine of machines) {
+    const worker = state.workers.find((w) => w.workerId === machine.workerId)!;
+    expect(worker.supported).toBe(true);
+    expect(worker.report?.revision).toBe(state.revision);
+  }
 }, 60_000);
 
 afterAll(async () => {
