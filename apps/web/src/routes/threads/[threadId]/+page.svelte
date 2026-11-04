@@ -4,6 +4,7 @@
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
+  import { threadCommands } from "#lib/features/threads/thread-commands.ts";
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
   import SetGoalPill from "#lib/features/goals/SetGoalPill.svelte";
@@ -16,7 +17,6 @@
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import { interruptThread } from "#lib/features/threads/api.ts";
-  import { requestTitleRegeneration } from "#lib/features/threads/title-actions.ts";
   import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
   import BackgroundTaskDialog from "#lib/features/threads/components/BackgroundTaskDialog.svelte";
   import { backgroundTasks } from "#lib/features/threads/background-tasks.ts";
@@ -411,141 +411,46 @@
     untrack(() => folds.update(turns, view.ownEntries, view.notices, feed));
   });
 
-  async function copy(value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast("Copied");
-    } catch {
-      toast("Copying is not allowed here", { tone: "error" });
-    }
-  }
-
   // The thread's actions in the command palette (the same as its menu, plus Interrupt while it works).
-  contributeCommands(() => {
-    if (!thread) return [];
-    const current = thread;
-
-    return [
-      {
-        id: "thread:interrupt",
-        title: "Interrupt",
-        group: "actions",
-        icon: "stop",
-        keywords: "stop cancel turn",
-        rank: -8,
-        when: () => working,
-        run: stop,
-      },
-      {
-        id: "thread:side",
-        title: "Side thread…",
-        group: "actions",
-        icon: "arrows-right-left",
-        keywords: "new side branch fork",
-        rank: -7,
-        when: () => canBranch,
-        run: openSide,
-      },
-      {
-        id: "thread:fork",
-        title: "Fork thread",
-        group: "actions",
-        icon: "arrow-turn-up-right",
-        keywords: "fork branch copy duplicate new chat",
-        rank: -7,
-        when: () => Boolean(forkPoint),
-        run: forkThread,
-      },
-      {
-        id: "thread:schedule",
-        title: "Schedule a task…",
-        group: "actions",
-        icon: "clock",
-        keywords: "schedule later cron recurring",
-        rank: -7,
-        when: () => canSchedule,
-        run: openSchedule,
-      },
-      {
-        id: "thread:model",
-        title: "Model and effort…",
-        group: "actions",
-        icon: "cpu-chip",
-        keywords: "model reasoning effort",
-        rank: -7,
-        when: () => !closed,
-        run: () => (modelOpen = true),
-      },
-      {
-        id: "thread:regenerate-title",
-        title: "Regenerate title",
-        group: "actions",
-        icon: "arrow-path",
-        keywords: "thread title generate name",
-        rank: -7,
-        when: () => !closed,
-        run: () => requestTitleRegeneration(current.id),
-      },
-      {
-        id: "thread:permissions",
-        title: "Permissions…",
-        group: "actions",
-        icon: "shield-check",
-        keywords: "permission mode approvals sandbox",
-        rank: -7,
-        when: () => !closed,
-        run: () => (permissionsOpen = true),
-      },
-      {
-        id: "thread:goal",
-        title: openGoal ? "Replace the goal…" : "Set a goal…",
-        group: "actions",
-        icon: "flag",
-        keywords: "goal objective",
-        rank: -7,
-        when: () => goalsHere,
-        disabled: !canGoal,
-        run: setGoalLater,
-      },
-      {
-        id: "thread:details",
-        title: "Toggle thread details",
-        group: "actions",
-        icon: "view-columns",
-        keywords: "panel context sidebar",
-        rank: -6,
-        run: togglePanel,
-      },
-      {
-        id: "thread:copy-link",
-        title: "Copy thread link",
-        group: "actions",
-        icon: "link",
-        keywords: "url share",
-        rank: -6,
-        run: () => copy(page.url.href),
-      },
-      {
-        id: "thread:copy-id",
-        title: "Copy thread id",
-        group: "actions",
-        icon: "document-duplicate",
-        keywords: "identifier",
-        rank: -6,
-        run: () => copy(current.id),
-      },
-      {
-        id: "thread:copy-cwd",
-        title: "Copy working directory",
-        group: "actions",
-        icon: "folder",
-        keywords: "path cwd",
-        rank: -6,
-        suggested: false,
-        run: () => copy(current.cwd),
-      },
-    ];
-  });
+  contributeCommands(() =>
+    thread
+      ? threadCommands(thread, {
+          get working() {
+            return working;
+          },
+          get canBranch() {
+            return canBranch;
+          },
+          get canFork() {
+            return Boolean(forkPoint);
+          },
+          get canSchedule() {
+            return canSchedule;
+          },
+          get closed() {
+            return closed;
+          },
+          get goalsHere() {
+            return goalsHere;
+          },
+          get canGoal() {
+            return canGoal;
+          },
+          get goalOpen() {
+            return Boolean(openGoal);
+          },
+          stop,
+          openSide,
+          fork: forkThread,
+          openSchedule,
+          openModel: () => (modelOpen = true),
+          openPermissions: () => (permissionsOpen = true),
+          setGoal: setGoalLater,
+          togglePanel,
+          link: () => page.url.href,
+        })
+      : [],
+  );
 
   async function stop() {
     if (!thread) return;
