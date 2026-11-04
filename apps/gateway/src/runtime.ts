@@ -1,6 +1,5 @@
 import { PgClient } from "@effect/sql-pg";
 import { migrate } from "@canopy/db";
-import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import { BotStore } from "./bots/store.ts";
 import {
@@ -55,26 +54,6 @@ export async function migrateDatabase(runtime: GatewayRuntime): Promise<string[]
 
 export const ensureDevUser = (runtime: GatewayRuntime, email: string) =>
   runtime.runPromise(GatewayStore.use((s) => s.ensureUser(email, email.split("@")[0] ?? "dev")));
-
-/**
- * Attachment limits (docs/ui-api.md, "Załączniki"): CANOPY_ATTACHMENT_MAX_FILE_MB, CANOPY_ATTACHMENT_MAX_MESSAGE_MB,
- * CANOPY_ATTACHMENT_MAX_FILES; unset or invalid = the default.
- */
-export function attachmentLimits(env: Readonly<Record<string, string | undefined>>): AttachmentLimits {
-  const number = (name: `CANOPY_${string}`, fallback: number) => {
-    const value = Number(env[name]);
-
-    return Number.isFinite(value) && value > 0 ? value : fallback;
-  };
-
-  const d = DEFAULT_ATTACHMENT_LIMITS;
-
-  return {
-    maxFileBytes: Math.round(number("CANOPY_ATTACHMENT_MAX_FILE_MB", d.maxFileBytes / 1024 ** 2) * 1024 ** 2),
-    maxMessageBytes: Math.round(number("CANOPY_ATTACHMENT_MAX_MESSAGE_MB", d.maxMessageBytes / 1024 ** 2) * 1024 ** 2),
-    maxFiles: Math.round(number("CANOPY_ATTACHMENT_MAX_FILES", d.maxFiles)),
-  };
-}
 
 /** CANOPY_NETWORK_PORT: a server (container) fixes the network access port it publishes.
  * Unset = the port chosen in the app (docs/network-access.md). */

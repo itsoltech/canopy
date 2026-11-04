@@ -224,6 +224,7 @@ message GetWorkerSetupResponse {
   repeated WorkerEnrollment enrollments = 2;
   string gateway_version = 3;
   string channel = 4;
+  string gateway_fingerprint = 5;
 }
 message CreateWorkerEnrollmentRequest { string name = 1; }
 message CreateWorkerEnrollmentResponse {
@@ -1045,6 +1046,7 @@ message ProviderModel {
 }
 
 message UserSettings {
+  AttachmentLimits attachment_limits = 701;
   string worker_gateway_url = 700;
   // Strefa IANA synchronizowana z urządzenia; pusta = UTC.
   string timezone = 620;
@@ -1103,6 +1105,7 @@ message GetSettingsResponse {
 
 // Ustawione sekcje zastępują zapisane; nieustawione zostają.
 message UpdateUserSettingsRequest {
+  AttachmentLimits attachment_limits = 701;
   optional string worker_gateway_url = 700;
   // Brak = bez zmian; ustawiona wartość musi być nazwą strefy IANA.
   optional string timezone = 620;

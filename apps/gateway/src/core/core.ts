@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { createCoreBots, createCoreBus, createCoreScheduler, createCoreUpdates } from "./core-composition.ts";
 import { ui } from "@canopy/contracts";
+import { SettingsStore } from "../store/index.ts";
 import { createWorkerLink, type WorkerLink } from "../worker-link/index.ts";
 import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain";
 import { AgentBus } from "./agent-bus.ts";
@@ -206,7 +207,7 @@ export class GatewayCore {
       userId: options.userId,
       link: this.link,
       disconnectUpdates: (workerId) => this.updates.service.disconnect(workerId),
-      ...(options.publicGatewayUrl && { publicGatewayUrl: options.publicGatewayUrl }),
+      network: () => this.network,
       publish: (value) =>
         this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "enrollment", value } })),
       removed: async (value) => {
@@ -264,8 +265,20 @@ export class GatewayCore {
 
   // ------------------------------------------------------------------ attachments
 
-  get attachmentLimits(): AttachmentLimits {
-    return this[coreState].options.attachmentLimits ?? DEFAULT_ATTACHMENT_LIMITS;
+  get attachmentLimits(): Promise<AttachmentLimits> {
+    return this.settingsStoreUser().then((user) =>
+      user.attachmentLimits
+        ? {
+            maxFileBytes: Number(user.attachmentLimits.maxFileBytes),
+            maxMessageBytes: Number(user.attachmentLimits.maxMessageBytes),
+            maxFiles: user.attachmentLimits.maxFiles,
+          }
+        : (this[coreState].options.attachmentLimits ?? DEFAULT_ATTACHMENT_LIMITS),
+    );
+  }
+
+  private settingsStoreUser() {
+    return this[coreState].actions.run(SettingsStore.use((s) => s.user(this[coreState].options.userId)));
   }
 }
 

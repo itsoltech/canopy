@@ -8,8 +8,8 @@ uruchamiania usług. Wersja aplikacji nie jest numerem protokołu.
 
 `proto/canopy/update/v1/update.proto` definiuje zamrożony
 `canopy.update.v1.UpdateService`. Gateway wystawia go na tym samym porcie
-HTTP/2 co WorkerLink, pod osobną ścieżką usługi. Działa też na opcjonalnym
-listenerze worker-only (`CANOPY_WORKER_HOST` / `CANOPY_WORKER_PORT`). Osobny port nie
+HTTP/2 co WorkerLink, pod osobną ścieżką usługi. Zdalne workery korzystają ze wspólnego
+listenera Network access i pinu zapisanego przy enrollment. Osobny port nie
 zwiększyłby odporności na niezgodne kontrakty, a wymagałby dodatkowych reguł proxy
 i firewalla. Worker inicjuje oba niezależne połączenia, również za NAT-em.
 

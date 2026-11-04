@@ -18,6 +18,7 @@ export interface GatewayLinkOptions {
   readonly hello: MessageInitShape<typeof HelloSchema>;
   /** Extra trusted CA (PEM) for a self-hosted gateway. */
   readonly ca?: string | Buffer;
+  readonly fingerprint?: string;
   readonly pingIntervalMs?: number;
   readonly signal?: AbortSignal;
 }
@@ -38,6 +39,7 @@ export interface GatewayLink {
 export async function openGatewayLink(options: GatewayLinkOptions): Promise<GatewayLink> {
   const transport = createGrpcClientTransport({
     baseUrl: options.baseUrl,
+    ...(options.fingerprint && { fingerprint: options.fingerprint }),
     ...(options.ca !== undefined && { ca: options.ca }),
     ...(options.pingIntervalMs !== undefined && { pingIntervalMs: options.pingIntervalMs }),
   });

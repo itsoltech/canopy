@@ -121,6 +121,7 @@ export class DesktopRuntime {
         CANOPY_WEB_ORIGIN: this.setupOrigin,
         GATEWAY_URL: gatewayUrl,
         GATEWAY_SERVICE_TOKEN: this.secrets.serviceToken,
+        BODY_SIZE_LIMIT: "32M",
       },
       restart: true,
       stopSignal: "SIGKILL",
@@ -220,7 +221,7 @@ export class DesktopRuntime {
       this.checkingHealth = false;
     }
   }
-  private async startLocal(config: Extract<DesktopConfiguration, { mode: "local" }>, signal: AbortSignal) {
+  private async startLocal(signal: AbortSignal) {
     const installer = new PostgresInstaller(
       this.paths.postgres,
       join(this.directory, "postgres"),
@@ -243,7 +244,6 @@ export class DesktopRuntime {
 
     installer.cleanup();
     const gatewayPort = await freePort();
-    const workerPort = config.allowNetwork ? await freePort(config.bindHost) : undefined;
     const gatewayUrl = `http://127.0.0.1:${gatewayPort}`;
     const workerDirectory = join(this.directory, "local-worker");
     this.services.start({
@@ -257,8 +257,6 @@ export class DesktopRuntime {
         CANOPY_UI_SERVICE_TOKEN: this.secrets.serviceToken,
         CANOPY_HOST: "127.0.0.1",
         CANOPY_PORT: String(gatewayPort),
-        CANOPY_PUBLIC_GATEWAY_URL: workerPort ? `http://${config.bindHost}:${workerPort}` : gatewayUrl,
-        ...(workerPort && { CANOPY_WORKER_HOST: config.bindHost, CANOPY_WORKER_PORT: String(workerPort) }),
       },
       restart: true,
     });
@@ -303,7 +301,7 @@ export class DesktopRuntime {
       let token: string | undefined;
 
       if (config.mode === "local") {
-        ({ gatewayUrl, webUrl, workerDirectory, token } = await this.startLocal(config, installing.signal));
+        ({ gatewayUrl, webUrl, workerDirectory, token } = await this.startLocal(installing.signal));
       } else {
         gatewayUrl = config.gatewayUrl;
         webUrl = config.webUrl;
@@ -325,6 +323,7 @@ export class DesktopRuntime {
 
         const enrolled = await enrollWorker({
           gateway: gatewayUrl,
+          ...(config.mode === "remote" && config.gatewayFingerprint && { fingerprint: config.gatewayFingerprint }),
           token,
           configPath,
           dataDir: join(workerDirectory, "data"),

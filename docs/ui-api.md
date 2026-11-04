@@ -102,9 +102,9 @@ SSH nigdy nie trafiają do strumienia przeglądarki; stream zawiera klucz public
 fingerprint, zredagowany output i metadane enrollment. Anulowanie requestu zamyka SSH.
 
 `GetWorkerSetup` zwraca publiczny `gateway_url` (`UserSettings.worker_gateway_url`,
-pole **700**, z domyślną wartością `CANOPY_PUBLIC_GATEWAY_URL`) oraz metadane ostatnich
+pole **700**, domyślnie pierwszy adres Network access), pełny `gateway_fingerprint` oraz metadane ostatnich
 enrollmentów właściciela, bez tokenów. `UpdateUserSettings.worker_gateway_url` (optional,
-**700**) podlega `expected_version`; pusty string przywraca wartość z env. Adres musi być
+**700**) podlega `expected_version`; pusty string przywraca wybór automatyczny. Adres musi być
 originem HTTP(S), z portem gRPC, bez userinfo, ścieżki, query ani fragmentu.
 
 | RPC | BFF | Efekt |
@@ -403,7 +403,11 @@ Pliki dołączone do wiadomości (obrazy, zrzuty ekranu, tekst, kod, PDF, archiw
 | `Turn.attachments` (110) | pliki wiadomości (bez ścieżek); UI pokazuje je zamiast notatki |
 | `GetSettingsResponse.attachment_limits` (110) | `max_file_bytes`, `max_message_bytes`, `max_files` |
 
-Limity (gateway, zmienne środowiskowe): `CANOPY_ATTACHMENT_MAX_FILE_MB` (domyślnie 20), `CANOPY_ATTACHMENT_MAX_MESSAGE_MB` (50), `CANOPY_ATTACHMENT_MAX_FILES` (10). Kompozytor sprawdza je przed wysłaniem pliku; ostatnie słowo ma gateway.
+Limity: Settings → Network access → Attachments; domyślnie 20 MiB na plik, 50 MiB na wiadomość i 10 plików.
+`UserSettings.attachment_limits` i `UpdateUserSettingsRequest.attachment_limits` (**701**) zapisują je
+w JSON ustawień właściciela, z istniejącą kontrolą wersji. Zakres: 1 bajt–30 MiB na plik,
+do 1 GiB na wiadomość (nie mniej niż limit pliku), 1–100 plików; UI podaje MiB.
+Kompozytor reaguje na aktualizacje ustawień; gateway odczytuje bazę przy nowych uploadach i wiadomościach.
 
 **Notatka platformy.** Gateway składa wejście tury przy przyjęciu wiadomości: `input_text` = notatka + pusta linia + wiadomość (sama notatka, gdy tekstu nie ma), `platform_note` = notatka, `message_text` = wiadomość. UI bierze notatkę i wiadomość osobno (`platform_note`, `message_text`); z cytatami notatka ma też ich blok (niżej, „Cytaty”):
 

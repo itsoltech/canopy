@@ -50,7 +50,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
       coreSettings(this, (s) => s.projects(this[coreState].options.userId)),
     ]);
 
-    const limits = this.attachmentLimits;
+    const limits = await this.attachmentLimits;
 
     return create(ui.GetSettingsResponseSchema, {
       user,
@@ -66,6 +66,23 @@ export const coreSettingsMethods: CoreSettingsMethods = {
   /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
   async updateUserSettings(this: GatewayCore, request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
     if (request.workerGatewayUrl !== undefined) checkWorkerGatewayUrl(request.workerGatewayUrl);
+
+    if (request.attachmentLimits) {
+      const { maxFileBytes, maxMessageBytes, maxFiles } = request.attachmentLimits;
+
+      // Keep all uploads within the transport's 32 MiB request budget, including protobuf overhead.
+      if (
+        maxFileBytes < 1n ||
+        maxFileBytes > 30n * 1024n ** 2n ||
+        maxMessageBytes < maxFileBytes ||
+        maxMessageBytes > 1024n ** 3n ||
+        maxFiles < 1 ||
+        maxFiles > 100
+      )
+        throw new InvalidError(
+          "Choose up to 30 MiB per file, at least that much per message (up to 1 GiB), and 1–100 files.",
+        );
+    }
 
     if (request.timezone !== undefined) {
       try {
@@ -108,6 +125,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
     const settings = await coreSettings(this, (s) =>
       s.updateUser({
         userId: this[coreState].options.userId,
+        ...(request.attachmentLimits && { attachmentLimits: request.attachmentLimits }),
         ...(request.workerGatewayUrl !== undefined && { workerGatewayUrl: request.workerGatewayUrl }),
         ...(request.appearance && {
           appearance: { ...request.appearance, sidebarWidth: storedSidebarWidth(request.appearance.sidebarWidth) },

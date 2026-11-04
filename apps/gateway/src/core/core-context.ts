@@ -59,7 +59,6 @@ export type CoreRuntime = ManagedRuntime.ManagedRuntime<CoreServices, unknown>;
 
 export interface GatewayCoreOptions {
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;
-  readonly publicGatewayUrl?: string;
   readonly sshSecretsKey?: Buffer;
   /** Test-only sources of the latest provider CLI versions (docs/provider-cli.md). */
   readonly cliLatest?: CliLatestOptions;

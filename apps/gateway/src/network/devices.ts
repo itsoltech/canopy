@@ -6,7 +6,7 @@ import type { GatewayCore } from "../core/core.ts";
 import type { Handler } from "./listener.ts";
 import type { NetworkAccess } from "./network.ts";
 
-/** Native Connect only: never expose browser CORS, BFF credentials, worker RPCs or the database. */
+/** Native RPCs only: reject browser origins and authenticate every service at its boundary. */
 export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, serviceToken: string) {
   const adapter = connectNodeAdapter({
     routes: (router) => {
@@ -15,6 +15,15 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
     },
     grpc: false,
     interceptors: [serviceTokenAuth(serviceToken, core.mobile)],
+    readMaxBytes: 32 * 1024 * 1024,
+  });
+
+  const workers = connectNodeAdapter({
+    routes: (router) => {
+      core.link.routes(router);
+      core.workers.routes(router);
+      core.updates.service.routes(router);
+    },
     readMaxBytes: 32 * 1024 * 1024,
   });
 
@@ -27,6 +36,11 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
 
       return;
     }
+
+    const path = request.url?.split("?")[0] ?? "";
+
+    if (path.startsWith("/canopy.worker.v1.") || path.startsWith("/canopy.update.v1."))
+      return workers(request, response);
 
     return adapter(request, response);
   };

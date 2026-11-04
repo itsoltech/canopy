@@ -14,12 +14,13 @@ import { dirname, resolve } from "node:path";
 import { createClient } from "@connectrpc/connect";
 import { WorkerEnrollmentService } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
-import { createGrpcClientTransport } from "@canopy/transport";
+import { createGrpcClientTransport, pinnedCertificate } from "@canopy/transport";
 import type { LocalConfig } from "./config/local.ts";
 import { isStandalone, serviceSnippet } from "@canopy/updater";
 
 export interface EnrollmentOptions {
   gateway: string;
+  fingerprint?: string;
   token: string;
   configPath: string;
   dataDir?: string;
@@ -48,9 +49,16 @@ export async function enrollWorker(options: EnrollmentOptions): Promise<LocalCon
   const fd = openSync(target, "wx", 0o600);
 
   try {
+    const fingerprint = options.fingerprint?.toLowerCase();
+    const certificate = fingerprint ? await pinnedCertificate(url.origin, fingerprint) : undefined;
+
     const client = createClient(
       WorkerEnrollmentService,
-      createGrpcClientTransport({ baseUrl: url.origin, connectTimeoutMs: 5_000 }),
+      createGrpcClientTransport({
+        baseUrl: url.origin,
+        connectTimeoutMs: 5_000,
+        ...(certificate && fingerprint && { ca: certificate, fingerprint }),
+      }),
     );
 
     let result;
@@ -73,6 +81,7 @@ export async function enrollWorker(options: EnrollmentOptions): Promise<LocalCon
       gateway_url: url.origin,
       worker_id: result.workerId,
       credential: result.workerCredential,
+      ...(certificate && fingerprint && { gateway_certificate: certificate, gateway_fingerprint: fingerprint }),
       ...(options.dataDir && { data_dir: resolve(options.dataDir) }),
     };
 

@@ -4,7 +4,7 @@ import { startGrpcServer } from "@canopy/transport";
 import { remoteServe, serviceTokenAuth, sharedHost, uiHandlers, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { healthcheck } from "./healthcheck.ts";
-import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase, networkPort } from "./runtime.ts";
+import { ensureDevUser, gatewayRuntime, migrateDatabase, networkPort } from "./runtime.ts";
 import {
   installKind,
   isStandalone,
@@ -60,15 +60,11 @@ if ((env["CANOPY_MIGRATE"] ?? "1") === "1") {
 // Single development user until authentication lands (docs/ui-api.md).
 const userId = await ensureDevUser(runtime, env["CANOPY_DEV_USER_EMAIL"] ?? "dev@localhost");
 
-const publicGatewayUrl = env["CANOPY_PUBLIC_GATEWAY_URL"];
-
 const core = new GatewayCore({
   runtime,
   instanceId: `${process.pid}@${Bun.env["HOSTNAME"] ?? "gateway"}`,
   userId,
-  ...(publicGatewayUrl && { publicGatewayUrl }),
   log: (m) => console.info(m),
-  attachmentLimits: attachmentLimits(env),
   updates: {
     ...(env["CANOPY_RELEASE_BASE_URL"] && { source: { baseUrl: env["CANOPY_RELEASE_BASE_URL"] } }),
     ...(env["CANOPY_UPDATE_CACHE_DIR"] && { cacheDir: env["CANOPY_UPDATE_CACHE_DIR"] }),
@@ -153,28 +149,6 @@ const server = await startGrpcServer({
 
 console.info(`gateway ${CANOPY_VERSION} listening on ${server.url}`);
 
-// Desktop: keep the BFF/API listener on loopback and optionally expose only worker RPCs
-// on an explicitly selected private interface. Existing server deployments are unchanged.
-const workerHost = env["CANOPY_WORKER_HOST"];
-const workerPort = env["CANOPY_WORKER_PORT"];
-
-const workerServer =
-  workerHost && workerPort
-    ? await startGrpcServer({
-        routes: (router) => {
-          core.link.routes(router);
-          core.workers.routes(router);
-          core.updates.service.routes(router);
-        },
-        health: () => ({ healthy: core.updates.service.verdict().healthy, version: CANOPY_VERSION }),
-        host: workerHost,
-        port: Number(workerPort),
-        ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
-      })
-    : undefined;
-
-if (workerServer) console.info(`worker-only listener on ${workerServer.url}`);
-
 core.scheduler.start();
 
 // Open items of finished turns, threads stuck in a busy or failed look: fixed now and every few minutes.
@@ -198,7 +172,6 @@ async function stop(presence = "shutting_down") {
   core.backgroundTasks.stop();
   await core.bots.stop();
   await core.link.shutdown();
-  await workerServer?.close();
   await server.close();
   await runtime.dispose();
 }

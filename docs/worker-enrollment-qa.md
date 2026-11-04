@@ -101,8 +101,7 @@ Po merge zachowaj dotychczasowe klucze gateway i token usługi BFF, wykonaj migr
 0044 (standardowy start gateway z `CANOPY_MIGRATE=1` robi to automatycznie), zbuduj web
 i zrestartuj gateway/web z tej samej wersji. Istniejące configi workerów pozostają zgodne.
 
-Ustaw `CANOPY_PUBLIC_GATEWAY_URL=http://<host-Tailscale>:<port-gRPC>` albo nadpisz adres
-w Settings → Workers. Port 7443 jest domyślny; jeśli Twój stack używa 17443,
-podaj 17443. To nie port web ani CLIProxyAPI. Gateway musi nasłuchiwać na interfejsie
-osiągalnym z Tailscale; ACL/firewall muszą przepuszczać ten port z nowej maszyny.
-Poza zaufaną szyfrowaną siecią wymagany jest HTTPS z gRPC HTTP/2.
+Włącz Settings → Network access i użyj jego adresu w Settings → Workers.
+Sprawdź, że polecenie enrollment zawiera `--fingerprint` z pełnym SHA-256.
+ACL/firewall muszą przepuszczać wybrany port TCP z nowej maszyny. To wspólny port TLS,
+nie port web ani port procesu BFF. Dawne instrukcje env poniżej zastępuje [network-access.md](network-access.md).

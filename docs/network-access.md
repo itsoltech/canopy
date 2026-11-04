@@ -42,7 +42,9 @@ ale go nie wymaga:
   (dotychczasowe zasady pinu, samopodpisu i `Pair`/`Connect` bez zmian);
 - połączenie **bez certyfikatu** trafia do usług urządzeń (telefony, etap 2); bez nich dostaje 403.
 
-Listener nie wystawia BFF, bazy, UpdateService ani enrollmentu. Minimalna wersja TLS serwera to 1.2
+Listener nie wystawia BFF ani bazy. Workery bez certyfikatu klienta korzystają z WorkerLink,
+enrollmentu i niezależnego UpdateService (etap 3), które same weryfikują tokeny i właściciela.
+Żądania z nagłówkiem Origin są odrzucane. Minimalna wersja TLS serwera to 1.2
 (starsze telefony); komputery same wymagają 1.3.
 
 ### Port
@@ -101,8 +103,15 @@ Pole `note` pojawia się tylko, gdy coś wymaga działania:
 | `CANOPY_LINK_HOST`, `CANOPY_LINK_PORT`, `CANOPY_LINK_ADDRESSES` | b | **usunięte** → Network access (etap 1) |
 | `CANOPY_LINK_DISCOVERY` | b | opcjonalne nadpisanie serwera; przełącznik „Find linked computers on this network” jest w UI |
 | `CANOPY_MOBILE_PORT`, `CANOPY_MOBILE_GATEWAY_URL` | b | **usunięte** → telefony przez Network access (etap 2) |
-| `CANOPY_WORKER_HOST`, `CANOPY_WORKER_PORT`, `CANOPY_PUBLIC_GATEWAY_URL` | b | etap 3 (workery przez Network access; adres w Settings → Workers) |
-| `CANOPY_ATTACHMENT_MAX_FILE_MB`, `…_MAX_MESSAGE_MB`, `…_MAX_FILES` | b | etap 3 (ustawienia w bazie i UI) |
+| `CANOPY_WORKER_HOST`, `CANOPY_WORKER_PORT`, `CANOPY_PUBLIC_GATEWAY_URL` | b | **usunięte** → workery przez Network access; adres w Settings → Workers (etap 3) |
+| `CANOPY_ATTACHMENT_MAX_FILE_MB`, `…_MAX_MESSAGE_MB`, `…_MAX_FILES` | b | **usunięte** → Attachments w Network access, zapis w ustawieniach właściciela (etap 3) |
+
+Workery: kreator wybiera adres Network access, a wszystkie polecenia instalacyjne zawierają pełny pin.
+Enrollment sprawdza certyfikat przed wysłaniem tokenu i zapisuje go do `worker.json`; WorkerLink
+i UpdateService zachowują walidację CA i porównują pełny SHA-256 zamiast nazwy hosta.
+Zmiana adresu w Settings → Workers dotyczy nowych instalacji; istniejące pliki wymagają aktualizacji
+adresu lub ponownego enrollmentu. Tryb lokalny desktopu utrzymuje BFF i lokalny worker na loopback;
+dawny wybór interfejsu nie otwiera już dodatkowego listenera HTTP.
 
 ## Docker i serwer
 

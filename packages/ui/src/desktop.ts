@@ -45,7 +45,7 @@ export interface DesktopStatus {
 
 export type DesktopConfiguration =
   | { mode: "local"; allowNetwork: boolean; bindHost: string }
-  | { mode: "remote"; gatewayUrl: string; webUrl: string; enrollmentToken?: string };
+  | { mode: "remote"; gatewayUrl: string; webUrl: string; enrollmentToken?: string; gatewayFingerprint?: string };
 
 export interface DesktopBridge {
   readonly platform: string;
@@ -67,7 +67,12 @@ export interface DesktopBridge {
   onUpdates(listener: (status: DesktopUpdateStatus) => void): () => void;
   onStatus(listener: (status: DesktopStatus) => void): () => void;
   onEnrollment(
-    listener: (prefill: { gatewayUrl: string; webUrl: string; enrollmentToken: string }) => void,
+    listener: (prefill: {
+      gatewayUrl: string;
+      webUrl: string;
+      enrollmentToken: string;
+      gatewayFingerprint?: string;
+    }) => void,
   ): () => void;
   /** Setup subscribes before asking main to deliver a pending deep link. */
   readyForEnrollment(): Promise<void>;

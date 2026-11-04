@@ -186,10 +186,9 @@ Open Settings → Mobile devices and choose “Turn on network access and pair a
 | `CANOPY_TLS_CERT`, `CANOPY_TLS_KEY` | — | TLS certificate and key files. |
 | `CANOPY_MIGRATE` | `1` | Apply database migrations on start. |
 | `CANOPY_DEV_USER_EMAIL` | `dev@localhost` | Owner account created on start (until user login exists). |
-| `CANOPY_PUBLIC_GATEWAY_URL` | — | Gateway address workers should use; prefills the Add worker wizard (also editable in Settings). |
-| `CANOPY_WORKER_HOST`, `CANOPY_WORKER_PORT` | — | Optional extra listener that serves only worker RPCs. |
 | `CANOPY_NETWORK_PORT` | selected in the app | Optional fixed port for server/container deployments of Network access. |
-| `CANOPY_ATTACHMENT_MAX_FILE_MB`, `CANOPY_ATTACHMENT_MAX_MESSAGE_MB`, `CANOPY_ATTACHMENT_MAX_FILES` | built-in limits | Attachment limits. |
+
+Worker addresses are chosen automatically from Network access; an override is available in Settings → Workers. Attachment limits are editable in Settings → Network access. Worker enrollment commands include this computer's certificate fingerprint.
 
 ### Web (BFF)
 

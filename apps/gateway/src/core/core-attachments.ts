@@ -27,7 +27,7 @@ export async function coreMessageAttachments(
   ids: readonly string[],
   workerId: string,
 ): Promise<{ input(threadId: string, message: string): TurnInputJson }> {
-  const limits = hostContext.attachmentLimits;
+  const limits = await hostContext.attachmentLimits;
 
   if (ids.length > limits.maxFiles)
     throw new InvalidError(`up to ${limits.maxFiles} files can be attached to one message`);
@@ -178,7 +178,7 @@ export const coreAttachmentsMethods: CoreAttachmentsMethods = {
     let prepared;
 
     try {
-      prepared = await prepareAttachment(name, data, this.attachmentLimits);
+      prepared = await prepareAttachment(name, data, await this.attachmentLimits);
     } catch (error) {
       if (error instanceof AttachmentRejected) throw new InvalidError(error.message);
       throw error;

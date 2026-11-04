@@ -33,6 +33,7 @@ interface ProjectRow extends Row {
 
 /** Stored JSON: the protobuf JSON of each section. */
 interface Stored {
+  attachmentLimits?: JsonValue;
   workerGatewayUrl?: string;
   timezone?: string;
   appearance?: JsonValue;
@@ -67,6 +68,7 @@ const toUser = (row: Row | undefined) => {
   const stored = row?.settings ?? {};
 
   return create(ui.UserSettingsSchema, {
+    ...(stored.attachmentLimits && { attachmentLimits: fromJson(ui.AttachmentLimitsSchema, stored.attachmentLimits) }),
     workerGatewayUrl: stored.workerGatewayUrl ?? "",
     timezone: stored.timezone ?? "",
     appearance: appearance(stored),
@@ -135,6 +137,7 @@ export class SettingsStore extends Context.Service<
       sidebar?: ui.SidebarSettings;
       timezone?: string;
       workerGatewayUrl?: string;
+      attachmentLimits?: ui.AttachmentLimits;
       expectedVersion: bigint;
     }): Fx<ui.UserSettings>;
     updateProject(input: {
@@ -173,6 +176,7 @@ export class SettingsStore extends Context.Service<
           sidebar: nextSidebar,
           timezone,
           workerGatewayUrl,
+          attachmentLimits,
           expectedVersion,
         }) =>
           sql.withTransaction(
@@ -184,6 +188,7 @@ export class SettingsStore extends Context.Service<
 
               const next: Stored = {
                 ...stored,
+                ...(attachmentLimits && { attachmentLimits: toJson(ui.AttachmentLimitsSchema, attachmentLimits) }),
                 ...(workerGatewayUrl !== undefined && { workerGatewayUrl }),
                 ...(timezone !== undefined && { timezone }),
                 ...(nextAppearance && { appearance: toJson(ui.AppearanceSettingsSchema, nextAppearance) }),

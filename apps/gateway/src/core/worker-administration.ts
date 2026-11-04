@@ -8,6 +8,7 @@ import { SqlClient } from "effect/sql";
 import { GatewayStore, InstanceStore, SettingsStore } from "../store/index.ts";
 import type { WorkerLink } from "../worker-link/index.ts";
 import type { CoreRuntime } from "./core.ts";
+import type { NetworkAccess } from "../network/network.ts";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const secret = () => randomBytes(32).toString("base64url");
@@ -54,15 +55,13 @@ export class WorkerAdministration {
       runtime: CoreRuntime;
       userId: string;
       link: WorkerLink;
-      publicGatewayUrl?: string;
+      network?: () => NetworkAccess | undefined;
       disconnectUpdates?: (workerId: string) => void;
       publish: (enrollment: ui.WorkerEnrollment) => void;
       changed: () => Promise<void>;
       removed: (workerId: string) => void | Promise<void>;
     },
-  ) {
-    if (options.publicGatewayUrl) checkWorkerGatewayUrl(options.publicGatewayUrl);
-  }
+  ) {}
 
   routes = (router: ConnectRouter) =>
     router.service(WorkerEnrollmentService, {
@@ -70,7 +69,7 @@ export class WorkerAdministration {
     });
 
   async setup(): Promise<ui.GetWorkerSetupResponse> {
-    const { runtime, userId, publicGatewayUrl } = this.options;
+    const { runtime, userId } = this.options;
 
     const [settings, enrollments] = await Promise.all([
       runtime.runPromise(SettingsStore.use((s) => s.user(userId))),
@@ -86,8 +85,12 @@ export class WorkerAdministration {
       ),
     ]);
 
+    const network = this.options.network?.();
+    const gatewayUrl = settings.workerGatewayUrl || network?.addresses()[0]?.origin || "";
+
     return create(ui.GetWorkerSetupResponseSchema, {
-      gatewayUrl: settings.workerGatewayUrl || publicGatewayUrl || "",
+      gatewayUrl,
+      gatewayFingerprint: network?.listening && gatewayUrl.startsWith("https://") ? network.fingerprint : "",
       enrollments,
     });
   }
@@ -308,7 +311,7 @@ function machineName(value: string): string {
 }
 
 export function checkWorkerGatewayUrl(value: string): void {
-  if (!value) return; // Clears the override, reverting to the gateway environment.
+  if (!value) return; // Clears the override, reverting to automatic Network access addresses.
 
   try {
     const url = new URL(value);

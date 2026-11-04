@@ -22,6 +22,7 @@ export interface WorkerUpdatesOptions {
   credential: string;
   workerId: string;
   ca?: string | Buffer;
+  fingerprint?: string;
   idle(): boolean | Promise<boolean>;
   drain(value: boolean): void;
   restart(exitCode?: number): Promise<void>;
@@ -48,6 +49,7 @@ export class WorkerUpdates {
       update.UpdateService,
       createGrpcClientTransport({
         baseUrl: options.baseUrl,
+        ...(options.fingerprint && { fingerprint: options.fingerprint }),
         ...(options.ca && { ca: options.ca }),
         pingIntervalMs: 15_000,
         connectTimeoutMs: 5_000,

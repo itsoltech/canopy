@@ -6,21 +6,21 @@
   import AddWorkerWizard from "#lib/features/workers/AddWorkerWizard.svelte";
   import { WorkerSetup } from "#lib/features/workers/worker-setup.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Field from "#lib/shared/ui/Field.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
+  import WorkerConnectionSettings from "#lib/features/workers/WorkerConnectionSettings.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import UpdatesPanel from "#lib/features/workers/UpdatesPanel.svelte";
   import CliUpdatesSummary from "#lib/features/workers/CliUpdatesSummary.svelte";
   import WorkerSshKey from "#lib/features/workers/WorkerSshKey.svelte";
+  import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
+  import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
 
   const overview = useOverview();
   const online = $derived(overview.ownWorkers.filter((w) => w.online).length);
   const setup = new WorkerSetup();
+  const network = useNetworkAccess();
   let adding = $state(false);
-  let address = $state("");
-  let saving = $state(false);
   let error = $state("");
   let now = $state(Date.now());
 
@@ -42,25 +42,8 @@
   });
 
   $effect(() => {
-    address = setup.gatewayUrl;
-  });
-
-  $effect(() => {
     if (overview.resyncs > 0) void setup.reload();
   });
-
-  async function saveAddress() {
-    saving = true;
-    error = "";
-
-    try {
-      await setup.saveAddress(address);
-    } catch (e) {
-      error = e instanceof Error ? e.message : "Could not save gateway address";
-    } finally {
-      saving = false;
-    }
-  }
 
   async function revoke(id: string) {
     try {
@@ -95,6 +78,18 @@
       description="Add a worker to run Claude, Codex or Grok on a machine you control."
     />{/each}
 </SettingsGroup>
+<NetworkAccessSummary
+  status={network.status}
+  loaded={network.loaded}
+  busy={network.busy}
+  onenable={() =>
+    void network
+      .update("set_enabled", { enabled: true })
+      .then(() => setup.reload())
+      .catch((e) => {
+        error = e instanceof Error ? e.message : "Could not enable network access";
+      })}
+/>
 <CliUpdatesSummary workers={overview.workers} />
 {#if pending.length}
   <SettingsGroup title="Pending enrollments">
@@ -111,25 +106,5 @@
 {/if}
 <UpdatesPanel />
 <SettingsGroup title="Install over SSH"><WorkerSshKey class="p-4 sm:p-5" /></SettingsGroup>
-<SettingsGroup title="Connection">
-  <div class="p-4 sm:p-5">
-    <form
-      class="grid gap-3"
-      onsubmit={(e) => {
-        e.preventDefault();
-        void saveAddress();
-      }}
-    >
-      <Field
-        label="Gateway address for workers"
-        description="The reachable gRPC origin, including its port. Use your Tailscale hostname or HTTPS gateway, not the Canopy web URL. An empty value uses CANOPY_PUBLIC_GATEWAY_URL."
-      >
-        <Input name="public-gateway-address" type="url" bind:value={address} placeholder="http://canopy-gateway:7443" />
-      </Field>
-      <div class="flex justify-end">
-        <Button size="sm" loading={saving} disabled={!setup.loaded} type="submit">Save address</Button>
-      </div>
-    </form>
-  </div>
-</SettingsGroup>
+<WorkerConnectionSettings {setup} />
 <AddWorkerWizard {setup} bind:open={adding} />

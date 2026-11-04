@@ -7,6 +7,7 @@ import { workerAction } from "./actions.ts";
 /** Metadata only. The wizard owns the plaintext token and discards it on close. */
 export class WorkerSetup {
   gatewayUrl = $state("");
+  fingerprint = $state("");
   gatewayVersion = $state("");
   channel = $state("nightly");
   enrollments = $state.raw<ui.WorkerEnrollment[]>([]);
@@ -16,6 +17,7 @@ export class WorkerSetup {
     try {
       const setup = decode(ui.GetWorkerSetupResponseSchema, await requestJson("GET", "/api/workers/setup"));
       this.gatewayUrl = setup.gatewayUrl;
+      this.fingerprint = setup.gatewayFingerprint;
       this.gatewayVersion = setup.gatewayVersion;
       this.channel = setup.channel;
       this.enrollments = setup.enrollments;
@@ -31,7 +33,7 @@ export class WorkerSetup {
       this.enrollments = [value, ...this.enrollments.filter((e) => e.id !== value.id)];
     }
 
-    if (update.change.case === "userSettings") void this.reload();
+    if (update.change.case === "userSettings" || update.change.case === "mobileRoutes") void this.reload();
   }
   async saveAddress(address: string) {
     for (let attempt = 0; ; attempt++) {

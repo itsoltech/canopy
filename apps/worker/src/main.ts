@@ -37,7 +37,7 @@ const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.sh
 let cli;
 
 // Bind each option to its value: an enrollment token may start with "-", which parseArgs would read as a flag.
-const valueOptions = new Set(["--gateway", "--token", "--config", "--data-dir"]);
+const valueOptions = new Set(["--gateway", "--token", "--config", "--data-dir", "--fingerprint"]);
 const boundArgs: string[] = [];
 
 for (let index = 0; index < cliArgs.length; index++) {
@@ -56,6 +56,7 @@ try {
     strict: true,
     options: {
       gateway: { type: "string" },
+      fingerprint: { type: "string" },
       token: { type: "string" },
       config: { type: "string" },
       "data-dir": { type: "string" },
@@ -91,6 +92,7 @@ if (command === "enroll") {
   try {
     await enrollWorker({
       gateway: cli.gateway,
+      ...(cli.fingerprint && { fingerprint: cli.fingerprint }),
       token: cli.token,
       configPath,
       ...(cli["data-dir"] && { dataDir: cli["data-dir"] }),
@@ -133,7 +135,7 @@ if (Result.isFailure(loaded)) {
 
 const local = loaded.success;
 const dataDir = resolve(local.data_dir ?? defaultDataDir(Bun.env, process.platform));
-const ca = local.ca_file ? readFileSync(local.ca_file) : undefined;
+const ca = local.gateway_certificate ?? (local.ca_file ? readFileSync(local.ca_file) : undefined);
 
 mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 
@@ -169,6 +171,7 @@ const updates = new WorkerUpdates({
   credential: local.credential,
   workerId: local.worker_id,
   ...(ca && { ca }),
+  ...(local.gateway_fingerprint && { fingerprint: local.gateway_fingerprint }),
   signal: stopping.signal,
   idle: () => host.updateIdle(),
   drain: (value) => {
@@ -262,6 +265,7 @@ while (!stopping.signal.aborted) {
       pingIntervalMs: (local.ping_interval_seconds ?? 30) * 1_000,
       signal: shutdown.signal,
       ...(ca && { ca }),
+      ...(local.gateway_fingerprint && { fingerprint: local.gateway_fingerprint }),
       hello: {
         workerId: local.worker_id,
         host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: WORKER_VERSION },

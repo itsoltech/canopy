@@ -9,6 +9,7 @@
   import NetworkAddressRow from "#lib/features/network/NetworkAddressRow.svelte";
   import NetworkSwitchRow from "#lib/features/network/NetworkSwitchRow.svelte";
   import PortDialog from "#lib/features/network/PortDialog.svelte";
+  import AttachmentLimitsSettings from "#lib/features/network/AttachmentLimitsSettings.svelte";
   import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
   import type { JsonBody } from "#lib/shared/http.ts";
 
@@ -140,6 +141,7 @@
       if (ok) hostnameOpen = false;
     })}
 />
+<AttachmentLimitsSettings />
 <PortDialog
   bind:open={portOpen}
   port={status.port}

@@ -21,6 +21,8 @@ export const LocalConfig = Schema.Struct({
   allowed_roots: Schema.optionalKey(Schema.Unknown),
   /** Extra CA (PEM file) for a gateway with a private certificate. */
   ca_file: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
+  gateway_certificate: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
+  gateway_fingerprint: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/))),
   /** Journal, blobs in flight, logs. Defaults to a per-OS data directory. */
   data_dir: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
   /** HTTP/2 PING interval; keeps NAT mappings alive and detects dead links. */
