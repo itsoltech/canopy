@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
-  import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import type { Mention } from "@canopy/contracts";
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
@@ -45,7 +44,7 @@
     disabled = false,
     note,
     onsent,
-    leading,
+    ongoal,
     compact = false,
     panelsLabel,
     onexpand,
@@ -57,8 +56,8 @@
     disabled?: boolean;
     note?: string | undefined;
     onsent?: ((response: ui.SendMessageResponse) => void) | undefined;
-    /** Extra controls at the start of the box's bottom row (e.g. setting a goal). */
-    leading?: Snippet | undefined;
+    /** Offers "Set a goal" in the composer's "+" menu. */
+    ongoal?: (() => void) | undefined;
     compact?: boolean;
     panelsLabel?: string;
     onexpand?: ((activity?: ComposerActivity) => void) | undefined;
@@ -201,10 +200,10 @@
       onalternate={running ? () => void send("steer") : undefined}
       {draft}
       elementCount={quotes.length}
+      {ongoal}
     >
       {#snippet elements()}<QuoteTray threadId={thread.id} class="px-3 pt-3" />{/snippet}
       {#snippet controls()}
-        {@render leading?.()}
         {#if option}
           <ModelControls
             options={offer.options}

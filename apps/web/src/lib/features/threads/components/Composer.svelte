@@ -16,7 +16,7 @@
     disabled = false,
     note,
     onsent,
-    leading,
+    ongoal,
     top,
     questions = [],
     compact = false,
@@ -31,7 +31,7 @@
     disabled?: boolean;
     note?: string | undefined;
     onsent?: ((response: ui.SendMessageResponse) => void) | undefined;
-    leading?: Snippet | undefined;
+    ongoal?: (() => void) | undefined;
     top?: Snippet | undefined;
     questions?: ui.Interaction[];
     class?: ClassValue;
@@ -102,7 +102,7 @@
       {disabled}
       {note}
       {onsent}
-      {leading}
+      {ongoal}
       compact={folded}
       {panelsLabel}
       {onexpand}
