@@ -1,6 +1,6 @@
 import { palette } from "./tokens.ts";
 
-export const themeNames = ["birch", "fern", "lagoon", "cedar", "heather", "blossom"] as const;
+export const themeNames = ["birch", "fern", "lagoon", "cedar", "heather", "blossom", "ash"] as const;
 
 export type ThemeName = (typeof themeNames)[number];
 
@@ -27,7 +27,7 @@ type NeutralScale = readonly [
 interface ColorTheme {
   label: string;
   description: string;
-  accent: "blue" | "emerald" | "sky" | "orange" | "violet" | "pink";
+  accent: "blue" | "emerald" | "sky" | "orange" | "violet" | "pink" | "neutral";
   light: NeutralScale;
   dark: NeutralScale;
 }
@@ -244,6 +244,55 @@ export const themes: Record<ThemeName, ColorTheme> = {
       "#23121f",
     ],
   },
+  ash: {
+    label: "Ash",
+    description: "Pure white · true black",
+    accent: "neutral",
+    light: [
+      "#ffffff",
+      "#ffffff",
+      "#f5f5f5",
+      "#d9d9d9",
+      "#bfbfbf",
+      "#8c8c8c",
+      "#666666",
+      "#525252",
+      "#404040",
+      "#262626",
+      "#171717",
+      "#111111",
+      "#000000",
+    ],
+    dark: [
+      "#ffffff",
+      "#f5f5f5",
+      "#e5e5e5",
+      "#d4d4d4",
+      "#bfbfbf",
+      "#a3a3a3",
+      "#808080",
+      "#666666",
+      "#383838",
+      "#171717",
+      "#000000",
+      "#000000",
+      "#000000",
+    ],
+  },
+};
+
+const neutralAccent = {
+  50: "#fafafa",
+  100: "#f5f5f5",
+  200: "#e5e5e5",
+  300: "#d4d4d4",
+  400: "#b3b3b3",
+  500: "#808080",
+  600: "#707070",
+  700: "#606060",
+  800: "#4d4d4d",
+  900: "#262626",
+  950: "#171717",
 };
 
 export const isThemeName = (name: string | undefined): name is ThemeName => themeNames.some((value) => value === name);
@@ -253,7 +302,7 @@ export function themeVariables(name: ThemeName, mode: ThemeMode) {
   const theme = themes[name];
   const neutral = theme[mode];
   const colors = Object.fromEntries(neutralSteps.map((step, index) => [`zinc-${step}`, neutral[index]!]));
-  const accent = palette[theme.accent];
+  const accent = theme.accent === "neutral" ? neutralAccent : palette[theme.accent];
   const dark = mode === "dark";
   const tint = dark ? neutral[10] : neutral[2];
 

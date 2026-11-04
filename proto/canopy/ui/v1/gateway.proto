@@ -1110,6 +1110,7 @@ enum ColorTheme {
   COLOR_THEME_CEDAR = 4;
   COLOR_THEME_HEATHER = 5;
   COLOR_THEME_BLOSSOM = 6;
+  COLOR_THEME_ASH = 7;
 }
 
 message AppearanceSettings {
