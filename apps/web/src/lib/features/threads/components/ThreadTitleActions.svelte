@@ -8,6 +8,7 @@
   import { useThreadActions } from "../thread-actions.svelte.ts";
   import { requestTitleRegeneration } from "../title-actions.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
 
   let {
     thread,
@@ -51,7 +52,9 @@
     className,
   ]}
 >
-  <SwapText text={thread.title || "New thread"} class={["min-w-0 flex-1 overflow-hidden", generating && "shimmer"]} />
+  <div class="min-w-0 flex-1" {@attach tooltip(thread.title || "New thread")}>
+    <SwapText text={thread.title || "New thread"} class={["w-full overflow-hidden", generating && "shimmer"]} />
+  </div>
   <!-- Rename and regenerate are occasional: behind "more", so the panel opens on the title alone. -->
   <DropdownMenu label="Title actions" placement="bottom-end">
     {#snippet trigger(props)}<IconButton

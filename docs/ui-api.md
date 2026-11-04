@@ -69,6 +69,11 @@ Revoke kończy otwarte streamy w procesie gatewaya. Starsze parowania wymagają 
 
 ## Connectors
 
+Arkusz „Thread details” ma stały nagłówek; tytuł wątku i menu zmiany nazwy są
+pokazane raz, we wspólnym `ThreadPanel` używanym też na desktopie. Pełny tytuł
+jest dostępny w tooltipie (na telefonie po przytrzymaniu) i w dialogu zmiany nazwy.
+Pusta lista konektorów zajmuje jeden wiersz „Connectors · None” z linkiem „Manage”.
+
 `connectors.proto` i osiem RPC `GatewayService` obsługują katalog, nazwane konta,
 granty, test, disconnect, aplikacje OAuth oraz begin/complete autoryzacji.
 Publiczne DTO nie zwracają poświadczeń. BFF `/api/connectors/**` ustawia prywatne

@@ -742,7 +742,7 @@
 {/if}
 
 {#if thread && tree}
-  <Dialog bind:open={panelSheet} title={thread.title}>
+  <Dialog bind:open={panelSheet} title="Thread details">
     <ThreadPanel
       onworktree={manageWorktree}
       {thread}
