@@ -13,6 +13,7 @@ import { ChatBubble } from "./ChatBubble";
 import { ApprovalCard } from "./ApprovalCard";
 import { BotDetailsPanel } from "./BotDetailsPanel";
 import { BotAvatar } from "./BotAvatar";
+import { useFollowingList } from "../../ui/useFollowingList";
 
 function useBotChat(id: string) {
   const { session, client, online } = useSession();
@@ -21,11 +22,9 @@ function useBotChat(id: string) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [details, setDetails] = useState(false);
-  const [atBottom, setAtBottom] = useState(true);
-  const followLatest = useRef(true);
+  const following = useFollowingList<bots.BotMessage>();
   const sending = useRef(false);
   const pending = useRef({ text: "", id: "" });
-  const list = useRef<FlatList<bots.BotMessage>>(null);
 
   const stream = useStream(
     client ? (signal) => client.api.watchBotConversation({ botId: id }, { signal }) : null,
@@ -36,8 +35,7 @@ function useBotChat(id: string) {
   async function send() {
     if (!text.trim() || sending.current || !client) return;
     sending.current = true;
-    followLatest.current = true;
-    setAtBottom(true);
+    following.resumeFollowing();
     setBusy(true);
     setError("");
     const value = text.trim();
@@ -71,10 +69,7 @@ function useBotChat(id: string) {
     setError,
     details,
     setDetails,
-    atBottom,
-    setAtBottom,
-    followLatest,
-    list,
+    following,
     stream,
     send,
   };
@@ -96,13 +91,12 @@ export function BotChatScreen({ id }: { id: string }) {
     setError,
     details,
     setDetails,
-    atBottom,
-    setAtBottom,
-    followLatest,
-    list,
+    following,
     stream,
     send,
   } = useBotChat(id);
+
+  const { list, atBottom, onScroll, onScrollBeginDrag, onContentSizeChange, showLatest } = following;
 
   if (!session) return <Redirect href="/pair" />;
 
@@ -129,19 +123,9 @@ export function BotChatScreen({ id }: { id: string }) {
           contentContainerStyle={[styles.page, { gap: 16, flexGrow: 1 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          onScroll={(e) => {
-            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-            const bottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 100;
-
-            if (bottom) followLatest.current = true;
-            setAtBottom(bottom);
-          }}
-          onScrollBeginDrag={() => {
-            followLatest.current = false;
-          }}
-          onContentSizeChange={() => {
-            if (followLatest.current) list.current?.scrollToEnd({ animated: false });
-          }}
+          onScroll={onScroll}
+          onScrollBeginDrag={onScrollBeginDrag}
+          onContentSizeChange={onContentSizeChange}
           renderItem={({ item }) => <ChatBubble message={item} bot={conversation?.bot} />}
           ListHeaderComponent={<ConnectionNotice {...stream} />}
           ListEmptyComponent={
@@ -166,15 +150,7 @@ export function BotChatScreen({ id }: { id: string }) {
         />
         {!atBottom && (
           <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-            <Button
-              secondary
-              title="Latest messages"
-              onPress={() => {
-                followLatest.current = true;
-                list.current?.scrollToEnd({ animated: true });
-                setAtBottom(true);
-              }}
-            />
+            <Button secondary title="Latest messages" onPress={showLatest} />
           </View>
         )}
         <View style={{ padding: 12, gap: 8 }}>

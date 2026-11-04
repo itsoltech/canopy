@@ -17,6 +17,7 @@ import { ThreadPanel } from "./ThreadPanel";
 import { InteractionCard } from "./InteractionCard";
 import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
+import { useFollowingList } from "../../ui/useFollowingList";
 
 function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
   const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
@@ -44,11 +45,9 @@ function useThreadState(id: string) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [atBottom, setAtBottom] = useState(true);
-  const followLatest = useRef(true);
+  const following = useFollowingList<ui.Turn>();
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();
-  const list = useRef<FlatList<ui.Turn>>(null);
   const sending = useRef(false);
 
   const pending = useRef<{
@@ -79,8 +78,7 @@ function useThreadState(id: string) {
   async function send(delivery: ui.MessageDelivery) {
     if (!client || !text.trim() || sending.current) return;
     sending.current = true;
-    followLatest.current = true;
-    setAtBottom(true);
+    following.resumeFollowing();
     setBusy(true);
     setError("");
     const value = text.trim();
@@ -152,13 +150,10 @@ function useThreadState(id: string) {
     busy,
     error,
     setError,
-    atBottom,
-    setAtBottom,
-    followLatest,
+    following,
     details,
     setDetails,
     projects,
-    list,
     stream,
     thread,
     worker,
@@ -185,13 +180,10 @@ export function ThreadScreen({ id }: { id: string }) {
     busy,
     error,
     setError,
-    atBottom,
-    setAtBottom,
-    followLatest,
+    following,
     details,
     setDetails,
     projects,
-    list,
     thread,
     worker,
     subagents,
@@ -200,6 +192,8 @@ export function ThreadScreen({ id }: { id: string }) {
     send,
     blocked,
   } = state;
+
+  const { atBottom, showLatest } = following;
 
   if (!ready) return <ActivityIndicator accessibilityLabel="Opening Canopy" />;
 
@@ -221,15 +215,7 @@ export function ThreadScreen({ id }: { id: string }) {
         <ThreadTimeline state={state} />
         {!atBottom && (
           <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-            <Button
-              title="Latest messages"
-              secondary
-              onPress={() => {
-                followLatest.current = true;
-                list.current?.scrollToEnd({ animated: true });
-                setAtBottom(true);
-              }}
-            />
+            <Button title="Latest messages" secondary onPress={showLatest} />
           </View>
         )}
         <View
@@ -289,7 +275,8 @@ export function ThreadScreen({ id }: { id: string }) {
 
 function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> }) {
   const c = useColors();
-  const { list, turns, followLatest, setAtBottom, stream, snapshot } = state;
+  const { turns, following, stream, snapshot } = state;
+  const { list, onScroll, onScrollBeginDrag, onContentSizeChange } = following;
 
   return (
     <FlatList
@@ -300,20 +287,10 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
       contentContainerStyle={[styles.page, { paddingTop: 24, flexGrow: 1 }]}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-      onScroll={(e) => {
-        const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-        const bottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 100;
-
-        if (bottom) followLatest.current = true;
-        setAtBottom(bottom);
-      }}
-      onScrollBeginDrag={() => {
-        followLatest.current = false;
-      }}
+      onScroll={onScroll}
+      onScrollBeginDrag={onScrollBeginDrag}
       scrollEventThrottle={100}
-      onContentSizeChange={() => {
-        if (followLatest.current) list.current?.scrollToEnd({ animated: false });
-      }}
+      onContentSizeChange={onContentSizeChange}
       ListHeaderComponent={
         <View style={{ gap: 16 }}>
           <ConnectionNotice {...stream} />
