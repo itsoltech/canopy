@@ -33,6 +33,7 @@ try {
   code = await proc.exited;
 } finally {
   await postgres?.stop();
+
   if (postgres) rmSync(descriptor);
 }
 
