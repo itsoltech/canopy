@@ -23,6 +23,11 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
   );
   coreLog(hostContext, `worker ${workerId} connected`);
   offerWorkerRoutes(hostContext, connection);
+  await hostContext.environment
+    .connected(workerId, connection.hello)
+    .catch((cause: unknown) =>
+      coreLog(hostContext, `environment of worker ${workerId} not synced: ${describeError(cause)}`),
+    );
   await coreBroadcastWorkers(hostContext);
   await hostContext.secrets.sync(workerId, true);
   // The outbox is read first: the turns started below (queued behind a lost one) are delivered once.
@@ -48,6 +53,9 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           connection.networkRouteStatus = message.payload.value;
           await coreBroadcastWorkers(hostContext);
           break;
+        case "agentEnvironment":
+          await hostContext.environment.report(workerId, message.payload.value);
+          break;
         case "threadSecretReceipt":
           await hostContext.secrets.receipt(workerId, message.payload.value);
           break;
@@ -63,6 +71,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
 
         case "cliTools":
           await hostContext.cli.report(workerId, message.payload.value);
+          await hostContext.environment.connected(workerId, connection.hello, message.payload.value);
           break;
         case "cliInstallProgress":
           await hostContext.cli.progress(workerId, message.payload.value);

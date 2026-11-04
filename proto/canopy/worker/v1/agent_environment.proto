@@ -1,0 +1,42 @@
+syntax = "proto3";
+package canopy.worker.v1;
+
+// Capability agent_environment_v1. Complete desired state, never an outbox of stale commands.
+message EnvironmentInstruction {
+  string harness = 1; // claude | codex
+  string content = 2;
+  string checksum = 3;
+  bool device_home = 4;
+  bool platform_home = 5;
+}
+
+message EnvironmentResolution {
+  string target_id = 1;
+  string action = 2; // keep | overwrite
+  string observed_checksum = 3;
+  string desired_checksum = 4;
+}
+
+message AgentEnvironmentDesired {
+  uint64 revision = 1;
+  repeated EnvironmentInstruction instructions = 2;
+  repeated EnvironmentResolution resolutions = 3;
+}
+
+message EnvironmentFileStatus {
+  string target_id = 1;
+  string harness = 2;
+  string path = 3;
+  string scope = 4; // device | platform
+  string status = 5; // applied | drift | kept | error | removed
+  string desired_checksum = 6;
+  string observed_checksum = 7; // full-file CAS token; no unmanaged content leaves the worker
+  string managed_content = 8;
+  bool importable = 9;
+  string detail = 10;
+}
+
+message AgentEnvironmentReport {
+  uint64 revision = 1;
+  repeated EnvironmentFileStatus files = 2;
+}

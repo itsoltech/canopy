@@ -54,6 +54,7 @@ import computerRelay from "./0053_computer_relay.sql" with { type: "text" };
 import computerMoves from "./0054_computer_moves.sql" with { type: "text" };
 import networkAccess from "./0055_network_access.sql" with { type: "text" };
 import mobileNetwork from "./0056_mobile_network.sql" with { type: "text" };
+import agentEnvironment from "./0057_agent_environment.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -124,6 +125,7 @@ export const migrations = Migrator.fromRecord({
   "0054_computer_moves": sqlFile(computerMoves),
   "0055_network_access": sqlFile(networkAccess),
   "0056_mobile_network": sqlFile(mobileNetwork),
+  "0057_agent_environment": sqlFile(agentEnvironment),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

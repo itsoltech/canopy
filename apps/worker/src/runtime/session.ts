@@ -28,6 +28,9 @@ export async function serveLink(
           // Probe concurrently: commands, heartbeats and journal acks stay on the working link.
           void networkRoutes?.(message.payload.value);
           break;
+        case "agentEnvironment":
+          host.environment.apply(message.payload.value);
+          break;
         case "threadSecretDelivery":
           link.send({ case: "threadSecretReceipt", value: host.secrets.apply(message.payload.value) });
           break;

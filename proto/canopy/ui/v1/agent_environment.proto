@@ -1,0 +1,83 @@
+syntax = "proto3";
+package canopy.ui.v1;
+import "canopy/worker/v1/agent_environment.proto";
+
+message EnvironmentSelector {
+  bool everyone = 1;
+  repeated string worker_ids = 2;
+  repeated string tags = 3;
+  bool match_all_tags = 4;
+  repeated string exclude_tags = 5;
+}
+
+message InstructionFragment {
+  string id = 1;
+  string name = 2;
+  string content = 3;
+  EnvironmentSelector selector = 4; // absent = all workers selected by the document
+}
+
+message InstructionMachineOverride {
+  string worker_id = 1;
+  bool disabled = 2;
+  string content = 3;
+}
+
+message InstructionDocument {
+  string id = 1;
+  string name = 2;
+  string harness = 3;
+  uint64 revision = 4;
+  EnvironmentSelector selector = 5;
+  repeated InstructionFragment fragments = 6;
+  repeated InstructionMachineOverride overrides = 7;
+  bool device_home = 8;
+  bool platform_home = 9;
+}
+
+message EnvironmentWorker {
+  string worker_id = 1;
+  string name = 2;
+  repeated string automatic_tags = 3;
+  repeated string manual_tags = 4;
+  bool supported = 5;
+  bool online = 6;
+  canopy.worker.v1.AgentEnvironmentReport report = 7;
+  repeated canopy.worker.v1.EnvironmentInstruction preview = 8;
+  uint64 desired_revision = 9;
+  string composition_error = 10;
+}
+
+message AgentEnvironmentRequest {}
+message AgentEnvironmentSnapshot {
+  uint64 revision = 1;
+  repeated InstructionDocument documents = 2;
+  repeated EnvironmentWorker workers = 3;
+}
+message SaveInstructionDocumentRequest {
+  InstructionDocument document = 1;
+  uint64 expected_revision = 2;
+}
+message DeleteInstructionDocumentRequest {
+  string id = 1;
+  uint64 expected_revision = 2;
+}
+message SetEnvironmentTagsRequest {
+  string worker_id = 1;
+  repeated string tags = 2;
+  uint64 expected_revision = 3;
+}
+message PreviewAgentEnvironmentRequest {
+  string worker_id = 1;
+  InstructionDocument draft = 2; // optional replacement of one document, never persisted
+}
+message PreviewAgentEnvironmentResponse {
+  repeated canopy.worker.v1.EnvironmentInstruction instructions = 1;
+}
+message ResolveEnvironmentDriftRequest {
+  string worker_id = 1;
+  string target_id = 2;
+  string action = 3; // keep | overwrite | import
+  string observed_checksum = 4;
+  uint64 expected_revision = 5;
+}

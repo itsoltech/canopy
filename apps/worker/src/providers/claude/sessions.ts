@@ -11,6 +11,7 @@ import type { ClaudeThreadContext, Session } from "./thread-types.ts";
 import type { claudeRuntime } from "./session-runtime.ts";
 import { sessionPermissions } from "./session-permissions.ts";
 import { callKey, fileSize } from "./session-io.ts";
+import { managedClaudeInstructions } from "./instructions.ts";
 
 export function claudeSessions(
   ctx: ClaudeThreadContext,
@@ -48,6 +49,7 @@ export function claudeSessions(
 
     const attachments = options.attachmentsDir?.(spec.threadId);
     const secrets = options.secretsDir?.(spec.threadId);
+    const instructions = [managedClaudeInstructions(runtime.home), spec.instructions].filter(Boolean).join("\n\n");
 
     const queryOptions: Options = {
       cwd: spec.cwd,
@@ -89,7 +91,7 @@ export function claudeSessions(
       systemPrompt: {
         type: "preset",
         preset: "claude_code",
-        ...(spec.instructions && { append: spec.instructions }),
+        ...(instructions && { append: instructions }),
       },
       abortController: abort,
     };

@@ -14,6 +14,7 @@ import { queueHandlers } from "./ui-queue.ts";
 import { settingsHandlers } from "./ui-settings.ts";
 import { threadsHandlers } from "./ui-threads.ts";
 import { workersHandlers } from "./ui-workers.ts";
+import { agentEnvironmentHandlers } from "./ui-agent-environment.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -27,6 +28,7 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
 /** This computer's own GatewayService. Thin: validation and state live in the core and the store. */
 export function uiHandlers(core: GatewayCore): UiHandlers {
   return {
+    ...agentEnvironmentHandlers(core),
     ...computersHandlers(core),
     ...workersHandlers(core),
     ...threadsHandlers(core),

@@ -8,6 +8,7 @@
     "./items": "./src/items.ts",
     "./computers": "./src/computers.ts",
     "./json": "./src/json.ts",
+    "./agent-environment": "./src/agent-environment.ts",
     "./background-tasks": "./src/background-tasks/index.ts",
     "./release/protocol": "./src/release/protocol.ts",
     "./release/version": "./src/release/version.ts"

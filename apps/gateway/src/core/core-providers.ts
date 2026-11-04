@@ -27,6 +27,7 @@ export async function coreConfigsChanged(hostContext: GatewayCore, workerIds: re
     const config = await coreRun(hostContext, (s) => s.workerConfig(workerId));
 
     if (config) hostContext.link.pushConfig(workerId, config);
+    await hostContext.environment.sync(workerId);
   }
 
   await coreBroadcastWorkers(hostContext);

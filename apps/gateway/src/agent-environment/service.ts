@@ -1,0 +1,243 @@
+import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import {
+  AgentEnvironmentDesiredSchema,
+  AgentEnvironmentReportSchema,
+  type AgentEnvironmentReport,
+  type CliToolsReport,
+  type Hello,
+  ui,
+} from "@canopy/contracts";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
+import type { CoreRuntime } from "../core/core.ts";
+import type { WorkerLink } from "../worker-link/index.ts";
+import { automaticTags, checkDocument, compose, manualTags } from "./composition.ts";
+import { documents, EnvironmentDatabase, revision, workers } from "./database.ts";
+import { putDocument, removeDocument, setTags } from "./mutations.ts";
+import { resolveDrift } from "./drift.ts";
+
+export class AgentEnvironment {
+  readonly db: EnvironmentDatabase;
+
+  constructor(readonly options: { runtime: CoreRuntime; userId: string; link: WorkerLink; changed: () => void }) {
+    this.db = new EnvironmentDatabase(options.runtime, options.userId);
+  }
+
+  async snapshot(): Promise<ui.AgentEnvironmentSnapshot> {
+    const owner = this.options.userId;
+
+    const snapshot = await this.db.run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+
+        return yield* sql.withTransaction(
+          Effect.gen(function* () {
+            yield* sql`INSERT INTO agent_environments (owner_user_id) VALUES (${owner}::uuid) ON CONFLICT DO NOTHING`;
+            yield* sql`SELECT revision FROM agent_environments WHERE owner_user_id = ${owner}::uuid FOR SHARE`;
+
+            return create(ui.AgentEnvironmentSnapshotSchema, {
+              revision: yield* revision(sql, owner),
+              documents: yield* documents(sql, owner),
+              workers: yield* workers(sql, owner),
+            });
+          }),
+        );
+      }),
+    );
+
+    for (const worker of snapshot.workers) {
+      const connection = this.options.link.connections.get(worker.workerId);
+      worker.online = Boolean(connection?.isOpen);
+      worker.supported = connection?.isOpen
+        ? connection.hello.capabilities.includes("agent_environment_v1")
+        : worker.supported;
+      worker.desiredRevision = snapshot.revision;
+
+      try {
+        worker.preview = compose(snapshot.documents, worker);
+      } catch (error) {
+        worker.compositionError =
+          error instanceof ConnectError ? error.rawMessage : "Couldn't compose this computer's instructions.";
+      }
+    }
+
+    return snapshot;
+  }
+
+  async save(request: ui.SaveInstructionDocumentRequest): Promise<ui.AgentEnvironmentSnapshot> {
+    if (!request.document) throw new ConnectError("Add an instruction document.", Code.InvalidArgument);
+    const document = request.document;
+    await this.db.mutate(request.expectedRevision, (sql, next) =>
+      putDocument(sql, this.options.userId, next, document),
+    );
+
+    return this.changed();
+  }
+
+  async remove(request: ui.DeleteInstructionDocumentRequest): Promise<ui.AgentEnvironmentSnapshot> {
+    await this.db.mutate(request.expectedRevision, (sql, next) =>
+      removeDocument(sql, this.options.userId, next, request.id),
+    );
+
+    return this.changed();
+  }
+
+  async tags(request: ui.SetEnvironmentTagsRequest): Promise<ui.AgentEnvironmentSnapshot> {
+    const tags = manualTags(request.tags);
+    await this.db.mutate(request.expectedRevision, (sql) => setTags(sql, this.options.userId, request.workerId, tags));
+
+    return this.changed();
+  }
+
+  async preview(request: ui.PreviewAgentEnvironmentRequest): Promise<ui.PreviewAgentEnvironmentResponse> {
+    const snapshot = await this.snapshot();
+    const worker = snapshot.workers.find((w) => w.workerId === request.workerId);
+
+    if (!worker) throw new ConnectError("Worker not found.", Code.NotFound);
+    let library = snapshot.documents;
+
+    if (request.draft) {
+      checkDocument(request.draft, snapshot.workers);
+      const draft = request.draft;
+
+      if (draft.id && !library.some((d) => d.id === draft.id))
+        throw new ConnectError("Document not found.", Code.NotFound);
+      library = draft.id ? library.map((d) => (d.id === draft.id ? draft : d)) : [...library, draft];
+    }
+
+    return create(ui.PreviewAgentEnvironmentResponseSchema, { instructions: compose(library, worker) });
+  }
+
+  async resolve(request: ui.ResolveEnvironmentDriftRequest): Promise<ui.AgentEnvironmentSnapshot> {
+    await this.db.mutate(request.expectedRevision, (sql, next) =>
+      resolveDrift(sql, this.options.userId, next, request),
+    );
+
+    return this.changed();
+  }
+
+  async changed(): Promise<ui.AgentEnvironmentSnapshot> {
+    const snapshot = await this.sync();
+    this.options.changed();
+
+    return snapshot;
+  }
+
+  async sync(workerId?: string): Promise<ui.AgentEnvironmentSnapshot> {
+    const snapshot = await this.snapshot();
+
+    for (const worker of snapshot.workers) {
+      if (workerId && worker.workerId !== workerId) continue;
+
+      if (worker.compositionError) continue;
+      const connection = this.options.link.connections.get(worker.workerId);
+
+      if (!connection?.isOpen || !connection.hello.capabilities.includes("agent_environment_v1")) continue;
+
+      const pending = await this.db.run(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+
+          const rows = yield* sql<{
+            resolutions: JsonValue;
+          }>`SELECT resolutions FROM worker_environments WHERE worker_id = ${worker.workerId}::uuid`;
+
+          return fromJson(AgentEnvironmentDesiredSchema, rows[0]?.resolutions ?? {});
+        }),
+      );
+
+      connection.send({
+        case: "agentEnvironment",
+        value: {
+          revision: snapshot.revision,
+          instructions: worker.preview,
+          resolutions: pending.resolutions,
+        },
+      });
+    }
+
+    return snapshot;
+  }
+
+  /** The authenticated Hello supplies facts. Manual tags are never overwritten by discovery. */
+  async connected(workerId: string, hello: Hello, tools?: CliToolsReport): Promise<void> {
+    let tags = automaticTags(hello);
+
+    if (tools) {
+      tags = tags.filter((tag) => !tag.startsWith("cli:"));
+
+      for (const tool of tools.tools) {
+        const harness = ["", "claude", "codex", "grok"][tool.provider];
+
+        if (tool.path && tool.version && harness) tags.push(`cli:${harness}`);
+      }
+
+      tags.sort();
+    }
+
+    const automatic = tags;
+    const supported = hello.capabilities.includes("agent_environment_v1");
+    const owner = this.options.userId;
+
+    const changed = await this.db.run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+
+        return yield* sql.withTransaction(
+          Effect.gen(function* () {
+            const owned =
+              yield* sql`SELECT id FROM workers WHERE id = ${workerId}::uuid AND owner_user_id = ${owner}::uuid AND revoked_at IS NULL AND archived_at IS NULL`;
+
+            if (!owned.length) return false;
+            yield* sql`INSERT INTO agent_environments (owner_user_id) VALUES (${owner}::uuid) ON CONFLICT DO NOTHING`;
+            yield* sql`SELECT revision FROM agent_environments WHERE owner_user_id = ${owner}::uuid FOR UPDATE`;
+
+            const updated = yield* sql`INSERT INTO worker_environments (worker_id, automatic_tags, supported)
+          VALUES (${workerId}::uuid, ${automatic}::text[], ${supported})
+          ON CONFLICT (worker_id) DO UPDATE SET automatic_tags = EXCLUDED.automatic_tags, supported = EXCLUDED.supported
+          WHERE worker_environments.automatic_tags IS DISTINCT FROM EXCLUDED.automatic_tags OR worker_environments.supported <> EXCLUDED.supported
+          RETURNING worker_id`;
+
+            if (updated.length)
+              yield* sql`UPDATE agent_environments SET revision = revision + 1 WHERE owner_user_id = ${owner}::uuid`;
+
+            return updated.length > 0;
+          }),
+        );
+      }),
+    );
+
+    await this.sync(changed ? undefined : workerId);
+    this.options.changed();
+  }
+
+  async report(workerId: string, report: AgentEnvironmentReport): Promise<void> {
+    // Bound an authenticated but untrusted worker's report before persisting or exposing any block to the UI.
+    if (
+      report.files.length > 128 ||
+      Buffer.byteLength(JSON.stringify(toJson(AgentEnvironmentReportSchema, report))) > 2 * 1024 * 1024
+    )
+      return;
+    const owner = this.options.userId;
+    const json = JSON.stringify(toJson(AgentEnvironmentReportSchema, report));
+    await this.db.run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql.withTransaction(
+          Effect.gen(function* () {
+            yield* sql`SELECT revision FROM agent_environments WHERE owner_user_id = ${owner}::uuid FOR UPDATE`;
+            const current = yield* revision(sql, owner);
+
+            if (report.revision > current) return;
+            yield* sql`UPDATE worker_environments e SET report = ${json}::jsonb, reported_at = now(),
+          resolutions = CASE WHEN ${report.revision} = ${current} THEN '{}'::jsonb ELSE resolutions END
+          FROM workers w WHERE w.id = e.worker_id AND w.id = ${workerId}::uuid AND w.owner_user_id = ${owner}::uuid
+          AND COALESCE((e.report->>'revision')::bigint, 0) <= ${report.revision}`;
+          }),
+        );
+      }),
+    );
+    this.options.changed();
+  }
+}
