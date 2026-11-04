@@ -58,6 +58,8 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           attachmentsRoot: hello.attachmentsRoot,
           scratchRoot: hello.scratchRoot,
           homeDirectory: hello.homeDirectory,
+          // Git worktrees (docs/worktrees.md): empty = the worker cannot make them.
+          worktreesRoot: hello.capabilities.includes("worktrees") ? hello.worktreesRoot : "",
         });
 
         yield* sql`
@@ -86,7 +88,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           name: string;
           os: string;
           version: string;
-          capabilities: { hostname?: string; homeDirectory?: string };
+          capabilities: { hostname?: string; homeDirectory?: string; worktreesRoot?: string };
           last_seen_at: Date | null;
           revoked_at: Date | null;
           config: JsonValue | null;
@@ -124,6 +126,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
             providers: report?.providers ?? [],
             profiles: report?.profiles ?? [],
             homeDirectory: r.capabilities?.homeDirectory ?? "",
+            worktrees: Boolean(r.capabilities?.worktreesRoot),
             configVersion: r.config_version ? BigInt(r.config_version) : 0n,
             appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
             configIssues: report?.issues ?? [],

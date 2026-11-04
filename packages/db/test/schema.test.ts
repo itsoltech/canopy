@@ -77,6 +77,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "63_desktop_updates",
       "64_worker_enrollment_tags",
       "65_instance_connections",
+      "66_worktrees",
     ]);
   }, 60_000);
 
@@ -571,6 +572,49 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(await query(`SELECT enabled FROM network_access`)).toEqual([{ enabled: false }]);
       expect(await failure(insert, [w.user, 24001, []])).toContain("network_access_pkey");
       await query(`DELETE FROM network_access`);
+    });
+  });
+
+  describe("worktrees (0064)", () => {
+    test("one settings row per scope; one live worktree per path; a removed worktree frees its path", async () => {
+      const w = await world();
+      const scope = `INSERT INTO worktree_settings (owner_user_id, project_id, worker_id, settings) VALUES ($1, $2, $3, '{}')`;
+      await query(scope, [w.user, null, null]);
+      await query(scope, [w.user, w.project, null]);
+      await query(scope, [w.user, w.project, w.worker]);
+      expect(await failure(scope, [w.user, null, null])).toContain("worktree_settings_scope");
+      expect(await failure(scope, [w.user, w.project, w.worker])).toContain("worktree_settings_scope");
+      expect(
+        await failure(
+          `INSERT INTO worktree_settings (owner_user_id, project_id, worker_id, settings) VALUES ($1, NULL, $2, '[]')`,
+          [w.user, w.worker],
+        ),
+      ).toContain("check");
+
+      const insert = `INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch)
+                      VALUES ($1, $2, $3, $4, $5, '/repo', '/data/worktrees/repo/a', 'canopy/a')`;
+
+      const first = id();
+      await query(insert, [first, w.user, w.project, w.workspace, w.worker]);
+      expect(await failure(insert, [id(), w.user, w.project, w.workspace, w.worker])).toContain("worktrees_live_path");
+      await query(`UPDATE worktrees SET removed_at = now() WHERE id = $1`, [first]);
+      const live = id();
+      await query(insert, [live, w.user, w.project, w.workspace, w.worker]);
+      const thread = await mainThread(w);
+      expect(await failure(`UPDATE threads SET worktree_id = $2 WHERE id = $1`, [thread, first])).toContain(
+        "immutable",
+      );
+
+      const inWorktree = `INSERT INTO threads (id, project_id, owner_user_id, kind, root_thread_id, runtime, provider, worker_id, workspace_id, cwd, status, worktree_id)
+        VALUES ($1, $2, $3, 'main', $1, 'worker', 'codex', $4, $5, $6, 'idle', $7)`;
+
+      expect(await failure(inWorktree, [id(), w.project, w.user, w.worker, w.workspace, "/repo", live])).toContain(
+        "workspace worktree and path",
+      );
+      expect(
+        await failure(inWorktree, [id(), w.project, w.user, w.worker, w.workspace, "/data/worktrees/repo/a", first]),
+      ).toContain("workspace worktree and path");
+      await query(inWorktree, [id(), w.project, w.user, w.worker, w.workspace, "/data/worktrees/repo/a", live]);
     });
   });
 

@@ -58,6 +58,21 @@ export interface ThreadRow {
   unseen_result?: string | null;
   /** Joined: how the latest ended turn ended. */
   last_turn_status?: string | null;
+  /** The git worktree the thread works in (docs/worktrees.md); NULL = the workspace's checkout. */
+  worktree_id?: string | null;
+  /** Joined: that worktree. */
+  worktree?: ThreadWorktreeColumns | null;
+}
+
+/** The thread's worktree as joined by threadSelect (json_build_object: timestamps are strings). */
+export interface ThreadWorktreeColumns {
+  id: string;
+  branch: string;
+  path: string;
+  base_ref: string;
+  repo_root: string;
+  worker_id: string;
+  created_at: string;
 }
 
 export interface TurnRow {

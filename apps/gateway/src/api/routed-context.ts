@@ -2,6 +2,7 @@ import { clone, type DescMessage, type DescMethod, type Message, type MessageIni
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import type { GatewayCore } from "../core/core.ts";
 import { mapIds, nodesOf } from "../computers/remote.ts";
+import { refuseRemoteWorktree } from "../worktrees/remote.ts";
 
 /**
  * Threads of linked computers in this gateway's API (docs/linked-computers.md, stage 2). A request whose
@@ -11,6 +12,13 @@ import { mapIds, nodesOf } from "../computers/remote.ts";
  * gateway keeps a read-only mirror for offline reads and never queues a call for a disconnected peer.
  */
 export const UNARY_TIMEOUT_MS = 30_000;
+
+/** Administration stays on this computer; worktree errors explain where to open the workspace. */
+export function refuseForeignAdministration(method: DescMethod, request: Message): void {
+  if (!nodesOf(method.input, request, true).size) return;
+  refuseRemoteWorktree(method, request);
+  throw new ConnectError("This isn't available for threads on another computer yet", Code.FailedPrecondition);
+}
 
 export const GATHER_TIMEOUT_MS = 3_000;
 
@@ -42,6 +50,7 @@ export const READS = new Set([
   "GetThreadBlob",
   "ListMentionCatalog",
   "SearchFiles",
+  "ListGitRefs",
   "ListBots",
   "GetBot",
   "WatchBotConversation",

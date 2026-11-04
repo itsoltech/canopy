@@ -17,6 +17,7 @@ Powiązane dokumenty:
 - [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
 - [mobile.md](mobile.md) — Canopy iOS/Android, Connect przez przypięty TLS, parowanie i automatyczne trasy
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
+- [worktrees.md](worktrees.md) — git worktrees: ustawienia w zakresach, worktree nowego wątku, nazwy gałęzi, plan sprzątania
 - [transcript.md](transcript.md) — zapis wszystkich zdarzeń, itemy, oś czasu dla frontendu
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity
 - [goals.md](goals.md) — cele: silnikiem jest harness (Codex goals, Claude `/goal`), platforma je śledzi i steruje nimi z UI

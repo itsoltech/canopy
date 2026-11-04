@@ -11,6 +11,7 @@
   import { isFinishedGoal, showsGoal, takesGoals } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
+  import WorktreeBadge from "#lib/features/worktrees/WorktreeBadge.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
@@ -499,6 +500,9 @@
           >
         {/if}
         <Crumb><span class={["truncate", thread.titleGenerating && "shimmer"]}>{thread.title}</span></Crumb>
+        {#if thread.worktree}<li class="flex min-w-0 shrink items-center max-sm:hidden">
+            <WorktreeBadge worktree={thread.worktree} class="max-w-48" />
+          </li>{/if}
       {:else}
         <Crumb><Skeleton class="h-4 w-48" /></Crumb>
       {/if}

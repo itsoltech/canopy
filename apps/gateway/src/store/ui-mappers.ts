@@ -97,6 +97,17 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     archivedByThreadTitle: row.archived_by_thread_title ?? "",
     ...(row.deleted_at && { deletedAt: timestampFromDate(new Date(row.deleted_at)) }),
     lastTurnStatus: row.last_turn_status ?? "",
+    ...(row.worktree && {
+      worktree: {
+        id: row.worktree.id,
+        branch: row.worktree.branch,
+        path: row.worktree.path,
+        baseRef: row.worktree.base_ref,
+        repoRoot: row.worktree.repo_root,
+        workerId: row.worktree.worker_id,
+        createdAt: timestampFromDate(new Date(row.worktree.created_at)),
+      },
+    }),
   });
 }
 

@@ -226,6 +226,10 @@ Sekcja Bots korzysta z tego samego `GatewayService` i uwierzytelnienia BFF. Osob
 kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdalne MCP.
 `SidebarSettings.pinned_bot_ids` ma numer 350. Pełny zakres: [bots.md](bots.md).
 
+## Git worktrees
+
+`GetWorktreeSettings` / `UpdateWorktreeSettings` (zakres: projekt lub wszystkie × komputer lub wszystkie, nadpisania z wersją; konflikt = 409 w BFF) oraz `ListGitRefs(workspace_id)` dla kompozytora (refy, poprzednie worktree, efektywne ustawienia; `supported = false` dla starszego workera). `CreateThreadRequest.workspace_mode`, `base_ref`, `worktree_id`; `Thread.worktree`. BFF: `/api/worktrees/settings` (POST odczyt, PUT zapis), `/api/worktrees/refs`. UI: Settings → Worktrees, pickery workspace i refu pod kompozytorem nowego wątku, gałąź w nagłówku, panelu i karcie wątku. Szczegóły: [worktrees.md](worktrees.md).
+
 ## Pasek boczny i cykl życia wątku
 
 `UserSettings.sidebar` przechowuje filtr projektów (`project_ids`, puste = wszystkie), przypięcia

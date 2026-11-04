@@ -130,6 +130,18 @@
       {/if}
       {#snippet aside()}<CopyButton text={thread.cwd} label="Copy working directory" class="-my-1" />{/snippet}
     </PanelRow>
+    {#if thread.worktree}
+      <!-- A git worktree (docs/worktrees.md): its branch and what it started from. -->
+      <PanelRow icon="git-fork">
+        <code class="font-mono text-xs/6" {@attach tooltip(`Worktree ${thread.worktree.path}`)}
+          >{thread.worktree.branch}</code
+        >
+        {#snippet aside()}{#if thread.worktree?.baseRef}<span
+              class="shrink-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+              >from <code class="font-mono">{thread.worktree.baseRef}</code></span
+            >{/if}{/snippet}
+      </PanelRow>
+    {/if}
   </section>
 
   <section aria-label="Agent" class="grid grid-cols-1 p-1.5">

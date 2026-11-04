@@ -1,11 +1,16 @@
 import { fail, redirect } from "@sveltejs/kit";
-import { PermissionMode, Provider, type ui } from "@canopy/contracts";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
 import { attempt, failed } from "#lib/server/gateway.ts";
 import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { isProviderKey, providerKeyOf } from "../providers.ts";
 import { isPermissionModeName } from "../labels.ts";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
+
+const WORKSPACE_MODES = ["CHECKOUT", "NEW_WORKTREE", "EXISTING_WORKTREE"] as const;
+
+const isWorkspaceModeName = (value: string): value is (typeof WORKSPACE_MODES)[number] =>
+  WORKSPACE_MODES.some((mode) => mode === value);
 
 /**
  * Form action body shared by "New thread" (home composer) and "New side thread" (thread page):
@@ -36,6 +41,9 @@ export async function createThreadFromForm(
   const initialMessage = text(form, "message");
 
   if (parent && !initialMessage) return fail(400, { action, error: "Tell the side thread what to do" });
+  const workspaceMode = text(form, "workspaceMode") || "CHECKOUT";
+
+  if (!isWorkspaceModeName(workspaceMode)) return fail(400, { action, error: "Unknown workspace" });
   let initialMentions;
 
   try {
@@ -45,22 +53,31 @@ export async function createThreadFromForm(
   }
 
   const result = await attempt(action, (api) =>
-    api.createThread({
-      projectId,
-      workspaceId,
-      title: text(form, "title"),
-      provider: Provider[provider],
-      providerProfileId: profileId,
-      model: text(form, "model"),
-      effort: text(form, "effort"),
-      permissionMode: PermissionMode[mode],
-      initialMessage,
-      parentThreadId: parent?.id ?? "",
-      fork: Boolean(parent) && form.get("fork") === "on",
-      clientRequestId: text(form, "clientRequestId") || crypto.randomUUID(),
-      initialAttachmentIds: form.getAll("attachmentId").map(String).filter(Boolean),
-      initialMentions,
-    }),
+    api.createThread(
+      {
+        projectId,
+        workspaceId,
+        title: text(form, "title"),
+        provider: Provider[provider],
+        providerProfileId: profileId,
+        model: text(form, "model"),
+        effort: text(form, "effort"),
+        permissionMode: PermissionMode[mode],
+        initialMessage,
+        parentThreadId: parent?.id ?? "",
+        fork: Boolean(parent) && form.get("fork") === "on",
+        clientRequestId: text(form, "clientRequestId") || crypto.randomUUID(),
+        initialAttachmentIds: form.getAll("attachmentId").map(String).filter(Boolean),
+        initialMentions,
+        // Side threads work in their parent's directory (and worktree).
+        ...(!parent && {
+          workspaceMode: ui.WorkspaceMode[workspaceMode],
+          baseRef: text(form, "baseRef"),
+          worktreeId: text(form, "worktreeId"),
+        }),
+      },
+      { timeoutMs: 100_000 },
+    ),
   );
 
   if (failed(result)) return result;

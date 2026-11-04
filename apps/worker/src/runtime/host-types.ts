@@ -10,6 +10,8 @@ import {
   type ProfileModelsSchema,
   type MentionCatalogSchema,
   type FileSearchResultSchema,
+  type GitRefsSchema,
+  type WorktreeInfoSchema,
 } from "@canopy/contracts";
 import { Context, Scope, type ManagedRuntime } from "effect";
 import type { DeviceProbe } from "../config/remote.ts";
@@ -33,6 +35,8 @@ export interface CommandOutput {
   readonly login?: { verificationUrl: string; userCode: string; loginId: string };
   readonly mentionCatalog?: MessageInitShape<typeof MentionCatalogSchema>;
   readonly fileSearch?: MessageInitShape<typeof FileSearchResultSchema>;
+  readonly gitRefs?: MessageInitShape<typeof GitRefsSchema>;
+  readonly worktree?: MessageInitShape<typeof WorktreeInfoSchema>;
 }
 
 export interface WorkerHostOptions {

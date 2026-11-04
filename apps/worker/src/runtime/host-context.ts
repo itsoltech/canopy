@@ -13,6 +13,7 @@ import { QueryCommands } from "./query-commands.ts";
 import { TaskCommands } from "./task-commands.ts";
 import { TextGeneration } from "./text-generation.ts";
 import { CommandHandlers } from "./command-handlers.ts";
+import { GitCommands } from "./git-commands.ts";
 
 export interface HostHooks {
   applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit>;
@@ -53,6 +54,7 @@ export type HostOperations = HostHooks &
   > &
   Pick<TaskCommands, "setGoal" | "stopTask" | "unloadThread"> &
   Pick<TextGeneration, "generateText"> &
+  Pick<GitCommands, "listGitRefs" | "createWorktree" | "renameWorktreeBranch"> &
   Pick<CommandHandlers, "execute">;
 
 export class HostContext {
@@ -72,6 +74,7 @@ export class HostContext {
     const tasks = new TaskCommands(this);
     const generation = new TextGeneration(this);
     const commands = new CommandHandlers(this);
+    const gitCommands = new GitCommands(this);
     this.ops = {
       ...hooks,
       homes: catalog.homes.bind(catalog),
@@ -123,6 +126,9 @@ export class HostContext {
       unloadThread: tasks.unloadThread.bind(tasks),
       generateText: generation.generateText.bind(generation),
       execute: commands.execute.bind(commands),
+      listGitRefs: gitCommands.listGitRefs.bind(gitCommands),
+      createWorktree: gitCommands.createWorktree.bind(gitCommands),
+      renameWorktreeBranch: gitCommands.renameWorktreeBranch.bind(gitCommands),
     };
   }
 }

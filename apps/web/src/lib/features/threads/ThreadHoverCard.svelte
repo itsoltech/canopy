@@ -100,6 +100,13 @@
             title={thread.cwd}>{basename(thread.cwd)}</code
           >{/if}
       </SummaryRow>
+      {#if thread.worktree}
+        <SummaryRow>
+          {#snippet mark()}<Icon name="git-fork" class={muted} />{/snippet}
+          <code class="truncate font-mono" title={thread.worktree.path}>{thread.worktree.branch}</code>
+          {#snippet aside()}<span class="text-zinc-500">Worktree</span>{/snippet}
+        </SummaryRow>
+      {/if}
       <SummaryRow>
         {#snippet mark()}{#if provider}<ProviderIcon {provider} class="size-4 opacity-70" />{:else}<Icon
               name="cpu-chip"
