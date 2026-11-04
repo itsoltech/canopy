@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/link/v1/link.proto.
  */
 export const file_canopy_link_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSKrAQoPQm90TWlycm9yVXBkYXRlEg4KBmN1cnNvchgBIAEoCRINCgVzdGFydBgCIAEoCBIOCgZjb21taXQYAyABKAgSMwoMY29udmVyc2F0aW9uGAQgASgLMh0uY2Fub3B5LnVpLnYxLkJvdENvbnZlcnNhdGlvbhIaChJjb252ZXJzYXRpb25fc3RhcnQYBSABKAgSGAoQY29udmVyc2F0aW9uX2VuZBgGIAEoCCKBAQoPTGlua2VkQWdlbnRDYWxsEhEKCW9wZXJhdGlvbhgBIAEoCRIPCgdjYWxsX2lkGAIgASgJEhAKCGFjdG9yX2lkGAMgASgJEhIKCmFjdG9yX2tpbmQYBCABKAkSFgoOYXJndW1lbnRzX2pzb24YBSABKAkSDAoEaG9wcxgGIAEoDSIoChFMaW5rZWRBZ2VudFJlc3VsdBITCgtyZXN1bHRfanNvbhgBIAEoCSIfCg1NaXJyb3JSZXF1ZXN0Eg4KBmN1cnNvchgBIAEoCSKEAgoMTWlycm9yVXBkYXRlEhcKD3ByZXZpb3VzX2N1cnNvchgBIAEoCRIOCgZjdXJzb3IYAiABKAkSDQoFcmVzZXQYAyABKAgSDgoGY29tbWl0GAQgASgIEi4KCHNuYXBzaG90GAUgASgLMhwuY2Fub3B5LnVpLnYxLlRocmVhZFNuYXBzaG90EhkKEXJlbW92ZWRfdGhyZWFkX2lkGAYgASgJEjMKCG92ZXJ2aWV3GAcgASgLMiEuY2Fub3B5LnVpLnYxLkdldE92ZXJ2aWV3UmVzcG9uc2USFgoOc25hcHNob3Rfc3RhcnQYCCABKAgSFAoMc25hcHNob3RfZW5kGAkgASgIIiwKDFNoYXJlZFNlY3JldBINCgV0b2tlbhgBIAEoCRINCgV2YWx1ZRgCIAEoCSKYAgoKU2hhcmVkSXRlbRILCgNrZXkYASABKAkSDgoGc2hhcmVkGAIgASgIEjQKBWNsb2NrGAMgAygLMiUuY2Fub3B5LmxpbmsudjEuU2hhcmVkSXRlbS5DbG9ja0VudHJ5EhIKCmNoYW5nZWRfYnkYBCABKAkSFQoNY2hhbmdlZF9hdF9tcxgFIAEoAxIOCgZkaWdlc3QYBiABKAkSDwoHcGF5bG9hZBgHIAEoCRItCgdzZWNyZXRzGAggAygLMhwuY2Fub3B5LmxpbmsudjEuU2hhcmVkU2VjcmV0Eg4KBnJlYXNvbhgJIAEoCRosCgpDbG9ja0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBDoCOAEiPQoQU2hhcmVkQ29uZmlnUHVzaBIpCgVpdGVtcxgBIAMoCzIaLmNhbm9weS5saW5rLnYxLlNoYXJlZEl0ZW0iuwEKEFNoYXJlZEl0ZW1SZXN1bHQSCwoDa2V5GAEgASgJEg8KB291dGNvbWUYAiABKAkSDgoGZGlnZXN0GAMgASgJEg8KB21lc3NhZ2UYBCABKAkSOgoFY2xvY2sYBSADKAsyKy5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0LkNsb2NrRW50cnkaLAoKQ2xvY2tFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAQ6AjgBIkYKEVNoYXJlZENvbmZpZ1JlcGx5EjEKB3Jlc3VsdHMYASADKAsyIC5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0IpQBCglOb2RlSGVsbG8SDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCWFkZHJlc3NlcxgDIAMoCRITCgthcHBfdmVyc2lvbhgEIAEoCRIUCgxtaW5fcHJvdG9jb2wYBSABKA0SFAoMbWF4X3Byb3RvY29sGAYgASgNEhQKDGNhcGFiaWxpdGllcxgHIAMoCSJHCgtQYWlyUmVxdWVzdBIOCgZzZWNyZXQYASABKAkSKAoFaGVsbG8YAiABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG8iOAoMUGFpclJlc3BvbnNlEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvImEKC0xpbmtXZWxjb21lEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvEhAKCHByb3RvY29sGAIgASgNEhYKDnVwZGF0ZV9ub2RlX2lkGAMgASgJIjIKCFByZXNlbmNlEg0KBXN0YXRlGAEgASgJEhcKD2Fubm91bmNlZF9hdF9tcxgCIAEoAyIfCglIZWFydGJlYXQSEgoKc2VudF9hdF9tcxgBIAEoAyIKCghVbmxpbmtlZCImChFSb3V0ZUFubm91bmNlbWVudBIRCglhZGRyZXNzZXMYASADKAkiTwoNUmVtb3RlUmVxdWVzdBIPCgdjYWxsX2lkGAEgASgEEg4KBm1ldGhvZBgCIAEoCRIPCgdwYXlsb2FkGAMgASgMEgwKBG1vcmUYBCABKAgibAoOUmVtb3RlUmVzcG9uc2USDwoHY2FsbF9pZBgBIAEoBBIPCgdwYXlsb2FkGAIgASgMEgwKBG1vcmUYAyABKAgSCwoDZW5kGAQgASgIEgwKBGNvZGUYBSABKA0SDwoHbWVzc2FnZRgGIAEoCSIfCgxSZW1vdGVDYW5jZWwSDwoHY2FsbF9pZBgBIAEoBCLbAwoJTGlua0ZyYW1lEioKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvSAASLgoHd2VsY29tZRgCIAEoCzIbLmNhbm9weS5saW5rLnYxLkxpbmtXZWxjb21lSAASLgoJaGVhcnRiZWF0GAMgASgLMhkuY2Fub3B5LmxpbmsudjEuSGVhcnRiZWF0SAASLAoIcHJlc2VuY2UYBCABKAsyGC5jYW5vcHkubGluay52MS5QcmVzZW5jZUgAEiwKCHVubGlua2VkGAUgASgLMhguY2Fub3B5LmxpbmsudjEuVW5saW5rZWRIABI3Cg5yZW1vdGVfcmVxdWVzdBgGIAEoCzIdLmNhbm9weS5saW5rLnYxLlJlbW90ZVJlcXVlc3RIABI5Cg9yZW1vdGVfcmVzcG9uc2UYByABKAsyHi5jYW5vcHkubGluay52MS5SZW1vdGVSZXNwb25zZUgAEjUKDXJlbW90ZV9jYW5jZWwYCCABKAsyHC5jYW5vcHkubGluay52MS5SZW1vdGVDYW5jZWxIABIzCgZyb3V0ZXMYCSABKAsyIS5jYW5vcHkubGluay52MS5Sb3V0ZUFubm91bmNlbWVudEgAQgYKBGJvZHkyvQEKE0xpbmtlZEFnZW50c1NlcnZpY2USUgoOV2F0Y2hCb3RNaXJyb3ISHS5jYW5vcHkubGluay52MS5NaXJyb3JSZXF1ZXN0Gh8uY2Fub3B5LmxpbmsudjEuQm90TWlycm9yVXBkYXRlMAESUgoMQ2FsbEFnZW50QnVzEh8uY2Fub3B5LmxpbmsudjEuTGlua2VkQWdlbnRDYWxsGiEuY2Fub3B5LmxpbmsudjEuTGlua2VkQWdlbnRSZXN1bHQyaQoTVGhyZWFkTWlycm9yU2VydmljZRJSChFXYXRjaFRocmVhZE1pcnJvchIdLmNhbm9weS5saW5rLnYxLk1pcnJvclJlcXVlc3QaHC5jYW5vcHkubGluay52MS5NaXJyb3JVcGRhdGUwATJuChNTaGFyZWRDb25maWdTZXJ2aWNlElcKEFB1c2hTaGFyZWRDb25maWcSIC5jYW5vcHkubGluay52MS5TaGFyZWRDb25maWdQdXNoGiEuY2Fub3B5LmxpbmsudjEuU2hhcmVkQ29uZmlnUmVwbHkynQEKE0NvbXB1dGVyTGlua1NlcnZpY2USQQoEUGFpchIbLmNhbm9weS5saW5rLnYxLlBhaXJSZXF1ZXN0GhwuY2Fub3B5LmxpbmsudjEuUGFpclJlc3BvbnNlEkMKB0Nvbm5lY3QSGS5jYW5vcHkubGluay52MS5MaW5rRnJhbWUaGS5jYW5vcHkubGluay52MS5MaW5rRnJhbWUoATABYgZwcm90bzM", [file_canopy_ui_v1_gateway, file_canopy_ui_v1_bots]);
+  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSKrAQoPQm90TWlycm9yVXBkYXRlEg4KBmN1cnNvchgBIAEoCRINCgVzdGFydBgCIAEoCBIOCgZjb21taXQYAyABKAgSMwoMY29udmVyc2F0aW9uGAQgASgLMh0uY2Fub3B5LnVpLnYxLkJvdENvbnZlcnNhdGlvbhIaChJjb252ZXJzYXRpb25fc3RhcnQYBSABKAgSGAoQY29udmVyc2F0aW9uX2VuZBgGIAEoCCKBAQoPTGlua2VkQWdlbnRDYWxsEhEKCW9wZXJhdGlvbhgBIAEoCRIPCgdjYWxsX2lkGAIgASgJEhAKCGFjdG9yX2lkGAMgASgJEhIKCmFjdG9yX2tpbmQYBCABKAkSFgoOYXJndW1lbnRzX2pzb24YBSABKAkSDAoEaG9wcxgGIAEoDSIoChFMaW5rZWRBZ2VudFJlc3VsdBITCgtyZXN1bHRfanNvbhgBIAEoCSIfCg1NaXJyb3JSZXF1ZXN0Eg4KBmN1cnNvchgBIAEoCSKEAgoMTWlycm9yVXBkYXRlEhcKD3ByZXZpb3VzX2N1cnNvchgBIAEoCRIOCgZjdXJzb3IYAiABKAkSDQoFcmVzZXQYAyABKAgSDgoGY29tbWl0GAQgASgIEi4KCHNuYXBzaG90GAUgASgLMhwuY2Fub3B5LnVpLnYxLlRocmVhZFNuYXBzaG90EhkKEXJlbW92ZWRfdGhyZWFkX2lkGAYgASgJEjMKCG92ZXJ2aWV3GAcgASgLMiEuY2Fub3B5LnVpLnYxLkdldE92ZXJ2aWV3UmVzcG9uc2USFgoOc25hcHNob3Rfc3RhcnQYCCABKAgSFAoMc25hcHNob3RfZW5kGAkgASgIIiwKDFNoYXJlZFNlY3JldBINCgV0b2tlbhgBIAEoCRINCgV2YWx1ZRgCIAEoCSKYAgoKU2hhcmVkSXRlbRILCgNrZXkYASABKAkSDgoGc2hhcmVkGAIgASgIEjQKBWNsb2NrGAMgAygLMiUuY2Fub3B5LmxpbmsudjEuU2hhcmVkSXRlbS5DbG9ja0VudHJ5EhIKCmNoYW5nZWRfYnkYBCABKAkSFQoNY2hhbmdlZF9hdF9tcxgFIAEoAxIOCgZkaWdlc3QYBiABKAkSDwoHcGF5bG9hZBgHIAEoCRItCgdzZWNyZXRzGAggAygLMhwuY2Fub3B5LmxpbmsudjEuU2hhcmVkU2VjcmV0Eg4KBnJlYXNvbhgJIAEoCRosCgpDbG9ja0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBDoCOAEiPQoQU2hhcmVkQ29uZmlnUHVzaBIpCgVpdGVtcxgBIAMoCzIaLmNhbm9weS5saW5rLnYxLlNoYXJlZEl0ZW0iuwEKEFNoYXJlZEl0ZW1SZXN1bHQSCwoDa2V5GAEgASgJEg8KB291dGNvbWUYAiABKAkSDgoGZGlnZXN0GAMgASgJEg8KB21lc3NhZ2UYBCABKAkSOgoFY2xvY2sYBSADKAsyKy5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0LkNsb2NrRW50cnkaLAoKQ2xvY2tFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAQ6AjgBIkYKEVNoYXJlZENvbmZpZ1JlcGx5EjEKB3Jlc3VsdHMYASADKAsyIC5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0IpQBCglOb2RlSGVsbG8SDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCWFkZHJlc3NlcxgDIAMoCRITCgthcHBfdmVyc2lvbhgEIAEoCRIUCgxtaW5fcHJvdG9jb2wYBSABKA0SFAoMbWF4X3Byb3RvY29sGAYgASgNEhQKDGNhcGFiaWxpdGllcxgHIAMoCSJHCgtQYWlyUmVxdWVzdBIOCgZzZWNyZXQYASABKAkSKAoFaGVsbG8YAiABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG8iOAoMUGFpclJlc3BvbnNlEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvImEKC0xpbmtXZWxjb21lEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvEhAKCHByb3RvY29sGAIgASgNEhYKDnVwZGF0ZV9ub2RlX2lkGAMgASgJIjIKCFByZXNlbmNlEg0KBXN0YXRlGAEgASgJEhcKD2Fubm91bmNlZF9hdF9tcxgCIAEoAyIfCglIZWFydGJlYXQSEgoKc2VudF9hdF9tcxgBIAEoAyIKCghVbmxpbmtlZCImChFSb3V0ZUFubm91bmNlbWVudBIRCglhZGRyZXNzZXMYASADKAkipgEKDVJlbGF5Q29tcHV0ZXISDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC2FwcF92ZXJzaW9uGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIXCg9zdGF0dXNfc2luY2VfbXMYBSABKAMSFAoMbGFzdF9zZWVuX21zGAYgASgDEhQKDGNhcGFiaWxpdGllcxgHIAMoCRIMCgRyb2xlGAggASgJIlIKDFJlbGF5Q2F0YWxvZxIQCghyZXZpc2lvbhgBIAEoBBIwCgljb21wdXRlcnMYAiADKAsyHS5jYW5vcHkubGluay52MS5SZWxheUNvbXB1dGVyIpMBCg1SZW1vdGVSZXF1ZXN0Eg8KB2NhbGxfaWQYASABKAQSDgoGbWV0aG9kGAIgASgJEg8KB3BheWxvYWQYAyABKAwSDAoEbW9yZRgEIAEoCBIWCg50YXJnZXRfbm9kZV9pZBgFIAEoCRIWCg5vcmlnaW5fbm9kZV9pZBgGIAEoCRISCgpyZWxheV9ob3BzGAcgASgNImwKDlJlbW90ZVJlc3BvbnNlEg8KB2NhbGxfaWQYASABKAQSDwoHcGF5bG9hZBgCIAEoDBIMCgRtb3JlGAMgASgIEgsKA2VuZBgEIAEoCBIMCgRjb2RlGAUgASgNEg8KB21lc3NhZ2UYBiABKAkiHwoMUmVtb3RlQ2FuY2VsEg8KB2NhbGxfaWQYASABKAQikgQKCUxpbmtGcmFtZRIqCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsb0gAEi4KB3dlbGNvbWUYAiABKAsyGy5jYW5vcHkubGluay52MS5MaW5rV2VsY29tZUgAEi4KCWhlYXJ0YmVhdBgDIAEoCzIZLmNhbm9weS5saW5rLnYxLkhlYXJ0YmVhdEgAEiwKCHByZXNlbmNlGAQgASgLMhguY2Fub3B5LmxpbmsudjEuUHJlc2VuY2VIABIsCgh1bmxpbmtlZBgFIAEoCzIYLmNhbm9weS5saW5rLnYxLlVubGlua2VkSAASNwoOcmVtb3RlX3JlcXVlc3QYBiABKAsyHS5jYW5vcHkubGluay52MS5SZW1vdGVSZXF1ZXN0SAASOQoPcmVtb3RlX3Jlc3BvbnNlGAcgASgLMh4uY2Fub3B5LmxpbmsudjEuUmVtb3RlUmVzcG9uc2VIABI1Cg1yZW1vdGVfY2FuY2VsGAggASgLMhwuY2Fub3B5LmxpbmsudjEuUmVtb3RlQ2FuY2VsSAASMwoGcm91dGVzGAkgASgLMiEuY2Fub3B5LmxpbmsudjEuUm91dGVBbm5vdW5jZW1lbnRIABI1Cg1yZWxheV9jYXRhbG9nGAogASgLMhwuY2Fub3B5LmxpbmsudjEuUmVsYXlDYXRhbG9nSABCBgoEYm9keTK9AQoTTGlua2VkQWdlbnRzU2VydmljZRJSCg5XYXRjaEJvdE1pcnJvchIdLmNhbm9weS5saW5rLnYxLk1pcnJvclJlcXVlc3QaHy5jYW5vcHkubGluay52MS5Cb3RNaXJyb3JVcGRhdGUwARJSCgxDYWxsQWdlbnRCdXMSHy5jYW5vcHkubGluay52MS5MaW5rZWRBZ2VudENhbGwaIS5jYW5vcHkubGluay52MS5MaW5rZWRBZ2VudFJlc3VsdDJpChNUaHJlYWRNaXJyb3JTZXJ2aWNlElIKEVdhdGNoVGhyZWFkTWlycm9yEh0uY2Fub3B5LmxpbmsudjEuTWlycm9yUmVxdWVzdBocLmNhbm9weS5saW5rLnYxLk1pcnJvclVwZGF0ZTABMm4KE1NoYXJlZENvbmZpZ1NlcnZpY2USVwoQUHVzaFNoYXJlZENvbmZpZxIgLmNhbm9weS5saW5rLnYxLlNoYXJlZENvbmZpZ1B1c2gaIS5jYW5vcHkubGluay52MS5TaGFyZWRDb25maWdSZXBseTKdAQoTQ29tcHV0ZXJMaW5rU2VydmljZRJBCgRQYWlyEhsuY2Fub3B5LmxpbmsudjEuUGFpclJlcXVlc3QaHC5jYW5vcHkubGluay52MS5QYWlyUmVzcG9uc2USQwoHQ29ubmVjdBIZLmNhbm9weS5saW5rLnYxLkxpbmtGcmFtZRoZLmNhbm9weS5saW5rLnYxLkxpbmtGcmFtZSgBMAFiBnByb3RvMw", [file_canopy_ui_v1_gateway, file_canopy_ui_v1_bots]);
 
 /**
  * @generated from message canopy.link.v1.BotMirrorUpdate
@@ -564,6 +564,86 @@ export const RouteAnnouncementSchema: GenMessage<RouteAnnouncement> = /*@__PURE_
   messageDesc(file_canopy_link_v1_link, 17);
 
 /**
+ * Stage 7, capability "relay". Full replacement, ordered by a durable revision.
+ * No addresses, certificates or configuration are introduced to a third computer.
+ *
+ * @generated from message canopy.link.v1.RelayComputer
+ */
+export type RelayComputer = Message<"canopy.link.v1.RelayComputer"> & {
+  /**
+   * @generated from field: string node_id = 1;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string app_version = 3;
+   */
+  appVersion: string;
+
+  /**
+   * @generated from field: string status = 4;
+   */
+  status: string;
+
+  /**
+   * @generated from field: int64 status_since_ms = 5;
+   */
+  statusSinceMs: bigint;
+
+  /**
+   * @generated from field: int64 last_seen_ms = 6;
+   */
+  lastSeenMs: bigint;
+
+  /**
+   * @generated from field: repeated string capabilities = 7;
+   */
+  capabilities: string[];
+
+  /**
+   * home: accessible through the sender; origin: transparency and agent callbacks only;
+   * both: each is shared with the other through this relay.
+   *
+   * @generated from field: string role = 8;
+   */
+  role: string;
+};
+
+/**
+ * Describes the message canopy.link.v1.RelayComputer.
+ * Use `create(RelayComputerSchema)` to create a new message.
+ */
+export const RelayComputerSchema: GenMessage<RelayComputer> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 18);
+
+/**
+ * @generated from message canopy.link.v1.RelayCatalog
+ */
+export type RelayCatalog = Message<"canopy.link.v1.RelayCatalog"> & {
+  /**
+   * @generated from field: uint64 revision = 1;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: repeated canopy.link.v1.RelayComputer computers = 2;
+   */
+  computers: RelayComputer[];
+};
+
+/**
+ * Describes the message canopy.link.v1.RelayCatalog.
+ * Use `create(RelayCatalogSchema)` to create a new message.
+ */
+export const RelayCatalogSchema: GenMessage<RelayCatalog> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 19);
+
+/**
  * Stage 2, capability "remote_threads": a canopy.ui.v1.GatewayService call
  * proxied to the home gateway of a thread. Either side may call over any
  * connection; call ids are chosen by the caller and unique per connection and
@@ -597,6 +677,24 @@ export type RemoteRequest = Message<"canopy.link.v1.RemoteRequest"> & {
    * @generated from field: bool more = 4;
    */
   more: boolean;
+
+  /**
+   * Empty for direct calls. First leg: target only, hops=0. Second leg: target is
+   * the receiver itself, origin is asserted by the trusted relay, hops=1.
+   *
+   * @generated from field: string target_node_id = 5;
+   */
+  targetNodeId: string;
+
+  /**
+   * @generated from field: string origin_node_id = 6;
+   */
+  originNodeId: string;
+
+  /**
+   * @generated from field: uint32 relay_hops = 7;
+   */
+  relayHops: number;
 };
 
 /**
@@ -604,7 +702,7 @@ export type RemoteRequest = Message<"canopy.link.v1.RemoteRequest"> & {
  * Use `create(RemoteRequestSchema)` to create a new message.
  */
 export const RemoteRequestSchema: GenMessage<RemoteRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 18);
+  messageDesc(file_canopy_link_v1_link, 20);
 
 /**
  * @generated from message canopy.link.v1.RemoteResponse
@@ -650,7 +748,7 @@ export type RemoteResponse = Message<"canopy.link.v1.RemoteResponse"> & {
  * Use `create(RemoteResponseSchema)` to create a new message.
  */
 export const RemoteResponseSchema: GenMessage<RemoteResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 19);
+  messageDesc(file_canopy_link_v1_link, 21);
 
 /**
  * The caller stopped listening (stream closed, timeout). The home aborts the call.
@@ -669,7 +767,7 @@ export type RemoteCancel = Message<"canopy.link.v1.RemoteCancel"> & {
  * Use `create(RemoteCancelSchema)` to create a new message.
  */
 export const RemoteCancelSchema: GenMessage<RemoteCancel> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 20);
+  messageDesc(file_canopy_link_v1_link, 22);
 
 /**
  * @generated from message canopy.link.v1.LinkFrame
@@ -732,6 +830,12 @@ export type LinkFrame = Message<"canopy.link.v1.LinkFrame"> & {
      */
     value: RouteAnnouncement;
     case: "routes";
+  } | {
+    /**
+     * @generated from field: canopy.link.v1.RelayCatalog relay_catalog = 10;
+     */
+    value: RelayCatalog;
+    case: "relayCatalog";
   } | { case: undefined; value?: undefined };
 };
 
@@ -740,7 +844,7 @@ export type LinkFrame = Message<"canopy.link.v1.LinkFrame"> & {
  * Use `create(LinkFrameSchema)` to create a new message.
  */
 export const LinkFrameSchema: GenMessage<LinkFrame> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 21);
+  messageDesc(file_canopy_link_v1_link, 23);
 
 /**
  * Stage 5. Internal, negotiated methods over the pinned link, never public RPCs.

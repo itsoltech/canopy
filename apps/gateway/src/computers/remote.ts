@@ -35,7 +35,10 @@ export const BOT_METHODS = new Set(["ListBots", "GetBot", "WatchBotConversation"
   "InterruptBot", "RetryBot", "MarkBotRead", "ArchiveBot", "UnarchiveBot", "DeleteBot", "ReadBotExchange",
   "SetBotRoutineEnabled", "DeleteBotRoutine", "CancelBotReminder", "WatchBotMirror", "GetBotProviderInstances"]);
 
-export type RemoteServe = (method: DescMethod, request: Message, signal: AbortSignal, peerNodeId?: string) => AsyncIterable<Message>;
+/** Routing metadata is fixed for every chunk of a call. It is never inferred from payload ids. */
+export type RelayRoute = { targetNodeId: string; originNodeId: string; relayHops: number };
+export const DIRECT_ROUTE: RelayRoute = { targetNodeId: "", originNodeId: "", relayHops: 0 };
+export type RemoteServe = (method: DescMethod, request: Message, signal: AbortSignal, peerNodeId?: string, route?: RelayRoute) => AsyncIterable<Message>;
 type Frame = MessageInitShape<typeof link.LinkFrameSchema>;
 
 // ------------------------------------------------------------------ ids
@@ -125,7 +128,7 @@ function wireError(error: unknown): { code: number; message: string } {
 }
 
 type Outgoing = { channel: AsyncChannel<Uint8Array>; parts: Uint8Array[]; size: number };
-type Served = { method: string; parts: Uint8Array[]; size: number; abort?: AbortController };
+type Served = { method: string; route: RelayRoute; parts: Uint8Array[]; size: number; abort?: AbortController };
 
 /** Both directions of remote calls on one link connection. Call ids are per direction. */
 export class RemoteCalls {
@@ -137,7 +140,7 @@ export class RemoteCalls {
 
   get closed() { return this.#closed; }
 
-  async *call(method: DescMethod, request: Message, signal: AbortSignal): AsyncGenerator<Message> {
+  async *call(method: DescMethod, request: Message, signal: AbortSignal, route: RelayRoute = DIRECT_ROUTE): AsyncGenerator<Message> {
     if (this.#closed) throw new ConnectError(`${this.options.name()} disconnected`, Code.Unavailable);
     const id = this.#next++;
     const channel = new AsyncChannel<Uint8Array>();
@@ -145,8 +148,8 @@ export class RemoteCalls {
     const stop = () => channel.close(signal.reason instanceof ConnectError ? signal.reason : new ConnectError(`${this.options.name()} did not answer in time`, Code.DeadlineExceeded));
     signal.addEventListener("abort", stop, { once: true });
     try {
-      if (signal.aborted) stop();
-      for (const { data, more } of chunks(toBinary(method.input, request))) this.options.send({ body: { case: "remoteRequest", value: { callId: id, method: method.name, payload: data, more } } });
+      if (signal.aborted) { stop(); signal.throwIfAborted(); }
+      for (const { data, more } of chunks(toBinary(method.input, request))) this.options.send({ body: { case: "remoteRequest", value: { callId: id, method: method.name, payload: data, more, ...route } } });
       for await (const bytes of channel) yield fromBinary(method.output, bytes);
     } finally {
       signal.removeEventListener("abort", stop);
@@ -180,8 +183,11 @@ export class RemoteCalls {
     if (call?.abort) return;
     if (!call) {
       if (this.#served.size >= MAX_SERVED) { this.#end(r.callId, { code: Code.ResourceExhausted, message: "Too many calls from this computer at once" }); return; }
-      call = { method: r.method, parts: [], size: 0 };
+      call = { method: r.method, route: { targetNodeId: r.targetNodeId, originNodeId: r.originNodeId, relayHops: r.relayHops }, parts: [], size: 0 };
       this.#served.set(r.callId, call);
+    }
+    if (call.method !== r.method || call.route.targetNodeId !== r.targetNodeId || call.route.originNodeId !== r.originNodeId || call.route.relayHops !== r.relayHops) {
+      this.#served.delete(r.callId); this.#end(r.callId, { code: Code.InvalidArgument, message: "Call routing changed between chunks" }); return;
     }
     call.size += r.payload.length;
     if (call.size > MAX_MESSAGE) { this.#served.delete(r.callId); this.#end(r.callId, { code: Code.ResourceExhausted, message: "Request is too large" }); return; }
@@ -189,10 +195,10 @@ export class RemoteCalls {
     if (r.more) return;
     const abort = new AbortController(); call.abort = abort;
     const bytes = join(call.parts); call.parts = [];
-    void this.#serve(r.callId, call.method, bytes, abort.signal).finally(() => { if (this.#served.get(r.callId) === call) this.#served.delete(r.callId); });
+    void this.#serve(r.callId, call.method, bytes, abort.signal, call.route).finally(() => { if (this.#served.get(r.callId) === call) this.#served.delete(r.callId); });
   }
 
-  async #serve(id: bigint, name: string, bytes: Uint8Array, signal: AbortSignal) {
+  async #serve(id: bigint, name: string, bytes: Uint8Array, signal: AbortSignal, route: RelayRoute) {
     try {
       const method = SERVED.has(name) ? methodNamed(name) : undefined;
       if (!method || !this.options.serve) throw new ConnectError("This computer does not share that action", Code.Unimplemented);
@@ -200,7 +206,7 @@ export class RemoteCalls {
       if (!await this.options.allowed()) throw new ConnectError("This computer is no longer linked", Code.PermissionDenied);
       const request = fromBinary(method.input, bytes);
       if (nodesOf(method.input, request).size) throw new ConnectError("Calls through another computer are not supported", Code.InvalidArgument);
-      for await (const message of this.options.serve(method, request, signal)) {
+      for await (const message of this.options.serve(method, request, signal, undefined, route)) {
         if (signal.aborted || this.#closed) return;
         for (const { data, more } of chunks(toBinary(method.output, message))) this.options.send({ body: { case: "remoteResponse", value: { callId: id, payload: data, more } } });
       }

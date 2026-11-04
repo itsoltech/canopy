@@ -165,7 +165,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode",
       "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage", "22_thread_titles", "23_agent_senders",
       "24_background_task_notes", "25_ask_user", "26_sidebar_threads", "27_schedules_new_thread", "28_archive_cascade", "29_schedule_edit", "30_bus_notify_delivery",
-      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider", "44_worker_enrollment", "45_bot_handoffs", "46_mobile_devices", "47_worker_ssh", "48_linked_computers", "49_thread_mirrors", "50_shared_config", "51_linked_agents", "52_computer_routes",
+      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider", "44_worker_enrollment", "45_bot_handoffs", "46_mobile_devices", "47_worker_ssh", "48_linked_computers", "49_thread_mirrors", "50_shared_config", "51_linked_agents", "52_computer_routes", "53_computer_relay",
     ]);
   }, 60_000);
 
@@ -818,6 +818,28 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(await failure(insert, [w.user, "unknown", "https://10.0.0.2:4100", "lan"])).toContain("foreign key");
       await query(`DELETE FROM computer_peers WHERE owner_user_id = $1 AND node_id = $2`, [w.user, node]);
       expect(await query(`SELECT 1 FROM computer_routes WHERE owner_user_id = $1`, [w.user])).toHaveLength(0);
+    });
+  });
+
+  describe("computer relay (0053)", () => {
+    test("indirect peers cannot be trust pins; owner-scoped grants and mirrors cascade on unlink", async () => {
+      const w = await world(); const other = await world();
+      const via = `via-${id()}`; const home = `home-${id()}`; const recipient = `recipient-${id()}`;
+      const peer = `INSERT INTO computer_peers(owner_user_id,node_id,name,certificate,fingerprint) VALUES ($1,$2,'direct','certificate','pin')`;
+      await query(peer, [w.user, via]); await query(peer, [w.user, recipient]);
+      const indirect = `INSERT INTO computer_peers(owner_user_id,node_id,name,certificate,fingerprint,via_node_id,relay_role) VALUES ($1,$2,'indirect',$3,'',$4,'home')`;
+      expect(await failure(indirect, [w.user, home, "certificate", via])).toContain("computer_relay_role");
+      expect(await failure(indirect, [other.user, home, "", via])).toContain("foreign key");
+      await query(indirect, [w.user, home, "", via]);
+      await query(`INSERT INTO computer_mirror_state(owner_user_id,origin_node_id) VALUES ($1,$2)`, [w.user, home]);
+      const grant = `INSERT INTO computer_relay_grants VALUES ($1,$2,$3)`;
+      await query(grant, [w.user, recipient, via]);
+      expect(await failure(grant, [other.user, recipient, via])).toContain("foreign key");
+      expect(await failure(grant, [w.user, recipient, recipient])).toContain("check");
+      await query(`DELETE FROM computer_peers WHERE owner_user_id=$1 AND node_id=$2`, [w.user, via]);
+      expect(await query(`SELECT 1 FROM computer_peers WHERE owner_user_id=$1 AND node_id=$2`, [w.user, home])).toHaveLength(0);
+      expect(await query(`SELECT 1 FROM computer_mirror_state WHERE owner_user_id=$1`, [w.user])).toHaveLength(0);
+      expect(await query(`SELECT 1 FROM computer_relay_grants WHERE owner_user_id=$1`, [w.user])).toHaveLength(0);
     });
   });
 

@@ -15,6 +15,7 @@ export type PeerRow = {
   linked_at: Date; app_version: string; min_protocol: number; max_protocol: number; status: string;
   status_since: Date; last_seen: Date | null; update_node_id: string;
   capabilities: string[];
+  via_node_id: string | null; relay_role: string; relay_revision: string;
 };
 // A peer's addresses are its routes in the order connecting tries them (stage 6).
 const PEERS = `SELECT p.*, COALESCE((SELECT jsonb_agg(address ORDER BY ${ROUTE_ORDER}) FROM computer_routes r
@@ -35,8 +36,10 @@ export class ComputerStore {
     if (!row) throw new Error("This gateway belongs to another owner");
     return { ...row, privateKey: decryptSecret(this.key, row.private_key), ...certificateIdentity(row.certificate) };
   }
-  peers() { return this.query<PeerRow>(`${PEERS} ORDER BY p.linked_at`, [this.owner]); }
-  async peer(nodeId: string) { return (await this.query<PeerRow>(`${PEERS} AND p.node_id=$2`, [this.owner, nodeId]))[0]; }
+  computers() { return this.query<PeerRow>(`${PEERS} ORDER BY p.linked_at`, [this.owner]); }
+  async computer(nodeId: string) { return (await this.query<PeerRow>(`${PEERS} AND p.node_id=$2`, [this.owner, nodeId]))[0]; }
+  peers() { return this.query<PeerRow>(`${PEERS} AND p.via_node_id IS NULL ORDER BY p.linked_at`, [this.owner]); }
+  async peer(nodeId: string) { return (await this.query<PeerRow>(`${PEERS} AND p.node_id=$2 AND p.via_node_id IS NULL`, [this.owner, nodeId]))[0]; }
   async invitation(fingerprint: string, addresses: string[]) {
     const id = crypto.randomUUID(); const secret = randomBytes(16).toString("hex");
     // A new code revokes all outstanding invitations. No plaintext is persisted.
@@ -70,7 +73,7 @@ export class ComputerStore {
         yield* sql`INSERT INTO computer_peers (owner_user_id,node_id,name,certificate,fingerprint,app_version,min_protocol,max_protocol)
           VALUES (${owner}::uuid,${identity.nodeId},${hello.name},${identity.certificate},${identity.fingerprint},${hello.appVersion},${hello.minProtocol},${hello.maxProtocol})
           ON CONFLICT (owner_user_id,node_id) DO UPDATE SET name=excluded.name,certificate=excluded.certificate,
-          fingerprint=excluded.fingerprint,linked_at=now(),app_version=excluded.app_version,min_protocol=excluded.min_protocol,max_protocol=excluded.max_protocol`;
+          fingerprint=excluded.fingerprint,linked_at=now(),app_version=excluded.app_version,min_protocol=excluded.min_protocol,max_protocol=excluded.max_protocol,via_node_id=NULL,relay_role=''`;
         for (const address of new Set(hello.addresses)) yield* sql`INSERT INTO computer_routes (owner_user_id,node_id,address,source)
           VALUES (${owner}::uuid,${identity.nodeId},${address},'announced') ON CONFLICT DO NOTHING`;
         yield* sql`DELETE FROM computer_revocations WHERE owner_user_id=${owner}::uuid AND node_id=${identity.nodeId}`;
@@ -91,7 +94,7 @@ export class ComputerStore {
     await this.query(`INSERT INTO computer_peers (owner_user_id,node_id,name,certificate,fingerprint,app_version,min_protocol,max_protocol)
       VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (owner_user_id,node_id) DO UPDATE SET
       name=excluded.name,certificate=excluded.certificate,fingerprint=excluded.fingerprint,linked_at=now(),
-      app_version=excluded.app_version,min_protocol=excluded.min_protocol,max_protocol=excluded.max_protocol`,
+      app_version=excluded.app_version,min_protocol=excluded.min_protocol,max_protocol=excluded.max_protocol,via_node_id=NULL,relay_role=''`,
     [this.owner, identity.nodeId, hello.name, identity.certificate, identity.fingerprint, hello.appVersion, hello.minProtocol, hello.maxProtocol]);
     await this.query(`INSERT INTO computer_routes (owner_user_id,node_id,address,source,last_success,latency_ms) VALUES ($1::uuid,$2,$3,'manual',now(),$4)
       ON CONFLICT (owner_user_id,node_id,address) DO UPDATE SET source='manual',last_success=now(),latency_ms=excluded.latency_ms`, [this.owner, identity.nodeId, address, Math.round(latencyMs)]);

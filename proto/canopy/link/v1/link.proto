@@ -123,6 +123,25 @@ message Unlinked {}
 // any other route: each is used only through the pinned mTLS handshake.
 message RouteAnnouncement { repeated string addresses = 1; }
 
+// Stage 7, capability "relay". Full replacement, ordered by a durable revision.
+// No addresses, certificates or configuration are introduced to a third computer.
+message RelayComputer {
+  string node_id = 1;
+  string name = 2;
+  string app_version = 3;
+  string status = 4;
+  int64 status_since_ms = 5;
+  int64 last_seen_ms = 6;
+  repeated string capabilities = 7;
+  // home: accessible through the sender; origin: transparency and agent callbacks only;
+  // both: each is shared with the other through this relay.
+  string role = 8;
+}
+message RelayCatalog {
+  uint64 revision = 1;
+  repeated RelayComputer computers = 2;
+}
+
 // Stage 2, capability "remote_threads": a canopy.ui.v1.GatewayService call
 // proxied to the home gateway of a thread. Either side may call over any
 // connection; call ids are chosen by the caller and unique per connection and
@@ -136,6 +155,11 @@ message RemoteRequest {
   bytes payload = 3;
   // The request continues in the next frame of the same call.
   bool more = 4;
+  // Empty for direct calls. First leg: target only, hops=0. Second leg: target is
+  // the receiver itself, origin is asserted by the trusted relay, hops=1.
+  string target_node_id = 5;
+  string origin_node_id = 6;
+  uint32 relay_hops = 7;
 }
 message RemoteResponse {
   uint64 call_id = 1;
@@ -161,5 +185,6 @@ message LinkFrame {
     RemoteResponse remote_response = 7;
     RemoteCancel remote_cancel = 8;
     RouteAnnouncement routes = 9;
+    RelayCatalog relay_catalog = 10;
   }
 }

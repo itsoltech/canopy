@@ -16,6 +16,8 @@
   import SharedConfigOverview from "#lib/features/computers/SharedConfigOverview.svelte";
   import AddRouteDialog from "#lib/features/computers/AddRouteDialog.svelte";
   import LanDiscoveryRow from "#lib/features/computers/LanDiscoveryRow.svelte";
+  import ShareOnwardDialog from "#lib/features/computers/ShareOnwardDialog.svelte";
+  import { RELAY } from "@canopy/domain/computers";
 
   let setup = $state.raw(create(ui.ComputersSnapshotSchema));
   let loaded = $state(false);
@@ -35,6 +37,9 @@
   let copied = $state("");
   let routeFor = $state<ui.LinkedComputer>();
   let routeOpen = $state(false);
+  let shareFor = $state("");
+  let shareOpen = $state(false);
+  const shareComputer = $derived(setup.peers.find((p) => p.nodeId === shareFor));
   let now = $state(Date.now());
   const remaining = $derived(Math.max(0, Math.ceil((Number(invitation?.expiresAtMs ?? 0n) - now) / 1000)));
   async function run(action: () => Promise<void>) {
@@ -83,7 +88,7 @@
   </div>
   <Button variant="primary" disabled={!loaded || busy} onclick={() => { error = ""; open = true; }}>Link a computer</Button>
 </div>
-{#if (error || refreshError) && !open && !renameOpen && !removeOpen && !routeOpen}<Alert tone="error">{error || refreshError}<Button size="sm" onclick={() => void run(reload)}>Retry</Button></Alert>{/if}
+{#if (error || refreshError) && !open && !renameOpen && !removeOpen && !routeOpen && !shareOpen}<Alert tone="error">{error || refreshError}<Button size="sm" onclick={() => void run(reload)}>Retry</Button></Alert>{/if}
 <SettingsGroup title="This computer">
   {#if setup.self}<ComputerDetails computer={setup.self} self {busy} onrename={() => setup.self && edit(setup.self)} />
   {:else}<SettingsRow title="Loading computer identity…" />{/if}
@@ -98,6 +103,7 @@
 <SettingsGroup title="Linked computers" description="Pairing grants full access between your computers. Only link computers you own.">
   {#each setup.peers as computer (computer.nodeId)}
     <ComputerDetails {computer} {busy} {now} onrename={() => edit(computer)} onunlink={() => { error = ""; remove = computer; removeOpen = true; }}
+      onshare={!computer.viaNodeId && (computer.capabilities.includes(RELAY) || computer.shareOnwardNodeIds.length) ? () => { error = ""; shareFor = computer.nodeId; shareOpen = true; } : undefined}
       onaddroute={() => { error = ""; routeFor = computer; routeOpen = true; }}
       onremoveroute={(address) => void run(() => manage("remove_route", { nodeId: computer.nodeId, address }))} />
   {:else}<SettingsRow title={loaded ? "No computers linked yet" : "Loading linked computers…"} description="Generate a code here, or enter a code from your other computer." />{/each}
@@ -152,3 +158,4 @@
   </div>
 </Dialog>
 <AddRouteDialog bind:open={routeOpen} computer={routeFor} {busy} {error} onsubmit={(address) => void run(async () => { await manage("add_route", { nodeId: routeFor!.nodeId, address }); routeOpen = false; })} />
+<ShareOnwardDialog bind:open={shareOpen} computer={shareComputer} peers={setup.peers} {busy} {error} onchange={(shareOnwardNodeIds) => void run(() => manage("share_onward", { nodeId: shareFor, shareOnwardNodeIds }))} />

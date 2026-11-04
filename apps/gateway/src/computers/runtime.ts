@@ -4,9 +4,10 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { AsyncChannel } from "@canopy/transport";
 import { MIN_COMPUTER_LINK_PROTOCOL, COMPUTER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
-import { AGENT_BUS, LAN_ROUTES, NODE_REF_LENGTH, REMOTE_BOTS, REMOTE_THREADS, SHARED_CONFIG, THREAD_MIRROR } from "@canopy/domain/computers";
+import { AGENT_BUS, LAN_ROUTES, NODE_REF_LENGTH, RELAY, REMOTE_BOTS, REMOTE_THREADS, SHARED_CONFIG, THREAD_MIRROR } from "@canopy/domain/computers";
 import { ThreadMirror } from "./mirror.ts";
-import { BOT_METHODS, RemoteCalls, type RemoteServe } from "./remote.ts";
+import { BOT_METHODS, RemoteCalls, type RemoteServe, type RelayRoute } from "./remote.ts";
+import { ComputerRelay, RELAY_METHODS, relayCallback } from "./relay.ts";
 import { BotMirror } from "./bot-mirror.ts";
 import { SharedConfig, type SharedHost } from "./shared.ts";
 import { ComputerStore, type PeerRow } from "./store.ts";
@@ -16,7 +17,7 @@ import { certificateIdentity, computerName, linkAddress } from "./identity.ts";
 import { discoverCertificate, linkClient, listenLink, remoteCertificate, type LinkIdentity } from "./transport.ts";
 
 type Connection = { send: (frame: MessageInitShape<typeof link.LinkFrameSchema>) => void; close: () => void; seen: number; ready: boolean;
-  protocol?: number; capabilities?: Set<string>; remote?: RemoteCalls };
+  protocol?: number; capabilities?: Set<string>; remote?: RemoteCalls; relayReady?: boolean };
 type Options = { store: ComputerStore; host?: string; port?: number; addresses?: string[]; minProtocol?: number; maxProtocol?: number; heartbeatMs?: number;
   /** Serves linked computers' calls on this computer's threads (stage 2). Without it the capability is not offered. */
   serve?: RemoteServe;
@@ -75,13 +76,20 @@ export class LinkedComputers {
   readonly mirror: ThreadMirror;
   readonly botMirror: BotMirror;
   readonly shared: SharedConfig | undefined;
+  readonly relay: ComputerRelay;
   constructor(readonly options: Options) {
     this.#routes = new Routes(options.store);
     this.mirror = new ThreadMirror(options.store);
     this.botMirror = new BotMirror(options.store);
+    this.relay = new ComputerRelay(options.store, {
+      self: () => this.#identity.node_id,
+      enabled: (nodeId) => this.hello().capabilities.includes(RELAY) && this.capabilities(nodeId).includes(RELAY),
+      send: (nodeId, catalog) => { for (const c of this.#active.get(nodeId) ?? []) if (c.ready && c.protocol && c.capabilities?.has(RELAY)) c.send({ body: { case: "relayCatalog", value: catalog } }); },
+      changed: (nodeId, removed) => this.#emit(nodeId, removed),
+    });
     this.shared = options.shared && options.serve ? new SharedConfig(options.store, options.shared, {
       self: () => this.#identity.node_id,
-      ready: () => this.#sharesConfig() ? this.reachable().filter((n) => this.capabilities(n).includes(SHARED_CONFIG)) : [],
+      ready: () => this.#sharesConfig() ? this.reachable().filter((n) => !this.relay.entries.has(n) && this.capabilities(n).includes(SHARED_CONFIG)) : [],
       outdated: async () => (await this.store.peers()).filter((p) => this.capabilities(p.node_id).length && !this.capabilities(p.node_id).includes(SHARED_CONFIG)).map((p) => p.node_id),
       call: (nodeId, method, request, signal) => this.remote(nodeId, method, request, signal),
     }) : undefined;
@@ -91,7 +99,7 @@ export class LinkedComputers {
   get addresses() { return this.#addresses; }
   hello() { return create(link.NodeHelloSchema, { nodeId: this.#identity.node_id, name: this.#identity.name, addresses: this.#advertised,
     appVersion: CANOPY_VERSION, minProtocol: this.options.minProtocol ?? MIN_COMPUTER_LINK_PROTOCOL, maxProtocol: this.options.maxProtocol ?? COMPUTER_LINK_PROTOCOL,
-    capabilities: this.options.capabilities ?? ["presence", "unlink", LAN_ROUTES, ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS] : []), ...(this.shared ? [SHARED_CONFIG] : [])] }); }
+    capabilities: this.options.capabilities ?? ["presence", "unlink", LAN_ROUTES, ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS, RELAY] : []), ...(this.shared ? [SHARED_CONFIG] : [])] }); }
   #sharesConfig() { return Boolean(this.shared) && this.hello().capabilities.includes(SHARED_CONFIG); }
   async start() {
     this.#identity = await this.store.identity();
@@ -99,6 +107,7 @@ export class LinkedComputers {
     await this.shared?.load();
     // A process restart never claims an old connection is still alive.
     await this.store.query("UPDATE computer_peers SET status='unreachable',status_since=now() WHERE owner_user_id=$1::uuid AND status IN ('connected','needs_update')", [this.store.owner]);
+    await this.relay.load();
     await this.#listen();
     await this.#discovery();
     this.#timer = setInterval(() => { void this.#tick().catch(() => {}); }, this.options.heartbeatMs ?? 5000);
@@ -201,7 +210,7 @@ export class LinkedComputers {
     const lan = this.#lanState();
     return create(ui.ComputersSnapshotSchema, { self: { nodeId: this.#identity.node_id, name: this.#identity.name, fingerprint: this.#identity.fingerprint,
       addresses: this.#advertised, appVersion: CANOPY_VERSION, minProtocol: this.hello().minProtocol, maxProtocol: this.hello().maxProtocol },
-      peers: (await this.store.peers()).map((p) => peerMessage(p, this.capabilities(p.node_id), routes.filter((r) => r.node_id === p.node_id))),
+      peers: await Promise.all((await this.store.computers()).map((p) => this.#computerMessage(p, routes.filter((r) => r.node_id === p.node_id)))),
       listenerEnabled: Boolean(this.#listener), listenerAvailable: Boolean(this.options.host),
       lanDiscoveryEnabled: this.#identity.lan_discovery, lanDiscoveryState: lan.state, lanDiscoveryNote: lan.note });
   }
@@ -227,7 +236,10 @@ export class LinkedComputers {
   }
   async manage(request: ui.ComputerOperationRequest) {
     const { nodeId, action } = request;
-    if (action === "rename") {
+    if (action === "share_onward") {
+      await this.relay.set(nodeId, request.shareOnwardNodeIds);
+      this.#emit(nodeId);
+    } else if (action === "rename") {
       const name = computerName(request.name);
       if (!nodeId || nodeId === this.#identity.node_id) {
         await this.store.query("UPDATE computer_identity SET name=$2 WHERE owner_user_id=$1::uuid", [this.store.owner, name]);
@@ -244,6 +256,7 @@ export class LinkedComputers {
       // Persist revocation before releasing trust. A peer offline now learns it
       // through the authenticated control channel on its next reconnect.
       await this.store.remove(nodeId, true);
+      await this.relay.refresh();
       this.#emit(nodeId, true);
       this.shared?.changed();
       for (const connection of this.#active.get(nodeId) ?? []) connection.send({ body: { case: "unlinked", value: {} } });
@@ -296,6 +309,8 @@ export class LinkedComputers {
         if (peer && ["connected", "needs_update"].includes(peer.status)) await this.#status(nodeId, "unreachable", peer.update_node_id);
         else this.#emit(nodeId);
       } else this.#emit(nodeId);
+      this.relay.check();
+      await this.relay.refresh();
     };
   }
   async #receive(nodeId: string, frame: link.LinkFrame, connection: Connection) {
@@ -309,6 +324,7 @@ export class LinkedComputers {
     }
     if (body.case === "unlinked") {
       await this.store.remove(nodeId, false);
+      await this.relay.refresh();
       this.#emit(nodeId, true);
       this.shared?.changed();
       for (const c of this.#active.get(nodeId) ?? []) c.close();
@@ -332,22 +348,8 @@ export class LinkedComputers {
       connection.capabilities = new Set(hello.capabilities);
       this.#capabilities.set(nodeId, hello.capabilities);
       this.#names.set(nodeId, peer.display_name || hello.name);
-      if (protocol && !connection.remote) connection.remote = new RemoteCalls({ send: (f) => connection.send(f), serve: async function* (this: LinkedComputers, method: DescMethod, request: Message, signal: AbortSignal) {
-        if (!this.options.serve) throw new ConnectError("Thread sharing unavailable", Code.Unimplemented);
-        const feature = method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : undefined;
-        if (feature && (!this.hello().capabilities.includes(feature) || !connection.capabilities?.has(feature)))
-          throw new ConnectError("Both computers need an update for linked bots and agents", Code.Unimplemented);
-        if (method.name === "WatchThreadMirror") {
-          if (!this.hello().capabilities.includes(THREAD_MIRROR) || !connection.capabilities?.has(THREAD_MIRROR))
-            throw new ConnectError("Thread mirrors need an update on both computers", Code.Unimplemented);
-          yield* this.mirror.publish(request as link.MirrorRequest, this.options.serve, signal);
-        } else if (method.name === "PushSharedConfig") {
-          if (!this.shared || !this.#sharesConfig() || !connection.capabilities?.has(SHARED_CONFIG))
-            throw new ConnectError("Shared configuration needs an update on both computers", Code.Unimplemented);
-          yield await this.shared.receive(nodeId, request as link.SharedConfigPush);
-        } else if (method.name === "WatchBotMirror") yield* this.botMirror.publish(request as link.MirrorRequest, this.options.serve, signal);
-        else yield* this.options.serve(method, request, signal, nodeId);
-      }.bind(this),
+      if (protocol && !connection.remote) connection.remote = new RemoteCalls({ send: (f) => connection.send(f),
+        serve: (method, request, signal, _, route) => this.#serveRemote(nodeId, connection, method, request, signal, route),
         name: () => this.#names.get(nodeId) ?? "The other computer", allowed: async () => Boolean(await this.store.peer(nodeId)) });
       connection.ready = true;
       // A successful handshake ends the failure streak, including when the
@@ -361,9 +363,16 @@ export class LinkedComputers {
       // Both sides offer everything they share after each handshake; offline edits meet here.
       if (protocol && this.#sharesConfig() && hello.capabilities.includes(SHARED_CONFIG)) setTimeout(() => void this.shared?.push(nodeId, true).catch(() => {}), 0);
       this.shared?.changed();
+      await this.relay.refresh();
+    } else if (body.case === "relayCatalog") {
+      if (!connection.protocol || !connection.capabilities?.has(RELAY) || !this.hello().capabilities.includes(RELAY)) throw new ConnectError("Relay needs an update on both computers", Code.FailedPrecondition);
+      await this.relay.receive(nodeId, body.value);
+      connection.relayReady = true;
+      for (const p of this.relay.entries.values()) if (p.via_node_id === nodeId) this.#emit(p.node_id);
     } else if (body.case === "presence") {
       if (!["updating", "sleeping", "shutting_down", "connected"].includes(body.value.state)) throw new ConnectError("Unknown presence state", Code.InvalidArgument);
       await this.#status(nodeId, body.value.state === "connected" && peer.update_node_id ? "needs_update" : body.value.state, peer.update_node_id);
+      await this.relay.refresh();
     } else if (body.case === "routes") {
       // The partner's addresses changed. Only over a negotiated link; they are routes like any other, used through the pin.
       if (!connection.protocol || body.value.addresses.length > 16) throw new ConnectError("Unsupported route announcement", Code.InvalidArgument);
@@ -430,6 +439,8 @@ export class LinkedComputers {
         }).finally(() => { this.#dialing.delete(peer.node_id); this.#tasks.delete(task); });
         this.#tasks.add(task);
       }
+      for (const p of this.relay.entries.values()) this.#syncMirror(p.node_id);
+      await this.relay.refresh();
     } finally { this.#tickRunning = false; }
   }
   async #dial(peer: PeerRow, controller: AbortController) {
@@ -484,11 +495,71 @@ export class LinkedComputers {
   }
   // ------------------------------------------------------------------ stage 2: remote threads
 
+  /** A direct caller may request one relay leg. Only the relay can attest an
+   * origin, and an attested request can only execute at this receiving home. */
+  async *#serveRemote(nodeId: string, connection: Connection, method: DescMethod, request: Message, signal: AbortSignal, route?: RelayRoute): AsyncGenerator<Message> {
+    if (!route?.targetNodeId) {
+      if (route?.originNodeId || route?.relayHops) throw new ConnectError("Invalid relay envelope", Code.InvalidArgument);
+      yield* this.#serveHome(nodeId, connection, method, request, signal);
+      return;
+    }
+    if (!this.hello().capabilities.includes(RELAY) || !connection.capabilities?.has(RELAY) || !RELAY_METHODS.has(method.name))
+      throw new ConnectError("This action cannot be relayed", Code.PermissionDenied);
+    if (route.relayHops === 1) {
+      if (route.targetNodeId !== this.#identity.node_id || !/^[a-f0-9]{64}$/.test(route.originNodeId) || [nodeId, this.#identity.node_id].includes(route.originNodeId))
+        throw new ConnectError("Relay hop limit reached or loop detected", Code.PermissionDenied);
+      const origin = this.relay.entries.get(route.originNodeId);
+      if (!origin || origin.via_node_id !== nodeId || !this.#relayChannel(nodeId)
+        || (origin.relay_role === "home" && !relayCallback(method, request)))
+        throw new ConnectError("Origin is not shared through this relay", Code.PermissionDenied);
+      yield* this.relay.guard(() => this.relay.entries.get(route.originNodeId)?.via_node_id === nodeId
+        && (this.relay.entries.get(route.originNodeId)?.relay_role !== "home" || relayCallback(method, request)) && Boolean(this.#relayChannel(nodeId)), signal,
+        (s) => this.#serveHome(route.originNodeId, connection, method, request, s));
+      return;
+    }
+    if (route.relayHops !== 0 || route.originNodeId || [nodeId, this.#identity.node_id].includes(route.targetNodeId))
+      throw new ConnectError("Relay hop limit reached or loop detected", Code.PermissionDenied);
+    const target = await this.store.peer(route.targetNodeId);
+    if (!target) throw new ConnectError("Relay targets must be direct partners (one hop)", Code.PermissionDenied);
+    const callback = relayCallback(method, request);
+    const feature = method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : method.name === "WatchThreadMirror" ? THREAD_MIRROR : REMOTE_THREADS;
+    if (!connection.capabilities?.has(feature) || !this.capabilities(target.node_id).includes(feature)) throw new ConnectError("All computers need an update for this linked action", Code.FailedPrecondition);
+    const allowed = () => this.relay.allowed(nodeId, target.node_id) || (callback && this.relay.allowed(target.node_id, nodeId));
+    if (!allowed()) throw new ConnectError("Share onward is not enabled for this computer", Code.PermissionDenied);
+    const remote = this.#relayChannel(target.node_id);
+    if (!remote) throw await this.unavailable(target.node_id);
+    yield* this.relay.guard(() => allowed() && Boolean(this.#relayChannel(nodeId)) && Boolean(this.#relayChannel(target.node_id)), signal,
+      (s) => remote.call(method, request, s, { targetNodeId: target.node_id, originNodeId: nodeId, relayHops: 1 }));
+  }
+
+  async *#serveHome(nodeId: string, connection: Connection, method: DescMethod, request: Message, signal: AbortSignal): AsyncGenerator<Message> {
+    if (!this.options.serve) throw new ConnectError("Thread sharing unavailable", Code.Unimplemented);
+    const feature = method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : REMOTE_THREADS;
+    if (!this.hello().capabilities.includes(feature) || !connection.capabilities?.has(feature))
+      throw new ConnectError("Both computers need an update for this linked action", Code.Unimplemented);
+    if (method.name === "WatchThreadMirror") {
+      if (!this.hello().capabilities.includes(THREAD_MIRROR) || !connection.capabilities?.has(THREAD_MIRROR))
+        throw new ConnectError("Thread mirrors need an update on both computers", Code.Unimplemented);
+      yield* this.mirror.publish(request as link.MirrorRequest, this.options.serve, signal);
+    } else if (method.name === "PushSharedConfig") {
+      if (!this.shared || !this.#sharesConfig() || !connection.capabilities?.has(SHARED_CONFIG))
+        throw new ConnectError("Shared configuration needs an update on both computers", Code.Unimplemented);
+      yield await this.shared.receive(nodeId, request as link.SharedConfigPush);
+    } else if (method.name === "WatchBotMirror") yield* this.botMirror.publish(request as link.MirrorRequest, this.options.serve, signal);
+    else yield* this.options.serve(method, request, signal, nodeId);
+  }
+
   subscribe(listener: (change: ComputerChange) => void) { this.#listeners.add(listener); return () => { this.#listeners.delete(listener); }; }
   #emit(nodeId: string, removed = false) {
     if (removed) { this.#names.delete(nodeId); this.#capabilities.delete(nodeId); }
     for (const listener of this.#listeners) { try { listener({ nodeId, removed }); } catch { /* a subscriber's failure is its own */ } }
     this.#syncMirror(nodeId);
+    // A relay's own reachability is part of every indirect computer's presence.
+    for (const p of this.relay.entries.values()) if (p.via_node_id === nodeId) {
+      for (const listener of this.#listeners) { try { listener({ nodeId: p.node_id, removed: false }); } catch { /* subscriber owns errors */ } }
+      this.#syncMirror(p.node_id);
+    }
+    this.relay.check();
   }
   #syncMirror(nodeId: string) {
     this.#syncBotMirror(nodeId);
@@ -536,6 +607,8 @@ export class LinkedComputers {
   async #status(nodeId: string, status: string, updateNodeId = "") { await this.store.status(nodeId, status, updateNodeId); this.#emit(nodeId); }
   /** Live features, or the last handshake persisted for offline mirror reads. */
   capabilities(nodeId: string): string[] {
+    const indirect = this.relay.entries.get(nodeId);
+    if (indirect) return indirect.capabilities;
     const all = new Set<string>();
     for (const c of this.#active.get(nodeId) ?? []) if (c.ready && c.protocol) for (const name of c.capabilities ?? []) all.add(name);
     return all.size ? [...all] : this.#capabilities.get(nodeId) ?? [];
@@ -545,16 +618,54 @@ export class LinkedComputers {
     return undefined;
   }
   /** Peers whose threads this computer can show and act on right now. */
-  reachable(): string[] { return [...this.#active.keys()].filter((id) => this.#channel(id)); }
-  async computer(nodeId: string) { const peer = await this.store.peer(nodeId); return peer && peerMessage(peer, this.capabilities(nodeId)); }
+  reachable(): string[] { return [...this.#active.keys(), ...this.relay.entries.keys()].filter((id) => this.canCall(id) && this.relay.entries.get(id)?.relay_role !== "origin"); }
+  /** Includes callback-only origins for the agent bus's existing call references. */
+  canCall(nodeId: string): boolean {
+    const p = this.relay.entries.get(nodeId);
+    if (!p) return Boolean(this.#channel(nodeId));
+    return p.status === "connected" && Boolean(p.via_node_id && this.#relayChannel(p.via_node_id));
+  }
+  #relayChannel(nodeId: string) {
+    if (!this.hello().capabilities.includes(RELAY)) return undefined;
+    for (const c of this.#active.get(nodeId) ?? []) if (c.ready && c.protocol && c.relayReady && c.capabilities?.has(RELAY) && c.remote && !c.remote.closed) return c.remote;
+    return undefined;
+  }
+  async #computerMessage(peer: PeerRow, routes: RouteRow[] = []) {
+    const result = peerMessage(peer, this.capabilities(peer.node_id), routes);
+    result.shareOnwardNodeIds = this.relay.selected(peer.node_id);
+    if (peer.via_node_id) {
+      const via = await this.store.peer(peer.via_node_id);
+      result.viaNodeId = peer.via_node_id; result.viaName = via?.display_name || via?.name || "the relay";
+      result.relayOrigin = peer.relay_role === "origin";
+      if (!this.#relayChannel(peer.via_node_id)) {
+        result.status = via?.status === "connected" ? "unreachable" : via?.status || "unreachable";
+        result.statusSinceMs = via ? ms(via.status_since) : result.statusSinceMs;
+        result.unavailableReason = via?.status === "connected" ? `Available through ${result.viaName}, which is reconnecting.`
+          : `Available through ${result.viaName}, which is unreachable since ${await this.#time(new Date(Number(result.statusSinceMs)))}`;
+      }
+    }
+    return result;
+  }
+  async computer(nodeId: string) { const peer = await this.store.computer(nodeId); return peer && this.#computerMessage(peer); }
   /** The linked computer of a qualified id's suffix. */
   async resolve(ref: string): Promise<PeerRow> {
-    const peers = ref.length === NODE_REF_LENGTH ? (await this.store.peers()).filter((p) => p.node_id.startsWith(ref)) : [];
+    const peers = ref.length === NODE_REF_LENGTH ? (await this.store.computers()).filter((p) => p.relay_role !== "origin" && p.node_id.startsWith(ref)) : [];
     if (peers.length !== 1) throw new ConnectError("That computer is no longer linked", Code.NotFound);
     return peers[0]!;
   }
   /** One call on a peer's home threads. Fails at once when it cannot be delivered; nothing waits for a reconnect. */
   async *remote(nodeId: string, method: DescMethod, request: Message, signal: AbortSignal): AsyncGenerator<Message> {
+    const indirect = this.relay.entries.get(nodeId);
+    if (indirect) {
+      if (!RELAY_METHODS.has(method.name) || (indirect.relay_role === "origin" && !relayCallback(method, request))) throw new ConnectError("This relay entry is read only", Code.PermissionDenied);
+      const remote = indirect.via_node_id && this.#relayChannel(indirect.via_node_id);
+      if (!remote || !this.canCall(nodeId)) throw await this.unavailable(nodeId);
+      const feature = method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : method.name === "WatchThreadMirror" ? THREAD_MIRROR : REMOTE_THREADS;
+      if (!this.hello().capabilities.includes(feature) || !indirect.capabilities.includes(feature)) throw new ConnectError("The linked computer needs an update for this action", Code.FailedPrecondition);
+      yield* this.relay.guard(() => this.relay.entries.get(nodeId)?.via_node_id === indirect.via_node_id && this.relay.entries.get(nodeId)?.relay_role === indirect.relay_role && this.canCall(nodeId), signal,
+        (s) => remote.call(method, request, s, { targetNodeId: nodeId, originNodeId: "", relayHops: 0 }));
+      return;
+    }
     const remote = this.#channel(nodeId);
     if (!remote) throw await this.unavailable(nodeId);
     const feature = method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : undefined;
@@ -566,8 +677,12 @@ export class LinkedComputers {
   }
   /** Why a peer's threads cannot be reached, in the words the UI shows. */
   async unavailable(nodeId: string): Promise<ConnectError> {
-    const peer = await this.store.peer(nodeId);
+    const peer = await this.store.computer(nodeId);
     if (!peer) return new ConnectError("That computer is no longer linked", Code.NotFound);
+    if (peer.via_node_id && !this.#relayChannel(peer.via_node_id)) {
+      const computer = await this.#computerMessage(peer);
+      return new ConnectError(computer.unavailableReason, Code.Unavailable);
+    }
     const name = peer.display_name || peer.name;
     if (peer.status === "needs_update") return new ConnectError(peer.update_node_id === this.#identity.node_id ? `This computer needs an update to work with ${name}` : `${name} needs an update`, Code.FailedPrecondition);
     if (peer.status === "connected") {
@@ -576,11 +691,13 @@ export class LinkedComputers {
         : new ConnectError(`${name} is reconnecting. Try again in a moment.`, Code.Unavailable);
     }
     if (peer.status === "pairing_required") return new ConnectError(`${name} must be paired again`, Code.FailedPrecondition);
-    const zone = await this.options.zone?.().catch(() => undefined) || "UTC";
-    const since = new Date(peer.status_since);
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(since) === new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date());
-    const time = new Intl.DateTimeFormat("en", { timeZone: zone, hour: "numeric", minute: "2-digit", ...(!today && { day: "numeric", month: "short" }) }).format(since);
+    const time = await this.#time(new Date(peer.status_since));
     return new ConnectError(`${name} ${STATE_TEXT[peer.status] ?? "is unreachable"} ${peer.status === "unreachable" || peer.status === "updating" ? "since" : "at"} ${time}`, Code.Unavailable);
+  }
+  async #time(since: Date) {
+    const zone = await this.options.zone?.().catch(() => undefined) || "UTC";
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(since) === new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date());
+    return new Intl.DateTimeFormat("en", { timeZone: zone, hour: "numeric", minute: "2-digit", ...(!today && { day: "numeric", month: "short" }) }).format(since);
   }
 
   async announce(state: string) {
@@ -598,6 +715,7 @@ export class LinkedComputers {
     await this.announce(state === "shutting_down" && this.#announced === "updating" ? "updating" : state);
     clearInterval(this.#timer);
     this.shared?.close();
+    this.relay.close();
     await this.#lan?.close(); this.#lan = undefined;
     for (const controller of this.#dialing.values()) controller.abort();
     for (const controller of this.#mirroring.values()) controller.abort();
