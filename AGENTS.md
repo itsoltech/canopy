@@ -23,7 +23,11 @@ Short rules for agents working in this repository. Details live in `docs/` (most
   - `next`: **beta**.
   - `main`: **stable**.
 - Branch off `dev` and open PRs into `dev`. Never push to `next`/`main`, never create tags; scheduled promotion/release workflows own these operations, with maintainer overrides via Promote.
-- A `fix`/`perf`/revert correcting an earlier merged change must link it in the commit/PR body: `Fixes: #68` (original PR) or `Refs: <sha>`; reverts keep `This reverts commit <sha>`. Automatic promotion holds the original until its fix has soaked; changed-line blame is only a fallback.
+- A `fix`/`perf`/revert correcting behaviour that an earlier merged change introduced must link it in the commit/PR body: `Fixes: #68` (original PR) or `Refs: <sha>`; reverts keep `This reverts commit <sha>`. Automatic promotion holds the linked change **and everything merged after it** until the fix has soaked (24 h), so:
+  - link only the PR whose behaviour the fix actually corrects (the change that introduced the bug), not PRs that merely touched the same code or gave context;
+  - don't link from `test`, `ci`, `docs`, `refactor` or `chore` commits, and don't link for pre-existing behaviour no recent change introduced;
+  - for context-only mentions write `Related: #68` (not parsed, holds nothing).
+  Changed-line blame is only a fallback for unlinked fixes.
 - Merges are **squash merges**: one Angular commit per feature. The PR title becomes the commit.
 - `dev` only gets complete, working features: it feeds beta and stable. A plan with several stages ships as **stacked PRs** (`gh stack`, extension `github/gh-stack`):
   - each stage is its own PR, based on the previous stage's branch; the bottom one targets `dev`,

@@ -49,9 +49,21 @@ Notatki wydania trafiają do GitHub Releases, nie do commitowanego CHANGELOG-a.
 
 ### Jawne powiązanie poprawki z wcześniejszą zmianą
 
-Jeżeli `fix`, `perf` lub revert naprawia zmianę już scaloną wcześniej, dodaj w body PR lub
-commita osobną linię ze wskazaniem **oryginalnego PR** albo SHA squash commita. Zachowaj ją
-w body końcowego squasha. Preferowane formy:
+Jeżeli `fix`, `perf` lub revert naprawia zachowanie wprowadzone przez zmianę już scaloną
+wcześniej, dodaj w body PR lub commita osobną linię ze wskazaniem **oryginalnego PR** albo SHA
+squash commita. Zachowaj ją w body końcowego squasha.
+
+Automatyczna promocja wstrzymuje wskazaną zmianę **i wszystko, co weszło po niej**, aż poprawka
+odstoi 24 h. Dlatego:
+
+- wskazuj tylko PR, który wprowadził naprawiany błąd, a nie PR, który jedynie dotykał tego
+  samego kodu albo daje kontekst;
+- nie dodawaj powiązań w commitach `test`, `ci`, `docs`, `refactor` i `chore` ani przy
+  poprawkach zachowania, którego żadna niedawna zmiana nie wprowadziła;
+- wzmiankę tylko dla kontekstu zapisz jako `Related: #68` — parser jej nie rozpoznaje, więc
+  niczego nie wstrzymuje.
+
+Preferowane formy:
 
 ```text
 fix(worker): handle reconnect after suspend
