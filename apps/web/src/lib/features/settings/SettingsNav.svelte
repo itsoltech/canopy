@@ -4,6 +4,9 @@
   import { settingsGroups, settingsSections as sharedSections } from "./sections.ts";
   import { onMount } from "svelte";
   import type { SettingsSection } from "@canopy/ui/settings";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+
+  const capabilities = useGatewayCapabilities();
 
   let desktop = $state(false);
 
@@ -14,7 +17,7 @@
   const settingsSections = $derived<readonly SettingsSection[]>(
     desktop
       ? [
-          ...sharedSections,
+          ...sharedSections.filter((section) => capabilities?.supports(section.href) ?? true),
           {
             href: "/settings/desktop",
             label: "Desktop",
@@ -30,7 +33,7 @@
             keywords: "desktop app updates stable beta nightly channel version",
           },
         ]
-      : sharedSections,
+      : sharedSections.filter((section) => capabilities?.supports(section.href) ?? true),
   );
 
   import { useSettingsRoute } from "./settings-route.ts";

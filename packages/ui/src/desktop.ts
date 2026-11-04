@@ -34,18 +34,28 @@ export interface DesktopStatus {
   worker: "offline" | "connecting" | "online";
   clis: { claude: boolean; codex: boolean; grok: boolean };
   error?: string | undefined;
+  needsPairing?: boolean | undefined;
   database?:
     | { phase: "downloading" | "verifying" | "installing" | "ready"; message: string; progress?: number }
     | undefined;
   webUrl?: string;
   gatewayUrl?: string;
+  workerGatewayUrl?: string;
   allowNetwork: boolean;
   bindHost: string;
 }
 
 export type DesktopConfiguration =
   | { mode: "local"; allowNetwork: boolean; bindHost: string }
-  | { mode: "remote"; gatewayUrl: string; webUrl: string; enrollmentToken?: string; gatewayFingerprint?: string };
+  | {
+      mode: "remote";
+      gatewayUrl: string;
+      webUrl?: string;
+      enrollmentToken?: string;
+      gatewayFingerprint?: string;
+      pairingInvitation?: string;
+      workerGatewayUrl?: string;
+    };
 
 export interface DesktopBridge {
   readonly platform: string;

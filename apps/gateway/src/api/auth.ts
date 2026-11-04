@@ -5,7 +5,8 @@ import { mobileIdentity, type MobileDevices } from "../core/mobile-devices.ts";
 
 /**
  * The web BFF uses a service token. Paired devices use their own revocable bearer
- * token, scoped to the single owner. Pairing administration stays BFF-only.
+ * token, scoped to the single owner. Desktop clients have full owner UI scope;
+ * phones retain their restricted administration scope.
  * WorkerLinkService authenticates workers itself and is not affected.
  */
 export function serviceTokenAuth(token: string, mobile?: MobileDevices): Interceptor {
@@ -23,7 +24,12 @@ export function serviceTokenAuth(token: string, mobile?: MobileDevices): Interce
       if (!identity || !mobile) throw new ConnectError("Invalid or revoked device token", Code.Unauthenticated);
 
       if (
+        identity.clientKind !== "desktop" &&
         [
+          "CreateDesktopPairing",
+          // Worker credentials can migrate an existing desktop to full UI scope.
+          "CreateWorkerEnrollment",
+          "RotateWorkerCredential",
           "GetMobileDevices",
           "CreateMobilePairing",
           "RevokeMobilePairing",

@@ -27,7 +27,14 @@
   <div class="grid gap-3">
     <h1 class="text-3xl font-semibold tracking-tight">Canopy</h1>
     {#if failed}
-      <Alert tone="error" title={status?.mode === "remote" ? "Gateway unavailable" : "Canopy could not start"}>
+      <Alert
+        tone="error"
+        title={status?.needsPairing
+          ? "Connect this app securely"
+          : status?.mode === "remote"
+            ? "Gateway unavailable"
+            : "Canopy could not start"}
+      >
         {message || status?.error}
       </Alert>
       <div class="flex flex-wrap gap-3">

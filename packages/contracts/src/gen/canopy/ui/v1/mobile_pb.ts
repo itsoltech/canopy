@@ -12,7 +12,84 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/mobile.proto.
  */
 export const file_canopy_ui_v1_mobile: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvdWkvdjEvbW9iaWxlLnByb3RvEgxjYW5vcHkudWkudjEi5QEKDE1vYmlsZURldmljZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBsYXRmb3JtGAMgASgJEi4KCmNyZWF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3Rfc2Vlbl9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcmV2b2tlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFwoPcGFpcmluZ192ZXJzaW9uGAcgASgNIrsBCg1Nb2JpbGVQYWlyaW5nEgoKAmlkGAEgASgJEi4KCmV4cGlyZXNfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB3VzZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnJldm9rZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCWRldmljZV9pZBgFIAEoCSIZChdHZXRNb2JpbGVEZXZpY2VzUmVxdWVzdCK3AQoYR2V0TW9iaWxlRGV2aWNlc1Jlc3BvbnNlEhMKC2dhdGV3YXlfdXJsGAEgASgJEisKB2RldmljZXMYAiADKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlRGV2aWNlEi0KCHBhaXJpbmdzGAMgAygLMhsuY2Fub3B5LnVpLnYxLk1vYmlsZVBhaXJpbmcSKgoGcm91dGVzGAQgASgLMhouY2Fub3B5LnVpLnYxLk1vYmlsZVJvdXRlcyIcChpDcmVhdGVNb2JpbGVQYWlyaW5nUmVxdWVzdCKaAQobQ3JlYXRlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlEiwKB3BhaXJpbmcYASABKAsyGy5jYW5vcHkudWkudjEuTW9iaWxlUGFpcmluZxIMCgRjb2RlGAIgASgJEhMKC2dhdGV3YXlfdXJsGAMgASgJEioKBnJvdXRlcxgEIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVSb3V0ZXMiHQoPTW9iaWxlSWRSZXF1ZXN0EgoKAmlkGAEgASgJIhkKF01vYmlsZU9wZXJhdGlvblJlc3BvbnNlIhsKGVVucGFpck1vYmlsZURldmljZVJlcXVlc3QiTAocRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVxdWVzdBIMCgRjb2RlGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcGxhdGZvcm0YAyABKAkijQEKHUV4Y2hhbmdlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlEioKBmRldmljZRgBIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVEZXZpY2USFAoMZGV2aWNlX3Rva2VuGAIgASgJEioKBnJvdXRlcxgDIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVSb3V0ZXMiNgoMTW9iaWxlUm91dGVzEhMKC2ZpbmdlcnByaW50GAEgASgJEhEKCWFkZHJlc3NlcxgCIAMoCTKIAQoUTW9iaWxlUGFpcmluZ1NlcnZpY2UScAoVRXhjaGFuZ2VNb2JpbGVQYWlyaW5nEiouY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1JlcXVlc3QaKy5jYW5vcHkudWkudjEuRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVzcG9uc2ViBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("ChljYW5vcHkvdWkvdjEvbW9iaWxlLnByb3RvEgxjYW5vcHkudWkudjEiPgoXRGVza3RvcE1pZ3JhdGlvblJlcXVlc3QSEQoJd29ya2VyX2lkGAEgASgJEhAKCHBsYXRmb3JtGAIgASgJIhsKGUNsaWVudENhcGFiaWxpdGllc1JlcXVlc3QirAEKEkNsaWVudENhcGFiaWxpdGllcxIXCg9nYXRld2F5X3ZlcnNpb24YASABKAkSFAoMZ2F0ZXdheV9uYW1lGAIgASgJEhQKDG1pbl9wcm90b2NvbBgDIAEoDRIUCgxtYXhfcHJvdG9jb2wYBCABKA0SDwoHbWV0aG9kcxgFIAMoCRIqCgZyb3V0ZXMYBiABKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlUm91dGVzIvoBCgxNb2JpbGVEZXZpY2USCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIQCghwbGF0Zm9ybRgDIAEoCRIuCgpjcmVhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxsYXN0X3NlZW5fYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnJldm9rZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKD3BhaXJpbmdfdmVyc2lvbhgHIAEoDRITCgtjbGllbnRfa2luZBgIIAEoCSLQAQoNTW9iaWxlUGFpcmluZxIKCgJpZBgBIAEoCRIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgd1c2VkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZXZva2VkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCglkZXZpY2VfaWQYBSABKAkSEwoLY2xpZW50X2tpbmQYBiABKAkiGQoXR2V0TW9iaWxlRGV2aWNlc1JlcXVlc3QitwEKGEdldE1vYmlsZURldmljZXNSZXNwb25zZRITCgtnYXRld2F5X3VybBgBIAEoCRIrCgdkZXZpY2VzGAIgAygLMhouY2Fub3B5LnVpLnYxLk1vYmlsZURldmljZRItCghwYWlyaW5ncxgDIAMoCzIbLmNhbm9weS51aS52MS5Nb2JpbGVQYWlyaW5nEioKBnJvdXRlcxgEIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVSb3V0ZXMiHAoaQ3JlYXRlTW9iaWxlUGFpcmluZ1JlcXVlc3QimgEKG0NyZWF0ZU1vYmlsZVBhaXJpbmdSZXNwb25zZRIsCgdwYWlyaW5nGAEgASgLMhsuY2Fub3B5LnVpLnYxLk1vYmlsZVBhaXJpbmcSDAoEY29kZRgCIAEoCRITCgtnYXRld2F5X3VybBgDIAEoCRIqCgZyb3V0ZXMYBCABKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlUm91dGVzIh0KD01vYmlsZUlkUmVxdWVzdBIKCgJpZBgBIAEoCSIZChdNb2JpbGVPcGVyYXRpb25SZXNwb25zZSIbChlVbnBhaXJNb2JpbGVEZXZpY2VSZXF1ZXN0IkwKHEV4Y2hhbmdlTW9iaWxlUGFpcmluZ1JlcXVlc3QSDAoEY29kZRgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBsYXRmb3JtGAMgASgJIo0BCh1FeGNoYW5nZU1vYmlsZVBhaXJpbmdSZXNwb25zZRIqCgZkZXZpY2UYASABKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlRGV2aWNlEhQKDGRldmljZV90b2tlbhgCIAEoCRIqCgZyb3V0ZXMYAyABKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlUm91dGVzIjYKDE1vYmlsZVJvdXRlcxITCgtmaW5nZXJwcmludBgBIAEoCRIRCglhZGRyZXNzZXMYAiADKAkyiAEKFE1vYmlsZVBhaXJpbmdTZXJ2aWNlEnAKFUV4Y2hhbmdlTW9iaWxlUGFpcmluZxIqLmNhbm9weS51aS52MS5FeGNoYW5nZU1vYmlsZVBhaXJpbmdSZXF1ZXN0GisuY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlMooBChVEZXNrdG9wUGFpcmluZ1NlcnZpY2UScQoWRXhjaGFuZ2VEZXNrdG9wUGFpcmluZxIqLmNhbm9weS51aS52MS5FeGNoYW5nZU1vYmlsZVBhaXJpbmdSZXF1ZXN0GisuY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlMuUBChdEZXNrdG9wTWlncmF0aW9uU2VydmljZRJeChlHZXREZXNrdG9wTWlncmF0aW9uUm91dGVzEiUuY2Fub3B5LnVpLnYxLkRlc2t0b3BNaWdyYXRpb25SZXF1ZXN0GhouY2Fub3B5LnVpLnYxLk1vYmlsZVJvdXRlcxJqChRNaWdyYXRlRGVza3RvcENsaWVudBIlLmNhbm9weS51aS52MS5EZXNrdG9wTWlncmF0aW9uUmVxdWVzdBorLmNhbm9weS51aS52MS5FeGNoYW5nZU1vYmlsZVBhaXJpbmdSZXNwb25zZWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+
+/**
+ * @generated from message canopy.ui.v1.DesktopMigrationRequest
+ */
+export type DesktopMigrationRequest = Message<"canopy.ui.v1.DesktopMigrationRequest"> & {
+  /**
+   * @generated from field: string worker_id = 1;
+   */
+  workerId: string;
+
+  /**
+   * @generated from field: string platform = 2;
+   */
+  platform: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DesktopMigrationRequest.
+ * Use `create(DesktopMigrationRequestSchema)` to create a new message.
+ */
+export const DesktopMigrationRequestSchema: GenMessage<DesktopMigrationRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 0);
+
+/**
+ * @generated from message canopy.ui.v1.ClientCapabilitiesRequest
+ */
+export type ClientCapabilitiesRequest = Message<"canopy.ui.v1.ClientCapabilitiesRequest"> & {
+};
+
+/**
+ * Describes the message canopy.ui.v1.ClientCapabilitiesRequest.
+ * Use `create(ClientCapabilitiesRequestSchema)` to create a new message.
+ */
+export const ClientCapabilitiesRequestSchema: GenMessage<ClientCapabilitiesRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 1);
+
+/**
+ * @generated from message canopy.ui.v1.ClientCapabilities
+ */
+export type ClientCapabilities = Message<"canopy.ui.v1.ClientCapabilities"> & {
+  /**
+   * @generated from field: string gateway_version = 1;
+   */
+  gatewayVersion: string;
+
+  /**
+   * @generated from field: string gateway_name = 2;
+   */
+  gatewayName: string;
+
+  /**
+   * @generated from field: uint32 min_protocol = 3;
+   */
+  minProtocol: number;
+
+  /**
+   * @generated from field: uint32 max_protocol = 4;
+   */
+  maxProtocol: number;
+
+  /**
+   * @generated from field: repeated string methods = 5;
+   */
+  methods: string[];
+
+  /**
+   * @generated from field: canopy.ui.v1.MobileRoutes routes = 6;
+   */
+  routes?: MobileRoutes | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ClientCapabilities.
+ * Use `create(ClientCapabilitiesSchema)` to create a new message.
+ */
+export const ClientCapabilitiesSchema: GenMessage<ClientCapabilities> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 2);
 
 /**
  * @generated from message canopy.ui.v1.MobileDevice
@@ -52,6 +129,13 @@ export type MobileDevice = Message<"canopy.ui.v1.MobileDevice"> & {
    * @generated from field: uint32 pairing_version = 7;
    */
   pairingVersion: number;
+
+  /**
+   * mobile | desktop. Empty from older gateways means mobile.
+   *
+   * @generated from field: string client_kind = 8;
+   */
+  clientKind: string;
 };
 
 /**
@@ -59,7 +143,7 @@ export type MobileDevice = Message<"canopy.ui.v1.MobileDevice"> & {
  * Use `create(MobileDeviceSchema)` to create a new message.
  */
 export const MobileDeviceSchema: GenMessage<MobileDevice> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 0);
+  messageDesc(file_canopy_ui_v1_mobile, 3);
 
 /**
  * @generated from message canopy.ui.v1.MobilePairing
@@ -89,6 +173,11 @@ export type MobilePairing = Message<"canopy.ui.v1.MobilePairing"> & {
    * @generated from field: string device_id = 5;
    */
   deviceId: string;
+
+  /**
+   * @generated from field: string client_kind = 6;
+   */
+  clientKind: string;
 };
 
 /**
@@ -96,7 +185,7 @@ export type MobilePairing = Message<"canopy.ui.v1.MobilePairing"> & {
  * Use `create(MobilePairingSchema)` to create a new message.
  */
 export const MobilePairingSchema: GenMessage<MobilePairing> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 1);
+  messageDesc(file_canopy_ui_v1_mobile, 4);
 
 /**
  * @generated from message canopy.ui.v1.GetMobileDevicesRequest
@@ -109,7 +198,7 @@ export type GetMobileDevicesRequest = Message<"canopy.ui.v1.GetMobileDevicesRequ
  * Use `create(GetMobileDevicesRequestSchema)` to create a new message.
  */
 export const GetMobileDevicesRequestSchema: GenMessage<GetMobileDevicesRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 2);
+  messageDesc(file_canopy_ui_v1_mobile, 5);
 
 /**
  * @generated from message canopy.ui.v1.GetMobileDevicesResponse
@@ -141,7 +230,7 @@ export type GetMobileDevicesResponse = Message<"canopy.ui.v1.GetMobileDevicesRes
  * Use `create(GetMobileDevicesResponseSchema)` to create a new message.
  */
 export const GetMobileDevicesResponseSchema: GenMessage<GetMobileDevicesResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 3);
+  messageDesc(file_canopy_ui_v1_mobile, 6);
 
 /**
  * @generated from message canopy.ui.v1.CreateMobilePairingRequest
@@ -154,7 +243,7 @@ export type CreateMobilePairingRequest = Message<"canopy.ui.v1.CreateMobilePairi
  * Use `create(CreateMobilePairingRequestSchema)` to create a new message.
  */
 export const CreateMobilePairingRequestSchema: GenMessage<CreateMobilePairingRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 4);
+  messageDesc(file_canopy_ui_v1_mobile, 7);
 
 /**
  * @generated from message canopy.ui.v1.CreateMobilePairingResponse
@@ -188,7 +277,7 @@ export type CreateMobilePairingResponse = Message<"canopy.ui.v1.CreateMobilePair
  * Use `create(CreateMobilePairingResponseSchema)` to create a new message.
  */
 export const CreateMobilePairingResponseSchema: GenMessage<CreateMobilePairingResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 5);
+  messageDesc(file_canopy_ui_v1_mobile, 8);
 
 /**
  * @generated from message canopy.ui.v1.MobileIdRequest
@@ -205,7 +294,7 @@ export type MobileIdRequest = Message<"canopy.ui.v1.MobileIdRequest"> & {
  * Use `create(MobileIdRequestSchema)` to create a new message.
  */
 export const MobileIdRequestSchema: GenMessage<MobileIdRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 6);
+  messageDesc(file_canopy_ui_v1_mobile, 9);
 
 /**
  * @generated from message canopy.ui.v1.MobileOperationResponse
@@ -218,7 +307,7 @@ export type MobileOperationResponse = Message<"canopy.ui.v1.MobileOperationRespo
  * Use `create(MobileOperationResponseSchema)` to create a new message.
  */
 export const MobileOperationResponseSchema: GenMessage<MobileOperationResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 7);
+  messageDesc(file_canopy_ui_v1_mobile, 10);
 
 /**
  * @generated from message canopy.ui.v1.UnpairMobileDeviceRequest
@@ -231,7 +320,7 @@ export type UnpairMobileDeviceRequest = Message<"canopy.ui.v1.UnpairMobileDevice
  * Use `create(UnpairMobileDeviceRequestSchema)` to create a new message.
  */
 export const UnpairMobileDeviceRequestSchema: GenMessage<UnpairMobileDeviceRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 8);
+  messageDesc(file_canopy_ui_v1_mobile, 11);
 
 /**
  * @generated from message canopy.ui.v1.ExchangeMobilePairingRequest
@@ -260,7 +349,7 @@ export type ExchangeMobilePairingRequest = Message<"canopy.ui.v1.ExchangeMobileP
  * Use `create(ExchangeMobilePairingRequestSchema)` to create a new message.
  */
 export const ExchangeMobilePairingRequestSchema: GenMessage<ExchangeMobilePairingRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 9);
+  messageDesc(file_canopy_ui_v1_mobile, 12);
 
 /**
  * @generated from message canopy.ui.v1.ExchangeMobilePairingResponse
@@ -287,7 +376,7 @@ export type ExchangeMobilePairingResponse = Message<"canopy.ui.v1.ExchangeMobile
  * Use `create(ExchangeMobilePairingResponseSchema)` to create a new message.
  */
 export const ExchangeMobilePairingResponseSchema: GenMessage<ExchangeMobilePairingResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 10);
+  messageDesc(file_canopy_ui_v1_mobile, 13);
 
 /**
  * Addresses are hints; only the out-of-band certificate fingerprint grants trust.
@@ -311,7 +400,7 @@ export type MobileRoutes = Message<"canopy.ui.v1.MobileRoutes"> & {
  * Use `create(MobileRoutesSchema)` to create a new message.
  */
 export const MobileRoutesSchema: GenMessage<MobileRoutes> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 11);
+  messageDesc(file_canopy_ui_v1_mobile, 14);
 
 /**
  * Public, rate-limited exchange. No service token is ever sent to a phone.
@@ -329,4 +418,47 @@ export const MobilePairingService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_canopy_ui_v1_mobile, 0);
+
+/**
+ * Separate exchange: a phone invitation can never mint a full UI credential.
+ *
+ * @generated from service canopy.ui.v1.DesktopPairingService
+ */
+export const DesktopPairingService: GenService<{
+  /**
+   * @generated from rpc canopy.ui.v1.DesktopPairingService.ExchangeDesktopPairing
+   */
+  exchangeDesktopPairing: {
+    methodKind: "unary";
+    input: typeof ExchangeMobilePairingRequestSchema;
+    output: typeof ExchangeMobilePairingResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_canopy_ui_v1_mobile, 1);
+
+/**
+ * Routes may be discovered over the worker's existing authenticated endpoint.
+ * Credential minting is mounted only on Network access and happens once per worker.
+ *
+ * @generated from service canopy.ui.v1.DesktopMigrationService
+ */
+export const DesktopMigrationService: GenService<{
+  /**
+   * @generated from rpc canopy.ui.v1.DesktopMigrationService.GetDesktopMigrationRoutes
+   */
+  getDesktopMigrationRoutes: {
+    methodKind: "unary";
+    input: typeof DesktopMigrationRequestSchema;
+    output: typeof MobileRoutesSchema;
+  },
+  /**
+   * @generated from rpc canopy.ui.v1.DesktopMigrationService.MigrateDesktopClient
+   */
+  migrateDesktopClient: {
+    methodKind: "unary";
+    input: typeof DesktopMigrationRequestSchema;
+    output: typeof ExchangeMobilePairingResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_canopy_ui_v1_mobile, 2);
 

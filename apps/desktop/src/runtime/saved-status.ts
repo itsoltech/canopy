@@ -17,7 +17,7 @@ export function savedStatus(directory: string): DesktopStatus {
       ...state,
       phase: "starting",
       mode: config.mode,
-      ...(config.mode === "remote" && { gatewayUrl: config.gatewayUrl, webUrl: config.webUrl }),
+      ...(config.mode === "remote" && { gatewayUrl: config.gatewayUrl }),
       allowNetwork: config.mode === "local" && config.allowNetwork,
       bindHost: config.mode === "local" ? config.bindHost : "127.0.0.1",
     };

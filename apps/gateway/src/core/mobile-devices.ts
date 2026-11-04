@@ -10,7 +10,10 @@ import type { NetworkAccess } from "../network/network.ts";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-export const mobileIdentity = createContextKey<{ deviceId: string; userId: string } | undefined>(undefined);
+
+export const mobileIdentity = createContextKey<{ deviceId: string; userId: string; clientKind: string } | undefined>(
+  undefined,
+);
 
 type DeviceRow = {
   id: string;
@@ -20,6 +23,7 @@ type DeviceRow = {
   last_seen_at: Date | null;
   revoked_at: Date | null;
   pairing_version: number;
+  client_kind: string;
 };
 
 type PairingRow = {
@@ -28,6 +32,7 @@ type PairingRow = {
   used_at: Date | null;
   revoked_at: Date | null;
   device_id: string | null;
+  client_kind: string;
 };
 
 const device = (row: DeviceRow) =>
@@ -36,6 +41,7 @@ const device = (row: DeviceRow) =>
     name: row.name,
     platform: row.platform,
     pairingVersion: row.pairing_version,
+    clientKind: row.client_kind,
     createdAt: timestampFromDate(new Date(row.created_at)),
     ...(row.last_seen_at && { lastSeenAt: timestampFromDate(new Date(row.last_seen_at)) }),
     ...(row.revoked_at && { revokedAt: timestampFromDate(new Date(row.revoked_at)) }),
@@ -46,6 +52,7 @@ const pairing = (row: PairingRow) =>
     id: row.id,
     expiresAt: timestampFromDate(new Date(row.expires_at)),
     deviceId: row.device_id ?? "",
+    clientKind: row.client_kind,
     ...(row.used_at && { usedAt: timestampFromDate(new Date(row.used_at)) }),
     ...(row.revoked_at && { revokedAt: timestampFromDate(new Date(row.revoked_at)) }),
   });
@@ -82,10 +89,14 @@ export class MobileDevices {
     });
   }
 
-  routes = (router: ConnectRouter) =>
+  routes = (router: ConnectRouter) => {
     router.service(ui.MobilePairingService, {
       exchangeMobilePairing: (request) => mobileGuard(() => this.exchange(request)),
     });
+    router.service(ui.DesktopPairingService, {
+      exchangeDesktopPairing: (request) => mobileGuard(() => this.exchange(request, "desktop")),
+    });
+  };
 
   async list() {
     const { runtime, userId } = this.options;
@@ -111,7 +122,7 @@ export class MobileDevices {
     );
   }
 
-  async create() {
+  async create(kind: "mobile" | "desktop" = "mobile") {
     const { runtime, userId } = this.options;
     const routes = this.networkRoutes();
 
@@ -137,11 +148,12 @@ export class MobileDevices {
 
             if (pending.length >= 20) return yield* Effect.fail(new Error("too many invitations"));
 
-            const rows = yield* sql<PairingRow>`INSERT INTO mobile_pairings (id, owner_user_id, code_hash, expires_at)
-          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${digest(raw)}, now() + interval '10 minutes') RETURNING *`;
+            const rows =
+              yield* sql<PairingRow>`INSERT INTO mobile_pairings (id, owner_user_id, code_hash, expires_at, client_kind)
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${digest(raw)}, now() + interval '10 minutes', ${kind}) RETURNING *`;
 
             yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
-          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, 'mobile.pairing.create', 'mobile_pairing', ${rows[0]!.id}::uuid)`;
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${`${kind}.pairing.create`}, 'mobile_pairing', ${rows[0]!.id}::uuid)`;
 
             return rows[0]!;
           }),
@@ -160,7 +172,7 @@ export class MobileDevices {
     });
   }
 
-  async exchange(request: ui.ExchangeMobilePairingRequest) {
+  async exchange(request: ui.ExchangeMobilePairingRequest, kind: "mobile" | "desktop" = "mobile") {
     // Global process budget: proxy headers and caller-supplied codes cannot reset it.
     const now = Date.now();
 
@@ -180,12 +192,14 @@ export class MobileDevices {
     if (!/^[A-F0-9]{16}$/.test(code)) throw invalid();
     const name = request.name.trim();
 
-    if (!name || name.length > 100 || /[\p{Cc}]/u.test(name) || !["ios", "android"].includes(request.platform)) {
+    const platforms = kind === "desktop" ? ["linux", "darwin", "win32"] : ["ios", "android"];
+
+    if (!name || name.length > 100 || /[\p{Cc}]/u.test(name) || !platforms.includes(request.platform)) {
       throw new ConnectError("Enter a device name (1–100 characters) and a supported platform", Code.InvalidArgument);
     }
 
     const { runtime, userId } = this.options;
-    const token = `canopy_device_${randomBytes(32).toString("base64url")}`;
+    const token = `canopy_${kind === "desktop" ? "desktop" : "device"}_${randomBytes(32).toString("base64url")}`;
 
     const result = await runtime.runPromise(
       Effect.gen(function* () {
@@ -194,7 +208,8 @@ export class MobileDevices {
         return yield* sql.withTransaction(
           Effect.gen(function* () {
             const rows = yield* sql<PairingRow>`SELECT * FROM mobile_pairings WHERE code_hash = ${digest(code)}
-          AND owner_user_id = ${userId}::uuid AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now() FOR UPDATE`;
+          AND owner_user_id = ${userId}::uuid AND client_kind = ${kind}
+          AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now() FOR UPDATE`;
 
             const row = rows[0];
 
@@ -206,15 +221,15 @@ export class MobileDevices {
             if (!eligible.length) return undefined;
 
             const devices =
-              yield* sql<DeviceRow>`INSERT INTO mobile_devices (id, owner_user_id, name, platform, token_hash, last_seen_at, pairing_version)
-          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${name}, ${request.platform}, ${digest(token)}, now(), 2) RETURNING *`;
+              yield* sql<DeviceRow>`INSERT INTO mobile_devices (id, owner_user_id, name, platform, token_hash, last_seen_at, pairing_version, client_kind)
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${name}, ${request.platform}, ${digest(token)}, now(), 2, ${kind}) RETURNING *`;
 
             const paired =
               yield* sql<PairingRow>`UPDATE mobile_pairings SET used_at = clock_timestamp(), device_id = ${devices[0]!.id}::uuid
           WHERE id = ${row.id}::uuid RETURNING *`;
 
             yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
-          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, 'mobile.pair', 'mobile_device', ${devices[0]!.id}::uuid)`;
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${`${kind}.pair`}, 'mobile_device', ${devices[0]!.id}::uuid)`;
 
             return { device: device(devices[0]!), pairing: pairing(paired[0]!) };
           }),
@@ -234,7 +249,7 @@ export class MobileDevices {
   }
 
   async authenticate(token: string) {
-    if (!/^canopy_device_[A-Za-z0-9_-]{43}$/.test(token)) return undefined;
+    if (!/^canopy_(device|desktop)_[A-Za-z0-9_-]{43}$/.test(token)) return undefined;
     const { runtime, userId } = this.options;
 
     return mobileGuard(() =>
@@ -243,7 +258,10 @@ export class MobileDevices {
           const sql = yield* SqlClient.SqlClient;
 
           // Check revocation on every RPC; only write last_seen once per minute.
-          const rows = yield* sql<{ id: string }>`SELECT id FROM mobile_devices WHERE token_hash = ${digest(token)}
+          const rows = yield* sql<{
+            id: string;
+            client_kind: string;
+          }>`SELECT id, client_kind FROM mobile_devices WHERE token_hash = ${digest(token)}
         AND owner_user_id = ${userId}::uuid AND revoked_at IS NULL AND pairing_version = 2`;
 
           const row = rows[0];
@@ -252,7 +270,7 @@ export class MobileDevices {
           yield* sql`UPDATE mobile_devices SET last_seen_at = now() WHERE id = ${row.id}::uuid
         AND (last_seen_at IS NULL OR last_seen_at < now() - interval '1 minute')`;
 
-          return { deviceId: row.id, userId };
+          return { deviceId: row.id, userId, clientKind: row.client_kind };
         }),
       ),
     );
@@ -293,7 +311,7 @@ export class MobileDevices {
 
             if (!rows.length) return undefined;
             yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
-          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${`mobile.${kind}.revoke`}, ${`mobile_${kind}`}, ${id}::uuid)`;
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${`${rows[0]!.client_kind}.${kind}.revoke`}, ${`mobile_${kind}`}, ${id}::uuid)`;
 
             return rows[0];
           }),

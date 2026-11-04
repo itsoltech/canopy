@@ -2,6 +2,7 @@ import { createInterface } from "node:readline";
 import { DesktopRuntime, type RuntimePaths, type Secrets } from "./runtime/runtime.ts";
 import type { DesktopStatus } from "@canopy/ui/desktop";
 import { configuration, type ConfigurationInput } from "./runtime/config.ts";
+import type { DesktopClientCredential } from "./remote-client.ts";
 
 export interface ControllerArguments {
   directory?: string;
@@ -9,12 +10,13 @@ export interface ControllerArguments {
   secrets?: Secrets;
   configuration?: ConfigurationInput;
   state?: string;
+  remoteClient?: DesktopClientCredential | undefined;
 }
 
 type ControllerRequest = { id: number } & (
   | { action: "initialize"; directory: string; paths: RuntimePaths; secrets: Secrets }
-  | { action: "restore" }
-  | { action: "configure"; configuration: ConfigurationInput }
+  | { action: "restore"; remoteClient?: DesktopClientCredential }
+  | { action: "configure"; configuration: ConfigurationInput; remoteClient?: DesktopClientCredential }
   | { action: "presence"; state: string }
 );
 
@@ -84,10 +86,10 @@ lines.on("line", (line) => {
         const origin = await runtime.initialize(false);
         send({ id, result: { origin, status: runtime.status } });
       } else if (request.action === "restore" && runtime) {
-        await runtime.restore();
+        await runtime.restore(request.remoteClient);
         send({ id, result: { status: runtime.status } });
       } else if (request.action === "configure" && runtime) {
-        await runtime.configure(configuration(request.configuration));
+        await runtime.configure(configuration(request.configuration), request.remoteClient);
         send({ id, result: { pids: runtime.pids } });
       } else if (request.action === "presence" && runtime) {
         await runtime.presence(request.state);

@@ -11,4 +11,4 @@ export const encode = <D extends DescMessage>(schema: D, message: MessageShape<D
 export const decode = <D extends DescMessage>(schema: D, json: JsonValue): MessageShape<D> =>
   // SAFETY: both types describe the same JSON values; protobuf's only lists arrays as mutable, and fromJson
   // reads its input without changing it.
-  fromJson(schema, json as ProtoJson);
+  fromJson(schema, json as ProtoJson, { ignoreUnknownFields: true });

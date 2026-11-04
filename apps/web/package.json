@@ -21,6 +21,7 @@
     "@canopy/contracts": "workspace:*",
     "@canopy/domain": "workspace:*",
     "@canopy/ui": "workspace:*",
+    "@canopy/transport": "workspace:*",
     "@shikijs/engine-javascript": "4.6.0",
     "@shikijs/langs": "4.6.0",
     "@shikijs/primitive": "4.6.0",

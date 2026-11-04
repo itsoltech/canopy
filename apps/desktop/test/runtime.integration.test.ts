@@ -5,14 +5,20 @@ import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { once } from "node:events";
+import { ui } from "@canopy/contracts";
+import { startGrpcServer } from "@canopy/transport";
+import { generateIdentity } from "../../gateway/src/computers/identity.ts";
 import { tempDir } from "@canopy/testing";
 import { DesktopRuntime, type RuntimePaths, type Secrets } from "../src/runtime/runtime.ts";
 import { controllerEntry, runtimePaths } from "../src/runtime/launch.ts";
 import { until } from "../src/runtime/process.ts";
 import { postgresArchive, postgresRegistry } from "./postgres-fixture.ts";
+import { migrateDesktopClient } from "../src/client-migration.ts";
+import { remoteWorkerDirectory, type DesktopClientCredential } from "../src/remote-client.ts";
 
 const data = tempDir("canopy-desktop-local-");
 const remoteData = tempDir("canopy-desktop-remote-");
+const noWorkerData = tempDir("canopy-desktop-worker-unavailable-");
 const source = process.env["CANOPY_DESKTOP_RUNTIME"] ?? resolve(import.meta.dir, "../build/runtime");
 const runtime = tempDir("canopy-desktop-isolated-runtime-");
 const available = existsSync(join(source, "canopy-gateway.js"));
@@ -56,6 +62,51 @@ function gone(pid: number) {
   }
 }
 
+test.skipIf(!existsSync(paths.web))(
+  "paired remote UI works when its worker cannot enroll",
+  async () => {
+    const directory = noWorkerData;
+    const identity = await generateIdentity();
+
+    const server = await startGrpcServer({
+      tls: { cert: identity.certificate, key: identity.privateKey },
+      routes: (router) =>
+        router.service(ui.GatewayService, {
+          getClientCapabilities: () => ({
+            minProtocol: 1,
+            maxProtocol: 1,
+            methods: ui.GatewayService.methods.map((m) => m.name),
+          }),
+          getOverview: () => ({}),
+          getSettings: () => ({}),
+        }),
+    });
+
+    const desktop = new DesktopRuntime(directory, paths, secrets());
+
+    try {
+      await desktop.initialize(false);
+      await desktop.configure(
+        { mode: "remote", gatewayUrl: server.url },
+        {
+          token: "test-desktop-client",
+          deviceId: "test-device",
+          fingerprint: identity.fingerprint,
+          addresses: ["https://127.0.0.1:1", server.url],
+        },
+      );
+      expect(desktop.status).toMatchObject({ phase: "running", worker: "offline", webUrl: desktop.origin });
+      expect(desktop.pids).toHaveLength(1);
+      expect((await fetch(`${desktop.origin}/api/overview`)).ok).toBe(true);
+      expect(existsSync(join(directory, "postgres"))).toBe(false);
+    } finally {
+      await desktop.stop();
+      await server.close(0);
+    }
+  },
+  30_000,
+);
+
 test.skipIf(!existsSync(paths.gateway))(
   "bundled stack: local enrollment, gRPC online, remote enrollment, restart durability and complete shutdown",
   async () => {
@@ -88,30 +139,54 @@ test.skipIf(!existsSync(paths.gateway))(
       expect((await formAction(local.status.webUrl!)).body).toContain("Choose a project");
       expect((await formAction(local.status.webUrl!, "http://attacker.example")).status).toBe(403);
       const token = (await api.createWorkerEnrollment({ name: "Remote desktop" })).token;
+      await api.updateNetworkAccess({ action: "set_enabled", enabled: true });
       await remote.initialize(false);
       const beforeRemote = registry.ranges.length;
+      const oldConfig = { mode: "remote" as const, gatewayUrl: local.status.gatewayUrl!, webUrl: local.status.webUrl! };
+      writeFileSync(join(remoteData, "desktop.json"), JSON.stringify(oldConfig));
       await remote.configure({
-        mode: "remote",
-        gatewayUrl: local.status.gatewayUrl!,
-        webUrl: local.status.webUrl!,
+        ...oldConfig,
         enrollmentToken: token,
       });
+      expect(remote.status.needsPairing).toBe(true);
+      await until(async () => (await api.getOverview({})).workers.filter((worker) => worker.online).length === 2);
+      let client: DesktopClientCredential | undefined;
+      await until(async () => {
+        client = await migrateDesktopClient(remoteWorkerDirectory(remoteData, oldConfig));
+
+        return Boolean(client);
+      });
+      const workerBefore = readFileSync(join(remoteWorkerDirectory(remoteData, oldConfig), "worker.json"), "utf8");
+      await remote.configure(oldConfig, client);
+      expect(
+        readFileSync(join(remoteWorkerDirectory(remoteData, oldConfig), "worker.json"), "utf8") === workerBefore,
+      ).toBe(true);
+      expect(remote.status.webUrl).toBe(remote.origin);
+      expect(remote.status.webUrl).not.toBe(local.status.webUrl);
+      expect((await fetch(`${remote.origin}/api/overview`)).ok).toBe(true);
+      expect(
+        (await fetch(`${remote.origin}/api/overview`, { headers: { origin: "https://attacker.invalid" } })).status,
+      ).toBe(403);
+      expect((await fetch(`${remote.origin}/api/overview`, { headers: { host: "attacker.invalid" } })).status).toBe(
+        403,
+      );
       expect(registry.ranges.length).toBe(beforeRemote);
       expect(existsSync(join(remoteData, "postgres"))).toBe(false);
       remote.pids.forEach((pid) => owned.add(pid));
-      expect(remote.pids).toHaveLength(2); // worker and setup BFF; no gateway or DB
+      expect(remote.pids).toHaveLength(2); // worker and local frontend/BFF; no gateway or DB
       expect((await formAction(remote.origin)).body).toContain("Choose a project");
       await until(async () => (await api.getOverview({})).workers.filter((worker) => worker.online).length === 2);
       expect((await api.getOverview({})).workers.filter((worker) => worker.online)).toHaveLength(2);
       const enrollment = await api.getWorkerSetup({});
       expect(enrollment.enrollments.filter((invite) => invite.usedAt)).toHaveLength(2);
-      expect(readFileSync(join(remoteData, "desktop.json"), "utf8")).not.toContain(token);
+      expect(readFileSync(join(remoteData, "desktop.json"), "utf8").includes(token)).toBe(false);
 
       const logs = readdirSync(join(data, "logs"))
         .map((name) => readFileSync(join(data, "logs", name), "utf8"))
         .join("\n");
 
-      for (const key of [...Object.values(keys), token]) expect(logs).not.toContain(key);
+      for (const key of [...Object.values(keys), token, client!.token]) expect(logs.includes(key)).toBe(false);
+      expect(readFileSync(join(remoteData, "desktop.json"), "utf8").includes(client!.token)).toBe(false);
       await remote.stop();
       await local.stop();
 
@@ -139,15 +214,17 @@ test.skipIf(!existsSync(paths.gateway))(
         postgresPid,
       );
       await local.stop();
-      const remoteWebUrl = remote.status.webUrl;
       remote = new DesktopRuntime(remoteData, paths, secrets(), () => {}, registry);
       await remote.initialize(false);
-      expect(remote.status).toMatchObject({ mode: "remote", phase: "starting", webUrl: remoteWebUrl });
+      expect(remote.status).toMatchObject({ mode: "remote", phase: "starting" });
       const reconnectStarted = performance.now();
-      await remote.restore();
+      await remote.restore(client);
       expect(remote.status.phase).toBe("running");
       expect(performance.now() - reconnectStarted).toBeLessThan(5000);
       expect(existsSync(join(remoteData, "postgres"))).toBe(false);
+      expect((await fetch(`${remote.origin}/desktop`)).ok).toBe(true);
+      expect((await fetch(remote.origin)).ok).toBe(true);
+      expect((await fetch(`${remote.origin}/api/overview`)).status).toBe(503);
       remote.pids.forEach((pid) => owned.add(pid));
     } finally {
       registry.offline(false);

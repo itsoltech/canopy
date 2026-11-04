@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { create } from "@bufbuild/protobuf";
+  import { toJsonString } from "@bufbuild/protobuf";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
   import { ui } from "@canopy/contracts";
   import QRCode from "qrcode";
@@ -8,7 +9,7 @@
   import { decode } from "#lib/shared/wire.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
-  import PhonePairingDialog from "#lib/features/network/PhonePairingDialog.svelte";
+  import DevicePairingDialog from "#lib/features/network/DevicePairingDialog.svelte";
   import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
   import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -83,7 +84,7 @@
     }
   });
 
-  async function pair() {
+  async function pair(kind: "mobile" | "desktop" = "mobile") {
     busy = true;
     error = "";
 
@@ -94,7 +95,7 @@
 
       const nextInvitation = decode(
         ui.CreateMobilePairingResponseSchema,
-        await requestJson("POST", "/api/mobile-devices", {}),
+        await requestJson("POST", `/api/mobile-devices?kind=${kind}`, {}),
       );
 
       // Data only: never put the one-time secret in a URL, analytics or an external QR service.
@@ -136,7 +137,11 @@
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(invitation?.code ?? "");
+      await navigator.clipboard.writeText(
+        invitation?.pairing?.clientKind === "desktop"
+          ? toJsonString(ui.CreateMobilePairingResponseSchema, invitation)
+          : (invitation?.code ?? ""),
+      );
       copied = true;
     } catch {
       error = "Select and copy the code manually.";
@@ -144,17 +149,22 @@
   }
 </script>
 
-<svelte:head><title>Mobile devices · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Devices · Settings · Canopy</title></svelte:head>
 <div class="flex flex-wrap items-start justify-between gap-4 px-1">
   <div class="min-w-0">
-    <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Mobile devices</h1>
+    <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Devices</h1>
     <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
       Your Canopy, with you. Pair once and connect on any Wi-Fi or VPN you share with this computer.
     </p>
   </div>
-  <Button variant="primary" disabled={!loaded || !network.loaded || busy} loading={busy} onclick={() => void pair()}
-    >{network.status.enabled ? "Pair a phone" : "Turn on network access and pair a phone"}</Button
-  >
+  <div class="flex flex-wrap gap-3">
+    <Button disabled={!loaded || !network.loaded || busy} onclick={() => void pair("desktop")}
+      >Pair a desktop app</Button
+    >
+    <Button variant="primary" disabled={!loaded || !network.loaded || busy} loading={busy} onclick={() => void pair()}
+      >{network.status.enabled ? "Pair a phone" : "Turn on network access and pair a phone"}</Button
+    >
+  </div>
 </div>
 {#if error}<Alert tone="error"
     >{error}<Button
@@ -178,7 +188,7 @@
   {#each setup.devices as device (device.id)}
     <SettingsRow
       title={device.name}
-      description={`${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${timestampDate(device.lastSeenAt).toLocaleString()}` : "Not connected yet"}`}
+      description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${timestampDate(device.lastSeenAt).toLocaleString()}` : "Not connected yet"}`}
     >
       {#snippet control()}{#if device.pairingVersion < 2}<Button size="sm" disabled={busy} onclick={() => void pair()}
             >Pair again</Button
@@ -191,15 +201,15 @@
           >{/if}{/snippet}
     </SettingsRow>
   {:else}<SettingsRow
-      title={loaded ? "No phones paired yet" : "Loading devices…"}
-      description="Pair once. Access stays on your phone until you revoke it here or unpair in the app."
+      title={loaded ? "No devices paired yet" : "Loading devices…"}
+      description="Pair a phone or desktop app. Revoke its access here at any time."
     />{/each}
 </SettingsGroup>
 {#if pending.length}
   <SettingsGroup title="Pending pairing codes">
     {#each pending as p (p.id)}
       <SettingsRow
-        title="Waiting for a phone"
+        title={p.clientKind === "desktop" ? "Waiting for a desktop app" : "Waiting for a phone"}
         description={`Expires ${p.expiresAt ? timestampDate(p.expiresAt).toLocaleTimeString() : "soon"}`}
       >
         {#snippet control()}<Button
@@ -212,7 +222,7 @@
     {/each}
   </SettingsGroup>
 {/if}
-<PhonePairingDialog
+<DevicePairingDialog
   bind:open
   {invitation}
   {qr}

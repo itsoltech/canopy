@@ -42,7 +42,12 @@ ale go nie wymaga:
   (dotychczasowe zasady pinu, samopodpisu i `Pair`/`Connect` bez zmian);
 - połączenie **bez certyfikatu** trafia do usług urządzeń (telefony, etap 2); bez nich dostaje 403.
 
-Listener nie wystawia BFF ani bazy. Workery bez certyfikatu klienta korzystają z WorkerLink,
+Listener nie wystawia BFF ani bazy. Sparowane desktopowe BFF korzystają z UI gRPC
+na tym samym listenerze, z osobnym odwoływalnym tokenem i przypiętym certyfikatem
+([desktop-remote-frontend.md](desktop-remote-frontend.md)); telefony zachowują swój
+ograniczony zakres. DesktopMigrationService emituje poświadczenie wyłącznie tutaj,
+po uwierzytelnieniu własnego workera desktopowego; stary endpoint udostępnia jedynie
+uwierzytelnione trasy migracji. Workery bez certyfikatu klienta korzystają z WorkerLink,
 enrollmentu i niezależnego UpdateService (etap 3), które same weryfikują tokeny i właściciela.
 Żądania z nagłówkiem Origin są odrzucane. Minimalna wersja TLS serwera to 1.2
 (starsze telefony); komputery same wymagają 1.3.

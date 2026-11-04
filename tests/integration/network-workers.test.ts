@@ -67,7 +67,7 @@ describe.skipIf(!dockerAvailable)("workers and persisted limits through Network 
     const transport = createGrpcClientTransport({ baseUrl: setup.gatewayUrl, ca, fingerprint });
     const api = createClient(ui.GatewayService, transport);
     expect(await failure(api.getOverview({}, { headers: { authorization: `Bearer ${local.credential}` } }))).toContain(
-      "HTTP 415",
+      "Invalid or revoked device token",
     );
     const updates = createClient(update.UpdateService, transport);
     expect((await updates.check({})).updateProtocol).toBeGreaterThan(0);
