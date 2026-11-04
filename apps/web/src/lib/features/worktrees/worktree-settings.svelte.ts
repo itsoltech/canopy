@@ -27,6 +27,17 @@ export type WorktreeField =
 /** A change of one field; `undefined` resets it to the inherited value. */
 export type WorktreeChange = { [K in WorktreeField]?: ui.WorktreeSettings[K] };
 
+/** Enum fields inherit with their unspecified value: proto enums have no "unset", so `undefined` can't be serialised. */
+function serialisable(change: WorktreeChange): WorktreeChange {
+  const next = { ...change };
+
+  if ("branchNaming" in change && change.branchNaming === undefined) next.branchNaming = ui.BranchNaming.UNSPECIFIED;
+
+  if ("defaultMode" in change && change.defaultMode === undefined) next.defaultMode = ui.WorkspaceMode.UNSPECIFIED;
+
+  return next;
+}
+
 /** Whether the scope sets the field itself (otherwise it inherits it). */
 export function overrides(settings: ui.WorktreeSettings | undefined, field: WorktreeField): boolean {
   const value = settings?.[field];
@@ -90,7 +101,7 @@ export class WorktreeSettingsState {
 
   async #write(scope: WorktreeScope, change: WorktreeChange): Promise<void> {
     const own = this.current?.settings ?? create(ui.WorktreeSettingsSchema);
-    const next = create(ui.WorktreeSettingsSchema, { ...own, ...change });
+    const next = create(ui.WorktreeSettingsSchema, { ...own, ...serialisable(change) });
 
     const saved = await saveWorktreeSettings({
       ...scope,
