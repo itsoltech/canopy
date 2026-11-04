@@ -114,6 +114,10 @@
         >workers online</span
       >
     </a>
-    <ConnectionStatus connection={overview.connection} class="min-w-0 flex-1 justify-end px-2" />
+    <ConnectionStatus
+      connection={overview.connection}
+      quietWhenLive={capabilities?.ownGateway ?? false}
+      class="min-w-0 flex-1 justify-end px-2"
+    />
   </div>
 </div>

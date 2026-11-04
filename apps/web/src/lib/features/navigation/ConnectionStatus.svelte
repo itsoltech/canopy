@@ -4,8 +4,15 @@
   import type { Tone } from "#lib/shared/ui/tone.ts";
   import type { OverviewConnection } from "#lib/features/overview/overview-state.svelte.ts";
 
-  /** Gateway connection of this tab, announced politely when it changes. */
-  let { connection, class: className }: { connection: OverviewConnection; class?: ClassValue } = $props();
+  /**
+   * Gateway connection of this tab, announced politely when it changes. `quietWhenLive`: the gateway is part of this
+   * app (desktop local mode), so only trouble is worth showing.
+   */
+  let {
+    connection,
+    quietWhenLive = false,
+    class: className,
+  }: { connection: OverviewConnection; quietWhenLive?: boolean; class?: ClassValue } = $props();
 
   const look = $derived(
     (
@@ -19,9 +26,12 @@
 </script>
 
 <!-- The width of the longest label stays reserved (no shift when it changes), on the left: the dot keeps to its word. -->
+<!-- The live region stays mounted while quiet, so a later reconnect is still announced. -->
 <p class={["flex items-center text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]} role="status">
-  <span class="flex min-w-32 items-center justify-end gap-2 sm:min-w-28">
-    <StatusDot tone={look.tone} active={connection === "reconnecting"} />
-    {look.label}
-  </span>
+  {#if !(quietWhenLive && connection === "live")}
+    <span class="flex min-w-32 items-center justify-end gap-2 sm:min-w-28">
+      <StatusDot tone={look.tone} active={connection === "reconnecting"} />
+      {look.label}
+    </span>
+  {/if}
 </p>
