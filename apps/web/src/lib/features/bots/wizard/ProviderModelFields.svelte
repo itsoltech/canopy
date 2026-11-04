@@ -6,6 +6,8 @@
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import type { ModelOption } from "#lib/features/models/catalog.ts";
   import ChoiceGrid from "./ChoiceGrid.svelte";
+  import Alert from "#lib/shared/ui/Alert.svelte";
+  import UnavailableProviders from "./UnavailableProviders.svelte";
   import type { BotProviderInstance } from "./draft.ts";
 
   let {
@@ -30,7 +32,10 @@
   let effortOpen = $state(false);
 
   const choices = $derived(
-    instances.filter((i) => !i.disabledReason).map((i) => ({ value: i.id, label: i.name, provider: i.provider })),
+    instances
+      .filter((i) => !i.disabledReason)
+      .toSorted((a, b) => Number(b.models.length > 0) - Number(a.models.length > 0))
+      .map((i) => ({ value: i.id, label: i.name, provider: i.provider })),
   );
 
   const instance = $derived(instances.find((i) => i.id === instanceId));
@@ -64,26 +69,22 @@
   });
 </script>
 
-<div class={["grid gap-3 border-t border-zinc-950/10 pt-5 dark:border-white/10", className]}>
-  <h3 class="text-base font-medium sm:text-sm">Provider instance</h3>
-  {#each instances.filter((instance) => instance.disabledReason) as unavailable (unavailable.id)}
-    <div class="grid gap-1 text-base/6 sm:text-sm/6">
-      <p aria-disabled="true" class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
-        <ProviderIcon provider={unavailable.provider} />{unavailable.name} · Device login
-      </p>
-      <p class="text-pretty text-zinc-500 dark:text-zinc-400">{unavailable.disabledReason}</p>
-      <p>
-        <a href={unavailable.settingsHref} class="rounded-md underline focus-ring">Switch this instance to a proxy</a>
-      </p>
-    </div>
-  {/each}
+<div class={["grid min-w-0 gap-3", className]}>
+  <h3 class="text-base font-medium sm:text-sm">Model</h3>
+  {#if !instances.some((i) => !i.disabledReason && i.models.length > 0)}
+    <Alert title="Set up a model first">
+      Your bot needs an available provider instance with a model before it can be created.
+      <a href="/settings/providers" class="rounded-md underline focus-ring">Set up a provider in Settings → Providers</a
+      >. Your draft stays here while you configure it.
+    </Alert>
+  {/if}
   {#if choices.length > 0}
     <ChoiceGrid
       label="Provider instance"
       options={choices}
       value={instanceId}
       {disabled}
-      class="grid-cols-2"
+      class="grid-cols-1 sm:grid-cols-2"
       onchange={(v) => {
         instanceId = v;
         option = undefined;
@@ -100,7 +101,7 @@
             selected && "ring-1 ring-zinc-950/30 dark:ring-white/40",
           ]}
         >
-          <ProviderIcon provider={choice.provider} /><span class="truncate">{choice.label}</span>
+          <ProviderIcon provider={choice.provider} /><span class="min-w-0 text-left wrap-anywhere">{choice.label}</span>
         </div>
       {/snippet}
     </ChoiceGrid>
@@ -139,13 +140,11 @@
     {:else}
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
         No models are available for this instance.
+        <a href={instance?.settingsHref ?? "/settings/providers"} class="rounded-md underline focus-ring"
+          >Configure models in Settings → Providers</a
+        >.
       </p>
     {/if}
-  {:else}
-    <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
-      No proxy connections are available. Add a connection in <a href="/settings/proxies" class="underline"
-        >Settings → Proxies</a
-      >, then choose it for a provider instance.
-    </p>
   {/if}
+  <UnavailableProviders {instances} />
 </div>

@@ -57,7 +57,7 @@ workera i resynchronizacji strumienia. Dopiero zakończone pobranie może pokaza
 }
 ```
 
-`open` jest bindable; dodatkowy opcjonalny prop `class` trafia do istniejącego `Dialog`. Każde ponowne otwarcie zaczyna nowy szkic. Zapis zamyka dialog dopiero po rozwiązaniu Promise; błąd zachowuje wybory. W trakcie zapisu kontrolki, zamykanie przez Escape, backdrop, uchwyt i przyciski są zablokowane. Wywołujący nadal może jawnie zmienić `open`.
+`open` jest bindable; dodatkowy opcjonalny prop `class` trafia do istniejącego `Dialog`. Każde ponowne otwarcie zaczyna nowy szkic. Linki konfiguracji otwierają istniejący overlay ustawień nad nadal zamontowanym kreatorem: zamknięcie ustawień lub Back przywraca nazwę, wygląd, model i effort. To szkic w pamięci bieżącego widoku, nie zapis po przeładowaniu strony. Zapis zamyka dialog dopiero po rozwiązaniu Promise; błąd zachowuje wybory. W trakcie zapisu kontrolki, zamykanie przez Escape, backdrop, uchwyt i przyciski są zablokowane. Wywołujący nadal może jawnie zmienić `open`.
 
 ```svelte
 <EditBotAppearance
@@ -72,9 +72,11 @@ workera i resynchronizacji strumienia. Dopiero zakończone pobranie może pokaza
 
 ## Wygląd i interakcje
 
-Jeden przewijany formularz zachowuje wspólny kontekst: podgląd 160 px, nazwa, 14 kształtów, 11 kolorów i własny picker HSV/HEX, instancja oraz model/effort. Stopka z akcjami pozostaje przy dolnej krawędzi. Telefon używa istniejącego bottom sheet `Dialog`; własne wrappery kontrolują odstępy bez nadpisywania pozycjonowania/paddingu pickerów.
+Tworzenie zaczyna się od gotowości modelu i wyboru instancji oraz modelu/effortu. Brak dostępnego modelu pokazuje od razu jeden komunikat i link do Settings → Providers; stopka wyjaśnia blokadę tworzenia. Instancje z modelami są pierwsze, a niedostępne instancje trafiają do jednej opcjonalnej sekcji. Powtarzające się powody blokady są wyświetlane raz, z osobnymi linkami konfiguracji instancji. Pola pozostają niezależne od runtime’u: przyszły wybór „Runs on” może poprzedzać model, bez zmiany kontraktu wyglądu.
 
-`AppearanceFields`, `ChoiceGrid`, `CustomColorPicker` i `MascotPreview` są współdzielone przez tworzenie i edycję. `MascotFace` renderuje te same ścieżki SVG w podglądzie i `BotAvatar` (opcjonalny prop `appearance`). Stary hash oraz siedem dotychczasowych kształtów pozostają niezmienione, więc istniejące generowane awatary zachowują tożsamość.
+Podgląd 64 px sąsiaduje z nazwą. Tworzenie ukrywa 14 kształtów, 11 kolorów i picker HSV/HEX za „Customise appearance”; edycja samego wyglądu pokazuje je od razu, bez pól modelu. Niepoprawny kolor przy zatwierdzeniu rozwija sekcję i kieruje fokus do pola HEX. Siatka kształtów ma pięć kolumn na telefonie i siedem od `sm`. Stopka z akcjami pozostaje przy dolnej krawędzi. Telefon używa istniejącego bottom sheet `Dialog`; własne wrappery kontrolują odstępy bez nadpisywania pozycjonowania/paddingu pickerów.
+
+`AppearanceFields`, `ChoiceGrid`, `CustomColorPicker` i `MascotPreview` są współdzielone przez tworzenie i edycję. `UnavailableProviders` grupuje niedostępne instancje w kreatorze i współdzielonych polach ustawień bota. Sekcje korzystają z kitowego `Disclosure`, jego tokenów ruchu i obsługi reduced motion. `MascotFace` renderuje te same ścieżki SVG w podglądzie i `BotAvatar` (opcjonalny prop `appearance`). Stary hash oraz siedem dotychczasowych kształtów pozostają niezmienione, więc istniejące generowane awatary zachowują tożsamość.
 
 Podgląd używa crossfade ze skalą według przepisu icon swap z `transitions-dev` i istniejących tokenów ruchu. Kolor przechodzi płynnie; wpisanie nazwy powoduje małe podbicie; oczy mrugają co 5,5 s. `prefers-reduced-motion` wyłącza te animacje. Oczy wybierają biały lub ciemny kolor według kontrastu luminancji sRGB, niezależnie od motywu.
 
