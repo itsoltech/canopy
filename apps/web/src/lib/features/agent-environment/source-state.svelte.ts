@@ -3,6 +3,7 @@ import { ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import type { EnvironmentState } from "./environment-state.svelte.ts";
+import { revealEnvironmentItem } from "./environment-feedback.ts";
 
 export class SourceState {
   preview = $state.raw<ui.SkillSourcePreview>();
@@ -80,6 +81,7 @@ export class SourceState {
 
   async add(): Promise<void> {
     if (!this.preview || this.busy) return;
+    const previousIds = new Set(this.environment.snapshot.skills.map((s) => s.id));
 
     if (
       await this.environment.mutate(
@@ -98,6 +100,7 @@ export class SourceState {
     ) {
       this.preview = undefined;
       this.environment.notice = "Skills added. Assigned computers will sync the reviewed commit.";
+      void revealEnvironmentItem(this.environment.snapshot.skills.find((s) => !previousIds.has(s.id))?.id || "");
     }
   }
 
@@ -116,6 +119,7 @@ export class SourceState {
     ) {
       this.preview = undefined;
       this.environment.notice = "Update applied. Assigned computers will sync the reviewed version.";
+      void revealEnvironmentItem(id);
     }
   }
 }

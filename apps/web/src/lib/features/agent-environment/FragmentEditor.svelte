@@ -10,6 +10,7 @@
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import AssignmentEditor from "./AssignmentEditor.svelte";
   import AssignmentSummary from "./AssignmentSummary.svelte";
+  import { rise } from "#lib/shared/ui/motion.ts";
 
   let {
     fragment = $bindable(),
@@ -18,6 +19,7 @@
     disabled = [],
     index,
     count,
+    autofocus = false,
     onmove,
     onremove,
     class: className,
@@ -28,13 +30,19 @@
     disabled?: readonly string[];
     index: number;
     count: number;
+    autofocus?: boolean;
     onmove: (direction: number) => void;
     onremove: () => void;
     class?: ClassValue;
   } = $props();
 </script>
 
-<section class={["grid gap-4", className]} aria-label="Fragment {index + 1}">
+<section
+  id="environment-item-{fragment.id}"
+  class={["grid gap-4 rounded-lg", className]}
+  aria-label="Fragment {index + 1}"
+  in:rise={{ instant: !autofocus }}
+>
   <div class="flex flex-wrap items-center justify-between gap-2">
     <h3 class="text-base font-medium text-balance tabular-nums">Fragment {index + 1}</h3>
     <div class="flex flex-wrap gap-1">
@@ -58,6 +66,7 @@
   <Field label="Fragment name"
     ><Input
       name="fragment-name"
+      data-item-focus
       bind:value={fragment.name}
       maxlength={120}
       placeholder="For example, Windows tooling"

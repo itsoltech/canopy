@@ -2,6 +2,7 @@ import { clone, create } from "@bufbuild/protobuf";
 import { ui, type SkillFile } from "@canopy/contracts";
 import { encode } from "#lib/shared/wire.ts";
 import type { EnvironmentState } from "./environment-state.svelte.ts";
+import { revealEnvironmentItem } from "./environment-feedback.ts";
 
 export class SkillsState {
   draft = $state<ui.LibrarySkill>();
@@ -23,6 +24,8 @@ export class SkillsState {
   }
   async save(): Promise<void> {
     if (!this.draft) return;
+    const previousIds = new Set(this.environment.snapshot.skills.map((s) => s.id));
+    const id = this.draft.id;
 
     const request = create(ui.SaveLibrarySkillRequestSchema, {
       skill: create(ui.LibrarySkillSchema, { ...this.draft, artifact: undefined }),
@@ -35,6 +38,7 @@ export class SkillsState {
       this.draft = undefined;
       this.environment.notice =
         "Skill saved. Assigned computers will sync when connected. New harness sessions use the saved version.";
+      void revealEnvironmentItem(id || this.environment.snapshot.skills.find((s) => !previousIds.has(s.id))?.id || "");
     }
   }
   async remove(skill: ui.LibrarySkill): Promise<void> {

@@ -4,6 +4,7 @@ import { pluginHarnesses } from "@canopy/domain/plugin-components";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import type { EnvironmentState } from "./environment-state.svelte.ts";
+import { revealEnvironmentItem } from "./environment-feedback.ts";
 
 export class PluginState {
   preview = $state.raw<ui.MarketplacePreview>();
@@ -48,6 +49,7 @@ export class PluginState {
 
   async saveMarketplace() {
     if (!this.preview) return;
+    const market = this.preview.marketplace;
 
     if (
       await this.environment.mutate(
@@ -65,6 +67,7 @@ export class PluginState {
       this.preview = undefined;
       this.environment.notice =
         "Marketplace saved. Review a plugin below to enable it. Enabled plugins keep their approved versions.";
+      void revealEnvironmentItem(this.environment.snapshot.marketplaces.find((m) => m.name === market?.name)?.id || "");
     }
   }
 
@@ -87,6 +90,9 @@ export class PluginState {
   }
 
   edit(market: ui.EnvironmentMarketplace, candidate: ui.MarketplacePlugin) {
+    this.error = "";
+    this.environment.error = "";
+
     const previous = this.environment.snapshot.plugins.find(
       (p) => p.marketplaceId === market.id && p.assignment?.artifact?.name === candidate.artifact?.name,
     );
@@ -134,6 +140,8 @@ export class PluginState {
 
   async savePlugin() {
     if (!this.draft || !this.candidate?.artifact || !this.marketplace || !this.confirmed) return;
+    const marketplaceId = this.marketplace.id;
+    const name = this.candidate.artifact.name;
     const artifact = this.latest ? this.candidate.artifact : this.previous?.assignment?.artifact;
 
     if (
@@ -156,6 +164,12 @@ export class PluginState {
       this.draft = undefined;
       this.environment.notice =
         "Plugin approved and assigned. New harness sessions will load the reviewed version after sync.";
+
+      const plugin = this.environment.snapshot.plugins.find(
+        (p) => p.marketplaceId === marketplaceId && p.assignment?.artifact?.name === name,
+      );
+
+      void revealEnvironmentItem(plugin?.assignment?.id || "");
     }
   }
 

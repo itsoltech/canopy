@@ -43,28 +43,28 @@
           onchange={(v) => (selector.matchAllTags = v === "all")}
         />
       </Field>{/if}
-    <Disclosure>
-      {#snippet summary()}<div class="text-base font-medium sm:text-sm">
-          Or choose specific computers ({selector.workerIds.length})
-        </div>{/snippet}
-      <div class="grid max-h-52 gap-3 overflow-auto py-3 pl-6">
-        {#each workers as worker (worker.workerId)}
-          <Checkbox
-            name="assign-{worker.workerId}"
-            label={worker.name}
-            bind:checked={
-              () => selector.workerIds.includes(worker.workerId),
-              (on) =>
-                (selector.workerIds = on
-                  ? [...selector.workerIds, worker.workerId]
-                  : selector.workerIds.filter((id) => id !== worker.workerId))
-            }
-          />
-        {:else}<p class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
-            Add a worker to choose a computer.
-          </p>{/each}
-      </div>
-    </Disclosure>
+    {#if workers.length}<Disclosure>
+        {#snippet summary()}<div class="text-base font-medium sm:text-sm">
+            Or choose specific computers ({selector.workerIds.length})
+          </div>{/snippet}
+        <div class="grid max-h-52 gap-3 overflow-auto py-3 pl-6">
+          {#each workers as worker (worker.workerId)}
+            <Checkbox
+              name="assign-{worker.workerId}"
+              label={worker.name}
+              bind:checked={
+                () => selector.workerIds.includes(worker.workerId),
+                (on) =>
+                  (selector.workerIds = on
+                    ? [...selector.workerIds, worker.workerId]
+                    : selector.workerIds.filter((id) => id !== worker.workerId))
+              }
+            />
+          {:else}<p class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
+              Add a worker to choose a computer.
+            </p>{/each}
+        </div>
+      </Disclosure>{/if}
   {/if}
   <TagInput
     label="Exclude tags"

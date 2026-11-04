@@ -8,6 +8,39 @@ skilli Claude/Codex/Grok, źródła Git/skills.sh oraz marketplace i pluginy
 Claude/Codex z przypiętymi wersjami. Współdzielenie biblioteki między gatewayami
 pozostaje osobnym, późniejszym zakresem; nie należy do zleconego etapu 4.
 
+## Dodawanie i edycja w interfejsie
+
+Biblioteki pokazują dwuwierszowe pozycje: nazwa, mały status i ikonowe akcje
+w pierwszej linii; harnessy, wersja, liczba plików, skrócone źródło i polityka
+aktualizacji w drugiej. Nazwy i metadane są przycinane z tooltipem pełnej treści.
+Przypisanie ma jeden skrót: „All computers” albo liczba komputerów; tooltip
+zawiera pełną listę i tagi. Usuwanie wymaga wyboru akcji z menu wiersza.
+Marketplace i jego pluginy używają tego samego układu.
+Dodawanie oraz edycja otwierają wspólny panel krokowy
+oparty o kitowy `Dialog`: na telefonie pełnoekranowy, na większym ekranie modalny.
+Nagłówek pokazuje postęp, a stała stopka udostępnia Back/Next i końcowe potwierdzenie.
+Puste biblioteki mają przycisk pierwszego dodania; formularze nie pojawiają się
+w treści strony. Puste katalogi nie tworzą disclosures.
+
+Instrukcje przechodzą przez zapis fragmentów, przypisanie i istniejący podgląd
+wyniku dla komputera. Skill zaczyna się od wyboru źródła: folder/ZIP albo Git
+i wklejona komenda `npx skills add`. Dalej są przegląd plików oraz przypisanie.
+Źródła zachowują wybór połączonego konta, a edycja skilla — wersje, pin,
+auto-update i nadpisania maszyn. Podgląd ZIP informuje, że gateway rozpakowuje
+i waliduje archiwum przy zapisie; przegląd poszczególnych plików przed zapisem
+wymaga folderu. Przy rollbacku UI oznacza, że wyświetla pliki obecnie przypisanej
+wersji, a zapis przywróci wybraną wersję z biblioteki.
+
+Marketplace ma wybór źródła i zamrożony podgląd katalogu. Plugin ma przegląd
+kodu/diff, przypisanie oraz osobne, domyślnie niezaznaczone potwierdzenie checksumu.
+Check upstream także otwiera panel. Dotychczasowe porównania i rozwiązywanie driftu
+pozostają przy statusie komputera. Błędy walidacji i zapisu są widoczne w panelu.
+
+Po udanym zapisie panel zamyka się, lista przewija do elementu, przenosi fokus
+i krótko wyróżnia jego wiersz. Dodanie fragmentu również przewija i ustawia fokus.
+Przejścia korzystają z tokenów ruchu; reduced motion wyłącza ruch przewijania
+i animowane wyróżnienie.
+
 ## Badanie źródeł i wersji
 
 Odczyt publicznej dokumentacji oraz lokalnych `--help`/`--version`, bez instalacji,
@@ -312,7 +345,7 @@ owner-scoped preview. Addytywne UI RPC i BFF POST
    rozwiązuje ref do SHA i zamraża pliki. Zwraca `SkillSourcePreview`: ID,
    repo/ref/commit, ścieżki i pełne artefakty skilli, licencję repo, notices,
    sugerowane harnessy/Device CLI, expiry. Nie zmienia biblioteki ani workerów.
-   **Add from command or source** pokazuje pliki i treść, wyróżnia scripts/hooks,
+   Panel **Add skill → Git repository or npx skills add command** pokazuje pliki i treść, wyróżnia scripts/hooks,
    executable, shebang oraz pliki interpretowane; właściciel wybiera skille
    i zwykłe przypisania przed **Add and sync**. Cache: 30 minut, do 5 preview/owner.
 2. `AddSkillSource(preview_id, paths, assignment, expected_revision)` potwierdza
