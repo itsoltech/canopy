@@ -7,9 +7,17 @@ export interface PromotionCommit {
   landedAt: number;
   message: string;
   files: string[];
+  attributions: PromotionAttribution[];
   prs: { number: number; body: string; hold: boolean }[];
   green: boolean;
   release?: { tag: string; readyAt: number };
+}
+
+export interface PromotionAttribution {
+  sha: string;
+  file: string;
+  lines: number[];
+  kind: "changed" | "adjacent";
 }
 
 export interface PromotionInput {
@@ -56,11 +64,15 @@ export function sharedPromotionFile(path: string): boolean {
   );
 }
 
-function followup(commit: PromotionCommit): boolean {
+export function isPromotionFollowup(commit: PromotionCommit): boolean {
   return (
     /^(?:fix|perf|revert)(?:\([^\n)]+\))?!?:|^revert\b/i.test(commit.message) ||
     /^This reverts commit [a-f0-9]{7,40}/im.test(commit.message)
   );
+}
+
+export function promotionCommitLinks(commit: PromotionCommit) {
+  return promotionLinks([commit.message, ...commit.prs.map((pr) => pr.body)].join("\n"));
 }
 
 function eligibleSince(input: PromotionInput, index: number): number {
@@ -71,8 +83,7 @@ function eligibleSince(input: PromotionInput, index: number): number {
 }
 
 function relationship(fix: PromotionCommit, original: PromotionCommit): string | undefined {
-  const text = [fix.message, ...fix.prs.map((pr) => pr.body)].join("\n");
-  const links = promotionLinks(text);
+  const links = promotionCommitLinks(fix);
   const linked = original.prs.find((pr) => links.prs.includes(pr.number));
 
   if (linked) return `${fix.sha}: explicit PR #${linked.number}`;
@@ -84,9 +95,11 @@ function relationship(fix: PromotionCommit, original: PromotionCommit): string |
   const elapsed = fix.landedAt - original.landedAt;
 
   if (elapsed < 0 || elapsed > 7 * DAY) return undefined;
-  const files = fix.files.filter((file) => !sharedPromotionFile(file) && original.files.includes(file));
+  const attributed = fix.attributions.filter((item) => item.sha === original.sha && !sharedPromotionFile(item.file));
 
-  return files.length ? `${fix.sha}: shared files ${files.join(", ")}` : undefined;
+  return attributed.length
+    ? `${fix.sha}: blamed lines ${attributed.map((item) => `${item.file}:${item.lines.join(",")} (${item.kind})`).join("; ")}`
+    : undefined;
 }
 
 function readyIndex(input: PromotionInput, ceiling: number): number {
@@ -144,7 +157,7 @@ export function selectPromotion(input: PromotionInput): PromotionPlan {
       const original = input.commits[i]!;
 
       for (const fix of [...input.commits.slice(cutoff + 1), ...(input.pendingFixes ?? [])]) {
-        if (!followup(fix)) continue;
+        if (!isPromotionFollowup(fix)) continue;
         const reason = relationship(fix, original);
 
         if (!reason) continue;

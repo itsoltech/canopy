@@ -516,8 +516,19 @@ i słowa GitHuba `fix`/`fixes`/`fixed`, `close`/`closes`/`closed`,
 Link musi zajmować osobną linię; przypadkowe numery PR i hashe w zdaniu nie wiążą zmian.
 Numery odnoszą się do PR-ów tego repozytorium. Jawny link działa bez ograniczenia wieku i plików.
 
-**Heurystyka awaryjna.** Przy braku jawnego linku szukamy wspólnych zmienionych plików,
-tylko gdy poprawka trafiła na gałąź 0–7 dni po oryginale. Pomijamy:
+**Heurystyka awaryjna (SZZ).** Przy braku jawnego linku przypisujemy zmienione/usunięte
+linie do commitów, które je wprowadziły. `git diff -w --ignore-blank-lines -U0 F^ F`
+wyznacza zakresy pre-image; `git blame --porcelain -w -M -C -L start,end F^ -- <file>`
+sprawdza tylko te zakresy, ignorując whitespace i śledząc przeniesienia/kopie linii.
+Blame pomija też rewizje wymienione w wersji `.git-blame-ignore-revs` z `F^`, żeby
+repozytoryjne formatowanie z przełamaniem linii nie przejmowało autorstwa naprawianego kodu.
+Zmiana samego whitespace nie tworzy powiązania. Dla hunków będących wyłącznie dopiskiem
+sprawdzamy bezpośrednią linię przed i po wstawieniu: obie muszą wskazywać ten sam commit.
+Na początku/końcu pliku wystarcza jedyny istniejący sąsiad. Przy różnych właścicielach,
+nowym lub pustym pliku nie przypisujemy dopisku do nikogo. Powiązanie zatrzymuje promocję
+tylko dla oryginału w `(target, C]`, gdy poprawka trafiła na gałąź 0–7 dni po nim;
+blame wskazujący już wydany commit lub commit poza prefiksem nie zatrzymuje prefiksu.
+Raport pokazuje SHA właściciela, plik i numery linii sprzed poprawki. Pomijamy:
 
 - `packages/contracts/src/gen/**`, `packages/codex-protocol/src/gen/**`;
 - `packages/db/src/migrations/index.ts`, `packages/db/test/schema.test.ts`;
@@ -527,8 +538,9 @@ tylko gdy poprawka trafiła na gałąź 0–7 dni po oryginale. Pomijamy:
 - nazwy `CHANGELOG`, `CHANGES`, `HISTORY`, `RELEASE-NOTES` (bez względu na wielkość liter),
   również z sufiksem po kropce/myślniku. Migracje SQL i źródłowe proto nadal wiążą zmiany.
 
-To heurystyka konserwatywna, może zatrzymać niezależne zmiany w jednym pliku; jawne stopki
-są podstawową konwencją i nie wolno polegać wyłącznie na podobieństwie plików.
+Dotknięcie tego samego pliku nie wystarcza do powiązania. Blame jest przybliżeniem przyczyny
+błędu: naprawa może dotyczyć logiki w innym miejscu albo mieć niejednoznaczny kontekst dopisku.
+Jawne stopki pozostają podstawową konwencją i mają pierwszeństwo przed atrybucją linii.
 
 **Smoke zamiast checkboxów.** Automat niczego nie zaznacza w imieniu człowieka.
 Zielony Release obejmuje CI, testy updatera w CI, start binariów gateway/worker z kontrolą
@@ -540,6 +552,9 @@ nowego testu E2E aktualizacji; zachowujemy istniejące testy updatera i smoke Re
 
 **Ręczny Promote.** Nadal wybiera `dev-next`/`next-main` tym samym algorytmem.
 `dry_run` (domyślnie true) wypisuje plan bez pushu, dispatchu i zapisu issue. Opcjonalne
+przewidywanie następnego terminu w dry-runie zmienia wyłącznie czas na tym samym snapshotcie
+historii/CI/etykiet: podaje próg soak, najbliższy cykl 3 h i SHA. Nie zakłada przyszłego
+powodzenia CI ani nie gwarantuje publikacji, jeśli stan repozytorium się zmieni. Parametr
 `override=true` pozwala maintainerowi pominąć soak, pauzę i `promotion-hold`; nie pomija
 powiązanych wykluczonych poprawek, zielonego CI, ukończonej bety dla stable, blockerów ani FF.
 Stare wejścia `live_smoke`/`update_smoke` zachowano dla kompatybilności dispatchu, ale nie są

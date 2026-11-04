@@ -2,7 +2,7 @@ import { appendFileSync } from "node:fs";
 import { api, git, pages, repository } from "./release-github.ts";
 import { loadPromotion, promotionBranches, promotionIssues, type PromotionAdapters } from "./promotion-data.ts";
 import { DAY, selectPromotion, type PromotionInput, type PromotionPlan } from "./promotion-policy.ts";
-import { forecastPromotion } from "./promotion-version.mjs";
+import { forecastPromotion, forecastPromotionWindow } from "./promotion-version.mjs";
 import { finishPromotion, preparePromotion, resumePromotion } from "./promotion-journal.ts";
 
 export function burnInDays(value: string): number {
@@ -39,6 +39,16 @@ export function promotionSummary(input: PromotionInput, plan: PromotionPlan, ver
   ];
 
   return `${lines.join("\n")}\n`;
+}
+
+function attributionSummary(input: PromotionInput): string {
+  const rows = [...input.commits, ...(input.pendingFixes ?? [])].flatMap((commit) =>
+    commit.attributions.map(
+      (item) => `- ${commit.sha} → ${item.sha}: ${item.file}:${item.lines.join(",")} (${item.kind})`,
+    ),
+  );
+
+  return `\nLine attribution (fallback only; owners outside the candidate range cannot hold it):\n${rows.join("\n")}\n`;
 }
 
 function updateStarvationIssue(repo: string, path: string, body: string, adapters: PromotionAdapters): void {
@@ -83,13 +93,23 @@ export async function runPromotion(
     plan.reason = "No release-producing commits (or stable bootstrap missing)";
   }
 
-  const summary = promotionSummary(input, plan, version);
+  const next = options.dryRun ? await forecastPromotionWindow(input, plan, adapters.git) : undefined;
+
+  const schedule = next
+    ? `\nTime-only forecast (same CI/labels/history snapshot): eligible ${new Date(next.at).toISOString()}; next scheduled cycle ${new Date(Math.ceil(next.at / 10_800_000) * 10_800_000).toISOString()}; ${next.sha}; ${next.version}.\n`
+    : "";
+
+  const summary = promotionSummary(input, plan, version) + schedule;
+  // Full blame evidence can exceed an issue's 65,536-character body limit. Keep it in the log/job summary;
+  // the durable issue retains the decision, included/excluded commits and relevant hold reasons.
+  const attribution = attributionSummary(input);
   console.log(summary);
+  console.log(attribution);
   const summaryPath = process.env["GITHUB_STEP_SUMMARY"];
 
-  if (summaryPath) appendFileSync(summaryPath, summary);
+  if (summaryPath) appendFileSync(summaryPath, summary + attribution);
 
-  if (options.dryRun) return { input, plan, version };
+  if (options.dryRun) return { input, plan, version, next };
 
   if (resumePromotion(repo, input, adapters, options.override)) {
     if (summaryPath)

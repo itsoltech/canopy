@@ -426,3 +426,24 @@ test("a stable hotfix reached through a second-parent backmerge is retained duri
   expect(f.git("merge-base", hotfix, merged)).toBe(hotfix);
   expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(merged);
 });
+
+test("dry-run forecasts the next soaked prefix using current CI and hold evidence only", async () => {
+  const f = fixture();
+  f.commit("feat: original", 24.5);
+  const fix = f.commit("fix: feature repair", 23.5);
+  f.release(fix, "v0.2.0-nightly.2");
+  const result = await runPromotion("fixture/canopy", "dev-next", { ...options, dryRun: true }, f.adapters, now);
+  expect(result.plan.sha).toBe(f.baseline);
+  expect(result.next).toEqual({ at: now + 0.5 * 3_600_000, sha: fix, version: "0.2.0-beta.1" });
+  expect(f.writes).toEqual([]);
+
+  const paused = await runPromotion(
+    "fixture/canopy",
+    "dev-next",
+    { ...options, dryRun: true, paused: true },
+    f.adapters,
+    now,
+  );
+
+  expect(paused.next).toBeUndefined();
+});

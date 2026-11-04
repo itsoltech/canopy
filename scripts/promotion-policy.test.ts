@@ -23,6 +23,12 @@ function commit(
     landedAt: now - ageHours * 3_600_000,
     message,
     files,
+    attributions: files.map((file) => ({
+      sha: (id - 1).toString(16).padStart(40, "a"),
+      file,
+      lines: [1],
+      kind: "changed",
+    })),
     prs: [{ number: id, body: "", hold: false }],
     green: true,
     release: { tag: `v0.2.0-nightly.${id}`, readyAt: now - ageHours * 3_600_000 },
@@ -100,10 +106,11 @@ test("documented links and GitHub closing keywords parse; incidental mentions an
   }
 });
 
-test("an explicit original takes precedence over coincidental file overlap with another change", () => {
+test("an explicit original takes precedence over incidental line attribution to another change", () => {
   const unrelated = commit(1, 50);
   const original = commit(2, 40);
   const fix = commit(3, 1, "fix: repair\n\nRefs: #2");
+  fix.attributions = [{ sha: unrelated.sha, file: "apps/worker/src/run.ts", lines: [1], kind: "changed" }];
   expect(selectPromotion(input([unrelated, original, fix])).sha).toBe(unrelated.sha);
 });
 
@@ -115,7 +122,7 @@ test("stable also waits for known dev fixes that have not reached beta yet", () 
   expect(selectPromotion(data).sha).toBe(target);
 });
 
-test("shared/generated paths cannot hold by overlap; migrations and application code still can", () => {
+test("shared/generated paths cannot hold by blame; migrations and application code still can", () => {
   const shared = [
     "packages/contracts/src/gen/canopy/worker/v1/link_pb.ts",
     "packages/codex-protocol/src/gen/v2.ts",

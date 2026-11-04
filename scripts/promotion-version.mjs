@@ -1,5 +1,6 @@
 /** Read-only forecast using the same Angular analyzer as Release; never invokes semantic-release or push. */
 import { analyzeCommits } from "./release-analyzer.mjs";
+import { selectPromotion } from "./promotion-policy.ts";
 
 function compare(a, b) {
   const left = a.replace(/^v/, "").split(/[.-]/).map(Number);
@@ -68,4 +69,24 @@ export async function forecastPromotion(input, plan, git) {
   const counter = previous && compare(previous, core) === 0 ? Number(previous.split(".").at(-1)) + 1 : 1;
 
   return `${core}-beta.${counter}`;
+}
+
+/** Time-only forecast against the same read-only snapshot; never assumes CI or labels will change. */
+export async function forecastPromotionWindow(input, plan, git) {
+  if (plan.sha !== input.target || input.paused || input.blockers.length) return undefined;
+
+  const thresholds = input.commits.map(
+    (commit) => (input.path === "dev-next" ? commit.landedAt : (commit.release?.readyAt ?? Infinity)) + input.soakMs,
+  );
+
+  const times = [...new Set(thresholds)].filter((at) => Number.isFinite(at) && at > input.now).sort((a, b) => a - b);
+
+  for (const at of times) {
+    const future = selectPromotion({ ...input, now: at });
+    const version = await forecastPromotion(input, future, git);
+
+    if (version) return { at, sha: future.sha, version };
+  }
+
+  return undefined;
 }

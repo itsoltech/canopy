@@ -1,5 +1,6 @@
 import { isJsonArray, isJsonObject, type JsonValue, type JsonObject } from "@canopy/domain/json";
 import type { PromotionCommit, PromotionInput } from "./promotion-policy.ts";
+import { attributePromotionFix } from "./promotion-attribution.ts";
 
 export interface PromotionAdapters {
   git: (...args: string[]) => string;
@@ -141,7 +142,7 @@ function untaggedSmoke(repo: string, run: JsonObject, adapters: PromotionAdapter
 function readCommit(repo: string, source: string, sha: string, adapters: PromotionAdapters): PromotionCommit {
   const parent = adapters.git("rev-parse", `${sha}^1`);
 
-  return {
+  const commit: PromotionCommit = {
     sha,
     parent,
     landedAt: Number(adapters.git("show", "-s", "--format=%ct", sha)) * 1000,
@@ -150,9 +151,14 @@ function readCommit(repo: string, source: string, sha: string, adapters: Promoti
       .git("diff-tree", "--no-commit-id", "--name-only", "-r", "--no-renames", parent, sha)
       .split("\n")
       .filter(Boolean),
+    attributions: [],
     prs: prsForCommit(repo, sha, source, adapters),
     green: false,
   };
+
+  commit.attributions = attributePromotionFix(commit, adapters.git);
+
+  return commit;
 }
 
 function pendingDevFixes(repo: string, sourceSha: string, adapters: PromotionAdapters): PromotionCommit[] {

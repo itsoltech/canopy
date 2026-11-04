@@ -75,10 +75,13 @@ Używaj numeru PR z tego repozytorium, nie numeru zgłoszenia błędu.
 
 Promocja wstrzymuje oryginalną zmianę i cały późniejszy fragment historii, dopóki jej
 poprawka nie przejdzie okresu stabilizacji. Jawne linki działają niezależnie od plików
-i wieku oryginału. Awaryjna heurystyka porównuje pliki tylko dla poprawek scalonych
-do 7 dni po oryginale, z pominięciem plików współdzielonych/generowanych. Pełna lista
+i wieku oryginału. Awaryjna heurystyka używa `git blame` dla zmienionych/usuniętych linii
+sprzed poprawki, tylko do 7 dni po oryginale. Ignoruje zmiany samego whitespace i śledzi
+przeniesione linie. Dla samych dopisków sprawdza linie bezpośrednio nad/pod miejscem
+wstawienia: przypisuje zmianę tylko przy zgodnym pochodzeniu; niejednoznaczny kontekst
+nie tworzy powiązania. Pomija pliki współdzielone/generowane i commity już wydane. Pełna lista
 wyjątków i okresy kanałów: [release.md](release.md#promocja-i-okres-stabilizacji-burn-in).
-Nie polegaj na samym podobieństwie plików. Commitlint dopuszcza powyższe stopki.
+Nie polegaj wyłącznie na heurystyce linii. Commitlint dopuszcza powyższe stopki.
 
 ## Lokalna kontrola
 
