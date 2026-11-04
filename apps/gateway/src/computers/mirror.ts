@@ -1,20 +1,19 @@
-import { create, fromBinary, fromJson, toBinary, type JsonValue, type Message } from "@bufbuild/protobuf";
-import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { create, fromBinary, toBinary, type Message } from "@bufbuild/protobuf";
+import { computerLink as link, ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { computerLink as link, ThreadEventSchema, ui } from "@canopy/contracts";
-import { Effect } from "effect";
-import { SqlClient } from "effect/sql";
 import { setTimeout as delay } from "node:timers/promises";
+import { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
+import { mirrorThreadSnapshot, safeOverview, snapshotFrames } from "./mirror-projection.ts";
 import { linkedMessage, methodNamed, qualify, type RemoteServe } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
 
-type Clock = { epoch: string; revision: string };
+export { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
 
-type State = { cursor: string; generation: string; overview: Uint8Array | null };
+export type Clock = { epoch: string; revision: string };
 
-const cursorOf = (clock: Clock) => `${clock.epoch}:${clock.revision}`;
-const CURSOR = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(\d+)$/;
-const mismatch = () => new ConnectError("Thread mirror cursor mismatch; resynchronizing", Code.DataLoss);
+export const cursorOf = (clock: Clock) => `${clock.epoch}:${clock.revision}`;
+export const CURSOR = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(\d+)$/;
+export const mismatch = () => new ConnectError("Thread mirror cursor mismatch; resynchronizing", Code.DataLoss);
 
 /** A durable, read-only projection. No GatewayCore write ever reads these tables. */
 export class ThreadMirror {
@@ -177,44 +176,7 @@ export class ThreadMirror {
         const { owner, runtime } = this.store;
         const nextOverview = overview;
 
-        const changed = await runtime.runPromise(
-          Effect.gen(function* () {
-            const sql = yield* SqlClient.SqlClient;
-
-            return yield* sql.withTransaction(
-              Effect.gen(function* () {
-                // Lock against unlink (FK cascade) and other instances consuming the same peer.
-                const rows = yield* sql<{
-                  cursor: string;
-                  generation: string;
-                }>`SELECT cursor,generation FROM computer_mirror_state
-              WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node} FOR UPDATE`;
-
-                if (!rows[0]) return false;
-
-                if (rows[0].cursor !== state.cursor || rows[0].generation !== state.generation) return false;
-
-                if (update.snapshot?.thread) {
-                  yield* sql`INSERT INTO computer_mirror_threads(owner_user_id,origin_node_id,generation,thread_id,snapshot)
-                VALUES(${owner}::uuid,${node},${generation}::uuid,${update.snapshot.thread.id}::uuid,${toBinary(ui.ThreadSnapshotSchema, update.snapshot)})
-                ON CONFLICT(owner_user_id,origin_node_id,generation,thread_id) DO UPDATE SET snapshot=excluded.snapshot`;
-                }
-
-                if (update.removedThreadId)
-                  yield* sql`DELETE FROM computer_mirror_threads WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node}
-              AND generation=${generation}::uuid AND thread_id=${update.removedThreadId}::uuid`;
-
-                if (update.commit) {
-                  yield* sql`UPDATE computer_mirror_state SET cursor=${update.cursor},generation=${generation}::uuid,overview=coalesce(${nextOverview},overview)
-                WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node}`;
-                  yield* sql`DELETE FROM computer_mirror_threads WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node} AND generation<>${generation}::uuid`;
-                }
-
-                return true;
-              }),
-            );
-          }),
-        );
+        const changed = await commitMirrorUpdate(runtime, owner, node, generation, state, update, nextOverview);
 
         if (!changed) throw new ConnectError("Thread mirror subscription superseded", Code.Aborted);
 
@@ -272,53 +234,7 @@ export class ThreadMirror {
         linkedMessage(ui.GetOverviewResponseSchema, await one("GetOverview", create(ui.GetOverviewRequestSchema))),
       );
 
-    const snapshot = async (id: string) => {
-      try {
-        const value = linkedMessage(
-          ui.ThreadUpdateSchema,
-          await one("WatchThread", create(ui.WatchThreadRequestSchema, { threadId: id })),
-        ).change;
-
-        if (value.case !== "snapshot") throw new ConnectError("Missing thread snapshot", Code.Internal);
-
-        if (value.value.thread?.deletedAt) return undefined;
-        value.value.secrets = [];
-        value.value.schedules = [];
-
-        // Live UI snapshots cap diagnostics at 200; durable mirrors retain the whole timeline.
-        const notices = await this.store.query<{
-          seq: string;
-          turn_id: string | null;
-          payload: JsonValue;
-          occurred_at: Date;
-        }>(
-          `SELECT seq::text,turn_id,payload,occurred_at
-          FROM thread_events e JOIN threads t ON t.id=e.thread_id WHERE e.thread_id=$1::uuid AND t.owner_user_id=$2::uuid
-          AND e.kind='notice' ORDER BY e.seq`,
-          [id, owner],
-        );
-
-        value.value.notices = notices.flatMap((row) => {
-          const event = fromJson(ThreadEventSchema, row.payload);
-
-          return event.body.case === "notice"
-            ? [
-                create(ui.ThreadNoticeSchema, {
-                  seq: BigInt(row.seq),
-                  turnId: row.turn_id ?? "",
-                  notice: event.body.value,
-                  occurredAt: timestampFromDate(new Date(row.occurred_at)),
-                }),
-              ]
-            : [];
-        });
-
-        return value.value;
-      } catch (error) {
-        if (error instanceof ConnectError && error.code === Code.NotFound) return undefined;
-        throw error;
-      }
-    };
+    const snapshot = (id: string) => mirrorThreadSnapshot(this, one, owner, id);
 
     let cursor = request.cursor;
 
@@ -405,46 +321,4 @@ export class ThreadMirror {
       }
     }
   }
-}
-
-const SNAPSHOT_LISTS = ["turns", "items", "interactions", "notices", "steers", "busDeliveries"] as const;
-
-/** Whole timelines have no retention/size cap; each transport message is bounded independently. */
-function* snapshotFrames(snapshot: ui.ThreadSnapshot, previousCursor = ""): Generator<link.MirrorUpdate> {
-  yield create(link.MirrorUpdateSchema, {
-    previousCursor,
-    snapshotStart: true,
-    snapshot: {
-      thread: snapshot.thread,
-      lastSeq: snapshot.lastSeq,
-      goal: snapshot.goal,
-    },
-  });
-
-  for (const field of SNAPSHOT_LISTS)
-    for (const value of snapshot[field]) {
-      yield create(link.MirrorUpdateSchema, {
-        previousCursor,
-        snapshot: create(ui.ThreadSnapshotSchema, { [field]: [value] }),
-      });
-    }
-
-  yield create(link.MirrorUpdateSchema, { previousCursor, snapshotEnd: true });
-}
-
-function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewResponse {
-  // Explicit allowlist: settings, provider config and credentials never enter mirror storage.
-  return create(ui.GetOverviewResponseSchema, {
-    workers: value.workers.map((w) => ({
-      id: w.id,
-      name: w.name,
-      hostname: w.hostname,
-      os: w.os,
-      version: w.version,
-      online: w.online,
-      lastSeenAt: w.lastSeenAt,
-      revokedAt: w.revokedAt,
-    })),
-    projects: value.projects,
-  });
 }
