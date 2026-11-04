@@ -78,6 +78,9 @@ export function toConnectError(cause: unknown): ConnectError {
     return new ConnectError(error.message, Code.FailedPrecondition);
   const constraint = constraintOf(error ?? cause);
 
+  if (constraint === "worktree_available")
+    return new ConnectError("worktree removed or cleanup in progress", Code.FailedPrecondition);
+
   if (constraint) return new ConnectError(`rejected by ${constraint}`, Code.FailedPrecondition);
   console.error(cause);
 

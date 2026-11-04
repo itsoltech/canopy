@@ -64,6 +64,7 @@ import desktopUpdates from "./0063_desktop_updates.sql" with { type: "text" };
 import workerEnrollmentTags from "./0064_worker_enrollment_tags.sql" with { type: "text" };
 import instanceConnections from "./0065_instance_connections.sql" with { type: "text" };
 import worktrees from "./0066_worktrees.sql" with { type: "text" };
+import worktreeLifecycle from "./0067_worktree_lifecycle.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -144,6 +145,7 @@ export const migrations = Migrator.fromRecord({
   "0064_worker_enrollment_tags": sqlFile(workerEnrollmentTags),
   "0065_instance_connections": sqlFile(instanceConnections),
   "0066_worktrees": sqlFile(worktrees),
+  "0067_worktree_lifecycle": sqlFile(worktreeLifecycle),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

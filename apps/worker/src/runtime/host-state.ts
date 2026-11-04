@@ -77,6 +77,7 @@ export class HostState {
   readonly previews: PreviewStore;
   /** Working directory per thread (from the commands' ThreadSpec): view_image's scope. */
   readonly cwds = new Map<string, string>();
+  readonly removingPaths = new Set<string>();
   /** Attachments being fetched (FetchBlob), by request id. */
   readonly fetches = new Map<
     string,

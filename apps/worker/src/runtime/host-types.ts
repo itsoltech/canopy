@@ -28,6 +28,8 @@ export type DirectoryEntryInit = MessageInitShape<typeof DirectoryEntrySchema>;
 export type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 
 export interface CommandOutput {
+  worktreeStatuses?: MessageInitShape<typeof CommandResultSchema>["worktreeStatuses"];
+  worktreeBranchDeleted?: boolean;
   readonly directoryPath?: string;
   readonly generatedText?: string;
   readonly entries?: DirectoryEntryInit[];

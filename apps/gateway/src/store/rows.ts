@@ -73,6 +73,7 @@ export interface ThreadWorktreeColumns {
   repo_root: string;
   worker_id: string;
   created_at: string;
+  removed_at?: string | null;
 }
 
 export interface TurnRow {

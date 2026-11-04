@@ -11,7 +11,8 @@
   import { isFinishedGoal, showsGoal, takesGoals } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
-  import WorktreeBadge from "#lib/features/worktrees/WorktreeBadge.svelte";
+  import ThreadWorktree from "#lib/features/worktrees/ThreadWorktree.svelte";
+  import WorktreeManagement from "#lib/features/worktrees/WorktreeManagement.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
@@ -277,6 +278,12 @@
   // on narrow ones.
   const panelOpen = $derived(!settings.appearance.threadPanelCollapsed);
   let panelSheet = $state(false);
+  let worktreeDialog = $state(false);
+
+  function manageWorktree() {
+    panelSheet = false;
+    worktreeDialog = true;
+  }
 
   function togglePanel() {
     if (matchMedia("(min-width: 80rem)").matches) void settings.updateAppearance({ threadPanelCollapsed: panelOpen });
@@ -501,7 +508,7 @@
         {/if}
         <Crumb><span class={["truncate", thread.titleGenerating && "shimmer"]}>{thread.title}</span></Crumb>
         {#if thread.worktree}<li class="flex min-w-0 shrink items-center max-sm:hidden">
-            <WorktreeBadge worktree={thread.worktree} class="max-w-48" />
+            <ThreadWorktree worktree={thread.worktree} class="max-w-48" onclick={manageWorktree} />
           </li>{/if}
       {:else}
         <Crumb><Skeleton class="h-4 w-48" /></Crumb>
@@ -705,6 +712,7 @@
         {#if thread && tree}
           <ThreadPanel
             windowTitlebar
+            onworktree={manageWorktree}
             {thread}
             {tree}
             {worker}
@@ -728,9 +736,16 @@
   </aside>
 </div>
 
+{#if thread?.worktree}
+  <Dialog bind:open={worktreeDialog} title="Worktree" size="lg">
+    {#if worktreeDialog}<WorktreeManagement worktreeId={thread.worktree.id} />{/if}
+  </Dialog>
+{/if}
+
 {#if thread && tree}
   <Dialog bind:open={panelSheet} title={thread.title}>
     <ThreadPanel
+      onworktree={manageWorktree}
       {thread}
       {tree}
       {worker}

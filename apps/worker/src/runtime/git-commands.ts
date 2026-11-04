@@ -1,5 +1,12 @@
-import type { Command } from "@canopy/contracts";
-import { realpathSync } from "node:fs";
+import { WorktreeStatusSchema, type Command } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { Journal } from "../journal/index.ts";
+import { checkedWorktree, scanWorktree } from "../git/worktree-status.ts";
+import { removeWorktree } from "../git/remove-worktree.ts";
+import { existsSync, realpathSync } from "node:fs";
+import { join } from "node:path";
+import { isWithin } from "../git/worktrees.ts";
+import { recoverRemoval } from "../git/remove-worktree.ts";
 import { gitOk, GitError } from "../git/git.ts";
 import { listGitRefs } from "../git/refs.ts";
 import { createWorktree, managedWorktreesRoot, renameWorktreeBranch } from "../git/worktrees.ts";
@@ -54,6 +61,112 @@ export class GitCommands {
 
   async renameWorktreeBranch(kind: Extract<Command["kind"], { case: "renameWorktreeBranch" }>): Promise<CommandOutput> {
     return { worktree: await gitStep(() => renameWorktreeBranch(this.worktreesRoot, kind.value)) };
+  }
+
+  async scanWorktrees(kind: Extract<Command["kind"], { case: "scanWorktrees" }>): Promise<CommandOutput> {
+    const statuses = [];
+
+    for (const target of kind.value.targets) {
+      try {
+        statuses.push(await scanWorktree(this.worktreesRoot, target, kind.value.fetch));
+      } catch (error) {
+        if (!(error instanceof GitError)) throw error;
+        statuses.push(
+          create(WorktreeStatusSchema, {
+            id: target.id,
+            detail: error.message,
+            missing: error.code === "WORKTREE_NOT_FOUND",
+          }),
+        );
+      }
+    }
+
+    return { worktreeStatuses: statuses };
+  }
+
+  async removeWorktree(
+    kind: Extract<Command["kind"], { case: "removeWorktree" }>,
+    commandId: string,
+  ): Promise<CommandOutput> {
+    return gitStep(async () => {
+      if (!/^[0-9a-f-]{36}$/i.test(commandId)) throw new GitError("INVALID_COMMAND", "invalid removal command id");
+      const receipt = join(this.ctx.state.options.dataDir, "worktree-removals", commandId);
+
+      if (await recoverRemoval(receipt, kind.value)) return { worktreeBranchDeleted: false };
+      const path = realpathSync(kind.value.target?.path ?? "");
+
+      if (this.ctx.state.removingPaths.has(path)) throw new GitError("WORKTREE_BUSY", "cleanup already in progress");
+      this.ctx.state.removingPaths.add(path);
+
+      try {
+        const idle = async () => {
+          const state = this.ctx.state;
+
+          const ids = new Set(
+            [...state.cwds].flatMap(([id, cwd]) => (existsSync(cwd) && isWithin(path, realpathSync(cwd)) ? [id] : [])),
+          );
+
+          const tasks = await state.options.runtime.runPromise(Journal.use((j) => j.openBackgroundTasks()));
+          const turns = await state.options.runtime.runPromise(Journal.use((j) => j.openTurns()));
+
+          if (
+            state.admitting ||
+            tasks.some((t) => ids.has(t.threadId)) ||
+            turns.some((t) => ids.has(t.threadId)) ||
+            [...state.interactions.values()].some(({ request }) => ids.has(request.threadId)) ||
+            [...state.running].some((key) => ids.has(key.split("/")[0] ?? ""))
+          )
+            throw new GitError("WORKTREE_BUSY", "a thread is still using this worktree");
+        };
+
+        await idle();
+
+        return { worktreeBranchDeleted: await removeWorktree(this.worktreesRoot, kind.value, idle, receipt) };
+      } finally {
+        this.ctx.state.removingPaths.delete(path);
+      }
+    });
+  }
+
+  async revealWorktree(kind: Extract<Command["kind"], { case: "revealWorktree" }>): Promise<CommandOutput> {
+    return gitStep(async () => {
+      const { path } = await checkedWorktree(this.worktreesRoot, kind.value);
+
+      const args = revealArgs(path);
+
+      let proc: Bun.Subprocess;
+
+      try {
+        proc = Bun.spawn(args, { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
+      } catch {
+        throw new GitError(
+          "REVEAL_UNAVAILABLE",
+          "No file manager is available on this computer. Copy the path instead.",
+        );
+      }
+
+      const timer = setTimeout(() => proc.kill(), 5000);
+
+      try {
+        if ((await proc.exited) !== 0)
+          throw new GitError("REVEAL_FAILED", "The file manager could not open the folder. Copy the path instead.");
+      } finally {
+        clearTimeout(timer);
+      }
+
+      return {};
+    });
+  }
+}
+
+function revealArgs(path: string): string[] {
+  switch (process.platform) {
+    case "darwin":
+      return ["open", "-R", path];
+    case "win32":
+      return ["explorer.exe", path];
+    default:
+      return ["xdg-open", path];
   }
 }
 

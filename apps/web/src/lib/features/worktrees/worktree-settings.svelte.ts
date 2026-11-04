@@ -9,7 +9,20 @@ export interface WorktreeScope {
   readonly workerId: string;
 }
 
-export type WorktreeField = "location" | "startFromRemote" | "remote" | "branchNaming" | "branchPrefix" | "defaultMode";
+export type WorktreeField =
+  | "location"
+  | "startFromRemote"
+  | "remote"
+  | "branchNaming"
+  | "branchPrefix"
+  | "defaultMode"
+  | "cleanupDeletedThreads"
+  | "cleanupMerged"
+  | "cleanupInactiveDays"
+  | "cleanupSettled"
+  | "cleanupUnchanged"
+  | "keepLocalChanges"
+  | "deleteLocalBranch";
 
 /** A change of one field; `undefined` resets it to the inherited value. */
 export type WorktreeChange = { [K in WorktreeField]?: ui.WorktreeSettings[K] };

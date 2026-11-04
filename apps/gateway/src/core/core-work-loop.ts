@@ -259,6 +259,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
     this[coreState].sweepTimer ??= setInterval(run, intervalMs);
     this.cli.start();
     this.environment.sources.start();
+    this.worktreeCleanup.start();
   },
 
   async stopSweep(this: GatewayCore): Promise<void> {
@@ -269,7 +270,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
 
     if (this[coreState].sweepTimer) clearInterval(this[coreState].sweepTimer);
     this[coreState].sweepTimer = undefined;
-    await sourcesStopped;
+    await Promise.all([sourcesStopped, this.worktreeCleanup.stop()]);
   },
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */

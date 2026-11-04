@@ -11,7 +11,10 @@ export function refuseRemoteWorktree(method: DescMethod, request: Message): void
       linkedMessage(ui.CreateThreadRequestSchema, request).workspaceMode,
     );
 
-  if (worktree || method.name === "ListGitRefs")
+  if (
+    worktree ||
+    ["ListGitRefs", "ListWorktrees", "CleanupWorktrees", "RemoveWorktree", "RevealWorktree"].includes(method.name)
+  )
     throw new ConnectError(
       "Worktrees on linked computers are not supported yet. Open Canopy on the workspace's home computer to use a worktree.",
       Code.FailedPrecondition,

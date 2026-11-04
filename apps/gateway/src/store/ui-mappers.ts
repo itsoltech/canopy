@@ -106,6 +106,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
         repoRoot: row.worktree.repo_root,
         workerId: row.worktree.worker_id,
         createdAt: timestampFromDate(new Date(row.worktree.created_at)),
+        ...(row.worktree.removed_at && { removedAt: timestampFromDate(new Date(row.worktree.removed_at)) }),
       },
     }),
   });

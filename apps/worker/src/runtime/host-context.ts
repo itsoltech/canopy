@@ -54,7 +54,10 @@ export type HostOperations = HostHooks &
   > &
   Pick<TaskCommands, "setGoal" | "stopTask" | "unloadThread"> &
   Pick<TextGeneration, "generateText"> &
-  Pick<GitCommands, "listGitRefs" | "createWorktree" | "renameWorktreeBranch"> &
+  Pick<
+    GitCommands,
+    "listGitRefs" | "createWorktree" | "renameWorktreeBranch" | "scanWorktrees" | "removeWorktree" | "revealWorktree"
+  > &
   Pick<CommandHandlers, "execute">;
 
 export class HostContext {
@@ -129,6 +132,9 @@ export class HostContext {
       listGitRefs: gitCommands.listGitRefs.bind(gitCommands),
       createWorktree: gitCommands.createWorktree.bind(gitCommands),
       renameWorktreeBranch: gitCommands.renameWorktreeBranch.bind(gitCommands),
+      scanWorktrees: gitCommands.scanWorktrees.bind(gitCommands),
+      removeWorktree: gitCommands.removeWorktree.bind(gitCommands),
+      revealWorktree: gitCommands.revealWorktree.bind(gitCommands),
     };
   }
 }

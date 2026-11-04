@@ -10,9 +10,30 @@ export const WORKTREE_DEFAULTS = create(ui.WorktreeSettingsSchema, {
   branchNaming: ui.BranchNaming.SEMANTIC,
   branchPrefix: "canopy",
   defaultMode: ui.WorkspaceMode.CHECKOUT,
+  cleanupDeletedThreads: false,
+  cleanupMerged: false,
+  cleanupInactiveDays: 0,
+  cleanupSettled: false,
+  cleanupUnchanged: false,
+  keepLocalChanges: true,
+  deleteLocalBranch: false,
 });
 
-const FIELDS = ["location", "startFromRemote", "remote", "branchNaming", "branchPrefix", "defaultMode"] as const;
+const FIELDS = [
+  "location",
+  "startFromRemote",
+  "remote",
+  "branchNaming",
+  "branchPrefix",
+  "defaultMode",
+  "cleanupDeletedThreads",
+  "cleanupMerged",
+  "cleanupInactiveDays",
+  "cleanupSettled",
+  "cleanupUnchanged",
+  "keepLocalChanges",
+  "deleteLocalBranch",
+] as const;
 
 function overrides(settings: ui.WorktreeSettings, field: (typeof FIELDS)[number]): boolean {
   return field === "branchNaming" || field === "defaultMode" ? Boolean(settings[field]) : settings[field] !== undefined;
@@ -36,6 +57,13 @@ export function mergeSettings(base: ui.WorktreeSettings, over: ui.WorktreeSettin
     branchNaming: over.branchNaming || base.branchNaming,
     branchPrefix: over.branchPrefix ?? base.branchPrefix,
     defaultMode: over.defaultMode || base.defaultMode,
+    cleanupDeletedThreads: over.cleanupDeletedThreads ?? base.cleanupDeletedThreads,
+    cleanupMerged: over.cleanupMerged ?? base.cleanupMerged,
+    cleanupInactiveDays: over.cleanupInactiveDays ?? base.cleanupInactiveDays,
+    cleanupSettled: over.cleanupSettled ?? base.cleanupSettled,
+    cleanupUnchanged: over.cleanupUnchanged ?? base.cleanupUnchanged,
+    keepLocalChanges: over.keepLocalChanges ?? base.keepLocalChanges,
+    deleteLocalBranch: over.deleteLocalBranch ?? base.deleteLocalBranch,
   });
 }
 
@@ -44,6 +72,12 @@ const REF_PART = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 
 /** Why the overrides cannot be saved, or undefined. */
 export function settingsProblem(settings: ui.WorktreeSettings, isAbsolute: (path: string) => boolean) {
+  if (
+    settings.cleanupInactiveDays !== undefined &&
+    (!Number.isInteger(settings.cleanupInactiveDays) || settings.cleanupInactiveDays > 3650)
+  )
+    return "inactive days must be between 0 and 3650";
+
   if (
     settings.location &&
     (settings.location.includes("\0") || settings.location.length > 1024 || !isAbsolute(settings.location))

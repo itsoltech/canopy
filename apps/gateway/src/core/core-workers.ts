@@ -29,6 +29,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
       coreLog(hostContext, `environment of worker ${workerId} not synced: ${describeError(cause)}`),
     );
   await coreBroadcastWorkers(hostContext);
+  void hostContext.worktreeCleanup.tick(workerId);
   await hostContext.secrets.sync(workerId, true);
   // The outbox is read first: the turns started below (queued behind a lost one) are delivered once.
   await coreRedeliver(hostContext, workerId).catch((cause: unknown) =>

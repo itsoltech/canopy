@@ -28,6 +28,7 @@ const ENV = {
   SSH_ASKPASS: "",
   GIT_SSH_COMMAND: process.env["GIT_SSH_COMMAND"] ?? "ssh -o BatchMode=yes",
   LC_ALL: "C",
+  GIT_OPTIONAL_LOCKS: "0",
 };
 
 /** One line of git's error output, without credentials in URLs (`https://user:token@host`). */

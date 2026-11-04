@@ -2,6 +2,7 @@
 // Transkrypt (Item, ThreadEvent) to te same typy co w kanale gateway <-> worker.
 // Opis: docs/ui-api.md
 syntax = "proto3";
+import "google/protobuf/empty.proto";
 
 package canopy.ui.v1;
 
@@ -190,6 +191,10 @@ service GatewayService {
   // Git worktrees (docs/worktrees.md): ustawienia w zakresach, refy i worktree workspace'u dla kompozytora.
   rpc GetWorktreeSettings(GetWorktreeSettingsRequest) returns (WorktreeSettingsResponse);
   rpc UpdateWorktreeSettings(UpdateWorktreeSettingsRequest) returns (WorktreeSettingsResponse);
+  rpc ListWorktrees(ListWorktreesRequest) returns (ListWorktreesResponse);
+  rpc CleanupWorktrees(CleanupWorktreesRequest) returns (ListWorktreesResponse);
+  rpc RemoveWorktree(RemoveWorktreeRequest) returns (WorktreeEntry);
+  rpc RevealWorktree(RemoveWorktreeRequest) returns (google.protobuf.Empty);
   rpc ListGitRefs(ListGitRefsRequest) returns (ListGitRefsResponse);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
 
@@ -1918,6 +1923,7 @@ message ThreadWorktree {
   string repo_root = 5;
   google.protobuf.Timestamp created_at = 6;
   string worker_id = 7;
+  google.protobuf.Timestamp removed_at = 8;
 }
 
 // Nieustawione pole (UNSPECIFIED / brak optional) = dziedziczone z szerszego zakresu.
@@ -1928,6 +1934,50 @@ message WorktreeSettings {
   BranchNaming branch_naming = 4;
   optional string branch_prefix = 5;
   WorkspaceMode default_mode = 6;
+  optional bool cleanup_deleted_threads = 7;
+  optional bool cleanup_merged = 8;
+  // 0 = wyłączone.
+  optional uint32 cleanup_inactive_days = 9;
+  optional bool cleanup_settled = 10;
+  optional bool cleanup_unchanged = 11;
+  optional bool keep_local_changes = 12;
+  optional bool delete_local_branch = 13;
+}
+
+message ListWorktreesRequest {
+  string project_id = 1;
+  string worker_id = 2;
+  string worktree_id = 3;
+}
+
+message CleanupWorktreesRequest {
+  string project_id = 1;
+  string worker_id = 2;
+  bool dry_run = 3;
+}
+
+message WorktreeEntry {
+  ThreadWorktree worktree = 1;
+  string project_id = 2;
+  canopy.worker.v1.WorktreeStatus status = 3;
+  google.protobuf.Timestamp last_activity_at = 4;
+  bool online = 5;
+  bool busy = 6;
+  string detail = 7;
+  bool would_remove = 8;
+  bool removed = 9;
+  bool confirmation_required = 10;
+  bool branch_deleted = 11;
+}
+
+message ListWorktreesResponse {
+  repeated WorktreeEntry entries = 1;
+}
+
+message RemoveWorktreeRequest {
+  string worktree_id = 1;
+  bool confirm_local_changes = 2;
+  string expected_head_commit = 3;
 }
 
 // Zakres: puste project_id = All projects, puste worker_id = All computers.

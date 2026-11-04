@@ -12,6 +12,7 @@ export class TaskCommands {
     const { thread: spec, directive, objective, nativeTokenBudget } = kind.value;
 
     if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
+    this.ctx.ops.checkCwd(spec.cwd);
 
     // Claude goals are /goal turns in the input stream (docs/goals.md); the gateway queues them as turns.
     if (spec.provider === Provider.CLAUDE)
