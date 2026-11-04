@@ -213,7 +213,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       const tasks = await host
         .shutdown()
         .catch(
-          (error: unknown) => (console.warn(`shutdown: ${error instanceof Error ? error.message : String(error)}`), 0),
+          (cause: unknown) => (console.warn(`shutdown: ${cause instanceof Error ? cause.message : String(cause)}`), 0),
         );
 
       if (currentLink && !(await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false)))

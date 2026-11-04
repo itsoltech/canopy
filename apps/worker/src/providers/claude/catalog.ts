@@ -146,7 +146,7 @@ export function claudeCatalogEntries(
       : (skill?.source ??
         (origin?.[1]?.startsWith("plugin")
           ? "plugin"
-          : ((origin?.[1] as "project" | "user" | undefined) ?? (command.name.startsWith("mcp__") ? "mcp" : "user"))));
+          : (origin?.[1] ?? (command.name.startsWith("mcp__") ? "mcp" : "user"))));
 
     entries.push({
       kind: skill ? MentionKind.SKILL : MentionKind.COMMAND,

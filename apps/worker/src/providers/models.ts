@@ -2,6 +2,8 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { ModelInfo as ClaudeModelInfo } from "@anthropic-ai/claude-agent-sdk";
 import type { v2 } from "@canopy/codex-protocol";
 import type { ModelInfoSchema } from "@canopy/contracts";
+import type { JsonObject, JsonValue } from "@canopy/domain";
+import { decodeJsonObject, isString, jsonObject } from "./json.ts";
 import { pickDefaultEffort } from "./default-effort.ts";
 import type { ResolvedProfile } from "./profiles.ts";
 
@@ -25,10 +27,22 @@ export const CLAUDE_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
 export type ClaudeEffort = (typeof CLAUDE_EFFORTS)[number];
 
 export function isClaudeEffort(effort: string): effort is ClaudeEffort {
-  return (CLAUDE_EFFORTS as readonly string[]).includes(effort);
+  return CLAUDE_EFFORTS.some((level) => level === effort);
 }
 
-export function codexModel(model: v2.Model, configuredEffort?: string): ModelInit {
+type CatalogModel = Pick<
+  v2.Model,
+  | "id"
+  | "model"
+  | "displayName"
+  | "description"
+  | "hidden"
+  | "isDefault"
+  | "supportedReasoningEfforts"
+  | "defaultReasoningEffort"
+>;
+
+export function codexModel(model: CatalogModel, configuredEffort?: string): ModelInit {
   const efforts = model.supportedReasoningEfforts.map((e) => e.reasoningEffort);
   const defaultEffort = pickDefaultEffort(efforts, configuredEffort, model.defaultReasoningEffort);
 
@@ -129,19 +143,23 @@ export function isAgentModel(names: readonly string[], capabilities: ModelCapabi
  * The models a CLIProxyAPI profile serves (OpenAI-style `GET /v1/models`), with the capabilities of its
  * Gemini-style `GET /v1beta/models` (the only listing with modalities; optional, a failure leaves them out).
  */
-export async function proxyModels(profile: CliProxyProfile, fetchImpl: typeof fetch = fetch): Promise<ProxyModel[]> {
+type FetchModels = (url: URL, init: RequestInit) => Promise<Response>;
+
+export async function proxyModels(profile: CliProxyProfile, fetchImpl: FetchModels = fetch): Promise<ProxyModel[]> {
   const [body, capabilities] = await Promise.all([
-    proxyGet(profile, "v1/models", fetchImpl) as Promise<{ data?: { id?: unknown; owned_by?: unknown }[] }>,
+    proxyGet(profile, "v1/models", fetchImpl),
     proxyCapabilities(profile, fetchImpl).catch((): ProxyCapabilities[] => []),
   ]);
 
   const byId = new Map(capabilities.map((c) => [c.id, c]));
 
-  return (body.data ?? []).flatMap((m) => {
-    if (typeof m.id !== "string" || !m.id) return [];
-    const known = byId.get(m.id);
+  return (Array.isArray(body["data"]) ? body["data"] : []).flatMap((value) => {
+    const m = jsonObject(value);
 
-    return [{ ...known, id: m.id, ownedBy: typeof m.owned_by === "string" ? m.owned_by : "" }];
+    if (!m || !isString(m["id"]) || !m["id"]) return [];
+    const known = byId.get(m["id"]);
+
+    return [{ ...known, id: m["id"], ownedBy: isString(m["owned_by"]) ? m["owned_by"] : "" }];
   });
 }
 
@@ -153,28 +171,24 @@ export interface ProxyCapabilities extends ModelCapabilities {
 /** CLIProxyAPI's Gemini-style `GET /v1beta/models`: per model its display name, output modalities, methods. */
 export async function proxyCapabilities(
   profile: CliProxyProfile,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: FetchModels = fetch,
 ): Promise<ProxyCapabilities[]> {
-  const body = (await proxyGet(profile, "v1beta/models", fetchImpl)) as {
-    models?: {
-      name?: unknown;
-      displayName?: unknown;
-      supportedOutputModalities?: unknown;
-      supportedGenerationMethods?: unknown;
-    }[];
-  };
+  const body = await proxyGet(profile, "v1beta/models", fetchImpl);
 
-  return (body.models ?? []).flatMap((m) => {
-    const id = typeof m.name === "string" ? m.name.replace(/^models\//, "") : "";
+  return (Array.isArray(body["models"]) ? body["models"] : []).flatMap((value) => {
+    const m = jsonObject(value);
+
+    if (!m) return [];
+    const id = isString(m["name"]) ? m["name"].replace(/^models\//, "") : "";
 
     if (!id) return [];
-    const outputModalities = strings(m.supportedOutputModalities);
-    const generationMethods = strings(m.supportedGenerationMethods);
+    const outputModalities = strings(m["supportedOutputModalities"]);
+    const generationMethods = strings(m["supportedGenerationMethods"]);
 
     return [
       {
         id,
-        ...(typeof m.displayName === "string" && m.displayName && { displayName: m.displayName }),
+        ...(isString(m["displayName"]) && m["displayName"] && { displayName: m["displayName"] }),
         ...(outputModalities && { outputModalities }),
         ...(generationMethods && { generationMethods }),
       },
@@ -184,7 +198,7 @@ export async function proxyCapabilities(
 
 type CliProxyProfile = Extract<ResolvedProfile, { kind: "cliproxyapi" }>;
 
-async function proxyGet(profile: CliProxyProfile, path: string, fetchImpl: typeof fetch): Promise<unknown> {
+async function proxyGet(profile: CliProxyProfile, path: string, fetchImpl: FetchModels): Promise<JsonObject> {
   const url = new URL(path, profile.baseUrl.href.endsWith("/") ? profile.baseUrl : new URL(`${profile.baseUrl.href}/`));
   let response: Response;
 
@@ -203,13 +217,11 @@ async function proxyGet(profile: CliProxyProfile, path: string, fetchImpl: typeo
 
   if (!response.ok) throw new Error(`the proxy answered ${response.status} to GET /${path}`);
 
-  return response.json();
+  return decodeJsonObject(await response.json());
 }
 
-function strings(value: unknown): string[] | undefined {
-  return Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === "string")
-    ? (value as string[])
-    : undefined;
+function strings(value: JsonValue | undefined): string[] | undefined {
+  return Array.isArray(value) && value.length > 0 && value.every(isString) ? value : undefined;
 }
 
 /**
@@ -223,14 +235,19 @@ export function codexProxyModels(catalog: readonly ModelInit[], proxy: readonly 
   const knownIds = new Set(known.map((m) => m.id));
 
   const extra = proxy
-    .filter((m) => !knownIds.has(m.id) && isAgentModel([m.id, m.displayName ?? ""], m))
-    .sort((a, b) => a.id.localeCompare(b.id))
-    .map((m): ModelInit => ({
-      id: m.id,
-      displayName: m.id,
-      description: m.ownedBy ? `CLIProxyAPI (${m.ownedBy})` : "CLIProxyAPI",
-      efforts: [],
-    }));
+    .flatMap((m): ModelInit[] =>
+      !knownIds.has(m.id) && isAgentModel([m.id, m.displayName ?? ""], m)
+        ? [
+            {
+              id: m.id,
+              displayName: m.id,
+              description: m.ownedBy ? `CLIProxyAPI (${m.ownedBy})` : "CLIProxyAPI",
+              efforts: [],
+            },
+          ]
+        : [],
+    )
+    .sort((a, b) => (a.id ?? "").localeCompare(b.id ?? ""));
 
   // Without the catalog's default the proxy's first model is not a default: Codex would pick its own.
   return [...known, ...extra];

@@ -15,7 +15,7 @@ type EntryInit = MentionEntryInit;
  *   for some (review/start, thread/compact/start) that the platform does not expose yet.
  */
 
-export function codexSkillEntries(listed: v2.SkillsListResponse): { entries: EntryInit[]; notes: string[] } {
+export function codexSkillEntries(listed: v2.SkillsListResponse) {
   const entries: EntryInit[] = [];
   const notes: string[] = [];
   const seen = new Set<string>();

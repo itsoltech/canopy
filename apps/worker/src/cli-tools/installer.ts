@@ -48,10 +48,7 @@ export type InstallOutcome =
 /** Variables an installer never needs and must not see. */
 const SECRET_NAME = /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL|PRIVATE|AUTH)/i;
 
-export function installEnv(env: Readonly<Record<string, string | undefined>>): {
-  env: Record<string, string>;
-  secrets: string[];
-} {
+export function installEnv(env: Readonly<Record<string, string | undefined>>) {
   const clean: Record<string, string> = {};
   const secrets: string[] = [];
 
@@ -69,14 +66,16 @@ export function installEnv(env: Readonly<Record<string, string | undefined>>): {
   return { env: { ...clean, NO_COLOR: "1", CI: "1", npm_config_update_notifier: "false" }, secrets };
 }
 
-const PATTERNS: readonly [RegExp, string][] = [
+const PATTERNS = [
+  // oxlint-disable-next-line no-control-regex -- Strip ANSI CSI sequences from untrusted installer output.
   [/\x1b\[[0-9;?]*[ -/]*[@-~]/g, ""],
+  // oxlint-disable-next-line no-control-regex -- Strip ANSI OSC sequences, including their BEL terminator.
   [/\x1b\][^\x07]*\x07/g, ""],
   [/(:\/\/)[^/\s:@]+:[^/\s@]+@/g, "$1***@"],
   [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, "$1 ***"],
   [/\b(sk|xai|ghp|gho|ghs|ghu|ghr|github_pat|npm|glpat)[-_][A-Za-z0-9_-]{12,}/g, "***"],
   [/\b(token|secret|password|api[_-]?key)=\S+/gi, "$1=***"],
-];
+] satisfies readonly [RegExp, string][];
 
 export function redactLine(line: string, secrets: readonly string[]): string {
   // A carriage return redraws a progress line: keep what is shown last.
@@ -85,6 +84,7 @@ export function redactLine(line: string, secrets: readonly string[]): string {
   for (const [pattern, replacement] of PATTERNS) out = out.replace(pattern, replacement);
 
   for (const secret of secrets) if (out.includes(secret)) out = out.replaceAll(secret, "***");
+  // oxlint-disable-next-line no-control-regex -- Remove terminal control bytes while preserving tabs and newlines.
   out = out.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "").trimEnd();
 
   return out.length > LINE_LIMIT ? `${out.slice(0, LINE_LIMIT)}…` : out;

@@ -250,13 +250,16 @@ describe("Codex goals (recorded)", () => {
 
 /** Summary of command and tool call items: what the transcript shows for each command. */
 function commandSummary(items: readonly Item[]) {
-  return items.flatMap((item) =>
-    item.content.case === "commandExecution"
-      ? [["command", item.itemId, item.content.value.command, item.content.value.exitCode, item.status]]
-      : item.content.case === "toolCall"
-        ? [["tool", item.itemId, item.content.value.name, item.status]]
-        : [],
-  );
+  return items.flatMap((item) => {
+    switch (item.content.case) {
+      case "commandExecution":
+        return [["command", item.itemId, item.content.value.command, item.content.value.exitCode, item.status]];
+      case "toolCall":
+        return [["tool", item.itemId, item.content.value.name, item.status]];
+      default:
+        return [];
+    }
+  });
 }
 
 // Live recording (threads.live.test.ts): ping without network, ls and git status in one code-mode cell.

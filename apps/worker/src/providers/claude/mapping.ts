@@ -12,6 +12,9 @@ import {
   type ItemSchema,
 } from "@canopy/contracts";
 import { isAgentBusTool, isPlatformServer, PLATFORM_SERVER, VIEW_IMAGE_TOOL } from "@canopy/domain";
+import type { JsonObject, JsonValue } from "@canopy/domain";
+import { Match, Schema } from "effect";
+import { isString, jsonObject, jsonString } from "../json.ts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
 /**
@@ -53,10 +56,22 @@ interface OpenBlock {
   done: boolean;
 }
 
-interface Block {
-  readonly type: string;
-  readonly [key: string]: unknown;
-}
+type Block = JsonObject;
+
+const decodeBlocks = Schema.decodeUnknownSync(Schema.Array(Schema.JsonObject));
+
+const ActiveGoal = Schema.Struct({
+  type: Schema.String,
+  value: Schema.optionalKey(
+    Schema.NullOr(
+      Schema.Struct({
+        condition: Schema.optionalKey(Schema.String),
+        iterations: Schema.optionalKey(Schema.Number),
+        last_reason: Schema.optionalKey(Schema.String),
+      }),
+    ),
+  ),
+});
 
 /** A background task with an open item. */
 interface LiveTask {
@@ -163,7 +178,11 @@ export class ClaudeEventMapper {
       return [];
     }
 
-    const nativeStatus = verdict.met ? "met" : verdict.failed ? "failed" : "active";
+    const nativeStatus = Match.value(verdict).pipe(
+      Match.when({ met: true }, () => "met"),
+      Match.when({ failed: true }, () => "failed"),
+      Match.orElse(() => "active"),
+    );
 
     if (nativeStatus === "active") this.#goalChecks++;
     const iterations = verdict.iterations ?? this.#goalChecks + (nativeStatus === "active" ? 0 : 1);
@@ -199,22 +218,21 @@ export class ClaudeEventMapper {
   map(message: SDKMessage): ThreadEventInit[] {
     const rawJson = JSON.stringify(message);
 
-    const event = (body: ThreadEventInit["body"] | undefined): ThreadEventInit =>
-      ({ ...(this.#turnId && { turnId: this.#turnId }), ...(body ? { body } : {}), rawJson }) as ThreadEventInit;
+    const event = (body: ThreadEventInit["body"] | undefined): ThreadEventInit => ({
+      ...(this.#turnId && { turnId: this.#turnId }),
+      ...(body && { body }),
+      rawJson,
+    });
 
-    if (
-      "uuid" in message &&
-      typeof message.uuid === "string" &&
-      (message.type === "assistant" || message.type === "user")
-    ) {
+    if ("uuid" in message && isString(message.uuid) && (message.type === "assistant" || message.type === "user")) {
       this.#lastUuid = message.uuid;
     }
 
     switch (message.type) {
       case "stream_event":
-        return this.#stream(message.event as unknown as StreamEvent).map((body) => event(body));
+        return this.#stream(Schema.decodeUnknownSync(StreamEvent)(message.event)).map((body) => event(body));
       case "assistant": {
-        const blocks = message.message.content as unknown as Block[];
+        const blocks = decodeBlocks(message.message.content);
         const goal = message.message.model === "<synthetic>" ? goalAnswer(blocks) : undefined;
 
         return atLeastOne(
@@ -226,9 +244,9 @@ export class ClaudeEventMapper {
       case "user": {
         const content = message.message.content;
 
-        if (typeof content === "string") return [event(undefined)];
+        if (isString(content)) return [event(undefined)];
 
-        return atLeastOne(this.#toolResults(content as unknown as Block[]), event);
+        return atLeastOne(this.#toolResults(decodeBlocks(content)), event);
       }
 
       case "result": {
@@ -262,12 +280,11 @@ export class ClaudeEventMapper {
               (message.patch.is_backgrounded ? this.#backgrounded(message.task_id, rawJson) : undefined) ?? { rawJson },
             ];
           case "task_notification": {
-            const status =
-              message.status === "completed"
-                ? ItemStatus.COMPLETED
-                : message.status === "failed"
-                  ? ItemStatus.FAILED
-                  : ItemStatus.INTERRUPTED;
+            const status = Match.value(message.status).pipe(
+              Match.when("completed", () => ItemStatus.COMPLETED),
+              Match.when("failed", () => ItemStatus.FAILED),
+              Match.orElse(() => ItemStatus.INTERRUPTED),
+            );
 
             this.#foreground.delete(message.task_id);
 
@@ -289,10 +306,7 @@ export class ClaudeEventMapper {
         }
 
       default: {
-        const active = message as {
-          type: string;
-          value?: { condition?: string; iterations?: number; last_reason?: string } | null;
-        };
+        const active = Schema.decodeUnknownSync(ActiveGoal)(message);
 
         // active_goal (when Claude Code forwards it): not-met verdicts with iterations; null is left to the transcript verdicts.
         if (active.type === "active_goal" && active.value) {
@@ -453,12 +467,11 @@ export class ClaudeEventMapper {
       case "content_block_delta": {
         const block = this.#open.get(e.index ?? 0);
 
-        const chunk =
-          e.delta?.type === "text_delta"
-            ? e.delta.text
-            : e.delta?.type === "thinking_delta"
-              ? e.delta.thinking
-              : undefined;
+        const chunk = Match.value(e.delta?.type).pipe(
+          Match.when("text_delta", () => e.delta?.text),
+          Match.when("thinking_delta", () => e.delta?.thinking),
+          Match.orElse(() => undefined),
+        );
 
         if (!block || !chunk) return []; // redacted thinking streams empty deltas
         const bodies: NonNullable<ThreadEventInit["body"]>[] = [];
@@ -485,26 +498,26 @@ export class ClaudeEventMapper {
 
   #assistant(
     messageId: string,
-    blocks: Block[],
+    blocks: readonly Block[],
     parentToolUseId: string | null,
   ): NonNullable<ThreadEventInit["body"]>[] {
     const parentItemId = parentToolUseId ?? "";
 
     return blocks.flatMap((block): NonNullable<ThreadEventInit["body"]>[] => {
-      switch (block.type) {
+      switch (block["type"]) {
         case "text":
         case "thinking": {
-          const text = String(block.type === "text" ? block["text"] : block["thinking"]);
-          const open = this.#takeOpen(messageId, block.type);
+          const text = String(block["type"] === "text" ? block["text"] : block["thinking"]);
+          const open = this.#takeOpen(messageId, block["type"]);
 
           if (!text) return []; // redacted thinking: nothing to show
-          const itemId = open?.itemId ?? `${messageId}:${block.type}:${++this.#unstreamed}`;
+          const itemId = open?.itemId ?? `${messageId}:${block["type"]}:${++this.#unstreamed}`;
 
           return [
             {
               case: "itemCompleted",
               value: {
-                item: { itemId, parentItemId, status: ItemStatus.COMPLETED, content: textContent(block.type, text) },
+                item: { itemId, parentItemId, status: ItemStatus.COMPLETED, content: textContent(block["type"], text) },
               },
             },
           ];
@@ -512,7 +525,7 @@ export class ClaudeEventMapper {
 
         case "tool_use": {
           const id = String(block["id"]);
-          const input = (block["input"] ?? {}) as Record<string, unknown>;
+          const input = jsonObject(block["input"]) ?? {};
 
           if (input["run_in_background"] === true) {
             this.#backgroundCalls.set(id, {
@@ -538,9 +551,9 @@ export class ClaudeEventMapper {
     });
   }
 
-  #toolResults(blocks: Block[]): NonNullable<ThreadEventInit["body"]>[] {
+  #toolResults(blocks: readonly Block[]): NonNullable<ThreadEventInit["body"]>[] {
     return blocks.flatMap((block): NonNullable<ThreadEventInit["body"]>[] => {
-      if (block.type !== "tool_result") return [];
+      if (block["type"] !== "tool_result") return [];
       const id = String(block["tool_use_id"]);
       const started = this.#tools.get(id);
 
@@ -569,7 +582,7 @@ export class ClaudeEventMapper {
   }
 
   #result(message: Extract<SDKMessage, { type: "result" }>): NonNullable<ThreadEventInit["body"]> {
-    const usage = message.usage as unknown as Record<string, number | undefined>;
+    const usage = message.usage;
 
     const outcome =
       message.subtype === "success" && !message.is_error
@@ -674,8 +687,8 @@ function backgroundKind(taskType: string): BackgroundTaskKind {
 }
 
 /** The local answer of /goal (a synthetic assistant message): goal set or cleared. */
-function goalAnswer(blocks: Block[]): NonNullable<ThreadEventInit["body"]> | undefined {
-  const text = blocks.map((b) => (b.type === "text" ? String(b["text"]) : "")).join("");
+function goalAnswer(blocks: readonly Block[]): NonNullable<ThreadEventInit["body"]> | undefined {
+  const text = blocks.map((b) => (b["type"] === "text" ? String(b["text"]) : "")).join("");
   const set = /^Goal set: ([\s\S]+)$/.exec(text)?.[1];
 
   if (set) return { case: "goalState", value: { nativeStatus: "active", objective: set, condition: set } };
@@ -698,13 +711,21 @@ function atLeastOne(
   return bodies.length > 0 ? bodies.map((body) => event(body)) : [event(undefined)];
 }
 
-interface StreamEvent {
-  readonly type: string;
-  readonly index?: number;
-  readonly message?: { id?: string };
-  readonly content_block?: { type?: string };
-  readonly delta?: { type?: string; text?: string; thinking?: string };
-}
+const StreamEvent = Schema.Struct({
+  type: Schema.String,
+  index: Schema.optionalKey(Schema.Number),
+  message: Schema.optionalKey(Schema.Struct({ id: Schema.optionalKey(Schema.String) })),
+  content_block: Schema.optionalKey(Schema.Struct({ type: Schema.optionalKey(Schema.String) })),
+  delta: Schema.optionalKey(
+    Schema.Struct({
+      type: Schema.optionalKey(Schema.String),
+      text: Schema.optionalKey(Schema.String),
+      thinking: Schema.optionalKey(Schema.String),
+    }),
+  ),
+});
+
+type StreamEvent = typeof StreamEvent.Type;
 
 function emptyContent(kind: "text" | "thinking"): Content {
   return kind === "text" ? { case: "agentMessage", value: { text: "" } } : { case: "reasoning", value: { text: "" } };
@@ -715,9 +736,9 @@ function textContent(kind: "text" | "thinking", text: string): Content {
 }
 
 /** Claude Code tools as platform items; anything unknown is a generic tool call. */
-export function toolContent(name: string, input: unknown): Content {
-  const args = (input ?? {}) as Record<string, unknown>;
-  const str = (key: string) => (typeof args[key] === "string" ? (args[key] as string) : "");
+export function toolContent(name: string, input: JsonValue | undefined): Content {
+  const args = jsonObject(input) ?? {};
+  const str = (key: string) => jsonString(args[key]);
   // The platform's view_image: an image item; its preview comes from the tool result (images/previews.ts).
   const platform = platformTool(name);
 
@@ -745,10 +766,14 @@ export function toolContent(name: string, input: unknown): Content {
       };
     case "MultiEdit": {
       const edits = Array.isArray(args["edits"])
-        ? (args["edits"] as { old_string?: string; new_string?: string }[])
+        ? args["edits"].flatMap((value) => {
+            const edit = jsonObject(value);
+
+            return edit ? [edit] : [];
+          })
         : [];
 
-      const diff = edits.map((e) => editDiff(e.old_string ?? "", e.new_string ?? "")).join("\n");
+      const diff = edits.map((e) => editDiff(jsonString(e["old_string"]), jsonString(e["new_string"]))).join("\n");
 
       return { case: "fileChange", value: { changes: [{ path: str("file_path"), kind: "update", diff }] } };
     }
@@ -761,11 +786,17 @@ export function toolContent(name: string, input: unknown): Content {
     case "WebSearch":
       return { case: "webSearch", value: { query: str("query") } };
     case "TodoWrite": {
-      const todos = Array.isArray(args["todos"]) ? (args["todos"] as { content?: string; status?: string }[]) : [];
+      const todos = Array.isArray(args["todos"])
+        ? args["todos"].flatMap((value) => {
+            const todo = jsonObject(value);
+
+            return todo ? [todo] : [];
+          })
+        : [];
 
       return {
         case: "todoList",
-        value: { items: todos.map((t) => ({ text: t.content ?? "", status: t.status ?? "" })) },
+        value: { items: todos.map((t) => ({ text: jsonString(t["content"]), status: jsonString(t["status"]) })) },
       };
     }
 
@@ -797,15 +828,21 @@ export function withOutput(content: Content, output: string, failed: boolean): C
   }
 }
 
-export function resultText(content: unknown): string {
-  if (typeof content === "string") return content;
+export function resultText(content: JsonValue | undefined): string {
+  if (isString(content)) return content;
 
   if (!Array.isArray(content)) return "";
 
   return content
-    .map((c: { type?: string; text?: string; tool_name?: string }) =>
-      c.type === "text" ? (c.text ?? "") : c.type === "tool_reference" ? `[${c.tool_name}]` : `[${c.type}]`,
-    )
+    .map((value) => {
+      const c = jsonObject(value);
+
+      return Match.value(c?.["type"]).pipe(
+        Match.when("text", () => jsonString(c?.["text"])),
+        Match.when("tool_reference", () => `[${c?.["tool_name"]}]`),
+        Match.orElse(() => `[${c?.["type"]}]`),
+      );
+    })
     .join("\n");
 }
 

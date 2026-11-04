@@ -66,10 +66,9 @@ function record(name: string, notifications: readonly ServerNotification[]): voi
 
 function agentText(notifications: readonly ServerNotification[]): string {
   return notifications
-    .filter((n) => n.method === "item/completed")
-    .map((n) => (n.params as { item: { type: string; text?: string } }).item)
-    .filter((item) => item.type === "agentMessage")
-    .map((item) => item.text ?? "")
+    .flatMap((n) =>
+      n.method === "item/completed" && n.params.item.type === "agentMessage" ? [n.params.item.text] : [],
+    )
     .join("\n");
 }
 
@@ -134,7 +133,7 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
       expect(notifications.map((n) => n.method)).toContain("turn/started");
       const last = notifications.at(-1);
       expect(last?.method).toBe("turn/completed");
-      const error = (last?.params as { turn?: { error?: { message?: string } | null } }).turn?.error;
+      const error = last?.method === "turn/completed" ? last.params.turn.error : undefined;
 
       if (error) throw new Error(`native turn failed: ${error.message}`);
       expect(agentText(notifications)).toContain("OK");
@@ -293,7 +292,8 @@ describe.skipIf(!LIVE)("codex app-server (live)", () => {
         );
 
         record("native-isolated-ok-turn", notifications);
-        const error = (notifications.at(-1)?.params as { turn?: { error?: { message?: string } | null } }).turn?.error;
+        const last = notifications.at(-1);
+        const error = last?.method === "turn/completed" ? last.params.turn.error : undefined;
 
         if (error) throw new Error(`native turn failed: ${error.message}`);
         expect(agentText(notifications)).toContain("OK");
@@ -393,7 +393,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("codex dynamic tools (live)", (
       );
 
       const tokens = (id: string) =>
-        calls.filter((c) => c.threadId === id).map((c) => (c.arguments as { token?: string }).token);
+        calls.flatMap((c) => (c.threadId === id ? [(c.arguments as { token?: string }).token] : []));
 
       expect(calls.every((c) => c.tool === "record_token")).toBe(true);
       expect(tokens(threadId)).toEqual(["first", "resumed"]);

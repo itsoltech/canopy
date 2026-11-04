@@ -21,7 +21,7 @@ const AUTH_ENV = [
  *   Project and local settings stay on so CLAUDE.md and repo conventions apply.
  */
 export function claudeProfileOptions(profile: ResolvedProfile, baseEnv: Env): Pick<Options, "env" | "settingSources"> {
-  const env: Record<string, string | undefined> = { ...baseEnv, ...profile.env };
+  const env = { ...baseEnv, ...profile.env };
 
   if (profile.kind === "cliproxyapi") {
     for (const name of AUTH_ENV) delete env[name];

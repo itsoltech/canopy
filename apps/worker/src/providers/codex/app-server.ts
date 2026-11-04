@@ -1,11 +1,7 @@
-import type {
-  InitializeParams,
-  InitializeResponse,
-  ServerNotification,
-  ServerRequest,
-  v2,
-} from "@canopy/codex-protocol";
+import type { InitializeParams, ServerNotification, ServerRequest, v2 } from "@canopy/codex-protocol";
 import { Context, Effect, Layer, PubSub, Schema, Stream } from "effect";
+import type { JsonValue } from "@canopy/domain";
+import { decodeJson } from "../json.ts";
 import type { CodexAppServerLaunch } from "./launch.ts";
 import { JsonRpcPeer, RpcError, readLines } from "./rpc.ts";
 
@@ -49,7 +45,9 @@ export interface CodexMethods {
 }
 
 /** Answers a server request (approval, user input, dynamic tool call). Throw RpcError to answer with an error. */
-export type ServerRequestHandler = (request: Omit<ServerRequest, "id">) => Promise<unknown>;
+type RequestWithoutId<R> = R extends ServerRequest ? Omit<R, "id"> : never;
+
+export type ServerRequestHandler = (request: RequestWithoutId<ServerRequest>) => Promise<JsonValue>;
 
 export interface CodexAppServerOptions {
   readonly launch: CodexAppServerLaunch;
@@ -118,17 +116,27 @@ export class CodexAppServer extends Context.Service<
             lines: readLines(proc.stdout),
           },
           {
-            onNotification: (method, params) =>
-              Effect.runSync(PubSub.publish(notifications, { method, params } as ServerNotification)),
-            onRequest: (method, params) => options.onServerRequest({ method, params } as Omit<ServerRequest, "id">),
+            onNotification: (method, params) => {
+              // SAFETY: The JSON-RPC envelope is decoded by the peer; the configured Codex process owns
+              // the method/params correlation described by the pinned generated protocol bindings.
+              const notification = { method, params } as ServerNotification;
+              Effect.runSync(PubSub.publish(notifications, notification));
+            },
+            onRequest: (method, params) => {
+              // SAFETY: Requests come only from this Codex process after the peer decoded their JSON envelope;
+              // the generated union describes its method/params correlation, checked again by the request handler.
+              const request = { method, params } as RequestWithoutId<ServerRequest>;
+
+              return options.onServerRequest(request);
+            },
           },
         );
 
         yield* Effect.forkScoped(Effect.promise(() => peer.run()));
 
-        const call = (method: string, params: unknown) =>
+        const call = (method: string, params: InitializeParams | CodexMethods[keyof CodexMethods]["params"]) =>
           Effect.tryPromise({
-            try: () => peer.request(method, params),
+            try: () => peer.request(method, decodeJson(JSON.parse(JSON.stringify(params)))),
             catch: (error) =>
               new CodexAppServerError({
                 method,
@@ -143,15 +151,22 @@ export class CodexAppServer extends Context.Service<
           capabilities: { experimentalApi: true, requestAttestation: false },
         };
 
-        const initialized = (yield* call("initialize", initializeParams).pipe(
-          Effect.timeout("30 seconds"),
-        )) as InitializeResponse;
+        const initialized = Schema.decodeUnknownSync(Schema.Struct({ userAgent: Schema.String }))(
+          yield* call("initialize", initializeParams).pipe(Effect.timeout("30 seconds")),
+        );
 
         peer.notify("initialized");
 
         return CodexAppServer.of({
           userAgent: initialized.userAgent,
-          request: (method, params) => call(method, params) as never,
+          request: <M extends keyof CodexMethods>(method: M, params: CodexMethods[M]["params"]) =>
+            call(method, params).pipe(
+              Effect.map((result) => {
+                // SAFETY: JsonRpcPeer correlates this response id with the requested method. The configured
+                // Codex process supplies that method's result from the pinned generated protocol contract.
+                return result as CodexMethods[M]["result"];
+              }),
+            ),
           notifications: Stream.fromPubSub(notifications),
           stderrTail: () => stderr.slice(-50).join("\n"),
           exited: Effect.promise(() => proc.exited),

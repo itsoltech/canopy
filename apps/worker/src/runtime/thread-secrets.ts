@@ -22,6 +22,18 @@ import {
   type ThreadSecretReceipt,
 } from "@canopy/contracts";
 import type { ThreadEventInit } from "../journal/journal.ts";
+import { Match, Predicate } from "effect";
+
+type Redactable =
+  | string
+  | number
+  | boolean
+  | bigint
+  | null
+  | undefined
+  | Uint8Array
+  | readonly Redactable[]
+  | { readonly [key: string]: Redactable };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const activeStores = new Set<ThreadSecretFiles>();
@@ -37,12 +49,11 @@ export function secretEventRedactor(): (threadId: string, event: ThreadEventInit
     if (body?.case === "turnFinished")
       for (const id of buffers.keys()) if (id.startsWith(`${threadId}/`)) buffers.delete(id);
 
-    const itemId =
-      body?.case === "itemDelta"
-        ? body.value.itemId
-        : body?.case === "itemCompleted"
-          ? body.value.item?.itemId
-          : undefined;
+    const itemId = Match.value(body).pipe(
+      Match.when({ case: "itemDelta" }, (delta) => delta.value.itemId),
+      Match.when({ case: "itemCompleted" }, (completed) => completed.value.item?.itemId),
+      Match.orElse(() => undefined),
+    );
 
     const key = `${threadId}/${itemId}`;
     const buffered = buffers.get(key);
@@ -91,21 +102,25 @@ export function secretEventRedactor(): (threadId: string, event: ThreadEventInit
       (a, b) => b.length - a.length,
     );
 
-    const redact = (value: unknown): unknown => {
-      if (typeof value === "string") {
-        for (const pattern of patterns) value = (value as string).split(pattern).join("[REDACTED]");
+    const redact = (value: Redactable): Redactable => {
+      if (Predicate.isString(value)) {
+        let text = value;
 
-        return value;
+        for (const pattern of patterns) text = text.split(pattern).join("[REDACTED]");
+
+        return text;
       }
 
       if (Array.isArray(value)) return value.map(redact);
 
-      if (value && typeof value === "object" && !(value instanceof Uint8Array))
+      if (value && Predicate.isObject(value) && !(value instanceof Uint8Array))
         return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redact(v)]));
 
       return value;
     };
 
+    // SAFETY: redact preserves every key, array position, byte array, bigint and scalar type;
+    // only string contents change, so the event retains its protobuf initialization contract.
     const safe = redact(event) as ThreadEventInit;
     safe.rawJson = "";
 

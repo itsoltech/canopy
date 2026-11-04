@@ -67,7 +67,7 @@ export const DEFAULT_NATIVE_TOOL_POLICY: NativeToolPolicy = {
 };
 
 /** Merged into Claude `query()` options. `disallowedTools` removes tools from the model context entirely. */
-export function claudeNativeToolOptions(policy: NativeToolPolicy): { disallowedTools: string[] } {
+export function claudeNativeToolOptions(policy: NativeToolPolicy) {
   return {
     disallowedTools: [
       ...(policy.nativeSubagents ? [] : CLAUDE_SUBAGENT_TOOLS),

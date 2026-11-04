@@ -1,5 +1,7 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { Match } from "effect";
+import { decodeJsonObject, isString } from "../providers/json.ts";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import {
   ConfigAppliedSchema,
@@ -133,11 +135,11 @@ export const systemProbe: DeviceProbe = {
 
     try {
       // Only the shape is read: which kind of credential is there, never its value.
-      const auth = JSON.parse(readFileSync(file, "utf8")) as { tokens?: unknown; OPENAI_API_KEY?: unknown };
+      const auth = decodeJsonObject(JSON.parse(readFileSync(file, "utf8")));
 
-      if (auth.tokens) return "ChatGPT";
+      if (auth["tokens"]) return "ChatGPT";
 
-      if (typeof auth.OPENAI_API_KEY === "string" && auth.OPENAI_API_KEY) return "OpenAI API key";
+      if (isString(auth["OPENAI_API_KEY"]) && auth["OPENAI_API_KEY"]) return "OpenAI API key";
 
       return null;
     } catch {
@@ -370,7 +372,11 @@ function inspectProfile(
     const problem = ownLogin
       ? "not signed in"
       : runtime.linkDeviceLogin
-        ? `no ${harness === "claude" ? "Claude" : harness === "grok" ? "Grok" : "Codex"} login on this device`
+        ? `no ${Match.value(harness).pipe(
+            Match.when("claude", () => "Claude"),
+            Match.when("grok", () => "Grok"),
+            Match.orElse(() => "Codex"),
+          )} login on this device`
         : "device login is turned off for this worker";
 
     const { resolved: _, ...rest } = versioned;
@@ -390,7 +396,11 @@ function profileConfig(
     id: profile.id,
     ...(profile.providers.length > 0 && {
       providers: profile.providers.map((p) =>
-        p === Provider.CLAUDE ? ("claude" as const) : p === Provider.GROK ? ("grok" as const) : ("codex" as const),
+        Match.value(p).pipe(
+          Match.when(Provider.CLAUDE, () => "claude" as const),
+          Match.when(Provider.GROK, () => "grok" as const),
+          Match.orElse(() => "codex" as const),
+        ),
       ),
     }),
     ...(profile.displayName && { displayName: profile.displayName }),

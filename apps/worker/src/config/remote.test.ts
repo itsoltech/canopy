@@ -5,6 +5,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { DeviceLogin, Provider, ProviderProfileKind, WorkerConfigSchema } from "@canopy/contracts";
 import { tempDir } from "@canopy/testing";
 import { applyWorkerConfig, systemProbe, type DeviceProbe } from "./remote.ts";
+import { Predicate } from "effect";
 
 const base = tempDir("canopy-remote-config-");
 const repo = join(base, "repo");
@@ -65,7 +66,7 @@ describe("applyWorkerConfig", () => {
       [Provider.CODEX, true, "0.164.0"],
       [Provider.GROK, false, ""],
     ]);
-    expect(JSON.stringify(result.report, (_, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("sk-secret");
+    expect(JSON.stringify(result.report, (_, v) => (Predicate.isBigInt(v) ? String(v) : v))).not.toContain("sk-secret");
   });
 
   test("legacy allowedRoots are ignored even when relative, missing or symlinked", () => {
@@ -214,10 +215,10 @@ describe("applyWorkerConfig: custom profiles", () => {
     expect(byId.get("bad")?.resolved).toBeUndefined();
     expect(result.report.issues?.map((i) => i.path)).toEqual(["profiles[bad]"]);
     expect(result.report.profiles?.find((p) => p.id === "team")?.displayName).toBe("Team");
-    expect(JSON.stringify(result.report, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain(
+    expect(JSON.stringify(result.report, (_k, v) => (Predicate.isBigInt(v) ? String(v) : v))).not.toContain(
       "hidden-value",
     );
-    expect(JSON.stringify(result.report, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain(
+    expect(JSON.stringify(result.report, (_k, v) => (Predicate.isBigInt(v) ? String(v) : v))).not.toContain(
       "/evil-path",
     );
   });

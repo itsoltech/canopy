@@ -1,6 +1,16 @@
 import { PermissionMode } from "@canopy/contracts";
 import type { v2 } from "@canopy/codex-protocol";
 
+interface ThreadPermissions {
+  approvalPolicy: v2.AskForApproval;
+  sandbox: v2.SandboxMode;
+}
+
+interface TurnPermissions {
+  approvalPolicy: v2.AskForApproval;
+  sandboxPolicy: v2.SandboxPolicy;
+}
+
 /**
  * Platform permission modes -> Codex approval policy + sandbox.
  *
@@ -8,7 +18,7 @@ import type { v2 } from "@canopy/codex-protocol";
  * escalates to an approval request (on-request) or is refused (never). So "ask for edits" means a
  * read-only sandbox where every write escalates.
  */
-export function codexPermissions(mode: PermissionMode): { approvalPolicy: v2.AskForApproval; sandbox: v2.SandboxMode } {
+export function codexPermissions(mode: PermissionMode): ThreadPermissions {
   switch (mode) {
     case PermissionMode.ACCEPT_EDITS:
       return { approvalPolicy: "on-request", sandbox: "workspace-write" };
@@ -27,10 +37,7 @@ export function codexPermissions(mode: PermissionMode): { approvalPolicy: v2.Ask
  * The same mode as turn/start overrides (approvalPolicy + sandboxPolicy). Codex keeps them for the turns after
  * it, so every turn sends its mode explicitly, like model and effort. Writable roots stay Codex's own (the cwd).
  */
-export function codexTurnPermissions(mode: PermissionMode): {
-  approvalPolicy: v2.AskForApproval;
-  sandboxPolicy: v2.SandboxPolicy;
-} {
+export function codexTurnPermissions(mode: PermissionMode): TurnPermissions {
   const { approvalPolicy, sandbox } = codexPermissions(mode);
 
   return {

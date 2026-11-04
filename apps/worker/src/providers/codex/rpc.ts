@@ -1,3 +1,6 @@
+import { Schema } from "effect";
+import type { JsonObject, JsonValue } from "@canopy/domain";
+
 /**
  * JSON-RPC peer for `codex app-server` (docs/agent-bus.md, docs/execution.md).
  *
@@ -15,9 +18,9 @@ export interface RpcTransport {
 }
 
 export interface RpcHandlers {
-  onNotification(method: string, params: unknown): void;
+  onNotification(method: string, params: JsonValue | undefined): void;
   /** Answer a server request. Throw RpcError to answer with an error. */
-  onRequest(method: string, params: unknown): Promise<unknown>;
+  onRequest(method: string, params: JsonValue | undefined): Promise<JsonValue | undefined>;
 }
 
 export class RpcError extends Error {
@@ -26,7 +29,7 @@ export class RpcError extends Error {
     readonly method: string,
     readonly code: number,
     message: string,
-    readonly data?: unknown,
+    readonly data?: JsonValue,
   ) {
     super(`${method}: ${message} (${code})`);
   }
@@ -38,19 +41,25 @@ export class RpcClosedError extends Error {
 
 interface Pending {
   readonly method: string;
-  resolve(result: unknown): void;
+  resolve(result: JsonValue | undefined): void;
   reject(error: Error): void;
 }
 
-type Incoming =
-  | {
-      id: number | string;
-      result?: unknown;
-      error?: { code: number; message: string; data?: unknown };
-      method?: undefined;
-    }
-  | { id: number | string; method: string; params?: unknown }
-  | { id?: undefined; method: string; params?: unknown };
+const Incoming = Schema.Struct({
+  id: Schema.optionalKey(Schema.Union([Schema.Number, Schema.String])),
+  method: Schema.optionalKey(Schema.String),
+  params: Schema.optionalKey(Schema.Json),
+  result: Schema.optionalKey(Schema.Json),
+  error: Schema.optionalKey(
+    Schema.Struct({
+      code: Schema.Number,
+      message: Schema.String,
+      data: Schema.optionalKey(Schema.Json),
+    }),
+  ),
+});
+
+type Incoming = typeof Incoming.Type;
 
 export class JsonRpcPeer {
   readonly #transport: RpcTransport;
@@ -64,7 +73,7 @@ export class JsonRpcPeer {
     this.#handlers = handlers;
   }
 
-  request(method: string, params: unknown): Promise<unknown> {
+  request(method: string, params: JsonValue): Promise<JsonValue | undefined> {
     if (this.#closed) return Promise.reject(this.#closed);
     const id = this.#nextId++;
 
@@ -74,7 +83,7 @@ export class JsonRpcPeer {
     });
   }
 
-  notify(method: string, params?: unknown): void {
+  notify(method: string, params?: JsonValue): void {
     if (this.#closed) throw this.#closed;
     this.#send(params === undefined ? { method } : { method, params });
   }
@@ -87,7 +96,7 @@ export class JsonRpcPeer {
         let message: Incoming;
 
         try {
-          message = JSON.parse(line) as Incoming;
+          message = Schema.decodeUnknownSync(Incoming)(JSON.parse(line));
         } catch {
           continue; // not ours (e.g. a stray log line); the protocol is line-delimited JSON only
         }
@@ -103,10 +112,11 @@ export class JsonRpcPeer {
 
   #dispatch(message: Incoming): void {
     if (message.method === undefined) {
-      const pending = typeof message.id === "number" ? this.#pending.get(message.id) : undefined;
+      if (!Schema.is(Schema.Number)(message.id)) return;
+      const pending = this.#pending.get(message.id);
 
       if (!pending) return;
-      this.#pending.delete(message.id as number);
+      this.#pending.delete(message.id);
 
       if (message.error)
         pending.reject(new RpcError(pending.method, message.error.code, message.error.message, message.error.data));
@@ -123,23 +133,23 @@ export class JsonRpcPeer {
 
     const { id, method, params } = message;
     this.#handlers.onRequest(method, params).then(
-      (result) => this.#safeSend({ id, result }),
-      (error: unknown) =>
+      (result) => this.#safeSend({ id, ...(result !== undefined && { result }) }),
+      (cause: unknown) =>
         this.#safeSend({
           id,
           error:
-            error instanceof RpcError
-              ? { code: error.code, message: error.message }
-              : { code: -32603, message: error instanceof Error ? error.message : String(error) },
+            cause instanceof RpcError
+              ? { code: cause.code, message: cause.message }
+              : { code: -32603, message: cause instanceof Error ? cause.message : String(cause) },
         }),
     );
   }
 
-  #send(message: unknown): void {
+  #send(message: JsonObject): void {
     this.#transport.write(`${JSON.stringify(message)}\n`);
   }
 
-  #safeSend(message: unknown): void {
+  #safeSend(message: JsonObject): void {
     if (!this.#closed) this.#send(message);
   }
 

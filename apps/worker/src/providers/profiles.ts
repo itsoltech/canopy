@@ -1,6 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, type ProviderProfileSchema } from "@canopy/contracts";
 import { envListProblems } from "@canopy/domain";
+import { Match } from "effect";
 
 /**
  * Provider profiles come from the remote worker configuration (WorkerConfig.profiles, docs/worker-config.md).
@@ -184,7 +185,11 @@ export function toProfileReport(status: ProfileStatus): MessageInitShape<typeof 
     id: config.id,
     kind: config.kind === "native" ? ProviderProfileKind.NATIVE : ProviderProfileKind.CLIPROXYAPI,
     providers: providersOf(config).map((p) =>
-      p === "claude" ? Provider.CLAUDE : p === "grok" ? Provider.GROK : Provider.CODEX,
+      Match.value(p).pipe(
+        Match.when("claude", () => Provider.CLAUDE),
+        Match.when("grok", () => Provider.GROK),
+        Match.orElse(() => Provider.CODEX),
+      ),
     ),
     ...(config.kind === "cliproxyapi" && URL.canParse(config.baseUrl) && { endpoint: new URL(config.baseUrl).origin }),
     available: status.resolved !== undefined,

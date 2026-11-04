@@ -3,12 +3,14 @@ import { ItemDeltaField, ItemSchema, ItemStatus, type Item } from "@canopy/contr
 import type { SessionUpdate, ToolCall } from "@canopy/grok-acp";
 import type { ThreadEventInit } from "../../journal/index.ts";
 import { platformToolName } from "./bus.ts";
+import { Match, Option, Schema } from "effect";
+import type { JsonObject, JsonValue } from "@canopy/domain";
+import { decodeJson, isString, isNumber } from "../json.ts";
 
-const text = (value: unknown): string =>
-  typeof value === "string" ? value : value == null ? "" : JSON.stringify(value);
+const text = (value: JsonValue | undefined): string =>
+  isString(value) ? value : value == null ? "" : JSON.stringify(value);
 
-const object = (value: unknown): Record<string, unknown> =>
-  value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+const decodeObject = Schema.decodeUnknownOption(Schema.JsonObject);
 
 /** ACP tool updates are patches, not replacement items. Preserve inputs, diffs and output across updates. */
 export class GrokEventMapper {
@@ -66,7 +68,9 @@ export class GrokEventMapper {
       this.#tools.set(tool.toolCallId, tool);
 
       // The gateway owns canonical agentBusCall items; keep use_tool wrappers only in the raw transcript.
-      if (tool.title === "use_tool" && platformToolName(text(object(tool.rawInput)["tool_name"])) !== undefined)
+      const input: JsonObject = Option.getOrElse(decodeObject(tool.rawInput), () => ({}));
+
+      if (tool.title === "use_tool" && platformToolName(text(input["tool_name"])) !== undefined)
         return [{ turnId: this.turnId, rawJson }];
       const itemId = `${this.turnId}:${tool.toolCallId}`;
       const item = toolItem(itemId, tool, this.cwd);
@@ -123,25 +127,24 @@ export class GrokEventMapper {
 }
 
 function toolItem(itemId: string, tool: ToolCall, cwd: string): Item {
-  const input = object(tool.rawInput);
+  const input: JsonObject = Option.getOrElse(decodeObject(tool.rawInput), () => ({}));
   const name = tool.title ?? "tool";
 
   const output =
     tool.content
       ?.flatMap((c) => (c.type === "content" && c.content.type === "text" ? [c.content.text] : []))
-      .join("\n") || text(tool.rawOutput);
+      .join("\n") || text(decodeJson(tool.rawOutput ?? null));
 
-  const status =
-    tool.status === "completed"
-      ? ItemStatus.COMPLETED
-      : tool.status === "failed"
-        ? ItemStatus.FAILED
-        : ItemStatus.IN_PROGRESS;
+  const status = Match.value(tool.status).pipe(
+    Match.when("completed", () => ItemStatus.COMPLETED),
+    Match.when("failed", () => ItemStatus.FAILED),
+    Match.orElse(() => ItemStatus.IN_PROGRESS),
+  );
 
   const base = { itemId, status };
 
   if (tool.kind === "execute" || /^(run_terminal_command|bash|shell|execute_command)$/i.test(name)) {
-    const raw = object(tool.rawOutput);
+    const raw: JsonObject = Option.getOrElse(decodeObject(tool.rawOutput), () => ({}));
 
     return create(ItemSchema, {
       ...base,
@@ -151,7 +154,7 @@ function toolItem(itemId: string, tool: ToolCall, cwd: string): Item {
           command: text(input["command"] ?? input["cmd"] ?? name),
           cwd: text(input["cwd"]) || cwd,
           output,
-          ...(typeof raw["exit_code"] === "number" && { exitCode: raw["exit_code"] }),
+          ...(isNumber(raw["exit_code"]) && { exitCode: raw["exit_code"] }),
         },
       },
     });

@@ -100,12 +100,7 @@ const slashes = (path: string) => path.replaceAll("\\", "/");
  * The install method of an executable from its path and real path. Version managers and Homebrew win over npm
  * (mise's npm backend keeps node_modules too); a native installer is recognised by its own versions directory.
  */
-export function classify(
-  spec: CliSpec,
-  path: string,
-  resolvedPath: string,
-  home: string,
-): { method: CliInstallMethod; owner?: string } {
+export function classify(spec: CliSpec, path: string, resolvedPath: string, home: string): CliClassification {
   const p = slashes(path);
   const r = slashes(resolvedPath);
   const h = slashes(home).replace(/\/$/, "");
@@ -146,6 +141,11 @@ export function classify(
   }
 
   return { method: CliInstallMethod.OTHER };
+}
+
+interface CliClassification {
+  readonly method: CliInstallMethod;
+  readonly owner?: string;
 }
 
 /** One CLI as the worker would run it: the configured executable, else PATH and the known user-level locations. */

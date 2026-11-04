@@ -27,9 +27,8 @@ import {
   type FileSearchResultSchema,
   type ThreadEvent,
   type WorkerConfig,
-  TurnOutcome,
 } from "@canopy/contracts";
-import { Cause, Context, Effect, Exit, Layer, Scope, type ManagedRuntime } from "effect";
+import { Cause, Context, Effect, Exit, Layer, Match, Predicate, Scope, type ManagedRuntime } from "effect";
 import {
   applyWorkerConfig,
   instanceShadowHome,
@@ -415,8 +414,8 @@ export class WorkerHost {
         env,
       ),
       clientVersion: this.#options.clientVersion,
-    }).catch((error: unknown) => {
-      throw new CommandError("LOGIN_FAILED", error instanceof Error ? error.message : String(error), false);
+    }).catch((cause: unknown) => {
+      throw new CommandError("LOGIN_FAILED", cause instanceof Error ? cause.message : String(cause), false);
     });
 
     const key = `codex/${status.config.id}`;
@@ -592,7 +591,7 @@ export class WorkerHost {
       for (const generation of this.#generations.keys()) generation.abort();
       await Promise.allSettled(this.#generations.values());
 
-      for (const group of [...this.#codex.keys()]) await this.#stopCodex(group);
+      for (const group of Array.from(this.#codex.keys())) await this.#stopCodex(group);
       await this.#closeCodexOrphans();
       await this.#stopClaude();
       await this.#grok?.runtime.close();
@@ -830,37 +829,40 @@ export class WorkerHost {
           const model = input.model || catalog?.models?.find((m) => m.isDefault)?.id || "";
           const chosen = { ...input, model };
 
-          const text =
-            provider === "grok"
-              ? await generateGrokText(chosen, profile, abort.signal)
-              : provider === "claude"
-                ? await generateClaudeText(
-                    chosen,
-                    {
-                      cwd: sourceHome,
-                      ...claudeProfileOptions(profile, { ...process.env, CLAUDE_CONFIG_DIR: sourceHome }),
-                      ...(executable && { pathToClaudeCodeExecutable: executable }),
-                    },
-                    abort.signal,
-                  )
-                : await generateCodexText(
-                    chosen,
-                    {
-                      dataDir: this.#options.dataDir,
-                      profile,
-                      clientVersion: this.#options.clientVersion,
-                      launch: codexAppServerLaunch(
-                        [profile],
-                        process.env,
-                        executable,
-                        undefined,
-                        sourceHome,
-                        profile.env,
-                        runtime.launchArgs,
-                      ),
-                    },
-                    abort.signal,
-                  );
+          const text = await Match.value(provider).pipe(
+            Match.when("grok", () => generateGrokText(chosen, profile, abort.signal)),
+            Match.when("claude", () =>
+              generateClaudeText(
+                chosen,
+                {
+                  cwd: sourceHome,
+                  ...claudeProfileOptions(profile, { ...process.env, CLAUDE_CONFIG_DIR: sourceHome }),
+                  ...(executable && { pathToClaudeCodeExecutable: executable }),
+                },
+                abort.signal,
+              ),
+            ),
+            Match.orElse(() =>
+              generateCodexText(
+                chosen,
+                {
+                  dataDir: this.#options.dataDir,
+                  profile,
+                  clientVersion: this.#options.clientVersion,
+                  launch: codexAppServerLaunch(
+                    [profile],
+                    process.env,
+                    executable,
+                    undefined,
+                    sourceHome,
+                    profile.env,
+                    runtime.launchArgs,
+                  ),
+                },
+                abort.signal,
+              ),
+            ),
+          );
 
           return { generatedText: text };
         } catch {
@@ -1081,14 +1083,12 @@ export class WorkerHost {
 
     // The harness itself refused or failed (e.g. Codex answered the request with an error): the gateway says so.
     const code =
-      error && typeof error === "object" && (error as { harness?: unknown }).harness === true
-        ? "HARNESS_ERROR"
-        : "THREAD_ERROR";
+      Predicate.isObject(error) && "harness" in error && error["harness"] === true ? "HARNESS_ERROR" : "THREAD_ERROR";
 
     throw new CommandError(
       code,
-      error instanceof Error || (error && typeof error === "object" && "message" in error)
-        ? String((error as { message: unknown }).message)
+      error instanceof Error || (Predicate.isObject(error) && "message" in error)
+        ? String(error.message)
         : String(error),
       true,
     );
@@ -1218,7 +1218,7 @@ export class WorkerHost {
 
     if (codexChanged) {
       // Only the processes whose settings changed restart; their threads resume in the new ones.
-      for (const name of [...this.#codex.keys()]) {
+      for (const name of Array.from(this.#codex.keys())) {
         if (this.#codex.get(name)?.key !== codexGroups.get(name)?.key) await this.#stopCodex(name);
       }
 

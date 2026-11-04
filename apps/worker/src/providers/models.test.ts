@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { v2 } from "@canopy/codex-protocol";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tempDirs } from "@canopy/testing";
+import { claudeConfiguredEffort, codexConfiguredEffort, readClaudeUserSettings } from "./default-effort.ts";
 import {
   claudeAgentModels,
   claudeModel,
@@ -20,6 +23,55 @@ const proxy = {
   runtime: {},
 };
 
+const tempDir = tempDirs();
+
+describe("harness default effort settings", () => {
+  test("Codex ignores invalid profile settings without losing the global fallback", () => {
+    expect(
+      codexConfiguredEffort(`
+      profile = "chosen"
+      model_reasoning_effort = " HIGH "
+      unrelated_date = 2026-01-01T00:00:00Z
+      [profiles.chosen]
+      model_reasoning_effort = 42
+      [profiles.other]
+      model_reasoning_effort = "low"
+    `),
+    ).toBe("high");
+    expect(
+      codexConfiguredEffort(`
+      profile = "chosen"
+      model_reasoning_effort = "low"
+      [profiles.chosen]
+      model_reasoning_effort = " XHIGH "
+      [profiles.other]
+      model_reasoning_effort = false
+    `),
+    ).toBe("xhigh");
+  });
+
+  test("Claude ignores invalid model entries and retains model, global and environment precedence", () => {
+    const home = tempDir("canopy-effort-");
+    writeFileSync(
+      join(home, "settings.json"),
+      JSON.stringify({
+        effortLevel: " HIGH ",
+        modelSettings: {
+          invalid: null,
+          broken: { effortLevel: 42 },
+          "claude-sonnet-4-5": { effortLevel: " LOW " },
+        },
+      }),
+    );
+    const settings = readClaudeUserSettings(home);
+
+    expect(claudeConfiguredEffort(settings, {}, ["claude-sonnet-4-5-20250929[1m]"])).toBe("low");
+    expect(claudeConfiguredEffort(settings, {}, ["broken"])).toBe("high");
+    expect(claudeConfiguredEffort(settings, { CLAUDE_CODE_EFFORT_LEVEL: "max" }, ["broken"])).toBe("max");
+    expect(claudeConfiguredEffort(settings, { CLAUDE_CODE_EFFORT_LEVEL: "auto" }, ["broken"])).toBeUndefined();
+  });
+});
+
 describe("model catalogs", () => {
   test("Codex model/list entries keep their efforts and default", () => {
     const model = {
@@ -34,7 +86,7 @@ describe("model catalogs", () => {
         { reasoningEffort: "xhigh", description: "" },
       ],
       defaultReasoningEffort: "low",
-    } as unknown as v2.Model;
+    } satisfies Parameters<typeof codexModel>[0];
 
     expect(codexModel(model)).toEqual({
       id: "gpt-6.1-sol",
@@ -215,7 +267,7 @@ describe("model catalogs", () => {
   test("the proxy's /v1/models with the profile key; failures never show its address or key", async () => {
     const seen: { url: string; auth: string | null }[] = [];
 
-    const ok = (async (url: URL, init: RequestInit) => {
+    const ok = async (url: URL, init: RequestInit) => {
       seen.push({ url: url.href, auth: new Headers(init.headers).get("authorization") });
 
       if (url.pathname === "/v1beta/models") {
@@ -236,7 +288,7 @@ describe("model catalogs", () => {
       return Response.json({
         data: [{ id: "gpt-6.1-sol", owned_by: "openai" }, { id: "grok-tts", owned_by: "xai" }, { id: 42 }],
       });
-    }) as unknown as typeof fetch;
+    };
 
     expect(await proxyModels(proxy, ok)).toEqual([
       {
@@ -254,19 +306,19 @@ describe("model catalogs", () => {
     ]);
 
     // /v1beta/models is optional: without it the models come without capabilities.
-    const noGemini = (async (url: URL) =>
+    const noGemini = async (url: URL) =>
       url.pathname === "/v1beta/models"
         ? new Response("no", { status: 404 })
-        : Response.json({ data: [{ id: "grok-4.7", owned_by: "xai" }] })) as unknown as typeof fetch;
+        : Response.json({ data: [{ id: "grok-4.7", owned_by: "xai" }] });
 
     expect(await proxyModels(proxy, noGemini)).toEqual([{ id: "grok-4.7", ownedBy: "xai" }]);
     expect(await proxyCapabilities(proxy, noGemini).catch((e: Error) => e.message)).toBe(
       "the proxy answered 404 to GET /v1beta/models",
     );
 
-    const down = (async () => {
+    const down = async () => {
       throw new Error("connect ECONNREFUSED proxy.internal:8317 (key sk-test)");
-    }) as unknown as typeof fetch;
+    };
 
     const message = await proxyModels(proxy, down).then(
       () => "",
@@ -274,7 +326,7 @@ describe("model catalogs", () => {
     );
 
     expect(message).toBe("the proxy did not answer GET /v1/models: connect ECONNREFUSED <proxy> (key <key>)");
-    const denied = (async () => new Response("no", { status: 401 })) as unknown as typeof fetch;
+    const denied = async () => new Response("no", { status: 401 });
     expect(await proxyModels(proxy, denied).catch((e: Error) => e.message)).toBe(
       "the proxy answered 401 to GET /v1/models",
     );

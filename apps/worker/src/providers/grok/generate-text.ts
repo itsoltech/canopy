@@ -1,4 +1,16 @@
 import type { ResolvedProfile } from "../profiles.ts";
+import { Schema } from "effect";
+
+const TextResponse = Schema.Struct({
+  choices: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        message: Schema.optionalKey(Schema.Struct({ content: Schema.optionalKey(Schema.String) })),
+        finish_reason: Schema.optionalKey(Schema.String),
+      }),
+    ),
+  ),
+});
 
 /** Grok titles are opt-in cheap API calls: no CLI tools, sessions or workspace context. */
 export async function generateGrokText(
@@ -28,7 +40,7 @@ export async function generateGrokText(
     throw new Error(`Text endpoint returned HTTP ${response.status}`);
   }
 
-  const body = (await response.json()) as { choices?: { message?: { content?: string }; finish_reason?: string }[] };
+  const body = Schema.decodeUnknownSync(TextResponse)(await response.json());
 
   if (body.choices?.[0]?.finish_reason !== "stop") throw new Error("Incomplete title response");
 
