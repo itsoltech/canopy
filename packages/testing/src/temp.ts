@@ -19,7 +19,7 @@ function remove(dir: string): void {
 
 /** Every directory still there (the end of a run: describes that bun skipped never run their afterAll). */
 export function removeTempDirs(): void {
-  for (const dir of [...live]) {
+  for (const dir of live) {
     try {
       remove(dir);
     } catch {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Effect, ManagedRuntime } from "effect";
-import { SqlClient } from "effect/sql";
+import { SqlClient, type SqlConnection } from "effect/sql";
 import { migrate } from "../src/index.ts";
 import { dockerAvailable, startPostgres, type TestPostgres } from "../src/testing.ts";
 
@@ -10,10 +10,7 @@ let pg: TestPostgres;
 let runtime: ManagedRuntime.ManagedRuntime<SqlClient.SqlClient, unknown>;
 
 /** Runs a query and returns its rows. */
-function query<A extends object = Record<string, unknown>>(
-  text: string,
-  params: unknown[] = [],
-): Promise<ReadonlyArray<A>> {
+function query<A extends object = SqlConnection.Row>(text: string, params: unknown[] = []): Promise<ReadonlyArray<A>> {
   return runtime.runPromise(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -23,11 +20,17 @@ function query<A extends object = Record<string, unknown>>(
   );
 }
 
+const hasMessage = (value: unknown): value is { message: string } =>
+  value instanceof Object && "message" in value && typeof value.message === "string";
+
+const hasConstraint = (value: unknown): value is { constraint: string } =>
+  value instanceof Object && "constraint" in value && typeof value.constraint === "string";
+
 /** Expects the statement to fail and returns the database error message. */
 async function failure(text: string, params: unknown[] = []): Promise<string> {
   const error = await query(text, params).then(
     () => undefined,
-    (e: unknown) => e,
+    (cause: unknown) => cause,
   );
 
   if (error === undefined) throw new Error(`expected failure: ${text}`);
@@ -35,11 +38,9 @@ async function failure(text: string, params: unknown[] = []): Promise<string> {
   const messages: string[] = [];
 
   for (let current: unknown = error; current instanceof Object; current = (current as { cause?: unknown }).cause) {
-    const { message, constraint } = current as { message?: unknown; constraint?: unknown };
+    if (hasMessage(current)) messages.push(current.message);
 
-    if (typeof message === "string") messages.push(message);
-
-    if (typeof constraint === "string") messages.push(constraint);
+    if (hasConstraint(current)) messages.push(current.constraint);
   }
 
   return messages.join(" | ");

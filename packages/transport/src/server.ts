@@ -72,6 +72,7 @@ export async function startGrpcServer(options: GrpcServerOptions): Promise<Runni
     });
   });
 
+  // SAFETY: listen() above bound a TCP host and port; address() returns a string only for pipes and Unix sockets.
   const { port } = server.address() as AddressInfo;
   const scheme = options.tls ? "https" : "http";
 
