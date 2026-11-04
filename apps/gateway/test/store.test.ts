@@ -76,14 +76,14 @@ describe.skipIf(!dockerAvailable)("GatewayStore on PostgreSQL", () => {
 
     const inline = await store((s) =>
       s.setWorkerConfig(workerId, { profiles: [{ ...profile, apiKey: "sk-inline" }] }, userId),
-    ).catch((e: unknown) => e);
+    ).catch((cause: unknown) => cause);
 
     expect(String(inline)).toContain("secret references");
 
     // The referenced secret cannot be deleted while a config uses it.
     const deletion = await runtime
       .runPromise(SqlClient.SqlClient.use((sql) => sql`DELETE FROM secrets WHERE id = ${secretId}::uuid`))
-      .catch((e: unknown) => e);
+      .catch((cause: unknown) => cause);
 
     expect(deletion).toBeDefined();
     expect(await store((s) => s.setWorkerConfig(workerId, { allowedRoots: ["/r", "/s"] }, userId))).toBe(2n);

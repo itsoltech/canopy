@@ -281,16 +281,16 @@ export class MobileDevices {
 
     if (!result) throw new ConnectError("Device or pending invitation not found", Code.NotFound);
 
-    if (kind === "device") {
+    if ("platform" in result) {
       for (const controller of this.#streams.get(id) ?? [])
         controller.abort(new ConnectError("Device revoked", Code.Unauthenticated));
       this.#streams.delete(id);
       this.options.publish(
-        create(ui.OverviewUpdateSchema, { change: { case: "mobileDevice", value: device(result as DeviceRow) } }),
+        create(ui.OverviewUpdateSchema, { change: { case: "mobileDevice", value: device(result) } }),
       );
     } else
       this.options.publish(
-        create(ui.OverviewUpdateSchema, { change: { case: "mobilePairing", value: pairing(result as PairingRow) } }),
+        create(ui.OverviewUpdateSchema, { change: { case: "mobilePairing", value: pairing(result) } }),
       );
   }
 }

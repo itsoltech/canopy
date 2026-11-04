@@ -18,7 +18,7 @@ export type CommandInit = Exclude<KindInit, { case: undefined }>;
 interface PendingCommand {
   promise: Promise<CommandResult>;
   resolve(result: CommandResult): void;
-  reject(error: unknown): void;
+  reject(cause: unknown): void;
   timer: Timer;
 }
 
@@ -103,13 +103,13 @@ export class WorkerConnection {
   }
 
   /** @internal Called by the service when the inbound side ends. */
-  finish(error: unknown): void {
+  finish(cause: unknown): void {
     this.#outbound.close();
-    this.#finish(error);
+    this.#finish(cause);
   }
 
-  #finish(error: unknown): void {
-    this.#inbound.close(error);
+  #finish(cause: unknown): void {
+    this.#inbound.close(cause);
     const reason = new ConnectError(`worker ${this.workerId} disconnected`, Code.Unavailable);
 
     for (const pending of this.#pending.values()) {

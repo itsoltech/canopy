@@ -1,3 +1,4 @@
+// oxlint-disable-next-line typescript/triple-slash-reference -- Consumers outside gateway need this ambient *.sh declaration; type-importing it turns the wildcard into an ineffective augmentation.
 /// <reference path="./worker-installer.d.ts" />
 import { createHash } from "node:crypto";
 import { Client, utils, type ClientChannel } from "ssh2";
@@ -296,8 +297,8 @@ export class WorkerSsh {
             `set -- --channel-fallback --origin ${quote(origin.origin)} --gateway ${quote(setup.gatewayUrl)} --token ${quote(token)} --name ${quote(request.name)}\n${installer}\n`,
           );
         });
-      })().catch((error: unknown) =>
-        fail(error instanceof ConnectError ? error.rawMessage : "SSH installation failed"),
+      })().catch((cause: unknown) =>
+        fail(cause instanceof ConnectError ? cause.rawMessage : "SSH installation failed"),
       );
     });
 
@@ -344,9 +345,13 @@ export class WorkerSsh {
 
 /** Line buffering before redaction also handles secrets split across SSH packets. */
 export function sanitizeSshOutput(value: string, token: string): string {
-  return value
-    .replaceAll(token || "\u0000", "[redacted]")
-    .replace(/[A-Za-z0-9_-]{43,}/g, "[redacted]")
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
+  return (
+    value
+      .replaceAll(token || "\u0000", "[redacted]")
+      .replace(/[A-Za-z0-9_-]{43,}/g, "[redacted]")
+      // oxlint-disable-next-line no-control-regex -- Strip terminal ANSI escapes from remote SSH output before displaying it.
+      .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+      // oxlint-disable-next-line no-control-regex -- Strip nonprinting terminal controls while preserving tabs and newlines.
+      .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "")
+  );
 }

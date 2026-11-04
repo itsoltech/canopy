@@ -11,7 +11,7 @@ import {
   type CliToolsReport,
 } from "@canopy/contracts";
 import { compareVersions, secureUrl } from "@canopy/updater";
-import { Effect } from "effect";
+import { Effect, Predicate, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import type { WorkerLink } from "../worker-link/index.ts";
 import type { CoreRuntime } from "./core.ts";
@@ -135,8 +135,8 @@ export class CliLatestSource {
       let version = body.trim().split("\n")[0]?.trim() ?? "";
 
       if (body.trimStart().startsWith("{")) {
-        const tags = JSON.parse(body) as { latest?: unknown };
-        version = typeof tags.latest === "string" ? tags.latest : "";
+        const tags = Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(body));
+        version = Predicate.isString(tags["latest"]) ? tags["latest"] : "";
       }
 
       return SEMVER.test(version) ? { version, error: "" } : { version: "", error: `${url.host} sent no version` };
@@ -214,8 +214,8 @@ export class CliTools {
     this.#timer = undefined;
   }
 
-  #run<A>(effect: Effect.Effect<A, unknown, SqlClient.SqlClient>): Promise<A> {
-    return this.#options.runtime.runPromise(effect as Effect.Effect<A, unknown, never>);
+  #run<A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>): Promise<A> {
+    return this.#options.runtime.runPromise(effect);
   }
 
   /** A worker's report (CliToolsReport) replaces the previous one. */
@@ -486,9 +486,9 @@ export class CliTools {
 
         const result = await connection
           .sendCommand({ case: "probeProviders", value: {} }, 60_000)
-          .catch((error: unknown) => ({
+          .catch((cause: unknown) => ({
             ok: false,
-            errorMessage: error instanceof Error ? error.message : String(error),
+            errorMessage: cause instanceof Error ? cause.message : String(cause),
             errorCode: "",
           }));
 

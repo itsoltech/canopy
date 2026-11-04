@@ -11,7 +11,7 @@ import {
 } from "@canopy/contracts";
 import { migrate } from "@canopy/db";
 import { dockerAvailable, startPostgres, type TestPostgres } from "@canopy/db/testing";
-import { Effect, Layer, ManagedRuntime } from "effect";
+import { Layer, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { Ingest } from "../src/store/index.ts";
 

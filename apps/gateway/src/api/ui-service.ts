@@ -1,6 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter, type ServiceImpl } from "@connectrpc/connect";
 import { ui, bots, connectors } from "@canopy/contracts";
+import { Predicate } from "effect";
+import { isErrorObject } from "../core/error-cause.ts";
 import { ConnectorFailure } from "../connectors/store.ts";
 import { InvalidError, UnavailableError, type GatewayCore } from "../core/core.ts";
 import {
@@ -442,11 +444,7 @@ async function connectorGuard<A>(run: () => Promise<A>): Promise<A> {
   } catch (error) {
     let current = error;
 
-    for (
-      let i = 0;
-      i < 6 && current && typeof current === "object";
-      i++, current = (current as { cause?: unknown }).cause
-    ) {
+    for (let i = 0; i < 6 && isErrorObject(current); i++, current = current.cause) {
       if (current instanceof ConnectorFailure) throw new ConnectError(current.message, Code.InvalidArgument);
     }
 
@@ -455,37 +453,37 @@ async function connectorGuard<A>(run: () => Promise<A>): Promise<A> {
 }
 
 /** Domain errors keep their meaning; anything else is internal and not echoed with details. */
-export function toConnectError(error: unknown): ConnectError {
-  if (error instanceof ConnectError) return error;
-  const cause = unwrap(error);
+export function toConnectError(cause: unknown): ConnectError {
+  if (cause instanceof ConnectError) return cause;
+  const error = unwrap(cause);
 
-  if (cause instanceof NotFound) return new ConnectError(cause.message, Code.NotFound);
+  if (error instanceof NotFound) return new ConnectError(error.message, Code.NotFound);
 
-  if (cause instanceof Invalid || cause instanceof InvalidError)
-    return new ConnectError(cause.message, Code.InvalidArgument);
+  if (error instanceof Invalid || error instanceof InvalidError)
+    return new ConnectError(error.message, Code.InvalidArgument);
 
-  if (cause instanceof UnavailableError) return new ConnectError(cause.message, Code.Unavailable);
+  if (error instanceof UnavailableError) return new ConnectError(error.message, Code.Unavailable);
 
   if (
-    cause instanceof SettingsConflict ||
-    cause instanceof InstanceConflict ||
-    cause instanceof QueueConflict ||
-    cause instanceof ScheduleConflict
+    error instanceof SettingsConflict ||
+    error instanceof InstanceConflict ||
+    error instanceof QueueConflict ||
+    error instanceof ScheduleConflict
   )
-    return new ConnectError(cause.message, Code.FailedPrecondition);
-  const constraint = constraintOf(cause);
+    return new ConnectError(error.message, Code.FailedPrecondition);
+  const constraint = constraintOf(error ?? cause);
 
   if (constraint) return new ConnectError(`rejected by ${constraint}`, Code.FailedPrecondition);
-  console.error(error);
+  console.error(cause);
 
   return new ConnectError("internal error", Code.Internal);
 }
 
 /** Effect failures surface as FiberFailure-like wrappers; find the original error. */
-function unwrap(error: unknown): unknown {
-  let current = error;
+function unwrap(cause: unknown) {
+  let current = cause;
 
-  for (let i = 0; i < 5 && current && typeof current === "object"; i++) {
+  for (let i = 0; i < 5 && isErrorObject(current); i++) {
     if (
       current instanceof NotFound ||
       current instanceof Invalid ||
@@ -498,21 +496,17 @@ function unwrap(error: unknown): unknown {
       return current;
     }
 
-    current = (current as { cause?: unknown }).cause;
+    current = current.cause;
   }
 
-  return error;
+  return cause instanceof InstanceConflict ? cause : undefined;
 }
 
-function constraintOf(error: unknown): string | undefined {
-  for (
-    let current = error, i = 0;
-    i < 6 && current && typeof current === "object";
-    i++, current = (current as { cause?: unknown }).cause
-  ) {
-    const constraint = (current as { constraint?: unknown }).constraint;
+function constraintOf(cause: unknown): string | undefined {
+  for (let current = cause, i = 0; i < 6 && isErrorObject(current); i++, current = current.cause) {
+    const constraint = current.constraint;
 
-    if (typeof constraint === "string") return constraint;
+    if (Predicate.isString(constraint)) return constraint;
   }
 
   return undefined;

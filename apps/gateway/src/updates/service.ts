@@ -187,9 +187,9 @@ export class GatewayUpdateService {
   }
 }
 
-function serviceError(error: unknown): never {
+function serviceError(cause: unknown): never {
   const failure =
-    error instanceof ConnectError ? error : new ConnectError("Update service unavailable", Code.Unavailable);
+    cause instanceof ConnectError ? cause : new ConnectError("Update service unavailable", Code.Unavailable);
 
   throw failure;
 }

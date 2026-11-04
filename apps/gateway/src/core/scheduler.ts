@@ -62,8 +62,8 @@ export class Scheduler {
   start(): void {
     this.#timer ??= setInterval(() => {
       if (this.#ticking) return;
-      this.#running = this.tick().catch((error: unknown) =>
-        this.#host.log(`scheduler tick failed: ${error instanceof Error ? error.message : String(error)}`),
+      this.#running = this.tick().catch((cause: unknown) =>
+        this.#host.log(`scheduler tick failed: ${cause instanceof Error ? cause.message : String(cause)}`),
       );
     }, this.#tickMs);
   }

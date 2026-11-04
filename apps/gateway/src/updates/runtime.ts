@@ -259,9 +259,9 @@ export class GatewayUpdates {
         throw new ConnectError("Release does not support the frozen update protocol", Code.FailedPrecondition);
       this.#state = "waiting_idle";
       this.#reason = "Waiting for active turns to finish";
-      void this.#updateGateway(manifest, request).catch((error: unknown) => {
+      void this.#updateGateway(manifest, request).catch((cause: unknown) => {
         this.#state = "failed";
-        this.#reason = error instanceof Error ? error.message : "Gateway update failed";
+        this.#reason = cause instanceof Error ? cause.message : "Gateway update failed";
       });
     } else if (request.action === "worker" || request.action === "all") {
       const workers = await this.options.persistence.workers();
@@ -361,9 +361,9 @@ export class GatewayUpdates {
 
       return this.#queue(worker, false, false);
     })()
-      .catch((error: unknown) => {
+      .catch((cause: unknown) => {
         this.options.log?.(
-          `worker update unavailable: ${error instanceof Error ? error.message : "release resolution failed"}`,
+          `worker update unavailable: ${cause instanceof Error ? cause.message : "release resolution failed"}`,
         );
 
         return undefined;

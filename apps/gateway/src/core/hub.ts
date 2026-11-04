@@ -10,7 +10,7 @@ export class Hub {
   readonly #threads = new Map<string, Set<AsyncChannel<ui.ThreadUpdate>>>();
   readonly #overview = new Set<AsyncChannel<ui.OverviewUpdate>>();
 
-  subscribeThread(threadId: string): { updates: AsyncChannel<ui.ThreadUpdate>; close: () => void } {
+  subscribeThread(threadId: string) {
     const channel = new AsyncChannel<ui.ThreadUpdate>();
     const set = this.#threads.get(threadId) ?? new Set();
     set.add(channel);
@@ -27,7 +27,7 @@ export class Hub {
     };
   }
 
-  subscribeOverview(): { updates: AsyncChannel<ui.OverviewUpdate>; close: () => void } {
+  subscribeOverview() {
     const channel = new AsyncChannel<ui.OverviewUpdate>();
     this.#overview.add(channel);
 

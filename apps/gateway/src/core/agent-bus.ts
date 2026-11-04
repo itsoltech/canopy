@@ -13,7 +13,7 @@ import {
   type SpawnResolution,
   type SpawnTarget,
 } from "@canopy/domain";
-import { Result, type Effect } from "effect";
+import { Match, Predicate, Result, Schema, type Effect } from "effect";
 import {
   AgentBusStore,
   GatewayStore,
@@ -108,7 +108,7 @@ export class AgentBus {
 
     const decoded = decodeAgentBusCall(request.toolName, request.argumentsJson);
 
-    const refuse = async (reason: string, args: unknown = {}) => {
+    const refuse = async (reason: string, args: JsonValue | AgentBusCall["args"] = {}) => {
       // The record is for audit and idempotency; the model gets its answer even if storing fails
       // (e.g. a call naming a thread the gateway does not know).
       if (isAgentBusTool(request.toolName)) {
@@ -116,7 +116,7 @@ export class AgentBus {
           .run(
             AgentBusStore.use((s) => s.recordCall({ source, tool: request.toolName, args, ok: false, error: reason })),
           )
-          .catch((error: unknown) => console.error("agent bus: refused call not recorded", error));
+          .catch((cause: unknown) => console.error("agent bus: refused call not recorded", cause));
       }
 
       return failure(request.callId, reason);
@@ -259,7 +259,11 @@ export class AgentBus {
           requestId: interaction.requestId,
           maxHops: DEFAULT_BUS_LIMITS.maxHops,
           input: (thread) => {
-            const kind = interaction.kind === 1 ? "permission" : interaction.kind === 2 ? "question" : "form";
+            const kind = Match.value(interaction.kind).pipe(
+              Match.when(1, () => "permission"),
+              Match.when(2, () => "question"),
+              Match.orElse(() => "form"),
+            );
 
             const how =
               kind === "permission"
@@ -317,7 +321,7 @@ export class AgentBus {
       case "get_answers":
         return this.#answers(source, call.args.question_set_id, call.args.wait ?? false);
       case "list_agents":
-        return agentCatalog(callerTarget(caller), await this.#host.spawnInstances(caller)) as unknown as JsonValue;
+        return agentCatalog(callerTarget(caller), await this.#host.spawnInstances(caller));
       case "spawn_thread": {
         const { thread, turn, result } = await store((s) => s.spawn({ source, caller, args: call.args, target, hops }));
         await this.#host.startThread(thread);
@@ -345,13 +349,13 @@ export class AgentBus {
           const ready = threads.map((t) => t.settled || t.waiting_for_parent > 0);
           const done = all ? ready.every(Boolean) : ready.some(Boolean);
 
-          if (done || Date.now() >= deadline) return { done, threads: threads as unknown as JsonValue };
+          if (done || Date.now() >= deadline) return { done, threads: threads.map((thread) => ({ ...thread })) };
           await Bun.sleep(Math.min(WAIT_POLL_MS, Math.max(0, deadline - Date.now())));
         }
       }
 
       case "get_thread":
-        return (await store((s) => s.summary(call.args.thread_id))) as unknown as JsonValue;
+        return { ...(await store((s) => s.summary(call.args.thread_id))) };
       case "read_thread": {
         const { result, observedTurnIds } = await store((s) =>
           s.readThread({
@@ -376,9 +380,9 @@ export class AgentBus {
         };
 
         return {
-          threads: (await store((s) =>
-            s.listThreads(caller, call.args.scope ?? "children", options),
-          )) as unknown as JsonValue,
+          threads: (await store((s) => s.listThreads(caller, call.args.scope ?? "children", options))).map(
+            (thread) => ({ ...thread }),
+          ),
         };
       }
 
@@ -395,7 +399,7 @@ export class AgentBus {
 
         return { thread_id: call.args.thread_id, closed: true };
       case "list_interactions":
-        return { interactions: [...(await store((s) => s.parentInteractions(caller.id)))] as unknown as JsonValue };
+        return { interactions: [...(await store((s) => s.parentInteractions(caller.id)))] };
       case "answer_interaction": {
         const { request_id: requestId, response } = call.args;
 
@@ -509,9 +513,7 @@ export class AgentBus {
       const result = await this.#host.run(AgentBusStore.use((s) => s.getAnswers(source, id, true)));
 
       if (
-        !result ||
-        typeof result !== "object" ||
-        Array.isArray(result) ||
+        !Predicate.isObject(result) ||
         result["status"] !== "pending" ||
         result["waiting"] === false ||
         Date.now() >= deadline
@@ -525,7 +527,11 @@ export class AgentBus {
 /** What the calling thread runs on: a subagent's default. */
 function callerTarget(thread: ThreadRow): SpawnTarget {
   return {
-    harness: thread.provider === "claude" ? "claude" : thread.provider === "grok" ? "grok" : "codex",
+    harness: Match.value(thread.provider).pipe(
+      Match.when("claude", () => "claude" as const),
+      Match.when("grok", () => "grok" as const),
+      Match.orElse(() => "codex" as const),
+    ),
     instance: thread.provider_profile_id || "native",
     model: thread.settings.model ?? "",
     effort: thread.settings.effort ?? "",
@@ -538,9 +544,7 @@ class BusRefusal extends Error {
 }
 
 function scheduleIdOf(result: JsonValue): string | undefined {
-  return result && typeof result === "object" && !Array.isArray(result) && typeof result["schedule_id"] === "string"
-    ? result["schedule_id"]
-    : undefined;
+  return Predicate.isObject(result) && Predicate.isString(result["schedule_id"]) ? result["schedule_id"] : undefined;
 }
 
 function targetsOf(call: AgentBusCall): string[] {
@@ -579,9 +583,9 @@ function failure(callId: string, reason: string): AgentToolResult {
   });
 }
 
-function safeJson(text: string): unknown {
+function safeJson(text: string): JsonValue {
   try {
-    return JSON.parse(text);
+    return Schema.decodeUnknownSync(Schema.MutableJson)(JSON.parse(text));
   } catch {
     return { raw: truncate(text, 2_000) };
   }
