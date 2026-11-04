@@ -11,6 +11,9 @@ import type { CoreRuntime } from "./core.ts";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const secret = () => randomBytes(32).toString("base64url");
+
+// Pasted into `canopy-worker enroll --token …`: a base64url value may start with "-", which CLI parsers read as a flag.
+const enrollmentSecret = () => `canopy_enroll_${secret()}`;
 const uuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 type EnrollmentRow = {
@@ -92,7 +95,7 @@ export class WorkerAdministration {
   async create(name: string): Promise<ui.CreateWorkerEnrollmentResponse> {
     name = machineName(name);
     const { runtime, userId } = this.options;
-    const token = secret();
+    const token = enrollmentSecret();
 
     const enrollment = await runtime.runPromise(
       Effect.gen(function* () {
@@ -169,7 +172,7 @@ export class WorkerAdministration {
     const invalid = () =>
       new ConnectError("Enrollment token is invalid, expired, revoked or already used", Code.Unauthenticated);
 
-    if (!/^[A-Za-z0-9_-]{43}$/.test(request.enrollmentToken)) throw invalid();
+    if (!/^canopy_enroll_[A-Za-z0-9_-]{43}$/.test(request.enrollmentToken)) throw invalid();
     const host = request.host;
 
     if (

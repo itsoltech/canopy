@@ -141,6 +141,26 @@ describe.skipIf(!dockerAvailable)("worker enrollment and credential lifecycle ov
     );
 
     expect(await duplicate.exited).toBe(78);
+
+    // Every enrollment token is prefixed, and a value that starts with "-" is still read as the option's value.
+    expect(unused.token).toStartWith("canopy_enroll_");
+
+    const dashValue = Bun.spawn(
+      [
+        process.execPath,
+        fileURLToPath(new URL("../../apps/worker/src/main.ts", import.meta.url)),
+        "enroll",
+        "--gateway",
+        gw.grpcUrl,
+        "--token",
+        "-not-a-real-token",
+        "--config",
+        join(dir, "dash-value.json"),
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+
+    expect(await dashValue.exited).toBe(78);
     expect(readFileSync(configPath, "utf8")).toBe(configBefore);
     expect(
       (await gw.api.getWorkerSetup({})).enrollments.find((e) => e.id === unused.enrollment!.id)?.usedAt,
