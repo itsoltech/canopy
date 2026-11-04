@@ -1,91 +1,9 @@
-import { api, dispatchRelease, git, pages, repository } from "./release-github.ts";
-import type { JsonValue } from "@canopy/domain";
-
-export interface PromotionRelease {
-  tag_name: string;
-  draft: boolean;
-  prerelease: boolean;
-  published_at: string;
-  assets: { name: string; updated_at: string }[];
-}
-
-interface ReleaseRun {
-  head_sha: string;
-  head_branch: string;
-  status: string;
-  conclusion: string | null;
-}
-
-interface Issue {
-  number: number;
-  title: string;
-  pull_request?: JsonValue;
-}
-
-function isRun(value: unknown): value is ReleaseRun {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    "head_sha" in value &&
-    typeof value.head_sha === "string" &&
-    "head_branch" in value &&
-    typeof value.head_branch === "string" &&
-    "status" in value &&
-    typeof value.status === "string" &&
-    "conclusion" in value &&
-    (value.conclusion === null || typeof value.conclusion === "string")
-  );
-}
-
-function isRuns<T>(value: T): value is T & { workflow_runs: ReleaseRun[] } {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    "workflow_runs" in value &&
-    Array.isArray(value.workflow_runs) &&
-    value.workflow_runs.every(isRun)
-  );
-}
-
-function isIssue<T>(value: T): value is T & Issue {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    "number" in value &&
-    typeof value.number === "number" &&
-    "title" in value &&
-    typeof value.title === "string"
-  );
-}
-
-function isReleaseAsset(value: unknown): value is PromotionRelease["assets"][number] {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    "name" in value &&
-    typeof value.name === "string" &&
-    "updated_at" in value &&
-    typeof value.updated_at === "string"
-  );
-}
-
-function isPromotionRelease<T>(value: T): value is T & PromotionRelease {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    "tag_name" in value &&
-    typeof value.tag_name === "string" &&
-    "draft" in value &&
-    typeof value.draft === "boolean" &&
-    "prerelease" in value &&
-    typeof value.prerelease === "boolean" &&
-    "published_at" in value &&
-    typeof value.published_at === "string" &&
-    "assets" in value &&
-    Array.isArray(value.assets) &&
-    value.assets.every(isReleaseAsset)
-  );
-}
+import { appendFileSync } from "node:fs";
+import { api, git, pages, repository } from "./release-github.ts";
+import { loadPromotion, promotionBranches, promotionIssues, type PromotionAdapters } from "./promotion-data.ts";
+import { DAY, selectPromotion, type PromotionInput, type PromotionPlan } from "./promotion-policy.ts";
+import { forecastPromotion, forecastPromotionWindow } from "./promotion-version.mjs";
+import { finishPromotion, preparePromotion, resumePromotion } from "./promotion-journal.ts";
 
 export function burnInDays(value: string): number {
   if (!/^\d+$/.test(value) || Number(value) > 365) throw new Error("Burn-in must be an integer between 0 and 365 days");
@@ -93,124 +11,177 @@ export function burnInDays(value: string): number {
   return Number(value);
 }
 
-export function verifyBetaAge(release: PromotionRelease, days: number, now = Date.now()): void {
-  const manifest = release.assets.find((asset) => asset.name === "manifest.json");
+export function promotionSummary(input: PromotionInput, plan: PromotionPlan, version?: string): string {
+  const [source, target] = promotionBranches(input.path);
 
-  if (!manifest) throw new Error("Release assets are not ready");
-  const since = Math.max(Date.parse(release.published_at), Date.parse(manifest.updated_at));
+  const lines = [
+    `### Promotion ${source} → ${target}`,
+    `- Soak: ${input.soakMs / 3_600_000} h; evaluated at ${new Date(input.now).toISOString()}`,
+    `- Target: ${input.target}`,
+    `- Candidate C0: ${plan.initial}`,
+    `- Final C: ${plan.sha}`,
+    `- Expected version: ${version ?? "none (no release)"}; Release recomputes before publishing`,
+    `- Decision: ${plan.reason}`,
+    "",
+    "Included commits:",
+    ...plan.included.map((commit) => `- ${commit.sha} ${commit.message.split("\n")[0]}`),
+    "",
+    "Held commits (each holds the entire suffix):",
+    ...plan.holds.map((hold) => `- ${hold.sha}: ${hold.reason}; eligible since ${new Date(hold.since).toISOString()}`),
+    "",
+    "Excluded suffix:",
+    ...input.commits.slice(plan.included.length).map((commit) => `- ${commit.sha} ${commit.message.split("\n")[0]}`),
+    "",
+    "Dev changes not yet on beta (follow-up signals only):",
+    ...(input.pendingFixes ?? []).map((commit) => `- ${commit.sha} ${commit.message.split("\n")[0]}`),
+    "",
+    "Smoke evidence: successful Release on the exact commit (CI, binary startup on all server targets, publication). No human live/update confirmation.",
+  ];
 
-  if (!Number.isFinite(since) || now - since < days * 86_400_000)
-    throw new Error(`Beta needs at least ${days} days of burn-in after assets are ready`);
+  return `${lines.join("\n")}\n`;
 }
 
-function sourceAndTarget(path: string): ["dev" | "next", "next" | "main"] {
-  if (path === "dev-next") return ["dev", "next"];
-
-  if (path === "next-main") return ["next", "main"];
-  throw new Error("Choose dev-next or next-main");
-}
-
-export function candidate(repo: string, path: string, days: number) {
-  const [source, target] = sourceAndTarget(path);
-  git("fetch", "origin", source, target, "--tags", "--force");
-  const sha = git("rev-parse", `origin/${source}`);
-  const targetSha = git("rev-parse", `origin/${target}`);
-
-  if (sha === targetSha) throw new Error("Target already contains the source head");
-  git("merge-base", "--is-ancestor", targetSha, sha);
-  const prefix = source === "dev" ? "nightly" : "beta";
-
-  const tag = git("tag", "--points-at", sha, "--list", "v*")
-    .split("\n")
-    .find((name) => new RegExp(`^v\\d+\\.\\d+\\.\\d+-${prefix}\\.\\d+$`).test(name));
-
-  if (!tag) throw new Error(`Source HEAD must be a published ${prefix} tag; select that commit before promotion`);
-
-  const response = api(
-    `repos/${repo}/actions/workflows/release.yml/runs?branch=${source}&head_sha=${sha}&per_page=100`,
+function attributionSummary(input: PromotionInput): string {
+  const rows = [...input.commits, ...(input.pendingFixes ?? [])].flatMap((commit) =>
+    commit.attributions.map(
+      (item) => `- ${commit.sha} → ${item.sha}: ${item.file}:${item.lines.join(",")} (${item.kind})`,
+    ),
   );
 
-  if (!isRuns(response)) throw new Error("Invalid Release workflow run list");
-  const runs = response.workflow_runs;
-
-  const run = runs.find((item) => item.head_sha === sha && item.head_branch === source);
-
-  if (!run || run.status !== "completed" || run.conclusion !== "success")
-    throw new Error("The latest Release run (including CI) on source HEAD must be green");
-
-  const blockers = pages(`repos/${repo}/issues?state=open&labels=release-blocker&per_page=100`);
-
-  if (!blockers.every(isIssue)) throw new Error("Invalid release-blocker issue list");
-
-  if (blockers.some((issue) => !issue.pull_request)) throw new Error("Open release-blocker issues prevent promotion");
-  const release = api(`repos/${repo}/releases/tags/${tag}`);
-
-  if (!isPromotionRelease(release)) throw new Error("Invalid source release");
-
-  if (release.draft || !release.prerelease || !release.assets.some((asset) => asset.name === "manifest.json"))
-    throw new Error("Source prerelease must have a complete manifest");
-
-  if (target === "main") verifyBetaAge(release, days);
-
-  return { source, target, sha, release };
+  return `\nLine attribution (fallback only; owners outside the candidate range cannot hold it):\n${rows.join("\n")}\n`;
 }
 
-function promote(repo: string, path: string, days: number, automatic = false): void {
-  const selected = candidate(repo, path, days);
+function updateStarvationIssue(repo: string, path: string, body: string, adapters: PromotionAdapters): void {
+  const title = `Promotion stalled: ${path}`;
+  const existing = promotionIssues(repo, adapters).find((issue) => issue.title === title);
 
-  if (automatic) {
-    if (selected.source !== "dev" || process.env["NIGHTLY_SMOKE_SHA"] !== selected.sha)
-      throw new Error("Automatic beta promotion needs NIGHTLY_SMOKE_SHA equal to the source head");
-  } else {
-    if (process.env["LIVE_SMOKE"] !== "true") throw new Error("Confirm live smoke before promotion");
-
-    if (selected.target === "main" && process.env["UPDATE_SMOKE"] !== "true")
-      throw new Error("Confirm updates/self-update smoke before stable promotion");
-  }
-
-  // No force: a concurrent target change fails safely. Source is pinned to the validated SHA.
-  git("push", "origin", `${selected.sha}:refs/heads/${selected.target}`);
-  dispatchRelease(repo, selected.target, selected.sha);
-  console.log(`Promoted ${selected.source} → ${selected.target}: ${selected.sha}`);
+  if (!existing) adapters.api(`repos/${repo}/issues`, "POST", { title, body });
+  else adapters.api(`repos/${repo}/issues/${existing.number}`, "PATCH", { body });
 }
 
-function recommend(repo: string, days: number): void {
-  let selected: ReturnType<typeof candidate>;
+export interface PromotionOptions {
+  dryRun: boolean;
+  paused: boolean;
+  override: boolean;
+  burnIn: number;
+}
 
-  try {
-    selected = candidate(repo, "next-main", days);
-  } catch (error) {
-    console.log(`No stable promotion candidate: ${error instanceof Error ? error.message : error}`);
+export async function runPromotion(
+  repo: string,
+  path: PromotionInput["path"],
+  options: PromotionOptions,
+  adapters: PromotionAdapters,
+  now = Date.now(),
+) {
+  const [source, target] = promotionBranches(path);
+  const input = loadPromotion(repo, path, path === "dev-next" ? DAY : options.burnIn * DAY, adapters, now);
+  input.paused = options.paused && !options.override;
 
-    return;
+  // Override bypasses timing and PR holds; CI, publication, blockers, follow-ups and FF remain mandatory.
+  if (options.override) {
+    input.soakMs = 0;
+
+    for (const commit of input.commits) commit.prs = commit.prs.map((pr) => ({ ...pr, hold: false }));
   }
 
-  const title = `Promote next → main (beta ${selected.release.tag_name.slice(1)})`;
-  const body = `Beta: ${selected.release.tag_name}\nSource: ${selected.sha}\n\n- [x] Target is an ancestor of source\n- [x] Release CI on source HEAD is green\n- [x] Beta assets available for at least ${days} days\n- [x] No open release-blocker issues\n- [ ] Live smoke green\n- [ ] Updates/self-update smoke green\n- [ ] Maintainer runs [Promote](https://github.com/${repo}/actions/workflows/promote.yml) with next-main and both smoke confirmations\n\nThe workflow rechecks all conditions. This issue never promotes stable automatically.`;
+  const plan = selectPromotion(input);
+  const version = await forecastPromotion(input, plan, adapters.git);
 
-  const issues = pages(`repos/${repo}/issues?state=open&creator=github-actions%5Bbot%5D&per_page=100`);
+  if (!version && plan.sha !== input.target) {
+    plan.sha = input.target;
+    plan.included = [];
+    plan.reason = "No release-producing commits (or stable bootstrap missing)";
+  }
 
-  if (!issues.every(isIssue)) throw new Error("Invalid promotion issue list");
+  const next = options.dryRun ? await forecastPromotionWindow(input, plan, adapters.git) : undefined;
 
-  const existing = issues.find((issue) => !issue.pull_request && issue.title.startsWith("Promote next → main (beta "));
+  const schedule = next
+    ? `\nTime-only forecast (same CI/labels/history snapshot): eligible ${new Date(next.at).toISOString()}; next scheduled cycle ${new Date(Math.ceil(next.at / 10_800_000) * 10_800_000).toISOString()}; ${next.sha}; ${next.version}.\n`
+    : "";
 
-  if (existing) api(`repos/${repo}/issues/${existing.number}`, "PATCH", { title, body });
-  else api(`repos/${repo}/issues`, "POST", { title, body });
+  const summary = promotionSummary(input, plan, version) + schedule;
+  // Full blame evidence can exceed an issue's 65,536-character body limit. Keep it in the log/job summary;
+  // the durable issue retains the decision, included/excluded commits and relevant hold reasons.
+  const attribution = attributionSummary(input);
+  console.log(summary);
+  console.log(attribution);
+  const summaryPath = process.env["GITHUB_STEP_SUMMARY"];
+
+  if (summaryPath) appendFileSync(summaryPath, summary + attribution);
+
+  if (options.dryRun) return { input, plan, version, next };
+
+  if (resumePromotion(repo, input, adapters, options.override)) {
+    if (summaryPath)
+      appendFileSync(
+        summaryPath,
+        "Handled pending Release (re-dispatched or held after rechecking its original range); no new promotion in this cycle.\n",
+      );
+
+    return { input, plan, version };
+  }
+
+  if (plan.starved) updateStarvationIssue(repo, path, summary, adapters);
+
+  if (plan.sha === input.target) return { input, plan, version };
+
+  // Recheck refs and gates immediately before writing. No force, lease or backwards movement.
+  adapters.git("fetch", "origin", "dev", source, target);
+
+  if (
+    adapters.git("rev-parse", `origin/${target}`) !== input.target ||
+    adapters.git("rev-parse", `origin/${source}`) !== input.commits.at(-1)?.sha
+  )
+    throw new Error("Branch moved during selection; retry next cycle");
+  adapters.git("merge-base", "--is-ancestor", input.target, plan.sha);
+  adapters.git("merge-base", "--is-ancestor", plan.sha, `origin/${source}`);
+  const rechecked = loadPromotion(repo, path, input.soakMs, adapters, now);
+  rechecked.paused = input.paused;
+
+  if (options.override)
+    for (const commit of rechecked.commits) commit.prs = commit.prs.map((pr) => ({ ...pr, hold: false }));
+
+  if (selectPromotion(rechecked).sha !== plan.sha) throw new Error("Promotion gates changed during selection");
+  // Durable intent recovers a successful push followed by a failed dispatch on the next scheduled cycle.
+  const issue = preparePromotion(repo, path, plan.sha, summary, adapters);
+  adapters.git("push", "origin", `${plan.sha}:refs/heads/${target}`);
+  finishPromotion(repo, target, plan.sha, issue, adapters);
+  console.log(`Promoted ${source} → ${target}: ${plan.sha}`);
+
+  return { input, plan, version };
 }
 
 if (import.meta.main) {
   const repo = repository();
-  const days = burnInDays(process.env["BURN_IN_DAYS"] || "3");
+  const automatic = process.argv.includes("--automatic");
 
-  if (process.argv.includes("--recommend")) {
-    recommend(repo, days);
+  const paths: PromotionInput["path"][] = automatic
+    ? ["next-main", "dev-next"]
+    : [process.env["PROMOTION_PATH"] === "dev-next" ? "dev-next" : "next-main"];
 
-    if (process.env["AUTO_PROMOTE_DEV_TO_NEXT"] === "true") {
-      try {
-        promote(repo, "dev-next", days, true);
-      } catch (error) {
-        console.log(`No automatic beta promotion: ${error instanceof Error ? error.message : error}`);
-      }
+  if (!automatic) promotionBranches(process.env["PROMOTION_PATH"] ?? "");
+  git("fetch", "origin", "dev", "next", "main", "--tags");
+
+  const options: PromotionOptions = {
+    dryRun: process.argv.includes("--dry-run") || process.env["DRY_RUN"] === "true",
+    paused: process.env["AUTO_PROMOTION"] === "off",
+    override: !automatic && process.env["PROMOTION_OVERRIDE"] === "true",
+    burnIn: burnInDays(process.env["BURN_IN_DAYS"] || "3"),
+  };
+
+  let failed = false;
+
+  for (const path of paths) {
+    try {
+      await runPromotion(repo, path, options, { git, api, pages });
+    } catch (error) {
+      failed = true;
+      const message = `Promotion ${path} failed: ${error instanceof Error ? error.message : error}\n`;
+      console.error(message);
+
+      if (process.env["GITHUB_STEP_SUMMARY"]) appendFileSync(process.env["GITHUB_STEP_SUMMARY"], message);
     }
-  } else promote(repo, process.env["PROMOTION_PATH"] ?? "", days);
+  }
+
+  if (failed) process.exitCode = 1;
 }

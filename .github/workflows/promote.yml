@@ -12,19 +12,30 @@ on:
         type: number
         default: 3
       live_smoke:
-        description: Live smoke on the selected source head is green
+        description: Legacy confirmation (automated Release smoke now gates promotion)
         type: boolean
         default: false
       update_smoke:
-        description: Updates/self-update smoke is green (required for stable)
+        description: Legacy confirmation (not required by automatic promotion)
+        type: boolean
+        default: false
+      dry_run:
+        description: Print the plan without pushing, dispatching or writing issues
+        type: boolean
+        default: true
+      override:
+        description: Bypass soak, pause and promotion-hold (CI, blockers and FF still enforced)
         type: boolean
         default: false
 permissions:
   contents: write
   actions: write
+  issues: write
 concurrency:
   group: release-branch-mutations
   cancel-in-progress: false
+env:
+  BUN_VERSION: 1.4.4
 jobs:
   promote:
     runs-on: ubuntu-24.04
@@ -33,14 +44,16 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v5
         with:
-          bun-version: 1.4.4
+          node-version: 24
+      - uses: ./.github/actions/setup-bun
       - name: Verify and fast-forward
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROMOTION_PATH: ${{ inputs.promotion }}
           BURN_IN_DAYS: ${{ inputs.burn_in_days }}
-          LIVE_SMOKE: ${{ inputs.live_smoke }}
-          UPDATE_SMOKE: ${{ inputs.update_smoke }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PROMOTION_OVERRIDE: ${{ inputs.override }}
+          AUTO_PROMOTION: ${{ vars.AUTO_PROMOTION }}
         run: bun scripts/promote.ts

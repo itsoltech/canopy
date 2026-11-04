@@ -7,7 +7,7 @@
    tworzy kilkudziesięciu wpisów w notatkach wydania.
 2. Pilny hotfix kieruj do **main**. Po stable workflow przenosi go do next i dev commitami merge;
    przy konflikcie maintainer dostaje PR. Nie pomijaj tego kroku przed kolejną promocją.
-3. Nie kieruj feature PR do next/main. **Promote** przesuwa dev → next → main pushami
+3. Nie kieruj feature PR do next/main. **Automatic promotion** przesuwa dev → next → main pushami
    fast-forward. To wyjątek od scalania feature PR przez squash, opisany w [release.md](release.md).
 
 ## Commit i tytuł PR — Angular
@@ -46,6 +46,42 @@ Nie używaj skrótu `feat!:` — konfiguracja używa parsera Angular i wymaga po
 Stopkę zachowaj w body końcowego squash commita w dialogu merge PR. Sam tytuł nie przenosi
 opisu niezgodności. W **0.x breaking zwiększa minor**; od 1.0.0 zwiększa major.
 Notatki wydania trafiają do GitHub Releases, nie do commitowanego CHANGELOG-a.
+
+### Jawne powiązanie poprawki z wcześniejszą zmianą
+
+Jeżeli `fix`, `perf` lub revert naprawia zmianę już scaloną wcześniej, dodaj w body PR lub
+commita osobną linię ze wskazaniem **oryginalnego PR** albo SHA squash commita. Zachowaj ją
+w body końcowego squasha. Preferowane formy:
+
+```text
+fix(worker): handle reconnect after suspend
+
+Fixes: #68
+```
+
+```text
+perf(worker): avoid repeated reconnect work
+
+Refs: abc1234567890
+```
+
+Revert zachowuje standardową linię `This reverts commit abc1234567890.`. Parser akceptuje
+SHA o długości 7–40 znaków hex (pełne SHA jest preferowane), `Refs: #68`, `Refs #68`,
+`follow-up to #68` oraz słowa zamykające GitHuba: `fix`, `fixes`, `fixed`, `close`, `closes`,
+`closed`, `resolve`, `resolves`, `resolved` z opcjonalnym dwukropkiem, np. `Fixes #68`.
+Szablon PR zawiera opcjonalną linię `Fixes an earlier change: #68`, również rozpoznawaną.
+Każde odwołanie zajmuje osobną linię; zwykła wzmianka w zdaniu nie jest powiązaniem.
+Używaj numeru PR z tego repozytorium, nie numeru zgłoszenia błędu.
+
+Promocja wstrzymuje oryginalną zmianę i cały późniejszy fragment historii, dopóki jej
+poprawka nie przejdzie okresu stabilizacji. Jawne linki działają niezależnie od plików
+i wieku oryginału. Awaryjna heurystyka używa `git blame` dla zmienionych/usuniętych linii
+sprzed poprawki, tylko do 7 dni po oryginale. Ignoruje zmiany samego whitespace i śledzi
+przeniesione linie. Dla samych dopisków sprawdza linie bezpośrednio nad/pod miejscem
+wstawienia: przypisuje zmianę tylko przy zgodnym pochodzeniu; niejednoznaczny kontekst
+nie tworzy powiązania. Pomija pliki współdzielone/generowane i commity już wydane. Pełna lista
+wyjątków i okresy kanałów: [release.md](release.md#promocja-i-okres-stabilizacji-burn-in).
+Nie polegaj wyłącznie na heurystyce linii. Commitlint dopuszcza powyższe stopki.
 
 ## Lokalna kontrola
 

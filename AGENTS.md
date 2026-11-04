@@ -22,7 +22,8 @@ Short rules for agents working in this repository. Details live in `docs/` (most
   - `dev`: default branch, **nightly** channel.
   - `next`: **beta**.
   - `main`: **stable**.
-- Branch off `dev` and open PRs into `dev`. Never push to `next`/`main`, never create tags; promotions (Promote workflow) and releases belong to the maintainer.
+- Branch off `dev` and open PRs into `dev`. Never push to `next`/`main`, never create tags; scheduled promotion/release workflows own these operations, with maintainer overrides via Promote.
+- A `fix`/`perf`/revert correcting an earlier merged change must link it in the commit/PR body: `Fixes: #68` (original PR) or `Refs: <sha>`; reverts keep `This reverts commit <sha>`. Automatic promotion holds the original until its fix has soaked; changed-line blame is only a fallback.
 - Merges are **squash merges**: one Angular commit per feature. The PR title becomes the commit.
 - `dev` only gets complete, working features: it feeds beta and stable. A plan with several stages ships as **stacked PRs** (`gh stack`, extension `github/gh-stack`):
   - each stage is its own PR, based on the previous stage's branch; the bottom one targets `dev`,

@@ -1,8 +1,13 @@
-name: Promotion review
+name: Automatic promotion
 on:
   schedule:
-    - cron: "0 9 * * 1"
+    - cron: "0 */3 * * *"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print both promotion plans without mutations
+        type: boolean
+        default: true
 permissions:
   contents: write
   issues: write
@@ -10,6 +15,8 @@ permissions:
 concurrency:
   group: release-branch-mutations
   cancel-in-progress: false
+env:
+  BUN_VERSION: 1.4.4
 jobs:
   review:
     runs-on: ubuntu-24.04
@@ -18,13 +25,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v5
         with:
-          bun-version: 1.4.4
-      - name: Recommend stable; optionally promote a smoke-tested nightly to beta
+          node-version: 24
+      - uses: ./.github/actions/setup-bun
+      - name: Promote stable, then beta
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BURN_IN_DAYS: ${{ vars.BETA_BURN_IN_DAYS || '3' }}
-          AUTO_PROMOTE_DEV_TO_NEXT: ${{ vars.AUTO_PROMOTE_DEV_TO_NEXT }}
-          NIGHTLY_SMOKE_SHA: ${{ vars.NIGHTLY_SMOKE_SHA }}
-        run: bun scripts/promote.ts --recommend
+          AUTO_PROMOTION: ${{ vars.AUTO_PROMOTION }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: bun scripts/promote.ts --automatic
