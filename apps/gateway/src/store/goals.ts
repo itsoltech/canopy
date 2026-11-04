@@ -1,4 +1,4 @@
-import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { create, toJson } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { GoalStateSchema, ui, type GoalState } from "@canopy/contracts";
 import { goalStatusAfterFailure, goalStatusFromHarness, isFinished, type GoalStatus } from "@canopy/domain";
@@ -133,7 +133,7 @@ export const applyGoalState = (sql: SqlClient.SqlClient, threadId: string, turnI
           )
         : Math.max(goal.turns_used, state.iterations);
 
-    const native = JSON.stringify(toJson(GoalStateSchema, state) as JsonValue);
+    const native = JSON.stringify(toJson(GoalStateSchema, state));
     yield* sql`
       UPDATE goals SET status = ${status},
                        native_status = ${cleared ? "cleared" : state.nativeStatus || goal.native_status},

@@ -21,7 +21,7 @@ import {
   stoppedByUser,
 } from "@canopy/domain";
 import { timestampDate, timestampNow } from "@bufbuild/protobuf/wkt";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Option, Schema } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { applyGoalState } from "./goals.ts";
 
@@ -40,6 +40,16 @@ import { applyGoalState } from "./goals.ts";
  * reported, nothing of a finished turn stays open. It writes its fixes as gateway events (origin = gateway, the
  * audit reason in raw), so the UI applies them like any event.
  */
+
+/** A worker's steer_dropped notice names the dropped steer as input_id. */
+const decodeSteerDropped = Schema.decodeUnknownOption(Schema.Struct({ input_id: Schema.optional(Schema.String) }));
+
+/** How a turn ended, as stored on the turn. */
+interface TurnEnd {
+  status: "completed" | "interrupted" | "failed";
+  errorSource: "platform" | "harness" | null;
+  interruptSource: "user" | "system" | null;
+}
 
 export interface StoredEvent {
   readonly threadId: string;
@@ -315,11 +325,11 @@ export class Ingest extends Context.Service<
               FROM turn_steers s WHERE s.id = ${steerId}::uuid AND s.thread_id = ${threadId}::uuid
                 AND s.status = 'delivered' AND s.notification_call_id = c.id AND c.notify_status = 'steering'`;
           } else if (body.case === "notice" && body.value.code === "steer_dropped") {
-            steerId = (JSON.parse(body.value.dataJson || "{}") as { input_id?: unknown }).input_id as
-              | string
-              | undefined;
+            const data = decodeSteerDropped(JSON.parse(body.value.dataJson || "{}"));
+            const inputId = Option.isSome(data) ? data.value.input_id : undefined;
 
-            if (typeof steerId !== "string" || !isUuid(steerId)) return;
+            if (inputId === undefined || !isUuid(inputId)) return;
+            steerId = inputId;
             yield* sql`
               UPDATE turn_steers SET status = 'dropped', reason = 'the turn ended before the message could join it', updated_at = now()
                WHERE id = ${steerId}::uuid AND thread_id = ${threadId}::uuid AND status IN ('pending', 'accepted')
@@ -521,14 +531,7 @@ export class Ingest extends Context.Service<
  * Status and source of a turn end. A worker without sources (UNSPECIFIED) reports interruptions it was asked for
  * and errors of its harness, so those are the defaults.
  */
-export function turnEnd(
-  outcome: TurnOutcome,
-  source: TurnEndSource,
-): {
-  status: "completed" | "interrupted" | "failed";
-  errorSource: "platform" | "harness" | null;
-  interruptSource: "user" | "system" | null;
-} {
+export function turnEnd(outcome: TurnOutcome, source: TurnEndSource): TurnEnd {
   switch (outcome) {
     case TurnOutcome.COMPLETED:
       return { status: "completed", errorSource: null, interruptSource: null };

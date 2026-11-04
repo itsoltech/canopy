@@ -12,7 +12,8 @@ import { SqlClient, type SqlError } from "effect/sql";
 interface Row {
   worker_id: string;
   config_version: bigint | number;
-  profiles: JsonValue;
+  /** jsonb written by `save`: an array of ProfileModels in protobuf JSON form. */
+  profiles: JsonValue[];
   updated_at: Date;
 }
 
@@ -37,9 +38,7 @@ export class ModelStore extends Context.Service<
         create(ui.WorkerModelsSchema, {
           workerId: row.worker_id,
           configVersion: BigInt(row.config_version),
-          profiles: (row.profiles as JsonValue[]).map((p) =>
-            fromJson(ProfileModelsSchema, p, { ignoreUnknownFields: true }),
-          ),
+          profiles: row.profiles.map((p) => fromJson(ProfileModelsSchema, p, { ignoreUnknownFields: true })),
           updatedAt: timestampFromDate(new Date(row.updated_at)),
         });
 

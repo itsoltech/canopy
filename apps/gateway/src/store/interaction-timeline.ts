@@ -1,7 +1,7 @@
 import { create, toJson } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { InteractionKind, ItemSchema, ItemStatus, ThreadEventSchema } from "@canopy/contracts";
-import { Effect } from "effect";
+import { Effect, Match } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { InteractionRow } from "./store.ts";
 
@@ -10,7 +10,7 @@ export function writeInteractionTimeline(sql: SqlClient.SqlClient, row: Interact
   return Effect.gen(function* () {
     const itemId = `interaction-${row.id}`;
     const pending = row.status === "pending";
-    const response = row.response as { answerJson?: string; message?: string } | null;
+    const response = row.response;
 
     const item = create(ItemSchema, {
       itemId,
@@ -19,12 +19,11 @@ export function writeInteractionTimeline(sql: SqlClient.SqlClient, row: Interact
         case: "interactionPrompt",
         value: {
           requestId: row.id,
-          kind:
-            row.kind === "question"
-              ? InteractionKind.QUESTION
-              : row.kind === "permission"
-                ? InteractionKind.PERMISSION
-                : InteractionKind.ELICITATION,
+          kind: Match.value(row.kind).pipe(
+            Match.when("question", () => InteractionKind.QUESTION),
+            Match.when("permission", () => InteractionKind.PERMISSION),
+            Match.orElse(() => InteractionKind.ELICITATION),
+          ),
           toolName: row.tool_name,
           requestJson: JSON.stringify(row.request),
           responseJson: response?.answerJson || (response ? JSON.stringify(response) : ""),

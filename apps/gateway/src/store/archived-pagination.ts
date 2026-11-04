@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
 import type { ui } from "@canopy/contracts";
+import { Schema } from "effect";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-interface Cursor {
-  scope: string;
-  at: string;
-  id: string;
-}
+const Cursor = Schema.Struct({ scope: Schema.String, at: Schema.String, id: Schema.String });
+
+type Cursor = typeof Cursor.Type;
+
+const decodeCursor = Schema.decodeUnknownSync(Schema.fromJsonString(Cursor));
 
 /** Cursors retain PostgreSQL microseconds; JS Date would lose ties at page boundaries. */
 export function archivedPage(userId: string, request: ui.ListArchivedThreadsRequest) {
@@ -25,7 +26,7 @@ export function archivedPage(userId: string, request: ui.ListArchivedThreadsRequ
   if (request.pageToken) {
     try {
       if (request.pageToken.length > 2048) throw new Error();
-      const value = JSON.parse(Buffer.from(request.pageToken, "base64url").toString()) as Cursor;
+      const value = decodeCursor(Buffer.from(request.pageToken, "base64url").toString());
 
       if (
         value.scope !== scope ||

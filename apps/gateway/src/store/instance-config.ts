@@ -1,5 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 import { ModelInfoSchema, ProfileModelsSchema, Provider, ui, type ProfileModels } from "@canopy/contracts";
+import type { JsonValue } from "@canopy/domain";
+import { Match, Predicate } from "effect";
+import { isJsonObject } from "../bots/json.ts";
 
 /**
  * Global provider instances, the pure part (docs/worker-config.md, section 9): what a worker gets is the
@@ -12,11 +15,11 @@ export type Harness = "claude" | "codex" | "grok";
 
 export type SecretRef = { secretRef: string };
 
-export interface StoredEnvVar {
+export type StoredEnvVar = {
   name: string;
   value: string | SecretRef;
   secret?: boolean;
-}
+};
 
 export interface StoredRuntime {
   binaryPath?: string;
@@ -67,7 +70,7 @@ export interface AssignmentRow {
 }
 
 /** A profile of WorkerConfig.profiles as stored (protobuf JSON, secrets as references, defaults omitted). */
-export interface StoredProfile {
+export type StoredProfile = {
   id: string;
   kind: "PROVIDER_PROFILE_KIND_NATIVE" | "PROVIDER_PROFILE_KIND_CLIPROXYAPI";
   providers: ["PROVIDER_CLAUDE" | "PROVIDER_CODEX" | "PROVIDER_GROK"];
@@ -81,7 +84,7 @@ export interface StoredProfile {
   shadowHomePath?: string;
   launchArgs?: string[];
   ownLogin?: boolean;
-}
+};
 
 export const NATIVE_ID = "native";
 export const INSTANCE_ID = /^[a-z0-9][a-z0-9_-]{0,62}$/;
@@ -96,18 +99,25 @@ export const harnessOf = (provider: Provider): Harness | undefined =>
         : undefined;
 
 export const providerOf = (harness: string | null | undefined): Provider =>
-  harness === "claude"
-    ? Provider.CLAUDE
-    : harness === "grok"
-      ? Provider.GROK
-      : harness === "codex"
-        ? Provider.CODEX
-        : Provider.UNSPECIFIED;
+  Match.value(harness).pipe(
+    Match.when("claude", () => Provider.CLAUDE),
+    Match.when("grok", () => Provider.GROK),
+    Match.when("codex", () => Provider.CODEX),
+    Match.orElse(() => Provider.UNSPECIFIED),
+  );
+
+/** The Provider enum name a profile stores (protobuf JSON); an unknown harness is Codex, as before. */
+export const storedProvider = (harness: string) =>
+  Match.value(harness).pipe(
+    Match.when("claude", () => "PROVIDER_CLAUDE" as const),
+    Match.when("grok", () => "PROVIDER_GROK" as const),
+    Match.orElse(() => "PROVIDER_CODEX" as const),
+  );
 
 export const instanceKey = (harness: Harness, id: string): string => `${harness}/${id}`;
 
 export const isRef = (value: unknown): value is SecretRef =>
-  typeof value === "object" && value !== null && typeof (value as SecretRef).secretRef === "string";
+  Predicate.hasProperty(value, "secretRef") && Predicate.isString(value.secretRef);
 
 /** Whether the instance runs on the worker: the worker's own choice, else "all workers". */
 export function enabledOn(
@@ -140,13 +150,7 @@ export function effectiveProfile(instance: InstanceRow, assignment: AssignmentRo
   const profile: StoredProfile = {
     id: instance.id,
     kind: endpoint ? "PROVIDER_PROFILE_KIND_CLIPROXYAPI" : "PROVIDER_PROFILE_KIND_NATIVE",
-    providers: [
-      instance.harness === "claude"
-        ? "PROVIDER_CLAUDE"
-        : instance.harness === "grok"
-          ? "PROVIDER_GROK"
-          : "PROVIDER_CODEX",
-    ],
+    providers: [storedProvider(instance.harness)],
   };
 
   const baseUrl = endpoint ? (o.baseUrl ?? instance.base_url) : "";
@@ -208,13 +212,7 @@ export function effectiveProfiles(
     const stub: StoredProfile = {
       id: instance.id,
       kind: instance.kind === "endpoint" ? "PROVIDER_PROFILE_KIND_CLIPROXYAPI" : "PROVIDER_PROFILE_KIND_NATIVE",
-      providers: [
-        instance.harness === "claude"
-          ? "PROVIDER_CLAUDE"
-          : instance.harness === "grok"
-            ? "PROVIDER_GROK"
-            : "PROVIDER_CODEX",
-      ],
+      providers: [storedProvider(instance.harness)],
       disabled: true,
     };
 
@@ -225,11 +223,9 @@ export function effectiveProfiles(
 }
 
 /** JSON with object keys sorted: jsonb does not keep key order, so stored and computed documents compare this way. */
-export function canonicalJson(value: unknown): string {
-  return JSON.stringify(value, (_key, v: unknown) =>
-    v && typeof v === "object" && !Array.isArray(v)
-      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
-      : v,
+export function canonicalJson(value: JsonValue): string {
+  return JSON.stringify(value, (_key, v: JsonValue) =>
+    isJsonObject(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v,
   );
 }
 

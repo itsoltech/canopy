@@ -141,7 +141,7 @@ export class BackgroundTaskStore extends Context.Service<
           provider_task_id: task.taskId,
           title: backgroundTitle(task, row.item_id),
           command: task.command,
-          kind: KINDS[task.kind] ?? "task",
+          kind: KINDS.get(task.kind) ?? "task",
           status,
           reason: backgroundEndReason(status, task.stopReason, task.exitCode),
           ...(task.stopReason && { stop_reason: task.stopReason }),
@@ -362,7 +362,12 @@ export class BackgroundTaskStore extends Context.Service<
   );
 }
 
-const KINDS: Readonly<Record<number, string>> = { 1: "shell", 2: "agent", 3: "workflow", 4: "process" };
+const KINDS = new Map([
+  [1, "shell"],
+  [2, "agent"],
+  [3, "workflow"],
+  [4, "process"],
+]);
 
 function time(timestamp: Timestamp | undefined): Date | undefined {
   return timestamp ? timestampDate(timestamp) : undefined;
