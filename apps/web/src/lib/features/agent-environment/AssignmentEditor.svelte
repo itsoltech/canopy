@@ -6,18 +6,21 @@
   import Field from "#lib/shared/ui/Field.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import TagInput from "./TagInput.svelte";
+  import AssignmentSummary from "./AssignmentSummary.svelte";
 
   let {
     selector = $bindable(),
     workers,
+    disabled = [],
+    parentSelector,
     class: className,
   }: {
     selector: ui.EnvironmentSelector;
     workers: readonly ui.EnvironmentWorker[];
+    disabled?: readonly string[];
+    parentSelector?: ui.EnvironmentSelector;
     class?: ClassValue;
   } = $props();
-
-  const tags = $derived([...new Set(workers.flatMap((w) => [...w.automaticTags, ...w.manualTags]))].sort());
 </script>
 
 <div class={["grid gap-4", className]}>
@@ -28,7 +31,7 @@
     bind:checked={selector.everyone}
   />
   {#if !selector.everyone}
-    <TagInput label="Include tags" name="include-tags" bind:value={selector.tags} suggestions={tags} />
+    <TagInput label="Include tags" name="include-tags" bind:value={selector.tags} {workers} />
     {#if selector.tags.length > 1}<Field label="Tag matching">
         <Select
           name="tag-matching"
@@ -67,7 +70,8 @@
     label="Exclude tags"
     name="exclude-tags"
     bind:value={selector.excludeTags}
-    suggestions={tags}
+    {workers}
     description="Exclusions always win, including for specific computers."
   />
+  <AssignmentSummary {selector} {workers} {disabled} {parentSelector} />
 </div>

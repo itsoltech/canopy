@@ -12,6 +12,9 @@ export function agentEnvironmentHandlers(
   | "setEnvironmentTags"
   | "previewAgentEnvironment"
   | "resolveEnvironmentDrift"
+  | "saveLibrarySkill"
+  | "deleteLibrarySkill"
+  | "resolveSkillDrift"
 > {
   return {
     getAgentEnvironment: () => workerGuard(() => core.environment.snapshot()),
@@ -20,5 +23,8 @@ export function agentEnvironmentHandlers(
     setEnvironmentTags: (r) => workerGuard(() => core.environment.tags(r)),
     previewAgentEnvironment: (r) => workerGuard(() => core.environment.preview(r)),
     resolveEnvironmentDrift: (r) => workerGuard(() => core.environment.resolve(r)),
+    saveLibrarySkill: (r) => workerGuard(() => core.environment.skills.save(r)),
+    deleteLibrarySkill: (r) => workerGuard(() => core.environment.skills.remove(r)),
+    resolveSkillDrift: (r) => workerGuard(() => core.environment.skills.resolve(r)),
   };
 }

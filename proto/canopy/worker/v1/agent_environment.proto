@@ -21,6 +21,48 @@ message AgentEnvironmentDesired {
   uint64 revision = 1;
   repeated EnvironmentInstruction instructions = 2;
   repeated EnvironmentResolution resolutions = 3;
+  repeated EnvironmentSkill skills = 4; // capability agent_skills_v1
+  repeated EnvironmentResolution skill_resolutions = 5;
+}
+
+message SkillFile {
+  string path = 1;
+  bytes content = 2;
+  string checksum = 3;
+  bool executable = 4;
+}
+
+message SkillArtifact {
+  string name = 1;
+  string description = 2;
+  string checksum = 3;
+  repeated SkillFile files = 4;
+}
+
+message EnvironmentSkill {
+  string id = 1;
+  uint64 version = 2;
+  SkillArtifact artifact = 3;
+  repeated string harnesses = 4; // claude | codex | grok
+  bool device_home = 5;
+  bool platform_home = 6;
+}
+
+message EnvironmentSkillStatus {
+  string target_id = 1;
+  string skill_id = 2;
+  string harness = 3;
+  string path = 4;
+  string scope = 5;
+  string status = 6; // applied | drift | kept | error | removed
+  string desired_checksum = 7;
+  string observed_checksum = 8; // whole-directory CAS token
+  repeated SkillFile managed_files = 9; // only files in the ownership manifest
+  bool importable = 10;
+  string detail = 11;
+  uint64 version = 12;
+  repeated SkillFile desired_files = 13; // exact pinned version, only when comparing drift
+  bool owned = 14;
 }
 
 message EnvironmentFileStatus {
@@ -39,4 +81,5 @@ message EnvironmentFileStatus {
 message AgentEnvironmentReport {
   uint64 revision = 1;
   repeated EnvironmentFileStatus files = 2;
+  repeated EnvironmentSkillStatus skills = 3;
 }

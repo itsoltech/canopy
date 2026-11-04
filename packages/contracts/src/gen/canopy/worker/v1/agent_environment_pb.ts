@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/worker/v1/agent_environment.proto.
  */
 export const file_canopy_worker_v1_agent_environment: GenFile = /*@__PURE__*/
-  fileDesc("CihjYW5vcHkvd29ya2VyL3YxL2FnZW50X2Vudmlyb25tZW50LnByb3RvEhBjYW5vcHkud29ya2VyLnYxIngKFkVudmlyb25tZW50SW5zdHJ1Y3Rpb24SDwoHaGFybmVzcxgBIAEoCRIPCgdjb250ZW50GAIgASgJEhAKCGNoZWNrc3VtGAMgASgJEhMKC2RldmljZV9ob21lGAQgASgIEhUKDXBsYXRmb3JtX2hvbWUYBSABKAgibwoVRW52aXJvbm1lbnRSZXNvbHV0aW9uEhEKCXRhcmdldF9pZBgBIAEoCRIOCgZhY3Rpb24YAiABKAkSGQoRb2JzZXJ2ZWRfY2hlY2tzdW0YAyABKAkSGAoQZGVzaXJlZF9jaGVja3N1bRgEIAEoCSKpAQoXQWdlbnRFbnZpcm9ubWVudERlc2lyZWQSEAoIcmV2aXNpb24YASABKAQSPgoMaW5zdHJ1Y3Rpb25zGAIgAygLMiguY2Fub3B5Lndvcmtlci52MS5FbnZpcm9ubWVudEluc3RydWN0aW9uEjwKC3Jlc29sdXRpb25zGAMgAygLMicuY2Fub3B5Lndvcmtlci52MS5FbnZpcm9ubWVudFJlc29sdXRpb24i2gEKFUVudmlyb25tZW50RmlsZVN0YXR1cxIRCgl0YXJnZXRfaWQYASABKAkSDwoHaGFybmVzcxgCIAEoCRIMCgRwYXRoGAMgASgJEg0KBXNjb3BlGAQgASgJEg4KBnN0YXR1cxgFIAEoCRIYChBkZXNpcmVkX2NoZWNrc3VtGAYgASgJEhkKEW9ic2VydmVkX2NoZWNrc3VtGAcgASgJEhcKD21hbmFnZWRfY29udGVudBgIIAEoCRISCgppbXBvcnRhYmxlGAkgASgIEg4KBmRldGFpbBgKIAEoCSJiChZBZ2VudEVudmlyb25tZW50UmVwb3J0EhAKCHJldmlzaW9uGAEgASgEEjYKBWZpbGVzGAIgAygLMicuY2Fub3B5Lndvcmtlci52MS5FbnZpcm9ubWVudEZpbGVTdGF0dXNiBnByb3RvMw");
+  fileDesc("CihjYW5vcHkvd29ya2VyL3YxL2FnZW50X2Vudmlyb25tZW50LnByb3RvEhBjYW5vcHkud29ya2VyLnYxIngKFkVudmlyb25tZW50SW5zdHJ1Y3Rpb24SDwoHaGFybmVzcxgBIAEoCRIPCgdjb250ZW50GAIgASgJEhAKCGNoZWNrc3VtGAMgASgJEhMKC2RldmljZV9ob21lGAQgASgIEhUKDXBsYXRmb3JtX2hvbWUYBSABKAgibwoVRW52aXJvbm1lbnRSZXNvbHV0aW9uEhEKCXRhcmdldF9pZBgBIAEoCRIOCgZhY3Rpb24YAiABKAkSGQoRb2JzZXJ2ZWRfY2hlY2tzdW0YAyABKAkSGAoQZGVzaXJlZF9jaGVja3N1bRgEIAEoCSKhAgoXQWdlbnRFbnZpcm9ubWVudERlc2lyZWQSEAoIcmV2aXNpb24YASABKAQSPgoMaW5zdHJ1Y3Rpb25zGAIgAygLMiguY2Fub3B5Lndvcmtlci52MS5FbnZpcm9ubWVudEluc3RydWN0aW9uEjwKC3Jlc29sdXRpb25zGAMgAygLMicuY2Fub3B5Lndvcmtlci52MS5FbnZpcm9ubWVudFJlc29sdXRpb24SMgoGc2tpbGxzGAQgAygLMiIuY2Fub3B5Lndvcmtlci52MS5FbnZpcm9ubWVudFNraWxsEkIKEXNraWxsX3Jlc29sdXRpb25zGAUgAygLMicuY2Fub3B5Lndvcmtlci52MS5FbnZpcm9ubWVudFJlc29sdXRpb24iUAoJU2tpbGxGaWxlEgwKBHBhdGgYASABKAkSDwoHY29udGVudBgCIAEoDBIQCghjaGVja3N1bRgDIAEoCRISCgpleGVjdXRhYmxlGAQgASgIInAKDVNraWxsQXJ0aWZhY3QSDAoEbmFtZRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIQCghjaGVja3N1bRgDIAEoCRIqCgVmaWxlcxgEIAMoCzIbLmNhbm9weS53b3JrZXIudjEuU2tpbGxGaWxlIqEBChBFbnZpcm9ubWVudFNraWxsEgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAQSMQoIYXJ0aWZhY3QYAyABKAsyHy5jYW5vcHkud29ya2VyLnYxLlNraWxsQXJ0aWZhY3QSEQoJaGFybmVzc2VzGAQgAygJEhMKC2RldmljZV9ob21lGAUgASgIEhUKDXBsYXRmb3JtX2hvbWUYBiABKAgi3AIKFkVudmlyb25tZW50U2tpbGxTdGF0dXMSEQoJdGFyZ2V0X2lkGAEgASgJEhAKCHNraWxsX2lkGAIgASgJEg8KB2hhcm5lc3MYAyABKAkSDAoEcGF0aBgEIAEoCRINCgVzY29wZRgFIAEoCRIOCgZzdGF0dXMYBiABKAkSGAoQZGVzaXJlZF9jaGVja3N1bRgHIAEoCRIZChFvYnNlcnZlZF9jaGVja3N1bRgIIAEoCRIyCg1tYW5hZ2VkX2ZpbGVzGAkgAygLMhsuY2Fub3B5Lndvcmtlci52MS5Ta2lsbEZpbGUSEgoKaW1wb3J0YWJsZRgKIAEoCBIOCgZkZXRhaWwYCyABKAkSDwoHdmVyc2lvbhgMIAEoBBIyCg1kZXNpcmVkX2ZpbGVzGA0gAygLMhsuY2Fub3B5Lndvcmtlci52MS5Ta2lsbEZpbGUSDQoFb3duZWQYDiABKAgi2gEKFUVudmlyb25tZW50RmlsZVN0YXR1cxIRCgl0YXJnZXRfaWQYASABKAkSDwoHaGFybmVzcxgCIAEoCRIMCgRwYXRoGAMgASgJEg0KBXNjb3BlGAQgASgJEg4KBnN0YXR1cxgFIAEoCRIYChBkZXNpcmVkX2NoZWNrc3VtGAYgASgJEhkKEW9ic2VydmVkX2NoZWNrc3VtGAcgASgJEhcKD21hbmFnZWRfY29udGVudBgIIAEoCRISCgppbXBvcnRhYmxlGAkgASgIEg4KBmRldGFpbBgKIAEoCSKcAQoWQWdlbnRFbnZpcm9ubWVudFJlcG9ydBIQCghyZXZpc2lvbhgBIAEoBBI2CgVmaWxlcxgCIAMoCzInLmNhbm9weS53b3JrZXIudjEuRW52aXJvbm1lbnRGaWxlU3RhdHVzEjgKBnNraWxscxgDIAMoCzIoLmNhbm9weS53b3JrZXIudjEuRW52aXJvbm1lbnRTa2lsbFN0YXR1c2IGcHJvdG8z");
 
 /**
  * Capability agent_environment_v1. Complete desired state, never an outbox of stale commands.
@@ -105,6 +105,18 @@ export type AgentEnvironmentDesired = Message<"canopy.worker.v1.AgentEnvironment
    * @generated from field: repeated canopy.worker.v1.EnvironmentResolution resolutions = 3;
    */
   resolutions: EnvironmentResolution[];
+
+  /**
+   * capability agent_skills_v1
+   *
+   * @generated from field: repeated canopy.worker.v1.EnvironmentSkill skills = 4;
+   */
+  skills: EnvironmentSkill[];
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.EnvironmentResolution skill_resolutions = 5;
+   */
+  skillResolutions: EnvironmentResolution[];
 };
 
 /**
@@ -113,6 +125,204 @@ export type AgentEnvironmentDesired = Message<"canopy.worker.v1.AgentEnvironment
  */
 export const AgentEnvironmentDesiredSchema: GenMessage<AgentEnvironmentDesired> = /*@__PURE__*/
   messageDesc(file_canopy_worker_v1_agent_environment, 2);
+
+/**
+ * @generated from message canopy.worker.v1.SkillFile
+ */
+export type SkillFile = Message<"canopy.worker.v1.SkillFile"> & {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @generated from field: bytes content = 2;
+   */
+  content: Uint8Array;
+
+  /**
+   * @generated from field: string checksum = 3;
+   */
+  checksum: string;
+
+  /**
+   * @generated from field: bool executable = 4;
+   */
+  executable: boolean;
+};
+
+/**
+ * Describes the message canopy.worker.v1.SkillFile.
+ * Use `create(SkillFileSchema)` to create a new message.
+ */
+export const SkillFileSchema: GenMessage<SkillFile> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_environment, 3);
+
+/**
+ * @generated from message canopy.worker.v1.SkillArtifact
+ */
+export type SkillArtifact = Message<"canopy.worker.v1.SkillArtifact"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string description = 2;
+   */
+  description: string;
+
+  /**
+   * @generated from field: string checksum = 3;
+   */
+  checksum: string;
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.SkillFile files = 4;
+   */
+  files: SkillFile[];
+};
+
+/**
+ * Describes the message canopy.worker.v1.SkillArtifact.
+ * Use `create(SkillArtifactSchema)` to create a new message.
+ */
+export const SkillArtifactSchema: GenMessage<SkillArtifact> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_environment, 4);
+
+/**
+ * @generated from message canopy.worker.v1.EnvironmentSkill
+ */
+export type EnvironmentSkill = Message<"canopy.worker.v1.EnvironmentSkill"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: uint64 version = 2;
+   */
+  version: bigint;
+
+  /**
+   * @generated from field: canopy.worker.v1.SkillArtifact artifact = 3;
+   */
+  artifact?: SkillArtifact | undefined;
+
+  /**
+   * claude | codex | grok
+   *
+   * @generated from field: repeated string harnesses = 4;
+   */
+  harnesses: string[];
+
+  /**
+   * @generated from field: bool device_home = 5;
+   */
+  deviceHome: boolean;
+
+  /**
+   * @generated from field: bool platform_home = 6;
+   */
+  platformHome: boolean;
+};
+
+/**
+ * Describes the message canopy.worker.v1.EnvironmentSkill.
+ * Use `create(EnvironmentSkillSchema)` to create a new message.
+ */
+export const EnvironmentSkillSchema: GenMessage<EnvironmentSkill> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_environment, 5);
+
+/**
+ * @generated from message canopy.worker.v1.EnvironmentSkillStatus
+ */
+export type EnvironmentSkillStatus = Message<"canopy.worker.v1.EnvironmentSkillStatus"> & {
+  /**
+   * @generated from field: string target_id = 1;
+   */
+  targetId: string;
+
+  /**
+   * @generated from field: string skill_id = 2;
+   */
+  skillId: string;
+
+  /**
+   * @generated from field: string harness = 3;
+   */
+  harness: string;
+
+  /**
+   * @generated from field: string path = 4;
+   */
+  path: string;
+
+  /**
+   * @generated from field: string scope = 5;
+   */
+  scope: string;
+
+  /**
+   * applied | drift | kept | error | removed
+   *
+   * @generated from field: string status = 6;
+   */
+  status: string;
+
+  /**
+   * @generated from field: string desired_checksum = 7;
+   */
+  desiredChecksum: string;
+
+  /**
+   * whole-directory CAS token
+   *
+   * @generated from field: string observed_checksum = 8;
+   */
+  observedChecksum: string;
+
+  /**
+   * only files in the ownership manifest
+   *
+   * @generated from field: repeated canopy.worker.v1.SkillFile managed_files = 9;
+   */
+  managedFiles: SkillFile[];
+
+  /**
+   * @generated from field: bool importable = 10;
+   */
+  importable: boolean;
+
+  /**
+   * @generated from field: string detail = 11;
+   */
+  detail: string;
+
+  /**
+   * @generated from field: uint64 version = 12;
+   */
+  version: bigint;
+
+  /**
+   * exact pinned version, only when comparing drift
+   *
+   * @generated from field: repeated canopy.worker.v1.SkillFile desired_files = 13;
+   */
+  desiredFiles: SkillFile[];
+
+  /**
+   * @generated from field: bool owned = 14;
+   */
+  owned: boolean;
+};
+
+/**
+ * Describes the message canopy.worker.v1.EnvironmentSkillStatus.
+ * Use `create(EnvironmentSkillStatusSchema)` to create a new message.
+ */
+export const EnvironmentSkillStatusSchema: GenMessage<EnvironmentSkillStatus> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_environment, 6);
 
 /**
  * @generated from message canopy.worker.v1.EnvironmentFileStatus
@@ -180,7 +390,7 @@ export type EnvironmentFileStatus = Message<"canopy.worker.v1.EnvironmentFileSta
  * Use `create(EnvironmentFileStatusSchema)` to create a new message.
  */
 export const EnvironmentFileStatusSchema: GenMessage<EnvironmentFileStatus> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_environment, 3);
+  messageDesc(file_canopy_worker_v1_agent_environment, 7);
 
 /**
  * @generated from message canopy.worker.v1.AgentEnvironmentReport
@@ -195,6 +405,11 @@ export type AgentEnvironmentReport = Message<"canopy.worker.v1.AgentEnvironmentR
    * @generated from field: repeated canopy.worker.v1.EnvironmentFileStatus files = 2;
    */
   files: EnvironmentFileStatus[];
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.EnvironmentSkillStatus skills = 3;
+   */
+  skills: EnvironmentSkillStatus[];
 };
 
 /**
@@ -202,5 +417,5 @@ export type AgentEnvironmentReport = Message<"canopy.worker.v1.AgentEnvironmentR
  * Use `create(AgentEnvironmentReportSchema)` to create a new message.
  */
 export const AgentEnvironmentReportSchema: GenMessage<AgentEnvironmentReport> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_environment, 4);
+  messageDesc(file_canopy_worker_v1_agent_environment, 8);
 

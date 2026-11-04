@@ -87,7 +87,11 @@
     <Disclosure open>
       {#snippet summary()}<h2 class="text-base font-semibold text-balance">Assignment</h2>{/snippet}
       <div class="pt-4">
-        {#if document.selector}<AssignmentEditor bind:selector={document.selector} {workers} />{/if}
+        {#if document.selector}<AssignmentEditor
+            bind:selector={document.selector}
+            {workers}
+            disabled={document.overrides.filter((o) => o.disabled).map((o) => o.workerId)}
+          />{/if}
       </div>
     </Disclosure>
     <div class="grid gap-6 divide-y divide-zinc-950/10 dark:divide-white/10">
@@ -95,6 +99,8 @@
         <FragmentEditor
           bind:fragment={document.fragments[i]}
           {workers}
+          parentSelector={document.selector}
+          disabled={document.overrides.filter((o) => o.disabled).map((o) => o.workerId)}
           index={i}
           count={document.fragments.length}
           class={i > 0 ? "pt-6" : ""}

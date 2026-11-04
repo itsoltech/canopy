@@ -53,7 +53,7 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
       });
 
       return {
-        entries: claudeCatalogEntries(commands, claudeSkillsOnDisk(cwd, options.home), options.nativeTools),
+        entries: claudeCatalogEntries(commands, claudeSkillsOnDisk(cwd, runtimeOf(profile).home), options.nativeTools),
         notes: [...CLAUDE_CATALOG_NOTES],
       };
     }),

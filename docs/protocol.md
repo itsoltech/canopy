@@ -261,6 +261,14 @@ przed starymi wiadomościami, checksum pełnego pliku wiąże jednorazowe rozstr
 driftu z podglądem właściciela. Raport zawiera tekst wyłącznie zarządzanego bloku
 w konflikcie, nigdy prywatny tekst poza nim. Szczegóły: [agent-environment.md](agent-environment.md).
 
+Etap 2 negocjuje dodatkowo `agent_skills_v1`: pola `AgentEnvironmentDesired.skills`
+(4), `skill_resolutions` (5) oraz `AgentEnvironmentReport.skills` (3). Artefakty
+zawierają niezmienne pliki i manifest SHA-256; raport pokazuje własność, wersję,
+każdy docelowy katalog i tylko zarządzane pliki driftu. Resolution jest jednorazowe
+i związane z checksumem całego katalogu. Worker bez tej capability nadal dostaje
+instrukcje, bez skilli. Szczegóły limitów, katalogów, wersji i odzyskiwania swapu:
+[protokół etapu 2](agent-environment.md#umiejętności--konkretny-protokół-etapu-2).
+
 ## Kontrola przepływu
 
 - HTTP/2 ma flow control na poziomie strumienia. Dodatkowo worker ogranicza liczbę niepotwierdzonych zdarzeń (np. 1000). Po przekroczeniu buforuje tylko w dzienniku.

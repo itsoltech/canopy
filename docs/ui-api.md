@@ -488,7 +488,7 @@ Wątek wspomniany przez użytkownika agent może czytać (`get_thread`, `read_th
 **Co oferuje każdy harness** (zmierzone na żywo 2026-11-02, Codex 0.164.0, Claude Code przez SDK 0.3.316):
 
 - Codex: `skills/list` dla folderu wątku: `repo` (`.agents/skills` repozytorium, w UI `project`), `user` (`$CODEX_HOME/skills` oraz `~/.agents/skills` właściciela urządzenia: Codex czyta je mimo izolowanego `CODEX_HOME`), `system` (wbudowane, z ikonami i nazwami wyświetlanymi); `plugin/list` (zainstalowane i włączone; w izolowanym domu brak), `app/list` (konektory konta, tylko gdy worker je włączył, `NativeToolsConfig.connectors`). Komend brak.
-- Claude: `Query.supportedCommands()` procesu uruchomionego jak tura (folder wątku, izolowany `CLAUDE_CONFIG_DIR`, `settingSources` project + local), bez promptu. Skillem jest wiersz, którego nazwa to folder `.claude/skills/<nazwa>/SKILL.md` w folderze wątku lub wyżej albo w `skills/` katalogu konfiguracji; reszta to komendy (wbudowane, `.claude/commands` projektu, MCP). Wbudowane komendy terminala, sesji i ustawień, które trzyma platforma (`model`, `effort`, `clear`, `config`, …), subagentów i harmonogramu (gdy wyłączone) oraz natywny `/goal` (zastępuje go `/goal` platformy) są pominięte. Pluginów brak. Skille właściciela urządzenia (`~/.claude/skills`) nie są widoczne (izolacja), skille projektu tak.
+- Claude: `Query.supportedCommands()` procesu uruchomionego jak tura (folder wątku, faktyczny izolowany `CLAUDE_CONFIG_DIR`, `settingSources` project + local), bez promptu. Skillem jest wiersz odpowiadający folderowi `.claude/skills/<nazwa>/SKILL.md` projektu lub `skills/` katalogu konfiguracji, a także `canopy-environment:<nazwa>` z jawnie ładowanego lokalnego pluginu Canopy; reszta to komendy (wbudowane, `.claude/commands` projektu, MCP). Wbudowane komendy terminala, sesji i ustawień, które trzyma platforma (`model`, `effort`, `clear`, `config`, …), subagentów i harmonogramu (gdy wyłączone) oraz natywny `/goal` (zastępuje go `/goal` platformy) są pominięte. Pluginy urządzenia i prywatne `~/.claude/skills` pozostają poza izolowanym domem; skille projektu i zarządzane przez Canopy są widoczne.
 
 ### Cytaty
 
@@ -738,8 +738,12 @@ Powłoka odpowiada 200 także bez gateway; początkowy HTML zawiera szkielet z w
 
 Settings → Agent environment korzysta z `GetAgentEnvironment`,
 `SaveInstructionDocument`, `DeleteInstructionDocument`, `SetEnvironmentTags`,
-`PreviewAgentEnvironment` i `ResolveEnvironmentDrift`. BFF udostępnia
+`PreviewAgentEnvironment`, `ResolveEnvironmentDrift`, `SaveLibrarySkill`,
+`DeleteLibrarySkill` i `ResolveSkillDrift`. BFF udostępnia
 `/api/agent-environment` (GET/POST/DELETE), `/tags`, `/preview`, `/resolve` (POST).
+Skille: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
+Upload folderu używa base64 w JSON, więc produkcyjny web oraz proxy wymagają
+`BODY_SIZE_LIMIT=50M` dla limitu 25 MiB plików. ZIP ma osobny limit 10 MiB.
 Każda mutacja wymaga bieżącej `expected_revision`; konflikt daje HTTP 409 i nie
 nadpisuje równoczesnej edycji. Draft preview nie zapisuje ani nie synchronizuje
 treści. `OverviewUpdate.agent_environment_changed` (820) odświeża widok statusu

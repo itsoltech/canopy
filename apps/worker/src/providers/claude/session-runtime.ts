@@ -2,6 +2,7 @@ import { getSessionMessages, type Options } from "@anthropic-ai/claude-agent-sdk
 import { claudeExecutable } from "./executable.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import { claudeProfileOptions } from "./profile.ts";
+import { claudeSkillPlugins } from "./skill-plugin.ts";
 
 import type { ClaudeInstanceRuntime, ClaudeThreadContext } from "./thread-types.ts";
 
@@ -18,10 +19,11 @@ export function claudeRuntime(ctx: ClaudeThreadContext) {
   const queryRuntime = (
     profile: ResolvedProfile,
     runtime: ClaudeInstanceRuntime,
-  ): Pick<Options, "env" | "settingSources" | "pathToClaudeCodeExecutable" | "extraArgs"> => ({
+  ): Pick<Options, "env" | "settingSources" | "pathToClaudeCodeExecutable" | "extraArgs" | "plugins"> => ({
     ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: runtime.home }),
     pathToClaudeCodeExecutable: claudeExecutable(runtime.executable, options.baseEnv),
     ...(runtime.extraArgs && Object.keys(runtime.extraArgs).length > 0 && { extraArgs: runtime.extraArgs }),
+    plugins: claudeSkillPlugins(runtime.home),
   });
 
   /**

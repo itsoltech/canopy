@@ -48,7 +48,12 @@ export interface WorkerHostOptions {
    * The device owner's Claude and Codex homes (login, default effort). Default: $CLAUDE_CONFIG_DIR / $CODEX_HOME
    * of the worker process at start, else ~/.claude and ~/.codex.
    */
-  readonly deviceHomes?: { readonly claude: string; readonly codex: string };
+  readonly deviceHomes?: {
+    readonly claude: string;
+    readonly codex: string;
+    readonly grok?: string;
+    readonly agents?: string;
+  };
   readonly log?: (message: string) => void;
 }
 

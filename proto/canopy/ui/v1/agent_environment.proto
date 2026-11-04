@@ -46,6 +46,8 @@ message EnvironmentWorker {
   repeated canopy.worker.v1.EnvironmentInstruction preview = 8;
   uint64 desired_revision = 9;
   string composition_error = 10;
+  bool skills_supported = 11;
+  repeated string skill_ids = 12;
 }
 
 message AgentEnvironmentRequest {}
@@ -53,6 +55,42 @@ message AgentEnvironmentSnapshot {
   uint64 revision = 1;
   repeated InstructionDocument documents = 2;
   repeated EnvironmentWorker workers = 3;
+  repeated LibrarySkill skills = 4;
+}
+
+message SkillMachineOverride {
+  string worker_id = 1;
+  bool disabled = 2;
+  uint64 version = 3; // 0 = library's selected version
+}
+message LibrarySkill {
+  string id = 1;
+  string name = 2;
+  uint64 version = 3;
+  repeated string harnesses = 4;
+  EnvironmentSelector selector = 5;
+  repeated SkillMachineOverride overrides = 6;
+  bool device_home = 7;
+  bool platform_home = 8;
+  canopy.worker.v1.SkillArtifact artifact = 9;
+  repeated uint64 versions = 10;
+}
+message SaveLibrarySkillRequest {
+  LibrarySkill skill = 1;
+  uint64 expected_revision = 2;
+  repeated canopy.worker.v1.SkillFile files = 3; // folder upload; paths relative to skill root
+  bytes zip = 4; // alternative to files, one skill root
+}
+message DeleteLibrarySkillRequest {
+  string id = 1;
+  uint64 expected_revision = 2;
+}
+message ResolveSkillDriftRequest {
+  string worker_id = 1;
+  string target_id = 2;
+  string action = 3; // keep | overwrite | import
+  string observed_checksum = 4;
+  uint64 expected_revision = 5;
 }
 message SaveInstructionDocumentRequest {
   InstructionDocument document = 1;

@@ -18,7 +18,7 @@ type EntryInit = MentionEntryInit;
  * - built-in rows that make no sense in a platform thread are left out: terminal and session controls the platform
  *   owns (model, effort, clear, rename, ...), and the native subagent and scheduling features the platform replaces
  *   (unless the worker turns those on); "/goal" is the platform's own command (goals are tracked by the gateway),
- * - plugins: none. Platform threads load no Claude Code plugins and only the platform's MCP servers.
+ * - the only explicitly loaded local plugin is Canopy's managed skills; device plugins stay isolated.
  *
  * The device owner's own skills (~/.claude/skills) are not visible: Claude runs with an isolated CLAUDE_CONFIG_DIR
  * and without user settings. Project skills in the repository are.
@@ -68,7 +68,7 @@ export interface SkillOnDisk {
 export function claudeSkillsOnDisk(cwd: string, configDir: string): Map<string, SkillOnDisk> {
   const skills = new Map<string, SkillOnDisk>();
 
-  const add = (dir: string, source: SkillOnDisk["source"]) => {
+  const add = (dir: string, source: SkillOnDisk["source"], namespace = "") => {
     let names: string[];
 
     try {
@@ -80,7 +80,9 @@ export function claudeSkillsOnDisk(cwd: string, configDir: string): Map<string, 
     for (const name of names) {
       const file = join(dir, name, "SKILL.md");
 
-      if (!skills.has(name) && existsSync(file)) skills.set(name, { path: file, source });
+      const key = namespace ? `${namespace}:${name}` : name;
+
+      if (!skills.has(key) && existsSync(file)) skills.set(key, { path: file, source });
     }
   };
 
@@ -91,13 +93,18 @@ export function claudeSkillsOnDisk(cwd: string, configDir: string): Map<string, 
   }
 
   add(join(configDir, "skills"), "user");
+  add(join(configDir, "canopy-environment", "skills"), "user", "canopy-environment");
 
   return skills;
 }
 
 /** Newest change time of the folders the listing depends on (the cache key: a new skill or command shows up). */
 export function claudeCatalogStamp(cwd: string, configDir: string): string {
-  const dirs = [join(configDir, "skills"), join(configDir, "commands")];
+  const dirs = [
+    join(configDir, "skills"),
+    join(configDir, "commands"),
+    join(configDir, "canopy-environment", "skills"),
+  ];
 
   for (let dir = cwd; ; dir = dirname(dir)) {
     dirs.push(join(dir, ".claude", "skills"), join(dir, ".claude", "commands"));
@@ -163,6 +170,6 @@ export function claudeCatalogEntries(
 }
 
 export const CLAUDE_CATALOG_NOTES = [
-  "plugins: platform threads load no Claude Code plugins (isolated config dir)",
+  "plugins: only Canopy-managed skills are loaded explicitly; device plugins stay isolated",
   "skills: the device owner's own skills (~/.claude/skills) are not loaded in platform threads; project skills are",
 ];

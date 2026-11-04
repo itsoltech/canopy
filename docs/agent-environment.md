@@ -3,8 +3,9 @@
 Projekt: 2026-11-04. Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
 do bazy gatewaya; użytkownik nie konfiguruje zmiennych środowiskowych ani plików
-usług. Etap 1 obejmuje instrukcje Claude/Codex i tagi. Pozostałe etapy poniżej są
-projektem, nie deklaracją działającej funkcji.
+usług. Etapy 1–2 obejmują instrukcje Claude/Codex, tagi i upload oraz synchronizację
+skilli Claude/Codex/Grok. Źródła upstream, aktualizacje i marketplace (etapy 3–4)
+pozostają projektem.
 
 ## Badanie źródeł i wersji
 
@@ -15,7 +16,7 @@ logowania, uruchamiania sesji ani zmian w prawdziwych domach CLI:
 | --- | --- | --- |
 | Claude Code | Globalne `~/.claude/CLAUDE.md`; projektowe `CLAUDE.md`, `.claude/CLAUDE.md`, lokalne `CLAUDE.local.md`; katalogi nadrzędne i reguły projektu. Skille: `~/.claude/skills/<name>/SKILL.md`, `.claude/skills`, pluginowe `skills/`. [Instrukcje](https://code.claude.com/docs/en/memory.md), [skille](https://code.claude.com/docs/en/skills.md). | CLI **2.1.308**; SDK repo **0.3.316**, nie utożsamiamy wersji biblioteki i urządzenia. `--plugin-dir`, `plugin install/update/uninstall`, `plugin marketplace add/list/update/remove`. |
 | Claude plugins | Manifest `.claude-plugin/plugin.json`, katalog `.claude-plugin/marketplace.json`, cache pod `~/.claude/plugins`; plugin może zawierać skille, agentów, hooks, MCP, LSP i wykonywalne skrypty. [Manifest](https://code.claude.com/docs/en/plugins-reference.md), [hosting](https://code.claude.com/docs/en/plugins/host-marketplace.md). | `claude plugin install <plugin>@<marketplace> --scope user`; nowsze źródła command/headersHelper wymagają osobnej akceptacji komendy. Canopy nie będzie ich automatycznie akceptować. |
-| Codex | `$CODEX_HOME/AGENTS.override.md` ma pierwszeństwo przed `AGENTS.md`; domyślnie `~/.codex`. Projekt: od korzenia do cwd, jeden plik per katalog; budżet domyślnie 32 KiB. Aktualne user skills: `~/.agents/skills`, repo `.agents/skills`, admin `/etc/codex/skills`; starsze instalacje mogą używać `$CODEX_HOME/skills`. [Instrukcje](https://developers.openai.com/codex/agent-configuration/agents-md), [skille](https://developers.openai.com/codex/skills/). | CLI i generowany protokół **0.164.0**. W repo istnieją `skills/list`, `plugin/list`, `app/list`. Sama zmiana `CODEX_HOME` nie izoluje `~/.agents/skills`; późniejszy etap musi jawnie sterować źródłami skilli. |
+| Codex | `$CODEX_HOME/AGENTS.override.md` ma pierwszeństwo przed `AGENTS.md`; domyślnie `~/.codex`. Projekt: od korzenia do cwd, jeden plik per katalog; budżet domyślnie 32 KiB. Aktualne user skills: `~/.agents/skills`, repo `.agents/skills`, admin `/etc/codex/skills`; CLI obsługuje także `$CODEX_HOME/skills`. [Instrukcje](https://developers.openai.com/codex/agent-configuration/agents-md), [skille](https://developers.openai.com/codex/skills/). | CLI i generowany protokół **0.164.0**. W repo istnieją `skills/list`, `plugin/list`, `app/list`. Sama zmiana `CODEX_HOME` nie izoluje `~/.agents/skills`; etap 2 rozdziela te cele i opisuje współdzielone wykrywanie user skills. |
 | Codex plugins | Są wspierane: [oficjalny opis](https://developers.openai.com/codex/plugins/). Traktujemy manifest/cache jako format konkretnej wersji, nie kopiujemy konfiguracji Claude w ciemno. | `codex plugin add PLUGIN@MARKETPLACE --json`, `remove`, `list`; `plugin marketplace add/list/upgrade/remove`. Aktualizacja snapshotu marketplace i wybór wersji pluginu to osobne kroki. |
 | Otwarty skills CLI | `npx skills add owner/repo`, URL repo/tree, ścieżka repo; domyślnie instalacja projektowa, `-g` globalna, `--skill`, `--agent`, `--copy`. Codex → `~/.agents/skills`, Claude → `~/.claude/skills`, Grok → `~/.grok/skills`. `check`, `update`, `remove`, lockfile i kopia kanoniczna. [README](https://github.com/vercel-labs/skills), [komendy](https://github.com/vercel-labs/skills/blob/main/docs/commands.md), [cele](https://github.com/vercel-labs/skills/blob/main/docs/agents.md), [katalog](https://skills.sh), [specyfikacja](https://agentskills.io/specification). | Nie uruchamiano `npx`: nawet pomoc mogłaby pobrać kod. Źródła przeczytano przez HTTPS. CLI wymaga dziś Node ≥22.20; przepis musi przypinać również wersję narzędzia. |
 | Grok Build | `~/.grok/skills`, projekt `.grok/skills`, pluginowe `skills/`, dodatkowe ścieżki konfiguracji; pluginy `~/.grok/plugins`, marketplace pod `plugins/marketplaces`. Kompatybilność z Claude i `~/.agents/skills`. [Dokumentacja producenta](https://docs.x.ai/build/features/skills-plugins-marketplaces.md), [reguły projektu](https://docs.x.ai/build/features/project-rules). | **1.0.70**. `grok plugin install/update/enable/disable`, `marketplace`, `--rules`; brak założenia o identyczności formatu konfiguracji z Claude. Obsługa instrukcji Grok jest późniejszym adapterem. |
@@ -84,6 +85,13 @@ Podgląd niezapisanego dokumentu liczy ten sam kompozytor gatewaya; nie zapisuje
 ani nie wysyła go workerowi. Zapis dokumentu jest jawnym zleceniem synchronizacji
 na przypisane maszyny, także obecnie offline.
 
+Przypisania instrukcji i skilli używają wspólnego tag pickera: wielokrotny wybór
+w comboboxie kitu, usuwalne chipy, automatyczne/ręczne tagi z liczbą komputerów
+i tworzenie nowego ręcznego tagu inline. Utworzenie tagu w selektorze nie przypisuje
+go automatycznie komputerom. Żywe „Applies to N computers: …” używa tej samej
+funkcji selektora co gateway, uwzględnia wyłączenia maszyn oraz przecięcie fragmentu
+z przypisaniem dokumentu. Licznik obejmuje również komputery offline.
+
 Wybieramy blok:
 
 ```markdown
@@ -140,10 +148,88 @@ przejęcia. Nie obiecujemy transakcji wieloplikowej. Przekroczenie limitu kompoz
 po wykryciu nowych tagów zatrzymuje wysyłkę dla tej maszyny z widocznym błędem;
 ostatnie pliki pozostają bez zmian, połączenie workera działa dalej.
 
-Dla umiejętności/pluginów analogiczny manifest własności obejmuje ścieżki i
-checksum każdego pliku. Rozpakowanie do prywatnego stagingu, kontrola manifestu,
-atomowa zamiana wersjonowanego katalogu i wskaźnika, poprzednia wersja do rollbacku.
-Nie usuwamy plików odkrytych poza manifestem ani lokalnych zmian.
+## Umiejętności — konkretny protokół etapu 2
+
+`SaveLibrarySkill` przyjmuje `LibrarySkill`, bieżącą `expected_revision` oraz
+alternatywnie listę `SkillFile` z uploadu folderu lub bajty ZIP. `SKILL.md` musi
+leżeć w korzeniu skilla i mieć poprawny YAML z `name` oraz `description`.
+ZIP może zawierać jeden wspólny katalog nadrzędny. Gateway sprawdza nagłówki,
+CRC, rozmiary i metadane ZIP przed zapisem; nie uruchamia kodu ani instalatora.
+Odrzuca linki, specjalne typy plików, traversal, ścieżki absolutne, nazwy Windows,
+kolizje wielkości liter (także katalogów), konflikty plik/katalog i zip bombs.
+
+Migracja `0056_agent_skills` dodaje owner-scoped definicje i niezmienne artefakty
+wersji. `SkillArtifact` zawiera nazwę folderu, opis, SHA-256 manifestu oraz pliki
+z SHA-256 i flagą executable. Upload tworzy kolejny numer wersji; wybór wcześniejszej
+wersji wykonuje rollback bez mutowania historii. Selektory są takie jak dla
+instrukcji. `SkillMachineOverride` wyłącza element lub przypina wersję; `version=0`
+dziedziczy wybraną wersję biblioteki. Gateway odrzuca kolizje celów i ponad 25 MiB
+artefaktów przypisanych jednej maszynie. Limit biblioteki: 100 skilli/właściciela.
+
+Capability `agent_skills_v1` rozszerza istniejący `AgentEnvironmentDesired`:
+`skills=4` przenosi pełne wybrane artefakty, `skill_resolutions=5` jednorazowe
+decyzje. `AgentEnvironmentReport.skills=3` zawiera status każdego elementu/celu:
+ID, harness, ścieżkę, zakres, wersję, applied/drift/kept/error/removed, checksum
+oczekiwany i checksum całego katalogu jako token CAS. `managed_files` zawiera
+wyłącznie zaobserwowane pliki z manifestu Canopy; `desired_files` dokładną
+przypiętą wersję do porównania; `owned` odróżnia obcy katalog. Prywatne dodatki
+nie opuszczają workera. Starszy worker z samym `agent_environment_v1` nadal
+otrzymuje instrukcje, lecz nigdy skille ani ich resolutions. UI pokazuje osobno
+`skills_supported`. Numer `WORKER_LINK_PROTOCOL` pozostaje bez zmian.
+
+Duże konflikty w wielu domach współdzielą budżet 96 MiB zakodowanego raportu
+porównań (gateway przyjmuje do 128 MiB). Kolejne cele zachowują pliki i pokazują
+widoczny komunikat oczekiwania. Rozwiązanie wcześniejszych konfliktów zwalnia
+budżet i udostępnia ich diff przy następnym reconcile; status nie znika przez
+odrzucenie całego raportu.
+
+Rzeczywiste cele (również każdy jawny shadow home / own-login instancji):
+
+| Harness | CLI urządzenia | Sesje Canopy |
+| --- | --- | --- |
+| Claude | `<device CLAUDE_CONFIG_DIR>/skills/<name>` | `<actual isolated home>/canopy-environment/skills/<name>`; SDK ładuje ten lokalny plugin jawnie, nazwa `canopy-environment:<name>`, nadal `settingSources: ["project", "local"]` |
+| Codex | `~/.agents/skills/<name>`, niezależnie od `CODEX_HOME` | `<actual CODEX_HOME>/skills/<name>` |
+| Grok | `<device GROK_HOME>/skills/<name>` (domyślnie `~/.grok`) | `<actual durable home>/skills/<name>`; disposable process home ma link/junction do trwałego katalogu |
+
+`CODEX_HOME` nie izoluje user skills w `~/.agents/skills`. Włączenie „Device CLI too”
+może udostępnić te skille także innym zgodnym harnessom urządzenia. Canopy nie
+kopiuje prywatnego katalogu user skills do platformy i nie modyfikuje cudzych skilli.
+Zmiany dostępności dotyczą nowych sesji; testy nie uruchamiają płatnych modeli.
+Adapter Claude odrzuca symlinki oraz dodatkowe komponenty obok `skills/` w korzeniu
+lokalnego pluginu Canopy: nie aktywuje przypadkowych hooks, MCP ani manifestu,
+których właściciel nie dodał przez bibliotekę skilli. Pozostawia te pliki na dysku
+i blokuje start sesji z czytelnym błędem.
+
+Worker utrzymuje trwały `data_dir/agent-environment/skills.json`: własność celu,
+ścieżki, checksumy i bity executable, bez treści. Całe drzewo odczytuje z limitami
+i kontrolą symlinków. Przy instalacji tworzy staging na tym samym filesystemie,
+fsyncuje pliki, ponownie porównuje cały katalog i publikuje katalog przez rename.
+Przenosi dawny katalog do backupu, sprawdza go ponownie i dopiero zapisuje manifest.
+Błąd zapisu manifestu wycofuje niezmieniony zapis; journal pozwala odtworzyć stan
+po przerwanym swapie. Zmienione staging/backup zostają do przeglądu i dają błąd.
+Portable swap obejmuje dwa rename i krótkie okno braku ścieżki; nie jest transakcją
+wielu celów. Awaria podczas stagingu przed zapisem journalu zachowuje staging
+do ręcznego przeglądu zamiast ryzykować skasowanie lokalnych bajtów.
+
+Aktualizacja/usunięcie dotyczy wyłącznie plików manifestu. Dodatki i puste katalogi
+użytkownika pozostają; nowa wersja kolidująca z nimi daje widoczny błąd.
+Canopy nigdy nie przejmuje istniejącego obcego folderu, nawet przez Overwrite.
+`DeleteLibrarySkill` usuwa definicję, pozostawia niezmienne wersje i uzgadnia
+usunięcie własnych plików. Edycja lokalna blokuje również usunięcie; decyzja jest
+dostępna mimo usunięcia definicji. Offline worker dostaje najnowszy pełny stan.
+
+`ResolveSkillDrift` przyjmuje worker/target ID, expected revision, obejrzany checksum
+i keep/overwrite/import. Keep wiąże zachowanie plików z obserwowanym i oczekiwanym
+stanem. Overwrite wymaga aktualnego CAS oraz własności Canopy. Import waliduje
+zarządzane pliki, tworzy nową wersję i przypina ją **tylko tej maszynie**;
+pozostałe zachowują wersje. Import nie obejmuje prywatnych dodatków. Rozstrzygnięcia
+są jednorazowe; ponowna identyczna lokalna edycja wymaga nowej decyzji.
+
+BFF: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
+Foldery są kodowane base64 w JSON: produkcyjny web wymaga `BODY_SIZE_LIMIT=50M`
+(domyślne 512K ani 25M nie wystarczy dla folderu 25 MiB); proxy także musi przepuścić
+ten rozmiar. Upload ZIP pozostaje ograniczony do 10 MiB, pliki do 1 MiB,
+1000 plików i 25 MiB po rozpakowaniu.
 
 ## Źródła, pole komendy i aktualizacje (późniejsze etapy)
 
@@ -179,9 +265,10 @@ auth i connector grants nigdy nie należą do synchronizowanej biblioteki.
 Limity projektu: 100 dokumentów/właściciela, 64 fragmenty/dokument, 24 KiB
 wynikowej instrukcji/harness/worker, 256 KiB czytanego pliku. Budżet Codexa
 obejmuje też projektowe instrukcje, więc UI pokazuje wielkość podglądu. Upload
-później: 10 MiB archiwum, 25 MiB po rozpakowaniu, 1000 plików, 1 MiB/plik;
+skilli: 10 MiB archiwum, 25 MiB po rozpakowaniu, 1000 plików, 1 MiB/plik;
 odrzucamy symlinki, urządzenia, ścieżki absolutne, `..`, case-collisions i zip bombs.
-HTTPS, limity redirectów, zakaz metadata/link-local i poświadczeń w URL.
+Późniejsze źródła upstream wymagają HTTPS, limitów redirectów i zakazu
+metadata/link-local oraz poświadczeń w URL.
 
 Docker worker synchronizuje do **własnego wolumenu**, nie domu hosta. Read-only
 volume daje widoczny błąd. Kod pluginu/skilla nie instaluje zależności OS; zmiana
@@ -193,14 +280,14 @@ rozszerzony opt-in o `environment:<uuid>`: wspólna definicja + niezmienne wersj
 artefaktów, istniejące wektory i konflikty, capability po obu stronach. Przypisania
 do workerów, tagi, ścieżki, drift i zgody instalacyjne zostają lokalne. Otrzymanie
 wspólnego elementu nie jest zgodą na wykonanie kodu na maszynach odbiorcy.
-Etap 1 nie udostępnia biblioteki między gatewayami.
+Etapy 1–2 nie udostępniają biblioteki między gatewayami.
 
 ## Plan stosu
 
 1. **Instrukcje i maszyny** (`feat/agent-environment-1`): dokumenty/fragmenty,
    selektory, tagi, per-machine overrides, preview, managed blocks, drift/resolution,
    status i temp-HOME integration. Pełna samodzielna funkcja bez instalacji kodu.
-2. **Umiejętności**: bezpieczny upload folder/zip, wersje i manifesty własności,
+2. **Umiejętności** (`feat/agent-environment-2`, zaimplementowany): bezpieczny upload folder/zip, wersje i manifesty własności,
    synchronizacja do rzeczywistych domów, usuwanie i rollback; również Grok adapter.
 3. **Źródła i utrzymanie**: git/skills.sh refs, parser komendy, update tracking,
    ręczne/opt-in automatyczne aktualizacje z diff i zamrożonymi artefaktami.
@@ -216,9 +303,9 @@ scala się razem squash. To zlecenie nie obejmuje push ani otwierania PR.
 `workflow_mode: autonomous-planned`, `mode_source: explicit-user-task-instruction`,
 `decision_authority: delegated`, `scope: current-task`,
 `artifact_state: ready-for-execution`, `execution_mode: inline`.
-Zlecono projekt i implementację etapu 1 jako subagent, z samodzielnym doborem
+Zlecono projekt i implementację etapów 1–2 jako subagent, z samodzielnym doborem
 odwracalnych szczegółów. Protected constraints: bez push/PR, produkcji, prawdziwych
 domów CLI w testach, portów stosu maintainera, zmian Tailscale i instalacji kodu
-upstream. Kryterium: etap 1 end to end, owner scoping, zgodność ze starszym workerem,
+upstream. Kryterium: instrukcje i skille end to end, owner scoping, zgodność ze starszym workerem,
 testy meaningful integration, wymagane sprawdzenia oraz kontrola UI light/dark
 desktop/phone. Dowody trafiają do `agent-environment-verification.md`.
