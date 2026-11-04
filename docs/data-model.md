@@ -60,6 +60,18 @@ użyć jednego kodu dwukrotnie. Zarządzanie i parowanie zapisują audit_log.
 Autoryzacja sprawdza revocation przy każdym RPC, a zapis last seen ogranicza do raz/minutę.
 Szczegóły granicy pojedynczego właściciela i wdrożenia: [mobile.md](mobile.md).
 
+## Zdalne aktualizacje desktopu
+
+Migracja `0063_desktop_updates` dodaje `desktop_updates`: jedno powiązanie workera
+z urządzeniem desktopowym, `owner_user_id`, JSONB ostatniego stanu i komendy oraz
+czas zapisu. Unikalność `device_id` zapobiega przypięciu jednej aplikacji do kilku
+workerów. Oba poświadczenia muszą potwierdzić bieżącą sesję tego samego właściciela;
+odczyty i zapisy wykluczają odwołane urządzenia/workery i zarchiwizowane workery.
+Zmiana urządzenia wymaga wcześniejszego revoke starego i czyści komendę/stan.
+Id żądania i rewizja chronią przed spóźnionymi raportami. Zapis komendy lub wyniku
+i `audit_log` są atomowe. Sekrety pozostają w dotychczasowych magazynach.
+Przepływ: [updates.md](updates.md#zdalna-aktualizacja-aplikacji-desktopowej).
+
 ## Wątki bez projektu (scratch)
 
 Migracja `0032_scratch_projects` dodaje `projects.kind`: `project` (domyślnie, także dla

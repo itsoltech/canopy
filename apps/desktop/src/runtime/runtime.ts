@@ -8,7 +8,7 @@ import { ui } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
 import { remoteWorkerDirectory, type DesktopClientCredential } from "../remote-client.ts";
-import { remoteEnrollment, startDesktopWorker } from "./worker-runtime.ts";
+import { desktopWorkerIdle, remoteEnrollment, startDesktopWorker } from "./worker-runtime.ts";
 import { configuration, freePort, initialStatus, serviceEnvironment, isWorkerStatus } from "./config.ts";
 import { startDatabase } from "./database.ts";
 import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from "./postgres-install.ts";
@@ -37,6 +37,13 @@ export class DesktopRuntime {
   private env = serviceEnvironment();
   private webPort = 0;
   private workerStatusFile = "";
+  private remoteConnection: { client: DesktopClientCredential; directory: string } | undefined;
+  remoteControl() {
+    return this.remoteConnection;
+  }
+  async drainWorker(draining: boolean) {
+    return desktopWorkerIdle(this.services, this.workerStatusFile, draining);
+  }
   private statusTimer: ReturnType<typeof setInterval> | undefined;
   private healthTimer: ReturnType<typeof setInterval> | undefined;
   private checkingHealth = false;
@@ -279,6 +286,7 @@ export class DesktopRuntime {
     const config = configuration(raw);
     this.generation++;
     this.configured = false;
+    this.remoteConnection = undefined;
     this.healthFailures.clear();
     this.cancelStartup();
     const installing = new AbortController();
@@ -379,6 +387,9 @@ export class DesktopRuntime {
 
       this.writeJson(join(this.directory, "desktop.json"), saved);
       this.configured = true;
+
+      if (config.mode === "remote" && client && this.workerStatusFile)
+        this.remoteConnection = { client, directory: workerDirectory };
       this.publish({ phase: "running" });
     } catch (error) {
       await this.services.stop();

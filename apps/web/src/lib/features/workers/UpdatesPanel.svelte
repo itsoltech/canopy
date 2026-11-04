@@ -8,23 +8,37 @@
   import ReleaseChannelField from "./ReleaseChannelField.svelte";
   import WorkerUpdateRow from "./WorkerUpdateRow.svelte";
   import { UpdatesState, updateBusy, updateStateLabel } from "./updates.svelte.ts";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   let { class: className }: { class?: ClassValue } = $props();
   const updates = new UpdatesState();
+  const overview = useOverview();
   const snapshot = $derived(updates.snapshot);
   const busy = $derived(updateBusy(snapshot?.gatewayState ?? ""));
 
   onMount(() => {
+    const unsubscribe = overview.subscribe((update) => {
+      if (update.change.case === "desktopUpdate" && updates.snapshot) {
+        const value = update.change.value;
+        const worker = updates.snapshot.workers.find((w) => w.workerId === value.workerId);
+
+        if (worker) worker.desktop = value;
+      }
+    });
+
     void updates.reload();
     const timer = setInterval(() => void updates.reload(), 5000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      unsubscribe();
+    };
   });
 </script>
 
 <SettingsGroup
   title="Updates"
-  description="Update the gateway first. Workers follow its version when their active work finishes."
+  description="Binary workers follow the gateway version. Desktop apps use their own update channel."
   class={className}
 >
   <div class="grid gap-5 p-4 sm:p-5">
@@ -108,7 +122,18 @@
               gatewayVersion={snapshot.gatewayVersion}
               admin={snapshot.admin}
               pending={updates.pending}
-              onupdate={() => void updates.manage({ action: "worker", workerId: worker.workerId })}
+              onupdate={() =>
+                void updates.manage({
+                  action: worker.installKind === "desktop" ? "desktop" : "worker",
+                  workerId: worker.workerId,
+                })}
+              onforce={() =>
+                void updates.manage({
+                  action: "desktop",
+                  workerId: worker.workerId,
+                  force: true,
+                  desktopRequestId: worker.desktop?.requestId ?? "",
+                })}
               class="py-4 last:pb-0"
             />
           {:else}<p class="py-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">

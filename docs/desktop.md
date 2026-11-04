@@ -190,6 +190,7 @@ Pliki pod `userData`:
 secrets.enc                 # ciphertext OS keychain; 0600 na POSIX
 desktop.json                # tryb/adresy; bez tokenu enrollment
 app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
+remote-update.json.<hash>    # historia zdalnej aktualizacji per desktop device; bez credentiali
 app-shortcuts.json          # quitShortcut; zapis atomowy w main, bez gatewaya
 postgres/data/              # pełny klaster PostgreSQL
 postgres/versions/<pin>/    # zweryfikowany runtime; installed.json oznacza pełną instalację
@@ -662,6 +663,15 @@ procent pobierania i Restart to update. Sekcja istnieje wyłącznie przy obecno�
 bridge desktopu. Wybór jest atomowo zapisany w `userData/app-updates.json` przez main;
 bez zapisu domyślny jest kanał zainstalowanego buildu.
 
+W trybie zdalnym Workers gatewaya może zażądać **Update Canopy app** przez
+uwierzytelniony kanał desktopu. Main zachowuje powyższy updater i kanał, odmawia
+downgrade oraz czeka na idle własnego workera przed restartem. Właściciel może
+jawnie wymusić restart oczekującego żądania; desktop pokazuje powiadomienie.
+Postęp i wynik są widoczne zdalnie i audytowane. Szczegóły:
+[updates.md](updates.md#zdalna-aktualizacja-aplikacji-desktopowej).
+Tryb lokalny, także połączony jako komputer, nie obsługuje aktualizacji przez
+drugi komputer w tym etapie.
+
 Na macOS aktualizacje są włączone, gdy aplikację podpisał Developer ID (odczyt podpisującego przez
 `codesign --display`). Pieczęć zasobów nie jest warunkiem: buildy do 0.2.0-nightly.7 nie ustawiały
 `CANOPY_INSTALL_KIND=desktop`, więc ich worker podmieniał się wewnątrz bundla na wersję gatewaya
@@ -708,7 +718,8 @@ a `checksums.txt` obejmuje również feedy i blockmapy.
 
 Pobieranie odbywa się w tle; menu/tray pokazują postęp i „Restart to update”.
 Powiadomienie systemowe sygnalizuje gotowość, jeśli system je obsługuje. Restart wymaga
-akcji użytkownika i najpierw zamyka kontroler oraz usługi. Zwykłe zamknięcie nie instaluje
+akcji lokalnego użytkownika albo zaakceptowanego zdalnego żądania i idle/force;
+najpierw zamyka kontroler oraz usługi. Zwykłe zamknięcie nie instaluje
 automatycznie aktualizacji. Trwające lokalne zadania zostaną przerwane po wybraniu restartu.
 Na macOS podpis jest sprawdzany lokalnie przez codesign i wymaganie Developer ID;
 build ad-hoc/unsigned nie kontaktuje się z feedem i nie publikuje własnego feedu,

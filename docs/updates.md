@@ -1,10 +1,49 @@
 # Aktualizacje Canopy
 
-Zdalne polecenie aktualizacji **całej aplikacji desktopowej** (Electron, runtime i
-worker) jest zaplanowane jako etap 2 [lokalnego frontendu desktopu](desktop-remote-frontend.md).
-Etap 1 nie dodaje tej akcji: `installKind=desktop` nadal podlega updaterowi aplikacji,
-nie wymianie samej binarki workera. Plan zachowuje kanał desktopu i macOS Developer ID,
-zakazuje downgrade oraz wymaga audytu, postępu na żywo i oczekiwania na idle.
+Workers → Updates oferuje **Update Canopy app** dla `installKind=desktop`.
+Aktualizuje całą aplikację: Electron, dołączony runtime i worker. Desktop w trybie
+zdalnym musi być sparowany z gatewayem i obsługiwać kanał sterowania z
+[etapu 2 lokalnego frontendu](desktop-remote-frontend.md#wynik-etapu-2).
+Workery binarne zachowują niezależny mechanizm opisany poniżej.
+
+## Zdalna aktualizacja aplikacji desktopowej
+
+Właściciel gatewaya wysyła żądanie przez Workers; nie wymaga ono administracyjnej
+roli potrzebnej do aktualizacji samego gatewaya. Gateway przekazuje wyłącznie id
+żądania i ewentualne force. `DesktopControlService` korzysta z tego samego pinned
+TLS Network access i odwoływalnego poświadczenia desktopu co jego UI.
+Osobne `DesktopWorkerService.Confirm` dowodzi posiadania credentialu własnego
+workera tego samego właściciela. Samo `worker_id` ani `installKind` nie wystarcza.
+
+Controller przekazuje żądanie przez prywatne IPC do Electron main. Tylko main
+wywołuje `DesktopUpdates`; desktop sam pobiera wydanie swoim normalnym updaterem,
+z własnego kanału. Gateway nie dostarcza binariów desktopu, adresów feedu ani zgody
+na downgrade. Lokalna próba przełączenia kanału musi się zakończyć przed zdalną
+aktualizacją. Docelowy SemVer musi być ściśle nowszy, także gdy lokalnie pobrano
+starszą paczkę. Zasady Developer ID/codesign i walidacja Squirrel na macOS pozostają
+obowiązujące; brak podpisanego buildu wyłącza funkcję.
+
+Desktop pokazuje powiadomienie o żądaniu. Po pobraniu ustawia barierę przyjmowania
+pracy przez własnego workera i czeka na zakończenie tur, generacji i zadań w tle.
+Workers pokazuje „Will restart after the current turns”; **Restart now…** otwiera
+potwierdzenie przerwania pracy. Force wymaga id tego samego oczekującego żądania.
+Restart instaluje cały bundle, uruchamia aplikację i odtwarza połączenie.
+Poświadczenie workera pozostaje osobne; worker nigdy nie wymienia sidecarów.
+
+Overview przekazuje wersję dostępną, procent pobierania, waiting/restarting oraz
+failed z przyczyną. Offline, brak parowania, starsza aplikacja bez funkcji lub
+wyłączony updater blokują akcję z widocznym powodem. Nowych żądań nie kolejkujemy
+dla offline; zaakceptowane wcześniej mają trwałe id i są deduplikowane przy reconnect.
+Gateway zapisuje stan i komendę w `desktop_updates` (migracja `0058`) oraz audyt
+żądania, force i wyniku: aktor, wersja, id i przyczyna. Lokalny journal jest osobny
+dla poświadczenia desktopu; przerwana próba po restarcie kończy się błędem,
+a start docelowej wersji po restarting — sukcesem. Nieczytelna historia blokuje
+zdalne odtwarzanie, zachowując plik i możliwość uruchomienia aplikacji.
+
+Tryb lokalny nie otwiera tego strumienia. Aktualizowanie lokalnego desktopu przez
+relację połączonych komputerów pozostaje możliwym późniejszym krokiem.
+`canopy.update.v1` nie zmienia się. Integracja gateway ↔ desktop zastępuje updater
+na jego granicy; rzeczywisty podpis, instalację i restart trzeba sprawdzić na macOS.
 
 Gateway i worker używają jednej wersji aplikacji z `CANOPY_VERSION` (wstrzykiwanej
 podczas kompilacji; bez niej `0.0.0-dev`). `--version` wypisuje tę wersję bez

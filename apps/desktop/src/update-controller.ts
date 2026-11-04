@@ -50,6 +50,9 @@ export class UpdateController {
           progress: Math.max(0, Math.min(100, progress.percent)),
         });
     });
+    updater.on("update-available", (info) => {
+      if (this.running) this.publish({ updateVersion: info.version });
+    });
     updater.on("update-downloaded", (info) => {
       if (!this.running) return;
       this.publish({
@@ -109,6 +112,12 @@ export class UpdateController {
   }
   check() {
     return this.state.changingChannel ? Promise.resolve(this.status()) : this.runCheck(false);
+  }
+  checkRemote() {
+    if (this.running || this.state.changingChannel)
+      throw new Error("Wait for the current app update operation to finish, then retry.");
+
+    return this.runCheck(false);
   }
   private async runCheck(allowDowngrade: boolean) {
     if (!this.enabled || this.running || this.state.phase === "downloaded") return this.status();

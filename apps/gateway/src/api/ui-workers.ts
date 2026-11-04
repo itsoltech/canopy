@@ -24,13 +24,40 @@ export function workersHandlers(
   | "installCli"
   | "checkCliUpdates"
 > {
+  const snapshot = async () => {
+    const value = await core.updates.snapshot();
+    const states = await core.desktopControl.states();
+
+    for (const worker of value.workers) {
+      if (worker.installKind !== "desktop") continue;
+      worker.desktop =
+        states.find((s) => s.workerId === worker.workerId) ??
+        create(ui.DesktopUpdateStateSchema, {
+          workerId: worker.workerId,
+          disabledReason: "Pair this desktop app, or update it manually to enable remote updates.",
+        });
+    }
+
+    return value;
+  };
+
   return {
     workerSsh: (request, context) => core.workerSsh.run(request, context.signal),
     fetchWorkerInstall: (request, context) => workerInstall(core.updates, request, context.signal),
 
-    getUpdates: () => core.updates.snapshot(),
+    getUpdates: snapshot,
 
-    manageUpdates: (request) => core.updates.manage(request),
+    manageUpdates: async (request) => {
+      if (request.action === "desktop") {
+        await core.desktopControl.manage(request);
+
+        return snapshot();
+      }
+
+      await core.updates.manage(request);
+
+      return snapshot();
+    },
 
     getWorkerSetup: () =>
       workerGuard(async () => {

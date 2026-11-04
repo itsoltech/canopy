@@ -1,0 +1,50 @@
+syntax = "proto3";
+package canopy.ui.v1;
+
+// Desktop credential only, over Network access's pinned TLS. No artifacts or feed overrides.
+service DesktopControlService {
+  rpc Watch(DesktopHello) returns (stream DesktopControlEvent);
+  rpc Report(DesktopReport) returns (DesktopAck);
+}
+// Separate worker authentication proves possession of this app's own worker.
+service DesktopWorkerService {
+  rpc Confirm(DesktopWorkerProof) returns (DesktopAck);
+}
+message DesktopAck {}
+message DesktopHello {
+  string worker_id = 1;
+  string version = 2;
+  string channel = 3;
+  bool remote_update = 4;
+}
+message DesktopWorkerProof {
+  string device_id = 1;
+  string session_id = 2;
+}
+message DesktopUpdateCommand {
+  string request_id = 1;
+  bool force = 2;
+}
+message DesktopControlEvent {
+  string session_id = 1;
+  bool confirmed = 2;
+  DesktopUpdateCommand command = 3;
+}
+message DesktopUpdateState {
+  string worker_id = 1;
+  string version = 2;
+  string channel = 3;
+  string available_version = 4;
+  string phase = 5;
+  string reason = 6;
+  double progress = 7;
+  string request_id = 8;
+  uint32 revision = 9;
+  bool connected = 10;
+  string disabled_reason = 11;
+  string target_version = 12; // immutable attempted version; available_version may advance after restart
+}
+message DesktopReport {
+  string session_id = 1;
+  DesktopUpdateState state = 2;
+}

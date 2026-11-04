@@ -49,6 +49,10 @@ ograniczony zakres. DesktopMigrationService emituje poświadczenie wyłącznie t
 po uwierzytelnieniu własnego workera desktopowego; stary endpoint udostępnia jedynie
 uwierzytelnione trasy migracji. Workery bez certyfikatu klienta korzystają z WorkerLink,
 enrollmentu i niezależnego UpdateService (etap 3), które same weryfikują tokeny i właściciela.
+`DesktopControlService` i `DesktopWorkerService` są dostępne wyłącznie tutaj:
+poświadczenie desktopu otwiera sterowanie aktualizacją aplikacji, a osobny credential
+workera potwierdza bieżącą sesję i powiązanie właściciela. To osobny strumień od
+WorkerLink i zamrożonego UpdateService; nie przekazuje binariów ani adresów feedu.
 Żądania z nagłówkiem Origin są odrzucane. Minimalna wersja TLS serwera to 1.2
 (starsze telefony); komputery same wymagają 1.3.
 

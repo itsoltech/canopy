@@ -40,6 +40,14 @@ export class Supervisor {
   alive(name: string) {
     return this.children.has(name) && !this.stopping;
   }
+  send(name: string, message: string) {
+    const child = this.children.get(name)?.child;
+
+    if (!child?.stdin?.writable) throw new Error("Desktop worker is unavailable");
+    child.stdin.write(message + "\n");
+
+    return child.pid;
+  }
   start(spec: ProcessSpec, attempts = 0) {
     if (this.stopping) throw new Error("Supervisor is stopping");
 

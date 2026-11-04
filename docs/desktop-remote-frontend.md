@@ -1,7 +1,8 @@
 # Lokalny frontend desktopu ze zdalnym gatewayem
 
-Status: etap 1 zaimplementowany; etapy 2–3 są planowane. Zakres autoryzowany: projekt i implementacja etapu 1,
-lokalne commity; bez push, PR i wdrożenia.
+Status: etapy 1–2 zaimplementowane; etap 3 jest planowany. Zakres etapu 2:
+zdalna aktualizacja aplikacji, weryfikacja i lokalny commit na etapie 1;
+bez push, PR i wdrożenia.
 
 ## Decyzja
 
@@ -137,12 +138,12 @@ Musi jawnie oznaczać dane nieaktualne i nigdy nie udawać wykonania mutacji off
    deduplikację, także po zerwaniu kanału. Bez zmian zamrożonego
    `canopy.update.v1`: addytywne komendy/raporty WorkerLink lub kanał desktopu.
    Testy gateway ↔ desktop: żądanie, postęp, odmowa niepodpisanej/starszej wersji,
-   idle wait, force, offline, audyt, właściciel i restart/reconnect. Etap planowany;
-   nie jest częścią implementacji etapu 1.
+   idle wait, force, offline, audyt, właściciel i restart/reconnect.
+   Zaimplementowane na `feat/desktop-remote-frontend-2`, na bazie etapu 1.
 3. **Opcjonalny odczyt offline** — po osobnym zatwierdzeniu zasad retencji,
    szyfrowania i unieważniania; nie jest warunkiem etapu 1.
 
-Rekomendacja dla etapu 2: osobny długotrwały strumień sterowania desktopu przez
+Implementacja etapu 2: osobny długotrwały strumień sterowania desktopu przez
 ten sam pinned TLS, uwierzytelniony poświadczeniem desktopu. Controller przekazuje
 komendę do Electron main przez prywatne IPC; tylko main wywołuje `DesktopUpdates`.
 Własny worker zachowuje osobne uwierzytelnienie i nie podmienia swoich sidecarów.
@@ -158,7 +159,7 @@ ostatni stan do reconnect i nie przyjmuje nowego żądania dla nieaktywnej sesji
 
 Przy realizacji wieloetapowego planu: osobne draft PR w stosie, najniższy do `dev`,
 pozostałe na poprzednich gałęziach. Wszystkie gotowe i zweryfikowane przed wspólnym
-squash merge; bez częściowej promocji. W tym zadaniu tylko lokalne commity etapu 1.
+squash merge; bez częściowej promocji. Etap 2 kończy się lokalnym commitem.
 
 ## Kryteria weryfikacji
 
@@ -202,9 +203,70 @@ Formularz desktopu w przeglądarce używał niesekretnego stubu mostka Electron;
 to sprawdzenie układu i stanów, bez weryfikacji natywnego IPC ani magazynu kluczy.
 Nie dodano testów UI. Natywne `safeStorage`, podpisana paczka, restart aktualizatora,
 powiadomienia i zachowanie okna wymagają sprawdzenia na rzeczywistym macOS.
-Zdalne sterowanie aktualizacją całej aplikacji i jego testy należą do etapu 2.
+Poniżej opisano osobną weryfikację zdalnego sterowania z etapu 2.
 
 Weryfikacja etapu 1 na Linux x64: `bun install`, `gen:check`, `typecheck`, `lint`,
 `format:check`, pełne `check:tmp` oraz build desktopu (obejmuje build webu,
 shella i dołączonego runtime). Pełny przebieg: 872 pass, 147 skip, 0 fail;
 brak pozostałości w katalogu testowym. Testy live pozostają opt-in.
+
+## Wynik etapu 2
+
+`DesktopControlService.Watch/Report` działa wyłącznie na Network access, przez
+przypięty TLS i poświadczenie desktopu. `DesktopWorkerService.Confirm` wymaga
+osobnego credentialu własnego workera i losowego identyfikatora bieżącej sesji.
+Migracja `0063_desktop_updates` zapisuje powiązanie właściciela, urządzenia i workera,
+ostatnią komendę oraz raport. Ponowne parowanie może zastąpić powiązanie dopiero po
+odwołaniu poprzedniego urządzenia; nie dziedziczy jego komendy. Odwołanie urządzenia
+zamyka strumień. `canopy.update.v1` i protokół WorkerLink pozostają bez zmian.
+
+Controller przekazuje komendę prywatnym stdio do main; `RemoteAppUpdate` wywołuje
+istniejący `DesktopUpdates`, bez URL, wyboru kanału i zgody na downgrade w komendzie.
+Aktywne lokalne przełączenie kanału blokuje zdalną próbę. Pobraną wersję sprawdzamy
+ponownie jako ściśle nowszą. Natywne sprawdzanie Developer ID/codesign i Squirrel
+pozostaje w normalnej ścieżce aktualizatora. Powiadomienie informuje o żądaniu.
+
+Po pobraniu prywatne stdin workera ustawia barierę przyjmowania pracy. Aktualny
+raport z PID, czasem i stanem bariery potwierdza zakończenie tur, generacji i zadań
+w tle. Stan „Will restart after the current turns” pozwala właścicielowi otworzyć
+dialog wymuszenia; audytowane force dotyczy konkretnego oczekującego żądania.
+Desktop zatrzymuje własne usługi i instaluje aplikację normalnym updaterem, po czym
+odtwarza połączenie i tożsamość workera. Worker nie podmienia sidecarów.
+
+Lokalny plik `remote-update.json.<sha256(device_id)>` deduplikuje żądania także po
+restarcie. Osiągnięcie docelowej wersji po stanie restarting raportuje sukces;
+przerwana próba raportuje błąd zamiast ponawiać instalację. Nieczytelna historia
+wyłącza zdalne aktualizacje bez blokowania startu aplikacji i bez nadpisania pliku.
+Gateway audytuje `desktop.update.request`, `desktop.update.force` i końcowy
+`desktop.update.outcome` z aktorem, id żądania, wersją oraz przyczyną wyniku.
+Wersja celu żądania pozostaje osobna od najnowszej dostępnej wersji, również gdy
+normalny updater po restarcie znajdzie już następne wydanie.
+
+Workers otrzymuje stan przez overview oraz snapshot: wersję/kanał aplikacji,
+dostępną wersję, procent, oczekiwanie, restart i błąd. Brak sesji, parowania lub
+obsługi funkcji wyłącza akcję z powodem. Starszej aplikacji bez strumienia nie da
+się odróżnić od niesparowanej: komunikat wskazuje parowanie lub ręczną aktualizację.
+Kontrolki pochodzą z kitu; `DesktopUpdateStatus` skupia stan i dialog potwierdzenia.
+
+**Tryb lokalny:** desktop połączony z innym gatewayem jako komputer nie otrzymuje
+tego kanału sterowania. Aktualizacje między połączonymi komputerami są możliwym
+późniejszym etapem, wymagającym osobnego zakresu uprawnień i protokołu.
+
+`tests/integration/desktop-updates.test.ts` używa prawdziwego gatewaya, PostgreSQL,
+parowania i pinned TLS oraz aktualizatora zastąpionego na granicy main. Pokrywa
+żądanie/postęp, deduplikację, odmowę unsigned/older, idle/force, offline,
+właściciela, osobne uwierzytelnienie workera, revoke/re-pair, audyt,
+restart/reconnect i nieczytelną historię. Integracja dołączonego runtime sprawdza
+rzeczywiste drain/resume workera. Nie dodano testów UI.
+
+Przegląd przeglądarkowy light/dark i desktop/telefon obejmuje pobieranie, oczekiwanie,
+dialog force i offline na izolowanym gatewayu z atrapą aktualizatora.
+Zrzuty: `~/.cache/canopy-desktop-remote-frontend-2/updates-*.png`.
+Natywne powiadomienie, podpisany upgrade i odrzucenie unsigned/older przez macOS,
+instalacja Squirrel oraz restart/reconnect rzeczywistego bundla wymagają macOS.
+
+Weryfikacja etapu 2 na Linux x64: `bun install`, `gen:check`, `typecheck`, `lint`,
+`format:check`, pełne `check:tmp` i build desktopu (web, shell oraz runtime) przeszły.
+Końcowy przebieg: **879 pass, 147 skip, 0 fail**, bez pozostałości w katalogu testowym.
+Testy live pozostają opt-in. Osobno integracja zdalnej aktualizacji: 7 pass;
+polityka updatera: 6 pass; dołączony runtime: 5 pass.
