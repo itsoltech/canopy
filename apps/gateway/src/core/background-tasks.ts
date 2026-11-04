@@ -61,7 +61,7 @@ export class BackgroundTasks {
         );
 
         return {
-          tasks: tasks as unknown as JsonValue,
+          tasks: tasks.map((task) => ({ ...task })),
           ...(tasks.length === 0 && { note: "This thread has no background tasks." }),
         };
       }
@@ -76,7 +76,7 @@ export class BackgroundTasks {
             `background task ${call.args.task_id} not found in this thread; list_background_tasks shows its tasks`,
           );
 
-        return task as unknown as JsonValue;
+        return { ...task };
       }
 
       case "stop_background_task": {
@@ -110,8 +110,8 @@ export class BackgroundTasks {
 
     const next = (previous ?? Promise.resolve())
       .then(() => this.#deliver(threadId))
-      .catch((error: unknown) =>
-        this.#host.log(`background notes of thread ${threadId} not delivered: ${describe(error)}`),
+      .catch((cause: unknown) =>
+        this.#host.log(`background notes of thread ${threadId} not delivered: ${describe(cause)}`),
       );
 
     this.#running.set(threadId, next);
@@ -158,7 +158,7 @@ export class BackgroundTasks {
   /** Delivers now and then every few seconds (main.ts; tests call tick() or start a short interval). */
   start(intervalMs = TICK_MS): void {
     const run = () =>
-      void this.tick().catch((error: unknown) => this.#host.log(`background notes: ${describe(error)}`));
+      void this.tick().catch((cause: unknown) => this.#host.log(`background notes: ${describe(cause)}`));
 
     run();
     this.#timer ??= setInterval(run, intervalMs);
@@ -175,6 +175,6 @@ class Refusal extends Error {
   override readonly name = "Invalid";
 }
 
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+function describe(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }

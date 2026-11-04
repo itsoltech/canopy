@@ -1,5 +1,5 @@
-import { create, fromJson, toJson } from "@bufbuild/protobuf";
-import { ui, update } from "@canopy/contracts";
+import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { update } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
@@ -77,7 +77,7 @@ export class UpdatePersistence {
           version: string;
           os: string;
           arch: string;
-          capabilities: { update?: WorkerUpdateRow["status"]; updateCommand?: unknown };
+          capabilities: { update?: WorkerUpdateRow["status"]; updateCommand?: JsonValue };
         }>`
         SELECT id, name, version, os, arch, capabilities FROM workers WHERE archived_at IS NULL AND revoked_at IS NULL
           AND (owner_user_id = ${userId}::uuid OR owner_user_id IS NULL) ORDER BY name`;
@@ -89,9 +89,9 @@ export class UpdatePersistence {
           os: r.os,
           arch: r.arch,
           status: r.capabilities.update ?? {},
-          ...(r.capabilities.updateCommand
-            ? { command: fromJson(update.UpdateCommandSchema, r.capabilities.updateCommand as never) }
-            : {}),
+          ...(r.capabilities.updateCommand && {
+            command: fromJson(update.UpdateCommandSchema, r.capabilities.updateCommand),
+          }),
         }));
       }),
     );

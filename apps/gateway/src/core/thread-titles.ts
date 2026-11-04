@@ -1,7 +1,7 @@
 import { Provider, type ModelInfo, type ProfileModels } from "@canopy/contracts";
 
 /** Catalogs do not carry prices. Prefer a known small/fast tier, newest version within the tier. */
-export function titleModel(catalog: ProfileModels | undefined, fallback: string): { model: string; effort: string } {
+export function titleModel(catalog: ProfileModels | undefined, fallback: string) {
   const tier = (m: ModelInfo): number => {
     const name = `${m.id} ${m.resolvedModel} ${m.displayName}`.toLowerCase();
 

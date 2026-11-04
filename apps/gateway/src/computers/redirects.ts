@@ -1,7 +1,8 @@
 import { create, type DescMessage, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { computerLink as link } from "@canopy/contracts";
 import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
-import { mapIds, MovedError } from "./remote.ts";
+import { linkedMessage, mapIds, MovedError } from "./remote.ts";
+import { Predicate, Schema } from "effect";
 import type { ComputerStore } from "./store.ts";
 
 /**
@@ -186,11 +187,13 @@ export class Redirects {
     });
 
     if (method.name === "CallAgentBus") {
-      const call = request as link.LinkedAgentCall;
+      const call = linkedMessage(link.LinkedAgentCallSchema, request);
 
       try {
-        for (const value of Object.values(JSON.parse(call.argumentsJson || "{}") as Record<string, unknown>))
-          if (typeof value === "string") check(value);
+        for (const value of Object.values(
+          Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(call.argumentsJson || "{}")),
+        ))
+          if (Predicate.isString(value)) check(value);
       } catch {
         /* the home validates arguments */
       }

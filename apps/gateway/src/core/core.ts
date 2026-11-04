@@ -1,4 +1,5 @@
-import { create, fromBinary, fromJson, toJson, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
+import { create, fromBinary, fromJson, toJson, type MessageInitShape } from "@bufbuild/protobuf";
+import { isErrorObject } from "./error-cause.ts";
 import {
   CommandResultSchema,
   CommandSchema,
@@ -21,7 +22,7 @@ import {
   type ProfileModels,
   type ThreadEvent,
 } from "@canopy/contracts";
-import { Effect, type ManagedRuntime } from "effect";
+import { Effect, Predicate, Schema, type ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { createWorkerLink, type CommandInit, type WorkerConnection, type WorkerLink } from "../worker-link/index.ts";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
@@ -75,7 +76,6 @@ import {
   toUiTurn,
   turnEffort,
   type GoalRow,
-  type ScheduleRow,
   type NewSchedule,
   type ThreadRow,
   type TurnRow,
@@ -401,7 +401,7 @@ export class GatewayCore {
   }
 
   get online(): ReadonlySet<string> {
-    return new Set([...this.link.connections.values()].filter((c) => c.isOpen).map((c) => c.workerId));
+    return new Set([...this.link.connections.values()].flatMap((c) => (c.isOpen ? [c.workerId] : [])));
   }
 
   // ------------------------------------------------------------------ workers
@@ -413,14 +413,14 @@ export class GatewayCore {
     await this.#broadcastWorkers();
     await this.secrets.sync(workerId, true);
     // The outbox is read first: the turns started below (queued behind a lost one) are delivered once.
-    await this.#redeliver(workerId).catch((error: unknown) =>
-      this.#log(`outbox of worker ${workerId} not redelivered: ${describeError(error)}`),
+    await this.#redeliver(workerId).catch((cause: unknown) =>
+      this.#log(`outbox of worker ${workerId} not redelivered: ${describeError(cause)}`),
     );
 
     // Turns it does not run (e.g. its process restarted) end here; the list is complete only with this capability.
     if (connection.hello.capabilities.includes("running_turns")) {
       await this.#endLostTurns({ workerId, reason: WORKER_RESTARTED, keep: connection.hello.runningTurns }).catch(
-        (error: unknown) => this.#log(`lost turns of worker ${workerId} not ended: ${describeError(error)}`),
+        (cause: unknown) => this.#log(`lost turns of worker ${workerId} not ended: ${describeError(cause)}`),
       );
     }
 
@@ -477,7 +477,7 @@ export class GatewayCore {
                   // link closed: the worker re-sends the call and gets the stored result
                 }
               },
-              (error: unknown) => this.#log(`agent bus call ${call.toolName} failed: ${describeError(error)}`),
+              (cause: unknown) => this.#log(`agent bus call ${call.toolName} failed: ${describeError(cause)}`),
             );
             break;
           }
@@ -667,18 +667,12 @@ export class GatewayCore {
         body.thread.connectorTools = await this.connectors.tools(thread.owner_user_id, { workerId });
       }
 
-      result = await connection.sendCommand(
-        command.kind as CommandInit,
-        this.#options.commandTimeoutMs ?? 60_000,
-        command.commandId,
-      );
+      result = await connection.sendCommand(command.kind, this.#options.commandTimeoutMs ?? 60_000, command.commandId);
     } catch {
       return; // disconnected or timed out: stays in the outbox, redelivered on reconnect (the worker deduplicates)
     }
 
-    await this.#run((s) =>
-      s.commandDone(command.commandId, result.ok, toJson(CommandResultSchema, result) as JsonValue),
-    );
+    await this.#run((s) => s.commandDone(command.commandId, result.ok, toJson(CommandResultSchema, result)));
 
     if (command.kind.case === "steerTurn")
       return this.#steerAnswered(command.kind.value.threadId, command.kind.value.inputId, result);
@@ -834,7 +828,7 @@ export class GatewayCore {
 
   /** Sweeps now and then periodically (main.ts); tests call sweep() directly. */
   startSweep(intervalMs = SWEEP_INTERVAL_MS): void {
-    const run = () => void this.sweep().catch((error: unknown) => this.#log(`sweep failed: ${describeError(error)}`));
+    const run = () => void this.sweep().catch((cause: unknown) => this.#log(`sweep failed: ${describeError(cause)}`));
     run();
     this.#sweepTimer ??= setInterval(run, intervalMs);
     this.cli.start();
@@ -1370,7 +1364,7 @@ export class GatewayCore {
   }
 
   /** Bot actions use the UI's validation, with creation, worker outbox, watch and result in one transaction. */
-  async startBotThread(turn: BotTurn, call: StoredCall, request: ui.CreateThreadRequest): Promise<unknown> {
+  async startBotThread(turn: BotTurn, call: StoredCall, request: ui.CreateThreadRequest) {
     return this.botAction(turn, call, async () => {
       const thread = await this.createThread(request);
       const turnId = await this.watchBotThread(turn, call, thread.id);
@@ -1401,13 +1395,7 @@ export class GatewayCore {
     await this.pump(threadId);
   }
 
-  async sendBotThreadMessage(
-    turn: BotTurn,
-    call: StoredCall,
-    threadId: string,
-    text: string,
-    delivery: string,
-  ): Promise<unknown> {
+  async sendBotThreadMessage(turn: BotTurn, call: StoredCall, threadId: string, text: string, delivery: string) {
     if (delivery !== "queue" && delivery !== "steer") throw new InvalidError("delivery must be queue or steer");
     const user = this.#options.userId;
 
@@ -1484,7 +1472,7 @@ export class GatewayCore {
     return result;
   }
 
-  async updateBotThread(turn: BotTurn, call: StoredCall, request: ui.UpdateThreadRequest): Promise<unknown> {
+  async updateBotThread(turn: BotTurn, call: StoredCall, request: ui.UpdateThreadRequest) {
     return this.botAction(turn, call, async () => {
       const thread = await this.updateThread(request);
 
@@ -1492,7 +1480,7 @@ export class GatewayCore {
     });
   }
 
-  async archiveBotThread(turn: BotTurn, call: StoredCall, threadId: string): Promise<unknown> {
+  async archiveBotThread(turn: BotTurn, call: StoredCall, threadId: string) {
     const user = this.#options.userId;
 
     const result = await this.#options.runtime.runPromise(
@@ -2372,7 +2360,7 @@ export class GatewayCore {
 
         const result = await connection
           .sendCommand({ case: "probeProviders", value: {} }, 60_000)
-          .catch((error: unknown) => ({ ok: false, errorMessage: describeError(error), errorCode: "" }));
+          .catch((cause: unknown) => ({ ok: false, errorMessage: describeError(cause), errorCode: "" }));
 
         if (!result.ok) skipped.push(`${worker.name}: ${result.errorMessage || result.errorCode}`);
       }),
@@ -3039,7 +3027,7 @@ export class GatewayCore {
       const spec = request.newThread;
       const placement = spec.placement || "any";
 
-      if (!(PLACEMENTS as readonly string[]).includes(placement)) throw new InvalidError("unknown placement policy");
+      if (!PLACEMENTS.some((p) => p === placement)) throw new InvalidError("unknown placement policy");
 
       if (!harnessOf(spec.provider)) throw new InvalidError("choose a provider");
 
@@ -3435,9 +3423,9 @@ function steerOf(event: ThreadEvent): string | undefined {
 
   if (body.case === "notice" && body.value.code === "steer_dropped") {
     try {
-      const id = (JSON.parse(body.value.dataJson || "{}") as { input_id?: unknown }).input_id;
+      const id = Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(body.value.dataJson || "{}"))["input_id"];
 
-      return typeof id === "string" ? id : undefined;
+      return Predicate.isString(id) ? id : undefined;
     } catch {
       return undefined;
     }
@@ -3459,13 +3447,9 @@ function checkedPermissionMode(mode: PermissionMode): string {
 }
 
 /** Whether a database constraint caused the error (driver errors carry it somewhere in the cause chain). */
-function violates(error: unknown, constraint: string): boolean {
-  for (
-    let current = error, i = 0;
-    i < 8 && current && typeof current === "object";
-    i++, current = (current as { cause?: unknown }).cause
-  ) {
-    if ((current as { constraint?: unknown }).constraint === constraint) return true;
+function violates(cause: unknown, constraint: string): boolean {
+  for (let current = cause, i = 0; i < 8 && isErrorObject(current); i++, current = current.cause) {
+    if (current.constraint === constraint) return true;
   }
 
   return false;
@@ -3498,15 +3482,16 @@ function isTimeZone(zone: string): boolean {
 }
 
 /** Message with its causes (driver errors keep the useful part, e.g. the violated constraint, in the cause). */
-export function describeError(error: unknown): string {
+export function describeError(cause: unknown): string {
   const parts: string[] = [];
 
-  for (let current: unknown = error, i = 0; current && i < 5; i++, current = (current as { cause?: unknown }).cause) {
+  for (let current = cause, i = 0; current && i < 5; i++) {
     const message = current instanceof Error ? current.message : String(current);
-    const detail = (current as { detail?: unknown }).detail;
-    parts.push(typeof detail === "string" && detail ? `${message} (${detail})` : message);
+    const detail = isErrorObject(current) ? current.detail : undefined;
+    parts.push(Predicate.isString(detail) && detail ? `${message} (${detail})` : message);
 
-    if (typeof current !== "object") break;
+    if (!isErrorObject(current)) break;
+    current = current.cause;
   }
 
   return [...new Set(parts)].join(": ");

@@ -5,7 +5,7 @@ import { computerLink as link, ThreadEventSchema, ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { setTimeout as delay } from "node:timers/promises";
-import { methodNamed, qualify, type RemoteServe } from "./remote.ts";
+import { linkedMessage, methodNamed, qualify, type RemoteServe } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
 
 type Clock = { epoch: string; revision: string };
@@ -95,7 +95,7 @@ export class ThreadMirror {
       `INSERT INTO computer_mirror_state(owner_user_id,origin_node_id) VALUES($1::uuid,$2) ON CONFLICT DO NOTHING`,
       [this.store.owner, node],
     );
-    let state = (await this.state(node))!;
+    const state = (await this.state(node))!;
     let generation = state.generation;
     let resetting = false;
     let overview: Uint8Array | null = null;
@@ -104,7 +104,7 @@ export class ThreadMirror {
     try {
       for await (const message of updates) {
         if (signal.aborted) return;
-        const update = message as link.MirrorUpdate;
+        const update = linkedMessage(link.MirrorUpdateSchema, message);
 
         if (update.reset) {
           if (
@@ -219,7 +219,7 @@ export class ThreadMirror {
         if (!changed) throw new ConnectError("Thread mirror subscription superseded", Code.Aborted);
 
         if (update.commit) {
-          state = { ...state, cursor: update.cursor, generation };
+          Object.assign(state, { cursor: update.cursor, generation });
           resetting = false;
           overview = null;
           notify();
@@ -268,12 +268,15 @@ export class ThreadMirror {
     };
 
     const overview = async () =>
-      safeOverview((await one("GetOverview", create(ui.GetOverviewRequestSchema))) as ui.GetOverviewResponse);
+      safeOverview(
+        linkedMessage(ui.GetOverviewResponseSchema, await one("GetOverview", create(ui.GetOverviewRequestSchema))),
+      );
 
     const snapshot = async (id: string) => {
       try {
-        const value = (
-          (await one("WatchThread", create(ui.WatchThreadRequestSchema, { threadId: id }))) as ui.ThreadUpdate
+        const value = linkedMessage(
+          ui.ThreadUpdateSchema,
+          await one("WatchThread", create(ui.WatchThreadRequestSchema, { threadId: id })),
         ).change;
 
         if (value.case !== "snapshot") throw new ConnectError("Missing thread snapshot", Code.Internal);

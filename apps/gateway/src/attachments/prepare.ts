@@ -8,6 +8,7 @@ import {
   type AttachmentLimits,
 } from "@canopy/domain";
 import sharp from "sharp";
+import { Match } from "effect";
 
 /**
  * An uploaded file as the gateway keeps it (docs/ui-api.md, "Załączniki"):
@@ -127,14 +128,12 @@ async function normalize(
 
   const { data: out, info } = await encoded.toBuffer({ resolveWithObject: true });
 
-  const outType =
-    mimeType === "image/tiff"
-      ? "image/png"
-      : mimeType === "image/webp"
-        ? "image/webp"
-        : mimeType === "image/png"
-          ? "image/png"
-          : "image/jpeg";
+  const outType = Match.value(mimeType).pipe(
+    Match.when("image/tiff", () => "image/png"),
+    Match.when("image/webp", () => "image/webp"),
+    Match.when("image/png", () => "image/png"),
+    Match.orElse(() => "image/jpeg"),
+  );
 
   return { data: new Uint8Array(out), mimeType: outType, width: info.width, height: info.pageHeight ?? info.height };
 }

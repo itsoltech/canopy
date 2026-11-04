@@ -3,16 +3,18 @@ import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link, NoticeLevel, ThreadEventSchema, ui } from "@canopy/contracts";
 import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
-import { Effect } from "effect";
+import { Effect, Match, Schema } from "effect";
 import type { GatewayCore } from "../core/core.ts";
 import { permissionModeOf } from "../store/index.ts";
 import { providerOf } from "../store/instance-config.ts";
 import type { Redirects } from "./redirects.ts";
 import type { ComputerStore } from "./store.ts";
+import { linkedMessage } from "./remote.ts";
 import {
   applyBot,
   applyThreadRows,
   botBlocker,
+  botRowsJson,
   commitSource,
   decideTarget,
   discardTarget,
@@ -30,11 +32,10 @@ import {
   stage,
   threadBlocker,
   threadFamily,
+  threadRowJson,
   transaction,
   unfreezeSource,
-  type BotRows,
   type MoveRow,
-  type ThreadRowJson,
 } from "./move-state.ts";
 
 /**
@@ -119,8 +120,11 @@ export class ComputerMoves {
     await this.host.hook?.(phase, move);
   }
   async #unary<O extends Message>(nodeId: string, method: DescMethod, request: Message, timeoutMs: number): Promise<O> {
-    for await (const reply of this.host.call(nodeId, method, request, AbortSignal.timeout(timeoutMs)))
+    for await (const reply of this.host.call(nodeId, method, request, AbortSignal.timeout(timeoutMs))) {
+      // SAFETY: Call sites select O from the method.output descriptor used by host.call to decode replies.
       return reply as O;
+    }
+
     throw new ConnectError("The other computer sent no answer", Code.Internal);
   }
 
@@ -322,7 +326,7 @@ export class ComputerMoves {
     if (bot.routines) item.moves.push(bot.routines === 1 ? "1 routine" : `${bot.routines} routines`);
 
     if (bot.reminders) item.moves.push(bot.reminders === 1 ? "1 reminder" : `${bot.reminders} reminders`);
-    const rows = JSON.parse((await exportBot(this.store, id, "")).rowsJson) as BotRows;
+    const rows = botRowsJson((await exportBot(this.store, id, "")).rowsJson);
 
     for (const g of rows.grants) item.redo.push(`Connect ${g.name} (${g.connector_type}) again`);
 
@@ -659,10 +663,10 @@ export class ComputerMoves {
   // ------------------------------------------------------------------ link: served on the other side
 
   async serve(peer: string, method: DescMethod, request: Message): Promise<Message> {
-    if (method.name === "PrepareMove") return this.#prepare(peer, request as link.MovePrepare);
+    if (method.name === "PrepareMove") return this.#prepare(peer, linkedMessage(link.MovePrepareSchema, request));
 
     if (method.name === "DecideMove") {
-      const decision = request as link.MoveDecision;
+      const decision = linkedMessage(link.MoveDecisionSchema, request);
 
       if (!["commit", "abort"].includes(decision.decision))
         throw new ConnectError("Unknown decision", Code.InvalidArgument);
@@ -674,9 +678,10 @@ export class ComputerMoves {
       return create(link.MoveReplySchema, { state });
     }
 
-    if (method.name === "MoveOutcome") return this.#outcome(peer, (request as link.MoveDecision).moveId);
+    if (method.name === "MoveOutcome")
+      return this.#outcome(peer, linkedMessage(link.MoveDecisionSchema, request).moveId);
 
-    if (method.name === "InspectMove") return this.#inspection(request as link.MoveInspect);
+    if (method.name === "InspectMove") return this.#inspection(linkedMessage(link.MoveInspectSchema, request));
     throw new ConnectError("Unknown move method", Code.Unimplemented);
   }
 
@@ -725,12 +730,12 @@ export class ComputerMoves {
       return known.role === "target" && known.peer_node_id === peer
         ? reply("", known.state === "aborted" ? "refused" : "prepared")
         : reply("Invalid move");
-    let placement: { workspaceId?: string; projectId?: string } = {};
+    const placement: MoveRow["placement"] = {};
     const redo: string[] = [];
 
     if (prepare.kind === "thread") {
       const threads = prepare.thread?.threads ?? [];
-      const rows = threads.map((t) => JSON.parse(t.rowJson) as ThreadRowJson);
+      const rows = threads.map((t) => threadRowJson(t.rowJson));
 
       if (
         !rows.length ||
@@ -750,7 +755,7 @@ export class ComputerMoves {
       )[0];
 
       if (!workspace) return reply("The chosen workspace is not on this computer.");
-      placement = { workspaceId: prepare.workspaceId, projectId: workspace.project_id };
+      Object.assign(placement, { workspaceId: prepare.workspaceId, projectId: workspace.project_id });
 
       const instances = [
         ...new Set(rows.filter((r) => r.provider_profile_id).map((r) => `${r.provider}:${r.provider_profile_id}`)),
@@ -767,7 +772,7 @@ export class ComputerMoves {
         );
       redo.push("The agent continues in a new session here with a handoff note");
     } else {
-      const rows = JSON.parse(prepare.bot?.rowsJson || "{}") as BotRows;
+      const rows = botRowsJson(prepare.bot?.rowsJson || "{}");
 
       if (rows.bot?.id !== prepare.itemId) return reply("Invalid bot move");
 
@@ -835,11 +840,13 @@ export class ComputerMoves {
   async #applyThread(move: MoveRow, self: { nodeId: string; name: string }) {
     const prepare = payloadOf(move);
     const threads = prepare.thread!.threads;
-    const ids = threads.map((t) => (JSON.parse(t.rowJson) as ThreadRowJson).id);
+    const ids = threads.map((t) => threadRowJson(t.rowJson).id);
 
     const moved = new Set([
       ...ids,
-      ...prepare.thread!.files.map((f) => String((JSON.parse(f.attachmentJson) as { id: string }).id)),
+      ...prepare.thread!.files.map((f) =>
+        String(Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(f.attachmentJson))["id"]),
+      ),
     ]);
 
     const workspace = (
@@ -853,7 +860,7 @@ export class ComputerMoves {
     const from = prepare.thread!.sourceName || "the other computer";
 
     for (const thread of threads) {
-      const row = JSON.parse(thread.rowJson) as ThreadRowJson;
+      const row = threadRowJson(thread.rowJson);
       const history = localHistory(thread.history!, move.peer_node_id, moved);
 
       const request = create(ui.CreateThreadRequestSchema, {
@@ -995,13 +1002,12 @@ export class ComputerMoves {
 const sharedLabel = (key: string) => {
   const [kind, ...rest] = key.split(":");
 
-  return kind === "instance"
-    ? `Provider instance ${rest.at(-1)}`
-    : kind === "models"
-      ? `Models of ${rest.at(-1)}`
-      : kind === "project"
-        ? "A project"
-        : `Settings: ${rest.join(" ").replace("_", " ")}`;
+  return Match.value(kind).pipe(
+    Match.when("instance", () => `Provider instance ${rest.at(-1)}`),
+    Match.when("models", () => `Models of ${rest.at(-1)}`),
+    Match.when("project", () => "A project"),
+    Match.orElse(() => `Settings: ${rest.join(" ").replace("_", " ")}`),
+  );
 };
 
 /**
@@ -1015,11 +1021,11 @@ export function handoffNote(
   const messages = history.items.flatMap((i) => {
     const content = i.item?.content;
 
-    return content?.case === "userMessage"
-      ? [`User: ${content.value.text}`]
-      : content?.case === "agentMessage"
-        ? [`Assistant: ${content.value.text}`]
-        : [];
+    return Match.value(content).pipe(
+      Match.when({ case: "userMessage" }, (c) => [`User: ${c.value.text}`]),
+      Match.when({ case: "agentMessage" }, (c) => [`Assistant: ${c.value.text}`]),
+      Match.orElse(() => []),
+    );
   });
 
   const task = history.turns.find((t) => t.messageText || t.inputText);

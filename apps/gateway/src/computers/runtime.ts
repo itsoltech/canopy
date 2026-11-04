@@ -17,7 +17,7 @@ import {
 } from "@canopy/domain/computers";
 import type { GatewayCore } from "../core/core.ts";
 import { ThreadMirror } from "./mirror.ts";
-import { BOT_METHODS, MOVE_METHODS, RemoteCalls, type RemoteServe, type RelayRoute } from "./remote.ts";
+import { BOT_METHODS, linkedMessage, MOVE_METHODS, RemoteCalls, type RemoteServe, type RelayRoute } from "./remote.ts";
 import { Redirects } from "./redirects.ts";
 import { ComputerMoves, type MoveHost } from "./moves.ts";
 import { ComputerRelay, RELAY_METHODS, relayCallback } from "./relay.ts";
@@ -108,13 +108,15 @@ const WILDCARD = new Set(["0.0.0.0", "::"]);
 /** last_seen is shown, not used for liveness: a heartbeat writes it at most this often. */
 const LAST_SEEN_WRITE_MS = 5000;
 
-const STATE_TEXT: Record<string, string> = {
-  updating: "is updating",
-  sleeping: "went to sleep",
-  shutting_down: "shut down",
-  unreachable: "is unreachable",
-  pairing_required: "must be paired again",
-};
+const STATE_TEXT = new Map(
+  Object.entries({
+    updating: "is updating",
+    sleeping: "went to sleep",
+    shutting_down: "shut down",
+    unreachable: "is unreachable",
+    pairing_required: "must be paired again",
+  }),
+);
 
 export async function computerGuard<A>(run: () => Promise<A>): Promise<A> {
   try {
@@ -1152,13 +1154,13 @@ export class LinkedComputers {
     if (method.name === "WatchThreadMirror") {
       if (!this.hello().capabilities.includes(THREAD_MIRROR) || !connection.capabilities?.has(THREAD_MIRROR))
         throw new ConnectError("Thread mirrors need an update on both computers", Code.Unimplemented);
-      yield* this.mirror.publish(request as link.MirrorRequest, this.options.serve, signal);
+      yield* this.mirror.publish(linkedMessage(link.MirrorRequestSchema, request), this.options.serve, signal);
     } else if (method.name === "PushSharedConfig") {
       if (!this.shared || !this.#sharesConfig() || !connection.capabilities?.has(SHARED_CONFIG))
         throw new ConnectError("Shared configuration needs an update on both computers", Code.Unimplemented);
-      yield await this.shared.receive(nodeId, request as link.SharedConfigPush);
+      yield await this.shared.receive(nodeId, linkedMessage(link.SharedConfigPushSchema, request));
     } else if (method.name === "WatchBotMirror")
-      yield* this.botMirror.publish(request as link.MirrorRequest, this.options.serve, signal);
+      yield* this.botMirror.publish(linkedMessage(link.MirrorRequestSchema, request), this.options.serve, signal);
     else yield* this.options.serve(method, request, signal, nodeId);
   }
 
@@ -1471,7 +1473,7 @@ export class LinkedComputers {
     const time = await this.#time(new Date(peer.status_since));
 
     return new ConnectError(
-      `${name} ${STATE_TEXT[peer.status] ?? "is unreachable"} ${peer.status === "unreachable" || peer.status === "updating" ? "since" : "at"} ${time}`,
+      `${name} ${STATE_TEXT.get(peer.status) ?? "is unreachable"} ${peer.status === "unreachable" || peer.status === "updating" ? "since" : "at"} ${time}`,
       Code.Unavailable,
     );
   }

@@ -1,5 +1,5 @@
-import { create, fromBinary, toBinary, type JsonValue } from "@bufbuild/protobuf";
-import { Effect } from "effect";
+import { create, fromBinary, toBinary, type JsonObject, type JsonValue } from "@bufbuild/protobuf";
+import { Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
@@ -16,53 +16,78 @@ type Sql = SqlClient.SqlClient;
 /** Files and blobs of a thread that fit one move message (the link's message limit is 48 MiB). */
 const MAX_FILES = 40 * 1024 * 1024;
 
-export type ThreadRowJson = {
-  id: string;
-  kind: string;
-  parent_thread_id: string | null;
-  title: string;
-  title_source: string;
-  provider: string;
-  provider_profile_id: string | null;
-  settings: { model?: string; effort?: string; permissionMode?: string; instructions?: string };
-  cwd: string | null;
-  created_at: string;
-  archived_at: string | null;
-  runtime: string;
-  project_id: string;
-  remote_parent_ref: string | null;
-  remote_parent_kind: string | null;
-  last_seq: string | number;
-};
+const ThreadRowSchema = Schema.Struct({
+  id: Schema.String,
+  kind: Schema.String,
+  parent_thread_id: Schema.NullOr(Schema.String),
+  title: Schema.String,
+  title_source: Schema.String,
+  provider: Schema.String,
+  provider_profile_id: Schema.NullOr(Schema.String),
+  settings: Schema.Struct({
+    model: Schema.optionalKey(Schema.String),
+    effort: Schema.optionalKey(Schema.String),
+    permissionMode: Schema.optionalKey(Schema.String),
+    instructions: Schema.optionalKey(Schema.String),
+  }),
+  cwd: Schema.NullOr(Schema.String),
+  created_at: Schema.String,
+  archived_at: Schema.NullOr(Schema.String),
+  runtime: Schema.String,
+  project_id: Schema.String,
+  remote_parent_ref: Schema.NullOr(Schema.String),
+  remote_parent_kind: Schema.NullOr(Schema.String),
+  last_seq: Schema.Union([Schema.String, Schema.Number]),
+});
 
-export type BotRows = {
-  bot: Record<string, unknown> & {
-    id: string;
-    provider: string;
-    provider_instance: string;
-    last_read_seq: number | string;
-    configuration: { name?: string };
-  };
-  turns: Record<string, unknown>[];
-  messages: (Record<string, unknown> & { id: string; seq: number | string })[];
-  tool_calls: Record<string, unknown>[];
-  approvals: Record<string, unknown>[];
-  handoff_notes: Record<string, unknown>[];
-  routines: Record<string, unknown>[];
-  wakeups: Record<string, unknown>[];
-  grants: { connector_type: string; name: string }[];
-  mcp: { name: string }[];
-};
+export type ThreadRowJson = typeof ThreadRowSchema.Type;
+
+export const threadRowJson = (json: string): ThreadRowJson =>
+  Schema.decodeUnknownSync(ThreadRowSchema)(JSON.parse(json));
+
+const JsonRow = Schema.Record(Schema.String, Schema.MutableJson);
+
+const BotRowsSchema = Schema.Struct({
+  bot: Schema.StructWithRest(
+    Schema.Struct({
+      id: Schema.String,
+      provider: Schema.String,
+      provider_instance: Schema.String,
+      last_read_seq: Schema.Union([Schema.Number, Schema.String]),
+      configuration: Schema.StructWithRest(Schema.Struct({ name: Schema.optionalKey(Schema.String) }), [JsonRow]),
+    }),
+    [JsonRow],
+  ),
+  turns: Schema.Array(JsonRow),
+  messages: Schema.Array(
+    Schema.StructWithRest(Schema.Struct({ id: Schema.String, seq: Schema.Union([Schema.Number, Schema.String]) }), [
+      JsonRow,
+    ]),
+  ),
+  tool_calls: Schema.Array(JsonRow),
+  approvals: Schema.Array(JsonRow),
+  handoff_notes: Schema.Array(JsonRow),
+  routines: Schema.Array(JsonRow),
+  wakeups: Schema.Array(JsonRow),
+  grants: Schema.Array(
+    Schema.StructWithRest(Schema.Struct({ connector_type: Schema.String, name: Schema.String }), [JsonRow]),
+  ),
+  mcp: Schema.Array(Schema.StructWithRest(Schema.Struct({ name: Schema.String }), [JsonRow])),
+});
+
+export type BotRows = typeof BotRowsSchema.Type;
+
+export const botRowsJson = (json: string): BotRows => Schema.decodeUnknownSync(BotRowsSchema)(JSON.parse(json));
 
 export type Frozen = { schedules?: { id: string; status: string; next_run_at: string | null }[]; family?: string[] };
 
-export function transaction<A>(store: ComputerStore, body: (sql: Sql) => Effect.Effect<A, unknown>): Promise<A> {
+export function transaction<A, E>(store: ComputerStore, body: (sql: Sql) => Effect.Effect<A, E>): Promise<A> {
   return store.runtime.runPromise(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
       return yield* sql.withTransaction(body(sql));
-    }) as Effect.Effect<A, unknown, never>,
+    }),
   );
 }
 
@@ -115,7 +140,7 @@ export function threadFamily(sql: Sql, owner: string, threadId: string, lock = f
     const main = rows[0];
 
     if (!main || main.id !== threadId || main.deleted_at)
-      return { error: "Thread not found", main: undefined, family: [] as string[] };
+      return { error: "Thread not found", main: undefined, family: [] };
 
     if (main.kind !== "main") return { error: "Move its main thread; side threads move with it.", main, family: [] };
 
@@ -262,7 +287,7 @@ export async function exportThread(
     snapshot.schedules = [];
     snapshot.interactions = [];
 
-    const schedules = await store.query<{ row: Record<string, unknown> & { id: string } }>(
+    const schedules = await store.query<{ row: JsonObject & { id: string } }>(
       `SELECT row_to_json(s) AS row FROM schedules s WHERE thread_id = $1::uuid AND status IN ('active','paused')`,
       [id],
     );
@@ -277,7 +302,7 @@ export async function exportThread(
   }
 
   const files = await store.query<{
-    row: Record<string, unknown>;
+    row: JsonObject;
     data: Uint8Array | null;
     mime_type: string;
     thumbnail: Uint8Array | null;
@@ -520,7 +545,7 @@ export function stage(
 
       const ids =
         prepare.kind === "thread"
-          ? (prepare.thread?.threads ?? []).map((t) => (JSON.parse(t.rowJson) as ThreadRowJson).id)
+          ? (prepare.thread?.threads ?? []).map((t) => threadRowJson(t.rowJson).id)
           : [prepare.itemId];
 
       const table = prepare.kind === "bot" ? "bots" : "threads";
@@ -605,7 +630,7 @@ export const discardTarget = (store: ComputerStore, move: MoveRow) =>
 /** Applies a staged bot in one transaction: it becomes this computer's, with its conversation, routines and reminders. */
 export function applyBot(store: ComputerStore, move: MoveRow, self: { nodeId: string; name: string }) {
   const prepare = payloadOf(move);
-  const rows = JSON.parse(prepare.bot!.rowsJson) as BotRows;
+  const rows = botRowsJson(prepare.bot!.rowsJson);
 
   return transaction(store, (sql) =>
     Effect.gen(function* () {
@@ -618,7 +643,7 @@ export function applyBot(store: ComputerStore, move: MoveRow, self: { nodeId: st
 
       if (locked?.state !== "committed") return;
 
-      const local = (table: string, id: unknown) =>
+      const local = (table: string, id: JsonValue | undefined) =>
         id
           ? sql
               .unsafe(`SELECT 1 FROM ${table} WHERE id = $1::uuid AND owner_user_id = $2::uuid`, [id, owner])
@@ -733,7 +758,7 @@ export function applyThreadRows(
     blobs: link.MovedBlob[];
   },
 ) {
-  const row = JSON.parse(thread.rowJson) as ThreadRowJson;
+  const row = threadRowJson(thread.rowJson);
 
   return transaction(store, (sql) =>
     Effect.gen(function* () {
@@ -782,7 +807,7 @@ export function applyThreadRows(
       );
 
       for (const json of thread.schedulesJson) {
-        const s = JSON.parse(json) as Record<string, unknown>;
+        const s = Schema.decodeUnknownSync(JsonRow)(JSON.parse(json));
         yield* insertRows(sql, "schedules", [
           {
             ...s,
@@ -802,7 +827,7 @@ export function applyThreadRows(
       }
 
       for (const file of input.files) {
-        const a = JSON.parse(file.attachmentJson) as Record<string, unknown>;
+        const a = Schema.decodeUnknownSync(JsonRow)(JSON.parse(file.attachmentJson));
 
         if (a["thread_id"] !== input.threadId) continue;
         yield* sql.unsafe(
@@ -899,7 +924,7 @@ function audit(sql: Sql, owner: string, action: string, target: string, details:
 function insertRows(
   sql: Sql,
   table: string,
-  rows: Record<string, unknown>[],
+  rows: readonly { [column: string]: JsonValue | undefined }[],
   options: { omit?: string[]; order?: string } = {},
 ) {
   return Effect.gen(function* () {

@@ -1,7 +1,7 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { ui, type ThreadSecretReceipt } from "@canopy/contracts";
 import type { AgentBusArgs } from "@canopy/domain";
-import type { ManagedRuntime } from "effect";
+import { Predicate, type ManagedRuntime } from "effect";
 import { GatewayStore } from "../store/store.ts";
 import type { CallSource } from "../store/agent-bus.ts";
 import { toUiThreadSecret, type ThreadSecretRow } from "../store/thread-secrets.ts";
@@ -32,8 +32,7 @@ export class ThreadSecrets {
         GatewayStore.use((s) => s.secretResult(source.threadId, row.id)),
       );
 
-      if (result && typeof result === "object" && !Array.isArray(result) && result["status"] !== "pending")
-        return result;
+      if (Predicate.isObject(result) && result["status"] !== "pending") return result;
 
       if (this.#stopped || Date.now() >= deadline) return result;
       await Bun.sleep(250);
