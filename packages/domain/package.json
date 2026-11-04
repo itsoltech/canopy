@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./items": "./src/items.ts",
+    "./provider-accounts": "./src/provider-accounts.ts",
     "./computers": "./src/computers.ts",
     "./json": "./src/json.ts",
     "./agent-environment": "./src/agent-environment.ts",

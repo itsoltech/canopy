@@ -57,6 +57,11 @@ export async function coreWorkers(hostContext: GatewayCore): Promise<ui.Worker[]
 
   for (const worker of workers) {
     worker.providerInstances = instances.get(worker.id) ?? [];
+
+    for (const instance of worker.providerInstances)
+      instance.account = instance.enabled
+        ? hostContext.accounts.get(worker.id, instance.harness, instance.id, worker.configVersion)
+        : undefined;
     worker.networkRouteStatus = hostContext.link.connections.get(worker.id)?.networkRouteStatus;
   }
 
@@ -85,7 +90,7 @@ export const coreProvidersMethods: CoreProvidersMethods = {
 
   /** Every global instance with its state on every worker; no secret values, only whether they are set. */
   async listProviderInstances(this: GatewayCore): Promise<ui.ProviderInstance[]> {
-    return coreInstances(this, (s) => s.list(this[coreState].options.userId));
+    return this.accounts.decorate(await coreInstances(this, (s) => s.list(this[coreState].options.userId)));
   },
 
   /** New or changed instance: new configuration versions for the workers it runs on, sent to the online ones. */
@@ -143,6 +148,11 @@ export const coreProvidersMethods: CoreProvidersMethods = {
    * ConfigApplied for the same version). Workers that are offline or too old are listed as skipped.
    */
   async refreshProviders(this: GatewayCore, request: ui.RefreshProvidersRequest): Promise<ui.RefreshProvidersResponse> {
+    if (request.harness || request.id) {
+      if (!request.harness || !request.id) throw new InvalidError("choose an instance and harness");
+      await coreInstance(this, request.harness, request.id);
+    }
+
     const workers = (await coreWorkers(this)).filter((w) => !request.workerId || w.id === request.workerId);
 
     if (request.workerId && workers.length === 0) throw new InvalidError("worker not found");
@@ -153,6 +163,13 @@ export const coreProvidersMethods: CoreProvidersMethods = {
 
         if (!connection?.isOpen) return void skipped.push(`${worker.name}: offline`);
 
+        if (request.accountOnly) {
+          if (!(await this.accounts.refresh(connection, worker.configVersion, true, request.harness, request.id)))
+            skipped.push(`${worker.name}: account status unavailable`);
+
+          return;
+        }
+
         if (!connection.hello.capabilities.includes("probe_providers"))
           return void skipped.push(`${worker.name}: the worker is too old to check again`);
 
@@ -161,6 +178,8 @@ export const coreProvidersMethods: CoreProvidersMethods = {
           .catch((cause: unknown) => ({ ok: false, errorMessage: describeError(cause), errorCode: "" }));
 
         if (!result.ok) skipped.push(`${worker.name}: ${result.errorMessage || result.errorCode}`);
+        else if (connection.hello.capabilities.includes("provider_account_status"))
+          await this.accounts.refresh(connection, worker.configVersion, true);
       }),
     );
 
@@ -182,6 +201,10 @@ export const coreProvidersMethods: CoreProvidersMethods = {
     this: GatewayCore,
     request: ui.StartProviderLoginRequest,
   ): Promise<ui.StartProviderLoginResponse> {
+    const owned = (await coreWorkers(this)).some((w) => w.id === request.workerId);
+
+    if (!owned) throw new InvalidError("worker not found");
+    await coreInstance(this, request.harness, request.id);
     const connection = this.link.connections.get(request.workerId);
 
     if (!connection?.isOpen) throw new UnavailableError("the worker is offline");

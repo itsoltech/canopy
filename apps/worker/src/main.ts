@@ -292,6 +292,7 @@ while (!stopping.signal.aborted) {
         // cli_install: provider CLIs are reported (CliToolsReport) and installed on demand (InstallCli).
         // worktrees: git refs and worktrees of workspaces (docs/worktrees.md), under worktrees_root by default.
         capabilities: [
+          "provider_account_status",
           "running_turns",
           "attachments",
           "probe_providers",

@@ -384,6 +384,8 @@ message Command {
     WorktreeTarget reveal_worktree = 215;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
+    // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
+    GetProviderAccounts get_provider_accounts = 810;
     // Capability bot_harness_v1. Trwałe, odizolowane od wątków projektowych.
     RunBotTurn run_bot_turn = 830;
     InterruptTurn interrupt_bot_turn = 831;
@@ -601,6 +603,39 @@ message CommandResult {
   WorktreeInfo worktree = 211;
   repeated WorktreeStatus worktree_statuses = 213;
   bool worktree_branch_deleted = 214;
+  ProviderAccountsReport provider_accounts = 810;
+}
+
+message GetProviderAccounts {
+  uint64 config_version = 1;
+  bool refresh = 2;
+  Provider provider = 3;
+  string profile_id = 4;
+}
+
+// Wyłącznie metadane do wyświetlenia. Bez tokenów, kluczy, org ID i surowych błędów.
+message ProviderAccountStatus {
+  string state = 1;
+  string auth_method = 2;
+  string email = 3;
+  string organization = 4;
+  string plan = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  string config_dir = 7;
+  google.protobuf.Timestamp checked_at = 8;
+  string detail = 9;
+  string proxy_name = 10;
+}
+
+message ProviderAccountEntry {
+  Provider provider = 1;
+  string profile_id = 2;
+  ProviderAccountStatus account = 3;
+}
+
+message ProviderAccountsReport {
+  uint64 config_version = 1;
+  repeated ProviderAccountEntry entries = 2;
 }
 
 message GenerateText {

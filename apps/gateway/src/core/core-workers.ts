@@ -18,6 +18,7 @@ import { offerWorkerRoutes } from "../network/workers.ts";
 
 export async function coreServe(hostContext: GatewayCore, connection: WorkerConnection): Promise<void> {
   const { workerId } = connection;
+  hostContext.accounts.connected(connection);
   await coreRun(hostContext, (s) =>
     s.workerConnected(workerId, hostContext[coreState].options.instanceId, connection.hello),
   );
@@ -66,6 +67,8 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
         case "configApplied": {
           const report = message.payload.value;
           await coreRun(hostContext, (s) => s.configApplied(workerId, report));
+
+          if (report.applied) hostContext.accounts.applied(connection, report.version);
           await coreBroadcastWorkers(hostContext);
           break;
         }

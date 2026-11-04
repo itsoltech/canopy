@@ -3,6 +3,8 @@ import { CliRefused } from "../cli-tools/index.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
+import { providerAccounts } from "./account-commands.ts";
+import { withProcessPriority } from "@canopy/process-governor";
 
 export class CommandHandlers {
   constructor(readonly ctx: HostContext) {}
@@ -10,6 +12,13 @@ export class CommandHandlers {
     const kind = command.kind;
 
     if (kind.case === "listDirectory") return this.ctx.ops.listDirectory(kind.value.path);
+
+    if (kind.case === "getProviderAccounts")
+      return {
+        providerAccounts: await withProcessPriority(kind.value.refresh ? "user" : "background", () =>
+          providerAccounts(this.ctx, kind.value),
+        ),
+      };
 
     if (kind.case === "listGitRefs") return this.ctx.ops.listGitRefs(kind);
 

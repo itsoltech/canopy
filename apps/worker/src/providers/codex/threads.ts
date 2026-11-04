@@ -39,6 +39,7 @@ export { withUserMentions } from "./thread-registry.ts";
 export class CodexThreads extends Context.Service<
   CodexThreads,
   {
+    readAccount(): Effect.Effect<{ email: string; plan: string } | undefined, CodexThreadError>;
     /** Creates the Codex thread (new or fork) and records thread_ready. Returns the Codex thread id. */
     create(spec: ThreadSpec, fork?: ForkSpec): Effect.Effect<string, CodexThreadError>;
     /** Starts a turn; resumes the Codex thread first when this process has not loaded it. */
@@ -145,6 +146,22 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     const sessions = threadSessions(ctx);
 
     return CodexThreads.of({
+      readAccount: () =>
+        codex.request("account/read", { refreshToken: false }).pipe(
+          Effect.map((result) =>
+            result.account?.type === "chatgpt"
+              ? { email: result.account.email ?? "", plan: result.account.planType }
+              : undefined,
+          ),
+          Effect.mapError(
+            () =>
+              new CodexThreadError({
+                threadId: "",
+                operation: "account/read",
+                message: "Could not read account metadata.",
+              }),
+          ),
+        ),
       create: sessions.create,
       ...threadTurns(ctx, sessions.ensureLoaded, turnSettings),
       listModels: catalog.listModels,

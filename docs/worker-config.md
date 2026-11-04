@@ -1,5 +1,9 @@
 # Konfiguracja workerów
 
+Status kont per instancja i worker (CLI, cache, prywatność):
+[provider-accounts.md](provider-accounts.md). Ochrona przed lawiną procesów:
+[process-governor.md](process-governor.md).
+
 CLI **Claude Code (`claude`), Codex (`codex`) i Grok (`grok`)** muszą być już
 zainstalowane na komputerze workera. Dotyczy to desktopu, samodzielnych binarek
 i Dockera. Canopy ich nie zawiera, nie pobiera i nie aktualizuje. Użytkownik

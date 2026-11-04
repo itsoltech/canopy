@@ -12,6 +12,7 @@
   import WorkerCliTools from "./WorkerCliTools.svelte";
   import WorkerTagEditor from "./WorkerTagEditor.svelte";
   import type { WorkerSetup } from "./worker-setup.svelte.ts";
+  import AccountStatusRow, { hasAccountStatus } from "#lib/features/providers/AccountStatusRow.svelte";
 
   let {
     worker,
@@ -25,6 +26,7 @@
     class?: ClassValue;
   } = $props();
 
+  const accounts = $derived(worker.providerInstances.filter((i) => i.enabled && hasAccountStatus(i.account)));
   const updates = $derived(worker.cliTools.filter((t) => t.action === "update").length);
   const status = $derived(worker.revokedAt ? "Revoked" : worker.online ? "Connected" : "Disconnected");
 
@@ -75,6 +77,23 @@
       <WorkerSettings {worker} title="Machine details" />
       <WorkerTagEditor {worker} {environment} />
       <WorkerCliTools {worker} />
+      {#if accounts.length}<section class="grid min-w-0 gap-3" aria-label="Provider accounts">
+          <h3 class="text-sm/6 font-medium text-zinc-950 dark:text-white">Provider accounts</h3>
+          {#each accounts as instance (`${instance.harness}/${instance.id}`)}
+            <div class="grid min-w-0 gap-1">
+              <p class="text-sm/6 font-medium text-zinc-700 dark:text-zinc-300">
+                {instance.label || providerLabel(instance.harness)} · {instance.id}
+              </p>
+              <AccountStatusRow
+                account={instance.account}
+                workerId={worker.id}
+                harness={instance.harness}
+                id={instance.id}
+                online={worker.online}
+              />
+            </div>
+          {/each}
+        </section>{/if}
     </div>
   </Disclosure>
   <!-- The summary's padding is 1rem above and below its content (p-4). -->

@@ -62,6 +62,7 @@ const QUERIES: ReadonlySet<Command["kind"]["case"]> = new Set(["listMentionCatal
 const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   ...QUERIES,
   "installCli",
+  "getProviderAccounts",
   "listGitRefs",
   "createWorktree",
   "renameWorktreeBranch",
@@ -279,6 +280,7 @@ export class WorkerHost {
         ...(output.directoryPath && { directoryPath: output.directoryPath }),
         ...(output.models && { models: output.models }),
         ...(output.login && { login: output.login }),
+        ...(output.providerAccounts && { providerAccounts: output.providerAccounts }),
         ...(output.mentionCatalog && { mentionCatalog: output.mentionCatalog }),
         ...(output.fileSearch && { fileSearch: output.fileSearch }),
         ...(output.generatedText !== undefined && { generatedText: output.generatedText }),
@@ -319,6 +321,7 @@ export class WorkerHost {
 
   async close(): Promise<void> {
     this.#ctx.state.closing = true;
+    await this.#ctx.state.accounts.close();
     this.#ctx.ops.wakeRuntimes();
     await this.#ctx.state.runtimeReconcile;
     clearInterval(this.#ctx.state.cliTimer);

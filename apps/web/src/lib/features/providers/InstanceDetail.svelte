@@ -17,6 +17,7 @@
   import SharedInstance from "./SharedInstance.svelte";
   import StatusLine from "./StatusLine.svelte";
   import WorkersField from "./WorkersField.svelte";
+  import AccountStatusRow, { hasAccountStatus } from "./AccountStatusRow.svelte";
 
   /**
    * The detail of one instance, for the scope chosen above the list: on one worker its status
@@ -42,6 +43,7 @@
   let failure = $state<string>();
   let deleting = $state(false);
   const on = $derived(worker ? instance.workers.find((w) => w.workerId === worker.id) : undefined);
+  const accountShown = $derived(!!on?.enabled && hasAccountStatus(on.account));
   const nameOf = (workerId: string) => workers.find((w) => w.id === workerId)?.name ?? workerId.slice(-8);
   const onlineOf = (workerId: string) => workers.find((w) => w.id === workerId)?.online ?? false;
 
@@ -112,9 +114,21 @@
           <dd class="font-mono text-zinc-950 dark:text-white">{on.version}</dd>{/if}
         {#if on?.reported && !on.available && on.detail}<dt class="text-zinc-500 dark:text-zinc-400">Detail</dt>
           <dd class="text-pretty text-zinc-950 dark:text-white">{on.detail}</dd>{/if}
-        {#if on?.checkedAt}<dt class="text-zinc-500 dark:text-zinc-400">Checked</dt>
+        {#if on?.checkedAt && !accountShown}<dt class="text-zinc-500 dark:text-zinc-400">Checked</dt>
           <dd class="text-zinc-950 dark:text-white">
             {formatRelative(on.checkedAt)}{on.synced ? "" : " · newer settings on their way"}
+          </dd>{:else if on && !on.synced}<dt class="text-zinc-500 dark:text-zinc-400">Settings</dt>
+          <dd class="text-zinc-950 dark:text-white">Newer settings on their way</dd>{/if}
+        {#if on && accountShown}<dt class="text-zinc-500 dark:text-zinc-400">Account</dt>
+          <dd class="-my-0.5 min-w-0">
+            <AccountStatusRow
+              account={on.account}
+              workerId={worker.id}
+              harness={instance.harness}
+              id={instance.id}
+              online={worker.online}
+              onupdated={() => providers.reload()}
+            />
           </dd>{/if}
       </dl>
       {#if ownLogin && on?.enabled}
@@ -132,6 +146,16 @@
             {#if w.version}<span class="shrink-0 font-mono text-sm/5 text-zinc-500 sm:text-xs/5">v{w.version}</span
               >{/if}
             <StatusLine {status} class="min-w-0 text-sm/5 text-zinc-600 sm:max-w-[70%] dark:text-zinc-400" />
+            {#if w.enabled && hasAccountStatus(w.account)}<div class="min-w-0 basis-full">
+                <AccountStatusRow
+                  account={w.account}
+                  workerId={w.workerId}
+                  harness={instance.harness}
+                  id={instance.id}
+                  online={onlineOf(w.workerId)}
+                  onupdated={() => providers.reload()}
+                />
+              </div>{/if}
           </li>
         {:else}
           <li class="px-3 py-2.5 text-base/6 text-zinc-500 sm:text-sm/6">No workers yet.</li>

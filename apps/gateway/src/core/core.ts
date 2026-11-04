@@ -21,6 +21,7 @@ import { UpdateCenter } from "../updates/center.ts";
 import { createUpdateCenter } from "../updates/center-composition.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools } from "./cli-tools.ts";
+import { ProviderAccounts } from "./provider-accounts.ts";
 import { AgentEnvironment } from "../agent-environment/service.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
 import type { NetworkAccess } from "../network/network.ts";
@@ -70,6 +71,7 @@ export {
 } from "./core-context.ts";
 
 export class GatewayCore {
+  readonly accounts = new ProviderAccounts(this);
   readonly role: GatewayRole;
   readonly [coreState] = new GatewayCoreState();
   declare sweep: CoreWorkLoopMethods["sweep"];

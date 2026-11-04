@@ -1,5 +1,8 @@
 # CLI dostawców: wykrywanie, instalacja i aktualizacja
 
+Odczyt statusu konta przez oficjalne CLI, jego ograniczenia oraz zasady
+prywatności opisuje [provider-accounts.md](provider-accounts.md).
+
 Canopy **nigdy nie dołącza** CLI dostawców — Claude Code (`claude`), Codexa (`codex`) ani Groka (`grok`) — do
 aplikacji desktop, binarek workera ani obrazów Docker. CLI muszą być zainstalowane na maszynie workera. Canopy
 potrafi je jednak **zainstalować i aktualizować na żądanie**: dla każdego workera i dostawcy pokazuje zainstalowaną

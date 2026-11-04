@@ -88,6 +88,7 @@ export class HostCatalog {
         `codex sign-in of ${status.config.id}: ${outcome.success ? "signed in" : (outcome.error ?? "failed")}`,
       );
       this.ctx.state.logins.delete(key);
+      this.ctx.state.accounts.invalidate();
       // The new login shows in the report; Codex processes of the instance pick it up when they restart.
       await this.ctx.ops.probe().catch(() => {});
     });
