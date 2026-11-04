@@ -46,6 +46,10 @@
   {...rest}
   {@attach tooltip(label, tooltipOptions)}
 >
-  {#if loading}<Spinner />{:else}<Icon name={icon} class={iconClass} />{/if}
+  {#if loading}<Spinner />{:else}<Icon
+      name={icon}
+      tone={variant === "primary" || variant === "danger" ? "inherit" : "muted"}
+      class={iconClass}
+    />{/if}
   <TouchTarget />
 </button>

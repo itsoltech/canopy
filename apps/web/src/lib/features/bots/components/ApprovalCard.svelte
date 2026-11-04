@@ -76,7 +76,7 @@
             {...props}
             class="relative -ml-1.5 flex items-center gap-1 rounded-md py-0.5 pr-1 pl-1.5 text-sm/5 font-medium text-amber-700 focus-ring hover:bg-amber-500/10 sm:text-xs/5 dark:text-amber-400"
           >
-            Needs approval<Icon name="chevron-down" class="size-3.5 fill-current" />
+            Needs approval<Icon name="chevron-down" tone="inherit" class="size-3.5 fill-current" />
           </button>
         {/snippet}
         <MenuCheckItem

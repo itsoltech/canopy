@@ -71,7 +71,7 @@
       <h2 id="{id}-title" class="text-base/6 font-semibold text-zinc-950 dark:text-white">{title}</h2>
       {#if interaction.routedTo === "parent"}
         <p class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm/5 text-violet-700 dark:text-violet-400">
-          <Icon name="sparkles" class="size-3.5" />
+          <Icon name="sparkles" tone="inherit" class="size-3.5" />
           {#if parent}<span>The agent of</span><ThreadLink threadId={parent.id} fallback={parent.title} /><span
               >answers this. You can step in.</span
             >{:else}The main agent answers this. You can step in.{/if}

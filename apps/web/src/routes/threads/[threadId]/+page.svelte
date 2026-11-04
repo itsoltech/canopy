@@ -529,7 +529,7 @@
             <ThreadMenuItems {thread} />
           </DropdownMenu>
         {/if}
-        <IconButton icon="view-columns" label="Thread details" aria-pressed={panelOpen} onclick={togglePanel} />
+        <IconButton icon="panel-right" label="Thread details" aria-pressed={panelOpen} onclick={togglePanel} />
       {/snippet}
     </TopBar>
 

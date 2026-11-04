@@ -19,6 +19,6 @@
 </script>
 
 <a class={[buttonClasses(variant, size, Boolean(icon)), className]} {...rest}>
-  {#if icon}<Icon name={icon} />{/if}
+  {#if icon}<Icon name={icon} tone={variant === "primary" || variant === "danger" ? "inherit" : "muted"} />{/if}
   {@render children()}
 </a>

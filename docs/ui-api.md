@@ -6,6 +6,21 @@ tokenu usługi zdalnego webu. `GetClientCapabilities` negocjuje protokół oraz 
 brakujące funkcje są ukryte lub pokazują stan aktualizacji. Różnica numerów buildów
 przy zgodnym protokole nie jest błędem. [Projekt i migracja](desktop-remote-frontend.md).
 
+## Ikony
+
+`@canopy/ui/icons` eksportuje jedną mapę `icons`: stabilna nazwa semantyczna → `viewBox`,
+`fill`, opcjonalne `stroke` / `strokeWidth` i `paths` (ścieżka `d`, opcjonalne `evenodd`).
+Webowy `Icon`, mobilny `Icon` i wzmianki czytają ten sam opis SVG, bez rozpoznawania rodzin.
+Zmiana rodziny wymaga podmiany danych w `packages/ui/src/icons.ts`; obecnie pozostają
+Heroicons Micro (MIT), kilka ścieżek Lucide (ISC) i własne znaki paneli.
+
+Webowy `Icon` domyślnie używa `--icon-muted`: zinc-500 w jasnym i zinc-400 w ciemnym schemacie.
+Hover, aktywacja, fokus klawiatury i wybrany/rozwinięty stan kontrolki ustawiają
+`--icon-emphasis` (odpowiednio zinc-700 / zinc-300), również w nagłówkach i nawigacji.
+`tone="inherit"` zachowuje kolor semantycznego statusu lub kontrast głównej akcji;
+jawne klasy koloru nadal mają pierwszeństwo. Przełącznik Thread details używa `panel-right`:
+obrysu okna z poziomymi wierszami w prawym panelu.
+
 ## Canopy mobile
 
 Natywny klient `apps/mobile` korzysta z tego samego `GatewayService` przez Connect

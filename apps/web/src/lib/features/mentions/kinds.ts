@@ -1,7 +1,7 @@
 import { MentionKind, type Mention } from "@canopy/contracts";
 import { mentionLabel } from "@canopy/domain";
 import { connectorMarks } from "#lib/features/connectors/marks.ts";
-import { icons, lineIcons, type IconName } from "#lib/shared/ui/icons.ts";
+import { icons, type IconName } from "#lib/shared/ui/icons.ts";
 
 /**
  * Inline elements of the composer (docs/ui-api.md, "Wzmianki"): how each kind looks as a chip, in the editor
@@ -54,20 +54,19 @@ export const CHIP_IMAGE_CLASS = "size-4 shrink-0 self-center rounded-sm object-c
 const escape = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-const isLineIcon = (name: IconName): name is keyof typeof lineIcons => Object.hasOwn(lineIcons, name);
-
 function iconSvg(name: IconName): string {
-  if (isLineIcon(name)) {
-    const paths = lineIcons[name].map((d) => `<path d="${d}"/>`).join("");
+  const icon = icons[name];
 
-    return `<svg viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
-  }
-
-  const paths = icons[name]
-    .map((p) => `<path d="${p.d}"${"evenodd" in p ? ' fill-rule="evenodd" clip-rule="evenodd"' : ""}/>`)
+  const paths = icon.paths
+    .map(
+      (p) =>
+        `<path d="${p.d}"${icon.fill === "none" ? ' fill="none"' : ""}${p.evenodd ? ' fill-rule="evenodd" clip-rule="evenodd"' : ""}/>`,
+    )
     .join("");
 
-  return `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
+  const stroke = icon.stroke ? ` stroke="${icon.stroke}" stroke-width="${icon.strokeWidth}"` : "";
+
+  return `<svg viewBox="${icon.viewBox}" fill="${icon.fill}"${stroke} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
 }
 
 /** Only data: images and https URLs are shown (catalog icons); anything else falls back to the kind's icon. */

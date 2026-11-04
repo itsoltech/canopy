@@ -2,7 +2,7 @@
  * Heroicons Micro (16×16, solid), MIT, https://heroicons.com — generated from heroicons@2.2.0.
  * Add an icon by copying its paths from `16/solid/<name>.svg` (`stop` is its `<rect>` written as a path).
  */
-export const icons = {
+const solidPaths = {
   eye: [
     { d: "M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" },
     {
@@ -397,6 +397,14 @@ export const icons = {
       d: "M9.836 3h-3.67v10h3.67V3ZM11.336 13H13.5a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 13.5 3h-2.164v10ZM2.5 3h2.166v10H2.5A1.5 1.5 0 0 1 1 11.5v-7A1.5 1.5 0 0 1 2.5 3Z",
     },
   ],
+  // A right-hand inspector with horizontal information rows, on the micro grid.
+  "panel-right": [
+    {
+      d: "M2.5 2A1.5 1.5 0 0 0 1 3.5v9A1.5 1.5 0 0 0 2.5 14h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 13.5 2h-11ZM2.5 3.5H7v9H2.5v-9Zm6 0h5v9h-5v-9Z",
+      evenodd: true,
+    },
+    { d: "M9.5 5h3v1.5h-3V5Zm0 3h3v1.5h-3V8Z" },
+  ],
   sun: [
     {
       d: "M8 1a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 8 1ZM10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM12.95 4.11a.75.75 0 1 0-1.06-1.06l-1.062 1.06a.75.75 0 0 0 1.061 1.062l1.06-1.061ZM15 8a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 15 8ZM11.89 12.95a.75.75 0 0 0 1.06-1.06l-1.06-1.062a.75.75 0 0 0-1.062 1.061l1.061 1.06ZM8 12a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 8 12ZM5.172 11.89a.75.75 0 0 0-1.061-1.062L3.05 11.89a.75.75 0 1 0 1.06 1.06l1.06-1.06ZM4 8a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 4 8ZM4.11 5.172A.75.75 0 0 0 5.173 4.11L4.11 3.05a.75.75 0 1 0-1.06 1.06l1.06 1.06Z",
@@ -509,23 +517,51 @@ export const icons = {
  * Line icons (24×24, stroke), Lucide (ISC), https://lucide.dev — lighter than the solid micro set, for quiet
  * actions next to content (copy, fork). Circles and rects are written as paths.
  */
-export const lineIcons = {
-  "chevron-left": ["m15 18-6-6 6-6"],
-  funnel: ["M4 3h16v2l-6 7v7l-4 2V12L4 5Z"],
+const linePaths = {
+  "chevron-left": [{ d: "m15 18-6-6 6-6" }],
+  funnel: [{ d: "M4 3h16v2l-6 7v7l-4 2V12L4 5Z" }],
   copy: [
-    "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z",
-    "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
+    { d: "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z" },
+    { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" },
   ],
-  copied: ["M20 6 9 17l-5-5"],
+  copied: [{ d: "M20 6 9 17l-5-5" }],
   "git-fork": [
-    "M12 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
-    "M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
-    "M18 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
-    "M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9",
-    "M12 12v3",
+    { d: "M12 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" },
+    { d: "M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" },
+    { d: "M18 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" },
+    { d: "M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" },
+    { d: "M12 12v3" },
   ],
 } as const;
 
-export type SolidIconName = keyof typeof icons;
+export interface IconPath {
+  readonly d: string;
+  readonly evenodd?: boolean;
+}
 
-export type IconName = SolidIconName | keyof typeof lineIcons;
+export interface IconDefinition {
+  readonly viewBox: string;
+  readonly fill: "currentColor" | "none";
+  readonly stroke?: "currentColor";
+  readonly strokeWidth?: number;
+  readonly paths: readonly IconPath[];
+}
+
+function withStyle<Names extends string>(
+  paths: Record<Names, readonly IconPath[]>,
+  style: Omit<IconDefinition, "paths">,
+): Record<Names, IconDefinition> {
+  // SAFETY: Object.entries preserves every key of paths; each entry receives the same SVG style.
+  return Object.fromEntries(
+    Object.entries<readonly IconPath[]>(paths).map(([name, paths]) => [name, { ...style, paths }]),
+  ) as Record<Names, IconDefinition>;
+}
+
+/** The family boundary: renderers only read this name → SVG map. Keep names stable when replacing artwork. */
+export const icons = {
+  ...withStyle(solidPaths, { viewBox: "0 0 16 16", fill: "currentColor" }),
+  // Lucide needs an optical margin to match the solid micro set at 16px.
+  ...withStyle(linePaths, { viewBox: "-2 -2 28 28", fill: "none", stroke: "currentColor", strokeWidth: 2 }),
+};
+
+export type IconName = keyof typeof icons;

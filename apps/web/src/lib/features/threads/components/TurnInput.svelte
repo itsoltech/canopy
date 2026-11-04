@@ -88,6 +88,7 @@
     >
       {#if !((origin.kind === "other" || origin.kind === "answer") && turn.botId)}<Icon
           name={icons.get(origin.kind) ?? "sparkles"}
+          tone="inherit"
           class="size-3.5"
         />{/if}
       {#if origin.kind === "task"}

@@ -37,7 +37,10 @@
   aria-busy={loading || undefined}
   {...rest}
 >
-  {#if loading}<Spinner />{:else if icon}<Icon name={icon} />{/if}
+  {#if loading}<Spinner />{:else if icon}<Icon
+      name={icon}
+      tone={variant === "primary" || variant === "danger" ? "inherit" : "muted"}
+    />{/if}
   {@render children()}
   {#if size === "sm"}<TouchTarget />{/if}
 </button>

@@ -42,7 +42,10 @@
     })}
     disabled={disabled || sending}
   >
-    {#if sending}<Spinner class="size-3.5" />{:else}<Icon name={steerFirst ? "arrow-up" : "queue-list"} />{/if}
+    {#if sending}<Spinner class="size-3.5" />{:else}<Icon
+        name={steerFirst ? "arrow-up" : "queue-list"}
+        tone="inherit"
+      />{/if}
     {steerFirst ? "Steer" : "Queue"}
     <TouchTarget />
   </button>
@@ -57,7 +60,7 @@
         {...props}
         {@attach tooltip("More ways to send")}
       >
-        <Icon name="chevron-down" class="size-3.5" />
+        <Icon name="chevron-down" tone="inherit" class="size-3.5" />
         <TouchTarget />
       </button>
     {/snippet}

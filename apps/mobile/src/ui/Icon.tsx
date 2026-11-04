@@ -1,10 +1,6 @@
 import Svg, { Path } from "react-native-svg";
-import { icons, lineIcons, type IconName } from "@canopy/ui/icons";
+import { icons, type IconName } from "@canopy/ui/icons";
 import { useColors } from "./theme";
-
-function isLineIcon(name: IconName): name is keyof typeof lineIcons {
-  return name in lineIcons;
-}
 
 export function Icon({
   name,
@@ -18,31 +14,30 @@ export function Icon({
   label?: string;
 }) {
   const c = useColors();
-  const line = isLineIcon(name);
+  const icon = icons[name];
+  const ink = color ?? c.muted;
 
   return (
     <Svg
       width={size}
       height={size}
-      viewBox={line ? "-2 -2 28 28" : "0 0 16 16"}
-      fill={line ? "none" : (color ?? c.muted)}
-      stroke={line ? (color ?? c.muted) : undefined}
-      strokeWidth={line ? 2 : undefined}
+      viewBox={icon.viewBox}
+      fill={icon.fill === "none" ? "none" : ink}
+      stroke={icon.stroke ? ink : undefined}
+      strokeWidth={icon.strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       accessibilityLabel={label}
       accessible={Boolean(label)}
     >
-      {isLineIcon(name)
-        ? lineIcons[name].map((d) => <Path key={d} d={d} />)
-        : icons[name].map((p) => (
-            <Path
-              key={p.d}
-              d={p.d}
-              fillRule={"evenodd" in p ? "evenodd" : undefined}
-              clipRule={"evenodd" in p ? "evenodd" : undefined}
-            />
-          ))}
+      {icon.paths.map((p) => (
+        <Path
+          key={p.d}
+          d={p.d}
+          fillRule={p.evenodd ? "evenodd" : undefined}
+          clipRule={p.evenodd ? "evenodd" : undefined}
+        />
+      ))}
     </Svg>
   );
 }

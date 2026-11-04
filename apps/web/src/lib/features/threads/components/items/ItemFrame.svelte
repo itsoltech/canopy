@@ -53,7 +53,7 @@
       {@render aside?.()}
       {#if awaiting() && status === ItemStatus.IN_PROGRESS}
         <span class="flex items-center gap-1 text-amber-700 dark:text-amber-400"
-          ><Icon name="hand-raised" class="size-3.5" />Waiting for you</span
+          ><Icon name="hand-raised" tone="inherit" class="size-3.5" />Waiting for you</span
         >
       {:else}
         <ItemStatusIcon {status} />

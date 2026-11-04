@@ -178,7 +178,7 @@
         message.delivery === "failed" ? "text-rose-600 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400",
       ]}
     >
-      {#if message.delivery === "failed"}<Icon name="exclamation-circle" class="size-3.5" />Not sent{:else}Sending…{/if}
+      {#if message.delivery === "failed"}<Icon name="exclamation-circle" tone="inherit" class="size-3.5" />Not sent{:else}Sending…{/if}
     </p>
   {/if}
 </MessageRow>

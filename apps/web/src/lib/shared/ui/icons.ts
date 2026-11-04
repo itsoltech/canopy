@@ -1,1 +1,1 @@
-export { icons, lineIcons, type IconName, type SolidIconName } from "@canopy/ui/icons";
+export { icons, type IconName } from "@canopy/ui/icons";
