@@ -1,6 +1,6 @@
 # Adapter Grok
 
-Stan badań: 2026-11-02; lokalny CLI `grok 1.0.70 (f50904eaee6c)`.
+Opis protokołu dotyczy CLI `grok 1.0.70 (f50904eaee6c)`.
 
 ## Źródła i możliwości
 
@@ -10,29 +10,28 @@ Stan badań: 2026-11-02; lokalny CLI `grok 1.0.70 (f50904eaee6c)`.
 
 `grok agent --help` potwierdza `--no-leader`, `--model`, `--reasoning-effort`, `--always-approve`, `--xai-api-base-url`, `--cli-chat-proxy-base-url`. Opcje agenta stoją **przed** `stdio`. Główne CLI ma tryby uprawnień `default`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`, `plan`. Nie zakładamy, że wszystkie są identyfikatorami trybów ACP: źródłem prawdy jest `session/new.modes`.
 
-Lokalne `grok models` bez loginu pokazuje fallback `grok-4.6` (domyślny), `grok-4.5`. To nie jest pełny katalog konta. CLI zgłosiło „You are not authenticated”; podczas badania brak `~/.grok/auth.json`. Nie odczytujemy ani nie wypisujemy wartości tokenów.
+`grok models` bez loginu pokazuje fallback `grok-4.6` (domyślny), `grok-4.5`.
+To nie jest pełny katalog konta. Nie odczytujemy ani nie wypisujemy wartości tokenów.
 
 ## Endpointy i izolacja
 
 Grok obsługuje backendy `chat_completions` (domyślnie), `responses`, `messages`. Konfiguracja `[model.<id>]` przyjmuje `model`, `base_url` (z `/v1`), `env_key`, `api_backend`. Per-model `env_key` ma pierwszeństwo przed loginem. `GROK_HOME` zmienia katalog konfiguracji, a `GROK_AUTH_PATH` wskazuje plik loginu. `GROK_CONFIG` jest ograniczoną nakładką JSON: **nie** służy do zmiany endpointów ani auth; nie wkładamy tam sekretów.
 
-Instancja CLIProxyAPI używa odizolowanego `GROK_HOME` i konfiguracji modelu z `env_key`, kluczem wyłącznie w env procesu. Nie przekazujemy klucza w argv, logach, repozytorium ani globalnej konfiguracji użytkownika. Tymczasowe pliki mają 0600, katalog 0700; cleanup po zakończeniu procesu. Live potwierdził backend `chat_completions` na `/v1/chat/completions`, katalog `/v1/models`, modele `grok-4.7-build-fast` oraz `grok-composer-2.5-fast`. Własny endpoint ma pierwszeństwo przed loginem urządzenia. Guard auth CLI wymaga dodatkowo `XAI_API_KEY` z tym samym kluczem; samo `env_key` nie wystarcza do utworzenia sesji.
+Instancja CLIProxyAPI używa odizolowanego `GROK_HOME` i konfiguracji modelu z `env_key`, kluczem wyłącznie w env procesu. Nie przekazujemy klucza w argv, logach, repozytorium ani globalnej konfiguracji użytkownika. Tymczasowe pliki mają 0600, katalog 0700; cleanup po zakończeniu procesu. Backend `chat_completions` używa `/v1/chat/completions`, a katalog modeli `/v1/models`. Własny endpoint ma pierwszeństwo przed loginem urządzenia. Guard auth CLI wymaga dodatkowo `XAI_API_KEY` z tym samym kluczem; samo `env_key` nie wystarcza do utworzenia sesji.
 
-## Boty: badanie błędu „answer got cut off” (2026-11-04)
+## Boty: budżet i klasyfikacja odpowiedzi
 
 Boty w wariancie B wykonują żądanie w gateway (`bots/model.ts`), nie przez ACP ani
 CLI workera. Grok otrzymuje `/v1/chat/completions`, `stream: false` i model zapisany
 w konfiguracji bota (np. `grok-4.7`). Gateway wymaga aktualnego połączenia Proxy;
 id `native` jest dozwolone po przełączeniu na Proxy, a Device login o dowolnym id
-jest odrzucane. Nie odczytywano konfiguracji ani odpowiedzi prywatnego stosu nightly.32,
-więc konkretna przyczyna raportu pozostaje niepotwierdzona.
+jest odrzucane.
 
-Kod narzucał `max_tokens: 4096`. W modelu rozumującym wspólny budżet może skończyć się
-przed odpowiedzią lub wywołaniem funkcji. Usunięto ten limit, pozostawiając domyślny
-budżet modelu. Dodatkowo stara obsługa mapowała nieznany/brakujący `finish_reason`
-i nieprawidłową kopertę tak samo jak faktycznie uciętą odpowiedź. Wspólna klasyfikacja
-rozróżnia teraz `length`, niepełny JSON, błędy HTTP i nieoczekiwany format. To nie jest
-problem mapowania streamingu ACP: botowe żądanie nie używa streamingu.
+Żądanie zachowuje domyślny budżet modelu zamiast narzucać `max_tokens: 4096`:
+w modelu rozumującym zbyt mały wspólny budżet może skończyć się przed odpowiedzią
+lub wywołaniem funkcji. Klasyfikacja rozróżnia `length`, niepełny JSON, błędy HTTP
+i nieoczekiwany format, zamiast opisywać je wszystkie jako uciętą odpowiedź.
+Botowe żądanie nie używa streamingu ACP.
 
 Kontrolowany endpoint potwierdza trasę i zachowanie limitu; fake ACP osobno sprawdza
 propagację auth, braku modelu, limitu użycia i zakończenia procesu w wątkach.
@@ -47,7 +46,7 @@ Testy fake agenta sprawdzają podzielone ramki UTF-8, kolejne tury, wznowienie, 
 
 ## Adapter workera
 
-`GrokThreads` ma operacje create/startTurn/interrupt/unload/listModels analogiczne do rejestrów pozostałych SDK. Jeden proces obsługuje jeden wątek. Worker zapisuje każdy event do trwałego journalu przed publikacją do gatewaya. Model, effort lub tryb zmieniony między turami powoduje restart procesu i `session/load`. Sesje są trwałe w `<data_dir>/grok/<instance>/sessions`; tymczasowy home procesu ma do nich symlink. Po restarcie workera `provider_thread_id` wskazuje sesję do załadowania. Live potwierdził load po usunięciu tymczasowego home i uruchomieniu nowego procesu. Replay historii podczas load nie tworzy duplikatów itemów.
+`GrokThreads` ma operacje create/startTurn/interrupt/unload/listModels analogiczne do rejestrów pozostałych SDK. Jeden proces obsługuje jeden wątek. Worker zapisuje każdy event do trwałego journalu przed publikacją do gatewaya. Model, effort lub tryb zmieniony między turami powoduje restart procesu i `session/load`. Sesje są trwałe w `<data_dir>/grok/<instance>/sessions`; tymczasowy home procesu ma do nich symlink. Po restarcie workera `provider_thread_id` wskazuje sesję do załadowania. Załadowanie sesji odtwarza jej stan także po usunięciu tymczasowego home. Replay historii podczas load nie tworzy duplikatów itemów.
 
 `StartTurn` ponowiony po zerwaniu łącza dla tej samej nadal działającej tury jest potwierdzany bez uruchamiania drugiego promptu. Dotyczy to także tury czekającej na zgodę: powrót łącza nie kończy jej błędem ani nie wygasza interakcji. Sprawdza to integracja `tests/integration/interaction-reconnect.test.ts` z prawdziwym workerem i fake agentem ACP.
 
@@ -66,7 +65,7 @@ Nie ma sprawdzonego mid-turn steer w bazowym ACP: worker odrzuca go `STEER_REJEC
 | wynik `session/prompt` | `turnFinished`: completed, failed (refusal/limit), interrupted (cancel) |
 | crash/timeout | failed, przerwanie użytkownika → interrupted |
 
-CLI 1.0.70 raportuje `loadSession`, obraz i embedded context, MCP HTTP/SSE oraz rozszerzenia x.ai. `session/new` nie zwrócił listy `modes`; `session/set_mode` z `default` i `session/set_model` z wybranym modelem zakończyły się sukcesem. Nie traktujemy braku listy trybów jako zgody na zgadywanie identyfikatorów ani jako dowodu wymuszania polityki. Metody są dostępne w SDK, a adapter uprawnienia realizuje przez własne callbacki i konfigurację procesu. Narzędzia prawdziwego CLI mogą nie mieć `kind`; w smoke komendy miały `title=run_terminal_command`, a MCP było wykonywane przez `search_tool` / `use_tool`.
+CLI 1.0.70 raportuje `loadSession`, obraz i embedded context, MCP HTTP/SSE oraz rozszerzenia x.ai. `session/new` może nie zwrócić listy `modes`, mimo obsługi `session/set_mode` i `session/set_model`. Nie traktujemy braku listy trybów jako zgody na zgadywanie identyfikatorów ani jako dowodu wymuszania polityki. Metody są dostępne w SDK, a adapter uprawnienia realizuje przez własne callbacki i konfigurację procesu. Narzędzia prawdziwego CLI mogą nie mieć `kind`; komendy mogą mieć `title=run_terminal_command`, a MCP może być wykonywane przez `search_tool` / `use_tool`.
 
 Handshake ogłosił metodę auth `grok.com` („Sign in with Grok”), `image=true`, `audio=false`, `embeddedContext=true` i rozszerzenia sesji list/resume/close. SDK udostępnia bazowe `session/load`; nie opiera trwałości na nieprzenośnych rozszerzeniach resume. Klient nie ogłasza obsługi fs/terminal w adapterze workera: CLI wykonuje własne narzędzia, a SDK potrafi przekazać te callbacki aplikacji, która je implementuje. Alternatywny headless tryb CLI (`grok -p`, formaty `plain`, `json`, `streaming-json`, `streaming-messages-json`, flaga `--include-partial-messages`) nie jest transportem adaptera — interaktywne zgody i MCP idą przez ACP.
 
@@ -89,7 +88,7 @@ Załączniki obrazowe są wysyłane jako ACP image tylko po zadeklarowaniu capab
 
 ## Katalog, UI, boty i tytuły
 
-Native pobiera modele/efforts z `_meta.modelState` odpowiedzi initialize, bez płatnej tury. Proxy pobiera `/v1/models`, filtruje modele nieagentowe i uzupełnia efforts tylko dla modeli znanych z metadanych CLI. Dla innych modeli lista efforts jest pusta (nie oznacza to dowodu braku rozumowania). W smoke Grok 4.6 raportował low/medium/high/xhigh, Grok 4.5 low/medium/high. UI, harmonogramy i domyślne ustawienia używają wspólnego katalogu. Hello/config-applied pokazuje wersję Groka na liście Agents.
+Native pobiera modele/efforts z `_meta.modelState` odpowiedzi initialize, bez płatnej tury. Proxy pobiera `/v1/models`, filtruje modele nieagentowe i uzupełnia efforts tylko dla modeli znanych z metadanych CLI. Dla innych modeli lista efforts jest pusta (nie oznacza to dowodu braku rozumowania). Nie utrzymujemy ręcznej listy poziomów wysiłku per model. UI, harmonogramy i domyślne ustawienia używają wspólnego katalogu. Hello/config-applied pokazuje wersję Groka na liście Agents.
 
 Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synchronizację na workery co pozostałe harnessy. Enum `PROVIDER_GROK=3`, `WorkerConfig.grok=640`, migracja `0043_grok_provider.sql` (przy merge przenumerowana z 0042). Picker, sidebar, ustawienia providerów i karty subagentów mają markę Groka ([LobeHub icons, MIT i notice](third-party-notices.md#lobehub-icons--znak-xaigrok)).
 
@@ -107,8 +106,8 @@ Każda generacja ma osobny home i pusty cwd, bez trwałych sesji, skills, MCP i 
 
 ## Włączenie na stosie użytkownika
 
-1. Zbuduj/zaktualizuj gateway i worker z tej gałęzi, wykonaj migrację 0043. Na urządzeniu workera zainstaluj `grok`, sprawdź `grok --version`. Nie wykonano wdrożenia w ramach implementacji.
-2. W zdalnym WorkerConfig włącz `grok: { enabled: true, executablePath: "/home/nix/.local/bin/grok" }`. Przy natywnym loginie zostaw `deviceLogin` domyślne; dla wyłącznie proxy ustaw `deviceLogin: NONE`. Istniejący worker potrzebuje jawnego włączenia tego harnessu. Nowy `worker add` włącza już wszystkie trzy.
+1. Zaktualizuj gateway i worker oraz wykonaj migracje. Na urządzeniu workera zainstaluj `grok`, sprawdź `grok --version`.
+2. W zdalnym WorkerConfig włącz `grok: { enabled: true, executablePath: "grok" }` (binarka musi być w PATH procesu workera). Przy natywnym loginie zostaw `deviceLogin` domyślne; dla wyłącznie proxy ustaw `deviceLogin: NONE`. Istniejący worker potrzebuje jawnego włączenia tego harnessu. Nowy `worker add` włącza już wszystkie trzy.
 3. Native: wykonaj `grok login` jako użytkownik OS workera; domyślnie czytane jest `~/.grok/auth.json`. Alternatywnie instancja native może mieć sekretny `XAI_API_KEY`. Przy innym koncie ustaw Home path na katalog tego loginu. Logowanie Groka odbywa się w CLI, bez formularza OAuth w Canopy. Nie kopiuj tokenów do repo.
 4. Proxy: dodaj połączenie CLIProxyAPI lub OpenAI-compatible w Settings → Proxies, potem Settings → Providers → Add → Grok → Proxy i wybierz zapisane połączenie oraz worker. URL może być bazowy lub kończyć się `/v1`; gateway normalizuje oba warianty. Model wybierz z katalogu, np. sprawdzony `grok-4.7-build-fast`. Worker sam ustawia prywatny home, custom model, `CANOPY_GROK_API_KEY` i `XAI_API_KEY`; nie wymaga dodatkowych env. [Mapowania i sekrety](proxies.md).
 5. Zaczekaj na Agents → Grok 1.0.70 oraz dostępność instancji. Utwórz wątek z Grokiem i wybranym modelem. Text generation automatycznie wybiera mały/szybki model; możesz też jawnie wskazać model instancji native lub proxy.
@@ -121,7 +120,7 @@ Fragment zdalnego WorkerConfig dla wyłącznie proxy (zachowaj pozostałe pola c
 {
   "grok": {
     "enabled": true,
-    "executablePath": "/home/nix/.local/bin/grok",
+    "executablePath": "grok",
     "deviceLogin": "DEVICE_LOGIN_NONE"
   }
 }
@@ -138,6 +137,5 @@ Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi
   izolację schematów i format transkryptu prawdziwego CLI bez płatnej inferencji
   pokrywają `apps/worker/src/bots/{isolation,grok-transcript}.test.ts`.
 - Opt-in `CANOPY_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`. Env testowe: `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `CANOPY_LIVE_GROK_MODEL`, `CANOPY_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
-- Odbiór Chromium opisuje [grok-verification.md](grok-verification.md). Nie dodano web UI testów.
 
 Ograniczenia: brak ACP fork i goals (odrzucane w gatewayu, kontrolki ukryte), brak native background-task lifecycle/stopTask. Ukryte sesje botów odzyskują zapisany koniec tury z transkryptu; wątki projektowe nadal korzystają ze wspólnego fallbacku workera po awarii, a sesja pozostaje wznawialna. Nie odtwarzamy niezgłoszonych tokenów input/output ani nie zgadujemy usage z context occupancy. Natywny płatny smoke pominięto z powodu braku loginu. Live nie obejmował obrazów, rzeczywistych diffów CLI ani mieszanego spawn Claude/Codex↔Grok; obrazy/diffy mają fake integrację, a wybór spawn test resolvera. ASK ma fake round-trip zgody/odmowy/anulowania; live proxy pracował w FULL_AUTO, bez pełnej macierzy READ_ONLY/ACCEPT_EDITS/FULL_AUTO. Nie należy deklarować pełnego live parytetu.

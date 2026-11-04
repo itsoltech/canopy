@@ -117,7 +117,7 @@
           </a>
         {/snippet}
       </ThreadHoverCard>
-      <!-- Floats over the row's time on hover (T3-style), positioned by its own box: IconButton's `relative` would
+      <!-- Floats over the row's time on hover, positioned by its own box: IconButton's `relative` would
      beat an `absolute` passed in `class`. -->
       <span
         {...via === "button" ? anchorOnly(menu) : {}}

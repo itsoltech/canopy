@@ -10,7 +10,7 @@
   import { lingeringResult } from "./result.svelte.ts";
 
   /**
-   * Thread status as T3 shows it in lists: what needs attention in colour (needs you, asking its
+   * Thread status in lists: what needs attention in colour (needs you, asking its
    * agent, working for how long, a finished turn you have not seen: completed, failed, interrupted),
    * otherwise how long ago it was last active. A new state swaps in.
    * `icons={false}` drops the marks of waiting and working where a ThreadActivityMark leads the row.

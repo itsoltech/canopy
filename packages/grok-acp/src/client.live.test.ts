@@ -4,7 +4,7 @@ import { GrokClient } from "./index.ts";
 test.skipIf(process.env["CANOPY_LIVE"] !== "1")(
   "installed Grok ACP handshake and session capabilities",
   async () => {
-    const client = new GrokClient({ executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "/home/nix/.local/bin/grok" });
+    const client = new GrokClient({ executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "grok" });
 
     try {
       const info = await client.initialize();

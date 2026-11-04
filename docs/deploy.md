@@ -302,8 +302,8 @@ Description=Canopy worker
 After=network-online.target
 
 [Service]
-ExecStart="/home/me/.local/bin/canopy-worker" --config "/home/me/.config/canopy/worker.json"
-Environment="PATH=/home/me/.local/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart="%h/.local/bin/canopy-worker" --config "%h/.config/canopy/worker.json"
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin"
 Restart=always
 RestartPreventExitStatus=78
 RestartSec=5

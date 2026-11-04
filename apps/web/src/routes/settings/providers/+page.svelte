@@ -19,7 +19,7 @@
   import type { PageProps } from "./$types";
 
   /**
-   * Settings → Providers (T3 layout): provider instances defined once in the gateway and synced to the workers you
+   * Settings → Providers: provider instances defined once in the gateway and synced to the workers you
    * choose. The scope bar picks where changes apply (all workers or one); the list beside the detail on wide screens,
    * list → detail on phones. Data comes from this page's load and its own calls (the page works as an overlay too).
    */

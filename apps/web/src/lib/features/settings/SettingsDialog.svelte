@@ -10,7 +10,7 @@
   import "./density.css";
 
   /**
-   * Settings as a large modal panel (T3 layout): searchable section nav on the left, the section on the
+   * Settings as a large modal panel: searchable section nav on the left, the section on the
    * right; a full-screen sheet on phones. A native modal `<dialog>`: the page underneath is inert, focus
    * stays inside and goes back to the opener on close. Escape, the close button or a click on the
    * backdrop ask to close (`onclose`); `open` going false plays the exit (motion.css `t-modal`), then

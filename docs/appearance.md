@@ -131,41 +131,9 @@ tło okna i nativeTheme, a na Linux/Windows także tło i kolor symboli natywnej
 nakładki paska tytułu. Zmiana preferencji systemowej aktualizuje chrom okna.
 Błąd zapisu opcjonalnego cache nie blokuje zmiany aktywnego wyglądu.
 
-## Weryfikacja wizualna
+## Kontrola wyglądu
 
-Ręcznie sprawdzono wszystkie sześć motywów w obu trybach na desktopie i telefonie,
-mieszankę Fern Light / Heather Dark z System, nawigację klawiaturą, zapis i świeży
-HTML. Obejrzano sidebar, widok wątku, kompozytor, ustawienia, popovery i wspólny
-dialog formularza. Przy szerokości 390 px nie stwierdzono poziomego overflow.
-Nie dodano testów UI. Materiały sesji są w `~/.cache/canopy-themes/`:
-`desktop-<theme>-<mode>.png`, `phone-<theme>-<mode>.png`, arkusze
-`desktop-palettes.png`, `phone-palettes.png`, `ideas-comparison.png` oraz zrzuty
-widoków wątku, popoverów i dialogów. Nie uruchamiano natywnego okna Electron;
-wizualne zachowanie nakładki Linux/Windows i paska macOS wymaga potwierdzenia
-w aplikacji desktopowej.
-
-Ash sprawdzono osobno w obu wariantach: sidebar, syntetyczny wątek
-`/dev/long-thread`, wspólny kompozytor z długą ścieżką i Unicode, ustawienia,
-popover uprawnień, dialog dodawania workera oraz rozwinięte bloki kodu i diffów
-w `/dev/tool-calls`. Picker obejrzano przy szerokościach 1280, 800 i 390 px,
-dodatkowo 320 px z nawigacją strzałkami i End. Nie stwierdzono poziomego overflow,
-uciętych nazw motywów ani szczelin między powierzchniami. Potwierdzono zapis
-Fern Light / Ash Dark oraz Ash Light / Heather Dark i przełączanie System.
-Zrzuty tej sesji są w `~/.cache/canopy-pure-themes/`: `desktop-picker-*.png`,
-`narrow-picker-*.png`, `phone-picker-*.png`, `desktop-thread-*.png`,
-`phone-thread-*.png`, `desktop-code-diff-*.png`, `phone-code-dark.png`,
-`phone-diff-*.png`, `phone-composer-*.png`, `phone-popover-*.png`,
-`desktop-dialog-*.png`, `phone-dialog-*.png` i `desktop-mixed-*.png`.
-Natywnego okna Electron nie uruchamiano; jego tło i symbole paska tytułu korzystają
-z tych samych zweryfikowanych tokenów canvas/ink i istniejącej walidacji IPC.
-
-Poprawkę kontrastu Ash sprawdzono w Chromium: przyciski Create bot i Create
-w Projects, kompozytor z przyciskiem wysyłania oraz wspólne kontrolki zestawu UI
-(Save, krótkie i długie etykiety, Switch on/off/disabled, checkboxy, radio,
-ChoiceCard, fokus, linki i zaznaczenie listy). Sprawdzono 1440, 768 i 390 px
-oraz mieszanki Ash Light / Heather Dark i Fern Light / Ash Dark. Zrzuty przed
-i po zmianie oraz pomiary są w `~/.cache/canopy-ash-primary/`:
-`before-*.png`, `after-*.png`, `before-contrast.json`, `after-contrast.json`
-oraz `after-observations.json`. Kontrolki izolowanej planszy są montowane
-bezpośrednio z produkcyjnych komponentów; plansza i sterownik pozostają w cache.
-Nie dodano testów UI.
+Zmiany palety sprawdzaj w obu trybach, także z różnymi wariantami light/dark
+i ustawieniem System. Uwzględnij picker, sidebar, kompozytor z długą ścieżką
+i Unicode, dialog, popover oraz kod/diff przy szerokości desktopu i telefonu.
+Natywne tło okna i symbole paska tytułu wymagają osobnej kontroli w Electron.

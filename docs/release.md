@@ -681,39 +681,3 @@ po „ponowieniu” z brakującym celem: każdy asset manifestu istnieje i ma zg
 obejmuje wszystkie pliki, wpisy serwerowe się nie zmieniają, a powtórka daje ten sam wynik.
 Testy updatera używają lokalnego fixture HTTP
 z prereleases, paginacją i manifestami. Pełna publikacja wymaga uruchomienia workflow na GitHubie.
-
-Weryfikacja implementacji kanałów lokalnie (2026-11-03):
-
-| Sprawdzenie | Wynik |
-| --- | --- |
-| `bun install` i `bun install --frozen-lockfile` | OK; hook commit-msg zainstalowany |
-| `mise exec actionlint@1.7.12 shellcheck@0.11.0 -- actionlint` | bez uwag |
-| `bun run typecheck`, `bun run gen:check` | OK; Svelte bez błędów i ostrzeżeń; brak zmian wygenerowanego kodu |
-| `bun run check:tmp` | 654 pass, 147 skip, 0 fail; czysty katalog tymczasowy |
-| `bun test scripts/release.test.ts` po dodaniu walidacji manifestu | 5 pass, 0 fail; dodatkowy test manifestu po pełnym przebiegu |
-| hook `feat(web): …` / `Web: …` | poprawny przyjęty, niepoprawny odrzucony |
-| `CANOPY_VERSION=0.2.0-nightly.1 bun scripts/build-web.ts` | OK, także po zmianie stable na neutralny |
-
-Nie uruchamiano publikacji GitHub/GHCR, workflowów promocji na repo zdalnym ani testów live/E2E.
-Nie wykonywano pushu do GitHuba ani tagów w repozytorium roboczym. Dodatkowy podgląd nagłówków
-był statyczną prezentacją wyglądu, nie testem przeglądarkowym aplikacji.
-
-## Historyczna weryfikacja artefaktów przed kanałami (2026-11-03)
-
-- `bun scripts/build-binaries.ts --target all`: 10 binariów (rozmiary wyżej), `manifest.json` +
-  `checksums.txt` z `release-manifest.ts`.
-- linux-x64: gateway na czystym PostgreSQL 17 (Docker) — 42 migracje, `healthcheck` = 0;
-  worker `enroll` tokenem z `CreateWorkerEnrollment`, połączenie, katalog modeli Claude/Codex
-  z CLI na `PATH`, gateway zapisał `version` workera; `healthcheck` = 0. Osadzony sharp:
-  resize PNG w skompilowanej binarce, ekstrakcja do cache i fallback do `TMPDIR`.
-- linux-arm64: binarka z sharp uruchomiona w kontenerze arm64 (QEMU).
-- Obrazy amd64: gateway 231 MB, web 199 MB, worker 456 MB (arm64: 242/211/483 MB);
-  wszystkie `healthy`; web → gateway (SSR, `/api/overview`, assety), worker w kontenerze
-  zenrollowany i online. `deploy/docker-compose.yml` z tymi obrazami: wszystkie usługi `healthy`.
-- Desktop linux-x64 z `CANOPY_VERSION`: `Canopy-0.0.0-main.39d8c55-linux-x64.AppImage` (603 MB)
-  i `.deb` (482 MB, `Version: 0.0.0~main.39d8c55`; deb zbudowany w kontenerze `node:24-bookworm`,
-  bo fpm electron-buildera potrzebuje `libcrypt.so.1`), sidecary zgłaszają tę wersję.
-- `actionlint` 1.7.12 z shellcheck 0.11.0: bez uwag.
-
-Nie zweryfikowano lokalnie: binarek darwin/windows (sprawdza je job `smoke`), desktop poza
-linux-x64, samych workflowów na GitHubie, push do GHCR i `gh release`.

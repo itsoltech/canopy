@@ -48,7 +48,7 @@
 
   import { CANOPY_VERSION } from "@canopy/domain/release/version";
 
-  /** Settings sections with a search filter (T3 style); a scrolling row on narrow screens. */
+  /** Settings sections with a search filter; a scrolling row on narrow screens. */
   let query = $state("");
 
   const visible = $derived(

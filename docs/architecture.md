@@ -331,7 +331,7 @@ Zasady, które z tego wynikają (`apps/worker/src/providers`):
 - Nadpisania `-c` dla Codexa są sprawdzane w testach na prawdziwym CLI (`codex app-server --print-startup-config`).
 - CLIProxyAPI powinno nasłuchiwać na `127.0.0.1` tego samego urządzenia. Zdalny adres wymaga `https`.
 
-Potwierdzone na żywej instancji CLIProxyAPI (2026-11-01): autoryzacja Codexa przez `env_key` (`Authorization: Bearer`) działa ([codex-adapter.md](codex-adapter.md)).
+Autoryzacja Codexa przez `env_key` używa `Authorization: Bearer` ([codex-adapter.md](codex-adapter.md)).
 
 ## 9. Bezpieczeństwo
 
@@ -373,7 +373,7 @@ Zasady zależności:
 
 ## 11. Decyzje do podjęcia
 
-1. ~~**Biblioteka gRPC w Bun.**~~ **Rozstrzygnięte:** ConnectRPC (`@connectrpc/connect` + `connect-node`) na `node:http2`. Bidi stream działa w Bun po h2c i TLS, także w interop z `@grpc/grpc-js` na Node. Wyniki: [spikes/grpc-http2-bun.md](spikes/grpc-http2-bun.md).
+1. **Biblioteka gRPC w Bun:** ConnectRPC (`@connectrpc/connect` + `connect-node`) na `node:http2`. Strumień dwukierunkowy działa po h2c i TLS, także z `@grpc/grpc-js` na Node. Reguły transportu i zamykania: [protocol.md](protocol.md#transport-http2).
 2. **Dystrybucja workera.** `bun build --compile` daje jeden plik na OS. Claude Agent SDK i Codex app-server uruchamiają jednak własne procesy (CLI). Trzeba sprawdzić, czy działa to z poziomu skompilowanej binarki.
 3. ~~**Interaktywne uprawnienia w Codexie.**~~ **Rozstrzygnięte:** zamiast Codex SDK (tylko statyczne `approvalPolicy`) używamy `codex app-server`, który wysyła prośby o zgodę jako żądania JSON-RPC. **Ryzyko:** app-server jest oznaczony jako eksperymentalny. Ograniczamy je przypięciem wersji Codexa na workerze, typami generowanymi z tej wersji i zgłaszaniem wersji w `Hello.providers`.
 4. **Organizacje/zespoły.** Teraz: użytkownicy + role `admin`/`user`. Czy potrzebny poziom organizacji (tenant) od początku? Dodanie `org_id` później jest kosztowne.
@@ -382,12 +382,3 @@ Zasady zależności:
 7. **ORM / migracje.** Np. Drizzle albo czyste SQL.
 8. **Framework UI.**
 9. ~~**Skalowanie gateway.**~~ **Rozstrzygnięte przez wymaganie trwałości:** gateway bez stanu tylko w pamięci, N ≥ 1 instancji, outbox komend w PostgreSQL i `LISTEN/NOTIFY`, fencing połączeń workerów. Otwarte decyzje trwałości: [durability.md](durability.md#11-decyzje-do-podjęcia).
-
-## 12. Kolejne kroki
-
-1. ~~Spike: gRPC bidi stream Bun ↔ Bun (ConnectRPC) przez TLS.~~ Zrobione. Do sprawdzenia przy wdrożeniu: reverse proxy.
-2. ~~Szkielet monorepo.~~ Zrobione.
-3. Spike: worker (Effect) uruchamia Claude Agent SDK i Codex app-server: tworzenie, wznawianie i fork wątków, mapowanie wszystkich zdarzeń (także między turami) na itemy `ThreadEvent`, bloby, zgody, profil CLIProxyAPI na żywej instancji.
-4. Ustalenie pozostałych decyzji z sekcji 10.
-5. Dziennik lokalny workera (SQLite) i outbox komend w PostgreSQL ([durability.md](durability.md)).
-6. ~~Schemat bazy.~~ Zrobione (`packages/db`). Enrollment workera, pierwsza pionowa ścieżka: UI → gateway → worker → Claude → transkrypt w UI.

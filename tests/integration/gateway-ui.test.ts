@@ -517,7 +517,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
       (t) => t.filter((x) => x.status === "completed").length === 3,
     );
 
-    const [t1, t2, t3] = turns;
+    const [t1, t2, thirdTurn] = turns;
 
     // Only the source and the turn: the fork takes its place and settings from the source.
     const fork = (await api.createThread({ forkThreadId: source.id, forkAtTurnId: t2!.id })).thread!;
@@ -564,7 +564,9 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     expect([again.forkSourceThreadId, again.forkAfterTurnOrdinal, again.title]).toEqual([source.id, 1, "Again"]);
     // A turn past the fork point is not in the fork's history.
     expect(
-      String(await api.createThread({ forkThreadId: fork.id, forkAtTurnId: t3!.id }).catch((cause: unknown) => cause)),
+      String(
+        await api.createThread({ forkThreadId: fork.id, forkAtTurnId: thirdTurn!.id }).catch((cause: unknown) => cause),
+      ),
     ).toContain("not in this thread's history");
 
     // A running turn cannot be forked at; once interrupted it can (history up to that point).

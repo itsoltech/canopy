@@ -35,9 +35,7 @@ nightly może usunąć starsze notatki; panel jawnie wskazuje to ograniczenie.
 Release bez feedu platformy lub manifestu nie jest aktualizacją desktopu.
 Jeśli nowsza wersja jest już w GitHub Releases, ale nie ma paczki platformy,
 updater wyjaśnia, że publikacja może jeszcze trwać lub wymagać ponowienia;
-nie twierdzi, że aplikacja jest aktualna. Dotyczyło to `v0.2.0-nightly.33`:
-2026-11-04 release miał tylko binaria serwera/workerów, a przebieg Release
-`41890651151` zakończył błędem pakowanie macOS i `publish-desktop`.
+nie twierdzi, że aplikacja jest aktualna.
 
 Ten sam popover zawiera centrum gatewaya, workerów binarnych, CLI i sparowanych
 zdalnych desktopów. Wersja serwerowa UI pokazuje centrum bez własnej aplikacji.

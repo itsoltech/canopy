@@ -6,7 +6,7 @@
   import { tooltip } from "./tooltip.ts";
 
   /**
-   * Low-key button that opens a menu or picker (T3's composer pills): content, then a chevron. Spread
+   * Low-key button that opens a menu or picker: content, then a chevron. Spread
    * a popover trigger's props on it: `{#snippet trigger(props)}<PillButton {...props}>Ask first</PillButton>{/snippet}`.
    */
   type Props = Omit<HTMLButtonAttributes, "class" | "children"> & {

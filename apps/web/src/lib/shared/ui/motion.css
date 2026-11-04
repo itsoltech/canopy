@@ -1,5 +1,5 @@
 /*
- * Motion recipes (transitions.dev) on the motion tokens in routes/layout.css. Hooks are `t-*` classes and
+ * Motion recipes on the motion tokens in routes/layout.css. Hooks are `t-*` classes and
  * the state the element already has (`:popover-open`, `[open]`, `data-*`); enter and exit of top-layer
  * surfaces are pure CSS (`@starting-style`, `display` / `overlay` with `allow-discrete`), so a browser
  * without them simply shows and hides at once. Every recipe ends with its reduced-motion guard.

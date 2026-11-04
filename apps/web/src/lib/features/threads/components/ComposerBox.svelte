@@ -26,7 +26,7 @@
   import type { ComposerActivity } from "./composer-compaction.ts";
 
   /**
-   * T3-style message box: a growing text field and a bottom row with `controls` (pills) and a round
+   * Message box: a growing text field and a bottom row with `controls` (pills) and a round
    * send button. While `onstop` is set and the box is empty, the round button stops the turn instead.
    * Enter submits the surrounding form, Shift+Enter adds a line. `meta` renders under the box.
    * With `onqueue` (a turn runs) a typed message has two ways: submitting steers it into the running

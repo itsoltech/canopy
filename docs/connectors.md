@@ -78,7 +78,7 @@ Zgoda nie zastępuje grantu; grant jest ponownie sprawdzany tuż przed wykonanie
 Ponowienie call ID po reconnect nie wykonuje ponownie operacji. Nieznany wynik
 po awarii nie powoduje automatycznego powtórzenia zapisu.
 
-## Katalog dostawców — badanie 2026-11-02
+## Katalog dostawców
 
 „Metadata” oznacza publiczny odczyt dokumentacji/odpowiedzi endpointu, bez konta.
 Żaden preset dostawcy nie jest na tej podstawie oznaczany jako live verified.
@@ -118,15 +118,10 @@ Audyt zapisuje konto, właściciela, worker/wątek albo bot, narzędzie, czas i 
 Nie zapisuje tokenów, nagłówków ani argumentów. Wynik potrzebny do deduplikacji
 wykonania jest osobny od audytu i redagowany tak jak wynik na osi czasu.
 
-## Kontrakt realizacji
+## Ograniczenia sesji harnessów
 
-`workflow_mode: autonomous-planned`, `mode_source: explicit-user-task-instruction`,
-`decision_authority: delegated`, `scope: current-task`,
-`artifact_state: ready-for-execution`, `execution_mode: inline`.
-Użytkownik zlecił samodzielny dobór szczegółów i wdrożenie jako subagent.
-Ograniczenia: bez push/PR, bez publikacji produkcyjnej, bez cudzych sekretów,
-bez prywatnego stacka live i portów 17443/5180/8444, bez trwałych testów UI.
-Kryteria zakończenia: migracja, API, granty, OAuth, bridge obu harnessów, boty,
-UI i dokumentacja, meaningful integration/live, kontrola light/dark 1440/390,
-wymagane komendy i logiczne commity. Wyniki i zrzuty ekranu:
-[raport weryfikacji](connectors-verification.md).
+Codex utrwala dynamic tools przy rozpoczęciu sesji. Dodanie konta może wymagać
+nowej sesji/wątku; odebranie grantu jest skuteczne natychmiast w gateway.
+Claude otrzymuje nazwy narzędzi MCP w `allowedTools`, ponieważ `dontAsk` odmawia
+narzędzi spoza listy przed callbackiem. Każde wykonanie nadal przechodzi przez
+grant i permission mode gateway; READ_ONLY odmawia zapisów.

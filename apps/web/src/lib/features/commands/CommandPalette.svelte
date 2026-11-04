@@ -25,7 +25,7 @@
   import type { Command, CommandRegistry } from "./registry.ts";
 
   /**
-   * Command palette (T3 Code's): Mod+K or `palette.show()` opens a panel over the dimmed page with a
+   * Command palette: Mod+K or `palette.show()` opens a panel over the dimmed page with a
    * search over the registry's commands, grouped (Actions, Recent threads, Projects, Settings). A
    * submenu (›) opens in place with a crumb; Backspace on an empty query, ← or the back button leave it.
    * WAI-ARIA combobox + listbox: focus stays in the input, ↑↓ Home End PageUp PageDown move the active

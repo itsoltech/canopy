@@ -62,7 +62,7 @@ test.skipIf(!live || !url || !key)(
             baseUrl: new URL(url!),
             apiKey: key!,
           },
-          executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "/home/nix/.local/bin/grok",
+          executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "grok",
           model,
           effort: "low",
           fullAuto: true,
@@ -155,7 +155,7 @@ test.skipIf(
     const launch = grokLaunch({
       dataDir: root,
       profile: { kind: "native", id: "native", providers: ["grok"], env: {}, runtime: {} },
-      executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "/home/nix/.local/bin/grok",
+      executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "grok",
       effort: "low",
     });
 

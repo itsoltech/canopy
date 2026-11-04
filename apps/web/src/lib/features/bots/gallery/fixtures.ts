@@ -21,7 +21,7 @@ const bot = (id: string, name: string, description: string): BotView => ({ id, k
 
 export const bots = {
   canopy: bot("bot-canopy", "Canopy Bot", "Merges pull requests once CI is green."),
-  t3: bot("bot-t3", "T3 Bot", "Keeps the T3 Code fork in sync."),
+  sync: bot("bot-sync", "Sync Bot", "Keeps development branches in sync."),
   release: bot("bot-release", "Release Bot", "Cuts releases and writes the notes."),
   docs: bot("bot-docs", "Docs Bot", "Keeps the docs in step with the code."),
   triage: bot("bot-triage", "Triage Bot", "Labels and routes new issues."),
@@ -41,10 +41,14 @@ export const conversations: ConversationView[] = [
     pinOrder: 0,
   },
   {
-    id: "c-t3",
+    id: "c-sync",
     kind: "direct",
-    bots: [bots.t3],
-    lastMessage: { senderId: bots.t3.id, text: "Upstream has 4 new commits; the fork is rebased.", at: minutesAgo(40) },
+    bots: [bots.sync],
+    lastMessage: {
+      senderId: bots.sync.id,
+      text: "Upstream has 4 new commits; the fork is rebased.",
+      at: minutesAgo(40),
+    },
     unread: 0,
     pinned: true,
     pinOrder: 1,
@@ -53,7 +57,7 @@ export const conversations: ConversationView[] = [
     id: "c-launch",
     kind: "group",
     title: "Landing launch",
-    bots: [bots.canopy, bots.t3, bots.docs],
+    bots: [bots.canopy, bots.sync, bots.docs],
     lastMessage: { senderId: bots.docs.id, text: "The changelog entry is ready for review.", at: minutesAgo(12) },
     unread: 3,
     pinned: true,
@@ -71,8 +75,8 @@ export const conversations: ConversationView[] = [
   {
     id: "c-watch",
     kind: "watch",
-    bots: [bots.canopy, bots.t3],
-    lastMessage: { senderId: bots.t3.id, text: "Rebased. CI is running again.", at: minutesAgo(25) },
+    bots: [bots.canopy, bots.sync],
+    lastMessage: { senderId: bots.sync.id, text: "Rebased. CI is running again.", at: minutesAgo(25) },
     unread: 0,
     pinned: false,
   },
@@ -205,9 +209,9 @@ export const directEntries: ChatEntry[] = [
       id: "d10",
       at: minutesAgo(5),
       kind: "relayed_message",
-      text: "Message from T3 Bot",
+      text: "Message from Sync Bot",
       detail: "the landing branch is rebased",
-      actorId: bots.t3.id,
+      actorId: bots.sync.id,
     },
   },
   {
@@ -216,7 +220,7 @@ export const directEntries: ChatEntry[] = [
       id: "d11",
       senderId: bots.canopy.id,
       at: minutesAgo(4),
-      text: "T3 Bot rebased the landing branch and CI passed.",
+      text: "Sync Bot rebased the landing branch and CI passed.",
       links: [
         {
           url: "https://github.com/example/canopy/pull/446",
@@ -256,7 +260,7 @@ export const groupEntries: ChatEntry[] = [
     kind: "message",
     message: {
       id: "g2",
-      senderId: bots.t3.id,
+      senderId: bots.sync.id,
       at: minutesAgo(64),
       text: "The branch is two commits behind `main`. I'll rebase it.",
     },
@@ -301,7 +305,10 @@ export const groupEntries: ChatEntry[] = [
       replyTo: { senderId: bots.docs.id, excerpt: "Should the changelog mention the new pricing?" },
     },
   },
-  { kind: "message", message: { id: "g8", senderId: bots.t3.id, at: minutesAgo(14), text: "Rebased, CI is running." } },
+  {
+    kind: "message",
+    message: { id: "g8", senderId: bots.sync.id, at: minutesAgo(14), text: "Rebased, CI is running." },
+  },
   {
     kind: "message",
     message: {
@@ -341,12 +348,12 @@ export const watchEntries: ChatEntry[] = [
       text: "CI on #446 fails: the branch is behind `main`. Can you rebase it?",
     },
   },
-  { kind: "message", message: { id: "w2", senderId: bots.t3.id, at: minutesAgo(47), text: "On it." } },
+  { kind: "message", message: { id: "w2", senderId: bots.sync.id, at: minutesAgo(47), text: "On it." } },
   {
     kind: "message",
     message: {
       id: "w3",
-      senderId: bots.t3.id,
+      senderId: bots.sync.id,
       at: minutesAgo(46),
       text: "Two conflicts in `apps/web/src/routes/+layout.svelte`. Resolving them the same way as in #441.",
     },
@@ -357,13 +364,13 @@ export const watchEntries: ChatEntry[] = [
   },
   {
     kind: "event",
-    event: { id: "w5", at: minutesAgo(26), kind: "info", text: "T3 Bot pushed 2 commits", detail: "landing" },
+    event: { id: "w5", at: minutesAgo(26), kind: "info", text: "Sync Bot pushed 2 commits", detail: "landing" },
   },
   {
     kind: "message",
     message: {
       id: "w6",
-      senderId: bots.t3.id,
+      senderId: bots.sync.id,
       at: minutesAgo(25),
       text: "Rebased. CI is running again.",
       links: [{ url: "https://ci.example.com/runs/9182", title: "CI run 9182", kind: "web" }],

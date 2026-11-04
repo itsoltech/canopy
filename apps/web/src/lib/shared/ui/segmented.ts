@@ -1,5 +1,5 @@
 /**
- * Look of a segmented control (T3 style): a recessed track with equal segments, the active one
+ * Look of a segmented control: a recessed track with equal segments, the active one
  * raised. Segments mark themselves active with `data-active`, whether they are links or buttons.
  * With a sliding pill (`segmentedPill`, motion.css `t-tabs-pill`) the segments are `segmentedLabel`:
  * the pill is the raised surface and travels between them.

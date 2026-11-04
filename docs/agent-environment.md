@@ -41,12 +41,12 @@ i krótko wyróżnia jego wiersz. Dodanie fragmentu również przewija i ustawia
 Przejścia korzystają z tokenów ruchu; reduced motion wyłącza ruch przewijania
 i animowane wyróżnienie.
 
-## Badanie źródeł i wersji
+## Formaty i wersje harnessów
 
-Odczyt publicznej dokumentacji oraz lokalnych `--help`/`--version`, bez instalacji,
-logowania, uruchamiania sesji ani zmian w prawdziwych domach CLI:
+Źródła dokumentują formaty obsługiwane przez adaptery. Wersja CLI urządzenia
+może różnić się od wersji SDK i generowanego protokołu w repozytorium.
 
-| Harness | Wykrywanie i źródła | Potwierdzenie na tej maszynie |
+| Harness | Wykrywanie i źródła | Obsługiwana powierzchnia CLI |
 | --- | --- | --- |
 | Claude Code | Globalne `~/.claude/CLAUDE.md`; projektowe `CLAUDE.md`, `.claude/CLAUDE.md`, lokalne `CLAUDE.local.md`; katalogi nadrzędne i reguły projektu. Skille: `~/.claude/skills/<name>/SKILL.md`, `.claude/skills`, pluginowe `skills/`. [Instrukcje](https://code.claude.com/docs/en/memory.md), [skille](https://code.claude.com/docs/en/skills.md). | CLI **2.1.308**; SDK repo **0.3.316**, nie utożsamiamy wersji biblioteki i urządzenia. `--plugin-dir`, `plugin install/update/uninstall`, `plugin marketplace add/list/update/remove`. |
 | Claude plugins | Manifest `.claude-plugin/plugin.json`, katalog `.claude-plugin/marketplace.json`, cache pod `~/.claude/plugins`; plugin może zawierać skille, agentów, hooks, MCP, LSP i wykonywalne skrypty. [Manifest](https://code.claude.com/docs/en/plugins-reference.md), [hosting](https://code.claude.com/docs/en/plugins/host-marketplace.md). | `claude plugin install <plugin>@<marketplace> --scope user`; nowsze źródła command/headersHelper wymagają osobnej akceptacji komendy. Canopy nie będzie ich automatycznie akceptować. |
@@ -396,11 +396,9 @@ ten sam rozmiar; folder 25 MiB staje się około 34 MiB po base64 w JSON.
 Marketplace `plugin@marketplace` opisano poniżej. Pobieranie paczek npm
 i linked library pozostają poza zakresem implementacji.
 
-## Marketplace i pluginy — badanie etapu 4
+## Marketplace i pluginy
 
-Badanie z 2026-11-04: Claude Code **2.1.308**, Codex **0.164.0**, SDK Claude
-repo **0.3.316**. Nie instalowano upstream CLI ani nie uruchamiano modeli.
-Przeczytano oficjalne [Claude plugin reference](https://code.claude.com/docs/en/plugins-reference),
+Formaty opisują oficjalne [Claude plugin reference](https://code.claude.com/docs/en/plugins-reference),
 [marketplace](https://code.claude.com/docs/en/plugin-marketplaces),
 [marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference.md)
 i [settings](https://code.claude.com/docs/en/settings.md): katalog
@@ -499,11 +497,8 @@ To formaty sprawdzone na podanych wersjach, bez obietnicy obsługi starszych CLI
 Aktywne sesje/procesy mogą zachować cache; dla Codexa może być potrzebny nowy
 app-server (restart workera z UI po zakończeniu tur). Nie mutujemy uruchomionych modeli.
 
-Migracje całego nieopublikowanego stosu przenumerowano w etapie 4 na
-`0057_agent_environment`, `0058_agent_skills`, `0059_agent_skill_sources`,
-`0060_agent_plugins`: `origin/dev` zajął wcześniej 0055–0056. Nie zmieniono treści
-migracji etapów 1–3 ani migracji wdrożonych na dev. Wcześniejsze raporty weryfikacji
-zachowują historyczne numery; do wdrożenia należy użyć końcowego stosu.
+Schemat obejmuje migracje `0057_agent_environment`, `0058_agent_skills`,
+`0059_agent_skill_sources` i `0060_agent_plugins`.
 
 ## Bezpieczeństwo, Docker i połączone komputery
 
@@ -534,35 +529,11 @@ wspólnego elementu nie jest zgodą na wykonanie kodu na maszynach odbiorcy.
 Etapy 1–4 nie udostępniają biblioteki między gatewayami; ten dawniej planowany
 element etapu 4 odroczono poza zakres zleconych marketplace/pluginów.
 
-## Plan stosu
+## Ograniczenia synchronizacji
 
-1. **Instrukcje i maszyny** (`feat/agent-environment-1`, zaimplementowany): dokumenty/fragmenty,
-   selektory, tagi, per-machine overrides, preview, managed blocks, drift/resolution,
-   status i temp-HOME integration. Pełna samodzielna funkcja bez instalacji kodu.
-2. **Umiejętności** (`feat/agent-environment-2`, zaimplementowany): bezpieczny upload folder/zip, wersje i manifesty własności,
-   synchronizacja do rzeczywistych domów, usuwanie i rollback; również Grok adapter.
-3. **Źródła i utrzymanie** (`feat/agent-environment-3`, zaimplementowany): git/skills.sh refs, parser komendy, update tracking,
-   ręczne/opt-in automatyczne aktualizacje z diff i zamrożonymi artefaktami.
-4. **Marketplace i pluginy** (`feat/agent-environment-4`, zaimplementowany):
-   Claude/Codex, zamrożone katalogi i wersje, własna konfiguracja harnessów,
-   audytowana zgoda, przypisania, reconcile, drift i przegląd kodu/diff.
-
-Zlecony czteroetapowy zakres implementacji jest kompletny. Linked-computer library
-pozostaje osobnym projektem, bez deklaracji ukończenia. Wyniki sprawdzeń i granice
-dowodów każdego etapu: [agent-environment-verification.md](agent-environment-verification.md).
-
-Każdy etap jest osobną gałęzią opartą o poprzednią. Przy publikacji przez
-maintainera: stacked draft PR, dolny do `dev`; gotowy i zweryfikowany cały stos
-scala się razem squash. To zlecenie nie obejmuje push ani otwierania PR.
-
-## Kontrakt realizacji
-
-`workflow_mode: autonomous-planned`, `mode_source: explicit-user-task-instruction`,
-`decision_authority: delegated`, `scope: current-task`,
-`artifact_state: ready-for-execution`, `execution_mode: inline`.
-Zlecono projekt i implementację etapów 1–4 jako subagent, z samodzielnym doborem
-odwracalnych szczegółów. Protected constraints: bez push/PR, produkcji, prawdziwych
-domów CLI w testach, portów stosu maintainera, zmian Tailscale i instalacji kodu
-upstream. Kryterium: instrukcje i skille end to end, owner scoping, zgodność ze starszym workerem,
-testy meaningful integration, wymagane sprawdzenia oraz kontrola UI light/dark
-desktop/phone. Dowody trafiają do `agent-environment-verification.md`.
+Zmiany plików nie przeładowują pamięci już uruchomionych modeli. Działający
+Codex app-server może wymagać restartu workera po zakończeniu tur. Nie ma
+transakcji obejmującej wiele plików; journal i rozstrzygnięcia driftu chronią
+lokalne edycje po przerwanym zapisie. Capability negocjuje worker Canopy,
+nie minimalną wersję CLI. Format cache pluginów zależy od wersji harnessu.
+Wymagane przez hooks/MCP programy muszą być dostępne na workerze.

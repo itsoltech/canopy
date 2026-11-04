@@ -5,7 +5,7 @@
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
 
   /**
-   * Where the Providers page applies changes (T3 "Applying settings on"): all workers (the global definition, and
+   * Where the Providers page applies changes: all workers (the global definition, and
    * which workers run an instance) or one worker (on/off there, its overrides, its status). Workers show name and
    * host, else a short id.
    */

@@ -33,7 +33,7 @@
   import type { PageProps } from "./$types";
 
   /**
-   * New thread (T3's empty state): one message box; under it the project and the worker it runs on (two
+   * New thread: one message box; under it the project and the worker it runs on (two
    * pickers: the worker list has only the workers the project lives on) and permissions; in it the model
    * (Claude or Codex on a profile the chosen worker offers) and reasoning effort. They start from the
    * project's defaults over yours (Settings), then what you used last; what you pick here wins.

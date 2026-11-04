@@ -13,7 +13,7 @@
    * One option of the command palette's listbox. A command with `href` is a real link (`<a role="option">`:
    * the router, a new tab with a modifier, whatever handles links); others are plain options. Keys reach it
    * through the input (`aria-activedescendant`); the pointer highlights on move and chooses on click.
-   * Thread rows have a second line (project · worker · provider) and their age on the right (T3 layout).
+   * Thread rows have a second line (project · worker · provider) and their age on the right.
    */
   let {
     id,

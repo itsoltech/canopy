@@ -7,7 +7,7 @@
 
   /**
    * Page top bar: menu button on small screens (sidebar toggle on desktop), breadcrumb, actions on the right
-   * (T3-style, no border). The search button opens the command palette where there is no Mod+K to press
+   * (no border). The search button opens the command palette where there is no Mod+K to press
    * (narrow or touch screens). It is a macOS window title strip in every sidebar state; when the sidebar is
    * hidden, it also leaves room for the traffic lights (routes/layout.css).
    */

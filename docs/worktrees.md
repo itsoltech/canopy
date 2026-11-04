@@ -18,7 +18,7 @@ Powiązane: [threads.md](threads.md) (miejsce wątku jest niezmienne), [protocol
 ## Cel
 
 Wątek agenta kodującego może pracować w **osobnym git worktree** zamiast w bieżącym checkoutcie
-projektu, tak jak w T3 Code. Kilka wątków pracuje wtedy równolegle na osobnych gałęziach, nie
+projektu. Kilka wątków pracuje wtedy równolegle na osobnych gałęziach, nie
 przełączając sobie nawzajem plików, a checkout użytkownika zostaje nietknięty.
 
 Zasady podziału odpowiedzialności:
@@ -301,9 +301,6 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   i niewypchniętych commitów, zachowanie/usuwanie gałęzi, offline/reconnect, utracone potwierdzenie,
   pojedynczy audyt, aktywne tury/interakcje/zadania, rezerwacja kontra nowa tura, pierwotny folder,
   błąd fetch, owner scoping i konfinacja ścieżek. Lista migracji zawiera `0067`.
-- Kontrola w rzeczywistej przeglądarce: Settings i kompozytor w jasnym/ciemnym motywie, 1280 × 900
-  i 390 × 844, dialog zarządzania wątku, ostrzeżenie przed usunięciem zmian lokalnych. Zrzuty lokalne:
-  `~/.cache/canopy-worktrees-2/`. Bez testów UI.
 
 ## Weryfikacja (etap 3)
 
@@ -314,5 +311,4 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   status i bezpieczne sprzątanie po fetch.
 - `worktree-github.test.ts`: prawdziwy transport MCP do zaślepki GitHub, grant workera i właściciel,
   closed bez merged, nieaktualny SHA i usunięcie po potwierdzeniu PR bez sekretów na workerze.
-- Brak zmian wizualnych UI w etapie 3, więc brak nowych zrzutów ekranu. Migracja `0068` aktualizuje triggery
-  miejsca wątku; test schematu sprawdza listę i idempotencję migracji.
+- Migracja `0068` aktualizuje triggery miejsca wątku; test schematu sprawdza listę i idempotencję migracji.

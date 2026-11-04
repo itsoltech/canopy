@@ -61,7 +61,7 @@
 
 {#if inline}
   {#if open}
-    <!-- expand is the existing transitions.dev panel/accordion recipe: motion tokens,
+    <!-- expand is the shared panel/accordion transition: motion tokens,
          reversible height + opacity + blur, and prefers-reduced-motion support. -->
     <div class={className} transition:expand inert={!open}>
       <div

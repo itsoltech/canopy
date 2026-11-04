@@ -390,8 +390,6 @@ Gdzie trafiają:
 
 Kiedy obowiązują: od następnej tury, po drain zmienionej instancji (sekcja 6). Polecenia, które agent uruchamia, dziedziczą środowisko harnessu (Codex domyślnie pomija w nich zmienne z `KEY`, `SECRET`, `TOKEN` w nazwie — `shell_environment_policy`).
 
-Potwierdzone na żywo (2026-11-02, profil endpointu na CLIProxyAPI): Codex (`gpt-6.1-sol`, osobny app-server profilu) i Claude (`sonnet`) uruchomiły `printf` i zwróciły jawną zmienną profilu oraz informację, że zmienna-sekret jest ustawiona; klucz i wartość sekretu nie pojawiły się w odpowiedziach dla UI ani w logach gateway, workera i BFF.
-
 ### 8.2. Wybór modeli
 
 Per worker, profil i dostawca użytkownik wybiera, które modele katalogu (`worker_model_catalogs`) widać w pickerach (`provider_model_selections`, poza konfiguracją workera: nie zmienia wersji ani nie restartuje harnessu):

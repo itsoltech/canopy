@@ -8,44 +8,7 @@ nie korzystają z dostarczania plików sekretów na worker. Worker i model dosta
 wyłącznie katalog oraz zredagowane wyniki proxy. Migracja dawnych bot MCP
 zachowuje istniejące odwołania do zaszyfrowanych sekretów nagłówków.
 
-## Badanie T3 Code (2026-11-02)
-
-Źródło: publiczne repozytorium [pingdotgg/t3code](https://github.com/pingdotgg/t3code),
-commit `ac8dce0cc3abd8a337f2d806b5082a6834b9b81a`. Kod odczytany z tymczasowego
-klonu, bez uruchamiania aplikacji i bez modyfikowania źródeł.
-
-- `packages/contracts/src/orchestratorMcp.ts`: `request_secret` przyjmuje `label`,
-  `reason`, opcjonalne `placeholder`, `delivery` (`secretRef` domyślnie lub `file`),
-  `timeoutMs` (domyślnie 10 minut, maksymalnie godzina), `clientRequestId`.
-  Zwraca status i jednorazowe `secretRef` albo ścieżkę `file`; nigdy wartość.
-- `apps/web/src/components/chat/SecretRequestCard.tsx`: karta w osi czasu, tytuł,
-  opis, maskowane pole, przyciski „Save securely” i „Decline”. Pole to stylowany
-  input tekstowy z `-webkit-text-security: disc`, `autocomplete=off` i flagami
-  ignorowania przez menedżery haseł. Stan komponentu jest czyszczony po zapisie.
-  Błędy transportu są zastępowane ogólnym komunikatem, bez logowania requestu.
-- `packages/client-runtime/src/secretRequest.ts`: dla pliku komunikat
-  „Kept out of chat, in a private file this agent's commands can read for 24 hours”.
-  Odmowa zapisuje wyłącznie status `declined`. Fork pokazuje oczekiwanie w wątku
-  źródłowym; nie pozwala odpowiedzieć na odziedziczoną kartę.
-- `apps/server/src/secrets/SecretRequests.ts`: status karty jest oddzielony od
-  wartości. Referencja powstaje z HMAC identyfikatora wątku i karty. Osobny magazyn
-  zapisuje wartość, projekt i czas zapisu; konsumpcja `secretRef` jest jednorazowa
-  i sprawdza projekt. Dostarczenie pliku przenosi wartość do prywatnego katalogu
-  `files`, używa pliku tymczasowego `wx`, `0600`, katalogu `0700` i rename.
-  Powtórzenie z tym samym kluczem zwraca ten sam plik.
-- `apps/server/src/auth/ServerSecretStore.ts`: ten magazyn używa plików `.bin`
-  chronionych prawami systemowymi (`0700`/`0600`); w badanej implementacji nie
-  znaleziono szyfrowania zawartości tego magazynu. Nie należy opisywać go jako
-  szyfrowanego tylko na podstawie tekstu „Stored securely”.
-- TTL referencji wynosi 24 godziny od zapisu. Pliki są sprzątane według mtime;
-  sweep na starcie i co godzinę oznacza, że fizyczne usunięcie może być późniejsze
-  niż 24 godziny. Zakończenie przebiegu, błąd lub timeout zamyka oczekującą kartę.
-  Nie znaleziono mechanizmu maskowania outputu powiązanego z konkretną wartością
-  sekretu ani akcji cofnięcia dostępu na tej karcie. Wynik narzędzia i projekcja
-  przechowują wyłącznie referencję/status; komenda, która wypisze plik, pozostaje
-  istotnym ryzykiem.
-
-## Projekt Canopy
+## Zasady dostarczania
 
 `request_secret` jest narzędziem platformy dla obu harnessów. Przyjmuje `label`,
 `description`, opcjonalny `placeholder`, `name` (podpowiedź nazwy zmiennej,
@@ -84,11 +47,8 @@ wyniku narzędzia. Gateway nie daje mu przydziału, ale wspólny UID nie uniemo�
 samodzielnego odczytu znanej ścieżki przez shell. Silna izolacja wymagałaby osobnych
 użytkowników lub przestrzeni plików dla wątków; obecna architektura tego nie zapewnia.
 
-Migracja: `0036_thread_secrets`; scalony main ma `0033_bot_mentions` i
-`0034_bot_archive`, a `0035` pozostawiono dla równoległych prac. Lista oczekiwanych
-migracji w `packages/db/test/schema.test.ts` uwzględnia `36_thread_secrets`.
-Nowe pola istniejących wiadomości proto
-korzystają z zakresu `500–519`.
+Migracja: `0036_thread_secrets`. Pola istniejących wiadomości proto korzystają
+z zakresu `500–519`.
 
 ## Kontrakt i trwałość
 
@@ -175,30 +135,3 @@ czyści globalnego schowka. Pole czyści się przed fetch oraz po unmount.
   każdy w `ASK` oraz `FULL_AUTO`; API odpowiada na prośbę, agent porównuje SHA-256
   pliku. Wartość nie występuje w zapisach bazy, wynikach, logach workera ani jego
   transkryptach `.jsonl`. Host i klucz proxy pozostają poza repozytorium i logami.
-- Kontrola UI: Chromium 155 (`/usr/bin/chromium`, Playwright poza repo), produkcyjny
-  build na jednorazowym stosie, port 5396 i losowy port gRPC. Jasny/ciemny motyw,
-  szerokości 1440 i 390 px; paste, reveal/hide, save, reload, decline, revoke,
-  ogólny błąd z pustym polem, brak overflow i wartości w browser storage.
-  Brak błędów JavaScript. Nie dodano trwałych testów web UI.
-- Przegląd `design`, `componentize`, `transitions-dev`: karta i panel mają osobne
-  odpowiedzialności i `class`, wspólne Input/Button/IconButton, odstępy na miejscu
-  użycia. Istniejące `GrowIn`/`rise`/`swap` czytają wspólne motion tokens i respektują
-  reduced motion; kontrolki kit są opakowane zamiast nadpisywania ich pozycjonowania.
-
-Zrzuty z kontroli przechowywane są poza repozytorium:
-`/home/nix/.t3/userdata/browser-artifacts/thread-secrets/` (`pending-1440-light.png`,
-`pending-1440-dark.png`, `pending-390-light.png`, `pending-390-dark.png`,
-`saved-390-dark.png`, `revoked-390-dark.png`, `declined-390-dark.png`,
-`save-error-390-dark.png`).
-
-Końcowe wyniki (2026-11-02, main `52be59c`): `bun install`, pełny
-`bun run typecheck`, `bun run gen:check` oraz build web zakończone powodzeniem.
-`bun run check:tmp`: 574 pass, 127 skip, 0 fail (701 testów, 110 plików),
-bez pozostawionych katalogów testowych. Opt-in live uruchomione osobno:
-4 pass, 0 fail, 58 asercji. Zestaw sekretów i schematu bazy: 44 pass, 0 fail.
-Po scaleniu main poprawiono fixture obcego właściciela workera oraz unikalne
-nazwy botów w testach platformy; nie osłabiono walidacji produkcyjnej.
-Następnie scalono main `c9bcc8c`, zawierający równoważną poprawkę samych nazw
-w fixture botów. Po tym scaleniu dotknięty zestaw ma 7 pass, 0 fail (234 asercje),
-a typecheck testów integracyjnych przechodzi. Kod produktu i migracje nie zmieniły
-się w tym ostatnim scaleniu.

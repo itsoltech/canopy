@@ -104,7 +104,7 @@
 
   const mascotIds = Array.from(
     { length: 21 },
-    (_, i) => `bot-${["canopy", "t3", "release", "docs", "triage", "standup", "infra"][i % 7]}-${Math.floor(i / 7)}`,
+    (_, i) => `bot-${["canopy", "sync", "release", "docs", "triage", "standup", "infra"][i % 7]}-${Math.floor(i / 7)}`,
   );
 
   const sizes: AvatarSize[] = ["xs", "sm", "md", "lg", "xl"];
@@ -141,7 +141,7 @@
           {#each sizes as size (size)}<BotAvatar participant={bots.canopy} {size} />{/each}
           <BotAvatar participant={pictureBot} size="lg" />
           <BotAvatar participant={me} size="lg" />
-          <BotAvatar participant={bots.t3} size="lg" badge="pinned" />
+          <BotAvatar participant={bots.sync} size="lg" badge="pinned" />
           <BotAvatar participant={bots.docs} size="lg" badge="online" />
           <BotAvatar participant={bots.release} size="md" badge="pinned" />
         </div>
@@ -149,9 +149,9 @@
           {#each mascotIds as id (id)}<BotAvatar participant={{ id, kind: "bot", name: id }} size="md" />{/each}
         </div>
         <div class="flex flex-wrap items-center gap-6">
-          <AvatarStack participants={[bots.canopy, bots.t3]} layout="square" />
-          <AvatarStack participants={[bots.canopy, bots.t3, bots.docs]} layout="square" size="lg" />
-          <AvatarStack participants={[bots.canopy, bots.t3, bots.docs]} />
+          <AvatarStack participants={[bots.canopy, bots.sync]} layout="square" />
+          <AvatarStack participants={[bots.canopy, bots.sync, bots.docs]} layout="square" size="lg" />
+          <AvatarStack participants={[bots.canopy, bots.sync, bots.docs]} />
           <AvatarStack participants={Object.values(bots)} />
         </div>
       </GallerySection>

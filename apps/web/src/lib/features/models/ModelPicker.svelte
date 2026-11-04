@@ -16,7 +16,7 @@
   import ProviderIcon from "./ProviderIcon.svelte";
 
   /**
-   * T3-style model picker: the composer's model pill (provider mark, model, effort) opens a popover (a
+   * Model picker: the composer's model pill (provider mark, model, effort) opens a popover (a
    * bottom sheet on phones) with a rail (Favorites, then each provider), a search over every model, and
    * the list — name, profile and the catalog's description, a star, ⌘1…⌘9 for the first nine favorites
    * and a check on the current one. A provider with several profiles lists them under headings. The

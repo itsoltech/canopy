@@ -16,7 +16,7 @@ export const groupLabels: Record<CommandGroup, string> = {
   settings: "Settings",
 };
 
-/** What a thread row shows under its title (T3 layout): where it lives and runs, and when it last moved. */
+/** What a thread row shows under its title: where it lives and runs, and when it last moved. */
 export interface ThreadMeta {
   readonly projectKind?: string | undefined;
   readonly projectName: string;

@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
 
-  /** Titled group of settings rows on one card (T3 style); `actions` sit right of the title. */
+  /** Titled group of settings rows on one card; `actions` sit right of the title. */
   let {
     title,
     description,

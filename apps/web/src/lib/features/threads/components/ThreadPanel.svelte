@@ -31,7 +31,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   /**
-   * Context of a thread (T3's right panel): where it runs, which agent, who answers its approvals,
+   * Context of a thread: where it runs, which agent, who answers its approvals,
    * usage, its scheduled tasks (pause, resume, cancel, schedule another), and its lineage — the main
    * thread with its side threads, agent-started and forked ones marked — plus "New side thread".
    */

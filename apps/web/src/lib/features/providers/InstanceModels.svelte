@@ -23,7 +23,7 @@
   } from "./instance-models.ts";
 
   /**
-   * An instance's models in the pickers (T3 Models section): favorites first (star, move up and down, ⌘1… in the
+   * An instance's models in the pickers: favorites first (star, move up and down, ⌘1… in the
    * picker), the rest, and the ones hidden from the picker, each with a switch; capability tags from the catalog;
    * a filter, hide all / show all, and custom model ids the catalog does not list. Every change saves at once (the
    * pickers follow live); a failed save goes back.

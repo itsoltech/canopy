@@ -21,6 +21,22 @@ Starsze workery nie dostają tych komend. [Projekt i trwałość](bots-harness.m
 - **Transport:** gRPC po HTTP/2 + TLS. Reverse proxy przed gateway musi przepuszczać HTTP/2 i długie strumienie (bez krótkich timeoutów bezczynności).
 - **Gateway jest źródłem prawdy** o agentach i uprawnieniach. **Worker jest źródłem prawdy** o tym, które katalogi wolno użyć na urządzeniu.
 
+### Transport HTTP/2
+
+Gateway i worker używają ConnectRPC na `node:http2` w Bun; transport obsługuje h2c,
+TLS i interoperacyjność z `@grpc/grpc-js` na Node. Przy zamykaniu gateway najpierw
+wywołuje `WorkerLink.shutdown()`, potem wysyła GOAWAY przez `session.close()`,
+czeka okres karencji i dopiero niszczy pozostałe sesje. Natychmiastowe `destroy()`
+urywa trailery `grpc-status`, powodując `Internal: missing status` u klienta.
+
+Strumień wejściowy Connect musi implementować pełny protokół generatora, w tym
+`throw`; `AsyncChannel` zwraca ten sam generator przy każdym `[Symbol.asyncIterator]()`.
+Błąd certyfikatu connect-node może mieć `Code.Internal`; przyczynę konfiguracji
+rozpoznaje się po `error.cause.code`, np. `DEPTH_ZERO_SELF_SIGNED_CERT`.
+Klient grpc-js na Node 26 łączący się po IP wymaga `grpc.ssl_target_name_override`
+z nazwą certyfikatu. Peer Node w testach jest bundlowany przez
+`Bun.build({ target: "node" })`, ponieważ wygenerowane TS zawiera enumy wymagające transformacji.
+
 ## Cykl życia połączenia
 
 Capability `network_route_migration` dodaje `NetworkRoutes` (adresy + pełny pin) i `NetworkRouteStatus`.
@@ -174,8 +190,6 @@ Gateway zapisuje ostatni katalog workera (`worker_model_catalogs`) i odświeża 
 - **Codex:** `turn/start` dostaje `approvalPolicy` i `sandboxPolicy` z tej samej tabeli co `thread/start` (`codexTurnPermissions`), w każdej turze jawnie, bo Codex trzyma nadpisanie także dla kolejnych tur (jak model i wysiłek).
 - **Claude:** nowy proces startuje z trybem tury (`permissionMode`, `sandbox`, automatyczna zgoda w `canUseTool`). Proces żywy tylko przez okres karencji po zadaniach w tle kończy się i tura startuje nowy. Proces trzymany przez zadania w tle przełącza się przed turą: `setPermissionMode`, sandbox przez `applyFlagSettings` (wyłączenie tylko jako `sandbox: { enabled: false }`; `sandbox: null` zostawia sandbox ze startu, a z nim automatyczną zgodę na Bash) i automatyczną zgodę `canUseTool`.
 - **Kto wybiera tryb:** tylko właściciel wątku przez UI (`CreateThread`, `SendMessage`, `UpdateThread`); szyna agentów nie ma narzędzia do zmiany trybu, a wątki boczne agenta dziedziczą ustawienia wołającego. `FULL_AUTO` w obu harnessach zostaje w sandboxie workspace'u.
-
-Potwierdzone na żywo (`tests/integration/gateway-permission-mode.live.test.ts`, 2026-11-02, CLIProxyAPI, `gpt-6.1-sol` i `claude-haiku-5-5`): w jednym wątku `READ_ONLY` nie zapisuje i nie pyta, wiadomość z `FULL_AUTO` zapisuje bez pytania, następna bez nadpisania znów nie zapisuje (Codex nie zostaje na `FULL_AUTO`), po `UpdateThread` na `ASK` zapis prosi o zgodę (Codex `shell`, Claude `Bash`). Claude z zadaniem w tle (ten sam proces): `READ_ONLY` odmawia, `ASK` pyta, `FULL_AUTO` zapisuje w workspace, a zapis poza nim kończy się „Read-only file system”.
 
 **Wysiłek a model.** Wysiłek przechodzi przez katalog profilu wątku (`worker_model_catalogs`, `turnEffort` w `apps/gateway/src/store/models.ts`), żeby tura nie niosła wysiłku do modelu, który go nie ma:
 

@@ -5,8 +5,8 @@ CLI/SDK: Claude Agent SDK, Codex app-server i Grok CLI przez ACP. Każdy bot ma
 izolowaną sesję i wyłącznie narzędzia Canopy. Gateway
 zachowuje rozmowę, outbox, zgody i wykonawców narzędzi. Ustawienie **Runs on** wybiera
 workera; offline wiadomości czekają. Native/device login i proxy są obsługiwane przez
-harness. Gateway nie wywołuje API modelu. Pełna decyzja,
-ograniczenia i plan stosu: [bots-harness.md](bots-harness.md).
+harness. Gateway nie wywołuje API modelu. Pełna decyzja
+i ograniczenia: [bots-harness.md](bots-harness.md).
 
 Kod: `apps/gateway/src/bots`, `apps/worker/src/bots`; kontrakty: boty UI i WorkerLink.
 
@@ -219,10 +219,9 @@ Czytnik własnego `updates.jsonl` Groka odzyskuje tekst i zapisany koniec tury p
 
 ### Izolowane generowanie tekstu i dowód dla sesji botów
 
-Repozytorium już używa izolowanych SDK do generowania tytułów
-([thread-titles.md](thread-titles.md)). Sprawdzone wersje: Claude Agent SDK **0.3.316**,
-Codex CLI **0.164.0**. Testy używają przypiętego SDK i rzeczywistego pliku wykonywalnego
-Codexa z tej maszyny, bez aktualizacji zależności.
+Repozytorium używa izolowanych SDK do generowania tytułów
+([thread-titles.md](thread-titles.md)). Testy izolacji korzystają z przypiętej wersji
+Claude Agent SDK i zainstalowanego Codex CLI, bez aktualizacji zależności.
 
 - Claude: `tools: []`, `allowedTools: []`, odmowa w `canUseTool`, `settingSources: []`,
   własny system prompt, `mcpServers: {}`, `strictMcpConfig: true`, brak pluginów,
@@ -808,15 +807,9 @@ i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozy
 - Dowody izolacji harnessów: test przechwycenia requestu i live opisane w sekcji 1.
   Sekrety live pochodzą wyłącznie z pliku środowiska poza repozytorium; brak wartości
   w kodzie, commitach, wynikach testów i dokumentacji.
-- UI: zgodnie z polityką testów brak testów jednostkowych i przeglądarkowych UI w repo.
-  Weryfikacja ręczna w Chromium na jednorazowym stosie (gateway + PostgreSQL, skryptowany
-  model, MCP „Notion”), 1440 i 390 px, jasny i ciemny motyw: brak przewijania dokumentu,
-  wysyłka Enterem, karty, Edit, Retry, status, podążanie, widok wymiany, sidebar.
-  Edytor i archiwum: sześć sekcji, zapis wyglądu/instrukcji/modelu/polityki, MCP add/test/detach,
-  linia samodzielnej zmiany i View, oba menu, Undo, przywracanie i potwierdzone usunięcie.
-  Composer: popover i panel inline, wybór klawiaturą/dotykiem, chip w dymku, Reply bez
-  surowego markdownu, Cite z komentarzem i usuwaniem, pogrubienie/kursywa/kod/blok kodu,
-  wzrost do limitu, stylowane przewijanie i brak przepełnienia dokumentu.
+Widoki UI sprawdzamy ręcznie w obu motywach i przy szerokości desktopu/telefonu,
+zgodnie z polityką repozytorium. Uwzględnij karty interakcji, Edit/Retry, archiwum,
+Undo i kontrolki kompozytora; brak błędów transportu nie dowodzi poprawnego układu.
 
 Dalej: reakcje i odpowiedzi w API, liczniki nieprzeczytanych, załączniki, harmonogramy cykliczne
 botów, kompakcja kontekstu, stronicowanie i wirtualizacja długich rozmów.

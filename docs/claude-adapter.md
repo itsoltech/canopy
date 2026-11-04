@@ -10,8 +10,6 @@ Status: **działa** (2026-11-01):
 - podpięcie do workera: `WorkerHost` (obok Codexa, wybór po `ThreadSpec.provider`),
 - zadania w tle (background Bash) i cele (`/goal`): sekcja „Praca w tle i cele”.
 
-Potwierdzone na żywo (`tests/integration/worker-claude.live.test.ts`, Claude przez CLIProxyAPI): gateway konfiguruje workera, wątek w trybie `ASK`, zgody na zapis i komendę idą przez gateway, plik powstaje; druga tura wznawia sesję; wywołanie narzędzia szyny (`list_threads`) wraca z gateway i jest powiązane z `tool_use`; fork po pierwszej turze dostaje własną sesję i zna historię; natywni subagenci i harmonogramy są wyłączone.
-
 ## Model
 
 | Platforma | Claude |
@@ -36,11 +34,10 @@ Potwierdzone na żywo (`tests/integration/worker-claude.live.test.ts`, Claude pr
 
 - **Lista modeli bez tury:** `query()` ze strumieniem wejścia, który nic nie daje, `supportedModels()`, potem zamknięcie (ok. 0,5 s, model nie jest wołany). `ModelInfo.value` → `id`, `resolvedModel`, `supportedEffortLevels` (bez `supportsEffort` = brak wysiłków); wiersz `default` to model domyślny. Z profilem CLIProxyAPI lista obejmuje modele pośrednika (`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY`, 62 na żywo; modele innych dostawców pod id `claude-fable-5-dd-<odwrócone id>`). Modele, które nie poprowadzą tury agenta, worker usuwa: metadane pośrednika (`GET /v1beta/models`, dopasowane po id, `resolvedModel` albo nazwie wyświetlanej), inaczej słowa w nazwie (`isAgentModel`); na żywo zostaje 47.
 - **Domyślny wysiłek:** Claude Code go nie podaje (SDK `ModelInfo` nie ma pola, a wiadomość `init` z `effort` dostają tylko hosty Remote Control). Worker czyta ustawienie właściciela urządzenia: `CLAUDE_CODE_EFFORT_LEVEL`, potem `settings.json` urządzenia (`modelSettings.<model>.effortLevel`, potem `effortLevel`), i raportuje je jako `default_effort`, jeśli model je oferuje. Wątki nie ładują ustawień użytkownika (`settingSources: ["project", "local"]`, izolowany `CLAUDE_CONFIG_DIR`), więc tura bez wybranego wysiłku dostaje to ustawienie jako `Options.effort` (aliasy jak `opus` i wiersz `default` rozwiązane według ostatniej listy). Bez ustawienia `default_effort` jest pusty, a Claude Code bierze domyślny modelu. Kolejność w CLI 2.1.316: `CLAUDE_CODE_EFFORT_LEVEL` > wysiłek sesji (`Options.effort`) > ustawienia (per model przed ogólnym) > domyślny modelu.
-- **Wysiłek:** `Options.effort` (`low | medium | high | xhigh | max`); inna wartość kończy start tury błędem. Na żywo potwierdzone przez `CLAUDE_EFFORT` w Bash.
+- **Wysiłek:** `Options.effort` (`low | medium | high | xhigh | max`); inna wartość kończy start tury błędem.
 - **Steer:** Claude Code bierze wiadomość z `priority: "next"` między wywołaniami narzędzi. `command_lifecycle` z `command_uuid = input_id` mówi, kiedy weszła (`queued` → `started` → `completed`); przy `started` adapter zapisuje item `user_message` z `client_id = input_id`, więc oś czasu pokazuje ją tam, gdzie weszła.
   - Wiadomość, która przy `result` nadal czeka w kolejce, Claude Code wykonuje zaraz po nim w tym samym `query()`. Adapter traktuje to jako ciąg dalszy tury: ten `result` zapisuje bez ciała i kończy turę dopiero na następnym (jeden `turn_finished`; zużycie z ostatniego wyniku). Bez dalszych zdarzeń przez 60 s pierwszy wynik kończy turę.
   - Przerwanie, błąd albo koniec bez wejścia wiadomości: `Notice steer_dropped` (`data_json {"input_id"}`), gateway kolejkuje ją jako następną turę. Steer do tury zakończonej, przerywanej albo spoza tego procesu: `STEER_NOT_RUNNING`.
-  - Potwierdzone na żywo: steer w trakcie komendy (wchodzi po wyniku narzędzia) i w trakcie odpowiedzi bez narzędzi (dwa wyniki, jedna tura).
 
 ## Mapowanie
 
@@ -67,8 +64,6 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 - **Bezczynny proces** po zadaniach czeka 3 s na turę Claude (`task_notification` → `system init` przychodzi po ~50 ms), potem się kończy. Zadania, które zostały przy końcu procesu, dostają `interrupted`.
 - **`/goal`** przychodzi z gateway jako wejście tury (`trigger = goal`). Claude Code nie przekazuje `active_goal` klientom SDK; werdykty ewaluatora (`goal_status`) adapter czyta z transkryptu sesji po każdym `result` ([goals.md](goals.md#claude-co-zaobserwowano-claude-code-21316-sdk-03316)).
 
-Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test.ts`, cały łańcuch od UI API): background Bash z outputem z pliku, zatrzymany z UI (`stopped_by_user`, bez tury Claude), krótkie zadanie po zakończeniu uruchamia turę Claude, która o nim informuje; `/goal` ustawiony z UI kończy się `achieved` z werdyktem ewaluatora. Nagrania: `fixtures/background-bash-*.jsonl`, `goal-turn.jsonl`, `goal-transcript.jsonl`.
-
 ## Uprawnienia
 
 | Tryb | Claude | Pytania |
@@ -93,15 +88,14 @@ Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test
 
 ## Załączniki i obrazy
 
-- Katalog załączników wątku (`<data_dir>/attachments/<thread_id>`) jest w `additionalDirectories`: `Read` czyta załączniki bez pytania w każdym trybie (sprawdzone na żywo w trybie `ASK`).
+- Katalog załączników wątku (`<data_dir>/attachments/<thread_id>`) jest w `additionalDirectories`: `Read` czyta załączniki bez pytania w każdym trybie.
 - `mcp__canopy__view_image` ([agent-bus.md](agent-bus.md#view_image)) — serwer `canopy` jest zawsze, narzędzia szyny tylko z `enable_agent_bus`. Mapowanie: item `image` (`source = view_image`), błąd w `detail`.
 - Obrazy w `tool_result` (np. `Read` na pliku obrazu) → `ToolCall.images`: podgląd z bloku `image` (base64) wyniku, czyli dokładnie to, co dostał model.
 
 ## Wzmianki
 
 - **Katalog** (`claude/catalog.ts`): `query()` bez promptu z folderem wątku, izolowanym `CLAUDE_CONFIG_DIR` i `settingSources` project + local (jak tura), potem `supportedCommands()` (ok. 0,3–0,5 s, bez modelu). Claude Code traktuje skille jak komendy, a wiersz mówi tylko, czy jest wbudowany: skillem jest wiersz z folderem `.claude/skills/<nazwa>/SKILL.md` (w folderze wątku lub wyżej, albo w `skills/` katalogu konfiguracji). Źródło z końcówki opisu („(project)”, „(user)”). Pominięte: wbudowane komendy terminala, sesji i ustawień platformy, subagentów i harmonogramu (gdy wyłączone) oraz natywny `/goal`. Pamięć workera 5 min albo do zmiany katalogów `skills` / `commands`.
-- **Wejście:** komenda na początku (`/stamp pelican`), skill na początku jako `/nazwa`, inne skille przez narzędzie Skill (notatka), `@ścieżka` pliku Claude Code rozwija sam (na żywo odpowiedź z treścią pliku bez wywołania Read).
-- Potwierdzone na żywo (`tests/integration/mentions.live.test.ts`, `claude-haiku-5-5` przez CLIProxyAPI): skill projektu, komenda projektu z argumentem przeniesiona z końca wiadomości, plik, wspomniany wątek czytany przez `get_thread` i `read_thread`.
+- **Wejście:** komenda na początku (`/stamp pelican`), skill na początku jako `/nazwa`, inne skille przez narzędzie Skill (notatka), `@ścieżka` pliku Claude Code rozwija sam.
 
 ## Izolacja
 
