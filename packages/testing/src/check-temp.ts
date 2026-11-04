@@ -4,23 +4,37 @@
  * /tmp at the same time do not count; new /tmp/canopy-* entries made meanwhile are listed as a hint only (live
  * recordings, CANOPY_LIVE_RECORD_DIR, are kept on purpose under fixed names).
  */
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { dockerAvailable } from "../../db/src/testing.ts";
+import { startTestPostgresServer } from "../../db/src/testing-server.ts";
 
 const shared = tmpdir();
 const ours = (name: string) => name.startsWith("canopy-");
 const before = new Set(readdirSync(shared).filter(ours));
+const postgres = dockerAvailable ? await startTestPostgresServer() : undefined;
 const tmp = mkdtempSync(join(shared, "canopy-tmpcheck-"));
+const descriptor = join(tmp, ".canopy-test-postgres-port");
 
-const proc = Bun.spawn(["bun", "test", ...process.argv.slice(2)], {
-  env: { ...process.env, TMPDIR: tmp },
-  stdio: ["inherit", "inherit", "inherit"],
-});
+// The private TMPDIR already reaches fixtures. Keep test infrastructure out of provider environments.
+if (postgres) writeFileSync(descriptor, String(postgres.port), { mode: 0o600 });
 
-for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => proc.kill(signal));
+let code = 1;
 
-const code = await proc.exited;
+try {
+  const proc = Bun.spawn([process.execPath, "test", ...process.argv.slice(2)], {
+    env: { ...process.env, TMPDIR: tmp },
+    stdio: ["inherit", "inherit", "inherit"],
+  });
+
+  for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => proc.kill(signal));
+
+  code = await proc.exited;
+} finally {
+  await postgres?.stop();
+  if (postgres) rmSync(descriptor);
+}
 
 // Harness CLIs keep their own runtime files in TMPDIR (sockets, compile caches, sandbox mount targets): not ours.
 const all = readdirSync(tmp);

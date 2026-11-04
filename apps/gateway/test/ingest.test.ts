@@ -69,13 +69,13 @@ const event = (threadId: string, journalSeq: number, turnId: string, body?: Body
 
 describe.skipIf(!dockerAvailable)("Ingest on PostgreSQL", () => {
   beforeAll(async () => {
-    pg = await startPostgres();
+    pg = await startPostgres({ migrated: true });
     runtime = ManagedRuntime.make(Ingest.layer.pipe(Layer.provideMerge(pg.layer)));
     await runtime.runPromise(migrate);
   }, 60_000);
   afterAll(async () => {
     await runtime?.dispose();
-    pg?.stop();
+    await pg?.stop();
   });
 
   test("a full turn: provider thread id, turn lifecycle, items projected, thread idle again, cursor stored", async () => {

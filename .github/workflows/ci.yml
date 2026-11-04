@@ -1,6 +1,4 @@
-# Checks of every change (docs/release.md). Pull requests run it directly; pushes to main/next/dev and stable tags run it
-# as the `checks` job of release.yml, which builds next to it and publishes only after it passes. Live tests stay opt-in: they need
-# private provider credentials and are skipped without CANOPY_LIVE.
+# Reused by Release. The aggregate name is the public check contract; live tests stay opt-in.
 name: CI
 
 on:
@@ -10,63 +8,124 @@ on:
 permissions:
   contents: read
 
+# Cancel obsolete PR work, including all shards. Release callers each have an independent group.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # Keep in sync with mise.toml.
   BUN_VERSION: 1.4.4
 
 jobs:
-  check:
-    name: Typecheck, tests, builds
+  changes:
+    name: Select checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    # A newer push to a pull request replaces its running check. Release runs (workflow_call) get a group of
-    # their own: they are never cancelled and never wait for the previous release run's checks.
-    concurrency:
-      group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.changes.outputs.full }}
     steps:
       - uses: actions/checkout@v5
         with:
-          # scripts/version.ts reads the last vX.Y.Z tag.
           fetch-depth: 0
+      - id: changes
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          full=true
+          if [ "$IS_PR" = true ]; then
+            # Include both sides of renames: moving code to a .md path must still run everything.
+            git diff --no-renames --name-only -z "$BASE" "$HEAD" > "$RUNNER_TEMP/changed-files"
+            if [ -s "$RUNNER_TEMP/changed-files" ]; then
+              full=false
+              while IFS= read -r -d '' file; do
+                case "$file" in
+                  .github/*) full=true ;;
+                  *.md|docs/*.png|docs/*.jpg|docs/*.jpeg|docs/*.webp|docs/*.gif|docs/*.svg) ;;
+                  *) full=true ;;
+                esac
+              done < "$RUNNER_TEMP/changed-files"
+            fi
+          fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
 
-      # semantic-release CLI is exercised by the local-git unit fixtures; Node >=24.10 is required.
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-
-      - name: Bun and dependencies
-        uses: ./.github/actions/setup-bun
-
+  static:
+    name: Static checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-bun
+      - name: Every test file belongs to exactly one shard
+        run: bun scripts/test-shards.ts --check
       - name: Generated code is up to date
         run: bun run gen:check
-
       - name: Typecheck
         run: bun run typecheck
-
-      # oxlint with the vendored anti-slop rules and the size limits (docs/code-quality.md).
       - name: Lint
         run: bun run lint
-
       - name: Formatting
         run: bun run format:check
 
-      # Integration tests start throwaway PostgreSQL containers (packages/db/src/testing.ts); the runner has Docker.
+  tests:
+    name: Tests (${{ matrix.shard }}/4)
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Local-git release fixtures and scripts/version.ts read release tags.
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: ./.github/actions/setup-bun
+      # One server per shard, separate databases cloned from a migrated template. A pull takes ~7s;
+      # keep registry layer caching instead of maintaining Docker archives in the Actions cache.
       - name: Pull the test database image
         run: docker pull --quiet postgres:17
+      - name: Unit and integration tests, with temp-directory check
+        run: >-
+          bun scripts/test-shards.ts ${{ matrix.shard }}
+          --reporter=junit --reporter-outfile=${{ runner.temp }}/tests-${{ matrix.shard }}.xml
+          --timings=${{ runner.temp }}/timings-${{ matrix.shard }}.json --update-timings
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-profile-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/tests-${{ matrix.shard }}.xml
+            ${{ runner.temp }}/timings-${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Unit and integration tests
-        run: bun run check:tmp
-
+  builds:
+    name: Web and Linux binaries
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-bun
       - name: Version
         id: version
         run: bun scripts/version.ts --github-output
-
       - name: Web build
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
         run: bun scripts/build-web.ts
-
       - name: Gateway and worker binaries (linux-x64)
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
@@ -74,3 +133,44 @@ jobs:
           bun scripts/build-binaries.ts --target linux-x64
           test "$(dist/release/canopy-gateway-linux-x64 --version)" = "$CANOPY_VERSION"
           test "$(dist/release/canopy-worker-linux-x64 --version)" = "$CANOPY_VERSION"
+
+  check:
+    name: Typecheck, tests, builds
+    needs: [changes, static, tests, builds]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every selected check to pass
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          STATIC: ${{ needs.static.result }}
+          TESTS: ${{ needs.tests.result }}
+          BUILDS: ${{ needs.builds.result }}
+          FULL: ${{ needs.changes.outputs.full }}
+        run: |
+          test "$CHANGES" = success
+          test "$STATIC" = success
+          if [ "$FULL" = true ]; then
+            test "$TESTS" = success
+            test "$BUILDS" = success
+          else
+            test "$FULL" = false
+            test "$TESTS" = skipped
+            test "$BUILDS" = skipped
+          fi
+      - uses: actions/checkout@v5
+        if: needs.changes.outputs.full == 'true'
+      - uses: ./.github/actions/setup-bun
+        if: needs.changes.outputs.full == 'true'
+        with:
+          install: "false"
+      - uses: actions/download-artifact@v5
+        if: needs.changes.outputs.full == 'true'
+        with:
+          pattern: test-profile-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/test-profiles
+      - name: Every test file actually ran exactly once
+        if: needs.changes.outputs.full == 'true'
+        run: bun scripts/test-shards.ts --verify-reports "${{ runner.temp }}/test-profiles"

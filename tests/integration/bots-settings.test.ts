@@ -82,7 +82,7 @@ describe.skipIf(!dockerAvailable)("bot settings and archive through gateway", ()
         yield* sql`INSERT INTO worker_model_catalogs(worker_id, config_version, profiles) VALUES (${worker}::uuid, 1, ${JSON.stringify([toJson(ProfileModelsSchema, catalog)])}::jsonb)`;
       }),
     );
-    core.bots.start();
+    core.bots.start(10);
   }, 30_000);
   afterAll(async () => {
     await core?.bots.stop();
@@ -188,7 +188,7 @@ describe.skipIf(!dockerAvailable)("bot settings and archive through gateway", ()
       instanceId: "settings-restarted",
       botModel: (i) => model(i),
     });
-    core.bots.start();
+    core.bots.start(10);
     let seen: ModelInput | undefined;
     model = async (i) => {
       seen = i;

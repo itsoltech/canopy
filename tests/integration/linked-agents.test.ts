@@ -93,7 +93,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
         id: "bot-fixture",
         models: { custom: ["gpt-6.1-sol"], hidden: [], favorites: [] },
       });
-      gw.core.bots.start();
+      gw.core.bots.start(10);
     }
 
     const config = (name: string) =>

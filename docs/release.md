@@ -168,18 +168,48 @@ przeliczone z assetami desktop (`publish-desktop`); wpisy serwerowe w obu wersja
 
 ## Workflowy GitHub Actions
 
-`.github/workflows/ci.yml` (pull requesty; wywoływany też przez Release):
-`bun install --frozen-lockfile` → `gen:check` → `typecheck` → `check:tmp` (testy jednostkowe
-i integracyjne; PostgreSQL w kontenerach Docker runnera) → build web → binaria linux-x64
-z kontrolą `--version`. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze) i nie mają sekretów w CI.
-Nowy push do PR anuluje trwający check tego PR; wywołanie z Release ma własną grupę (`run_id`),
-więc nie czeka na checki poprzedniego przebiegu Release. Bun, cache pakietów i `bun install`
+`.github/workflows/ci.yml` (pull requesty; wywoływany też przez Release) uruchamia równolegle:
+
+- `static`: `gen:check`, `typecheck`, lint, format i kontrolę podziału plików testowych;
+- cztery joby `tests`: każdy uruchamia własne `check:tmp`, JUnit i pomiar czasu plików;
+- `builds`: build web i binaria linux-x64 z kontrolą `--version`.
+
+Końcowy job **Typecheck, tests, builds** wymaga powodzenia wszystkich wybranych części.
+Pobiera też raporty shardów i sprawdza, czy każdy plik testowy wystąpił dokładnie raz.
+PR zmieniający wyłącznie Markdown lub obrazy dokumentacji w `docs/` (PNG/JPEG/WebP/GIF/SVG)
+pomija testy i buildy; statyczne checki nadal działają.
+Zmiany `.github/**` zawsze wymagają całości, również przy rozszerzeniu `.md`.
+Porównanie obejmuje oba końce rename; błąd odczytu zmian nie daje zielonego wyniku.
+Release zawsze uruchamia cały zestaw. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze)
+i nie mają sekretów w CI. Nowy push do PR anuluje cały stary CI, łącznie z shardami;
+wywołania z Release mają osobne grupy (`run_id`). Bun, cache pakietów i zamrożona instalacja
 są we wspólnej akcji `.github/actions/setup-bun`.
 
+`scripts/test-shards.ts` przypisuje najdłuższe pliki do najmniej obciążonego sharda,
+z deterministycznym rozstrzyganiem remisów i jawną listą ścieżek dla Bun.
+`scripts/test-timings.json` zawiera zmierzone czasy całych plików w milisekundach,
+łącznie z hookami; nowy plik dostaje domyślnie 1000 ms i automatycznie trafia do podziału.
+Lokalnie ten sam zestaw uruchamia się przez `bun scripts/test-shards.ts 1` (analogicznie 2–4).
+`--check` kontroluje podział, a `--verify-reports <katalog>` sprawdza cztery raporty
+`timings-1.json` … `timings-4.json`. Raporty JUnit i natywne pomiary Bun są artefaktami CI
+`test-profile-<numer>` (7 dni). Do odświeżenia wag scal mapy `files` z czterech raportów;
+nie używaj raportu jednego sharda jako całej mapy.
+
+`check:tmp` zarządza jednym PostgreSQL 17 na przebieg/shard i usuwa kontener po zakończeniu
+procesu testowego. Każdy fixture dostaje osobną bazę. Gatewaye klonują niemodyfikowalny,
+zmigrowany szablon; testy migracji nadal zaczynają od pustej bazy i wykonują prawdziwe migracje.
+Bezpośrednie `bun test <plik>` nadal działa z własnym kontenerem fixture'a.
+
 `.github/workflows/release.yml` (push do `main`/`next`/`dev`, ręczne stabilne tagi `vX.Y.Z`,
-oraz dispatch po promocji/back-merge). Nie ma `concurrency` na poziomie całego przebiegu:
-kolejny merge do `dev` nie czeka na notaryzację macOS poprzedniego. Serializowane per gałąź
-są tylko joby, które ustalają lub publikują wersję.
+oraz dispatch po promocji/back-merge). Pushe do `dev` mają wspólną grupę całego workflow
+z `cancel-in-progress: false`: aktywny przebieg kończy się bez anulowania, a spośród oczekujących
+pozostaje tylko najnowszy. Seria squash commitów nie tworzy kolejki pełnych nightly dla każdego
+commita. Ceną jest oczekiwanie nowego nightly także na desktop/notaryzację aktywnego nightly.
+Nie wolno włączyć `cancel-in-progress: true`: aktywny przebieg może już publikować.
+Beta, stable, tagi i ręczny dispatch mają odrębne grupy przebiegów i zachowują równoległe buildy.
+Joby ustalające i publikujące wersję zachowują dotychczasowe blokady per gałąź.
+Desktop przywraca cache Electron/electron-builder przed instalacją zależności;
+cache pakietów Bun pozostaje rozdzielony według OS, architektury i lockfile.
 
 ```text
 plan ─┬─ binaries ── smoke ──────────────────────────┐

@@ -1,8 +1,8 @@
 # Releases pushes to main/next/dev, manual stable tags and Promote/back-merge dispatches (docs/release.md).
 # `plan` decides the version with a semantic-release dry run, so builds start next to the checks; nothing is
 # tagged, pushed to GHCR or uploaded before `checks` pass. Server artifacts are published first; desktop builds
-# (macOS notarization) publish later without holding the next run: only `plan`/`release` and `publish-server`
-# are serialized per branch, never a whole run. GITHUB_TOKEN tags do not trigger another workflow.
+# (macOS notarization) publish later. Dev push bursts keep the active run and only the newest pending run;
+# beta/stable keep independent runs. GITHUB_TOKEN tags do not trigger another workflow.
 name: Release
 
 on:
@@ -24,6 +24,12 @@ on:
 
 permissions:
   contents: read
+
+# GitHub replaces an older pending run in this group, but never cancels its active run (which may be
+# publishing). Unique groups preserve the existing beta/stable/tag/dispatch behavior.
+concurrency:
+  group: release-${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && github.ref || github.run_id }}
+  cancel-in-progress: false
 
 env:
   # Keep in sync with mise.toml.
@@ -288,12 +294,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/setup-bun
-      # electron-builder runs on Node (docs/desktop.md: Node 24 or newer).
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-      # Electron and electron-builder downloads (default cache directories of each OS).
+      # Restore downloads before dependency installation, so Electron install hooks can reuse them too.
       - uses: actions/cache@v4
         with:
           path: |
@@ -305,6 +306,11 @@ jobs:
             ~/AppData/Local/electron-builder/Cache
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
           restore-keys: electron-${{ runner.os }}-${{ runner.arch }}-
+      - uses: ./.github/actions/setup-bun
+      # electron-builder runs on Node (docs/desktop.md: Node 24 or newer).
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
       # electron-builder's bundled fpm (deb) is x86-64 only.
       - name: fpm for arm64 deb
         if: matrix.target == 'linux-arm64'

@@ -63,7 +63,7 @@ describe.skipIf(!dockerAvailable)("migration 0041: bot MCP registry to connector
   }, 60_000);
   afterAll(async () => {
     await runtime?.dispose();
-    pg?.stop();
+    await pg?.stop();
   });
   test("keeps account ids and encrypted secret references, migrates only owned attachments, grants no workers", async () => {
     const rows = await query<{
