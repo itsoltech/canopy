@@ -15,13 +15,13 @@ const store = <A>(use: (s: GatewayStore["Service"]) => import("effect").Effect.E
 
 describe.skipIf(!dockerAvailable)("GatewayStore on PostgreSQL", () => {
   beforeAll(async () => {
-    pg = await startPostgres();
+    pg = await startPostgres({ migrated: true });
     runtime = ManagedRuntime.make(GatewayStore.layer(randomBytes(32)).pipe(Layer.provideMerge(pg.layer)));
     await runtime.runPromise(migrate);
   }, 60_000);
   afterAll(async () => {
     await runtime?.dispose();
-    pg?.stop();
+    await pg?.stop();
   });
 
   test("worker credentials: stored as hashes, revoked or unknown credentials fail", async () => {

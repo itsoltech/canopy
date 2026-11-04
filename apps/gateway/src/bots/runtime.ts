@@ -145,11 +145,11 @@ export class BotsRuntime {
   get idle(): boolean {
     return !this.#ticking && this.#active.size === 0;
   }
-  start(): void {
+  start(intervalMs = 250): void {
     this.#stopped = false;
     this.#timer ??= setInterval(() => {
       void this.tick().catch(() => this.#options.log?.("bots: queue tick failed"));
-    }, 250);
+    }, intervalMs);
     this.#timer.unref();
   }
   async stop(): Promise<void> {

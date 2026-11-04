@@ -537,7 +537,7 @@ export async function startTestGateway(
     secretTtlMs?: number;
   } = {},
 ): Promise<TestGateway> {
-  const pg = await startPostgres();
+  const pg = await startPostgres({ migrated: true });
   const secretsKey = randomBytes(32);
 
   const runtime: TestRuntime = ManagedRuntime.make(
@@ -676,7 +676,7 @@ export async function startTestGateway(
       await core.link.shutdown();
       await grpc.close();
       await runtime.dispose();
-      pg.stop();
+      await pg.stop();
     },
   };
 }

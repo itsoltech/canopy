@@ -136,7 +136,7 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
           (w) => w.id === gw.workerId && w.providerInstances.some((i) => i.id === "platform-test" && i.available),
         ),
     );
-    gw.core.bots.start();
+    gw.core.bots.start(10);
   }, 30_000);
   afterAll(async () => {
     await gw?.close();

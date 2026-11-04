@@ -142,7 +142,7 @@ describe.skipIf(!dockerAvailable)("migration 0018: per-worker profiles to global
 
   afterAll(async () => {
     await runtime?.dispose();
-    pg?.stop();
+    await pg?.stop();
   });
 
   test("instances per harness keep the profile ids; the first worker defines them", async () => {

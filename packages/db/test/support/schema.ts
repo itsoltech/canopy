@@ -1,4 +1,4 @@
-/** Shared fixtures of the schema tests: one throwaway PostgreSQL per test file, migrated, plus row builders. */
+/** Shared schema fixtures: one isolated database per file, real migrations, plus row builders. */
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
 import { migrate } from "../../src/index.ts";
@@ -19,7 +19,7 @@ export async function startSchemaDb(): Promise<ReadonlyArray<readonly [number, s
 
 export async function stopSchemaDb(): Promise<void> {
   await runtime?.dispose();
-  pg?.stop();
+  await pg?.stop();
   runtime = undefined;
   pg = undefined;
 }
