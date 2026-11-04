@@ -68,7 +68,6 @@
   <input
     bind:this={input}
     type="file"
-    name="files"
     multiple
     class="sr-only"
     tabindex="-1"
