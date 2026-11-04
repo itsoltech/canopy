@@ -22,9 +22,10 @@ export const SERVED = new Set([
   "AnswerInteraction", "UpdateThread", "RegenerateTitle", "SetGoal", "StopBackgroundTask", "MarkThreadSeen", "SetThreadRead",
   "SetThreadArchived", "DeleteThread", "RestoreThread", "ListModels", "ListDirectory", "GetAttachment", "UploadAttachment",
   "GetThreadBlob", "ReorderQueuedTurns", "EditQueuedTurn", "DeleteQueuedTurn", "RestoreQueuedTurn", "SteerQueuedTurn",
-  "ListMentionCatalog", "SearchFiles",
+  "ListMentionCatalog", "SearchFiles", "WatchThreadMirror",
 ]);
-export const methodNamed = (name: string) => ui.GatewayService.methods.find((m) => m.name === name);
+export const methodNamed = (name: string) => ui.GatewayService.methods.find((m) => m.name === name)
+  ?? link.ThreadMirrorService.methods.find((m) => m.name === name);
 
 export type RemoteServe = (method: DescMethod, request: Message, signal: AbortSignal) => AsyncIterable<Message>;
 type Frame = MessageInitShape<typeof link.LinkFrameSchema>;

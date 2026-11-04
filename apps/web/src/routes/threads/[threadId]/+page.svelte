@@ -106,6 +106,7 @@
   });
   const tree = $derived(thread ? treeOf(threads, thread) : undefined);
   provideThreadDirectory({
+    get readOnly() { return Boolean(away); },
     get currentId() {
       return threadId;
     },
@@ -142,15 +143,15 @@
   });
   trackSeen(() => {
     const live = overview.threads.get(threadId) ?? thread;
-    return { threadId, unseen: Boolean(live?.unseenResult || live?.markedUnread), markedUnread: live?.markedUnread ?? false, lastSeq: live?.lastSeq ?? 0n, atEnd };
+    return { threadId, unseen: !away && Boolean(live?.unseenResult || live?.markedUnread), markedUnread: live?.markedUnread ?? false, lastSeq: live?.lastSeq ?? 0n, atEnd };
   });
 
   // The subagents its agent started (spawn_thread), live from the thread index: the panel above the composer.
   const subagents = $derived(thread ? subagentsOf(threads, thread.id) : []);
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
   const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
-  const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived");
-  const working = $derived(view.running && thread?.status !== "waiting_input");
+  const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived" || Boolean(away));
+  const working = $derived(!away && view.running && thread?.status !== "waiting_input");
 
   // The feed: inherited history (folded), the thread's own timeline, the working indicator, steers on
   // their way (queued inputs are in the queue panel above the composer). One builder per thread keeps unchanged rows identical, so a delta re-renders one row.
@@ -212,13 +213,13 @@
   }
 
   let sideOpen = $state(false);
-  const canBranch = $derived(Boolean(tree && thread && thread.status !== "archived"));
+  const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
   const openSide = () => {
     panelSheet = false;
     sideOpen = true;
   };
   // "Fork thread" forks after the latest ended turn; "Fork from here" (TurnDetails) after the one it is under.
-  const canFork = $derived(thread?.runtime === "worker" && thread.provider !== Provider.GROK && thread.status !== "creating");
+  const canFork = $derived(!away && thread?.runtime === "worker" && thread.provider !== Provider.GROK && thread.status !== "creating");
   const forkPoint = $derived(canFork ? lastForkPoint(view.ownTurns, view.inheritedTurns) : undefined);
   const forkThread = () => forkPoint && forkFrom(threadId, forkPoint.id);
   let scheduling = $state(false);
@@ -445,7 +446,9 @@
                 {#if subagents.length > 0}
                   <div class="t-rise" out:subagentPresence|global><SubagentsPanel {subagents} {compact} embedded /></div>
                 {/if}
-                <QueuePanel {queue} {compact} embedded delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} />
+                <div inert={Boolean(away)} class={away ? "opacity-60" : undefined}>
+                  <QueuePanel {queue} {compact} embedded delivery={settings.runningDelivery} ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)} />
+                </div>
               {/snippet}
               {#if thread}
                 <ThreadComposerSlot {thread} {parent} {compact}>

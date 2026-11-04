@@ -28,7 +28,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
   let project = ""; let workspace = ""; let bNode = "";
   const q = (value: string) => `${value}~${nodeRef(bNode)}`;
   const linkedB = (extra: Partial<ConstructorParameters<typeof LinkedComputers>[0]> = {}, port = 0) =>
-    new LinkedComputers({ store: sb, host: "127.0.0.1", port, heartbeatMs: 100, serve: remoteServe(uiHandlers(b.core)), ...extra });
+    new LinkedComputers({ store: sb, host: "127.0.0.1", port, heartbeatMs: 100, serve: remoteServe(uiHandlers(b.core)), capabilities: ["presence", "unlink", REMOTE_THREADS], ...extra });
   async function restartB(extra: Partial<ConstructorParameters<typeof LinkedComputers>[0]> = {}) {
     const port = Number(new URL(lb.addresses[0]!).port);
     await lb.close();
@@ -39,7 +39,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
   beforeAll(async () => {
     a = await startTestGateway(); b = await startTestGateway();
     sa = new ComputerStore(a.runtime, a.userId, randomBytes(32)); sb = new ComputerStore(b.runtime, b.userId, randomBytes(32));
-    la = new LinkedComputers({ store: sa, host: "127.0.0.1", port: await freePort(), heartbeatMs: 100, serve: remoteServe(uiHandlers(a.core)) });
+    la = new LinkedComputers({ store: sa, host: "127.0.0.1", port: await freePort(), heartbeatMs: 100, serve: remoteServe(uiHandlers(a.core)), capabilities: ["presence", "unlink", REMOTE_THREADS] });
     lb = linkedB({}, await freePort());
     a.core.computers = la; b.core.computers = lb;
     await la.start(); await lb.start();

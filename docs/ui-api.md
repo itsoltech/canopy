@@ -49,6 +49,19 @@ kwalifikowane id tam, gdzie wcześniej wymagał uuid (`EntityId`: kolejka, fork,
 Szczegóły, lista metod i błędy niedostępności: [linked-computers.md](linked-computers.md),
 „Konkretny protokół etapu 2”.
 
+Partner z capability `thread_mirror` pozostaje na liście po utracie łącza. `GetThread`,
+`WatchThread`, `ListThreads` i metadane overview korzystają wtedy z trwałego lustra; online
+odczyt pozostaje trasowany do domu. UI pokazuje „Last seen” i banner odczytu offline, blokuje
+composer, zgody i akcje. Żaden zapis nie trafia do lustra ani kolejki na później.
+Metadane plików są czytelne offline, zawartość/miniatury są pobierane z domu tylko online
+(„Available when Laptop B is connected”). Bez `thread_mirror` pozostaje zachowanie etapu 2,
+z informacją o aktualizacji dla odczytu offline. Szczegóły kursora, resync i zakresu projekcji:
+[etap 3](linked-computers.md#konkretny-protokół-etapu-3).
+
+Po reconnect `OverviewUpdate.computer_snapshot` (802) zastępuje widoczne wątki, projekty i workery
+jednego `node_id`. Pozwala usunąć z otwartego UI wiersze znikające podczas rozłączenia bez
+naruszania stanu innych komputerów. Następne pojedyncze aktualizacje działają jak wcześniej.
+
 ## Workery: kreator i zarządzanie
 
 Kreator instalacji używa dodatkowych, addytywnych RPC `FetchWorkerInstall` (stream bajtów

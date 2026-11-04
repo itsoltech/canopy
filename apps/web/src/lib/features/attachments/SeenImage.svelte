@@ -3,6 +3,7 @@
   import { formatSize } from "@canopy/domain";
   import type { ClassValue } from "svelte/elements";
   import ZoomableImage from "./ZoomableImage.svelte";
+  import FileAvailability from "./FileAvailability.svelte";
 
   /**
    * An image the agent looked at, in its transcript item: the preview the worker uploaded (what the model saw),
@@ -20,18 +21,20 @@
   let failed = $state(false);
 </script>
 
-{#if failed}
-  <p class={["text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]}>The preview is not available ({formatSize(blob.sizeBytes)}, {blob.mimeType}).</p>
-{:else}
-  <ZoomableImage
-    {src}
-    {name}
-    {width}
-    {height}
-    detail={width && height ? `${width}×${height} as the model saw it` : ""}
-    download="{src}?download"
-    class={["rounded-lg", className]}
-    imageClass="max-h-64 rounded-lg object-contain"
-    onerror={() => (failed = true)}
-  />
-{/if}
+<FileAvailability entityId={threadId} {name} class={className}>
+  {#if failed}
+    <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">The preview is not available ({formatSize(blob.sizeBytes)}, {blob.mimeType}).</p>
+  {:else}
+    <ZoomableImage
+      {src}
+      {name}
+      {width}
+      {height}
+      detail={width && height ? `${width}×${height} as the model saw it` : ""}
+      download="{src}?download"
+      class="rounded-lg"
+      imageClass="max-h-64 rounded-lg object-contain"
+      onerror={() => (failed = true)}
+    />
+  {/if}
+</FileAvailability>

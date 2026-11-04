@@ -1,7 +1,7 @@
 import { clone, create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { Code, ConnectError, createContextValues, type HandlerContext } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
-import { qualifyId, splitId } from "@canopy/domain/computers";
+import { qualifyId, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import type { GatewayCore } from "../core/core.ts";
 import { methodNamed, nodesOf, qualify, SERVED, unqualify, type RemoteServe } from "../computers/remote.ts";
@@ -12,7 +12,7 @@ import { toConnectError, type UiHandlers } from "./ui-service.ts";
  * ids carry another computer's suffix goes to that computer over the link, and the answer comes back
  * with its ids qualified, so the browser and phone keep using one GatewayService. The overview, thread
  * list and model catalog add every connected computer's own. The home applies every action; this
- * gateway never keeps a copy and never queues a call for a computer that is not connected.
+ * gateway keeps a read-only mirror for offline reads and never queues a call for a disconnected peer.
  */
 const UNARY_TIMEOUT_MS = 30_000;
 const GATHER_TIMEOUT_MS = 3_000;
@@ -107,6 +107,35 @@ async function peerOf(core: GatewayCore, ref: string) {
 async function* forward(core: GatewayCore, nodeId: string, method: DescMethod, request: Message, signal: AbortSignal): AsyncGenerator<Message> {
   const computers = core.computers;
   if (!computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
+  if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(THREAD_MIRROR)) {
+    if (method.name === "GetThread" || method.name === "WatchThread") {
+      const threadId = splitId((request as ui.GetThreadRequest).threadId).id;
+      const snapshot = await computers.mirror.snapshot(nodeId, threadId);
+      if (!snapshot?.thread) throw new ConnectError("This thread has not been synced yet. Connect its computer to read it.", Code.Unavailable);
+      if (method.name === "GetThread") yield create(ui.GetThreadResponseSchema, { thread: snapshot.thread });
+      else {
+        // End on any peer/mirror change. The normal UI reconnect opens the live home stream again.
+        const changes = new AsyncChannel<void>();
+        const unsubscribe = computers.subscribe((c) => { if (c.nodeId === nodeId) changes.close(); });
+        const abort = () => changes.close(); signal.addEventListener("abort", abort, { once: true });
+        try {
+          yield create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } });
+          if (!signal.aborted && !computers.reachable().includes(nodeId)) for await (const _ of changes) { /* closed by a change */ }
+        } finally { unsubscribe(); signal.removeEventListener("abort", abort); }
+      }
+      return;
+    }
+    if (method.name === "ListThreads") {
+      yield create(ui.ListThreadsResponseSchema, { threads: await computers.mirror.threads(nodeId,
+        create(ui.ListThreadsRequestSchema, { ...(request as ui.ListThreadsRequest), projectId: splitId((request as ui.ListThreadsRequest).projectId).id })) });
+      return;
+    }
+    if (method.name === "GetOverview") { yield await computers.mirror.overview(nodeId); return; }
+    if (method.name === "GetAttachment" || method.name === "GetThreadBlob") {
+      const peer = await computers.computer(nodeId);
+      throw new ConnectError(`Available when ${peer?.displayName || peer?.name || "the other computer"} is connected`, Code.Unavailable);
+    }
+  }
   const outbound = clone(method.input, request);
   await carryAttachments(core, nodeId, method, outbound, signal);
   unqualify(method.input, outbound, nodeId);
@@ -136,7 +165,10 @@ async function gather<A extends Message>(core: GatewayCore, name: string, reques
   const computers = core.computers;
   const method = methodNamed(name)!;
   if (!computers) return [];
-  const results = await Promise.allSettled(computers.reachable().map((nodeId) =>
+  const nodes = new Set(computers.reachable());
+  if (name === "GetOverview" || name === "ListThreads") for (const peer of (await computers.snapshot()).peers)
+    if (peer.capabilities.includes(THREAD_MIRROR)) nodes.add(peer.nodeId);
+  const results = await Promise.allSettled([...nodes].map((nodeId) =>
     single<A>(forward(core, nodeId, method, request, AbortSignal.any([signal, AbortSignal.timeout(GATHER_TIMEOUT_MS)])))));
   return results.flatMap((r) => r.status === "fulfilled" ? [r.value] : []);
 }
@@ -146,7 +178,10 @@ function remoteUpdates(update: ui.OverviewUpdate, nodeId: string): ui.OverviewUp
   const change = update.change;
   const one = (value: ui.OverviewUpdate["change"]) => create(ui.OverviewUpdateSchema, { change: value });
   switch (change.case) {
-    case "mobileSnapshot": return [
+    case "mobileSnapshot": return [one({ case: "computerSnapshot", value: create(ui.LinkedComputerSnapshotSchema, {
+      nodeId, overview: change.value.overview, threads: change.value.threads,
+    }) }),
+      // Older UI clients still understand individual upserts.
       ...(change.value.overview?.workers ?? []).map((value) => one({ case: "worker", value })),
       ...(change.value.overview?.projects ?? []).map((value) => one({ case: "project", value })),
       ...change.value.threads.map((value) => one({ case: "thread", value })),

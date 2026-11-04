@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { BlobRef } from "@canopy/contracts";
+  import FileAvailability from "#lib/features/attachments/FileAvailability.svelte";
+  import { useThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { formatBytes } from "#lib/shared/format.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
@@ -19,6 +21,7 @@
   };
   const look = $derived(kinds[kind] ?? { label: "Changed", tone: "neutral" as Tone });
   const counts = $derived(diffCounts([{ diff }]));
+  const directory = useThreadDirectory();
 </script>
 
 <div class="grid gap-1.5">
@@ -32,6 +35,8 @@
   {#if diff}
     <Diff data-quote-kind="diff" {diff} label="Diff of {path}" lang={languageOfPath(movePath || path)} />
   {:else if diffBlob}
-    <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Diff ({formatBytes(diffBlob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.</p>
+    <FileAvailability entityId={directory.currentId} name="Diff ({formatBytes(diffBlob.sizeBytes)})">
+      <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Diff ({formatBytes(diffBlob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.</p>
+    </FileAvailability>
   {/if}
 </div>

@@ -5,6 +5,7 @@ import type { Item, ui } from "@canopy/contracts";
 export interface ThreadDirectory {
   /** The thread being shown. */
   readonly currentId: string;
+  readonly readOnly?: boolean;
   thread(id: string): ui.Thread | undefined;
   /** A pending interaction (approval, question) is about this item. */
   awaiting(itemId: string): boolean;

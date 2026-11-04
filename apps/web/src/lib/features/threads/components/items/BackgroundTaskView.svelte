@@ -59,7 +59,7 @@
       <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">
         {#key stopping}<span class="inline-block" in:swap>{stopping ? "Asked the worker to stop it…" : "Keeps running after the turn ends."}</span>{/key}
       </p>
-      <Button size="sm" icon="stop" loading={stopping} onclick={stop}>{stopping ? "Stopping…" : "Stop"}</Button>
+      <Button size="sm" icon="stop" disabled={directory.readOnly} loading={stopping} onclick={stop}>{stopping ? "Stopping…" : "Stop"}</Button>
     </div>
     {#if error}<p class="text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">{error}</p>{/if}
   {/if}

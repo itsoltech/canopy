@@ -4,7 +4,8 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { AsyncChannel } from "@canopy/transport";
 import { MIN_COMPUTER_LINK_PROTOCOL, COMPUTER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
-import { NODE_REF_LENGTH, REMOTE_THREADS } from "@canopy/domain/computers";
+import { NODE_REF_LENGTH, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
+import { ThreadMirror } from "./mirror.ts";
 import { RemoteCalls, type RemoteServe } from "./remote.ts";
 import { ComputerStore, type PeerRow } from "./store.ts";
 import { certificateIdentity, computerName, linkAddress } from "./identity.ts";
@@ -34,7 +35,7 @@ export async function computerGuard<A>(run: () => Promise<A>): Promise<A> {
   }
 }
 
-/** Only stage-1 control messages are implemented. No user work is ever queued. */
+/** Presence, live calls and read-only thread mirrors. No user work is ever queued here. */
 export class LinkedComputers {
   #identity!: Awaited<ReturnType<ComputerStore["identity"]>>;
   #listener: Awaited<ReturnType<typeof listenLink>> | undefined;
@@ -50,15 +51,19 @@ export class LinkedComputers {
   #tickRunning = false;
   #listeners = new Set<(change: ComputerChange) => void>();
   #names = new Map<string, string>();
-  constructor(readonly options: Options) {}
+  #capabilities = new Map<string, string[]>();
+  #mirroring = new Map<string, AbortController>();
+  readonly mirror: ThreadMirror;
+  constructor(readonly options: Options) { this.mirror = new ThreadMirror(options.store); }
   get store() { return this.options.store; }
   get identity(): LinkIdentity { return this.#identity; }
   get addresses() { return this.#addresses; }
   hello() { return create(link.NodeHelloSchema, { nodeId: this.#identity.node_id, name: this.#identity.name, addresses: this.#addresses,
     appVersion: CANOPY_VERSION, minProtocol: this.options.minProtocol ?? MIN_COMPUTER_LINK_PROTOCOL, maxProtocol: this.options.maxProtocol ?? COMPUTER_LINK_PROTOCOL,
-    capabilities: this.options.capabilities ?? ["presence", "unlink", ...(this.options.serve ? [REMOTE_THREADS] : [])] }); }
+    capabilities: this.options.capabilities ?? ["presence", "unlink", ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR] : [])] }); }
   async start() {
     this.#identity = await this.store.identity();
+    for (const peer of await this.store.peers()) this.#capabilities.set(peer.node_id, peer.capabilities);
     // A process restart never claims an old connection is still alive.
     await this.store.query("UPDATE computer_peers SET status='unreachable',status_since=now() WHERE owner_user_id=$1::uuid AND status IN ('connected','needs_update')", [this.store.owner]);
     await this.#listen();
@@ -185,15 +190,26 @@ export class LinkedComputers {
       const protocol = hello.minProtocol > 0 && hello.maxProtocol >= hello.minProtocol &&
         Math.max(local.minProtocol, hello.minProtocol) <= Math.min(local.maxProtocol, hello.maxProtocol) ? Math.min(local.maxProtocol, hello.maxProtocol) : 0;
       const updateNodeId = protocol ? "" : (hello.maxProtocol < local.minProtocol ? nodeId : local.nodeId);
-      await this.store.query(`UPDATE computer_peers SET name=$3,app_version=$4,min_protocol=$5,max_protocol=$6,addresses=$7::jsonb
+      await this.store.query(`UPDATE computer_peers SET name=$3,app_version=$4,min_protocol=$5,max_protocol=$6,addresses=$7::jsonb,capabilities=$8::jsonb
         WHERE owner_user_id=$1::uuid AND node_id=$2`, [this.store.owner, nodeId, hello.name, hello.appVersion, hello.minProtocol, hello.maxProtocol,
-        JSON.stringify([...new Set([...hello.addresses, ...peer.addresses])].slice(0, 16))]);
+        JSON.stringify([...new Set([...hello.addresses, ...peer.addresses])].slice(0, 16)), JSON.stringify(hello.capabilities)]);
       connection.protocol = protocol;
       connection.capabilities = new Set(hello.capabilities);
+      this.#capabilities.set(nodeId, hello.capabilities);
       this.#names.set(nodeId, peer.display_name || hello.name);
-      if (protocol && !connection.remote) connection.remote = new RemoteCalls({ send: (f) => connection.send(f), serve: this.options.serve,
+      if (protocol && !connection.remote) connection.remote = new RemoteCalls({ send: (f) => connection.send(f), serve: async function* (this: LinkedComputers, method: DescMethod, request: Message, signal: AbortSignal) {
+        if (!this.options.serve) throw new ConnectError("Thread sharing unavailable", Code.Unimplemented);
+        if (method.name === "WatchThreadMirror") {
+          if (!this.hello().capabilities.includes(THREAD_MIRROR) || !connection.capabilities?.has(THREAD_MIRROR))
+            throw new ConnectError("Thread mirrors need an update on both computers", Code.Unimplemented);
+          yield* this.mirror.publish(request as link.MirrorRequest, this.options.serve, signal);
+        } else yield* this.options.serve(method, request, signal);
+      }.bind(this),
         name: () => this.#names.get(nodeId) ?? "The other computer", allowed: async () => Boolean(await this.store.peer(nodeId)) });
       connection.ready = true;
+      // A successful handshake ends the failure streak, including when the
+      // eventual disconnect arrives as an exception rather than a clean EOF.
+      this.#retry.delete(nodeId);
       await this.#status(nodeId, protocol ? "connected" : "needs_update", updateNodeId);
       if (body.case === "hello") {
         connection.send({ body: { case: "welcome", value: { hello: local, protocol, updateNodeId } } });
@@ -241,6 +257,7 @@ export class LinkedComputers {
     try {
       for (const peer of await this.store.peers()) {
         if (this.#stopped || this.#paused) break;
+        this.#syncMirror(peer.node_id);
         const active = this.#active.get(peer.node_id);
         if (active?.size) {
           for (const c of active) {
@@ -301,15 +318,39 @@ export class LinkedComputers {
 
   subscribe(listener: (change: ComputerChange) => void) { this.#listeners.add(listener); return () => { this.#listeners.delete(listener); }; }
   #emit(nodeId: string, removed = false) {
-    if (removed) this.#names.delete(nodeId);
+    if (removed) { this.#names.delete(nodeId); this.#capabilities.delete(nodeId); }
     for (const listener of this.#listeners) { try { listener({ nodeId, removed }); } catch { /* a subscriber's failure is its own */ } }
+    this.#syncMirror(nodeId);
+  }
+  #syncMirror(nodeId: string) {
+    const enabled = !this.#stopped && this.hello().capabilities.includes(THREAD_MIRROR)
+      && this.capabilities(nodeId).includes(THREAD_MIRROR) && this.reachable().includes(nodeId);
+    if (!enabled) { this.#mirroring.get(nodeId)?.abort(); return; }
+    if (this.#mirroring.has(nodeId)) return;
+    const controller = new AbortController(); this.#mirroring.set(nodeId, controller);
+    const task = (async () => {
+      try {
+        const cursor = (await this.mirror.state(nodeId))?.cursor ?? "";
+        const method = link.ThreadMirrorService.method.watchThreadMirror;
+        await this.mirror.consume(nodeId, this.remote(nodeId, method, create(link.MirrorRequestSchema, { cursor }), controller.signal),
+          () => { for (const listener of this.#listeners) { try { listener({ nodeId, removed: false }); } catch { /* subscriber owns its errors */ } } }, controller.signal);
+      } catch (error) {
+        if (!controller.signal.aborted && error instanceof ConnectError && error.code === Code.DataLoss) await this.mirror.clearCursor(nodeId);
+      } finally {
+        if (this.#mirroring.get(nodeId) === controller) this.#mirroring.delete(nodeId);
+      }
+    })();
+    this.#tasks.add(task);
+    // A failed cursor write can reject during shutdown too. Observe both outcomes
+    // without creating an unhandled rejected promise from finally().
+    void task.then(() => this.#tasks.delete(task), () => this.#tasks.delete(task));
   }
   async #status(nodeId: string, status: string, updateNodeId = "") { await this.store.status(nodeId, status, updateNodeId); this.#emit(nodeId); }
-  /** Features of the live connections (empty while not connected). */
+  /** Live features, or the last handshake persisted for offline mirror reads. */
   capabilities(nodeId: string): string[] {
     const all = new Set<string>();
     for (const c of this.#active.get(nodeId) ?? []) if (c.ready && c.protocol) for (const name of c.capabilities ?? []) all.add(name);
-    return [...all];
+    return all.size ? [...all] : this.#capabilities.get(nodeId) ?? [];
   }
   #channel(nodeId: string) {
     for (const c of this.#active.get(nodeId) ?? []) if (c.ready && c.protocol && c.capabilities?.has(REMOTE_THREADS) && c.remote && !c.remote.closed) return c.remote;
@@ -364,6 +405,7 @@ export class LinkedComputers {
     await this.announce(state === "shutting_down" && this.#announced === "updating" ? "updating" : state);
     clearInterval(this.#timer);
     for (const controller of this.#dialing.values()) controller.abort();
+    for (const controller of this.#mirroring.values()) controller.abort();
     for (const set of this.#active.values()) for (const c of set) c.close();
     await this.#listener?.close(); this.#listener = undefined;
     await Promise.allSettled(this.#tasks);

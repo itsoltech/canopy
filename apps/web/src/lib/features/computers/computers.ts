@@ -1,17 +1,21 @@
 import type { ui } from "@canopy/contracts";
-import { REMOTE_THREADS } from "@canopy/domain/computers";
+import { REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
 
 /**
  * Linked computers in the thread UI (docs/linked-computers.md, stage 2). Their threads stay at home; this
- * computer shows them only while connected and never keeps a copy, so anything else explains why it is away.
+ * computer keeps a read-only mirror when the peer supports it. Actions always require its home online.
  */
 export const computerName = (computer: ui.LinkedComputer | undefined): string => computer ? computer.displayName || computer.name : "The other computer";
 
 /** Connected and new enough to share its threads. */
 export const sharesThreads = (computer: ui.LinkedComputer): boolean => computer.status === "connected" && computer.capabilities.includes(REMOTE_THREADS);
+/** Offline rows remain visible only when their home supports durable mirrors. */
+export const listsThreads = (computer: ui.LinkedComputer): boolean => sharesThreads(computer) || computer.capabilities.includes(THREAD_MIRROR);
+export const lastSeen = (computer: ui.LinkedComputer | undefined): string => computer?.lastSeenMs ? `Last seen ${since(computer.lastSeenMs)}` : "Not synced yet";
 
 /** Connected, but an older Canopy that cannot share threads yet. */
 export const needsThreadUpdate = (computer: ui.LinkedComputer): boolean => computer.status === "connected" && computer.capabilities.length > 0 && !computer.capabilities.includes(REMOTE_THREADS);
+export const needsMirrorUpdate = (computer: ui.LinkedComputer): boolean => sharesThreads(computer) && !computer.capabilities.includes(THREAD_MIRROR);
 
 const time = new Intl.DateTimeFormat("en", { timeStyle: "short" });
 const dayTime = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });

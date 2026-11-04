@@ -5,10 +5,10 @@ export type ThreadActionId = "open" | "new" | "pin" | "rename" | "regenerate" | 
 export interface ThreadAction { id: ThreadActionId; label: string; icon: IconName; disabled?: boolean; group: number; }
 
 /** State-dependent labels and availability shared by the row menu and command palette. */
-export function threadActions(thread: ui.Thread, projectName: string, pinned: boolean): ThreadAction[] {
+export function threadActions(thread: ui.Thread, projectName: string, pinned: boolean, readOnly = false): ThreadAction[] {
   if (thread.deletedAt) return [];
   const archived = thread.status === "archived";
-  return [
+  const actions: ThreadAction[] = [
     { id: "open", label: "Open in new tab", icon: "arrow-top-right-on-square", group: 0 },
     { id: "new", label: `New thread in ${projectName}`, icon: "pencil-square", group: 0 },
     { id: "pin", label: pinned ? "Unpin thread" : "Pin thread", icon: "star", group: 1 },
@@ -20,4 +20,5 @@ export function threadActions(thread: ui.Thread, projectName: string, pinned: bo
     { id: "archive", label: archived ? (thread.archivedBy === "cascade" ? "Unarchive with parent" : "Unarchive") : "Archive thread", icon: "archive-box", group: 3 },
     { id: "delete", label: "Delete…", icon: "trash", group: 3 },
   ];
+  return readOnly ? actions.map((action) => ({ ...action, disabled: true })) : actions;
 }

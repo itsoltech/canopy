@@ -1898,6 +1898,7 @@ export class GatewayCore {
     signal.addEventListener("abort", () => subscription.close(), { once: true });
     try {
       const snapshot = await this.#run((s) => s.snapshot(threadId));
+      if (snapshot.thread.owner_user_id !== this.#options.userId) throw new NotFound("thread not found");
       yield create(ui.ThreadUpdateSchema, {
         change: {
           case: "snapshot",

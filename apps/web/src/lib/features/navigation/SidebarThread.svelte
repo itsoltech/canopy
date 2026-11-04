@@ -12,6 +12,8 @@
   import SwapText from "#lib/shared/ui/SwapText.svelte";
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { awayReason, lastSeen } from "#lib/features/computers/computers.ts";
 
   /**
    * One thread in the inbox (T3 layout): project and status, title, then where it runs with its marks
@@ -29,16 +31,27 @@
   }: { thread: ui.Thread; project: ui.Project | undefined; worker: ui.Worker | undefined; sides?: number; current?: boolean } = $props();
 
   const provider = $derived(providerKeyOf(thread.provider));
+  const overview = useOverview();
+  const computer = $derived(overview.computer(thread.nodeId));
+  const away = $derived(thread.nodeId ? awayReason(computer) : undefined);
   const providerName = $derived(provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex");
 </script>
 
 <SidebarThreadLink {thread} {current} class="grid gap-0.5 rounded-xl px-3 py-2.5">
   <span class="flex min-w-0 items-center gap-2">
-    <ThreadActivityMark {thread}>
-      {#snippet idle()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}
-    </ThreadActivityMark>
+    {#if away}
+      <Icon name="link" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
+    {:else}
+      <ThreadActivityMark {thread}>
+        {#snippet idle()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}
+      </ThreadActivityMark>
+    {/if}
     <span class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5 dark:text-zinc-400">{project?.name ?? "Unknown project"}</span>
-    <ThreadStatusText {thread} icons={false} class="group-data-calm:opacity-60 pointer-fine:group-hover/row:invisible pointer-fine:group-focus-within/row:invisible" />
+    {#if away}
+      <span class="shrink-0" title={away}>{lastSeen(computer)}</span>
+    {:else}
+      <ThreadStatusText {thread} icons={false} class="group-data-calm:opacity-60 pointer-fine:group-hover/row:invisible pointer-fine:group-focus-within/row:invisible" />
+    {/if}
   </span>
   <SwapText text={thread.title} class={["h-6 min-w-0 w-full overflow-hidden text-base/6 sm:text-sm/6", thread.titleGenerating ? "shimmer" : "text-zinc-800 group-data-calm:opacity-60 group-data-result:text-zinc-950 group-aria-[current=page]:text-zinc-950 dark:text-zinc-200 dark:group-data-result:text-white dark:group-aria-[current=page]:text-white"]} />
   <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5">

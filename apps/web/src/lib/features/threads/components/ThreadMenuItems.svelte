@@ -6,10 +6,12 @@
   import { threadActions } from "../thread-actions.ts";
   import { useThreadActions } from "../thread-actions.svelte.ts";
   import type { ClassValue } from "svelte/elements";
+  import { awayReason } from "#lib/features/computers/computers.ts";
 
   let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
   const actions = useThreadActions();
-  const items = $derived(threadActions(thread, actions.overview.project(thread.projectId)?.name ?? "project", actions.settings.sidebar.pinnedThreadIds.includes(thread.id)));
+  const away = $derived(thread.nodeId ? awayReason(actions.overview.computer(thread.nodeId)) : undefined);
+  const items = $derived(threadActions(thread, actions.overview.project(thread.projectId)?.name ?? "project", actions.settings.sidebar.pinnedThreadIds.includes(thread.id), Boolean(away)));
 </script>
 
 <div role="group" aria-label="Thread" class={className}>
