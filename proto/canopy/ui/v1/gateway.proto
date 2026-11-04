@@ -240,6 +240,7 @@ message WorkerSshRequest {
   string fingerprint = 3; // explicit confirmation, required on first install
   string name = 4;
   string web_origin = 5;
+  repeated string tags = 6; // Stored with the enrollment, never sent to the SSH host.
 }
 message WorkerSshEvent {
   string public_key = 1;
@@ -255,7 +256,10 @@ message GetWorkerSetupResponse {
   string channel = 4;
   string gateway_fingerprint = 5;
 }
-message CreateWorkerEnrollmentRequest { string name = 1; }
+message CreateWorkerEnrollmentRequest {
+  string name = 1;
+  repeated string tags = 2; // Manual tags applied atomically when the worker enrolls.
+}
 message CreateWorkerEnrollmentResponse {
   WorkerEnrollment enrollment = 1;
   string token = 2;

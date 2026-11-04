@@ -12,6 +12,7 @@
 
   let {
     name,
+    tags,
     gatewayUrl,
     fingerprint = "",
     token,
@@ -24,6 +25,7 @@
     class: className,
   }: {
     name: string;
+    tags: string[];
     gatewayUrl: string;
     fingerprint?: string;
     token: string;
@@ -123,7 +125,7 @@
   {#key method}
     <div class="grid min-w-0 gap-4" in:pageIn>
       {#if method === "ssh"}
-        <WorkerSshInstall {name} bind:busy {onenrollment} {oninstalled} />
+        <WorkerSshInstall {name} {tags} bind:busy {onenrollment} {oninstalled} />
       {:else if method === "docker"}
         <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
           Enroll once, then run with a persistent home volume. Agent CLIs are not included: extend the image with

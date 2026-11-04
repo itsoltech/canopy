@@ -5,7 +5,7 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
-  import TagInput from "./TagInput.svelte";
+  import TagInput from "#lib/shared/ui/TagInput.svelte";
   import AssignmentSummary from "./AssignmentSummary.svelte";
 
   let {

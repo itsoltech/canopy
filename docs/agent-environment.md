@@ -69,6 +69,25 @@ przez desktop Canopy, `kind:server` pozostałe; nie zgadujemy po obecności GUI.
 Ręczne tagi nie mogą podszywać się pod prefiksy automatyczne. Limity: 32 ręczne
 tagi, 64 znaki/tag, małe litery i cyfry z `._-`.
 
+Własne tagi workera ustawia się w **Settings → Workers**: w pierwszym kroku
+**Add worker** oraz w szczegółach każdej maszyny (**Manual tags**). Ten sam
+współdzielony picker podpowiada ręczne tagi użyte przez workery właściciela.
+Automatyczne tagi są tylko do odczytu. Agent environment pokazuje oba rodzaje
+tagów tylko do odczytu z odnośnikiem **Edit in Workers**; nadal pozwala wybierać
+tagi w selektorach przypisań. Zmiana tagów używa dotychczasowego
+`SetEnvironmentTags`, kontroli rewizji i audytu `environment.tags.save`,
+po czym przelicza instrukcje, skille i pluginy, także dla workera offline.
+Zmiana tagów w innej sesji zachowuje lokalny szkic i wymaga przeładowania przed
+zapisem. Workery połączonego komputera konfiguruje się w jego macierzystym
+Workers; lokalne RPC nie modyfikuje zdalnych ani cudzych workerów.
+
+Tagi z kreatora są walidowane i zapisane po stronie gatewaya w owner-scoped
+`worker_enrollments.tags` (migracja `0064_worker_enrollment_tags`). Nie trafiają
+do tokenu, komendy instalacji ani hosta SSH. Każda ścieżka instalacji przekazuje
+je przy tworzeniu zaproszenia; wymiana tokenu atomowo zapisuje je do
+`worker_environments.manual_tags` wraz z workerem i audytem. Pierwszy Hello
+uzupełnia automatyczne fakty, zachowuje ręczne tagi i od razu uzgadnia przypisania.
+
 Selektor: wszyscy **lub** konkretne workery **lub** tagi (dowolny/każdy);
 wykluczone tagi mają zawsze pierwszeństwo. Brak selektora fragmentu oznacza
 dziedziczenie z dokumentu; pusty jawny selektor nie pasuje do nikogo.

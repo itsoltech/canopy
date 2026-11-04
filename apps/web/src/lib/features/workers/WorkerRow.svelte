@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
+  import type { EnvironmentState } from "#lib/features/agent-environment/environment-state.svelte.ts";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -9,9 +10,21 @@
   import { providerLabel } from "#lib/features/threads/labels.ts";
   import WorkerActions from "./WorkerActions.svelte";
   import WorkerCliTools from "./WorkerCliTools.svelte";
+  import WorkerTagEditor from "./WorkerTagEditor.svelte";
   import type { WorkerSetup } from "./worker-setup.svelte.ts";
 
-  let { worker, setup, class: className }: { worker: ui.Worker; setup: WorkerSetup; class?: ClassValue } = $props();
+  let {
+    worker,
+    setup,
+    environment,
+    class: className,
+  }: {
+    worker: ui.Worker;
+    setup: WorkerSetup;
+    environment: EnvironmentState;
+    class?: ClassValue;
+  } = $props();
+
   const updates = $derived(worker.cliTools.filter((t) => t.action === "update").length);
   const status = $derived(worker.revokedAt ? "Revoked" : worker.online ? "Connected" : "Disconnected");
 
@@ -59,7 +72,9 @@
       </div>
     {/snippet}
     <div class="grid grid-cols-1 gap-6 px-4 pb-4 sm:px-5">
-      <WorkerSettings {worker} title="Machine details" /><WorkerCliTools {worker} />
+      <WorkerSettings {worker} title="Machine details" />
+      <WorkerTagEditor {worker} {environment} />
+      <WorkerCliTools {worker} />
     </div>
   </Disclosure>
   <!-- The summary's padding is 1rem above and below its content (p-4). -->

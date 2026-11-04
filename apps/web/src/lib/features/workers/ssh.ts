@@ -4,7 +4,7 @@ import { isJsonObject, parseJson, str } from "#lib/shared/json.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 
 export async function workerSsh(
-  input: { action: string; target?: string; fingerprint?: string; name?: string },
+  input: { action: string; target?: string; fingerprint?: string; name?: string; tags?: string[] },
   signal: AbortSignal,
   receive: (event: ui.WorkerSshEvent) => void,
 ) {

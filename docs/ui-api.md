@@ -119,7 +119,7 @@ originem HTTP(S), z portem gRPC, bez userinfo, ścieżki, query ani fragmentu.
 | RPC | BFF | Efekt |
 |---|---|---|
 | `GetWorkerSetup` | `GET /api/workers/setup` | adres i metadane zaproszeń |
-| `CreateWorkerEnrollment`, `RevokeWorkerEnrollment` | `POST /api/workers/manage/enroll`, `revoke-enrollment` | nazwa → token zwracany raz; odwołanie tylko nieużytego zaproszenia właściciela |
+| `CreateWorkerEnrollment`, `RevokeWorkerEnrollment` | `POST /api/workers/manage/enroll`, `revoke-enrollment` | nazwa + ręczne tagi (zapisane przy zaproszeniu, stosowane atomowo przy rejestracji) → token zwracany raz; odwołanie tylko nieużytego zaproszenia właściciela |
 | `RenameWorker`, `RotateWorkerCredential` | `POST /api/workers/manage/rename`, `rotate` | zmiana nazwy; rotacja zwraca credential raz i zamyka link |
 | `RevokeWorker`, `ArchiveWorker` | `POST /api/workers/manage/revoke`, `archive` | odłączenie i blokada reconnect; archive dodatkowo archiwizuje worker i workspace'y |
 

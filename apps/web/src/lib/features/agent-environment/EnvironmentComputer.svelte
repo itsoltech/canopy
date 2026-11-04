@@ -1,12 +1,10 @@
 <script lang="ts">
-  import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { ui } from "@canopy/contracts";
   import Badge from "#lib/shared/ui/Badge.svelte";
-  import Button from "#lib/shared/ui/Button.svelte";
+  import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
-  import TagInput from "./TagInput.svelte";
   import InstructionPreview from "./InstructionPreview.svelte";
   import InstructionDiff from "./InstructionDiff.svelte";
   import ComputerSkills from "./ComputerSkills.svelte";
@@ -18,42 +16,21 @@
     class: className,
   }: { worker: ui.EnvironmentWorker; state: EnvironmentState; class?: ClassValue } = $props();
 
-  let tags = $state(untrack(() => [...worker.manualTags]));
-  let previousTags = untrack(() => JSON.stringify(worker.manualTags));
   const pending = $derived(!worker.report || worker.report.revision !== worker.desiredRevision);
   const problems = $derived(worker.report?.files.filter((f) => f.status === "drift" || f.status === "error") ?? []);
   const kept = $derived(worker.report?.files.some((f) => f.status === "kept"));
-
-  $effect(() => {
-    const current = JSON.stringify(worker.manualTags);
-
-    if (current !== previousTags) {
-      if (JSON.stringify(untrack(() => tags)) === previousTags) tags = [...worker.manualTags];
-      previousTags = current;
-    }
-  });
 </script>
 
 <div class={["grid min-w-0 gap-6", className]}>
-  <div class="flex flex-wrap gap-1.5" aria-label="Detected computer tags">
-    {#each worker.automaticTags as tag (tag)}<Badge>{tag}</Badge>{/each}
-  </div>
   <div class="grid gap-3">
-    <TagInput
-      label="Your tags"
-      name="manual-worker-tags"
-      bind:value={tags}
-      workers={environment.snapshot.workers}
-      automatic={false}
-      description="Add your own groups. Detected tags above are maintained automatically."
-    />
-    <div>
-      <Button
-        size="sm"
-        disabled={environment.busy || JSON.stringify(tags) === JSON.stringify(worker.manualTags)}
-        onclick={() => environment.tags(worker.workerId, tags)}>Save tags</Button
-      >
+    <div class="flex flex-wrap gap-1.5" aria-label="Worker tags">
+      {#each worker.automaticTags as tag (tag)}<Badge class="max-w-full break-all whitespace-normal">{tag}</Badge
+        >{/each}
+      {#each worker.manualTags as tag (tag)}<Badge tone="sky" class="max-w-full break-all whitespace-normal"
+          >{tag}</Badge
+        >{/each}
     </div>
+    <div><ButtonLink size="sm" href={`/settings/workers/${worker.workerId}`}>Edit in Workers</ButtonLink></div>
   </div>
   {#if worker.compositionError}<Alert tone="error"
       >{worker.compositionError} The last synced files have been preserved.</Alert

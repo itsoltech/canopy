@@ -69,7 +69,7 @@ export function workersHandlers(
         return setup;
       }),
 
-    createWorkerEnrollment: (r) => workerGuard(() => core.workers.create(r.name)),
+    createWorkerEnrollment: (r) => workerGuard(() => core.workers.create(r.name, r.tags)),
 
     revokeWorkerEnrollment: (r) =>
       workerGuard(async () => {
