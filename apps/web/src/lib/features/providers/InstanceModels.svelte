@@ -21,7 +21,7 @@
     withFavoriteMoved,
     withVisibility,
     type ModelRow,
-  } from "./instances.ts";
+  } from "./instance-models.ts";
 
   /**
    * An instance's models in the pickers (T3 Models section): favorites first (star, move up and down, ⌘1… in the
