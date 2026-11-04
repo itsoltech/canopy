@@ -2,7 +2,6 @@
   import type { ui } from "@canopy/contracts";
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { stepSwap } from "#lib/shared/ui/motion.ts";
   import ArchivedThreadState from "./ArchivedThreadState.svelte";
 
   let {
@@ -26,11 +25,11 @@
   class={["t-composer-slot grid grid-cols-1 items-end", className]}
 >
   {#if thread.status === "archived"}
-    <div class="col-start-1 row-start-1" in:stepSwap={{ step: -1 }} out:stepSwap={{ step: 1 }}>
+    <div class="col-start-1 row-start-1">
       <ArchivedThreadState {thread} {parent} />
     </div>
   {:else}
-    <div class="col-start-1 row-start-1" in:stepSwap={{ step: 1 }} out:stepSwap={{ step: -1 }}>
+    <div class="col-start-1 row-start-1">
       {@render children()}
     </div>
   {/if}

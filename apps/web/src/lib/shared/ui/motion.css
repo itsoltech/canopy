@@ -46,23 +46,25 @@
 }
 
 /* --- Bottom sheet (panel reveal 07): a popover or dialog as a sheet on phones ---------------------------
- * Slides up from the bottom edge on --duration-slow, back down on --duration-medium. While a finger drags
+ * Scales and fades on --duration-slow, closes on --duration-medium. While a finger drags
  * it (`data-dragging`, sheet-drag.ts) it follows without a transition. */
 .t-dropdown[data-sheet] {
-  opacity: 1;
-  scale: 1;
-  translate: 0 100%;
+  opacity: 0;
+  scale: var(--scale-large);
+  translate: 0 0;
   transition-duration: var(--duration-medium);
 }
 .t-dropdown[data-sheet]:popover-open {
+  opacity: 1;
+  scale: 1;
   translate: 0 var(--sheet-drag, 0px);
   transition-duration: var(--duration-slow);
 }
 @starting-style {
   .t-dropdown[data-sheet]:popover-open {
-    opacity: 1;
-    scale: 1;
-    translate: 0 100%;
+    opacity: 0;
+    scale: var(--scale-large);
+    translate: 0 0;
   }
 }
 
@@ -93,20 +95,22 @@
 }
 @media (width < 40rem) {
   .t-modal[data-sheet] {
-    opacity: 1;
-    scale: 1;
-    translate: 0 100%;
+    opacity: 0;
+    scale: var(--scale-large);
+    translate: 0 0;
     transition-duration: var(--duration-medium);
   }
   .t-modal[data-sheet][open] {
+    opacity: 1;
+    scale: 1;
     translate: 0 var(--sheet-drag, 0px);
     transition-duration: var(--duration-slow);
   }
   @starting-style {
     .t-modal[data-sheet][open] {
-      opacity: 1;
-      scale: 1;
-      translate: 0 100%;
+      opacity: 0;
+      scale: var(--scale-large);
+      translate: 0 0;
     }
   }
   .t-modal[data-sheet][data-dragging] {
@@ -354,8 +358,8 @@
 .t-acc-chevron {
   transition: rotate var(--duration-fast) var(--ease-smooth-out);
 }
-/* A panel that stays mounted: its row grows from 0fr to 1fr (no measuring), the content fades and
-   un-blurs; padding belongs inside the clipping child. One reversible motion: the same both ways. */
+/* A panel that stays mounted: its row grows from 0fr to 1fr (no measuring), the content fades;
+   padding belongs inside the clipping child. One reversible motion: the same both ways. */
 .t-acc-panel {
   display: grid;
   grid-template-rows: 0fr;
@@ -368,14 +372,10 @@
   min-height: 0;
   overflow: hidden;
   opacity: 0;
-  filter: blur(var(--blur-small));
-  transition:
-    opacity var(--duration-fast) var(--ease-smooth-out),
-    filter var(--duration-fast) var(--ease-smooth-out);
+  transition: opacity var(--duration-fast) var(--ease-smooth-out);
 }
 .t-acc-panel[data-open] > * {
   opacity: 1;
-  filter: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .t-acc-chevron,
@@ -494,7 +494,7 @@
     t-check-fade var(--duration-very-slow) var(--ease-smooth-out) both,
     t-check-rotate var(--duration-very-slow) var(--ease-smooth-out) both,
     t-check-blur var(--duration-very-slow) var(--ease-smooth-out) both,
-    t-check-bob var(--duration-very-slow) var(--ease-bounce) both;
+    t-check-bob var(--duration-very-slow) var(--ease-smooth-out) both;
 }
 .t-success-check svg {
   display: block;
@@ -542,7 +542,7 @@
 
 /* --- Error state shake (12): a field that refused its value (replay: remove the class, reflow, add). --- */
 .t-shake {
-  animation: t-shake calc(var(--duration-micro) * 3.5) linear;
+  animation: t-shake calc(var(--duration-micro) * 3.5) var(--ease-linear);
 }
 @keyframes t-shake {
   0% {
@@ -571,13 +571,13 @@
   }
 }
 
-/* --- Like pop (23): a star or pin that was just set gives a small spring. ---------------------------- */
+/* --- Like feedback (23): a star or pin that was just set fades in without overshoot. ---------------- */
 .t-pop {
-  animation: t-pop var(--duration-medium) var(--ease-bounce);
+  animation: t-pop var(--duration-fast) var(--ease-in-out);
 }
 @keyframes t-pop {
-  30% {
-    scale: 0.82;
+  from {
+    opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -604,13 +604,13 @@
 
 /* --- Entrances on mount ---------------------------------------------------------------------------------
  * t-swap: text states swap (04), a status label that changed rises in (put it in a {#key}).
- * t-rise: a new row in a list or the timeline (transform only: layout and measuring are untouched).
+ * t-rise: a new row in a list or the timeline (fade only: layout and measuring are untouched).
  * t-reveal: skeleton reveal (14), loaded content resolves in where its skeleton was.
  * t-stream: streaming text (30) at line granularity: text is revealed a line at a time, and each new
  *   block, list item, table row and code line (`t-stream-line`) resolves in once, when it mounts; text
  *   added to a line already on screen does not animate (no per-token motion).
- * t-unfold: accordion (21) for rows of a virtual list: the rows a fold opened drop in from just above
- *   (transform only, so measuring and scroll anchoring are untouched), staggered by --t-delay. */
+ * t-unfold: rows of a virtual list fade in without travel (measuring and scroll anchoring are
+ *   untouched), staggered by --t-delay. */
 .t-swap {
   animation: t-swap var(--duration-quick) var(--ease-in-out);
 }
@@ -627,8 +627,6 @@
 @keyframes t-rise {
   from {
     opacity: 0;
-    translate: 0 var(--distance-base);
-    filter: blur(var(--blur-small));
   }
 }
 .t-reveal {
@@ -652,8 +650,6 @@
 @keyframes t-unfold {
   from {
     opacity: 0;
-    translate: 0 calc(var(--distance-micro) * -1);
-    filter: blur(var(--blur-small));
   }
 }
 @media (prefers-reduced-motion: reduce) {

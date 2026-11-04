@@ -8,7 +8,6 @@
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
-  import { pageSlide } from "#lib/shared/ui/motion.ts";
   import AccentPicker from "./AccentPicker.svelte";
   import ConnectionFields from "./ConnectionFields.svelte";
   import InstanceMark from "./InstanceMark.svelte";
@@ -26,8 +25,8 @@
 
   /**
    * "Add provider" (T3 wizard): 1 Provider (the harnesses we run: Codex, Claude Code), 2 Identity (label, instance id,
-   * optional accent color), 3 Config (connection, where it runs, runtime and launch arguments). Steps slide side by
-   * side (motion.ts `pageSlide`). A Codex instance with its own login signs in from its detail once it runs.
+   * optional accent color), 3 Config (connection, where it runs, runtime and launch arguments). Steps appear
+   * without independent field motion. A Codex instance with its own login signs in from its detail once it runs.
    */
   let {
     open = $bindable(false),
@@ -48,7 +47,6 @@
 
   const steps = ["Provider", "Identity", "Config"] as const;
   let step = $state(0);
-  let direction = $state(1);
   let draft = $state(newDraft(Provider.CODEX, []));
   let tried = $state<number>(-1);
   let busy = $state(false);
@@ -89,7 +87,6 @@
     s === 1 ? Boolean(problems.label || problems.id) : s === 2 ? Boolean(problems.proxyId || problems.workers) : false;
 
   function go(to: number) {
-    direction = to > step ? 1 : -1;
     step = to;
   }
 
@@ -162,11 +159,7 @@
 
     <div class="grid">
       {#key step}
-        <div
-          class="col-start-1 row-start-1 grid min-w-0 gap-5"
-          in:pageSlide={{ step: direction }}
-          out:pageSlide={{ step: direction }}
-        >
+        <div class="col-start-1 row-start-1 grid min-w-0 gap-5">
           {#if step === 0}
             <fieldset class="grid gap-2">
               <legend class="sr-only">Provider</legend>

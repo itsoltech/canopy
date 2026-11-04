@@ -14,7 +14,6 @@
   import { createSchedule, updateSchedule } from "./api.ts";
   import { describeCron } from "./schedules.ts";
   import NewThreadScheduleFields from "./NewThreadScheduleFields.svelte";
-  import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import SchedulePreview from "./SchedulePreview.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import type { ClassValue } from "svelte/elements";
@@ -256,7 +255,7 @@
       />
     </Field>
     {#if target === "new_thread"}
-      <GrowIn><NewThreadScheduleFields bind:value={newThread} /></GrowIn>
+      <NewThreadScheduleFields bind:value={newThread} />
     {:else if editing?.target === "thread"}
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         In {overview.threads.get(editing.threadId)?.title || "the original thread"}. To use another existing thread,

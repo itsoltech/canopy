@@ -4,7 +4,7 @@
 
   /**
    * On/off switch on a native checkbox (state in CSS only). Larger on touch screens. The thumb travels on
-   * --duration-fast with --ease-smooth-out (toggle, 27); no motion with reduced motion (layout.css tokens are 0 there).
+   * --duration-fast with --ease-smooth-out (toggle, 27); no motion with reduced motion.
    */
   let {
     checked = $bindable(false),
@@ -35,12 +35,12 @@
     }
   }}
   class={[
-    "group relative inline-flex w-11 shrink-0 rounded-full bg-zinc-200 p-0.5 inset-ring inset-ring-zinc-900/5 outline-offset-2 outline-brand-600 transition-colors duration-(--duration-fast) ease-smooth-out has-checked:bg-brand-600 has-focus-visible:outline-2 has-disabled:opacity-50 sm:w-9 dark:bg-white/5 dark:inset-ring-white/10 dark:outline-brand-500 dark:has-checked:bg-brand-500",
+    "group relative inline-flex w-11 shrink-0 rounded-full bg-zinc-200 p-0.5 inset-ring inset-ring-zinc-900/5 outline-offset-2 outline-brand-600 transition-colors duration-(--duration-fast) ease-smooth-out has-checked:bg-brand-600 has-focus-visible:outline-2 has-disabled:opacity-50 motion-reduce:transition-none sm:w-9 dark:bg-white/5 dark:inset-ring-white/10 dark:outline-brand-500 dark:has-checked:bg-brand-500",
     className,
   ]}
 >
   <span
-    class="aspect-square w-1/2 rounded-full bg-white shadow-xs ring-1 ring-zinc-900/5 transition-transform duration-(--duration-fast) ease-smooth-out group-has-checked:translate-x-full"
+    class="aspect-square w-1/2 rounded-full bg-white shadow-xs ring-1 ring-zinc-900/5 transition-transform duration-(--duration-fast) ease-smooth-out group-has-checked:translate-x-full motion-reduce:transition-none"
   ></span>
   <input
     bind:this={input}

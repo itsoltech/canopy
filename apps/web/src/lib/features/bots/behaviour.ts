@@ -19,13 +19,13 @@ export interface MascotBehaviour {
   state?: MascotState;
   /** Change this token on a live message, never on a historical row's initial mount. */
   event?: unknown;
-  /** A name change gives the same quiet lift as hover. */
+  /** A name change gives the same quiet expression as hover. */
   reaction?: string;
   playful?: boolean;
   pupils?: boolean;
 }
 
-type Attention = "squash" | "wobble" | "error" | "hop" | "happy" | "lift";
+type Attention = "happy";
 
 interface Character {
   node: SVGSVGElement;
@@ -108,7 +108,7 @@ function reconcile(): void {
 function attention(c: Character, kind: Attention, now = performance.now()): void {
   if (!awake(c) || (attentionOwner && attentionOwner !== c)) return;
   attentionOwner = c;
-  c.attention = { kind, start: now, ms: timings.attention * (kind === "wobble" ? 1.4 : 1) };
+  c.attention = { kind, start: now, ms: timings.attention };
   schedule();
 }
 
@@ -198,37 +198,14 @@ function animate(c: Character, now: number, dt: number): void {
 
   if (blinkProgress >= 1) c.blinkStart = 0;
   const breath = Math.sin((now / timings.breath) * Math.PI * 2 + c.phase);
-  let scaleX = 1 + breath * 0.006;
-  let scaleY = scaleX;
-  let y = working ? breath * 0.18 : 0;
-  let x = 0;
-  let angle = 0;
+  const scale = 1 + breath * 0.006;
+  const y = working ? breath * 0.18 : 0;
 
   if (c.attention) {
     const p = Math.min(1, (now - c.attention.start) / c.attention.ms);
     const wave = Math.sin(p * Math.PI);
 
-    switch (c.attention.kind) {
-      case "squash":
-        scaleX += wave * 0.016;
-        scaleY -= wave * 0.02;
-        break;
-      case "wobble":
-        angle = Math.sin(p * Math.PI * 4) * (1 - p) * 3;
-        break;
-      case "error":
-        x = Math.sin(p * Math.PI * 6) * (1 - p) * 0.65;
-        break;
-      case "hop":
-        y -= wave * 0.7;
-        break;
-      case "lift":
-        y -= wave * 0.45;
-        break;
-      case "happy":
-        lid = Math.min(lid, 1 - wave * 0.7);
-        break;
-    }
+    lid = Math.min(lid, 1 - wave * (c.options.playful ? 0.7 : 0.4));
 
     if (p === 1) {
       c.attention = undefined;
@@ -245,12 +222,7 @@ function animate(c: Character, now: number, dt: number): void {
     `translate(20 ${c.options.shape.eyeY}) scale(1 ${lid.toFixed(3)}) translate(-20 ${-c.options.shape.eyeY})`,
     1,
   );
-  write(
-    c,
-    c.body,
-    `translate(${x.toFixed(2)} ${y.toFixed(2)}) translate(20 24) rotate(${angle.toFixed(2)}) scale(${scaleX.toFixed(3)} ${scaleY.toFixed(3)}) translate(-20 -24)`,
-    2,
-  );
+  write(c, c.body, `translate(0 ${y.toFixed(2)}) translate(20 24) scale(${scale.toFixed(3)}) translate(-20 -24)`, 2);
 }
 
 function tick(now: number): void {
@@ -405,7 +377,7 @@ export function mascotBehaviour(node: SVGSVGElement, options: MascotBehaviour) {
   const enter = (event: PointerEvent) => {
     if (event.pointerType === "touch") return;
     c.hovered = true;
-    attention(c, "lift");
+    attention(c, "happy");
   };
 
   const leave = () => {
@@ -420,18 +392,18 @@ export function mascotBehaviour(node: SVGSVGElement, options: MascotBehaviour) {
       const previous = c.options;
       c.options = next;
 
-      if (next.event !== undefined && next.event !== previous.event) c.pending = next.playful ? "wobble" : "squash";
+      if (next.event !== undefined && next.event !== previous.event) c.pending = "happy";
 
-      if (next.reaction !== previous.reaction) c.pending = "lift";
+      if (next.reaction !== previous.reaction) c.pending = "happy";
 
       if (next.state !== previous.state) {
         geometryDirty = true;
 
-        if (next.state === "waiting") c.pending = "hop";
+        if (next.state === "waiting") c.pending = "happy";
 
         if (next.state === "done") c.pending = "happy";
 
-        if (next.state === "error") c.pending = "error";
+        // A bot failure is not a field validation error: its status text carries the feedback.
       }
 
       if (!awake(c)) {

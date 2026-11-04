@@ -9,7 +9,6 @@
   import AccountDetail from "#lib/features/connectors/AccountDetail.svelte";
   import ShareScope from "#lib/features/computers/ShareScope.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import { rise } from "#lib/shared/ui/motion.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
@@ -87,7 +86,7 @@
     <h2 class="text-lg font-semibold text-balance">Your accounts</h2>
     {#each accounts as account (account.id)}
       {@const entry = catalog.types.find((t) => t.id === account.connectorType)}
-      {#if entry}<div in:rise>
+      {#if entry}<div>
           <AccountDetail
             {account}
             type={entry}

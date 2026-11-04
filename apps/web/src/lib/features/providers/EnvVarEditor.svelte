@@ -1,12 +1,10 @@
 <script lang="ts">
-  import { flip } from "svelte/animate";
   import { SvelteSet } from "svelte/reactivity";
   import Button from "#lib/shared/ui/Button.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import FieldValidationPopover from "#lib/shared/ui/FieldValidationPopover.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
-  import { duration, expand } from "#lib/shared/ui/motion.ts";
   import { envProblems, envRow, type EnvVarDraft } from "./instances.ts";
   import SecretValue from "./SecretValue.svelte";
   import type { ProviderProfileKind } from "@canopy/contracts";
@@ -51,11 +49,7 @@
     <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/8">
       {#each rows as row, index (row.key)}
         {@const problem = problems[row.key] ?? (row.name || edited.has(row.key) ? liveProblems[row.key] : undefined)}
-        <li
-          class="grid gap-1 py-2 first:pt-0 last:pb-0"
-          transition:expand
-          animate:flip={{ duration: duration("fast") }}
-        >
+        <li class="grid gap-1 py-2 first:pt-0 last:pb-0">
           <div
             class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 @xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto_auto]"
           >

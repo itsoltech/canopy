@@ -73,7 +73,7 @@ function length(name: string, fallbackPx: number): number {
 
 /**
  * Accordion expand / collapse (21) for content mounted with its disclosure: height from and to 0 with a
- * fade and cross-blur, on --duration-fast both ways (one reversible motion).
+ * quiet fade, on --duration-fast both ways (one reversible motion).
  */
 export function expand(
   node: HTMLElement,
@@ -85,7 +85,6 @@ export function expand(
     return { delay: instantReduced ? 0 : delay, duration: instantReduced ? 0 : ms, css: (t) => `opacity: ${t}` };
   const style = getComputedStyle(node);
   const height = node.offsetHeight;
-  const blur = length("--blur-small", 2);
   const padTop = Number.parseFloat(style.paddingTop);
   const padBottom = Number.parseFloat(style.paddingBottom);
   const marginTop = Number.parseFloat(style.marginTop);
@@ -97,17 +96,17 @@ export function expand(
     easing: smoothOut,
     css: (t) =>
       `overflow: hidden; height: ${t * height}px; padding-top: ${t * padTop}px; padding-bottom: ${t * padBottom}px; ` +
-      `margin-top: ${t * marginTop}px; margin-bottom: ${t * marginBottom}px; opacity: ${t}; filter: blur(${(1 - t) * blur}px)`,
+      `margin-top: ${t * marginTop}px; margin-bottom: ${t * marginBottom}px; opacity: ${t}`,
   };
 }
 
 /**
- * Rise (toast 22 / texts reveal 18 for one element): fade and cross-blur up from --distance-base, for
- * things that appear on their own (a button over the timeline, a new list row). In on --duration-fast,
+ * Quiet fade for things that appear on their own (a button over the timeline, a new list row).
+ * No travel or blur: rows and any controls inside keep their position. In on --duration-fast,
  * out on --duration-quick. `instant`: no motion (a row that was only rendered late, not new).
  */
 export function rise(
-  node: HTMLElement,
+  _node: HTMLElement,
   { delay = 0, instant = false }: { delay?: number; instant?: boolean } = {},
   options?: { direction: "in" | "out" | "both" },
 ): TransitionConfig {
@@ -115,15 +114,11 @@ export function rise(
   const out = options?.direction === "out";
   const ms = duration(out ? "quick" : "fast");
 
-  if (prefersReducedMotion.current) return { delay, duration: ms, css: (t) => `opacity: ${t}` };
-  const distance = length("--distance-base", 8);
-  const blur = length("--blur-small", 2);
-
   return {
     delay,
     duration: ms,
     easing: smoothOut,
-    css: (t, u) => `opacity: ${t}; translate: 0 ${u * distance}px; filter: blur(${u * blur}px)`,
+    css: (t) => `opacity: ${t}`,
   };
 }
 
@@ -273,16 +268,19 @@ export function stagger(index: number, cap = 7): number {
  * Error state shake (12): replays the shake (motion.css `t-shake`) whenever the attachment is created
  * with a truthy `trigger`, e.g. `{@attach shake(error)}` on the field that refused its value.
  */
-export function shake(trigger: string | boolean | undefined = true): Attachment<HTMLElement> {
+export function shake(trigger: string | boolean | undefined): Attachment<HTMLElement> {
   return (node) => {
-    if (!trigger) return;
+    if (!trigger || prefersReducedMotion.current) return;
     node.classList.remove("t-shake");
     void node.offsetWidth; // restart the animation
     node.classList.add("t-shake");
     const done = () => node.classList.remove("t-shake");
     node.addEventListener("animationend", done, { once: true });
 
-    return () => node.removeEventListener("animationend", done);
+    return () => {
+      node.removeEventListener("animationend", done);
+      done();
+    };
   };
 }
 

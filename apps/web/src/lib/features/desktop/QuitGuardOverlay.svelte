@@ -93,7 +93,7 @@
   .quit-progress {
     stroke-dasharray: 1;
     stroke-dashoffset: 1;
-    animation: quit-fill var(--hold-duration) linear forwards;
+    animation: quit-fill var(--hold-duration) var(--ease-linear) forwards;
   }
   @keyframes quit-fill {
     to {

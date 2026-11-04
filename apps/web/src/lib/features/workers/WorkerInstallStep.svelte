@@ -4,7 +4,6 @@
   import type { ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import { pageIn } from "#lib/shared/ui/motion.ts";
   import CommandBlock from "./CommandBlock.svelte";
   import SetupTabs from "./SetupTabs.svelte";
   import WorkerSshInstall from "./WorkerSshInstall.svelte";
@@ -123,7 +122,7 @@
     />
   </div>
   {#key method}
-    <div class="grid min-w-0 gap-4" in:pageIn>
+    <div class="grid min-w-0 gap-4">
       {#if method === "ssh"}
         <WorkerSshInstall {name} {tags} bind:busy {onenrollment} {oninstalled} />
       {:else if method === "docker"}

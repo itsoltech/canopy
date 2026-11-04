@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import type { ModelInfo, ui } from "@canopy/contracts";
-  import { flip } from "svelte/animate";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
@@ -11,7 +10,7 @@
   import InsetList from "#lib/shared/ui/InsetList.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
-  import { duration } from "#lib/shared/ui/motion.ts";
+  import { reorder } from "#lib/shared/ui/motion.ts";
   import {
     matchesModel,
     modelRows,
@@ -122,7 +121,7 @@
         <InsetList class="mt-1">
           {#each group.rows as row (row.id)}
             {@const index = favoriteIds.indexOf(row.id)}
-            <li class="flex items-center gap-2 py-2 pr-3 pl-1.5" animate:flip={{ duration: duration("fast") }}>
+            <li class="flex items-center gap-2 py-2 pr-3 pl-1.5" animate:reorder>
               <IconButton
                 icon="star"
                 size="sm"

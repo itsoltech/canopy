@@ -161,15 +161,13 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
  * may use: `var(--duration-fast)`, Tailwind `ease-smooth-out`, … The recipes using them live in
  * `lib/shared/ui/motion.css`, the Svelte transitions in `lib/shared/ui/motion.ts`.
  * Rules: open slower than close (open --duration-fast, close --duration-quick), hover/intent delays live
- * in JS (tooltip 500 ms, hover card 500 ms in / 200 ms out), per-item stagger --duration-stagger.
+ * in JS (tooltip --duration-micro; hover cards retain a pointer grace period), per-item stagger --duration-stagger.
  */
 @theme static {
   --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1); /* open + close of surfaces, position and size changes */
   --ease-in-out: ease-in-out; /* text and icon swaps, skeleton reveal */
   --ease-out: ease-out; /* tooltips */
   --ease-linear: linear; /* shimmer, pulse, spinner */
-  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1); /* badge and star pop */
-  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);
 }
 
 :root {

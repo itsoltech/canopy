@@ -4,7 +4,6 @@
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import Fieldset from "#lib/shared/ui/Fieldset.svelte";
-  import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import ChoiceCard from "#lib/shared/ui/ChoiceCard.svelte";
   import ProxyPicker from "#lib/features/proxies/ProxyPicker.svelte";
 
@@ -66,11 +65,11 @@
     </div>
   </Fieldset>
   {#if endpoint}
-    <GrowIn class="grid gap-4">
+    <div class="grid gap-4">
       <ProxyPicker {harness} bind:value={proxyId} error={errors.proxyId} />
-    </GrowIn>
+    </div>
   {:else if harness === Provider.CODEX}
-    <GrowIn>
+    <div>
       <SettingsRow
         title="Own login"
         description="Sign in with ChatGPT in a separate session home. Changing this home may start fresh sessions."
@@ -81,6 +80,6 @@
             bind:checked={ownLogin}
           />{/snippet}
       </SettingsRow>
-    </GrowIn>
+    </div>
   {/if}
 </div>

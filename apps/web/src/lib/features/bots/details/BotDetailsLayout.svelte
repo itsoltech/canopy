@@ -83,7 +83,7 @@
 <div class={["flex min-h-0 min-w-0 flex-1", className]}>
   <div class="min-h-0 min-w-0 flex-1">{@render children()}</div>
   {#if desktop}
-    <aside {id} aria-label="Bot details" class="t-resize shrink-0 overflow-hidden" class:is-open={open} inert={!open}>
+    <aside {id} aria-label="Bot details" class="shrink-0 overflow-hidden" class:is-open={open} inert={!open}>
       <div
         class="t-panel-slide h-full w-84 overflow-y-auto overscroll-contain border-l border-zinc-950/6 bg-zinc-50/60 dark:border-white/8 dark:bg-zinc-950/60"
         data-open={open ? "true" : "false"}
@@ -97,52 +97,26 @@
   >{/if}
 
 <style>
-  :global(:root) {
-    --resize-dur: 300ms;
-    --resize-ease: cubic-bezier(0.22, 1, 0.36, 1);
-    --panel-open-dur: 400ms;
-    --panel-close-dur: 350ms;
-    --panel-translate-y: 12px;
-    --panel-blur: 2px;
-    --panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  }
   aside {
     width: 0;
+    transition: width var(--duration-medium) var(--ease-smooth-out);
   }
   aside.is-open {
     width: 21rem;
-  }
-  .t-resize {
-    transition:
-      width var(--resize-dur) var(--resize-ease),
-      height var(--resize-dur) var(--resize-ease);
-    will-change: width, height;
+    transition-duration: var(--duration-slow);
   }
   .t-panel-slide {
-    transform: translateY(var(--panel-translate-y));
     opacity: 0;
-    filter: blur(var(--panel-blur));
     pointer-events: none;
-    transition:
-      transform var(--panel-close-dur) var(--panel-ease),
-      opacity var(--panel-close-dur) var(--panel-ease),
-      filter var(--panel-close-dur) var(--panel-ease);
-    will-change: transform, opacity, filter;
+    transition: opacity var(--duration-medium) var(--ease-smooth-out);
   }
   .t-panel-slide[data-open="true"] {
-    transform: translateY(0);
     opacity: 1;
-    filter: blur(0);
     pointer-events: auto;
-    transition:
-      transform var(--panel-open-dur) var(--panel-ease),
-      opacity var(--panel-open-dur) var(--panel-ease),
-      filter var(--panel-open-dur) var(--panel-ease);
+    transition-duration: var(--duration-slow);
   }
   @media (prefers-reduced-motion: reduce) {
-    .t-resize {
-      transition: none !important;
-    }
+    aside,
     .t-panel-slide {
       transition: none !important;
     }
