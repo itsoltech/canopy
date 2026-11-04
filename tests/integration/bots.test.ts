@@ -1,213 +1,53 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { JsonObject, JsonValue } from "@canopy/domain";
-import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
-import { bots, MentionKind, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
+import { describe, expect, test } from "bun:test";
+import { create, toJson } from "@bufbuild/protobuf";
+import { bots, MentionKind, ProfileModelsSchema, Provider, ProviderProfileKind } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayCore } from "@canopy/gateway/core";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { startGrpcServer } from "@canopy/transport";
-import { openGatewayLink } from "@canopy/worker/gateway-link";
 import { BotStore } from "../../apps/gateway/src/bots/store.ts";
-import type { BotModel, ModelInput, ModelReply } from "../../apps/gateway/src/bots/types.ts";
-import { eventually, failure, ScriptedWorker, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import type { ModelInput } from "../../apps/gateway/src/bots/types.ts";
+import { eventually, failure } from "./support/gateway.ts";
+import { botsSuite, reply, tool, lastInput } from "./support/bots.ts";
 
-const reply = (text: string): ModelReply => ({ text, calls: [] });
-
-const tool = (name: string, args: JsonObject = {}): ModelReply => ({
-  text: "",
-  calls: [{ id: "model-call", name, arguments: args }],
-});
-
-const lastInput = (input: ModelInput) => input.messages.findLast((m) => m.role === "user")?.text ?? "";
-
-describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approvals and remote capabilities", () => {
-  let gw: TestGateway;
-  let model: BotModel = async (i) => reply(`Reply: ${lastInput(i)}`);
-  let current: GatewayCore;
-  let currentWorker: ScriptedWorker;
-  let fixture: ReturnType<typeof Bun.serve>;
-  let writes = 0;
-  let holdMcp = false;
-  let serverId = "";
-  let workspaceId = "";
-  let projectId = "";
-  let closeRestartedLink = async () => {};
-
-  const configuration = (name: string, extra: MessageInitShape<typeof bots.BotConfigurationSchema> = {}) =>
-    create(bots.BotConfigurationSchema, {
-      name,
-      shape: "round",
-      color: "#22aaff",
-      provider: Provider.CODEX,
-      providerInstance: "bots-test",
-      model: "gpt-6.1-sol",
-      ...extra,
-    });
-
-  const add = async (name: string, extra: MessageInitShape<typeof bots.BotConfigurationSchema> = {}) =>
-    (await gw.api.createBot({ configuration: configuration(name, extra), clientRequestId: Bun.randomUUIDv7() })).bot!;
-
-  const read = (id: string) => current.bots.run((s) => s.conversation(gw.userId, id));
-
-  const settled = (id: string) =>
-    eventually(
-      () => read(id),
-      (s) => !s.working,
-      10_000,
-    );
-
-  const send = (id: string, text: string) =>
-    current.bots.send(
-      create(bots.SendBotMessageRequestSchema, { botId: id, text, clientRequestId: Bun.randomUUIDv7() }),
-    );
-
-  const restart = async () => {
-    await current.bots.stop();
-    await closeRestartedLink();
-    gw.worker.link.close();
-    current = new GatewayCore({
-      runtime: gw.runtime,
-      userId: gw.userId,
-      instanceId: Bun.randomUUIDv7(),
-      botModel: (i) => model(i),
-    });
-    const core = current;
-    const grpc = await startGrpcServer({ routes: (router) => core.link.routes(router) });
-
-    const link = await openGatewayLink({
-      baseUrl: grpc.url,
-      credential: gw.workerCredential,
-      hello: {
-        workerId: gw.workerId,
-        journalId: "bots-restarted",
-        scratchRoot: "/worker-data/scratch",
-        homeDirectory: "/home/test",
-      },
-    });
-
-    currentWorker = new ScriptedWorker(link);
-    closeRestartedLink = async () => {
-      link.close();
-      await core.link.shutdown();
-      await grpc.close();
-    };
-
-    current.bots.start();
-  };
-
-  beforeAll(async () => {
-    gw = await startTestGateway({ botModel: (input) => model(input) });
-    current = gw.core;
-    currentWorker = gw.worker;
-    current.bots.start();
-    await gw.api.saveProviderInstance({
-      harness: Provider.CODEX,
-      id: "bots-test",
-      label: "Bots test",
-      create: true,
-      kind: ProviderProfileKind.CLIPROXYAPI,
-      baseUrl: "http://127.0.0.1:1",
-      apiKey: "fixture",
-      allWorkers: true,
-    });
-    const project = (await gw.api.createProject({ name: "Bot project" })).project!;
-    projectId = project.id;
-    workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo" })).workspace!.id;
-    fixture = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      fetch: async (request) => {
-        if (request.method !== "POST") return new Response(null, { status: 405 });
-        const body = (await request.json()) as { id?: number; method: string };
-
-        if (body.method.startsWith("notifications/")) return new Response(null, { status: 202 });
-        let result: JsonValue = {};
-
-        if (body.method === "initialize")
-          result = {
-            protocolVersion: "2025-03-26",
-            serverInfo: { name: "fixture", version: "1" },
-            capabilities: { tools: {} },
-          };
-
-        if (body.method === "tools/list")
-          result = {
-            tools: [
-              {
-                name: "send_external_message",
-                description: "Send externally",
-                inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
-                annotations: { readOnlyHint: false },
-              },
-            ],
-          };
-
-        if (body.method === "tools/call") {
-          writes++;
-
-          if (holdMcp)
-            await new Promise<void>((resolve) =>
-              request.signal.addEventListener("abort", () => resolve(), { once: true }),
-            );
-          result = { content: [{ type: "text", text: "Sent once" }] };
-        }
-
-        return Response.json({ jsonrpc: "2.0", id: body.id, result });
-      },
-    });
-    serverId = (
-      await gw.api.saveBotMcpServer({
-        name: "Notion",
-        url: `${fixture.url}mcp`,
-        transport: "http",
-        enabled: true,
-        headers: { authorization: "Bearer fixture-secret" },
-      })
-    ).server!.id;
-  }, 30_000);
-  afterAll(async () => {
-    await current?.bots.stop();
-    await closeRestartedLink();
-    await fixture?.stop(true);
-    await gw?.close();
-  });
+describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchanges and approvals", () => {
+  const { suite, configuration, add, read, settled, send, restart } = botsSuite();
 
   test("create/list/update and one idempotent conversation stream, hidden from Threads", async () => {
-    model = async (i) => reply(`Reply: ${lastInput(i)}`);
+    suite.model = async (i) => reply(`Reply: ${lastInput(i)}`);
     const requestId = Bun.randomUUIDv7();
     const request = { configuration: configuration("First"), clientRequestId: requestId };
-    const a = (await gw.api.createBot(request)).bot!;
-    expect((await gw.api.createBot(request)).bot!.id).toBe(a.id);
-    expect((await gw.api.listBots({})).bots.some((b) => b.id === a.id)).toBe(true);
-    const updated = await gw.api.updateBot({ botId: a.id, configuration: configuration("Renamed") });
+    const a = (await suite.gw.api.createBot(request)).bot!;
+    expect((await suite.gw.api.createBot(request)).bot!.id).toBe(a.id);
+    expect((await suite.gw.api.listBots({})).bots.some((b) => b.id === a.id)).toBe(true);
+    const updated = await suite.gw.api.updateBot({ botId: a.id, configuration: configuration("Renamed") });
     expect(updated.bot?.configuration?.name).toBe("Renamed");
     const sendRequest = { botId: a.id, text: "hello", clientRequestId: Bun.randomUUIDv7() };
-    const first = await gw.api.sendBotMessage(sendRequest);
-    expect((await gw.api.sendBotMessage(sendRequest)).turnId).toBe(first.turnId);
+    const first = await suite.gw.api.sendBotMessage(sendRequest);
+    expect((await suite.gw.api.sendBotMessage(sendRequest)).turnId).toBe(first.turnId);
     expect((await settled(a.id)).messages.map((m) => m.text)).toEqual(["hello", "Reply: hello"]);
     await send(a.id, "second");
     expect((await settled(a.id)).messages.at(-1)?.text).toBe("Reply: second");
-    expect((await gw.api.listBots({})).bots.find((b) => b.id === a.id)?.lastMessage?.text).toBe("Reply: second");
+    expect((await suite.gw.api.listBots({})).bots.find((b) => b.id === a.id)?.lastMessage?.text).toBe("Reply: second");
     const abort = new AbortController();
 
-    for await (const snapshot of gw.api.watchBotConversation({ botId: a.id }, { signal: abort.signal })) {
+    for await (const snapshot of suite.gw.api.watchBotConversation({ botId: a.id }, { signal: abort.signal })) {
       expect(snapshot.messages).toHaveLength(4);
       break;
     }
 
     abort.abort();
-    expect((await gw.api.listThreads({})).threads).toHaveLength(0);
+    expect((await suite.gw.api.listThreads({})).threads).toHaveLength(0);
     const otherUser = Bun.randomUUIDv7();
-    await expect(gw.runtime.runPromise(BotStore.use((s) => s.owned(otherUser, a.id)))).rejects.toThrow();
+    await expect(suite.gw.runtime.runPromise(BotStore.use((s) => s.owned(otherUser, a.id)))).rejects.toThrow();
   });
 
   test("queued messages retain the preceding reply even when their input was saved earlier", async () => {
     const started = Promise.withResolvers<void>();
     const proceed = Promise.withResolvers<void>();
     const seen: string[][] = [];
-    model = async (i) => {
+    suite.model = async (i) => {
       seen.push(i.messages.map((m) => m.text));
 
       if (lastInput(i) === "first queued") {
@@ -229,7 +69,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
 
   test("structured bot mentions and quotes are durable, validated and unambiguous to the model", async () => {
     const seen: ModelInput[] = [];
-    model = async (input) => {
+    suite.model = async (input) => {
       seen.push(input);
 
       return reply("ok");
@@ -239,7 +79,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     const target = await add("Kropek");
     const legacyDuplicate = await add("Legacy Kropek");
     // Old data may contain identical names; new creates/updates enforce unique names.
-    await gw.runtime.runPromise(
+    await suite.gw.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         yield* sql`UPDATE bots SET configuration = jsonb_set(configuration, '{name}', '"Kropek"'::jsonb) WHERE id = ${legacyDuplicate.id}::uuid`;
@@ -266,7 +106,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     ];
 
     const request = { botId: bot.id, text, mentions: [mention], quotes, clientRequestId: Bun.randomUUIDv7() };
-    const accepted = await gw.api.sendBotMessage(request);
+    const accepted = await suite.gw.api.sendBotMessage(request);
     const stored = (await settled(bot.id)).messages[0]!;
     expect(stored.text).toBe(text);
     expect(stored.quotes[0]?.text).toBe(quotes[0]!.text);
@@ -286,11 +126,11 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
 
     const foreign = await add("Foreign");
 
-    const otherUser = await gw.runtime.runPromise(
+    const otherUser = await suite.gw.runtime.runPromise(
       GatewayStore.use((s) => s.ensureUser("mentions-other@test.local", "Other")),
     );
 
-    await gw.runtime.runPromise(
+    await suite.gw.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         yield* sql`UPDATE bots SET owner_user_id = ${otherUser}::uuid WHERE id = ${foreign.id}::uuid`;
@@ -311,7 +151,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
 
     for (const mentions of invalid)
       expect(
-        await failure(gw.api.sendBotMessage({ ...request, mentions, clientRequestId: Bun.randomUUIDv7() })),
+        await failure(suite.gw.api.sendBotMessage({ ...request, mentions, clientRequestId: Bun.randomUUIDv7() })),
       ).not.toBe("");
     expect((await read(bot.id)).messages.filter((m) => m.senderId === "user")).toHaveLength(2);
 
@@ -324,14 +164,14 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     ])
       expect(
         await failure(
-          gw.api.sendBotMessage({ ...request, quotes: invalidQuotes, clientRequestId: Bun.randomUUIDv7() }),
+          suite.gw.api.sendBotMessage({ ...request, quotes: invalidQuotes, clientRequestId: Bun.randomUUIDv7() }),
         ),
       ).not.toBe("");
-    await gw.api.sendBotMessage({ botId: bot.id, text: "", quotes, clientRequestId: Bun.randomUUIDv7() });
+    await suite.gw.api.sendBotMessage({ botId: bot.id, text: "", quotes, clientRequestId: Bun.randomUUIDv7() });
     const quoteOnly = (await settled(bot.id)).messages.find((m) => m.senderId === "user" && m.text === "");
     expect(quoteOnly?.quotes[0]?.text).toBe(quotes[0]!.text);
     // The displayed name is untrusted input; model context comes from the selected owner's bot.
-    await gw.api.sendBotMessage({
+    await suite.gw.api.sendBotMessage({
       ...request,
       text: "@Spoof",
       mentions: [{ ...mention, label: "Spoof", start: 0, end: 6 }],
@@ -339,14 +179,16 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     });
     expect((await settled(bot.id)).messages.find((m) => m.text === "@Spoof")?.mentions[0]?.label).toBe("Kropek");
     expect(lastInput(seen.at(-1)!)).toContain(`"Kropek" (bot_id ${target.id})`);
-    await gw.api.deleteBot({ botId: target.id });
-    expect((await gw.api.sendBotMessage(request)).turnId).toBe(accepted.turnId);
-    expect(await failure(gw.api.sendBotMessage({ ...request, clientRequestId: Bun.randomUUIDv7() }))).not.toBe("");
+    await suite.gw.api.deleteBot({ botId: target.id });
+    expect((await suite.gw.api.sendBotMessage(request)).turnId).toBe(accepted.turnId);
+    expect(await failure(suite.gw.api.sendBotMessage({ ...request, clientRequestId: Bun.randomUUIDv7() }))).not.toBe(
+      "",
+    );
   }, 20_000);
 
   test("gateway restart mid-inference resumes its durable input without duplicate messages", async () => {
     const started = Promise.withResolvers<void>();
-    model = async (input) => {
+    suite.model = async (input) => {
       started.resolve();
       await new Promise<void>((resolve) => input.signal.addEventListener("abort", () => resolve(), { once: true }));
       input.signal.throwIfAborted();
@@ -358,8 +200,8 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     await send(bot.id, "survive restart");
     await started.promise;
     expect((await read(bot.id)).statusLine).toBe("Typing…");
-    await current.bots.stop();
-    model = async (i) => reply(`Recovered: ${lastInput(i)}`);
+    await suite.current.bots.stop();
+    suite.model = async (i) => reply(`Recovered: ${lastInput(i)}`);
     await restart();
     expect((await settled(bot.id)).messages.map((m) => m.text)).toEqual([
       "survive restart",
@@ -367,81 +209,10 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     ]);
   });
 
-  test("remote MCP registry hides secrets, denies stdio, and requires approval for writes", async () => {
-    expect((await gw.api.testBotMcpServer({ serverId })).tools[0]?.name).toBe("send_external_message");
-    expect(JSON.stringify(await gw.api.listBotMcpServers({}))).not.toContain("fixture-secret");
-    expect((await gw.api.listBotMcpServers({})).servers[0]?.headerNames).toEqual(["authorization"]);
-    const bot = await add("Approval", { mcpServerIds: [serverId] });
-    model = async (i) =>
-      i.messages.at(-1)?.role === "tool"
-        ? reply(i.messages.at(-1)!.text)
-        : tool(i.tools.find((t) => t.source === "mcp")!.name, { text: "hello externally" });
-    const before = writes;
-    await send(bot.id, "send");
-
-    const waiting = await eventually(
-      () => read(bot.id),
-      (s) => s.statusLine === "Waiting for you",
-    );
-
-    expect(waiting.statusLine).toBe("Waiting for you");
-    expect(writes).toBe(before);
-    const approval = waiting.approvals[0]!;
-    await current.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: approval.id, approve: true }));
-    expect((await settled(bot.id)).messages.at(-1)?.text).toContain("Sent once");
-    expect(writes).toBe(before + 1);
-    await current.bots.answer(create(bots.AnswerBotApprovalRequestSchema, { approvalId: approval.id, approve: true }));
-    expect(writes).toBe(before + 1);
-    await send(bot.id, "discard");
-
-    const pending = await eventually(
-      () => read(bot.id),
-      (s) => s.approvals.some((a) => a.status === "pending"),
-    );
-
-    await current.bots.answer(
-      create(bots.AnswerBotApprovalRequestSchema, {
-        approvalId: pending.approvals.find((a) => a.status === "pending")!.id,
-        approve: false,
-      }),
-    );
-    expect((await settled(bot.id)).messages.at(-1)?.text).toContain("discarded");
-    expect(writes).toBe(before + 1);
-  }, 20_000);
-
-  test("MCP side effect in flight at restart is interrupted, never silently retried", async () => {
-    const bot = await add("Remote restart", { mcpServerIds: [serverId] });
-    model = async (i) =>
-      i.messages.at(-1)?.role === "tool"
-        ? reply(i.messages.at(-1)!.text)
-        : tool(i.tools.find((t) => t.source === "mcp")!.name, { text: "only once" });
-    holdMcp = true;
-    const before = writes;
-    await send(bot.id, "send once");
-
-    const waiting = await eventually(
-      () => read(bot.id),
-      (s) => s.approvals.some((a) => a.status === "pending"),
-    );
-
-    await current.bots.answer(
-      create(bots.AnswerBotApprovalRequestSchema, { approvalId: waiting.approvals[0]!.id, approve: true }),
-    );
-    await eventually(
-      async () => writes,
-      (n) => n === before + 1,
-    );
-    expect(writes).toBe(before + 1);
-    await restart();
-    holdMcp = false;
-    expect((await settled(bot.id)).messages.at(-1)?.text).toContain("interrupted");
-    expect(writes).toBe(before + 1);
-  }, 20_000);
-
   test("bot exchanges enqueue a target reply and a follow-up, preserving the hop limit", async () => {
     const a = await add("A");
     const b = await add("B");
-    model = async (i) =>
+    suite.model = async (i) =>
       i.configuration.name === "B"
         ? reply("B says hello")
         : lastInput(i).startsWith("Message from")
@@ -459,278 +230,15 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
 
     expect(result.messages.some((m) => m.text.includes("Message from B"))).toBe(true);
     const exchangeId = result.messages.find((m) => m.exchangeId)!.exchangeId;
-    expect((await current.bots.exchange(exchangeId)).some((m) => m.text === "B says hello")).toBe(true);
-    await current.bots.run((s) => s.enqueue(gw.userId, a.id, "automated", Bun.randomUUIDv7(), { hops: 7 }));
+    expect((await suite.current.bots.exchange(exchangeId)).some((m) => m.text === "B says hello")).toBe(true);
+    await suite.current.bots.run((s) => s.enqueue(suite.gw.userId, a.id, "automated", Bun.randomUUIDv7(), { hops: 7 }));
     expect((await settled(a.id)).working).toBe(false);
     expect((await read(b.id)).messages.filter((m) => m.text.includes("hello B"))).toHaveLength(1);
   }, 20_000);
 
-  test("worker thread creation and result notification survive restart without duplicate actions", async () => {
-    const bot = await add("Worker bridge");
-    const modelWaiting = Promise.withResolvers<void>();
-    model = async (i) => {
-      if (lastInput(i).startsWith("Thread ")) return reply("Got the thread result");
-
-      if (i.messages.at(-1)?.role === "tool") {
-        modelWaiting.resolve();
-        await new Promise<void>((resolve) => i.signal.addEventListener("abort", () => resolve(), { once: true }));
-        i.signal.throwIfAborted();
-      }
-
-      return tool("start_thread", {
-        project_id: projectId,
-        workspace_id: workspaceId,
-        provider: "codex",
-        provider_instance: "bots-test",
-        model: "gpt-6.1-sol",
-        prompt: "hello worker",
-      });
-    };
-
-    await send(bot.id, "start worker");
-    await modelWaiting.promise;
-    await current.bots.stop();
-    // The worker finishes while bot execution is stopped. Its result must be in
-    // PostgreSQL before dropping the fixture link (which has no replay journal).
-    await eventually(
-      async () =>
-        gw.runtime.runPromise(
-          Effect.gen(function* () {
-            const sql = yield* SqlClient.SqlClient;
-
-            return yield* sql<{
-              status: string;
-            }>`SELECT t.status FROM turns t JOIN bot_thread_watches w ON w.target_turn_id = t.id WHERE w.bot_id = ${bot.id}::uuid`;
-          }),
-        ),
-      (rows) => rows[0]?.status === "completed",
-      10_000,
-    );
-    model = async (i) => reply(lastInput(i).startsWith("Thread ") ? "Got the thread result" : "Started once");
-    await restart();
-
-    const final = await eventually(
-      () => read(bot.id),
-      (s) => s.messages.some((m) => m.text === "Got the thread result"),
-      10_000,
-    );
-
-    expect(final.messages.some((m) => m.text.includes("Echo: hello worker"))).toBe(true);
-    expect((await gw.api.listThreads({ projectId })).threads).toHaveLength(1);
-
-    const counts = await gw.runtime.runPromise(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
-
-        return yield* sql<{
-          n: string;
-        }>`SELECT count(*)::text n FROM bot_thread_watches WHERE bot_id = ${bot.id}::uuid AND delivered`;
-      }),
-    );
-
-    expect(counts[0]?.n).toBe("1");
-  }, 20_000);
-
-  test("a bot discovers No project and starts a worker thread in its dedicated scratch cwd", async () => {
-    const scratch = (await current.overview()).projects.find((p) => p.kind === "scratch")!;
-    const placement = scratch.workspaces.find((w) => w.workerId === gw.workerId)!;
-    const bot = await add("Scratch bridge");
-    model = async (input) => {
-      if (lastInput(input).startsWith("Thread ")) return reply("Scratch worker finished");
-      const last = input.messages.at(-1);
-
-      if (last?.role !== "tool") return tool("list_projects");
-      const result = JSON.parse(last.text) as unknown;
-
-      if (Array.isArray(result)) {
-        expect(result).toContainEqual(expect.objectContaining({ id: scratch.id, name: "No project", kind: "scratch" }));
-
-        return tool("start_thread", {
-          project_id: scratch.id,
-          workspace_id: placement.id,
-          provider: "codex",
-          provider_instance: "bots-test",
-          model: "gpt-6.1-sol",
-          prompt: "inspect scratch",
-        });
-      }
-
-      return reply("Started scratch worker");
-    };
-
-    await send(bot.id, "start without a project");
-
-    const snapshot = await eventually(
-      () => read(bot.id),
-      (s) => !s.working && s.messages.some((m) => m.text === "Scratch worker finished"),
-      10_000,
-    );
-
-    expect(snapshot.messages.some((m) => m.text === "Started scratch worker")).toBe(true);
-    const threads = await current.listThreads(scratch.id);
-    expect(threads).toHaveLength(1);
-    const thread = threads[0]!;
-    expect(thread).toMatchObject({
-      projectId: scratch.id,
-      workspaceId: placement.id,
-      workerId: gw.workerId,
-      cwd: `${placement.rootPath}/${thread.id}`,
-    });
-
-    const command = currentWorker.commands.find(
-      (c) => c.case === "createThread" && c.value.thread?.threadId === thread.id,
-    );
-
-    expect(command?.case === "createThread" && command.value.thread).toMatchObject({ scratch: true, cwd: thread.cwd });
-  }, 20_000);
-
-  test("a committed platform result wins over a failure in post-commit dispatch", async () => {
-    const bot = await add("Committed action");
-    const count = (await current.listThreads(projectId)).length;
-    const start = current.startBotThread.bind(current);
-    current.startBotThread = async (...args) => {
-      await start(...args);
-      throw new Error("fixture: connection failed after committing the platform action");
-    };
-
-    model = async (i) => {
-      if (lastInput(i).startsWith("Thread ")) return reply("Worker finished");
-      const last = i.messages.at(-1);
-
-      if (last?.role === "tool")
-        return reply(JSON.parse(last.text).thread_id ? "Committed once" : "Lost committed result");
-
-      return tool("start_thread", {
-        project_id: projectId,
-        workspace_id: workspaceId,
-        provider: "codex",
-        provider_instance: "bots-test",
-        model: "gpt-6.1-sol",
-        prompt: "committed worker",
-      });
-    };
-
-    try {
-      await send(bot.id, "start once");
-
-      const snapshot = await eventually(
-        () => read(bot.id),
-        (s) => !s.working && s.messages.some((m) => m.text === "Worker finished"),
-        10_000,
-      );
-
-      expect(snapshot.messages.some((m) => m.text === "Committed once")).toBe(true);
-      expect((await current.listThreads(projectId)).length).toBe(count + 1);
-    } finally {
-      current.startBotThread = start;
-    }
-  }, 15_000);
-
-  test("bot messages steer a worker, or fall back to a queued bot turn with one completion notification", async () => {
-    for (const mode of ["accept", "not_running"] as const) {
-      currentWorker.holdTurns = true;
-      currentWorker.steerMode = mode;
-
-      const thread = await current.createThread(
-        create(ui.CreateThreadRequestSchema, {
-          projectId,
-          workspaceId,
-          provider: Provider.CODEX,
-          providerProfileId: "bots-test",
-          model: "gpt-6.1-sol",
-          initialMessage: `held ${mode}`,
-        }),
-      );
-
-      await eventually(
-        () => current.getThread(thread.id),
-        (t) => t.status === "running",
-      );
-      const bot = await add(`Steer ${mode}`);
-      model = async (i) =>
-        lastInput(i).startsWith("Thread ")
-          ? reply(`Result ${mode}`)
-          : i.messages.at(-1)?.role === "tool"
-            ? reply("Message sent")
-            : tool("send_message", { thread_id: thread.id, text: `steer ${mode}`, delivery: "steer" });
-      await send(bot.id, "steer it");
-      await settled(bot.id);
-      await eventually(
-        async () => currentWorker.steered.size,
-        (n) => n > 0,
-      );
-      const target = await gw.runtime.runPromise(GatewayStore.use((s) => s.runningTurn(thread.id)));
-      expect(target).toBeDefined();
-      currentWorker.holdTurns = false;
-      currentWorker.finish(thread.id, target!.id, `Finished ${mode}`);
-
-      const result = await eventually(
-        () => read(bot.id),
-        (s) => s.messages.some((m) => m.text === `Result ${mode}`),
-        10_000,
-      );
-
-      expect(result.messages.filter((m) => m.kind === "event" && m.text.startsWith("Thread "))).toHaveLength(1);
-
-      if (mode === "not_running")
-        expect(result.messages.some((m) => m.text.includes("Echo: steer not_running"))).toBe(true);
-    }
-
-    currentWorker.steerMode = "accept";
-  }, 25_000);
-
-  test("thread settings and archiving use approval cards and existing authorized store paths", async () => {
-    const thread = (await current.listThreads(projectId))[0]!;
-    const bot = await add("Settings");
-    model = async (i) =>
-      i.messages.at(-1)?.role === "tool"
-        ? reply("Renamed")
-        : tool("rename_thread", { thread_id: thread.id, title: "Bot renamed" });
-    await send(bot.id, "rename");
-    await settled(bot.id);
-    expect((await current.getThread(thread.id)).title).toBe("Bot renamed");
-    model = async (i) =>
-      i.messages.at(-1)?.role === "tool"
-        ? reply("Model updated")
-        : tool("set_thread_model", { thread_id: thread.id, model: "gpt-6.1-sol", effort: "high" });
-    await send(bot.id, "set model");
-
-    const approval = await eventually(
-      () => read(bot.id),
-      (s) => s.approvals.some((a) => a.status === "pending"),
-    );
-
-    await current.bots.answer(
-      create(bots.AnswerBotApprovalRequestSchema, {
-        approvalId: approval.approvals.find((a) => a.status === "pending")!.id,
-        approve: true,
-      }),
-    );
-    await settled(bot.id);
-    expect((await current.getThread(thread.id)).effort).toBe("high");
-    model = async (i) =>
-      i.messages.at(-1)?.role === "tool" ? reply("Archived") : tool("archive_thread", { thread_id: thread.id });
-    await send(bot.id, "archive");
-
-    const archive = await eventually(
-      () => read(bot.id),
-      (s) => s.approvals.some((a) => a.status === "pending"),
-    );
-
-    expect((await current.getThread(thread.id)).archivedAt).toBeUndefined();
-    await current.bots.answer(
-      create(bots.AnswerBotApprovalRequestSchema, {
-        approvalId: archive.approvals.find((a) => a.status === "pending")!.id,
-        approve: true,
-      }),
-    );
-    await settled(bot.id);
-    expect((await current.getThread(thread.id)).archivedAt).toBeDefined();
-  }, 20_000);
-
   test("durable one-shot wakeups deliver once and cancellation prevents a turn", async () => {
     const bot = await add("Reminders");
-    model = async (i) =>
+    suite.model = async (i) =>
       lastInput(i) === "Reminder prompt"
         ? reply("Reminder received")
         : i.messages.at(-1)?.role === "tool"
@@ -745,7 +253,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     );
 
     expect(received.messages.filter((m) => m.text === "Reminder prompt")).toHaveLength(1);
-    model = async (i) => {
+    suite.model = async (i) => {
       const last = i.messages.at(-1);
 
       if (last?.role === "tool") {
@@ -764,21 +272,21 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
       (s) => s.approvals.some((a) => a.status === "pending"),
     );
 
-    await current.bots.answer(
+    await suite.current.bots.answer(
       create(bots.AnswerBotApprovalRequestSchema, {
         approvalId: pending.approvals.find((a) => a.status === "pending")!.id,
         approve: true,
       }),
     );
     await settled(bot.id);
-    const schedules = await current.bots.run((s) => s.wakeups(bot.id));
+    const schedules = await suite.current.bots.run((s) => s.wakeups(bot.id));
     expect(schedules.some((s) => s["cancelled"] === true)).toBe(true);
   }, 15_000);
 
   test("an expired lease cannot commit an old model answer after another gateway takes over", async () => {
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
-    model = async () => {
+    suite.model = async () => {
       entered.resolve();
       await release.promise;
 
@@ -788,7 +296,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     const bot = await add("Fenced");
     await send(bot.id, "take over");
     await entered.promise;
-    await gw.runtime.runPromise(
+    await suite.gw.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         yield* sql`UPDATE bot_turns SET lease_until = now() - interval '1 second' WHERE bot_id = ${bot.id}::uuid AND status = 'running'`;
@@ -796,8 +304,8 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     );
 
     const competitor = new GatewayCore({
-      runtime: gw.runtime,
-      userId: gw.userId,
+      runtime: suite.gw.runtime,
+      userId: suite.gw.userId,
       instanceId: "competitor",
       botModel: async () => reply("New owner answer"),
     });
@@ -806,20 +314,20 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
       await competitor.bots.tick();
       expect((await settled(bot.id)).messages.at(-1)?.text).toBe("New owner answer");
       release.resolve();
-      await current.bots.stop();
+      await suite.current.bots.stop();
       expect((await read(bot.id)).messages.filter((m) => m.senderId === bot.id).map((m) => m.text)).toEqual([
         "New owner answer",
       ]);
     } finally {
       release.resolve();
       await competitor.bots.stop();
-      current.bots.start();
+      suite.current.bots.start();
     }
   }, 15_000);
 
   test("questions persist and approvals resume after a gateway restart; interrupt and delete work", async () => {
     const bot = await add("Questions");
-    model = async (i) =>
+    suite.model = async (i) =>
       i.messages.at(-1)?.role === "tool"
         ? reply(i.messages.at(-1)!.text)
         : tool("ask_user", { question: "Which project?", options: ["CRM", "Docs"] });
@@ -832,7 +340,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
 
     expect(pending.approvals[0]!.options).toEqual(["CRM", "Docs"]);
     await restart();
-    await current.bots.answer(
+    await suite.current.bots.answer(
       create(bots.AnswerBotApprovalRequestSchema, {
         approvalId: pending.approvals[0]!.id,
         approve: true,
@@ -845,13 +353,13 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
       () => read(bot.id),
       (s) => s.approvals.some((a) => a.status === "pending"),
     );
-    await current.bots.interrupt(bot.id);
+    await suite.current.bots.interrupt(bot.id);
     expect((await read(bot.id)).working).toBe(false);
-    await current.bots.remove(bot.id);
-    expect((await current.bots.list()).some((b) => b.id === bot.id)).toBe(false);
+    await suite.current.bots.remove(bot.id);
+    expect((await suite.current.bots.list()).some((b) => b.id === bot.id)).toBe(false);
   }, 20_000);
   test("harness aliases resolve to API models on save and at runtime; failed replies are marked and can be retried", async () => {
-    await gw.api.saveProviderInstance({
+    await suite.gw.api.saveProviderInstance({
       harness: Provider.CLAUDE,
       id: "bots-claude",
       label: "Claude proxy",
@@ -868,7 +376,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
       models: [{ id: "default", resolvedModel: "claude-opus-5-5", isDefault: true }, { id: "claude-sonnet-5-5" }],
     });
 
-    await gw.runtime.runPromise(
+    await suite.gw.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         // A worker of its own: the connected scripted worker replaces its catalog on every config push.
@@ -882,7 +390,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     expect(saved.configuration?.model).toBe("claude-opus-5-5");
 
     const create_ = (name: string, model: string) =>
-      current.bots.create(
+      suite.current.bots.create(
         create(bots.CreateBotRequestSchema, {
           configuration: configuration(name, { ...claude, model }),
           clientRequestId: Bun.randomUUIDv7(),
@@ -893,7 +401,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     await expect(create_("Unknown", "claude-missing")).rejects.toThrow(/does not offer/);
     expect(
       (
-        await gw.api.updateBot({
+        await suite.gw.api.updateBot({
           botId: saved.id,
           configuration: configuration("Aliased", { ...claude, model: "default" }),
         })
@@ -901,7 +409,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     ).toBe("claude-opus-5-5");
 
     // A bot saved before validation still names the alias; the runtime sends the concrete model.
-    await gw.runtime.runPromise(
+    await suite.gw.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         yield* sql`UPDATE bots SET configuration = jsonb_set(configuration, '{model}', '"default"') WHERE id = ${saved.id}::uuid`;
@@ -909,7 +417,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     );
     const models: string[] = [];
     let fail = true;
-    model = async (i) => {
+    suite.model = async (i) => {
       models.push(i.configuration.model);
 
       if (fail) throw new Error("Model endpoint returned HTTP 400");
@@ -921,9 +429,9 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     const failed = await settled(saved.id);
     expect(models).toEqual(["claude-opus-5-5"]);
     expect(failed.messages.at(-1)).toMatchObject({ failed: true, text: "Model endpoint returned HTTP 400" });
-    expect((await current.bots.list()).find((b) => b.id === saved.id)?.lastMessage?.failed).toBe(true);
+    expect((await suite.current.bots.list()).find((b) => b.id === saved.id)?.lastMessage?.failed).toBe(true);
     fail = false;
-    await gw.api.retryBot({ botId: saved.id });
+    await suite.gw.api.retryBot({ botId: saved.id });
 
     const retried = await eventually(
       () => read(saved.id),
@@ -935,11 +443,11 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
       ["hello alias", false],
       ["Back again", false],
     ]);
-    await expect(current.bots.retry(saved.id)).rejects.toThrow(/failed/);
+    await expect(suite.current.bots.retry(saved.id)).rejects.toThrow(/failed/);
   }, 20_000);
   test("an edited approval card runs nothing and hands the user's version back to the model", async () => {
     const bot = await add("Editor");
-    model = async (i) =>
+    suite.model = async (i) =>
       i.messages.at(-1)?.role === "tool"
         ? reply(i.messages.at(-1)!.text)
         : tool("archive_thread", { thread_id: Bun.randomUUIDv7() });
@@ -951,7 +459,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, approval
     );
 
     expect(pending.approvals[0]!.prompt).toStartWith("Needs approval");
-    await current.bots.answer(
+    await suite.current.bots.answer(
       create(bots.AnswerBotApprovalRequestSchema, {
         approvalId: pending.approvals[0]!.id,
         approve: false,

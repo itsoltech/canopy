@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { confirmStartup, readUpdateRecord, stageBinaryUpdate, superviseBinary, whenIdle } from "./binary.ts";
+import { confirmStartup, readUpdateRecord, stageBinaryUpdate, superviseBinary } from "./binary.ts";
+import { whenIdle } from "./idle.ts";
 import type { ReleaseAsset } from "./release.ts";
 
 const directories: string[] = [];

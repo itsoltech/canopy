@@ -256,6 +256,88 @@ export interface SupervisorOptions {
   log?: (message: string) => void;
 }
 
+interface SupervisorState {
+  /** A user signal was forwarded: the next child exit ends supervision. */
+  stopped: boolean;
+  /** execve is missing or failed once: keep supervising the confirmed child instead. */
+  handoverUnavailable: boolean;
+}
+
+interface HandoverFacts {
+  readonly pending: UpdateRecord | undefined;
+  readonly confirmedVersion: string | undefined;
+  readonly executable: Awaited<ReturnType<typeof lstat>>;
+}
+
+/**
+ * After a confirmed child exits for handover, execve into the installed executable (which does not return).
+ * Returns true when a signal stopped supervision meanwhile; false to keep supervising.
+ */
+async function handOver(
+  options: SupervisorOptions,
+  state: SupervisorState,
+  supervisorEnv: NodeJS.ProcessEnv,
+  { pending, confirmedVersion, executable }: HandoverFacts,
+): Promise<boolean> {
+  // A concurrent next update must still run as an unconfirmed candidate under this watchdog.
+  // Also refuse to exec a path replaced since this child was launched (including manual replacement).
+  const installed = await lstat(options.binaryPath);
+
+  if (state.stopped) return true;
+
+  if (
+    (!pending ||
+      (pending.state === "succeeded" && pending.version === confirmedVersion) ||
+      (pending.state === "failed" && pending.previousVersion === confirmedVersion)) &&
+    installed.dev === executable.dev &&
+    installed.ino === executable.ino
+  ) {
+    try {
+      options.log?.(`supervisor handover: ${CANOPY_VERSION} -> ${confirmedVersion} (pid ${process.pid})`);
+      process.execve!(options.binaryPath, [options.binaryPath, ...options.args], supervisorEnv);
+    } catch (error) {
+      state.handoverUnavailable = true;
+      options.log?.(
+        `supervisor handover unavailable: ${error instanceof Error ? error.message : String(error)}; continuing supervision`,
+      );
+    }
+  }
+
+  return false;
+}
+
+/** Forwards user signals to the running child and marks supervision stopped. Returns the function that detaches them. */
+function forwardSignals(state: SupervisorState, child: () => ReturnType<typeof Bun.spawn> | undefined): () => void {
+  const signals = ["SIGINT", "SIGTERM"] as const;
+
+  const forward = (signal: NodeJS.Signals) => {
+    state.stopped = true;
+    child()?.kill(signal);
+  };
+
+  const onInt = () => forward("SIGINT"),
+    onTerm = () => forward("SIGTERM");
+
+  process.on(signals[0], onInt);
+  process.on(signals[1], onTerm);
+
+  return () => {
+    process.off(signals[0], onInt);
+    process.off(signals[1], onTerm);
+  };
+}
+
+/** Restores the previous executable after the candidate missed its startup deadline (timedOut) or exited unconfirmed. */
+async function rollBackUnhealthy(options: SupervisorOptions, timedOut: boolean, exit: number): Promise<void> {
+  await rollbackBinary(
+    options.binaryPath,
+    timedOut
+      ? "New version did not become healthy/connect before the startup deadline"
+      : `New version exited before becoming healthy (exit ${exit})`,
+  );
+  options.log?.("update rolled back: new version did not become healthy");
+}
+
 /**
  * The supervisor runs from the previous executable already mapped in memory. It can restore .bak even
  * if the candidate cannot execute at all. Both foreground and service installs use the same watchdog.
@@ -266,22 +348,15 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
   const supervisorEnv = { ...process.env, ...options.env };
   delete supervisorEnv["CANOPY_SUPERVISED"];
   const env = { ...supervisorEnv, CANOPY_SUPERVISED: "1" };
-  let handoverUnavailable = process.platform === "win32" || !process.execve;
-  let handoverUnavailableLogged = false;
-  let stopped = false;
-  let child: ReturnType<typeof Bun.spawn> | undefined;
-  const signals = ["SIGINT", "SIGTERM"] as const;
 
-  const forward = (signal: NodeJS.Signals) => {
-    stopped = true;
-    child?.kill(signal);
+  const state: SupervisorState = {
+    stopped: false,
+    handoverUnavailable: process.platform === "win32" || !process.execve,
   };
 
-  const onInt = () => forward("SIGINT"),
-    onTerm = () => forward("SIGTERM");
-
-  process.on(signals[0], onInt);
-  process.on(signals[1], onTerm);
+  let handoverUnavailableLogged = false;
+  let child: ReturnType<typeof Bun.spawn> | undefined;
+  const stopForwarding = forwardSignals(state, () => child);
 
   try {
     for (;;) {
@@ -301,10 +376,16 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
       let executable: Awaited<ReturnType<typeof lstat>>;
 
       const requestHandover = () => {
-        if (stopped || !child || child.exitCode !== null || !confirmedVersion || confirmedVersion === CANOPY_VERSION)
+        if (
+          state.stopped ||
+          !child ||
+          child.exitCode !== null ||
+          !confirmedVersion ||
+          confirmedVersion === CANOPY_VERSION
+        )
           return;
 
-        if (handoverUnavailable) {
+        if (state.handoverUnavailable) {
           if (!handoverUnavailableLogged)
             options.log?.("supervisor handover unavailable: restart the service to load the installed supervisor");
           handoverUnavailableLogged = true;
@@ -350,7 +431,7 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
       let checking: Promise<void> | undefined;
 
       const watch = setInterval(() => {
-        if (stopped || running.exitCode !== null || checking) return;
+        if (state.stopped || running.exitCode !== null || checking) return;
         checking = (async () => {
           pending = await readUpdateRecord(options.binaryPath);
 
@@ -375,7 +456,7 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
       await checking;
       child = undefined;
 
-      if (stopped) return exit;
+      if (state.stopped) return exit;
       pending = await readUpdateRecord(options.binaryPath);
 
       const handoverExit =
@@ -385,42 +466,14 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
         pending?.state === "restarting" &&
         (unconfirmed(pending) || rolledBack || (exit !== UPDATE_RESTART_EXIT_CODE && !handoverExit))
       ) {
-        await rollbackBinary(
-          options.binaryPath,
-          rolledBack
-            ? "New version did not become healthy/connect before the startup deadline"
-            : `New version exited before becoming healthy (exit ${exit})`,
-        );
-        options.log?.("update rolled back: new version did not become healthy");
+        await rollBackUnhealthy(options, rolledBack, exit);
         continue;
       }
 
       if (exit === UPDATE_RESTART_EXIT_CODE) continue;
 
       if (handoverExit) {
-        // A concurrent next update must still run as an unconfirmed candidate under this watchdog.
-        // Also refuse to exec a path replaced since this child was launched (including manual replacement).
-        const installed = await lstat(options.binaryPath);
-
-        if (stopped) return exit;
-
-        if (
-          (!pending ||
-            (pending.state === "succeeded" && pending.version === confirmedVersion) ||
-            (pending.state === "failed" && pending.previousVersion === confirmedVersion)) &&
-          installed.dev === executable.dev &&
-          installed.ino === executable.ino
-        ) {
-          try {
-            options.log?.(`supervisor handover: ${CANOPY_VERSION} -> ${confirmedVersion} (pid ${process.pid})`);
-            process.execve!(options.binaryPath, [options.binaryPath, ...options.args], supervisorEnv);
-          } catch (error) {
-            handoverUnavailable = true;
-            options.log?.(
-              `supervisor handover unavailable: ${error instanceof Error ? error.message : String(error)}; continuing supervision`,
-            );
-          }
-        }
+        if (await handOver(options, state, supervisorEnv, { pending, confirmedVersion, executable })) return exit;
 
         continue;
       }
@@ -428,44 +481,6 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
       return exit;
     }
   } finally {
-    process.off(signals[0], onInt);
-    process.off(signals[1], onTerm);
-  }
-}
-
-export interface IdleUpdateOptions {
-  idle(): boolean | Promise<boolean>;
-  /** Synchronous admission barrier: block new turns before inspecting active work. */
-  drain(value: boolean): void;
-  waiting(): Promise<void>;
-  apply(): Promise<void>;
-  force?: boolean;
-  maxWaitMs?: number;
-  pollMs?: number;
-  signal?: AbortSignal;
-}
-
-/** Reaching the max delay fails safely; only an explicit force may interrupt active turns. */
-export async function whenIdle(options: IdleUpdateOptions): Promise<void> {
-  options.drain(true);
-  const deadline = Date.now() + (options.maxWaitMs ?? 30 * 60_000);
-
-  try {
-    if (!options.force && !(await options.idle())) await options.waiting();
-
-    while (!options.force && !(await options.idle())) {
-      options.signal?.throwIfAborted();
-
-      if (Date.now() >= deadline)
-        throw new Error(
-          "Update deferred: active work did not finish before the idle deadline. Retry or explicitly force the update.",
-        );
-      await Bun.sleep(options.pollMs ?? 500);
-    }
-
-    options.signal?.throwIfAborted();
-    await options.apply();
-  } finally {
-    options.drain(false);
+    stopForwarding();
   }
 }
