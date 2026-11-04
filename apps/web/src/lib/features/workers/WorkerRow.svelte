@@ -40,6 +40,15 @@
         <div class="min-w-0 flex-1 text-base/6 sm:text-sm/6">
           <p class="truncate font-medium text-zinc-950 dark:text-white">{worker.name}</p>
           <p class="text-pretty text-zinc-500 dark:text-zinc-400">{statusLine}</p>
+          {#if worker.online && worker.networkRouteStatus && worker.networkRouteStatus.route !== "local"}
+            <p class="text-pretty text-zinc-500 dark:text-zinc-400">
+              {worker.networkRouteStatus.route === "pinned"
+                ? "Connected over secure route"
+                : "Connected over the server port"}{worker.networkRouteStatus.detail
+                ? ` · secure route unavailable: ${worker.networkRouteStatus.detail}`
+                : ""}
+            </p>
+          {/if}
         </div>
         {#if updates > 0}<div class="shrink-0">
             <Badge tone="amber">{updates === 1 ? "Update" : `${updates} updates`}</Badge>

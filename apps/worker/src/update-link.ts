@@ -35,7 +35,8 @@ export interface WorkerUpdatesOptions {
 
 /** Independent transport/reconnect loop: it never awaits WorkerLink or provider configuration. */
 export class WorkerUpdates {
-  readonly #client;
+  #client;
+  #route = new AbortController();
   readonly #headers;
   readonly #version: string;
   readonly #kind: InstallKind;
@@ -56,10 +57,25 @@ export class WorkerUpdates {
       }),
     );
   }
+  /** Interrupt only the old Watch. Release negotiation remains independent of WorkerLink. */
+  setEndpoint(endpoint: { baseUrl: string; ca?: string | Buffer; fingerprint?: string }) {
+    this.#client = createClient(
+      update.UpdateService,
+      createGrpcClientTransport({
+        ...endpoint,
+        pingIntervalMs: 15_000,
+        connectTimeoutMs: 5000,
+      }),
+    );
+    this.#route.abort();
+    this.#route = new AbortController();
+  }
   async run(): Promise<void> {
     let backoffMs = 1_000;
 
     while (!this.options.signal.aborted) {
+      const route = this.#route;
+
       try {
         // Report persisted success/rollback before Watch can redeliver or auto-enqueue another command.
         await this.#reportResult();
@@ -74,7 +90,7 @@ export class WorkerUpdates {
             arch: process.arch,
             installKind: this.#kind,
           },
-          { headers: this.#headers, signal: this.options.signal },
+          { headers: this.#headers, signal: AbortSignal.any([this.options.signal, route.signal]) },
         )) {
           backoffMs = 1_000;
 
@@ -95,6 +111,8 @@ export class WorkerUpdates {
       }
 
       if (this.options.signal.aborted) return;
+
+      if (route.signal.aborted) continue;
       await new Promise<void>((resolve) => {
         const done = () => {
           clearTimeout(timer);

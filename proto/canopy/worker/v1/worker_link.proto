@@ -14,6 +14,8 @@ service WorkerEnrollmentService {
 // Worker otwiera jeden długożyjący strumień i utrzymuje go.
 // Komendy z gateway płyną w dół tym samym strumieniem.
 service WorkerLinkService {
+  // Authenticated reachability check; never replaces the active Connect stream.
+  rpc ProbeNetworkRoute(ProbeNetworkRouteRequest) returns (ProbeNetworkRouteResponse);
   rpc Connect(stream WorkerMessage) returns (stream GatewayMessage);
 }
 
@@ -61,6 +63,7 @@ message WorkerMessage {
     // CLI dostawców (sekcja na końcu pliku): wykrycie i postęp instalacji.
     CliToolsReport cli_tools = 800;
     CliInstallProgress cli_install_progress = 801;
+    NetworkRouteStatus network_route_status = 802;
   }
 }
 
@@ -80,8 +83,23 @@ message GatewayMessage {
     BlobChunk blob_chunk = 17;
     // Poufne: wyłącznie transport TLS, nigdy journal/outbox/logi.
     ThreadSecretDelivery thread_secret_delivery = 500;
+    // Only sent to workers advertising "network_route_migration".
+    NetworkRoutes network_routes = 802;
   }
 }
+
+message NetworkRoutes {
+  repeated string origins = 1;
+  string fingerprint = 2; // full SHA-256, authenticated by the existing WorkerLink
+}
+
+message NetworkRouteStatus {
+  string route = 1; // server | pinned | local
+  string detail = 2; // safe diagnostic, no credentials
+}
+
+message ProbeNetworkRouteRequest { string worker_id = 1; }
+message ProbeNetworkRouteResponse {}
 
 message ThreadSecretDelivery {
   string request_id = 1;
@@ -134,6 +152,7 @@ message Hello {
   // Stała baza nowych rozmów No project: <data_dir>/scratch.
   string scratch_root = 13;
   string home_directory = 14;
+  NetworkRouteStatus network_route_status = 15;
 }
 
 message RunningTurn {

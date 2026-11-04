@@ -34,7 +34,8 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
 1. W **Settings → Workers → Add worker** podaj nazwę. Kreator może jednym kliknięciem
    włączyć Network access i wybiera jego pierwszy adres. W Settings → Workers można zapisać
    własny origin (np. nazwę z Network access); pusty przywraca wybór automatyczny.
-   Zmiana nie przeadresowuje istniejących plików `worker.json`.
+   Adres kreatora dotyczy nowych instalacji. Istniejące workery zachowują działający endpoint;
+   po włączeniu Network access przechodzą automatycznie na osiągalną trasę z pinem.
 2. Wybierz **Install script**, **Docker**, **Manual** albo **Over SSH**.
    Domyślny skrypt pobiera zweryfikowaną binarkę dokładnej wersji gatewaya, rejestruje
    worker i uruchamia usługę użytkownika. Nie wymaga Bun, Git ani źródeł Canopy.
@@ -57,6 +58,14 @@ Plik 0600 zapisuje `gateway_certificate` i `gateway_fingerprint`; WorkerLink ora
 UpdateService sprawdzają certyfikat i dokładny pin. Nie trzeba instalować systemowego CA.
 Listener procesu BFF/lokalnego workera nadal obsługuje dotychczasowe połączenia HTTP(S),
 a istniejące pliki z `ca_file` zachowują działanie.
+
+Aktualizacja nie wymaga ponownego enrollmentu. Capability `network_route_migration` pozwala gatewayowi
+przesłać zaufany pin i adresy dotychczasowym łączem. Worker weryfikuje nową trasę bez rozłączania starej,
+zapisuje atomowo plik z kopią `.bak` i zachowuje pierwotny endpoint w `gateway_fallback`.
+Nieudana weryfikacja lub zapis nie przerywa pracy; przyczyna jest widoczna w Settings → Workers.
+Wyłączony albo nieosiągalny Network access pozostawia WorkerLink i self-update na porcie serwera.
+Zapisana konfiguracja przetrwa restart, a utrata nowej trasy przywróci połączenie z pierwotnym serwerem.
+Desktop remote nie nadpisuje zmigrowanego adresu podczas startu; lokalny worker desktopu pomija migrację.
 
 ### Skrypt instalacyjny
 

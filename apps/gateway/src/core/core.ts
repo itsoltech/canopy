@@ -199,7 +199,14 @@ export class GatewayCore {
         return { heartbeatIntervalSeconds: 15, persisted };
       },
       config: async (workerId) => (await coreRun(this, (s) => s.workerConfig(workerId))) ?? undefined,
-      onConnected: (connection) => void coreServe(this, connection),
+      onConnected: (connection) =>
+        coreServe(this, connection).catch((cause: unknown) => {
+          coreLog(
+            this,
+            `worker ${connection.workerId} session failed: ${cause instanceof Error ? cause.message : "initialization failed"}`,
+          );
+          connection.close();
+        }),
     });
     this.updates = createCoreUpdates(this, options);
     this.workers = new WorkerAdministration({

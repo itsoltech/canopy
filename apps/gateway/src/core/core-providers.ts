@@ -46,7 +46,11 @@ export async function coreWorkers(hostContext: GatewayCore): Promise<ui.Worker[]
     coreInstances(hostContext, (s) => s.workerInstances()),
   ]);
 
-  for (const worker of workers) worker.providerInstances = instances.get(worker.id) ?? [];
+  for (const worker of workers) {
+    worker.providerInstances = instances.get(worker.id) ?? [];
+    worker.networkRouteStatus = hostContext.link.connections.get(worker.id)?.networkRouteStatus;
+  }
+
   await hostContext.cli.decorate(workers);
 
   return workers;

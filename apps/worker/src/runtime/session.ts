@@ -3,6 +3,7 @@ import { applyAck } from "../gateway-link/index.ts";
 import type { WorkerHost } from "./host.ts";
 import type { ManagedRuntime } from "effect";
 import type { Journal } from "../journal/index.ts";
+import type { NetworkRoutes } from "@canopy/contracts";
 
 export interface SessionEnd {
   /** Set when the gateway asked to reconnect later (Drain). */
@@ -15,6 +16,7 @@ export async function serveLink(
   host: WorkerHost,
   runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>,
   log: (message: string) => void = () => {},
+  networkRoutes?: (routes: NetworkRoutes) => Promise<void>,
 ): Promise<SessionEnd> {
   host.attach(link);
   let drainDelayMs: number | undefined;
@@ -22,6 +24,10 @@ export async function serveLink(
   try {
     for await (const message of link.messages) {
       switch (message.payload.case) {
+        case "networkRoutes":
+          // Probe concurrently: commands, heartbeats and journal acks stay on the working link.
+          void networkRoutes?.(message.payload.value);
+          break;
         case "threadSecretDelivery":
           link.send({ case: "threadSecretReceipt", value: host.secrets.apply(message.payload.value) });
           break;

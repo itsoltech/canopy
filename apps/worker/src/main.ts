@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -20,6 +20,7 @@ import {
   UPDATE_RESTART_EXIT_CODE,
 } from "@canopy/updater";
 import { WorkerUpdates } from "./update-link.ts";
+import { endpointOptions, WorkerNetworkRoute } from "./network-route.ts";
 
 const cliArgs = Bun.argv.slice(2);
 
@@ -135,7 +136,6 @@ if (Result.isFailure(loaded)) {
 
 const local = loaded.success;
 const dataDir = resolve(local.data_dir ?? defaultDataDir(Bun.env, process.platform));
-const ca = local.gateway_certificate ?? (local.ca_file ? readFileSync(local.ca_file) : undefined);
 
 mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 
@@ -167,11 +167,9 @@ let currentLink: GatewayLink | undefined;
 let gracefulStop: Promise<void> | undefined;
 
 const updates = new WorkerUpdates({
-  baseUrl: local.gateway_url,
+  ...endpointOptions(local),
   credential: local.credential,
   workerId: local.worker_id,
-  ...(ca && { ca }),
-  ...(local.gateway_fingerprint && { fingerprint: local.gateway_fingerprint }),
   signal: stopping.signal,
   idle: () => host.updateIdle(),
   drain: (value) => {
@@ -195,6 +193,14 @@ const updates = new WorkerUpdates({
     await runtime.dispose();
     process.exit(exitCode);
   },
+});
+
+const networkRoute = new WorkerNetworkRoute({
+  local,
+  configPath,
+  signal: stopping.signal,
+  localWorker: Bun.env["CANOPY_LOCAL_WORKER"] === "1",
+  changed: (endpoint) => updates.setEndpoint(endpointOptions(endpoint)),
 });
 
 if (installKind() === "binary")
@@ -257,17 +263,17 @@ let backoffMs = 1_000;
 while (!stopping.signal.aborted) {
   desktopStatus("connecting");
   let drainDelayMs: number | undefined;
+  const endpoint = networkRoute.endpoint;
 
   try {
     const link = await openGatewayLink({
-      baseUrl: local.gateway_url,
+      ...endpointOptions(endpoint),
       credential: local.credential,
       pingIntervalMs: (local.ping_interval_seconds ?? 30) * 1_000,
       signal: shutdown.signal,
-      ...(ca && { ca }),
-      ...(local.gateway_fingerprint && { fingerprint: local.gateway_fingerprint }),
       hello: {
         workerId: local.worker_id,
+        networkRouteStatus: networkRoute.status(),
         host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: WORKER_VERSION },
         state: host.updateDraining ? WorkerState.DRAINING : WorkerState.ACTIVE,
         // running_turns: the list below is complete, the gateway ends its other running turns of this worker.
@@ -282,6 +288,7 @@ while (!stopping.signal.aborted) {
           "generate_text",
           "thread_secrets",
           "cli_install",
+          ...(Bun.env["CANOPY_LOCAL_WORKER"] === "1" ? [] : ["network_route_migration"]),
         ],
         attachmentsRoot: host.attachmentsRoot,
         scratchRoot: join(dataDir, "scratch"),
@@ -298,7 +305,9 @@ while (!stopping.signal.aborted) {
     desktopStatus("online");
     backoffMs = 1_000;
     const resent = await runtime.runPromise(resendPending(link, (event) => host.sendPreviews(link, event)));
-    console.info(`connected to ${local.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`);
+    console.info(
+      `connected to ${networkRoute.endpoint.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`,
+    );
 
     const heartbeat = setInterval(() => {
       desktopStatus("online");
@@ -312,7 +321,15 @@ while (!stopping.signal.aborted) {
     }, link.welcome.heartbeatIntervalSeconds * 1_000);
 
     try {
-      ({ drainDelayMs } = await serveLink(link, host, runtime, (m) => console.info(m)));
+      ({ drainDelayMs } = await serveLink(
+        link,
+        host,
+        runtime,
+        (m) => console.info(m),
+        (routes) => networkRoute.offer(routes, link),
+      ));
+
+      if (endpoint !== networkRoute.endpoint) drainDelayMs = 0;
     } finally {
       clearInterval(heartbeat);
       currentLink = undefined;
@@ -320,6 +337,11 @@ while (!stopping.signal.aborted) {
     }
   } catch (error) {
     if (shutdown.signal.aborted) break;
+
+    // A reply queued on the old link can race its deliberate close after a successful migration.
+    if (endpoint !== networkRoute.endpoint) continue;
+
+    if (networkRoute.failed()) continue;
     console.warn(`gateway link failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 

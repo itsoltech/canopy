@@ -292,6 +292,7 @@ message Worker {
   string arch = 801;
   // Worker innego komputera (id kwalifikowane), pusty = ten komputer.
   string node_id = 802;
+  canopy.worker.v1.NetworkRouteStatus network_route_status = 803;
 }
 
 message Project {

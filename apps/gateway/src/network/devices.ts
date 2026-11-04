@@ -5,6 +5,8 @@ import { serviceTokenAuth, uiRoutes } from "../api/index.ts";
 import type { GatewayCore } from "../core/core.ts";
 import type { Handler } from "./listener.ts";
 import type { NetworkAccess } from "./network.ts";
+import { offerWorkerRoutes } from "./workers.ts";
+import { workerRoutes } from "../worker-link/routes.ts";
 
 /** Native RPCs only: reject browser origins and authenticate every service at its boundary. */
 export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, serviceToken: string) {
@@ -19,11 +21,7 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
   });
 
   const workers = connectNodeAdapter({
-    routes: (router) => {
-      core.link.routes(router);
-      core.workers.routes(router);
-      core.updates.service.routes(router);
-    },
+    routes: (router) => workerRoutes(core, router),
     readMaxBytes: 32 * 1024 * 1024,
   });
 
@@ -47,11 +45,12 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
 
   network.mount("device", handler);
 
-  return network.onChange(() =>
+  return network.onChange(() => {
+    for (const connection of core.link.connections.values()) offerWorkerRoutes(core, connection);
     core.hub.publishOverview(
       create(ui.OverviewUpdateSchema, {
         change: { case: "mobileRoutes", value: core.mobile.networkRoutes() },
       }),
-    ),
-  );
+    );
+  });
 }

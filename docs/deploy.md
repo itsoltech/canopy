@@ -88,13 +88,16 @@ Wszystkie zmienne opisuje [`deploy/.env.example`](../deploy/.env.example). `CANO
 szyfruje klucze providerów i tokeny konektorów w bazie — zachowaj kopię; jego utrata oznacza
 ponowne wpisanie sekretów. Gateway przy starcie wykonuje migracje (`CANOPY_MIGRATE=0` wyłącza).
 
-Domyślnie porty są wystawione tylko na `127.0.0.1`:
+Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`:
 
 - **web** (`WEB_PORT`, 3000): postaw przed nim reverse proxy z TLS. BFF sprawdza origin formularzy
   i bez nagłówka przyjmuje `https`, dlatego compose ustawia `PROTOCOL_HEADER=x-forwarded-proto`
   i `HOST_HEADER=x-forwarded-host`. Uploady: `BODY_SIZE_LIMIT` ≥ limitu pliku gatewaya.
   Przykład Caddy: `canopy.example.com { reverse_proxy 127.0.0.1:3000 }` (Caddy ustawia `X-Forwarded-*`).
-- **gateway** (`GATEWAY_PORT`, 7443): port procesu dla BFF i lokalnych workerów.
+- **gateway** (`GATEWAY_PORT`, 7443; wewnątrz procesu `CANOPY_PORT`): port dla BFF i istniejących
+  lokalnych oraz zdalnych workerów. Nadal obsługuje WorkerLink, Enrollment i zamrożony UpdateService.
+  Zachowaj dotychczasowe publikowanie i przekazywanie TCP (również przez tailnet); aktualizacja
+  gatewaya ani workera nie wymaga zmiany konfiguracji lub ponownego enrollmentu.
 - **Network access** (`CANOPY_NETWORK_PORT`, domyślnie 24443 w compose): surowy TCP dla telefonów,
   komputerów i zdalnych workerów. Włącz go w Settings → Network access i dodaj nazwę/IP hosta.
   Nie kończ TLS na proxy; klient przypina certyfikat gatewaya. Adresy workerów i limity uploadów
@@ -173,6 +176,13 @@ Następnie włącz dostęp w aplikacji i w „Reachable at” dodaj nazwę lub a
 bridge nie widzi adresów hosta; z `network_mode: host` wykrywa je sam). Firewall hosta musi przepuszczać
 TCP na tym porcie. Na serwerze bez kontenera `CANOPY_NETWORK_PORT` nie jest potrzebne: port wybrany
 w aplikacji zostaje zapisany w bazie i można go zmienić w Settings.
+
+Ten port jest dodatkiem do istniejącego portu gatewaya, nie jego zamiennikiem. Nowe workery
+automatycznie sprawdzają przypiętą trasę ogłoszoną uwierzytelnionym łączem, zapisują konfigurację
+z kopią i przechodzą na nią, gdy działa. Bez publikacji portu, przy zablokowanym firewallu lub
+wyłączonym Network access dalej pracują i aktualizują się na dotychczasowym porcie. Starsze binarki
+również pozostają w pełni obsługiwane. Nie trzeba zmieniać istniejącego Compose ani konfiguracji
+systemd. Po udanej migracji późniejsza utrata trasy przywraca pierwotne połączenie także po restarcie.
 
 ### Połączone komputery: wykrywanie w sieci lokalnej
 

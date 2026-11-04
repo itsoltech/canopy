@@ -109,13 +109,32 @@ Pole `note` pojawia się tylko, gdy coś wymaga działania:
 Workery: kreator wybiera adres Network access, a wszystkie polecenia instalacyjne zawierają pełny pin.
 Enrollment sprawdza certyfikat przed wysłaniem tokenu i zapisuje go do `worker.json`; WorkerLink
 i UpdateService zachowują walidację CA i porównują pełny SHA-256 zamiast nazwy hosta.
-Zmiana adresu w Settings → Workers dotyczy nowych instalacji; istniejące pliki wymagają aktualizacji
-adresu lub ponownego enrollmentu. Tryb lokalny desktopu utrzymuje BFF i lokalny worker na loopback;
+Zmiana adresu w Settings → Workers dotyczy nowych instalacji. Istniejące workery pozostają na
+dotychczasowym porcie procesu (`CANOPY_PORT`) i nie wymagają zmiany adresu ani ponownego enrollmentu.
+Po włączeniu Network access nowy worker ogłasza capability `network_route_migration`, a gateway
+przesyła adresy i pełny SHA-256 przez już uwierzytelniony WorkerLink. Worker sprawdza certyfikat
+przed wysłaniem credentiala, następnie wykonuje uwierzytelniony `ProbeNetworkRoute` bez zastępowania
+działającego strumienia. Dopiero po sukcesie zapisuje atomowo `worker.json` (0600), zachowuje oryginał
+w `worker.json.bak` (0600), a pierwotny endpoint jako `gateway_fallback`. WorkerLink i niezależny
+UpdateService przechodzą na zweryfikowany adres z pinem. Restart używa zapisanego adresu i certyfikatu.
+
+Nieosiągalne adresy, błędny pin lub błąd zapisu pozostawiają działające połączenie i plik bez zmian;
+Settings → Workers pokazuje „Connected over the server port · secure route unavailable: …”.
+Ponowienie następuje po zmianie tras lub po 60 s. Po utracie wcześniej zapisanej trasy worker
+wraca do pierwotnego endpointu także po restarcie; nie usuwa utrwalonego pinu.
+Wyłączony dostęp (domyślnie na desktopie) lub nieopublikowany port w Dockerze nie blokuje pracy
+ani aktualizacji. Starsze binarki nie dostają nowych ramek i dalej używają swojego adresu.
+Rozszerzenie jest addytywne: `WORKER_LINK_PROTOCOL` bez zmiany, `canopy.update.v1` bez zmian.
+
+Tryb lokalny desktopu utrzymuje BFF i lokalny worker na loopback i pomija migrację;
 dawny wybór interfejsu nie otwiera już dodatkowego listenera HTTP.
 
 ## Docker i serwer
 
-Opublikuj port dostępu sieciowego i ustaw go jako `CANOPY_NETWORK_PORT` (szczegóły:
+Dotychczasowy port procesu gatewaya (`CANOPY_PORT`, domyślnie 7443) nadal obsługuje WorkerLink,
+Enrollment oraz zamrożony UpdateService — zachowaj istniejące publikowanie/przekazywanie tego portu.
+Dotychczasowe wdrożenie jest poprawne również bez dostępu sieciowego. Opcjonalnie opublikuj
+dodatkowo port dostępu sieciowego i ustaw go jako `CANOPY_NETWORK_PORT` (szczegóły:
 [deploy.md](deploy.md#dostęp-sieciowy-telefony-i-połączone-komputery)). Port nie może przechodzić przez
 proxy kończące TLS — przekazuj TCP. W kontenerze bez sieci hosta dodaj w Settings → Network access
 nazwę albo adres serwera.

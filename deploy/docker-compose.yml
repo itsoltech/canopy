@@ -1,7 +1,8 @@
 # Canopy on one host (docs/deploy.md): PostgreSQL + gateway + web, optionally a worker (profile "worker").
 #   cp .env.example .env   # fill in the secrets
 #   docker compose up -d
-# Put the web port behind a TLS reverse proxy; the gateway port is for workers (gRPC over HTTP/2).
+# Put the web port behind a TLS reverse proxy; keep the existing gateway port for workers and self-update.
+# Network access is optional: workers migrate after verifying it, or keep their original server endpoint.
 name: canopy
 
 services:
@@ -33,7 +34,9 @@ services:
       CANOPY_DEV_USER_EMAIL: ${CANOPY_DEV_USER_EMAIL:-dev@localhost}
       CANOPY_NETWORK_PORT: ${CANOPY_NETWORK_PORT:-24443}
     ports:
+      # Bootstrap/compatibility: WorkerLink + Enrollment + frozen UpdateService remain here.
       - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-7443}:7443"
+      # Optional pinned route: enable Network access in Settings and add the host's reachable address.
       - "${NETWORK_BIND:-0.0.0.0}:${CANOPY_NETWORK_PORT:-24443}:${CANOPY_NETWORK_PORT:-24443}"
 
   web:

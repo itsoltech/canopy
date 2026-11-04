@@ -347,6 +347,7 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
     await local.nextConnection();
 
     await local.link.shutdown({ reason: "rolling update", reconnectAfterMs: 500, jitterMs: 1_000 });
+    await expectConnectError(connectWorker(local.server.url), Code.Unavailable);
     await local.server.close();
     expect(await Promise.all(links.map((l) => l.closed))).toEqual([{}, {}]);
 

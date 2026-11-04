@@ -339,7 +339,8 @@ export class DesktopRuntime {
       if (!isWorkerConfiguration(local)) throw new Error("Invalid worker configuration");
 
       if (isString(local["credential"])) this.logs.protect(local["credential"]);
-      this.writeJson(configPath, { ...local, gateway_url: gatewayUrl });
+
+      if (config.mode === "local") this.writeJson(configPath, { ...local, gateway_url: gatewayUrl });
       this.workerStatusFile = join(workerDirectory, "status.json");
       this.writeJson(this.workerStatusFile, { status: "offline", time: Date.now() });
       const launch = this.command(this.paths.worker);
@@ -348,7 +349,11 @@ export class DesktopRuntime {
         ...launch,
         args: [...launch.args, "--config", configPath],
         cwd: dirname(this.paths.worker),
-        env: { ...this.env, CANOPY_WORKER_STATUS_FILE: this.workerStatusFile },
+        env: {
+          ...this.env,
+          CANOPY_WORKER_STATUS_FILE: this.workerStatusFile,
+          CANOPY_LOCAL_WORKER: config.mode === "local" ? "1" : "0",
+        },
         restart: true,
       });
       this.publish({

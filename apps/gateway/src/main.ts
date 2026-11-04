@@ -21,6 +21,7 @@ import { ComputerStore } from "./computers/store.ts";
 import { NetworkAccess } from "./network/network.ts";
 import { mountMobileNetwork } from "./network/devices.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
+import { workerRoutes } from "./worker-link/routes.ts";
 
 const env = Bun.env;
 
@@ -135,9 +136,7 @@ const keyFile = env["CANOPY_TLS_KEY"];
 
 const server = await startGrpcServer({
   routes: (router) => {
-    core.link.routes(router);
-    core.workers.routes(router);
-    core.updates.service.routes(router);
+    workerRoutes(core, router);
     uiRoutes(core)(router);
   },
   interceptors: [serviceTokenAuth(serviceToken, core.mobile)],

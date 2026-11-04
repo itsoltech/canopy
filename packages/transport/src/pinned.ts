@@ -6,7 +6,7 @@ export function certificatePin(raw: Buffer) {
 }
 
 /** Out-of-band fingerprint only. No HTTP, enrollment token or credential is sent by this handshake. */
-export async function pinnedCertificate(origin: string, fingerprint: string): Promise<string> {
+export async function pinnedCertificate(origin: string, fingerprint: string, signal?: AbortSignal): Promise<string> {
   const url = new URL(origin);
 
   if (url.protocol !== "https:" || !/^[a-f0-9]{64}$/i.test(fingerprint))
@@ -18,6 +18,7 @@ export async function pinnedCertificate(origin: string, fingerprint: string): Pr
       port: Number(url.port || 443),
       // Only a handshake: the certificate is compared before it can become trusted transport material.
       rejectUnauthorized: false,
+      ...(signal && { signal }),
     });
 
     socket.setTimeout(5000, () => socket.destroy(new Error("Secure gateway handshake timed out")));
