@@ -3,7 +3,7 @@ import { autoUpdater } from "electron-updater";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { desktopIdentity, type DesktopChannel } from "./identity.ts";
-import { isDesktopRelease, newestRelease, type DesktopRelease } from "./update-releases.ts";
+import { DesktopUpdateFeed } from "./update-feed.ts";
 import { UpdateController } from "./update-controller.ts";
 import { UpdateSettings } from "./update-settings.ts";
 
@@ -11,6 +11,7 @@ export class DesktopUpdates {
   private controller?: UpdateController;
   private timer?: ReturnType<typeof setInterval>;
   private readonly identity = desktopIdentity();
+  private readonly feed = new DesktopUpdateFeed();
 
   constructor(
     private readonly changed: () => void,
@@ -150,38 +151,10 @@ export class DesktopUpdates {
   }
 
   private async prepare(channel: DesktopChannel, allowDowngrade: boolean) {
-    const suffix =
-      process.platform === "darwin"
-        ? "-mac"
-        : process.platform === "linux"
-          ? `-linux${process.arch === "arm64" ? "-arm64" : ""}`
-          : "";
+    const result = await this.feed.resolve(channel, allowDowngrade);
+    const { release, feed } = result;
 
-    const feed = channel === "stable" ? "latest" : channel;
-    const feedFile = `${feed}${suffix}.yml`;
-    const releases: DesktopRelease[] = [];
-
-    for (let page = 1; page <= 10; page++) {
-      const response = await fetch(`https://api.github.com/repos/itsoltech/canopy/releases?per_page=100&page=${page}`, {
-        headers: {
-          Accept: "application/vnd.github+json",
-          "User-Agent": `${this.identity.executableName}/${app.getVersion()}`,
-        },
-        signal: AbortSignal.timeout(20_000),
-      });
-
-      if (!response.ok) throw new Error("Release feed unavailable");
-      const batch: unknown = await response.json();
-
-      if (!Array.isArray(batch) || !batch.every(isDesktopRelease)) throw new Error("Invalid release feed");
-      releases.push(...batch);
-
-      if (batch.length < 100) break;
-    }
-
-    const release = newestRelease(releases, app.getVersion(), channel, feedFile, allowDowngrade);
-
-    if (!release) return false;
+    if (!release) return { available: false, releases: result.releases, publishing: result.publishing };
     autoUpdater.setFeedURL({
       provider: "generic",
       url: `https://github.com/itsoltech/canopy/releases/download/${encodeURIComponent(release.tag_name)}/`,
@@ -189,6 +162,6 @@ export class DesktopUpdates {
       useMultipleRangeRequest: false,
     });
 
-    return true;
+    return { available: true, releases: result.releases, publishing: result.publishing };
   }
 }

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { join } from "node:path";
 import { load } from "js-yaml";
 import { tempDir } from "@canopy/testing";
-import { newestRelease, type DesktopRelease } from "../src/update-releases.ts";
+import { newestRelease, releaseNotes, type DesktopRelease } from "../src/update-releases.ts";
 import { mergeDesktopUpdates } from "../scripts/merge-update-metadata.ts";
 import { AppUpdater, type DownloadUpdateOptions } from "electron-updater/out/AppUpdater.js";
 import { NodeHttpExecutor } from "builder-util/out/nodeHttpExecutor.js";
@@ -194,7 +194,11 @@ async function localFeeds() {
           channel: channelFeed(channel),
         });
 
-        return true;
+        return {
+          available: true,
+          releases: releaseNotes(releases, version, release.tag_name, channel),
+          publishing: undefined,
+        };
       },
       changed: () => phases.push(controller.status().phase),
       downloaded() {},
@@ -227,6 +231,7 @@ test.skipIf(process.platform !== "linux")(
       expect(settings.read("stable")).toBe("nightly");
       expect(phases).toContain("downloading");
       expect(controller.status().phase).toBe("downloaded");
+      expect(controller.status().releases?.map((r) => r.version)).toEqual(["0.6.0-nightly.1", "0.5.0-beta.1", "0.4.0"]);
       expect(requests).toEqual([
         "/v0.4.0/latest-linux.yml",
         "/v0.5.0-beta.1/beta-linux.yml",
@@ -237,6 +242,22 @@ test.skipIf(process.platform !== "linux")(
     }
   },
 );
+
+test("release notes include every intervening channel release, newest first, without unpublished or future notes", () => {
+  const releases = [
+    { ...release("v0.4.0-beta.3", "beta-mac.yml"), body: "third" },
+    { ...release("v0.4.0-beta.1", "beta-mac.yml"), body: "installed" },
+    { ...release("v0.4.0-beta.2", "beta-mac.yml"), assets: [], body: "second" },
+    { ...release("v0.4.0-beta.4", "beta-mac.yml"), body: "future" },
+    { ...release("v0.4.0-nightly.1", "nightly-mac.yml"), body: "nightly" },
+    { ...release("v0.4.0-beta.5", "beta-mac.yml"), draft: true },
+  ];
+
+  expect(releaseNotes(releases, "0.4.0-beta.1", "0.4.0-beta.3", "beta")).toEqual([
+    { version: "0.4.0-beta.3", markdown: "third" },
+    { version: "0.4.0-beta.2", markdown: "second" },
+  ]);
+});
 
 test.skipIf(process.platform !== "linux")(
   "downgrade needs confirmation and expires after one switch, including a failed download",

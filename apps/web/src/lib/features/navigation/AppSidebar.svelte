@@ -6,6 +6,7 @@
   import { needsYou, unseenResult } from "#lib/features/threads/activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ConnectionStatus from "./ConnectionStatus.svelte";
+  import UpdatesIndicator from "#lib/features/desktop/UpdatesIndicator.svelte";
   import SidebarHeader from "./SidebarHeader.svelte";
   import SectionSwitch from "./SectionSwitch.svelte";
   import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
@@ -114,6 +115,7 @@
         >workers online</span
       >
     </a>
+    <UpdatesIndicator />
     <ConnectionStatus
       connection={overview.connection}
       quietWhenLive={capabilities?.ownGateway ?? false}
