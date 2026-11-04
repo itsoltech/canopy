@@ -89,6 +89,9 @@ export function threadCreation(
           const id = movedId ?? Bun.randomUUIDv7();
           const parent = request.parentThreadId ? yield* self().thread(request.parentThreadId) : undefined;
 
+          if (parent && parent.owner_user_id !== ownerUserId)
+            return yield* Effect.fail(new Invalid("parent thread not found"));
+
           if (parent?.provider === "grok" && request.fork)
             return yield* Effect.fail(new Invalid("Grok ACP does not support session forks"));
 
@@ -122,7 +125,9 @@ export function threadCreation(
           const style = pathStyle(workspace.os, workspace.root_path);
 
           const inherited =
-            parent ??
+            (parent && (!request.workspaceMode || request.workspaceMode === ui.WorkspaceMode.INHERIT_PARENT)
+              ? parent
+              : undefined) ??
             (workspace.project_kind === "scratch" && forkSource ? yield* self().thread(forkSource) : undefined);
 
           if (workspace.project_kind === "scratch" && !inherited && request.cwd) {
@@ -135,16 +140,15 @@ export function threadCreation(
             request.workspaceMode,
           );
 
-          if (worktreeMode && !parent && workspace.project_kind === "scratch")
+          if (worktreeMode && workspace.project_kind === "scratch")
             return yield* Effect.fail(new Invalid("a no-project thread has no repository for a worktree"));
 
-          if (worktreeMode && !parent && !request.worktreeId)
+          if (worktreeMode && !request.worktreeId)
             return yield* Effect.fail(new Invalid("choose a worktree for the thread"));
 
-          const worktree =
-            worktreeMode && !parent
-              ? yield* self().ownWorktree(ownerUserId, request.worktreeId, workspace.project_id, workspace.id)
-              : undefined;
+          const worktree = worktreeMode
+            ? yield* self().ownWorktree(ownerUserId, request.worktreeId, workspace.project_id, workspace.id)
+            : undefined;
 
           const requested = !worktree && !inherited && request.cwd ? normalizePath(request.cwd, style) : undefined;
 
@@ -179,7 +183,7 @@ export function threadCreation(
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
                           ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${cwd},
                           ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"},
-                          ${worktree?.id ?? parent?.worktree_id ?? null}::uuid)`;
+                          ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid)`;
 
           if (request.initialMessage.trim()) {
             yield* sql`

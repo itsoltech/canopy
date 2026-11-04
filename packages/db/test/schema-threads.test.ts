@@ -82,13 +82,13 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17: threads, turns and t
   });
 
   describe("threads: side threads", () => {
-    test("share worker and directory with the parent", async () => {
+    test("share the parent workspace and reject arbitrary directory placement", async () => {
       const w = await world();
       const main = await mainThread(w);
       await sideThread(w, { parent: main, root: main });
 
       const otherCwd = insertSide(w, { parent: main, root: main, cwd: "/repo/sub" });
-      expect(await failure(otherCwd.sql, otherCwd.params)).toContain("same worker and directory");
+      expect(await failure(otherCwd.sql, otherCwd.params)).toContain("inherit placement or use the workspace checkout");
       const otherWorker = insertSide(w, { parent: main, root: main, worker: w.otherWorker });
       // Fails on the workspace FK (workspace is on worker 1) or on the trigger; either way it is rejected.
       expect(await failure(otherWorker.sql, otherWorker.params)).toMatch(/foreign key|same worker/);

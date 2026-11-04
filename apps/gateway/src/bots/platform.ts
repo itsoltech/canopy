@@ -12,6 +12,8 @@ import type { BotTurn, StoredCall, ToolSpec } from "./types.ts";
 import { areaTool } from "./tools/index.ts";
 import { context, validate, type ToolResult } from "./tools/shared.ts";
 import { wakeupView } from "./tools/schedules.ts";
+import { automationMode, inheritedWorkspace } from "../worktrees/automation.ts";
+import { coreState } from "../core/core-context.ts";
 
 /** Legacy tools: an unknown provider name keeps meaning Codex, as before. */
 const legacyProvider = (name: string) =>
@@ -296,18 +298,25 @@ async function startThread(core: GatewayCore, turn: BotTurn, call: StoredCall, {
   return await core.startBotThread(
     turn,
     call,
-    create(ui.CreateThreadRequestSchema, {
-      projectId: string("project_id"),
-      workspaceId: string("workspace_id"),
-      provider,
-      providerProfileId: string("provider_instance"),
-      model: model.slice(0, 200),
-      effort: optional("effort"),
-      permissionMode: permission,
-      initialMessage: string("prompt"),
-      title: optional("title"),
-      clientRequestId: call.id,
-    }),
+    await inheritedWorkspace(
+      core,
+      create(ui.CreateThreadRequestSchema, {
+        projectId: string("project_id"),
+        workspaceId: string("workspace_id"),
+        provider,
+        providerProfileId: string("provider_instance"),
+        model: model.slice(0, 200),
+        effort: optional("effort"),
+        permissionMode: permission,
+        initialMessage: string("prompt"),
+        title: optional("title"),
+        clientRequestId: call.id,
+        workspaceMode: automationMode(optional("workspace_mode")),
+        baseRef: optional("base_ref"),
+      }),
+      core[coreState].options.userId,
+      optional("parent_thread_id"),
+    ),
   );
 }
 

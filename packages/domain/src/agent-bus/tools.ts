@@ -51,6 +51,13 @@ export const SPAWN_PERMISSION_MODES = ["read_only", "ask", "accept_edits", "full
 export type SpawnPermissionMode = (typeof SPAWN_PERMISSION_MODES)[number];
 
 export const SpawnThread = Schema.Struct({
+  workspace_mode: Schema.optionalKey(
+    Schema.Literals(["checkout", "new_worktree", "inherit_parent", "default"]).annotate({
+      description:
+        "Defaults to inherit_parent (same directory/worktree). checkout uses the project checkout; new_worktree creates an isolated branch; default resolves the project's scoped setting.",
+    }),
+  ),
+  base_ref: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(250))),
   workspace_id: Schema.optionalKey(
     ThreadId.annotate({
       description:
@@ -264,7 +271,7 @@ export const AGENT_BUS_TOOLS = {
   spawn_thread: define({
     name: "spawn_thread",
     description:
-      "Start a subagent: delegate a task to a new side thread in the same working directory. By default a copy of you; it can run on " +
+      "Start a subagent: delegate a task to a new side thread, inheriting your working directory/worktree unless workspace_mode chooses another placement. By default a copy of you; it can run on " +
       "another provider, model and effort (any Claude, Codex or Grok instance from list_agents), with its own instructions " +
       "and permissions. Use this whenever you want to delegate, parallelize or get a second opinion; it is the subagent tool here " +
       "(there is no spawn_agent or Task tool). The user sees the thread and can steer it. Returns at once with thread_id and turn_id; " +

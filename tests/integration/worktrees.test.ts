@@ -616,7 +616,11 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
       "Worktrees on linked computers are not supported yet",
     );
 
-    for (const mode of [ui.WorkspaceMode.NEW_WORKTREE, ui.WorkspaceMode.EXISTING_WORKTREE]) {
+    for (const mode of [
+      ui.WorkspaceMode.NEW_WORKTREE,
+      ui.WorkspaceMode.EXISTING_WORKTREE,
+      ui.WorkspaceMode.INHERIT_PARENT,
+    ]) {
       expect(
         await failure(
           gw.api.createThread({

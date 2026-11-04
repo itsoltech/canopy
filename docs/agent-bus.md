@@ -83,7 +83,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | Narzędzie | Poziom 0 | Poziom 1 | Co robi |
 |---|:-:|:-:|---|
 | `list_agents` | ✓ | ✓ | na czym można uruchomić subagenta: instancje dostawców workera (`claude/native`, `codex/cliproxyapi`, ...) z modelami, wysiłkami i domyślnymi; plus własne ustawienia wywołującego |
-| `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `provider?`, `model?`, `effort?`, `permission_mode?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`); zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka (`provider`, `model`, `effort`, `permission_mode`) |
+| `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `provider?`, `model?`, `effort?`, `permission_mode?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`), `workspace_mode?` i `base_ref?`; zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka (`provider`, `model`, `effort`, `permission_mode`) |
 | `send_message` | ✓ | ✓ | wiadomość do wątku z drzewa albo dowolnego wątku właściciela: `delivery` `queue`/`steer`, `notify?` |
 | `wait_threads` | ✓ | ✓ | czekanie na wątki (`any`/`all`, ≤ 300 s, ponawialne); zwraca status, wynik ostatniej tury i ostatnią wiadomość każdego |
 | `get_thread` / `read_thread` / `list_threads` | ✓ | ✓ | status (z dostawcą, modelem, wysiłkiem, uprawnieniami, `last_turn`, projektem i workerem), transkrypt, lista (`children`, `tree`, `all` z `query` i `limit`) |
@@ -115,6 +115,13 @@ Narzędzia do sprawdzania własnej pracy w tle ([execution.md](execution.md#4-za
 ### Subagenci platformy zamiast natywnych
 
 Każdy subagent to prawdziwy wątek platformy: widoczny w drzewie i na osi czasu rodzica, sterowalny przez użytkownika, z pełnym transkryptem. Opisy narzędzi mówią modelowi, że `spawn_thread` jest narzędziem do delegowania (nie ma `spawn_agent` ani `Task`).
+
+`spawn_thread` domyślnie dziedziczy katalog i worktree rodzica, również gdy zakres projektu × workera
+domyślnie tworzy nowe worktree. `workspace_mode` pozwala wybrać `inherit_parent`, `checkout`,
+`new_worktree` albo `default` (efektywne ustawienie zakresu); `base_ref` jest bazą nowej gałęzi.
+Dziecko pozostaje w tym samym projekcie i workspace na tym samym workerze. Sprzątanie obejmuje
+wszystkie wątki współdzielące rekord worktree, także te tworzone przez agentów. Przez połączone
+komputery wybór worktree lub dziedziczenia jest jawnie odrzucany do etapu 5; checkout działa jak dotąd.
 
 | Natywnie | Szyna |
 |---|---|
@@ -257,7 +264,16 @@ politykę wyboru workspace, instancję dostawcy, model, opcjonalny effort, upraw
 Każde wykonane uruchomienie tworzy osobny wątek główny (`origin = schedule`) oraz pierwszą turę
 `trigger = schedule`, `hops = 0`. Pusty tytuł uruchamia istniejące generowanie z pierwszej wiadomości
 ([thread-titles.md](thread-titles.md)); jawny tytuł pozostaje tytułem użytkownika.
-Narzędzia agent-bus **pozostają wyłącznie dla istniejących wątków**. Tworzenie harmonogramów nowych wątków jest na razie dostępne tylko użytkownikowi przez UI API.
+Narzędzia harmonogramu agent-bus **pozostają wyłącznie dla istniejących wątków**. Nowe wątki można
+planować przez UI API albo narzędzia bota `create_schedule` / `update_schedule`.
+
+`NewThreadSchedule.workspace_mode`: `UNSPECIFIED` rozstrzyga ustawienia worktree przy każdym
+wykonaniu; `CHECKOUT` i `NEW_WORKTREE` wybierają miejsce jawnie (`base_ref` opcjonalny).
+`INHERIT_PARENT` wymaga `parent_thread_id` tego samego właściciela, projektu i workspace'u oraz
+placement `specific`; kopiuje miejsce istniejącego wątku, bez historii. Tworzenie nowego worktree
+wymaga połączonego workera: harmonogram offline zachowuje wystąpienie i ponawia, a checkout lub
+dziedziczenie istniejącego worktree zachowuje dotychczasowy outbox. Nowe rekordy podlegają tym samym
+politykom deleted/settled i ochronie zmian. Szczegóły: [worktrees.md](worktrees.md).
 
 | Polityka | Wybór workspace |
 |---|---|

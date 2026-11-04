@@ -180,10 +180,13 @@ const legacyTools: ToolSpec[] = [
   ]),
   tool(
     "start_thread",
-    "Start a coding agent on a project's worker, including the No project workspace from list_projects for a fresh scratch directory. model: an id from list_models for that worker and instance; omit it to use the instance's default model. Returns immediately; completion arrives as a follow-up. permission: ask, read_only, accept_edits or full_auto. Elevated permissions require user approval.",
+    "Start a coding agent on a project's worker, including No project for a fresh scratch directory. workspace_mode defaults to the scoped setting; checkout uses the current checkout; new_worktree creates an isolated branch (optional base_ref); inherit_parent uses parent_thread_id's placement in this workspace. Linked computers support checkout only. model: an id from list_models for that worker and instance; omit it for the default. Returns immediately; completion arrives as a follow-up. Elevated permissions require user approval.",
     {
       project_id: str,
       workspace_id: str,
+      workspace_mode: { type: "string", enum: ["default", "checkout", "new_worktree", "inherit_parent"] },
+      base_ref: str,
+      parent_thread_id: str,
       provider: { type: "string", enum: ["claude", "codex", "grok"] },
       provider_instance: str,
       model: str,

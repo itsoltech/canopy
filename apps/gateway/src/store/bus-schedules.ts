@@ -59,6 +59,11 @@ export interface BusScheduleStore {
     nextRunAt: Date | undefined;
     eligibleWorkerIds: readonly string[];
     now: Date;
+    prepareWorkspace?: (
+      request: ui.CreateThreadRequest,
+      userId: string,
+      sourceId: string,
+    ) => Promise<ui.CreateThreadRequest>;
   }): Effect.Effect<FiredSchedule, SqlError.SqlError | NotFound | Invalid, GatewayStore>;
 }
 
@@ -68,6 +73,7 @@ const scheduledThread = (
   schedule: ScheduleRow,
   spec: ui.NewThreadSchedule,
   placement: { id: string; worker_id: string },
+  prepareWorkspace: Parameters<BusScheduleStore["fireSchedule"]>[0]["prepareWorkspace"],
 ) =>
   Effect.gen(function* () {
     const gateway = yield* GatewayStore;
@@ -76,19 +82,28 @@ const scheduledThread = (
       owner_user_id: string;
     }>`SELECT owner_user_id FROM projects WHERE id = ${schedule.project_id}::uuid`)[0]!;
 
-    let owner = yield* gateway.createThread(
-      project.owner_user_id,
-      create(ui.CreateThreadRequestSchema, {
-        projectId: schedule.project_id!,
-        workspaceId: placement.id,
-        provider: spec.provider,
-        providerProfileId: spec.providerProfileId,
-        model: spec.model,
-        effort: spec.effort,
-        permissionMode: spec.permissionMode,
-        title: spec.title,
-      }),
-    );
+    const request = create(ui.CreateThreadRequestSchema, {
+      projectId: schedule.project_id!,
+      workspaceId: placement.id,
+      provider: spec.provider,
+      providerProfileId: spec.providerProfileId,
+      model: spec.model,
+      effort: spec.effort,
+      permissionMode: spec.permissionMode,
+      title: spec.title,
+      workspaceMode: spec.workspaceMode,
+      baseRef: spec.baseRef,
+      initialMessage: schedule.prompt,
+    });
+
+    const prepared = prepareWorkspace
+      ? yield* Effect.tryPromise({
+          try: () => prepareWorkspace(request, project.owner_user_id, spec.parentThreadId),
+          catch: () => new Invalid("Could not prepare the scheduled workspace; it will retry when available"),
+        })
+      : request;
+
+    let owner = yield* gateway.createThread(project.owner_user_id, { ...prepared, initialMessage: "" });
 
     yield* sql`UPDATE threads SET origin = 'schedule', schedule_id = ${schedule.id}::uuid,
           schedule_name = ${schedule.name || schedule.prompt.slice(0, 60)}, schedule_run = ${schedule.runs + 1},
@@ -102,7 +117,7 @@ const scheduledThread = (
       ttlSeconds: 365 * 24 * 3600,
     });
 
-    return { thread: owner, command };
+    return { thread: owner, command, newWorktree: prepared.workspaceMode === ui.WorkspaceMode.NEW_WORKTREE };
   });
 
 export const fireSchedule = (
@@ -114,6 +129,7 @@ export const fireSchedule = (
     nextRunAt,
     eligibleWorkerIds,
     now,
+    prepareWorkspace,
   }: Parameters<BusScheduleStore["fireSchedule"]>[0],
 ) =>
   sql.withTransaction(
@@ -180,7 +196,7 @@ export const fireSchedule = (
       let owner: ThreadRow | undefined;
 
       if (spec && run && placement) {
-        created = yield* scheduledThread(sql, schedule, spec, placement);
+        created = yield* scheduledThread(sql, schedule, spec, placement, prepareWorkspace);
         owner = created.thread;
       } else if (!spec) owner = yield* thread(sql, schedule.thread_id!);
 

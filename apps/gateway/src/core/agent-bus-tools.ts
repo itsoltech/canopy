@@ -47,8 +47,16 @@ export async function busExecute(
     case "list_agents":
       return agentCatalog(callerTarget(caller), await hostContext[busState].host.spawnInstances(caller));
     case "spawn_thread": {
-      const { thread, turn, result } = await store((s) => s.spawn({ source, caller, args: call.args, target, hops }));
+      const placement = await hostContext[busState].host.prepareWorkspace?.(caller, call.args);
+
+      const { thread, turn, result } = await store((s) =>
+        s.spawn({ source, caller, args: call.args, target, hops, ...(placement && { placement }) }),
+      );
+
       await hostContext[busState].host.startThread(thread);
+
+      if (placement?.workspaceMode === ui.WorkspaceMode.NEW_WORKTREE)
+        await hostContext[busState].host.nameWorkspace?.(thread, call.args.prompt);
       await hostContext[busState].host.queued(thread.id, turn);
 
       return result;

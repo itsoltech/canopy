@@ -123,7 +123,7 @@ flowchart TB
 | **Workspace** | Fizyczne miejsce projektu: katalog na konkretnym workerze. Ten sam projekt może mieć kopie na kilku maszynach. |
 | **Agent** | Szablon: dostawca, model, instrukcje, tryb uprawnień. Globalny (dla wszystkich) albo prywatny. **Nie ma miejsca uruchomienia.** |
 | **Wątek** | Jedna trwała rozmowa. Na całe życie przypięta do: jednego dostawcy (Claude albo Codex), jednego wątku u dostawcy, jednego workera i jednego katalogu. |
-| **Wątek boczny** | Wątek pod wątkiem głównym (albo innym bocznym), w tym samym katalogu na tym samym workerze. Może dziedziczyć historię rodzica (fork). |
+| **Wątek boczny** | Wątek pod wątkiem głównym (albo innym bocznym), w workspace rodzica na tym samym workerze. Domyślnie ten sam katalog/worktree; jawnie można wybrać checkout albo własny worktree. Może dziedziczyć historię rodzica (fork). |
 | **Tura** | Jedno wejście (użytkownika albo agenta) i praca dostawcy do zakończenia. Jednostka kolejkowania, przerwania i forka. |
 | **Zdarzenie** | Element transkryptu: `(thread_id, seq)`, tylko dopisywane. |
 
@@ -135,7 +135,8 @@ Historia rozmowy u dostawcy leży w plikach na urządzeniu (`~/.claude/projects`
 
 - placement wątku (`worker_id`, `workspace_id`, `cwd`, `provider`) jest **niezmienny** (trigger `threads_before_update`),
 - `provider_thread_id` ustawia się raz, przy zdarzeniu `thread_ready`,
-- wątek boczny ma **ten sam** worker i katalog co rodzic (trigger `threads_before_insert`),
+- wątek boczny ma **ten sam** worker i workspace co rodzic; domyślnie dziedziczy katalog/worktree,
+  a jawny wybór checkoutu lub własnego worktree podlega triggerom miejsca i właściciela (migracja `0067`),
 - jeśli worker zostanie wycofany, jego wątki stają się tylko do odczytu. Transkrypt w PostgreSQL zostaje.
 
 Przeniesienie pracy na inną maszynę to nowy wątek w innym workspace tego samego projektu, nie migracja wątku.
@@ -244,15 +245,13 @@ Szczegóły: [agent-bus.md](agent-bus.md). Wywołanie agenta poza bieżącym drz
    - (c) wątki boczne domyślnie tylko do odczytu, zapis na żądanie.
 2. **Czy projekt może być współdzielony** (członkowie projektu), czy na razie tylko właściciel.
 3. **Agenci czatowi w projektach:** czy wątki czatowe zawsze należą do projektu (obecny schemat: tak), czy potrzebny jest kontekst „bez projektu”.
-4. **Przyszłość: `git worktree`** (później, szkic w sekcji 9).
+4. **Izolacja przez `git worktree`** — działa, opis w sekcji 9.
 
-## 9. Git worktrees (szkic, później)
+## 9. Git worktrees
 
-Cel: równoległa praca kilku wątków nad jednym repozytorium bez wspólnego katalogu, każdy na własnej gałęzi. Rozwiązuje też konflikt zapisu z decyzji 1 bez dzierżawy.
-
-- **Worktree to workspace pochodny:** `project_workspaces.kind = 'worktree'`, `base_workspace_id` (repozytorium na tym samym workerze), `branch`, `base_ref`. Wątek wskazuje go jak każdy workspace, więc reszta modelu (placement, wznowienie, fork u dostawcy) się nie zmienia.
-- **Tworzy go worker** (komenda `CreateWorktree`: `git worktree add` w katalogu danych workera albo w podanym dostępnym katalogu), bo tylko on ma repozytorium. Gateway zapisuje workspace po potwierdzeniu, idempotentnie po `command_id`.
-- **Wątki boczne:** opcja izolacji przy tworzeniu (`shared` = katalog rodzica, jak dziś; `worktree` = nowy worktree z gałęzi rodzica). Fork historii działa w obu, ale w trybie `worktree` to świadome odejście od reguły „ten sam katalog”, więc dostawca musi przyjąć fork w innym `cwd` (do sprawdzenia: Codex `thread/fork` z nowym `cwd`, Claude `forkSession` przypięty do katalogu projektu).
-- **Szyna agentów:** `spawn` z `isolation: worktree`; wynik pracy wraca jako gałąź (diff, commit), a scalenie jest osobną, jawną akcją (użytkownik albo orkiestrator).
-- **Sprzątanie:** archiwizacja workspace'u usuwa worktree (`git worktree remove`), gałąź zostaje. Worker zgłasza osierocone worktree (`git worktree prune`) w raporcie.
-- **Systemy:** na Windows długie ścieżki (`core.longpaths`), na wszystkich systemach wymagany `git` w raporcie możliwości workera.
+Izolacja korzysta z osobnych rekordów `worktrees` i `threads.worktree_id`; workspace projektu zostaje
+ten sam, a miejsce wątku (`cwd` + worktree) pozostaje niezmienne. Git wykonuje worker, ustawienia
+i autoryzację rozstrzyga gateway. `spawn_thread` domyślnie dziedziczy worktree rodzica; jawny
+`workspace_mode` może wybrać checkout, nowy worktree albo domyślny tryb zakresu. Boty i harmonogramy
+korzystają z tych samych ustawień i polityk sprzątania, z ochroną aktywnej pracy i lokalnych zmian.
+Szczegóły kontraktu, bezpieczeństwa i etapów: [worktrees.md](worktrees.md).

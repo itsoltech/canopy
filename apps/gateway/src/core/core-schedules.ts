@@ -12,6 +12,8 @@ import type { GatewayCore } from "./core.ts";
 import { coreCheckModel } from "./core-models.ts";
 import { coreInstances, coreWorkers } from "./core-providers.ts";
 import { coreRun } from "./core-broadcast.ts";
+import { splitId } from "@canopy/domain/computers";
+import { refuseRemoteAutomation } from "../worktrees/remote.ts";
 
 export async function coreScheduleConfiguration(
   hostContext: GatewayCore,
@@ -38,6 +40,32 @@ export async function coreScheduleConfiguration(
     if (request.threadId || !request.newThread)
       throw new InvalidError("new_thread requires its configuration and no thread_id");
     const spec = request.newThread;
+
+    if (splitId(spec.workspaceId).node || splitId(spec.projectId).node || splitId(spec.parentThreadId).node)
+      refuseRemoteAutomation("new_worktree");
+
+    if (
+      ![
+        ui.WorkspaceMode.UNSPECIFIED,
+        ui.WorkspaceMode.CHECKOUT,
+        ui.WorkspaceMode.NEW_WORKTREE,
+        ui.WorkspaceMode.INHERIT_PARENT,
+      ].includes(spec.workspaceMode)
+    )
+      throw new InvalidError("choose the scoped default, current checkout, new worktree or inherit parent");
+
+    if (spec.workspaceMode === ui.WorkspaceMode.INHERIT_PARENT) {
+      if (!spec.parentThreadId || spec.placement !== "specific")
+        throw new InvalidError("inherit_parent requires a parent thread and specific workspace");
+      const parent = await coreRun(hostContext, (s) => s.thread(spec.parentThreadId));
+
+      if (
+        parent.owner_user_id !== hostContext[coreState].options.userId ||
+        parent.project_id !== spec.projectId ||
+        parent.workspace_id !== spec.workspaceId
+      )
+        throw new InvalidError("parent thread must belong to this project and workspace");
+    } else if (spec.parentThreadId) throw new InvalidError("parent_thread_id is only for inherit_parent");
     const placement = spec.placement || "any";
 
     if (!PLACEMENTS.some((p) => p === placement)) throw new InvalidError("unknown placement policy");

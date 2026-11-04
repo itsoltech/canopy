@@ -168,8 +168,8 @@ export interface PreparedWorkspace {
 }
 
 /**
- * CreateThread's workspace: a new worktree is created now and the request names it; side threads keep their
- * parent's place (the store). Resolve the directory here too so first-message file mentions use that placement.
+ * CreateThread's workspace: create a requested worktree now; side threads inherit unless explicitly placed.
+ * Resolve the directory here too so first-message file mentions use that placement.
  */
 export async function corePrepareWorkspace(
   hostContext: GatewayCore,
@@ -180,8 +180,28 @@ export async function corePrepareWorkspace(
 
     if (parent.owner_user_id !== hostContext[coreState].options.userId) throw new InvalidError("thread not found");
 
-    return { request: create(ui.CreateThreadRequestSchema, { ...request, cwd: parent.cwd ?? "" }) };
+    if (parent.workspace_id !== request.workspaceId || parent.project_id !== request.projectId)
+      throw new InvalidError("a side thread runs in its parent's workspace");
+
+    if (!request.workspaceMode || request.workspaceMode === ui.WorkspaceMode.INHERIT_PARENT)
+      return { request: create(ui.CreateThreadRequestSchema, { ...request, cwd: parent.cwd ?? "" }) };
+  } else if (request.workspaceMode === ui.WorkspaceMode.INHERIT_PARENT) {
+    throw new InvalidError("inherit_parent requires a parent thread");
   }
+
+  if (!request.workspaceMode) {
+    const { project, workspace } = await ownWorkspace(hostContext, request.workspaceId);
+
+    const mode =
+      project.kind === "scratch"
+        ? ui.WorkspaceMode.CHECKOUT
+        : (await coreWorktreeScope(hostContext, project.id, workspace.workerId)).effective.defaultMode;
+
+    request = create(ui.CreateThreadRequestSchema, { ...request, workspaceMode: mode });
+  }
+
+  if (request.parentThreadId && request.workspaceMode === ui.WorkspaceMode.CHECKOUT)
+    request = create(ui.CreateThreadRequestSchema, { ...request, cwd: "", worktreeId: "" });
 
   if (request.workspaceMode === ui.WorkspaceMode.EXISTING_WORKTREE) {
     const row = await coreRun(hostContext, (s) =>

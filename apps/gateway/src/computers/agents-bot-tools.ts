@@ -80,6 +80,11 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
 
     switch (call.tool.name) {
       case "start_thread":
+        if (args["workspace_mode"] && args["workspace_mode"] !== "checkout")
+          return fail(
+            "Worktrees on linked computers are not supported yet. Open Canopy on the workspace's home computer to use a worktree.",
+          );
+
         return action(() =>
           this.send(node, "spawn", actor, call.id, {
             request: toJson(ui.CreateThreadRequestSchema, botThreadRequest(args, call.id)),
@@ -175,6 +180,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
 
 function botThreadRequest(args: Arguments, callId: string): ui.CreateThreadRequest {
   return create(ui.CreateThreadRequestSchema, {
+    workspaceMode: ui.WorkspaceMode.CHECKOUT,
     projectId: splitId(text(args, "project_id")).id,
     workspaceId: splitId(text(args, "workspace_id")).id,
     provider: Match.value(args["provider"]).pipe(

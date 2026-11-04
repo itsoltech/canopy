@@ -967,6 +967,10 @@ message NewThreadSchedule {
   string effort = 7;
   canopy.worker.v1.PermissionMode permission_mode = 8;
   string title = 9;
+  // UNSPECIFIED = scoped default. INHERIT_PARENT needs a source thread in this project/workspace.
+  WorkspaceMode workspace_mode = 10;
+  string base_ref = 11;
+  string parent_thread_id = 12;
 }
 
 message ScheduleRun {
@@ -1903,6 +1907,7 @@ enum WorkspaceMode {
   WORKSPACE_MODE_CHECKOUT = 1;
   WORKSPACE_MODE_NEW_WORKTREE = 2;
   WORKSPACE_MODE_EXISTING_WORKTREE = 3;
+  WORKSPACE_MODE_INHERIT_PARENT = 4;
 }
 
 enum BranchNaming {
