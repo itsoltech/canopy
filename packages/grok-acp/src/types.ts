@@ -1,4 +1,10 @@
 /** ACP v1 wire types used by Canopy. Extensions remain available through _meta. */
+
+/** JSON-RPC payload as sent or received; received values are read field by field before use. */
+export type WireValue = string | number | boolean | null | readonly WireValue[] | WireObject;
+
+export type WireObject = { readonly [key: string]: WireValue | undefined };
+
 export type Content =
   | { type: "text"; text: string }
   | { type: "image"; data: string; mimeType: string }
@@ -25,7 +31,7 @@ export interface SessionResult {
   models?: { currentModelId: string; availableModels: { modelId: string; name: string; description?: string }[] };
 }
 
-export interface ToolCall {
+export type ToolCall = {
   toolCallId: string;
   title?: string;
   kind?: "read" | "edit" | "delete" | "move" | "search" | "execute" | "think" | "fetch" | "switch_mode" | "other";
@@ -38,7 +44,7 @@ export interface ToolCall {
     | { type: "terminal"; terminalId: string }
   )[];
   locations?: { path: string; line?: number }[];
-}
+};
 
 export type SessionUpdate =
   | { sessionUpdate: "agent_message_chunk" | "agent_thought_chunk" | "user_message_chunk"; content: Content }
@@ -48,11 +54,11 @@ export type SessionUpdate =
   | { sessionUpdate: "available_commands_update"; availableCommands: unknown[] }
   | { sessionUpdate: "usage_update"; used: number; size: number; cost?: { amount: number; currency: string } };
 
-export interface PermissionRequest {
+export type PermissionRequest = {
   sessionId: string;
   toolCall: ToolCall;
   options: { optionId: string; name: string; kind: "allow_once" | "allow_always" | "reject_once" | "reject_always" }[];
-}
+};
 
 export type PermissionResult = { outcome: { outcome: "selected"; optionId: string } | { outcome: "cancelled" } };
 
@@ -66,7 +72,7 @@ export interface ClientCallbacks {
   }): Promise<{ content: string }>;
   writeTextFile?(params: { sessionId: string; path: string; content: string }): Promise<Record<string, never>>;
   /** Only advertise terminal when every terminal method is handled. */
-  terminal?(method: string, params: unknown, signal: AbortSignal): Promise<unknown>;
+  terminal?(method: string, params: WireValue | undefined, signal: AbortSignal): Promise<WireValue>;
 }
 
 export type PromptEvent =

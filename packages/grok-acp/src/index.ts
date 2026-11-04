@@ -5,9 +5,12 @@ import type {
   InitializeResult,
   McpServer,
   PermissionRequest,
+  PermissionResult,
   PromptEvent,
   SessionResult,
   SessionUpdate,
+  WireObject,
+  WireValue,
 } from "./types.ts";
 
 export * from "./types.ts";
@@ -23,7 +26,7 @@ export class AcpError extends Error {
 }
 
 interface Pending {
-  resolve(value: unknown): void;
+  resolve(value: WireValue | undefined): void;
   reject(error: Error): void;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -114,10 +117,10 @@ export class GrokClient {
     return this.#initialized;
   }
 
-  authenticate(methodId: string): Promise<unknown> {
+  authenticate(methodId: string): Promise<WireValue | undefined> {
     return this.request("authenticate", { methodId, _meta: { headless: true } });
   }
-  newSession(cwd: string, mcpServers: McpServer[] = [], meta?: Record<string, unknown>): Promise<SessionResult> {
+  newSession(cwd: string, mcpServers: McpServer[] = [], meta?: WireObject): Promise<SessionResult> {
     return this.request("session/new", { cwd, mcpServers, ...(meta && { _meta: meta }) });
   }
   loadSession(sessionId: string, cwd: string, mcpServers: McpServer[] = []): Promise<SessionResult> {
@@ -128,10 +131,10 @@ export class GrokClient {
       (result) => ({ ...result, sessionId }),
     );
   }
-  setMode(sessionId: string, modeId: string): Promise<unknown> {
+  setMode(sessionId: string, modeId: string): Promise<WireValue | undefined> {
     return this.request("session/set_mode", { sessionId, modeId });
   }
-  setModel(sessionId: string, modelId: string): Promise<unknown> {
+  setModel(sessionId: string, modelId: string): Promise<WireValue | undefined> {
     return this.request("session/set_model", { sessionId, modelId });
   }
   cancel(sessionId: string): Promise<void> {
@@ -162,7 +165,7 @@ export class GrokClient {
 
     signal?.addEventListener("abort", abort, { once: true });
 
-    const result = this.request<{ stopReason: string; usage?: unknown }>(
+    const result = this.request<{ stopReason: string; usage?: WireValue }>(
       "session/prompt",
       { sessionId, prompt },
       this.#options.promptTimeoutMs ?? 30 * 60_000,
@@ -192,9 +195,9 @@ export class GrokClient {
     }
   }
 
-  request<T = unknown>(
+  request<T = WireValue | undefined>(
     method: string,
-    params: unknown,
+    params: WireObject,
     timeoutMs = this.#options.requestTimeoutMs ?? 30_000,
   ): Promise<T> {
     if (this.#closed) return Promise.reject(this.#closed);
@@ -202,6 +205,8 @@ export class GrokClient {
 
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => this.#fail(new AcpError(`ACP ${method} timed out`)), timeoutMs);
+      // SAFETY: T is the ACP result type of `method`; the agent is our own child process speaking ACP v1, and callers
+      // read optional fields defensively.
       this.#pending.set(id, { resolve: (value) => resolve(value as T), reject, timer });
       void this.#send({ id, method, params }).catch((error: Error) => this.#fail(error));
     });
@@ -266,7 +271,7 @@ export class GrokClient {
     this.#cancellations.clear();
     this.#kill("SIGTERM");
   }
-  #send(message: object): Promise<void> {
+  #send(message: OutgoingMessage): Promise<void> {
     const write = this.#writes.then(
       () =>
         new Promise<void>((resolve, reject) => {
@@ -302,7 +307,7 @@ export class GrokClient {
           const line = buffer.slice(0, newline);
           buffer = buffer.slice(newline + 1);
 
-          if (line.trim()) this.#dispatch(JSON.parse(line) as Record<string, unknown>);
+          if (line.trim()) this.#dispatch(JSON.parse(line));
         }
 
         if (Buffer.byteLength(buffer) > (this.#options.maxFrameBytes ?? 16 * 1024 * 1024))
@@ -314,12 +319,12 @@ export class GrokClient {
       this.#fail(new AcpError("Invalid or closed ACP transport"));
     }
   }
-  #dispatch(message: Record<string, unknown>): void {
-    if (message["jsonrpc"] !== "2.0") throw new AcpError("Invalid JSON-RPC envelope");
+  #dispatch(message: WireValue): void {
+    if (!isWireObject(message) || message["jsonrpc"] !== "2.0") throw new AcpError("Invalid JSON-RPC envelope");
     const method = message["method"];
     const id = message["id"];
 
-    if (typeof method === "string") {
+    if (isText(method)) {
       if (id !== undefined) {
         void this.#callback(method, message["params"])
           .then(
@@ -328,28 +333,44 @@ export class GrokClient {
           )
           .catch(() => {});
       } else if (method === "session/update") {
-        const params = message["params"] as { sessionId: string; update: SessionUpdate };
-        this.#streams.get(params.sessionId)?.push({ type: "update", update: params.update });
+        const params = message["params"];
+        const sessionId = isWireObject(params) ? params["sessionId"] : undefined;
+
+        if (!isWireObject(params) || !isText(sessionId)) throw new AcpError("Invalid session/update");
+        // SAFETY: ACP v1 session/update params carry a SessionUpdate; consumers switch on `sessionUpdate` and skip
+        // kinds they do not know.
+        const update = params["update"] as SessionUpdate;
+        this.#streams.get(sessionId)?.push({ type: "update", update });
       }
 
       return;
     }
 
-    const pending = typeof id === "number" ? this.#pending.get(id) : undefined;
+    if (!isCount(id)) return;
+    const pending = this.#pending.get(id);
 
     if (!pending) return;
-    this.#pending.delete(id as number);
+    this.#pending.delete(id);
     clearTimeout(pending.timer);
-    const error = message["error"] as { message: string; code: number } | undefined;
+    const error = message["error"];
 
-    if (error) pending.reject(new AcpError(this.#redact(error.message), error.code));
+    if (error) pending.reject(this.#remoteError(error));
     else pending.resolve(message["result"]);
   }
-  async #callback(method: string, params: unknown): Promise<unknown> {
+  #remoteError(error: WireValue): AcpError {
+    const text = isWireObject(error) ? error["message"] : undefined;
+
+    if (!isWireObject(error) || !isText(text)) throw new AcpError("Invalid JSON-RPC error");
+    const code = error["code"];
+
+    return new AcpError(this.#redact(text), isCount(code) ? code : undefined);
+  }
+  async #callback(method: string, params: WireValue | undefined): Promise<WireValue | undefined> {
     const cb = this.#options.callbacks;
     const signal = this.#callbacks.signal;
 
     if (method === "session/request_permission") {
+      // SAFETY: ACP v1 names session/request_permission params a PermissionRequest; the callback reads them as such.
       const request = params as PermissionRequest;
       const controller = new AbortController();
       const abort = () => controller.abort();
@@ -363,7 +384,7 @@ export class GrokClient {
 
         return await Promise.race([
           cb.requestPermission(request, controller.signal),
-          new Promise((resolve) =>
+          new Promise<PermissionResult>((resolve) =>
             controller.signal.addEventListener("abort", () => resolve({ outcome: { outcome: "cancelled" } }), {
               once: true,
             }),
@@ -377,15 +398,40 @@ export class GrokClient {
       }
     }
 
-    if (method === "fs/read_text_file" && cb?.readTextFile)
-      return cb.readTextFile(params as Parameters<NonNullable<ClientCallbacks["readTextFile"]>>[0]);
+    if (method === "fs/read_text_file" && cb?.readTextFile) {
+      // SAFETY: ACP v1 defines these params for fs/read_text_file.
+      return cb.readTextFile(params as ReadTextFileParams);
+    }
 
-    if (method === "fs/write_text_file" && cb?.writeTextFile)
-      return cb.writeTextFile(params as Parameters<NonNullable<ClientCallbacks["writeTextFile"]>>[0]);
+    if (method === "fs/write_text_file" && cb?.writeTextFile) {
+      // SAFETY: ACP v1 defines these params for fs/write_text_file.
+      return cb.writeTextFile(params as WriteTextFileParams);
+    }
 
     if (method.startsWith("terminal/") && cb?.terminal) return cb.terminal(method, params, signal);
     throw new AcpError("Unsupported client method", -32601);
   }
+}
+
+type ReadTextFileParams = Parameters<NonNullable<ClientCallbacks["readTextFile"]>>[0];
+
+type WriteTextFileParams = Parameters<NonNullable<ClientCallbacks["writeTextFile"]>>[0];
+
+type OutgoingMessage =
+  | { readonly id?: number; readonly method: string; readonly params: WireObject }
+  | { readonly id: WireValue; readonly result: WireValue | undefined }
+  | { readonly id: WireValue; readonly error: { readonly code: number; readonly message: string } };
+
+function isWireObject(value: WireValue | undefined): value is WireObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isText(value: WireValue | undefined): value is string {
+  return typeof value === "string";
+}
+
+function isCount(value: WireValue | undefined): value is number {
+  return typeof value === "number";
 }
 
 class EventStream implements AsyncIterable<PromptEvent> {
