@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { JsonValue } from "@canopy/domain";
 
 /** Real HTTP MCP + OAuth fixture: token validation, one-use codes, S256 and rotating refresh tokens. */
-export function fakeConnector() {
+export function fakeConnector(options: { call?: (name: string, args: JsonValue) => JsonValue } = {}) {
   const secret = `connector-secret-${crypto.randomUUID()}`;
   const clients = new Map<string, { redirect: string; secret?: string }>();
   const codes = new Map<string, { challenge: string; client: string; redirect: string }>();
@@ -166,6 +166,20 @@ export function fakeConnector() {
 
       if (body.method === "tools/call") {
         calls.push({ name: body.params!.name, args: body.params!.arguments });
+
+        if (options.call)
+          return Response.json({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(options.call(body.params!.name, body.params!.arguments as JsonValue)),
+                },
+              ],
+            },
+          });
         result = {
           content: [
             {

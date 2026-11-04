@@ -130,7 +130,7 @@ export interface NewSchedule {
 export interface FiredSchedule {
   threadId: string;
   turn?: TurnRow;
-  created?: { thread: ThreadRow; command: Command };
+  created?: { thread: ThreadRow; command: Command; newWorktree?: boolean };
 }
 
 /**

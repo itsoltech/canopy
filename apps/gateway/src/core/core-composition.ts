@@ -21,6 +21,7 @@ import { coreAutoTitle, coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
 import { corePublishSchedule } from "./core-schedules.ts";
 import type { GatewayCore } from "./core.ts";
+import { nameAutomationBranch, prepareScheduledWorkspace, prepareSpawnWorkspace } from "../worktrees/automation.ts";
 
 export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): BotsRuntime {
   return new BotsRuntime({
@@ -44,6 +45,8 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     extend: (call, caller, result) => core.linkedAgents.extend(call, caller, result),
     run: (effect) => core[coreState].options.runtime.runPromise(effect),
     startThread: (row) => coreStartThread(core, row),
+    prepareWorkspace: async (caller, args) => (await prepareSpawnWorkspace(core, caller, args)).request,
+    nameWorkspace: (thread, prompt) => nameAutomationBranch(core, thread, prompt),
     queued: async (threadId, turn) => {
       await coreBroadcastTurn(core, threadId, turn.id); // re-read: the UI gets the turn with its source
       await core.pump(threadId);
@@ -74,6 +77,7 @@ export function createCoreScheduler(core: GatewayCore, options: GatewayCoreOptio
     owner: options.instanceId,
     log: (message) => coreLog(core, message),
     changed: (scheduleId) => corePublishSchedule(core, scheduleId),
+    prepareWorkspace: (request, userId, sourceId) => prepareScheduledWorkspace(core, request, userId, sourceId),
     eligibleWorkers: async (schedule) => {
       const spec = fromJson(ui.NewThreadScheduleSchema, schedule.new_thread!);
 
@@ -81,12 +85,14 @@ export function createCoreScheduler(core: GatewayCore, options: GatewayCoreOptio
         .filter((w) => scheduleWorkerEligible(w, spec, spec.placement !== "specific"))
         .map((w) => w.id);
     },
-    created: async ({ thread, command }, prompt) => {
+    created: async ({ thread, command, newWorktree }, prompt) => {
       core.hub.publishOverview(
         create(ui.OverviewUpdateSchema, { change: { case: "thread", value: coreUiThread(core, thread) } }),
       );
       void coreDeliver(core, thread.worker_id!, command);
       coreAutoTitle(core, thread.id, titleContext({ text: prompt }));
+
+      if (newWorktree) await nameAutomationBranch(core, thread, prompt);
     },
   });
 }

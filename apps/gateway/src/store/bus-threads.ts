@@ -1,4 +1,5 @@
 import { type JsonValue } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
 import { agentKey, fuzzyRank, type AgentBusArgs, type SpawnTarget } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -24,6 +25,7 @@ export interface BusThreadStore {
     /** Provider instance, model and effort of the new thread (resolveSpawnTarget). */
     target: SpawnTarget;
     hops: number;
+    placement?: ui.CreateThreadRequest;
   }): Fx<{ thread: ThreadRow; turn: TurnRow; result: JsonValue }>;
   /**
    * Queues the message as the next turn, or, with delivery = steer while the target runs a turn, stores it as a
@@ -61,15 +63,24 @@ export interface BusThreadStore {
 
 const spawn = (
   sql: SqlClient.SqlClient,
-  { source, caller, args, target, hops }: Parameters<BusThreadStore["spawn"]>[0],
+  { source, caller, args, target, hops, placement }: Parameters<BusThreadStore["spawn"]>[0],
 ) =>
   sql.withTransaction(
     Effect.gen(function* () {
       const notify = args.notify ?? true;
       yield* insertCall(sql, { source, tool: "spawn_thread", args, status: "completed", hops, notify });
       const id = Bun.randomUUIDv7();
+      const inherit = !placement?.workspaceMode || placement.workspaceMode === ui.WorkspaceMode.INHERIT_PARENT;
+      const worktreeId = inherit ? caller.worktree_id : placement?.worktreeId || null;
 
-      // Same place as the caller (threads_before_insert enforces the placement), on the provider instance, model
+      const cwd = inherit
+        ? caller.cwd
+        : placement?.cwd ||
+          (yield* sql<{
+            root_path: string;
+          }>`SELECT root_path FROM project_workspaces WHERE id = ${caller.workspace_id}::uuid`)[0]!.root_path;
+
+      // Same workspace as the caller, with inherited or explicitly prepared placement, on the provider instance, model
       // and effort the gateway resolved (the caller's unless the call chose others from list_agents); its
       // permissions unless the call narrows them (authorizeBusCall: never broader). A role adds to the caller's
       // instructions.
@@ -93,9 +104,9 @@ const spawn = (
                     ${caller.root_thread_id}::uuid, ${caller.depth + 1}, 'agent', ${source.callId}::uuid,
                     ${args.interactions ?? "parent"}, 'worker', ${target.harness},
                     ${target.instance && target.instance !== "native" ? target.instance : null},
-                    ${caller.worker_id}::uuid, ${caller.workspace_id}::uuid, ${caller.cwd},
+                    ${caller.worker_id}::uuid, ${caller.workspace_id}::uuid, ${cwd},
                     ${args.fork ? caller.id : null}::uuid, ${JSON.stringify(settings)}::jsonb, 'creating', ${args.title.trim()},
-                    ${caller.worktree_id ?? null}::uuid)`;
+                    ${worktreeId}::uuid)`;
 
       const input: TurnInput = {
         note:

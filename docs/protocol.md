@@ -255,6 +255,12 @@ i brak aktywnej pracy. Zmiany lokalne wymagają jawnego potwierdzenia ręcznej a
 komendę do wyniku, worker zapisuje zamiar przed usunięciem i wynik w journalu; retry używa tego samego
 command id. Opcjonalny wynik `worktree_branch_deleted` opisuje bezpieczne usunięcie gałęzi.
 
+Skan worktree wykrywa również squash/rebase merge po fetch przez patch-equivalence albo zawarcie
+pełnego diffu gałęzi w bazie. `WorktreeStatus.github_repository` zawiera tylko owner/repo z remote.
+Gateway może potwierdzić scalony PR przez konektor właściciela z grantem workera i przekazać
+`WorktreeTarget.merged_pr_head` + `merged_pr_repository`; worker uznaje je tylko dla dokładnego HEAD
+i własnego remote. Konektor oraz poświadczenia pozostają w gatewayu. Pola są addytywne.
+
 ## CLI dostawców
 
 Capability `cli_install`: worker wysyła `CliToolsReport` (ścieżka, wersja, sposób instalacji każdego CLI) po połączeniu, po `ProbeProviders`, po instalacji i co 6 h; nietrwała komenda `InstallCli` (nigdy z outboxa) uruchamia stały przepis, postęp idzie w `CliInstallProgress`, wynik w następnym raporcie. Bez zmiany `WORKER_LINK_PROTOCOL`. Szczegóły i zasady: [provider-cli.md](provider-cli.md).

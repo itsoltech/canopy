@@ -2,7 +2,9 @@ import { chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { CommandSchema, Provider, ui } from "@canopy/contracts";
+import { CommandSchema, Provider, ui, type AgentToolResult } from "@canopy/contracts";
+import type { JsonValue } from "@canopy/domain";
+import type { BotModel } from "../../../apps/gateway/src/bots/types.ts";
 import { GatewayStore } from "@canopy/gateway/store";
 import { journalHello, openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
@@ -37,7 +39,7 @@ export function commit(path: string, file = "README.md", text = Bun.randomUUIDv7
 }
 
 /** Real git + WorkerHost + gateway + PostgreSQL, without contacting any model provider. */
-export async function worktreeFixture(dir: string) {
+export async function worktreeFixture(dir: string, options: { botModel?: BotModel } = {}) {
   const data = join(dir, "data");
   const repo = join(dir, "repo");
   const origin = join(dir, "origin.git");
@@ -53,7 +55,7 @@ export async function worktreeFixture(dir: string) {
   commit(repo);
   git(repo, "push", "-qu", "origin", "main");
   git(repo, "remote", "set-head", "origin", "main");
-  const gw = await startTestGateway();
+  const gw = await startTestGateway(options);
   const worker = await gw.addWorker("Worktree lifecycle");
   const workerId = worker.workerId;
   await gw.runtime.runPromise(
@@ -78,6 +80,7 @@ export async function worktreeFixture(dir: string) {
   });
 
   let link: GatewayLink;
+  const calls = new Map<string, (result: AgentToolResult) => void>();
 
   const connect = async () => {
     link = await openGatewayLink({
@@ -92,7 +95,17 @@ export async function worktreeFixture(dir: string) {
         ...(await runtime.runPromise(journalHello())),
       },
     });
-    void serveLink(link, host, runtime);
+    const active = link;
+
+    const messages = async function* () {
+      for await (const message of active.messages) {
+        if (message.payload.case === "agentToolResult")
+          calls.get(message.payload.value.callId)?.(message.payload.value);
+        else yield message;
+      }
+    };
+
+    void serveLink({ ...link, messages: messages() }, host, runtime);
     await eventually(
       () => gw.api.getOverview({}),
       (o) => o.workers.some((w) => w.id === workerId && w.appliedVersion > 0n && w.online),
@@ -168,6 +181,17 @@ export async function worktreeFixture(dir: string) {
     sql: <A>(query: (sql: SqlClient.SqlClient) => Effect.Effect<A, import("effect/sql").SqlError.SqlError>) =>
       gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, query)),
     command: (kind: MessageInitShape<typeof CommandSchema>) => host.handleCommand(create(CommandSchema, kind)),
+    callTool: (threadId: string, args: JsonValue, callId = Bun.randomUUIDv7()) =>
+      new Promise<AgentToolResult>((resolve) => {
+        calls.set(callId, (result) => {
+          calls.delete(callId);
+          resolve(result);
+        });
+        link.send({
+          case: "agentToolCall",
+          value: { callId, threadId, toolName: "spawn_thread", argumentsJson: JSON.stringify(args) },
+        });
+      }),
     close: async () => {
       link.close();
       await host.close();

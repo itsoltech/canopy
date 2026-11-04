@@ -28,6 +28,8 @@ export interface BusHost {
   run<A, E>(effect: Effect.Effect<A, E, GatewayStore | AgentBusStore>): Promise<A>;
   /** Sends CreateThread for a new thread (with its fork point) and announces it. */
   startThread(row: ThreadRow): Promise<void>;
+  prepareWorkspace?(caller: ThreadRow, args: AgentBusArgs["spawn_thread"]): Promise<ui.CreateThreadRequest>;
+  nameWorkspace?(thread: ThreadRow, prompt: string): Promise<void>;
   /** A turn was queued in a thread: announce it and start it when the thread is free. */
   queued(threadId: string, turn: TurnRow): Promise<void>;
   /** A message was stored as a steer of a running turn: send it to the worker. */

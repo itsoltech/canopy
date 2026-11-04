@@ -1451,6 +1451,9 @@ message WorktreeTarget {
   string base_commit = 6;
   string location = 7;
   string remote = 8;
+  // Gateway-confirmed merged PR, bound to this exact HEAD and GitHub repository.
+  string merged_pr_head = 9;
+  string merged_pr_repository = 10;
 }
 
 message ScanWorktrees {
@@ -1471,6 +1474,8 @@ message WorktreeStatus {
   bool missing = 10;
   google.protobuf.Timestamp last_activity_at = 11;
   string head_commit = 12;
+  // Sanitized owner/repo from the configured GitHub remote; never a URL or credentials.
+  string github_repository = 13;
 }
 
 message RemoveWorktree {

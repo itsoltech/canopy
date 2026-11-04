@@ -4,6 +4,7 @@ import { ui } from "@canopy/contracts";
 import { Schema } from "effect";
 import { BotStore, type WakeupRow } from "../store.ts";
 import { Invalid, NotFound } from "../../store/store.ts";
+import { automationMode } from "../../worktrees/automation.ts";
 import {
   bool,
   decoded,
@@ -41,6 +42,9 @@ const fields = {
       effort: str,
       permission: permissionSchema,
       title: str,
+      workspace_mode: { type: "string", enum: ["default", "checkout", "new_worktree", "inherit_parent"] },
+      base_ref: str,
+      parent_thread_id: str,
     },
     ["project_id", "provider", "provider_instance"],
   ),
@@ -63,6 +67,9 @@ const NewThread = Schema.Struct({
   effort: Schema.optional(Schema.String),
   permission: Schema.optional(Schema.Json),
   title: Schema.optional(Schema.String),
+  workspace_mode: Schema.optional(Schema.String),
+  base_ref: Schema.optional(Schema.String),
+  parent_thread_id: Schema.optional(Schema.String),
 });
 
 /** A wakeup as the model reads it: the timestamp in the ISO form `JSON.stringify` gives a Date. */
@@ -97,6 +104,9 @@ async function configuration(c: ToolContext) {
         effort: n.effort ?? "",
         permissionMode: permission(n.permission ?? "ask"),
         title: n.title ?? "",
+        workspaceMode: automationMode(n.workspace_mode ?? ""),
+        baseRef: n.base_ref ?? "",
+        parentThreadId: n.parent_thread_id ?? "",
       },
     }),
   });

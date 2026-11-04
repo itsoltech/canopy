@@ -25,6 +25,7 @@ import {
 } from "./store.ts";
 import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
 import { connectorPermission, failed, handleConnectorCall } from "./calls.ts";
+import { worktreeMerged } from "./merged-pr.ts";
 
 /** Catalog input schemas are stored as the JSON text of the object the MCP server sent. */
 const inputSchema = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.JsonObject));
@@ -44,6 +45,12 @@ export class ConnectorsRuntime {
   }
   stop() {
     this.#stopped = true;
+  }
+  /** Gateway-owned cleanup read: the owner's GitHub account must be granted to this worker. */
+  async worktreeMerged(userId: string, workerId: string, repository: string, branch: string, head: string) {
+    if (userId !== this.options.userId || !repository || !head) return false;
+
+    return worktreeMerged(this, (user, id) => this.#connection(user, id), userId, workerId, repository, branch, head);
   }
   async list(request: connectors.ListConnectorsRequest) {
     if (request.threadId && request.botId) throw new ConnectorFailure("Choose a thread or bot");

@@ -15,6 +15,7 @@ import { AgentBusStore, type ThreadRow } from "../store/index.ts";
 import { fail, record, text, type Actor, type Arguments, type Reference } from "./agents-context.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { linkedMessage, methodNamed, qualify } from "./remote.ts";
+import { refuseRemoteAutomation } from "../worktrees/remote.ts";
 
 export interface AgentsBusToolsMethods {
   extend(call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue>;
@@ -123,6 +124,8 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     this.sameHome(node, args);
 
     if (call.tool === "spawn_thread") {
+      refuseRemoteAutomation(call.args.workspace_mode, call.args.fork);
+
       if (!this.core.computers!.reachable().includes(node)) throw await this.core.computers!.unavailable(node);
 
       if (!this.core.computers!.capabilities(node).includes(AGENT_BUS))
@@ -130,8 +133,6 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
       const decision = authorizeBusCall(call, facts);
 
       if (!decision.allowed) return fail(decision.reason);
-
-      if (call.args.fork) return fail("Fork is unavailable across computers; send context in prompt");
 
       const refs = await this.query<Reference>(
         "SELECT * FROM computer_agent_calls WHERE owner_user_id=$1::uuid AND direction='outgoing' AND actor_id=$2::uuid AND target_id IS NOT NULL AND parent_link AND NOT detached",
@@ -174,6 +175,7 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
             model: call.args.model ?? "",
             effort: call.args.effort ?? "",
             clientRequestId: request.callId,
+            workspaceMode: ui.WorkspaceMode.CHECKOUT,
             permissionMode: {
               read_only: PermissionMode.READ_ONLY,
               ask: PermissionMode.ASK,

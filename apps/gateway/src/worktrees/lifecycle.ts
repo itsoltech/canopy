@@ -9,7 +9,7 @@ import type { GatewayCore } from "../core/core.ts";
 import { coreWorktreeScope, toUiWorktree } from "./core-worktrees.ts";
 import { cleanupReason, lastActivity, matchesCleanup } from "./cleanup-policy.ts";
 
-export function worktreeTarget(row: WorktreeLifecycleRow, settings: ui.WorktreeSettings) {
+export function worktreeTarget(row: WorktreeLifecycleRow, settings: ui.WorktreeSettings, status?: WorktreeStatus) {
   return create(WorktreeTargetSchema, {
     id: row.id,
     path: row.path,
@@ -19,6 +19,8 @@ export function worktreeTarget(row: WorktreeLifecycleRow, settings: ui.WorktreeS
     baseCommit: row.base_commit,
     location: row.location,
     remote: settings.remote ?? "origin",
+    mergedPrHead: status?.merged ? status.headCommit : "",
+    mergedPrRepository: status?.merged ? status.githubRepository : "",
   });
 }
 
@@ -80,6 +82,22 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
 
     entry.status = result.worktreeStatuses.find((s) => s.id === row.id);
     entry.detail = entry.status?.detail || (entry.status ? "" : "Worker did not return a worktree status");
+
+    if (
+      entry.status &&
+      !entry.detail &&
+      !entry.status.merged &&
+      (await core.connectors.worktreeMerged(
+        row.owner_user_id,
+        row.worker_id,
+        entry.status.githubRepository,
+        entry.status.branch,
+        entry.status.headCommit,
+      ))
+    ) {
+      entry.status.merged = true;
+      entry.status.unpushed = false;
+    }
   }
 
   const status = entry.status;
@@ -117,12 +135,22 @@ export async function removeEntry(
   if (expectedHead !== status.headCommit) throw new InvalidError("The worktree changed; refresh before removing it");
   const reason = cleanupReason(row, status, settings);
 
+  const confirmedPr =
+    status.githubRepository &&
+    (await core.connectors.worktreeMerged(
+      row.owner_user_id,
+      row.worker_id,
+      status.githubRepository,
+      status.branch,
+      status.headCommit,
+    ));
+
   const command = create(CommandSchema, {
     commandId: Bun.randomUUIDv7(),
     kind: {
       case: "removeWorktree",
       value: {
-        target: worktreeTarget(row, settings),
+        target: worktreeTarget(row, settings, confirmedPr ? status : undefined),
         confirmLocalChanges: confirmation,
         expectedHeadCommit: expectedHead,
         deleteBranch: settings.deleteLocalBranch ?? false,

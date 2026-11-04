@@ -393,6 +393,16 @@ transportu, sekrety i wewnętrzne adresy nie są przekazywane modelowi.
 
 ### Harmonogramy, ustawienia i boty
 
+Zadania kodujące `start_thread` używają efektywnego domyślnego workspace'u projektu × workera.
+Opcjonalne `workspace_mode`: `default`, `checkout`, `new_worktree`, `inherit_parent`; `base_ref`
+wybiera bazę nowego worktree. Bot nie ma własnego katalogu: dziedziczenie wymaga `parent_thread_id`
+istniejącego wątku tego samego właściciela, projektu i workspace'u. To nowy wątek główny, bez kopii
+historii dostawcy. `create_schedule` / `update_schedule` przyjmują te same pola w `new_thread`
+(dziedziczenie wymaga placement `specific`). Ustawienia są rozstrzygane przy wykonaniu, a usunięte
+lub zarezerwowane worktree nie może dostać nowej pracy. Automaty podlegają wspólnym politykom
+sprzątania wątków deleted/settled. Zdalne worktree przez linked computers pozostają odrzucone
+z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez nowych kontrolek UI.
+
 | Nazwa | Działanie | Zgoda |
 |---|---|---|
 | `create_schedule` | Harmonogram użytkownika: `thread` lub `new_thread`, termin ISO albo cron, strefa i limity; placement specific/any/least_busy/round_robin | P; A przy podwyższonych permissions nowego wątku |

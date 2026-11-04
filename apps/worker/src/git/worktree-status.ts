@@ -5,6 +5,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { WorktreeStatusSchema, type WorktreeTarget } from "@canopy/contracts";
 import { FETCH_TIMEOUT_MS, git, GitError, gitOk } from "./git.ts";
 import { isWithin } from "./worktrees.ts";
+import { githubRepository, mergedInto } from "./merged.ts";
 
 /** Verify both the root boundary and git's registration, including which checkout is the main one. */
 export async function checkedWorktree(managedRoot: string, target: WorktreeTarget) {
@@ -43,13 +44,6 @@ export async function checkedWorktree(managedRoot: string, target: WorktreeTarge
     throw new GitError("WORKTREE_CHANGED", "the worktree belongs to another repository");
 
   return { path, repo };
-}
-
-async function mergedInto(repo: string, ref: string, head: string): Promise<boolean> {
-  if (!ref || ref.startsWith("-")) return false;
-  const verified = await git(repo, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${ref}^{commit}`]);
-
-  return verified.ok && (await git(repo, ["merge-base", "--is-ancestor", head, verified.stdout.trim()])).ok;
 }
 
 /** A fetch failure is a blocking result: automatic removal must not rely on stale remote refs. */
@@ -120,8 +114,11 @@ export async function scanWorktree(managedRoot: string, target: WorktreeTarget, 
   }
 
   const base = target.baseRef.startsWith(`${remote}/`) ? target.baseRef : `refs/remotes/${remote}/${target.baseRef}`;
+  const remoteUrl = await git(repo, ["config", "--get", `remote.${remote}.url`]);
+  const repository = remoteUrl.ok ? githubRepository(remoteUrl.stdout.trim()) : "";
 
   const merged =
+    (repository !== "" && target.mergedPrRepository === repository && target.mergedPrHead === head) ||
     (await mergedInto(repo, defaultBranch, head)) ||
     (await mergedInto(repo, remotes.includes(remote) ? base : target.baseRef, head));
 
@@ -143,10 +140,11 @@ export async function scanWorktree(managedRoot: string, target: WorktreeTarget, 
     ahead,
     behind,
     dirtyFiles: dirty.length,
-    unpushed: unique > 0 || (upstream.ok && ahead > 0),
+    unpushed: !merged && (unique > 0 || (upstream.ok && ahead > 0)),
     merged,
     unchanged: head === target.baseCommit && dirty.length === 0,
     headCommit: head,
+    githubRepository: repository,
     lastActivityAt: timestampFromDate(new Date(activity)),
   });
 }

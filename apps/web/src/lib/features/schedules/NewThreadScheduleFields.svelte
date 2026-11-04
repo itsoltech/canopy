@@ -130,6 +130,9 @@
       effort: option?.efforts.length ? (effort ?? "") : "",
       permissionMode: PermissionMode[permission],
       title,
+      workspaceMode: initial?.workspaceMode,
+      baseRef: initial?.baseRef,
+      parentThreadId: initial?.parentThreadId,
     });
   });
 </script>

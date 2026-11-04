@@ -1,10 +1,15 @@
 # Worktrees (git)
 
-Status: **etapy 1–2 zaimplementowane** (2026-11-04). Etap 1: ustawienia (Creation, Branches,
+Status: **etapy 1–3 zaimplementowane** (2026-11-04). Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
 z semantycznym prefiksem), pickery w kompozytorze nowego wątku i wyświetlanie worktree wątku. Etap 2:
 sprzątanie według polityk, podgląd skutków, status i akcje pojedynczego worktree (pierwotny etap 3),
-lista w Settings i poprawiony układ pickerów. Reszta w [planie etapów](#plan-etapów).
+lista w Settings i poprawiony układ pickerów. Etap 3: automatyzacja przez szynę, boty i harmonogramy
+oraz wykrywanie squash/rebase merge. Reszta w [planie etapów](#plan-etapów).
+
+Migracje stosu następują po `0064_worker_enrollment_tags` (#75) i `0065_instance_connections` (#85):
+etap 1 używa `0066_worktrees`, etap 2 `0067_worktree_lifecycle`, a etap 3 `0068_worktree_automation`.
+Każdy etap ma docelowy numer w pliku SQL, loaderze i oczekiwanej liście testu schematu.
 
 Powiązane: [threads.md](threads.md) (miejsce wątku jest niezmienne), [protocol.md](protocol.md),
 [thread-titles.md](thread-titles.md) (generowanie tekstu), [agent-bus.md](agent-bus.md),
@@ -180,12 +185,22 @@ o usuniętym worktree i historia wątku. Offline akcje workera są wyłączone z
 - **Tury w toku:** worktree nigdy nie jest usuwany, gdy którykolwiek wątek go używający ma turę,
   zadanie w tle albo oczekującą interakcję (sprawdzane w gatewayu i ponownie na workerze).
   Gateway chroni też tworzenie wątku, aktywny cel i oczekujące komendy startowe.
-- **Szyna agentów (`spawn_thread`) i wątki boczne:** dziedziczą katalog i rekord worktree rodzica
-  (trigger `threads_before_insert` wymaga tego samego `cwd`). Osobny worktree dla dziecka to etap 4
-  (wymaga zmiany reguły miejsca wątku bocznego); domyślnie dzieci pracują w worktree rodzica.
+- **Szyna agentów (`spawn_thread`) i wątki boczne:** domyślnie dziedziczą katalog i rekord worktree
+  rodzica, niezależnie od domyślnego trybu zakresu. `workspace_mode = inherit_parent` robi to jawnie;
+  `checkout` wybiera checkout workspace'u, `new_worktree` tworzy izolowaną gałąź (`base_ref` opcjonalny),
+  `default` rozstrzyga domyślny tryb projektu × workera. Migracja `0068` pozwala dziecku wybrać
+  inne miejsce tylko w tym samym projekcie, workspace i na tym samym workerze. Właściciel, drzewo,
+  limity, routing interakcji i uprawnienia nadal są dziedziczone i egzekwowane w gatewayu/bazie.
 - **Fork („Fork from here”):** nowy wątek główny w tym samym worktree co źródło.
-- **Boty i harmonogramy:** w etapie 1 tworzą wątki w bieżącym checkoutcie (jak dotąd). Etap 4: opcja
-  „New worktree” w konfiguracji bota/harmonogramu z efektywnymi ustawieniami.
+- **Boty i harmonogramy:** `start_thread.workspace_mode` i `NewThreadSchedule.workspace_mode`
+  obsługują domyślny tryb zakresu, checkout, nowy worktree oraz dziedziczenie. Bot/harmonogram
+  nie ma własnego katalogu: `inherit_parent` wymaga `parent_thread_id` istniejącego wątku tego samego
+  właściciela, projektu i workspace'u; harmonogram wymaga też placement `specific`. Powstaje wątek
+  główny dziedziczący tylko miejsce, bez historii dostawcy. `base_ref` wybiera bazę nowego worktree.
+  Ustawienia rozstrzygają się przy wykonaniu zadania. Nowy worktree wymaga workera online; offline
+  harmonogram zachowuje termin i ponawia po powrocie workera, bez zwiększania liczby wykonań.
+  Wakeup istniejącego wątku zachowuje jego niezmienne miejsce. Opcje są dostępne w narzędziach i API;
+  ten etap nie dodaje kontrolek w interfejsie harmonogramów ani testów UI.
 - **Połączone komputery:** etap 1 odmawia tworzenia i wyboru worktree przez połączenie komputerów
   z czytelnym komunikatem: otwórz Canopy na komputerze, na którym jest workspace. Kompozytor
   oferuje tam bieżący checkout; ustawienia worktree dotyczą lokalnych projektów i workerów.
@@ -208,9 +223,15 @@ o usuniętym worktree i historia wątku. Offline akcje workera są wyłączone z
   wyłączeniu „Keep worktrees with local changes”. Ręczne Remove pokazuje ostrzeżenie i wymaga
   jawnego potwierdzenia odrzucenia plików. Gałąź z lokalnymi zmianami lub niewypchniętymi commitami
   zawsze zostaje. Czysty worktree bez własnych commitów może być usunięty, choć nie miał upstreamu.
-- „Merged”: lokalne `merge-base --is-ancestor` po udanym fetch do gałęzi domyślnej lub bazowej.
-  Brak integracji ze statusem PR w GitHub: squash/rebase merge może zachować worktree mimo scalonego
-  PR. Błąd fetch zachowuje katalog, zamiast ufać starym refom.
+- „Merged”: po udanym fetch do gałęzi domyślnej lub bazowej: przodek (`merge-base --is-ancestor`),
+  wszystkie commity patch-equivalent (`git cherry`, bez pomijania własnych merge commitów) albo cały
+  diff merge-base → HEAD zawarty w bazie. Ostatni wariant sprawdza odwrócenie patcha w osobnym indeksie,
+  bez zmiany checkoutu i indeksu użytkownika; obsługuje wielocommitowy squash. Częściowo scalona gałąź
+  zostaje. GitHub: gateway odczytuje zamknięte PR-y przez konto właściciela z grantem workera i uznaje
+  tylko PR z `merged = true`, tym samym repo, gałęzią i dokładnym HEAD. Worker dostaje wyłącznie
+  owner/repo i potwierdzony SHA, ponownie sprawdza je przed usunięciem; żadnych poświadczeń.
+  Błąd konektora zostawia niezależny wynik gita; błąd fetch blokuje usunięcie. Commity potwierdzone
+  jako scalone nie są traktowane jako niewypchnięta praca. `branch -d` nadal może zachować gałąź po squashu.
 - Raport **dry-run** w Settings → Worktrees → Cleanup: lista „would remove / kept because …” przed
   włączeniem reguł i przycisk „Run cleanup now”.
 - Gateway rezerwuje rekord w transakcji z blokadami wątków i worktree, a triggery blokują wyścig
@@ -244,14 +265,19 @@ Każdy etap to osobny PR w stosie (`feat/worktrees-N`), kompletny i działający
 1. **Rdzeń — gotowy, draft PR #74 (`feat/worktrees-1`):** ustawienia Creation/Branches/domyślny tryb z zakresami, `ListGitRefs`,
    `CreateWorktree`, `RenameWorktreeBranch`, nazwy gałęzi (w tym semantyczne), pickery w kompozytorze,
    worktree wątku w nagłówku, panelu i karcie hover; testy integracyjne z prawdziwym repo.
-2. **Sprzątanie i zarządzanie — gotowe (`feat/worktrees-2`, baza `feat/worktrees-1`):** pola Cleanup,
+2. **Sprzątanie i zarządzanie — gotowe, draft PR #82 (`feat/worktrees-2`, baza `feat/worktrees-1`):** pola Cleanup,
    `ScanWorktrees`/`RemoveWorktree`/reveal, silnik w gatewayu, raport dry-run, audyt i trwałe ponawianie,
    ochrona tur i zmian, lista w Settings, status i akcje wątku, poprawiony układ kompozytora.
-3. **Status worktree w wątku — włączony do etapu 2:** zmiany/ahead/behind, „Open in …”, ręczne Remove.
-4. **Szyna i automaty:** opcja własnego worktree dla `spawn_thread`, botów i harmonogramów.
+3. **Szyna i automaty — gotowe (`feat/worktrees-3`, baza `feat/worktrees-2`):** własny worktree,
+   checkout albo dziedziczenie dla `spawn_thread`, botów i harmonogramów; domyślne ustawienia zakresu,
+   wykrywanie squash/rebase merge i potwierdzenie PR przez konektor GitHub. Oryginalny etap 3
+   (status wątku) wszedł do etapu 2, a oryginalny etap 4 jest dostarczany tutaj jako etap implementacji 3.
 5. **Połączone komputery i przeniesienia:** negocjowanie obsługi worktree na domu wątku, zdalne
    refy i tworzenie/użycie worktree; worktree na celu z wypchniętej gałęzi przy „Move to…”, inaczej notatka
    przekazania.
+
+Stos etapów 1–2: draft PR-y #74 i #82, stack #83. Numer 5 zachowuje oznaczenie z pierwotnego planu.
+Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogramu zachowuje pola ustawione przez API.
 
 ## Weryfikacja (etap 1)
 
@@ -274,3 +300,15 @@ Każdy etap to osobny PR w stosie (`feat/worktrees-N`), kompletny i działający
 - Kontrola w rzeczywistej przeglądarce: Settings i kompozytor w jasnym/ciemnym motywie, 1280 × 900
   i 390 × 844, dialog zarządzania wątku, ostrzeżenie przed usunięciem zmian lokalnych. Zrzuty lokalne:
   `~/.cache/canopy-worktrees-2/`. Bez testów UI.
+
+## Weryfikacja (etap 3)
+
+- `worktree-automation.test.ts`: gRPC gateway ↔ rzeczywisty WorkerHost, PostgreSQL i git; dziedziczenie
+  dziecka, jawny checkout/nowy worktree/domniemanie zakresu, replay wywołania, boty, harmonogramy,
+  zmiana ustawień przed wykonaniem, offline/reconnect, sprzątanie i odrzucenie cudzego projektu.
+- `worktree-merged.test.ts`: wielocommitowy squash, rebase/cherry-pick i częściowe scalenie;
+  status i bezpieczne sprzątanie po fetch.
+- `worktree-github.test.ts`: prawdziwy transport MCP do zaślepki GitHub, grant workera i właściciel,
+  closed bez merged, nieaktualny SHA i usunięcie po potwierdzeniu PR bez sekretów na workerze.
+- Brak zmian wizualnych UI w etapie 3, więc brak nowych zrzutów ekranu. Migracja `0068` aktualizuje triggery
+  miejsca wątku; test schematu sprawdza listę i idempotencję migracji.

@@ -1,4 +1,5 @@
 import type { Effect } from "effect";
+import type { ui } from "@canopy/contracts";
 import { AgentBusStore, GatewayStore, type ScheduleRow, type TurnRow } from "../store/index.ts";
 import type { FiredSchedule } from "../store/agent-bus.ts";
 import { nextCronRun } from "./cron.ts";
@@ -21,6 +22,7 @@ export interface SchedulerHost {
   changed(scheduleId: string): Promise<void>;
   eligibleWorkers(schedule: ScheduleRow): Promise<readonly string[]>;
   created(result: NonNullable<FiredSchedule["created"]>, prompt: string): Promise<void>;
+  prepareWorkspace?(request: ui.CreateThreadRequest, userId: string, sourceId: string): Promise<ui.CreateThreadRequest>;
 }
 
 const LEASE_SECONDS = 60;
@@ -115,7 +117,17 @@ export class Scheduler {
     const eligibleWorkerIds = schedule.target === "new_thread" ? await this.#host.eligibleWorkers(schedule) : [];
 
     const fired = await this.#host.run(
-      AgentBusStore.use((s) => s.fireSchedule({ schedule, input, run, nextRunAt, eligibleWorkerIds, now })),
+      AgentBusStore.use((s) =>
+        s.fireSchedule({
+          schedule,
+          input,
+          run,
+          nextRunAt,
+          eligibleWorkerIds,
+          now,
+          ...(this.#host.prepareWorkspace && { prepareWorkspace: this.#host.prepareWorkspace }),
+        }),
+      ),
     );
 
     if (fired.created) await this.#host.created(fired.created, schedule.prompt);

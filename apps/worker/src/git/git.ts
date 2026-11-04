@@ -43,14 +43,19 @@ export function gitMessage(stderr: string): string {
 }
 
 /** Runs git in `cwd`; a non-zero exit is a result (ok: false), a missing binary or a timeout is a GitError. */
-export async function git(cwd: string, args: readonly string[], timeoutMs = GIT_TIMEOUT_MS): Promise<GitResult> {
-  let proc: Bun.Subprocess<"ignore", "pipe", "pipe">;
+export async function git(
+  cwd: string,
+  args: readonly string[],
+  timeoutMs = GIT_TIMEOUT_MS,
+  input?: { text?: string; env?: Record<string, string> },
+): Promise<GitResult> {
+  let proc;
 
   try {
     proc = Bun.spawn(["git", ...args], {
       cwd,
-      env: { ...process.env, ...ENV },
-      stdin: "ignore",
+      env: { ...process.env, ...ENV, ...input?.env },
+      stdin: input?.text === undefined ? "ignore" : new TextEncoder().encode(input.text),
       stdout: "pipe",
       stderr: "pipe",
     });
