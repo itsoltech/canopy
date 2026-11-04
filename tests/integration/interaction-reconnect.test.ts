@@ -105,7 +105,16 @@ async function ask(threadId: string) {
 async function pending(threadId: string) {
   const state = await eventually(
     () => snapshot(threadId),
-    (s) => s.interactions.some((i) => i.status === "pending"),
+    // Snapshot queries can straddle the interaction commit: wait for its timeline item too.
+    (s) =>
+      s.interactions.some(
+        (interaction) =>
+          interaction.status === "pending" &&
+          s.items.some(
+            (i) =>
+              i.item?.content.case === "interactionPrompt" && i.item.content.value.requestId === interaction.requestId,
+          ),
+      ),
   );
 
   expect(state.interactions).toHaveLength(1);
